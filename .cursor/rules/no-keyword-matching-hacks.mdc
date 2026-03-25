@@ -25,4 +25,4 @@ if re.search(r"(焦虑|压力|崩溃)", user_input): return "crisis_mode"
 
 ## 参考文档
 
-- `next_gen_emogpt.md` — R3（时间抽象是一等能力）、R4（内部控制在 token 空间之上）
+- `docs/next_gen_emogpt.md` — R3（时间抽象是一等能力）、R4（内部控制在 token 空间之上）

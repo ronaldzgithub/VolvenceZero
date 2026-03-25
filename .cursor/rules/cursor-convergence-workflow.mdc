@@ -71,5 +71,5 @@ alwaysApply: false
 
 ## 参考文档
 
-- `next_gen_emogpt.md` — R15（迁移保持可解释性和可回滚）、R2（稳定基底 + 自适应控制器）、R8（快照优先、契约优先）
+- `docs/next_gen_emogpt.md` — R15（迁移保持可解释性和可回滚）、R2（稳定基底 + 自适应控制器）、R8（快照优先、契约优先）
 - `docs/prd.md` — 里程碑 M0-M6

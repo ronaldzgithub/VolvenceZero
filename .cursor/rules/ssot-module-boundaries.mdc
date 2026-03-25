@@ -79,5 +79,8 @@ return Snapshot(slot_name="my_module",
 
 ## 参考文档
 
-- `next_gen_emogpt.md` — R8（快照优先、契约优先）、R2（稳定基底 + 自适应控制器）
+- `docs/next_gen_emogpt.md` — R8（快照优先、契约优先）、R2（稳定基底 + 自适应控制器）
 - `docs/prd.md` — 5.5 契约式运行时、6.1 模块间通信总线
+- `docs/SYSTEM_DESIGN.md` — 2.1 分层原则、5 模块间通信机制（快照契约详细设计）
+- `docs/DATA_CONTRACT.md` — 快照 schema、Slot 注册表、依赖图、变更协议
+- `docs/specs/contract-runtime.md` — 契约式运行时 Spec

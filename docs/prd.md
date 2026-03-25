@@ -3,7 +3,7 @@
 > Status: draft
 > Version: 0.2
 > Last updated: 2026-03-25
-> Source: `next_gen_emogpt.md`（唯一设计源头）
+> Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
 
@@ -58,7 +58,7 @@
 
 ## 4. 系统需求
 
-> 以下 R1-R15 直接源自 `next_gen_emogpt.md`，是系统的目标状态需求。
+> 以下 R1-R15 直接源自 `docs/next_gen_emogpt.md`，是系统的目标状态需求。
 
 ### R1. 多时间尺度学习（必须）
 
@@ -546,5 +546,5 @@
 
 | 文档 | 用途 |
 |------|------|
-| `next_gen_emogpt.md` | **唯一设计源头**：系统需求 + NL/ETA 算法详设 |
+| `docs/next_gen_emogpt.md` | **唯一设计源头**：系统需求 + NL/ETA 算法详设 |
 | `docs/specs/00_INDEX.md` | 分层知识入口总索引 |

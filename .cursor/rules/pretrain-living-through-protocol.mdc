@@ -57,4 +57,4 @@ alwaysApply: false
 
 ## 参考文档
 
-- `next_gen_emogpt.md` — R1-R3/R5/R6/R13 + 附录 A（NL 算法）、附录 B.1/B.6（时间抽象涌现、SSL-RL 循环）、附录 C（NL×ETA 结合）
+- `docs/next_gen_emogpt.md` — R1-R3/R5/R6/R13 + 附录 A（NL 算法）、附录 B.1/B.6（时间抽象涌现、SSL-RL 循环）、附录 C（NL×ETA 结合）

@@ -67,5 +67,5 @@ explanation: |
 
 ## 参考文档
 
-- `next_gen_emogpt.md` — R14（持久体制身份）、R5（连续记忆谱）
+- `docs/next_gen_emogpt.md` — R14（持久体制身份）、R5（连续记忆谱）
 - `no-keyword-matching-hacks.mdc` — 场景检测禁止关键词匹配
