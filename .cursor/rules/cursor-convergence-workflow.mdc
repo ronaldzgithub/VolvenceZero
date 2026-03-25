@@ -1,0 +1,75 @@
+---
+description: Convergence-packet workflow for large architecture implementation — use when making multi-file architectural changes or refactoring module boundaries. 对应 R15（迁移保持可解释性和可回滚）
+alwaysApply: false
+---
+
+# Cursor 收敛式实施工作流
+
+实现大型架构改动时，按**收敛包**推进。每个收敛包必须是可解释、可回滚的有界变更（R15）。
+
+## 收敛包定义
+
+- 一个收敛包只解决一个 owner
+- 一个收敛包只冻结一个正式快照契约
+- 一个收敛包只切一个主要 consumer
+- 单包优先控制在 3-8 个关键文件
+
+## 默认顺序
+
+- 如果运行时契约不稳，先做通信总线 / 模块基类
+- 然后按能力域依赖关系推进（参见 `docs/prd.md` 里程碑 M0-M6）
+- **控制器层变更**（metacontroller、Internal RL、CMS 自适应层）单独成包
+- **CMS 多频率层变更**（不同更新频率的层）独立于基底模型变更
+- 高 ripple 的共享契约单独成包，放后面
+
+## 迁移原则（R15）
+
+每个新自适应层的引入必须满足：
+- **明确的所有者**：谁拥有这个层的参数和状态
+- **可检查的公共交换**：每个快照保持可检查
+- **命名退出条件**：新旧学习路径都有明确的退出标准
+- **可逆部署**：rollout 必须可回滚
+- **评估先行**：widening scope 前必须产出评估证据
+
+系统通过有界包演进，不通过一次性替换整个架构。
+
+## 基底与控制器层分离（R2）
+
+收敛包设计必须区分：
+- **基底层变更**（基础模型相关）：影响大、频率低、需要离线验证
+- **控制器层变更**（metacontroller、路由策略、CMS 自适应层）：影响可控、频率较高、可在线验证
+- 两类变更不混在同一个收敛包中
+
+## Agent 工作法
+
+- 先用 plan mode 把任务缩成单个收敛包
+- 先跑 2-3 个 readonly agents：owner 边界、contract/consumer、migration 风险
+- 单次只允许一个 write agent 改一条快照链
+- owner/publisher 与 consumer/cleanup 分开做
+
+## 禁止
+
+- 不要一次改整条主链路
+- 不要同时发明新 shape、接所有线、删所有 fallback
+- 不要把共享契约变更和多个模块行为变更绑在同一次实现里
+- 不要新增第二个 owner
+- 不要把基底层和控制器层变更混在一个包里
+
+## Spec-sync gate
+
+如果改动涉及职责边界、快照 shape、共享契约、owner 转移，必须同步更新对应 `docs/specs/*.md`。
+
+## Done 检查
+
+- owner 唯一
+- 契约成为唯一正式交换层
+- consumer 改成快照优先
+- legacy 路径被隔离、标记，或删除
+- spec 已同步
+- 新自适应层有明确的退出条件和回滚方案
+- 评估证据已产出
+
+## 参考文档
+
+- `next_gen_emogpt.md` — R15（迁移保持可解释性和可回滚）、R2（稳定基底 + 自适应控制器）、R8（快照优先、契约优先）
+- `docs/prd.md` — 里程碑 M0-M6

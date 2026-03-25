@@ -1,0 +1,46 @@
+---
+description: LLM prompt 必须集中管理，禁止内联大段 prompt。LLM 是表达层（R4），不替代内部控制和 RL 信号
+alwaysApply: false
+---
+
+# LLM 调用必须集中管理
+
+所有 LLM prompt 通过集中的模板管理器加载渲染，模板存放在专门的 prompts 目录下，schema 存放在专门的 schemas 目录下。
+
+## 设计定位（R4）
+
+LLM 在系统中是**表达层**，负责将内部决策状态转化为自然语言输出。LLM 不是控制层——不要用 prompt 技巧替代：
+- 内部控制空间的策略决策（应由 metacontroller / 控制器代码 z_t 驱动）
+- RL 信号和信用分配（应由信用分配机制处理）
+- 长期策略学习（应在控制器代码空间进行，不在 prompt 层）
+
+LLM prompt 服务于两个场景：
+- **快速表达**（`online-fast`）：将决策快照渲染为用户可见的回复
+- **慢反思**（`background-slow`）：深度反思提取（使用后台优先级）
+
+## 核心规则
+
+1. **禁止在代码里内联大段 prompt**。模板存专门目录下，通过模板管理器渲染。
+2. **JSON Schema 存专门目录下**，代码中加载读取，不内联 dict。
+
+## 禁止
+
+```python
+# ❌ 内联大段 prompt
+system_prompt = """你是一个情感助手..."""
+
+# ❌ 内联 schema dict
+schema = {"type": "object", "properties": {...}}
+
+# ❌ 用 prompt 技巧替代内部控制逻辑
+system_prompt = "当用户焦虑时，你应该先安抚再解决问题"  # 应由策略路由决定
+```
+
+## 例外
+
+- **5 行以内短指令**（anti-loop guard、单句 hint）可内联
+- **测试代码** 中的 mock prompt 不受约束
+
+## 参考文档
+
+- `next_gen_emogpt.md` — R4（内部控制在 token 空间之上）

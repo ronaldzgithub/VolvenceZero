@@ -1,0 +1,40 @@
+---
+description: Avoid swallowing errors (no try/except pass) and avoid overusing hasattr/getattr guards that hide bugs. 契约违反必须 fail loudly（R8）
+alwaysApply: true
+---
+
+# 禁止吞错误 / 滥用 hasattr
+
+系统采用契约优先设计（R8）：每个模块有唯一所有者，跨模块交换通过公共快照进行。契约违反必须 fail loudly，不能被静默吞掉。
+
+- **禁止** `hasattr()`/`getattr(..., default)` 作为宽泛防御（隐藏 schema 不匹配和拼写错误）
+- **禁止** `try/except` + `pass`/空处理/静默回退
+
+## 禁止 vs 正确
+
+```python
+# ❌
+if hasattr(obj, "foo"): use(obj.foo)
+try: do_work()
+except Exception: pass
+
+# ✅ 直接访问，合约违反时 fail loudly
+foo = obj.foo
+use(foo)
+
+# ✅ 可选行为要显式
+foo = getattr(obj, "foo", None)
+if foo is None: return default_result()
+```
+
+捕获**具体异常**（AttributeError/KeyError/FileNotFoundError），带上下文 re-raise 或返回文档化的回退。禁止 bare `except:` 和 `except Exception` 除非 re-raise。
+
+ruff 零容忍 S110/S112/E722。`make lint` 检查。
+
+## 与系统设计的关系
+
+R8 要求运行时控制器可消费基底状态，但不能静默成为第二所有者。吞掉错误是成为"隐式第二所有者"的常见路径——当快照格式变更时，静默回退会掩盖契约破裂，导致系统行为不可追踪。
+
+## 参考文档
+
+- `next_gen_emogpt.md` — R8（快照优先、契约优先）

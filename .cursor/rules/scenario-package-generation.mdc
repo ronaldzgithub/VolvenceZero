@@ -1,0 +1,71 @@
+---
+description: Scenario Package 生成规则：当用户要求生成场景包时，按此规则生成。场景体制对应 R14（持久体制身份），检测走语义方法
+alwaysApply: false
+---
+
+# Scenario Package 生成规则
+
+当用户说"生成一个场景包"或"generate a scenario package for X"时，按此规则执行。
+
+## 设计定位
+
+场景包是系统认知 Regime（R14）的具体实例化。每个场景类型不仅是 prompt 标签，而是可记忆、可选择、可训练的持久身份。场景检测必须使用语义级方法（R3/R4），不使用关键词匹配。
+
+## 必须生成的核心文件
+
+### 1. manifest.yaml（必须）
+
+```yaml
+name: {package_name}          # 必须匹配 ^[a-z][a-z0-9_]*$
+version: "1.0"
+description: "{中文描述，至少10字}"
+domain: {SOCIAL|TASK|SAFETY|TOOLING|CREATIVE|META}
+author: "{作者}"
+
+components:
+  ssot_fragment: ssot_fragment.json    # 必须
+  scenes: scenes.yaml                   # 可选
+  test_suite: test_suite.yaml           # 必须
+
+explanation: |
+  详细解释此场景包的设计逻辑，至少 200 字。
+  必须涵盖：
+  1. 路径设计逻辑
+  2. 弧线设计逻辑
+  3. 场景检测逻辑（如何通过语义方法自动识别用户意图？）
+  4. 与核心系统的集成点
+  5. 体制身份设计（此场景对应什么交互体制？如何与 R14 持久体制身份对齐？）
+```
+
+### 2. ssot_fragment.json（必须）
+
+包含 `paths` 和 `arc_specs`。
+
+**关键约束**：
+- 每条 path 必须被至少一个 arc_spec 引用（无孤儿路径）
+- arc_specs 的 phases.phase_order 必须从 0 开始递增
+
+### 3. scenes.yaml（可选但推荐）
+
+场景类型对应 R14（社交和认知体制需要持久身份）。
+
+**注意**：场景检测必须使用语义级方法（嵌入向量相似度、LLM 结构化输出、分类模型），不使用关键词匹配（参见 `no-keyword-matching-hacks.mdc`）。
+
+### 4. test_suite.yaml（必须）
+
+**数量要求**：
+- routing_tests >= 6（含至少 1 个 negative case）
+- llm_evaluation.semantic_coherence >= 3
+
+## 生成后自检清单
+
+1. `manifest.name` 匹配 `^[a-z][a-z0-9_]*$`
+2. `ssot_fragment.json` 是合法 JSON
+3. 每条 path 都被至少一个 arc sub_goal 引用
+4. **场景检测使用语义方法**，不使用关键词匹配
+5. scene_types 对应明确的交互体制身份（R14）
+
+## 参考文档
+
+- `next_gen_emogpt.md` — R14（持久体制身份）、R5（连续记忆谱）
+- `no-keyword-matching-hacks.mdc` — 场景检测禁止关键词匹配

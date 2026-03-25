@@ -1,0 +1,76 @@
+---
+description: Upload Live app 界面文本必须使用 i18n 多语言化
+globs: UploadLive/**/*.{tsx,jsx,ts,js}
+alwaysApply: false
+---
+
+# Upload Live 多语言化规范
+
+所有界面上显示给用户的文本**必须**使用现有的 i18n 结构，禁止硬编码字符串。
+
+## 使用方法
+
+```tsx
+import { useTranslation } from '../i18n/useTranslation';
+
+const MyComponent = () => {
+  const { t, language } = useTranslation();
+  
+  return (
+    <Text>{t('common.confirm')}</Text>    // ✅ 正确
+    <Text>确认</Text>                      // ❌ 禁止硬编码
+  );
+};
+```
+
+## 添加新翻译键
+
+1. 在 `UploadLive/src/i18n/translations.js` 中添加翻译
+2. **必须同时添加所有 10 种语言**：zh, en, ja, es, ar, de, fr, ko, id, th
+3. 按现有分类结构放置（common, dashboard, chat, calibration, archive, insight, dna）
+
+```javascript
+// 示例：添加新的翻译键
+zh: {
+  common: {
+    newKey: '新文本',
+  },
+},
+en: {
+  common: {
+    newKey: 'New text',
+  },
+},
+// ... 其他 8 种语言
+```
+
+## 带参数的翻译
+
+使用 `{placeholder}` 语法，在代码中替换：
+
+```tsx
+// translations.js
+autoSleepHint: '预计 {minutes} 分钟后自动休眠',
+
+// 组件中
+t('dashboard.autoSleepHint').replace('{minutes}', remainingMinutes)
+```
+
+## 禁止的做法
+
+```tsx
+// ❌ 硬编码中文
+<Text>确认</Text>
+
+// ❌ 硬编码英文
+<Text>Confirm</Text>
+
+// ❌ 条件判断语言后硬编码
+{language === 'zh' ? '确认' : 'Confirm'}
+```
+
+## 翻译键命名规范
+
+- 使用 camelCase：`greetingMorning`, `inputPlaceholder`
+- 按功能分组：`common.*`, `chat.*`, `dashboard.*`
+- 描述性命名：`errorSendFailed` 而非 `error1`
