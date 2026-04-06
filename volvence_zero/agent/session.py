@@ -20,7 +20,12 @@ from volvence_zero.substrate import (
     SubstrateAdapter,
     build_training_trace,
 )
-from volvence_zero.temporal import TemporalAbstractionSnapshot, TemporalPolicy
+from volvence_zero.temporal import (
+    LearnedLiteTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalAbstractionSnapshot,
+    TemporalPolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,7 @@ class AgentTurnResult:
     acceptance_issues: tuple[str, ...]
     active_regime: str | None
     active_abstract_action: str | None
+    metacontroller_state: MetacontrollerRuntimeState | None
     evaluation_alerts: tuple[str, ...]
     response: AgentResponse
     event_count: int
@@ -57,7 +63,7 @@ class AgentSessionRunner:
         self._config = config or FinalRolloutConfig()
         self._memory_store = memory_store or MemoryStore()
         self._reflection_mode = reflection_mode
-        self._temporal_policy = temporal_policy
+        self._temporal_policy = temporal_policy or LearnedLiteTemporalPolicy()
         self._credit_proposals = credit_proposals
         self._response_synthesizer = response_synthesizer or ResponseSynthesizer()
         self._turn_index = 0
@@ -112,6 +118,7 @@ class AgentSessionRunner:
             active_regime = regime_snapshot.value.active_regime.regime_id
 
         active_abstract_action = None
+        metacontroller_state = integration_result.temporal_runtime_state
         temporal_snapshot = integration_result.active_snapshots.get(
             "temporal_abstraction"
         ) or integration_result.shadow_snapshots.get("temporal_abstraction")
@@ -141,6 +148,7 @@ class AgentSessionRunner:
             acceptance_issues=integration_result.acceptance_report.issues,
             active_regime=active_regime,
             active_abstract_action=active_abstract_action,
+            metacontroller_state=metacontroller_state,
             evaluation_alerts=evaluation_alerts,
             response=response,
             event_count=integration_result.event_count,

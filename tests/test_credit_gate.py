@@ -7,6 +7,8 @@ from volvence_zero.credit import (
     GateDecision,
     ModificationGate,
     ModificationProposal,
+    derive_abstract_action_credit_records,
+    extend_credit_snapshot,
     evaluate_gate,
     has_blocking_writeback,
 )
@@ -19,6 +21,7 @@ from volvence_zero.substrate import (
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
 )
+from volvence_zero.temporal import LearnedLiteTemporalPolicy, TemporalModule
 
 
 def test_gate_blocks_online_modification_when_high_alert_present():
@@ -184,3 +187,48 @@ def test_has_blocking_writeback_detects_blocked_targets():
     ).value
 
     assert has_blocking_writeback(credit_snapshot, target_prefix="memory")
+
+
+def test_credit_snapshot_can_be_extended_with_abstract_action_credit():
+    dual_track_snapshot = asyncio.run(
+        DualTrackModule(wiring_level=WiringLevel.ACTIVE).process_standalone(world_entries=(), self_entries=())
+    ).value
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s2",
+            wave_id="w2",
+            timestamp_ms=50,
+        )
+    ).value
+    temporal_snapshot = asyncio.run(
+        TemporalModule(policy=LearnedLiteTemporalPolicy(), wiring_level=WiringLevel.ACTIVE).process_standalone(
+            substrate_snapshot=asyncio.run(
+                SubstrateModule(
+                    adapter=FeatureSurfaceSubstrateAdapter(
+                        model_id="temporal-credit-model",
+                        feature_surface=(FeatureSignal(name="credit_signal", values=(0.5,), source="adapter"),),
+                    ),
+                    wiring_level=WiringLevel.ACTIVE,
+                ).process_standalone()
+            ).value
+        )
+    ).value
+    base_snapshot = asyncio.run(
+        CreditModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=51,
+        )
+    ).value
+
+    extended = extend_credit_snapshot(
+        credit_snapshot=base_snapshot,
+        extra_records=derive_abstract_action_credit_records(
+            temporal_snapshot=temporal_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=52,
+        ),
+    )
+
+    assert any(record.level == "abstract_action" for record in extended.recent_credits)

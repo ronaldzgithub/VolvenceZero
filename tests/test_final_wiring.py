@@ -34,6 +34,8 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "credit" in result.active_snapshots
     assert "reflection" in result.shadow_snapshots
     assert "temporal_abstraction" in result.shadow_snapshots
+    assert result.temporal_runtime_state is not None
+    assert result.temporal_runtime_state.mode == "learned-lite"
 
 
 def test_final_wiring_honors_kill_switches():

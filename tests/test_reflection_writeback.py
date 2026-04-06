@@ -6,6 +6,7 @@ from volvence_zero.credit import CreditModule, ModificationGate, ModificationPro
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationModule
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
+from volvence_zero.regime import RegimeModule
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
@@ -139,18 +140,21 @@ def test_reflection_module_runs_in_shadow_chain():
 
 def test_reflection_apply_path_supports_checkpoint_and_rollback():
     store = MemoryStore()
+    regime = RegimeModule(wiring_level=WiringLevel.ACTIVE)
     initial_snapshot = asyncio.run(
         MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
             user_text="remember this durable insight",
             timestamp_ms=40,
         )
     ).value
+    regime_snapshot = asyncio.run(regime.process_standalone()).value
     reflection_snapshot = asyncio.run(
         ReflectionModule(
             engine=ReflectionEngine(writeback_mode=WritebackMode.APPLY),
             wiring_level=WiringLevel.ACTIVE,
         ).process_standalone(
             memory_snapshot=initial_snapshot,
+            regime_snapshot=regime_snapshot,
             timestamp_ms=41,
         )
     ).value
@@ -159,12 +163,13 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
         memory_store=store,
         reflection_snapshot=reflection_snapshot,
         credit_snapshot=None,
+        regime_module=regime,
         checkpoint_id="rollback-checkpoint",
     )
 
     assert writeback.applied_operations
     assert writeback.checkpoint is not None
 
-    engine.rollback(memory_store=store, checkpoint=writeback.checkpoint)
+    engine.rollback(memory_store=store, checkpoint=writeback.checkpoint, regime_module=regime)
     restored_snapshot = store.snapshot(retrieved_entries=())
     assert restored_snapshot.description.startswith("Memory store")

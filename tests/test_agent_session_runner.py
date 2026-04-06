@@ -33,6 +33,8 @@ def test_agent_session_runner_exposes_temporal_and_regime_views():
 
     assert result.active_regime is not None
     assert result.active_abstract_action is not None
+    assert result.metacontroller_state is not None
+    assert result.metacontroller_state.mode == "learned-lite"
     assert isinstance(result.evaluation_alerts, tuple)
     assert result.response.regime_id == result.active_regime
     assert result.response.abstract_action == result.active_abstract_action

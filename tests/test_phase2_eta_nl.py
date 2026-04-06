@@ -34,10 +34,64 @@ def test_internal_rl_sandbox_emits_abstract_action_credit():
     assert credits[0].level == "abstract_action"
 
 
+def test_internal_rl_sandbox_runs_dual_track_rollout():
+    trace = build_training_trace(trace_id="dual-track", source_text="plan carefully and stay warm")
+    sandbox = InternalRLSandbox()
+    dual_rollout = sandbox.rollout_dual_track(
+        rollout_id="rollout-2",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+    )
+
+    assert dual_rollout.task_rollout.track.value == "world"
+    assert dual_rollout.relationship_rollout.track.value == "self"
+    assert dual_rollout.task_rollout.transitions
+    assert dual_rollout.relationship_rollout.transitions
+
+
+def test_internal_rl_sandbox_supports_checkpoint_and_optimization_report():
+    trace = build_training_trace(trace_id="opt-trace", source_text="balance task and relationship")
+    sandbox = InternalRLSandbox()
+    initial_temporal_params = sandbox.policy.export_parameters()
+    checkpoint = sandbox.create_checkpoint(checkpoint_id="policy-1")
+    checkpoint_temporal_params = sandbox.policy.export_parameters()
+    dual_rollout = sandbox.rollout_dual_track(
+        rollout_id="rollout-3",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+    )
+    report = sandbox.optimize(dual_rollout)
+
+    assert report.description
+    assert report.task_report.parameter_summary
+    assert report.relationship_report.parameter_summary
+    assert report.task_report.clip_fraction >= 0.0
+    assert report.relationship_report.kl_penalty >= 0.0
+    assert sandbox.policy.export_parameters() != initial_temporal_params
+
+    sandbox.restore_checkpoint(checkpoint)
+    restored = sandbox.causal_policy.export_parameters()
+    assert restored[0].update_step == checkpoint.parameters_by_track[0].update_step
+    assert sandbox.policy.export_parameters() == checkpoint_temporal_params
+
+
 def test_eta_nl_joint_loop_runs_minimal_cycle():
     loop = ETANLJointLoop()
     trace = build_training_trace(trace_id="joint-trace", source_text="repair tension then continue helpfully")
     report = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace))
 
     assert report.acceptance_passed is True
+    assert report.policy_objective != 0.0
+    assert report.task_reward != 0.0
+    assert report.relationship_reward != 0.0
+    assert report.applied_operations
     assert report.cms_description
+
+
+def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
+    loop = ETANLJointLoop()
+    loop._previous_total_reward = 999.0
+    trace = build_training_trace(trace_id="rollback-trace", source_text="brief weak signal")
+    report = asyncio.run(loop.run_cycle(cycle_index=2, trace=trace))
+
+    assert report.policy_rollback_applied is True
+    assert report.policy_objective != 0.0
+    assert "policy-rollback" in report.applied_operations

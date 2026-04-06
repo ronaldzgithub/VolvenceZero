@@ -7,7 +7,9 @@ from volvence_zero.credit.gate import (
     ModificationGate,
     ModificationProposal,
     SelfModificationRecord,
+    derive_abstract_action_credit_records,
     derive_credit_records,
+    extend_credit_snapshot,
     evaluate_gate,
     has_blocking_writeback,
 )
@@ -21,7 +23,9 @@ __all__ = [
     "ModificationGate",
     "ModificationProposal",
     "SelfModificationRecord",
+    "derive_abstract_action_credit_records",
     "derive_credit_records",
+    "extend_credit_snapshot",
     "evaluate_gate",
     "has_blocking_writeback",
 ]

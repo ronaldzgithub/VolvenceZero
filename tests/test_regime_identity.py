@@ -122,3 +122,22 @@ def test_regime_module_runs_in_shadow_chain():
     regime_snapshot = shadow_snapshots["regime"]
     assert regime_snapshot.value.active_regime.regime_id
     assert regime_snapshot.value.candidate_regimes
+
+
+def test_regime_module_applies_policy_consolidation_and_restores_checkpoint():
+    module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
+    initial = asyncio.run(module.process_standalone()).value
+    checkpoint = module.create_checkpoint(checkpoint_id="regime-1")
+
+    applied = module.apply_policy_consolidation(
+        strategy_updates=("increase_self_track_priority",),
+        regime_effectiveness_updates=((initial.active_regime.regime_id, 0.9),),
+    )
+    updated = asyncio.run(module.process_standalone()).value
+
+    assert applied
+    assert updated.active_regime.historical_effectiveness >= initial.active_regime.historical_effectiveness
+
+    module.restore_checkpoint(checkpoint)
+    restored = asyncio.run(module.process_standalone()).value
+    assert restored.active_regime.historical_effectiveness <= updated.active_regime.historical_effectiveness

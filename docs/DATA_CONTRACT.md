@@ -294,6 +294,7 @@ class CreditRecord:
 class SelfModificationRecord:
     target: str                         # 修改目标描述
     gate: ModificationGate              # 门控级别
+    decision: GateDecision              # allow | block
     old_value_hash: str                 # 修改前值的哈希
     new_value_hash: str                 # 修改后值的哈希
     justification: str                  # 修改理由
@@ -311,8 +312,9 @@ class CreditSnapshot:
 **当前实现口径**：
 
 - P06 先落地结构化信用记录和 gate audit，不执行真正的在线自修改
-- `recent_modifications` 当前记录 allow / block 结果，作为审计轨迹和后续 reflection 输入
+- `recent_modifications` 当前记录 allow / block decision，作为审计轨迹和后续 reflection 输入
 - `cumulative_credit_by_level` 先提供最小聚合，后续再扩展到更细粒度的长期统计
+- 第二阶段允许在 owner 内部基于 temporal / rollout 结果扩展出 `abstract_action` 级 credit，而不改变 `CreditSnapshot` shape
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
@@ -345,6 +347,7 @@ class RegimeSnapshot:
 
 - P04 阶段已经提供结构化 regime identity 和 candidate scoring
 - 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
+- 第二阶段补充 regime owner 的 bounded policy apply：strategy priors 与 historical effectiveness 可 checkpoint / rollback
 - 该评分基线是过渡实现；后续可由更强的 temporal / learned policy 替换
 
 **消费者**：编排器、时间抽象层、记忆系统、评估体系
@@ -412,8 +415,9 @@ class ReflectionSnapshot:
 
 **当前实现口径**：
 
-- P07 默认以 `proposal-only` 运行，不直接修改 memory / credit / temporal owner 状态
-- `memory_consolidation` 和 `policy_consolidation` 先表达提案和审计结果
+- P07 默认以 `proposal-only` 运行
+- 第二阶段补充 bounded apply path，可对 memory owner 和 regime owner 执行有限写回并保留 checkpoint
+- `memory_consolidation` 和 `policy_consolidation` 仍先表达提案和审计结果，再由 gate / rollout 决定是否 apply
 - `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
 
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层

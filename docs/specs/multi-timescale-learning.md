@@ -78,6 +78,8 @@ rare-heavy (定期离线):
 当前实现口径：
 
 - P08 先以 heuristic temporal policy 提供 online-fast 的最小状态发布
+- 第二阶段 joint loop 已补充 dual-track internal rollout，并在 cycle 结束后执行 abstract-action credit enrichment + bounded writeback
+- 当前 joint loop 已支持 policy checkpoint/rollback：当 reward 明显退化、评估出现高等级告警，或 trajectory-level policy objective / KL 偏移超阈值时回滚 internal RL policy
 - rare-heavy 级的完整 Internal RL / substrate 干预仍属于后续增强，不在当前实现范围内
 
 ## 与其他能力域的关系

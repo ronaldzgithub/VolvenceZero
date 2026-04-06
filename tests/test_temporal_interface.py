@@ -111,3 +111,30 @@ def test_learned_lite_policy_fits_from_trace_dataset_and_emits_controller_step()
 
     assert snapshot.value.controller_params_hash
     assert snapshot.value.active_abstract_action.endswith("learned-lite")
+
+
+def test_learned_lite_policy_can_align_with_internal_rl_parameters():
+    policy = LearnedLiteTemporalPolicy()
+    initial = policy.export_parameters()
+
+    policy.align_with_internal_rl(
+        world_weights=(0.8, 0.1, 0.1),
+        self_weights=(0.1, 0.8, 0.1),
+        shared_weights=(0.4, 0.4, 0.2),
+        persistence=0.7,
+    )
+    aligned = policy.export_parameters()
+
+    assert aligned != initial
+    assert aligned.switch_bias > 0.0
+
+
+def test_learned_lite_policy_exports_runtime_visible_metacontroller_state():
+    policy = LearnedLiteTemporalPolicy()
+
+    runtime_state = policy.export_runtime_state()
+
+    assert runtime_state.mode == "learned-lite"
+    assert runtime_state.temporal_parameters.switch_bias >= 0.0
+    assert len(runtime_state.track_parameters) == 3
+    assert len(runtime_state.update_steps) == 3

@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -93,7 +93,11 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 **当前实现口径**：
 
 - P08 先固定接口和状态 contract，不承诺完整 ETA 训练闭环
-- 当前实现支持 `placeholder` / `heuristic` 两类 temporal policy
+- 当前实现已支持 `placeholder` / `heuristic` / `learned-lite` 三类 temporal policy
+- `learned-lite` 当前仍是最小可训练控制器，不等同于 full ETA metacontroller 或因果 `π(z_t | e_{1:t})`
+- 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前仍是训练沙箱，不是正式 runtime owner
+- `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store：internal RL 更新和 checkpoint/restore 会直接影响 temporal controller 的参数视图
+- 当前 `TemporalModule` 默认以 `learned-lite` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema
 - 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
@@ -111,4 +115,5 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-04-06: 补充 learned-lite temporal policy 的当前实现口径，并记录 runtime-visible metacontroller owner state
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

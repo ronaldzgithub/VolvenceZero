@@ -238,11 +238,16 @@ class ReflectionEngine:
                     )
                 )
         if credit_snapshot is not None:
+            decay_candidates = list(memory_snapshot.retrieved_entries)
             for record in credit_snapshot.recent_credits[:3]:
                 if record.credit_value > 0.6:
                     beliefs_updated.append(f"reinforce:{record.track.value}:{record.source_event}")
                 if record.credit_value < 0.2:
-                    decayed_entries.append(record.record_id)
+                    for candidate in decay_candidates:
+                        if candidate.track is record.track or record.track is Track.SHARED:
+                            decayed_entries.append(candidate.entry_id)
+                            decay_candidates.remove(candidate)
+                            break
         return MemoryConsolidation(
             new_durable_entries=tuple(new_durable_entries),
             promoted_entries=tuple(promoted_entries),

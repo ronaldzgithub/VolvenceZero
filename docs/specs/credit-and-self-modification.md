@@ -65,9 +65,9 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 **产出的输出**：
 - `credit` 快照：`CreditSnapshot`
   - 近期信用记录（语义化，含上下文）
-  - 近期自修改记录
+  - 近期自修改记录（含 allow / block decision）
   - 各级别累计信用
-  - P06 阶段先包含 gate audit，不要求真正执行自修改
+  - 可被 owner 内部扩展为 abstract-action 级信用，而不改变公共 snapshot shape
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.5 节
 
@@ -82,11 +82,15 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 | 被依赖 | 连续记忆（5.3）| 信用记录作为反思输入 |
 | 协作 | 多时间尺度学习（5.1）| 门控规则对齐时间尺度 |
 
-P07 对接口径：
+当前实现口径：
 
-- `credit` 快照中的 recent credit / modification audit 作为 reflection 输入
-- reflection 默认只消费这些记录，不直接触发真实自修改执行
+- P06 的 turn / session credit 已稳定
+- 第二阶段补充了 abstract-action credit 的 owner-side 扩展函数，用于 joint loop / rollout 后处理
+- 当前 abstract-action credit 已可按 `world` / `self` 双轨记录，不再只剩 shared credit
+- gate audit 已扩展为 `SelfModificationRecord.decision`
+- reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 
 ## 变更日志
 
+- 2026-04-06: 补充 abstract-action credit 的当前实现口径，以及 decision-aware gate audit
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

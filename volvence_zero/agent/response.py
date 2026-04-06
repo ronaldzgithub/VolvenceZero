@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.memory import MemorySnapshot
+from volvence_zero.regime import RegimeSnapshot
 from volvence_zero.runtime import Snapshot
+from volvence_zero.temporal import TemporalAbstractionSnapshot
 
 
 @dataclass(frozen=True)
@@ -33,20 +37,20 @@ class ResponseSynthesizer:
 
         regime_id = None
         regime_name = "current context"
-        if regime_snapshot is not None and hasattr(regime_snapshot.value, "active_regime"):
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
             regime_id = regime_snapshot.value.active_regime.regime_id
             regime_name = regime_snapshot.value.active_regime.name
 
         abstract_action = None
-        if temporal_snapshot is not None and hasattr(temporal_snapshot.value, "active_abstract_action"):
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
             abstract_action = temporal_snapshot.value.active_abstract_action
 
         alerts = ()
-        if evaluation_snapshot is not None and hasattr(evaluation_snapshot.value, "alerts"):
+        if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot):
             alerts = evaluation_snapshot.value.alerts
 
         memory_hint = ""
-        if memory_snapshot is not None and hasattr(memory_snapshot.value, "retrieved_entries"):
+        if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             entries = memory_snapshot.value.retrieved_entries
             if entries:
                 memory_hint = f" I am carrying forward {len(entries)} retrieved memory cues."

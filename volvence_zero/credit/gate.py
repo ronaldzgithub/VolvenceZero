@@ -127,6 +127,37 @@ def derive_credit_records(
     return tuple(records)
 
 
+def derive_abstract_action_credit_records(
+    *,
+    temporal_snapshot: TemporalAbstractionSnapshot,
+    dual_track_snapshot: DualTrackSnapshot,
+    evaluation_snapshot: EvaluationSnapshot,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    dominant_track = Track.SHARED
+    if dual_track_snapshot.world_track.tension_level > dual_track_snapshot.self_track.tension_level:
+        dominant_track = Track.WORLD
+    elif dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level:
+        dominant_track = Track.SELF
+    reward_signal = 1.0 - dual_track_snapshot.cross_track_tension
+    if evaluation_snapshot.turn_scores:
+        reward_signal = sum(score.value for score in evaluation_snapshot.turn_scores) / len(
+            evaluation_snapshot.turn_scores
+        )
+    reward_signal = _clamp(reward_signal + temporal_snapshot.controller_state.switch_gate * 0.1)
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="abstract_action",
+            track=dominant_track,
+            source_event=temporal_snapshot.active_abstract_action,
+            credit_value=reward_signal,
+            context=temporal_snapshot.description,
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
 def evaluate_gate(
     *,
     proposal: ModificationProposal,
@@ -149,6 +180,25 @@ def has_blocking_writeback(credit_snapshot: CreditSnapshot, *, target_prefix: st
             record for record in relevant_records if record.target.startswith(target_prefix)
         )
     return any(record.decision is GateDecision.BLOCK for record in relevant_records)
+
+
+def extend_credit_snapshot(
+    *,
+    credit_snapshot: CreditSnapshot,
+    extra_records: tuple[CreditRecord, ...],
+) -> CreditSnapshot:
+    cumulative: dict[str, float] = dict(credit_snapshot.cumulative_credit_by_level)
+    for record in extra_records:
+        cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
+    recent_credits = tuple((credit_snapshot.recent_credits + extra_records)[-20:])
+    return CreditSnapshot(
+        recent_credits=recent_credits,
+        recent_modifications=credit_snapshot.recent_modifications,
+        cumulative_credit_by_level=tuple(sorted(cumulative.items())),
+        description=(
+            f"{credit_snapshot.description} Extended with {len(extra_records)} abstract-action credits."
+        ),
+    )
 
 
 class CreditLedger:

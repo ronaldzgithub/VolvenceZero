@@ -17,7 +17,7 @@ from volvence_zero.reflection import (
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
-from volvence_zero.temporal import TemporalModule, TemporalPolicy
+from volvence_zero.temporal import MetacontrollerRuntimeState, TemporalModule, TemporalPolicy
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,7 @@ class FinalIntegrationResult:
     acceptance_report: FinalAcceptanceReport
     event_count: int
     writeback_result: WritebackResult | None
+    temporal_runtime_state: MetacontrollerRuntimeState | None
 
 
 def build_final_runtime_modules(
@@ -147,6 +148,8 @@ async def run_final_wiring_turn(
     )
     writeback_result: WritebackResult | None = None
     reflection_module = next((module for module in modules if isinstance(module, ReflectionModule)), None)
+    regime_module = next((module for module in modules if isinstance(module, RegimeModule)), None)
+    temporal_module = next((module for module in modules if isinstance(module, TemporalModule)), None)
     reflection_snapshot = active_snapshots.get("reflection")
     credit_snapshot = active_snapshots.get("credit")
     if (
@@ -159,6 +162,7 @@ async def run_final_wiring_turn(
             memory_store=memory_store,
             reflection_snapshot=reflection_snapshot.value,
             credit_snapshot=credit_snapshot.value if credit_snapshot is not None else None,
+            regime_module=regime_module,
             checkpoint_id=f"{session_id}:{wave_id}",
         )
     acceptance_report = build_acceptance_report(
@@ -173,6 +177,7 @@ async def run_final_wiring_turn(
         acceptance_report=acceptance_report,
         event_count=len(recorder.events),
         writeback_result=writeback_result,
+        temporal_runtime_state=temporal_module.export_runtime_state() if temporal_module is not None else None,
     )
 
 
