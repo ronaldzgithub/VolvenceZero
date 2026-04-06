@@ -8,6 +8,7 @@ from volvence_zero.credit import (
     ModificationGate,
     ModificationProposal,
     derive_abstract_action_credit_records,
+    derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
     has_blocking_writeback,
@@ -232,3 +233,17 @@ def test_credit_snapshot_can_be_extended_with_abstract_action_credit():
     )
 
     assert any(record.level == "abstract_action" for record in extended.recent_credits)
+
+
+def test_runtime_adaptation_audit_records_capture_rollback_evidence():
+    records = derive_runtime_adaptation_audit_records(
+        rollback_reasons=("reward-regression", "metacontroller-drift"),
+        metacontroller_state_description="Metacontroller runtime state mode=learned-lite.",
+        timestamp_ms=60,
+        rollback_applied=True,
+    )
+
+    assert len(records) == 1
+    assert records[0].decision is GateDecision.BLOCK
+    assert records[0].target == "metacontroller.runtime_adaptation"
+    assert "reward-regression" in records[0].justification

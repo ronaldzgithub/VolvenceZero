@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.credit import CreditModule, ModificationGate, ModificationProposal
+from volvence_zero.credit import (
+    CreditModule,
+    GateDecision,
+    ModificationGate,
+    ModificationProposal,
+    SelfModificationRecord,
+)
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationModule
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
@@ -173,3 +179,61 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
     engine.rollback(memory_store=store, checkpoint=writeback.checkpoint, regime_module=regime)
     restored_snapshot = store.snapshot(retrieved_entries=())
     assert restored_snapshot.description.startswith("Memory store")
+
+
+def test_reflection_consumes_metacontroller_gate_audit_evidence():
+    store = MemoryStore()
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="remember careful controller adjustments",
+            timestamp_ms=70,
+        )
+    ).value
+    dual_track_snapshot = asyncio.run(
+        DualTrackModule(wiring_level=WiringLevel.ACTIVE).process_standalone(world_entries=(), self_entries=())
+    ).value
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s2",
+            wave_id="w2",
+            timestamp_ms=71,
+        )
+    ).value
+    base_credit_snapshot = asyncio.run(
+        CreditModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=72,
+        )
+    ).value
+    credit_snapshot = type(base_credit_snapshot)(
+        recent_credits=base_credit_snapshot.recent_credits,
+        recent_modifications=base_credit_snapshot.recent_modifications
+        + (
+            SelfModificationRecord(
+                target="metacontroller.runtime_adaptation",
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.BLOCK,
+                old_value_hash="old",
+                new_value_hash="new",
+                justification="BLOCKED runtime metacontroller adaptation after drift",
+                timestamp_ms=73,
+                is_reversible=True,
+            ),
+        ),
+        cumulative_credit_by_level=base_credit_snapshot.cumulative_credit_by_level,
+        description=base_credit_snapshot.description,
+    )
+
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            credit_snapshot=credit_snapshot,
+            timestamp_ms=74,
+        )
+    ).value
+
+    assert "pause_metacontroller_writeback_after_runtime_guard" in reflection_snapshot.policy_consolidation.controller_updates
+    assert "respect_metacontroller_runtime_guard" in reflection_snapshot.lessons_extracted

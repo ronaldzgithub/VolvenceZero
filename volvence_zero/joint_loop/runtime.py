@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from volvence_zero.credit import (
     CreditModule,
     CreditSnapshot,
+    derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
 )
 from volvence_zero.dual_track import DualTrackModule
@@ -26,7 +27,11 @@ from volvence_zero.substrate import (
     TraceStep,
     TrainingTrace,
 )
-from volvence_zero.temporal import LearnedLiteTemporalPolicy, TemporalModule
+from volvence_zero.temporal import (
+    LearnedLiteTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalModule,
+)
 from volvence_zero.memory import MemoryModule
 from volvence_zero.substrate import SubstrateModule
 
@@ -39,9 +44,11 @@ class JointCycleReport:
     task_reward: float
     relationship_reward: float
     policy_rollback_applied: bool
+    rollback_reasons: tuple[str, ...]
     optimization_summary: str
     policy_objective: float
     applied_operations: tuple[str, ...]
+    metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
     description: str
 
@@ -55,6 +62,7 @@ class ETANLJointLoop:
         self._memory_store = MemoryStore(learned_core=CMSMemoryCore())
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
         self._previous_total_reward: float | None = None
+        self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
 
     @property
     def memory_store(self) -> MemoryStore:
@@ -96,6 +104,7 @@ class ETANLJointLoop:
             ),
             TemporalModule(policy=self._policy, wiring_level=WiringLevel.ACTIVE),
         ]
+        temporal_module = modules[-1]
         recorder = EventRecorder()
         active_snapshots = await propagate(
             modules,
@@ -114,16 +123,38 @@ class ETANLJointLoop:
             + dual_track_rollout.relationship_rollout.total_reward
         )
         evaluation_snapshot = active_snapshots["evaluation"].value
-        rollback_required = self._should_rollback(
+        pre_rollback_metacontroller_state = temporal_module.export_runtime_state()
+        rollback_reasons = self._rollback_reasons(
             total_reward=total_reward,
             evaluation_snapshot=evaluation_snapshot,
             optimization_report=optimization_report,
+            metacontroller_state=pre_rollback_metacontroller_state,
         )
+        rollback_required = bool(rollback_reasons)
         policy_rollback_applied = False
         if rollback_required:
             self._sandbox.restore_checkpoint(policy_checkpoint)
             policy_rollback_applied = True
-        reflection_snapshot = active_snapshots["reflection"].value
+        metacontroller_state = self._policy.export_runtime_state()
+        enriched_credit_snapshot = extend_credit_snapshot(
+            credit_snapshot=enriched_credit_snapshot,
+            extra_modifications=derive_runtime_adaptation_audit_records(
+                rollback_reasons=rollback_reasons,
+                metacontroller_state_description=(
+                    metacontroller_state.description if metacontroller_state is not None else None
+                ),
+                timestamp_ms=active_snapshots["credit"].timestamp_ms + 200,
+                rollback_applied=policy_rollback_applied,
+            ),
+        )
+        reflection_snapshot = ReflectionEngine(writeback_mode=WritebackMode.APPLY).reflect(
+            timestamp_ms=active_snapshots["reflection"].timestamp_ms + 1,
+            memory_snapshot=active_snapshots["memory"].value,
+            dual_track_snapshot=active_snapshots["dual_track"].value,
+            evaluation_snapshot=active_snapshots["evaluation"].value,
+            credit_snapshot=enriched_credit_snapshot,
+            regime_snapshot=active_snapshots["regime"].value,
+        )
         applied_operations = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
             memory_store=self._memory_store,
             reflection_snapshot=reflection_snapshot,
@@ -134,6 +165,7 @@ class ETANLJointLoop:
         if policy_rollback_applied:
             applied_operations = applied_operations + ("policy-rollback",)
         self._previous_total_reward = total_reward
+        self._previous_metacontroller_state = metacontroller_state
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
@@ -141,12 +173,14 @@ class ETANLJointLoop:
             task_reward=dual_track_rollout.task_rollout.total_reward,
             relationship_reward=dual_track_rollout.relationship_rollout.total_reward,
             policy_rollback_applied=policy_rollback_applied,
+            rollback_reasons=rollback_reasons,
             optimization_summary=optimization_report.description,
             policy_objective=(
                 optimization_report.task_report.surrogate_objective
                 + optimization_report.relationship_report.surrogate_objective
             ),
             applied_operations=applied_operations,
+            metacontroller_state=metacontroller_state,
             cms_description=self._memory_store.learned_core.snapshot().description
             if self._memory_store.learned_core is not None
             else "No CMS core attached.",
@@ -155,6 +189,8 @@ class ETANLJointLoop:
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
                 f"rollback={'on' if policy_rollback_applied else 'off'}, "
+                f"reasons={','.join(rollback_reasons) if rollback_reasons else 'none'}, "
+                f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
                 f"with {len(applied_operations)} bounded writeback operations."
             ),
         )
@@ -182,28 +218,62 @@ class ETANLJointLoop:
             ),
         )
 
-    def _should_rollback(
+    def _rollback_reasons(
         self,
         *,
         total_reward: float,
         evaluation_snapshot: EvaluationSnapshot,
         optimization_report: DualTrackOptimizationReport,
-    ) -> bool:
+        metacontroller_state: MetacontrollerRuntimeState | None,
+    ) -> tuple[str, ...]:
+        reasons: list[str] = []
         if any(alert.startswith("HIGH") or alert.startswith("CRITICAL") for alert in evaluation_snapshot.alerts):
-            return True
+            reasons.append("evaluation-alert")
         if (
             optimization_report.task_report.surrogate_objective < -0.1
             or optimization_report.relationship_report.surrogate_objective < -0.1
         ):
-            return True
+            reasons.append("negative-surrogate")
         if (
             optimization_report.task_report.kl_penalty > 0.4
             or optimization_report.relationship_report.kl_penalty > 0.4
         ):
-            return True
+            reasons.append("excessive-kl")
+        if self._metacontroller_drift_exceeds_limit(metacontroller_state):
+            reasons.append("metacontroller-drift")
         if self._previous_total_reward is None:
+            return tuple(reasons)
+        if total_reward + 0.25 < self._previous_total_reward:
+            reasons.append("reward-regression")
+        return tuple(reasons)
+
+    def _metacontroller_drift_exceeds_limit(
+        self,
+        metacontroller_state: MetacontrollerRuntimeState | None,
+    ) -> bool:
+        if metacontroller_state is None or self._previous_metacontroller_state is None:
             return False
-        return total_reward + 0.25 < self._previous_total_reward
+        current_temporal = metacontroller_state.temporal_parameters
+        previous_temporal = self._previous_metacontroller_state.temporal_parameters
+        temporal_shift = max(
+            abs(current_temporal.residual_weight - previous_temporal.residual_weight),
+            abs(current_temporal.memory_weight - previous_temporal.memory_weight),
+            abs(current_temporal.reflection_weight - previous_temporal.reflection_weight),
+            abs(current_temporal.switch_bias - previous_temporal.switch_bias),
+        )
+        persistence_shift = abs(
+            metacontroller_state.persistence - self._previous_metacontroller_state.persistence
+        )
+        current_tracks = dict(metacontroller_state.track_parameters)
+        previous_tracks = dict(self._previous_metacontroller_state.track_parameters)
+        track_shift = max(
+            max(
+                abs(current_value - previous_value)
+                for current_value, previous_value in zip(current_tracks[track], previous_tracks[track], strict=True)
+            )
+            for track in current_tracks
+        )
+        return max(temporal_shift, persistence_shift, track_shift) > 0.35
 
     def _snapshot_from_trace_step(self, step: TraceStep, trace: TrainingTrace) -> SubstrateSnapshot:
         return SubstrateSnapshot(

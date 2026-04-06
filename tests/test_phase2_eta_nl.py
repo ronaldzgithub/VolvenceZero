@@ -83,6 +83,9 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.task_reward != 0.0
     assert report.relationship_reward != 0.0
     assert report.applied_operations
+    assert report.metacontroller_state is not None
+    assert report.metacontroller_state.mode == "learned-lite"
+    assert report.rollback_reasons == ()
     assert report.cms_description
 
 
@@ -94,4 +97,5 @@ def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
 
     assert report.policy_rollback_applied is True
     assert report.policy_objective != 0.0
+    assert "reward-regression" in report.rollback_reasons
     assert "policy-rollback" in report.applied_operations

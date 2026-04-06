@@ -1,7 +1,7 @@
 # 多时间尺度学习框架 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R1, R2, R13
 
 ## 要解决的问题
@@ -80,6 +80,7 @@ rare-heavy (定期离线):
 - P08 先以 heuristic temporal policy 提供 online-fast 的最小状态发布
 - 第二阶段 joint loop 已补充 dual-track internal rollout，并在 cycle 结束后执行 abstract-action credit enrichment + bounded writeback
 - 当前 joint loop 已支持 policy checkpoint/rollback：当 reward 明显退化、评估出现高等级告警，或 trajectory-level policy objective / KL 偏移超阈值时回滚 internal RL policy
+- 当前 joint loop cycle report 已显式发布 metacontroller owner state 与 rollback reasons，使 online-fast controller 演化可被会话级闭环检查
 - rare-heavy 级的完整 Internal RL / substrate 干预仍属于后续增强，不在当前实现范围内
 
 ## 与其他能力域的关系
@@ -94,4 +95,5 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-04-06: 补充 joint loop 对 metacontroller owner state / rollback reasons 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 PRD 提取

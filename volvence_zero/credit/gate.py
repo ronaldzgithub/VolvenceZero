@@ -59,6 +59,18 @@ class ModificationProposal:
     is_reversible: bool = True
 
 
+@dataclass(frozen=True)
+class RuntimeAdaptationAudit:
+    target: str
+    gate: ModificationGate
+    decision: GateDecision
+    old_value_hash: str
+    new_value_hash: str
+    justification: str
+    timestamp_ms: int
+    is_reversible: bool = True
+
+
 def _clamp(value: float) -> float:
     return max(-1.0, min(1.0, value))
 
@@ -185,18 +197,50 @@ def has_blocking_writeback(credit_snapshot: CreditSnapshot, *, target_prefix: st
 def extend_credit_snapshot(
     *,
     credit_snapshot: CreditSnapshot,
-    extra_records: tuple[CreditRecord, ...],
+    extra_records: tuple[CreditRecord, ...] = (),
+    extra_modifications: tuple[SelfModificationRecord, ...] = (),
 ) -> CreditSnapshot:
     cumulative: dict[str, float] = dict(credit_snapshot.cumulative_credit_by_level)
     for record in extra_records:
         cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
     recent_credits = tuple((credit_snapshot.recent_credits + extra_records)[-20:])
+    recent_modifications = tuple((credit_snapshot.recent_modifications + extra_modifications)[-20:])
     return CreditSnapshot(
         recent_credits=recent_credits,
-        recent_modifications=credit_snapshot.recent_modifications,
+        recent_modifications=recent_modifications,
         cumulative_credit_by_level=tuple(sorted(cumulative.items())),
         description=(
-            f"{credit_snapshot.description} Extended with {len(extra_records)} abstract-action credits."
+            f"{credit_snapshot.description} Extended with {len(extra_records)} extra credits "
+            f"and {len(extra_modifications)} extra modification audits."
+        ),
+    )
+
+
+def derive_runtime_adaptation_audit_records(
+    *,
+    rollback_reasons: tuple[str, ...],
+    metacontroller_state_description: str | None,
+    timestamp_ms: int,
+    rollback_applied: bool,
+) -> tuple[SelfModificationRecord, ...]:
+    if not rollback_reasons and not rollback_applied:
+        return ()
+    joined_reasons = ", ".join(rollback_reasons) if rollback_reasons else "none"
+    state_description = metacontroller_state_description or "metacontroller state unavailable"
+    decision = GateDecision.BLOCK if rollback_applied else GateDecision.ALLOW
+    return (
+        SelfModificationRecord(
+            target="metacontroller.runtime_adaptation",
+            gate=ModificationGate.BACKGROUND,
+            decision=decision,
+            old_value_hash=f"reasons:{joined_reasons}",
+            new_value_hash=f"state:{state_description}",
+            justification=(
+                f"{'BLOCKED' if rollback_applied else 'ALLOWED'} runtime metacontroller adaptation; "
+                f"rollback_reasons={joined_reasons}; {state_description}"
+            ),
+            timestamp_ms=timestamp_ms,
+            is_reversible=True,
         ),
     )
 

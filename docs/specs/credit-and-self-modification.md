@@ -1,7 +1,7 @@
 # 信用分配与自修改 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R9, R10
 
 ## 要解决的问题
@@ -88,9 +88,10 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - 第二阶段补充了 abstract-action credit 的 owner-side 扩展函数，用于 joint loop / rollout 后处理
 - 当前 abstract-action credit 已可按 `world` / `self` 双轨记录，不再只剩 shared credit
 - gate audit 已扩展为 `SelfModificationRecord.decision`
+- joint loop 现在会把 metacontroller rollback / drift evidence 写入 owner-side modification audit，供 reflection / writeback 直接消费
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 
 ## 变更日志
 
-- 2026-04-06: 补充 abstract-action credit 的当前实现口径，以及 decision-aware gate audit
+- 2026-04-06: 补充 abstract-action credit、decision-aware gate audit，以及 metacontroller runtime adaptation audit
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

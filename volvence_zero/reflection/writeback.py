@@ -150,11 +150,17 @@ class ReflectionEngine:
         if credit_snapshot is not None and any(
             record.decision is GateDecision.BLOCK for record in credit_snapshot.recent_modifications
         ):
+            blocked_targets = tuple(
+                record.target for record in credit_snapshot.recent_modifications if record.decision is GateDecision.BLOCK
+            )
             return WritebackResult(
                 applied_operations=(),
                 blocked_operations=("credit-gate-block",),
                 checkpoint=None,
-                description="Writeback blocked by credit gate evidence.",
+                description=(
+                    "Writeback blocked by credit gate evidence for "
+                    f"{', '.join(blocked_targets) if blocked_targets else 'unknown-target'}."
+                ),
             )
         memory_checkpoint = memory_store.create_checkpoint(checkpoint_id=checkpoint_id)
         regime_checkpoint = (
@@ -284,6 +290,15 @@ class ReflectionEngine:
 
         if credit_snapshot is not None and credit_snapshot.recent_modifications:
             controller_updates.append("gate_audit_available_for_follow_up")
+            metacontroller_audits = tuple(
+                record for record in credit_snapshot.recent_modifications if record.target.startswith("metacontroller.")
+            )
+            if metacontroller_audits:
+                latest_audit = metacontroller_audits[-1]
+                if latest_audit.decision is GateDecision.BLOCK:
+                    controller_updates.append("pause_metacontroller_writeback_after_runtime_guard")
+                else:
+                    controller_updates.append("metacontroller_runtime_guard_cleared")
 
         return PolicyConsolidation(
             controller_updates=tuple(controller_updates),
@@ -316,6 +331,8 @@ class ReflectionEngine:
             lessons.append("promote_high_signal_memories")
         if policy_consolidation.strategy_priors_updated:
             lessons.append("adjust_track_priority_from_session_feedback")
+        if any(update.startswith("pause_metacontroller") for update in policy_consolidation.controller_updates):
+            lessons.append("respect_metacontroller_runtime_guard")
         if tensions:
             lessons.append("review_tension_before_auto_writeback")
         return tuple(lessons)
