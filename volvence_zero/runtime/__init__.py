@@ -1,5 +1,6 @@
 from volvence_zero.runtime.kernel import (
     ContractViolationError,
+    CyclicDependencyError,
     DebugEvent,
     DependencyViolationError,
     EventRecorder,
@@ -16,12 +17,15 @@ from volvence_zero.runtime.kernel import (
     Snapshot,
     UpstreamDict,
     WiringLevel,
+    detect_dependency_cycle,
     make_placeholder_snapshot,
     propagate,
+    topo_sort_modules,
 )
 
 __all__ = [
     "ContractViolationError",
+    "CyclicDependencyError",
     "DebugEvent",
     "DependencyViolationError",
     "EventRecorder",
@@ -38,6 +42,8 @@ __all__ = [
     "Snapshot",
     "UpstreamDict",
     "WiringLevel",
+    "detect_dependency_cycle",
     "make_placeholder_snapshot",
     "propagate",
+    "topo_sort_modules",
 ]

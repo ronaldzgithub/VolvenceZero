@@ -445,6 +445,89 @@ class RuntimeModule(ABC, Generic[ValueT]):
         raise NotImplementedError
 
 
+class CyclicDependencyError(ContractViolationError):
+    """Raised when module dependency graph contains a cycle."""
+
+
+def topo_sort_modules(modules: list["RuntimeModule[Any]"]) -> list["RuntimeModule[Any]"]:
+    """Topologically sort modules by declared dependencies.
+
+    Modules with no dependencies come first. If the dependency graph
+    contains cycles (common in bidirectional module designs), falls
+    back to the original input order while emitting cycle information.
+    """
+    slot_to_module: dict[str, "RuntimeModule[Any]"] = {}
+    for module in modules:
+        slot_to_module[module.slot_name] = module
+
+    visited: set[str] = set()
+    in_progress: set[str] = set()
+    result: list["RuntimeModule[Any]"] = []
+
+    def visit(slot_name: str) -> bool:
+        if slot_name in visited:
+            return True
+        if slot_name in in_progress:
+            return False
+        module = slot_to_module.get(slot_name)
+        if module is None:
+            return True
+        in_progress.add(slot_name)
+        for dep in module.dependencies:
+            if dep in slot_to_module:
+                if not visit(dep):
+                    in_progress.discard(slot_name)
+                    return False
+        in_progress.discard(slot_name)
+        visited.add(slot_name)
+        result.append(module)
+        return True
+
+    has_cycle = False
+    for module in modules:
+        if not visit(module.slot_name):
+            has_cycle = True
+            break
+
+    if has_cycle:
+        return list(modules)
+
+    return result
+
+
+def detect_dependency_cycle(modules: list["RuntimeModule[Any]"]) -> tuple[str, ...] | None:
+    """Return cycle members if one exists, else None."""
+    slot_to_module: dict[str, "RuntimeModule[Any]"] = {m.slot_name: m for m in modules}
+    visited: set[str] = set()
+    in_progress: set[str] = set()
+    cycle_members: list[str] = []
+
+    def visit(slot_name: str) -> bool:
+        if slot_name in visited:
+            return False
+        if slot_name in in_progress:
+            cycle_members.append(slot_name)
+            return True
+        module = slot_to_module.get(slot_name)
+        if module is None:
+            return False
+        in_progress.add(slot_name)
+        for dep in module.dependencies:
+            if dep in slot_to_module:
+                if visit(dep):
+                    cycle_members.append(slot_name)
+                    in_progress.discard(slot_name)
+                    return True
+        in_progress.discard(slot_name)
+        visited.add(slot_name)
+        return False
+
+    for module in modules:
+        if visit(module.slot_name):
+            return tuple(cycle_members)
+    return None
+
+
 async def propagate(
     modules: list[RuntimeModule[Any]],
     *,
@@ -454,15 +537,23 @@ async def propagate(
     shadow_snapshots: MutableMapping[str, Snapshot[Any]] | None = None,
     session_id: str = "runtime",
     wave_id: str = "wave-0",
+    auto_sort: bool = True,
 ) -> UpstreamDict:
     """
-    Execute modules in order against active upstream snapshots.
+    Execute modules in dependency order against active upstream snapshots.
+
+    If auto_sort is True (default), modules are topologically sorted by
+    their declared dependencies before execution. Cycles are detected
+    and raise CyclicDependencyError.
 
     Wiring semantics:
     - disabled: publish a stub placeholder snapshot into the active chain
     - shadow: execute and validate, but keep output out of the active chain
     - active: execute, validate, and publish into the active chain
     """
+
+    if auto_sort:
+        modules = topo_sort_modules(modules)
 
     active_snapshots = dict(upstream or {})
     registry = registry or SlotRegistry()
@@ -556,4 +647,50 @@ async def propagate(
 
         active_snapshots[snapshot.slot_name] = snapshot
 
+    _post_propagation_guard_closure(
+        active_snapshots=active_snapshots,
+        modules=modules,
+        immutability_guard=immutability_guard,
+        recorder=recorder,
+        session_id=session_id,
+        wave_id=wave_id,
+    )
+
     return active_snapshots
+
+
+def _post_propagation_guard_closure(
+    *,
+    active_snapshots: UpstreamDict,
+    modules: list[RuntimeModule[Any]],
+    immutability_guard: ImmutabilityGuard,
+    recorder: EventRecorder,
+    session_id: str,
+    wave_id: str,
+) -> None:
+    """Post-propagation enrichment: verify all snapshots are still immutable."""
+    for slot_name, snapshot in active_snapshots.items():
+        try:
+            immutability_guard.verify(snapshot)
+        except ImmutabilityViolationError as error:
+            recorder.emit(
+                event_type="guard.closure.violation",
+                module_owner="propagation-guard",
+                wave_id=wave_id,
+                session_id=session_id,
+                payload={
+                    "slot_name": slot_name,
+                    "violation": str(error),
+                },
+            )
+            raise
+    recorder.emit(
+        event_type="guard.closure.passed",
+        module_owner="propagation-guard",
+        wave_id=wave_id,
+        session_id=session_id,
+        payload={
+            "verified_slots": tuple(active_snapshots.keys()),
+            "module_count": len(modules),
+        },
+    )

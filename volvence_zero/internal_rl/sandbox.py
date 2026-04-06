@@ -100,7 +100,7 @@ def _clamp(value: float) -> float:
     return max(-1.0, min(1.0, value))
 
 
-def _surface_signature(substrate_snapshot: SubstrateSnapshot) -> tuple[float, ...]:
+def _surface_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> tuple[float, ...]:
     if substrate_snapshot.residual_activations:
         values = [
             sum(activation.activation) / len(activation.activation)
@@ -114,11 +114,14 @@ def _surface_signature(substrate_snapshot: SubstrateSnapshot) -> tuple[float, ..
             if feature.values
         ]
     if not values:
-        return (0.0, 0.0, 0.0)
-    average = sum(values) / len(values)
-    maximum = max(values)
-    spread = maximum - min(values)
-    return (_clamp(average), _clamp(maximum), _clamp(spread))
+        return tuple(0.0 for _ in range(n_z))
+    if n_z <= 3:
+        average = sum(values) / len(values)
+        maximum = max(values)
+        spread = maximum - min(values)
+        return (_clamp(average), _clamp(maximum), _clamp(spread))
+    from volvence_zero.temporal.metacontroller_components import _project_to_ndim
+    return _project_to_ndim(tuple(_clamp(v) for v in values), n_z)
 
 
 class CausalZPolicy:
@@ -127,11 +130,16 @@ class CausalZPolicy:
     def __init__(self, *, parameter_store: MetacontrollerParameterStore) -> None:
         self._parameter_store = parameter_store
 
+    @property
+    def n_z(self) -> int:
+        return self._parameter_store.n_z
+
     def initial_state(self, *, track: Track) -> CausalPolicyState:
+        n = self.n_z
         return CausalPolicyState(
             track=track,
-            hidden_state=(0.0, 0.0, 0.0),
-            previous_action=(0.0, 0.0, 0.0),
+            hidden_state=tuple(0.0 for _ in range(n)),
+            previous_action=tuple(0.0 for _ in range(n)),
             step_index=0,
         )
 
@@ -141,11 +149,13 @@ class CausalZPolicy:
         substrate_snapshot: SubstrateSnapshot,
         state: CausalPolicyState,
     ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], tuple[float, ...], float, float]:
-        surface = _surface_signature(substrate_snapshot)
+        n = self.n_z
+        surface = _surface_signature(substrate_snapshot, n)
         weights = self._parameter_store.track_weights[state.track]
+        w_len = min(len(weights), n)
         track_projected = tuple(
-            _clamp(surface[i] * weights[i] * 1.5 + surface[i] * 0.25)
-            for i in range(len(surface))
+            _clamp(surface[i] * (weights[i % w_len] if i < w_len else 0.3) * 1.5 + surface[i] * 0.25)
+            for i in range(n)
         )
         hidden_state = tuple(
             _clamp(
@@ -213,9 +223,11 @@ class CausalZPolicy:
         surface: tuple[float, ...],
         policy_action: tuple[float, ...],
     ) -> float:
-        score = sum(weight * hidden for weight, hidden in zip(weights, hidden_state))
-        score += sum(weight * value for weight, value in zip(weights, surface)) * 0.5
-        score += sum(weight * value for weight, value in zip(weights, policy_action)) * 0.35
+        n = len(hidden_state)
+        w_len = len(weights)
+        score = sum((weights[i % w_len] if i < w_len else 0.3) * hidden_state[i] for i in range(n)) / max(n, 1) * 3
+        score += sum((weights[i % w_len] if i < w_len else 0.3) * surface[i] for i in range(n)) / max(n, 1) * 3 * 0.5
+        score += sum((weights[i % w_len] if i < w_len else 0.3) * policy_action[i] for i in range(n)) / max(n, 1) * 3 * 0.35
         return _clamp(score)
 
     def _policy_action(
@@ -226,14 +238,16 @@ class CausalZPolicy:
         previous_action: tuple[float, ...],
         weights: tuple[float, ...],
     ) -> tuple[float, ...]:
+        n = len(hidden_state)
+        w_len = len(weights)
         proposal = tuple(
             _clamp(
-                hidden_state[index] * 0.50
-                + surface[index] * 0.30
-                + previous_action[index] * 0.20
-                + weights[index] * 0.10
+                hidden_state[i] * 0.50
+                + surface[i] * 0.30
+                + previous_action[i] * 0.20
+                + (weights[i % w_len] if i < w_len else 0.3) * 0.10
             )
-            for index in range(3)
+            for i in range(n)
         )
         return self._normalize_weights(proposal)
 
@@ -540,14 +554,15 @@ class InternalRLSandbox:
         hidden_state: tuple[float, ...],
         track: Track,
     ) -> float:
-        reward = sum(controller_state.code) / max(len(controller_state.code), 1)
+        n = len(controller_state.code)
+        reward = sum(controller_state.code) / max(n, 1)
         reward += sum(hidden_state) / max(len(hidden_state), 1) * 0.2
         if controller_state.is_switching:
             reward += 0.1
         reward -= controller_state.steps_since_switch * 0.02
-        if track is Track.WORLD:
+        if track is Track.WORLD and len(hidden_state) > 0:
             reward += hidden_state[0] * 0.15
-        elif track is Track.SELF:
+        elif track is Track.SELF and len(hidden_state) > 1:
             reward += hidden_state[1] * 0.15
         return _clamp(reward)
 

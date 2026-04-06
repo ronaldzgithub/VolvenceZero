@@ -422,3 +422,598 @@ class TestP14M3Optimizer:
         store.observe_encoder_feedback(encoder_signal=signal, timestamp_ms=100)
         snap = cms.snapshot()
         assert snap.online_fast.vector != (0.0, 0.0, 0.0)
+
+
+# =========================================================================
+#  P15: N-dim Tensor Core
+# =========================================================================
+
+
+class TestP15TensorOps:
+    """Verify pure-Python tensor operations."""
+
+    def test_gru_cell_output_shape(self) -> None:
+        from volvence_zero.temporal.tensor_ops import gru_cell, init_gru_params, zeros
+
+        params = init_gru_params(8, 16, seed=0)
+        x = tuple(0.5 for _ in range(8))
+        h = zeros(16)
+        h_next = gru_cell(
+            x=x, h_prev=h,
+            W_z=params["W_z"], U_z=params["U_z"], b_z=params["b_z"],
+            W_r=params["W_r"], U_r=params["U_r"], b_r=params["b_r"],
+            W_h=params["W_h"], U_h=params["U_h"], b_h=params["b_h"],
+        )
+        assert len(h_next) == 16
+        assert all(-1.0 <= v <= 1.0 for v in h_next)
+
+    def test_ffn_2layer_output_shape(self) -> None:
+        from volvence_zero.temporal.tensor_ops import ffn_2layer, init_ffn_params
+
+        params = init_ffn_params(8, 12, 4, seed=0)
+        x = tuple(0.3 for _ in range(8))
+        out = ffn_2layer(x=x, W1=params["W1"], b1=params["b1"], W2=params["W2"], b2=params["b2"])
+        assert len(out) == 4
+
+    def test_vec_ops_basic(self) -> None:
+        from volvence_zero.temporal.tensor_ops import vec_add, vec_mul, vec_scale, vec_sigmoid
+
+        a = (0.5, -0.5, 1.0)
+        b = (0.1, 0.2, 0.3)
+        assert len(vec_add(a, b)) == 3
+        assert len(vec_mul(a, b)) == 3
+        assert len(vec_scale(a, 2.0)) == 3
+        sig = vec_sigmoid(a)
+        assert all(0.0 <= v <= 1.0 for v in sig)
+
+
+class TestP15NdimSequenceEncoder:
+    """Verify GRU-based encoder at n_z=16."""
+
+    def test_encode_produces_correct_dim(self) -> None:
+        from volvence_zero.temporal.metacontroller_components import NdimSequenceEncoder
+
+        enc = NdimSequenceEncoder(n_z=16)
+        substrate = _make_substrate()
+        result = enc.encode(substrate_snapshot=substrate)
+        assert len(result.posterior.z_tilde) == 16
+        assert len(result.posterior.hidden_state) == 16
+        assert len(result.posterior.posterior_mean) == 16
+        assert len(result.posterior.posterior_std) == 16
+        assert result.posterior.posterior_drift >= 0.0
+
+    def test_recurrence_updates_hidden(self) -> None:
+        from volvence_zero.temporal.metacontroller_components import NdimSequenceEncoder
+
+        enc = NdimSequenceEncoder(n_z=8)
+        substrate = _make_substrate()
+        r1 = enc.encode(substrate_snapshot=substrate)
+        r2 = enc.encode(substrate_snapshot=substrate, previous_hidden_state=r1.posterior.hidden_state)
+        assert r1.posterior.hidden_state != r2.posterior.hidden_state
+
+
+class TestP15NdimSwitchUnit:
+    """Verify element-wise switch gate."""
+
+    def test_switch_produces_ndim_beta(self) -> None:
+        from volvence_zero.temporal.metacontroller_components import NdimSwitchUnit
+
+        sw = NdimSwitchUnit(n_z=16)
+        z = tuple(0.5 for _ in range(16))
+        prev = tuple(0.0 for _ in range(16))
+        beta_cont, beta_bin, scalar = sw.compute(z_tilde=z, previous_code=prev)
+        assert len(beta_cont) == 16
+        assert len(beta_bin) == 16
+        assert all(0.0 <= v <= 1.0 for v in beta_cont)
+        assert all(v in (0.0, 1.0) for v in beta_bin)
+        assert 0.0 <= scalar <= 1.0
+
+
+class TestP15NdimResidualDecoder:
+    """Verify 2-layer FFN decoder."""
+
+    def test_decode_produces_correct_dim(self) -> None:
+        from volvence_zero.temporal.metacontroller_components import NdimResidualDecoder
+
+        dec = NdimResidualDecoder(n_z=16)
+        latent = tuple(0.4 for _ in range(16))
+        result = dec.decode(latent_code=latent)
+        assert len(result.applied_control) == 16
+        assert all(0.0 <= v <= 1.0 for v in result.applied_control)
+
+
+class TestP15FullLearnedNdimPolicy:
+    """Verify FullLearnedTemporalPolicy at n_z=16 uses ndim path."""
+
+    def test_full_policy_ndim_step(self) -> None:
+        from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerParameterStore
+
+        store = MetacontrollerParameterStore(n_z=16)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        substrate = _make_substrate()
+        step = policy.step(substrate_snapshot=substrate, previous_snapshot=None)
+        assert len(step.controller_state.code) == 16
+        assert step.controller_state.code_dim == 16
+        assert "ndim" in step.description.lower()
+
+    def test_full_policy_legacy_dim3(self) -> None:
+        from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerParameterStore
+
+        store = MetacontrollerParameterStore(n_z=3)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        substrate = _make_substrate()
+        step = policy.step(substrate_snapshot=substrate, previous_snapshot=None)
+        assert len(step.controller_state.code) == 3
+        assert step.controller_state.code_dim == 3
+
+    def test_ndim_ssl_trainer(self) -> None:
+        from volvence_zero.temporal import MetacontrollerParameterStore, FullLearnedTemporalPolicy
+        from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
+        from volvence_zero.substrate import build_training_trace
+
+        store = MetacontrollerParameterStore(n_z=8)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        trace = build_training_trace(trace_id="ndim-ssl", source_text="hello world ndim test")
+        trainer = MetacontrollerSSLTrainer(n_z=8)
+        report = trainer.optimize(policy=policy, trace=trace)
+        assert report.trained_steps >= 1
+        assert len(report.m3_slow_momentum_signal) == 8
+
+    def test_ndim_causal_policy_rollout(self) -> None:
+        from volvence_zero.temporal import MetacontrollerParameterStore, FullLearnedTemporalPolicy
+        from volvence_zero.internal_rl.sandbox import InternalRLSandbox
+        from volvence_zero.memory import Track
+
+        store = MetacontrollerParameterStore(n_z=16)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        sandbox = InternalRLSandbox(policy=policy)
+        substrates = tuple(_make_substrate() for _ in range(3))
+        rollout = sandbox.rollout(
+            rollout_id="ndim-test",
+            substrate_steps=substrates,
+            track=Track.SHARED,
+        )
+        assert len(rollout.transitions) == 3
+        for t in rollout.transitions:
+            assert len(t.latent_code) == 16
+            assert len(t.hidden_state) == 16
+
+    def test_parameter_store_ndim_property(self) -> None:
+        from volvence_zero.temporal import MetacontrollerParameterStore
+
+        store3 = MetacontrollerParameterStore(n_z=3)
+        assert store3.n_z == 3
+        store16 = MetacontrollerParameterStore(n_z=16)
+        assert store16.n_z == 16
+        assert len(store16.latest_latent_mean) == 16
+        assert len(store16.encoder_weights) == 16
+
+
+# =========================================================================
+#  P16: Non-Causal Sequence Embedder
+# =========================================================================
+
+
+class TestP16NonCausalEmbedder:
+    """Verify bidirectional s(e_{1:T}) embedder."""
+
+    def test_embed_produces_correct_dim(self) -> None:
+        from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+
+        embedder = NonCausalSequenceEmbedder(n_z=16)
+        substrate = _make_substrate()
+        result = embedder.embed(substrate_snapshot=substrate)
+        assert len(result.summary_vector) == 16
+        assert len(result.forward_final) == 16
+        assert len(result.backward_final) == 16
+        assert 0.0 <= result.information_content <= 1.0
+
+    def test_embed_from_steps(self) -> None:
+        from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+
+        embedder = NonCausalSequenceEmbedder(n_z=8)
+        steps = tuple(tuple(float(i + j) * 0.1 for j in range(8)) for i in range(5))
+        result = embedder.embed_from_steps(step_vectors=steps)
+        assert len(result.summary_vector) == 8
+        assert result.sequence_length == 5
+
+    def test_bidirectional_differs_from_forward_only(self) -> None:
+        from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+
+        embedder = NonCausalSequenceEmbedder(n_z=8)
+        substrate = _make_substrate()
+        result = embedder.embed(substrate_snapshot=substrate)
+        assert result.forward_final != result.backward_final
+
+    def test_posterior_enrichment(self) -> None:
+        from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+
+        embedder = NonCausalSequenceEmbedder(n_z=8)
+        substrate = _make_substrate()
+        embedding = embedder.embed(substrate_snapshot=substrate)
+        causal_mean = tuple(0.5 for _ in range(8))
+        causal_std = tuple(0.3 for _ in range(8))
+        enrichment = embedder.enrich_posterior(
+            causal_mean=causal_mean,
+            causal_std=causal_std,
+            embedding=embedding,
+        )
+        assert len(enrichment.enriched_mean) == 8
+        assert len(enrichment.enriched_std) == 8
+        assert enrichment.kl_tightening >= 0.0
+        for s in enrichment.enriched_std:
+            assert s >= 0.05
+
+    def test_ssl_trainer_reports_noncausal_metrics(self) -> None:
+        from volvence_zero.temporal import MetacontrollerParameterStore, FullLearnedTemporalPolicy
+        from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
+        from volvence_zero.substrate import build_training_trace
+
+        store = MetacontrollerParameterStore(n_z=8)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        trace = build_training_trace(trace_id="noncausal-test", source_text="alpha beta gamma delta")
+        trainer = MetacontrollerSSLTrainer(n_z=8)
+        report = trainer.optimize(policy=policy, trace=trace)
+        assert report.noncausal_information_content >= 0.0
+        assert report.noncausal_kl_tightening >= 0.0
+        assert "kl_tightening" in report.description
+
+    def test_information_asymmetry(self) -> None:
+        """Non-causal embedder sees full sequence; causal encoder sees prefix only."""
+        from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+        from volvence_zero.temporal.metacontroller_components import NdimSequenceEncoder
+
+        n_z = 8
+        embedder = NonCausalSequenceEmbedder(n_z=n_z)
+        encoder = NdimSequenceEncoder(n_z=n_z)
+        substrate = _make_substrate()
+        full_embed = embedder.embed(substrate_snapshot=substrate)
+        causal_result = encoder.encode(substrate_snapshot=substrate)
+        assert full_embed.summary_vector != causal_result.posterior.posterior_mean
+
+
+# =========================================================================
+#  P17: Unified SSL→RL Training Pipeline
+# =========================================================================
+
+
+class TestP17SSLRLPipeline:
+    """Verify the two-phase training orchestrator."""
+
+    def _make_traces(self, count: int = 8) -> tuple:
+        from volvence_zero.substrate import build_training_trace
+        return tuple(
+            build_training_trace(
+                trace_id=f"pipe-{i}",
+                source_text=f"word{i} alpha beta gamma delta epsilon zeta",
+            )
+            for i in range(count)
+        )
+
+    def test_pipeline_runs_both_phases(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=4, rl_max_steps=3)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(8)
+        result = pipeline.run_pipeline(traces=traces)
+        assert result.ssl_steps_completed >= 2
+        assert result.rl_steps_completed >= 1
+        assert result.transition_step >= 0
+        ssl_reports = [r for r in result.phase_reports if r.phase == "ssl"]
+        rl_reports = [r for r in result.phase_reports if r.phase == "rl"]
+        assert len(ssl_reports) >= 2
+        assert len(rl_reports) >= 1
+
+    def test_pipeline_respects_convergence(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(
+            n_z=8,
+            ssl_min_steps=2,
+            ssl_max_steps=10,
+            ssl_convergence_threshold=999.0,
+            rl_max_steps=5,
+        )
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+        assert result.ssl_steps_completed >= 2
+        assert result.transition_step >= 1
+
+    def test_pipeline_phase_reports_have_metrics(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=2)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+        for report in result.phase_reports:
+            if report.phase == "ssl":
+                assert report.ssl_loss >= 0.0
+            elif report.phase == "rl":
+                assert report.total_reward != 0.0 or report.policy_objective != 0.0
+
+    def test_pipeline_rollback_to_ssl(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=2)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        pipeline.run_pipeline(traces=traces)
+        if pipeline._ssl_checkpoint is not None:
+            assert pipeline.rollback_to_ssl_checkpoint()
+
+    def test_pipeline_binary_gate_rl(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=2, binary_gate_rl=True)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+        rl_reports = [r for r in result.phase_reports if r.phase == "rl"]
+        assert len(rl_reports) >= 1
+
+    def test_pipeline_noncausal_metrics_flow(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(5)
+        result = pipeline.run_pipeline(traces=traces)
+        ssl_reports = [r for r in result.phase_reports if r.phase == "ssl"]
+        assert any(r.noncausal_kl_tightening >= 0.0 for r in ssl_reports)
+
+
+# =========================================================================
+#  P18: Propagation Topo-Sort + Guard Closure
+# =========================================================================
+
+
+class TestP18TopoSort:
+    """Verify topological sorting and cycle detection."""
+
+    def test_topo_sort_linear_chain(self) -> None:
+        import asyncio
+        from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel, topo_sort_modules
+        from dataclasses import dataclass
+        from typing import Any, Mapping
+
+        @dataclass(frozen=True)
+        class _Val:
+            x: int
+
+        class ModA(RuntimeModule[_Val]):
+            slot_name = "a"
+            owner = "A"
+            value_type = _Val
+            dependencies = ()
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=1))
+
+        class ModB(RuntimeModule[_Val]):
+            slot_name = "b"
+            owner = "B"
+            value_type = _Val
+            dependencies = ("a",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=2))
+
+        class ModC(RuntimeModule[_Val]):
+            slot_name = "c"
+            owner = "C"
+            value_type = _Val
+            dependencies = ("b",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=3))
+
+        modules = [ModC(), ModA(), ModB()]
+        sorted_mods = topo_sort_modules(modules)
+        slots = [m.slot_name for m in sorted_mods]
+        assert slots.index("a") < slots.index("b")
+        assert slots.index("b") < slots.index("c")
+
+    def test_cycle_detection(self) -> None:
+        from volvence_zero.runtime import RuntimeModule, Snapshot, detect_dependency_cycle
+        from dataclasses import dataclass
+        from typing import Any, Mapping
+
+        @dataclass(frozen=True)
+        class _Val:
+            x: int
+
+        class ModX(RuntimeModule[_Val]):
+            slot_name = "x"
+            owner = "X"
+            value_type = _Val
+            dependencies = ("y",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=1))
+
+        class ModY(RuntimeModule[_Val]):
+            slot_name = "y"
+            owner = "Y"
+            value_type = _Val
+            dependencies = ("x",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=2))
+
+        cycle = detect_dependency_cycle([ModX(), ModY()])
+        assert cycle is not None
+        assert len(cycle) > 0
+
+    def test_cycle_graceful_fallback(self) -> None:
+        from volvence_zero.runtime import RuntimeModule, Snapshot, topo_sort_modules
+        from dataclasses import dataclass
+        from typing import Any, Mapping
+
+        @dataclass(frozen=True)
+        class _Val:
+            x: int
+
+        class ModX(RuntimeModule[_Val]):
+            slot_name = "x"
+            owner = "X"
+            value_type = _Val
+            dependencies = ("y",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=1))
+
+        class ModY(RuntimeModule[_Val]):
+            slot_name = "y"
+            owner = "Y"
+            value_type = _Val
+            dependencies = ("x",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=2))
+
+        modules = [ModX(), ModY()]
+        sorted_mods = topo_sort_modules(modules)
+        assert len(sorted_mods) == 2
+
+    def test_propagation_with_auto_sort(self) -> None:
+        import asyncio
+        from volvence_zero.runtime import RuntimeModule, Snapshot, propagate
+        from dataclasses import dataclass
+        from typing import Any, Mapping
+
+        @dataclass(frozen=True)
+        class _Val:
+            x: int
+
+        class ModA(RuntimeModule[_Val]):
+            slot_name = "a_sort"
+            owner = "A_sort"
+            value_type = _Val
+            dependencies = ()
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=1))
+
+        class ModB(RuntimeModule[_Val]):
+            slot_name = "b_sort"
+            owner = "B_sort"
+            value_type = _Val
+            dependencies = ("a_sort",)
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                a_val = upstream["a_sort"].value
+                return self.publish(_Val(x=a_val.x + 1))
+
+        modules = [ModB(), ModA()]
+        result = asyncio.run(propagate(modules, auto_sort=True))
+        assert "a_sort" in result
+        assert "b_sort" in result
+        assert result["b_sort"].value.x == 2
+
+    def test_guard_closure_runs(self) -> None:
+        import asyncio
+        from volvence_zero.runtime import RuntimeModule, Snapshot, EventRecorder, propagate
+        from dataclasses import dataclass
+        from typing import Any, Mapping
+
+        @dataclass(frozen=True)
+        class _Val:
+            x: int
+
+        class ModA(RuntimeModule[_Val]):
+            slot_name = "guard_a"
+            owner = "Guard_A"
+            value_type = _Val
+            dependencies = ()
+
+            async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[_Val]:
+                return self.publish(_Val(x=1))
+
+        recorder = EventRecorder()
+        asyncio.run(propagate([ModA()], recorder=recorder))
+        closure_events = [e for e in recorder.events if e.event_type == "guard.closure.passed"]
+        assert len(closure_events) == 1
+
+
+# =========================================================================
+#  P19: N-dim CMS + Gradient-Style Updates
+# =========================================================================
+
+
+class TestP19NdimCMS:
+    """Verify gradient-style CMS with momentum and anti-forgetting."""
+
+    def test_gradient_update_changes_vector(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+        from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
+
+        cms = CMSMemoryCore(dim=8, online_lr=0.5, session_lr=0.3, background_lr=0.1)
+        substrate = _make_substrate()
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=1)
+        snap = cms.snapshot()
+        assert any(v != 0.0 for v in snap.online_fast.vector)
+        assert len(snap.online_fast.vector) == 8
+
+    def test_momentum_accumulates(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=4, momentum_beta=0.9)
+        substrate = _make_substrate()
+        for i in range(5):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        snap = cms.snapshot()
+        assert any(m != 0.0 for m in snap.online_fast.momentum)
+
+    def test_anti_forgetting_backflow(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=4, anti_forgetting=0.5, background_cadence=1)
+        substrate = _make_substrate()
+        for i in range(10):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        snap_before = cms.snapshot()
+        bg = snap_before.background_slow.vector
+        online = snap_before.online_fast.vector
+        for i in range(len(bg)):
+            if bg[i] > 0.01:
+                assert abs(online[i] - bg[i]) < abs(0.5 - bg[i]) + 0.3
+
+    def test_per_band_learning_rates_in_snapshot(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=4, online_lr=0.7, session_lr=0.4, background_lr=0.15)
+        snap = cms.snapshot()
+        assert snap.online_fast.learning_rate == 0.7
+        assert snap.session_medium.learning_rate == 0.4
+        assert snap.background_slow.learning_rate == 0.15
+
+    def test_encoder_feedback_with_ndim(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=16)
+        signal = tuple(0.5 for _ in range(16))
+        cms.observe_encoder_feedback(encoder_signal=signal, timestamp_ms=1)
+        snap = cms.snapshot()
+        assert any(v != 0.0 for v in snap.online_fast.vector)
+        assert len(snap.online_fast.vector) == 16
+
+    def test_encoder_feedback_dim_mismatch_projects(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=8)
+        signal = tuple(0.5 for _ in range(3))
+        cms.observe_encoder_feedback(encoder_signal=signal, timestamp_ms=1)
+        snap = cms.snapshot()
+        assert len(snap.online_fast.vector) == 8
+        assert any(v != 0.0 for v in snap.online_fast.vector)
+
+    def test_anti_forgetting_strength_in_snapshot(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=4, anti_forgetting=0.25)
+        snap = cms.snapshot()
+        assert snap.online_fast.anti_forgetting_strength == 0.25
+        assert snap.background_slow.anti_forgetting_strength == 0.25

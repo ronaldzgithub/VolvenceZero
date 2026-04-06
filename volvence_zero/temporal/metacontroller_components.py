@@ -398,3 +398,239 @@ def classify_latent_action(
         f"label={best_label} score={best_score:.3f}"
     )
     return (best_label, decoder_summary)
+
+
+# ---------------------------------------------------------------------------
+#  N-dim components (P15): GRU encoder, element-wise switch, FFN decoder
+# ---------------------------------------------------------------------------
+
+from volvence_zero.temporal.tensor_ops import (
+    Mat,
+    Vec,
+    dot,
+    ffn_2layer,
+    gru_cell,
+    init_ffn_params,
+    init_gru_params,
+    vec_abs,
+    vec_add,
+    vec_clamp,
+    vec_mean,
+    vec_mul,
+    vec_norm,
+    vec_scale,
+    vec_sigmoid,
+    vec_sub,
+    vec_tanh,
+    zeros,
+    mat_vec,
+    rand_mat,
+    rand_vec,
+    identity_mat,
+)
+
+
+DEFAULT_N_Z = 16
+
+
+@dataclass(frozen=True)
+class NdimGRUParams:
+    W_z: Mat
+    U_z: Mat
+    b_z: Vec
+    W_r: Mat
+    U_r: Mat
+    b_r: Vec
+    W_h: Mat
+    U_h: Mat
+    b_h: Vec
+
+
+@dataclass(frozen=True)
+class NdimFFNParams:
+    W1: Mat
+    b1: Vec
+    W2: Mat
+    b2: Vec
+
+
+def _project_to_ndim(raw: tuple[float, ...], n: int) -> Vec:
+    """Project an arbitrary-length raw vector to n dimensions via tiling/truncation."""
+    if not raw:
+        return zeros(n)
+    if len(raw) >= n:
+        return raw[:n]
+    repeats = (n // len(raw)) + 1
+    extended = raw * repeats
+    return extended[:n]
+
+
+def _summarize_substrate_ndim(
+    substrate_snapshot: SubstrateSnapshot,
+    n: int,
+) -> tuple[Vec, ...]:
+    """Extract n-dim step vectors from substrate."""
+    sequence = residual_sequence_from_snapshot(substrate_snapshot)
+    result: list[Vec] = []
+    for step in sequence:
+        raw_values: list[float] = []
+        for act in step.residual_activations:
+            raw_values.extend(act.activation)
+        if not raw_values:
+            for feat in step.feature_surface:
+                raw_values.extend(feat.values)
+        if not raw_values:
+            raw_values = [0.0]
+        result.append(_project_to_ndim(tuple(raw_values), n))
+    if not result:
+        result.append(zeros(n))
+    return tuple(result)
+
+
+class NdimSequenceEncoder:
+    """GRU-based sequence encoder operating in n_z-dimensional latent space."""
+
+    def __init__(self, *, n_z: int = DEFAULT_N_Z, n_input: int | None = None, seed: int = 42) -> None:
+        self._n_z = n_z
+        self._n_input = n_input or n_z
+        params = init_gru_params(self._n_input, n_z, seed=seed)
+        self._gru = NdimGRUParams(
+            W_z=params["W_z"], U_z=params["U_z"], b_z=params["b_z"],
+            W_r=params["W_r"], U_r=params["U_r"], b_r=params["b_r"],
+            W_h=params["W_h"], U_h=params["U_h"], b_h=params["b_h"],
+        )
+        self._posterior_proj = rand_mat(n_z, n_z, scale=0.1, seed=seed + 10)
+        self._posterior_std_proj = rand_mat(n_z, n_z, scale=0.05, seed=seed + 11)
+
+    @property
+    def n_z(self) -> int:
+        return self._n_z
+
+    def encode(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_hidden_state: Vec | None = None,
+        cms_context: Vec | None = None,
+    ) -> EncodedSequence:
+        h = previous_hidden_state or zeros(self._n_z)
+        step_vectors = _summarize_substrate_ndim(substrate_snapshot, self._n_input)
+        hidden_history: list[Vec] = []
+        for step_vec in step_vectors:
+            if cms_context is not None:
+                aug = vec_add(vec_scale(step_vec, 0.8), vec_scale(cms_context, 0.2))
+            else:
+                aug = step_vec
+            h = gru_cell(
+                x=aug, h_prev=h,
+                W_z=self._gru.W_z, U_z=self._gru.U_z, b_z=self._gru.b_z,
+                W_r=self._gru.W_r, U_r=self._gru.U_r, b_r=self._gru.b_r,
+                W_h=self._gru.W_h, U_h=self._gru.U_h, b_h=self._gru.b_h,
+            )
+            hidden_history.append(h)
+        avg_hidden = tuple(
+            sum(hh[i] for hh in hidden_history) / len(hidden_history)
+            for i in range(self._n_z)
+        )
+        prior_mean = vec_scale(h if previous_hidden_state is None else previous_hidden_state, 0.35)
+        prior_mean = vec_clamp(prior_mean, 0.0, 1.0)
+        prior_std_raw = tuple(
+            max(0.05, 1.0 - abs(prior_mean[i] - avg_hidden[i]) * 0.5)
+            for i in range(self._n_z)
+        )
+        posterior_mean = vec_clamp(
+            vec_add(
+                vec_scale(mat_vec(self._posterior_proj, h), 0.7),
+                vec_scale(avg_hidden, 0.3),
+            ),
+            0.0, 1.0,
+        )
+        posterior_std = vec_clamp(
+            vec_abs(mat_vec(self._posterior_std_proj, h)),
+            0.05, 0.95,
+        )
+        sample_noise = vec_clamp(
+            vec_sub(avg_hidden, vec_scale(posterior_mean, 0.5)),
+            -1.0, 1.0,
+        )
+        z_tilde = vec_clamp(
+            vec_add(posterior_mean, vec_scale(vec_mul(posterior_std, sample_noise), 0.5)),
+            0.0, 1.0,
+        )
+        drift = max(abs(h[i] - (previous_hidden_state or zeros(self._n_z))[i]) for i in range(self._n_z))
+        return EncodedSequence(
+            posterior=PosteriorState(
+                prior_mean=prior_mean,
+                prior_std=prior_std_raw,
+                posterior_mean=posterior_mean,
+                posterior_std=posterior_std,
+                sample_noise=sample_noise,
+                z_tilde=z_tilde,
+                hidden_state=h,
+                posterior_drift=drift,
+            ),
+            sequence_length=len(step_vectors),
+            summary=(
+                f"ndim_encoder n_z={self._n_z} len={len(step_vectors)} "
+                f"drift={drift:.3f} h_norm={vec_norm(h):.3f}"
+            ),
+        )
+
+
+class NdimSwitchUnit:
+    """Element-wise switch gate β_t ∈ [0,1]^{n_z} with a learned gate network."""
+
+    def __init__(self, *, n_z: int = DEFAULT_N_Z, seed: int = 42) -> None:
+        self._n_z = n_z
+        ffn_params = init_ffn_params(n_z * 2, n_z, n_z, seed=seed + 20)
+        self._ffn = NdimFFNParams(
+            W1=ffn_params["W1"], b1=ffn_params["b1"],
+            W2=ffn_params["W2"], b2=ffn_params["b2"],
+        )
+
+    def compute(
+        self,
+        *,
+        z_tilde: Vec,
+        previous_code: Vec,
+        memory_signal: float = 0.0,
+        reflection_signal: float = 0.0,
+    ) -> tuple[Vec, Vec, float]:
+        """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
+        delta = vec_abs(vec_sub(z_tilde, previous_code))
+        gate_input = delta + z_tilde
+        raw = ffn_2layer(x=gate_input, W1=self._ffn.W1, b1=self._ffn.b1, W2=self._ffn.W2, b2=self._ffn.b2)
+        bias = memory_signal * 0.1 + reflection_signal * 0.2
+        beta_continuous = vec_sigmoid(vec_add(raw, tuple(bias for _ in range(self._n_z))))
+        threshold = 0.55
+        beta_binary = tuple(1.0 if b >= threshold else 0.0 for b in beta_continuous)
+        scalar_mean = vec_mean(beta_continuous)
+        return beta_continuous, beta_binary, scalar_mean
+
+
+class NdimResidualDecoder:
+    """2-layer FFN decoder producing n_z-dimensional applied control."""
+
+    def __init__(self, *, n_z: int = DEFAULT_N_Z, seed: int = 42) -> None:
+        self._n_z = n_z
+        ffn_params = init_ffn_params(n_z, n_z, n_z, seed=seed + 30)
+        self._ffn = NdimFFNParams(
+            W1=ffn_params["W1"], b1=ffn_params["b1"],
+            W2=ffn_params["W2"], b2=ffn_params["b2"],
+        )
+
+    def decode(self, *, latent_code: Vec) -> DecoderControl:
+        decoder_output = ffn_2layer(
+            x=latent_code,
+            W1=self._ffn.W1, b1=self._ffn.b1,
+            W2=self._ffn.W2, b2=self._ffn.b2,
+        )
+        applied_control = vec_clamp(
+            vec_add(vec_scale(latent_code, 0.65), vec_scale(decoder_output, 0.35)),
+            0.0, 1.0,
+        )
+        return DecoderControl(
+            decoder_output=decoder_output,
+            applied_control=applied_control,
+            summary=f"ndim_decoder n_z={self._n_z} ctrl_norm={vec_norm(applied_control):.3f}",
+        )

@@ -13,11 +13,15 @@ from volvence_zero.temporal.interface import FullLearnedTemporalPolicy
 from volvence_zero.temporal.metacontroller_components import (
     DecoderControl,
     EncodedSequence,
+    NdimResidualDecoder,
+    NdimSequenceEncoder,
+    PosteriorState,
     ResidualDecoder,
     SequenceEncoder,
     classify_latent_action,
     summarize_residual_activations,
 )
+from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
 
 
 from volvence_zero.temporal.m3_optimizer import M3Optimizer
@@ -36,17 +40,30 @@ class SSLTrainingReport:
     posterior_drift: float
     trained_steps: int
     m3_slow_momentum_signal: tuple[float, ...] = ()
+    noncausal_kl_tightening: float = 0.0
+    noncausal_information_content: float = 0.0
     description: str = ""
 
 
 class MetacontrollerSSLTrainer:
     """Small Eq.3-style training loop over residual traces."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, n_z: int = 3) -> None:
+        self._n_z = n_z
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
-        self._m3_encoder = M3Optimizer(num_groups=3, group_dim=3, slow_interval=3)
-        self._m3_decoder = M3Optimizer(num_groups=3, group_dim=3, slow_interval=3)
+        self._ndim_encoder: "NdimSequenceEncoder | None" = None
+        self._ndim_decoder: "NdimResidualDecoder | None" = None
+        if n_z > 3:
+            from volvence_zero.temporal.metacontroller_components import (
+                NdimResidualDecoder as _NRD,
+                NdimSequenceEncoder as _NSE,
+            )
+            self._ndim_encoder = _NSE(n_z=n_z)
+            self._ndim_decoder = _NRD(n_z=n_z)
+        self._m3_encoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
+        self._m3_decoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
+        self._noncausal_embedder = NonCausalSequenceEmbedder(n_z=n_z)
 
     def optimize(
         self,
@@ -69,38 +86,75 @@ class MetacontrollerSSLTrainer:
         prediction_total = 0.0
         kl_total = 0.0
         trained_steps = 0
-        latest_mean = (0.0, 0.0, 0.0)
-        latest_scale = (0.0, 0.0, 0.0)
-        latest_prior_mean = (0.0, 0.0, 0.0)
-        latest_prior_std = (1.0, 1.0, 1.0)
-        latest_z_tilde = (0.0, 0.0, 0.0)
-        latest_decoder = (0.0, 0.0, 0.0)
+        n = self._n_z
+        latest_mean = tuple(0.0 for _ in range(n))
+        latest_scale = tuple(0.0 for _ in range(n))
+        latest_prior_mean = tuple(0.0 for _ in range(n))
+        latest_prior_std = tuple(1.0 for _ in range(n))
+        latest_z_tilde = tuple(0.0 for _ in range(n))
+        latest_decoder = tuple(0.0 for _ in range(n))
         latest_label = "stabilize_controller"
         posterior_drift_total = 0.0
         store = policy.parameter_store
         previous_hidden_state = store.latest_posterior_hidden_state
 
+        full_substrate = self._snapshot_from_prefix(trace=trace, prefix=trace.steps)
+        noncausal_embedding = self._noncausal_embedder.embed(substrate_snapshot=full_substrate)
+        kl_tightening_total = 0.0
+
         for next_index in range(1, len(trace.steps)):
             prefix = trace.steps[:next_index]
             next_step = trace.steps[next_index]
             substrate_snapshot = self._snapshot_from_prefix(trace=trace, prefix=prefix)
-            encoded = self._encoder.encode(
-                substrate_snapshot=substrate_snapshot,
-                encoder_weights=store.encoder_weights,
-                recurrence_weights=store.encoder_recurrence,
-                previous_hidden_state=previous_hidden_state,
+            if self._ndim_encoder is not None:
+                encoded = self._ndim_encoder.encode(
+                    substrate_snapshot=substrate_snapshot,
+                    previous_hidden_state=previous_hidden_state,
+                )
+            else:
+                encoded = self._encoder.encode(
+                    substrate_snapshot=substrate_snapshot,
+                    encoder_weights=store.encoder_weights,
+                    recurrence_weights=store.encoder_recurrence,
+                    previous_hidden_state=previous_hidden_state,
+                )
+            enrichment = self._noncausal_embedder.enrich_posterior(
+                causal_mean=encoded.posterior.posterior_mean,
+                causal_std=encoded.posterior.posterior_std,
+                embedding=noncausal_embedding,
             )
-            decoder_control = self._decoder.decode(
-                latent_code=encoded.z_tilde,
-                decoder_matrix=store.decoder_matrix,
-                hidden_matrix=store.decoder_hidden,
+            kl_tightening_total += enrichment.kl_tightening
+            enriched_encoded = EncodedSequence(
+                posterior=PosteriorState(
+                    prior_mean=encoded.posterior.prior_mean,
+                    prior_std=encoded.posterior.prior_std,
+                    posterior_mean=enrichment.enriched_mean,
+                    posterior_std=enrichment.enriched_std,
+                    sample_noise=encoded.posterior.sample_noise,
+                    z_tilde=encoded.posterior.z_tilde,
+                    hidden_state=encoded.posterior.hidden_state,
+                    posterior_drift=encoded.posterior.posterior_drift,
+                ),
+                sequence_length=encoded.sequence_length,
+                summary=encoded.summary,
             )
+            if self._ndim_decoder is not None:
+                decoder_control = self._ndim_decoder.decode(latent_code=encoded.z_tilde)
+            else:
+                decoder_control = self._decoder.decode(
+                    latent_code=encoded.z_tilde,
+                    decoder_matrix=store.decoder_matrix,
+                    hidden_matrix=store.decoder_hidden,
+                )
             target_action = summarize_residual_activations(next_step.residual_activations, next_step.feature_surface)
+            if self._n_z > 3:
+                from volvence_zero.temporal.metacontroller_components import _project_to_ndim
+                target_action = _project_to_ndim(target_action, self._n_z)
             prediction_loss = self._action_prediction_loss(
                 target_action=target_action,
                 decoder_control=decoder_control,
             )
-            kl_loss = self._kl_to_prior(encoded=encoded)
+            kl_loss = self._kl_to_prior(encoded=enriched_encoded)
             total_loss = prediction_loss + kl_loss * 0.1
             prediction_total += prediction_loss
             kl_total += kl_loss
@@ -109,13 +163,13 @@ class MetacontrollerSSLTrainer:
             self._apply_training_step(
                 policy=policy,
                 target_action=target_action,
-                encoded=encoded,
+                encoded=enriched_encoded,
                 decoder_control=decoder_control,
                 prediction_loss=prediction_loss,
                 kl_loss=kl_loss,
             )
-            latest_mean = encoded.posterior.posterior_mean
-            latest_scale = encoded.posterior.posterior_std
+            latest_mean = enriched_encoded.posterior.posterior_mean
+            latest_scale = enriched_encoded.posterior.posterior_std
             latest_prior_mean = encoded.posterior.prior_mean
             latest_prior_std = encoded.posterior.prior_std
             latest_z_tilde = encoded.z_tilde
@@ -155,6 +209,7 @@ class MetacontrollerSSLTrainer:
             )
         )
         slow_signal = tuple(_clamp(v / 2.0) for v in slow_signal) if slow_signal else ()
+        avg_kl_tightening = kl_tightening_total / trained_steps
         return SSLTrainingReport(
             trace_id=trace.trace_id,
             prediction_loss=avg_prediction,
@@ -163,9 +218,13 @@ class MetacontrollerSSLTrainer:
             posterior_drift=avg_drift,
             trained_steps=trained_steps,
             m3_slow_momentum_signal=slow_signal,
+            noncausal_kl_tightening=avg_kl_tightening,
+            noncausal_information_content=noncausal_embedding.information_content,
             description=(
                 f"SSL trainer optimized trace={trace.trace_id} over {trained_steps} steps, "
                 f"prediction_loss={avg_prediction:.3f}, kl_loss={avg_kl:.3f}, drift={avg_drift:.3f}, "
+                f"kl_tightening={avg_kl_tightening:.3f}, "
+                f"noncausal_info={noncausal_embedding.information_content:.3f}, "
                 f"m3_slow_signal={tuple(round(v, 3) for v in slow_signal)}."
             ),
         )
@@ -268,12 +327,13 @@ class MetacontrollerSSLTrainer:
         target_action: tuple[float, ...],
         decoder_control: DecoderControl,
     ) -> float:
+        n = min(len(target_action), len(decoder_control.applied_control))
         return (
             sum(
-                abs(target_value - applied_value)
-                for target_value, applied_value in zip(target_action, decoder_control.applied_control, strict=True)
+                abs(target_action[i] - decoder_control.applied_control[i])
+                for i in range(n)
             )
-            / 3.0
+            / max(n, 1)
         )
 
     def _kl_to_prior(
@@ -285,10 +345,11 @@ class MetacontrollerSSLTrainer:
         posterior_std = tuple(max(value, 0.05) for value in encoded.posterior.posterior_std)
         prior_mean = encoded.posterior.prior_mean
         prior_std = tuple(max(value, 0.05) for value in encoded.posterior.prior_std)
+        n = min(len(posterior_mean), len(prior_mean))
         terms = []
-        for index in range(3):
+        for index in range(n):
             variance_ratio = (posterior_std[index] ** 2) / (prior_std[index] ** 2)
             mean_delta = ((posterior_mean[index] - prior_mean[index]) ** 2) / (prior_std[index] ** 2)
             log_term = 2.0 * math.log(prior_std[index] / posterior_std[index])
             terms.append(0.5 * (variance_ratio + mean_delta - 1.0 + log_term))
-        return sum(max(term, 0.0) for term in terms) / 3.0
+        return sum(max(term, 0.0) for term in terms) / max(n, 1)

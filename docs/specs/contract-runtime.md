@@ -113,5 +113,6 @@ P00 运行时内核固定以下最小守卫和视图：
 
 ## 变更日志
 
+- 2026-04-06: P18 Propagation Topo-Sort + Guard Closure: propagate() now auto-sorts modules by declared dependencies (topo_sort_modules). Cycle detection via detect_dependency_cycle; cycles fall back gracefully to input order. Post-propagation guard closure verifies immutability of all published snapshots. CyclicDependencyError added to runtime contract errors.
 - 2026-04-06: 补充 open-weight runtime / adapter / intervention backend 三层契约，以及 session 级 substrate 注入点
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 DATA_CONTRACT.md 提取

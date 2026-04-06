@@ -99,6 +99,8 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-04-06: P17 Unified SSL→RL Training Pipeline: SSLRLTrainingPipeline orchestrates two-phase training — Phase 1 (SSL) discovers switching structure via Eq.3 with non-causal embedder enrichment, Phase 2 (RL) trains causal policy with binary gate. Pipeline manages convergence-based phase transition, checkpointing, and rollback. PipelineConfig controls n_z, convergence thresholds, and max steps.
+- 2026-04-06: P14 M3 optimizer integration: dual-timescale momentum (fast_beta=0.9, slow_beta=0.99) replaces direct gradient application in SSL trainer; slow momentum signal feeds into CMS session-medium band; SSLTrainingReport carries m3_slow_momentum_signal; joint loop routes M3 slow signal to CMS after SSL optimization
 - 2026-04-06: 补充 joint loop 对 metacontroller owner state / rollback reasons 的当前实现口径
 - 2026-04-06: 补充 joint loop 的最小 SSL/RL alternation 与 kernel evidence loop
 - 2026-04-06: 补充 prior/posterior KL 与 residual control application helper 的当前实现口径

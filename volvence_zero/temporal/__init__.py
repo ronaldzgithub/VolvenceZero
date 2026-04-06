@@ -15,7 +15,32 @@ from volvence_zero.temporal.interface import (
     TemporalStep,
 )
 from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
+from volvence_zero.temporal.metacontroller_components import (
+    NdimResidualDecoder,
+    NdimSequenceEncoder,
+    NdimSwitchUnit,
+)
+from volvence_zero.temporal.noncausal_embedder import (
+    NonCausalEmbedding,
+    NonCausalSequenceEmbedder,
+    PosteriorEnrichment,
+)
 from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer, SSLTrainingReport
+from volvence_zero.temporal.tensor_ops import (
+    Vec,
+    Mat,
+    gru_cell,
+    ffn_2layer,
+    sigmoid,
+    tanh,
+    vec_add,
+    vec_mul,
+    vec_scale,
+    vec_sigmoid,
+    vec_tanh,
+    mat_vec,
+    zeros,
+)
 from volvence_zero.temporal.training import fit_policy_from_trace_dataset
 
 __all__ = [
@@ -25,17 +50,36 @@ __all__ = [
     "LearnedLiteTemporalPolicy",
     "M3Optimizer",
     "M3OptimizerState",
+    "Mat",
     "MetacontrollerParameterStore",
     "MetacontrollerParameterSnapshot",
     "MetacontrollerRuntimeState",
     "MetacontrollerSSLTrainer",
+    "NdimResidualDecoder",
+    "NdimSequenceEncoder",
+    "NdimSwitchUnit",
+    "NonCausalEmbedding",
+    "NonCausalSequenceEmbedder",
     "PlaceholderTemporalPolicy",
+    "PosteriorEnrichment",
+    "SSLTrainingReport",
     "TemporalAbstractionSnapshot",
     "TemporalControllerParameters",
     "TemporalImplementationMode",
     "TemporalModule",
     "TemporalPolicy",
     "TemporalStep",
-    "SSLTrainingReport",
+    "Vec",
+    "ffn_2layer",
     "fit_policy_from_trace_dataset",
+    "gru_cell",
+    "mat_vec",
+    "sigmoid",
+    "tanh",
+    "vec_add",
+    "vec_mul",
+    "vec_scale",
+    "vec_sigmoid",
+    "vec_tanh",
+    "zeros",
 ]

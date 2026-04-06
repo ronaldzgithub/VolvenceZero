@@ -14,6 +14,9 @@ from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKin
 from volvence_zero.temporal.metacontroller_components import (
     DecoderControl,
     EncodedSequence,
+    NdimResidualDecoder,
+    NdimSequenceEncoder,
+    NdimSwitchUnit,
     PosteriorState,
     ResidualDecoder,
     SequenceEncoder,
@@ -148,46 +151,56 @@ class MetacontrollerParameterSnapshot:
 class MetacontrollerParameterStore:
     """Shared parameter store for runtime temporal control and internal RL."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, n_z: int = 3) -> None:
+        self._n_z = n_z
         self.temporal_weights: dict[str, float] = {
             "residual": 0.65,
             "memory": 0.2,
             "reflection": 0.15,
         }
         self.switch_bias = 0.1
-        self.encoder_weights: tuple[tuple[float, ...], ...] = (
-            (0.70, 0.20, 0.10),
-            (0.25, 0.55, 0.20),
-            (0.15, 0.25, 0.60),
-        )
-        self.encoder_recurrence: tuple[tuple[float, ...], ...] = (
-            (0.60, 0.20, 0.20),
-            (0.20, 0.60, 0.20),
-            (0.20, 0.20, 0.60),
-        )
-        self.switch_weights: tuple[float, ...] = (0.45, 0.35, 0.20)
+        if n_z == 3:
+            self.encoder_weights: tuple[tuple[float, ...], ...] = (
+                (0.70, 0.20, 0.10),
+                (0.25, 0.55, 0.20),
+                (0.15, 0.25, 0.60),
+            )
+            self.encoder_recurrence: tuple[tuple[float, ...], ...] = (
+                (0.60, 0.20, 0.20),
+                (0.20, 0.60, 0.20),
+                (0.20, 0.20, 0.60),
+            )
+            self.switch_weights: tuple[float, ...] = (0.45, 0.35, 0.20)
+            self.decoder_matrix: tuple[tuple[float, ...], ...] = (
+                (0.80, 0.15, 0.05),
+                (0.20, 0.65, 0.15),
+                (0.25, 0.25, 0.50),
+            )
+            self.decoder_hidden: tuple[tuple[float, ...], ...] = (
+                (0.60, 0.25, 0.15),
+                (0.20, 0.60, 0.20),
+                (0.15, 0.25, 0.60),
+            )
+            self.latent_prototypes: tuple[tuple[str, tuple[float, ...]], ...] = (
+                ("repair_controller", (0.20, 0.80, 0.65)),
+                ("task_controller", (0.80, 0.25, 0.30)),
+                ("exploration_controller", (0.45, 0.45, 0.70)),
+                ("stabilize_controller", (0.40, 0.35, 0.25)),
+            )
+            self.track_weights: dict[Track, tuple[float, float, float]] = {
+                Track.WORLD: (0.70, 0.20, 0.10),
+                Track.SELF: (0.20, 0.70, 0.10),
+                Track.SHARED: (0.40, 0.40, 0.20),
+            }
+        else:
+            self.encoder_weights = _random_mat(n_z, n_z, seed=100)
+            self.encoder_recurrence = _random_mat(n_z, n_z, seed=101)
+            self.switch_weights = _random_vec(n_z, seed=102)
+            self.decoder_matrix = _random_mat(n_z, n_z, seed=103)
+            self.decoder_hidden = _random_mat(n_z, n_z, seed=104)
+            self.latent_prototypes = _init_prototypes(n_z, seed=105)
+            self.track_weights = _init_track_weights(n_z, seed=106)
         self.beta_threshold = 0.55
-        self.decoder_matrix: tuple[tuple[float, ...], ...] = (
-            (0.80, 0.15, 0.05),
-            (0.20, 0.65, 0.15),
-            (0.25, 0.25, 0.50),
-        )
-        self.decoder_hidden: tuple[tuple[float, ...], ...] = (
-            (0.60, 0.25, 0.15),
-            (0.20, 0.60, 0.20),
-            (0.15, 0.25, 0.60),
-        )
-        self.latent_prototypes: tuple[tuple[str, tuple[float, ...]], ...] = (
-            ("repair_controller", (0.20, 0.80, 0.65)),
-            ("task_controller", (0.80, 0.25, 0.30)),
-            ("exploration_controller", (0.45, 0.45, 0.70)),
-            ("stabilize_controller", (0.40, 0.35, 0.25)),
-        )
-        self.track_weights: dict[Track, tuple[float, float, float]] = {
-            Track.WORLD: (0.70, 0.20, 0.10),
-            Track.SELF: (0.20, 0.70, 0.10),
-            Track.SHARED: (0.40, 0.40, 0.20),
-        }
         self.persistence = 0.65
         self.learning_rate = 0.08
         self.clip_epsilon = 0.2
@@ -196,28 +209,32 @@ class MetacontrollerParameterStore:
             Track.SELF: 0,
             Track.SHARED: 0,
         }
-        self.latest_latent_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_latent_scale: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_decoder_control: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_latent_mean: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_latent_scale: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_decoder_control: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_switch_gate = 0.0
         self.latest_sequence_length = 0
         self.latest_ssl_loss = 0.0
         self.latest_ssl_kl_loss = 0.0
         self.latest_active_label = "stabilize_controller"
-        self.latest_prior_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_prior_std: tuple[float, ...] = (1.0, 1.0, 1.0)
-        self.latest_posterior_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_posterior_std: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_posterior_sample_noise: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_z_tilde: tuple[float, ...] = (0.0, 0.0, 0.0)
-        self.latest_posterior_hidden_state: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_prior_mean: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_prior_std: tuple[float, ...] = _nz_ones(n_z)
+        self.latest_posterior_mean: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_posterior_std: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_posterior_sample_noise: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_z_tilde: tuple[float, ...] = _nz_zeros(n_z)
+        self.latest_posterior_hidden_state: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_posterior_drift = 0.0
         self.latest_beta_binary = 0
         self.latest_switch_sparsity = 0.0
         self.latest_binary_switch_rate = 0.0
         self.latest_mean_persistence_window = 0.0
-        self.latest_decoder_applied_control: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_decoder_applied_control: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_policy_replacement_score = 0.0
+
+    @property
+    def n_z(self) -> int:
+        return self._n_z
 
     def export_temporal_parameters(self) -> TemporalControllerParameters:
         return TemporalControllerParameters(
@@ -453,6 +470,52 @@ class MetacontrollerParameterStore:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _random_mat(rows: int, cols: int, *, seed: int) -> tuple[tuple[float, ...], ...]:
+    """Deterministic random matrix for n_z > 3 initialization."""
+    import random as _rng
+    r = _rng.Random(seed)
+    scale = 1.0 / max(rows, 1) ** 0.5
+    return tuple(
+        tuple(r.gauss(0.0, scale) for _ in range(cols))
+        for _ in range(rows)
+    )
+
+
+def _random_vec(n: int, *, seed: int) -> tuple[float, ...]:
+    import random as _rng
+    r = _rng.Random(seed)
+    return tuple(r.gauss(0.0, 0.1) for _ in range(n))
+
+
+def _init_prototypes(n_z: int, *, seed: int) -> tuple[tuple[str, tuple[float, ...]], ...]:
+    import random as _rng
+    r = _rng.Random(seed)
+    labels = ("repair_controller", "task_controller", "exploration_controller", "stabilize_controller")
+    return tuple(
+        (label, tuple(abs(r.gauss(0.4, 0.2)) for _ in range(n_z)))
+        for label in labels
+    )
+
+
+def _init_track_weights(n_z: int, *, seed: int) -> dict:
+    import random as _rng
+    r = _rng.Random(seed)
+    result = {}
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        raw = tuple(abs(r.gauss(0.4, 0.2)) for _ in range(n_z))
+        total = max(sum(raw), 1e-6)
+        result[track] = tuple(v / total for v in raw)
+    return result
+
+
+def _nz_zeros(n: int) -> tuple[float, ...]:
+    return tuple(0.0 for _ in range(n))
+
+
+def _nz_ones(n: int) -> tuple[float, ...]:
+    return tuple(1.0 for _ in range(n))
 
 
 def _hash_payload(payload: object) -> str:
@@ -757,11 +820,19 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
 
     def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
         self._parameter_store = parameter_store or MetacontrollerParameterStore()
+        n_z = self._parameter_store.n_z
         self._encoder = SequenceEncoder()
         self._switch_unit = SwitchUnit()
         self._decoder = ResidualDecoder()
-        self._previous_code = (0.0, 0.0, 0.0)
-        self._previous_hidden_state = (0.0, 0.0, 0.0)
+        self._ndim_encoder: NdimSequenceEncoder | None = None
+        self._ndim_switch: NdimSwitchUnit | None = None
+        self._ndim_decoder: NdimResidualDecoder | None = None
+        if n_z > 3:
+            self._ndim_encoder = NdimSequenceEncoder(n_z=n_z)
+            self._ndim_switch = NdimSwitchUnit(n_z=n_z)
+            self._ndim_decoder = NdimResidualDecoder(n_z=n_z)
+        self._previous_code = _nz_zeros(n_z)
+        self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
 
@@ -846,6 +917,154 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         return tuple(result)
 
     def _step_impl(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        if self._ndim_encoder is not None:
+            return self._step_impl_ndim(
+                substrate_snapshot=substrate_snapshot,
+                previous_snapshot=previous_snapshot,
+                memory_snapshot=memory_snapshot,
+                reflection_snapshot=reflection_snapshot,
+                latent_override=latent_override,
+                policy_replacement_score=policy_replacement_score,
+                binary_gate_override=binary_gate_override,
+            )
+        return self._step_impl_legacy(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            latent_override=latent_override,
+            policy_replacement_score=policy_replacement_score,
+            binary_gate_override=binary_gate_override,
+        )
+
+    def _step_impl_ndim(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        assert self._ndim_encoder is not None
+        assert self._ndim_switch is not None
+        assert self._ndim_decoder is not None
+        n_z = self._parameter_store.n_z
+        previous_code = previous_snapshot.controller_state.code if previous_snapshot is not None else self._previous_code
+        previous_steps = (
+            previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
+        )
+        cms_fast = _cms_band(memory_snapshot, "online_fast")
+        cms_medium = _cms_band(memory_snapshot, "session_medium")
+        cms_slow = _cms_band(memory_snapshot, "background_slow")
+        from volvence_zero.temporal.metacontroller_components import _project_to_ndim
+        cms_ctx: tuple[float, ...] | None = None
+        if cms_fast or cms_medium or cms_slow:
+            z = _nz_zeros(n_z)
+            fast = _project_to_ndim(cms_fast, n_z) if cms_fast else z
+            med = _project_to_ndim(cms_medium, n_z) if cms_medium else z
+            slow = _project_to_ndim(cms_slow, n_z) if cms_slow else z
+            from volvence_zero.temporal.tensor_ops import vec_add as _va, vec_scale as _vs, vec_clamp as _vc
+            cms_ctx = _vc(_va(_va(_vs(fast, 0.5), _vs(med, 0.3)), _vs(slow, 0.2)), 0.0, 1.0)
+        encoded = self._ndim_encoder.encode(
+            substrate_snapshot=substrate_snapshot,
+            previous_hidden_state=self._previous_hidden_state,
+            cms_context=cms_ctx,
+        )
+        self._latest_encoder_output_for_cms = tuple(
+            _clamp(encoded.posterior.posterior_mean[i] * 0.6 + encoded.posterior.z_tilde[i] * 0.4)
+            for i in range(n_z)
+        )
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(reflection_snapshot)
+        beta_cont, beta_bin, scalar_beta = self._ndim_switch.compute(
+            z_tilde=encoded.z_tilde,
+            previous_code=previous_code,
+            memory_signal=memory_signal,
+            reflection_signal=reflection_signal,
+        )
+        if binary_gate_override:
+            effective_gate = beta_bin
+        else:
+            effective_gate = beta_cont
+        z_candidate = latent_override or encoded.z_tilde
+        latent_code = tuple(
+            _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
+            for i in range(n_z)
+        )
+        decoder_control = self._ndim_decoder.decode(latent_code=latent_code)
+        active_label, decoder_summary = classify_latent_action(
+            latent_code=latent_code,
+            decoder_control=decoder_control.applied_control,
+            prototypes=self._parameter_store.latent_prototypes,
+        )
+        is_switching_scalar = scalar_beta >= 0.55
+        beta_binary_int = 1 if is_switching_scalar else 0
+        steps_since_switch = 0 if is_switching_scalar else previous_steps + 1
+        self._parameter_store.record_runtime_observation(
+            latent_mean=encoded.latent_mean,
+            latent_scale=encoded.latent_scale,
+            decoder_control=decoder_control.decoder_output,
+            switch_gate=scalar_beta,
+            sequence_length=encoded.sequence_length,
+            active_label=active_label,
+            prior_mean=encoded.posterior.prior_mean,
+            prior_std=encoded.posterior.prior_std,
+            posterior_mean=encoded.posterior.posterior_mean,
+            posterior_std=encoded.posterior.posterior_std,
+            posterior_sample_noise=encoded.posterior.sample_noise,
+            z_tilde=z_candidate,
+            posterior_hidden_state=encoded.posterior.hidden_state,
+            posterior_drift=encoded.posterior.posterior_drift,
+            beta_binary=beta_binary_int,
+            switch_sparsity=1.0 - scalar_beta,
+            binary_switch_rate=float(beta_binary_int),
+            mean_persistence_window=0.0 if is_switching_scalar else float(previous_steps + 1),
+            decoder_applied_control=decoder_control.applied_control,
+            policy_replacement_score=policy_replacement_score,
+        )
+        params_hash = _hash_payload({
+            "mode": self.mode.value,
+            "n_z": n_z,
+            "beta_threshold": self._parameter_store.beta_threshold,
+        })
+        description = (
+            f"Full-learned ndim metacontroller n_z={n_z}, "
+            f"scalar_beta={scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
+            f"{encoded.summary}, {decoder_control.summary}, "
+            f"replacement_score={policy_replacement_score:.3f}, {decoder_summary}."
+        )
+        self._previous_code = latent_code
+        self._previous_hidden_state = encoded.posterior.hidden_state
+        self._previous_beta_binary = beta_binary_int
+        track_codes = self._compute_track_codes(latent_code)
+        return TemporalStep(
+            controller_state=ControllerState(
+                code=latent_code,
+                code_dim=len(latent_code),
+                switch_gate=scalar_beta,
+                is_switching=is_switching_scalar,
+                steps_since_switch=steps_since_switch,
+                track_codes=track_codes,
+            ),
+            active_abstract_action=active_label,
+            controller_params_hash=params_hash,
+            description=description,
+        )
+
+    def _step_impl_legacy(
         self,
         *,
         substrate_snapshot: SubstrateSnapshot,

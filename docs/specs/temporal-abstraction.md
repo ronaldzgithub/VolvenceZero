@@ -127,6 +127,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 2026-04-06: 补充 learned-lite temporal policy 的当前实现口径，并记录 runtime-visible metacontroller owner state
 - 2026-04-06: 补充 full-learned metacontroller owner、sequence-aware substrate 输入与 runtime-visible training state
 - 2026-04-06: 补充 explicit posterior、learned switch stats、bounded decoder control、Eq.3-style SSL 与 causal replacement rollout 的当前实现口径
+- 2026-04-06: P16 Non-Causal Sequence Embedder: bidirectional GRU-based s(e_{1:T}) encoder for training-time posterior inference. Creates information asymmetry: training posterior q(z_t|e_{1:T}) uses full sequence via NonCausalSequenceEmbedder.enrich_posterior, while runtime policy π(z_t|e_{1:t}) only sees causal prefix. SSL trainer now reports noncausal_kl_tightening and noncausal_information_content.
+- 2026-04-06: P15 N-dim Tensor Core: introduced configurable n_z latent dimension (default 16 for new policies, backward-compatible at n_z=3). NdimSequenceEncoder uses real GRU cell; NdimSwitchUnit produces element-wise β_t via learned FFN gate; NdimResidualDecoder uses 2-layer FFN with tanh. MetacontrollerParameterStore, CausalZPolicy, SSL trainer all support arbitrary n_z. tensor_ops.py provides pure-Python linear algebra: mat_vec, GRU cell, FFN, sigmoid, tanh.
 - 2026-04-06: P10 CMS-enhanced encoder: SequenceEncoder now accepts cms_online_fast/session_medium/background_slow bands; prior mean/std shaped by CMS slow bands; bidirectional encoder↔CMS feedback via encoder_output_for_cms and CMSMemoryCore.observe_encoder_feedback; final_wiring feeds encoder output back to CMS
 - 2026-04-06: 补充 Gaussian-like prior/posterior、closed-form KL 与 residual-control application helper 的当前实现口径
 - 2026-04-06: 补充 residual intervention backend 契约与 causal-binary rollout path 的当前实现口径
