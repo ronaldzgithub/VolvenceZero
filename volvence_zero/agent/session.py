@@ -5,6 +5,7 @@ from typing import Any
 
 from volvence_zero.agent.response import AgentResponse, ResponseSynthesizer
 from volvence_zero.credit import ModificationProposal
+from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import (
     FinalIntegrationResult,
     FinalRolloutConfig,
@@ -12,13 +13,14 @@ from volvence_zero.integration import (
 )
 from volvence_zero.memory import MemoryStore
 from volvence_zero.reflection import WritebackMode
+from volvence_zero.regime import RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
-    FeatureSignal,
-    FeatureSurfaceSubstrateAdapter,
+    SimulatedResidualSubstrateAdapter,
     SubstrateAdapter,
+    build_training_trace,
 )
-from volvence_zero.temporal import TemporalPolicy
+from volvence_zero.temporal import TemporalAbstractionSnapshot, TemporalPolicy
 
 
 @dataclass(frozen=True)
@@ -89,24 +91,11 @@ class AgentSessionRunner:
         )
 
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:
-        token_count = len([part for part in user_input.split() if part.strip()])
-        char_count = len(user_input)
-        punctuation_ratio = (
-            sum(1 for ch in user_input if ch in "!?.,;:") / char_count if char_count else 0.0
+        trace = build_training_trace(
+            trace_id=f"{self._session_id}:{self._turn_index}",
+            source_text=user_input,
         )
-        question_ratio = user_input.count("?") / max(char_count, 1)
-        feature_surface = (
-            FeatureSignal(name="user_input_length", values=(min(char_count / 200.0, 1.0),), source="runner"),
-            FeatureSignal(name="user_token_density", values=(min(token_count / 40.0, 1.0),), source="runner"),
-            FeatureSignal(name="user_punctuation_ratio", values=(min(punctuation_ratio, 1.0),), source="runner"),
-            FeatureSignal(name="user_question_ratio", values=(min(question_ratio * 10.0, 1.0),), source="runner"),
-        )
-        return FeatureSurfaceSubstrateAdapter(
-            model_id="runner-feature-surface",
-            feature_surface=feature_surface,
-            token_logits=(),
-            is_frozen=True,
-        )
+        return SimulatedResidualSubstrateAdapter(trace=trace, model_id="runner-residual-sim")
 
     def _to_turn_result(
         self,
@@ -119,19 +108,21 @@ class AgentSessionRunner:
         regime_snapshot = integration_result.active_snapshots.get("regime") or integration_result.shadow_snapshots.get(
             "regime"
         )
-        if regime_snapshot is not None and hasattr(regime_snapshot.value, "active_regime"):
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
             active_regime = regime_snapshot.value.active_regime.regime_id
 
         active_abstract_action = None
         temporal_snapshot = integration_result.active_snapshots.get(
             "temporal_abstraction"
         ) or integration_result.shadow_snapshots.get("temporal_abstraction")
-        if temporal_snapshot is not None and hasattr(temporal_snapshot.value, "active_abstract_action"):
+        if temporal_snapshot is not None and isinstance(
+            temporal_snapshot.value, TemporalAbstractionSnapshot
+        ):
             active_abstract_action = temporal_snapshot.value.active_abstract_action
 
         evaluation_alerts: tuple[str, ...] = ()
         evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
-        if evaluation_snapshot is not None and hasattr(evaluation_snapshot.value, "alerts"):
+        if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot):
             evaluation_alerts = evaluation_snapshot.value.alerts
 
         response = self._response_synthesizer.synthesize(

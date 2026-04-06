@@ -3,13 +3,21 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.substrate import SimulatedResidualSubstrateAdapter, build_training_trace
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
     PlaceholderSubstrateAdapter,
     SubstrateModule,
 )
-from volvence_zero.temporal import HeuristicTemporalPolicy, PlaceholderTemporalPolicy, TemporalModule
+from volvence_zero.temporal import (
+    HeuristicTemporalPolicy,
+    LearnedLiteTemporalPolicy,
+    PlaceholderTemporalPolicy,
+    TemporalModule,
+    fit_policy_from_trace_dataset,
+)
+from volvence_zero.substrate import TrainingTraceDataset
 
 
 def test_temporal_module_builds_placeholder_snapshot():
@@ -81,3 +89,25 @@ def test_temporal_module_runs_in_shadow_chain():
     temporal_snapshot = shadow_snapshots["temporal_abstraction"]
     assert temporal_snapshot.value.controller_state.code_dim == 3
     assert temporal_snapshot.value.controller_params_hash
+
+
+def test_learned_lite_policy_fits_from_trace_dataset_and_emits_controller_step():
+    dataset = TrainingTraceDataset(
+        (
+            build_training_trace(trace_id="t1", source_text="steady progress"),
+            build_training_trace(trace_id="t2", source_text="repair emotional tension"),
+        )
+    )
+    policy = LearnedLiteTemporalPolicy()
+    fit_policy_from_trace_dataset(policy=policy, dataset=dataset)
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=SimulatedResidualSubstrateAdapter(trace=dataset.latest()),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone()
+    ).value
+    temporal = TemporalModule(policy=policy, wiring_level=WiringLevel.ACTIVE)
+    snapshot = asyncio.run(temporal.process_standalone(substrate_snapshot=substrate_snapshot))
+
+    assert snapshot.value.controller_params_hash
+    assert snapshot.value.active_abstract_action.endswith("learned-lite")

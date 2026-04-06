@@ -30,6 +30,16 @@ class RegimeSnapshot:
 
 
 @dataclass(frozen=True)
+class RegimeCheckpoint:
+    checkpoint_id: str
+    historical_effectiveness: tuple[tuple[str, float], ...]
+    strategy_priors: tuple[tuple[str, float], ...]
+    active_regime_id: str | None
+    previous_regime_id: str | None
+    turns_in_current_regime: int
+
+
+@dataclass(frozen=True)
 class _RegimeTemplate:
     regime_id: str
     name: str
@@ -123,10 +133,22 @@ def score_regimes(
     dual_track_snapshot: DualTrackSnapshot | None,
     evaluation_snapshot: EvaluationSnapshot | None,
     historical_effectiveness: Mapping[str, float],
+    strategy_priors: Mapping[str, float] | None = None,
 ) -> tuple[tuple[str, float], ...]:
+    regime_priors = strategy_priors or {}
     if dual_track_snapshot is None:
         base = 0.1
-        return tuple((template.regime_id, base + historical_effectiveness.get(template.regime_id, 0.0) * 0.1) for template in REGIME_TEMPLATES)
+        return tuple(
+            (
+                template.regime_id,
+                _clamp(
+                    base
+                    + historical_effectiveness.get(template.regime_id, 0.0) * 0.1
+                    + regime_priors.get(template.regime_id, 0.0)
+                ),
+            )
+            for template in REGIME_TEMPLATES
+        )
 
     world_tension = dual_track_snapshot.world_track.tension_level
     self_tension = dual_track_snapshot.self_track.tension_level
@@ -157,7 +179,11 @@ def score_regimes(
     ranked: list[tuple[str, float]] = []
     for template in REGIME_TEMPLATES:
         historical = historical_effectiveness.get(template.regime_id, 0.5)
-        blended = _clamp(scores[template.regime_id] * 0.85 + historical * 0.15)
+        blended = _clamp(
+            scores[template.regime_id] * 0.80
+            + historical * 0.15
+            + regime_priors.get(template.regime_id, 0.0)
+        )
         ranked.append((template.regime_id, round(blended, 4)))
     ranked.sort(key=lambda item: item[1], reverse=True)
     return tuple(ranked)
@@ -193,6 +219,9 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._historical_effectiveness: dict[str, float] = {
             template.regime_id: 0.5 for template in REGIME_TEMPLATES
         }
+        self._strategy_priors: dict[str, float] = {
+            template.regime_id: 0.0 for template in REGIME_TEMPLATES
+        }
         self._active_regime_id: str | None = None
         self._previous_regime_id: str | None = None
         self._turns_in_current_regime = 0
@@ -214,6 +243,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             dual_track_snapshot=dual_track_value,
             evaluation_snapshot=evaluation_value,
             historical_effectiveness=self._historical_effectiveness,
+            strategy_priors=self._strategy_priors,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
@@ -261,6 +291,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             historical_effectiveness=self._historical_effectiveness,
+            strategy_priors=self._strategy_priors,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
@@ -316,3 +347,44 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._active_regime_id = chosen_regime_id
         self._turns_in_current_regime = 1
         return f"switch to higher-scoring regime with candidate score {top_score:.2f}"
+
+    def apply_policy_consolidation(
+        self,
+        *,
+        strategy_updates: tuple[str, ...],
+        regime_effectiveness_updates: tuple[tuple[str, float], ...],
+    ) -> tuple[str, ...]:
+        applied: list[str] = []
+        for update in strategy_updates:
+            if update == "increase_self_track_priority":
+                for regime_id in ("emotional_support", "acquaintance_building", "repair_and_deescalation"):
+                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.05)
+                applied.append("strategy-prior:self-track")
+            elif update == "increase_world_track_priority":
+                for regime_id in ("problem_solving", "guided_exploration"):
+                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.05)
+                applied.append("strategy-prior:world-track")
+        for regime_id, value in regime_effectiveness_updates:
+            if regime_id not in self._historical_effectiveness:
+                continue
+            current = self._historical_effectiveness[regime_id]
+            self._historical_effectiveness[regime_id] = round(current * 0.6 + value * 0.4, 4)
+            applied.append(f"regime-effectiveness:{regime_id}")
+        return tuple(applied)
+
+    def create_checkpoint(self, *, checkpoint_id: str) -> RegimeCheckpoint:
+        return RegimeCheckpoint(
+            checkpoint_id=checkpoint_id,
+            historical_effectiveness=tuple(sorted(self._historical_effectiveness.items())),
+            strategy_priors=tuple(sorted(self._strategy_priors.items())),
+            active_regime_id=self._active_regime_id,
+            previous_regime_id=self._previous_regime_id,
+            turns_in_current_regime=self._turns_in_current_regime,
+        )
+
+    def restore_checkpoint(self, checkpoint: RegimeCheckpoint) -> None:
+        self._historical_effectiveness = dict(checkpoint.historical_effectiveness)
+        self._strategy_priors = dict(checkpoint.strategy_priors)
+        self._active_regime_id = checkpoint.active_regime_id
+        self._previous_regime_id = checkpoint.previous_regime_id
+        self._turns_in_current_regime = checkpoint.turns_in_current_regime

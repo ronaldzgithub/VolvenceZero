@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
+from volvence_zero.memory import MemoryStore
+from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -73,3 +75,22 @@ def test_final_wiring_allows_active_widening_but_reports_caution():
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
     assert result.acceptance_report.recommendations
+
+
+def test_final_wiring_can_apply_bounded_writeback_when_enabled():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(reflection=WiringLevel.ACTIVE, temporal=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="apply-model",
+                feature_surface=(FeatureSignal(name="apply_context", values=(0.9,), source="adapter"),),
+            ),
+            memory_store=MemoryStore(),
+            reflection_mode=WritebackMode.APPLY,
+            session_id="s1",
+            wave_id="w2",
+        )
+    )
+
+    assert result.writeback_result is not None
+    assert result.writeback_result.description

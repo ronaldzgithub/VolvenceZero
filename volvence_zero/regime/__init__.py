@@ -1,5 +1,6 @@
 from volvence_zero.regime.identity import (
     REGIME_TEMPLATES,
+    RegimeCheckpoint,
     RegimeIdentity,
     RegimeModule,
     RegimeSnapshot,
@@ -9,6 +10,7 @@ from volvence_zero.regime.identity import (
 
 __all__ = [
     "REGIME_TEMPLATES",
+    "RegimeCheckpoint",
     "RegimeIdentity",
     "RegimeModule",
     "RegimeSnapshot",

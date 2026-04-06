@@ -33,6 +33,7 @@ class CreditRecord:
 class SelfModificationRecord:
     target: str
     gate: ModificationGate
+    decision: GateDecision
     old_value_hash: str
     new_value_hash: str
     justification: str
@@ -139,6 +140,15 @@ def evaluate_gate(
     if proposal.desired_gate is ModificationGate.BACKGROUND and critical_alert:
         return GateDecision.BLOCK
     return GateDecision.ALLOW
+
+
+def has_blocking_writeback(credit_snapshot: CreditSnapshot, *, target_prefix: str | None = None) -> bool:
+    relevant_records = credit_snapshot.recent_modifications
+    if target_prefix is not None:
+        relevant_records = tuple(
+            record for record in relevant_records if record.target.startswith(target_prefix)
+        )
+    return any(record.decision is GateDecision.BLOCK for record in relevant_records)
 
 
 class CreditLedger:
@@ -264,6 +274,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
                 SelfModificationRecord(
                     target=proposal.target,
                     gate=proposal.desired_gate,
+                    decision=decision,
                     old_value_hash=proposal.old_value_hash,
                     new_value_hash=proposal.new_value_hash,
                     justification=justification,

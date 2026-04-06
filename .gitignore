@@ -1,0 +1,5 @@
+*.pyc
+*.pyc
+*.pyc
+/tests/__pycache__
+/volvence_zero/temporal/__pycache__

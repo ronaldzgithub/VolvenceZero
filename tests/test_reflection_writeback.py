@@ -6,7 +6,7 @@ from volvence_zero.credit import CreditModule, ModificationGate, ModificationPro
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationModule
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
-from volvence_zero.reflection import ReflectionModule, WritebackMode
+from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -135,3 +135,36 @@ def test_reflection_module_runs_in_shadow_chain():
     reflection_snapshot = shadow_snapshots["reflection"]
     assert reflection_snapshot.value.writeback_mode == WritebackMode.PROPOSAL_ONLY.value
     assert reflection_snapshot.value.review_required is True
+
+
+def test_reflection_apply_path_supports_checkpoint_and_rollback():
+    store = MemoryStore()
+    initial_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="remember this durable insight",
+            timestamp_ms=40,
+        )
+    ).value
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(
+            engine=ReflectionEngine(writeback_mode=WritebackMode.APPLY),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone(
+            memory_snapshot=initial_snapshot,
+            timestamp_ms=41,
+        )
+    ).value
+    engine = ReflectionEngine(writeback_mode=WritebackMode.APPLY)
+    writeback = engine.apply(
+        memory_store=store,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=None,
+        checkpoint_id="rollback-checkpoint",
+    )
+
+    assert writeback.applied_operations
+    assert writeback.checkpoint is not None
+
+    engine.rollback(memory_store=store, checkpoint=writeback.checkpoint)
+    restored_snapshot = store.snapshot(retrieved_entries=())
+    assert restored_snapshot.description.startswith("Memory store")

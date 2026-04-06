@@ -9,6 +9,7 @@ from volvence_zero.credit.gate import (
     SelfModificationRecord,
     derive_credit_records,
     evaluate_gate,
+    has_blocking_writeback,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "SelfModificationRecord",
     "derive_credit_records",
     "evaluate_gate",
+    "has_blocking_writeback",
 ]

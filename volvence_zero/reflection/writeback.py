@@ -5,10 +5,18 @@ from enum import Enum
 from typing import Mapping
 from uuid import uuid4
 
-from volvence_zero.credit import CreditSnapshot
+from volvence_zero.credit import CreditSnapshot, GateDecision
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
-from volvence_zero.memory import MemoryEntry, MemorySnapshot, MemoryStratum, Track
+from volvence_zero.memory import (
+    MemoryEntry,
+    MemorySnapshot,
+    MemoryStore,
+    MemoryStoreCheckpoint,
+    MemoryStratum,
+    Track,
+)
+from volvence_zero.regime import RegimeCheckpoint, RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 
@@ -45,6 +53,21 @@ class ReflectionSnapshot:
     description: str
 
 
+@dataclass(frozen=True)
+class WritebackCheckpoint:
+    checkpoint_id: str
+    memory_checkpoint: MemoryStoreCheckpoint
+    regime_checkpoint: RegimeCheckpoint | None = None
+
+
+@dataclass(frozen=True)
+class WritebackResult:
+    applied_operations: tuple[str, ...]
+    blocked_operations: tuple[str, ...]
+    checkpoint: WritebackCheckpoint | None
+    description: str
+
+
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
@@ -67,6 +90,7 @@ class ReflectionEngine:
         dual_track_snapshot: DualTrackSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        regime_snapshot: RegimeSnapshot | None = None,
     ) -> ReflectionSnapshot:
         memory_consolidation = self._memory_consolidation(
             timestamp_ms=timestamp_ms,
@@ -77,6 +101,7 @@ class ReflectionEngine:
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             credit_snapshot=credit_snapshot,
+            regime_snapshot=regime_snapshot,
         )
         tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot)
         lessons = self._lessons(
@@ -105,6 +130,82 @@ class ReflectionEngine:
             review_required=review_required,
             description=description,
         )
+
+    def apply(
+        self,
+        *,
+        memory_store: MemoryStore,
+        reflection_snapshot: ReflectionSnapshot,
+        credit_snapshot: CreditSnapshot | None,
+        regime_module: RegimeModule | None = None,
+        checkpoint_id: str | None = None,
+    ) -> WritebackResult:
+        if self._writeback_mode is not WritebackMode.APPLY:
+            return WritebackResult(
+                applied_operations=(),
+                blocked_operations=("writeback-mode-not-apply",),
+                checkpoint=None,
+                description="Writeback blocked because reflection engine is not in APPLY mode.",
+            )
+        if credit_snapshot is not None and any(
+            record.decision is GateDecision.BLOCK for record in credit_snapshot.recent_modifications
+        ):
+            return WritebackResult(
+                applied_operations=(),
+                blocked_operations=("credit-gate-block",),
+                checkpoint=None,
+                description="Writeback blocked by credit gate evidence.",
+            )
+        memory_checkpoint = memory_store.create_checkpoint(checkpoint_id=checkpoint_id)
+        regime_checkpoint = (
+            regime_module.create_checkpoint(checkpoint_id=checkpoint_id or "regime-writeback")
+            if regime_module is not None
+            else None
+        )
+        applied_operations = memory_store.apply_reflection_consolidation(
+            new_durable_entries=reflection_snapshot.memory_consolidation.new_durable_entries,
+            promoted_entries=reflection_snapshot.memory_consolidation.promoted_entries,
+            decayed_entries=reflection_snapshot.memory_consolidation.decayed_entries,
+            lesson_count=len(reflection_snapshot.lessons_extracted),
+            timestamp_ms=max(
+                (entry.created_at_ms for entry in reflection_snapshot.memory_consolidation.new_durable_entries),
+                default=1,
+            ),
+        )
+        threshold_delta = -0.05 if not reflection_snapshot.tensions_identified else 0.05
+        applied_operations = applied_operations + (
+            memory_store.apply_promotion_threshold_update(delta=threshold_delta),
+        )
+        if regime_module is not None:
+            applied_operations = applied_operations + regime_module.apply_policy_consolidation(
+                strategy_updates=reflection_snapshot.policy_consolidation.strategy_priors_updated,
+                regime_effectiveness_updates=reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
+            )
+        checkpoint = WritebackCheckpoint(
+            checkpoint_id=memory_checkpoint.checkpoint_id,
+            memory_checkpoint=memory_checkpoint,
+            regime_checkpoint=regime_checkpoint,
+        )
+        return WritebackResult(
+            applied_operations=applied_operations,
+            blocked_operations=(),
+            checkpoint=checkpoint,
+            description=(
+                f"Applied {len(applied_operations)} bounded reflection operations with "
+                f"checkpoint {checkpoint.checkpoint_id}."
+            ),
+        )
+
+    def rollback(
+        self,
+        *,
+        memory_store: MemoryStore,
+        checkpoint: WritebackCheckpoint,
+        regime_module: RegimeModule | None = None,
+    ) -> None:
+        memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
+        if regime_module is not None and checkpoint.regime_checkpoint is not None:
+            regime_module.restore_checkpoint(checkpoint.regime_checkpoint)
 
     def _memory_consolidation(
         self,
@@ -155,6 +256,7 @@ class ReflectionEngine:
         dual_track_snapshot: DualTrackSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        regime_snapshot: RegimeSnapshot | None,
     ) -> PolicyConsolidation:
         controller_updates: list[str] = []
         strategy_priors_updated: list[str] = []
@@ -170,10 +272,10 @@ class ReflectionEngine:
 
         if evaluation_snapshot is not None:
             for score in evaluation_snapshot.session_scores[:4]:
-                if score.family == "relationship":
-                    regime_effectiveness_updated.append(("relationship_baseline", score.value))
-                if score.family == "task":
-                    regime_effectiveness_updated.append(("task_baseline", score.value))
+                if regime_snapshot is not None and score.family in {"relationship", "task"}:
+                    regime_effectiveness_updated.append(
+                        (regime_snapshot.active_regime.regime_id, score.value)
+                    )
 
         if credit_snapshot is not None and credit_snapshot.recent_modifications:
             controller_updates.append("gate_audit_available_for_follow_up")
@@ -233,7 +335,7 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
     slot_name = "reflection"
     owner = "ReflectionModule"
     value_type = ReflectionSnapshot
-    dependencies = ("memory", "dual_track", "evaluation", "credit")
+    dependencies = ("memory", "dual_track", "evaluation", "regime", "credit")
     default_wiring_level = WiringLevel.DISABLED
 
     def __init__(
@@ -254,6 +356,7 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
         dual_track_snapshot = upstream["dual_track"]
         evaluation_snapshot = upstream["evaluation"]
         credit_snapshot = upstream["credit"]
+        regime_snapshot = upstream["regime"]
         return self.publish(
             self._engine.reflect(
                 timestamp_ms=max(
@@ -274,6 +377,7 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 credit_snapshot=credit_snapshot.value
                 if isinstance(credit_snapshot.value, CreditSnapshot)
                 else None,
+                regime_snapshot=regime_snapshot.value if isinstance(regime_snapshot.value, RegimeSnapshot) else None,
             )
         )
 
@@ -293,6 +397,9 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 else None,
                 credit_snapshot=kwargs.get("credit_snapshot")
                 if isinstance(kwargs.get("credit_snapshot"), CreditSnapshot)
+                else None,
+                regime_snapshot=kwargs.get("regime_snapshot")
+                if isinstance(kwargs.get("regime_snapshot"), RegimeSnapshot)
                 else None,
             )
         )

@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Iterable, Mapping
 from uuid import uuid4
 
+from volvence_zero.memory.cms import CMSMemoryCore
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
@@ -69,6 +70,16 @@ class MemorySnapshot:
     description: str
 
 
+@dataclass(frozen=True)
+class MemoryStoreCheckpoint:
+    checkpoint_id: str
+    entries: tuple[MemoryEntry, ...]
+    pending_promotions: tuple[str, ...]
+    pending_decays: tuple[str, ...]
+    cms_state: tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], int] | None
+    promotion_threshold: float
+
+
 def _clamp_strength(value: float) -> float:
     return max(0.0, min(1.0, value))
 
@@ -90,7 +101,12 @@ def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
 class MemoryStore:
     """Owner-controlled memory store with per-stratum indexes."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        learned_core: CMSMemoryCore | None = None,
+        promotion_threshold: float = 0.7,
+    ) -> None:
         self._entries: dict[str, MemoryEntry] = {}
         self._by_stratum: dict[MemoryStratum, list[str]] = {
             MemoryStratum.TRANSIENT: [],
@@ -100,6 +116,16 @@ class MemoryStore:
         }
         self._pending_promotions: list[str] = []
         self._pending_decays: list[str] = []
+        self._learned_core = learned_core
+        self._promotion_threshold = _clamp_strength(promotion_threshold)
+
+    @property
+    def learned_core(self) -> CMSMemoryCore | None:
+        return self._learned_core
+
+    @property
+    def promotion_threshold(self) -> float:
+        return self._promotion_threshold
 
     def write(self, request: MemoryWriteRequest, *, timestamp_ms: int) -> MemoryEntry:
         entry = MemoryEntry(
@@ -153,6 +179,8 @@ class MemoryStore:
             f"Memory store with {len(self._entries)} entries across {len(MemoryStratum)} strata; "
             f"{len(retrieved_entries)} retrieved this turn."
         )
+        if self._learned_core is not None:
+            description += f" {self._learned_core.snapshot().description}"
         return MemorySnapshot(
             transient_summary=summarize_entries(
                 transient_entries, fallback="No transient working-state memories."
@@ -169,6 +197,91 @@ class MemoryStore:
             pending_decays=len(self._pending_decays),
             description=description,
         )
+
+    def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
+        if self._learned_core is not None:
+            self._learned_core.observe_substrate(
+                substrate_snapshot=substrate_snapshot,
+                timestamp_ms=timestamp_ms,
+            )
+
+    def apply_reflection_consolidation(
+        self,
+        *,
+        new_durable_entries: tuple[MemoryEntry, ...],
+        promoted_entries: tuple[str, ...],
+        decayed_entries: tuple[str, ...],
+        lesson_count: int,
+        timestamp_ms: int,
+    ) -> tuple[str, ...]:
+        applied: list[str] = []
+        for entry_id in promoted_entries:
+            entry = self._entries.get(entry_id)
+            if entry is None:
+                continue
+            if entry.strength < self._promotion_threshold:
+                continue
+            updated = replace(
+                entry,
+                stratum=MemoryStratum.DURABLE.value,
+                strength=_clamp_strength(max(entry.strength, 0.7)),
+                last_accessed_ms=timestamp_ms,
+            )
+            self._entries[entry_id] = updated
+            if entry_id in self._by_stratum[MemoryStratum.TRANSIENT]:
+                self._by_stratum[MemoryStratum.TRANSIENT].remove(entry_id)
+            if entry_id in self._by_stratum[MemoryStratum.EPISODIC]:
+                self._by_stratum[MemoryStratum.EPISODIC].remove(entry_id)
+            if entry_id not in self._by_stratum[MemoryStratum.DURABLE]:
+                self._by_stratum[MemoryStratum.DURABLE].append(entry_id)
+            applied.append(f"promoted:{entry_id}")
+        for entry in new_durable_entries:
+            if entry.strength < self._promotion_threshold:
+                continue
+            self._entries[entry.entry_id] = entry
+            if entry.entry_id not in self._by_stratum[MemoryStratum.DURABLE]:
+                self._by_stratum[MemoryStratum.DURABLE].append(entry.entry_id)
+            applied.append(f"durable:{entry.entry_id}")
+        for entry_id in decayed_entries:
+            entry = self._entries.get(entry_id)
+            if entry is None:
+                continue
+            self._entries[entry_id] = replace(
+                entry,
+                strength=_clamp_strength(entry.strength * 0.8),
+                last_accessed_ms=timestamp_ms,
+            )
+            applied.append(f"decayed:{entry_id}")
+        if self._learned_core is not None:
+            self._learned_core.reflect_lessons(lesson_count=lesson_count, timestamp_ms=timestamp_ms)
+        return tuple(applied)
+
+    def apply_promotion_threshold_update(self, *, delta: float) -> str:
+        previous = self._promotion_threshold
+        self._promotion_threshold = _clamp_strength(self._promotion_threshold + delta)
+        return f"promotion-threshold:{previous:.2f}->{self._promotion_threshold:.2f}"
+
+    def create_checkpoint(self, *, checkpoint_id: str | None = None) -> MemoryStoreCheckpoint:
+        return MemoryStoreCheckpoint(
+            checkpoint_id=checkpoint_id or str(uuid4()),
+            entries=tuple(self._entries.values()),
+            pending_promotions=tuple(self._pending_promotions),
+            pending_decays=tuple(self._pending_decays),
+            cms_state=self._learned_core.export_state() if self._learned_core is not None else None,
+            promotion_threshold=self._promotion_threshold,
+        )
+
+    def restore_checkpoint(self, checkpoint: MemoryStoreCheckpoint) -> None:
+        self._entries = {entry.entry_id: entry for entry in checkpoint.entries}
+        self._by_stratum = {
+            stratum: [entry.entry_id for entry in checkpoint.entries if entry.stratum == stratum.value]
+            for stratum in MemoryStratum
+        }
+        self._pending_promotions = list(checkpoint.pending_promotions)
+        self._pending_decays = list(checkpoint.pending_decays)
+        self._promotion_threshold = checkpoint.promotion_threshold
+        if self._learned_core is not None and checkpoint.cms_state is not None:
+            self._learned_core.restore_state(checkpoint.cms_state)
 
     def _entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])
@@ -206,7 +319,7 @@ def build_memory_write_requests(
         )
     if substrate_snapshot is None:
         return tuple(requests)
-    if substrate_snapshot.surface_kind is SurfaceKind.FEATURE_SURFACE:
+    if substrate_snapshot.feature_surface:
         for feature in substrate_snapshot.feature_surface:
             requests.append(
                 MemoryWriteRequest(
@@ -269,6 +382,10 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[MemorySnapshot]:
         substrate_snapshot = upstream["substrate"]
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
+        self._store.observe_substrate(
+            substrate_snapshot=substrate_value,
+            timestamp_ms=substrate_snapshot.timestamp_ms,
+        )
         for request in build_memory_write_requests(
             substrate_snapshot=substrate_value,
             user_text=None,
@@ -294,6 +411,10 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
 
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
+        self._store.observe_substrate(
+            substrate_snapshot=substrate_value,
+            timestamp_ms=timestamp_ms,
+        )
 
         for request in build_memory_write_requests(
             substrate_snapshot=substrate_value,

@@ -7,8 +7,11 @@ from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
     PlaceholderSubstrateAdapter,
+    SimulatedResidualSubstrateAdapter,
     SubstrateModule,
     SurfaceKind,
+    TrainingTraceDataset,
+    build_training_trace,
 )
 
 
@@ -59,3 +62,14 @@ def test_shadow_substrate_module_publishes_shadow_only():
 
     assert "substrate" not in result
     assert shadow_snapshots["substrate"].value.model_id == "shadow-model"
+
+
+def test_simulated_residual_adapter_exposes_executable_residual_surface():
+    dataset = TrainingTraceDataset()
+    dataset.add_trace(build_training_trace(trace_id="trace-1", source_text="calm reflective collaboration"))
+    adapter = SimulatedResidualSubstrateAdapter(trace=dataset.latest())
+    snapshot = asyncio.run(adapter.capture(source_text=dataset.latest().source_text))
+
+    assert snapshot.surface_kind is SurfaceKind.RESIDUAL_STREAM
+    assert snapshot.residual_activations
+    assert snapshot.feature_surface

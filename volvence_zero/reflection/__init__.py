@@ -4,7 +4,9 @@ from volvence_zero.reflection.writeback import (
     ReflectionEngine,
     ReflectionModule,
     ReflectionSnapshot,
+    WritebackCheckpoint,
     WritebackMode,
+    WritebackResult,
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     "ReflectionEngine",
     "ReflectionModule",
     "ReflectionSnapshot",
+    "WritebackCheckpoint",
     "WritebackMode",
+    "WritebackResult",
 ]

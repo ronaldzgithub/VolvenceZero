@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.memory import (
+    CMSMemoryCore,
     MemoryModule,
     MemoryStore,
     MemoryStratum,
@@ -86,4 +87,44 @@ def test_memory_module_consumes_substrate_and_publishes_shadow_snapshot():
     memory_snapshot = shadow_snapshots["memory"]
     assert memory_snapshot.value.total_entries_by_stratum
     assert memory_snapshot.value.retrieved_entries
+
+
+def test_memory_store_supports_checkpoint_restore_and_cms_core():
+    store = MemoryStore(learned_core=CMSMemoryCore())
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="cms-model",
+                feature_surface=(FeatureSignal(name="cms_signal", values=(0.7,), source="adapter"),),
+            ),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone()
+    ).value
+    store.observe_substrate(substrate_snapshot=substrate_snapshot, timestamp_ms=50)
+    entry = store.write(
+        MemoryWriteRequest(
+            content="checkpoint this memory",
+            track=Track.SHARED,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.6,
+        ),
+        timestamp_ms=51,
+    )
+    checkpoint = store.create_checkpoint(checkpoint_id="memory-1")
+    store.apply_reflection_consolidation(
+        new_durable_entries=(),
+        promoted_entries=(entry.entry_id,),
+        decayed_entries=(),
+        lesson_count=2,
+        timestamp_ms=52,
+    )
+    assert store.learned_core is not None
+    assert store.learned_core.snapshot().description
+
+    store.restore_checkpoint(checkpoint)
+    restored = store.retrieve(
+        RetrievalQuery(text="checkpoint", track=Track.SHARED, strata=(MemoryStratum.TRANSIENT,), limit=1),
+        timestamp_ms=53,
+    )
+    assert restored.entries
 

@@ -10,6 +10,13 @@ from volvence_zero.substrate.adapter import (
     SurfaceKind,
     UnavailableField,
 )
+from volvence_zero.substrate.residual_backend import (
+    SimulatedResidualSubstrateAdapter,
+    TraceStep,
+    TrainingTrace,
+    TrainingTraceDataset,
+    build_training_trace,
+)
 
 __all__ = [
     "FeatureSignal",
@@ -17,9 +24,14 @@ __all__ = [
     "PlaceholderSubstrateAdapter",
     "ResidualActivation",
     "ResidualStreamSubstrateAdapter",
+    "SimulatedResidualSubstrateAdapter",
     "SubstrateAdapter",
     "SubstrateModule",
     "SubstrateSnapshot",
     "SurfaceKind",
+    "TraceStep",
+    "TrainingTrace",
+    "TrainingTraceDataset",
     "UnavailableField",
+    "build_training_trace",
 ]
