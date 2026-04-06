@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 from uuid import uuid4
 
-from volvence_zero.memory.cms import CMSMemoryCore
+from volvence_zero.memory.cms import CMSCheckpointState, CMSMemoryCore, CMSState
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
@@ -50,6 +51,7 @@ class RetrievalQuery:
     track: Track | None = None
     strata: tuple[MemoryStratum, ...] = ()
     limit: int = 5
+    facets: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,7 @@ class MemorySnapshot:
     total_entries_by_stratum: tuple[tuple[str, int], ...]
     pending_promotions: int
     pending_decays: int
+    cms_state: CMSState | None
     description: str
 
 
@@ -76,8 +79,9 @@ class MemoryStoreCheckpoint:
     entries: tuple[MemoryEntry, ...]
     pending_promotions: tuple[str, ...]
     pending_decays: tuple[str, ...]
-    cms_state: tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], int] | None
+    cms_state: CMSCheckpointState | None
     promotion_threshold: float
+    semantic_index: tuple[tuple[str, tuple[float, ...]], ...]
 
 
 def _clamp_strength(value: float) -> float:
@@ -86,6 +90,27 @@ def _clamp_strength(value: float) -> float:
 
 def _tokenize(text: str) -> set[str]:
     return {part.strip().lower() for part in text.split() if part.strip()}
+
+
+def _semantic_embedding(*, text: str, tags: tuple[str, ...], dim: int = 6) -> tuple[float, ...]:
+    tokens = tuple(sorted(_tokenize(text) | {tag.lower() for tag in tags}))
+    if not tokens:
+        return tuple(0.0 for _ in range(dim))
+    vector = [0.0 for _ in range(dim)]
+    for token in tokens:
+        token_strength = max(len(token), 1)
+        for index, char in enumerate(token):
+            vector[(index + len(token)) % dim] += (ord(char) % 31) / 31.0 / token_strength
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm <= 1e-6:
+        return tuple(0.0 for _ in range(dim))
+    return tuple(value / norm for value in vector)
+
+
+def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+    if not left or not right:
+        return 0.0
+    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
 
 
 def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
@@ -118,6 +143,7 @@ class MemoryStore:
         self._pending_decays: list[str] = []
         self._learned_core = learned_core
         self._promotion_threshold = _clamp_strength(promotion_threshold)
+        self._semantic_index: dict[str, tuple[float, ...]] = {}
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -140,6 +166,10 @@ class MemoryStore:
         )
         self._entries[entry.entry_id] = entry
         self._by_stratum[request.stratum].append(entry.entry_id)
+        self._semantic_index[entry.entry_id] = _semantic_embedding(
+            text=entry.content,
+            tags=entry.tags,
+        )
 
         if request.stratum in {MemoryStratum.TRANSIENT, MemoryStratum.EPISODIC}:
             self._pending_promotions.append(entry.entry_id)
@@ -149,14 +179,18 @@ class MemoryStore:
 
     def retrieve(self, query: RetrievalQuery, *, timestamp_ms: int) -> RetrievalResult:
         tokens = _tokenize(query.text)
+        query_embedding = _semantic_embedding(
+            text=" ".join(part for part in (query.text, *query.facets) if part),
+            tags=query.facets,
+        )
         strata = query.strata or tuple(MemoryStratum)
-        matches: list[tuple[int, MemoryEntry]] = []
+        matches: list[tuple[float, MemoryEntry]] = []
         for stratum in strata:
             for entry_id in self._by_stratum[stratum]:
                 entry = self._entries[entry_id]
                 if query.track is not None and entry.track is not query.track:
                     continue
-                score = self._score_entry(entry, tokens)
+                score = self._score_entry(entry, tokens, query_embedding)
                 if score <= 0:
                     continue
                 updated = replace(entry, last_accessed_ms=timestamp_ms)
@@ -195,6 +229,7 @@ class MemoryStore:
             total_entries_by_stratum=total_entries,
             pending_promotions=len(self._pending_promotions),
             pending_decays=len(self._pending_decays),
+            cms_state=self._learned_core.snapshot() if self._learned_core is not None else None,
             description=description,
         )
 
@@ -211,6 +246,9 @@ class MemoryStore:
         new_durable_entries: tuple[MemoryEntry, ...],
         promoted_entries: tuple[str, ...],
         decayed_entries: tuple[str, ...],
+        beliefs_updated: tuple[str, ...],
+        promotion_boost: float,
+        decay_scale: float,
         lesson_count: int,
         timestamp_ms: int,
     ) -> tuple[str, ...]:
@@ -224,7 +262,7 @@ class MemoryStore:
             updated = replace(
                 entry,
                 stratum=MemoryStratum.DURABLE.value,
-                strength=_clamp_strength(max(entry.strength, 0.7)),
+                strength=_clamp_strength(max(entry.strength, 0.55 + promotion_boost * 0.35)),
                 last_accessed_ms=timestamp_ms,
             )
             self._entries[entry_id] = updated
@@ -239,6 +277,10 @@ class MemoryStore:
             if entry.strength < self._promotion_threshold:
                 continue
             self._entries[entry.entry_id] = entry
+            self._semantic_index[entry.entry_id] = _semantic_embedding(
+                text=entry.content,
+                tags=entry.tags,
+            )
             if entry.entry_id not in self._by_stratum[MemoryStratum.DURABLE]:
                 self._by_stratum[MemoryStratum.DURABLE].append(entry.entry_id)
             applied.append(f"durable:{entry.entry_id}")
@@ -248,10 +290,29 @@ class MemoryStore:
                 continue
             self._entries[entry_id] = replace(
                 entry,
-                strength=_clamp_strength(entry.strength * 0.8),
+                strength=_clamp_strength(entry.strength * max(0.55, 1.0 - decay_scale * 0.35)),
                 last_accessed_ms=timestamp_ms,
             )
             applied.append(f"decayed:{entry_id}")
+        for belief in beliefs_updated:
+            belief_entry = MemoryEntry(
+                entry_id=str(uuid4()),
+                content=belief,
+                track=Track.SHARED,
+                stratum=MemoryStratum.DURABLE.value,
+                created_at_ms=timestamp_ms,
+                last_accessed_ms=timestamp_ms,
+                strength=_clamp_strength(0.5 + promotion_boost * 0.25),
+                tags=("belief_update",),
+            )
+            self._entries[belief_entry.entry_id] = belief_entry
+            self._semantic_index[belief_entry.entry_id] = _semantic_embedding(
+                text=belief_entry.content,
+                tags=belief_entry.tags,
+            )
+            if belief_entry.entry_id not in self._by_stratum[MemoryStratum.DURABLE]:
+                self._by_stratum[MemoryStratum.DURABLE].append(belief_entry.entry_id)
+            applied.append(f"belief:{belief_entry.entry_id}")
         if self._learned_core is not None:
             self._learned_core.reflect_lessons(lesson_count=lesson_count, timestamp_ms=timestamp_ms)
         return tuple(applied)
@@ -269,6 +330,7 @@ class MemoryStore:
             pending_decays=tuple(self._pending_decays),
             cms_state=self._learned_core.export_state() if self._learned_core is not None else None,
             promotion_threshold=self._promotion_threshold,
+            semantic_index=tuple(sorted(self._semantic_index.items())),
         )
 
     def restore_checkpoint(self, checkpoint: MemoryStoreCheckpoint) -> None:
@@ -280,24 +342,34 @@ class MemoryStore:
         self._pending_promotions = list(checkpoint.pending_promotions)
         self._pending_decays = list(checkpoint.pending_decays)
         self._promotion_threshold = checkpoint.promotion_threshold
+        self._semantic_index = dict(checkpoint.semantic_index)
         if self._learned_core is not None and checkpoint.cms_state is not None:
             self._learned_core.restore_state(checkpoint.cms_state)
 
     def _entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])
 
-    def _score_entry(self, entry: MemoryEntry, query_tokens: set[str]) -> int:
-        if not query_tokens:
-            return 1
-        score = 0
+    def _score_entry(
+        self,
+        entry: MemoryEntry,
+        query_tokens: set[str],
+        query_embedding: tuple[float, ...],
+    ) -> float:
+        lexical_score = 0.0
         content_tokens = _tokenize(entry.content)
         tag_tokens = {token.lower() for token in entry.tags}
         overlap = len(query_tokens & content_tokens)
-        score += overlap * 3
-        score += len(query_tokens & tag_tokens) * 2
-        if score == 0 and any(token in entry.content.lower() for token in query_tokens):
-            score = 1
-        return score
+        lexical_score += overlap * 3.0
+        lexical_score += len(query_tokens & tag_tokens) * 2.0
+        if lexical_score == 0.0 and any(token in entry.content.lower() for token in query_tokens):
+            lexical_score = 1.0
+        if not query_tokens:
+            lexical_score = 1.0
+        semantic_score = _cosine_similarity(
+            query_embedding,
+            self._semantic_index.get(entry.entry_id, (0.0, 0.0, 0.0)),
+        )
+        return lexical_score * 0.7 + semantic_score * 3.0
 
 
 def build_memory_write_requests(
@@ -338,6 +410,7 @@ def build_retrieval_query(
     substrate_snapshot: SubstrateSnapshot | None,
     user_text: str | None,
     track: Track = Track.SHARED,
+    query_facets: tuple[str, ...] = (),
 ) -> RetrievalQuery:
     query_parts: list[str] = []
     if user_text:
@@ -357,6 +430,7 @@ def build_retrieval_query(
             MemoryStratum.DERIVED,
         ),
         limit=5,
+        facets=query_facets,
     )
 
 
@@ -368,7 +442,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
     slot_name = "memory"
     owner = "MemoryModule"
     value_type = MemorySnapshot
-    dependencies = ("substrate",)
+    dependencies = ("substrate", "temporal_abstraction", "dual_track")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(self, *, store: MemoryStore | None = None, wiring_level: WiringLevel | None = None) -> None:
@@ -381,6 +455,8 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[MemorySnapshot]:
         substrate_snapshot = upstream["substrate"]
+        temporal_snapshot = upstream.get("temporal_abstraction")
+        dual_track_snapshot = upstream.get("dual_track")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         self._store.observe_substrate(
             substrate_snapshot=substrate_value,
@@ -397,7 +473,12 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             build_retrieval_query(
                 substrate_snapshot=substrate_value,
                 user_text=None,
-                track=Track.SHARED,
+                track=None,
+                query_facets=self._runtime_query_facets(
+                    substrate_snapshot=substrate_value,
+                    temporal_value=temporal_snapshot.value if temporal_snapshot is not None else None,
+                    dual_track_value=dual_track_snapshot.value if dual_track_snapshot is not None else None,
+                ),
             ),
             timestamp_ms=substrate_snapshot.timestamp_ms,
         )
@@ -408,6 +489,11 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         user_text = kwargs.get("user_text")
         if user_text is not None and not isinstance(user_text, str):
             raise TypeError("user_text must be a string when provided.")
+        query_facets = kwargs.get("query_facets", ())
+        if not isinstance(query_facets, tuple):
+            raise TypeError("query_facets must be a tuple when provided.")
+        temporal_snapshot = kwargs.get("temporal_snapshot")
+        dual_track_snapshot = kwargs.get("dual_track_snapshot")
 
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
@@ -427,8 +513,62 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             build_retrieval_query(
                 substrate_snapshot=substrate_value,
                 user_text=user_text,
-                track=Track.SHARED,
+                track=None,
+                query_facets=query_facets
+                + self._runtime_query_facets(
+                    substrate_snapshot=substrate_value,
+                    temporal_value=temporal_snapshot,
+                    dual_track_value=dual_track_snapshot,
+                ),
             ),
             timestamp_ms=timestamp_ms,
         )
         return self.publish(self._store.snapshot(retrieved_entries=retrieval.entries))
+
+    def _runtime_query_facets(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot | None,
+        temporal_value: Any = None,
+        dual_track_value: Any = None,
+    ) -> tuple[str, ...]:
+        facets: list[str] = []
+        if self._store.learned_core is not None:
+            cms_state = self._store.learned_core.snapshot()
+            facets.extend(
+                (
+                    f"cms:{cms_state.online_fast.name}",
+                    f"cms:{cms_state.session_medium.name}",
+                    f"cms:{cms_state.background_slow.name}",
+                )
+            )
+        if substrate_snapshot is not None:
+            facets.extend(_query_parts_from_feature_surface(substrate_snapshot.feature_surface))
+        facets.extend(_temporal_query_facets(temporal_value))
+        facets.extend(_dual_track_query_facets(dual_track_value))
+        return tuple(facets)
+
+
+def _temporal_query_facets(temporal_value: Any) -> tuple[str, ...]:
+    from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
+
+    if not isinstance(temporal_value, TemporalAbstractionSnapshot):
+        return ()
+    return (
+        f"temporal:{temporal_value.active_abstract_action}",
+        f"temporal:steps_since_switch:{temporal_value.controller_state.steps_since_switch}",
+    )
+
+
+def _dual_track_query_facets(dual_track_value: Any) -> tuple[str, ...]:
+    from volvence_zero.dual_track.core import DualTrackSnapshot
+
+    if not isinstance(dual_track_value, DualTrackSnapshot):
+        return ()
+    facets: list[str] = []
+    for goal in dual_track_value.world_track.active_goals[:2]:
+        facets.append(f"world-goal:{goal}")
+    for goal in dual_track_value.self_track.active_goals[:2]:
+        facets.append(f"self-goal:{goal}")
+    facets.append(f"cross-track:{dual_track_value.cross_track_tension:.2f}")
+    return tuple(facets)

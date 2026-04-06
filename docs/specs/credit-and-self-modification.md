@@ -89,9 +89,13 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - 当前 abstract-action credit 已可按 `world` / `self` 双轨记录，不再只剩 shared credit
 - gate audit 已扩展为 `SelfModificationRecord.decision`
 - joint loop 现在会把 metacontroller rollback / drift evidence 写入 owner-side modification audit，供 reflection / writeback 直接消费
+- joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
+- 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 
 ## 变更日志
 
+- 2026-04-06: 补充 retrieval / reflection / joint-loop learning evidence 进入 shared credit 的当前实现口径
 - 2026-04-06: 补充 abstract-action credit、decision-aware gate audit，以及 metacontroller runtime adaptation audit
+- 2026-04-06: 补充 metacontroller runtime credit evidence 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

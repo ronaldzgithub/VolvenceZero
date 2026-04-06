@@ -210,6 +210,12 @@ class SlotRegistry:
         current = self._latest_versions.get(slot_name, 0)
         return current + 1
 
+    def seed_versions(self, snapshots: Mapping[str, Snapshot[Any]]) -> None:
+        for slot_name, snapshot in snapshots.items():
+            current = self._latest_versions.get(slot_name, 0)
+            if snapshot.version > current:
+                self._latest_versions[slot_name] = snapshot.version
+
     def record_publication(
         self,
         *,
@@ -318,6 +324,7 @@ class UpstreamView(Mapping[str, Snapshot[Any]]):
         *,
         module: "RuntimeModule[Any]",
         active_snapshots: UpstreamDict,
+        missing_snapshots: MutableMapping[str, Snapshot[Any]],
         dependency_guard: DependencyGuard,
         immutability_guard: ImmutabilityGuard,
         recorder: EventRecorder,
@@ -326,6 +333,7 @@ class UpstreamView(Mapping[str, Snapshot[Any]]):
     ) -> None:
         self._module = module
         self._active_snapshots = active_snapshots
+        self._missing_snapshots = missing_snapshots
         self._dependency_guard = dependency_guard
         self._immutability_guard = immutability_guard
         self._recorder = recorder
@@ -355,13 +363,16 @@ class UpstreamView(Mapping[str, Snapshot[Any]]):
             )
             snapshot = self._active_snapshots.get(slot_name)
             if snapshot is None:
-                snapshot = make_placeholder_snapshot(
-                    slot_name=slot_name,
-                    owner="runtime.missing",
-                    version=0,
-                    reason="missing-upstream",
-                    detail=f"Upstream slot '{slot_name}' is unavailable for '{self._module.owner}'.",
-                )
+                snapshot = self._missing_snapshots.get(slot_name)
+                if snapshot is None:
+                    snapshot = make_placeholder_snapshot(
+                        slot_name=slot_name,
+                        owner="runtime.missing",
+                        version=0,
+                        reason="missing-upstream",
+                        detail=f"Upstream slot '{slot_name}' is unavailable for '{self._module.owner}'.",
+                    )
+                    self._missing_snapshots[slot_name] = snapshot
             self._immutability_guard.verify(snapshot)
         except ContractViolationError as error:
             self._emit_violation(slot_name, error)
@@ -412,6 +423,10 @@ class RuntimeModule(ABC, Generic[ValueT]):
     def wiring_level(self) -> WiringLevel:
         return self._wiring_level
 
+    def seed_version(self, version: int) -> None:
+        if version > self._version:
+            self._version = version
+
     def publish(self, value: ValueT) -> Snapshot[ValueT]:
         self._version += 1
         return Snapshot(
@@ -456,6 +471,7 @@ async def propagate(
     dependency_guard = DependencyGuard()
     immutability_guard = ImmutabilityGuard()
     schema_guard = SchemaGuard()
+    missing_snapshots: dict[str, Snapshot[Any]] = {}
 
     for snapshot in active_snapshots.values():
         immutability_guard.remember(snapshot)
@@ -491,6 +507,7 @@ async def propagate(
         upstream_view = UpstreamView(
             module=module,
             active_snapshots=active_snapshots,
+            missing_snapshots=missing_snapshots,
             dependency_guard=dependency_guard,
             immutability_guard=immutability_guard,
             recorder=recorder,

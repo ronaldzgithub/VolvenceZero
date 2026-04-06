@@ -81,6 +81,10 @@ rare-heavy (定期离线):
 - 第二阶段 joint loop 已补充 dual-track internal rollout，并在 cycle 结束后执行 abstract-action credit enrichment + bounded writeback
 - 当前 joint loop 已支持 policy checkpoint/rollback：当 reward 明显退化、评估出现高等级告警，或 trajectory-level policy objective / KL 偏移超阈值时回滚 internal RL policy
 - 当前 joint loop cycle report 已显式发布 metacontroller owner state 与 rollback reasons，使 online-fast controller 演化可被会话级闭环检查
+- 当前 joint loop 已拆成最小 `ssl_step -> rl_step -> evidence/writeback` 顺序：先执行 metacontroller SSL 更新，再运行 dual-track internal RL，并将 metacontroller 证据写入 evaluation / credit / regime owner
+- 当前 online-fast SSL 已显式区分 prior / posterior，并用 closed-form KL 约束 metacontroller latent bottle-neck；当前 internal RL env 也已通过 residual intervention backend 更接近 frozen-model-in-env 的控制路径
+- 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
+- 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - rare-heavy 级的完整 Internal RL / substrate 干预仍属于后续增强，不在当前实现范围内
 
 ## 与其他能力域的关系
@@ -96,4 +100,7 @@ rare-heavy (定期离线):
 ## 变更日志
 
 - 2026-04-06: 补充 joint loop 对 metacontroller owner state / rollback reasons 的当前实现口径
+- 2026-04-06: 补充 joint loop 的最小 SSL/RL alternation 与 kernel evidence loop
+- 2026-04-06: 补充 prior/posterior KL 与 residual control application helper 的当前实现口径
+- 2026-04-06: 补充 residual intervention backend 与 causal-binary rollout path 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 PRD 提取

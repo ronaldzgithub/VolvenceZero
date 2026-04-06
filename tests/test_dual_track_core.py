@@ -10,6 +10,7 @@ from volvence_zero.substrate import (
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
 )
+from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
 
 
 def test_dual_track_standalone_builds_separated_track_states():
@@ -138,3 +139,32 @@ def test_dual_track_module_consumes_memory_snapshot_in_shadow_mode():
     dual_snapshot = shadow_snapshots["dual_track"]
     assert dual_snapshot.value.world_track.track is Track.WORLD
     assert dual_snapshot.value.self_track.track is Track.SELF
+
+
+def test_dual_track_module_consumes_temporal_snapshot_as_controller_evidence():
+    module = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+    temporal_snapshot = TemporalAbstractionSnapshot(
+        controller_state=ControllerState(
+            code=(0.9, 0.2, 0.4),
+            code_dim=3,
+            switch_gate=0.7,
+            is_switching=True,
+            steps_since_switch=1,
+        ),
+        active_abstract_action="task_controller",
+        controller_params_hash="hash",
+        description="temporal control evidence",
+    )
+
+    snapshot = asyncio.run(
+        module.process_standalone(
+            world_entries=(),
+            self_entries=(),
+            temporal_snapshot=temporal_snapshot,
+        )
+    )
+
+    assert snapshot.value.world_track.controller_source == "temporal+memory"
+    assert snapshot.value.self_track.controller_source == "temporal+memory"
+    assert snapshot.value.world_track.abstract_action_hint == "task_controller"
+    assert snapshot.value.world_track.controller_code[-1] == 0.7

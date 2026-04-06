@@ -8,6 +8,7 @@ from volvence_zero.credit import (
     ModificationGate,
     ModificationProposal,
     derive_abstract_action_credit_records,
+    derive_metacontroller_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
@@ -22,7 +23,7 @@ from volvence_zero.substrate import (
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
 )
-from volvence_zero.temporal import LearnedLiteTemporalPolicy, TemporalModule
+from volvence_zero.temporal import LearnedLiteTemporalPolicy, MetacontrollerRuntimeState, TemporalModule
 
 
 def test_gate_blocks_online_modification_when_high_alert_present():
@@ -247,3 +248,50 @@ def test_runtime_adaptation_audit_records_capture_rollback_evidence():
     assert records[0].decision is GateDecision.BLOCK
     assert records[0].target == "metacontroller.runtime_adaptation"
     assert "reward-regression" in records[0].justification
+
+
+def test_metacontroller_credit_records_capture_kernel_evidence():
+    runtime_state = MetacontrollerRuntimeState(
+        mode="full-learned",
+        temporal_parameters=LearnedLiteTemporalPolicy().export_parameters(),
+        track_parameters=(("world", (0.7, 0.2, 0.1)), ("self", (0.2, 0.7, 0.1)), ("shared", (0.4, 0.4, 0.2))),
+        encoder_weights=((0.7, 0.2, 0.1), (0.25, 0.55, 0.2), (0.15, 0.25, 0.6)),
+        switch_weights=(0.45, 0.35, 0.2),
+        decoder_matrix=((0.8, 0.15, 0.05), (0.2, 0.65, 0.15), (0.25, 0.25, 0.5)),
+        persistence=0.65,
+        learning_rate=0.08,
+        clip_epsilon=0.2,
+        update_steps=(("world", 1), ("self", 1), ("shared", 0)),
+        latent_mean=(0.4, 0.6, 0.5),
+        latent_scale=(0.1, 0.2, 0.1),
+        decoder_control=(0.45, 0.55, 0.50),
+        latest_switch_gate=0.35,
+        sequence_length=4,
+        latest_ssl_loss=0.12,
+        latest_ssl_kl_loss=0.04,
+        active_label="repair_controller",
+        posterior_mean=(0.40, 0.60, 0.50),
+        posterior_std=(0.10, 0.20, 0.10),
+        z_tilde=(0.42, 0.68, 0.55),
+        posterior_hidden_state=(0.36, 0.52, 0.49),
+        posterior_drift=0.18,
+        beta_binary=1,
+        switch_sparsity=0.65,
+        binary_switch_rate=0.55,
+        mean_persistence_window=1.0,
+        decoder_applied_control=(0.47, 0.58, 0.52),
+        policy_replacement_score=0.50,
+        description="Metacontroller runtime state mode=full-learned.",
+    )
+
+    records = derive_metacontroller_credit_records(
+        metacontroller_state=runtime_state,
+        policy_objective=0.25,
+        rollback_reasons=(),
+        timestamp_ms=70,
+    )
+
+    assert len(records) == 1
+    assert records[0].source_event == "repair_controller"
+    assert records[0].level == "abstract_action"
+    assert "posterior_drift" in records[0].context

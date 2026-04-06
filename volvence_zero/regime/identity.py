@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+
+if TYPE_CHECKING:
+    from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
 @dataclass(frozen=True)
@@ -353,23 +356,74 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         *,
         strategy_updates: tuple[str, ...],
         regime_effectiveness_updates: tuple[tuple[str, float], ...],
+        strategy_gain: float = 0.05,
+        effectiveness_gain: float = 0.4,
     ) -> tuple[str, ...]:
         applied: list[str] = []
         for update in strategy_updates:
             if update == "increase_self_track_priority":
                 for regime_id in ("emotional_support", "acquaintance_building", "repair_and_deescalation"):
-                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.05)
+                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + strategy_gain)
                 applied.append("strategy-prior:self-track")
             elif update == "increase_world_track_priority":
                 for regime_id in ("problem_solving", "guided_exploration"):
-                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.05)
+                    self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + strategy_gain)
                 applied.append("strategy-prior:world-track")
         for regime_id, value in regime_effectiveness_updates:
             if regime_id not in self._historical_effectiveness:
                 continue
             current = self._historical_effectiveness[regime_id]
-            self._historical_effectiveness[regime_id] = round(current * 0.6 + value * 0.4, 4)
+            self._historical_effectiveness[regime_id] = round(
+                current * (1.0 - effectiveness_gain) + value * effectiveness_gain,
+                4,
+            )
             applied.append(f"regime-effectiveness:{regime_id}")
+        return tuple(applied)
+
+    def apply_metacontroller_evidence(
+        self,
+        *,
+        metacontroller_state: "MetacontrollerRuntimeState | None",
+        rollback_reasons: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        if metacontroller_state is None:
+            return ()
+        applied: list[str] = []
+        if metacontroller_state.active_label == "repair_controller":
+            for regime_id in ("repair_and_deescalation", "emotional_support"):
+                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
+            applied.append("metacontroller:repair")
+        elif metacontroller_state.active_label == "task_controller":
+            for regime_id in ("problem_solving", "guided_exploration"):
+                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
+            applied.append("metacontroller:task")
+        elif metacontroller_state.active_label == "exploration_controller":
+            for regime_id in ("guided_exploration", "acquaintance_building"):
+                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
+            applied.append("metacontroller:exploration")
+        else:
+            self._strategy_priors["casual_social"] = _clamp(self._strategy_priors["casual_social"] + 0.02)
+            applied.append("metacontroller:stabilize")
+        if metacontroller_state.binary_switch_rate > 0.55:
+            self._strategy_priors["guided_exploration"] = _clamp(
+                self._strategy_priors["guided_exploration"] + 0.03
+            )
+            applied.append("metacontroller:sparse-switch")
+        if metacontroller_state.posterior_drift > 0.45:
+            self._strategy_priors["repair_and_deescalation"] = _clamp(
+                self._strategy_priors["repair_and_deescalation"] + 0.03
+            )
+            applied.append("metacontroller:posterior-guard")
+        if metacontroller_state.policy_replacement_score > 0.45:
+            self._strategy_priors["problem_solving"] = _clamp(
+                self._strategy_priors["problem_solving"] + 0.03
+            )
+            applied.append("metacontroller:replacement")
+        if rollback_reasons:
+            self._strategy_priors["repair_and_deescalation"] = _clamp(
+                self._strategy_priors["repair_and_deescalation"] + 0.05
+            )
+            applied.append("metacontroller:guard")
         return tuple(applied)
 
     def create_checkpoint(self, *, checkpoint_id: str) -> RegimeCheckpoint:

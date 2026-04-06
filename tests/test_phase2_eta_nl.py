@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.internal_rl import InternalRLSandbox, derive_abstract_action_credit
-from volvence_zero.joint_loop import ETANLJointLoop
-from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, build_training_trace
+from volvence_zero.internal_rl import InternalRLEnvironment, InternalRLSandbox, derive_abstract_action_credit
+from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
+from volvence_zero.substrate import (
+    NoOpResidualInterventionBackend,
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SurfaceKind,
+    build_training_trace,
+)
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -15,6 +21,15 @@ def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
         token_logits=(0.1, 0.2),
         feature_surface=step.feature_surface,
         residual_activations=step.residual_activations,
+        residual_sequence=(
+            ResidualSequenceStep(
+                step=step.step,
+                token=step.token,
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                description=f"trace token {step.token}",
+            ),
+        ),
         unavailable_fields=(),
         description=f"trace step {step.step}",
     )
@@ -46,6 +61,12 @@ def test_internal_rl_sandbox_runs_dual_track_rollout():
     assert dual_rollout.relationship_rollout.track.value == "self"
     assert dual_rollout.task_rollout.transitions
     assert dual_rollout.relationship_rollout.transitions
+    assert dual_rollout.task_rollout.replacement_mode == "causal-binary"
+    assert dual_rollout.task_rollout.transitions[0].policy_action
+    assert dual_rollout.task_rollout.transitions[0].applied_control
+    assert dual_rollout.task_rollout.transitions[0].policy_replacement_quality >= -1.0
+    assert dual_rollout.task_rollout.transitions[0].backend_name == "trace-residual-backend"
+    assert dual_rollout.task_rollout.transitions[0].controller_state.switch_gate in {0.0, 1.0}
 
 
 def test_internal_rl_sandbox_supports_checkpoint_and_optimization_report():
@@ -73,6 +94,33 @@ def test_internal_rl_sandbox_supports_checkpoint_and_optimization_report():
     assert sandbox.policy.export_parameters() == checkpoint_temporal_params
 
 
+def test_internal_rl_sandbox_can_run_noop_backend_baseline_path():
+    trace = build_training_trace(trace_id="baseline-trace", source_text="steady guided planning")
+    sandbox = InternalRLSandbox(env=InternalRLEnvironment(control_backend=NoOpResidualInterventionBackend()))
+
+    rollout = sandbox.rollout(
+        rollout_id="rollout-baseline",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+    )
+
+    assert rollout.transitions
+    assert rollout.transitions[0].backend_name == "noop-residual-backend"
+
+
+def test_internal_rl_sandbox_can_run_continuous_causal_path():
+    trace = build_training_trace(trace_id="continuous-trace", source_text="steady guided planning")
+    sandbox = InternalRLSandbox()
+
+    rollout = sandbox.rollout(
+        rollout_id="rollout-continuous",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+        replacement_mode="causal",
+    )
+
+    assert rollout.replacement_mode == "causal"
+    assert 0.0 <= rollout.transitions[0].controller_state.switch_gate <= 1.0
+
+
 def test_eta_nl_joint_loop_runs_minimal_cycle():
     loop = ETANLJointLoop()
     trace = build_training_trace(trace_id="joint-trace", source_text="repair tension then continue helpfully")
@@ -84,7 +132,11 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.relationship_reward != 0.0
     assert report.applied_operations
     assert report.metacontroller_state is not None
-    assert report.metacontroller_state.mode == "learned-lite"
+    assert report.metacontroller_state.mode == "full-learned"
+    assert report.ssl_prediction_loss >= 0.0
+    assert report.ssl_kl_loss >= 0.0
+    assert report.ssl_posterior_drift >= 0.0
+    assert report.kernel_score_count >= 1
     assert report.rollback_reasons == ()
     assert report.cms_description
 
@@ -99,3 +151,29 @@ def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
     assert report.policy_objective != 0.0
     assert "reward-regression" in report.rollback_reasons
     assert "policy-rollback" in report.applied_operations
+
+
+def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
+    loop = ETANLJointLoop()
+    trace = build_training_trace(trace_id="scheduled-trace", source_text="repair then continue carefully")
+
+    ssl_only = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
+        )
+    )
+    full_cycle = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=3,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
+        )
+    )
+
+    assert ssl_only.schedule_action == "ssl-only"
+    assert ssl_only.cycle_report is None
+    assert ssl_only.metacontroller_state is not None
+    assert full_cycle.schedule_action == "full-cycle"
+    assert full_cycle.cycle_report is not None

@@ -11,8 +11,10 @@ from volvence_zero.substrate import (
     SubstrateModule,
 )
 from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
     LearnedLiteTemporalPolicy,
+    MetacontrollerSSLTrainer,
     PlaceholderTemporalPolicy,
     TemporalModule,
     fit_policy_from_trace_dataset,
@@ -138,3 +140,48 @@ def test_learned_lite_policy_exports_runtime_visible_metacontroller_state():
     assert runtime_state.temporal_parameters.switch_bias >= 0.0
     assert len(runtime_state.track_parameters) == 3
     assert len(runtime_state.update_steps) == 3
+
+
+def test_full_learned_policy_uses_residual_sequence_and_exports_decoder_state():
+    trace = build_training_trace(trace_id="full-policy", source_text="repair then focus then stabilize")
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=SimulatedResidualSubstrateAdapter(trace=trace),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone()
+    ).value
+    policy = FullLearnedTemporalPolicy()
+    temporal = TemporalModule(policy=policy, wiring_level=WiringLevel.ACTIVE)
+
+    snapshot = asyncio.run(temporal.process_standalone(substrate_snapshot=substrate_snapshot))
+    runtime_state = policy.export_runtime_state()
+
+    assert snapshot.value.controller_state.code_dim == 3
+    assert runtime_state.mode == "full-learned"
+    assert runtime_state.sequence_length == len(trace.steps)
+    assert runtime_state.decoder_control
+    assert runtime_state.decoder_applied_control
+    assert runtime_state.active_label
+    assert runtime_state.prior_mean
+    assert runtime_state.prior_std
+    assert runtime_state.posterior_mean
+    assert runtime_state.posterior_std
+    assert runtime_state.posterior_sample_noise
+    assert runtime_state.z_tilde
+    assert runtime_state.binary_switch_rate >= 0.0
+
+
+def test_ssl_trainer_updates_full_learned_policy_metrics():
+    trace = build_training_trace(trace_id="ssl-trace", source_text="steady repair and guided exploration")
+    policy = FullLearnedTemporalPolicy()
+    trainer = MetacontrollerSSLTrainer()
+
+    report = trainer.optimize(policy=policy, trace=trace)
+    runtime_state = policy.export_runtime_state()
+
+    assert report.trained_steps > 0
+    assert report.total_loss >= 0.0
+    assert report.posterior_drift >= 0.0
+    assert runtime_state.latest_ssl_loss >= 0.0
+    assert runtime_state.sequence_length == len(trace.steps)
+    assert runtime_state.posterior_drift >= 0.0

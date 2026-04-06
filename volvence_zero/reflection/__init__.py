@@ -1,4 +1,5 @@
 from volvence_zero.reflection.writeback import (
+    ConsolidationScore,
     MemoryConsolidation,
     PolicyConsolidation,
     ReflectionEngine,
@@ -11,6 +12,7 @@ from volvence_zero.reflection.writeback import (
 
 __all__ = [
     "MemoryConsolidation",
+    "ConsolidationScore",
     "PolicyConsolidation",
     "ReflectionEngine",
     "ReflectionModule",

@@ -17,6 +17,8 @@ from volvence_zero.substrate import (
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
 )
+from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
+from volvence_zero.dual_track import DualTrackSnapshot, TrackState
 
 
 def test_memory_store_write_and_retrieve_by_track_and_query():
@@ -44,6 +46,120 @@ def test_memory_store_write_and_retrieve_by_track_and_query():
     assert len(result.entries) == 1
     assert result.entries[0].track is Track.SELF
     assert result.entries[0].last_accessed_ms == 20
+
+
+def test_memory_store_hybrid_semantic_retrieval_can_match_without_exact_overlap():
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="gentle collaborative planning for difficult conversations",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("warmth", "planning"),
+            strength=0.75,
+        ),
+        timestamp_ms=10,
+    )
+
+    result = store.retrieve(
+        query=RetrievalQuery(
+            text="supportive teamwork dialogue",
+            track=Track.SELF,
+            strata=(MemoryStratum.DURABLE,),
+            limit=3,
+            facets=("warmth", "planning"),
+        ),
+        timestamp_ms=20,
+    )
+
+    assert result.entries
+    assert result.entries[0].track is Track.SELF
+
+
+def test_memory_store_checkpoint_restore_preserves_semantic_retrieval_index():
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="careful paced support during tense moments",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("repair", "support"),
+            strength=0.8,
+        ),
+        timestamp_ms=10,
+    )
+    checkpoint = store.create_checkpoint(checkpoint_id="semantic-checkpoint")
+    store.restore_checkpoint(checkpoint)
+
+    restored = store.retrieve(
+        RetrievalQuery(
+            text="steady reassurance",
+            track=Track.SELF,
+            strata=(MemoryStratum.DURABLE,),
+            limit=2,
+            facets=("repair", "support"),
+        ),
+        timestamp_ms=20,
+    )
+
+    assert restored.entries
+    assert restored.entries[0].content == "careful paced support during tense moments"
+
+
+def test_memory_module_uses_temporal_and_dual_track_facets_in_runtime_query():
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="repair_controller maintain a calm supportive tone while planning next steps",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.85,
+            tags=("repair", "support"),
+        ),
+        timestamp_ms=5,
+    )
+    module = MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE)
+    temporal_snapshot = TemporalAbstractionSnapshot(
+        controller_state=ControllerState(
+            code=(0.2, 0.8, 0.4),
+            code_dim=3,
+            switch_gate=0.7,
+            is_switching=True,
+            steps_since_switch=1,
+        ),
+        active_abstract_action="repair_controller",
+        controller_params_hash="hash",
+        description="repair context",
+    )
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("planning next steps",),
+            recent_credits=(),
+            controller_code=(0.6, 0.4),
+            tension_level=0.4,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("maintain a calm supportive tone",),
+            recent_credits=(),
+            controller_code=(0.3, 0.7),
+            tension_level=0.6,
+        ),
+        cross_track_tension=0.2,
+        description="dual track context",
+    )
+
+    snapshot = asyncio.run(
+        module.process_standalone(
+            timestamp_ms=20,
+            temporal_snapshot=temporal_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+        )
+    )
+
+    assert snapshot.value.retrieved_entries
+    assert "repair_controller" in snapshot.value.retrieved_entries[0].content
 
 
 def test_memory_module_process_standalone_publishes_memory_snapshot():
@@ -115,11 +231,15 @@ def test_memory_store_supports_checkpoint_restore_and_cms_core():
         new_durable_entries=(),
         promoted_entries=(entry.entry_id,),
         decayed_entries=(),
+        beliefs_updated=("reinforce:shared:checkpoint",),
+        promotion_boost=0.6,
+        decay_scale=0.2,
         lesson_count=2,
         timestamp_ms=52,
     )
     assert store.learned_core is not None
     assert store.learned_core.snapshot().description
+    assert store.snapshot(retrieved_entries=()).cms_state is not None
 
     store.restore_checkpoint(checkpoint)
     restored = store.retrieve(

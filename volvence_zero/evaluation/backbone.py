@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+
+if TYPE_CHECKING:
+    from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
 class EvaluationTrack(str, Enum):
@@ -130,6 +133,156 @@ class EvaluationBackbone:
             description=f"Session evaluation report with {len(session_records)} records.",
         )
 
+    def record_metacontroller_evidence(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        metacontroller_state: "MetacontrollerRuntimeState | None",
+        policy_objective: float,
+        rollback_reasons: tuple[str, ...],
+    ) -> tuple[EvaluationScore, ...]:
+        if metacontroller_state is None:
+            return ()
+        adaptive_stability = _clamp(
+            1.0
+            - min(len(rollback_reasons) * 0.25, 0.75)
+            - min(metacontroller_state.latest_ssl_loss * 0.15, 0.45)
+        )
+        posterior_stability = _clamp(1.0 - metacontroller_state.posterior_drift)
+        switch_sparsity = _clamp(metacontroller_state.switch_sparsity)
+        binary_gate_ratio = _clamp(metacontroller_state.binary_switch_rate)
+        decoder_usefulness = _clamp(
+            sum(metacontroller_state.decoder_applied_control) / max(len(metacontroller_state.decoder_applied_control), 1)
+            - min(metacontroller_state.latest_ssl_loss * 0.08, 0.15)
+            + 0.15
+        )
+        policy_replacement_quality = _clamp(
+            0.5
+            + metacontroller_state.policy_replacement_score * 0.35
+            - min(len(rollback_reasons) * 0.08, 0.2)
+        )
+        abstract_action_usefulness = _clamp(
+            0.5
+            + policy_objective * 0.35
+            - min(metacontroller_state.latest_ssl_loss * 0.1, 0.2)
+        )
+        scores = (
+            EvaluationScore(
+                family="learning",
+                metric_name="adaptive_stability",
+                value=adaptive_stability,
+                confidence=0.6,
+                evidence=(
+                    f"Derived from ssl_loss={metacontroller_state.latest_ssl_loss:.3f} "
+                    f"and rollback_count={len(rollback_reasons)}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="posterior_stability",
+                value=posterior_stability,
+                confidence=0.57,
+                evidence=(
+                    f"Derived from posterior_drift={metacontroller_state.posterior_drift:.3f} "
+                    f"and z_tilde={metacontroller_state.z_tilde}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="switch_sparsity",
+                value=switch_sparsity,
+                confidence=0.55,
+                evidence=(
+                    f"Derived from latest_switch_gate={metacontroller_state.latest_switch_gate:.3f} "
+                    f"and switch_sparsity={metacontroller_state.switch_sparsity:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="binary_gate_ratio",
+                value=binary_gate_ratio,
+                confidence=0.55,
+                evidence=(
+                    f"Derived from beta_binary={metacontroller_state.beta_binary} "
+                    f"and binary_switch_rate={metacontroller_state.binary_switch_rate:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="decoder_usefulness",
+                value=decoder_usefulness,
+                confidence=0.56,
+                evidence=(
+                    f"Derived from decoder_applied_control={metacontroller_state.decoder_applied_control}."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="policy_replacement_quality",
+                value=policy_replacement_quality,
+                confidence=0.58,
+                evidence=(
+                    f"Derived from replacement_score={metacontroller_state.policy_replacement_score:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="abstract_action_usefulness",
+                value=abstract_action_usefulness,
+                confidence=0.58,
+                evidence=(
+                    f"Derived from policy_objective={policy_objective:.3f} and "
+                    f"active_label={metacontroller_state.active_label}."
+                ),
+            ),
+        )
+        self._append_records(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            timescale="session",
+            scores=scores,
+        )
+        return scores
+
+    def record_learning_evidence(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        base_snapshot: EvaluationSnapshot,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: object | None,
+        writeback_result: object | None,
+        joint_loop_result: object | None,
+    ) -> EvaluationSnapshot:
+        scores = self._learning_evidence_scores(
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            writeback_result=writeback_result,
+            joint_loop_result=joint_loop_result,
+        )
+        if not scores:
+            return base_snapshot
+        self._append_records(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            timescale="turn",
+            scores=scores,
+        )
+        turn_scores = base_snapshot.turn_scores + scores
+        alerts = tuple(dict.fromkeys(base_snapshot.alerts + self._build_alerts(turn_scores=turn_scores)))
+        return EvaluationSnapshot(
+            turn_scores=turn_scores,
+            session_scores=self._session_scores_for(session_id=session_id),
+            alerts=alerts,
+            description=f"{base_snapshot.description} Enriched with {len(scores)} learning-evidence scores.",
+        )
+
     def _build_turn_scores(
         self,
         *,
@@ -173,6 +326,86 @@ class EvaluationBackbone:
                 evidence="No runtime contract violations surfaced during this turn evaluation.",
             ),
         )
+
+    def _learning_evidence_scores(
+        self,
+        *,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: object | None,
+        writeback_result: object | None,
+        joint_loop_result: object | None,
+    ) -> tuple[EvaluationScore, ...]:
+        scores: list[EvaluationScore] = []
+        if memory_snapshot is not None:
+            retrieval_quality = _clamp(
+                len(memory_snapshot.retrieved_entries) / 5.0 + (0.1 if memory_snapshot.cms_state is not None else 0.0)
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="retrieval_quality",
+                    value=retrieval_quality,
+                    confidence=0.58,
+                    evidence=(
+                        f"Derived from retrieved_entries={len(memory_snapshot.retrieved_entries)} "
+                        f"and cms_state={'present' if memory_snapshot.cms_state is not None else 'missing'}."
+                    ),
+                )
+            )
+        if reflection_snapshot is not None and hasattr(reflection_snapshot, "consolidation_score"):
+            confidence = getattr(reflection_snapshot.consolidation_score, "confidence", 0.0)
+            applied_count = len(getattr(writeback_result, "applied_operations", ())) if writeback_result is not None else 0
+            blocked_count = len(getattr(writeback_result, "blocked_operations", ())) if writeback_result is not None else 0
+            reflection_usefulness = _clamp(confidence + applied_count * 0.05 - blocked_count * 0.08)
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="reflection_usefulness",
+                    value=reflection_usefulness,
+                    confidence=0.57,
+                    evidence=(
+                        f"Derived from consolidation_confidence={confidence:.3f}, "
+                        f"applied_operations={applied_count}, blocked_operations={blocked_count}."
+                    ),
+                )
+            )
+        if joint_loop_result is not None and hasattr(joint_loop_result, "schedule_action"):
+            schedule_action = getattr(joint_loop_result, "schedule_action", "evidence-only")
+            cycle_report = getattr(joint_loop_result, "cycle_report", None)
+            if cycle_report is not None:
+                joint_progress = _clamp(
+                    0.5
+                    + cycle_report.total_reward * 0.15
+                    + cycle_report.policy_objective * 0.1
+                    - len(cycle_report.rollback_reasons) * 0.08
+                )
+                evidence = (
+                    f"Derived from action={schedule_action}, total_reward={cycle_report.total_reward:.3f}, "
+                    f"policy_objective={cycle_report.policy_objective:.3f}."
+                )
+            elif schedule_action == "ssl-only":
+                joint_progress = _clamp(
+                    0.65
+                    - min(getattr(joint_loop_result, "ssl_prediction_loss", 0.0) * 0.08, 0.2)
+                    - min(getattr(joint_loop_result, "ssl_kl_loss", 0.0) * 0.05, 0.1)
+                )
+                evidence = (
+                    f"Derived from action=ssl-only, pred={getattr(joint_loop_result, 'ssl_prediction_loss', 0.0):.3f}, "
+                    f"kl={getattr(joint_loop_result, 'ssl_kl_loss', 0.0):.3f}."
+                )
+            else:
+                joint_progress = 0.5
+                evidence = f"Derived from action={schedule_action} without optimizer update."
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="joint_learning_progress",
+                    value=joint_progress,
+                    confidence=0.56,
+                    evidence=evidence,
+                )
+            )
+        return tuple(scores)
 
     def _build_alerts(self, *, turn_scores: tuple[EvaluationScore, ...]) -> tuple[str, ...]:
         alerts: list[str] = []
@@ -244,6 +477,16 @@ class EvaluationBackbone:
             return ("dual_track.self_track.tension_level",)
         if metric_name == "cross_track_stability":
             return ("dual_track.cross_track_tension",)
+        if metric_name == "adaptive_stability":
+            return ("temporal.metacontroller_state", "joint_loop.rollback_reasons")
+        if metric_name == "posterior_stability":
+            return ("temporal.metacontroller_state.posterior",)
+        if metric_name in {"switch_sparsity", "binary_gate_ratio"}:
+            return ("temporal.metacontroller_state.switch",)
+        if metric_name == "decoder_usefulness":
+            return ("temporal.metacontroller_state.decoder",)
+        if metric_name in {"abstract_action_usefulness", "policy_replacement_quality"}:
+            return ("temporal.metacontroller_state", "internal_rl.policy_objective")
         return ("runtime.contract_status",)
 
     def _alerts_from_records(

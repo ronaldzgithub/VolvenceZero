@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from volvence_zero.credit import CreditModule, ModificationProposal
+from volvence_zero.credit import CreditModule, ModificationProposal, derive_learning_evidence_credit_records
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule
+from volvence_zero.evaluation import EvaluationModule, EvaluationSnapshot
 from volvence_zero.memory import MemoryModule, MemoryStore
 from volvence_zero.reflection import (
     ReflectionEngine,
@@ -65,6 +65,7 @@ class FinalIntegrationResult:
     acceptance_report: FinalAcceptanceReport
     event_count: int
     writeback_result: WritebackResult | None
+    writeback_source: str | None
     temporal_runtime_state: MetacontrollerRuntimeState | None
 
 
@@ -119,6 +120,8 @@ async def run_final_wiring_turn(
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
     memory_store: MemoryStore | None = None,
+    upstream_snapshots: dict[str, Snapshot[Any]] | None = None,
+    joint_loop_result: object | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
     temporal_policy: TemporalPolicy | None = None,
@@ -135,11 +138,19 @@ async def run_final_wiring_turn(
         session_id=session_id,
         wave_id=wave_id,
     )
+    if upstream_snapshots:
+        for module in modules:
+            previous_snapshot = upstream_snapshots.get(module.slot_name)
+            if previous_snapshot is not None:
+                module.seed_version(previous_snapshot.version)
     recorder = EventRecorder()
     registry = SlotRegistry()
+    if upstream_snapshots:
+        registry.seed_versions(upstream_snapshots)
     shadow_snapshots: dict[str, Snapshot[Any]] = {}
     active_snapshots = await propagate(
         modules,
+        upstream=upstream_snapshots,
         registry=registry,
         recorder=recorder,
         shadow_snapshots=shadow_snapshots,
@@ -147,11 +158,20 @@ async def run_final_wiring_turn(
         wave_id=wave_id,
     )
     writeback_result: WritebackResult | None = None
+    writeback_source: str | None = None
     reflection_module = next((module for module in modules if isinstance(module, ReflectionModule)), None)
+    evaluation_module = next((module for module in modules if isinstance(module, EvaluationModule)), None)
+    credit_module = next((module for module in modules if isinstance(module, CreditModule)), None)
     regime_module = next((module for module in modules if isinstance(module, RegimeModule)), None)
     temporal_module = next((module for module in modules if isinstance(module, TemporalModule)), None)
     reflection_snapshot = active_snapshots.get("reflection")
-    credit_snapshot = active_snapshots.get("credit")
+    if reflection_snapshot is None:
+        reflection_snapshot = shadow_snapshots.get("reflection")
+        if reflection_snapshot is not None:
+            writeback_source = "shadow"
+    else:
+        writeback_source = "active"
+    credit_snapshot = active_snapshots.get("credit") or shadow_snapshots.get("credit")
     if (
         memory_store is not None
         and reflection_module is not None
@@ -165,6 +185,31 @@ async def run_final_wiring_turn(
             regime_module=regime_module,
             checkpoint_id=f"{session_id}:{wave_id}",
         )
+    evaluation_snapshot = active_snapshots.get("evaluation")
+    if (
+        evaluation_module is not None
+        and evaluation_snapshot is not None
+        and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+    ):
+        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 1,
+            base_snapshot=evaluation_snapshot.value,
+            memory_snapshot=active_snapshots.get("memory").value if active_snapshots.get("memory") is not None else None,
+            reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
+            writeback_result=writeback_result,
+            joint_loop_result=joint_loop_result,
+        )
+        active_snapshots["evaluation"] = evaluation_module.publish(enriched_evaluation)
+        if credit_module is not None:
+            extra_credits = derive_learning_evidence_credit_records(
+                evaluation_snapshot=enriched_evaluation,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+            )
+            if extra_credits:
+                credit_module.ledger.record_credits(extra_credits)
+                active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
     acceptance_report = build_acceptance_report(
         config=config,
         active_snapshots=active_snapshots,
@@ -177,6 +222,7 @@ async def run_final_wiring_turn(
         acceptance_report=acceptance_report,
         event_count=len(recorder.events),
         writeback_result=writeback_result,
+        writeback_source=writeback_source,
         temporal_runtime_state=temporal_module.export_runtime_state() if temporal_module is not None else None,
     )
 

@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from volvence_zero.credit import (
     CreditModule,
     CreditSnapshot,
+    derive_metacontroller_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationSnapshot
 from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
     DualTrackRollout,
@@ -21,6 +22,7 @@ from volvence_zero.reflection import ReflectionEngine, ReflectionModule, Writeba
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.substrate import (
+    ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
     SubstrateSnapshot,
     SurfaceKind,
@@ -28,7 +30,8 @@ from volvence_zero.substrate import (
     TrainingTrace,
 )
 from volvence_zero.temporal import (
-    LearnedLiteTemporalPolicy,
+    FullLearnedTemporalPolicy,
+    MetacontrollerSSLTrainer,
     MetacontrollerRuntimeState,
     TemporalModule,
 )
@@ -40,6 +43,9 @@ from volvence_zero.substrate import SubstrateModule
 class JointCycleReport:
     cycle_index: int
     acceptance_passed: bool
+    ssl_prediction_loss: float
+    ssl_kl_loss: float
+    ssl_posterior_drift: float
     total_reward: float
     task_reward: float
     relationship_reward: float
@@ -47,7 +53,26 @@ class JointCycleReport:
     rollback_reasons: tuple[str, ...]
     optimization_summary: str
     policy_objective: float
+    kernel_score_count: int
     applied_operations: tuple[str, ...]
+    metacontroller_state: MetacontrollerRuntimeState | None
+    cms_description: str
+    description: str
+
+
+@dataclass(frozen=True)
+class JointLoopSchedule:
+    ssl_interval: int = 1
+    rl_interval: int = 3
+
+
+@dataclass(frozen=True)
+class ScheduledJointLoopResult:
+    turn_index: int
+    schedule_action: str
+    cycle_report: JointCycleReport | None
+    ssl_prediction_loss: float
+    ssl_kl_loss: float
     metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
     description: str
@@ -56,10 +81,17 @@ class JointCycleReport:
 class ETANLJointLoop:
     """Minimal SSL-RL alternation loop over the stage-two building blocks."""
 
-    def __init__(self) -> None:
-        self._policy = LearnedLiteTemporalPolicy()
+    def __init__(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy | None = None,
+        memory_store: MemoryStore | None = None,
+    ) -> None:
+        self._policy = policy or FullLearnedTemporalPolicy()
         self._sandbox = InternalRLSandbox(policy=self._policy)
-        self._memory_store = MemoryStore(learned_core=CMSMemoryCore())
+        self._ssl_trainer = MetacontrollerSSLTrainer()
+        self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore())
+        self._evaluation_backbone = EvaluationBackbone()
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
         self._previous_total_reward: float | None = None
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
@@ -69,10 +101,17 @@ class ETANLJointLoop:
         return self._memory_store
 
     @property
-    def temporal_policy(self) -> LearnedLiteTemporalPolicy:
+    def temporal_policy(self) -> FullLearnedTemporalPolicy:
         return self._policy
 
-    async def run_cycle(self, *, cycle_index: int, trace: TrainingTrace) -> JointCycleReport:
+    async def run_cycle(
+        self,
+        *,
+        cycle_index: int,
+        trace: TrainingTrace,
+        apply_writeback: bool = True,
+    ) -> JointCycleReport:
+        ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
         policy_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-policy-{cycle_index}")
         dual_track_rollout = self._sandbox.rollout_dual_track(
@@ -92,6 +131,7 @@ class ETANLJointLoop:
             MemoryModule(store=self._memory_store, wiring_level=WiringLevel.ACTIVE),
             DualTrackModule(wiring_level=WiringLevel.ACTIVE),
             EvaluationModule(
+                backbone=self._evaluation_backbone,
                 session_id=session_id,
                 wave_id=wave_id,
                 wiring_level=WiringLevel.ACTIVE,
@@ -136,8 +176,30 @@ class ETANLJointLoop:
             self._sandbox.restore_checkpoint(policy_checkpoint)
             policy_rollback_applied = True
         metacontroller_state = self._policy.export_runtime_state()
+        policy_objective = (
+            optimization_report.task_report.surrogate_objective
+            + optimization_report.relationship_report.surrogate_objective
+        )
+        kernel_scores = self._evaluation_backbone.record_metacontroller_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+            metacontroller_state=metacontroller_state,
+            policy_objective=policy_objective,
+            rollback_reasons=rollback_reasons,
+        )
+        regime_operations = self._regime_module.apply_metacontroller_evidence(
+            metacontroller_state=metacontroller_state,
+            rollback_reasons=rollback_reasons,
+        )
         enriched_credit_snapshot = extend_credit_snapshot(
             credit_snapshot=enriched_credit_snapshot,
+            extra_records=derive_metacontroller_credit_records(
+                metacontroller_state=metacontroller_state,
+                policy_objective=policy_objective,
+                rollback_reasons=rollback_reasons,
+                timestamp_ms=active_snapshots["credit"].timestamp_ms + 150,
+            ),
             extra_modifications=derive_runtime_adaptation_audit_records(
                 rollback_reasons=rollback_reasons,
                 metacontroller_state_description=(
@@ -155,13 +217,15 @@ class ETANLJointLoop:
             credit_snapshot=enriched_credit_snapshot,
             regime_snapshot=active_snapshots["regime"].value,
         )
-        applied_operations = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
-            memory_store=self._memory_store,
-            reflection_snapshot=reflection_snapshot,
-            credit_snapshot=enriched_credit_snapshot,
-            regime_module=self._regime_module,
-            checkpoint_id=f"{session_id}:{wave_id}",
-        ).applied_operations
+        applied_operations: tuple[str, ...] = regime_operations
+        if apply_writeback:
+            applied_operations = applied_operations + ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
+                memory_store=self._memory_store,
+                reflection_snapshot=reflection_snapshot,
+                credit_snapshot=enriched_credit_snapshot,
+                regime_module=self._regime_module,
+                checkpoint_id=f"{session_id}:{wave_id}",
+            ).applied_operations
         if policy_rollback_applied:
             applied_operations = applied_operations + ("policy-rollback",)
         self._previous_total_reward = total_reward
@@ -169,30 +233,90 @@ class ETANLJointLoop:
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
+            ssl_prediction_loss=ssl_report.prediction_loss,
+            ssl_kl_loss=ssl_report.kl_loss,
+            ssl_posterior_drift=ssl_report.posterior_drift,
             total_reward=total_reward,
             task_reward=dual_track_rollout.task_rollout.total_reward,
             relationship_reward=dual_track_rollout.relationship_rollout.total_reward,
             policy_rollback_applied=policy_rollback_applied,
             rollback_reasons=rollback_reasons,
             optimization_summary=optimization_report.description,
-            policy_objective=(
-                optimization_report.task_report.surrogate_objective
-                + optimization_report.relationship_report.surrogate_objective
-            ),
+            policy_objective=policy_objective,
+            kernel_score_count=len(kernel_scores),
             applied_operations=applied_operations,
             metacontroller_state=metacontroller_state,
             cms_description=self._memory_store.learned_core.snapshot().description
             if self._memory_store.learned_core is not None
             else "No CMS core attached.",
             description=(
-                f"Joint ETA/NL cycle {cycle_index} ran dual-track rollout "
+                f"Joint ETA/NL cycle {cycle_index} ran ssl(pred={ssl_report.prediction_loss:.2f}, "
+                f"kl={ssl_report.kl_loss:.2f}, drift={ssl_report.posterior_drift:.2f}) and dual-track rollout "
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
                 f"rollback={'on' if policy_rollback_applied else 'off'}, "
                 f"reasons={','.join(rollback_reasons) if rollback_reasons else 'none'}, "
                 f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
-                f"with {len(applied_operations)} bounded writeback operations."
+                f"kernel_scores={len(kernel_scores)}, with {len(applied_operations)} bounded writeback operations."
             ),
+        )
+
+    async def run_scheduled_step(
+        self,
+        *,
+        turn_index: int,
+        trace: TrainingTrace,
+        schedule: JointLoopSchedule | None = None,
+        apply_writeback: bool = True,
+    ) -> ScheduledJointLoopResult:
+        active_schedule = schedule or JointLoopSchedule()
+        cms_description = (
+            self._memory_store.learned_core.snapshot().description
+            if self._memory_store.learned_core is not None
+            else "No CMS core attached."
+        )
+        if active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0:
+            cycle_report = await self.run_cycle(
+                cycle_index=turn_index,
+                trace=trace,
+                apply_writeback=apply_writeback,
+            )
+            return ScheduledJointLoopResult(
+                turn_index=turn_index,
+                schedule_action="full-cycle",
+                cycle_report=cycle_report,
+                ssl_prediction_loss=cycle_report.ssl_prediction_loss,
+                ssl_kl_loss=cycle_report.ssl_kl_loss,
+                metacontroller_state=cycle_report.metacontroller_state,
+                cms_description=cycle_report.cms_description,
+                description=cycle_report.description,
+            )
+        if active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0:
+            ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
+            metacontroller_state = self._policy.export_runtime_state()
+            return ScheduledJointLoopResult(
+                turn_index=turn_index,
+                schedule_action="ssl-only",
+                cycle_report=None,
+                ssl_prediction_loss=ssl_report.prediction_loss,
+                ssl_kl_loss=ssl_report.kl_loss,
+                metacontroller_state=metacontroller_state,
+                cms_description=cms_description,
+                description=(
+                    f"Scheduled joint loop ran ssl-only at turn {turn_index} with "
+                    f"pred={ssl_report.prediction_loss:.2f}, kl={ssl_report.kl_loss:.2f}."
+                ),
+            )
+        metacontroller_state = self._policy.export_runtime_state()
+        return ScheduledJointLoopResult(
+            turn_index=turn_index,
+            schedule_action="evidence-only",
+            cycle_report=None,
+            ssl_prediction_loss=0.0,
+            ssl_kl_loss=0.0,
+            metacontroller_state=metacontroller_state,
+            cms_description=cms_description,
+            description=f"Scheduled joint loop collected evidence only at turn {turn_index}.",
         )
 
     def _enrich_credit_snapshot(
@@ -286,6 +410,16 @@ class ETANLJointLoop:
             ),
             feature_surface=step.feature_surface,
             residual_activations=step.residual_activations,
+            residual_sequence=tuple(
+                ResidualSequenceStep(
+                    step=prefix_step.step,
+                    token=prefix_step.token,
+                    feature_surface=prefix_step.feature_surface,
+                    residual_activations=prefix_step.residual_activations,
+                    description=f"Joint trace token '{prefix_step.token}' at step {prefix_step.step}.",
+                )
+                for prefix_step in trace.steps[: step.step + 1]
+            ),
             unavailable_fields=(),
             description=f"Trace step {step.step} for {trace.trace_id}.",
         )

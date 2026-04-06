@@ -1,7 +1,7 @@
 # 双轨学习 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R7
 
 ## 要解决的问题
@@ -54,7 +54,7 @@
 
 **消费的输入**：
 - `memory` 快照：按轨道检索的记忆
-- `temporal_abstraction` 快照：控制器状态（P03 阶段可缺席，保留接口位点）
+- `temporal_abstraction` 快照：控制器状态；当前实现口径下优先消费上一轮已发布 temporal snapshot，避免同轮循环依赖
 - `credit` 快照：按轨道分配的信用（P03 阶段可先由 dual-track owner 发布占位 recent signal）
 - `evaluation` 快照：按轨道的评估分数（后续包正式接入）
 
@@ -64,6 +64,12 @@
   - Self Track 状态（同上）
   - 跨轨道张力值
   - 当前阶段优先保证结构化状态稳定，而不是完整学习闭环
+
+当前实现口径补充：
+
+- `controller_code` 不再只由 memory heuristic 派生；当前已可融合 temporal owner 发布的 controller state
+- `abstract_action_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据
+- 默认 final wiring 下，dual-track 通过上一轮已发布的 temporal snapshot 闭合 `temporal -> dual_track`，避免打破 runtime 单轮 DAG
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节
 
@@ -80,4 +86,5 @@
 
 ## 变更日志
 
+- 2026-04-06: 补充 dual-track 消费 temporal snapshot、发布 controller source / abstract action hint 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

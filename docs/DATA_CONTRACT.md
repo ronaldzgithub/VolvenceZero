@@ -2,7 +2,7 @@
 
 > Status: draft
 > Version: 0.1
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`
 
 ---
@@ -133,6 +133,14 @@ class ResidualActivation:
     step: int                           # 时间步
 
 @dataclass(frozen=True)
+class ResidualSequenceStep:
+    step: int
+    token: str
+    feature_surface: tuple[FeatureSignal, ...]
+    residual_activations: tuple[ResidualActivation, ...]
+    description: str
+
+@dataclass(frozen=True)
 class UnavailableField:
     field_name: str
     reason: str
@@ -151,6 +159,7 @@ class SubstrateSnapshot:
     token_logits: tuple[float, ...]     # 当前步 token 概率分布（可为空）
     feature_surface: tuple[FeatureSignal, ...]
     residual_activations: tuple[ResidualActivation, ...]
+    residual_sequence: tuple[ResidualSequenceStep, ...]
     unavailable_fields: tuple[UnavailableField, ...]
     description: str
 ```
@@ -159,7 +168,10 @@ class SubstrateSnapshot:
 
 - 当前稳定 contract：`surface_kind=FEATURE_SURFACE`，发布 `feature_surface` 与可选 `token_logits`
 - 保守占位 contract：`surface_kind=PLACEHOLDER`，明确哪些字段 unavailable
-- 未来增强 contract：`surface_kind=RESIDUAL_STREAM`，发布真实 `residual_activations`
+- 当前增强 contract：`surface_kind=RESIDUAL_STREAM`，发布当前步 `residual_activations` + 可选 `residual_sequence`
+- `residual_sequence` 是 temporal / internal_rl 的正式 sequence-aware 输入；fallback adapter 可发布空序列或单步合成序列
+- 当前已补充 hook-ready owner contract：`OpenWeightResidualRuntime.capture(source_text) -> OpenWeightRuntimeCapture`，由 `OpenWeightResidualStreamSubstrateAdapter` 负责把 open-weight runtime 暴露为稳定的 `SubstrateSnapshot`
+- 当前 session/runner 已允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 open-weight adapter；表达层不再直接消费完整 snapshot dict，而只消费 distilled response context，避免跨 loop 持有 live snapshot 引用
 
 **消费者**：Metacontroller、记忆系统、双轨学习层
 **发布频率**：每 turn（当前稳定）；未来可扩展到每 token
@@ -188,8 +200,12 @@ class TemporalAbstractionSnapshot:
 **当前实现口径**：
 
 - P08 已固定 `controller_state` 的 machine-readable shape
-- 当前实现支持 `placeholder` / `heuristic` 两种可替换策略位点
+- 当前实现支持 `placeholder` / `heuristic` / `learned-lite` / `full-learned` 四类可替换策略位点
 - `active_abstract_action` 和 `description` 是可读输出，不作为 machine state 的唯一来源
+- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score；这些都不改变 `TemporalAbstractionSnapshot` 公共 shape
+- internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
+- substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
+- 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
 
 **消费者**：编排器、双轨学习层、认知 Regime 层、评估体系
 **发布频率**：每 turn
@@ -219,6 +235,24 @@ class MemoryWriteRequest:
     strength: float = 0.5
 
 @dataclass(frozen=True)
+class CMSBandState:
+    name: str
+    vector: tuple[float, ...]
+    last_update_ms: int
+    cadence_interval: int
+    observations_since_update: int
+    pending_signal: tuple[float, ...]
+
+@dataclass(frozen=True)
+class CMSState:
+    online_fast: CMSBandState
+    session_medium: CMSBandState
+    background_slow: CMSBandState
+    total_observations: int
+    total_reflections: int
+    description: str
+
+@dataclass(frozen=True)
 class MemorySnapshot:
     # 按层级组织的记忆摘要
     transient_summary: str              # 瞬态工作状态摘要（模块自身生成）
@@ -232,6 +266,7 @@ class MemorySnapshot:
     total_entries_by_stratum: tuple[tuple[str, int], ...]  # (stratum, count) pairs
     pending_promotions: int             # 待提升的记忆数量
     pending_decays: int                 # 待衰减的记忆数量
+    cms_state: CMSState | None          # owner 发布的 machine-readable CMS 多频带状态
 
     description: str                    # 模块自身生成的整体状态描述
 ```
@@ -241,6 +276,9 @@ class MemorySnapshot:
 - 所有记忆写入必须通过 `MemoryWriteRequest` 形式进入 Memory owner API
 - 消费者不得直接持有或修改 memory 内部存储结构
 - 提升、衰减、部分重建的 pending 状态由 Memory owner 自身发布
+- `cms_state` 是 Memory owner 对外发布的唯一 CMS 可读状态；消费者不得自行拼装 band cadence
+- semantic retrieval index 属于 Memory owner 内部索引，不通过独立 slot 暴露
+- runtime retrieval facets 可消费上一轮已经发布的 `temporal_abstraction` / `dual_track` 快照；不得通过同轮直接调用形成第二 owner 或循环依赖
 
 **消费者**：编排器、时间抽象层、双轨学习层、认知 Regime 层、慢反思路径
 **发布频率**：每 turn（瞬态/情景）、每会话（持久）
@@ -257,6 +295,8 @@ class TrackState:
     recent_credits: tuple[tuple[str, float], ...]  # (event_id, credit) pairs
     controller_code: tuple[float, ...]  # 轨道专属控制器代码 z_task 或 z_rel
     tension_level: float                # 张力水平 ∈ [0, 1]
+    abstract_action_hint: str | None = None
+    controller_source: str = "memory"
 
 @dataclass(frozen=True)
 class DualTrackSnapshot:
@@ -271,6 +311,8 @@ class DualTrackSnapshot:
 - P03 阶段先以结构化状态 owner 落地，不要求完整 temporal / evaluation / credit 全部接入
 - `recent_credits` 当前可由 owner 发布为“最近重要状态信号”，后续再与正式 credit owner 对齐
 - `controller_code` 当前允许是从已知状态压缩出的占位向量，而不是最终 learned controller code
+- `abstract_action_hint` / `controller_source` 当前用于显式说明 dual-track state 是否已经消费 temporal owner 发布的控制证据
+- 默认 final wiring 下，dual-track 当前优先消费上一轮已发布的 `temporal_abstraction` 快照，避免形成同轮循环依赖
 
 **消费者**：编排器、记忆系统、信用分配、评估体系
 **发布频率**：每 turn
@@ -315,6 +357,7 @@ class CreditSnapshot:
 - `recent_modifications` 当前记录 allow / block decision，作为审计轨迹和后续 reflection 输入
 - `cumulative_credit_by_level` 先提供最小聚合，后续再扩展到更细粒度的长期统计
 - 第二阶段允许在 owner 内部基于 temporal / rollout 结果扩展出 `abstract_action` 级 credit，而不改变 `CreditSnapshot` shape
+- metacontroller credit 当前会消费 posterior drift、binary gate ratio、policy replacement score 等 ETA kernel evidence，并将其压入 `CreditRecord.context`
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
@@ -379,6 +422,7 @@ class EvaluationSnapshot:
 - P05 阶段先提供 turn / session 两级的最小评估通路
 - `turn_scores` 必须包含 evidence；`session_scores` 为当前 session 的聚合视图
 - 告警先以结构化字符串对外发布，后续可升级为更细粒度 alert schema
+- owner-side kernel evaluation 当前已直接记录 `posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`
 
 **消费者**：编排器、信用分配、门控自修改
 **发布频率**：每 turn（即时评分）、每会话（会话评分）
@@ -402,9 +446,20 @@ class PolicyConsolidation:
     regime_effectiveness_updated: tuple[tuple[str, float], ...]  # (regime_id, new_score) pairs
 
 @dataclass(frozen=True)
+class ConsolidationScore:
+    promotion_score: float
+    decay_score: float
+    threshold_delta: float
+    strategy_gain: float
+    regime_effectiveness_gain: float
+    confidence: float
+    description: str
+
+@dataclass(frozen=True)
 class ReflectionSnapshot:
     memory_consolidation: MemoryConsolidation
     policy_consolidation: PolicyConsolidation
+    consolidation_score: ConsolidationScore
     interaction_trace_summary: str                  # 交互轨迹摘要
     tensions_identified: tuple[str, ...]            # 识别到的张力
     lessons_extracted: tuple[str, ...]              # 提取的持久教训
@@ -418,6 +473,8 @@ class ReflectionSnapshot:
 - P07 默认以 `proposal-only` 运行
 - 第二阶段补充 bounded apply path，可对 memory owner 和 regime owner 执行有限写回并保留 checkpoint
 - `memory_consolidation` 和 `policy_consolidation` 仍先表达提案和审计结果，再由 gate / rollout 决定是否 apply
+- `consolidation_score` 是 reflection owner 发布的统一 bounded score 路径；memory/regime writeback 幅度由该 score 决定
+- `beliefs_updated` 已接入 memory owner 的 audited apply，不再是仅存在于 proposal 中的伪状态
 - `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
 
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层

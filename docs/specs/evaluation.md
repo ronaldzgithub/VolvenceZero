@@ -1,7 +1,7 @@
 # 评估体系 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R12
 
 ## 要解决的问题
@@ -65,6 +65,13 @@
   - Session 级累计评分
   - 安全告警
 
+当前实现口径：
+
+- turn 级 `evaluation` snapshot 仍以 memory / dual_track 为稳定输入
+- 当前已新增 owner-side metacontroller evidence ingest：`EvaluationBackbone` 可直接记录最小 F4/F5 指标，包括 `adaptive_stability`、`posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`、`abstract_action_usefulness`
+- 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 作为 learning evidence 追加进 `evaluation` snapshot，不改变公共 shape
+- 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
 
 ## 与其他能力域的关系
@@ -80,4 +87,7 @@
 
 ## 变更日志
 
+- 2026-04-06: 补充 retrieval / reflection / joint-loop learning evidence 进入 evaluation snapshot 的当前实现口径
+- 2026-04-06: 补充 owner-side metacontroller F4/F5 evidence ingest 的当前实现口径
+- 2026-04-06: 补充 ETA kernel 专用指标（posterior / switch / decoder / replacement） 的当前实现口径
 - 2026-03-25: 初始版本，从 EVALUATION_SYSTEM.md 提取摘要

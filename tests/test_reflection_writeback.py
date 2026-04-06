@@ -80,6 +80,7 @@ def test_reflection_module_consolidates_memory_and_policy_from_inputs():
 
     assert reflection_snapshot.memory_consolidation.promoted_entries or reflection_snapshot.lessons_extracted
     assert reflection_snapshot.policy_consolidation.controller_updates or reflection_snapshot.policy_consolidation.strategy_priors_updated
+    assert reflection_snapshot.consolidation_score.confidence >= 0.0
 
 
 def test_reflection_module_runs_in_shadow_chain():
@@ -142,6 +143,7 @@ def test_reflection_module_runs_in_shadow_chain():
     reflection_snapshot = shadow_snapshots["reflection"]
     assert reflection_snapshot.value.writeback_mode == WritebackMode.PROPOSAL_ONLY.value
     assert reflection_snapshot.value.review_required is True
+    assert reflection_snapshot.value.consolidation_score.description
 
 
 def test_reflection_apply_path_supports_checkpoint_and_rollback():
@@ -175,6 +177,7 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
 
     assert writeback.applied_operations
     assert writeback.checkpoint is not None
+    assert any(operation.startswith("promotion-threshold:") for operation in writeback.applied_operations)
 
     engine.rollback(memory_store=store, checkpoint=writeback.checkpoint, regime_module=regime)
     restored_snapshot = store.snapshot(retrieved_entries=())
@@ -237,3 +240,4 @@ def test_reflection_consumes_metacontroller_gate_audit_evidence():
 
     assert "pause_metacontroller_writeback_after_runtime_guard" in reflection_snapshot.policy_consolidation.controller_updates
     assert "respect_metacontroller_runtime_guard" in reflection_snapshot.lessons_extracted
+    assert reflection_snapshot.consolidation_score.threshold_delta >= -0.05

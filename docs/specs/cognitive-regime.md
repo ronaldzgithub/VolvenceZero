@@ -1,7 +1,7 @@
 # 认知 Regime Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R14
 
 ## 要解决的问题
@@ -73,6 +73,7 @@ class RegimeIdentity:
 
 - P04 阶段先保证结构化 identity、稳定 candidate scoring 和可审计切换原因
 - 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
+- 当前 `RegimeModule` 已新增 owner-side `metacontroller` evidence ingest path：joint loop 可直接用 controller active label / guard rollback evidence 更新 strategy priors，而不改变 `regime` snapshot 契约
 - 后续可由 temporal / learned selector 替换，但不改变 `regime` snapshot 契约
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节
@@ -90,4 +91,5 @@ class RegimeIdentity:
 
 ## 变更日志
 
+- 2026-04-06: 补充 owner-side metacontroller evidence ingest 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

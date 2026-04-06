@@ -42,9 +42,21 @@ class PolicyConsolidation:
 
 
 @dataclass(frozen=True)
+class ConsolidationScore:
+    promotion_score: float
+    decay_score: float
+    threshold_delta: float
+    strategy_gain: float
+    regime_effectiveness_gain: float
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
 class ReflectionSnapshot:
     memory_consolidation: MemoryConsolidation
     policy_consolidation: PolicyConsolidation
+    consolidation_score: ConsolidationScore
     interaction_trace_summary: str
     tensions_identified: tuple[str, ...]
     lessons_extracted: tuple[str, ...]
@@ -92,16 +104,24 @@ class ReflectionEngine:
         credit_snapshot: CreditSnapshot | None,
         regime_snapshot: RegimeSnapshot | None = None,
     ) -> ReflectionSnapshot:
+        consolidation_score = self._consolidation_score(
+            memory_snapshot=memory_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            credit_snapshot=credit_snapshot,
+        )
         memory_consolidation = self._memory_consolidation(
             timestamp_ms=timestamp_ms,
             memory_snapshot=memory_snapshot,
             credit_snapshot=credit_snapshot,
+            consolidation_score=consolidation_score,
         )
         policy_consolidation = self._policy_consolidation(
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             credit_snapshot=credit_snapshot,
             regime_snapshot=regime_snapshot,
+            consolidation_score=consolidation_score,
         )
         tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot)
         lessons = self._lessons(
@@ -118,11 +138,12 @@ class ReflectionEngine:
         description = (
             f"Reflection generated {len(memory_consolidation.new_durable_entries)} durable proposals, "
             f"{len(policy_consolidation.strategy_priors_updated)} strategy updates, "
-            f"mode={self._writeback_mode.value}."
+            f"mode={self._writeback_mode.value}, score={consolidation_score.confidence:.2f}."
         )
         return ReflectionSnapshot(
             memory_consolidation=memory_consolidation,
             policy_consolidation=policy_consolidation,
+            consolidation_score=consolidation_score,
             interaction_trace_summary=trace_summary,
             tensions_identified=tensions,
             lessons_extracted=lessons,
@@ -172,20 +193,26 @@ class ReflectionEngine:
             new_durable_entries=reflection_snapshot.memory_consolidation.new_durable_entries,
             promoted_entries=reflection_snapshot.memory_consolidation.promoted_entries,
             decayed_entries=reflection_snapshot.memory_consolidation.decayed_entries,
+            beliefs_updated=reflection_snapshot.memory_consolidation.beliefs_updated,
+            promotion_boost=reflection_snapshot.consolidation_score.promotion_score,
+            decay_scale=reflection_snapshot.consolidation_score.decay_score,
             lesson_count=len(reflection_snapshot.lessons_extracted),
             timestamp_ms=max(
                 (entry.created_at_ms for entry in reflection_snapshot.memory_consolidation.new_durable_entries),
                 default=1,
             ),
         )
-        threshold_delta = -0.05 if not reflection_snapshot.tensions_identified else 0.05
         applied_operations = applied_operations + (
-            memory_store.apply_promotion_threshold_update(delta=threshold_delta),
+            memory_store.apply_promotion_threshold_update(
+                delta=reflection_snapshot.consolidation_score.threshold_delta
+            ),
         )
         if regime_module is not None:
             applied_operations = applied_operations + regime_module.apply_policy_consolidation(
                 strategy_updates=reflection_snapshot.policy_consolidation.strategy_priors_updated,
                 regime_effectiveness_updates=reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
+                strategy_gain=reflection_snapshot.consolidation_score.strategy_gain,
+                effectiveness_gain=reflection_snapshot.consolidation_score.regime_effectiveness_gain,
             )
         checkpoint = WritebackCheckpoint(
             checkpoint_id=memory_checkpoint.checkpoint_id,
@@ -219,6 +246,7 @@ class ReflectionEngine:
         timestamp_ms: int,
         memory_snapshot: MemorySnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        consolidation_score: ConsolidationScore,
     ) -> MemoryConsolidation:
         if memory_snapshot is None:
             return MemoryConsolidation((), (), (), ())
@@ -227,28 +255,24 @@ class ReflectionEngine:
         new_durable_entries: list[MemoryEntry] = []
         decayed_entries: list[str] = []
         beliefs_updated: list[str] = []
+        promotion_limit = 1
+        if consolidation_score.promotion_score > 0.55:
+            promotion_limit = 2
+        if consolidation_score.promotion_score > 0.75:
+            promotion_limit = 3
 
-        for entry in memory_snapshot.retrieved_entries[:3]:
-            if entry.stratum != MemoryStratum.DURABLE.value:
+        for entry in memory_snapshot.retrieved_entries[:promotion_limit]:
+            if (
+                entry.stratum != MemoryStratum.DURABLE.value
+                and entry.strength + consolidation_score.promotion_score * 0.2 >= 0.6
+            ):
                 promoted_entries.append(entry.entry_id)
-                new_durable_entries.append(
-                    MemoryEntry(
-                        entry_id=str(uuid4()),
-                        content=entry.content,
-                        track=entry.track,
-                        stratum=MemoryStratum.DURABLE.value,
-                        created_at_ms=timestamp_ms,
-                        last_accessed_ms=timestamp_ms,
-                        strength=_clamp(max(entry.strength, 0.7)),
-                        tags=entry.tags,
-                    )
-                )
         if credit_snapshot is not None:
             decay_candidates = list(memory_snapshot.retrieved_entries)
             for record in credit_snapshot.recent_credits[:3]:
                 if record.credit_value > 0.6:
                     beliefs_updated.append(f"reinforce:{record.track.value}:{record.source_event}")
-                if record.credit_value < 0.2:
+                if record.credit_value < 0.2 and consolidation_score.decay_score > 0.25:
                     for candidate in decay_candidates:
                         if candidate.track is record.track or record.track is Track.SHARED:
                             decayed_entries.append(candidate.entry_id)
@@ -268,6 +292,7 @@ class ReflectionEngine:
         evaluation_snapshot: EvaluationSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
         regime_snapshot: RegimeSnapshot | None,
+        consolidation_score: ConsolidationScore,
     ) -> PolicyConsolidation:
         controller_updates: list[str] = []
         strategy_priors_updated: list[str] = []
@@ -276,9 +301,12 @@ class ReflectionEngine:
         if dual_track_snapshot is not None:
             if dual_track_snapshot.cross_track_tension > 0.5:
                 controller_updates.append("reduce_cross_track_tension_before_widening_scope")
-            if dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level:
+            if (
+                dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level
+                and consolidation_score.strategy_gain >= 0.03
+            ):
                 strategy_priors_updated.append("increase_self_track_priority")
-            elif dual_track_snapshot.world_track.tension_level > 0:
+            elif dual_track_snapshot.world_track.tension_level > 0 and consolidation_score.strategy_gain >= 0.03:
                 strategy_priors_updated.append("increase_world_track_priority")
 
         if evaluation_snapshot is not None:
@@ -304,6 +332,47 @@ class ReflectionEngine:
             controller_updates=tuple(controller_updates),
             strategy_priors_updated=tuple(strategy_priors_updated),
             regime_effectiveness_updated=tuple(regime_effectiveness_updated),
+        )
+
+    def _consolidation_score(
+        self,
+        *,
+        memory_snapshot: MemorySnapshot | None,
+        dual_track_snapshot: DualTrackSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> ConsolidationScore:
+        memory_pressure = _clamp(
+            len(memory_snapshot.retrieved_entries) / 5.0 if memory_snapshot is not None else 0.0
+        )
+        cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot is not None else 0.0
+        alert_pressure = min(len(evaluation_snapshot.alerts), 3) / 3.0 if evaluation_snapshot is not None else 0.0
+        positive_credit = 0.0
+        negative_credit = 0.0
+        if credit_snapshot is not None and credit_snapshot.recent_credits:
+            positive_credit = sum(
+                max(record.credit_value, 0.0) for record in credit_snapshot.recent_credits[:5]
+            ) / max(len(credit_snapshot.recent_credits[:5]), 1)
+            negative_credit = sum(
+                max(0.0, 0.3 - record.credit_value) for record in credit_snapshot.recent_credits[:5]
+            ) / max(len(credit_snapshot.recent_credits[:5]), 1)
+        promotion_score = _clamp(0.35 + memory_pressure * 0.25 + positive_credit * 0.45 - cross_tension * 0.15)
+        decay_score = _clamp(0.10 + negative_credit * 0.75 + alert_pressure * 0.2)
+        threshold_delta = max(-0.05, min(0.05, (cross_tension + alert_pressure - promotion_score) * 0.04))
+        strategy_gain = max(0.02, min(0.08, 0.02 + promotion_score * 0.05))
+        regime_effectiveness_gain = max(0.2, min(0.45, 0.2 + promotion_score * 0.25))
+        confidence = _clamp((memory_pressure + positive_credit + (1.0 - cross_tension)) / 3.0)
+        return ConsolidationScore(
+            promotion_score=promotion_score,
+            decay_score=decay_score,
+            threshold_delta=threshold_delta,
+            strategy_gain=strategy_gain,
+            regime_effectiveness_gain=regime_effectiveness_gain,
+            confidence=confidence,
+            description=(
+                f"consolidation promotion={promotion_score:.3f} decay={decay_score:.3f} "
+                f"threshold_delta={threshold_delta:.3f}"
+            ),
         )
 
     def _tensions(

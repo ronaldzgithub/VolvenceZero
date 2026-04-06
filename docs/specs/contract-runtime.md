@@ -1,7 +1,7 @@
 # 契约式运行时 Spec
 
 > Status: draft
-> Last updated: 2026-03-25
+> Last updated: 2026-04-06
 > 对应需求: R8, R11, R15
 
 ## 要解决的问题
@@ -86,6 +86,12 @@ P00 运行时内核固定以下最小守卫和视图：
 - `ImmutabilityGuard`：发布后消费前校验 value hash 不变
 - `UpstreamView`：对模块暴露带守卫的上游快照视图，缺失 slot 统一返回 runtime placeholder snapshot
 
+### 当前实现补充
+
+- substrate owner 现已区分三层：`OpenWeightResidualRuntime`（真实 runtime / hook 所有者）、`OpenWeightResidualStreamSubstrateAdapter`（对外发布稳定 `SubstrateSnapshot`）、`OpenWeightResidualInterventionBackend`（owner-side residual control 执行位点）
+- 这意味着未来接 Hugging Face / 其他 open-weight backend 时，只需实现 runtime 契约，不需要改 temporal / internal RL / evaluation 的公共消费面
+- agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
+
 ### 内部状态发布（R11）
 
 每个模块必须能命名和发布其内部状态，包含：
@@ -107,4 +113,5 @@ P00 运行时内核固定以下最小守卫和视图：
 
 ## 变更日志
 
+- 2026-04-06: 补充 open-weight runtime / adapter / intervention backend 三层契约，以及 session 级 substrate 注入点
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 DATA_CONTRACT.md 提取

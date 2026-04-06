@@ -1,13 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
-from volvence_zero.evaluation import EvaluationSnapshot
-from volvence_zero.memory import MemorySnapshot
-from volvence_zero.regime import RegimeSnapshot
-from volvence_zero.runtime import Snapshot
-from volvence_zero.temporal import TemporalAbstractionSnapshot
 
 
 @dataclass(frozen=True)
@@ -18,59 +11,43 @@ class AgentResponse:
     rationale: str
 
 
+@dataclass(frozen=True)
+class ResponseContext:
+    regime_id: str | None
+    regime_name: str
+    abstract_action: str | None
+    alert_count: int
+    retrieved_memory_count: int
+
+
 class ResponseSynthesizer:
     """Expression-layer synthesizer over structured runtime state."""
 
     def synthesize(
         self,
         *,
-        user_input: str,
-        active_snapshots: dict[str, Snapshot[Any]],
-        shadow_snapshots: dict[str, Snapshot[Any]],
+        context: ResponseContext,
     ) -> AgentResponse:
-        regime_snapshot = active_snapshots.get("regime") or shadow_snapshots.get("regime")
-        temporal_snapshot = active_snapshots.get("temporal_abstraction") or shadow_snapshots.get(
-            "temporal_abstraction"
-        )
-        evaluation_snapshot = active_snapshots.get("evaluation")
-        memory_snapshot = active_snapshots.get("memory")
-
-        regime_id = None
-        regime_name = "current context"
-        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
-            regime_id = regime_snapshot.value.active_regime.regime_id
-            regime_name = regime_snapshot.value.active_regime.name
-
-        abstract_action = None
-        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
-            abstract_action = temporal_snapshot.value.active_abstract_action
-
-        alerts = ()
-        if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot):
-            alerts = evaluation_snapshot.value.alerts
-
         memory_hint = ""
-        if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
-            entries = memory_snapshot.value.retrieved_entries
-            if entries:
-                memory_hint = f" I am carrying forward {len(entries)} retrieved memory cues."
+        if context.retrieved_memory_count:
+            memory_hint = f" I am carrying forward {context.retrieved_memory_count} retrieved memory cues."
 
-        if regime_id == "repair_and_deescalation":
+        if context.regime_id == "repair_and_deescalation":
             text = (
                 "I want to slow this down a little and make sure I respond in a steady, repairing way. "
                 "We can handle the immediate issue, but I want to keep the interaction safe and grounded."
             )
-        elif regime_id == "emotional_support":
+        elif context.regime_id == "emotional_support":
             text = (
                 "I am hearing emotional weight in this, so I want to stay supportive first and not rush past it. "
                 "We can still move toward something useful together."
             )
-        elif regime_id == "problem_solving":
+        elif context.regime_id == "problem_solving":
             text = (
                 "I see a concrete problem-solving path here. "
                 "I can help structure the next steps clearly and keep the solution actionable."
             )
-        elif regime_id == "guided_exploration":
+        elif context.regime_id == "guided_exploration":
             text = (
                 "This feels like a place for guided exploration rather than a rushed answer. "
                 "I can help us narrow the space step by step."
@@ -80,20 +57,20 @@ class ResponseSynthesizer:
                 "I can stay with the current context and respond in a way that keeps both usefulness and continuity in view."
             )
 
-        if alerts:
+        if context.alert_count:
             text += " I also notice some internal caution signals, so I will stay measured rather than over-commit."
         text += memory_hint
 
-        rationale_parts = [f"regime={regime_id or 'none'}"]
-        if abstract_action:
-            rationale_parts.append(f"temporal={abstract_action}")
-        if alerts:
-            rationale_parts.append(f"alerts={len(alerts)}")
+        rationale_parts = [f"regime={context.regime_id or 'none'}"]
+        if context.abstract_action:
+            rationale_parts.append(f"temporal={context.abstract_action}")
+        if context.alert_count:
+            rationale_parts.append(f"alerts={context.alert_count}")
         rationale = ", ".join(rationale_parts)
 
         return AgentResponse(
             text=text,
-            regime_id=regime_id,
-            abstract_action=abstract_action,
-            rationale=f"Synthesized from {regime_name}; {rationale}.",
+            regime_id=context.regime_id,
+            abstract_action=context.abstract_action,
+            rationale=f"Synthesized from {context.regime_name}; {rationale}.",
         )

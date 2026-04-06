@@ -1,4 +1,4 @@
-from volvence_zero.memory.cms import CMSBandState, CMSMemoryCore, CMSState
+from volvence_zero.memory.cms import CMSBandState, CMSCheckpointState, CMSMemoryCore, CMSState
 from volvence_zero.memory.store import (
     MemoryEntry,
     MemoryModule,
@@ -16,6 +16,7 @@ from volvence_zero.memory.store import (
 
 __all__ = [
     "CMSBandState",
+    "CMSCheckpointState",
     "CMSMemoryCore",
     "CMSState",
     "MemoryEntry",

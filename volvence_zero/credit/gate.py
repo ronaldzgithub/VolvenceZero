@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.memory import Track
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+
+if TYPE_CHECKING:
+    from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
 class ModificationGate(str, Enum):
@@ -216,6 +219,27 @@ def extend_credit_snapshot(
     )
 
 
+def derive_learning_evidence_credit_records(
+    *,
+    evaluation_snapshot: EvaluationSnapshot,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    relevant_metrics = {"retrieval_quality", "reflection_usefulness", "joint_learning_progress"}
+    return tuple(
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="turn",
+            track=Track.SHARED,
+            source_event=score.metric_name,
+            credit_value=_clamp(score.value),
+            context=score.evidence,
+            timestamp_ms=timestamp_ms,
+        )
+        for score in evaluation_snapshot.turn_scores
+        if score.family == "learning" and score.metric_name in relevant_metrics
+    )
+
+
 def derive_runtime_adaptation_audit_records(
     *,
     rollback_reasons: tuple[str, ...],
@@ -241,6 +265,43 @@ def derive_runtime_adaptation_audit_records(
             ),
             timestamp_ms=timestamp_ms,
             is_reversible=True,
+        ),
+    )
+
+
+def derive_metacontroller_credit_records(
+    *,
+    metacontroller_state: "MetacontrollerRuntimeState | None",
+    policy_objective: float,
+    rollback_reasons: tuple[str, ...],
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    if metacontroller_state is None:
+        return ()
+    credit_value = _clamp(
+        0.55
+        + policy_objective * 0.35
+        - min(metacontroller_state.latest_ssl_loss * 0.1, 0.25)
+        + metacontroller_state.policy_replacement_score * 0.15
+        + metacontroller_state.switch_sparsity * 0.05
+        - len(rollback_reasons) * 0.15
+    )
+    return (
+        CreditRecord(
+            record_id=f"metacontroller:{timestamp_ms}",
+            level="abstract_action",
+            track=Track.SHARED,
+            source_event=metacontroller_state.active_label,
+            credit_value=credit_value,
+            context=(
+                f"{metacontroller_state.description} "
+                f"policy_objective={policy_objective:.3f} "
+                f"posterior_drift={metacontroller_state.posterior_drift:.3f} "
+                f"binary_ratio={metacontroller_state.binary_switch_rate:.3f} "
+                f"replacement={metacontroller_state.policy_replacement_score:.3f} "
+                f"rollback={','.join(rollback_reasons) or 'none'}"
+            ),
+            timestamp_ms=timestamp_ms,
         ),
     )
 

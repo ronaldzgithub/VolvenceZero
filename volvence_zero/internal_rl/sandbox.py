@@ -3,14 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from volvence_zero.credit import CreditRecord
+from volvence_zero.internal_rl.environment import InternalRLEnvStep, InternalRLEnvironment
 from volvence_zero.memory import Track
 from volvence_zero.substrate import SubstrateSnapshot
 from volvence_zero.temporal import (
     ControllerState,
+    FullLearnedTemporalPolicy,
     LearnedLiteTemporalPolicy,
+    MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
     TemporalAbstractionSnapshot,
-    TemporalControllerParameters,
 )
 
 
@@ -21,10 +23,17 @@ class ZTransition:
     abstract_action: str
     controller_state: ControllerState
     observation_signature: tuple[float, ...]
+    policy_action: tuple[float, ...]
+    latent_code: tuple[float, ...]
+    decoder_output: tuple[float, ...]
+    applied_control: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
     hidden_state: tuple[float, ...]
     policy_score: float
     log_prob: float
     reward: float
+    policy_replacement_quality: float
+    backend_name: str
 
 
 @dataclass(frozen=True)
@@ -34,12 +43,14 @@ class ZRollout:
     transitions: tuple[ZTransition, ...]
     total_reward: float
     description: str
+    replacement_mode: str = "causal"
 
 
 @dataclass(frozen=True)
 class CausalPolicyState:
     track: Track
     hidden_state: tuple[float, ...]
+    previous_action: tuple[float, ...]
     step_index: int
 
 
@@ -63,7 +74,7 @@ class CausalPolicyParameters:
 class CausalPolicyCheckpoint:
     checkpoint_id: str
     parameters_by_track: tuple[CausalPolicyParameters, ...]
-    temporal_parameters: TemporalControllerParameters
+    metacontroller_snapshot: MetacontrollerParameterSnapshot
 
 
 @dataclass(frozen=True)
@@ -117,14 +128,19 @@ class CausalZPolicy:
         self._parameter_store = parameter_store
 
     def initial_state(self, *, track: Track) -> CausalPolicyState:
-        return CausalPolicyState(track=track, hidden_state=(0.0, 0.0, 0.0), step_index=0)
+        return CausalPolicyState(
+            track=track,
+            hidden_state=(0.0, 0.0, 0.0),
+            previous_action=(0.0, 0.0, 0.0),
+            step_index=0,
+        )
 
     def step(
         self,
         *,
         substrate_snapshot: SubstrateSnapshot,
         state: CausalPolicyState,
-    ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], float, float]:
+    ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], tuple[float, ...], float, float]:
         surface = _surface_signature(substrate_snapshot)
         weights = self._parameter_store.track_weights[state.track]
         weighted_surface = tuple(_clamp(value * weight) for value, weight in zip(surface, weights))
@@ -135,14 +151,26 @@ class CausalZPolicy:
             )
             for previous, current in zip(state.hidden_state, weighted_surface)
         )
+        policy_action = self._policy_action(
+            hidden_state=hidden_state,
+            surface=surface,
+            previous_action=state.previous_action,
+            weights=weights,
+        )
         next_state = CausalPolicyState(
             track=state.track,
             hidden_state=hidden_state,
+            previous_action=policy_action,
             step_index=state.step_index + 1,
         )
-        policy_score = self._policy_score(weights=weights, hidden_state=hidden_state, surface=surface)
+        policy_score = self._policy_score(
+            weights=weights,
+            hidden_state=hidden_state,
+            surface=surface,
+            policy_action=policy_action,
+        )
         log_prob = self._log_prob(policy_score=policy_score)
-        return next_state, surface, hidden_state, policy_score, log_prob
+        return next_state, surface, hidden_state, policy_action, policy_score, log_prob
 
     def export_parameters(self) -> tuple[CausalPolicyParameters, ...]:
         return tuple(
@@ -160,7 +188,7 @@ class CausalZPolicy:
         return CausalPolicyCheckpoint(
             checkpoint_id=checkpoint_id,
             parameters_by_track=self.export_parameters(),
-            temporal_parameters=self._parameter_store.export_temporal_parameters(),
+            metacontroller_snapshot=self._parameter_store.export_parameter_snapshot(),
         )
 
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
@@ -172,12 +200,7 @@ class CausalZPolicy:
         self._parameter_store.update_steps = {
             params.track: params.update_step for params in checkpoint.parameters_by_track
         }
-        self._parameter_store.temporal_weights = {
-            "residual": checkpoint.temporal_parameters.residual_weight,
-            "memory": checkpoint.temporal_parameters.memory_weight,
-            "reflection": checkpoint.temporal_parameters.reflection_weight,
-        }
-        self._parameter_store.switch_bias = checkpoint.temporal_parameters.switch_bias
+        self._parameter_store.restore_parameter_snapshot(checkpoint.metacontroller_snapshot)
 
     def _policy_score(
         self,
@@ -185,10 +208,31 @@ class CausalZPolicy:
         weights: tuple[float, ...],
         hidden_state: tuple[float, ...],
         surface: tuple[float, ...],
+        policy_action: tuple[float, ...],
     ) -> float:
         score = sum(weight * hidden for weight, hidden in zip(weights, hidden_state))
         score += sum(weight * value for weight, value in zip(weights, surface)) * 0.5
+        score += sum(weight * value for weight, value in zip(weights, policy_action)) * 0.35
         return _clamp(score)
+
+    def _policy_action(
+        self,
+        *,
+        hidden_state: tuple[float, ...],
+        surface: tuple[float, ...],
+        previous_action: tuple[float, ...],
+        weights: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        proposal = tuple(
+            _clamp(
+                hidden_state[index] * 0.50
+                + surface[index] * 0.30
+                + previous_action[index] * 0.20
+                + weights[index] * 0.10
+            )
+            for index in range(3)
+        )
+        return self._normalize_weights(proposal)
 
     def _log_prob(self, *, policy_score: float) -> float:
         centered = policy_score - 0.5
@@ -208,7 +252,10 @@ class CausalZPolicy:
         accum = [0.0 for _ in range(dims)]
         for transition, advantage in zip(rollout.transitions, advantages):
             for index, value in enumerate(transition.observation_signature):
-                accum[index] += value * advantage
+                accum[index] += (
+                    value * advantage
+                    + transition.policy_action[index] * transition.policy_replacement_quality * 0.5
+                )
         scale = 1.0 / max(len(rollout.transitions), 1)
         return tuple(delta * scale for delta in accum)
 
@@ -228,6 +275,7 @@ class CausalZPolicy:
                 weights=new_weights,
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
+                policy_action=transition.policy_action,
             )
             new_log_prob = self._log_prob(policy_score=new_score)
             ratio = 2.718281828 ** (new_log_prob - transition.log_prob)
@@ -247,6 +295,7 @@ class CausalZPolicy:
                 weights=old_weights,
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
+                policy_action=transition.policy_action,
             )
             kl_terms.append(abs(new_score - old_score))
         clip_fraction = clipped / max(len(rollout.transitions), 1)
@@ -303,7 +352,8 @@ class CausalZPolicy:
                 f"track={rollout.track.value} weights={self._parameter_store.track_weights[rollout.track]} "
                 f"persistence={self._parameter_store.persistence:.3f} "
                 f"step={self._parameter_store.update_steps[rollout.track]} "
-                f"objective={surrogate_objective:.3f}"
+                f"objective={surrogate_objective:.3f} "
+                f"replacement={sum(t.policy_replacement_quality for t in rollout.transitions)/len(rollout.transitions):.3f}"
             ),
         )
 
@@ -311,12 +361,18 @@ class CausalZPolicy:
 class InternalRLSandbox:
     """Minimal z-space rollout sandbox for abstract-action RL experiments."""
 
-    def __init__(self, *, policy: LearnedLiteTemporalPolicy | None = None) -> None:
-        self._policy = policy or LearnedLiteTemporalPolicy()
+    def __init__(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy | None = None,
+        env: InternalRLEnvironment | None = None,
+    ) -> None:
+        self._policy = policy or FullLearnedTemporalPolicy()
         self._causal_policy = CausalZPolicy(parameter_store=self._policy.parameter_store)
+        self._env = env or InternalRLEnvironment()
 
     @property
-    def policy(self) -> LearnedLiteTemporalPolicy:
+    def policy(self) -> FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy:
         return self._policy
 
     @property
@@ -329,53 +385,62 @@ class InternalRLSandbox:
         rollout_id: str,
         substrate_steps: tuple[SubstrateSnapshot, ...],
         track: Track = Track.SHARED,
+        replacement_mode: str = "causal",
     ) -> ZRollout:
         previous_snapshot: TemporalAbstractionSnapshot | None = None
         transitions: list[ZTransition] = []
         policy_state = self._causal_policy.initial_state(track=track)
         for step_index, substrate_snapshot in enumerate(substrate_steps):
-            policy_state, observation_signature, hidden_state, policy_score, log_prob = self._causal_policy.step(
+            (
+                policy_state,
+                observation_signature,
+                hidden_state,
+                policy_action,
+                policy_score,
+                log_prob,
+            ) = self._causal_policy.step(
                 substrate_snapshot=substrate_snapshot,
                 state=policy_state,
             )
-            temporal_step = self._policy.step(
+            env_step = self._env.step(
                 substrate_snapshot=substrate_snapshot,
-                previous_snapshot=previous_snapshot,
-                memory_snapshot=None,
-                reflection_snapshot=None,
-            )
-            reward = self._reward_for_step(
-                controller_state=temporal_step.controller_state,
-                hidden_state=hidden_state,
                 track=track,
+                policy=self._policy,
+                previous_snapshot=previous_snapshot,
+                policy_latent_override=policy_action if replacement_mode in {"causal", "causal-binary"} else None,
+                policy_replacement_score=policy_score if replacement_mode in {"causal", "causal-binary"} else 0.0,
+                binary_gate_override=replacement_mode == "causal-binary",
             )
             transitions.append(
                 ZTransition(
                     step_index=step_index,
                     track=track,
-                    abstract_action=temporal_step.active_abstract_action,
-                    controller_state=temporal_step.controller_state,
+                    abstract_action=env_step.temporal_step.active_abstract_action,
+                    controller_state=env_step.temporal_step.controller_state,
                     observation_signature=observation_signature,
+                    policy_action=policy_action,
+                    latent_code=env_step.latent_code,
+                    decoder_output=env_step.decoder_output,
+                    applied_control=env_step.applied_control,
+                    downstream_effect=env_step.downstream_effect,
                     hidden_state=hidden_state,
                     policy_score=policy_score,
                     log_prob=log_prob,
-                    reward=reward,
+                    reward=env_step.reward,
+                    policy_replacement_quality=env_step.policy_replacement_quality,
+                    backend_name=env_step.backend_name,
                 )
             )
-            previous_snapshot = TemporalAbstractionSnapshot(
-                controller_state=temporal_step.controller_state,
-                active_abstract_action=temporal_step.active_abstract_action,
-                controller_params_hash=temporal_step.controller_params_hash,
-                description=temporal_step.description,
-            )
+            previous_snapshot = env_step.next_previous_snapshot
         total_reward = sum(transition.reward for transition in transitions)
         return ZRollout(
             rollout_id=rollout_id,
             track=track,
             transitions=tuple(transitions),
             total_reward=total_reward,
+            replacement_mode=replacement_mode,
             description=(
-                f"Internal RL rollout track={track.value} over {len(transitions)} abstract actions "
+                f"Internal RL rollout mode={replacement_mode} track={track.value} over {len(transitions)} abstract actions "
                 f"with total reward {total_reward:.2f}."
             ),
         )
@@ -390,11 +455,13 @@ class InternalRLSandbox:
             rollout_id=f"{rollout_id}:task",
             substrate_steps=substrate_steps,
             track=Track.WORLD,
+            replacement_mode="causal-binary",
         )
         relationship_rollout = self.rollout(
             rollout_id=f"{rollout_id}:relationship",
             substrate_steps=substrate_steps,
             track=Track.SELF,
+            replacement_mode="causal-binary",
         )
         return DualTrackRollout(
             task_rollout=task_rollout,

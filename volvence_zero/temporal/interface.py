@@ -11,6 +11,19 @@ from volvence_zero.memory import MemorySnapshot, Track
 from volvence_zero.reflection import ReflectionSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
+from volvence_zero.temporal.metacontroller_components import (
+    DecoderControl,
+    EncodedSequence,
+    PosteriorState,
+    ResidualDecoder,
+    SequenceEncoder,
+    SwitchGateDecision,
+    SwitchUnit,
+    classify_latent_action,
+    residual_sequence_from_snapshot,
+    summarize_feature_surface,
+    summarize_residual_activations,
+)
 
 
 class TemporalImplementationMode(str, Enum):
@@ -58,11 +71,77 @@ class MetacontrollerRuntimeState:
     mode: str
     temporal_parameters: TemporalControllerParameters
     track_parameters: tuple[tuple[str, tuple[float, ...]], ...]
+    encoder_weights: tuple[tuple[float, ...], ...]
+    switch_weights: tuple[float, ...]
+    decoder_matrix: tuple[tuple[float, ...], ...]
     persistence: float
     learning_rate: float
     clip_epsilon: float
     update_steps: tuple[tuple[str, int], ...]
-    description: str
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    decoder_control: tuple[float, ...]
+    latest_switch_gate: float
+    sequence_length: int
+    latest_ssl_loss: float
+    latest_ssl_kl_loss: float
+    active_label: str
+    encoder_recurrence: tuple[tuple[float, ...], ...] = ()
+    beta_threshold: float = 0.55
+    decoder_hidden: tuple[tuple[float, ...], ...] = ()
+    prior_mean: tuple[float, ...] = ()
+    prior_std: tuple[float, ...] = ()
+    posterior_mean: tuple[float, ...] = ()
+    posterior_std: tuple[float, ...] = ()
+    posterior_sample_noise: tuple[float, ...] = ()
+    z_tilde: tuple[float, ...] = ()
+    posterior_hidden_state: tuple[float, ...] = ()
+    posterior_drift: float = 0.0
+    beta_binary: int = 0
+    switch_sparsity: float = 0.0
+    binary_switch_rate: float = 0.0
+    mean_persistence_window: float = 0.0
+    decoder_applied_control: tuple[float, ...] = ()
+    policy_replacement_score: float = 0.0
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class MetacontrollerParameterSnapshot:
+    temporal_parameters: TemporalControllerParameters
+    track_parameters: tuple[tuple[str, tuple[float, ...]], ...]
+    encoder_weights: tuple[tuple[float, ...], ...]
+    encoder_recurrence: tuple[tuple[float, ...], ...]
+    switch_weights: tuple[float, ...]
+    beta_threshold: float
+    decoder_matrix: tuple[tuple[float, ...], ...]
+    decoder_hidden: tuple[tuple[float, ...], ...]
+    persistence: float
+    learning_rate: float
+    clip_epsilon: float
+    update_steps: tuple[tuple[str, int], ...]
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    decoder_control: tuple[float, ...]
+    latest_switch_gate: float
+    sequence_length: int
+    latest_ssl_loss: float
+    latest_ssl_kl_loss: float
+    active_label: str
+    prior_mean: tuple[float, ...]
+    prior_std: tuple[float, ...]
+    posterior_mean: tuple[float, ...]
+    posterior_std: tuple[float, ...]
+    posterior_sample_noise: tuple[float, ...]
+    z_tilde: tuple[float, ...]
+    posterior_hidden_state: tuple[float, ...]
+    posterior_drift: float
+    beta_binary: int
+    switch_sparsity: float
+    binary_switch_rate: float
+    mean_persistence_window: float
+    decoder_applied_control: tuple[float, ...]
+    policy_replacement_score: float
 
 
 class MetacontrollerParameterStore:
@@ -75,6 +154,34 @@ class MetacontrollerParameterStore:
             "reflection": 0.15,
         }
         self.switch_bias = 0.1
+        self.encoder_weights: tuple[tuple[float, ...], ...] = (
+            (0.70, 0.20, 0.10),
+            (0.25, 0.55, 0.20),
+            (0.15, 0.25, 0.60),
+        )
+        self.encoder_recurrence: tuple[tuple[float, ...], ...] = (
+            (0.60, 0.20, 0.20),
+            (0.20, 0.60, 0.20),
+            (0.20, 0.20, 0.60),
+        )
+        self.switch_weights: tuple[float, ...] = (0.45, 0.35, 0.20)
+        self.beta_threshold = 0.55
+        self.decoder_matrix: tuple[tuple[float, ...], ...] = (
+            (0.80, 0.15, 0.05),
+            (0.20, 0.65, 0.15),
+            (0.25, 0.25, 0.50),
+        )
+        self.decoder_hidden: tuple[tuple[float, ...], ...] = (
+            (0.60, 0.25, 0.15),
+            (0.20, 0.60, 0.20),
+            (0.15, 0.25, 0.60),
+        )
+        self.latent_prototypes: tuple[tuple[str, tuple[float, ...]], ...] = (
+            ("repair_controller", (0.20, 0.80, 0.65)),
+            ("task_controller", (0.80, 0.25, 0.30)),
+            ("exploration_controller", (0.45, 0.45, 0.70)),
+            ("stabilize_controller", (0.40, 0.35, 0.25)),
+        )
         self.track_weights: dict[Track, tuple[float, float, float]] = {
             Track.WORLD: (0.70, 0.20, 0.10),
             Track.SELF: (0.20, 0.70, 0.10),
@@ -88,6 +195,28 @@ class MetacontrollerParameterStore:
             Track.SELF: 0,
             Track.SHARED: 0,
         }
+        self.latest_latent_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_latent_scale: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_decoder_control: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_switch_gate = 0.0
+        self.latest_sequence_length = 0
+        self.latest_ssl_loss = 0.0
+        self.latest_ssl_kl_loss = 0.0
+        self.latest_active_label = "stabilize_controller"
+        self.latest_prior_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_prior_std: tuple[float, ...] = (1.0, 1.0, 1.0)
+        self.latest_posterior_mean: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_posterior_std: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_posterior_sample_noise: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_z_tilde: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_posterior_hidden_state: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_posterior_drift = 0.0
+        self.latest_beta_binary = 0
+        self.latest_switch_sparsity = 0.0
+        self.latest_binary_switch_rate = 0.0
+        self.latest_mean_persistence_window = 0.0
+        self.latest_decoder_applied_control: tuple[float, ...] = (0.0, 0.0, 0.0)
+        self.latest_policy_replacement_score = 0.0
 
     def export_temporal_parameters(self) -> TemporalControllerParameters:
         return TemporalControllerParameters(
@@ -105,6 +234,12 @@ class MetacontrollerParameterStore:
                 (track.value, self.track_weights[track])
                 for track in (Track.WORLD, Track.SELF, Track.SHARED)
             ),
+            encoder_weights=self.encoder_weights,
+            encoder_recurrence=self.encoder_recurrence,
+            switch_weights=self.switch_weights,
+            beta_threshold=self.beta_threshold,
+            decoder_matrix=self.decoder_matrix,
+            decoder_hidden=self.decoder_hidden,
             persistence=self.persistence,
             learning_rate=self.learning_rate,
             clip_epsilon=self.clip_epsilon,
@@ -112,11 +247,179 @@ class MetacontrollerParameterStore:
                 (track.value, self.update_steps[track])
                 for track in (Track.WORLD, Track.SELF, Track.SHARED)
             ),
+            latent_mean=self.latest_latent_mean,
+            latent_scale=self.latest_latent_scale,
+            decoder_control=self.latest_decoder_control,
+            latest_switch_gate=self.latest_switch_gate,
+            sequence_length=self.latest_sequence_length,
+            latest_ssl_loss=self.latest_ssl_loss,
+            latest_ssl_kl_loss=self.latest_ssl_kl_loss,
+            active_label=self.latest_active_label,
+            prior_mean=self.latest_prior_mean,
+            prior_std=self.latest_prior_std,
+            posterior_mean=self.latest_posterior_mean,
+            posterior_std=self.latest_posterior_std,
+            posterior_sample_noise=self.latest_posterior_sample_noise,
+            z_tilde=self.latest_z_tilde,
+            posterior_hidden_state=self.latest_posterior_hidden_state,
+            posterior_drift=self.latest_posterior_drift,
+            beta_binary=self.latest_beta_binary,
+            switch_sparsity=self.latest_switch_sparsity,
+            binary_switch_rate=self.latest_binary_switch_rate,
+            mean_persistence_window=self.latest_mean_persistence_window,
+            decoder_applied_control=self.latest_decoder_applied_control,
+            policy_replacement_score=self.latest_policy_replacement_score,
             description=(
-                f"Metacontroller runtime state mode={mode}, "
-                f"switch_bias={self.switch_bias:.2f}, persistence={self.persistence:.2f}."
+                f"Metacontroller runtime state mode={mode}, active_label={self.latest_active_label}, "
+                f"switch_bias={self.switch_bias:.2f}, persistence={self.persistence:.2f}, "
+                f"beta_binary={self.latest_beta_binary}, seq_len={self.latest_sequence_length}, "
+                f"ssl_loss={self.latest_ssl_loss:.3f}."
             ),
         )
+
+    def export_parameter_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return MetacontrollerParameterSnapshot(
+            temporal_parameters=self.export_temporal_parameters(),
+            track_parameters=tuple(
+                (track.value, self.track_weights[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            encoder_weights=self.encoder_weights,
+            encoder_recurrence=self.encoder_recurrence,
+            switch_weights=self.switch_weights,
+            beta_threshold=self.beta_threshold,
+            decoder_matrix=self.decoder_matrix,
+            decoder_hidden=self.decoder_hidden,
+            persistence=self.persistence,
+            learning_rate=self.learning_rate,
+            clip_epsilon=self.clip_epsilon,
+            update_steps=tuple(
+                (track.value, self.update_steps[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            latent_mean=self.latest_latent_mean,
+            latent_scale=self.latest_latent_scale,
+            decoder_control=self.latest_decoder_control,
+            latest_switch_gate=self.latest_switch_gate,
+            sequence_length=self.latest_sequence_length,
+            latest_ssl_loss=self.latest_ssl_loss,
+            latest_ssl_kl_loss=self.latest_ssl_kl_loss,
+            active_label=self.latest_active_label,
+            prior_mean=self.latest_prior_mean,
+            prior_std=self.latest_prior_std,
+            posterior_mean=self.latest_posterior_mean,
+            posterior_std=self.latest_posterior_std,
+            posterior_sample_noise=self.latest_posterior_sample_noise,
+            z_tilde=self.latest_z_tilde,
+            posterior_hidden_state=self.latest_posterior_hidden_state,
+            posterior_drift=self.latest_posterior_drift,
+            beta_binary=self.latest_beta_binary,
+            switch_sparsity=self.latest_switch_sparsity,
+            binary_switch_rate=self.latest_binary_switch_rate,
+            mean_persistence_window=self.latest_mean_persistence_window,
+            decoder_applied_control=self.latest_decoder_applied_control,
+            policy_replacement_score=self.latest_policy_replacement_score,
+        )
+
+    def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
+        self.temporal_weights = {
+            "residual": snapshot.temporal_parameters.residual_weight,
+            "memory": snapshot.temporal_parameters.memory_weight,
+            "reflection": snapshot.temporal_parameters.reflection_weight,
+        }
+        self.switch_bias = snapshot.temporal_parameters.switch_bias
+        self.track_weights = {
+            Track(track_name): weights for track_name, weights in snapshot.track_parameters
+        }
+        self.encoder_weights = snapshot.encoder_weights
+        self.encoder_recurrence = snapshot.encoder_recurrence
+        self.switch_weights = snapshot.switch_weights
+        self.beta_threshold = snapshot.beta_threshold
+        self.decoder_matrix = snapshot.decoder_matrix
+        self.decoder_hidden = snapshot.decoder_hidden
+        self.persistence = snapshot.persistence
+        self.learning_rate = snapshot.learning_rate
+        self.clip_epsilon = snapshot.clip_epsilon
+        self.update_steps = {
+            Track(track_name): step_count for track_name, step_count in snapshot.update_steps
+        }
+        self.latest_latent_mean = snapshot.latent_mean
+        self.latest_latent_scale = snapshot.latent_scale
+        self.latest_decoder_control = snapshot.decoder_control
+        self.latest_switch_gate = snapshot.latest_switch_gate
+        self.latest_sequence_length = snapshot.sequence_length
+        self.latest_ssl_loss = snapshot.latest_ssl_loss
+        self.latest_ssl_kl_loss = snapshot.latest_ssl_kl_loss
+        self.latest_active_label = snapshot.active_label
+        self.latest_prior_mean = snapshot.prior_mean
+        self.latest_prior_std = snapshot.prior_std
+        self.latest_posterior_mean = snapshot.posterior_mean
+        self.latest_posterior_std = snapshot.posterior_std
+        self.latest_posterior_sample_noise = snapshot.posterior_sample_noise
+        self.latest_z_tilde = snapshot.z_tilde
+        self.latest_posterior_hidden_state = snapshot.posterior_hidden_state
+        self.latest_posterior_drift = snapshot.posterior_drift
+        self.latest_beta_binary = snapshot.beta_binary
+        self.latest_switch_sparsity = snapshot.switch_sparsity
+        self.latest_binary_switch_rate = snapshot.binary_switch_rate
+        self.latest_mean_persistence_window = snapshot.mean_persistence_window
+        self.latest_decoder_applied_control = snapshot.decoder_applied_control
+        self.latest_policy_replacement_score = snapshot.policy_replacement_score
+
+    def record_runtime_observation(
+        self,
+        *,
+        latent_mean: tuple[float, ...],
+        latent_scale: tuple[float, ...],
+        decoder_control: tuple[float, ...],
+        switch_gate: float,
+        sequence_length: int,
+        active_label: str,
+        prior_mean: tuple[float, ...] | None = None,
+        prior_std: tuple[float, ...] | None = None,
+        posterior_mean: tuple[float, ...] | None = None,
+        posterior_std: tuple[float, ...] | None = None,
+        posterior_sample_noise: tuple[float, ...] | None = None,
+        z_tilde: tuple[float, ...] | None = None,
+        posterior_hidden_state: tuple[float, ...] | None = None,
+        posterior_drift: float | None = None,
+        beta_binary: int | None = None,
+        switch_sparsity: float | None = None,
+        binary_switch_rate: float | None = None,
+        mean_persistence_window: float | None = None,
+        decoder_applied_control: tuple[float, ...] | None = None,
+        policy_replacement_score: float | None = None,
+    ) -> None:
+        self.latest_latent_mean = latent_mean
+        self.latest_latent_scale = latent_scale
+        self.latest_decoder_control = decoder_control
+        self.latest_switch_gate = switch_gate
+        self.latest_sequence_length = sequence_length
+        self.latest_active_label = active_label
+        self.latest_prior_mean = prior_mean or self.latest_prior_mean
+        self.latest_prior_std = prior_std or self.latest_prior_std
+        self.latest_posterior_mean = posterior_mean or latent_mean
+        self.latest_posterior_std = posterior_std or latent_scale
+        self.latest_posterior_sample_noise = posterior_sample_noise or self.latest_posterior_sample_noise
+        self.latest_z_tilde = z_tilde or latent_mean
+        self.latest_posterior_hidden_state = posterior_hidden_state or self.latest_posterior_hidden_state
+        self.latest_posterior_drift = posterior_drift or 0.0
+        self.latest_beta_binary = beta_binary if beta_binary is not None else int(switch_gate >= self.beta_threshold)
+        self.latest_switch_sparsity = switch_sparsity if switch_sparsity is not None else 1.0 - switch_gate
+        self.latest_binary_switch_rate = binary_switch_rate if binary_switch_rate is not None else float(
+            self.latest_beta_binary
+        )
+        self.latest_mean_persistence_window = (
+            mean_persistence_window if mean_persistence_window is not None else self.latest_mean_persistence_window
+        )
+        self.latest_decoder_applied_control = decoder_applied_control or decoder_control
+        self.latest_policy_replacement_score = (
+            policy_replacement_score if policy_replacement_score is not None else self.latest_policy_replacement_score
+        )
+
+    def record_ssl_metrics(self, *, total_loss: float, kl_loss: float) -> None:
+        self.latest_ssl_loss = total_loss
+        self.latest_ssl_kl_loss = kl_loss
 
     def fit_temporal_from_signals(
         self,
@@ -161,31 +464,19 @@ def _feature_signature(feature_surface: tuple[FeatureSignal, ...]) -> tuple[str,
 
 
 def _residual_signature(substrate_snapshot: SubstrateSnapshot) -> tuple[float, ...]:
-    if not substrate_snapshot.residual_activations:
+    sequence = residual_sequence_from_snapshot(substrate_snapshot)
+    summaries = tuple(
+        summarize_residual_activations(step.residual_activations, step.feature_surface) for step in sequence
+    )
+    if not summaries:
         return _code_from_feature_surface(substrate_snapshot.feature_surface)
-    aggregates = [
-        sum(activation.activation) / len(activation.activation)
-        for activation in substrate_snapshot.residual_activations
-        if activation.activation
-    ]
-    if not aggregates:
-        return _code_from_feature_surface(substrate_snapshot.feature_surface)
-    average = sum(aggregates) / len(aggregates)
-    maximum = max(aggregates)
-    spread = maximum - min(aggregates)
-    return (_clamp(average), _clamp(maximum), _clamp(spread))
+    return tuple(
+        _clamp(sum(summary[index] for summary in summaries) / len(summaries)) for index in range(3)
+    )
 
 
 def _code_from_feature_surface(feature_surface: tuple[FeatureSignal, ...]) -> tuple[float, ...]:
-    if not feature_surface:
-        return (0.0, 0.0, 0.0)
-    magnitudes = [sum(feature.values) / len(feature.values) for feature in feature_surface if feature.values]
-    if not magnitudes:
-        return (0.0, 0.0, 0.0)
-    average = sum(magnitudes) / len(magnitudes)
-    maximum = max(magnitudes)
-    spread = maximum - min(magnitudes)
-    return (_clamp(average), _clamp(maximum), _clamp(spread))
+    return summarize_feature_surface(feature_surface)
 
 
 def _abstract_action_from_code(code: tuple[float, ...], switch_gate: float) -> str:
@@ -428,6 +719,14 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
             f"reflection={self._parameter_store.temporal_weights['reflection']:.2f}, "
             f"switch_gate={switch_gate:.2f}."
         )
+        self._parameter_store.record_runtime_observation(
+            latent_mean=code,
+            latent_scale=tuple(abs(current - previous) for current, previous in zip(code, self._previous_code)),
+            decoder_control=code,
+            switch_gate=switch_gate,
+            sequence_length=len(residual_sequence_from_snapshot(substrate_snapshot)),
+            active_label=f"{active_action}:learned-lite",
+        )
         self._previous_code = code
         return TemporalStep(
             controller_state=ControllerState(
@@ -438,6 +737,191 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
                 steps_since_switch=steps_since_switch,
             ),
             active_abstract_action=f"{active_action}:learned-lite",
+            controller_params_hash=params_hash,
+            description=description,
+        )
+
+
+class FullLearnedTemporalPolicy(TemporalPolicy):
+    mode = TemporalImplementationMode.FULL_LEARNED
+
+    def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
+        self._parameter_store = parameter_store or MetacontrollerParameterStore()
+        self._encoder = SequenceEncoder()
+        self._switch_unit = SwitchUnit()
+        self._decoder = ResidualDecoder()
+        self._previous_code = (0.0, 0.0, 0.0)
+        self._previous_hidden_state = (0.0, 0.0, 0.0)
+        self._previous_beta_binary = 0
+
+    @property
+    def parameter_store(self) -> MetacontrollerParameterStore:
+        return self._parameter_store
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState:
+        return self._parameter_store.export_runtime_state(mode=self.mode.value)
+
+    def export_parameters(self) -> TemporalControllerParameters:
+        return self._parameter_store.export_temporal_parameters()
+
+    def fit_from_signals(
+        self,
+        *,
+        residual_strength: float,
+        memory_strength: float,
+        reflection_strength: float,
+    ) -> None:
+        self._parameter_store.fit_temporal_from_signals(
+            residual_strength=residual_strength,
+            memory_strength=memory_strength,
+            reflection_strength=reflection_strength,
+        )
+
+    def step_with_causal_override(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        latent_override: tuple[float, ...],
+        policy_replacement_score: float,
+        binary_gate_override: bool = False,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        return self._step_impl(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            latent_override=latent_override,
+            policy_replacement_score=policy_replacement_score,
+            binary_gate_override=binary_gate_override,
+        )
+
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        return self._step_impl(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            latent_override=None,
+            policy_replacement_score=0.0,
+            binary_gate_override=False,
+        )
+
+    def _step_impl(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        previous_code = previous_snapshot.controller_state.code if previous_snapshot is not None else self._previous_code
+        previous_steps = (
+            previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
+        )
+        encoded = self._encoder.encode(
+            substrate_snapshot=substrate_snapshot,
+            encoder_weights=self._parameter_store.encoder_weights,
+            recurrence_weights=self._parameter_store.encoder_recurrence,
+            previous_hidden_state=self._previous_hidden_state,
+        )
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(reflection_snapshot)
+        switch_decision = self._switch_unit.compute_decision(
+            previous_code=previous_code,
+            z_tilde=encoded.z_tilde,
+            posterior_std=encoded.latent_scale,
+            switch_weights=self._parameter_store.switch_weights,
+            switch_bias=self._parameter_store.switch_bias,
+            memory_signal=memory_signal,
+            reflection_signal=reflection_signal,
+            previous_binary=self._previous_beta_binary,
+            previous_steps_since_switch=previous_steps,
+        )
+        effective_switch_gate = (
+            float(switch_decision.beta_binary) if binary_gate_override else switch_decision.beta_continuous
+        )
+        z_candidate = latent_override or encoded.z_tilde
+        latent_code = tuple(
+            _clamp(effective_switch_gate * current + (1.0 - effective_switch_gate) * previous)
+            for current, previous in zip(z_candidate, previous_code, strict=True)
+        )
+        decoder_control = self._decoder.decode(
+            latent_code=latent_code,
+            decoder_matrix=self._parameter_store.decoder_matrix,
+            hidden_matrix=self._parameter_store.decoder_hidden,
+        )
+        active_label, decoder_summary = classify_latent_action(
+            latent_code=latent_code,
+            decoder_control=decoder_control.applied_control,
+            prototypes=self._parameter_store.latent_prototypes,
+        )
+        is_switching = bool(switch_decision.beta_binary)
+        steps_since_switch = 0 if is_switching else previous_steps + 1
+        self._parameter_store.record_runtime_observation(
+            latent_mean=encoded.latent_mean,
+            latent_scale=encoded.latent_scale,
+            decoder_control=decoder_control.decoder_output,
+            switch_gate=effective_switch_gate,
+            sequence_length=encoded.sequence_length,
+            active_label=active_label,
+            prior_mean=encoded.posterior.prior_mean,
+            prior_std=encoded.posterior.prior_std,
+            posterior_mean=encoded.posterior.posterior_mean,
+            posterior_std=encoded.posterior.posterior_std,
+            posterior_sample_noise=encoded.posterior.sample_noise,
+            z_tilde=z_candidate,
+            posterior_hidden_state=encoded.posterior.hidden_state,
+            posterior_drift=encoded.posterior.posterior_drift,
+            beta_binary=switch_decision.beta_binary,
+            switch_sparsity=switch_decision.sparsity,
+            binary_switch_rate=switch_decision.binary_switch_rate,
+            mean_persistence_window=switch_decision.mean_persistence_window,
+            decoder_applied_control=decoder_control.applied_control,
+            policy_replacement_score=policy_replacement_score,
+        )
+        params_hash = _hash_payload(
+            {
+                "mode": self.mode.value,
+                "encoder_weights": self._parameter_store.encoder_weights,
+                "encoder_recurrence": self._parameter_store.encoder_recurrence,
+                "switch_weights": self._parameter_store.switch_weights,
+                "decoder_hidden": self._parameter_store.decoder_hidden,
+                "decoder_matrix": self._parameter_store.decoder_matrix,
+                "track_weights": self._parameter_store.track_weights,
+                "beta_threshold": self._parameter_store.beta_threshold,
+            }
+        )
+        description = (
+            f"Full-learned metacontroller {switch_decision.summary}, "
+            f"effective_beta={effective_switch_gate:.3f}, seq_len={encoded.sequence_length}, "
+            f"{encoded.summary}, {decoder_control.summary}, replacement_score={policy_replacement_score:.3f}, "
+            f"{decoder_summary}."
+        )
+        self._previous_code = latent_code
+        self._previous_hidden_state = encoded.posterior.hidden_state
+        self._previous_beta_binary = switch_decision.beta_binary
+        return TemporalStep(
+            controller_state=ControllerState(
+                code=latent_code,
+                code_dim=len(latent_code),
+                switch_gate=effective_switch_gate,
+                is_switching=is_switching,
+                steps_since_switch=steps_since_switch,
+            ),
+            active_abstract_action=active_label,
             controller_params_hash=params_hash,
             description=description,
         )
@@ -457,7 +941,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
-        self._policy = policy or LearnedLiteTemporalPolicy()
+        self._policy = policy or FullLearnedTemporalPolicy()
         self._previous_snapshot: TemporalAbstractionSnapshot | None = None
 
     @property
@@ -488,6 +972,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                     token_logits=(),
                     feature_surface=(),
                     residual_activations=(),
+                    residual_sequence=(),
                     unavailable_fields=(),
                     description="Runtime placeholder substrate value.",
                 ),

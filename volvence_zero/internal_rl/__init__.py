@@ -1,3 +1,4 @@
+from volvence_zero.internal_rl.environment import InternalRLEnvStep, InternalRLEnvironment
 from volvence_zero.internal_rl.sandbox import (
     CausalPolicyCheckpoint,
     CausalPolicyParameters,
@@ -17,6 +18,8 @@ __all__ = [
     "CausalPolicyState",
     "DualTrackRollout",
     "DualTrackOptimizationReport",
+    "InternalRLEnvStep",
+    "InternalRLEnvironment",
     "InternalRLSandbox",
     "OptimizationReport",
     "ZRollout",
