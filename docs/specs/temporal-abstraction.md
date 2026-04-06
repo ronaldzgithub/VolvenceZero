@@ -80,7 +80,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 ## 接口契约
 
 **消费的输入**：
-- `substrate` 快照：残差流激活 `e_{t,l}`
+- `substrate` 快照：当前可实现的 substrate surface；当前阶段优先消费 `feature_surface`，只有在 hook 可用时才消费 `residual_activations`
 - `memory` 快照：相关记忆上下文
 - `reflection` 快照：策略沉淀（控制器参数更新）
 
@@ -89,6 +89,12 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   - 控制器状态（`z_t`, `β_t`, `steps_since_switch`）
   - 当前抽象动作的语义描述
   - 控制器参数哈希
+
+**当前实现口径**：
+
+- P08 先固定接口和状态 contract，不承诺完整 ETA 训练闭环
+- 当前实现支持 `placeholder` / `heuristic` 两类 temporal policy
+- 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
 

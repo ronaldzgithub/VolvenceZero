@@ -86,6 +86,30 @@ class ModificationGate(Enum):
     HUMAN_REVIEW = "human-review"   # 需人工审核
 ```
 
+### 2.5 WiringLevel（接线级别）
+
+运行时统一的模块接线级别，用于支持“局部完备、默认未全连”的实施模式。
+
+```python
+class WiringLevel(Enum):
+    DISABLED = "disabled"   # 模块不进主执行链，发布 runtime stub
+    SHADOW = "shadow"       # 模块执行但输出不写入 active upstream
+    ACTIVE = "active"       # 模块输出写入正式 upstream
+```
+
+### 2.6 RuntimePlaceholderValue（缺失与禁用占位）
+
+用于统一表示缺失 upstream 和禁用模块发布的 stub 快照。
+
+```python
+@dataclass(frozen=True)
+class RuntimePlaceholderValue:
+    reason: str
+    expected_slot: str
+    produced_by: str
+    detail: str
+```
+
 ---
 
 ## 3. 模块快照契约
@@ -96,21 +120,49 @@ class ModificationGate(Enum):
 
 ```python
 @dataclass(frozen=True)
+class FeatureSignal:
+    name: str
+    values: tuple[float, ...]
+    source: str
+    layer_hint: int | None = None
+
+@dataclass(frozen=True)
 class ResidualActivation:
     layer_index: int                    # 残差流层索引
     activation: tuple[float, ...]       # 激活向量 e_{t,l}（不可变 tuple）
     step: int                           # 时间步
 
 @dataclass(frozen=True)
+class UnavailableField:
+    field_name: str
+    reason: str
+    detail: str
+
+class SurfaceKind(Enum):
+    PLACEHOLDER = "placeholder"
+    FEATURE_SURFACE = "feature-surface"
+    RESIDUAL_STREAM = "residual-stream"
+
+@dataclass(frozen=True)
 class SubstrateSnapshot:
-    residual_activations: tuple[ResidualActivation, ...]
-    token_logits: tuple[float, ...]     # 当前步 token 概率分布
     model_id: str                       # 基础模型版本标识
     is_frozen: bool                     # 是否冻结
+    surface_kind: SurfaceKind           # 当前暴露的 substrate 表面
+    token_logits: tuple[float, ...]     # 当前步 token 概率分布（可为空）
+    feature_surface: tuple[FeatureSignal, ...]
+    residual_activations: tuple[ResidualActivation, ...]
+    unavailable_fields: tuple[UnavailableField, ...]
+    description: str
 ```
 
+**阶段化 contract**：
+
+- 当前稳定 contract：`surface_kind=FEATURE_SURFACE`，发布 `feature_surface` 与可选 `token_logits`
+- 保守占位 contract：`surface_kind=PLACEHOLDER`，明确哪些字段 unavailable
+- 未来增强 contract：`surface_kind=RESIDUAL_STREAM`，发布真实 `residual_activations`
+
 **消费者**：Metacontroller、记忆系统、双轨学习层
-**发布频率**：每 token / 每 turn
+**发布频率**：每 turn（当前稳定）；未来可扩展到每 token
 
 ### 3.2 时间抽象与内部控制层 (TemporalAbstraction)
 
@@ -133,6 +185,12 @@ class TemporalAbstractionSnapshot:
     description: str                    # 模块自身生成的状态描述
 ```
 
+**当前实现口径**：
+
+- P08 已固定 `controller_state` 的 machine-readable shape
+- 当前实现支持 `placeholder` / `heuristic` 两种可替换策略位点
+- `active_abstract_action` 和 `description` 是可读输出，不作为 machine state 的唯一来源
+
 **消费者**：编排器、双轨学习层、认知 Regime 层、评估体系
 **发布频率**：每 turn
 
@@ -153,6 +211,14 @@ class MemoryEntry:
     tags: tuple[str, ...]               # 语义标签
 
 @dataclass(frozen=True)
+class MemoryWriteRequest:
+    content: str
+    track: Track
+    stratum: str
+    tags: tuple[str, ...] = ()
+    strength: float = 0.5
+
+@dataclass(frozen=True)
 class MemorySnapshot:
     # 按层级组织的记忆摘要
     transient_summary: str              # 瞬态工作状态摘要（模块自身生成）
@@ -169,6 +235,12 @@ class MemorySnapshot:
 
     description: str                    # 模块自身生成的整体状态描述
 ```
+
+**owner 规则**：
+
+- 所有记忆写入必须通过 `MemoryWriteRequest` 形式进入 Memory owner API
+- 消费者不得直接持有或修改 memory 内部存储结构
+- 提升、衰减、部分重建的 pending 状态由 Memory owner 自身发布
 
 **消费者**：编排器、时间抽象层、双轨学习层、认知 Regime 层、慢反思路径
 **发布频率**：每 turn（瞬态/情景）、每会话（持久）
@@ -193,6 +265,12 @@ class DualTrackSnapshot:
     cross_track_tension: float          # 跨轨道张力（两轨目标冲突程度）
     description: str                    # 模块自身生成的状态描述
 ```
+
+**当前实现口径**：
+
+- P03 阶段先以结构化状态 owner 落地，不要求完整 temporal / evaluation / credit 全部接入
+- `recent_credits` 当前可由 owner 发布为“最近重要状态信号”，后续再与正式 credit owner 对齐
+- `controller_code` 当前允许是从已知状态压缩出的占位向量，而不是最终 learned controller code
 
 **消费者**：编排器、记忆系统、信用分配、评估体系
 **发布频率**：每 turn
@@ -230,6 +308,12 @@ class CreditSnapshot:
     description: str
 ```
 
+**当前实现口径**：
+
+- P06 先落地结构化信用记录和 gate audit，不执行真正的在线自修改
+- `recent_modifications` 当前记录 allow / block 结果，作为审计轨迹和后续 reflection 输入
+- `cumulative_credit_by_level` 先提供最小聚合，后续再扩展到更细粒度的长期统计
+
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
 
@@ -257,6 +341,12 @@ class RegimeSnapshot:
     description: str
 ```
 
+**当前实现口径**：
+
+- P04 阶段已经提供结构化 regime identity 和 candidate scoring
+- 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
+- 该评分基线是过渡实现；后续可由更强的 temporal / learned policy 替换
+
 **消费者**：编排器、时间抽象层、记忆系统、评估体系
 **发布频率**：每 turn
 
@@ -280,6 +370,12 @@ class EvaluationSnapshot:
     alerts: tuple[str, ...]                          # 安全/有界性告警
     description: str
 ```
+
+**当前实现口径**：
+
+- P05 阶段先提供 turn / session 两级的最小评估通路
+- `turn_scores` 必须包含 evidence；`session_scores` 为当前 session 的聚合视图
+- 告警先以结构化字符串对外发布，后续可升级为更细粒度 alert schema
 
 **消费者**：编排器、信用分配、门控自修改
 **发布频率**：每 turn（即时评分）、每会话（会话评分）
@@ -309,8 +405,16 @@ class ReflectionSnapshot:
     interaction_trace_summary: str                  # 交互轨迹摘要
     tensions_identified: tuple[str, ...]            # 识别到的张力
     lessons_extracted: tuple[str, ...]              # 提取的持久教训
+    writeback_mode: str                             # disabled | proposal-only | apply
+    review_required: bool
     description: str
 ```
+
+**当前实现口径**：
+
+- P07 默认以 `proposal-only` 运行，不直接修改 memory / credit / temporal owner 状态
+- `memory_consolidation` 和 `policy_consolidation` 先表达提案和审计结果
+- `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
 
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层
 **发布频率**：每会话后（异步）
@@ -345,13 +449,26 @@ class Module(ABC):
     def owner(self) -> str:
         """模块唯一所有者标识"""
 
+    @property
+    @abstractmethod
+    def value_type(self) -> type[Any]:
+        """该 slot 对外发布的 value 类型"""
+
+    @property
+    def dependencies(self) -> tuple[str, ...]:
+        """声明的直接上游依赖 slot"""
+
+    @property
+    def wiring_level(self) -> WiringLevel:
+        """运行时接线级别"""
+
     @abstractmethod
     async def process(self, upstream: UpstreamDict) -> Snapshot:
         """
         接收上游快照，执行处理，返回自身快照。
 
         约束:
-        - 只从 upstream dict 读取数据，不持有/import/调用其他模块
+        - 只从带守卫的 upstream view 读取数据，不持有/import/调用其他模块
         - 返回的 Snapshot 必须是 frozen dataclass
         - 模块内部状态的描述由自身生成并打包到快照中
         """
@@ -367,21 +484,42 @@ class Module(ABC):
 ### 4.3 编排器快照传播
 
 ```python
-async def propagate(modules: list[Module], upstream: UpstreamDict) -> UpstreamDict:
+async def propagate(
+    modules: list[Module],
+    *,
+    upstream: UpstreamDict | None = None,
+    registry: SlotRegistry | None = None,
+    recorder: EventRecorder | None = None,
+    shadow_snapshots: MutableMapping[str, Snapshot] | None = None,
+    session_id: str = "runtime",
+    wave_id: str = "wave-0",
+) -> UpstreamDict:
     """
-    按依赖顺序执行模块，收集快照。
+    按顺序执行模块，收集快照。
 
-    编排器约束:
-    - 可调用快照传播/读取
-    - 不直接调用模块的内部方法（只调用 process）
-    - 不持有模块的内部状态
+    运行时语义:
+    - ACTIVE: 执行并将输出写入 active upstream
+    - SHADOW: 执行并校验，但输出只写入 shadow_snapshots
+    - DISABLED: 不执行模块逻辑，发布 runtime placeholder snapshot 到 active upstream
+
+    守卫:
+    - OwnershipGuard: slot owner 唯一、版本递增
+    - DependencyGuard: 只能消费声明的 slot
+    - SchemaGuard: 发布值必须符合声明 schema
+    - ImmutabilityGuard: 发布后消费前校验哈希不变
     """
-    result = dict(upstream)
+    result = dict(upstream or {})
     for module in modules:
-        snapshot = await module.process(result)
-        result[snapshot.slot_name] = snapshot
+        ...
     return result
 ```
+
+### 4.4 缺失 upstream 与 stub 语义
+
+- 缺失依赖 slot 时，运行时统一返回 `Snapshot[..., value=RuntimePlaceholderValue(...)]`
+- `missing-upstream` 与 `disabled-module` 是两类不同 reason
+- placeholder snapshot 的 `version=0` 仅用于缺失 upstream；禁用模块发布的 stub 使用正式递增版本
+- 模块不允许私自发明其他缺失/降级格式
 
 ---
 

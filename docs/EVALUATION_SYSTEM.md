@@ -462,6 +462,12 @@ LongitudinalEvaluation:
 └── F4 适应有效性 > 0.8 且 F6 全部达标 → 允许扩大自修改范围
 ```
 
+P06 当前实现口径：
+
+- 先把这些规则映射为 `allow` / `block` 的 gate decision
+- 先记录 modification audit，不直接执行真正的参数修改
+- gate 结果通过 `credit` slot 发布，供后续 `reflection` / rollout 消费
+
 ### 11.3 回馈到慢反思
 
 ```
@@ -490,6 +496,11 @@ LongitudinalEvaluation:
 ├── regime 切换后分数变化 → 评估切换决策质量
 └── 长期 regime 使用模式 + 效果 → 调整 regime 选择先验
 ```
+
+P04 当前实现口径：
+
+- `regime` owner 已发布结构化 active / previous / candidate 状态
+- 当前阶段先由 `evaluation` 为 regime 提供效果反馈接口，不要求完整 learned policy 闭环
 
 ---
 
@@ -591,6 +602,15 @@ class EvaluationReport:
 - [ ] 安全告警是否有明确的响应流程？
 - [ ] 评估数据是否可追溯（每个分数都有证据和信号源）？
 - [ ] 评估体系是否与调试体系集成（共享事件日志和检测结果）？
+
+## 14.1 P05 最小实现口径
+
+P05 先交付最小可运行评估骨架，而不是完整 judge / benchmark 系统：
+
+- turn 级最小分数：`info_integration`、`warmth`、`cross_track_stability`、`contract_integrity`
+- session 级聚合：按 family + metric 聚合当前 session 的 turn 记录
+- 每条记录都包含 `evidence` 和 `signal_sources`
+- 告警先采用最小字符串 schema，供后续 `credit` / gate 消费
 
 ---
 

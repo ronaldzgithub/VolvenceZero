@@ -358,6 +358,12 @@ ReflectionAudit:
 └── 人工标注接口：标记错误沉淀/遗漏
 ```
 
+当前实现口径：
+
+- P07 默认输出 proposal-first 的 reflection snapshot
+- writeback mode 和 review_required 作为审查入口
+- 正式写回默认关闭，先审计再放大范围
+
 ---
 
 ## 7. Layer 5: 纵向分析面板

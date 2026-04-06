@@ -53,16 +53,17 @@
 ## 接口契约
 
 **消费的输入**：
-- `temporal_abstraction` 快照：控制器状态
 - `memory` 快照：按轨道检索的记忆
-- `credit` 快照：按轨道分配的信用
-- `evaluation` 快照：按轨道的评估分数
+- `temporal_abstraction` 快照：控制器状态（P03 阶段可缺席，保留接口位点）
+- `credit` 快照：按轨道分配的信用（P03 阶段可先由 dual-track owner 发布占位 recent signal）
+- `evaluation` 快照：按轨道的评估分数（后续包正式接入）
 
 **产出的输出**：
 - `dual_track` 快照：`DualTrackSnapshot`
   - World Track 状态（活跃目标、信用、控制器代码、张力）
   - Self Track 状态（同上）
   - 跨轨道张力值
+  - 当前阶段优先保证结构化状态稳定，而不是完整学习闭环
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节
 

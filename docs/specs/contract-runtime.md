@@ -44,12 +44,22 @@ class Snapshot:
     value: Any              # frozen dataclass
 ```
 
+```python
+class WiringLevel(str, Enum):
+    DISABLED = "disabled"
+    SHADOW = "shadow"
+    ACTIVE = "active"
+```
+
 ### 模块基类
 
 ```python
 class Module(ABC):
     slot_name: str
     owner: str
+    value_type: type[Any]
+    dependencies: tuple[str, ...] = ()
+    wiring_level: WiringLevel = WiringLevel.ACTIVE
     async def process(self, upstream: dict[str, Snapshot]) -> Snapshot
     async def process_standalone(self, **kwargs) -> Snapshot  # 独立调用模式
 ```
@@ -63,8 +73,18 @@ class Module(ABC):
 
 ### 编排器约束
 
-- 可调用快照传播/读取，但不直接调用模块的处理方法
+- 编排器只调用模块公开的 `process()` 契约，不调用模块内部私有方法
 - 不持有模块的内部状态
+
+### 守卫与运行时视图
+
+P00 运行时内核固定以下最小守卫和视图：
+
+- `OwnershipGuard`：slot → owner 唯一性和版本单调递增
+- `DependencyGuard`：模块只能消费声明的 upstream slot
+- `SchemaGuard`：发布值必须符合声明的 frozen dataclass schema
+- `ImmutabilityGuard`：发布后消费前校验 value hash 不变
+- `UpstreamView`：对模块暴露带守卫的上游快照视图，缺失 slot 统一返回 runtime placeholder snapshot
 
 ### 内部状态发布（R11）
 

@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import asyncio
+
+from volvence_zero.credit import CreditModule, GateDecision, ModificationGate, ModificationProposal, evaluate_gate
+from volvence_zero.dual_track import DualTrackModule
+from volvence_zero.evaluation import EvaluationModule
+from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
+from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.substrate import (
+    FeatureSignal,
+    FeatureSurfaceSubstrateAdapter,
+    SubstrateModule,
+)
+
+
+def test_gate_blocks_online_modification_when_high_alert_present():
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s1",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+    evaluation_snapshot = type(evaluation_snapshot)(
+        turn_scores=evaluation_snapshot.turn_scores,
+        session_scores=evaluation_snapshot.session_scores,
+        alerts=("HIGH: cross-track stability is degraded",),
+        description=evaluation_snapshot.description,
+    )
+
+    decision = evaluate_gate(
+        proposal=ModificationProposal(
+            target="retrieval_weight",
+            desired_gate=ModificationGate.ONLINE,
+            old_value_hash="old",
+            new_value_hash="new",
+            justification="Tune retrieval after poor turn.",
+        ),
+        evaluation_snapshot=evaluation_snapshot,
+    )
+
+    assert decision is GateDecision.BLOCK
+
+
+def test_credit_module_records_credits_and_modification_audit():
+    dual_track_snapshot = asyncio.run(
+        DualTrackModule(wiring_level=WiringLevel.ACTIVE).process_standalone(world_entries=(), self_entries=())
+    ).value
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s1",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+
+    module = CreditModule(
+        wiring_level=WiringLevel.ACTIVE,
+        pending_proposals=(
+            ModificationProposal(
+                target="strategy_prior",
+                desired_gate=ModificationGate.ONLINE,
+                old_value_hash="old-prior",
+                new_value_hash="new-prior",
+                justification="Small turn-level policy adjustment.",
+            ),
+        ),
+    )
+    snapshot = asyncio.run(
+        module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=20,
+        )
+    )
+
+    assert snapshot.value.recent_credits
+    assert snapshot.value.recent_modifications
+    assert snapshot.value.cumulative_credit_by_level
+
+
+def test_credit_module_consumes_chain_in_shadow_mode():
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="answer carefully and completely",
+            track=Track.WORLD,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.8,
+        ),
+        timestamp_ms=10,
+    )
+    store.write(
+        MemoryWriteRequest(
+            content="keep the user feeling understood",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.7,
+        ),
+        timestamp_ms=11,
+    )
+    substrate = SubstrateModule(
+        adapter=FeatureSurfaceSubstrateAdapter(
+            model_id="credit-model",
+            feature_surface=(FeatureSignal(name="credit_context", values=(0.6,), source="adapter"),),
+        ),
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    memory = MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE)
+    dual_track = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+    evaluation = EvaluationModule(session_id="s1", wave_id="w1", wiring_level=WiringLevel.ACTIVE)
+    credit = CreditModule(
+        pending_proposals=(
+            ModificationProposal(
+                target="retrieval_weight",
+                desired_gate=ModificationGate.ONLINE,
+                old_value_hash="old-weight",
+                new_value_hash="new-weight",
+                justification="Adjust retrieval after evaluation feedback.",
+            ),
+        ),
+    )
+    shadow_snapshots: dict[str, object] = {}
+
+    result = asyncio.run(
+        propagate(
+            [substrate, memory, dual_track, evaluation, credit],
+            session_id="s1",
+            wave_id="w1",
+            shadow_snapshots=shadow_snapshots,
+        )
+    )
+
+    assert "evaluation" in result
+    assert "credit" not in result
+    credit_snapshot = shadow_snapshots["credit"]
+    assert credit_snapshot.value.recent_credits
+    assert credit_snapshot.value.recent_modifications

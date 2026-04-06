@@ -68,12 +68,17 @@ rare-heavy (定期离线):
 ## 接口契约
 
 **消费的输入**：
-- `substrate` 快照：残差流激活 `e_{t,l}`
+- `substrate` 快照：当前可实现的 substrate surface（默认 `feature_surface`，有条件时包含 `residual_activations`）
 - `evaluation` 快照：学习质量评估信号
 
 **产出的输出**：
 - 各时间尺度的参数更新（通过各自所有者模块发布快照）
 - 学习循环的状态信息（用于调试和评估）
+
+当前实现口径：
+
+- P08 先以 heuristic temporal policy 提供 online-fast 的最小状态发布
+- rare-heavy 级的完整 Internal RL / substrate 干预仍属于后续增强，不在当前实现范围内
 
 ## 与其他能力域的关系
 

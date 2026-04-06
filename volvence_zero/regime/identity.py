@@ -1,0 +1,318 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Mapping
+
+from volvence_zero.dual_track import DualTrackSnapshot
+from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
+from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+
+
+@dataclass(frozen=True)
+class RegimeIdentity:
+    regime_id: str
+    name: str
+    embedding: tuple[float, ...]
+    entry_conditions: str
+    exit_conditions: str
+    historical_effectiveness: float
+
+
+@dataclass(frozen=True)
+class RegimeSnapshot:
+    active_regime: RegimeIdentity
+    previous_regime: RegimeIdentity | None
+    switch_reason: str
+    candidate_regimes: tuple[tuple[str, float], ...]
+    turns_in_current_regime: int
+    description: str
+
+
+@dataclass(frozen=True)
+class _RegimeTemplate:
+    regime_id: str
+    name: str
+    embedding: tuple[float, ...]
+    entry_conditions: str
+    exit_conditions: str
+
+
+REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
+    _RegimeTemplate(
+        regime_id="casual_social",
+        name="casual social contact",
+        embedding=(0.10, 0.15, 0.20),
+        entry_conditions="low overall tension and stable interaction quality",
+        exit_conditions="task urgency or relationship tension rises",
+    ),
+    _RegimeTemplate(
+        regime_id="acquaintance_building",
+        name="acquaintance building",
+        embedding=(0.20, 0.35, 0.25),
+        entry_conditions="self-track engagement without acute rupture",
+        exit_conditions="clear task urgency or support need dominates",
+    ),
+    _RegimeTemplate(
+        regime_id="emotional_support",
+        name="emotional support",
+        embedding=(0.25, 0.70, 0.30),
+        entry_conditions="self-track tension or support need dominates",
+        exit_conditions="support need cools down or task urgency dominates",
+    ),
+    _RegimeTemplate(
+        regime_id="guided_exploration",
+        name="guided exploration",
+        embedding=(0.45, 0.45, 0.55),
+        entry_conditions="balanced task and self signals invite exploration",
+        exit_conditions="system needs to narrow into task solving or repair",
+    ),
+    _RegimeTemplate(
+        regime_id="problem_solving",
+        name="problem solving",
+        embedding=(0.80, 0.20, 0.35),
+        entry_conditions="world-track urgency and task signal dominate",
+        exit_conditions="relationship repair or support becomes primary",
+    ),
+    _RegimeTemplate(
+        regime_id="repair_and_deescalation",
+        name="repair and de-escalation",
+        embedding=(0.35, 0.80, 0.80),
+        entry_conditions="cross-track tension or degraded relationship stability is high",
+        exit_conditions="tension stabilizes and another regime out-scores repair",
+    ),
+)
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _metric(evaluation_snapshot: EvaluationSnapshot | None, metric_name: str, default: float = 0.0) -> float:
+    if evaluation_snapshot is None:
+        return default
+    for score in evaluation_snapshot.turn_scores:
+        if score.metric_name == metric_name:
+            return score.value
+    return default
+
+
+def _track_counts(memory_snapshot: MemorySnapshot | None) -> tuple[int, int]:
+    if memory_snapshot is None:
+        return (0, 0)
+    world_count = sum(1 for entry in memory_snapshot.retrieved_entries if entry.track is Track.WORLD)
+    self_count = sum(1 for entry in memory_snapshot.retrieved_entries if entry.track is Track.SELF)
+    return (world_count, self_count)
+
+
+def _alert_pressure(evaluation_snapshot: EvaluationSnapshot | None) -> float:
+    if evaluation_snapshot is None:
+        return 0.0
+    if any(alert.startswith("CRITICAL") for alert in evaluation_snapshot.alerts):
+        return 1.0
+    if any(alert.startswith("HIGH") for alert in evaluation_snapshot.alerts):
+        return 0.8
+    if evaluation_snapshot.alerts:
+        return 0.5
+    return 0.0
+
+
+def score_regimes(
+    *,
+    memory_snapshot: MemorySnapshot | None,
+    dual_track_snapshot: DualTrackSnapshot | None,
+    evaluation_snapshot: EvaluationSnapshot | None,
+    historical_effectiveness: Mapping[str, float],
+) -> tuple[tuple[str, float], ...]:
+    if dual_track_snapshot is None:
+        base = 0.1
+        return tuple((template.regime_id, base + historical_effectiveness.get(template.regime_id, 0.0) * 0.1) for template in REGIME_TEMPLATES)
+
+    world_tension = dual_track_snapshot.world_track.tension_level
+    self_tension = dual_track_snapshot.self_track.tension_level
+    cross_tension = dual_track_snapshot.cross_track_tension
+    task_score = _metric(evaluation_snapshot, "info_integration", default=0.4)
+    warmth = _metric(evaluation_snapshot, "warmth", default=0.4)
+    relationship_stability = _metric(evaluation_snapshot, "cross_track_stability", default=0.4)
+    alert_pressure = _alert_pressure(evaluation_snapshot)
+    world_count, self_count = _track_counts(memory_snapshot)
+    balance = _clamp(1.0 - abs(world_tension - self_tension))
+    world_presence = _clamp(world_count / 3.0)
+    self_presence = _clamp(self_count / 3.0)
+
+    scores = {
+        "casual_social": _clamp(0.45 * (1.0 - max(world_tension, self_tension)) + 0.35 * warmth + 0.20 * relationship_stability),
+        "acquaintance_building": _clamp(0.30 * self_presence + 0.30 * warmth + 0.25 * relationship_stability + 0.15 * balance),
+        "emotional_support": _clamp(0.45 * self_tension + 0.30 * self_presence + 0.25 * warmth),
+        "guided_exploration": _clamp(0.35 * balance + 0.25 * task_score + 0.20 * self_presence + 0.20 * world_presence),
+        "problem_solving": _clamp(0.45 * world_tension + 0.30 * task_score + 0.25 * world_presence),
+        "repair_and_deescalation": _clamp(
+            0.45 * cross_tension
+            + 0.25 * (1.0 - relationship_stability)
+            + 0.10 * self_tension
+            + 0.20 * alert_pressure
+        ),
+    }
+
+    ranked: list[tuple[str, float]] = []
+    for template in REGIME_TEMPLATES:
+        historical = historical_effectiveness.get(template.regime_id, 0.5)
+        blended = _clamp(scores[template.regime_id] * 0.85 + historical * 0.15)
+        ranked.append((template.regime_id, round(blended, 4)))
+    ranked.sort(key=lambda item: item[1], reverse=True)
+    return tuple(ranked)
+
+
+def build_regime_identity(
+    *,
+    regime_id: str,
+    historical_effectiveness: Mapping[str, float],
+) -> RegimeIdentity:
+    for template in REGIME_TEMPLATES:
+        if template.regime_id == regime_id:
+            return RegimeIdentity(
+                regime_id=template.regime_id,
+                name=template.name,
+                embedding=template.embedding,
+                entry_conditions=template.entry_conditions,
+                exit_conditions=template.exit_conditions,
+                historical_effectiveness=historical_effectiveness.get(regime_id, 0.5),
+            )
+    raise KeyError(f"Unknown regime_id: {regime_id}")
+
+
+class RegimeModule(RuntimeModule[RegimeSnapshot]):
+    slot_name = "regime"
+    owner = "RegimeModule"
+    value_type = RegimeSnapshot
+    dependencies = ("memory", "dual_track", "evaluation")
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._historical_effectiveness: dict[str, float] = {
+            template.regime_id: 0.5 for template in REGIME_TEMPLATES
+        }
+        self._active_regime_id: str | None = None
+        self._previous_regime_id: str | None = None
+        self._turns_in_current_regime = 0
+
+    async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[RegimeSnapshot]:
+        memory_snapshot = upstream["memory"]
+        dual_track_snapshot = upstream["dual_track"]
+        evaluation_snapshot = upstream["evaluation"]
+
+        memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
+        dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
+        evaluation_value = (
+            evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
+        )
+
+        self._update_historical_effectiveness(evaluation_value)
+        candidates = score_regimes(
+            memory_snapshot=memory_value,
+            dual_track_snapshot=dual_track_value,
+            evaluation_snapshot=evaluation_value,
+            historical_effectiveness=self._historical_effectiveness,
+        )
+        chosen_regime_id = candidates[0][0]
+        switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
+        active_regime = build_regime_identity(
+            regime_id=self._active_regime_id or chosen_regime_id,
+            historical_effectiveness=self._historical_effectiveness,
+        )
+        previous_regime = (
+            build_regime_identity(
+                regime_id=self._previous_regime_id,
+                historical_effectiveness=self._historical_effectiveness,
+            )
+            if self._previous_regime_id is not None
+            else None
+        )
+        description = (
+            f"Regime module active={active_regime.regime_id}, previous={self._previous_regime_id}, "
+            f"turns_in_current_regime={self._turns_in_current_regime}."
+        )
+        return self.publish(
+            RegimeSnapshot(
+                active_regime=active_regime,
+                previous_regime=previous_regime,
+                switch_reason=switch_reason,
+                candidate_regimes=candidates,
+                turns_in_current_regime=self._turns_in_current_regime,
+                description=description,
+            )
+        )
+
+    async def process_standalone(self, **kwargs: object) -> Snapshot[RegimeSnapshot]:
+        memory_snapshot = kwargs.get("memory_snapshot")
+        dual_track_snapshot = kwargs.get("dual_track_snapshot")
+        evaluation_snapshot = kwargs.get("evaluation_snapshot")
+        if not isinstance(memory_snapshot, MemorySnapshot):
+            memory_snapshot = None
+        if not isinstance(dual_track_snapshot, DualTrackSnapshot):
+            dual_track_snapshot = None
+        if not isinstance(evaluation_snapshot, EvaluationSnapshot):
+            evaluation_snapshot = None
+
+        self._update_historical_effectiveness(evaluation_snapshot)
+        candidates = score_regimes(
+            memory_snapshot=memory_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            historical_effectiveness=self._historical_effectiveness,
+        )
+        chosen_regime_id = candidates[0][0]
+        switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
+        active_regime = build_regime_identity(
+            regime_id=self._active_regime_id or chosen_regime_id,
+            historical_effectiveness=self._historical_effectiveness,
+        )
+        previous_regime = (
+            build_regime_identity(
+                regime_id=self._previous_regime_id,
+                historical_effectiveness=self._historical_effectiveness,
+            )
+            if self._previous_regime_id is not None
+            else None
+        )
+        return self.publish(
+            RegimeSnapshot(
+                active_regime=active_regime,
+                previous_regime=previous_regime,
+                switch_reason=switch_reason,
+                candidate_regimes=candidates,
+                turns_in_current_regime=self._turns_in_current_regime,
+                description="Standalone regime snapshot.",
+            )
+        )
+
+    def _update_historical_effectiveness(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
+        if evaluation_snapshot is None or self._active_regime_id is None:
+            return
+        relationship_score = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
+        warmth_score = _metric(evaluation_snapshot, "warmth", default=0.5)
+        task_score = _metric(evaluation_snapshot, "info_integration", default=0.5)
+        blended = _clamp((relationship_score + warmth_score + task_score) / 3.0)
+        current = self._historical_effectiveness[self._active_regime_id]
+        self._historical_effectiveness[self._active_regime_id] = round(current * 0.7 + blended * 0.3, 4)
+
+    def _update_active_regime(
+        self,
+        *,
+        chosen_regime_id: str,
+        candidates: tuple[tuple[str, float], ...],
+    ) -> str:
+        top_score = candidates[0][1]
+        if self._active_regime_id is None:
+            self._active_regime_id = chosen_regime_id
+            self._turns_in_current_regime = 1
+            return f"initial selection from candidate score {top_score:.2f}"
+        if chosen_regime_id == self._active_regime_id:
+            self._turns_in_current_regime += 1
+            return f"hold current regime with candidate score {top_score:.2f}"
+
+        self._previous_regime_id = self._active_regime_id
+        self._active_regime_id = chosen_regime_id
+        self._turns_in_current_regime = 1
+        return f"switch to higher-scoring regime with candidate score {top_score:.2f}"

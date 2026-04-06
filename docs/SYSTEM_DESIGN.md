@@ -100,13 +100,14 @@
 
 ### 3.2 稳定基底层 (Stable Substrate)
 
-**职责**：提供语言和世界建模能力，生成残差流表示供上层模块消费。
+**职责**：提供语言和世界建模能力，并通过可实现的 substrate contract 向上层发布可消费状态。
 
 **对应需求**：R2
 
 **设计要点**：
 - 基础模型冻结或极慢更新（rare-heavy 时间尺度）
-- 残差流激活 `e_{t,l}` 是上层模块（特别是 Metacontroller）的输入
+- 当前稳定 contract 默认发布 `feature_surface` 和可选 `token_logits`
+- `residual_activations` 只在 open-weight / hook 可用时作为增强输入发布，不再假设默认可用
 - ETA 的 rate-distortion 分析证明：冻结基础模型是发现时间抽象的前提
 
 **算法基础**：

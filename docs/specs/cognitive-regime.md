@@ -69,6 +69,12 @@ class RegimeIdentity:
   - 候选 regime 及评分
   - 当前 regime 持续轮数
 
+**当前实现口径**：
+
+- P04 阶段先保证结构化 identity、稳定 candidate scoring 和可审计切换原因
+- 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
+- 后续可由 temporal / learned selector 替换，但不改变 `regime` snapshot 契约
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节
 
 ## 与其他能力域的关系
