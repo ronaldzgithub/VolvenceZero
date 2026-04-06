@@ -38,8 +38,17 @@ class InternalRLEnvStep:
 class InternalRLEnvironment:
     """Trace-driven internal RL environment with explicit decoder control."""
 
-    def __init__(self, *, control_backend: ResidualInterventionBackend | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        control_backend: ResidualInterventionBackend | None = None,
+        evaluation_family_signals: dict[str, float] | None = None,
+    ) -> None:
         self._control_backend = control_backend or TraceResidualInterventionBackend()
+        self._evaluation_family_signals = evaluation_family_signals or {}
+
+    def set_evaluation_signals(self, signals: dict[str, float]) -> None:
+        self._evaluation_family_signals = dict(signals)
 
     def step(
         self,
@@ -106,6 +115,14 @@ class InternalRLEnvironment:
         if temporal_step.controller_state.is_switching:
             reward += 0.08
         reward -= temporal_step.controller_state.steps_since_switch * 0.01
+        if self._evaluation_family_signals:
+            eval_bonus = 0.0
+            if track is Track.WORLD:
+                eval_bonus += self._evaluation_family_signals.get("task", 0.5) * 0.08
+            elif track is Track.SELF:
+                eval_bonus += self._evaluation_family_signals.get("relationship", 0.5) * 0.08
+            eval_bonus += self._evaluation_family_signals.get("learning", 0.5) * 0.04
+            reward += eval_bonus
         policy_replacement_quality = _clamp(
             1.0
             - sum(

@@ -95,6 +95,7 @@ class ETANLJointLoop:
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
         self._previous_total_reward: float | None = None
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
+        self._previous_family_signals: dict[str, float] = {}
 
     @property
     def memory_store(self) -> MemoryStore:
@@ -112,8 +113,15 @@ class ETANLJointLoop:
         apply_writeback: bool = True,
     ) -> JointCycleReport:
         ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
+        if ssl_report.m3_slow_momentum_signal and self._memory_store is not None:
+            self._memory_store.observe_encoder_feedback(
+                encoder_signal=ssl_report.m3_slow_momentum_signal,
+                timestamp_ms=cycle_index + 1,
+            )
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
         policy_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-policy-{cycle_index}")
+        if self._previous_family_signals:
+            self._sandbox._env.set_evaluation_signals(self._previous_family_signals)
         dual_track_rollout = self._sandbox.rollout_dual_track(
             rollout_id=f"joint-{cycle_index}",
             substrate_steps=substrate_snapshots,
@@ -163,6 +171,7 @@ class ETANLJointLoop:
             + dual_track_rollout.relationship_rollout.total_reward
         )
         evaluation_snapshot = active_snapshots["evaluation"].value
+        self._modulate_ssl_learning_rate(evaluation_snapshot)
         pre_rollback_metacontroller_state = temporal_module.export_runtime_state()
         rollback_reasons = self._rollback_reasons(
             total_reward=total_reward,
@@ -230,6 +239,7 @@ class ETANLJointLoop:
             applied_operations = applied_operations + ("policy-rollback",)
         self._previous_total_reward = total_reward
         self._previous_metacontroller_state = metacontroller_state
+        self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
@@ -351,6 +361,11 @@ class ETANLJointLoop:
         metacontroller_state: MetacontrollerRuntimeState | None,
     ) -> tuple[str, ...]:
         reasons: list[str] = []
+        family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
+        if family_signals.get("safety", 1.0) < 0.85:
+            reasons.append("safety-degraded")
+        if family_signals.get("relationship", 1.0) < 0.3:
+            reasons.append("relationship-critical")
         if any(alert.startswith("HIGH") or alert.startswith("CRITICAL") for alert in evaluation_snapshot.alerts):
             reasons.append("evaluation-alert")
         if (
@@ -370,6 +385,18 @@ class ETANLJointLoop:
         if total_reward + 0.25 < self._previous_total_reward:
             reasons.append("reward-regression")
         return tuple(reasons)
+
+    def _modulate_ssl_learning_rate(self, evaluation_snapshot: EvaluationSnapshot) -> None:
+        """Adjust SSL learning rate based on evaluation quality signals."""
+        family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
+        quality_signal = (
+            family_signals.get("learning", 0.5) * 0.4
+            + family_signals.get("abstraction", 0.5) * 0.3
+            + family_signals.get("safety", 1.0) * 0.3
+        )
+        base_lr = 0.08
+        modulated_lr = base_lr * (0.5 + quality_signal)
+        self._policy.parameter_store.learning_rate = max(0.01, min(0.15, modulated_lr))
 
     def _metacontroller_drift_exceeds_limit(
         self,

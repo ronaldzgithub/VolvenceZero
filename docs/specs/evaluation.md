@@ -87,6 +87,7 @@
 
 ## 变更日志
 
+- 2026-04-06: P13 evaluation feedback loop: EvaluationBackbone.family_signals returns structured per-family signals (F1-F6); joint loop uses family signals for rollback decisions and SSL learning rate modulation; InternalRLEnvironment accepts evaluation signals for reward shaping
 - 2026-04-06: 补充 retrieval / reflection / joint-loop learning evidence 进入 evaluation snapshot 的当前实现口径
 - 2026-04-06: 补充 owner-side metacontroller F4/F5 evidence ingest 的当前实现口径
 - 2026-04-06: 补充 ETA kernel 专用指标（posterior / switch / decoder / replacement） 的当前实现口径

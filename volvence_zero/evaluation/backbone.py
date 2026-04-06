@@ -111,6 +111,21 @@ class EvaluationBackbone:
             ),
         )
 
+    def family_signals(self, evaluation_snapshot: EvaluationSnapshot) -> dict[str, float]:
+        """Extract per-family average signal from an evaluation snapshot.
+
+        Returns signals for 6 families: task, interaction, relationship,
+        learning, abstraction, safety.
+        """
+        families: dict[str, list[float]] = {}
+        for score in evaluation_snapshot.turn_scores + evaluation_snapshot.session_scores:
+            families.setdefault(score.family, []).append(score.value)
+        result: dict[str, float] = {}
+        for family in ("task", "interaction", "relationship", "learning", "abstraction", "safety"):
+            values = families.get(family, [])
+            result[family] = sum(values) / len(values) if values else 0.5
+        return result
+
     def build_session_report(self, *, session_id: str, timestamp_ms: int) -> EvaluationReport:
         session_records = tuple(record for record in self._records if record.session_id == session_id)
         scores_by_family: dict[str, list[EvaluationRecord]] = {}

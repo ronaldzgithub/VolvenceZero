@@ -115,6 +115,34 @@ class CMSMemoryCore:
         )
         self._last_update_ms = timestamp_ms
 
+    def observe_encoder_feedback(
+        self,
+        *,
+        encoder_signal: tuple[float, ...],
+        timestamp_ms: int,
+    ) -> None:
+        """Accept metacontroller encoder output as an additional observation.
+
+        Blends into online-fast at a lower rate than substrate to avoid
+        feedback loops dominating the CMS state.
+        """
+        if len(encoder_signal) != self._dim:
+            return
+        self._online_fast = self._blend(self._online_fast, encoder_signal, rate=0.20)
+        (
+            self._session_medium,
+            self._session_pending_signal,
+            self._session_observations_since_update,
+        ) = self._integrate_signal(
+            current_vector=self._session_medium,
+            pending_signal=self._session_pending_signal,
+            observations_since_update=self._session_observations_since_update,
+            signal=encoder_signal,
+            rate=0.10,
+            cadence_interval=self._session_cadence,
+        )
+        self._last_update_ms = timestamp_ms
+
     def export_state(self) -> CMSCheckpointState:
         return CMSCheckpointState(
             online_fast=self._online_fast,

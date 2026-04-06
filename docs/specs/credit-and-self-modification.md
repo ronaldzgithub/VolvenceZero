@@ -95,6 +95,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 ## 变更日志
 
+- 2026-04-06: P12 hierarchical credit with temporal discount: CreditLedger tracks session-level credits with configurable gamma; CreditSnapshot gains session_level_credits and discount_factor; aggregate_session_credits computes discounted sums; reflection consolidation score uses session-level credit bonus
 - 2026-04-06: 补充 retrieval / reflection / joint-loop learning evidence 进入 shared credit 的当前实现口径
 - 2026-04-06: 补充 abstract-action credit、decision-aware gate audit，以及 metacontroller runtime adaptation audit
 - 2026-04-06: 补充 metacontroller runtime credit evidence 的当前实现口径

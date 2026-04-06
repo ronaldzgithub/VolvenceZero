@@ -49,7 +49,9 @@ class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
     cumulative_credit_by_level: tuple[tuple[str, float], ...]
-    description: str
+    session_level_credits: tuple[tuple[str, float], ...] = ()
+    discount_factor: float = 0.95
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -212,6 +214,8 @@ def extend_credit_snapshot(
         recent_credits=recent_credits,
         recent_modifications=recent_modifications,
         cumulative_credit_by_level=tuple(sorted(cumulative.items())),
+        session_level_credits=credit_snapshot.session_level_credits,
+        discount_factor=credit_snapshot.discount_factor,
         description=(
             f"{credit_snapshot.description} Extended with {len(extra_records)} extra credits "
             f"and {len(extra_modifications)} extra modification audits."
@@ -307,11 +311,14 @@ def derive_metacontroller_credit_records(
 
 
 class CreditLedger:
-    """Stores recent credit records and gate outcomes."""
+    """Stores recent credit records and gate outcomes with session-level aggregation."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, discount_factor: float = 0.95) -> None:
         self._recent_credits: list[CreditRecord] = []
         self._recent_modifications: list[SelfModificationRecord] = []
+        self._discount_factor = discount_factor
+        self._session_credits: dict[str, list[CreditRecord]] = {}
+        self._turn_count = 0
 
     @property
     def recent_credits(self) -> tuple[CreditRecord, ...]:
@@ -321,11 +328,29 @@ class CreditLedger:
     def recent_modifications(self) -> tuple[SelfModificationRecord, ...]:
         return tuple(self._recent_modifications)
 
+    @property
+    def discount_factor(self) -> float:
+        return self._discount_factor
+
     def record_credits(self, credits: tuple[CreditRecord, ...]) -> None:
         self._recent_credits.extend(credits)
+        for credit in credits:
+            key = f"{credit.level}:{credit.track.value}"
+            self._session_credits.setdefault(key, []).append(credit)
+        self._turn_count += 1
 
     def record_modification(self, record: SelfModificationRecord) -> None:
         self._recent_modifications.append(record)
+
+    def aggregate_session_credits(self) -> tuple[tuple[str, float], ...]:
+        """Compute discounted sum of credit records per session key."""
+        result: dict[str, float] = {}
+        for key, records in self._session_credits.items():
+            discounted_sum = 0.0
+            for i, record in enumerate(reversed(records)):
+                discounted_sum += record.credit_value * (self._discount_factor ** i)
+            result[key] = round(discounted_sum, 4)
+        return tuple(sorted(result.items()))
 
     def snapshot(self) -> CreditSnapshot:
         cumulative: dict[str, float] = {}
@@ -335,9 +360,12 @@ class CreditLedger:
             recent_credits=tuple(self._recent_credits[-10:]),
             recent_modifications=tuple(self._recent_modifications[-10:]),
             cumulative_credit_by_level=tuple(sorted(cumulative.items())),
+            session_level_credits=self.aggregate_session_credits(),
+            discount_factor=self._discount_factor,
             description=(
                 f"Credit ledger with {len(self._recent_credits)} credit records and "
-                f"{len(self._recent_modifications)} modification records."
+                f"{len(self._recent_modifications)} modification records, "
+                f"gamma={self._discount_factor}, turns={self._turn_count}."
             ),
         )
 

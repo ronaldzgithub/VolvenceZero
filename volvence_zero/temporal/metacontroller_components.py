@@ -123,6 +123,9 @@ class SequenceEncoder:
             (0.20, 0.20, 0.60),
         ),
         previous_hidden_state: tuple[float, ...] = (0.0, 0.0, 0.0),
+        cms_online_fast: tuple[float, ...] | None = None,
+        cms_session_medium: tuple[float, ...] | None = None,
+        cms_background_slow: tuple[float, ...] | None = None,
     ) -> EncodedSequence:
         sequence = residual_sequence_from_snapshot(substrate_snapshot)
         step_vectors = tuple(
@@ -130,13 +133,23 @@ class SequenceEncoder:
         )
         if not step_vectors:
             step_vectors = ((0.0, 0.0, 0.0),)
+        cms_context = self._cms_context(
+            cms_online_fast=cms_online_fast,
+            cms_session_medium=cms_session_medium,
+            cms_background_slow=cms_background_slow,
+            dim=len(step_vectors[0]),
+        )
         hidden_state = previous_hidden_state
         hidden_history: list[tuple[float, ...]] = []
         for step_vector in step_vectors:
+            augmented_input = tuple(
+                step_vector[index] * 0.80 + cms_context[index] * 0.20
+                for index in range(len(step_vector))
+            )
             hidden_state = tuple(
                 clamp_unit(
                     sum(weight * hidden_value for weight, hidden_value in zip(row, hidden_state, strict=True)) * 0.55
-                    + step_vector[index] * 0.45
+                    + augmented_input[index] * 0.45
                 )
                 for index, row in enumerate(recurrence_weights)
             )
@@ -148,12 +161,16 @@ class SequenceEncoder:
         first_vector = step_vectors[0]
         last_vector = step_vectors[-1]
         trend_vector = tuple(last_vector[index] - first_vector[index] for index in range(3))
-        prior_mean = tuple(
-            clamp_unit(previous_hidden_state[index] * 0.35) for index in range(3)
+        prior_mean = self._cms_informed_prior_mean(
+            previous_hidden_state=previous_hidden_state,
+            cms_session_medium=cms_session_medium,
+            cms_background_slow=cms_background_slow,
         )
-        prior_std = tuple(
-            max(0.05, 1.0 - clamp_unit(abs(previous_hidden_state[index] - average_vector[index]) * 0.5))
-            for index in range(3)
+        prior_std = self._cms_informed_prior_std(
+            previous_hidden_state=previous_hidden_state,
+            average_vector=average_vector,
+            cms_session_medium=cms_session_medium,
+            cms_background_slow=cms_background_slow,
         )
         posterior_mean = tuple(
             clamp_unit(
@@ -203,6 +220,73 @@ class SequenceEncoder:
                 f"sigma={tuple(round(value, 3) for value in posterior_std)} "
                 f"eps={tuple(round(value, 3) for value in sample_noise)}"
             ),
+        )
+
+    def _cms_context(
+        self,
+        *,
+        cms_online_fast: tuple[float, ...] | None,
+        cms_session_medium: tuple[float, ...] | None,
+        cms_background_slow: tuple[float, ...] | None,
+        dim: int,
+    ) -> tuple[float, ...]:
+        zero = tuple(0.0 for _ in range(dim))
+        fast = cms_online_fast or zero
+        medium = cms_session_medium or zero
+        slow = cms_background_slow or zero
+        return tuple(
+            clamp_unit(fast[i] * 0.50 + medium[i] * 0.30 + slow[i] * 0.20)
+            for i in range(dim)
+        )
+
+    def _cms_informed_prior_mean(
+        self,
+        *,
+        previous_hidden_state: tuple[float, ...],
+        cms_session_medium: tuple[float, ...] | None,
+        cms_background_slow: tuple[float, ...] | None,
+    ) -> tuple[float, ...]:
+        if cms_session_medium is None and cms_background_slow is None:
+            return tuple(clamp_unit(previous_hidden_state[i] * 0.35) for i in range(3))
+        slow = cms_background_slow or (0.0, 0.0, 0.0)
+        medium = cms_session_medium or (0.0, 0.0, 0.0)
+        return tuple(
+            clamp_unit(
+                previous_hidden_state[i] * 0.20
+                + slow[i] * 0.45
+                + medium[i] * 0.35
+            )
+            for i in range(3)
+        )
+
+    def _cms_informed_prior_std(
+        self,
+        *,
+        previous_hidden_state: tuple[float, ...],
+        average_vector: tuple[float, ...],
+        cms_session_medium: tuple[float, ...] | None,
+        cms_background_slow: tuple[float, ...] | None,
+    ) -> tuple[float, ...]:
+        base_std = tuple(
+            max(0.05, 1.0 - clamp_unit(abs(previous_hidden_state[i] - average_vector[i]) * 0.5))
+            for i in range(3)
+        )
+        if cms_session_medium is None and cms_background_slow is None:
+            return base_std
+        slow = cms_background_slow or (0.0, 0.0, 0.0)
+        medium = cms_session_medium or (0.0, 0.0, 0.0)
+        cms_evidence = sum(abs(v) for v in slow) + sum(abs(v) for v in medium)
+        contraction = clamp_unit(cms_evidence / 6.0) * 0.35
+        return tuple(max(0.05, s * (1.0 - contraction)) for s in base_std)
+
+    def encoder_output_for_cms(self, encoded: EncodedSequence) -> tuple[float, ...]:
+        """Signal to feed back from encoder into CMS observation."""
+        return tuple(
+            clamp_unit(
+                encoded.posterior.posterior_mean[i] * 0.6
+                + encoded.posterior.z_tilde[i] * 0.4
+            )
+            for i in range(len(encoded.posterior.posterior_mean))
         )
 
 

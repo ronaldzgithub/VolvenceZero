@@ -17,7 +17,7 @@ from volvence_zero.reflection import (
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
-from volvence_zero.temporal import MetacontrollerRuntimeState, TemporalModule, TemporalPolicy
+from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerRuntimeState, TemporalModule, TemporalPolicy
 
 
 @dataclass(frozen=True)
@@ -164,6 +164,17 @@ async def run_final_wiring_turn(
     credit_module = next((module for module in modules if isinstance(module, CreditModule)), None)
     regime_module = next((module for module in modules if isinstance(module, RegimeModule)), None)
     temporal_module = next((module for module in modules if isinstance(module, TemporalModule)), None)
+    if (
+        temporal_module is not None
+        and memory_store is not None
+        and isinstance(temporal_module.policy, FullLearnedTemporalPolicy)
+    ):
+        encoder_signal = temporal_module.policy.latest_encoder_output_for_cms
+        if encoder_signal is not None:
+            memory_store.observe_encoder_feedback(
+                encoder_signal=encoder_signal,
+                timestamp_ms=max(s.timestamp_ms for s in active_snapshots.values()) if active_snapshots else 1,
+            )
     reflection_snapshot = active_snapshots.get("reflection")
     if reflection_snapshot is None:
         reflection_snapshot = shadow_snapshots.get("reflection")

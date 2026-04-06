@@ -143,13 +143,16 @@ class CausalZPolicy:
     ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], tuple[float, ...], float, float]:
         surface = _surface_signature(substrate_snapshot)
         weights = self._parameter_store.track_weights[state.track]
-        weighted_surface = tuple(_clamp(value * weight) for value, weight in zip(surface, weights))
+        track_projected = tuple(
+            _clamp(surface[i] * weights[i] * 1.5 + surface[i] * 0.25)
+            for i in range(len(surface))
+        )
         hidden_state = tuple(
             _clamp(
                 previous * self._parameter_store.persistence
                 + current * (1.0 - self._parameter_store.persistence)
             )
-            for previous, current in zip(state.hidden_state, weighted_surface)
+            for previous, current in zip(state.hidden_state, track_projected)
         )
         policy_action = self._policy_action(
             hidden_state=hidden_state,

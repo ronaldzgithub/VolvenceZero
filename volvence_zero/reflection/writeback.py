@@ -356,7 +356,12 @@ class ReflectionEngine:
             negative_credit = sum(
                 max(0.0, 0.3 - record.credit_value) for record in credit_snapshot.recent_credits[:5]
             ) / max(len(credit_snapshot.recent_credits[:5]), 1)
-        promotion_score = _clamp(0.35 + memory_pressure * 0.25 + positive_credit * 0.45 - cross_tension * 0.15)
+        session_bonus = 0.0
+        if credit_snapshot is not None and credit_snapshot.session_level_credits:
+            session_values = tuple(value for _, value in credit_snapshot.session_level_credits)
+            if session_values:
+                session_bonus = _clamp(sum(session_values) / len(session_values) * 0.15)
+        promotion_score = _clamp(0.35 + memory_pressure * 0.25 + positive_credit * 0.40 + session_bonus - cross_tension * 0.15)
         decay_score = _clamp(0.10 + negative_credit * 0.75 + alert_pressure * 0.2)
         threshold_delta = max(-0.05, min(0.05, (cross_tension + alert_pressure - promotion_score) * 0.04))
         strategy_gain = max(0.02, min(0.08, 0.02 + promotion_score * 0.05))

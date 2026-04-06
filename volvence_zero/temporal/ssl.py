@@ -20,6 +20,9 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 
 
+from volvence_zero.temporal.m3_optimizer import M3Optimizer
+
+
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
@@ -32,7 +35,8 @@ class SSLTrainingReport:
     total_loss: float
     posterior_drift: float
     trained_steps: int
-    description: str
+    m3_slow_momentum_signal: tuple[float, ...] = ()
+    description: str = ""
 
 
 class MetacontrollerSSLTrainer:
@@ -41,6 +45,8 @@ class MetacontrollerSSLTrainer:
     def __init__(self) -> None:
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
+        self._m3_encoder = M3Optimizer(num_groups=3, group_dim=3, slow_interval=3)
+        self._m3_decoder = M3Optimizer(num_groups=3, group_dim=3, slow_interval=3)
 
     def optimize(
         self,
@@ -141,6 +147,14 @@ class MetacontrollerSSLTrainer:
             posterior_drift=avg_drift,
         )
         store.record_ssl_metrics(total_loss=total_loss, kl_loss=avg_kl)
+        slow_signal = tuple(
+            v1 + v2
+            for v1, v2 in zip(
+                self._m3_encoder.slow_momentum_signal(),
+                self._m3_decoder.slow_momentum_signal(),
+            )
+        )
+        slow_signal = tuple(_clamp(v / 2.0) for v in slow_signal) if slow_signal else ()
         return SSLTrainingReport(
             trace_id=trace.trace_id,
             prediction_loss=avg_prediction,
@@ -148,9 +162,11 @@ class MetacontrollerSSLTrainer:
             total_loss=total_loss,
             posterior_drift=avg_drift,
             trained_steps=trained_steps,
+            m3_slow_momentum_signal=slow_signal,
             description=(
                 f"SSL trainer optimized trace={trace.trace_id} over {trained_steps} steps, "
-                f"prediction_loss={avg_prediction:.3f}, kl_loss={avg_kl:.3f}, drift={avg_drift:.3f}."
+                f"prediction_loss={avg_prediction:.3f}, kl_loss={avg_kl:.3f}, drift={avg_drift:.3f}, "
+                f"m3_slow_signal={tuple(round(v, 3) for v in slow_signal)}."
             ),
         )
 
@@ -198,25 +214,32 @@ class MetacontrollerSSLTrainer:
     ) -> None:
         store = policy.parameter_store
         learning_rate = store.learning_rate * 0.10
-        decoder_rows: list[tuple[float, ...]] = []
-        encoder_rows: list[tuple[float, ...]] = []
-        recurrence_rows: list[tuple[float, ...]] = []
-        for row_index, row in enumerate(store.decoder_matrix):
-            delta = target_action[row_index] - decoder_control.decoder_output[row_index]
-            decoder_rows.append(
-                tuple(
-                    _clamp(weight + delta * encoded.z_tilde[col_index] * learning_rate)
-                    for col_index, weight in enumerate(row)
-                )
-            )
+        encoder_gradients: list[tuple[float, ...]] = []
+        decoder_gradients: list[tuple[float, ...]] = []
         for row_index, row in enumerate(store.encoder_weights):
             delta = target_action[row_index] - encoded.posterior.posterior_mean[row_index]
-            encoder_rows.append(
+            encoder_gradients.append(
                 tuple(
-                    _clamp(weight + delta * (0.35 + encoded.posterior.posterior_std[row_index] * 0.15) * learning_rate)
-                    for weight in row
+                    delta * (0.35 + encoded.posterior.posterior_std[row_index] * 0.15)
+                    for _ in row
                 )
             )
+        for row_index, row in enumerate(store.decoder_matrix):
+            delta = target_action[row_index] - decoder_control.decoder_output[row_index]
+            decoder_gradients.append(
+                tuple(delta * encoded.z_tilde[col_index] for col_index in range(len(row)))
+            )
+        store.encoder_weights = self._m3_encoder.update(
+            gradients=tuple(encoder_gradients),
+            learning_rate=learning_rate,
+            parameters=store.encoder_weights,
+        )
+        store.decoder_matrix = self._m3_decoder.update(
+            gradients=tuple(decoder_gradients),
+            learning_rate=learning_rate,
+            parameters=store.decoder_matrix,
+        )
+        recurrence_rows: list[tuple[float, ...]] = []
         for row_index, row in enumerate(store.encoder_recurrence):
             recurrence_rows.append(
                 tuple(
@@ -232,8 +255,6 @@ class MetacontrollerSSLTrainer:
                     for weight in row
                 )
             )
-        store.decoder_matrix = tuple(decoder_rows)
-        store.encoder_weights = tuple(encoder_rows)
         store.encoder_recurrence = tuple(recurrence_rows)
         store.switch_weights = tuple(
             _clamp(weight + (0.5 - prediction_loss) * 0.05 * learning_rate + kl_loss * 0.01)

@@ -40,6 +40,7 @@ class ControllerState:
     switch_gate: float
     is_switching: bool
     steps_since_switch: int
+    track_codes: tuple[tuple[str, tuple[float, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -506,6 +507,15 @@ def _reflection_signal(reflection_snapshot: ReflectionSnapshot | None) -> float:
     return _clamp((lesson_pressure + tension_pressure) / 2.0)
 
 
+def _cms_band(memory_snapshot: MemorySnapshot | None, band_name: str) -> tuple[float, ...] | None:
+    if memory_snapshot is None or memory_snapshot.cms_state is None:
+        return None
+    band = getattr(memory_snapshot.cms_state, band_name, None)
+    if band is None:
+        return None
+    return band.vector
+
+
 class TemporalPolicy(ABC):
     """Common interface for placeholder, heuristic, and future learned policies."""
 
@@ -753,10 +763,15 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_code = (0.0, 0.0, 0.0)
         self._previous_hidden_state = (0.0, 0.0, 0.0)
         self._previous_beta_binary = 0
+        self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
 
     @property
     def parameter_store(self) -> MetacontrollerParameterStore:
         return self._parameter_store
+
+    @property
+    def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
+        return self._latest_encoder_output_for_cms
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
         return self._parameter_store.export_runtime_state(mode=self.mode.value)
@@ -816,6 +831,20 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             binary_gate_override=False,
         )
 
+    def _compute_track_codes(
+        self,
+        latent_code: tuple[float, ...],
+    ) -> tuple[tuple[str, tuple[float, ...]], ...]:
+        result: list[tuple[str, tuple[float, ...]]] = []
+        for track in (Track.WORLD, Track.SELF, Track.SHARED):
+            weights = self._parameter_store.track_weights[track]
+            projected = tuple(
+                _clamp(latent_code[i] * weights[i])
+                for i in range(min(len(latent_code), len(weights)))
+            )
+            result.append((track.value, projected))
+        return tuple(result)
+
     def _step_impl(
         self,
         *,
@@ -836,7 +865,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             encoder_weights=self._parameter_store.encoder_weights,
             recurrence_weights=self._parameter_store.encoder_recurrence,
             previous_hidden_state=self._previous_hidden_state,
+            cms_online_fast=_cms_band(memory_snapshot, "online_fast"),
+            cms_session_medium=_cms_band(memory_snapshot, "session_medium"),
+            cms_background_slow=_cms_band(memory_snapshot, "background_slow"),
         )
+        self._latest_encoder_output_for_cms = self._encoder.encoder_output_for_cms(encoded)
         memory_signal = _memory_signal(memory_snapshot)
         reflection_signal = _reflection_signal(reflection_snapshot)
         switch_decision = self._switch_unit.compute_decision(
@@ -913,6 +946,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
         self._previous_beta_binary = switch_decision.beta_binary
+        track_codes = self._compute_track_codes(latent_code)
         return TemporalStep(
             controller_state=ControllerState(
                 code=latent_code,
@@ -920,6 +954,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 switch_gate=effective_switch_gate,
                 is_switching=is_switching,
                 steps_since_switch=steps_since_switch,
+                track_codes=track_codes,
             ),
             active_abstract_action=active_label,
             controller_params_hash=params_hash,

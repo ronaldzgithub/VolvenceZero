@@ -240,6 +240,18 @@ class MemoryStore:
                 timestamp_ms=timestamp_ms,
             )
 
+    def observe_encoder_feedback(
+        self,
+        *,
+        encoder_signal: tuple[float, ...],
+        timestamp_ms: int,
+    ) -> None:
+        if self._learned_core is not None:
+            self._learned_core.observe_encoder_feedback(
+                encoder_signal=encoder_signal,
+                timestamp_ms=timestamp_ms,
+            )
+
     def apply_reflection_consolidation(
         self,
         *,

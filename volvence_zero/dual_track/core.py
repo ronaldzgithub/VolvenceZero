@@ -190,6 +190,17 @@ def _temporal_track_context(
 
     if not isinstance(temporal_snapshot, TemporalAbstractionSnapshot):
         return ((0.0, 0.0, 0.0), None, "memory")
+    track_code = _extract_track_code(temporal_snapshot, track)
+    if track_code is not None:
+        return (
+            (
+                _clamp(track_code[0]) if len(track_code) > 0 else 0.0,
+                _clamp(track_code[1]) if len(track_code) > 1 else 0.0,
+                _clamp(temporal_snapshot.controller_state.switch_gate),
+            ),
+            temporal_snapshot.active_abstract_action,
+            "temporal-track-projected",
+        )
     controller_code = temporal_snapshot.controller_state.code
     world_component = controller_code[0] if len(controller_code) > 0 else 0.0
     self_component = controller_code[1] if len(controller_code) > 1 else 0.0
@@ -204,3 +215,16 @@ def _temporal_track_context(
         temporal_snapshot.active_abstract_action,
         "temporal+memory",
     )
+
+
+def _extract_track_code(
+    temporal_snapshot: Any,
+    track: Track,
+) -> tuple[float, ...] | None:
+    track_codes = temporal_snapshot.controller_state.track_codes
+    if not track_codes:
+        return None
+    for track_name, code in track_codes:
+        if track_name == track.value:
+            return code
+    return None

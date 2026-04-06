@@ -86,5 +86,6 @@
 
 ## 变更日志
 
+- 2026-04-06: P11 dual-track z-space separation: ControllerState.track_codes carries per-track projected latent codes; DualTrackModule now reads track-specific z_task/z_rel via temporal-track-projected path; CausalZPolicy uses amplified track projection
 - 2026-04-06: 补充 dual-track 消费 temporal snapshot、发布 controller source / abstract action hint 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取
