@@ -389,9 +389,10 @@ def _substrate_track_context(
     support_pull = feature_signal_value(substrate_snapshot.feature_surface, name="semantic_support_pull")
     repair_pull = feature_signal_value(substrate_snapshot.feature_surface, name="semantic_repair_pull")
     exploration_pull = feature_signal_value(substrate_snapshot.feature_surface, name="semantic_exploration_pull")
+    directive_pull = feature_signal_value(substrate_snapshot.feature_surface, name="semantic_directive_pull")
     if track is Track.WORLD:
-        primary = _clamp(task_pull * 0.85 + repair_pull * 0.15)
+        primary = _clamp(task_pull * 0.60 + directive_pull * 0.30 + repair_pull * 0.10)
     else:
-        primary = _clamp(support_pull * 0.75 + repair_pull * 0.25)
-    shared = _clamp(exploration_pull * 0.75 + repair_pull * 0.10 + support_pull * 0.10)
+        primary = _clamp(support_pull * 0.72 + repair_pull * 0.20 + max(0.0, 0.12 - directive_pull) * 0.08)
+    shared = _clamp(exploration_pull * 0.60 + repair_pull * 0.10 + support_pull * 0.08 + directive_pull * 0.22)
     return (primary, shared, repair_pull)

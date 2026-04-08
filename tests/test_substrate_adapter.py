@@ -265,6 +265,7 @@ def test_transformers_open_weight_runtime_captures_real_middle_layer_hooks():
     assert "hook_layer_coverage" in feature_names
     assert "semantic_task_pull" in feature_names
     assert "semantic_support_pull" in feature_names
+    assert "semantic_directive_pull" in feature_names
     assert "layers=(1, 2)" in capture.description
 
 

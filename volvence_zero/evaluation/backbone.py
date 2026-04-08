@@ -481,6 +481,11 @@ class EvaluationBackbone:
             if substrate_snapshot is not None
             else 0.0
         )
+        semantic_directive_pull = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="semantic_directive_pull")
+            if substrate_snapshot is not None
+            else 0.0
+        )
         fallback_active = (
             feature_signal_value(substrate_snapshot.feature_surface, name="fallback_active")
             if substrate_snapshot is not None
@@ -508,37 +513,41 @@ class EvaluationBackbone:
             prototype=SUPPORT_PRESENCE_PROTOTYPE,
         )
         task_pressure = _clamp(
-            semantic_task_pull * 0.42
-            + semantic_repair_pull * 0.08
+            semantic_task_pull * 0.34
+            + semantic_directive_pull * 0.20
+            + semantic_repair_pull * 0.06
             + world_drive * 0.20
             + min(world_goal_count / 3.0, 1.0) * 0.08
             + memory_count / 5.0 * 0.10
             + world_goal_semantics * 0.12
         )
         support_presence = _clamp(
-            semantic_support_pull * 0.40
+            semantic_support_pull * 0.34
             + semantic_repair_pull * 0.15
             + self_drive * 0.12
             + shared_drive * 0.08
             + min(self_goal_count / 3.0, 1.0) * 0.06
             + relationship_stability * 0.07
             + self_goal_semantics * 0.12
+            - semantic_directive_pull * 0.10
         )
         info_integration = _clamp(
             memory_count / 5.0 * 0.45
             + world_drive * 0.20
             + min(world_goal_count / 3.0, 1.0) * 0.10
-            + semantic_task_pull * 0.20
+            + semantic_task_pull * 0.16
+            + semantic_directive_pull * 0.10
             + semantic_exploration_pull * 0.05
         )
         warmth = _clamp(
             0.06
-            + semantic_support_pull * 0.38
+            + semantic_support_pull * 0.34
             + semantic_repair_pull * 0.12
             + self_drive * 0.08
             + shared_drive * 0.06
             + relationship_stability * 0.08
             + self_goal_semantics * 0.12
+            - semantic_directive_pull * 0.08
         )
         placeholder_penalty = 0.12 if substrate_snapshot is None or substrate_snapshot.surface_kind is SurfaceKind.PLACEHOLDER else 0.0
         contract_integrity = _clamp(1.0 - placeholder_penalty)
@@ -557,7 +566,7 @@ class EvaluationBackbone:
                 value=task_pressure,
                 confidence=0.6,
                 evidence=(
-                    f"Derived from semantic_task_pull={semantic_task_pull:.2f}, world_drive={world_drive:.2f}, "
+                    f"Derived from semantic_task_pull={semantic_task_pull:.2f}, semantic_directive_pull={semantic_directive_pull:.2f}, world_drive={world_drive:.2f}, "
                     f"world_goal_count={world_goal_count}, retrieved_entries={memory_count}."
                 ),
             ),
@@ -568,7 +577,7 @@ class EvaluationBackbone:
                 confidence=0.55,
                 evidence=(
                     f"Derived from semantic_support_pull={semantic_support_pull:.2f}, "
-                    f"semantic_repair_pull={semantic_repair_pull:.2f}, self_drive={self_drive:.2f}, "
+                    f"semantic_repair_pull={semantic_repair_pull:.2f}, semantic_directive_pull={semantic_directive_pull:.2f}, self_drive={self_drive:.2f}, "
                     f"cross_track_stability={relationship_stability:.2f}."
                 ),
             ),
@@ -579,7 +588,8 @@ class EvaluationBackbone:
                 confidence=0.58,
                 evidence=(
                     f"Derived from semantic_support_pull={semantic_support_pull:.2f}, "
-                    f"semantic_repair_pull={semantic_repair_pull:.2f}, semantic_exploration_pull={semantic_exploration_pull:.2f}."
+                    f"semantic_repair_pull={semantic_repair_pull:.2f}, semantic_exploration_pull={semantic_exploration_pull:.2f}, "
+                    f"semantic_directive_pull={semantic_directive_pull:.2f}."
                 ),
             ),
             EvaluationScore(
@@ -830,19 +840,29 @@ class EvaluationBackbone:
 
     def _signal_sources_for_metric(self, metric_name: str) -> tuple[str, ...]:
         if metric_name == "info_integration":
-            return ("memory.retrieved_entries", "substrate.feature_surface.semantic_task_pull")
+            return (
+                "memory.retrieved_entries",
+                "substrate.feature_surface.semantic_task_pull",
+                "substrate.feature_surface.semantic_directive_pull",
+            )
         if metric_name == "task_pressure":
-            return ("substrate.feature_surface.semantic_task_pull", "dual_track.world_track.controller_code")
+            return (
+                "substrate.feature_surface.semantic_task_pull",
+                "substrate.feature_surface.semantic_directive_pull",
+                "dual_track.world_track.controller_code",
+            )
         if metric_name == "warmth":
             return (
                 "substrate.feature_surface.semantic_support_pull",
                 "substrate.feature_surface.semantic_repair_pull",
+                "substrate.feature_surface.semantic_directive_pull",
                 "dual_track.self_track.controller_code",
             )
         if metric_name == "support_presence":
             return (
                 "substrate.feature_surface.semantic_support_pull",
                 "substrate.feature_surface.semantic_repair_pull",
+                "substrate.feature_surface.semantic_directive_pull",
             )
         if metric_name == "cross_track_stability":
             return ("dual_track.cross_track_tension",)

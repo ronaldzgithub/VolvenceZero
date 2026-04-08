@@ -251,6 +251,12 @@ SEMANTIC_ANCHOR_BANK: dict[str, tuple[str, ...]] = {
         "Guide the conversation through uncertainty without rushing to closure.",
         "一起探索 逐步收窄 先看可能性 再决定方向",
     ),
+    "directive": (
+        "Do not soften this, give me the direct decision and the top priority right now.",
+        "Skip the preamble and tell me the most important choice with tradeoff reasons.",
+        "别再铺垫 直接告诉我最优先项和放弃理由",
+        "不要安慰我 直接给我决策 现在就判断",
+    ),
 }
 
 
@@ -770,6 +776,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             FeatureSignal(
                 name="semantic_exploration_pull",
                 values=(relative_pull("exploration"),),
+                source="transformers-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="semantic_directive_pull",
+                values=(relative_pull("directive"),),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(

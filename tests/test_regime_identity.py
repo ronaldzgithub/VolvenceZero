@@ -137,6 +137,80 @@ def test_regime_module_prefers_problem_solving_when_world_drive_and_task_signal_
     assert snapshot.value.active_regime.regime_id == "problem_solving"
 
 
+def test_regime_module_prefers_problem_solving_for_stable_task_opener():
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("break the work into a clear order",),
+            recent_credits=(),
+            controller_code=(0.52, 0.24, 0.18),
+            tension_level=0.22,
+            controller_source="memory",
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("stay measured",),
+            recent_credits=(),
+            controller_code=(0.26, 0.20, 0.18),
+            tension_level=0.16,
+            controller_source="memory",
+        ),
+        cross_track_tension=0.18,
+        description="stable task opener",
+    )
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore(
+                family="task",
+                metric_name="info_integration",
+                value=0.74,
+                confidence=0.7,
+                evidence="task structure is clear",
+            ),
+            EvaluationScore(
+                family="task",
+                metric_name="task_pressure",
+                value=0.69,
+                confidence=0.7,
+                evidence="task pressure dominates",
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="warmth",
+                value=0.50,
+                confidence=0.7,
+                evidence="warmth is present but secondary",
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="support_presence",
+                value=0.48,
+                confidence=0.7,
+                evidence="support is not primary",
+            ),
+            EvaluationScore(
+                family="relationship",
+                metric_name="cross_track_stability",
+                value=0.82,
+                confidence=0.7,
+                evidence="relationship frame is stable",
+            ),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="stable task opener evaluation",
+    )
+
+    snapshot = asyncio.run(
+        RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+        )
+    )
+
+    assert snapshot.value.active_regime.regime_id == "problem_solving"
+
+
 def test_regime_module_prefers_emotional_support_when_support_signal_dominates():
     dual_track_snapshot = DualTrackSnapshot(
         world_track=TrackState(

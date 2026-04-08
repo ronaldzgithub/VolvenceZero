@@ -125,6 +125,40 @@ def test_evaluation_backbone_uses_substrate_semantic_signals():
     assert metrics["task_pressure"] > metrics["support_presence"]
 
 
+def test_evaluation_backbone_uses_directive_signal_to_strengthen_task_pressure():
+    backbone = EvaluationBackbone()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="directive-substrate",
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.66,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.50,), source="test"),
+            FeatureSignal(name="semantic_repair_pull", values=(0.20,), source="test"),
+            FeatureSignal(name="semantic_exploration_pull", values=(0.15,), source="test"),
+            FeatureSignal(name="semantic_directive_pull", values=(0.78,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="directive task substrate",
+    )
+
+    snapshot = asyncio.run(
+        EvaluationModule(backbone=backbone, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s1",
+            wave_id="w1",
+            timestamp_ms=10,
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+    metrics = {score.metric_name: score.value for score in snapshot.value.turn_scores}
+
+    assert metrics["task_pressure"] > metrics["support_presence"]
+    assert metrics["task_pressure"] > 0.35
+
+
 def test_evaluation_backbone_surfaces_fallback_reliance():
     backbone = EvaluationBackbone()
     substrate_snapshot = SubstrateSnapshot(

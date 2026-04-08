@@ -247,6 +247,8 @@ def score_regimes(
             - 0.14 * repair_bias
             - 0.08 * task_bias
             - 0.12 * exploration_bias
+            - 0.10 * task_pressure
+            - 0.16 * task_dominance
         ),
         "acquaintance_building": _clamp(
             0.26 * self_presence
@@ -286,14 +288,15 @@ def score_regimes(
             + 0.16 * task_score
             + 0.16 * task_pressure
             + 0.16 * task_dominance
+            + 0.08 * relationship_stability
             + 0.20 * world_presence
             + 0.20 * world_drive
             + 0.11 * switch_pressure
             + 0.22 * task_bias
         ),
         "repair_and_deescalation": _clamp(
-            0.28 * cross_tension
-            + 0.20 * (1.0 - relationship_stability)
+            0.34 * cross_tension
+            + 0.24 * (1.0 - relationship_stability)
             + 0.12 * self_tension
             + 0.16 * alert_pressure
             + 0.12 * shared_drive
