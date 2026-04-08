@@ -89,7 +89,23 @@ def _clamp_strength(value: float) -> float:
 
 
 def _tokenize(text: str) -> set[str]:
-    return {part.strip().lower() for part in text.split() if part.strip()}
+    tokens: set[str] = set()
+    ascii_buffer: list[str] = []
+    compact = "".join(char for char in text.lower() if not char.isspace())
+    for char in text.lower():
+        if char.isascii() and char.isalnum():
+            ascii_buffer.append(char)
+            continue
+        if ascii_buffer:
+            tokens.add("".join(ascii_buffer))
+            ascii_buffer.clear()
+        if not char.isspace():
+            tokens.add(char)
+    if ascii_buffer:
+        tokens.add("".join(ascii_buffer))
+    for index in range(len(compact) - 1):
+        tokens.add(compact[index : index + 2])
+    return tokens
 
 
 def _semantic_embedding(*, text: str, tags: tuple[str, ...], dim: int = 6) -> tuple[float, ...]:
@@ -345,6 +361,9 @@ class MemoryStore:
             semantic_index=tuple(sorted(self._semantic_index.items())),
         )
 
+    def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> MemoryStoreCheckpoint:
+        return self.create_checkpoint(checkpoint_id=checkpoint_id or "rare-heavy-memory")
+
     def restore_checkpoint(self, checkpoint: MemoryStoreCheckpoint) -> None:
         self._entries = {entry.entry_id: entry for entry in checkpoint.entries}
         self._by_stratum = {
@@ -357,6 +376,10 @@ class MemoryStore:
         self._semantic_index = dict(checkpoint.semantic_index)
         if self._learned_core is not None and checkpoint.cms_state is not None:
             self._learned_core.restore_state(checkpoint.cms_state)
+
+    def import_rare_heavy_state(self, checkpoint: MemoryStoreCheckpoint) -> tuple[str, ...]:
+        self.restore_checkpoint(checkpoint)
+        return ("rare-heavy:memory-import",)
 
     def _entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])
@@ -403,6 +426,17 @@ def build_memory_write_requests(
         )
     if substrate_snapshot is None:
         return tuple(requests)
+    sequence_text = _sequence_text_from_substrate(substrate_snapshot)
+    if sequence_text:
+        requests.append(
+            MemoryWriteRequest(
+                content=sequence_text,
+                track=track,
+                stratum=MemoryStratum.TRANSIENT,
+                tags=("substrate_sequence", substrate_snapshot.surface_kind.value),
+                strength=0.6,
+            )
+        )
     if substrate_snapshot.feature_surface:
         for feature in substrate_snapshot.feature_surface:
             requests.append(
@@ -428,6 +462,9 @@ def build_retrieval_query(
     if user_text:
         query_parts.append(user_text)
     if substrate_snapshot is not None:
+        sequence_text = _sequence_text_from_substrate(substrate_snapshot)
+        if sequence_text:
+            query_parts.append(sequence_text)
         query_parts.extend(_query_parts_from_feature_surface(substrate_snapshot.feature_surface))
     query_text = " ".join(part for part in query_parts if part).strip()
     if not query_text:
@@ -448,6 +485,15 @@ def build_retrieval_query(
 
 def _query_parts_from_feature_surface(feature_surface: tuple[FeatureSignal, ...]) -> tuple[str, ...]:
     return tuple(feature.name for feature in feature_surface[:3])
+
+
+def _sequence_text_from_substrate(substrate_snapshot: SubstrateSnapshot) -> str:
+    tokens = tuple(
+        step.token.strip()
+        for step in substrate_snapshot.residual_sequence[:24]
+        if step.token.strip() and not step.token.startswith("<tok:")
+    )
+    return " ".join(tokens)
 
 
 class MemoryModule(RuntimeModule[MemorySnapshot]):

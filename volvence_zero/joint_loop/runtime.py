@@ -5,22 +5,29 @@ from dataclasses import dataclass
 from volvence_zero.credit import (
     CreditModule,
     CreditSnapshot,
+    GateDecision,
+    ModificationGate,
+    SelfModificationRecord,
     derive_metacontroller_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
+    has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationSnapshot
 from volvence_zero.internal_rl import (
+    CausalPolicyCheckpoint,
     DualTrackOptimizationReport,
     DualTrackRollout,
     InternalRLSandbox,
     derive_abstract_action_credit,
 )
-from volvence_zero.memory import CMSMemoryCore, MemoryStore
+from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
+from volvence_zero.memory import CMSMemoryCore, MemoryStore, MemoryStoreCheckpoint
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
+from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
     ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
@@ -49,6 +56,7 @@ class JointCycleReport:
     total_reward: float
     task_reward: float
     relationship_reward: float
+    ssl_rollback_applied: bool
     policy_rollback_applied: bool
     rollback_reasons: tuple[str, ...]
     optimization_summary: str
@@ -57,6 +65,8 @@ class JointCycleReport:
     applied_operations: tuple[str, ...]
     metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
+    owner_path: str
+    schedule_telemetry: tuple[tuple[str, int], ...]
     description: str
 
 
@@ -75,11 +85,30 @@ class ScheduledJointLoopResult:
     ssl_kl_loss: float
     metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
+    owner_path: str
+    schedule_telemetry: tuple[tuple[str, int], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class RareHeavyImportCheckpoint:
+    artifact_id: str
+    policy_checkpoint: CausalPolicyCheckpoint
+    memory_checkpoint: MemoryStoreCheckpoint
+
+
+@dataclass(frozen=True)
+class RareHeavyImportResult:
+    artifact_id: str
+    applied_operations: tuple[str, ...]
+    checkpoint: RareHeavyImportCheckpoint
     description: str
 
 
 class ETANLJointLoop:
     """Minimal SSL-RL alternation loop over the stage-two building blocks."""
+
+    owner_path = "online-joint-loop"
 
     def __init__(
         self,
@@ -97,6 +126,69 @@ class ETANLJointLoop:
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
         self._previous_family_signals: dict[str, float] = {}
 
+    def _apply_temporal_reflection_writeback(
+        self,
+        *,
+        temporal_module: TemporalModule,
+        reflection_snapshot,
+        credit_snapshot: CreditSnapshot,
+        timestamp_ms: int,
+        apply_enabled: bool,
+    ) -> tuple[tuple[str, ...], tuple[SelfModificationRecord, ...]]:
+        temporal_prior_update = reflection_snapshot.policy_consolidation.temporal_prior_update
+        if temporal_prior_update is None:
+            return ((), ())
+        before_hash = stable_value_hash(temporal_module.policy.export_parameters())
+        if not apply_enabled:
+            return (
+                ("temporal-prior:writeback-mode-not-apply",),
+                (
+                    SelfModificationRecord(
+                        target=temporal_prior_update.target,
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification="Joint loop skipped reflection-to-temporal writeback because apply_writeback is disabled.",
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    ),
+                ),
+            )
+        if has_blocking_writeback(credit_snapshot, target_prefix=temporal_prior_update.target):
+            return (
+                ("temporal-prior:credit-gate-block",),
+                (
+                    SelfModificationRecord(
+                        target=temporal_prior_update.target,
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification="Joint loop blocked reflection-to-temporal writeback via target-specific credit gate.",
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    ),
+                ),
+            )
+        applied_operations = temporal_module.policy.apply_reflection_prior_update(update=temporal_prior_update)
+        after_hash = stable_value_hash(temporal_module.policy.export_parameters())
+        return (
+            applied_operations,
+            (
+                SelfModificationRecord(
+                    target=temporal_prior_update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.ALLOW,
+                    old_value_hash=before_hash,
+                    new_value_hash=after_hash,
+                    justification=temporal_prior_update.description,
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                ),
+            ),
+        )
+
     @property
     def memory_store(self) -> MemoryStore:
         return self._memory_store
@@ -112,6 +204,7 @@ class ETANLJointLoop:
         trace: TrainingTrace,
         apply_writeback: bool = True,
     ) -> JointCycleReport:
+        cycle_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}")
         ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
         if ssl_report.m3_slow_momentum_signal and self._memory_store is not None:
             self._memory_store.observe_encoder_feedback(
@@ -119,7 +212,6 @@ class ETANLJointLoop:
                 timestamp_ms=cycle_index + 1,
             )
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
-        policy_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-policy-{cycle_index}")
         if self._previous_family_signals:
             self._sandbox._env.set_evaluation_signals(self._previous_family_signals)
         dual_track_rollout = self._sandbox.rollout_dual_track(
@@ -181,9 +273,11 @@ class ETANLJointLoop:
         )
         rollback_required = bool(rollback_reasons)
         policy_rollback_applied = False
+        ssl_rollback_applied = False
         if rollback_required:
-            self._sandbox.restore_checkpoint(policy_checkpoint)
+            self._sandbox.restore_checkpoint(cycle_checkpoint)
             policy_rollback_applied = True
+            ssl_rollback_applied = True
         metacontroller_state = self._policy.export_runtime_state()
         policy_objective = (
             optimization_report.task_report.surrogate_objective
@@ -226,6 +320,18 @@ class ETANLJointLoop:
             credit_snapshot=enriched_credit_snapshot,
             regime_snapshot=active_snapshots["regime"].value,
         )
+        temporal_writeback_operations, temporal_writeback_audits = self._apply_temporal_reflection_writeback(
+            temporal_module=temporal_module,
+            reflection_snapshot=reflection_snapshot,
+            credit_snapshot=enriched_credit_snapshot,
+            timestamp_ms=active_snapshots["credit"].timestamp_ms + 175,
+            apply_enabled=apply_writeback,
+        )
+        if temporal_writeback_audits:
+            enriched_credit_snapshot = extend_credit_snapshot(
+                credit_snapshot=enriched_credit_snapshot,
+                extra_modifications=temporal_writeback_audits,
+            )
         applied_operations: tuple[str, ...] = regime_operations
         if apply_writeback:
             applied_operations = applied_operations + ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
@@ -235,6 +341,9 @@ class ETANLJointLoop:
                 regime_module=self._regime_module,
                 checkpoint_id=f"{session_id}:{wave_id}",
             ).applied_operations
+        applied_operations = applied_operations + temporal_writeback_operations
+        if ssl_rollback_applied:
+            applied_operations = applied_operations + ("ssl-rollback",)
         if policy_rollback_applied:
             applied_operations = applied_operations + ("policy-rollback",)
         self._previous_total_reward = total_reward
@@ -249,6 +358,7 @@ class ETANLJointLoop:
             total_reward=total_reward,
             task_reward=dual_track_rollout.task_rollout.total_reward,
             relationship_reward=dual_track_rollout.relationship_rollout.total_reward,
+            ssl_rollback_applied=ssl_rollback_applied,
             policy_rollback_applied=policy_rollback_applied,
             rollback_reasons=rollback_reasons,
             optimization_summary=optimization_report.description,
@@ -259,8 +369,16 @@ class ETANLJointLoop:
             cms_description=self._memory_store.learned_core.snapshot().description
             if self._memory_store.learned_core is not None
             else "No CMS core attached.",
+            owner_path=self.owner_path,
+            schedule_telemetry=(
+                ("cycle_index", cycle_index),
+                ("ssl_interval", 1),
+                ("rl_interval", 1),
+                ("ssl_due", 1),
+                ("rl_due", 1),
+            ),
             description=(
-                f"Joint ETA/NL cycle {cycle_index} ran ssl(pred={ssl_report.prediction_loss:.2f}, "
+                f"Joint ETA/NL cycle {cycle_index} owner={self.owner_path} ran ssl(pred={ssl_report.prediction_loss:.2f}, "
                 f"kl={ssl_report.kl_loss:.2f}, drift={ssl_report.posterior_drift:.2f}) and dual-track rollout "
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
@@ -280,6 +398,10 @@ class ETANLJointLoop:
         apply_writeback: bool = True,
     ) -> ScheduledJointLoopResult:
         active_schedule = schedule or JointLoopSchedule()
+        schedule_telemetry = self._schedule_telemetry(
+            turn_index=turn_index,
+            schedule=active_schedule,
+        )
         cms_description = (
             self._memory_store.learned_core.snapshot().description
             if self._memory_store.learned_core is not None
@@ -299,6 +421,8 @@ class ETANLJointLoop:
                 ssl_kl_loss=cycle_report.ssl_kl_loss,
                 metacontroller_state=cycle_report.metacontroller_state,
                 cms_description=cycle_report.cms_description,
+                owner_path=self.owner_path,
+                schedule_telemetry=schedule_telemetry,
                 description=cycle_report.description,
             )
         if active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0:
@@ -312,8 +436,10 @@ class ETANLJointLoop:
                 ssl_kl_loss=ssl_report.kl_loss,
                 metacontroller_state=metacontroller_state,
                 cms_description=cms_description,
+                owner_path=self.owner_path,
+                schedule_telemetry=schedule_telemetry,
                 description=(
-                    f"Scheduled joint loop ran ssl-only at turn {turn_index} with "
+                    f"Scheduled joint loop owner={self.owner_path} ran ssl-only at turn {turn_index} with "
                     f"pred={ssl_report.prediction_loss:.2f}, kl={ssl_report.kl_loss:.2f}."
                 ),
             )
@@ -326,8 +452,60 @@ class ETANLJointLoop:
             ssl_kl_loss=0.0,
             metacontroller_state=metacontroller_state,
             cms_description=cms_description,
-            description=f"Scheduled joint loop collected evidence only at turn {turn_index}.",
+            owner_path=self.owner_path,
+            schedule_telemetry=schedule_telemetry,
+            description=f"Scheduled joint loop owner={self.owner_path} collected evidence only at turn {turn_index}.",
         )
+
+    def _schedule_telemetry(
+        self,
+        *,
+        turn_index: int,
+        schedule: JointLoopSchedule,
+    ) -> tuple[tuple[str, int], ...]:
+        ssl_due = int(schedule.ssl_interval > 0 and turn_index % schedule.ssl_interval == 0)
+        rl_due = int(schedule.rl_interval > 0 and turn_index % schedule.rl_interval == 0)
+        return (
+            ("turn_index", turn_index),
+            ("ssl_interval", schedule.ssl_interval),
+            ("rl_interval", schedule.rl_interval),
+            ("ssl_due", ssl_due),
+            ("rl_due", rl_due),
+        )
+
+    def apply_rare_heavy_artifact(
+        self,
+        artifact: RareHeavyArtifact,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> RareHeavyImportResult:
+        checkpoint_label = checkpoint_id or f"rare-heavy:{artifact.artifact_id}"
+        policy_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"{checkpoint_label}:policy")
+        memory_checkpoint = self._memory_store.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:memory")
+        applied_operations = self._policy.apply_rare_heavy_snapshot(artifact.temporal_snapshot)
+        if artifact.memory_checkpoint is not None:
+            applied_operations = applied_operations + self._memory_store.import_rare_heavy_state(
+                artifact.memory_checkpoint
+            )
+        checkpoint = RareHeavyImportCheckpoint(
+            artifact_id=artifact.artifact_id,
+            policy_checkpoint=policy_checkpoint,
+            memory_checkpoint=memory_checkpoint,
+        )
+        return RareHeavyImportResult(
+            artifact_id=artifact.artifact_id,
+            applied_operations=applied_operations,
+            checkpoint=checkpoint,
+            description=(
+                f"Applied rare-heavy artifact {artifact.artifact_id} from {artifact.owner_path} "
+                f"with {len(applied_operations)} owner-side imports."
+            ),
+        )
+
+    def rollback_rare_heavy_import(self, checkpoint: RareHeavyImportCheckpoint) -> tuple[str, ...]:
+        self._sandbox.restore_checkpoint(checkpoint.policy_checkpoint)
+        self._memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
+        return ("rare-heavy:temporal-rollback", "rare-heavy:memory-rollback")
 
     def _enrich_credit_snapshot(
         self,

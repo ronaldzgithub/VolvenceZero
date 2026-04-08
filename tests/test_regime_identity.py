@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule
+from volvence_zero.dual_track.core import DualTrackSnapshot, TrackState
+from volvence_zero.evaluation import EvaluationModule, EvaluationScore, EvaluationSnapshot
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import WiringLevel, propagate
@@ -76,6 +77,140 @@ def test_regime_module_prefers_repair_when_cross_track_tension_is_high():
     assert snapshot.value.active_regime.regime_id == "repair_and_deescalation"
 
 
+def test_regime_module_prefers_problem_solving_when_world_drive_and_task_signal_dominate():
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("finish the task plan",),
+            recent_credits=(),
+            controller_code=(0.92, 0.45, 0.72),
+            tension_level=0.82,
+            controller_source="temporal-track-projected",
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("stay steady",),
+            recent_credits=(),
+            controller_code=(0.18, 0.28, 0.72),
+            tension_level=0.22,
+            controller_source="temporal-track-projected",
+        ),
+        cross_track_tension=0.18,
+        description="world-drive dominates while relationship remains stable",
+    )
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore(
+                family="task",
+                metric_name="info_integration",
+                value=0.86,
+                confidence=0.8,
+                evidence="high task coherence",
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="warmth",
+                value=0.36,
+                confidence=0.6,
+                evidence="support present but secondary",
+            ),
+            EvaluationScore(
+                family="relationship",
+                metric_name="cross_track_stability",
+                value=0.82,
+                confidence=0.7,
+                evidence="stable relationship frame",
+            ),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="task-dominant evaluation",
+    )
+
+    snapshot = asyncio.run(
+        RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+        )
+    )
+
+    assert snapshot.value.active_regime.regime_id == "problem_solving"
+
+
+def test_regime_module_prefers_emotional_support_when_support_signal_dominates():
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("finish one small task",),
+            recent_credits=(),
+            controller_code=(0.18, 0.35, 0.42),
+            tension_level=0.18,
+            controller_source="temporal-track-projected",
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("stay emotionally supported",),
+            recent_credits=(),
+            controller_code=(0.82, 0.62, 0.42),
+            tension_level=0.88,
+            controller_source="temporal-track-projected",
+        ),
+        cross_track_tension=0.16,
+        description="support-dominant evaluation",
+    )
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore(
+                family="task",
+                metric_name="info_integration",
+                value=0.38,
+                confidence=0.7,
+                evidence="task is secondary",
+            ),
+            EvaluationScore(
+                family="task",
+                metric_name="task_pressure",
+                value=0.24,
+                confidence=0.7,
+                evidence="task pressure is low",
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="warmth",
+                value=0.82,
+                confidence=0.7,
+                evidence="warmth is required",
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="support_presence",
+                value=0.91,
+                confidence=0.7,
+                evidence="support need dominates",
+            ),
+            EvaluationScore(
+                family="relationship",
+                metric_name="cross_track_stability",
+                value=0.84,
+                confidence=0.7,
+                evidence="relationship frame remains stable",
+            ),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="support-dominant evaluation",
+    )
+
+    snapshot = asyncio.run(
+        RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+        )
+    )
+
+    assert snapshot.value.active_regime.regime_id == "emotional_support"
+
+
 def test_regime_module_runs_in_shadow_chain():
     store = MemoryStore()
     store.write(
@@ -142,6 +277,73 @@ def test_regime_module_applies_policy_consolidation_and_restores_checkpoint():
     module.restore_checkpoint(checkpoint)
     restored = asyncio.run(module.process_standalone()).value
     assert restored.active_regime.historical_effectiveness <= updated.active_regime.historical_effectiveness
+
+
+def test_regime_module_emits_delayed_outcomes_one_turn_later():
+    module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
+    first = asyncio.run(
+        module.process_standalone(
+            evaluation_snapshot=EvaluationSnapshot(
+                turn_scores=(
+                    EvaluationScore("task", "info_integration", 0.4, 0.7, "baseline"),
+                    EvaluationScore("interaction", "warmth", 0.5, 0.7, "baseline"),
+                    EvaluationScore("relationship", "cross_track_stability", 0.5, 0.7, "baseline"),
+                ),
+                session_scores=(),
+                alerts=(),
+                description="turn one",
+            )
+        )
+    ).value
+    second = asyncio.run(
+        module.process_standalone(
+            evaluation_snapshot=EvaluationSnapshot(
+                turn_scores=(
+                    EvaluationScore("task", "info_integration", 0.9, 0.7, "delayed improvement"),
+                    EvaluationScore("interaction", "warmth", 0.8, 0.7, "delayed improvement"),
+                    EvaluationScore("relationship", "cross_track_stability", 0.85, 0.7, "delayed improvement"),
+                ),
+                session_scores=(),
+                alerts=(),
+                description="turn two",
+            )
+        )
+    ).value
+
+    assert second.delayed_outcomes
+    assert second.delayed_outcomes[0][0] == first.active_regime.regime_id
+    assert second.delayed_outcomes[0][1] > 0.7
+
+
+def test_regime_module_projects_identity_hints_from_memory_snapshot():
+    memory_store = MemoryStore()
+    relationship_entry = memory_store.write(
+        MemoryWriteRequest(
+            content="remember the relationship needs gentle continuity",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.8,
+        ),
+        timestamp_ms=30,
+    )
+    shared_entry = memory_store.write(
+        MemoryWriteRequest(
+            content="the user asked for calm planning support",
+            track=Track.SHARED,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.7,
+            tags=("user_input",),
+        ),
+        timestamp_ms=31,
+    )
+    memory_snapshot = memory_store.snapshot(retrieved_entries=(relationship_entry, shared_entry))
+
+    snapshot = asyncio.run(
+        RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone(memory_snapshot=memory_snapshot)
+    ).value
+
+    assert snapshot.identity_hints
+    assert any(hint.startswith("identity:relationship:") for hint in snapshot.identity_hints)
 
 
 def test_regime_module_consumes_metacontroller_evidence():

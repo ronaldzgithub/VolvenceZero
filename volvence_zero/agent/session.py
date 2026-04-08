@@ -14,13 +14,15 @@ from volvence_zero.integration import (
 )
 from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport, JointLoopSchedule, ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot, MemoryStore
-from volvence_zero.reflection import WritebackMode
+from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
 from volvence_zero.regime import RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
+    build_transformers_runtime_with_fallback,
     OpenWeightResidualStreamSubstrateAdapter,
+    OpenWeightResidualRuntime,
+    SubstrateFallbackMode,
     SubstrateAdapter,
-    SyntheticOpenWeightResidualRuntime,
     build_training_trace,
 )
 from volvence_zero.temporal import (
@@ -64,11 +66,17 @@ class AgentSessionRunner:
         session_id: str = "agent-session",
         config: FinalRolloutConfig | None = None,
         memory_store: MemoryStore | None = None,
-        reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
+        reflection_mode: WritebackMode = WritebackMode.APPLY,
         temporal_policy: TemporalPolicy | None = None,
         credit_proposals: tuple[ModificationProposal, ...] = (),
         response_synthesizer: ResponseSynthesizer | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
+        default_residual_runtime: OpenWeightResidualRuntime | None = None,
+        substrate_model_id: str = "distilgpt2",
+        substrate_device: str = "auto",
+        substrate_local_files_only: bool = False,
+        substrate_fallback_to_builtin: bool | None = None,
+        substrate_fallback_mode: SubstrateFallbackMode | str | None = None,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
     ) -> None:
@@ -82,8 +90,13 @@ class AgentSessionRunner:
         self._substrate_adapter_factory = substrate_adapter_factory
         self._joint_loop = joint_loop or ETANLJointLoop(policy=self._temporal_policy)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
-        self._default_residual_runtime = SyntheticOpenWeightResidualRuntime(
-            model_id="runner-open-weight-runtime"
+        self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
+            model_id=substrate_model_id,
+            device=substrate_device,
+            local_files_only=substrate_local_files_only,
+            fallback_to_builtin=substrate_fallback_to_builtin,
+            fallback_mode=substrate_fallback_mode,
+            builtin_model_id="runner-transformers-runtime",
         )
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
@@ -154,8 +167,16 @@ class AgentSessionRunner:
         )
         if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
             active_regime = regime_snapshot.value.active_regime.regime_id
+        regime_switched = bool(
+            regime_snapshot is not None
+            and isinstance(regime_snapshot.value, RegimeSnapshot)
+            and regime_snapshot.value.previous_regime is not None
+            and regime_snapshot.value.previous_regime.regime_id != active_regime
+        )
 
         active_abstract_action = None
+        temporal_switch_gate = 0.0
+        temporal_is_switching = False
         metacontroller_state = integration_result.temporal_runtime_state
         temporal_snapshot = integration_result.active_snapshots.get(
             "temporal_abstraction"
@@ -164,6 +185,8 @@ class AgentSessionRunner:
             temporal_snapshot.value, TemporalAbstractionSnapshot
         ):
             active_abstract_action = temporal_snapshot.value.active_abstract_action
+            temporal_switch_gate = temporal_snapshot.value.controller_state.switch_gate
+            temporal_is_switching = temporal_snapshot.value.controller_state.is_switching
 
         evaluation_alerts: tuple[str, ...] = ()
         evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
@@ -175,15 +198,40 @@ class AgentSessionRunner:
         if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             memory_retrieval_count = len(memory_snapshot.value.retrieved_entries)
 
+        reflection_lesson_count = 0
+        reflection_tension_count = 0
+        primary_reflection_lesson = None
+        primary_reflection_tension = None
+        reflection_snapshot = integration_result.active_snapshots.get("reflection") or integration_result.shadow_snapshots.get(
+            "reflection"
+        )
+        if reflection_snapshot is not None and isinstance(reflection_snapshot.value, ReflectionSnapshot):
+            reflection_lesson_count = len(reflection_snapshot.value.lessons_extracted)
+            reflection_tension_count = len(reflection_snapshot.value.tensions_identified)
+            primary_reflection_lesson = next(iter(reflection_snapshot.value.lessons_extracted), None)
+            primary_reflection_tension = next(iter(reflection_snapshot.value.tensions_identified), None)
+
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
                 regime_id=active_regime,
                 regime_name=regime_snapshot.value.active_regime.name
                 if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
                 else "current context",
+                regime_switched=regime_switched,
                 abstract_action=active_abstract_action,
                 alert_count=len(evaluation_alerts),
                 retrieved_memory_count=memory_retrieval_count,
+                temporal_switch_gate=temporal_switch_gate,
+                temporal_is_switching=temporal_is_switching,
+                reflection_lesson_count=reflection_lesson_count,
+                reflection_tension_count=reflection_tension_count,
+                reflection_writeback_applied=bool(
+                    integration_result.writeback_result is not None
+                    and integration_result.writeback_result.applied_operations
+                ),
+                primary_reflection_lesson=primary_reflection_lesson,
+                primary_reflection_tension=primary_reflection_tension,
+                joint_schedule_action=joint_result.schedule_action,
             )
         )
 
@@ -227,7 +275,7 @@ def default_active_runner() -> AgentSessionRunner:
             evaluation=WiringLevel.ACTIVE,
             regime=WiringLevel.ACTIVE,
             credit=WiringLevel.ACTIVE,
-            reflection=WiringLevel.SHADOW,
-            temporal=WiringLevel.SHADOW,
+            reflection=WiringLevel.ACTIVE,
+            temporal=WiringLevel.ACTIVE,
         )
     )

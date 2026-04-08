@@ -81,6 +81,35 @@ def test_reflection_module_consolidates_memory_and_policy_from_inputs():
     assert reflection_snapshot.memory_consolidation.promoted_entries or reflection_snapshot.lessons_extracted
     assert reflection_snapshot.policy_consolidation.controller_updates or reflection_snapshot.policy_consolidation.strategy_priors_updated
     assert reflection_snapshot.consolidation_score.confidence >= 0.0
+    assert reflection_snapshot.lessons_extracted
+    assert reflection_snapshot.tensions_identified
+
+
+def test_reflection_ignores_runtime_fallback_caution_as_relationship_tension():
+    reflection = ReflectionModule(wiring_level=WiringLevel.ACTIVE)
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s-fallback",
+            wave_id="w-fallback",
+            timestamp_ms=10,
+        )
+    ).value
+    evaluation_snapshot = type(evaluation_snapshot)(
+        turn_scores=evaluation_snapshot.turn_scores,
+        session_scores=evaluation_snapshot.session_scores,
+        alerts=("MEDIUM: substrate fallback is active", "HIGH: contract integrity below threshold"),
+        description=evaluation_snapshot.description,
+    )
+
+    snapshot = asyncio.run(
+        reflection.process_standalone(
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=11,
+        )
+    ).value
+
+    assert "MEDIUM: substrate fallback is active" not in snapshot.tensions_identified
+    assert "HIGH: contract integrity below threshold" not in snapshot.tensions_identified
 
 
 def test_reflection_module_runs_in_shadow_chain():
@@ -241,3 +270,42 @@ def test_reflection_consumes_metacontroller_gate_audit_evidence():
     assert "pause_metacontroller_writeback_after_runtime_guard" in reflection_snapshot.policy_consolidation.controller_updates
     assert "respect_metacontroller_runtime_guard" in reflection_snapshot.lessons_extracted
     assert reflection_snapshot.consolidation_score.threshold_delta >= -0.05
+
+
+def test_reflection_generates_durable_identity_entries_from_delayed_regime_outcomes():
+    store = MemoryStore()
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="remember that steady relational continuity matters",
+            timestamp_ms=90,
+        )
+    ).value
+    regime_snapshot = asyncio.run(RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone()).value
+    regime_snapshot = type(regime_snapshot)(
+        active_regime=regime_snapshot.active_regime,
+        previous_regime=regime_snapshot.previous_regime,
+        switch_reason=regime_snapshot.switch_reason,
+        candidate_regimes=regime_snapshot.candidate_regimes,
+        turns_in_current_regime=regime_snapshot.turns_in_current_regime,
+        description=regime_snapshot.description,
+        delayed_outcomes=((regime_snapshot.active_regime.regime_id, 0.82),),
+        identity_hints=(
+            "identity:relationship:steady relational continuity matters",
+            "identity:user:the user asked for calm planning support",
+        ),
+    )
+
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            regime_snapshot=regime_snapshot,
+            timestamp_ms=91,
+        )
+    ).value
+
+    assert reflection_snapshot.memory_consolidation.new_durable_entries
+    assert any("identity" in entry.tags for entry in reflection_snapshot.memory_consolidation.new_durable_entries)
+    assert any(
+        belief.startswith("delayed_regime:")
+        for belief in reflection_snapshot.memory_consolidation.beliefs_updated
+    )

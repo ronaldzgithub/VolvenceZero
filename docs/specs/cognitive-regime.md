@@ -74,6 +74,8 @@ class RegimeIdentity:
 - P04 阶段先保证结构化 identity、稳定 candidate scoring 和可审计切换原因
 - 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
 - 当前 `RegimeModule` 已新增 owner-side `metacontroller` evidence ingest path：joint loop 可直接用 controller active label / guard rollback evidence 更新 strategy priors，而不改变 `regime` snapshot 契约
+- 当前 `RegimeModule` 已新增 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` 发布
+- 当前 `RegimeSnapshot.identity_hints` 作为 typed identity proposal 暴露给 reflection/memory owner；durable identity 写入仍由 reflection/memory owner 决定，Regime owner 不直接越权写 memory
 - 后续可由 temporal / learned selector 替换，但不改变 `regime` snapshot 契约
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节

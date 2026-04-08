@@ -6,8 +6,10 @@ from volvence_zero.agent import AgentSessionRunner, default_active_runner
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
+    SubstrateFallbackMode,
     SurfaceKind,
     SyntheticOpenWeightResidualRuntime,
+    TransformersOpenWeightResidualRuntime,
 )
 
 
@@ -23,6 +25,9 @@ def test_agent_session_runner_executes_single_turn():
     assert result.event_count > 0
     assert result.joint_schedule_action in {"ssl-only", "full-cycle", "evidence-only"}
     assert result.active_snapshots["substrate"].value.surface_kind is SurfaceKind.RESIDUAL_STREAM
+    assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
+    assert "reflection" in result.active_snapshots
+    assert "temporal_abstraction" in result.active_snapshots
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():
@@ -60,6 +65,9 @@ def test_agent_session_runner_returns_user_visible_response():
 
     assert result.response.text
     assert result.response.rationale
+    assert "switch_gate=" in result.response.rationale
+    assert "joint=" in result.response.rationale
+    assert "primary_lesson=" in result.response.rationale
 
 
 def test_agent_session_runner_exposes_bounded_writeback_state():
@@ -67,7 +75,7 @@ def test_agent_session_runner_exposes_bounded_writeback_state():
 
     result = asyncio.run(runner.run_turn("Remember a stable preference and keep the interaction supportive."))
 
-    assert result.writeback_source == "shadow"
+    assert result.writeback_source == "active"
     assert isinstance(result.writeback_operations, tuple)
     assert isinstance(result.writeback_blocks, tuple)
 
@@ -86,3 +94,32 @@ def test_agent_session_runner_accepts_hook_ready_substrate_factory():
 
     assert result.acceptance_passed is True
     assert result.active_snapshots["substrate"].value.model_id == "hook-ready-runtime"
+
+
+def test_agent_session_runner_defaults_to_real_transformers_runtime_with_builtin_fallback():
+    runner = AgentSessionRunner(
+        session_id="real-runtime-session",
+        substrate_model_id="missing-local-model",
+        substrate_local_files_only=True,
+    )
+
+    assert isinstance(runner._default_residual_runtime, TransformersOpenWeightResidualRuntime)
+
+    result = asyncio.run(runner.run_turn("Use the default real substrate runtime."))
+
+    assert result.active_snapshots["substrate"].value.model_id == "runner-transformers-runtime"
+    assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
+
+
+def test_agent_session_runner_can_fail_closed_for_missing_substrate_model():
+    try:
+        AgentSessionRunner(
+            session_id="deny-runtime-session",
+            substrate_model_id="missing-local-model",
+            substrate_local_files_only=True,
+            substrate_fallback_mode=SubstrateFallbackMode.DENY,
+        )
+    except Exception as exc:
+        assert type(exc).__name__ in {"OSError", "ValueError", "RuntimeError"}
+    else:
+        raise AssertionError("Expected runner construction to fail when substrate fallback mode is deny.")

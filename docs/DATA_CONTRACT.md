@@ -2,7 +2,7 @@
 
 > Status: draft
 > Version: 0.1
-> Last updated: 2026-04-06
+> Last updated: 2026-04-08
 > Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`
 
 ---
@@ -171,9 +171,14 @@ class SubstrateSnapshot:
 - 当前增强 contract：`surface_kind=RESIDUAL_STREAM`，发布当前步 `residual_activations` + 可选 `residual_sequence`
 - `residual_sequence` 是 temporal / internal_rl 的正式 sequence-aware 输入；fallback adapter 可发布空序列或单步合成序列
 - 当前已补充 hook-ready owner contract：`OpenWeightResidualRuntime.capture(source_text) -> OpenWeightRuntimeCapture`，由 `OpenWeightResidualStreamSubstrateAdapter` 负责把 open-weight runtime 暴露为稳定的 `SubstrateSnapshot`
-- 当前 session/runner 已允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 open-weight adapter；表达层不再直接消费完整 snapshot dict，而只消费 distilled response context，避免跨 loop 持有 live snapshot 引用
+- 当前已落地 `TransformersOpenWeightResidualRuntime`：可对 Hugging Face open-weight causal LM 的中间层 block 注册真实 forward hook，发布 middle-layer residual capture，并通过 owner-side hook 返回受控干预后的新 capture；owner 同时负责把更大 hidden state 压缩成稳定 summary signals（如 `top_logit_entropy`、`top_logit_margin`、`hook_layer_coverage`、`fallback_active`）
+- substrate owner 现进一步在 `feature_surface` 发布 turn-level semantic hints：`semantic_task_pull`、`semantic_support_pull`、`semantic_repair_pull`、`semantic_exploration_pull`，以及 `semantic_text_weight` / `semantic_residual_weight`；下游直接消费这些公开 signals，而不在 consumer 侧重建文本语义
+- 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 HF model 不可用时直接 fail closed
+- 当前默认 session/runner/CLI 已优先使用 `TransformersOpenWeightResidualRuntime`；若首选 HF model 不可用且 fallback mode 允许，则回退到内置 tiny transformers runtime，而不是 synthetic runtime
+- 内置 tiny transformers runtime 现固定 deterministic seed，保证 fallback 模式下的 substrate capture 和 semantic hints 可复现
+- 当前 session/runner 已允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 open-weight adapter；表达层不再直接消费完整 snapshot dict，而只消费 richer distilled response context，避免跨 loop 持有 live snapshot 引用
 
-**消费者**：Metacontroller、记忆系统、双轨学习层
+**消费者**：Metacontroller、记忆系统、双轨学习层、评估体系
 **发布频率**：每 turn（当前稳定）；未来可扩展到每 token
 
 ### 3.2 时间抽象与内部控制层 (TemporalAbstraction)
@@ -205,7 +210,8 @@ class TemporalAbstractionSnapshot:
 - `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score；这些都不改变 `TemporalAbstractionSnapshot` 公共 shape
 - internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
 - substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
-- 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
+- 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；当前 `TransformersOpenWeightResidualRuntime` 已实现 middle-layer hook capture/intervention，`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
+- 当前默认 final wiring 已把 `temporal_abstraction` 放入 ACTIVE 主链；其缺失在 acceptance report 中视为回归
 
 **消费者**：编排器、双轨学习层、认知 Regime 层、评估体系
 **发布频率**：每 turn
@@ -384,6 +390,8 @@ class RegimeSnapshot:
     candidate_regimes: tuple[tuple[str, float], ...]  # (regime_id, score) pairs
     turns_in_current_regime: int
     description: str
+    delayed_outcomes: tuple[tuple[str, float], ...]   # owner-attributed delayed regime outcomes
+    identity_hints: tuple[str, ...]                   # typed identity proposals for reflection/memory
 ```
 
 **当前实现口径**：
@@ -391,6 +399,8 @@ class RegimeSnapshot:
 - P04 阶段已经提供结构化 regime identity 和 candidate scoring
 - 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
 - 第二阶段补充 regime owner 的 bounded policy apply：strategy priors 与 historical effectiveness 可 checkpoint / rollback
+- 当前 `RegimeModule` 已补充 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` 发布结果
+- 当前 `identity_hints` 由 regime owner 从 memory snapshot 中投影为 typed identity proposal，供 reflection/memory owner 决定是否沉淀为 durable identity entries
 - 该评分基线是过渡实现；后续可由更强的 temporal / learned policy 替换
 
 **消费者**：编排器、时间抽象层、记忆系统、评估体系
@@ -444,6 +454,20 @@ class PolicyConsolidation:
     controller_updates: tuple[str, ...]             # 控制器参数更新描述
     strategy_priors_updated: tuple[str, ...]        # 更新的策略先验
     regime_effectiveness_updated: tuple[tuple[str, float], ...]  # (regime_id, new_score) pairs
+    temporal_prior_update: TemporalPriorUpdate | None
+    controller_guard_blocked: bool
+    controller_guard_audit_present: bool
+
+@dataclass(frozen=True)
+class TemporalPriorUpdate:
+    target: str
+    residual_strength: float
+    memory_strength: float
+    reflection_strength: float
+    switch_bias_delta: float
+    persistence_delta: float
+    learning_rate_delta: float
+    description: str
 
 @dataclass(frozen=True)
 class ConsolidationScore:
@@ -476,6 +500,8 @@ class ReflectionSnapshot:
 - `consolidation_score` 是 reflection owner 发布的统一 bounded score 路径；memory/regime writeback 幅度由该 score 决定
 - `beliefs_updated` 已接入 memory owner 的 audited apply，不再是仅存在于 proposal 中的伪状态
 - `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
+- 当前 `policy_consolidation.temporal_prior_update` 已成为 reflection owner 对 temporal owner 的 typed 写回契约；编排层只负责 target-specific gate + audit，再调用 temporal owner 的 `apply_reflection_prior_update(...)`
+- 默认主链中的 active reflection / temporal 会把该 bounded prior writeback 纳入 `writeback_result.applied_operations` 与 credit modification audit
 
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层
 **发布频率**：每会话后（异步）

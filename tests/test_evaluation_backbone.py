@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationReplayCase
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
+    SubstrateSnapshot,
+    SurfaceKind,
 )
 from volvence_zero.temporal import LearnedLiteTemporalPolicy, MetacontrollerRuntimeState
 
@@ -39,6 +41,7 @@ def test_evaluation_backbone_builds_session_report():
     assert report.report_type == "session"
     assert report.session_ids == ("s1",)
     assert report.scores_by_family
+    assert report.trends
 
 
 def test_evaluation_module_consumes_runtime_chain_actively():
@@ -85,6 +88,73 @@ def test_evaluation_module_consumes_runtime_chain_actively():
     evaluation_snapshot = result["evaluation"]
     assert evaluation_snapshot.value.turn_scores
     assert evaluation_snapshot.value.session_scores
+    metric_names = {score.metric_name for score in evaluation_snapshot.value.turn_scores}
+    assert "task_pressure" in metric_names
+    assert "support_presence" in metric_names
+
+
+def test_evaluation_backbone_uses_substrate_semantic_signals():
+    backbone = EvaluationBackbone()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="semantic-substrate",
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.92,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.18,), source="test"),
+            FeatureSignal(name="semantic_repair_pull", values=(0.10,), source="test"),
+            FeatureSignal(name="semantic_exploration_pull", values=(0.22,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="task-dominant substrate",
+    )
+
+    snapshot = asyncio.run(
+        EvaluationModule(backbone=backbone, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s1",
+            wave_id="w1",
+            timestamp_ms=10,
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+    metrics = {score.metric_name: score.value for score in snapshot.value.turn_scores}
+
+    assert metrics["task_pressure"] > metrics["support_presence"]
+
+
+def test_evaluation_backbone_surfaces_fallback_reliance():
+    backbone = EvaluationBackbone()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="fallback-substrate",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="fallback_active", values=(1.0,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="builtin fallback active",
+    )
+
+    snapshot = asyncio.run(
+        EvaluationModule(backbone=backbone, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s-fallback",
+            wave_id="w1",
+            timestamp_ms=10,
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+    metrics = {score.metric_name: score.value for score in snapshot.value.turn_scores}
+
+    assert metrics["fallback_reliance"] == 1.0
+    assert metrics["contract_integrity"] == 1.0
+    assert "MEDIUM: substrate fallback is active" in snapshot.value.alerts
+    assert "HIGH: contract integrity below threshold" not in snapshot.value.alerts
 
 
 def test_evaluation_backbone_records_metacontroller_evidence():
@@ -137,3 +207,42 @@ def test_evaluation_backbone_records_metacontroller_evidence():
     assert any(record.metric_name == "posterior_stability" for record in backbone.records)
     assert any(record.metric_name == "policy_replacement_quality" for record in backbone.records)
     assert any(family == "abstraction" for family, _ in report.scores_by_family)
+
+
+def test_evaluation_backbone_runs_replay_suite_gate():
+    backbone = EvaluationBackbone()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="replay-substrate",
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.82,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.64,), source="test"),
+            FeatureSignal(name="fallback_active", values=(0.0,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="balanced replay substrate",
+    )
+
+    result = backbone.run_replay_suite(
+        suite_name="widening-gate",
+        timestamp_ms=100,
+        cases=(
+            EvaluationReplayCase(
+                case_id="balanced-case",
+                session_id="replay-s1",
+                wave_id="replay-w1",
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=None,
+                dual_track_snapshot=None,
+                metric_floors=(("contract_integrity", 0.95),),
+                max_alert_count=0,
+            ),
+        ),
+    )
+
+    assert result.passed is True
+    assert result.case_results[0].passed is True

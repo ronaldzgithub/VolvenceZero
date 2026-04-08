@@ -697,6 +697,7 @@ class TestP17SSLRLPipeline:
         pipeline = SSLRLTrainingPipeline(config=cfg)
         traces = self._make_traces(8)
         result = pipeline.run_pipeline(traces=traces)
+        assert result.owner_path == "offline-sslrl-pipeline"
         assert result.ssl_steps_completed >= 2
         assert result.rl_steps_completed >= 1
         assert result.transition_step >= 0
@@ -713,6 +714,7 @@ class TestP17SSLRLPipeline:
             ssl_min_steps=2,
             ssl_max_steps=10,
             ssl_convergence_threshold=999.0,
+            transition_kl_threshold=999.0,
             rl_max_steps=5,
         )
         pipeline = SSLRLTrainingPipeline(config=cfg)
@@ -720,6 +722,23 @@ class TestP17SSLRLPipeline:
         result = pipeline.run_pipeline(traces=traces)
         assert result.ssl_steps_completed >= 2
         assert result.transition_step >= 1
+
+    def test_pipeline_respects_transition_kl_threshold(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(
+            n_z=8,
+            ssl_min_steps=2,
+            ssl_max_steps=3,
+            ssl_convergence_threshold=999.0,
+            transition_kl_threshold=0.0,
+            rl_max_steps=2,
+        )
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+        assert result.transition_step == 2
+        assert result.rl_steps_completed >= 1
 
     def test_pipeline_phase_reports_have_metrics(self) -> None:
         from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
@@ -729,6 +748,7 @@ class TestP17SSLRLPipeline:
         traces = self._make_traces(6)
         result = pipeline.run_pipeline(traces=traces)
         for report in result.phase_reports:
+            assert report.owner_path == "offline-sslrl-pipeline"
             if report.phase == "ssl":
                 assert report.ssl_loss >= 0.0
             elif report.phase == "rl":
@@ -763,6 +783,19 @@ class TestP17SSLRLPipeline:
         result = pipeline.run_pipeline(traces=traces)
         ssl_reports = [r for r in result.phase_reports if r.phase == "ssl"]
         assert any(r.noncausal_kl_tightening >= 0.0 for r in ssl_reports)
+
+    def test_pipeline_can_export_rare_heavy_artifact(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(5)
+        pipeline.run_pipeline(traces=traces)
+        artifact = pipeline.export_rare_heavy_artifact(artifact_id="rare-heavy-1")
+
+        assert artifact.artifact_id == "rare-heavy-1"
+        assert artifact.owner_path == "offline-sslrl-pipeline"
+        assert artifact.temporal_snapshot.active_label
 
 
 # =========================================================================

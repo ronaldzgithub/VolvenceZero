@@ -1,5 +1,7 @@
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
+    feature_signal_map,
+    feature_signal_value,
     FeatureSurfaceSubstrateAdapter,
     OpenWeightResidualStreamSubstrateAdapter,
     PlaceholderSubstrateAdapter,
@@ -13,6 +15,9 @@ from volvence_zero.substrate.adapter import (
     UnavailableField,
 )
 from volvence_zero.substrate.residual_backend import (
+    build_builtin_transformers_runtime,
+    build_transformers_runtime_with_fallback,
+    HashingWhitespaceTokenizer,
     NoOpResidualInterventionBackend,
     OpenWeightResidualInterventionBackend,
     OpenWeightResidualRuntime,
@@ -21,6 +26,7 @@ from volvence_zero.substrate.residual_backend import (
     ResidualInterventionBackend,
     SimulatedResidualSubstrateAdapter,
     SyntheticOpenWeightResidualRuntime,
+    SubstrateFallbackMode,
     TraceResidualInterventionBackend,
     TransformersOpenWeightResidualRuntime,
     TraceStep,
@@ -28,11 +34,15 @@ from volvence_zero.substrate.residual_backend import (
     TrainingTraceDataset,
     apply_residual_control,
     build_training_trace,
+    resolve_substrate_fallback_mode,
 )
 
 __all__ = [
     "FeatureSignal",
+    "feature_signal_map",
+    "feature_signal_value",
     "FeatureSurfaceSubstrateAdapter",
+    "HashingWhitespaceTokenizer",
     "NoOpResidualInterventionBackend",
     "OpenWeightResidualInterventionBackend",
     "OpenWeightResidualRuntime",
@@ -50,6 +60,7 @@ __all__ = [
     "SubstrateSnapshot",
     "SurfaceKind",
     "SyntheticOpenWeightResidualRuntime",
+    "SubstrateFallbackMode",
     "TraceResidualInterventionBackend",
     "TransformersOpenWeightResidualRuntime",
     "TraceStep",
@@ -58,4 +69,7 @@ __all__ = [
     "UnavailableField",
     "apply_residual_control",
     "build_training_trace",
+    "build_builtin_transformers_runtime",
+    "build_transformers_runtime_with_fallback",
+    "resolve_substrate_fallback_mode",
 ]

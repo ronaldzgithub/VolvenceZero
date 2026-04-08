@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from typing import Any
 
-from volvence_zero.credit import CreditModule, ModificationProposal, derive_learning_evidence_credit_records
+from volvence_zero.credit import (
+    CreditModule,
+    GateDecision,
+    ModificationGate,
+    ModificationProposal,
+    SelfModificationRecord,
+    derive_learning_evidence_credit_records,
+    has_blocking_writeback,
+)
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationModule, EvaluationSnapshot
 from volvence_zero.memory import MemoryModule, MemoryStore
@@ -16,6 +24,7 @@ from volvence_zero.reflection import (
 )
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
+from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
 from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerRuntimeState, TemporalModule, TemporalPolicy
 
@@ -28,8 +37,8 @@ class FinalRolloutConfig:
     evaluation: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
     credit: WiringLevel = WiringLevel.ACTIVE
-    reflection: WiringLevel = WiringLevel.SHADOW
-    temporal: WiringLevel = WiringLevel.SHADOW
+    reflection: WiringLevel = WiringLevel.ACTIVE
+    temporal: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -67,6 +76,78 @@ class FinalIntegrationResult:
     writeback_result: WritebackResult | None
     writeback_source: str | None
     temporal_runtime_state: MetacontrollerRuntimeState | None
+
+
+def _apply_temporal_reflection_writeback(
+    *,
+    temporal_module: TemporalModule | None,
+    reflection_snapshot: Snapshot[Any] | None,
+    credit_module: CreditModule | None,
+    credit_snapshot: Snapshot[Any] | None,
+    timestamp_ms: int,
+    apply_enabled: bool,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if (
+        temporal_module is None
+        or reflection_snapshot is None
+        or not isinstance(reflection_snapshot.value, ReflectionSnapshot)
+    ):
+        return ((), ())
+    temporal_prior_update = reflection_snapshot.value.policy_consolidation.temporal_prior_update
+    if temporal_prior_update is None:
+        return ((), ())
+    before_hash = stable_value_hash(temporal_module.policy.export_parameters())
+    if not apply_enabled:
+        blocked_operations = ("temporal-prior:writeback-mode-not-apply",)
+        if credit_module is not None:
+            credit_module.ledger.record_modification(
+                SelfModificationRecord(
+                    target=temporal_prior_update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Reflection-to-temporal writeback skipped because reflection apply mode is disabled.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                )
+            )
+        return ((), blocked_operations)
+    if credit_snapshot is not None and has_blocking_writeback(
+        credit_snapshot.value,
+        target_prefix=temporal_prior_update.target,
+    ):
+        blocked_operations = ("temporal-prior:credit-gate-block",)
+        if credit_module is not None:
+            credit_module.ledger.record_modification(
+                SelfModificationRecord(
+                    target=temporal_prior_update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Reflection-to-temporal writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                )
+            )
+        return ((), blocked_operations)
+    applied_operations = temporal_module.policy.apply_reflection_prior_update(update=temporal_prior_update)
+    after_hash = stable_value_hash(temporal_module.policy.export_parameters())
+    if credit_module is not None:
+        credit_module.ledger.record_modification(
+            SelfModificationRecord(
+                target=temporal_prior_update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=temporal_prior_update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+            )
+        )
+    return (applied_operations, ())
 
 
 def build_final_runtime_modules(
@@ -196,6 +277,34 @@ async def run_final_wiring_turn(
             regime_module=regime_module,
             checkpoint_id=f"{session_id}:{wave_id}",
         )
+    temporal_writeback_operations, temporal_writeback_blocks = _apply_temporal_reflection_writeback(
+        temporal_module=temporal_module,
+        reflection_snapshot=reflection_snapshot,
+        credit_module=credit_module,
+        credit_snapshot=credit_snapshot,
+        timestamp_ms=max(s.timestamp_ms for s in active_snapshots.values()) + 1 if active_snapshots else 1,
+        apply_enabled=reflection_mode is WritebackMode.APPLY,
+    )
+    if (temporal_writeback_operations or temporal_writeback_blocks) and writeback_result is not None:
+        writeback_result = replace(
+            writeback_result,
+            applied_operations=writeback_result.applied_operations + temporal_writeback_operations,
+            blocked_operations=writeback_result.blocked_operations + temporal_writeback_blocks,
+            description=(
+                f"{writeback_result.description} temporal_ops={len(temporal_writeback_operations)} "
+                f"temporal_blocks={len(temporal_writeback_blocks)}."
+            ),
+        )
+    elif temporal_writeback_operations or temporal_writeback_blocks:
+        writeback_result = WritebackResult(
+            applied_operations=temporal_writeback_operations,
+            blocked_operations=temporal_writeback_blocks,
+            checkpoint=None,
+            description=(
+                f"Reflection temporal writeback produced {len(temporal_writeback_operations)} applied ops and "
+                f"{len(temporal_writeback_blocks)} blocked ops."
+            ),
+        )
     evaluation_snapshot = active_snapshots.get("evaluation")
     if (
         evaluation_module is not None
@@ -211,6 +320,7 @@ async def run_final_wiring_turn(
             reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
             writeback_result=writeback_result,
             joint_loop_result=joint_loop_result,
+            regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
         )
         active_snapshots["evaluation"] = evaluation_module.publish(enriched_evaluation)
         if credit_module is not None:
@@ -220,7 +330,8 @@ async def run_final_wiring_turn(
             )
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)
-                active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
+        if credit_module is not None:
+            active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
     acceptance_report = build_acceptance_report(
         config=config,
         active_snapshots=active_snapshots,
@@ -265,6 +376,10 @@ def build_acceptance_report(
         "regime",
         "credit",
     }
+    if config.reflection is WiringLevel.ACTIVE:
+        expected_active.add("reflection")
+    if config.temporal is WiringLevel.ACTIVE:
+        expected_active.add("temporal_abstraction")
     missing_active = sorted(expected_active - set(active_slots))
     if missing_active:
         issues.append(f"Missing active slots: {', '.join(missing_active)}")
@@ -273,11 +388,15 @@ def build_acceptance_report(
     if violation_count:
         issues.append(f"Observed {violation_count} contract violation events during final wiring.")
 
-    if config.reflection is not WiringLevel.DISABLED and "reflection" not in shadow_slots and "reflection" not in active_slots:
+    if config.reflection is WiringLevel.SHADOW and "reflection" not in shadow_slots and "reflection" not in active_slots:
         issues.append("Reflection wiring configured but no reflection snapshot was produced.")
+    if config.reflection is WiringLevel.ACTIVE and "reflection" not in active_slots:
+        issues.append("Reflection is configured ACTIVE but did not publish into the active chain.")
 
-    if config.temporal is not WiringLevel.DISABLED and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
+    if config.temporal is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
+    if config.temporal is WiringLevel.ACTIVE and "temporal_abstraction" not in active_slots:
+        issues.append("Temporal is configured ACTIVE but did not publish into the active chain.")
 
     if config.reflection is WiringLevel.ACTIVE:
         recommendations.append("Keep reflection in proposal-only mode until writeback acceptance is proven.")

@@ -12,17 +12,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import time
+from uuid import uuid4
 
 from volvence_zero.internal_rl.sandbox import (
     CausalPolicyCheckpoint,
     DualTrackOptimizationReport,
     InternalRLSandbox,
 )
-from volvence_zero.memory import CMSMemoryCore, MemoryStore, Track
+from volvence_zero.memory import CMSMemoryCore, MemoryStore, MemoryStoreCheckpoint, Track
 from volvence_zero.substrate import SubstrateSnapshot, TrainingTrace
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterStore,
+    MetacontrollerParameterSnapshot,
     MetacontrollerSSLTrainer,
     SSLTrainingReport,
 )
@@ -43,12 +46,13 @@ class PipelineConfig:
     ssl_max_steps: int = 20
     rl_max_steps: int = 10
     rl_convergence_threshold: float = 0.05
-    transition_kl_threshold: float = 0.3
+    transition_kl_threshold: float = 1.0
     binary_gate_rl: bool = True
 
 
 @dataclass(frozen=True)
 class PhaseReport:
+    owner_path: str
     phase: str
     step_index: int
     ssl_loss: float
@@ -66,6 +70,7 @@ class PhaseReport:
 @dataclass(frozen=True)
 class PipelineResult:
     config: PipelineConfig
+    owner_path: str
     final_phase: str
     ssl_steps_completed: int
     rl_steps_completed: int
@@ -73,6 +78,19 @@ class PipelineResult:
     final_ssl_loss: float
     final_total_reward: float
     transition_step: int
+    description: str
+
+
+@dataclass(frozen=True)
+class RareHeavyArtifact:
+    artifact_id: str
+    owner_path: str
+    created_at_ms: int
+    temporal_snapshot: MetacontrollerParameterSnapshot
+    memory_checkpoint: MemoryStoreCheckpoint | None
+    transition_step: int
+    final_ssl_loss: float
+    final_total_reward: float
     description: str
 
 
@@ -87,6 +105,8 @@ class SSLRLTrainingPipeline:
     switch unit, and decoder. Phase 2 freezes the learned structure and
     trains the causal z-policy via dual-track RL rollouts with binary gate.
     """
+
+    owner_path = "offline-sslrl-pipeline"
 
     def __init__(
         self,
@@ -107,6 +127,7 @@ class SSLRLTrainingPipeline:
         self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore(dim=n_z))
         self._phase = TrainingPhase.SSL
         self._ssl_loss_history: list[float] = []
+        self._ssl_kl_history: list[float] = []
         self._rl_reward_history: list[float] = []
         self._phase_reports: list[PhaseReport] = []
         self._transition_step = -1
@@ -173,6 +194,7 @@ class SSLRLTrainingPipeline:
 
         return PipelineResult(
             config=cfg,
+            owner_path=self.owner_path,
             final_phase=self._phase.value,
             ssl_steps_completed=ssl_steps,
             rl_steps_completed=rl_steps,
@@ -182,7 +204,7 @@ class SSLRLTrainingPipeline:
             transition_step=self._transition_step,
             description=(
                 f"Pipeline completed: ssl={ssl_steps}, rl={rl_steps}, "
-                f"phase={self._phase.value}, "
+                f"owner={self.owner_path}, phase={self._phase.value}, "
                 f"ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "
                 f"transition_at={self._transition_step}."
             ),
@@ -191,6 +213,7 @@ class SSLRLTrainingPipeline:
     def _run_ssl_step(self, *, step_index: int, trace: TrainingTrace) -> PhaseReport:
         report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
         self._ssl_loss_history.append(report.total_loss)
+        self._ssl_kl_history.append(report.kl_loss)
         if report.m3_slow_momentum_signal:
             self._memory_store.observe_encoder_feedback(
                 encoder_signal=report.m3_slow_momentum_signal,
@@ -198,6 +221,7 @@ class SSLRLTrainingPipeline:
             )
         convergence = self._ssl_convergence_metric()
         return PhaseReport(
+            owner_path=self.owner_path,
             phase="ssl",
             step_index=step_index,
             ssl_loss=report.total_loss,
@@ -242,6 +266,7 @@ class SSLRLTrainingPipeline:
             + opt_report.relationship_report.surrogate_objective
         )
         return PhaseReport(
+            owner_path=self.owner_path,
             phase="rl",
             step_index=step_index,
             ssl_loss=0.0,
@@ -283,7 +308,8 @@ class SSLRLTrainingPipeline:
         if ssl_steps >= cfg.ssl_max_steps:
             return True
         metric = self._ssl_convergence_metric()
-        return metric < cfg.ssl_convergence_threshold
+        latest_kl = self._ssl_kl_history[-1] if self._ssl_kl_history else 0.0
+        return metric < cfg.ssl_convergence_threshold and latest_kl <= cfg.transition_kl_threshold
 
     def _should_complete(self, rl_steps: int) -> bool:
         cfg = self._config
@@ -322,3 +348,26 @@ class SSLRLTrainingPipeline:
         self._phase = TrainingPhase.RL
         self._rl_reward_history.clear()
         return True
+
+    def export_rare_heavy_artifact(
+        self,
+        *,
+        artifact_id: str | None = None,
+        include_memory: bool = True,
+    ) -> RareHeavyArtifact:
+        final_ssl = self._ssl_loss_history[-1] if self._ssl_loss_history else 0.0
+        final_reward = self._rl_reward_history[-1] if self._rl_reward_history else 0.0
+        return RareHeavyArtifact(
+            artifact_id=artifact_id or str(uuid4()),
+            owner_path=self.owner_path,
+            created_at_ms=int(time.time() * 1000),
+            temporal_snapshot=self._policy.export_rare_heavy_snapshot(),
+            memory_checkpoint=self._memory_store.export_rare_heavy_state() if include_memory else None,
+            transition_step=self._transition_step,
+            final_ssl_loss=final_ssl,
+            final_total_reward=final_reward,
+            description=(
+                f"Rare-heavy artifact exported from {self.owner_path} with phase={self._phase.value}, "
+                f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}."
+            ),
+        )

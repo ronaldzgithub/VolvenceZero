@@ -1,7 +1,7 @@
 # 双轨学习 Spec
 
 > Status: draft
-> Last updated: 2026-04-06
+> Last updated: 2026-04-08
 > 对应需求: R7
 
 ## 要解决的问题
@@ -68,6 +68,7 @@
 当前实现口径补充：
 
 - `controller_code` 不再只由 memory heuristic 派生；当前已可融合 temporal owner 发布的 controller state
+- dual-track owner 现也直接消费 substrate owner 发布的 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive，而不是在 consumer 侧重建文本语义
 - `abstract_action_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据
 - 默认 final wiring 下，dual-track 通过上一轮已发布的 temporal snapshot 闭合 `temporal -> dual_track`，避免打破 runtime 单轮 DAG
 
@@ -87,5 +88,6 @@
 ## 变更日志
 
 - 2026-04-06: P11 dual-track z-space separation: ControllerState.track_codes carries per-track projected latent codes; DualTrackModule now reads track-specific z_task/z_rel via temporal-track-projected path; CausalZPolicy uses amplified track projection
+- 2026-04-08: dual-track 新增 substrate semantic feature ingest，用公开 `semantic_*` feature signals 区分 world/self drive，并在 sparse-memory turn 上发布更稳定的 track state
 - 2026-04-06: 补充 dual-track 消费 temporal snapshot、发布 controller source / abstract action hint 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

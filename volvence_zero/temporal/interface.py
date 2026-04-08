@@ -8,7 +8,7 @@ from hashlib import sha256
 from typing import Any, Mapping
 
 from volvence_zero.memory import MemorySnapshot, Track
-from volvence_zero.reflection import ReflectionSnapshot
+from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 from volvence_zero.temporal.metacontroller_components import (
@@ -453,6 +453,28 @@ class MetacontrollerParameterStore:
             "reflection": reflection_strength / total,
         }
 
+    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
+        current = dict(self.temporal_weights)
+        blended_residual = _clamp(current["residual"] * 0.75 + update.residual_strength * 0.25)
+        blended_memory = _clamp(current["memory"] * 0.75 + update.memory_strength * 0.25)
+        blended_reflection = _clamp(current["reflection"] * 0.75 + update.reflection_strength * 0.25)
+        self.fit_temporal_from_signals(
+            residual_strength=blended_residual,
+            memory_strength=blended_memory,
+            reflection_strength=blended_reflection,
+        )
+        self.switch_bias = _clamp(self.switch_bias + update.switch_bias_delta)
+        self.persistence = _clamp(self.persistence + update.persistence_delta)
+        self.learning_rate = _clamp(self.learning_rate + update.learning_rate_delta)
+        return (
+            f"temporal-prior:residual={self.temporal_weights['residual']:.3f}",
+            f"temporal-prior:memory={self.temporal_weights['memory']:.3f}",
+            f"temporal-prior:reflection={self.temporal_weights['reflection']:.3f}",
+            f"temporal-prior:switch-bias={self.switch_bias:.3f}",
+            f"temporal-prior:persistence={self.persistence:.3f}",
+            f"temporal-prior:learning-rate={self.learning_rate:.3f}",
+        )
+
     def align_temporal_from_tracks(self) -> None:
         world_weights = self.track_weights[Track.WORLD]
         self_weights = self.track_weights[Track.SELF]
@@ -598,6 +620,10 @@ class TemporalPolicy(ABC):
     def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
         return None
 
+    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
+        del update
+        return ()
+
 
 class PlaceholderTemporalPolicy(TemporalPolicy):
     mode = TemporalImplementationMode.PLACEHOLDER
@@ -719,6 +745,9 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()
 
+    def export_rare_heavy_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return self._parameter_store.export_parameter_snapshot()
+
     def fit_from_signals(
         self,
         *,
@@ -731,6 +760,13 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
             memory_strength=memory_strength,
             reflection_strength=reflection_strength,
         )
+
+    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(update=update)
+
+    def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
+        self._parameter_store.restore_parameter_snapshot(snapshot)
+        return ("rare-heavy:temporal-import",)
 
     def align_with_internal_rl(
         self,
@@ -850,6 +886,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()
 
+    def export_rare_heavy_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return self._parameter_store.export_parameter_snapshot()
+
     def fit_from_signals(
         self,
         *,
@@ -862,6 +901,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             memory_strength=memory_strength,
             reflection_strength=reflection_strength,
         )
+
+    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(update=update)
+
+    def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
+        self._parameter_store.restore_parameter_snapshot(snapshot)
+        return ("rare-heavy:temporal-import",)
 
     def step_with_causal_override(
         self,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.internal_rl import InternalRLEnvironment, InternalRLSandbox, derive_abstract_action_credit
-from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
+from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule, PipelineConfig, SSLRLTrainingPipeline
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
     ResidualSequenceStep,
@@ -124,7 +124,9 @@ def test_internal_rl_sandbox_can_run_continuous_causal_path():
 def test_eta_nl_joint_loop_runs_minimal_cycle():
     loop = ETANLJointLoop()
     trace = build_training_trace(trace_id="joint-trace", source_text="repair tension then continue helpfully")
+    before = loop.temporal_policy.export_parameters()
     report = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace))
+    after = loop.temporal_policy.export_parameters()
 
     assert report.acceptance_passed is True
     assert report.policy_objective != 0.0
@@ -138,7 +140,11 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.ssl_posterior_drift >= 0.0
     assert report.kernel_score_count >= 1
     assert report.rollback_reasons == ()
+    assert report.ssl_rollback_applied is False
+    assert report.owner_path == "online-joint-loop"
     assert report.cms_description
+    assert after != before
+    assert any(operation.startswith("temporal-prior:") for operation in report.applied_operations)
 
 
 def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
@@ -148,8 +154,10 @@ def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
     report = asyncio.run(loop.run_cycle(cycle_index=2, trace=trace))
 
     assert report.policy_rollback_applied is True
+    assert report.ssl_rollback_applied is True
     assert report.policy_objective != 0.0
     assert "reward-regression" in report.rollback_reasons
+    assert "ssl-rollback" in report.applied_operations
     assert "policy-rollback" in report.applied_operations
 
 
@@ -175,5 +183,37 @@ def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
     assert ssl_only.schedule_action == "ssl-only"
     assert ssl_only.cycle_report is None
     assert ssl_only.metacontroller_state is not None
+    assert ssl_only.owner_path == "online-joint-loop"
+    assert dict(ssl_only.schedule_telemetry)["ssl_due"] == 1
+    assert dict(ssl_only.schedule_telemetry)["rl_due"] == 0
     assert full_cycle.schedule_action == "full-cycle"
     assert full_cycle.cycle_report is not None
+    assert full_cycle.owner_path == "online-joint-loop"
+    assert dict(full_cycle.schedule_telemetry)["rl_due"] == 1
+
+
+def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
+    pipeline = SSLRLTrainingPipeline(
+        config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
+    )
+    traces = tuple(
+        build_training_trace(trace_id=f"rare-heavy-{index}", source_text="repair tension then plan steadily")
+        for index in range(5)
+    )
+    pipeline.run_pipeline(traces=traces)
+    artifact = pipeline.export_rare_heavy_artifact(artifact_id="offline-artifact")
+
+    loop = ETANLJointLoop()
+    before = loop.temporal_policy.export_parameters()
+    result = loop.apply_rare_heavy_artifact(artifact)
+    after = loop.temporal_policy.export_parameters()
+
+    assert result.artifact_id == "offline-artifact"
+    assert "rare-heavy:temporal-import" in result.applied_operations
+    assert after != before
+
+    rollback_operations = loop.rollback_rare_heavy_import(result.checkpoint)
+    restored = loop.temporal_policy.export_parameters()
+
+    assert "rare-heavy:temporal-rollback" in rollback_operations
+    assert restored == before

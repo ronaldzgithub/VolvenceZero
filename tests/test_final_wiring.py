@@ -10,7 +10,7 @@ from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
 )
-from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
+from volvence_zero.temporal import ControllerState, FullLearnedTemporalPolicy, TemporalAbstractionSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
 
 
@@ -34,13 +34,14 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "evaluation" in result.active_snapshots
     assert "regime" in result.active_snapshots
     assert "credit" in result.active_snapshots
-    assert "reflection" in result.shadow_snapshots
-    assert "temporal_abstraction" in result.shadow_snapshots
+    assert "reflection" in result.active_snapshots
+    assert "temporal_abstraction" in result.active_snapshots
     assert result.temporal_runtime_state is not None
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "retrieval_quality" in metric_names
     assert "reflection_usefulness" in metric_names
+    assert "fallback_reliance" in metric_names
 
 
 def test_final_wiring_honors_kill_switches():
@@ -103,10 +104,37 @@ def test_final_wiring_can_apply_bounded_writeback_when_enabled():
     assert result.writeback_result.description
 
 
+def test_final_wiring_applies_reflection_temporal_prior_update_to_owner_policy():
+    policy = FullLearnedTemporalPolicy()
+    before = policy.export_parameters()
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(reflection=WiringLevel.ACTIVE, temporal=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="temporal-writeback-model",
+                feature_surface=(FeatureSignal(name="temporal_writeback_context", values=(0.85,), source="adapter"),),
+            ),
+            memory_store=MemoryStore(),
+            reflection_mode=WritebackMode.APPLY,
+            temporal_policy=policy,
+            session_id="s-temporal",
+            wave_id="w-temporal",
+        )
+    )
+    after = policy.export_parameters()
+
+    assert result.writeback_result is not None
+    assert after != before
+    assert any(operation.startswith("temporal-prior:") for operation in result.writeback_result.applied_operations)
+    modification_targets = {record.target for record in result.active_snapshots["credit"].value.recent_modifications}
+    assert "metacontroller.temporal_prior" in modification_targets
+
+
 def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
     result = asyncio.run(
         run_final_wiring_turn(
-            config=FinalRolloutConfig(),
+            config=FinalRolloutConfig(reflection=WiringLevel.SHADOW, temporal=WiringLevel.ACTIVE),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
                 model_id="shadow-apply-model",
                 feature_surface=(FeatureSignal(name="shadow_apply_context", values=(0.7,), source="adapter"),),

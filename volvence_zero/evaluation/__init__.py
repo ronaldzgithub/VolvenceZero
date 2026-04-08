@@ -1,5 +1,8 @@
 from volvence_zero.evaluation.backbone import (
     EvaluationBackbone,
+    EvaluationReplayCase,
+    EvaluationReplayCaseResult,
+    EvaluationReplaySuiteResult,
     EvaluationModule,
     EvaluationRecord,
     EvaluationReport,
@@ -10,6 +13,9 @@ from volvence_zero.evaluation.backbone import (
 
 __all__ = [
     "EvaluationBackbone",
+    "EvaluationReplayCase",
+    "EvaluationReplayCaseResult",
+    "EvaluationReplaySuiteResult",
     "EvaluationModule",
     "EvaluationRecord",
     "EvaluationReport",

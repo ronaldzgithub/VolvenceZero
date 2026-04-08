@@ -1,7 +1,7 @@
 # 契约式运行时 Spec
 
 > Status: draft
-> Last updated: 2026-04-06
+> Last updated: 2026-04-08
 > 对应需求: R8, R11, R15
 
 ## 要解决的问题
@@ -90,7 +90,12 @@ P00 运行时内核固定以下最小守卫和视图：
 
 - substrate owner 现已区分三层：`OpenWeightResidualRuntime`（真实 runtime / hook 所有者）、`OpenWeightResidualStreamSubstrateAdapter`（对外发布稳定 `SubstrateSnapshot`）、`OpenWeightResidualInterventionBackend`（owner-side residual control 执行位点）
 - 这意味着未来接 Hugging Face / 其他 open-weight backend 时，只需实现 runtime 契约，不需要改 temporal / internal RL / evaluation 的公共消费面
-- agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
+- 当前 `TransformersOpenWeightResidualRuntime` 已实现 Hugging Face causal LM 的中层 block forward hook capture / intervention；runtime owner 负责 hook 层选择、冻结边界和控制投影、模型家族 block 解析，以及稳定 feature summary 的发布，消费者继续只读取公共快照
+- 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
+- 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
+- `FinalRolloutConfig` 默认已把 `reflection` / `temporal` 提升为 `ACTIVE`；acceptance report 也把两者缺失视为真实回归而非可选增强
+- slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
+- agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
 
 ### 内部状态发布（R11）
 
@@ -114,5 +119,6 @@ P00 运行时内核固定以下最小守卫和视图：
 ## 变更日志
 
 - 2026-04-06: P18 Propagation Topo-Sort + Guard Closure: propagate() now auto-sorts modules by declared dependencies (topo_sort_modules). Cycle detection via detect_dependency_cycle; cycles fall back gracefully to input order. Post-propagation guard closure verifies immutability of all published snapshots. CyclicDependencyError added to runtime contract errors.
+- 2026-04-08: 默认主链切到真实 transformers substrate；`reflection` / `temporal` 默认 ACTIVE；slow reflection 新增 typed `TemporalPriorUpdate` 写回 temporal owner，并带 target-specific gate / audit
 - 2026-04-06: 补充 open-weight runtime / adapter / intervention backend 三层契约，以及 session 级 substrate 注入点
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 DATA_CONTRACT.md 提取

@@ -75,6 +75,7 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
 - reflection apply 已从散落阈值收敛成统一 bounded consolidation score 路径，memory/regime writeback 幅度由同一条 score 决定
 - retrieval 已补充 memory-owner-only 的 hybrid rank：`lexical + semantic`，并把 semantic index 纳入 checkpoint / restore
 - runtime query facets 当前可组合 `user_text + substrate + 上一轮 temporal_abstraction + 上一轮 dual_track` 的已发布快照上下文，不引入同轮循环依赖
+- 当前 reflection 已可消费 regime owner 发布的 `delayed_outcomes + identity_hints`，并在 credit gate 允许时把 typed identity proposal 沉淀为 durable identity entries；memory owner 仍是唯一持久写入 owner
 
 ### NL 关键洞察
 

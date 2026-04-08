@@ -61,6 +61,23 @@ class SubstrateSnapshot:
     description: str
 
 
+def feature_signal_map(feature_surface: tuple[FeatureSignal, ...]) -> dict[str, tuple[float, ...]]:
+    return {signal.name: signal.values for signal in feature_surface}
+
+
+def feature_signal_value(
+    feature_surface: tuple[FeatureSignal, ...],
+    *,
+    name: str,
+    index: int = 0,
+    default: float = 0.0,
+) -> float:
+    values = feature_signal_map(feature_surface).get(name)
+    if values is None or index >= len(values):
+        return default
+    return float(values[index])
+
+
 class SubstrateAdapter(ABC):
     """Adapts the current model surface into the public substrate contract."""
 

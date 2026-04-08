@@ -39,6 +39,21 @@ class PolicyConsolidation:
     controller_updates: tuple[str, ...]
     strategy_priors_updated: tuple[str, ...]
     regime_effectiveness_updated: tuple[tuple[str, float], ...]
+    temporal_prior_update: "TemporalPriorUpdate | None" = None
+    controller_guard_blocked: bool = False
+    controller_guard_audit_present: bool = False
+
+
+@dataclass(frozen=True)
+class TemporalPriorUpdate:
+    target: str
+    residual_strength: float
+    memory_strength: float
+    reflection_strength: float
+    switch_bias_delta: float
+    persistence_delta: float
+    learning_rate_delta: float
+    description: str
 
 
 @dataclass(frozen=True)
@@ -84,6 +99,25 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _metric(evaluation_snapshot: EvaluationSnapshot | None, metric_name: str, default: float = 0.0) -> float:
+    if evaluation_snapshot is None:
+        return default
+    for score in evaluation_snapshot.turn_scores:
+        if score.metric_name == metric_name:
+            return score.value
+    return default
+
+
+def _relationship_relevant_alerts(evaluation_snapshot: EvaluationSnapshot | None) -> tuple[str, ...]:
+    if evaluation_snapshot is None:
+        return ()
+    return tuple(
+        alert
+        for alert in evaluation_snapshot.alerts
+        if "cross-track stability" in alert.lower() or "rollback pressure" in alert.lower()
+    )
+
+
 class ReflectionEngine:
     """Builds proposal-first slow reflection artifacts from current session state."""
 
@@ -115,6 +149,7 @@ class ReflectionEngine:
             memory_snapshot=memory_snapshot,
             credit_snapshot=credit_snapshot,
             consolidation_score=consolidation_score,
+            regime_snapshot=regime_snapshot,
         )
         policy_consolidation = self._policy_consolidation(
             dual_track_snapshot=dual_track_snapshot,
@@ -247,6 +282,7 @@ class ReflectionEngine:
         memory_snapshot: MemorySnapshot | None,
         credit_snapshot: CreditSnapshot | None,
         consolidation_score: ConsolidationScore,
+        regime_snapshot: RegimeSnapshot | None,
     ) -> MemoryConsolidation:
         if memory_snapshot is None:
             return MemoryConsolidation((), (), (), ())
@@ -278,6 +314,25 @@ class ReflectionEngine:
                             decayed_entries.append(candidate.entry_id)
                             decay_candidates.remove(candidate)
                             break
+        if regime_snapshot is not None and regime_snapshot.delayed_outcomes and regime_snapshot.identity_hints:
+            delayed_score = sum(score for _, score in regime_snapshot.delayed_outcomes) / len(regime_snapshot.delayed_outcomes)
+            if delayed_score >= 0.55:
+                for hint in regime_snapshot.identity_hints[:2]:
+                    track = Track.SELF if hint.startswith("identity:relationship:") else Track.SHARED
+                    new_durable_entries.append(
+                        MemoryEntry(
+                            entry_id=str(uuid4()),
+                            content=hint,
+                            track=track,
+                            stratum=MemoryStratum.DURABLE.value,
+                            created_at_ms=timestamp_ms,
+                            last_accessed_ms=timestamp_ms,
+                            strength=_clamp(0.55 + delayed_score * 0.25),
+                            tags=("identity", "delayed_attribution"),
+                        )
+                    )
+                for regime_id, score in regime_snapshot.delayed_outcomes:
+                    beliefs_updated.append(f"delayed_regime:{regime_id}:{score:.2f}")
         return MemoryConsolidation(
             new_durable_entries=tuple(new_durable_entries),
             promoted_entries=tuple(promoted_entries),
@@ -297,11 +352,22 @@ class ReflectionEngine:
         controller_updates: list[str] = []
         strategy_priors_updated: list[str] = []
         regime_effectiveness_updated: list[tuple[str, float]] = []
+        controller_guard_blocked = False
+        controller_guard_audit_present = False
+        cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot is not None else 0.0
+        world_tension = dual_track_snapshot.world_track.tension_level if dual_track_snapshot is not None else 0.0
+        self_tension = dual_track_snapshot.self_track.tension_level if dual_track_snapshot is not None else 0.0
 
         if dual_track_snapshot is not None:
+            task_pressure = _metric(evaluation_snapshot, "task_pressure", default=world_tension)
+            support_presence = _metric(evaluation_snapshot, "support_presence", default=self_tension)
             if dual_track_snapshot.cross_track_tension > 0.5:
                 controller_updates.append("reduce_cross_track_tension_before_widening_scope")
-            if (
+            if support_presence > task_pressure + 0.08 and consolidation_score.strategy_gain >= 0.03:
+                strategy_priors_updated.append("increase_self_track_priority")
+            elif task_pressure > support_presence + 0.08 and consolidation_score.strategy_gain >= 0.03:
+                strategy_priors_updated.append("increase_world_track_priority")
+            elif (
                 dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level
                 and consolidation_score.strategy_gain >= 0.03
             ):
@@ -318,6 +384,7 @@ class ReflectionEngine:
 
         if credit_snapshot is not None and credit_snapshot.recent_modifications:
             controller_updates.append("gate_audit_available_for_follow_up")
+            controller_guard_audit_present = True
             metacontroller_audits = tuple(
                 record for record in credit_snapshot.recent_modifications if record.target.startswith("metacontroller.")
             )
@@ -325,13 +392,38 @@ class ReflectionEngine:
                 latest_audit = metacontroller_audits[-1]
                 if latest_audit.decision is GateDecision.BLOCK:
                     controller_updates.append("pause_metacontroller_writeback_after_runtime_guard")
+                    controller_guard_blocked = True
                 else:
                     controller_updates.append("metacontroller_runtime_guard_cleared")
 
+        temporal_prior_update = TemporalPriorUpdate(
+            target="metacontroller.temporal_prior",
+            residual_strength=_clamp(0.45 + world_tension * 0.25 + consolidation_score.confidence * 0.10),
+            memory_strength=_clamp(0.30 + self_tension * 0.20 + consolidation_score.promotion_score * 0.10),
+            reflection_strength=_clamp(
+                0.25 + consolidation_score.confidence * 0.20 + consolidation_score.strategy_gain * 2.0
+            ),
+            switch_bias_delta=max(-0.08, min(0.08, cross_tension * 0.12 - consolidation_score.decay_score * 0.04)),
+            persistence_delta=max(
+                -0.08,
+                min(0.08, consolidation_score.confidence * 0.06 - cross_tension * 0.08),
+            ),
+            learning_rate_delta=max(
+                -0.02,
+                min(0.02, consolidation_score.strategy_gain * 0.15 - consolidation_score.decay_score * 0.03),
+            ),
+            description=(
+                f"Temporal prior update from reflection confidence={consolidation_score.confidence:.2f}, "
+                f"cross_tension={cross_tension:.2f}, world_tension={world_tension:.2f}, self_tension={self_tension:.2f}."
+            ),
+        )
         return PolicyConsolidation(
             controller_updates=tuple(controller_updates),
             strategy_priors_updated=tuple(strategy_priors_updated),
             regime_effectiveness_updated=tuple(regime_effectiveness_updated),
+            temporal_prior_update=temporal_prior_update,
+            controller_guard_blocked=controller_guard_blocked,
+            controller_guard_audit_present=controller_guard_audit_present,
         )
 
     def _consolidation_score(
@@ -346,7 +438,7 @@ class ReflectionEngine:
             len(memory_snapshot.retrieved_entries) / 5.0 if memory_snapshot is not None else 0.0
         )
         cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot is not None else 0.0
-        alert_pressure = min(len(evaluation_snapshot.alerts), 3) / 3.0 if evaluation_snapshot is not None else 0.0
+        alert_pressure = min(len(_relationship_relevant_alerts(evaluation_snapshot)), 3) / 3.0
         positive_credit = 0.0
         negative_credit = 0.0
         if credit_snapshot is not None and credit_snapshot.recent_credits:
@@ -387,11 +479,26 @@ class ReflectionEngine:
         evaluation_snapshot: EvaluationSnapshot | None,
     ) -> tuple[str, ...]:
         tensions: list[str] = []
-        if dual_track_snapshot is not None and dual_track_snapshot.cross_track_tension > 0.4:
-            tensions.append("cross_track_tension_high")
+        if dual_track_snapshot is not None:
+            if dual_track_snapshot.cross_track_tension > 0.4:
+                tensions.append("cross_track_tension_high")
+            elif dual_track_snapshot.cross_track_tension > 0.2:
+                tensions.append("cross_track_alignment_drift")
+            world_tension = dual_track_snapshot.world_track.tension_level
+            self_tension = dual_track_snapshot.self_track.tension_level
+            if self_tension > world_tension + 0.12:
+                tensions.append("self_track_pressure_dominant")
+            elif world_tension > self_tension + 0.12:
+                tensions.append("world_track_pressure_dominant")
         if evaluation_snapshot is not None:
-            tensions.extend(alert for alert in evaluation_snapshot.alerts[:3])
-        return tuple(tensions)
+            if _metric(evaluation_snapshot, "cross_track_stability", default=1.0) < 0.7:
+                tensions.append("relationship_stability_soft_drop")
+            if _metric(evaluation_snapshot, "warmth", default=1.0) < 0.45:
+                tensions.append("warmth_signal_thin")
+            if _metric(evaluation_snapshot, "info_integration", default=1.0) < 0.45:
+                tensions.append("task_signal_diffuse")
+            tensions.extend(_relationship_relevant_alerts(evaluation_snapshot)[:3])
+        return tuple(dict.fromkeys(tensions))
 
     def _lessons(
         self,
@@ -401,15 +508,38 @@ class ReflectionEngine:
         tensions: tuple[str, ...],
     ) -> tuple[str, ...]:
         lessons: list[str] = []
-        if memory_consolidation.new_durable_entries:
+        if memory_consolidation.new_durable_entries or memory_consolidation.promoted_entries:
             lessons.append("promote_high_signal_memories")
+        if memory_consolidation.beliefs_updated:
+            lessons.append("reinforce_recent_high_credit_beliefs")
         if policy_consolidation.strategy_priors_updated:
             lessons.append("adjust_track_priority_from_session_feedback")
-        if any(update.startswith("pause_metacontroller") for update in policy_consolidation.controller_updates):
+        if policy_consolidation.temporal_prior_update is not None:
+            temporal_update = policy_consolidation.temporal_prior_update
+            strongest_channel = max(
+                (
+                    ("residual", temporal_update.residual_strength),
+                    ("memory", temporal_update.memory_strength),
+                    ("reflection", temporal_update.reflection_strength),
+                ),
+                key=lambda item: item[1],
+            )[0]
+            lessons.append(f"rebalance_temporal_prior_toward_{strongest_channel}")
+            if temporal_update.persistence_delta > 0.02:
+                lessons.append("increase_controller_persistence_for_continuity")
+            elif temporal_update.persistence_delta < -0.02:
+                lessons.append("reduce_controller_persistence_for_faster_recovery")
+            if temporal_update.switch_bias_delta > 0.02:
+                lessons.append("allow_controller_switch_when_context_shifts")
+            elif temporal_update.switch_bias_delta < -0.02:
+                lessons.append("hold_controller_before_switching")
+        if policy_consolidation.controller_guard_blocked:
             lessons.append("respect_metacontroller_runtime_guard")
+        elif policy_consolidation.controller_guard_audit_present:
+            lessons.append("keep_controller_guard_signal_in_background")
         if tensions:
             lessons.append("review_tension_before_auto_writeback")
-        return tuple(lessons)
+        return tuple(dict.fromkeys(lessons))
 
     def _interaction_trace_summary(
         self,

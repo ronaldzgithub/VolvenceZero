@@ -9,6 +9,8 @@ from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
     SubstrateModule,
+    SubstrateSnapshot,
+    SurfaceKind,
 )
 from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
 
@@ -168,3 +170,62 @@ def test_dual_track_module_consumes_temporal_snapshot_as_controller_evidence():
     assert snapshot.value.self_track.controller_source == "temporal+memory"
     assert snapshot.value.world_track.abstract_action_hint == "task_controller"
     assert snapshot.value.world_track.controller_code[-1] == 0.7
+
+
+def test_dual_track_module_can_project_shared_entries_into_both_tracks():
+    memory = MemoryStore()
+    shared_entry = memory.write(
+        MemoryWriteRequest(
+            content="stabilize the task while keeping the tone supportive",
+            track=Track.SHARED,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.75,
+        ),
+        timestamp_ms=40,
+    )
+    module = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+
+    snapshot = asyncio.run(
+        module.process_standalone(
+            world_entries=(),
+            self_entries=(),
+            shared_entries=(shared_entry,),
+        )
+    )
+
+    assert snapshot.value.world_track.active_goals
+    assert snapshot.value.self_track.active_goals
+    assert snapshot.value.world_track.tension_level > 0.0
+    assert snapshot.value.self_track.tension_level > 0.0
+
+
+def test_dual_track_module_uses_substrate_semantic_signals_for_track_separation():
+    module = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="semantic-substrate",
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.88,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.24,), source="test"),
+            FeatureSignal(name="semantic_repair_pull", values=(0.18,), source="test"),
+            FeatureSignal(name="semantic_exploration_pull", values=(0.33,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="semantic substrate snapshot",
+    )
+
+    snapshot = asyncio.run(
+        module.process_standalone(
+            world_entries=(),
+            self_entries=(),
+            shared_entries=(),
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+
+    assert snapshot.value.world_track.controller_code[0] > snapshot.value.self_track.controller_code[0]
+    assert "substrate:task-focused" in snapshot.value.world_track.active_goals
