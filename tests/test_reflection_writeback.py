@@ -10,9 +10,9 @@ from volvence_zero.credit import (
     SelfModificationRecord,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule
+from volvence_zero.evaluation import EvaluationModule, EvaluationScore
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
-from volvence_zero.regime import RegimeModule
+from volvence_zero.regime import DelayedOutcomeAttribution, DelayedOutcomePayoff, RegimeModule
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
@@ -309,3 +309,106 @@ def test_reflection_generates_durable_identity_entries_from_delayed_regime_outco
         belief.startswith("delayed_regime:")
         for belief in reflection_snapshot.memory_consolidation.beliefs_updated
     )
+
+
+def test_reflection_emits_structural_temporal_proposals_from_delayed_attribution():
+    regime_snapshot = asyncio.run(RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone()).value
+    regime_snapshot = type(regime_snapshot)(
+        active_regime=regime_snapshot.active_regime,
+        previous_regime=regime_snapshot.previous_regime,
+        switch_reason=regime_snapshot.switch_reason,
+        candidate_regimes=regime_snapshot.candidate_regimes,
+        turns_in_current_regime=regime_snapshot.turns_in_current_regime,
+        description=regime_snapshot.description,
+        delayed_outcomes=((regime_snapshot.active_regime.regime_id, 0.32),),
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id=regime_snapshot.active_regime.regime_id,
+                outcome_score=0.32,
+                source_turn_index=2,
+                source_wave_id="wave-2",
+                abstract_action="discovered_family_1",
+                action_family_version=3,
+            ),
+        ),
+        identity_hints=regime_snapshot.identity_hints,
+    )
+
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            regime_snapshot=regime_snapshot,
+            timestamp_ms=92,
+        )
+    ).value
+
+    temporal_update = reflection_snapshot.policy_consolidation.temporal_prior_update
+    assert temporal_update is not None
+    assert temporal_update.structure_proposals
+    assert "action-family-structure" in temporal_update.target_groups
+
+
+def test_reflection_consumes_action_family_competition_evidence():
+    regime_snapshot = asyncio.run(RegimeModule(wiring_level=WiringLevel.ACTIVE).process_standalone()).value
+    regime_snapshot = type(regime_snapshot)(
+        active_regime=regime_snapshot.active_regime,
+        previous_regime=regime_snapshot.previous_regime,
+        switch_reason=regime_snapshot.switch_reason,
+        candidate_regimes=regime_snapshot.candidate_regimes,
+        turns_in_current_regime=regime_snapshot.turns_in_current_regime,
+        description=regime_snapshot.description,
+        delayed_outcomes=((regime_snapshot.active_regime.regime_id, 0.46),),
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id=regime_snapshot.active_regime.regime_id,
+                outcome_score=0.46,
+                source_turn_index=3,
+                source_wave_id="wave-3",
+                abstract_action="discovered_family_0",
+                action_family_version=4,
+            ),
+        ),
+        delayed_payoffs=(
+            DelayedOutcomePayoff(
+                regime_id=regime_snapshot.active_regime.regime_id,
+                abstract_action="discovered_family_0",
+                action_family_version=4,
+                sample_count=3,
+                rolling_payoff=0.44,
+                latest_outcome=0.46,
+                last_source_wave_id="wave-3",
+            ),
+        ),
+        identity_hints=regime_snapshot.identity_hints,
+    )
+    evaluation_snapshot = type(
+        asyncio.run(
+            EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+                session_id="s-compete",
+                wave_id="w-compete",
+                timestamp_ms=10,
+            )
+        ).value
+    )(
+        turn_scores=(
+            EvaluationScore("abstraction", "action_family_monopoly_pressure", 0.82, 0.6, "dominant family pressure"),
+            EvaluationScore("abstraction", "action_family_turnover_health", 0.22, 0.6, "low turnover"),
+            EvaluationScore("abstraction", "action_family_collapse_risk", 0.78, 0.6, "collapse risk high"),
+        ),
+        session_scores=(),
+        alerts=("HIGH: action-family collapse risk is elevated",),
+        description="competition pressure snapshot",
+    )
+
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            evaluation_snapshot=evaluation_snapshot,
+            regime_snapshot=regime_snapshot,
+            timestamp_ms=93,
+        )
+    ).value
+
+    temporal_update = reflection_snapshot.policy_consolidation.temporal_prior_update
+    assert temporal_update is not None
+    assert "reduce_action_family_monopoly" in reflection_snapshot.policy_consolidation.controller_updates
+    assert "prevent_action_family_collapse" in reflection_snapshot.policy_consolidation.controller_updates
+    assert "action-families" in temporal_update.target_groups

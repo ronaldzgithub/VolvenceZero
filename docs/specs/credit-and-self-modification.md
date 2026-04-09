@@ -36,6 +36,13 @@
 | 长期 | 信任、能力、用户特定适应的增长 | background-slow | NL 多层嵌套结构 |
 | 抽象动作 | 时间扩展策略的成功/失败 | session ~ background | ETA Internal RL |
 
+当前实现口径补充：
+
+- delayed credit 已不再只停留在 regime 名称：当前 `regime` owner 会发布带 `source_wave_id`、`source_turn_index`、`abstract_action`、`action_family_version` 的 delayed attribution
+- `credit` owner 当前会把 delayed regime / delayed abstract action 转成 session-level 与 abstract-action-level `CreditRecord`
+- 当前 delayed path 已扩成 multi-step ledger：`credit` owner 不只读取本轮 freshly-resolved attribution，也读取 regime owner 发布的 rolling payoff summary，以支持更长时间跨度的 credit accumulation
+- background self-modification 当前不再只做数值调参：在 gate 允许时，slow reflection 可发出 bounded structural temporal proposal（`merge` / `split` / `prune`），仍受 target-specific gate 和可回滚审计约束
+
 ### Internal RL 时间抽象信用分配（ETA 附录 B.5）
 
 通过时间抽象将有效时间范围从 token 级压缩到抽象动作级。每个抽象动作对应一段完整的子目标执行，奖励可直接归因到抽象动作级别。

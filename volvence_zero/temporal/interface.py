@@ -8,11 +8,13 @@ from hashlib import sha256
 from typing import Any, Mapping
 
 from volvence_zero.memory import MemorySnapshot, Track
-from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate
+from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 from volvence_zero.temporal.metacontroller_components import (
+    ActionFamilyObservation,
     DecoderControl,
+    DiscoveredActionFamily,
     EncodedSequence,
     NdimResidualDecoder,
     NdimSequenceEncoder,
@@ -22,7 +24,7 @@ from volvence_zero.temporal.metacontroller_components import (
     SequenceEncoder,
     SwitchGateDecision,
     SwitchUnit,
-    classify_latent_action,
+    discover_latent_action_family,
     residual_sequence_from_snapshot,
     summarize_feature_surface,
     summarize_residual_activations,
@@ -52,6 +54,7 @@ class TemporalAbstractionSnapshot:
     active_abstract_action: str
     controller_params_hash: str
     description: str
+    action_family_version: int = 0
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ class TemporalStep:
     active_abstract_action: str
     controller_params_hash: str
     description: str
+    action_family_version: int = 0
 
 
 @dataclass(frozen=True)
@@ -107,7 +111,31 @@ class MetacontrollerRuntimeState:
     mean_persistence_window: float = 0.0
     decoder_applied_control: tuple[float, ...] = ()
     policy_replacement_score: float = 0.0
+    structure_frozen: bool = False
+    learning_phase: str = "runtime"
+    action_family_version: int = 0
+    action_family_summaries: tuple["ActionFamilyPublicSummary", ...] = ()
+    active_family_summary: "ActionFamilyPublicSummary | None" = None
+    active_family_competition_score: float = 0.0
+    action_family_monopoly_pressure: float = 0.0
+    action_family_turnover_health: float = 0.0
     description: str = ""
+
+
+@dataclass(frozen=True)
+class ActionFamilyPublicSummary:
+    family_id: str
+    dominant_axis: str
+    support: int
+    stability: float
+    switch_bias: float
+    mean_posterior_drift: float
+    mean_persistence_window: float
+    reuse_streak: int
+    stagnation_pressure: float
+    monopoly_pressure: float
+    competition_score: float
+    summary: str
 
 
 @dataclass(frozen=True)
@@ -146,6 +174,10 @@ class MetacontrollerParameterSnapshot:
     mean_persistence_window: float
     decoder_applied_control: tuple[float, ...]
     policy_replacement_score: float
+    action_families: tuple[DiscoveredActionFamily, ...] = ()
+    structure_frozen: bool = False
+    learning_phase: str = "runtime"
+    action_family_version: int = 0
 
 
 class MetacontrollerParameterStore:
@@ -181,12 +213,7 @@ class MetacontrollerParameterStore:
                 (0.20, 0.60, 0.20),
                 (0.15, 0.25, 0.60),
             )
-            self.latent_prototypes: tuple[tuple[str, tuple[float, ...]], ...] = (
-                ("repair_controller", (0.20, 0.80, 0.65)),
-                ("task_controller", (0.80, 0.25, 0.30)),
-                ("exploration_controller", (0.45, 0.45, 0.70)),
-                ("stabilize_controller", (0.40, 0.35, 0.25)),
-            )
+            self.action_families: tuple[DiscoveredActionFamily, ...] = _init_action_families(n_z, seed=105)
             self.track_weights: dict[Track, tuple[float, float, float]] = {
                 Track.WORLD: (0.70, 0.20, 0.10),
                 Track.SELF: (0.20, 0.70, 0.10),
@@ -198,7 +225,7 @@ class MetacontrollerParameterStore:
             self.switch_weights = _random_vec(n_z, seed=102)
             self.decoder_matrix = _random_mat(n_z, n_z, seed=103)
             self.decoder_hidden = _random_mat(n_z, n_z, seed=104)
-            self.latent_prototypes = _init_prototypes(n_z, seed=105)
+            self.action_families = _init_action_families(n_z, seed=105)
             self.track_weights = _init_track_weights(n_z, seed=106)
         self.beta_threshold = 0.55
         self.persistence = 0.65
@@ -216,7 +243,7 @@ class MetacontrollerParameterStore:
         self.latest_sequence_length = 0
         self.latest_ssl_loss = 0.0
         self.latest_ssl_kl_loss = 0.0
-        self.latest_active_label = "stabilize_controller"
+        self.latest_active_label = "unassigned_action"
         self.latest_prior_mean: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_prior_std: tuple[float, ...] = _nz_ones(n_z)
         self.latest_posterior_mean: tuple[float, ...] = _nz_zeros(n_z)
@@ -231,10 +258,17 @@ class MetacontrollerParameterStore:
         self.latest_mean_persistence_window = 0.0
         self.latest_decoder_applied_control: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_policy_replacement_score = 0.0
+        self.structure_frozen = False
+        self.learning_phase = "runtime"
+        self._action_family_version = 0
 
     @property
     def n_z(self) -> int:
         return self._n_z
+
+    @property
+    def action_family_version(self) -> int:
+        return self._action_family_version
 
     def export_temporal_parameters(self) -> TemporalControllerParameters:
         return TemporalControllerParameters(
@@ -245,6 +279,22 @@ class MetacontrollerParameterStore:
         )
 
     def export_runtime_state(self, *, mode: str) -> MetacontrollerRuntimeState:
+        action_family_summaries = self._public_action_family_summaries()
+        active_family_summary = next(
+            (summary for summary in action_family_summaries if summary.family_id == self.latest_active_label),
+            None,
+        )
+        active_family_competition_score = (
+            active_family_summary.competition_score
+            if active_family_summary is not None
+            else 0.0
+        )
+        action_family_monopoly_pressure = (
+            active_family_summary.monopoly_pressure
+            if active_family_summary is not None
+            else 0.0
+        )
+        action_family_turnover_health = self._action_family_turnover_health(action_family_summaries)
         return MetacontrollerRuntimeState(
             mode=mode,
             temporal_parameters=self.export_temporal_parameters(),
@@ -287,10 +337,21 @@ class MetacontrollerParameterStore:
             mean_persistence_window=self.latest_mean_persistence_window,
             decoder_applied_control=self.latest_decoder_applied_control,
             policy_replacement_score=self.latest_policy_replacement_score,
+            structure_frozen=self.structure_frozen,
+            learning_phase=self.learning_phase,
+            action_family_version=self._action_family_version,
+            action_family_summaries=action_family_summaries,
+            active_family_summary=active_family_summary,
+            active_family_competition_score=active_family_competition_score,
+            action_family_monopoly_pressure=action_family_monopoly_pressure,
+            action_family_turnover_health=action_family_turnover_health,
             description=(
                 f"Metacontroller runtime state mode={mode}, active_label={self.latest_active_label}, "
                 f"switch_bias={self.switch_bias:.2f}, persistence={self.persistence:.2f}, "
                 f"beta_binary={self.latest_beta_binary}, seq_len={self.latest_sequence_length}, "
+                f"family_version={self._action_family_version}, family_count={len(action_family_summaries)}, "
+                f"competition={active_family_competition_score:.2f}, monopoly={action_family_monopoly_pressure:.2f}, "
+                f"phase={self.learning_phase}, structure_frozen={self.structure_frozen}, "
                 f"ssl_loss={self.latest_ssl_loss:.3f}."
             ),
         )
@@ -337,6 +398,10 @@ class MetacontrollerParameterStore:
             mean_persistence_window=self.latest_mean_persistence_window,
             decoder_applied_control=self.latest_decoder_applied_control,
             policy_replacement_score=self.latest_policy_replacement_score,
+            action_families=self.action_families,
+            structure_frozen=self.structure_frozen,
+            learning_phase=self.learning_phase,
+            action_family_version=self._action_family_version,
         )
 
     def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
@@ -383,6 +448,10 @@ class MetacontrollerParameterStore:
         self.latest_mean_persistence_window = snapshot.mean_persistence_window
         self.latest_decoder_applied_control = snapshot.decoder_applied_control
         self.latest_policy_replacement_score = snapshot.policy_replacement_score
+        self.action_families = snapshot.action_families
+        self.structure_frozen = snapshot.structure_frozen
+        self.learning_phase = snapshot.learning_phase
+        self._action_family_version = snapshot.action_family_version
 
     def record_runtime_observation(
         self,
@@ -439,6 +508,81 @@ class MetacontrollerParameterStore:
         self.latest_ssl_loss = total_loss
         self.latest_ssl_kl_loss = kl_loss
 
+    def set_learning_phase(self, phase: str, *, structure_frozen: bool | None = None) -> None:
+        self.learning_phase = phase
+        if structure_frozen is not None:
+            self.structure_frozen = structure_frozen
+
+    def _public_action_family_summaries(self) -> tuple[ActionFamilyPublicSummary, ...]:
+        return tuple(
+            ActionFamilyPublicSummary(
+                family_id=family.family_id,
+                dominant_axis=_family_dominant_axis(family.decoder_centroid),
+                support=family.support,
+                stability=family.stability,
+                switch_bias=family.switch_bias,
+                mean_posterior_drift=family.mean_posterior_drift,
+                mean_persistence_window=family.mean_persistence_window,
+                reuse_streak=family.reuse_streak,
+                stagnation_pressure=family.stagnation_pressure,
+                monopoly_pressure=family.monopoly_pressure,
+                competition_score=family.competition_score,
+                summary=family.summary,
+            )
+            for family in self.action_families
+        )
+
+    def _action_family_turnover_health(
+        self,
+        action_family_summaries: tuple[ActionFamilyPublicSummary, ...],
+    ) -> float:
+        if not action_family_summaries:
+            return 0.0
+        average_competition = sum(summary.competition_score for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        average_stagnation = sum(summary.stagnation_pressure for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        average_monopoly = sum(summary.monopoly_pressure for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        diversity = _clamp(len(action_family_summaries) / 4.0)
+        return _clamp(
+            average_competition * 0.35
+            + diversity * 0.30
+            + (1.0 - average_stagnation) * 0.20
+            + (1.0 - average_monopoly) * 0.15
+        )
+
+    def discover_action_family(
+        self,
+        *,
+        latent_code: tuple[float, ...],
+        decoder_control: tuple[float, ...],
+        switch_gate: float,
+        posterior_drift: float = 0.0,
+        persistence_window: float = 0.0,
+    ) -> tuple[str, str]:
+        observation = ActionFamilyObservation(
+            latent_code=latent_code,
+            decoder_control=decoder_control,
+            switch_gate=switch_gate,
+            posterior_drift=posterior_drift,
+            persistence_window=persistence_window,
+        )
+        previous_families = self.action_families
+        self.action_families, active_label, family_summary = discover_latent_action_family(
+            observation=observation,
+            action_families=self.action_families,
+            structure_frozen=self.structure_frozen,
+            allow_topology_maintenance=self.learning_phase.startswith("ssl") or not self.action_families,
+        )
+        if self.action_families != previous_families:
+            self._action_family_version += 1
+        self.latest_active_label = active_label
+        return (active_label, family_summary)
+
     def fit_temporal_from_signals(
         self,
         *,
@@ -453,27 +597,105 @@ class MetacontrollerParameterStore:
             "reflection": reflection_strength / total,
         }
 
-    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
-        current = dict(self.temporal_weights)
-        blended_residual = _clamp(current["residual"] * 0.75 + update.residual_strength * 0.25)
-        blended_memory = _clamp(current["memory"] * 0.75 + update.memory_strength * 0.25)
-        blended_reflection = _clamp(current["reflection"] * 0.75 + update.reflection_strength * 0.25)
-        self.fit_temporal_from_signals(
-            residual_strength=blended_residual,
-            memory_strength=blended_memory,
-            reflection_strength=blended_reflection,
-        )
-        self.switch_bias = _clamp(self.switch_bias + update.switch_bias_delta)
-        self.persistence = _clamp(self.persistence + update.persistence_delta)
-        self.learning_rate = _clamp(self.learning_rate + update.learning_rate_delta)
-        return (
-            f"temporal-prior:residual={self.temporal_weights['residual']:.3f}",
-            f"temporal-prior:memory={self.temporal_weights['memory']:.3f}",
-            f"temporal-prior:reflection={self.temporal_weights['reflection']:.3f}",
-            f"temporal-prior:switch-bias={self.switch_bias:.3f}",
-            f"temporal-prior:persistence={self.persistence:.3f}",
-            f"temporal-prior:learning-rate={self.learning_rate:.3f}",
-        )
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        active_groups = set(allowed_target_groups or update.target_groups or ("base-weights",))
+        operations: list[str] = []
+        if "base-weights" in active_groups:
+            current = dict(self.temporal_weights)
+            blended_residual = _clamp(current["residual"] * 0.75 + update.residual_strength * 0.25)
+            blended_memory = _clamp(current["memory"] * 0.75 + update.memory_strength * 0.25)
+            blended_reflection = _clamp(current["reflection"] * 0.75 + update.reflection_strength * 0.25)
+            self.fit_temporal_from_signals(
+                residual_strength=blended_residual,
+                memory_strength=blended_memory,
+                reflection_strength=blended_reflection,
+            )
+            operations.extend(
+                (
+                    f"temporal-prior:residual={self.temporal_weights['residual']:.3f}",
+                    f"temporal-prior:memory={self.temporal_weights['memory']:.3f}",
+                    f"temporal-prior:reflection={self.temporal_weights['reflection']:.3f}",
+                )
+            )
+        if "switch" in active_groups:
+            self.switch_bias = _clamp(self.switch_bias + update.switch_bias_delta)
+            operations.append(f"temporal-prior:switch-bias={self.switch_bias:.3f}")
+        if "persistence" in active_groups:
+            self.persistence = _clamp(self.persistence + update.persistence_delta)
+            operations.append(f"temporal-prior:persistence={self.persistence:.3f}")
+        if "learning-rate" in active_groups:
+            self.learning_rate = _clamp(self.learning_rate + update.learning_rate_delta)
+            operations.append(f"temporal-prior:learning-rate={self.learning_rate:.3f}")
+        if "beta-threshold" in active_groups:
+            self.beta_threshold = _clamp(self.beta_threshold + update.beta_threshold_delta)
+            operations.append(f"temporal-prior:beta-threshold={self.beta_threshold:.3f}")
+        if "encoder" in active_groups:
+            self.encoder_weights = _scale_matrix(self.encoder_weights, update.encoder_strength_delta)
+            self.encoder_recurrence = _scale_matrix(self.encoder_recurrence, update.encoder_strength_delta * 0.75)
+            operations.append(f"temporal-prior:encoder={update.encoder_strength_delta:.3f}")
+        if "decoder" in active_groups:
+            self.decoder_matrix = _scale_matrix(self.decoder_matrix, update.decoder_strength_delta)
+            self.decoder_hidden = _scale_matrix(self.decoder_hidden, update.decoder_strength_delta * 0.75)
+            operations.append(f"temporal-prior:decoder={update.decoder_strength_delta:.3f}")
+        if "track-world" in active_groups:
+            self.track_weights[Track.WORLD] = _blend_track_weights(
+                self.track_weights[Track.WORLD],
+                self.latest_decoder_applied_control or self.latest_latent_mean,
+                delta=update.world_track_delta,
+            )
+            operations.append(f"temporal-prior:track-world={update.world_track_delta:.3f}")
+        if "track-self" in active_groups:
+            self.track_weights[Track.SELF] = _blend_track_weights(
+                self.track_weights[Track.SELF],
+                self.latest_posterior_mean or self.latest_latent_mean,
+                delta=update.self_track_delta,
+            )
+            operations.append(f"temporal-prior:track-self={update.self_track_delta:.3f}")
+        if "track-shared" in active_groups:
+            shared_anchor = tuple(
+                (
+                    (self.latest_decoder_applied_control[i] if i < len(self.latest_decoder_applied_control) else 0.0)
+                    + (self.latest_posterior_mean[i] if i < len(self.latest_posterior_mean) else 0.0)
+                )
+                / 2.0
+                for i in range(self._n_z)
+            )
+            self.track_weights[Track.SHARED] = _blend_track_weights(
+                self.track_weights[Track.SHARED],
+                shared_anchor,
+                delta=update.shared_track_delta,
+            )
+            operations.append(f"temporal-prior:track-shared={update.shared_track_delta:.3f}")
+        if "action-families" in active_groups:
+            self.action_families = tuple(
+                DiscoveredActionFamily(
+                    family_id=family.family_id,
+                    latent_centroid=family.latent_centroid,
+                    decoder_centroid=family.decoder_centroid,
+                    support=family.support,
+                    stability=_clamp(family.stability + update.family_stability_delta),
+                    switch_bias=_clamp(family.switch_bias + update.beta_threshold_delta),
+                    summary=family.summary,
+                )
+                for family in self.action_families
+            )
+            self._action_family_version += 1
+            operations.append(f"temporal-prior:action-families={update.family_stability_delta:.3f}")
+        if "action-family-structure" in active_groups and update.structure_proposals:
+            before_families = self.action_families
+            self.action_families, structure_ops = _apply_action_family_structure_proposals(
+                action_families=self.action_families,
+                proposals=update.structure_proposals,
+            )
+            if self.action_families != before_families:
+                self._action_family_version += 1
+            operations.extend(structure_ops)
+        return tuple(operations)
 
     def align_temporal_from_tracks(self) -> None:
         world_weights = self.track_weights[Track.WORLD]
@@ -494,6 +716,218 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _scale_matrix(
+    matrix: tuple[tuple[float, ...], ...],
+    delta: float,
+) -> tuple[tuple[float, ...], ...]:
+    factor = 1.0 + delta * 0.18
+    return tuple(
+        tuple(max(-1.0, min(1.0, value * factor)) for value in row)
+        for row in matrix
+    )
+
+
+def _normalize_vector(values: tuple[float, ...]) -> tuple[float, ...]:
+    total = sum(max(value, 0.0) for value in values)
+    if total <= 1e-9:
+        return tuple(1.0 / len(values) for _ in values) if values else ()
+    return tuple(max(value, 0.0) / total for value in values)
+
+
+def _blend_track_weights(
+    current: tuple[float, ...],
+    anchor: tuple[float, ...],
+    *,
+    delta: float,
+) -> tuple[float, ...]:
+    if not current:
+        return current
+    normalized_anchor = _normalize_vector(
+        tuple(anchor[index] if index < len(anchor) else 0.0 for index in range(len(current)))
+    )
+    blend = min(max(abs(delta), 0.0), 0.25)
+    if delta < 0.0:
+        normalized_anchor = tuple(1.0 / len(current) for _ in current)
+    return _normalize_vector(
+        tuple(
+            current[index] * (1.0 - blend) + normalized_anchor[index] * blend
+            for index in range(len(current))
+        )
+    )
+
+
+def _family_dominant_axis(values: tuple[float, ...]) -> str:
+    if not values:
+        return "unknown"
+    index = max(range(len(values)), key=lambda i: values[i])
+    if index == 0:
+        return "world"
+    if index == 1:
+        return "self"
+    return "shared"
+
+
+def _blend_family_centroid(
+    left: tuple[float, ...],
+    right: tuple[float, ...],
+    *,
+    left_weight: float,
+    right_weight: float,
+) -> tuple[float, ...]:
+    total = max(left_weight + right_weight, 1e-6)
+    return tuple(
+        _clamp((l_value * left_weight + r_value * right_weight) / total)
+        for l_value, r_value in zip(left, right, strict=True)
+    )
+
+
+def _refresh_family_summary(family: DiscoveredActionFamily, *, prefix: str) -> DiscoveredActionFamily:
+    return DiscoveredActionFamily(
+        family_id=family.family_id,
+        latent_centroid=family.latent_centroid,
+        decoder_centroid=family.decoder_centroid,
+        support=family.support,
+        stability=family.stability,
+        switch_bias=family.switch_bias,
+        mean_posterior_drift=family.mean_posterior_drift,
+        mean_persistence_window=family.mean_persistence_window,
+        summary=(
+            f"{prefix} dominant_axis={_family_dominant_axis(family.decoder_centroid)} "
+            f"support={family.support} stability={family.stability:.3f}"
+        ),
+    )
+
+
+def _tilt_family_centroid(
+    centroid: tuple[float, ...],
+    *,
+    axis: str,
+    amount: float = 0.12,
+) -> tuple[float, ...]:
+    if not centroid:
+        return centroid
+    axis_index = 0 if axis == "world" else 1 if axis == "self" else 2
+    updated = list(centroid)
+    updated[axis_index] = _clamp(updated[axis_index] + amount)
+    for index in range(len(updated)):
+        if index != axis_index:
+            updated[index] = _clamp(updated[index] - amount * 0.5)
+    return tuple(updated)
+
+
+def _next_family_id(action_families: tuple[DiscoveredActionFamily, ...]) -> str:
+    next_index = max(
+        (
+            int(family.family_id.rsplit("_", 1)[-1])
+            for family in action_families
+            if family.family_id.rsplit("_", 1)[-1].isdigit()
+        ),
+        default=-1,
+    ) + 1
+    return f"discovered_family_{next_index}"
+
+
+def _apply_action_family_structure_proposals(
+    *,
+    action_families: tuple[DiscoveredActionFamily, ...],
+    proposals: tuple[TemporalStructureProposal, ...],
+) -> tuple[tuple[DiscoveredActionFamily, ...], tuple[str, ...]]:
+    families = list(action_families)
+    operations: list[str] = []
+    for proposal in proposals:
+        index_by_id = {family.family_id: index for index, family in enumerate(families)}
+        if proposal.proposal_type == "prune":
+            index = index_by_id.get(proposal.family_id)
+            if index is None or len(families) <= 1:
+                continue
+            families.pop(index)
+            operations.append(f"temporal-prior:action-family-prune={proposal.family_id}")
+            continue
+        if proposal.proposal_type == "merge":
+            left_index = index_by_id.get(proposal.family_id)
+            right_index = index_by_id.get(proposal.related_family_id or "")
+            if left_index is None or right_index is None or left_index == right_index:
+                continue
+            left = families[left_index]
+            right = families[right_index]
+            merged = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=left.family_id,
+                    latent_centroid=_blend_family_centroid(
+                        left.latent_centroid,
+                        right.latent_centroid,
+                        left_weight=float(left.support),
+                        right_weight=float(right.support),
+                    ),
+                    decoder_centroid=_blend_family_centroid(
+                        left.decoder_centroid,
+                        right.decoder_centroid,
+                        left_weight=float(left.support),
+                        right_weight=float(right.support),
+                    ),
+                    support=left.support + right.support,
+                    stability=_clamp((left.stability + right.stability) / 2.0),
+                    switch_bias=_clamp((left.switch_bias + right.switch_bias) / 2.0),
+                    mean_posterior_drift=_clamp(
+                        (left.mean_posterior_drift + right.mean_posterior_drift) / 2.0
+                    ),
+                    mean_persistence_window=_clamp(
+                        (left.mean_persistence_window + right.mean_persistence_window) / 2.0
+                    ),
+                ),
+                prefix=f"reflect-merge:{left.family_id}+{right.family_id}",
+            )
+            primary_index = min(left_index, right_index)
+            secondary_index = max(left_index, right_index)
+            families[primary_index] = merged
+            families.pop(secondary_index)
+            operations.append(
+                f"temporal-prior:action-family-merge={proposal.family_id}+{proposal.related_family_id}"
+            )
+            continue
+        if proposal.proposal_type == "split":
+            index = index_by_id.get(proposal.family_id)
+            if index is None:
+                continue
+            family = families[index]
+            child_id = _next_family_id(tuple(families))
+            child = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=child_id,
+                    latent_centroid=_tilt_family_centroid(
+                        family.latent_centroid,
+                        axis=_family_dominant_axis(family.decoder_centroid),
+                    ),
+                    decoder_centroid=_tilt_family_centroid(
+                        family.decoder_centroid,
+                        axis=_family_dominant_axis(family.decoder_centroid),
+                    ),
+                    support=max(1, family.support // 2),
+                    stability=_clamp(family.stability * 0.85),
+                    switch_bias=family.switch_bias,
+                    mean_posterior_drift=_clamp(family.mean_posterior_drift + 0.08),
+                    mean_persistence_window=_clamp(max(family.mean_persistence_window - 0.1, 0.0)),
+                ),
+                prefix=f"reflect-split:{proposal.family_id}",
+            )
+            families[index] = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=family.family_id,
+                    latent_centroid=family.latent_centroid,
+                    decoder_centroid=family.decoder_centroid,
+                    support=max(1, family.support - child.support),
+                    stability=_clamp(family.stability * 0.92),
+                    switch_bias=family.switch_bias,
+                    mean_posterior_drift=family.mean_posterior_drift,
+                    mean_persistence_window=family.mean_persistence_window,
+                ),
+                prefix=f"reflect-split-parent:{proposal.family_id}",
+            )
+            families.append(child)
+            operations.append(f"temporal-prior:action-family-split={proposal.family_id}->{child_id}")
+    return (tuple(families), tuple(operations))
+
+
 def _random_mat(rows: int, cols: int, *, seed: int) -> tuple[tuple[float, ...], ...]:
     """Deterministic random matrix for n_z > 3 initialization."""
     import random as _rng
@@ -511,14 +945,10 @@ def _random_vec(n: int, *, seed: int) -> tuple[float, ...]:
     return tuple(r.gauss(0.0, 0.1) for _ in range(n))
 
 
-def _init_prototypes(n_z: int, *, seed: int) -> tuple[tuple[str, tuple[float, ...]], ...]:
-    import random as _rng
-    r = _rng.Random(seed)
-    labels = ("repair_controller", "task_controller", "exploration_controller", "stabilize_controller")
-    return tuple(
-        (label, tuple(abs(r.gauss(0.4, 0.2)) for _ in range(n_z)))
-        for label in labels
-    )
+def _init_action_families(n_z: int, *, seed: int) -> tuple[DiscoveredActionFamily, ...]:
+    del n_z
+    del seed
+    return ()
 
 
 def _init_track_weights(n_z: int, *, seed: int) -> dict:
@@ -620,8 +1050,14 @@ class TemporalPolicy(ABC):
     def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
         return None
 
-    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
         del update
+        del allowed_target_groups
         return ()
 
 
@@ -659,6 +1095,7 @@ class PlaceholderTemporalPolicy(TemporalPolicy):
             active_abstract_action="placeholder-controller",
             controller_params_hash=params_hash,
             description="Placeholder temporal controller with no active switching.",
+            action_family_version=0,
         )
 
 
@@ -719,6 +1156,7 @@ class HeuristicTemporalPolicy(TemporalPolicy):
                 f"Heuristic temporal controller mode={self.mode.value}, "
                 f"switch_gate={switch_gate:.2f}, feature_signature={signature_suffix}."
             ),
+            action_family_version=0,
         )
         self._previous_feature_signature = feature_signature
         return step
@@ -761,8 +1199,16 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
             reflection_strength=reflection_strength,
         )
 
-    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
-        return self._parameter_store.apply_reflection_prior_update(update=update)
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(
+            update=update,
+            allowed_target_groups=allowed_target_groups,
+        )
 
     def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
         self._parameter_store.restore_parameter_snapshot(snapshot)
@@ -848,6 +1294,7 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
             active_abstract_action=f"{active_action}:learned-lite",
             controller_params_hash=params_hash,
             description=description,
+            action_family_version=0,
         )
 
 
@@ -902,8 +1349,16 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             reflection_strength=reflection_strength,
         )
 
-    def apply_reflection_prior_update(self, *, update: TemporalPriorUpdate) -> tuple[str, ...]:
-        return self._parameter_store.apply_reflection_prior_update(update=update)
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(
+            update=update,
+            allowed_target_groups=allowed_target_groups,
+        )
 
     def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
         self._parameter_store.restore_parameter_snapshot(snapshot)
@@ -1051,12 +1506,14 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             for i in range(n_z)
         )
         decoder_control = self._ndim_decoder.decode(latent_code=latent_code)
-        active_label, decoder_summary = classify_latent_action(
+        is_switching_scalar = scalar_beta >= 0.55
+        active_label, decoder_summary = self._parameter_store.discover_action_family(
             latent_code=latent_code,
             decoder_control=decoder_control.applied_control,
-            prototypes=self._parameter_store.latent_prototypes,
+            switch_gate=scalar_beta,
+            posterior_drift=encoded.posterior.posterior_drift,
+            persistence_window=0.0 if is_switching_scalar else float(previous_steps + 1),
         )
-        is_switching_scalar = scalar_beta >= 0.55
         beta_binary_int = 1 if is_switching_scalar else 0
         steps_since_switch = 0 if is_switching_scalar else previous_steps + 1
         self._parameter_store.record_runtime_observation(
@@ -1108,6 +1565,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_abstract_action=active_label,
             controller_params_hash=params_hash,
             description=description,
+            action_family_version=self._parameter_store.action_family_version,
         )
 
     def _step_impl_legacy(
@@ -1161,10 +1619,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             decoder_matrix=self._parameter_store.decoder_matrix,
             hidden_matrix=self._parameter_store.decoder_hidden,
         )
-        active_label, decoder_summary = classify_latent_action(
+        active_label, decoder_summary = self._parameter_store.discover_action_family(
             latent_code=latent_code,
             decoder_control=decoder_control.applied_control,
-            prototypes=self._parameter_store.latent_prototypes,
+            switch_gate=effective_switch_gate,
+            posterior_drift=encoded.posterior.posterior_drift,
+            persistence_window=switch_decision.mean_persistence_window,
         )
         is_switching = bool(switch_decision.beta_binary)
         steps_since_switch = 0 if is_switching else previous_steps + 1
@@ -1224,6 +1684,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_abstract_action=active_label,
             controller_params_hash=params_hash,
             description=description,
+            action_family_version=self._parameter_store.action_family_version,
         )
 
 
@@ -1293,6 +1754,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             active_abstract_action=step.active_abstract_action,
             controller_params_hash=step.controller_params_hash,
             description=step.description,
+            action_family_version=step.action_family_version,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -1316,6 +1778,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             active_abstract_action=step.active_abstract_action,
             controller_params_hash=step.controller_params_hash,
             description=step.description,
+            action_family_version=step.action_family_version,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)

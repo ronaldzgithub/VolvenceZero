@@ -126,6 +126,7 @@ class SSLRLTrainingPipeline:
         self._ssl_trainer = MetacontrollerSSLTrainer(n_z=n_z)
         self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore(dim=n_z))
         self._phase = TrainingPhase.SSL
+        self._policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         self._ssl_loss_history: list[float] = []
         self._ssl_kl_history: list[float] = []
         self._rl_reward_history: list[float] = []
@@ -211,6 +212,7 @@ class SSLRLTrainingPipeline:
         )
 
     def _run_ssl_step(self, *, step_index: int, trace: TrainingTrace) -> PhaseReport:
+        self._policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
         self._ssl_loss_history.append(report.total_loss)
         self._ssl_kl_history.append(report.kl_loss)
@@ -247,6 +249,7 @@ class SSLRLTrainingPipeline:
         step_index: int,
         substrates: tuple[SubstrateSnapshot, ...],
     ) -> PhaseReport:
+        self._policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
         replacement_mode = "causal-binary" if self._config.binary_gate_rl else "causal"
         dual_rollout = self._sandbox.rollout_dual_track(
             rollout_id=f"pipeline-rl-{step_index}",

@@ -2,8 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.internal_rl import InternalRLEnvironment, InternalRLSandbox, derive_abstract_action_credit
+from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
+from volvence_zero.internal_rl import (
+    DualTrackOptimizationReport,
+    InternalRLEnvironment,
+    InternalRLSandbox,
+    OptimizationReport,
+    derive_abstract_action_credit,
+)
 from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule, PipelineConfig, SSLRLTrainingPipeline
+from volvence_zero.memory import Track
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
     ResidualSequenceStep,
@@ -144,6 +152,9 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.owner_path == "online-joint-loop"
     assert report.cms_description
     assert after != before
+    assert report.metacontroller_state.active_label.startswith("discovered_family_")
+    assert report.metacontroller_state.structure_frozen is True
+    assert report.metacontroller_state.learning_phase == "rl-online"
     assert any(operation.startswith("temporal-prior:") for operation in report.applied_operations)
 
 
@@ -159,6 +170,75 @@ def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
     assert "reward-regression" in report.rollback_reasons
     assert "ssl-rollback" in report.applied_operations
     assert "policy-rollback" in report.applied_operations
+
+
+def test_eta_nl_joint_loop_detects_surrogate_outcome_decoupling():
+    loop = ETANLJointLoop()
+    reasons = loop._rollback_reasons(
+        total_reward=0.05,
+        evaluation_snapshot=EvaluationSnapshot(
+            turn_scores=(
+                EvaluationScore(family="task", metric_name="task_pressure", value=0.20, confidence=0.6, evidence="low task"),
+                EvaluationScore(
+                    family="relationship",
+                    metric_name="cross_track_stability",
+                    value=0.25,
+                    confidence=0.6,
+                    evidence="low relationship",
+                ),
+                EvaluationScore(
+                    family="learning",
+                    metric_name="joint_learning_progress",
+                    value=0.35,
+                    confidence=0.6,
+                    evidence="weak learning",
+                ),
+                EvaluationScore(
+                    family="abstraction",
+                    metric_name="abstract_action_usefulness",
+                    value=0.30,
+                    confidence=0.6,
+                    evidence="weak abstraction",
+                ),
+                EvaluationScore(
+                    family="safety",
+                    metric_name="contract_integrity",
+                    value=1.0,
+                    confidence=0.9,
+                    evidence="safe",
+                ),
+            ),
+            session_scores=(),
+            alerts=(),
+            description="low outcome alignment snapshot",
+        ),
+        optimization_report=DualTrackOptimizationReport(
+            task_report=OptimizationReport(
+                track=Track.WORLD,
+                average_reward=0.4,
+                baseline_reward=0.1,
+                mean_advantage=0.3,
+                surrogate_objective=0.22,
+                clip_fraction=0.0,
+                kl_penalty=0.05,
+                parameter_summary="task positive surrogate",
+            ),
+            relationship_report=OptimizationReport(
+                track=Track.SELF,
+                average_reward=0.35,
+                baseline_reward=0.1,
+                mean_advantage=0.25,
+                surrogate_objective=0.18,
+                clip_fraction=0.0,
+                kl_penalty=0.05,
+                parameter_summary="relationship positive surrogate",
+            ),
+            description="positive surrogate but weak outcomes",
+        ),
+        metacontroller_state=None,
+    )
+
+    assert "surrogate-outcome-decoupling" in reasons
 
 
 def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
@@ -184,6 +264,8 @@ def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
     assert ssl_only.cycle_report is None
     assert ssl_only.metacontroller_state is not None
     assert ssl_only.owner_path == "online-joint-loop"
+    assert ssl_only.metacontroller_state.learning_phase == "ssl"
+    assert ssl_only.metacontroller_state.structure_frozen is False
     assert dict(ssl_only.schedule_telemetry)["ssl_due"] == 1
     assert dict(ssl_only.schedule_telemetry)["rl_due"] == 0
     assert full_cycle.schedule_action == "full-cycle"

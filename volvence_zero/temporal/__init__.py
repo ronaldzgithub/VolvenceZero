@@ -1,4 +1,5 @@
 from volvence_zero.temporal.interface import (
+    ActionFamilyPublicSummary,
     ControllerState,
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
@@ -51,6 +52,7 @@ __all__ = [
     "M3Optimizer",
     "M3OptimizerState",
     "Mat",
+    "ActionFamilyPublicSummary",
     "MetacontrollerParameterStore",
     "MetacontrollerParameterSnapshot",
     "MetacontrollerRuntimeState",

@@ -45,8 +45,18 @@ class PolicyConsolidation:
 
 
 @dataclass(frozen=True)
+class TemporalStructureProposal:
+    proposal_type: str
+    family_id: str
+    related_family_id: str | None
+    confidence: float
+    justification: str
+
+
+@dataclass(frozen=True)
 class TemporalPriorUpdate:
     target: str
+    target_groups: tuple[str, ...]
     residual_strength: float
     memory_strength: float
     reflection_strength: float
@@ -54,6 +64,14 @@ class TemporalPriorUpdate:
     persistence_delta: float
     learning_rate_delta: float
     description: str
+    encoder_strength_delta: float = 0.0
+    decoder_strength_delta: float = 0.0
+    world_track_delta: float = 0.0
+    self_track_delta: float = 0.0
+    shared_track_delta: float = 0.0
+    beta_threshold_delta: float = 0.0
+    family_stability_delta: float = 0.0
+    structure_proposals: tuple[TemporalStructureProposal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -357,6 +375,23 @@ class ReflectionEngine:
         cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot is not None else 0.0
         world_tension = dual_track_snapshot.world_track.tension_level if dual_track_snapshot is not None else 0.0
         self_tension = dual_track_snapshot.self_track.tension_level if dual_track_snapshot is not None else 0.0
+        task_pressure = world_tension
+        support_presence = self_tension
+        family_monopoly_pressure = _metric(
+            evaluation_snapshot,
+            "action_family_monopoly_pressure",
+            default=0.0,
+        )
+        family_turnover_health = _metric(
+            evaluation_snapshot,
+            "action_family_turnover_health",
+            default=0.5,
+        )
+        family_collapse_risk = _metric(
+            evaluation_snapshot,
+            "action_family_collapse_risk",
+            default=0.0,
+        )
 
         if dual_track_snapshot is not None:
             task_pressure = _metric(evaluation_snapshot, "task_pressure", default=world_tension)
@@ -395,9 +430,34 @@ class ReflectionEngine:
                     controller_guard_blocked = True
                 else:
                     controller_updates.append("metacontroller_runtime_guard_cleared")
+        if family_monopoly_pressure > 0.55:
+            controller_updates.append("reduce_action_family_monopoly")
+        if family_turnover_health < 0.45:
+            controller_updates.append("encourage_action_family_turnover")
+        if family_collapse_risk > 0.60:
+            controller_updates.append("prevent_action_family_collapse")
 
+        structure_proposals = self._temporal_structure_proposals(
+            regime_snapshot=regime_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            consolidation_score=consolidation_score,
+        )
+        target_groups = ["base-weights", "switch", "persistence", "learning-rate"]
+        if support_presence > task_pressure + 0.08:
+            target_groups.extend(["track-self", "decoder"])
+        elif task_pressure > support_presence + 0.08:
+            target_groups.extend(["track-world", "encoder", "decoder"])
+        else:
+            target_groups.extend(["track-shared", "encoder"])
+        if cross_tension > 0.35:
+            target_groups.extend(["beta-threshold", "action-families"])
+        if family_monopoly_pressure > 0.55 or family_turnover_health < 0.45 or family_collapse_risk > 0.60:
+            target_groups.append("action-families")
+        if structure_proposals:
+            target_groups.append("action-family-structure")
         temporal_prior_update = TemporalPriorUpdate(
             target="metacontroller.temporal_prior",
+            target_groups=tuple(dict.fromkeys(target_groups)),
             residual_strength=_clamp(0.45 + world_tension * 0.25 + consolidation_score.confidence * 0.10),
             memory_strength=_clamp(0.30 + self_tension * 0.20 + consolidation_score.promotion_score * 0.10),
             reflection_strength=_clamp(
@@ -412,9 +472,41 @@ class ReflectionEngine:
                 -0.02,
                 min(0.02, consolidation_score.strategy_gain * 0.15 - consolidation_score.decay_score * 0.03),
             ),
+            encoder_strength_delta=max(
+                -0.08,
+                min(0.08, task_pressure * 0.08 + consolidation_score.confidence * 0.04 - cross_tension * 0.05),
+            ),
+            decoder_strength_delta=max(
+                -0.08,
+                min(
+                    0.08,
+                    max(task_pressure, support_presence) * 0.06
+                    + consolidation_score.confidence * 0.03
+                    - consolidation_score.decay_score * 0.02,
+                ),
+            ),
+            world_track_delta=max(-0.08, min(0.08, task_pressure * 0.08 - support_presence * 0.03)),
+            self_track_delta=max(-0.08, min(0.08, support_presence * 0.08 - task_pressure * 0.03)),
+            shared_track_delta=max(
+                -0.06,
+                min(0.06, (1.0 - abs(task_pressure - support_presence)) * 0.05 + cross_tension * 0.03),
+            ),
+            beta_threshold_delta=max(-0.05, min(0.05, cross_tension * 0.05 - consolidation_score.confidence * 0.02)),
+            family_stability_delta=max(
+                -0.06,
+                min(
+                    0.06,
+                    consolidation_score.confidence * 0.05
+                    - cross_tension * 0.03
+                    - family_monopoly_pressure * 0.04
+                    - max(0.0, 0.5 - family_turnover_health) * 0.05,
+                ),
+            ),
+            structure_proposals=structure_proposals,
             description=(
                 f"Temporal prior update from reflection confidence={consolidation_score.confidence:.2f}, "
-                f"cross_tension={cross_tension:.2f}, world_tension={world_tension:.2f}, self_tension={self_tension:.2f}."
+                f"cross_tension={cross_tension:.2f}, world_tension={world_tension:.2f}, self_tension={self_tension:.2f}, "
+                f"groups={tuple(dict.fromkeys(target_groups))}."
             ),
         )
         return PolicyConsolidation(
@@ -425,6 +517,165 @@ class ReflectionEngine:
             controller_guard_blocked=controller_guard_blocked,
             controller_guard_audit_present=controller_guard_audit_present,
         )
+
+    def _temporal_structure_proposals(
+        self,
+        *,
+        regime_snapshot: RegimeSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        consolidation_score: ConsolidationScore,
+    ) -> tuple[TemporalStructureProposal, ...]:
+        family_monopoly_pressure = _metric(
+            evaluation_snapshot,
+            "action_family_monopoly_pressure",
+            default=0.0,
+        )
+        family_turnover_health = _metric(
+            evaluation_snapshot,
+            "action_family_turnover_health",
+            default=0.5,
+        )
+        family_collapse_risk = _metric(
+            evaluation_snapshot,
+            "action_family_collapse_risk",
+            default=0.0,
+        )
+        if regime_snapshot is None or (
+            not regime_snapshot.delayed_attributions and not regime_snapshot.delayed_payoffs
+        ):
+            return ()
+        proposals: list[TemporalStructureProposal] = []
+        cross_track_stability = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
+        for payoff in regime_snapshot.delayed_payoffs:
+            if payoff.abstract_action is None:
+                continue
+            if payoff.rolling_payoff < 0.38 and payoff.sample_count >= 2:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="prune",
+                        family_id=payoff.abstract_action,
+                        related_family_id=None,
+                        confidence=_clamp(
+                            0.46
+                            + (0.4 - payoff.rolling_payoff)
+                            + min(payoff.sample_count / 4.0, 1.0) * 0.12
+                            + consolidation_score.confidence * 0.10
+                        ),
+                        justification=(
+                            f"Prune persistently weak family from rolling_payoff={payoff.rolling_payoff:.3f} "
+                            f"over {payoff.sample_count} samples."
+                        ),
+                    )
+                )
+            elif payoff.rolling_payoff < 0.52 and payoff.sample_count >= 2 and family_turnover_health < 0.5:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="split",
+                        family_id=payoff.abstract_action,
+                        related_family_id=None,
+                        confidence=_clamp(
+                            0.40
+                            + (0.52 - payoff.rolling_payoff)
+                            + (0.5 - family_turnover_health) * 0.22
+                            + consolidation_score.confidence * 0.08
+                        ),
+                        justification=(
+                            f"Split under-performing family with rolling_payoff={payoff.rolling_payoff:.3f} "
+                            f"and turnover_health={family_turnover_health:.3f}."
+                        ),
+                    )
+                )
+        for attribution in regime_snapshot.delayed_attributions:
+            if attribution.abstract_action is None:
+                continue
+            if family_monopoly_pressure > 0.72 and family_turnover_health < 0.45:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="split",
+                        family_id=attribution.abstract_action,
+                        related_family_id=None,
+                        confidence=_clamp(
+                            0.45
+                            + family_monopoly_pressure * 0.25
+                            + (0.45 - family_turnover_health) * 0.30
+                            + consolidation_score.confidence * 0.10
+                        ),
+                        justification=(
+                            f"Split dominant family due to monopoly_pressure={family_monopoly_pressure:.3f} "
+                            f"and turnover_health={family_turnover_health:.3f}."
+                        ),
+                    )
+                )
+            if attribution.outcome_score < 0.35:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="prune",
+                        family_id=attribution.abstract_action,
+                        related_family_id=None,
+                        confidence=_clamp(0.45 + (0.35 - attribution.outcome_score) + consolidation_score.confidence * 0.15),
+                        justification=(
+                            f"Prune weak family after delayed outcome {attribution.outcome_score:.3f} "
+                            f"from {attribution.source_wave_id}."
+                        ),
+                    )
+                )
+            elif (
+                attribution.outcome_score < 0.5 and cross_track_stability < 0.72
+            ) or family_collapse_risk > 0.68:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="split",
+                        family_id=attribution.abstract_action,
+                        related_family_id=None,
+                        confidence=_clamp(
+                            0.42
+                            + (0.5 - attribution.outcome_score)
+                            + (0.72 - cross_track_stability)
+                            + family_collapse_risk * 0.15
+                        ),
+                        justification=(
+                            f"Split overloaded family after mixed delayed outcome {attribution.outcome_score:.3f} "
+                            f"cross_track_stability={cross_track_stability:.3f}, "
+                            f"collapse_risk={family_collapse_risk:.3f}."
+                        ),
+                    )
+                )
+        strong_actions = [
+            item for item in regime_snapshot.delayed_attributions
+            if item.abstract_action is not None and item.outcome_score > 0.72
+        ]
+        if len(strong_actions) >= 2:
+            first = strong_actions[0]
+            second = next(
+                (item for item in strong_actions[1:] if item.abstract_action != first.abstract_action),
+                None,
+            )
+            if second is not None:
+                proposals.append(
+                    TemporalStructureProposal(
+                        proposal_type="merge",
+                        family_id=first.abstract_action or "unassigned_action",
+                        related_family_id=second.abstract_action,
+                        confidence=_clamp(
+                            0.4
+                            + min(first.outcome_score, second.outcome_score) * 0.35
+                            + consolidation_score.confidence * 0.1
+                        ),
+                        justification=(
+                            f"Merge convergent strong families from {first.source_wave_id} and {second.source_wave_id} "
+                            f"within regime={first.regime_id}."
+                        ),
+                    )
+                )
+        deduped: list[TemporalStructureProposal] = []
+        seen: set[tuple[str, str, str | None]] = set()
+        for proposal in proposals:
+            key = (proposal.proposal_type, proposal.family_id, proposal.related_family_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(proposal)
+        return tuple(deduped[:3])
 
     def _consolidation_score(
         self,
@@ -533,6 +784,8 @@ class ReflectionEngine:
                 lessons.append("allow_controller_switch_when_context_shifts")
             elif temporal_update.switch_bias_delta < -0.02:
                 lessons.append("hold_controller_before_switching")
+            if temporal_update.structure_proposals:
+                lessons.append("restructure_action_family_bank")
         if policy_consolidation.controller_guard_blocked:
             lessons.append("respect_metacontroller_runtime_guard")
         elif policy_consolidation.controller_guard_audit_present:

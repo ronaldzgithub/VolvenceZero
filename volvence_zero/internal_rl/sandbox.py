@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from volvence_zero.credit import CreditRecord
 from volvence_zero.internal_rl.environment import InternalRLEnvStep, InternalRLEnvironment
 from volvence_zero.memory import Track
-from volvence_zero.substrate import SubstrateSnapshot
+from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
 from volvence_zero.temporal import (
     ControllerState,
     FullLearnedTemporalPolicy,
@@ -34,6 +34,7 @@ class ZTransition:
     reward: float
     policy_replacement_quality: float
     backend_name: str
+    backend_fidelity: float
 
 
 @dataclass(frozen=True)
@@ -383,10 +384,12 @@ class InternalRLSandbox:
         *,
         policy: FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy | None = None,
         env: InternalRLEnvironment | None = None,
+        residual_runtime: OpenWeightResidualRuntime | None = None,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
         self._causal_policy = CausalZPolicy(parameter_store=self._policy.parameter_store)
         self._env = env or InternalRLEnvironment()
+        self._residual_runtime = residual_runtime
 
     @property
     def policy(self) -> FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy:
@@ -395,6 +398,14 @@ class InternalRLSandbox:
     @property
     def causal_policy(self) -> CausalZPolicy:
         return self._causal_policy
+
+    def configure_runtime_backend(self, *, source_text: str | None) -> None:
+        if self._residual_runtime is None or not source_text:
+            return
+        self._env.use_open_weight_runtime(
+            runtime=self._residual_runtime,
+            source_text=source_text,
+        )
 
     def rollout(
         self,
@@ -446,6 +457,7 @@ class InternalRLSandbox:
                     reward=env_step.reward,
                     policy_replacement_quality=env_step.policy_replacement_quality,
                     backend_name=env_step.backend_name,
+                    backend_fidelity=env_step.backend_fidelity,
                 )
             )
             previous_snapshot = env_step.next_previous_snapshot

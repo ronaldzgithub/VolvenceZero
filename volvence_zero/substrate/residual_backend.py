@@ -180,6 +180,19 @@ def _normalized_entropy(values: Sequence[float]) -> float:
     return _clamp_unit(entropy / max_entropy)
 
 
+def _softmax_probabilities(values: Sequence[float], *, temperature: float = 1.0) -> tuple[float, ...]:
+    if not values:
+        return ()
+    safe_temperature = max(temperature, 1e-6)
+    shifted = [value / safe_temperature for value in values]
+    maximum = max(shifted)
+    exponentials = [math.exp(value - maximum) for value in shifted]
+    total = sum(exponentials)
+    if total <= 1e-9:
+        return tuple(1.0 / len(values) for _ in values)
+    return tuple(value / total for value in exponentials)
+
+
 def _semantic_tokens(text: str) -> tuple[str, ...]:
     tokens: list[str] = []
     ascii_buffer: list[str] = []
@@ -231,20 +244,21 @@ def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
 
 SEMANTIC_ANCHOR_BANK: dict[str, tuple[str, ...]] = {
     "task": (
-        "Break the work into concrete steps and decide the best execution order.",
-        "Give me a direct plan, clear prioritization, and tradeoff reasoning.",
-        "把任务拆开 直接判断先做什么 给我明确顺序和执行步骤",
-        "别安抚了 直接判断优先级 现在就给我明确取舍",
+        "Break the work into concrete steps, choose one path, and justify the tradeoff.",
+        "I need a decision, an execution order, and the clearest next action.",
+        "把任务拆开 选定路线 给我明确顺序和取舍理由",
+        "直接做决策 然后安排执行顺序 不要停在泛泛安抚",
     ),
     "support": (
-        "Stay with me first, help me feel steadier before solving anything.",
-        "Offer warmth, reassurance, and emotional support without rushing.",
-        "先陪我稳住 情绪支持 温和一点 不要急着给方案",
+        "Stay with me first and help me feel safer before solving anything.",
+        "Offer warmth, reassurance, and a gentle next step without pressure.",
+        "Please be supportive first, go gently, and do not rush me into a solution.",
+        "先陪我稳住 情绪支持 温和一点 给我一个不逼迫的下一步",
     ),
     "repair": (
-        "Repair trust, de-escalate pressure, and reduce tension before widening scope.",
-        "Slow the interaction down and stabilize the relationship frame.",
-        "先修复关系 降低张力 稳住局面 再继续推进",
+        "Repair trust after friction, de-escalate the interaction, and reduce rupture before widening scope.",
+        "We need to stabilize the relationship frame after conflict or misunderstanding.",
+        "先修复关系和信任 降低冲突张力 稳住局面 再继续推进",
     ),
     "exploration": (
         "Explore the space gradually, narrow options, and reason step by step.",
@@ -252,10 +266,10 @@ SEMANTIC_ANCHOR_BANK: dict[str, tuple[str, ...]] = {
         "一起探索 逐步收窄 先看可能性 再决定方向",
     ),
     "directive": (
-        "Do not soften this, give me the direct decision and the top priority right now.",
-        "Skip the preamble and tell me the most important choice with tradeoff reasons.",
-        "别再铺垫 直接告诉我最优先项和放弃理由",
-        "不要安慰我 直接给我决策 现在就判断",
+        "Skip the nuance, cut through ambiguity, and tell me the one decision right now.",
+        "Do not cushion this, make the call, and state the top priority immediately.",
+        "别讲铺垫 直接拍板 告诉我唯一最优先项和放弃理由",
+        "不要温和过渡 现在就下判断 直接给结论",
     ),
 }
 
@@ -748,39 +762,64 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             name: _cosine_similarity(profile, anchor_profile)
             for name, anchor_profile in self._semantic_anchor_profiles.items()
         }
+        centered_similarities = {
+            name: similarities[name] - (sum(similarities.values()) / max(len(similarities), 1))
+            for name in similarities
+        }
+        distribution = {
+            name: probability
+            for name, probability in zip(
+                similarities.keys(),
+                _softmax_probabilities(tuple(centered_similarities.values()), temperature=0.22),
+                strict=True,
+            )
+        }
 
         def relative_pull(target_name: str) -> float:
             target = similarities[target_name]
             others = [value for name, value in similarities.items() if name != target_name]
-            other_mean = sum(others) / len(others) if others else 0.0
+            runner_up = max(others) if others else 0.0
             absolute = _clamp_unit((target + 1.0) / 2.0)
-            contrast = _clamp_unit(0.5 + (target - other_mean) * 1.4)
-            return _clamp_unit(absolute * 0.35 + contrast * 0.65)
+            margin = _clamp_unit(0.5 + (target - runner_up) * 3.2)
+            return _clamp_unit(
+                distribution[target_name] * 0.65
+                + margin * 0.25
+                + absolute * 0.10
+            )
+
+        raw_task_pull = relative_pull("task")
+        raw_support_pull = relative_pull("support")
+        raw_repair_pull = relative_pull("repair")
+        raw_exploration_pull = relative_pull("exploration")
+        raw_directive_pull = relative_pull("directive")
+        semantic_task_pull = _clamp_unit(raw_task_pull * 0.35 + raw_directive_pull * 0.65)
+        semantic_support_pull = _clamp_unit(raw_support_pull * 0.75 + raw_repair_pull * 0.25)
+        semantic_repair_pull = _clamp_unit(raw_repair_pull * 0.80 + raw_support_pull * 0.20)
 
         return (
             FeatureSignal(
                 name="semantic_task_pull",
-                values=(relative_pull("task"),),
+                values=(semantic_task_pull,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(
                 name="semantic_support_pull",
-                values=(relative_pull("support"),),
+                values=(semantic_support_pull,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(
                 name="semantic_repair_pull",
-                values=(relative_pull("repair"),),
+                values=(semantic_repair_pull,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(
                 name="semantic_exploration_pull",
-                values=(relative_pull("exploration"),),
+                values=(raw_exploration_pull,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(
                 name="semantic_directive_pull",
-                values=(relative_pull("directive"),),
+                values=(raw_directive_pull,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(

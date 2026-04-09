@@ -200,6 +200,7 @@ class TemporalAbstractionSnapshot:
     active_abstract_action: str         # 当前抽象动作的语义描述
     controller_params_hash: str         # U_t 参数的哈希（用于变更检测）
     description: str                    # 模块自身生成的状态描述
+    action_family_version: int = 0      # owner-side discovered family bank 版本
 ```
 
 **当前实现口径**：
@@ -207,7 +208,7 @@ class TemporalAbstractionSnapshot:
 - P08 已固定 `controller_state` 的 machine-readable shape
 - 当前实现支持 `placeholder` / `heuristic` / `learned-lite` / `full-learned` 四类可替换策略位点
 - `active_abstract_action` 和 `description` 是可读输出，不作为 machine state 的唯一来源
-- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score；这些都不改变 `TemporalAbstractionSnapshot` 公共 shape
+- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score，以及 discovered family summary/version；公共 `TemporalAbstractionSnapshot` 仅新增 `action_family_version` 这一最小 machine-readable bridge
 - internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
 - substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
 - 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；当前 `TransformersOpenWeightResidualRuntime` 已实现 middle-layer hook capture/intervention，`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
@@ -302,6 +303,7 @@ class TrackState:
     controller_code: tuple[float, ...]  # 轨道专属控制器代码 z_task 或 z_rel
     tension_level: float                # 张力水平 ∈ [0, 1]
     abstract_action_hint: str | None = None
+    action_family_version_hint: int = 0
     controller_source: str = "memory"
 
 @dataclass(frozen=True)
@@ -383,6 +385,26 @@ class RegimeIdentity:
     historical_effectiveness: float     # 历史效果评分 ∈ [0, 1]
 
 @dataclass(frozen=True)
+class DelayedOutcomeAttribution:
+    regime_id: str
+    outcome_score: float
+    source_turn_index: int
+    source_wave_id: str
+    abstract_action: str | None = None
+    action_family_version: int = 0
+    resolved_turn_index: int = 0
+
+@dataclass(frozen=True)
+class DelayedOutcomePayoff:
+    regime_id: str
+    abstract_action: str | None
+    action_family_version: int
+    sample_count: int
+    rolling_payoff: float
+    latest_outcome: float
+    last_source_wave_id: str
+
+@dataclass(frozen=True)
 class RegimeSnapshot:
     active_regime: RegimeIdentity
     previous_regime: RegimeIdentity | None
@@ -391,6 +413,9 @@ class RegimeSnapshot:
     turns_in_current_regime: int
     description: str
     delayed_outcomes: tuple[tuple[str, float], ...]   # owner-attributed delayed regime outcomes
+    delayed_attributions: tuple[DelayedOutcomeAttribution, ...] = ()
+    delayed_attribution_ledger: tuple[DelayedOutcomeAttribution, ...] = ()
+    delayed_payoffs: tuple[DelayedOutcomePayoff, ...] = ()
     identity_hints: tuple[str, ...]                   # typed identity proposals for reflection/memory
 ```
 
@@ -399,7 +424,8 @@ class RegimeSnapshot:
 - P04 阶段已经提供结构化 regime identity 和 candidate scoring
 - 当前选择逻辑基于 `memory`、`dual_track`、`evaluation` 的状态评分基线
 - 第二阶段补充 regime owner 的 bounded policy apply：strategy priors 与 historical effectiveness 可 checkpoint / rollback
-- 当前 `RegimeModule` 已补充 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` 发布结果
+- 当前 `RegimeModule` 已补充 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` + `delayed_attributions` 发布结果；后者会携带 `source_wave_id`、`source_turn_index`、`abstract_action`、`action_family_version`
+- 当前 regime owner 还会发布 `delayed_attribution_ledger` 与 `delayed_payoffs`：前者保留最近若干条 resolved attribution，后者按 `(regime, abstract_action, action_family_version)` 聚合 rolling payoff，供 credit / evaluation / reflection 直接消费
 - 当前 `identity_hints` 由 regime owner 从 memory snapshot 中投影为 typed identity proposal，供 reflection/memory owner 决定是否沉淀为 durable identity entries
 - 该评分基线是过渡实现；后续可由更强的 temporal / learned policy 替换
 
@@ -432,7 +458,8 @@ class EvaluationSnapshot:
 - P05 阶段先提供 turn / session 两级的最小评估通路
 - `turn_scores` 必须包含 evidence；`session_scores` 为当前 session 的聚合视图
 - 告警先以结构化字符串对外发布，后续可升级为更细粒度 alert schema
-- owner-side kernel evaluation 当前已直接记录 `posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`
+- owner-side kernel evaluation 当前已直接记录 `posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`，以及 family-level abstraction metrics（如 `action_family_reuse`、`action_family_stability`、`action_family_diversity`、`delayed_action_alignment`、`regime_sequence_payoff`、`delayed_credit_horizon`、`rolling_action_payoff`）
+- `EvaluationBackbone` 当前还提供 default replay benchmark 与 evolution judge（promote / hold / rollback），但这些 judgement 仍以 report/evidence 形式存在，不改变 `EvaluationSnapshot` 公共 shape
 
 **消费者**：编排器、信用分配、门控自修改
 **发布频率**：每 turn（即时评分）、每会话（会话评分）

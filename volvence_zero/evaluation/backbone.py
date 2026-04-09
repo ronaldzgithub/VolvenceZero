@@ -9,10 +9,13 @@ from uuid import uuid4
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
-from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, feature_signal_value
+from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind, feature_signal_value
 
 if TYPE_CHECKING:
+    from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
+    from volvence_zero.reflection import ReflectionSnapshot
     from volvence_zero.regime.identity import RegimeSnapshot
+    from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
@@ -98,6 +101,23 @@ class EvaluationReplaySuiteResult:
     description: str
 
 
+class EvolutionDecision(str, Enum):
+    PROMOTE = "promote"
+    HOLD = "hold"
+    ROLLBACK = "rollback"
+
+
+@dataclass(frozen=True)
+class EvolutionJudgement:
+    decision: EvolutionDecision
+    replay_passed: bool
+    abstraction_trend: float
+    learning_trend: float
+    relationship_trend: float
+    reasons: tuple[str, ...]
+    description: str
+
+
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
@@ -170,6 +190,120 @@ def _relationship_relevant_alerts(alerts: tuple[str, ...]) -> tuple[str, ...]:
     )
 
 
+def _feature_surface_snapshot(
+    *,
+    model_id: str,
+    task_pull: float,
+    support_pull: float,
+    repair_pull: float,
+    exploration_pull: float,
+    directive_pull: float,
+) -> SubstrateSnapshot:
+    return SubstrateSnapshot(
+        model_id=model_id,
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(task_pull,), source="evolution-benchmark"),
+            FeatureSignal(name="semantic_support_pull", values=(support_pull,), source="evolution-benchmark"),
+            FeatureSignal(name="semantic_repair_pull", values=(repair_pull,), source="evolution-benchmark"),
+            FeatureSignal(name="semantic_exploration_pull", values=(exploration_pull,), source="evolution-benchmark"),
+            FeatureSignal(name="semantic_directive_pull", values=(directive_pull,), source="evolution-benchmark"),
+            FeatureSignal(name="fallback_active", values=(0.0,), source="evolution-benchmark"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="evolution benchmark substrate snapshot",
+    )
+
+
+def _default_evolution_benchmark_cases() -> tuple[EvaluationReplayCase, ...]:
+    return (
+        EvaluationReplayCase(
+            case_id="task-dominant",
+            session_id="benchmark-task",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-task",
+                task_pull=0.88,
+                support_pull=0.24,
+                repair_pull=0.20,
+                exploration_pull=0.18,
+                directive_pull=0.72,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("task_pressure", 0.45), ("contract_integrity", 0.95)),
+            max_alert_count=0,
+        ),
+        EvaluationReplayCase(
+            case_id="support-dominant",
+            session_id="benchmark-support",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-support",
+                task_pull=0.22,
+                support_pull=0.86,
+                repair_pull=0.52,
+                exploration_pull=0.20,
+                directive_pull=0.12,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("support_presence", 0.40), ("warmth", 0.35)),
+            max_alert_count=0,
+        ),
+        EvaluationReplayCase(
+            case_id="mixed-conflict",
+            session_id="benchmark-mixed",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-mixed",
+                task_pull=0.58,
+                support_pull=0.56,
+                repair_pull=0.64,
+                exploration_pull=0.44,
+                directive_pull=0.28,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("cross_track_stability", 0.30), ("contract_integrity", 0.95)),
+            max_alert_count=0,
+        ),
+        EvaluationReplayCase(
+            case_id="continuity-long-horizon",
+            session_id="benchmark-continuity",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-continuity",
+                task_pull=0.44,
+                support_pull=0.62,
+                repair_pull=0.34,
+                exploration_pull=0.52,
+                directive_pull=0.18,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("info_integration", 0.10), ("warmth", 0.30)),
+            max_alert_count=0,
+        ),
+    )
+
+
+def _report_trend(
+    report: EvaluationReport,
+    *,
+    family: str,
+    metric_name: str,
+) -> float:
+    for trend_family, trend_metric, value in report.trends:
+        if trend_family == family and trend_metric == metric_name:
+            return value
+    return 0.0
+
+
 class EvaluationBackbone:
     """Minimal turn/session evaluator with evidence and alerts."""
 
@@ -189,11 +323,15 @@ class EvaluationBackbone:
         substrate_snapshot: SubstrateSnapshot | None,
         memory_snapshot: MemorySnapshot | None,
         dual_track_snapshot: DualTrackSnapshot | None,
+        temporal_snapshot: "TemporalAbstractionSnapshot | None" = None,
     ) -> EvaluationSnapshot:
-        turn_scores = self._build_turn_scores(
-            substrate_snapshot=substrate_snapshot,
-            memory_snapshot=memory_snapshot,
-            dual_track_snapshot=dual_track_snapshot,
+        turn_scores = self._merge_turn_scores(
+            self._build_turn_scores(
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                dual_track_snapshot=dual_track_snapshot,
+            ),
+            self._temporal_public_scores(temporal_snapshot=temporal_snapshot),
         )
         alerts = self._build_alerts(turn_scores=turn_scores)
         self._append_records(
@@ -299,6 +437,116 @@ class EvaluationBackbone:
             description=f"Replay suite {suite_name} {'passed' if passed else 'failed'} with {len(case_results)} cases.",
         )
 
+    def run_default_evolution_benchmark(
+        self,
+        *,
+        timestamp_ms: int,
+    ) -> EvaluationReplaySuiteResult:
+        return self.run_replay_suite(
+            suite_name="default-evolution-benchmark",
+            cases=_default_evolution_benchmark_cases(),
+            timestamp_ms=timestamp_ms,
+        )
+
+    def judge_evolution_candidate(
+        self,
+        *,
+        replay_suite_result: EvaluationReplaySuiteResult,
+        session_report: EvaluationReport,
+    ) -> EvolutionJudgement:
+        abstraction_trend = _report_trend(
+            session_report,
+            family="abstraction",
+            metric_name="abstraction_reuse",
+        )
+        learning_trend = _report_trend(
+            session_report,
+            family="learning",
+            metric_name="learning_quality",
+        )
+        relationship_trend = _report_trend(
+            session_report,
+            family="relationship",
+            metric_name="relationship_continuity",
+        )
+        reasons: list[str] = []
+        high_alerts = [alert for _, alert in session_report.alerts if alert.startswith("HIGH") or alert.startswith("CRITICAL")]
+        if not replay_suite_result.passed:
+            reasons.append("replay-suite-failed")
+        if high_alerts:
+            reasons.append("high-alert-pressure")
+        if abstraction_trend < -0.03 or learning_trend < -0.03:
+            reasons.append("trend-regression")
+        if reasons:
+            decision = EvolutionDecision.ROLLBACK
+        elif abstraction_trend > 0.03 and learning_trend > 0.03 and relationship_trend >= -0.02:
+            decision = EvolutionDecision.PROMOTE
+            reasons.append("replay-pass-with-positive-trends")
+        else:
+            decision = EvolutionDecision.HOLD
+            reasons.append("insufficient-positive-evidence")
+        return EvolutionJudgement(
+            decision=decision,
+            replay_passed=replay_suite_result.passed,
+            abstraction_trend=abstraction_trend,
+            learning_trend=learning_trend,
+            relationship_trend=relationship_trend,
+            reasons=tuple(reasons),
+            description=(
+                f"Evolution decision={decision.value} replay_passed={replay_suite_result.passed} "
+                f"abstraction_trend={abstraction_trend:.3f} learning_trend={learning_trend:.3f} "
+                f"relationship_trend={relationship_trend:.3f}."
+            ),
+        )
+
+    def record_external_scores(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        base_snapshot: EvaluationSnapshot,
+        scores: tuple[EvaluationScore, ...],
+        description_suffix: str,
+        timescale: str = "turn",
+    ) -> EvaluationSnapshot:
+        if not scores:
+            return base_snapshot
+        self._append_records(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            timescale=timescale,
+            scores=scores,
+        )
+        turn_scores = self._merge_turn_scores(base_snapshot.turn_scores, scores)
+        alerts = tuple(dict.fromkeys(base_snapshot.alerts + self._build_alerts(turn_scores=turn_scores)))
+        return EvaluationSnapshot(
+            turn_scores=turn_scores,
+            session_scores=self._session_scores_for(session_id=session_id),
+            alerts=alerts,
+            description=f"{base_snapshot.description} {description_suffix}",
+        )
+
+    def record_temporal_public_evidence(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        base_snapshot: EvaluationSnapshot,
+        temporal_snapshot: "TemporalAbstractionSnapshot | None",
+    ) -> EvaluationSnapshot:
+        temporal_scores = self._temporal_public_scores(temporal_snapshot=temporal_snapshot)
+        return self.record_external_scores(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            base_snapshot=base_snapshot,
+            scores=temporal_scores,
+            description_suffix=f"Enriched with {len(temporal_scores)} temporal public scores.",
+        )
+
     def record_metacontroller_evidence(
         self,
         *,
@@ -333,6 +581,23 @@ class EvaluationBackbone:
             0.5
             + policy_objective * 0.35
             - min(metacontroller_state.latest_ssl_loss * 0.1, 0.2)
+        )
+        active_family = metacontroller_state.active_family_summary
+        family_reuse = (
+            _clamp(min(active_family.support / 6.0, 1.0))
+            if active_family is not None
+            else 0.0
+        )
+        family_stability = active_family.stability if active_family is not None else 0.0
+        family_diversity = _clamp(len(metacontroller_state.action_family_summaries) / 4.0)
+        family_competition_score = _clamp(metacontroller_state.active_family_competition_score)
+        family_monopoly_pressure = _clamp(metacontroller_state.action_family_monopoly_pressure)
+        family_turnover_health = _clamp(metacontroller_state.action_family_turnover_health)
+        family_collapse_risk = _clamp(
+            family_monopoly_pressure * 0.50
+            + (1.0 - family_turnover_health) * 0.30
+            + (1.0 - family_competition_score) * 0.10
+            + (1.0 - family_diversity) * 0.15
         )
         scores = (
             EvaluationScore(
@@ -403,12 +668,83 @@ class EvaluationBackbone:
                     f"active_label={metacontroller_state.active_label}."
                 ),
             ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_reuse",
+                value=family_reuse,
+                confidence=0.57,
+                evidence=(
+                    f"Derived from active_family={active_family.family_id if active_family is not None else 'none'} "
+                    f"support={active_family.support if active_family is not None else 0}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_stability",
+                value=family_stability,
+                confidence=0.59,
+                evidence=(
+                    f"Derived from active_family={active_family.family_id if active_family is not None else 'none'} "
+                    f"stability={active_family.stability if active_family is not None else 0.0:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_diversity",
+                value=family_diversity,
+                confidence=0.54,
+                evidence=(
+                    f"Derived from family_version={metacontroller_state.action_family_version} "
+                    f"and family_count={len(metacontroller_state.action_family_summaries)}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_competition_score",
+                value=family_competition_score,
+                confidence=0.56,
+                evidence=(
+                    f"Derived from active_family={active_family.family_id if active_family is not None else 'none'} "
+                    f"competition_score={family_competition_score:.3f} and "
+                    f"family_version={metacontroller_state.action_family_version}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_monopoly_pressure",
+                value=family_monopoly_pressure,
+                confidence=0.58,
+                evidence=(
+                    f"Derived from active_family={active_family.family_id if active_family is not None else 'none'} "
+                    f"monopoly_pressure={family_monopoly_pressure:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_turnover_health",
+                value=family_turnover_health,
+                confidence=0.57,
+                evidence=(
+                    f"Derived from family_version={metacontroller_state.action_family_version} "
+                    f"and family_count={len(metacontroller_state.action_family_summaries)}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_family_collapse_risk",
+                value=family_collapse_risk,
+                confidence=0.59,
+                evidence=(
+                    f"Derived from monopoly_pressure={family_monopoly_pressure:.3f}, "
+                    f"turnover_health={family_turnover_health:.3f}, diversity={family_diversity:.3f}."
+                ),
+            ),
         )
         self._append_records(
             session_id=session_id,
             wave_id=wave_id,
             timestamp_ms=timestamp_ms,
-            timescale="session",
+            timescale="turn",
             scores=scores,
         )
         return scores
@@ -435,20 +771,53 @@ class EvaluationBackbone:
         )
         if not scores:
             return base_snapshot
-        self._append_records(
+        return self.record_external_scores(
             session_id=session_id,
             wave_id=wave_id,
             timestamp_ms=timestamp_ms,
-            timescale="turn",
+            base_snapshot=base_snapshot,
             scores=scores,
+            description_suffix=f"Enriched with {len(scores)} learning-evidence scores.",
         )
-        turn_scores = base_snapshot.turn_scores + scores
-        alerts = tuple(dict.fromkeys(base_snapshot.alerts + self._build_alerts(turn_scores=turn_scores)))
-        return EvaluationSnapshot(
-            turn_scores=turn_scores,
-            session_scores=self._session_scores_for(session_id=session_id),
-            alerts=alerts,
-            description=f"{base_snapshot.description} Enriched with {len(scores)} learning-evidence scores.",
+
+    def _temporal_public_scores(
+        self,
+        *,
+        temporal_snapshot: "TemporalAbstractionSnapshot | None",
+    ) -> tuple[EvaluationScore, ...]:
+        if temporal_snapshot is None:
+            return ()
+        controller_state = temporal_snapshot.controller_state
+        code_energy = _clamp(
+            sum(abs(value) for value in controller_state.code) / max(len(controller_state.code), 1)
+        )
+        persistence = min(controller_state.steps_since_switch / 3.0, 1.0)
+        switch_commitment = _clamp(1.0 - abs(controller_state.switch_gate - (1.0 if controller_state.is_switching else 0.0)))
+        named_action_bonus = (
+            0.12
+            if temporal_snapshot.active_abstract_action
+            and temporal_snapshot.active_abstract_action != "unassigned_action"
+            else 0.0
+        )
+        temporal_action_commitment = _clamp(
+            0.28
+            + code_energy * 0.32
+            + persistence * 0.18
+            + switch_commitment * 0.10
+            + named_action_bonus
+        )
+        return (
+            EvaluationScore(
+                family="abstraction",
+                metric_name="temporal_action_commitment",
+                value=temporal_action_commitment,
+                confidence=0.54,
+                evidence=(
+                    f"Derived from active_abstract_action={temporal_snapshot.active_abstract_action}, "
+                    f"switch_gate={controller_state.switch_gate:.2f}, is_switching={controller_state.is_switching}, "
+                    f"steps_since_switch={controller_state.steps_since_switch}, code_dim={controller_state.code_dim}."
+                ),
+            ),
         )
 
     def _build_turn_scores(
@@ -630,6 +999,9 @@ class EvaluationBackbone:
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None",
     ) -> tuple[EvaluationScore, ...]:
+        from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
+        from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
+
         scores: list[EvaluationScore] = []
         if memory_snapshot is not None:
             retrieval_quality = _clamp(
@@ -647,10 +1019,10 @@ class EvaluationBackbone:
                     ),
                 )
             )
-        if reflection_snapshot is not None and hasattr(reflection_snapshot, "consolidation_score"):
-            confidence = getattr(reflection_snapshot.consolidation_score, "confidence", 0.0)
-            applied_count = len(getattr(writeback_result, "applied_operations", ())) if writeback_result is not None else 0
-            blocked_count = len(getattr(writeback_result, "blocked_operations", ())) if writeback_result is not None else 0
+        if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
+            confidence = reflection_snapshot.consolidation_score.confidence
+            applied_count = len(writeback_result.applied_operations) if isinstance(writeback_result, WritebackResult) else 0
+            blocked_count = len(writeback_result.blocked_operations) if isinstance(writeback_result, WritebackResult) else 0
             reflection_usefulness = _clamp(confidence + applied_count * 0.05 - blocked_count * 0.08)
             scores.append(
                 EvaluationScore(
@@ -664,29 +1036,29 @@ class EvaluationBackbone:
                     ),
                 )
             )
-        if joint_loop_result is not None and hasattr(joint_loop_result, "schedule_action"):
-            schedule_action = getattr(joint_loop_result, "schedule_action", "evidence-only")
-            cycle_report = getattr(joint_loop_result, "cycle_report", None)
+        if joint_loop_result is not None and isinstance(joint_loop_result, ScheduledJointLoopResult):
+            schedule_action = joint_loop_result.schedule_action
+            cycle_report = joint_loop_result.cycle_report
             if cycle_report is not None:
                 joint_progress = _clamp(
                     0.5
-                    + cycle_report.total_reward * 0.15
+                    + cycle_report.mean_transition_reward * 0.30
                     + cycle_report.policy_objective * 0.1
                     - len(cycle_report.rollback_reasons) * 0.08
                 )
                 evidence = (
-                    f"Derived from action={schedule_action}, total_reward={cycle_report.total_reward:.3f}, "
-                    f"policy_objective={cycle_report.policy_objective:.3f}."
+                    f"Derived from action={schedule_action}, mean_transition_reward={cycle_report.mean_transition_reward:.3f}, "
+                    f"total_reward={cycle_report.total_reward:.3f}, policy_objective={cycle_report.policy_objective:.3f}."
                 )
             elif schedule_action == "ssl-only":
                 joint_progress = _clamp(
                     0.65
-                    - min(getattr(joint_loop_result, "ssl_prediction_loss", 0.0) * 0.08, 0.2)
-                    - min(getattr(joint_loop_result, "ssl_kl_loss", 0.0) * 0.05, 0.1)
+                    - min(joint_loop_result.ssl_prediction_loss * 0.08, 0.2)
+                    - min(joint_loop_result.ssl_kl_loss * 0.05, 0.1)
                 )
                 evidence = (
-                    f"Derived from action=ssl-only, pred={getattr(joint_loop_result, 'ssl_prediction_loss', 0.0):.3f}, "
-                    f"kl={getattr(joint_loop_result, 'ssl_kl_loss', 0.0):.3f}."
+                    f"Derived from action=ssl-only, pred={joint_loop_result.ssl_prediction_loss:.3f}, "
+                    f"kl={joint_loop_result.ssl_kl_loss:.3f}."
                 )
             else:
                 joint_progress = 0.5
@@ -714,7 +1086,19 @@ class EvaluationBackbone:
                         ),
                     )
                 )
-        if regime_snapshot is not None and getattr(regime_snapshot, "delayed_outcomes", ()):
+                scores.append(
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="residual_env_fidelity",
+                        value=_clamp(cycle_report.backend_fidelity),
+                        confidence=0.72,
+                        evidence=(
+                            f"Derived from backend={cycle_report.backend_name} "
+                            f"fidelity={cycle_report.backend_fidelity:.3f}."
+                        ),
+                    )
+                )
+        if regime_snapshot is not None and regime_snapshot.delayed_outcomes:
             delayed_values = tuple(score for _, score in regime_snapshot.delayed_outcomes)
             delayed_alignment = _clamp(sum(delayed_values) / len(delayed_values))
             scores.append(
@@ -728,7 +1112,90 @@ class EvaluationBackbone:
                     ),
                 )
             )
+        if regime_snapshot is not None and regime_snapshot.delayed_attributions:
+            delayed_action_alignment = _clamp(
+                sum(item.outcome_score for item in regime_snapshot.delayed_attributions)
+                / len(regime_snapshot.delayed_attributions)
+            )
+            unique_regimes = {item.regime_id for item in regime_snapshot.delayed_attributions}
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="delayed_action_alignment",
+                        value=delayed_action_alignment,
+                        confidence=0.58,
+                        evidence=(
+                            f"Derived from delayed_attributions={len(regime_snapshot.delayed_attributions)} "
+                            f"and abstract_actions="
+                            f"{tuple(item.abstract_action for item in regime_snapshot.delayed_attributions)}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="regime_sequence_payoff",
+                        value=_clamp(
+                            delayed_action_alignment
+                            + min(len(unique_regimes) / max(len(regime_snapshot.delayed_attributions), 1), 1.0) * 0.12
+                        ),
+                        confidence=0.56,
+                        evidence=(
+                            f"Derived from delayed_regime_ids={tuple(sorted(unique_regimes))} "
+                            f"and mean_outcome={delayed_action_alignment:.3f}."
+                        ),
+                    ),
+                )
+            )
+        if regime_snapshot is not None and regime_snapshot.delayed_payoffs:
+            rolling_alignment = _clamp(
+                sum(item.rolling_payoff for item in regime_snapshot.delayed_payoffs)
+                / len(regime_snapshot.delayed_payoffs)
+            )
+            rolling_sample_density = _clamp(
+                sum(item.sample_count for item in regime_snapshot.delayed_payoffs)
+                / max(len(regime_snapshot.delayed_payoffs) * 3.0, 1.0)
+            )
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_credit_horizon",
+                        value=rolling_sample_density,
+                        confidence=0.58,
+                        evidence=(
+                            f"Derived from delayed_payoff_sample_counts="
+                            f"{tuple(item.sample_count for item in regime_snapshot.delayed_payoffs)}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="rolling_action_payoff",
+                        value=rolling_alignment,
+                        confidence=0.6,
+                        evidence=(
+                            f"Derived from delayed_payoffs="
+                            f"{tuple((item.abstract_action, item.rolling_payoff) for item in regime_snapshot.delayed_payoffs)}."
+                        ),
+                    ),
+                )
+            )
         return tuple(scores)
+
+    def _merge_turn_scores(
+        self,
+        base_scores: tuple[EvaluationScore, ...],
+        new_scores: tuple[EvaluationScore, ...],
+    ) -> tuple[EvaluationScore, ...]:
+        ordered_scores = list(base_scores)
+        existing_by_metric = {score.metric_name: index for index, score in enumerate(ordered_scores)}
+        for score in new_scores:
+            index = existing_by_metric.get(score.metric_name)
+            if index is None:
+                existing_by_metric[score.metric_name] = len(ordered_scores)
+                ordered_scores.append(score)
+                continue
+            ordered_scores[index] = score
+        return tuple(ordered_scores)
 
     def _build_alerts(self, *, turn_scores: tuple[EvaluationScore, ...]) -> tuple[str, ...]:
         alerts: list[str] = []
@@ -741,6 +1208,10 @@ class EvaluationBackbone:
                 alerts.append("MEDIUM: substrate fallback is active")
             if score.metric_name == "rollback_resilience" and score.value < 0.6:
                 alerts.append("MEDIUM: rollback pressure is elevated")
+            if score.metric_name == "action_family_monopoly_pressure" and score.value > 0.72:
+                alerts.append("MEDIUM: action-family monopoly pressure is elevated")
+            if score.metric_name == "action_family_collapse_risk" and score.value > 0.68:
+                alerts.append("HIGH: action-family collapse risk is elevated")
         return tuple(alerts)
 
     def _longitudinal_trends(
@@ -762,7 +1233,15 @@ class EvaluationBackbone:
                 "abstraction_reuse",
                 self._trend_for_metrics(
                     records,
-                    ("abstract_action_usefulness", "switch_sparsity", "binary_gate_ratio"),
+                    (
+                        "abstract_action_usefulness",
+                        "switch_sparsity",
+                        "binary_gate_ratio",
+                        "action_family_competition_score",
+                        "action_family_reuse",
+                        "action_family_stability",
+                        "action_family_turnover_health",
+                    ),
                 ),
             ),
         )
@@ -870,8 +1349,16 @@ class EvaluationBackbone:
             return ("substrate.feature_surface.fallback_active",)
         if metric_name == "rollback_resilience":
             return ("joint_loop.rollback_reasons", "joint_loop.schedule_action")
+        if metric_name == "residual_env_fidelity":
+            return ("joint_loop.backend_name", "joint_loop.backend_fidelity")
         if metric_name == "delayed_regime_alignment":
             return ("regime.delayed_outcomes",)
+        if metric_name in {"delayed_action_alignment", "regime_sequence_payoff"}:
+            return ("regime.delayed_attributions",)
+        if metric_name in {"delayed_credit_horizon", "rolling_action_payoff"}:
+            return ("regime.delayed_payoffs",)
+        if metric_name == "temporal_action_commitment":
+            return ("temporal_abstraction.active_abstract_action", "temporal_abstraction.controller_state")
         if metric_name == "adaptive_stability":
             return ("temporal.metacontroller_state", "joint_loop.rollback_reasons")
         if metric_name == "posterior_stability":
@@ -880,6 +1367,16 @@ class EvaluationBackbone:
             return ("temporal.metacontroller_state.switch",)
         if metric_name == "decoder_usefulness":
             return ("temporal.metacontroller_state.decoder",)
+        if metric_name in {
+            "action_family_competition_score",
+            "action_family_reuse",
+            "action_family_stability",
+            "action_family_diversity",
+            "action_family_monopoly_pressure",
+            "action_family_turnover_health",
+            "action_family_collapse_risk",
+        }:
+            return ("temporal.metacontroller_state.action_families",)
         if metric_name in {"abstract_action_usefulness", "policy_replacement_quality"}:
             return ("temporal.metacontroller_state", "internal_rl.policy_objective")
         return ("runtime.contract_status",)
@@ -900,7 +1397,15 @@ class EvaluationBackbone:
     ) -> tuple[str, ...]:
         if not alerts:
             return ("Continue collecting turn-level evidence before widening scope.",)
-        return tuple(f"Review alert: {message}" for _, message in alerts)
+        recommendations: list[str] = []
+        for _, message in alerts:
+            recommendations.append(f"Review alert: {message}")
+            lowered = message.lower()
+            if "action-family monopoly pressure" in lowered:
+                recommendations.append("Reduce active-family monopoly before widening structure changes.")
+            if "action-family collapse risk" in lowered:
+                recommendations.append("Prefer bounded split/turnover proposals before promoting the current family.")
+        return tuple(dict.fromkeys(recommendations))
 
 
 class EvaluationModule(RuntimeModule[EvaluationSnapshot]):
@@ -956,6 +1461,9 @@ class EvaluationModule(RuntimeModule[EvaluationSnapshot]):
         substrate_snapshot = kwargs.get("substrate_snapshot")
         memory_snapshot = kwargs.get("memory_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
+        temporal_snapshot = kwargs.get("temporal_snapshot")
+        from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
+
         return self.publish(
             self._backbone.evaluate_turn(
                 session_id=session_id,
@@ -966,6 +1474,11 @@ class EvaluationModule(RuntimeModule[EvaluationSnapshot]):
                 dual_track_snapshot=(
                     dual_track_snapshot
                     if isinstance(dual_track_snapshot, DualTrackSnapshot)
+                    else None
+                ),
+                temporal_snapshot=(
+                    temporal_snapshot
+                    if isinstance(temporal_snapshot, TemporalAbstractionSnapshot)
                     else None
                 ),
             )

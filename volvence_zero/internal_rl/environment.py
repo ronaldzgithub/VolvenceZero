@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
+    OpenWeightResidualInterventionBackend,
+    OpenWeightResidualRuntime,
     ResidualInterventionBackend,
     SubstrateSnapshot,
     TraceResidualInterventionBackend,
@@ -30,8 +32,10 @@ class InternalRLEnvStep:
     applied_snapshot: SubstrateSnapshot
     downstream_effect: tuple[float, ...]
     reward: float
+    reward_components: tuple[tuple[str, float], ...]
     policy_replacement_quality: float
     backend_name: str
+    backend_fidelity: float
     description: str
 
 
@@ -49,6 +53,85 @@ class InternalRLEnvironment:
 
     def set_evaluation_signals(self, signals: dict[str, float]) -> None:
         self._evaluation_family_signals = dict(signals)
+
+    def set_control_backend(self, backend: ResidualInterventionBackend) -> None:
+        self._control_backend = backend
+
+    def use_open_weight_runtime(
+        self,
+        *,
+        runtime: OpenWeightResidualRuntime,
+        source_text: str,
+    ) -> None:
+        self._control_backend = OpenWeightResidualInterventionBackend(
+            runtime=runtime,
+            source_text=source_text,
+        )
+
+    def backend_fidelity(self) -> float:
+        backend_name = self._control_backend.name
+        if backend_name.startswith("open-weight:") or backend_name.startswith("transformers-open-weight:"):
+            return 1.0
+        if backend_name.startswith("synthetic-open-weight:"):
+            return 0.75
+        if backend_name == "trace-residual-backend":
+            return 0.45
+        if backend_name == "noop-residual-backend":
+            return 0.2
+        return 0.5
+
+    def _family_delta(self, family: str) -> float:
+        return self._evaluation_family_signals.get(family, 0.5) - 0.5
+
+    def _reward_components(
+        self,
+        *,
+        track: Track,
+        temporal_step: TemporalStep,
+        downstream_effect: tuple[float, ...],
+        control_energy: float,
+        policy_replacement_quality: float,
+    ) -> tuple[tuple[str, float], ...]:
+        components: list[tuple[str, float]] = [
+            ("control_effect", sum(downstream_effect) / len(downstream_effect)),
+            ("control_energy_bonus", control_energy * 0.05),
+            ("replacement_alignment", policy_replacement_quality * 0.08),
+            ("persistence_bonus", (1.0 - temporal_step.controller_state.switch_gate) * 0.04),
+            (
+                "switch_bonus",
+                0.06 if temporal_step.controller_state.is_switching else 0.0,
+            ),
+            ("staleness_penalty", -temporal_step.controller_state.steps_since_switch * 0.01),
+        ]
+        if not self._evaluation_family_signals:
+            return tuple(components)
+        task_delta = self._family_delta("task")
+        relationship_delta = self._family_delta("relationship")
+        learning_delta = self._family_delta("learning")
+        abstraction_delta = self._family_delta("abstraction")
+        stability_delta = (self._family_delta("safety") + relationship_delta) / 2.0
+        if track is Track.WORLD:
+            task_weight = 0.24
+            relationship_weight = 0.05
+            stability_weight = 0.08
+        elif track is Track.SELF:
+            task_weight = 0.05
+            relationship_weight = 0.24
+            stability_weight = 0.10
+        else:
+            task_weight = 0.14
+            relationship_weight = 0.14
+            stability_weight = 0.09
+        components.extend(
+            (
+                ("task_outcome_delta", task_delta * task_weight),
+                ("relationship_outcome_delta", relationship_delta * relationship_weight),
+                ("learning_outcome_delta", learning_delta * 0.12),
+                ("abstraction_outcome_delta", abstraction_delta * 0.10),
+                ("stability_outcome_delta", stability_delta * stability_weight),
+            )
+        )
+        return tuple(components)
 
     def step(
         self,
@@ -109,20 +192,6 @@ class InternalRLEnvironment:
             track_scale=track_emphasis,
         )
         downstream_effect = control_application.downstream_effect
-        reward = sum(downstream_effect) / len(downstream_effect)
-        reward += control_application.control_energy * 0.05
-        reward += (1.0 - temporal_step.controller_state.switch_gate) * 0.05
-        if temporal_step.controller_state.is_switching:
-            reward += 0.08
-        reward -= temporal_step.controller_state.steps_since_switch * 0.01
-        if self._evaluation_family_signals:
-            eval_bonus = 0.0
-            if track is Track.WORLD:
-                eval_bonus += self._evaluation_family_signals.get("task", 0.5) * 0.08
-            elif track is Track.SELF:
-                eval_bonus += self._evaluation_family_signals.get("relationship", 0.5) * 0.08
-            eval_bonus += self._evaluation_family_signals.get("learning", 0.5) * 0.04
-            reward += eval_bonus
         policy_replacement_quality = _clamp(
             1.0
             - sum(
@@ -131,6 +200,14 @@ class InternalRLEnvironment:
             / 3.0
             + policy_replacement_score * 0.25
         )
+        reward_components = self._reward_components(
+            track=track,
+            temporal_step=temporal_step,
+            downstream_effect=downstream_effect,
+            control_energy=control_application.control_energy,
+            policy_replacement_quality=policy_replacement_quality,
+        )
+        reward = sum(value for _, value in reward_components)
         next_previous_snapshot = TemporalAbstractionSnapshot(
             controller_state=temporal_step.controller_state,
             active_abstract_action=temporal_step.active_abstract_action,
@@ -147,13 +224,17 @@ class InternalRLEnvironment:
             applied_snapshot=control_application.applied_snapshot,
             downstream_effect=downstream_effect,
             reward=_clamp(reward),
+            reward_components=reward_components,
             policy_replacement_quality=policy_replacement_quality,
             backend_name=control_application.backend_name,
+            backend_fidelity=self.backend_fidelity(),
             description=(
                 f"track={track.value} latent={tuple(round(value, 3) for value in temporal_step.controller_state.code)} "
                 f"decoder={tuple(round(value, 3) for value in decoder_output)} "
                 f"applied={tuple(round(value, 3) for value in applied_control)} "
                 f"backend={control_application.backend_name} "
+                f"backend_fidelity={self.backend_fidelity():.2f} "
+                f"reward_components={tuple((name, round(value, 3)) for name, value in reward_components)} "
                 f"replacement_quality={policy_replacement_quality:.3f} "
                 f"{control_application.description}"
             ),

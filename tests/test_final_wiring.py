@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 
+from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
+from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -42,6 +44,7 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "retrieval_quality" in metric_names
     assert "reflection_usefulness" in metric_names
     assert "fallback_reliance" in metric_names
+    assert "temporal_action_commitment" in metric_names
 
 
 def test_final_wiring_honors_kill_switches():
@@ -128,7 +131,7 @@ def test_final_wiring_applies_reflection_temporal_prior_update_to_owner_policy()
     assert after != before
     assert any(operation.startswith("temporal-prior:") for operation in result.writeback_result.applied_operations)
     modification_targets = {record.target for record in result.active_snapshots["credit"].value.recent_modifications}
-    assert "metacontroller.temporal_prior" in modification_targets
+    assert any(target.startswith("metacontroller.temporal_prior.") for target in modification_targets)
 
 
 def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
@@ -149,6 +152,48 @@ def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
     assert "reflection" in result.shadow_snapshots
     assert result.writeback_result is not None
     assert result.writeback_source == "shadow"
+
+
+def test_final_wiring_merges_joint_kernel_scores_into_published_evaluation():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(reflection=WiringLevel.ACTIVE, temporal=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="joint-kernel-model",
+                feature_surface=(FeatureSignal(name="joint_kernel_context", values=(0.75,), source="adapter"),),
+            ),
+            memory_store=MemoryStore(),
+            joint_loop_result=ScheduledJointLoopResult(
+                turn_index=1,
+                schedule_action="full-cycle",
+                cycle_report=None,
+                kernel_scores=(
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="abstract_action_usefulness",
+                        value=0.74,
+                        confidence=0.6,
+                        evidence="Injected kernel evidence for test.",
+                    ),
+                ),
+                ssl_prediction_loss=0.0,
+                ssl_kl_loss=0.0,
+                metacontroller_state=None,
+                cms_description="test cms",
+                owner_path="test-joint-loop",
+                schedule_telemetry=(("ssl_interval", 1), ("rl_interval", 1)),
+                description="scheduled result for final wiring test",
+            ),
+            session_id="s-kernel",
+            wave_id="w-kernel",
+        )
+    )
+
+    turn_scores = {score.metric_name: score for score in result.active_snapshots["evaluation"].value.turn_scores}
+    assert "abstract_action_usefulness" in turn_scores
+    assert turn_scores["abstract_action_usefulness"].value == 0.74
+    credit_events = {record.source_event for record in result.active_snapshots["credit"].value.recent_credits}
+    assert "evaluation:abstract_action_usefulness" in credit_events
 
 
 def test_final_wiring_can_seed_memory_query_from_previous_wave_snapshots():

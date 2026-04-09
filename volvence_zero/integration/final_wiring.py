@@ -9,6 +9,7 @@ from volvence_zero.credit import (
     ModificationGate,
     ModificationProposal,
     SelfModificationRecord,
+    derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     has_blocking_writeback,
 )
@@ -26,7 +27,13 @@ from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
-from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerRuntimeState, TemporalModule, TemporalPolicy
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalAbstractionSnapshot,
+    TemporalModule,
+    TemporalPolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -96,32 +103,78 @@ def _apply_temporal_reflection_writeback(
     temporal_prior_update = reflection_snapshot.value.policy_consolidation.temporal_prior_update
     if temporal_prior_update is None:
         return ((), ())
+    target_groups = temporal_prior_update.target_groups or ("base-weights",)
     before_hash = stable_value_hash(temporal_module.policy.export_parameters())
     if not apply_enabled:
         blocked_operations = ("temporal-prior:writeback-mode-not-apply",)
         if credit_module is not None:
+            for group in target_groups:
+                credit_module.ledger.record_modification(
+                    SelfModificationRecord(
+                        target=f"{temporal_prior_update.target}.{group}",
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification="Reflection-to-temporal writeback skipped because reflection apply mode is disabled.",
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    )
+                )
+        return ((), blocked_operations)
+    blocked_groups = (
+        tuple(
+            group
+            for group in target_groups
+            if credit_snapshot is not None
+            and has_blocking_writeback(
+                credit_snapshot.value,
+                target_prefix=f"{temporal_prior_update.target}.{group}",
+            )
+        )
+    )
+    allowed_groups = tuple(group for group in target_groups if group not in blocked_groups)
+    if not allowed_groups:
+        blocked_operations = ("temporal-prior:credit-gate-block",)
+        if credit_module is not None:
+            for group in blocked_groups:
+                credit_module.ledger.record_modification(
+                    SelfModificationRecord(
+                        target=f"{temporal_prior_update.target}.{group}",
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification="Reflection-to-temporal writeback blocked by target-specific credit gate.",
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    )
+                )
+        return ((), blocked_operations)
+    applied_operations = temporal_module.policy.apply_reflection_prior_update(
+        update=temporal_prior_update,
+        allowed_target_groups=allowed_groups,
+    )
+    blocked_operations = ("temporal-prior:partial-credit-gate-block",) if blocked_groups else ()
+    after_hash = stable_value_hash(temporal_module.policy.export_parameters())
+    if credit_module is not None:
+        for group in allowed_groups:
             credit_module.ledger.record_modification(
                 SelfModificationRecord(
-                    target=temporal_prior_update.target,
+                    target=f"{temporal_prior_update.target}.{group}",
                     gate=ModificationGate.BACKGROUND,
-                    decision=GateDecision.BLOCK,
+                    decision=GateDecision.ALLOW,
                     old_value_hash=before_hash,
-                    new_value_hash=before_hash,
-                    justification="Reflection-to-temporal writeback skipped because reflection apply mode is disabled.",
+                    new_value_hash=after_hash,
+                    justification=temporal_prior_update.description,
                     timestamp_ms=timestamp_ms,
                     is_reversible=True,
                 )
             )
-        return ((), blocked_operations)
-    if credit_snapshot is not None and has_blocking_writeback(
-        credit_snapshot.value,
-        target_prefix=temporal_prior_update.target,
-    ):
-        blocked_operations = ("temporal-prior:credit-gate-block",)
-        if credit_module is not None:
+        for group in blocked_groups:
             credit_module.ledger.record_modification(
                 SelfModificationRecord(
-                    target=temporal_prior_update.target,
+                    target=f"{temporal_prior_update.target}.{group}",
                     gate=ModificationGate.BACKGROUND,
                     decision=GateDecision.BLOCK,
                     old_value_hash=before_hash,
@@ -131,23 +184,7 @@ def _apply_temporal_reflection_writeback(
                     is_reversible=True,
                 )
             )
-        return ((), blocked_operations)
-    applied_operations = temporal_module.policy.apply_reflection_prior_update(update=temporal_prior_update)
-    after_hash = stable_value_hash(temporal_module.policy.export_parameters())
-    if credit_module is not None:
-        credit_module.ledger.record_modification(
-            SelfModificationRecord(
-                target=temporal_prior_update.target,
-                gate=ModificationGate.BACKGROUND,
-                decision=GateDecision.ALLOW,
-                old_value_hash=before_hash,
-                new_value_hash=after_hash,
-                justification=temporal_prior_update.description,
-                timestamp_ms=timestamp_ms,
-                is_reversible=True,
-            )
-        )
-    return (applied_operations, ())
+    return (applied_operations, blocked_operations)
 
 
 def build_final_runtime_modules(
@@ -158,6 +195,7 @@ def build_final_runtime_modules(
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
     temporal_policy: TemporalPolicy | None = None,
+    regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
 ) -> list[Any]:
@@ -178,7 +216,8 @@ def build_final_runtime_modules(
             wave_id=wave_id,
             wiring_level=config.level_for("evaluation", WiringLevel.ACTIVE),
         ),
-        RegimeModule(
+        regime_module
+        or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
         ),
         CreditModule(
@@ -206,6 +245,7 @@ async def run_final_wiring_turn(
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
     temporal_policy: TemporalPolicy | None = None,
+    regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
 ) -> FinalIntegrationResult:
@@ -216,6 +256,7 @@ async def run_final_wiring_turn(
         credit_proposals=credit_proposals,
         reflection_mode=reflection_mode,
         temporal_policy=temporal_policy,
+        regime_module=regime_module,
         session_id=session_id,
         wave_id=wave_id,
     )
@@ -311,11 +352,41 @@ async def run_final_wiring_turn(
         and evaluation_snapshot is not None
         and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
     ):
-        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+        from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
+
+        enriched_evaluation = evaluation_snapshot.value
+        temporal_snapshot = active_snapshots.get("temporal_abstraction")
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
+        enriched_evaluation = evaluation_module.backbone.record_temporal_public_evidence(
             session_id=session_id,
             wave_id=wave_id,
             timestamp_ms=evaluation_snapshot.timestamp_ms + 1,
-            base_snapshot=evaluation_snapshot.value,
+            base_snapshot=enriched_evaluation,
+            temporal_snapshot=temporal_value,
+        )
+        joint_kernel_scores = (
+            joint_loop_result.kernel_scores
+            if isinstance(joint_loop_result, ScheduledJointLoopResult)
+            else ()
+        )
+        if joint_kernel_scores:
+            enriched_evaluation = evaluation_module.backbone.record_external_scores(
+                session_id=session_id,
+                wave_id=wave_id,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 2,
+                base_snapshot=enriched_evaluation,
+                scores=joint_kernel_scores,
+                description_suffix=f"Enriched with {len(joint_kernel_scores)} ETA kernel scores.",
+            )
+        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 3,
+            base_snapshot=enriched_evaluation,
             memory_snapshot=active_snapshots.get("memory").value if active_snapshots.get("memory") is not None else None,
             reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
             writeback_result=writeback_result,
@@ -328,6 +399,11 @@ async def run_final_wiring_turn(
                 evaluation_snapshot=enriched_evaluation,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
             )
+            delayed_credits = derive_delayed_attribution_credit_records(
+                regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
+            )
+            extra_credits = extra_credits + delayed_credits
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)
         if credit_module is not None:

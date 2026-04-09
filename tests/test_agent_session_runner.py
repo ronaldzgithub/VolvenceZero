@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.agent import AgentSessionRunner, default_active_runner
+from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
@@ -42,7 +43,10 @@ def test_agent_session_runner_reuses_session_memory_across_turns():
 
 
 def test_agent_session_runner_exposes_temporal_and_regime_views():
-    runner = default_active_runner()
+    runner = AgentSessionRunner(
+        session_id="exposed-kernel-session",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
     result = asyncio.run(runner.run_turn("Please guide me carefully through a difficult decision."))
 
     assert result.active_regime is not None
@@ -53,8 +57,14 @@ def test_agent_session_runner_exposes_temporal_and_regime_views():
     assert result.response.regime_id == result.active_regime
     assert result.response.abstract_action == result.active_abstract_action
     assert result.joint_learning_summary
-    evaluation_metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
+    evaluation_scores = {
+        score.metric_name: score.value
+        for score in result.active_snapshots["evaluation"].value.turn_scores
+    }
+    evaluation_metric_names = set(evaluation_scores)
     assert "joint_learning_progress" in evaluation_metric_names
+    assert "residual_env_fidelity" in evaluation_metric_names
+    assert evaluation_scores["joint_learning_progress"] > 0.0
     credit_events = {record.source_event for record in result.active_snapshots["credit"].value.recent_credits}
     assert "joint_learning_progress" in credit_events
 

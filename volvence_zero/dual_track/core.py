@@ -17,6 +17,7 @@ class TrackState:
     controller_code: tuple[float, ...]
     tension_level: float
     abstract_action_hint: str | None = None
+    action_family_version_hint: int = 0
     controller_source: str = "memory"
 
 
@@ -170,7 +171,7 @@ def derive_track_state(
     projected_shared_entries = _project_shared_entries(shared_entries, track=track)
     base_entries = memory_entries if memory_entries else projected_shared_entries[:3]
     goals = list(_goal_from_entry(entry) for entry in base_entries[:3])
-    temporal_controller_code, abstract_action_hint, controller_source = _temporal_track_context(
+    temporal_controller_code, abstract_action_hint, action_family_version_hint, controller_source = _temporal_track_context(
         track=track,
         temporal_snapshot=temporal_snapshot,
     )
@@ -208,6 +209,7 @@ def derive_track_state(
             semantic_repair=semantic_repair,
         ),
         abstract_action_hint=abstract_action_hint,
+        action_family_version_hint=action_family_version_hint,
         controller_source=controller_source,
     )
 
@@ -333,11 +335,11 @@ def _temporal_track_context(
     *,
     track: Track,
     temporal_snapshot: Any,
-) -> tuple[tuple[float, float, float], str | None, str]:
+) -> tuple[tuple[float, float, float], str | None, int, str]:
     from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
 
     if not isinstance(temporal_snapshot, TemporalAbstractionSnapshot):
-        return ((0.0, 0.0, 0.0), None, "memory")
+        return ((0.0, 0.0, 0.0), None, 0, "memory")
     track_code = _extract_track_code(temporal_snapshot, track)
     if track_code is not None:
         return (
@@ -347,6 +349,7 @@ def _temporal_track_context(
                 _clamp(temporal_snapshot.controller_state.switch_gate),
             ),
             temporal_snapshot.active_abstract_action,
+            temporal_snapshot.action_family_version,
             "temporal-track-projected",
         )
     controller_code = temporal_snapshot.controller_state.code
@@ -361,6 +364,7 @@ def _temporal_track_context(
             _clamp(temporal_snapshot.controller_state.switch_gate),
         ),
         temporal_snapshot.active_abstract_action,
+        temporal_snapshot.action_family_version,
         "temporal+memory",
     )
 

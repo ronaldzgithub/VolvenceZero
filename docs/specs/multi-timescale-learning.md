@@ -78,17 +78,19 @@ rare-heavy (定期离线):
 当前实现口径：
 
 - P08 先以 heuristic temporal policy 提供 online-fast 的最小状态发布
-- 第二阶段 joint loop 已补充 dual-track internal rollout，并在 cycle 结束后执行 abstract-action credit enrichment + bounded writeback
+- 第二阶段 joint loop 已补充 dual-track internal rollout，并在 cycle 结束后执行 abstract-action credit enrichment + bounded writeback；主链 rollout 默认优先使用 open-weight residual backend，trace backend 仅作为 fallback
 - 当前 joint loop 已支持 policy checkpoint/rollback：当 reward 明显退化、评估出现高等级告警，或 trajectory-level policy objective / KL 偏移超阈值时回滚 internal RL policy
 - 当前 `ETANLJointLoop` 是 online-fast 的正式 owner 路径；`SSLRLTrainingPipeline` 作为 offline/batch 两阶段 owner 使用，不再与 live session owner 混淆
-- 当前 joint loop cycle report 已显式发布 metacontroller owner state 与 rollback reasons，使 online-fast controller 演化可被会话级闭环检查
+- 当前 joint loop cycle report 已显式发布 metacontroller owner state、rollback reasons、residual backend name / fidelity，使 online-fast controller 演化可被会话级闭环检查
 - 当前 joint loop 已拆成最小 `ssl_step -> rl_step -> evidence/writeback` 顺序：先执行 metacontroller SSL 更新，再运行 dual-track internal RL，并将 metacontroller 证据写入 evaluation / credit / regime owner
 - 当前 joint loop rollback 已扩展为 cycle 级 checkpoint：当一个 cycle 被判定为坏更新时，会同时撤销 SSL 侧和 policy 侧的本轮变更，而不是只回滚 RL policy
 - 当前 online-fast SSL 已显式区分 prior / posterior，并用 closed-form KL 约束 metacontroller latent bottle-neck；当前 internal RL env 也已通过 residual intervention backend 更接近 frozen-model-in-env 的控制路径
 - 当前 substrate owner 已落地 `TransformersOpenWeightResidualRuntime` 的真实 middle-layer hook capture/intervention，实现了比 trace backend 更接近 frozen-model residual path 的 online-fast 控制接口
 - 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
 - 当前 `AgentSessionRunner` 默认已直接消费真实 transformers substrate，并把 `reflection` / `temporal` 放入 ACTIVE 主链；response layer 只读取 distilled kernel context，但默认行为已受 active temporal/reflection 状态驱动
-- 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并受 target-specific credit gate 约束
+- 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并已扩展为 group-level selective writeback（如 `encoder` / `decoder` / `track-*` / `action-families` / `beta-threshold`），受 target-specific credit gate 约束
+- 当前 background-slow 反思还可基于 delayed attribution 生成 bounded structural temporal proposal（`merge` / `split` / `prune`），并沿同一条 gate / audit / rollback 链路进入 temporal owner
+- 当前 session-medium delayed path 已从单条 delayed outcome 扩展为 multi-step attribution ledger：regime owner 会保留最近 resolved attribution，并发布 rolling payoff summary，供 evaluation / credit / reflection 读取，而不需要 consumer 自己拼接长期轨迹
 - 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
 - 当前 rare-heavy v0 已补充离线路径：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 可导出 controller/memory artifact，由 runtime owner 通过显式 import/rollback surface 应用；完整 base-model 级干预仍属于后续增强

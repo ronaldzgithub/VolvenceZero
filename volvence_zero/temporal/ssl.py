@@ -15,10 +15,11 @@ from volvence_zero.temporal.metacontroller_components import (
     EncodedSequence,
     NdimResidualDecoder,
     NdimSequenceEncoder,
+    NdimSwitchUnit,
     PosteriorState,
     ResidualDecoder,
     SequenceEncoder,
-    classify_latent_action,
+    SwitchUnit,
     summarize_residual_activations,
 )
 from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
@@ -52,15 +53,19 @@ class MetacontrollerSSLTrainer:
         self._n_z = n_z
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
+        self._switch = SwitchUnit()
         self._ndim_encoder: "NdimSequenceEncoder | None" = None
         self._ndim_decoder: "NdimResidualDecoder | None" = None
+        self._ndim_switch: "NdimSwitchUnit | None" = None
         if n_z > 3:
             from volvence_zero.temporal.metacontroller_components import (
                 NdimResidualDecoder as _NRD,
                 NdimSequenceEncoder as _NSE,
+                NdimSwitchUnit as _NSU,
             )
             self._ndim_encoder = _NSE(n_z=n_z)
             self._ndim_decoder = _NRD(n_z=n_z)
+            self._ndim_switch = _NSU(n_z=n_z)
         self._m3_encoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
         self._m3_decoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
         self._noncausal_embedder = NonCausalSequenceEmbedder(n_z=n_z)
@@ -93,10 +98,13 @@ class MetacontrollerSSLTrainer:
         latest_prior_std = tuple(1.0 for _ in range(n))
         latest_z_tilde = tuple(0.0 for _ in range(n))
         latest_decoder = tuple(0.0 for _ in range(n))
-        latest_label = "stabilize_controller"
+        latest_label = "unassigned_action"
         posterior_drift_total = 0.0
         store = policy.parameter_store
+        store.set_learning_phase("ssl", structure_frozen=False)
         previous_hidden_state = store.latest_posterior_hidden_state
+        previous_code = tuple(0.0 for _ in range(n))
+        previous_steps = 0
 
         full_substrate = self._snapshot_from_prefix(trace=trace, prefix=trace.steps)
         noncausal_embedding = self._noncausal_embedder.embed(substrate_snapshot=full_substrate)
@@ -139,10 +147,47 @@ class MetacontrollerSSLTrainer:
                 summary=encoded.summary,
             )
             if self._ndim_decoder is not None:
-                decoder_control = self._ndim_decoder.decode(latent_code=encoded.z_tilde)
+                if self._ndim_switch is None:
+                    raise RuntimeError("Ndim switch unit must be available when n_z > 3.")
+                beta_cont, _, scalar_beta = self._ndim_switch.compute(
+                    z_tilde=encoded.z_tilde,
+                    previous_code=previous_code,
+                    memory_signal=0.0,
+                    reflection_signal=0.0,
+                )
+                latent_code = tuple(
+                    _clamp(
+                        beta_cont[index] * encoded.z_tilde[index]
+                        + (1.0 - beta_cont[index]) * previous_code[index]
+                    )
+                    for index in range(len(encoded.z_tilde))
+                )
+                is_switching = scalar_beta >= store.beta_threshold
+                persistence_window = 0.0 if is_switching else float(previous_steps + 1)
+                decoder_control = self._ndim_decoder.decode(latent_code=latent_code)
             else:
+                switch_decision = self._switch.compute_decision(
+                    previous_code=previous_code,
+                    z_tilde=encoded.z_tilde,
+                    posterior_std=encoded.latent_scale,
+                    switch_weights=store.switch_weights,
+                    switch_bias=store.switch_bias,
+                    memory_signal=0.0,
+                    reflection_signal=0.0,
+                    previous_binary=0,
+                    previous_steps_since_switch=previous_steps,
+                )
+                scalar_beta = switch_decision.beta_continuous
+                latent_code = tuple(
+                    _clamp(
+                        scalar_beta * current + (1.0 - scalar_beta) * previous
+                    )
+                    for current, previous in zip(encoded.z_tilde, previous_code, strict=True)
+                )
+                is_switching = bool(switch_decision.beta_binary)
+                persistence_window = switch_decision.mean_persistence_window
                 decoder_control = self._decoder.decode(
-                    latent_code=encoded.z_tilde,
+                    latent_code=latent_code,
                     decoder_matrix=store.decoder_matrix,
                     hidden_matrix=store.decoder_hidden,
                 )
@@ -172,14 +217,18 @@ class MetacontrollerSSLTrainer:
             latest_scale = enriched_encoded.posterior.posterior_std
             latest_prior_mean = encoded.posterior.prior_mean
             latest_prior_std = encoded.posterior.prior_std
-            latest_z_tilde = encoded.z_tilde
-            latest_decoder = decoder_control.decoder_output
-            latest_label, _ = classify_latent_action(
-                latent_code=encoded.z_tilde,
+            latest_z_tilde = latent_code
+            latest_decoder = decoder_control.applied_control
+            latest_label, _ = store.discover_action_family(
+                latent_code=latent_code,
                 decoder_control=decoder_control.applied_control,
-                prototypes=store.latent_prototypes,
+                switch_gate=scalar_beta,
+                posterior_drift=encoded.posterior.posterior_drift,
+                persistence_window=persistence_window,
             )
             previous_hidden_state = encoded.posterior.hidden_state
+            previous_code = latent_code
+            previous_steps = 0 if is_switching else previous_steps + 1
 
         avg_prediction = prediction_total / trained_steps
         avg_kl = kl_total / trained_steps

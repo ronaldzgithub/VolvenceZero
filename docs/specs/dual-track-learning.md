@@ -69,7 +69,7 @@
 
 - `controller_code` 不再只由 memory heuristic 派生；当前已可融合 temporal owner 发布的 controller state
 - dual-track owner 现也直接消费 substrate owner 发布的 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive，而不是在 consumer 侧重建文本语义
-- `abstract_action_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据
+- `abstract_action_hint`、`action_family_version_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据，以及该证据来自哪一代 family bank
 - 默认 final wiring 下，dual-track 通过上一轮已发布的 temporal snapshot 闭合 `temporal -> dual_track`，避免打破 runtime 单轮 DAG
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节

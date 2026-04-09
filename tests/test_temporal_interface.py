@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.reflection import TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.substrate import SimulatedResidualSubstrateAdapter, build_training_trace
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -20,6 +21,11 @@ from volvence_zero.temporal import (
     fit_policy_from_trace_dataset,
 )
 from volvence_zero.substrate import TrainingTraceDataset
+from volvence_zero.temporal.metacontroller_components import (
+    ActionFamilyObservation,
+    DiscoveredActionFamily,
+    discover_latent_action_family,
+)
 
 
 def test_temporal_module_builds_placeholder_snapshot():
@@ -153,6 +159,7 @@ def test_full_learned_policy_uses_residual_sequence_and_exports_decoder_state():
     policy = FullLearnedTemporalPolicy()
     temporal = TemporalModule(policy=policy, wiring_level=WiringLevel.ACTIVE)
 
+    assert policy.parameter_store.action_families == ()
     snapshot = asyncio.run(temporal.process_standalone(substrate_snapshot=substrate_snapshot))
     runtime_state = policy.export_runtime_state()
 
@@ -162,6 +169,7 @@ def test_full_learned_policy_uses_residual_sequence_and_exports_decoder_state():
     assert runtime_state.decoder_control
     assert runtime_state.decoder_applied_control
     assert runtime_state.active_label
+    assert runtime_state.active_label.startswith("discovered_family_")
     assert runtime_state.prior_mean
     assert runtime_state.prior_std
     assert runtime_state.posterior_mean
@@ -185,3 +193,217 @@ def test_ssl_trainer_updates_full_learned_policy_metrics():
     assert runtime_state.latest_ssl_loss >= 0.0
     assert runtime_state.sequence_length == len(trace.steps)
     assert runtime_state.posterior_drift >= 0.0
+    assert runtime_state.learning_phase == "ssl"
+    assert runtime_state.structure_frozen is False
+    assert runtime_state.active_label.startswith("discovered_family_")
+    assert policy.parameter_store.action_families
+    assert all(family.support >= 1 for family in policy.parameter_store.action_families)
+
+
+def test_discovered_action_family_lifecycle_can_split_topology():
+    observation = ActionFamilyObservation(
+        latent_code=(0.72, 0.18, 0.14),
+        decoder_control=(0.71, 0.16, 0.18),
+        switch_gate=0.82,
+        posterior_drift=0.06,
+        persistence_window=0.85,
+    )
+    families, _, _ = discover_latent_action_family(
+        observation=observation,
+        action_families=(),
+        structure_frozen=False,
+    )
+    for _ in range(6):
+        families, _, _ = discover_latent_action_family(
+            observation=observation,
+            action_families=families,
+            structure_frozen=False,
+        )
+
+    divergent = ActionFamilyObservation(
+        latent_code=(0.58, 0.43, 0.18),
+        decoder_control=(0.56, 0.41, 0.22),
+        switch_gate=0.54,
+        posterior_drift=0.34,
+        persistence_window=0.05,
+    )
+    updated_families, active_label, summary = discover_latent_action_family(
+        observation=divergent,
+        action_families=families,
+        structure_frozen=False,
+    )
+
+    assert len(updated_families) >= 2
+    assert active_label.startswith("discovered_family_")
+    assert "split:" in summary or "anti-collapse-create:" in summary
+
+
+def test_discovered_action_family_lifecycle_can_merge_and_prune_topology():
+    families = (
+        DiscoveredActionFamily(
+            family_id="discovered_family_0",
+            latent_centroid=(0.62, 0.28, 0.18),
+            decoder_centroid=(0.60, 0.26, 0.20),
+            support=6,
+            stability=0.82,
+            switch_bias=0.68,
+            mean_posterior_drift=0.10,
+            mean_persistence_window=0.72,
+            summary="manual-a",
+        ),
+        DiscoveredActionFamily(
+            family_id="discovered_family_1",
+            latent_centroid=(0.61, 0.29, 0.19),
+            decoder_centroid=(0.59, 0.27, 0.21),
+            support=5,
+            stability=0.80,
+            switch_bias=0.66,
+            mean_posterior_drift=0.11,
+            mean_persistence_window=0.70,
+            summary="manual-b",
+        ),
+        DiscoveredActionFamily(
+            family_id="discovered_family_2",
+            latent_centroid=(0.10, 0.12, 0.11),
+            decoder_centroid=(0.09, 0.10, 0.12),
+            support=1,
+            stability=0.20,
+            switch_bias=0.15,
+            mean_posterior_drift=0.05,
+            mean_persistence_window=0.10,
+            summary="manual-c",
+        ),
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.60, 0.28, 0.18),
+        decoder_control=(0.58, 0.27, 0.19),
+        switch_gate=0.64,
+        posterior_drift=0.09,
+        persistence_window=0.75,
+    )
+
+    updated_families, active_label, summary = discover_latent_action_family(
+        observation=observation,
+        action_families=families,
+        structure_frozen=False,
+        max_families=2,
+    )
+
+    assert len(updated_families) == 1
+    assert active_label == "discovered_family_0"
+    assert "merge:" in summary or updated_families[0].support >= 11
+
+
+def test_temporal_owner_can_apply_structural_family_proposals():
+    policy = FullLearnedTemporalPolicy()
+    policy.parameter_store.action_families = (
+        DiscoveredActionFamily(
+            family_id="discovered_family_0",
+            latent_centroid=(0.62, 0.28, 0.18),
+            decoder_centroid=(0.60, 0.26, 0.20),
+            support=6,
+            stability=0.82,
+            switch_bias=0.68,
+            mean_posterior_drift=0.10,
+            mean_persistence_window=0.72,
+            summary="manual-a",
+        ),
+        DiscoveredActionFamily(
+            family_id="discovered_family_1",
+            latent_centroid=(0.58, 0.30, 0.20),
+            decoder_centroid=(0.57, 0.28, 0.22),
+            support=2,
+            stability=0.54,
+            switch_bias=0.64,
+            mean_posterior_drift=0.16,
+            mean_persistence_window=0.64,
+            summary="manual-b",
+        ),
+    )
+
+    operations = policy.apply_reflection_prior_update(
+        update=TemporalPriorUpdate(
+            target="metacontroller.temporal_prior",
+            target_groups=("action-family-structure",),
+            residual_strength=0.5,
+            memory_strength=0.3,
+            reflection_strength=0.2,
+            switch_bias_delta=0.0,
+            persistence_delta=0.0,
+            learning_rate_delta=0.0,
+            description="test structure proposals",
+            structure_proposals=(
+                TemporalStructureProposal(
+                    proposal_type="split",
+                    family_id="discovered_family_0",
+                    related_family_id=None,
+                    confidence=0.6,
+                    justification="split test",
+                ),
+                TemporalStructureProposal(
+                    proposal_type="prune",
+                    family_id="discovered_family_1",
+                    related_family_id=None,
+                    confidence=0.7,
+                    justification="prune test",
+                ),
+            ),
+        )
+    )
+
+    assert any(operation.startswith("temporal-prior:action-family-split=") for operation in operations)
+    assert any(operation == "temporal-prior:action-family-prune=discovered_family_1" for operation in operations)
+    assert len(policy.parameter_store.action_families) == 2
+
+
+def test_family_competition_memory_raises_monopoly_under_repeated_selection():
+    policy = FullLearnedTemporalPolicy()
+    for _ in range(6):
+        policy.parameter_store.discover_action_family(
+            latent_code=(0.82, 0.16, 0.12),
+            decoder_control=(0.78, 0.14, 0.15),
+            switch_gate=0.74,
+            posterior_drift=0.08,
+            persistence_window=0.82,
+        )
+    runtime_state = policy.export_runtime_state()
+
+    assert runtime_state.active_family_summary is not None
+    assert runtime_state.active_family_summary.reuse_streak >= 4
+    assert runtime_state.action_family_monopoly_pressure > 0.7
+    assert runtime_state.active_family_competition_score < 0.7
+
+
+def test_family_competition_turnover_health_improves_with_diverse_family_usage():
+    repeated_policy = FullLearnedTemporalPolicy()
+    for _ in range(6):
+        repeated_policy.parameter_store.discover_action_family(
+            latent_code=(0.82, 0.16, 0.12),
+            decoder_control=(0.78, 0.14, 0.15),
+            switch_gate=0.74,
+            posterior_drift=0.08,
+            persistence_window=0.82,
+        )
+    repeated_runtime = repeated_policy.export_runtime_state()
+
+    diverse_policy = FullLearnedTemporalPolicy()
+    observations = (
+        ((0.82, 0.16, 0.12), (0.78, 0.14, 0.15), 0.74),
+        ((0.22, 0.78, 0.25), (0.18, 0.72, 0.22), 0.28),
+        ((0.36, 0.30, 0.84), (0.34, 0.26, 0.78), 0.48),
+        ((0.76, 0.18, 0.16), (0.74, 0.16, 0.18), 0.72),
+        ((0.20, 0.80, 0.30), (0.16, 0.74, 0.26), 0.24),
+        ((0.34, 0.28, 0.86), (0.32, 0.24, 0.82), 0.46),
+    )
+    for latent_code, decoder_control, switch_gate in observations:
+        diverse_policy.parameter_store.discover_action_family(
+            latent_code=latent_code,
+            decoder_control=decoder_control,
+            switch_gate=switch_gate,
+            posterior_drift=0.12,
+            persistence_window=0.46,
+        )
+    diverse_runtime = diverse_policy.export_runtime_state()
+
+    assert diverse_runtime.action_family_turnover_health > repeated_runtime.action_family_turnover_health
+    assert len(diverse_runtime.action_family_summaries) >= 2

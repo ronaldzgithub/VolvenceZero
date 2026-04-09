@@ -15,7 +15,7 @@ from volvence_zero.integration import (
 from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport, JointLoopSchedule, ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot, MemoryStore
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
-from volvence_zero.regime import RegimeSnapshot
+from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
@@ -88,8 +88,9 @@ class AgentSessionRunner:
         self._credit_proposals = credit_proposals
         self._response_synthesizer = response_synthesizer or ResponseSynthesizer()
         self._substrate_adapter_factory = substrate_adapter_factory
-        self._joint_loop = joint_loop or ETANLJointLoop(policy=self._temporal_policy)
-        self._joint_schedule = joint_schedule or JointLoopSchedule()
+        self._regime_module = RegimeModule(
+            wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
+        )
         self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
             model_id=substrate_model_id,
             device=substrate_device,
@@ -98,6 +99,11 @@ class AgentSessionRunner:
             fallback_mode=substrate_fallback_mode,
             builtin_model_id="runner-transformers-runtime",
         )
+        self._joint_loop = joint_loop or ETANLJointLoop(
+            policy=self._temporal_policy,
+            residual_runtime=self._default_residual_runtime,
+        )
+        self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
 
@@ -131,6 +137,7 @@ class AgentSessionRunner:
             credit_proposals=self._credit_proposals,
             reflection_mode=self._reflection_mode,
             temporal_policy=self._temporal_policy,
+            regime_module=self._regime_module,
             session_id=self._session_id,
             wave_id=wave_id,
         )

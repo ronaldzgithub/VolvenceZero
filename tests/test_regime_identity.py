@@ -353,10 +353,33 @@ def test_regime_module_applies_policy_consolidation_and_restores_checkpoint():
     assert restored.active_regime.historical_effectiveness <= updated.active_regime.historical_effectiveness
 
 
-def test_regime_module_emits_delayed_outcomes_one_turn_later():
+def test_regime_module_emits_delayed_outcomes_after_multi_step_horizon():
     module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("ship-plan",),
+            recent_credits=(),
+            controller_code=(0.7, 0.2, 0.1),
+            tension_level=0.4,
+            abstract_action_hint="discovered_family_2",
+            action_family_version_hint=3,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("stay-steady",),
+            recent_credits=(),
+            controller_code=(0.3, 0.6, 0.2),
+            tension_level=0.3,
+            abstract_action_hint="discovered_family_2",
+            action_family_version_hint=3,
+        ),
+        cross_track_tension=0.25,
+        description="dual-track snapshot for delayed attribution",
+    )
     first = asyncio.run(
         module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=EvaluationSnapshot(
                 turn_scores=(
                     EvaluationScore("task", "info_integration", 0.4, 0.7, "baseline"),
@@ -371,6 +394,7 @@ def test_regime_module_emits_delayed_outcomes_one_turn_later():
     ).value
     second = asyncio.run(
         module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=EvaluationSnapshot(
                 turn_scores=(
                     EvaluationScore("task", "info_integration", 0.9, 0.7, "delayed improvement"),
@@ -383,10 +407,76 @@ def test_regime_module_emits_delayed_outcomes_one_turn_later():
             )
         )
     ).value
+    third = asyncio.run(
+        module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=EvaluationSnapshot(
+                turn_scores=(
+                    EvaluationScore("task", "info_integration", 0.88, 0.7, "delayed improvement"),
+                    EvaluationScore("interaction", "warmth", 0.82, 0.7, "delayed improvement"),
+                    EvaluationScore("relationship", "cross_track_stability", 0.84, 0.7, "delayed improvement"),
+                ),
+                session_scores=(),
+                alerts=(),
+                description="turn three",
+            )
+        )
+    ).value
 
-    assert second.delayed_outcomes
-    assert second.delayed_outcomes[0][0] == first.active_regime.regime_id
-    assert second.delayed_outcomes[0][1] > 0.7
+    assert not second.delayed_outcomes
+    assert third.delayed_outcomes
+    assert third.delayed_outcomes[0][0] == first.active_regime.regime_id
+    assert third.delayed_outcomes[0][1] > 0.7
+    assert third.delayed_attributions
+    assert third.delayed_attributions[0].abstract_action == "discovered_family_2"
+    assert third.delayed_attributions[0].action_family_version == 3
+    assert third.delayed_attribution_ledger
+    assert third.delayed_payoffs
+
+
+def test_regime_module_builds_multi_step_delayed_ledger():
+    module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("ship-plan",),
+            recent_credits=(),
+            controller_code=(0.7, 0.2, 0.1),
+            tension_level=0.4,
+            abstract_action_hint="discovered_family_2",
+            action_family_version_hint=3,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("stay-steady",),
+            recent_credits=(),
+            controller_code=(0.3, 0.6, 0.2),
+            tension_level=0.3,
+            abstract_action_hint="discovered_family_2",
+            action_family_version_hint=3,
+        ),
+        cross_track_tension=0.25,
+        description="dual-track snapshot for delayed ledger",
+    )
+    baseline = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.8, 0.7, "good task"),
+            EvaluationScore("interaction", "warmth", 0.7, 0.7, "good warmth"),
+            EvaluationScore("relationship", "cross_track_stability", 0.75, 0.7, "good stability"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="good turn",
+    )
+    first = asyncio.run(module.process_standalone(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=baseline)).value
+    second = asyncio.run(module.process_standalone(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=baseline)).value
+    third = asyncio.run(module.process_standalone(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=baseline)).value
+
+    assert not first.delayed_attributions
+    assert not second.delayed_attributions
+    assert third.delayed_attributions
+    assert len(third.delayed_attribution_ledger) >= 1
+    assert third.delayed_payoffs[0].sample_count >= 1
 
 
 def test_regime_module_projects_identity_hints_from_memory_snapshot():

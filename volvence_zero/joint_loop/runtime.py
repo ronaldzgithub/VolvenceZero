@@ -8,13 +8,14 @@ from volvence_zero.credit import (
     GateDecision,
     ModificationGate,
     SelfModificationRecord,
+    derive_delayed_attribution_credit_records,
     derive_metacontroller_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import (
     CausalPolicyCheckpoint,
     DualTrackOptimizationReport,
@@ -29,6 +30,7 @@ from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
+    OpenWeightResidualRuntime,
     ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
     SubstrateSnapshot,
@@ -40,6 +42,7 @@ from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerSSLTrainer,
     MetacontrollerRuntimeState,
+    TemporalAbstractionSnapshot,
     TemporalModule,
 )
 from volvence_zero.memory import MemoryModule
@@ -54,6 +57,7 @@ class JointCycleReport:
     ssl_kl_loss: float
     ssl_posterior_drift: float
     total_reward: float
+    mean_transition_reward: float
     task_reward: float
     relationship_reward: float
     ssl_rollback_applied: bool
@@ -62,6 +66,9 @@ class JointCycleReport:
     optimization_summary: str
     policy_objective: float
     kernel_score_count: int
+    kernel_scores: tuple[EvaluationScore, ...]
+    backend_name: str
+    backend_fidelity: float
     applied_operations: tuple[str, ...]
     metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
@@ -81,6 +88,7 @@ class ScheduledJointLoopResult:
     turn_index: int
     schedule_action: str
     cycle_report: JointCycleReport | None
+    kernel_scores: tuple[EvaluationScore, ...]
     ssl_prediction_loss: float
     ssl_kl_loss: float
     metacontroller_state: MetacontrollerRuntimeState | None
@@ -115,9 +123,10 @@ class ETANLJointLoop:
         *,
         policy: FullLearnedTemporalPolicy | None = None,
         memory_store: MemoryStore | None = None,
+        residual_runtime: OpenWeightResidualRuntime | None = None,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
-        self._sandbox = InternalRLSandbox(policy=self._policy)
+        self._sandbox = InternalRLSandbox(policy=self._policy, residual_runtime=residual_runtime)
         self._ssl_trainer = MetacontrollerSSLTrainer()
         self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore())
         self._evaluation_backbone = EvaluationBackbone()
@@ -138,13 +147,14 @@ class ETANLJointLoop:
         temporal_prior_update = reflection_snapshot.policy_consolidation.temporal_prior_update
         if temporal_prior_update is None:
             return ((), ())
+        target_groups = temporal_prior_update.target_groups or ("base-weights",)
         before_hash = stable_value_hash(temporal_module.policy.export_parameters())
         if not apply_enabled:
             return (
                 ("temporal-prior:writeback-mode-not-apply",),
-                (
+                tuple(
                     SelfModificationRecord(
-                        target=temporal_prior_update.target,
+                        target=f"{temporal_prior_update.target}.{group}",
                         gate=ModificationGate.BACKGROUND,
                         decision=GateDecision.BLOCK,
                         old_value_hash=before_hash,
@@ -152,15 +162,25 @@ class ETANLJointLoop:
                         justification="Joint loop skipped reflection-to-temporal writeback because apply_writeback is disabled.",
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
-                    ),
+                    )
+                    for group in target_groups
                 ),
             )
-        if has_blocking_writeback(credit_snapshot, target_prefix=temporal_prior_update.target):
+        blocked_groups = tuple(
+            group
+            for group in target_groups
+            if has_blocking_writeback(
+                credit_snapshot,
+                target_prefix=f"{temporal_prior_update.target}.{group}",
+            )
+        )
+        allowed_groups = tuple(group for group in target_groups if group not in blocked_groups)
+        if not allowed_groups:
             return (
                 ("temporal-prior:credit-gate-block",),
-                (
+                tuple(
                     SelfModificationRecord(
-                        target=temporal_prior_update.target,
+                        target=f"{temporal_prior_update.target}.{group}",
                         gate=ModificationGate.BACKGROUND,
                         decision=GateDecision.BLOCK,
                         old_value_hash=before_hash,
@@ -168,24 +188,46 @@ class ETANLJointLoop:
                         justification="Joint loop blocked reflection-to-temporal writeback via target-specific credit gate.",
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
-                    ),
+                    )
+                    for group in blocked_groups
                 ),
             )
-        applied_operations = temporal_module.policy.apply_reflection_prior_update(update=temporal_prior_update)
+        applied_operations = temporal_module.policy.apply_reflection_prior_update(
+            update=temporal_prior_update,
+            allowed_target_groups=allowed_groups,
+        )
+        if blocked_groups:
+            applied_operations = applied_operations + ("temporal-prior:partial-credit-gate-block",)
         after_hash = stable_value_hash(temporal_module.policy.export_parameters())
         return (
             applied_operations,
-            (
-                SelfModificationRecord(
-                    target=temporal_prior_update.target,
-                    gate=ModificationGate.BACKGROUND,
-                    decision=GateDecision.ALLOW,
-                    old_value_hash=before_hash,
-                    new_value_hash=after_hash,
-                    justification=temporal_prior_update.description,
-                    timestamp_ms=timestamp_ms,
-                    is_reversible=True,
-                ),
+            tuple(
+                [
+                    SelfModificationRecord(
+                        target=f"{temporal_prior_update.target}.{group}",
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.ALLOW,
+                        old_value_hash=before_hash,
+                        new_value_hash=after_hash,
+                        justification=temporal_prior_update.description,
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    )
+                    for group in allowed_groups
+                ]
+                + [
+                    SelfModificationRecord(
+                        target=f"{temporal_prior_update.target}.{group}",
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification="Joint loop blocked reflection-to-temporal writeback via target-specific credit gate.",
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                    )
+                    for group in blocked_groups
+                ]
             ),
         )
 
@@ -205,6 +247,7 @@ class ETANLJointLoop:
         apply_writeback: bool = True,
     ) -> JointCycleReport:
         cycle_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}")
+        self._policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
         ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
         if ssl_report.m3_slow_momentum_signal and self._memory_store is not None:
             self._memory_store.observe_encoder_feedback(
@@ -212,6 +255,8 @@ class ETANLJointLoop:
                 timestamp_ms=cycle_index + 1,
             )
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
+        self._policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
+        self._sandbox.configure_runtime_backend(source_text=trace.source_text)
         if self._previous_family_signals:
             self._sandbox._env.set_evaluation_signals(self._previous_family_signals)
         dual_track_rollout = self._sandbox.rollout_dual_track(
@@ -258,11 +303,40 @@ class ETANLJointLoop:
             active_snapshots,
             dual_track_rollout=dual_track_rollout,
         )
+        enriched_credit_snapshot = extend_credit_snapshot(
+            credit_snapshot=enriched_credit_snapshot,
+            extra_records=derive_delayed_attribution_credit_records(
+                regime_snapshot=active_snapshots["regime"].value,
+                timestamp_ms=active_snapshots["credit"].timestamp_ms + 125,
+            ),
+        )
         total_reward = (
             dual_track_rollout.task_rollout.total_reward
             + dual_track_rollout.relationship_rollout.total_reward
         )
+        all_transitions = dual_track_rollout.task_rollout.transitions + dual_track_rollout.relationship_rollout.transitions
+        mean_transition_reward = total_reward / len(all_transitions) if all_transitions else 0.0
+        backend_fidelity = (
+            sum(transition.backend_fidelity for transition in all_transitions) / len(all_transitions)
+            if all_transitions
+            else 0.0
+        )
+        backend_names = {transition.backend_name for transition in all_transitions}
+        backend_name = backend_names.pop() if len(backend_names) == 1 else "mixed"
         evaluation_snapshot = active_snapshots["evaluation"].value
+        temporal_snapshot = active_snapshots.get("temporal_abstraction")
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
+        evaluation_snapshot = self._evaluation_backbone.record_temporal_public_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+            base_snapshot=evaluation_snapshot,
+            temporal_snapshot=temporal_value,
+        )
         self._modulate_ssl_learning_rate(evaluation_snapshot)
         pre_rollback_metacontroller_state = temporal_module.export_runtime_state()
         rollback_reasons = self._rollback_reasons(
@@ -291,6 +365,14 @@ class ETANLJointLoop:
             policy_objective=policy_objective,
             rollback_reasons=rollback_reasons,
         )
+        evaluation_snapshot = self._evaluation_backbone.record_external_scores(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
+            base_snapshot=evaluation_snapshot,
+            scores=kernel_scores,
+            description_suffix=f"Enriched with {len(kernel_scores)} metacontroller evidence scores.",
+        )
         regime_operations = self._regime_module.apply_metacontroller_evidence(
             metacontroller_state=metacontroller_state,
             rollback_reasons=rollback_reasons,
@@ -316,7 +398,7 @@ class ETANLJointLoop:
             timestamp_ms=active_snapshots["reflection"].timestamp_ms + 1,
             memory_snapshot=active_snapshots["memory"].value,
             dual_track_snapshot=active_snapshots["dual_track"].value,
-            evaluation_snapshot=active_snapshots["evaluation"].value,
+            evaluation_snapshot=evaluation_snapshot,
             credit_snapshot=enriched_credit_snapshot,
             regime_snapshot=active_snapshots["regime"].value,
         )
@@ -356,6 +438,7 @@ class ETANLJointLoop:
             ssl_kl_loss=ssl_report.kl_loss,
             ssl_posterior_drift=ssl_report.posterior_drift,
             total_reward=total_reward,
+            mean_transition_reward=mean_transition_reward,
             task_reward=dual_track_rollout.task_rollout.total_reward,
             relationship_reward=dual_track_rollout.relationship_rollout.total_reward,
             ssl_rollback_applied=ssl_rollback_applied,
@@ -364,6 +447,9 @@ class ETANLJointLoop:
             optimization_summary=optimization_report.description,
             policy_objective=policy_objective,
             kernel_score_count=len(kernel_scores),
+            kernel_scores=kernel_scores,
+            backend_name=backend_name,
+            backend_fidelity=backend_fidelity,
             applied_operations=applied_operations,
             metacontroller_state=metacontroller_state,
             cms_description=self._memory_store.learned_core.snapshot().description
@@ -382,8 +468,10 @@ class ETANLJointLoop:
                 f"kl={ssl_report.kl_loss:.2f}, drift={ssl_report.posterior_drift:.2f}) and dual-track rollout "
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
+                f"mean_reward={mean_transition_reward:.2f}, "
                 f"rollback={'on' if policy_rollback_applied else 'off'}, "
                 f"reasons={','.join(rollback_reasons) if rollback_reasons else 'none'}, "
+                f"backend={backend_name}, fidelity={backend_fidelity:.2f}, "
                 f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
                 f"kernel_scores={len(kernel_scores)}, with {len(applied_operations)} bounded writeback operations."
             ),
@@ -417,6 +505,7 @@ class ETANLJointLoop:
                 turn_index=turn_index,
                 schedule_action="full-cycle",
                 cycle_report=cycle_report,
+                kernel_scores=cycle_report.kernel_scores,
                 ssl_prediction_loss=cycle_report.ssl_prediction_loss,
                 ssl_kl_loss=cycle_report.ssl_kl_loss,
                 metacontroller_state=cycle_report.metacontroller_state,
@@ -432,6 +521,7 @@ class ETANLJointLoop:
                 turn_index=turn_index,
                 schedule_action="ssl-only",
                 cycle_report=None,
+                kernel_scores=(),
                 ssl_prediction_loss=ssl_report.prediction_loss,
                 ssl_kl_loss=ssl_report.kl_loss,
                 metacontroller_state=metacontroller_state,
@@ -448,6 +538,7 @@ class ETANLJointLoop:
             turn_index=turn_index,
             schedule_action="evidence-only",
             cycle_report=None,
+            kernel_scores=(),
             ssl_prediction_loss=0.0,
             ssl_kl_loss=0.0,
             metacontroller_state=metacontroller_state,
@@ -556,12 +647,26 @@ class ETANLJointLoop:
             or optimization_report.relationship_report.kl_penalty > 0.4
         ):
             reasons.append("excessive-kl")
+        surrogate_total = (
+            optimization_report.task_report.surrogate_objective
+            + optimization_report.relationship_report.surrogate_objective
+        )
+        outcome_alignment = (
+            family_signals.get("task", 0.5) * 0.3
+            + family_signals.get("relationship", 0.5) * 0.3
+            + family_signals.get("learning", 0.5) * 0.2
+            + family_signals.get("abstraction", 0.5) * 0.2
+        )
+        if surrogate_total > 0.1 and outcome_alignment < 0.45:
+            reasons.append("surrogate-outcome-decoupling")
         if self._metacontroller_drift_exceeds_limit(metacontroller_state):
             reasons.append("metacontroller-drift")
         if self._previous_total_reward is None:
             return tuple(reasons)
         if total_reward + 0.25 < self._previous_total_reward:
             reasons.append("reward-regression")
+            if surrogate_total > 0.1:
+                reasons.append("surrogate-positive-outcome-negative")
         return tuple(reasons)
 
     def _modulate_ssl_learning_rate(self, evaluation_snapshot: EvaluationSnapshot) -> None:

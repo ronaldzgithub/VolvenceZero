@@ -228,20 +228,129 @@ def derive_learning_evidence_credit_records(
     evaluation_snapshot: EvaluationSnapshot,
     timestamp_ms: int,
 ) -> tuple[CreditRecord, ...]:
-    relevant_metrics = {"retrieval_quality", "reflection_usefulness", "joint_learning_progress"}
-    return tuple(
-        CreditRecord(
-            record_id=str(uuid4()),
-            level="turn",
-            track=Track.SHARED,
-            source_event=score.metric_name,
-            credit_value=_clamp(score.value),
-            context=score.evidence,
-            timestamp_ms=timestamp_ms,
+    turn_learning_metrics = {
+        "retrieval_quality",
+        "reflection_usefulness",
+        "joint_learning_progress",
+        "regime_sequence_payoff",
+    }
+    metacontroller_metrics = {
+        "adaptive_stability",
+        "posterior_stability",
+        "switch_sparsity",
+        "binary_gate_ratio",
+        "decoder_usefulness",
+        "policy_replacement_quality",
+        "abstract_action_usefulness",
+        "temporal_action_commitment",
+        "action_family_reuse",
+        "action_family_stability",
+        "action_family_diversity",
+        "delayed_action_alignment",
+    }
+    credit_records: list[CreditRecord] = []
+    for score in evaluation_snapshot.turn_scores:
+        if score.family == "learning" and score.metric_name in turn_learning_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="turn",
+                    track=Track.SHARED,
+                    source_event=score.metric_name,
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+            continue
+        if score.metric_name in metacontroller_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"evaluation:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    return tuple(credit_records)
+
+
+def derive_delayed_attribution_credit_records(
+    *,
+    regime_snapshot: object | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    from volvence_zero.regime import RegimeSnapshot
+
+    if regime_snapshot is None or not isinstance(regime_snapshot, RegimeSnapshot):
+        return ()
+    credit_records: list[CreditRecord] = []
+    for payoff in regime_snapshot.delayed_payoffs:
+        payoff_context = (
+            f"last_source_wave_id={payoff.last_source_wave_id} "
+            f"abstract_action={payoff.abstract_action or 'none'} "
+            f"action_family_version={payoff.action_family_version} "
+            f"sample_count={payoff.sample_count} "
+            f"rolling_payoff={payoff.rolling_payoff:.3f}"
         )
-        for score in evaluation_snapshot.turn_scores
-        if score.family == "learning" and score.metric_name in relevant_metrics
-    )
+        credit_records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="session",
+                track=Track.SHARED,
+                source_event=f"delayed_payoff:{payoff.regime_id}",
+                credit_value=_clamp(payoff.rolling_payoff),
+                context=payoff_context,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        if payoff.abstract_action is not None:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"delayed_payoff_action:{payoff.abstract_action}",
+                    credit_value=_clamp(payoff.rolling_payoff),
+                    context=payoff_context,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    for attribution in regime_snapshot.delayed_attributions:
+        context = (
+            f"source_wave_id={attribution.source_wave_id} "
+            f"source_turn_index={attribution.source_turn_index} "
+            f"abstract_action={attribution.abstract_action or 'none'} "
+            f"action_family_version={attribution.action_family_version} "
+            f"outcome_score={attribution.outcome_score:.3f}"
+        )
+        credit_records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="session",
+                track=Track.SHARED,
+                source_event=f"delayed_regime:{attribution.regime_id}",
+                credit_value=_clamp(attribution.outcome_score),
+                context=context,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        if attribution.abstract_action is not None:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"delayed_action:{attribution.abstract_action}",
+                    credit_value=_clamp(attribution.outcome_score),
+                    context=context,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    return tuple(credit_records)
 
 
 def derive_runtime_adaptation_audit_records(
@@ -290,6 +399,7 @@ def derive_metacontroller_credit_records(
         + metacontroller_state.switch_sparsity * 0.05
         - len(rollback_reasons) * 0.15
     )
+    active_family = metacontroller_state.active_family_summary
     return (
         CreditRecord(
             record_id=f"metacontroller:{timestamp_ms}",
@@ -303,6 +413,9 @@ def derive_metacontroller_credit_records(
                 f"posterior_drift={metacontroller_state.posterior_drift:.3f} "
                 f"binary_ratio={metacontroller_state.binary_switch_rate:.3f} "
                 f"replacement={metacontroller_state.policy_replacement_score:.3f} "
+                f"family_version={metacontroller_state.action_family_version} "
+                f"family_support={active_family.support if active_family is not None else 0} "
+                f"family_stability={active_family.stability if active_family is not None else 0.0:.3f} "
                 f"rollback={','.join(rollback_reasons) or 'none'}"
             ),
             timestamp_ms=timestamp_ms,

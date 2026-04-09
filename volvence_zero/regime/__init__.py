@@ -1,4 +1,7 @@
 from volvence_zero.regime.identity import (
+    DelayedOutcomeAttribution,
+    DelayedOutcomePayoff,
+    PendingRegimeOutcome,
     REGIME_TEMPLATES,
     RegimeCheckpoint,
     RegimeIdentity,
@@ -10,6 +13,9 @@ from volvence_zero.regime.identity import (
 
 __all__ = [
     "REGIME_TEMPLATES",
+    "DelayedOutcomeAttribution",
+    "DelayedOutcomePayoff",
+    "PendingRegimeOutcome",
     "RegimeCheckpoint",
     "RegimeIdentity",
     "RegimeModule",

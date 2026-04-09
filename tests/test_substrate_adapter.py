@@ -304,6 +304,23 @@ def test_builtin_transformers_runtime_is_deterministic_across_instances():
     assert left_capture.token_logits == right_capture.token_logits
 
 
+def test_builtin_transformers_runtime_separates_task_and_support_pulls():
+    runtime = build_builtin_transformers_runtime(model_id="builtin-semantic-contrast")
+
+    task_capture = runtime.capture(
+        source_text="I need a decision and a concrete execution order for the launch plan."
+    )
+    support_capture = runtime.capture(
+        source_text="Please stay supportive first, help me feel steadier, and do not rush me."
+    )
+
+    task_features = {signal.name: signal.values[0] for signal in task_capture.feature_surface}
+    support_features = {signal.name: signal.values[0] for signal in support_capture.feature_surface}
+
+    assert task_features["semantic_task_pull"] > task_features["semantic_support_pull"]
+    assert support_features["semantic_support_pull"] > support_features["semantic_task_pull"]
+
+
 def test_transformers_runtime_resolves_backbone_layers_path():
     runtime = _build_backbone_wrapped_runtime()
 

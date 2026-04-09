@@ -323,6 +323,8 @@ class TestP13EvaluationFeedbackLoop:
             previous_snapshot=None,
         )
         assert step_yes.reward >= step_no.reward
+        assert any(name == "task_outcome_delta" for name, _ in step_yes.reward_components)
+        assert any(name == "stability_outcome_delta" for name, _ in step_yes.reward_components)
 
     def test_ssl_lr_modulation(self) -> None:
         from volvence_zero.evaluation import EvaluationBackbone, EvaluationScore, EvaluationSnapshot
@@ -796,6 +798,9 @@ class TestP17SSLRLPipeline:
         assert artifact.artifact_id == "rare-heavy-1"
         assert artifact.owner_path == "offline-sslrl-pipeline"
         assert artifact.temporal_snapshot.active_label
+        assert artifact.temporal_snapshot.active_label.startswith("discovered_family_")
+        assert artifact.temporal_snapshot.structure_frozen is True
+        assert artifact.temporal_snapshot.learning_phase == "rl"
 
 
 # =========================================================================

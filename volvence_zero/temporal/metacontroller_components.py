@@ -66,6 +66,32 @@ class DecoderControl:
     summary: str
 
 
+@dataclass(frozen=True)
+class DiscoveredActionFamily:
+    family_id: str
+    latent_centroid: tuple[float, ...]
+    decoder_centroid: tuple[float, ...]
+    support: int
+    stability: float
+    switch_bias: float
+    mean_posterior_drift: float = 0.0
+    mean_persistence_window: float = 0.0
+    reuse_streak: int = 0
+    stagnation_pressure: float = 0.0
+    monopoly_pressure: float = 0.0
+    competition_score: float = 0.0
+    summary: str = ""
+
+
+@dataclass(frozen=True)
+class ActionFamilyObservation:
+    latent_code: tuple[float, ...]
+    decoder_control: tuple[float, ...]
+    switch_gate: float
+    posterior_drift: float
+    persistence_window: float
+
+
 def residual_sequence_from_snapshot(substrate_snapshot: SubstrateSnapshot) -> tuple[ResidualSequenceStep, ...]:
     if substrate_snapshot.residual_sequence:
         return substrate_snapshot.residual_sequence
@@ -380,24 +406,588 @@ class ResidualDecoder:
         )
 
 
+def _cosine_similarity(lhs: tuple[float, ...], rhs: tuple[float, ...]) -> float:
+    numerator = sum(left * right for left, right in zip(lhs, rhs, strict=True))
+    lhs_norm = sum(value * value for value in lhs) ** 0.5
+    rhs_norm = sum(value * value for value in rhs) ** 0.5
+    if lhs_norm == 0.0 or rhs_norm == 0.0:
+        return 0.0
+    return numerator / (lhs_norm * rhs_norm)
+
+
+def _blend_centroid(
+    previous: tuple[float, ...],
+    observation: tuple[float, ...],
+    *,
+    support: int,
+) -> tuple[float, ...]:
+    blend = 1.0 / max(support, 1)
+    return tuple(
+        clamp_unit(prev * (1.0 - blend) + current * blend)
+        for prev, current in zip(previous, observation, strict=True)
+    )
+
+
+def _dominant_axis(values: tuple[float, ...]) -> str:
+    if not values:
+        return "unknown"
+    index = max(range(len(values)), key=lambda i: values[i])
+    if index == 0:
+        return "world"
+    if index == 1:
+        return "self"
+    return "shared"
+
+
+def _family_match_score(
+    family: DiscoveredActionFamily,
+    observation: ActionFamilyObservation,
+) -> float:
+    latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
+    decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
+    switch_alignment = 1.0 - abs(observation.switch_gate - family.switch_bias)
+    return (
+        latent_similarity * 0.52
+        + decoder_similarity * 0.28
+        + family.stability * 0.10
+        + clamp_unit(switch_alignment) * 0.06
+        + clamp_unit(1.0 - abs(observation.posterior_drift - family.mean_posterior_drift)) * 0.04
+        + family.competition_score * 0.04
+        - family.monopoly_pressure * 0.05
+        - family.stagnation_pressure * 0.03
+    )
+
+
+def _family_summary(
+    family: DiscoveredActionFamily,
+    *,
+    prefix: str,
+) -> str:
+    return (
+        f"{prefix} dominant_axis={_dominant_axis(family.decoder_centroid)} "
+        f"support={family.support} stability={family.stability:.3f} "
+        f"drift={family.mean_posterior_drift:.3f} persistence={family.mean_persistence_window:.3f} "
+        f"reuse_streak={family.reuse_streak} stagnation={family.stagnation_pressure:.3f} "
+        f"monopoly={family.monopoly_pressure:.3f} competition={family.competition_score:.3f}"
+    )
+
+
+def _family_from_observation(
+    *,
+    family_id: str,
+    observation: ActionFamilyObservation,
+    support: int = 1,
+    stability: float = 1.0,
+) -> DiscoveredActionFamily:
+    return DiscoveredActionFamily(
+        family_id=family_id,
+        latent_centroid=observation.latent_code,
+        decoder_centroid=observation.decoder_control,
+        support=support,
+        stability=stability,
+        switch_bias=observation.switch_gate,
+        mean_posterior_drift=observation.posterior_drift,
+        mean_persistence_window=observation.persistence_window,
+        summary="",
+    )
+
+
+def _refresh_family_summary(family: DiscoveredActionFamily, *, prefix: str) -> DiscoveredActionFamily:
+    return DiscoveredActionFamily(
+        family_id=family.family_id,
+        latent_centroid=family.latent_centroid,
+        decoder_centroid=family.decoder_centroid,
+        support=family.support,
+        stability=family.stability,
+        switch_bias=family.switch_bias,
+        mean_posterior_drift=family.mean_posterior_drift,
+        mean_persistence_window=family.mean_persistence_window,
+        reuse_streak=family.reuse_streak,
+        stagnation_pressure=family.stagnation_pressure,
+        monopoly_pressure=family.monopoly_pressure,
+        competition_score=family.competition_score,
+        summary=_family_summary(family, prefix=prefix),
+    )
+
+
+def _merge_vectors(
+    left: tuple[float, ...],
+    right: tuple[float, ...],
+    *,
+    left_weight: float,
+    right_weight: float,
+) -> tuple[float, ...]:
+    total = max(left_weight + right_weight, 1e-6)
+    return tuple(
+        clamp_unit((l_value * left_weight + r_value * right_weight) / total)
+        for l_value, r_value in zip(left, right, strict=True)
+    )
+
+
+def _merge_family_pair(
+    left: DiscoveredActionFamily,
+    right: DiscoveredActionFamily,
+) -> DiscoveredActionFamily:
+    merged = DiscoveredActionFamily(
+        family_id=left.family_id,
+        latent_centroid=_merge_vectors(
+            left.latent_centroid,
+            right.latent_centroid,
+            left_weight=float(left.support),
+            right_weight=float(right.support),
+        ),
+        decoder_centroid=_merge_vectors(
+            left.decoder_centroid,
+            right.decoder_centroid,
+            left_weight=float(left.support),
+            right_weight=float(right.support),
+        ),
+        support=left.support + right.support,
+        stability=clamp_unit(
+            (left.stability * left.support + right.stability * right.support)
+            / max(left.support + right.support, 1)
+        ),
+        switch_bias=clamp_unit(
+            (left.switch_bias * left.support + right.switch_bias * right.support)
+            / max(left.support + right.support, 1)
+        ),
+        mean_posterior_drift=clamp_unit(
+            (left.mean_posterior_drift * left.support + right.mean_posterior_drift * right.support)
+            / max(left.support + right.support, 1)
+        ),
+        mean_persistence_window=clamp_unit(
+            (left.mean_persistence_window * left.support + right.mean_persistence_window * right.support)
+            / max(left.support + right.support, 1)
+        ),
+        reuse_streak=max(left.reuse_streak, right.reuse_streak),
+        stagnation_pressure=min(left.stagnation_pressure, right.stagnation_pressure),
+        monopoly_pressure=max(left.monopoly_pressure, right.monopoly_pressure),
+        competition_score=clamp_unit((left.competition_score + right.competition_score) / 2.0),
+    )
+    return _refresh_family_summary(merged, prefix=f"merged:{left.family_id}+{right.family_id}")
+
+
+def _competition_score(family: DiscoveredActionFamily) -> float:
+    support_signal = min(family.support / 4.0, 1.0)
+    reuse_penalty = min(family.reuse_streak / 6.0, 1.0)
+    return clamp_unit(
+        family.stability * 0.28
+        + (1.0 - family.monopoly_pressure) * 0.32
+        + (1.0 - family.stagnation_pressure) * 0.18
+        + support_signal * 0.10
+        + (1.0 - reuse_penalty) * 0.12
+    )
+
+
+def _update_family_competition_state(
+    action_families: tuple[DiscoveredActionFamily, ...],
+    *,
+    active_family_id: str,
+) -> tuple[DiscoveredActionFamily, ...]:
+    total_support = max(sum(family.support for family in action_families), 1)
+    updated: list[DiscoveredActionFamily] = []
+    for family in action_families:
+        is_active = family.family_id == active_family_id
+        support_share = family.support / total_support
+        reuse_streak = family.reuse_streak + 1 if is_active else 0
+        stagnation_pressure = (
+            clamp_unit(family.stagnation_pressure * 0.55 + 0.08)
+            if is_active
+            else clamp_unit(
+                family.stagnation_pressure * 0.82
+                + 0.18
+                + (0.08 if family.support <= 1 else 0.0)
+            )
+        )
+        monopoly_pressure = (
+            clamp_unit(
+                support_share * 0.52
+                + min(reuse_streak / 6.0, 1.0) * 0.48
+            )
+            if is_active
+            else clamp_unit(family.monopoly_pressure * 0.55)
+        )
+        refreshed = DiscoveredActionFamily(
+            family_id=family.family_id,
+            latent_centroid=family.latent_centroid,
+            decoder_centroid=family.decoder_centroid,
+            support=family.support,
+            stability=family.stability,
+            switch_bias=family.switch_bias,
+            mean_posterior_drift=family.mean_posterior_drift,
+            mean_persistence_window=family.mean_persistence_window,
+            reuse_streak=reuse_streak,
+            stagnation_pressure=stagnation_pressure,
+            monopoly_pressure=monopoly_pressure,
+        )
+        updated.append(
+            _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=refreshed.family_id,
+                    latent_centroid=refreshed.latent_centroid,
+                    decoder_centroid=refreshed.decoder_centroid,
+                    support=refreshed.support,
+                    stability=refreshed.stability,
+                    switch_bias=refreshed.switch_bias,
+                    mean_posterior_drift=refreshed.mean_posterior_drift,
+                    mean_persistence_window=refreshed.mean_persistence_window,
+                    reuse_streak=refreshed.reuse_streak,
+                    stagnation_pressure=refreshed.stagnation_pressure,
+                    monopoly_pressure=refreshed.monopoly_pressure,
+                    competition_score=_competition_score(refreshed),
+                ),
+                prefix="competitive" if is_active else "idle",
+            )
+        )
+    return tuple(updated)
+
+
+def _anti_collapse_topology_maintenance(
+    action_families: tuple[DiscoveredActionFamily, ...],
+    *,
+    active_family_id: str,
+    max_families: int,
+) -> tuple[tuple[DiscoveredActionFamily, ...], tuple[str, ...]]:
+    families = list(action_families)
+    events: list[str] = []
+    active_family = next((family for family in families if family.family_id == active_family_id), None)
+    if active_family is not None and active_family.monopoly_pressure > 0.74 and active_family.reuse_streak >= 4:
+        if len(families) < max_families:
+            challenger_axis = "self" if _dominant_axis(active_family.decoder_centroid) == "world" else "shared"
+            challenger_id = max(
+                (
+                    int(family.family_id.rsplit("_", 1)[-1])
+                    for family in families
+                    if family.family_id.rsplit("_", 1)[-1].isdigit()
+                ),
+                default=-1,
+            ) + 1
+            challenger = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=f"discovered_family_{challenger_id}",
+                    latent_centroid=_blend_centroid(
+                        active_family.latent_centroid,
+                        tuple(
+                            0.85 if axis_index == (1 if challenger_axis == "self" else 2) else 0.15
+                            for axis_index in range(len(active_family.latent_centroid))
+                        ),
+                        support=max(active_family.support // 4, 1),
+                    ),
+                    decoder_centroid=_blend_centroid(
+                        active_family.decoder_centroid,
+                        tuple(
+                            0.85 if axis_index == (1 if challenger_axis == "self" else 2) else 0.15
+                            for axis_index in range(len(active_family.decoder_centroid))
+                        ),
+                        support=max(active_family.support // 4, 1),
+                    ),
+                    support=max(active_family.support // 4, 1),
+                    stability=clamp_unit(active_family.stability * 0.82),
+                    switch_bias=active_family.switch_bias,
+                    mean_posterior_drift=clamp_unit(active_family.mean_posterior_drift + 0.08),
+                    mean_persistence_window=clamp_unit(active_family.mean_persistence_window * 0.8),
+                    reuse_streak=0,
+                    stagnation_pressure=0.0,
+                    monopoly_pressure=0.0,
+                    competition_score=0.5,
+                ),
+                prefix=f"anti-collapse-split:{active_family.family_id}",
+            )
+            families.append(challenger)
+            events.append(f"anti-collapse-create:{challenger.family_id}")
+    pruned_families: list[DiscoveredActionFamily] = []
+    for family in families:
+        should_prune = (
+            family.stagnation_pressure > 0.78
+            and family.support <= 1
+            and family.family_id != active_family_id
+            and len(families) - len(events) > 1
+        )
+        if should_prune:
+            events.append(f"anti-collapse-prune:{family.family_id}")
+            continue
+        pruned_families.append(family)
+    return (tuple(pruned_families), tuple(events))
+
+
+def _merge_similar_action_families(
+    action_families: tuple[DiscoveredActionFamily, ...],
+    *,
+    merge_threshold: float = 0.95,
+) -> tuple[tuple[DiscoveredActionFamily, ...], int]:
+    merged_count = 0
+    families = list(action_families)
+    index = 0
+    while index < len(families):
+        cursor = index + 1
+        while cursor < len(families):
+            left = families[index]
+            right = families[cursor]
+            pair_score = (
+                _cosine_similarity(left.latent_centroid, right.latent_centroid) * 0.6
+                + _cosine_similarity(left.decoder_centroid, right.decoder_centroid) * 0.4
+            )
+            if pair_score >= merge_threshold:
+                primary, secondary = (
+                    (left, right)
+                    if (left.support, left.stability) >= (right.support, right.stability)
+                    else (right, left)
+                )
+                merged_family = _merge_family_pair(primary, secondary)
+                if primary.family_id == left.family_id:
+                    families[index] = merged_family
+                    families.pop(cursor)
+                else:
+                    families[index] = merged_family
+                    families.pop(cursor)
+                merged_count += 1
+                continue
+            cursor += 1
+        index += 1
+    return (tuple(families), merged_count)
+
+
+def _prune_action_families(
+    action_families: tuple[DiscoveredActionFamily, ...],
+    *,
+    max_families: int,
+) -> tuple[tuple[DiscoveredActionFamily, ...], int]:
+    if len(action_families) <= 1:
+        return (action_families, 0)
+    ranked = sorted(
+        action_families,
+        key=lambda family: (
+            family.support,
+            family.stability,
+            1.0 - family.mean_posterior_drift,
+            family.mean_persistence_window,
+        ),
+        reverse=True,
+    )
+    kept: list[DiscoveredActionFamily] = []
+    pruned_count = 0
+    for family in ranked:
+        should_keep = (
+            len(kept) == 0
+            or family.support > 1
+            or family.stability >= 0.6
+            or family.competition_score >= 0.45
+            or (
+                len(kept) < max_families
+                and family.support > 0
+                and family.stability >= 0.35
+                and family.stagnation_pressure < 0.82
+            )
+        )
+        if should_keep:
+            kept.append(family)
+        else:
+            pruned_count += 1
+    return (tuple(kept[:max_families]), pruned_count)
+
+
 def classify_latent_action(
     *,
-    latent_code: tuple[float, ...],
-    decoder_control: tuple[float, ...],
-    prototypes: tuple[tuple[str, tuple[float, ...]], ...],
-) -> tuple[str, str]:
-    best_label = "stabilize_controller"
+    observation: ActionFamilyObservation,
+    action_families: tuple[DiscoveredActionFamily, ...],
+) -> tuple[str, str, float]:
+    best_label = "unassigned_action"
     best_score = float("-inf")
-    for label, prototype in prototypes:
-        score = sum(value * target for value, target in zip(latent_code, prototype, strict=True))
+    best_family: DiscoveredActionFamily | None = None
+    for family in action_families:
+        score = _family_match_score(family, observation)
         if score > best_score:
-            best_label = label
+            best_label = family.family_id
             best_score = score
-    decoder_summary = (
-        f"decoder_control={tuple(round(value, 3) for value in decoder_control)} "
-        f"label={best_label} score={best_score:.3f}"
+            best_family = family
+    dominant_axis = (
+        _dominant_axis(best_family.decoder_centroid if best_family is not None else observation.decoder_control)
     )
-    return (best_label, decoder_summary)
+    decoder_summary = (
+        f"decoder_control={tuple(round(value, 3) for value in observation.decoder_control)} "
+        f"label={best_label} score={best_score:.3f} dominant_axis={dominant_axis}"
+    )
+    return (best_label, decoder_summary, best_score)
+
+
+def discover_latent_action_family(
+    *,
+    observation: ActionFamilyObservation,
+    action_families: tuple[DiscoveredActionFamily, ...],
+    structure_frozen: bool,
+    allow_topology_maintenance: bool = True,
+    max_families: int = 6,
+    similarity_threshold: float = 0.84,
+    split_similarity_threshold: float = 0.93,
+    split_support_threshold: int = 6,
+) -> tuple[tuple[DiscoveredActionFamily, ...], str, str]:
+    if not action_families:
+        family = _refresh_family_summary(
+            _family_from_observation(
+                family_id="discovered_family_0",
+                observation=observation,
+                support=1,
+                stability=1.0,
+            ),
+            prefix="created",
+        )
+        label, summary, _ = classify_latent_action(
+            observation=observation,
+            action_families=(family,),
+        )
+        return ((family,), label, summary)
+    best_label, _, best_score = classify_latent_action(
+        observation=observation,
+        action_families=action_families,
+    )
+    updated_families = list(action_families)
+    best_index = next(
+        index for index, family in enumerate(updated_families) if family.family_id == best_label
+    )
+    maintenance_events: list[str] = []
+    if not structure_frozen and best_score < similarity_threshold and len(updated_families) < max_families:
+        next_id = max(
+            (
+                int(family.family_id.rsplit("_", 1)[-1])
+                for family in updated_families
+                if family.family_id.rsplit("_", 1)[-1].isdigit()
+            ),
+            default=-1,
+        ) + 1
+        created = _refresh_family_summary(
+            _family_from_observation(
+                family_id=f"discovered_family_{next_id}",
+                observation=observation,
+                support=1,
+                stability=1.0,
+            ),
+            prefix="created",
+        )
+        updated_families.append(created)
+        maintenance_events.append(f"create:{created.family_id}")
+    elif not structure_frozen:
+        current = updated_families[best_index]
+        should_split = (
+            allow_topology_maintenance
+            and len(updated_families) < max_families
+            and current.support >= split_support_threshold
+            and best_score < split_similarity_threshold + current.monopoly_pressure * 0.05
+            and observation.posterior_drift > max(0.16, current.mean_posterior_drift + 0.05)
+            and (
+                observation.persistence_window + 0.25 < max(current.mean_persistence_window, 0.75)
+                or current.reuse_streak >= 4
+                or current.monopoly_pressure > 0.70
+            )
+        )
+        if should_split:
+            next_id = max(
+                (
+                    int(family.family_id.rsplit("_", 1)[-1])
+                    for family in updated_families
+                    if family.family_id.rsplit("_", 1)[-1].isdigit()
+                ),
+                default=-1,
+            ) + 1
+            updated_families[best_index] = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=current.family_id,
+                    latent_centroid=current.latent_centroid,
+                    decoder_centroid=current.decoder_centroid,
+                    support=max(current.support - 1, 1),
+                    stability=clamp_unit(current.stability * 0.92),
+                    switch_bias=current.switch_bias,
+                    mean_posterior_drift=current.mean_posterior_drift,
+                    mean_persistence_window=current.mean_persistence_window,
+                    reuse_streak=current.reuse_streak,
+                    stagnation_pressure=current.stagnation_pressure,
+                    monopoly_pressure=current.monopoly_pressure,
+                    competition_score=current.competition_score,
+                ),
+                prefix=f"split-parent:{current.family_id}",
+            )
+            child = _refresh_family_summary(
+                _family_from_observation(
+                    family_id=f"discovered_family_{next_id}",
+                    observation=observation,
+                    support=max(1, current.support // 3),
+                    stability=clamp_unit(0.72 + observation.posterior_drift * 0.15),
+                ),
+                prefix=f"split-child:{current.family_id}",
+            )
+            updated_families.append(child)
+            maintenance_events.append(f"split:{current.family_id}->{child.family_id}")
+        else:
+            support = current.support + 1
+            latent_centroid = _blend_centroid(
+                current.latent_centroid,
+                observation.latent_code,
+                support=support,
+            )
+            decoder_centroid = _blend_centroid(
+                current.decoder_centroid,
+                observation.decoder_control,
+                support=support,
+            )
+            updated_families[best_index] = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=current.family_id,
+                    latent_centroid=latent_centroid,
+                    decoder_centroid=decoder_centroid,
+                    support=support,
+                    stability=clamp_unit(current.stability * 0.72 + best_score * 0.28),
+                    switch_bias=clamp_unit(current.switch_bias * 0.75 + observation.switch_gate * 0.25),
+                    mean_posterior_drift=clamp_unit(
+                        current.mean_posterior_drift * 0.75 + observation.posterior_drift * 0.25
+                    ),
+                    mean_persistence_window=clamp_unit(
+                        current.mean_persistence_window * 0.75 + observation.persistence_window * 0.25
+                    ),
+                    reuse_streak=current.reuse_streak,
+                    stagnation_pressure=current.stagnation_pressure,
+                    monopoly_pressure=current.monopoly_pressure,
+                    competition_score=current.competition_score,
+                ),
+                prefix="reused",
+            )
+            maintenance_events.append(f"reuse:{current.family_id}")
+    if allow_topology_maintenance and updated_families:
+        merged_families, merged_count = _merge_similar_action_families(tuple(updated_families))
+        if merged_count:
+            maintenance_events.append(f"merge:{merged_count}")
+        pruned_families, pruned_count = _prune_action_families(
+            merged_families,
+            max_families=max_families,
+        )
+        if pruned_count:
+            maintenance_events.append(f"prune:{pruned_count}")
+        updated_families = list(pruned_families)
+    families_tuple = tuple(updated_families)
+    label, summary, _ = classify_latent_action(
+        observation=observation,
+        action_families=families_tuple,
+    )
+    families_tuple = _update_family_competition_state(
+        families_tuple,
+        active_family_id=label,
+    )
+    families_tuple, anti_collapse_events = _anti_collapse_topology_maintenance(
+        families_tuple,
+        active_family_id=label,
+        max_families=max_families,
+    )
+    if anti_collapse_events:
+        maintenance_events.extend(anti_collapse_events)
+        label, summary, _ = classify_latent_action(
+            observation=observation,
+            action_families=families_tuple,
+        )
+        families_tuple = _update_family_competition_state(
+            families_tuple,
+            active_family_id=label,
+        )
+    if maintenance_events:
+        summary = f"{summary} lifecycle={','.join(maintenance_events)}"
+    return (families_tuple, label, summary)
 
 
 # ---------------------------------------------------------------------------
