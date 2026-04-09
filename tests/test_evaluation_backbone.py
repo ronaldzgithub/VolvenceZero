@@ -4,13 +4,16 @@ import asyncio
 
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import (
+    CrossSessionBenchmarkSuite,
     EvaluationBackbone,
     EvaluationModule,
     EvaluationReplayCase,
+    EvaluationReport,
     EvaluationScore,
     EvaluationSnapshot,
     EvolutionDecision,
 )
+from volvence_zero.evaluation.backbone import _feature_surface_snapshot
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.regime import (
     DelayedOutcomeAttribution,
@@ -392,10 +395,11 @@ def test_evaluation_backbone_records_metacontroller_evidence():
     )
     report = backbone.build_session_report(session_id="s1", timestamp_ms=31)
 
-    assert len(scores) == 14
+    assert len(scores) == 15
     assert any(record.metric_name == "adaptive_stability" for record in backbone.records)
     assert any(record.metric_name == "posterior_stability" for record in backbone.records)
     assert any(record.metric_name == "policy_replacement_quality" for record in backbone.records)
+    assert any(record.metric_name == "family_outcome_divergence" for record in backbone.records)
     assert any(record.metric_name == "action_family_reuse" for record in backbone.records)
     assert any(record.metric_name == "action_family_stability" for record in backbone.records)
     assert any(record.metric_name == "action_family_diversity" for record in backbone.records)
@@ -512,3 +516,134 @@ def test_evaluation_backbone_can_judge_evolution_candidate():
     assert judgement.decision in {EvolutionDecision.PROMOTE, EvolutionDecision.HOLD}
     assert judgement.replay_passed is True
     assert judgement.reasons
+    assert judgement.category
+
+
+def test_cross_session_benchmark_computes_growth_verdict():
+    from uuid import uuid4
+
+    def _make_report(session_id: str, learning_trend: float, relationship_trend: float) -> EvaluationReport:
+        return EvaluationReport(
+            report_id=str(uuid4()),
+            report_type="session",
+            timestamp_ms=1,
+            session_ids=(session_id,),
+            scores_by_family=(),
+            alerts=(),
+            trends=(
+                ("relationship", "relationship_continuity", relationship_trend),
+                ("learning", "learning_quality", learning_trend),
+                ("abstraction", "abstraction_reuse", 0.0),
+            ),
+            recommendations=(),
+            description=f"session {session_id}",
+        )
+
+    backbone = EvaluationBackbone()
+    reports = (
+        _make_report("s1", 0.01, 0.00),
+        _make_report("s2", 0.02, 0.01),
+        _make_report("s3", 0.03, 0.02),
+        _make_report("s4", 0.04, 0.03),
+    )
+    suite = CrossSessionBenchmarkSuite(session_reports=reports, comparison_windows=(1, 3))
+    growth = backbone.run_cross_session_benchmark(suite=suite)
+
+    assert growth.verdict in ("growing", "stable", "regressing")
+    assert growth.window_trends
+    assert growth.description
+
+
+def test_cross_session_benchmark_detects_regression():
+    from uuid import uuid4
+
+    def _make_report(session_id: str, learning_trend: float, relationship_trend: float) -> EvaluationReport:
+        return EvaluationReport(
+            report_id=str(uuid4()),
+            report_type="session",
+            timestamp_ms=1,
+            session_ids=(session_id,),
+            scores_by_family=(),
+            alerts=(),
+            trends=(
+                ("relationship", "relationship_continuity", relationship_trend),
+                ("learning", "learning_quality", learning_trend),
+                ("abstraction", "abstraction_reuse", 0.0),
+            ),
+            recommendations=(),
+            description=f"session {session_id}",
+        )
+
+    backbone = EvaluationBackbone()
+    reports = (
+        _make_report("s1", 0.05, 0.04),
+        _make_report("s2", 0.02, 0.02),
+        _make_report("s3", -0.02, -0.01),
+        _make_report("s4", -0.04, -0.03),
+    )
+    suite = CrossSessionBenchmarkSuite(session_reports=reports, comparison_windows=(1, 3))
+    growth = backbone.run_cross_session_benchmark(suite=suite)
+
+    assert growth.verdict == "regressing"
+
+
+def test_cross_session_regression_triggers_judge_rollback():
+    from uuid import uuid4
+
+    backbone = EvaluationBackbone()
+    substrate = _feature_surface_snapshot(
+        model_id="cross-judge",
+        task_pull=0.6, support_pull=0.4, repair_pull=0.3,
+        exploration_pull=0.3, directive_pull=0.4,
+    )
+    benchmark = backbone.run_default_evolution_benchmark(timestamp_ms=100)
+    for turn in range(4):
+        backbone.evaluate_turn(
+            session_id="judge-s", wave_id=f"w-{turn}",
+            timestamp_ms=200 + turn,
+            substrate_snapshot=substrate,
+            memory_snapshot=None, dual_track_snapshot=None,
+        )
+    report = backbone.build_session_report(session_id="judge-s", timestamp_ms=300)
+
+    from volvence_zero.evaluation import CrossSessionGrowthReport
+    regression_report = CrossSessionGrowthReport(
+        window_trends=((1, (("learning_quality", -0.05), ("relationship_continuity", -0.03))),),
+        family_persistence=0.5,
+        regime_effectiveness_delta=-0.03,
+        verdict="regressing",
+        description="regression",
+    )
+    judgement = backbone.judge_evolution_candidate(
+        replay_suite_result=benchmark,
+        session_report=report,
+        cross_session_report=regression_report,
+    )
+    assert judgement.decision == EvolutionDecision.ROLLBACK
+    assert "cross-session-regression" in judgement.reasons
+
+
+def test_longitudinal_report_from_session_sequence():
+    from volvence_zero.evaluation import (
+        CrossSessionBenchmarkSuite,
+        EvaluationBackbone,
+        LongitudinalReport,
+    )
+
+    backbone = EvaluationBackbone()
+    reports = []
+    for i in range(5):
+        report = backbone.build_session_report(
+            session_id=f"session-{i}",
+            timestamp_ms=i * 1000,
+        )
+        reports.append(report)
+
+    suite = CrossSessionBenchmarkSuite(session_reports=tuple(reports))
+    longitudinal = backbone.build_longitudinal_report(suite=suite)
+
+    assert isinstance(longitudinal, LongitudinalReport)
+    assert longitudinal.cross_session is not None
+    assert longitudinal.verdict in ("growing", "stable", "regressing", "insufficient-data")
+    assert len(longitudinal.dimension_trends) > 0
+    assert longitudinal.description

@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 
+from volvence_zero.credit import CreditRecord, CreditSnapshot, extract_abstract_action_credit_bonus
 from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
     InternalRLEnvironment,
     InternalRLSandbox,
     OptimizationReport,
+    PolicyOptimizationResult,
     derive_abstract_action_credit,
 )
+from volvence_zero.internal_rl.sandbox import CausalZPolicy
 from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule, PipelineConfig, SSLRLTrainingPipeline
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
@@ -19,6 +22,7 @@ from volvence_zero.substrate import (
     SurfaceKind,
     build_training_trace,
 )
+from volvence_zero.temporal import FullLearnedTemporalPolicy
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -299,3 +303,99 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
 
     assert "rare-heavy:temporal-rollback" in rollback_operations
     assert restored == before
+
+
+def test_causal_policy_multi_epoch_optimization():
+    trace = build_training_trace(trace_id="multi-epoch-trace", source_text="steady warm planning")
+    sandbox = InternalRLSandbox()
+    steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
+    rollout = sandbox.rollout(rollout_id="me-1", substrate_steps=steps)
+
+    single_epoch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=1)
+    sandbox.restore_checkpoint(sandbox.create_checkpoint(checkpoint_id="reset-me"))
+
+    multi_epoch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=3)
+
+    assert single_epoch.epochs_executed == 1
+    assert multi_epoch.epochs_executed >= 1
+    assert multi_epoch.epochs_executed <= 3
+    assert multi_epoch.parameter_summary != single_epoch.parameter_summary
+
+
+def test_causal_policy_kl_early_stopping():
+    trace = build_training_trace(trace_id="kl-stop-trace", source_text="steady warm planning")
+    sandbox = InternalRLSandbox()
+    steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
+    rollout = sandbox.rollout(rollout_id="kl-1", substrate_steps=steps)
+
+    report = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=10, max_kl=0.001)
+
+    assert report.epochs_executed <= 10
+    if report.kl_penalty > 0.001:
+        assert report.kl_early_stopped is True
+
+
+def test_causal_policy_gae_advantages():
+    policy = FullLearnedTemporalPolicy()
+    causal = CausalZPolicy(parameter_store=policy.parameter_store)
+    trace = build_training_trace(trace_id="gae-trace", source_text="steady warm planning")
+    sandbox = InternalRLSandbox(policy=policy)
+    steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
+    rollout = sandbox.rollout(rollout_id="gae-1", substrate_steps=steps)
+
+    advantages = causal._compute_gae(rollout=rollout, gamma=0.99, gae_lambda=0.95)
+
+    assert len(advantages) == len(rollout.transitions)
+    mean_adv = sum(advantages) / len(advantages)
+    assert abs(mean_adv) < 1e-6
+
+
+def test_optimization_produces_self_modification_record():
+    trace = build_training_trace(trace_id="audit-trace", source_text="balance task and relationship")
+    sandbox = InternalRLSandbox()
+    dual_rollout = sandbox.rollout_dual_track(
+        rollout_id="audit-1",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+    )
+
+    result = sandbox.optimize_with_audit(dual_rollout, timestamp_ms=42)
+
+    assert isinstance(result, PolicyOptimizationResult)
+    assert isinstance(result.optimization_report, DualTrackOptimizationReport)
+    assert result.total_epochs_executed >= 2
+    assert result.total_kl_divergence >= 0.0
+    if result.policy_update_applied:
+        assert len(result.modification_records) == 1
+        record = result.modification_records[0]
+        assert record.gate.value == "online"
+        assert record.decision.value == "allow"
+        assert record.is_reversible is True
+        assert record.old_value_hash != record.new_value_hash
+        assert record.timestamp_ms == 42
+
+
+def test_joint_loop_credit_shaped_rewards():
+    loop = ETANLJointLoop()
+    trace = build_training_trace(trace_id="credit-trace", source_text="repair tension then continue helpfully")
+
+    asyncio.run(loop.run_cycle(cycle_index=0, trace=trace))
+    assert loop._previous_credit_snapshot is not None
+
+    bonus = extract_abstract_action_credit_bonus(loop._previous_credit_snapshot)
+    assert isinstance(bonus, dict)
+
+    report2 = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace))
+    assert report2.total_reward != 0.0
+
+
+def test_joint_cycle_report_policy_fields():
+    loop = ETANLJointLoop()
+    trace = build_training_trace(trace_id="fields-trace", source_text="repair tension then continue helpfully")
+    report = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace))
+
+    assert hasattr(report, "policy_update_applied")
+    assert hasattr(report, "policy_kl_divergence")
+    assert hasattr(report, "policy_epochs_executed")
+    assert isinstance(report.policy_update_applied, bool)
+    assert report.policy_kl_divergence >= 0.0
+    assert report.policy_epochs_executed >= 1

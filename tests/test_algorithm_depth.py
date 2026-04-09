@@ -1055,3 +1055,321 @@ class TestP19NdimCMS:
         snap = cms.snapshot()
         assert snap.online_fast.anti_forgetting_strength == 0.25
         assert snap.background_slow.anti_forgetting_strength == 0.25
+
+
+# =========================================================================
+#  P20: CMS MLP Mode
+# =========================================================================
+
+
+class TestP20CMSBandMLP:
+    """Unit tests for the CMSBandMLP building block."""
+
+    def test_forward_identity_at_init(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        mlp = CMSBandMLP(d_in=4, d_hidden=8)
+        x = (0.5, 0.3, 0.7, 0.1)
+        y = mlp.forward(x)
+        assert len(y) == 4
+        for i in range(4):
+            assert abs(y[i] - x[i]) < 0.05, "W1=0 means residual ≈ 0 at init"
+
+    def test_representation_vector_starts_near_zero(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        mlp = CMSBandMLP(d_in=4, d_hidden=8)
+        rep = mlp.representation_vector()
+        assert len(rep) == 4
+        assert all(abs(v) < 0.01 for v in rep), "state starts at zero"
+
+    def test_update_moves_representation_toward_target(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        mlp = CMSBandMLP(d_in=4, d_hidden=8, learning_rate=0.5)
+        target = (0.8, 0.6, 0.4, 0.2)
+        for _ in range(20):
+            mlp.update(target=target)
+        rep = mlp.representation_vector()
+        for i in range(4):
+            assert abs(rep[i] - target[i]) < 0.25, f"dim {i}: {rep[i]} vs {target[i]}"
+
+    def test_export_restore_roundtrip(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        mlp = CMSBandMLP(d_in=4, d_hidden=8)
+        mlp.update(target=(0.5, 0.5, 0.5, 0.5))
+        params = mlp.export_params()
+        assert len(params) == 6
+
+        mlp2 = CMSBandMLP(d_in=4, d_hidden=8)
+        mlp2.restore_params(params)
+        assert mlp.representation_vector() == mlp2.representation_vector()
+
+    def test_parameter_count(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        mlp = CMSBandMLP(d_in=16, d_hidden=32)
+        pc = mlp.parameter_count()
+        assert pc == 16 + 16 * 32 + 32 * 16
+
+    def test_mix_from_moves_state(self) -> None:
+        from volvence_zero.memory.cms import CMSBandMLP
+
+        fast = CMSBandMLP(d_in=4, d_hidden=8, learning_rate=0.5)
+        slow = CMSBandMLP(d_in=4, d_hidden=8, learning_rate=0.1)
+        for _ in range(10):
+            slow.update(target=(0.9, 0.8, 0.7, 0.6))
+        before = fast.representation_vector()
+        fast.mix_from(slow, strength=0.5, factor=0.5)
+        after = fast.representation_vector()
+        assert before != after
+
+
+class TestP20CMSMemoryCoreMLPMode:
+    """Integration tests for CMSMemoryCore in MLP mode."""
+
+    def test_mlp_mode_observe_substrate(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=8, d_hidden=16)
+        substrate = _make_substrate()
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=1)
+        snap = cms.snapshot()
+        assert snap.online_fast.mode == "mlp"
+        assert snap.online_fast.mlp_param_count > 0
+        assert len(snap.online_fast.vector) == 8
+        assert any(v != 0.0 for v in snap.online_fast.vector)
+
+    def test_mlp_mode_cadence_gating(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8,
+            session_cadence=3, background_cadence=5,
+        )
+        substrate = _make_substrate()
+        vectors_session = []
+        for i in range(6):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+            vectors_session.append(cms.snapshot().session_medium.vector)
+
+        assert vectors_session[0] == vectors_session[1], "session unchanged before cadence"
+        assert vectors_session[2] != vectors_session[1], "session updated at cadence=3"
+
+    def test_mlp_mode_anti_forgetting(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8,
+            anti_forgetting=0.5, background_cadence=1,
+        )
+        substrate = _make_substrate()
+        for i in range(10):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        snap = cms.snapshot()
+        bg = snap.background_slow.vector
+        online = snap.online_fast.vector
+        for i in range(len(bg)):
+            if bg[i] > 0.01:
+                assert abs(online[i] - bg[i]) < abs(0.5 - bg[i]) + 0.4
+
+    def test_mlp_mode_checkpoint_restore(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        substrate = _make_substrate()
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=1)
+        snap_before = cms.snapshot()
+        checkpoint = cms.export_state()
+        assert checkpoint.mode == "mlp"
+        assert len(checkpoint.mlp_params) == 3
+
+        cms2 = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        cms2.restore_state(checkpoint)
+        snap_after = cms2.snapshot()
+        assert snap_before.online_fast.vector == snap_after.online_fast.vector
+        assert snap_before.session_medium.vector == snap_after.session_medium.vector
+        assert snap_before.background_slow.vector == snap_after.background_slow.vector
+
+    def test_mlp_mode_reflect_lessons(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        before = cms.snapshot().session_medium.vector
+        cms.reflect_lessons(lesson_count=3, timestamp_ms=10)
+        after = cms.snapshot().session_medium.vector
+        assert before != after
+
+    def test_mlp_mode_encoder_feedback(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        before = cms.snapshot().online_fast.vector
+        cms.observe_encoder_feedback(
+            encoder_signal=(0.6, 0.4, 0.5, 0.3),
+            timestamp_ms=100,
+        )
+        after = cms.snapshot().online_fast.vector
+        assert before != after
+
+    def test_mlp_mode_family_signal(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8, session_cadence=1)
+        before = cms.snapshot().session_medium.vector
+        cms.observe_family_signal(
+            family_centroid=(0.5, 0.5, 0.5, 0.5),
+            family_stability=0.8,
+            timestamp_ms=1,
+        )
+        after = cms.snapshot().session_medium.vector
+        assert before != after
+
+    def test_family_signal_noop_in_vector_mode(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=3)
+        before = cms.snapshot().session_medium.vector
+        cms.observe_family_signal(
+            family_centroid=(0.5, 0.5, 0.5),
+            family_stability=0.8,
+            timestamp_ms=1,
+        )
+        after = cms.snapshot().session_medium.vector
+        assert before == after
+
+    def test_mlp_mode_variant_in_snapshot(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8, variant="independent")
+        snap = cms.snapshot()
+        assert snap.variant == "independent"
+
+    def test_variant_changes_runtime_behavior(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        substrate = _make_substrate((0.9, 0.1, 0.8, 0.2))
+        sequential = CMSMemoryCore(
+            mode="mlp",
+            d_in=4,
+            d_hidden=8,
+            variant="sequential",
+            session_cadence=1,
+            background_cadence=1,
+        )
+        independent = CMSMemoryCore(
+            mode="mlp",
+            d_in=4,
+            d_hidden=8,
+            variant="independent",
+            session_cadence=1,
+            background_cadence=1,
+        )
+
+        for i in range(5):
+            sequential.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+            independent.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+
+        seq_snap = sequential.snapshot()
+        ind_snap = independent.snapshot()
+        assert seq_snap.session_medium.vector != ind_snap.session_medium.vector
+        assert seq_snap.background_slow.vector != ind_snap.background_slow.vector
+
+    def test_mlp_mode_description_includes_mode(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        snap = cms.snapshot()
+        assert "mlp" in snap.description
+        assert "d_in=4" in snap.description
+
+    def test_mlp_convergence_over_repeated_signal(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8,
+            online_lr=0.5, session_cadence=1, background_cadence=1,
+        )
+        substrate = _make_substrate()
+        for i in range(30):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        snap = cms.snapshot()
+        online = snap.online_fast.vector
+        session = snap.session_medium.vector
+        bg = snap.background_slow.vector
+        assert all(abs(online[i] - session[i]) < 0.4 for i in range(4)), \
+            "bands should converge toward same signal"
+        assert all(abs(session[i] - bg[i]) < 0.4 for i in range(4))
+
+    def test_three_bands_different_update_rhythms(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8,
+            session_cadence=5, background_cadence=10,
+        )
+        substrate = _make_substrate()
+        snapshots = []
+        for i in range(12):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+            snapshots.append(cms.snapshot())
+
+        online_changes = sum(
+            1 for i in range(1, 12)
+            if snapshots[i].online_fast.vector != snapshots[i - 1].online_fast.vector
+        )
+        session_changes = sum(
+            1 for i in range(1, 12)
+            if snapshots[i].session_medium.vector != snapshots[i - 1].session_medium.vector
+        )
+        bg_changes = sum(
+            1 for i in range(1, 12)
+            if snapshots[i].background_slow.vector != snapshots[i - 1].background_slow.vector
+        )
+        assert online_changes > session_changes, "online should change more often"
+        assert session_changes >= bg_changes, "session should change at least as often as bg"
+
+    def test_vector_mode_unchanged(self) -> None:
+        """Verify default vector mode produces identical behavior as before."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(dim=3)
+        assert cms.mode == "vector"
+        substrate = _make_substrate()
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=1)
+        snap = cms.snapshot()
+        assert snap.online_fast.mode == "vector"
+        assert snap.online_fast.mlp_param_count == 0
+        assert snap.variant == "sequential"
+
+    def test_mlp_checkpoint_can_restore_into_vector_mode(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        mlp = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        substrate = _make_substrate((0.8, 0.6, 0.4, 0.2))
+        for i in range(3):
+            mlp.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        checkpoint = mlp.export_state()
+
+        vector = CMSMemoryCore(dim=4)
+        vector.restore_state(checkpoint)
+        snap = vector.snapshot()
+        assert snap.online_fast.vector == checkpoint.online_fast
+        assert snap.session_medium.vector == checkpoint.session_medium
+        assert snap.background_slow.vector == checkpoint.background_slow
+
+    def test_vector_checkpoint_can_restore_into_mlp_mode(self) -> None:
+        from volvence_zero.memory import CMSMemoryCore
+
+        vector = CMSMemoryCore(dim=4)
+        substrate = _make_substrate((0.8, 0.6, 0.4, 0.2))
+        for i in range(3):
+            vector.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+        checkpoint = vector.export_state()
+
+        mlp = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        mlp.restore_state(checkpoint)
+        snap = mlp.snapshot()
+        for left, right in zip(snap.online_fast.vector, checkpoint.online_fast):
+            assert abs(left - right) < 0.15

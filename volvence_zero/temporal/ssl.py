@@ -19,6 +19,7 @@ from volvence_zero.temporal.metacontroller_components import (
     PosteriorState,
     ResidualDecoder,
     SequenceEncoder,
+    SwitchGateStats,
     SwitchUnit,
     summarize_residual_activations,
 )
@@ -43,14 +44,16 @@ class SSLTrainingReport:
     m3_slow_momentum_signal: tuple[float, ...] = ()
     noncausal_kl_tightening: float = 0.0
     noncausal_information_content: float = 0.0
+    switch_gate_stats: SwitchGateStats | None = None
     description: str = ""
 
 
 class MetacontrollerSSLTrainer:
     """Small Eq.3-style training loop over residual traces."""
 
-    def __init__(self, *, n_z: int = 3) -> None:
+    def __init__(self, *, n_z: int = 3, alpha: float = 0.1) -> None:
         self._n_z = n_z
+        self._alpha = alpha
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
         self._switch = SwitchUnit()
@@ -109,6 +112,8 @@ class MetacontrollerSSLTrainer:
         full_substrate = self._snapshot_from_prefix(trace=trace, prefix=trace.steps)
         noncausal_embedding = self._noncausal_embedder.embed(substrate_snapshot=full_substrate)
         kl_tightening_total = 0.0
+        beta_values: list[float] = []
+        switch_count = 0
 
         for next_index in range(1, len(trace.steps)):
             prefix = trace.steps[:next_index]
@@ -200,7 +205,10 @@ class MetacontrollerSSLTrainer:
                 decoder_control=decoder_control,
             )
             kl_loss = self._kl_to_prior(encoded=enriched_encoded)
-            total_loss = prediction_loss + kl_loss * 0.1
+            total_loss = prediction_loss + kl_loss * self._alpha
+            beta_values.append(scalar_beta)
+            if is_switching:
+                switch_count += 1
             prediction_total += prediction_loss
             kl_total += kl_loss
             posterior_drift_total += encoded.posterior.posterior_drift
@@ -233,7 +241,33 @@ class MetacontrollerSSLTrainer:
         avg_prediction = prediction_total / trained_steps
         avg_kl = kl_total / trained_steps
         avg_drift = posterior_drift_total / trained_steps
-        total_loss = avg_prediction + avg_kl * 0.1
+        total_loss = avg_prediction + avg_kl * self._alpha
+        histogram = [0] * 10
+        for bv in beta_values:
+            bin_index = min(int(bv * 10), 9)
+            histogram[bin_index] += 1
+        switch_frequency = switch_count / trained_steps if trained_steps else 0.0
+        persistence_steps_sum = 0.0
+        persist_count = 0
+        current_persist = 0
+        for bv in beta_values:
+            if bv >= 0.55:
+                if current_persist > 0:
+                    persistence_steps_sum += current_persist
+                    persist_count += 1
+                current_persist = 0
+            else:
+                current_persist += 1
+        if current_persist > 0:
+            persistence_steps_sum += current_persist
+            persist_count += 1
+        mean_persistence = persistence_steps_sum / persist_count if persist_count else 0.0
+        gate_stats = SwitchGateStats(
+            beta_histogram=tuple(histogram),
+            switch_frequency=round(switch_frequency, 4),
+            mean_persistence_steps=round(mean_persistence, 4),
+            observation_count=trained_steps,
+        )
         store.record_runtime_observation(
             latent_mean=latest_mean,
             latent_scale=latest_scale,
@@ -269,6 +303,7 @@ class MetacontrollerSSLTrainer:
             m3_slow_momentum_signal=slow_signal,
             noncausal_kl_tightening=avg_kl_tightening,
             noncausal_information_content=noncausal_embedding.information_content,
+            switch_gate_stats=gate_stats,
             description=(
                 f"SSL trainer optimized trace={trace.trace_id} over {trained_steps} steps, "
                 f"prediction_loss={avg_prediction:.3f}, kl_loss={avg_kl:.3f}, drift={avg_drift:.3f}, "

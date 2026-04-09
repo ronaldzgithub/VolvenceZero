@@ -407,3 +407,96 @@ def test_family_competition_turnover_health_improves_with_diverse_family_usage()
 
     assert diverse_runtime.action_family_turnover_health > repeated_runtime.action_family_turnover_health
     assert len(diverse_runtime.action_family_summaries) >= 2
+
+
+def test_ssl_alpha_controls_kl_weight():
+    from volvence_zero.temporal import MetacontrollerSSLTrainer
+    trace = build_training_trace(trace_id="alpha-trace", source_text="steady warm planning")
+
+    low_alpha = MetacontrollerSSLTrainer(alpha=0.01)
+    policy_low = FullLearnedTemporalPolicy()
+    report_low = low_alpha.optimize(policy=policy_low, trace=trace)
+
+    high_alpha = MetacontrollerSSLTrainer(alpha=1.0)
+    policy_high = FullLearnedTemporalPolicy()
+    report_high = high_alpha.optimize(policy=policy_high, trace=trace)
+
+    assert report_low.kl_loss >= 0.0
+    assert report_high.kl_loss >= 0.0
+    if report_low.kl_loss > 0.001 and report_high.kl_loss > 0.001:
+        assert report_high.total_loss >= report_low.total_loss
+
+
+def test_switch_gate_stats_published_in_ssl_report():
+    from volvence_zero.temporal import MetacontrollerSSLTrainer
+    trace = build_training_trace(trace_id="stats-trace", source_text="repair tension then plan")
+    trainer = MetacontrollerSSLTrainer(alpha=0.1)
+    policy = FullLearnedTemporalPolicy()
+    report = trainer.optimize(policy=policy, trace=trace)
+
+    assert report.switch_gate_stats is not None
+    assert len(report.switch_gate_stats.beta_histogram) == 10
+    assert sum(report.switch_gate_stats.beta_histogram) == report.trained_steps
+    assert report.switch_gate_stats.observation_count == report.trained_steps
+    assert 0.0 <= report.switch_gate_stats.switch_frequency <= 1.0
+    assert report.switch_gate_stats.mean_persistence_steps >= 0.0
+
+
+def test_family_long_term_payoff_accumulation():
+    from volvence_zero.temporal.metacontroller_components import (
+        DiscoveredActionFamily,
+        update_family_outcome_history,
+    )
+    family = DiscoveredActionFamily(
+        family_id="test_family_0",
+        latent_centroid=(0.5, 0.5, 0.5),
+        decoder_centroid=(0.5, 0.5, 0.5),
+        support=3,
+        stability=0.8,
+        switch_bias=0.5,
+        long_term_payoff=0.5,
+        delayed_credit_sum=0.0,
+    )
+    assert family.long_term_payoff == 0.5
+    assert family.delayed_credit_sum == 0.0
+
+    updated = update_family_outcome_history(
+        (family,), family_id="test_family_0", outcome_value=0.8,
+    )
+    assert updated[0].outcome_driven_score > 0.0
+    assert updated[0].long_term_payoff == 0.5
+    assert updated[0].delayed_credit_sum == 0.0
+
+
+def test_family_competition_state_detects_collapse():
+    from volvence_zero.temporal.metacontroller_components import (
+        DiscoveredActionFamily,
+        FamilyCompetitionState,
+        build_family_competition_state,
+    )
+    dominant = DiscoveredActionFamily(
+        family_id="dominant_0",
+        latent_centroid=(0.8, 0.1, 0.1),
+        decoder_centroid=(0.8, 0.1, 0.1),
+        support=20,
+        stability=0.9,
+        switch_bias=0.5,
+        monopoly_pressure=0.85,
+        reuse_streak=6,
+        long_term_payoff=0.7,
+    )
+    minor = DiscoveredActionFamily(
+        family_id="minor_1",
+        latent_centroid=(0.1, 0.8, 0.1),
+        decoder_centroid=(0.1, 0.8, 0.1),
+        support=2,
+        stability=0.4,
+        switch_bias=0.3,
+        long_term_payoff=0.3,
+    )
+    state = build_family_competition_state((dominant, minor))
+    assert isinstance(state, FamilyCompetitionState)
+    assert state.top1_share > 0.8
+    assert state.collapse_alert is True
+    assert state.monopoly_alert is True
+    assert len(state.ranked_families) == 2

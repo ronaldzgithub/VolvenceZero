@@ -1,4 +1,10 @@
-from volvence_zero.memory.cms import CMSBandState, CMSCheckpointState, CMSMemoryCore, CMSState
+from volvence_zero.memory.cms import CMSBandMLP, CMSBandState, CMSCheckpointState, CMSMemoryCore, CMSState, CMSVariant
+from volvence_zero.memory.persistence import (
+    FileSystemPersistenceBackend,
+    PersistenceBackend,
+    deserialize_checkpoint,
+    serialize_checkpoint,
+)
 from volvence_zero.memory.store import (
     MemoryEntry,
     MemoryModule,
@@ -15,10 +21,16 @@ from volvence_zero.memory.store import (
 )
 
 __all__ = [
+    "CMSBandMLP",
     "CMSBandState",
     "CMSCheckpointState",
     "CMSMemoryCore",
     "CMSState",
+    "CMSVariant",
+    "FileSystemPersistenceBackend",
+    "PersistenceBackend",
+    "deserialize_checkpoint",
+    "serialize_checkpoint",
     "MemoryEntry",
     "MemoryModule",
     "MemoryStoreCheckpoint",

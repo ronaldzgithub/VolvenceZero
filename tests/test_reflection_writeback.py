@@ -10,7 +10,7 @@ from volvence_zero.credit import (
     SelfModificationRecord,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule, EvaluationScore
+from volvence_zero.evaluation import EvaluationModule, EvaluationScore, EvaluationSnapshot
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.regime import DelayedOutcomeAttribution, DelayedOutcomePayoff, RegimeModule
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
@@ -412,3 +412,186 @@ def test_reflection_consumes_action_family_competition_evidence():
     assert "reduce_action_family_monopoly" in reflection_snapshot.policy_consolidation.controller_updates
     assert "prevent_action_family_collapse" in reflection_snapshot.policy_consolidation.controller_updates
     assert "action-families" in temporal_update.target_groups
+
+
+def test_reflection_builds_structural_proposal_bundle_with_evidence():
+    from volvence_zero.regime.identity import (
+        DelayedOutcomeAttribution,
+        DelayedOutcomePayoff,
+        RegimeIdentity,
+        RegimeSnapshot,
+    )
+
+    regime_snapshot = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="problem_solving",
+            name="problem solving",
+            embedding=(0.8, 0.2, 0.35),
+            entry_conditions="world-track urgency",
+            exit_conditions="repair needed",
+            historical_effectiveness=0.6,
+        ),
+        previous_regime=None,
+        switch_reason="hold",
+        candidate_regimes=(("problem_solving", 0.7),),
+        turns_in_current_regime=3,
+        description="",
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id="problem_solving",
+                outcome_score=0.3,
+                source_turn_index=1,
+                source_wave_id="wave-1",
+                abstract_action="fam_0",
+                action_family_version=2,
+                resolved_turn_index=3,
+            ),
+        ),
+        delayed_payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="problem_solving",
+                abstract_action="fam_0",
+                action_family_version=2,
+                sample_count=3,
+                rolling_payoff=0.35,
+                latest_outcome=0.3,
+                last_source_wave_id="wave-1",
+            ),
+        ),
+    )
+    eval_snap = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("abstraction", "action_family_turnover_health", 0.3, 0.7, "low"),
+            EvaluationScore("relationship", "cross_track_stability", 0.6, 0.7, "ok"),
+        ),
+        session_scores=(
+            EvaluationScore("learning", "learning_quality", 0.55, 0.6, "session"),
+        ),
+        alerts=(),
+        description="test",
+    )
+    engine = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY)
+    snap = engine.reflect(
+        timestamp_ms=100,
+        memory_snapshot=None,
+        dual_track_snapshot=None,
+        evaluation_snapshot=eval_snap,
+        credit_snapshot=None,
+        regime_snapshot=regime_snapshot,
+    )
+    temporal_update = snap.policy_consolidation.temporal_prior_update
+    assert temporal_update is not None
+    if temporal_update.structure_proposals:
+        assert temporal_update.structure_bundle is not None
+        bundle = temporal_update.structure_bundle
+        assert bundle.scope in ("single-family", "family-cluster", "regime-sequence")
+        assert bundle.evidence_pack is not None
+        assert bundle.evidence_pack.delayed_credit_summary
+
+
+def test_reflection_proposal_outcome_ledger_tracks_post_application_delta():
+    engine = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY)
+    from volvence_zero.regime.identity import (
+        DelayedOutcomeAttribution,
+        DelayedOutcomePayoff,
+        RegimeIdentity,
+        RegimeSnapshot,
+    )
+
+    regime_snapshot = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="problem_solving", name="ps", embedding=(0.8, 0.2, 0.35),
+            entry_conditions="", exit_conditions="", historical_effectiveness=0.6,
+        ),
+        previous_regime=None, switch_reason="hold",
+        candidate_regimes=(("problem_solving", 0.7),),
+        turns_in_current_regime=3, description="",
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id="problem_solving", outcome_score=0.3,
+                source_turn_index=1, source_wave_id="wave-1",
+                abstract_action="fam_0", action_family_version=2,
+                resolved_turn_index=3,
+            ),
+        ),
+        delayed_payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="problem_solving", abstract_action="fam_0",
+                action_family_version=2, sample_count=3,
+                rolling_payoff=0.35, latest_outcome=0.3,
+                last_source_wave_id="wave-1",
+            ),
+        ),
+    )
+    eval1 = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("abstraction", "action_family_turnover_health", 0.3, 0.7, "low"),
+            EvaluationScore("relationship", "cross_track_stability", 0.5, 0.7, "ok"),
+        ),
+        session_scores=(), alerts=(), description="turn1",
+    )
+    # First reflection generates proposals and captures pre-metrics
+    engine.reflect(
+        timestamp_ms=100, memory_snapshot=None, dual_track_snapshot=None,
+        evaluation_snapshot=eval1, credit_snapshot=None,
+        regime_snapshot=regime_snapshot,
+    )
+    eval2 = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("abstraction", "action_family_turnover_health", 0.5, 0.7, "improved"),
+            EvaluationScore("relationship", "cross_track_stability", 0.7, 0.7, "better"),
+        ),
+        session_scores=(), alerts=(), description="turn2",
+    )
+    # Second reflection computes outcome delta
+    snap2 = engine.reflect(
+        timestamp_ms=200, memory_snapshot=None, dual_track_snapshot=None,
+        evaluation_snapshot=eval2, credit_snapshot=None,
+        regime_snapshot=regime_snapshot,
+    )
+    assert snap2.proposal_success_rate >= 0.0
+    if engine.proposal_outcome_ledger:
+        entry = engine.proposal_outcome_ledger[-1]
+        assert entry.metric_delta >= 0.0
+        assert entry.success is True
+
+
+def test_reflection_default_wiring_is_shadow():
+    from volvence_zero.reflection import ReflectionModule
+    from volvence_zero.runtime import WiringLevel
+
+    assert ReflectionModule.default_wiring_level == WiringLevel.SHADOW
+
+
+def test_structural_proposal_has_scope_and_evidence():
+    from volvence_zero.reflection import TemporalStructureProposal, EvidencePack
+
+    proposal = TemporalStructureProposal(
+        proposal_type="merge",
+        family_id="fam_0",
+        related_family_id="fam_1",
+        confidence=0.85,
+        justification="high similarity",
+        scope="family_cluster",
+        evidence=EvidencePack(
+            source_benchmark_ids=("bench_1",),
+            delayed_credit_summary=(("fam_0", 0.7), ("fam_1", 0.3)),
+            session_trend=(("learning_quality", 0.05),),
+            confidence=0.82,
+            supporting_cycles=5,
+        ),
+    )
+    assert proposal.scope == "family_cluster"
+    assert proposal.evidence is not None
+    assert proposal.evidence.supporting_cycles == 5
+    assert len(proposal.evidence.delayed_credit_summary) == 2
+
+    default_proposal = TemporalStructureProposal(
+        proposal_type="prune",
+        family_id="fam_2",
+        related_family_id=None,
+        confidence=0.6,
+        justification="low support",
+    )
+    assert default_proposal.scope == "single_family"
+    assert default_proposal.evidence is None

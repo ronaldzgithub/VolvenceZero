@@ -45,12 +45,23 @@ class SelfModificationRecord:
 
 
 @dataclass(frozen=True)
+class NStepAttributionEntry:
+    action_id: str
+    family_id: str
+    regime_id: str
+    timestamp_ms: int
+    outcome_history: tuple[float, ...]
+
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
     cumulative_credit_by_level: tuple[tuple[str, float], ...]
     session_level_credits: tuple[tuple[str, float], ...] = ()
     discount_factor: float = 0.95
+    delayed_ledger_size: int = 0
+    horizon_depth: int = 1
     description: str = ""
 
 
@@ -216,6 +227,8 @@ def extend_credit_snapshot(
         cumulative_credit_by_level=tuple(sorted(cumulative.items())),
         session_level_credits=credit_snapshot.session_level_credits,
         discount_factor=credit_snapshot.discount_factor,
+        delayed_ledger_size=credit_snapshot.delayed_ledger_size,
+        horizon_depth=credit_snapshot.horizon_depth,
         description=(
             f"{credit_snapshot.description} Extended with {len(extra_records)} extra credits "
             f"and {len(extra_modifications)} extra modification audits."
@@ -423,15 +436,41 @@ def derive_metacontroller_credit_records(
     )
 
 
+def extract_abstract_action_credit_bonus(
+    credit_snapshot: CreditSnapshot,
+    *,
+    bonus_weight: float = 0.1,
+) -> dict[str, float]:
+    """Aggregate abstract-action credit into per-family bonus signals.
+
+    Returns a dict mapping source_event (family/action name) to a
+    weighted credit bonus suitable for injecting into the RL environment
+    via ``set_evaluation_signals``.
+    """
+    family_credits: dict[str, list[float]] = {}
+    for record in credit_snapshot.recent_credits:
+        if record.level != "abstract_action":
+            continue
+        family_credits.setdefault(record.source_event, []).append(record.credit_value)
+    result: dict[str, float] = {}
+    for family, values in family_credits.items():
+        mean_credit = sum(values) / len(values) if values else 0.0
+        result[family] = _clamp(mean_credit * bonus_weight)
+    return result
+
+
 class CreditLedger:
     """Stores recent credit records and gate outcomes with session-level aggregation."""
 
-    def __init__(self, *, discount_factor: float = 0.95) -> None:
+    def __init__(self, *, discount_factor: float = 0.95, horizon_depth: int = 5) -> None:
         self._recent_credits: list[CreditRecord] = []
         self._recent_modifications: list[SelfModificationRecord] = []
         self._discount_factor = discount_factor
         self._session_credits: dict[str, list[CreditRecord]] = {}
         self._turn_count = 0
+        self._horizon_depth = max(horizon_depth, 1)
+        self._nstep_ledger: list[NStepAttributionEntry] = []
+        self._max_ledger_entries = 1000
 
     @property
     def recent_credits(self) -> tuple[CreditRecord, ...]:
@@ -445,6 +484,10 @@ class CreditLedger:
     def discount_factor(self) -> float:
         return self._discount_factor
 
+    @property
+    def horizon_depth(self) -> int:
+        return self._horizon_depth
+
     def record_credits(self, credits: tuple[CreditRecord, ...]) -> None:
         self._recent_credits.extend(credits)
         for credit in credits:
@@ -454,6 +497,85 @@ class CreditLedger:
 
     def record_modification(self, record: SelfModificationRecord) -> None:
         self._recent_modifications.append(record)
+
+    def record_nstep_outcome(
+        self,
+        *,
+        action_id: str,
+        family_id: str,
+        regime_id: str,
+        outcome: float,
+        timestamp_ms: int,
+    ) -> None:
+        """Append an outcome to the matching N-step entry, or create a new one."""
+        for i, entry in enumerate(self._nstep_ledger):
+            if entry.action_id == action_id:
+                new_history = (entry.outcome_history + (outcome,))[-self._horizon_depth:]
+                self._nstep_ledger[i] = NStepAttributionEntry(
+                    action_id=entry.action_id,
+                    family_id=entry.family_id,
+                    regime_id=entry.regime_id,
+                    timestamp_ms=entry.timestamp_ms,
+                    outcome_history=new_history,
+                )
+                return
+        self._nstep_ledger.append(NStepAttributionEntry(
+            action_id=action_id,
+            family_id=family_id,
+            regime_id=regime_id,
+            timestamp_ms=timestamp_ms,
+            outcome_history=(outcome,),
+        ))
+        if len(self._nstep_ledger) > self._max_ledger_entries:
+            self._nstep_ledger = self._nstep_ledger[-self._max_ledger_entries:]
+
+    def compute_nstep_return(self, *, action_id: str) -> float:
+        """Compute discounted N-step return for a given action."""
+        for entry in self._nstep_ledger:
+            if entry.action_id == action_id:
+                total = 0.0
+                for k, outcome in enumerate(entry.outcome_history):
+                    total += (self._discount_factor ** k) * outcome
+                return total
+        return 0.0
+
+    def rolling_payoff_by_family(self) -> dict[str, float]:
+        """EMA of N-step returns grouped by family_id."""
+        family_returns: dict[str, list[float]] = {}
+        for entry in self._nstep_ledger:
+            if not entry.outcome_history:
+                continue
+            nstep = sum(
+                (self._discount_factor ** k) * v
+                for k, v in enumerate(entry.outcome_history)
+            )
+            family_returns.setdefault(entry.family_id, []).append(nstep)
+        result: dict[str, float] = {}
+        for family_id, returns in family_returns.items():
+            ema = returns[0]
+            for r in returns[1:]:
+                ema = 0.8 * ema + 0.2 * r
+            result[family_id] = round(ema, 4)
+        return result
+
+    def rolling_payoff_by_regime(self) -> dict[str, float]:
+        """EMA of N-step returns grouped by regime_id."""
+        regime_returns: dict[str, list[float]] = {}
+        for entry in self._nstep_ledger:
+            if not entry.outcome_history:
+                continue
+            nstep = sum(
+                (self._discount_factor ** k) * v
+                for k, v in enumerate(entry.outcome_history)
+            )
+            regime_returns.setdefault(entry.regime_id, []).append(nstep)
+        result: dict[str, float] = {}
+        for regime_id, returns in regime_returns.items():
+            ema = returns[0]
+            for r in returns[1:]:
+                ema = 0.8 * ema + 0.2 * r
+            result[regime_id] = round(ema, 4)
+        return result
 
     def aggregate_session_credits(self) -> tuple[tuple[str, float], ...]:
         """Compute discounted sum of credit records per session key."""
@@ -475,10 +597,13 @@ class CreditLedger:
             cumulative_credit_by_level=tuple(sorted(cumulative.items())),
             session_level_credits=self.aggregate_session_credits(),
             discount_factor=self._discount_factor,
+            delayed_ledger_size=len(self._nstep_ledger),
+            horizon_depth=self._horizon_depth,
             description=(
                 f"Credit ledger with {len(self._recent_credits)} credit records and "
                 f"{len(self._recent_modifications)} modification records, "
-                f"gamma={self._discount_factor}, turns={self._turn_count}."
+                f"gamma={self._discount_factor}, turns={self._turn_count}, "
+                f"nstep_entries={len(self._nstep_ledger)}, horizon={self._horizon_depth}."
             ),
         )
 

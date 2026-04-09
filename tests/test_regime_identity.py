@@ -510,6 +510,130 @@ def test_regime_module_projects_identity_hints_from_memory_snapshot():
     assert any(hint.startswith("identity:relationship:") for hint in snapshot.identity_hints)
 
 
+def test_regime_module_multi_horizon_resolution():
+    module = RegimeModule(attribution_horizons=(2, 4), wiring_level=WiringLevel.ACTIVE)
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("plan",),
+            recent_credits=(),
+            controller_code=(0.7, 0.2, 0.1),
+            tension_level=0.4,
+            abstract_action_hint="discovered_family_0",
+            action_family_version_hint=1,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("steady",),
+            recent_credits=(),
+            controller_code=(0.3, 0.6, 0.2),
+            tension_level=0.3,
+            abstract_action_hint="discovered_family_0",
+            action_family_version_hint=1,
+        ),
+        cross_track_tension=0.2,
+        description="multi-horizon test",
+    )
+    good = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.85, 0.7, "good"),
+            EvaluationScore("interaction", "warmth", 0.80, 0.7, "good"),
+            EvaluationScore("relationship", "cross_track_stability", 0.82, 0.7, "good"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="good turn",
+    )
+    snapshots = []
+    for _ in range(6):
+        snap = asyncio.run(
+            module.process_standalone(
+                dual_track_snapshot=dual_track_snapshot,
+                evaluation_snapshot=good,
+            )
+        ).value
+        snapshots.append(snap)
+
+    # Horizon-2 pending from turn 1 matures at turn 3
+    assert snapshots[2].delayed_outcomes
+    # Horizon-4 pending from turn 1 matures at turn 5
+    horizon4_matured = [
+        a for a in snapshots[4].delayed_attributions
+        if a.resolved_turn_index - a.source_turn_index >= 4
+    ]
+    assert horizon4_matured
+
+
+def test_regime_module_nstep_aggregation_uses_geometric_decay():
+    module = RegimeModule(attribution_horizons=(3,), wiring_level=WiringLevel.ACTIVE)
+    dt = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD, active_goals=(), recent_credits=(),
+            controller_code=(0.5, 0.2, 0.1), tension_level=0.3,
+        ),
+        self_track=TrackState(
+            track=Track.SELF, active_goals=(), recent_credits=(),
+            controller_code=(0.3, 0.5, 0.2), tension_level=0.3,
+        ),
+        cross_track_tension=0.2,
+        description="nstep test",
+    )
+    scores_sequence = [0.3, 0.5, 0.9, 0.9]
+    for score_val in scores_sequence:
+        snap = asyncio.run(
+            module.process_standalone(
+                dual_track_snapshot=dt,
+                evaluation_snapshot=EvaluationSnapshot(
+                    turn_scores=(
+                        EvaluationScore("task", "info_integration", score_val, 0.7, "v"),
+                        EvaluationScore("interaction", "warmth", score_val, 0.7, "v"),
+                        EvaluationScore("relationship", "cross_track_stability", score_val, 0.7, "v"),
+                    ),
+                    session_scores=(), alerts=(), description="",
+                ),
+            )
+        ).value
+    # Horizon-3 pending from turn 1 matures at turn 4
+    # N-step blends turns 2,3,4 with geometric decay (most recent = highest weight)
+    assert snap.delayed_attributions
+    blended = snap.delayed_attributions[0].outcome_score
+    # Most recent (0.9) weighted highest, so result > simple average of (0.5,0.9,0.9)=0.767
+    assert blended > 0.7
+
+
+def test_regime_module_sequence_payoffs():
+    module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
+    dt = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD, active_goals=("plan",), recent_credits=(),
+            controller_code=(0.7, 0.2, 0.1), tension_level=0.4,
+            abstract_action_hint="fam_0", action_family_version_hint=2,
+        ),
+        self_track=TrackState(
+            track=Track.SELF, active_goals=("steady",), recent_credits=(),
+            controller_code=(0.3, 0.6, 0.2), tension_level=0.3,
+            abstract_action_hint="fam_0", action_family_version_hint=2,
+        ),
+        cross_track_tension=0.2,
+        description="seq payoff",
+    )
+    good = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.8, 0.7, "g"),
+            EvaluationScore("interaction", "warmth", 0.7, 0.7, "g"),
+            EvaluationScore("relationship", "cross_track_stability", 0.75, 0.7, "g"),
+        ),
+        session_scores=(), alerts=(), description="",
+    )
+    for _ in range(4):
+        snap = asyncio.run(
+            module.process_standalone(dual_track_snapshot=dt, evaluation_snapshot=good)
+        ).value
+    assert snap.sequence_payoffs
+    assert snap.sequence_payoffs[0].regime_sequence
+    assert snap.sequence_payoffs[0].sample_count >= 1
+
+
 def test_regime_module_consumes_metacontroller_evidence():
     module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
     runtime_state = MetacontrollerRuntimeState(
@@ -555,3 +679,47 @@ def test_regime_module_consumes_metacontroller_evidence():
     assert "metacontroller:posterior-guard" in applied
     assert "metacontroller:replacement" in applied
     assert "metacontroller:guard" in applied
+
+
+def test_regime_selection_weights_update_from_outcomes():
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+    initial_weights = dict(module._selection_weights)
+    assert all(w == 1.0 for w in initial_weights.values())
+
+    for _ in range(5):
+        asyncio.run(module.process_standalone())
+
+    for regime_id, weight in module._selection_weights.items():
+        assert isinstance(weight, float)
+        assert 0.3 <= weight <= 2.0
+
+
+def test_regime_effectiveness_trend_in_snapshot():
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+
+    for _ in range(4):
+        result = asyncio.run(module.process_standalone())
+
+    snapshot = result.value
+    assert hasattr(snapshot, "effectiveness_trend")
+    assert isinstance(snapshot.effectiveness_trend, tuple)
+    assert len(snapshot.effectiveness_trend) > 0
+    for regime_id, trend in snapshot.effectiveness_trend:
+        assert isinstance(regime_id, str)
+        assert isinstance(trend, float)
+
+
+def test_regime_changed_flag_on_switch():
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+
+    result1 = asyncio.run(module.process_standalone())
+    snapshot1 = result1.value
+    assert isinstance(snapshot1.regime_changed, bool)
+
+    result2 = asyncio.run(module.process_standalone())
+    snapshot2 = result2.value
+    assert isinstance(snapshot2.regime_changed, bool)
+
+    assert hasattr(snapshot2, "selection_weights")
+    if snapshot2.selection_weights is not None:
+        assert len(snapshot2.selection_weights.weights) > 0

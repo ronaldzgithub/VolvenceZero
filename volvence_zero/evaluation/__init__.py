@@ -1,7 +1,10 @@
 from volvence_zero.evaluation.backbone import (
+    CrossSessionBenchmarkSuite,
+    CrossSessionGrowthReport,
     EvaluationBackbone,
     EvolutionDecision,
     EvolutionJudgement,
+    JudgementCategory,
     EvaluationReplayCase,
     EvaluationReplayCaseResult,
     EvaluationReplaySuiteResult,
@@ -11,12 +14,16 @@ from volvence_zero.evaluation.backbone import (
     EvaluationScore,
     EvaluationSnapshot,
     EvaluationTrack,
+    LongitudinalReport,
 )
 
 __all__ = [
+    "CrossSessionBenchmarkSuite",
+    "CrossSessionGrowthReport",
     "EvaluationBackbone",
     "EvolutionDecision",
     "EvolutionJudgement",
+    "JudgementCategory",
     "EvaluationReplayCase",
     "EvaluationReplayCaseResult",
     "EvaluationReplaySuiteResult",
@@ -26,4 +33,5 @@ __all__ = [
     "EvaluationScore",
     "EvaluationSnapshot",
     "EvaluationTrack",
+    "LongitudinalReport",
 ]

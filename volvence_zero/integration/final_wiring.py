@@ -14,7 +14,11 @@ from volvence_zero.credit import (
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule, EvaluationSnapshot
+from volvence_zero.evaluation import (
+    EvaluationModule,
+    EvaluationSnapshot,
+    EvolutionJudgement,
+)
 from volvence_zero.memory import MemoryModule, MemoryStore
 from volvence_zero.reflection import (
     ReflectionEngine,
@@ -83,6 +87,7 @@ class FinalIntegrationResult:
     writeback_result: WritebackResult | None
     writeback_source: str | None
     temporal_runtime_state: MetacontrollerRuntimeState | None
+    evolution_judgement: EvolutionJudgement | None = None
 
 
 def _apply_temporal_reflection_writeback(
@@ -226,7 +231,7 @@ def build_final_runtime_modules(
         ),
         ReflectionModule(
             engine=ReflectionEngine(writeback_mode=reflection_mode),
-            wiring_level=config.level_for("reflection", WiringLevel.DISABLED),
+            wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
         ),
         TemporalModule(
             policy=temporal_policy,

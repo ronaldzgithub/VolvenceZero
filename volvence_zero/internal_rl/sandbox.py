@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from volvence_zero.credit import CreditRecord
+from volvence_zero.credit import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.internal_rl.environment import InternalRLEnvStep, InternalRLEnvironment
 from volvence_zero.memory import Track
+from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
 from volvence_zero.temporal import (
     ControllerState,
@@ -88,6 +89,8 @@ class OptimizationReport:
     clip_fraction: float
     kl_penalty: float
     parameter_summary: str
+    epochs_executed: int = 1
+    kl_early_stopped: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,6 +98,15 @@ class DualTrackOptimizationReport:
     task_report: OptimizationReport
     relationship_report: OptimizationReport
     description: str
+
+
+@dataclass(frozen=True)
+class PolicyOptimizationResult:
+    optimization_report: DualTrackOptimizationReport
+    modification_records: tuple[SelfModificationRecord, ...]
+    policy_update_applied: bool
+    total_kl_divergence: float
+    total_epochs_executed: int
 
 
 def _clamp(value: float) -> float:
@@ -321,7 +333,42 @@ class CausalZPolicy:
         kl_penalty = sum(kl_terms) / max(len(kl_terms), 1)
         return (surrogate_objective, clip_fraction, kl_penalty)
 
-    def optimize(self, *, rollout: ZRollout) -> OptimizationReport:
+    def _compute_gae(
+        self,
+        *,
+        rollout: ZRollout,
+        gamma: float = 0.99,
+        gae_lambda: float = 0.95,
+    ) -> tuple[float, ...]:
+        """Generalized Advantage Estimation (GAE-lambda).
+
+        Uses the policy score as a lightweight value estimate. Advantages
+        are normalized to zero mean / unit variance for stable gradients.
+        """
+        n = len(rollout.transitions)
+        values = tuple(t.policy_score for t in rollout.transitions)
+        rewards = tuple(t.reward for t in rollout.transitions)
+        advantages = [0.0] * n
+        last_gae = 0.0
+        for t in range(n - 1, -1, -1):
+            next_value = values[t + 1] if t + 1 < n else 0.0
+            delta = rewards[t] + gamma * next_value - values[t]
+            last_gae = delta + gamma * gae_lambda * last_gae
+            advantages[t] = last_gae
+        mean_adv = sum(advantages) / max(n, 1)
+        var_adv = sum((a - mean_adv) ** 2 for a in advantages) / max(n, 1)
+        std_adv = max(var_adv ** 0.5, 1e-8)
+        return tuple((a - mean_adv) / std_adv for a in advantages)
+
+    def optimize(
+        self,
+        *,
+        rollout: ZRollout,
+        n_epochs: int = 3,
+        gamma: float = 0.99,
+        gae_lambda: float = 0.95,
+        max_kl: float = 0.05,
+    ) -> OptimizationReport:
         if not rollout.transitions:
             return OptimizationReport(
                 track=rollout.track,
@@ -335,23 +382,37 @@ class CausalZPolicy:
             )
         rewards = tuple(transition.reward for transition in rollout.transitions)
         baseline_reward = sum(rewards) / len(rewards)
-        advantages = tuple(reward - baseline_reward for reward in rewards)
+        advantages = self._compute_gae(rollout=rollout, gamma=gamma, gae_lambda=gae_lambda)
         mean_advantage = sum(advantages) / len(advantages)
-        previous_weights = self._parameter_store.track_weights[rollout.track]
-        gradient = self._trajectory_gradient(rollout=rollout, advantages=advantages)
-        proposed_weights = tuple(
-            _clamp(weight + self._parameter_store.learning_rate * delta)
-            for weight, delta in zip(previous_weights, gradient)
-        )
-        normalized_weights = self._normalize_weights(proposed_weights)
-        surrogate_objective, clip_fraction, kl_penalty = self._surrogate_metrics(
-            rollout=rollout,
-            advantages=advantages,
-            old_weights=previous_weights,
-            new_weights=normalized_weights,
-        )
-        if surrogate_objective >= -0.05:
-            self._parameter_store.track_weights[rollout.track] = normalized_weights
+        initial_weights = self._parameter_store.track_weights[rollout.track]
+        best_surrogate = -1.0
+        best_clip_fraction = 0.0
+        best_kl = 0.0
+        kl_early_stopped = False
+        epochs_executed = 0
+        for epoch in range(n_epochs):
+            previous_weights = self._parameter_store.track_weights[rollout.track]
+            gradient = self._trajectory_gradient(rollout=rollout, advantages=advantages)
+            proposed_weights = tuple(
+                _clamp(weight + self._parameter_store.learning_rate * delta)
+                for weight, delta in zip(previous_weights, gradient)
+            )
+            normalized_weights = self._normalize_weights(proposed_weights)
+            surrogate_objective, clip_fraction, kl_penalty = self._surrogate_metrics(
+                rollout=rollout,
+                advantages=advantages,
+                old_weights=initial_weights,
+                new_weights=normalized_weights,
+            )
+            epochs_executed = epoch + 1
+            best_surrogate = surrogate_objective
+            best_clip_fraction = clip_fraction
+            best_kl = kl_penalty
+            if surrogate_objective >= -0.05:
+                self._parameter_store.track_weights[rollout.track] = normalized_weights
+            if kl_penalty > max_kl:
+                kl_early_stopped = True
+                break
         self._parameter_store.persistence = _clamp(
             self._parameter_store.persistence
             + mean_advantage * self._parameter_store.learning_rate * 0.05
@@ -363,14 +424,17 @@ class CausalZPolicy:
             average_reward=rollout.total_reward / len(rollout.transitions),
             baseline_reward=baseline_reward,
             mean_advantage=mean_advantage,
-            surrogate_objective=surrogate_objective,
-            clip_fraction=clip_fraction,
-            kl_penalty=kl_penalty,
+            surrogate_objective=best_surrogate,
+            clip_fraction=best_clip_fraction,
+            kl_penalty=best_kl,
+            epochs_executed=epochs_executed,
+            kl_early_stopped=kl_early_stopped,
             parameter_summary=(
                 f"track={rollout.track.value} weights={self._parameter_store.track_weights[rollout.track]} "
                 f"persistence={self._parameter_store.persistence:.3f} "
                 f"step={self._parameter_store.update_steps[rollout.track]} "
-                f"objective={surrogate_objective:.3f} "
+                f"objective={best_surrogate:.3f} epochs={epochs_executed}/{n_epochs} "
+                f"kl_stopped={kl_early_stopped} "
                 f"replacement={sum(t.policy_replacement_quality for t in rollout.transitions)/len(rollout.transitions):.3f}"
             ),
         )
@@ -507,22 +571,57 @@ class InternalRLSandbox:
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
         self._causal_policy.restore_checkpoint(checkpoint)
 
-    def optimize(self, rollout: ZRollout | DualTrackRollout) -> OptimizationReport | DualTrackOptimizationReport:
+    def optimize(self, rollout: ZRollout | DualTrackRollout) -> DualTrackOptimizationReport | OptimizationReport:
         if isinstance(rollout, DualTrackRollout):
-            task_report = self.optimize(rollout.task_rollout)
-            relationship_report = self.optimize(rollout.relationship_rollout)
-            if not isinstance(task_report, OptimizationReport):
-                raise TypeError("task_report must be OptimizationReport.")
-            if not isinstance(relationship_report, OptimizationReport):
-                raise TypeError("relationship_report must be OptimizationReport.")
-            return DualTrackOptimizationReport(
-                task_report=task_report,
-                relationship_report=relationship_report,
-                description=(
-                    f"task_adv={task_report.mean_advantage:.3f}, "
-                    f"rel_adv={relationship_report.mean_advantage:.3f}"
+            return self._optimize_dual_track(rollout).optimization_report
+        return self._optimize_single(rollout)
+
+    def optimize_with_audit(self, rollout: DualTrackRollout, *, timestamp_ms: int = 0) -> PolicyOptimizationResult:
+        return self._optimize_dual_track(rollout, timestamp_ms=timestamp_ms)
+
+    def _optimize_dual_track(
+        self, rollout: DualTrackRollout, *, timestamp_ms: int = 0
+    ) -> PolicyOptimizationResult:
+        before_hash = stable_value_hash(self._causal_policy.export_parameters())
+        task_report = self._optimize_single(rollout.task_rollout)
+        relationship_report = self._optimize_single(rollout.relationship_rollout)
+        after_hash = stable_value_hash(self._causal_policy.export_parameters())
+        params_changed = before_hash != after_hash
+        dual_report = DualTrackOptimizationReport(
+            task_report=task_report,
+            relationship_report=relationship_report,
+            description=(
+                f"task_adv={task_report.mean_advantage:.3f}, "
+                f"rel_adv={relationship_report.mean_advantage:.3f}"
+            ),
+        )
+        total_kl = task_report.kl_penalty + relationship_report.kl_penalty
+        total_epochs = task_report.epochs_executed + relationship_report.epochs_executed
+        records: list[SelfModificationRecord] = []
+        if params_changed:
+            records.append(SelfModificationRecord(
+                target="causal_policy.track_weights",
+                gate=ModificationGate.ONLINE,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=(
+                    f"RL policy update: task_obj={task_report.surrogate_objective:.3f} "
+                    f"rel_obj={relationship_report.surrogate_objective:.3f} "
+                    f"kl={total_kl:.3f} epochs={total_epochs}"
                 ),
-            )
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+            ))
+        return PolicyOptimizationResult(
+            optimization_report=dual_report,
+            modification_records=tuple(records),
+            policy_update_applied=params_changed,
+            total_kl_divergence=total_kl,
+            total_epochs_executed=total_epochs,
+        )
+
+    def _optimize_single(self, rollout: ZRollout) -> OptimizationReport:
         if not rollout.transitions:
             return OptimizationReport(
                 track=rollout.track,

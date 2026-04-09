@@ -17,9 +17,13 @@ from volvence_zero.temporal.interface import (
 )
 from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
 from volvence_zero.temporal.metacontroller_components import (
+    FamilyCompetitionState,
     NdimResidualDecoder,
     NdimSequenceEncoder,
     NdimSwitchUnit,
+    SwitchGateStats,
+    build_family_competition_state,
+    update_family_outcome_history,
 )
 from volvence_zero.temporal.noncausal_embedder import (
     NonCausalEmbedding,
@@ -57,9 +61,12 @@ __all__ = [
     "MetacontrollerParameterSnapshot",
     "MetacontrollerRuntimeState",
     "MetacontrollerSSLTrainer",
+    "FamilyCompetitionState",
     "NdimResidualDecoder",
     "NdimSequenceEncoder",
     "NdimSwitchUnit",
+    "SwitchGateStats",
+    "build_family_competition_state",
     "NonCausalEmbedding",
     "NonCausalSequenceEmbedder",
     "PlaceholderTemporalPolicy",

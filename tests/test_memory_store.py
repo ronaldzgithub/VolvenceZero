@@ -248,3 +248,64 @@ def test_memory_store_supports_checkpoint_restore_and_cms_core():
     )
     assert restored.entries
 
+
+def test_persistence_backend_round_trip():
+    import tempfile
+    from volvence_zero.memory import (
+        FileSystemPersistenceBackend,
+        serialize_checkpoint,
+        deserialize_checkpoint,
+        MemoryStore,
+        MemoryStratum,
+        MemoryWriteRequest,
+        Track,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir)
+        store = MemoryStore(persistence_backend=backend)
+        store.write(
+            MemoryWriteRequest(
+                content="persistent memory",
+                track=Track.WORLD,
+                stratum=MemoryStratum.DURABLE,
+                strength=0.9,
+            ),
+            timestamp_ms=100,
+        )
+        saved = store.save_to_backend(key="memory/test")
+        assert saved is True
+
+        result = backend.load_checkpoint(key="memory/test")
+        assert result is not None
+        data, version = result
+        assert version == 1
+        parsed = deserialize_checkpoint(data)
+        assert parsed
+        assert parsed.get("_schema_version") == 1
+
+        keys = backend.list_checkpoints(prefix="memory/")
+        assert len(keys) >= 1
+
+
+def test_persistence_backend_version_cleanup():
+    import tempfile
+    import os
+    from volvence_zero.memory import FileSystemPersistenceBackend
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir, max_versions=3)
+        for v in range(7):
+            backend.save_checkpoint(
+                key="test/cleanup",
+                data=f'{{"version": {v}}}'.encode("utf-8"),
+                version=v,
+            )
+        files = [f for f in os.listdir(tmpdir) if f.endswith(".json")]
+        assert len(files) <= 3
+
+        result = backend.load_checkpoint(key="test/cleanup")
+        assert result is not None
+        _, latest_version = result
+        assert latest_version == 6
+

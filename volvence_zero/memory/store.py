@@ -7,6 +7,11 @@ from typing import Any, Iterable, Mapping
 from uuid import uuid4
 
 from volvence_zero.memory.cms import CMSCheckpointState, CMSMemoryCore, CMSState
+from volvence_zero.memory.persistence import (
+    PersistenceBackend,
+    deserialize_checkpoint,
+    serialize_checkpoint,
+)
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
@@ -147,6 +152,7 @@ class MemoryStore:
         *,
         learned_core: CMSMemoryCore | None = None,
         promotion_threshold: float = 0.7,
+        persistence_backend: PersistenceBackend | None = None,
     ) -> None:
         self._entries: dict[str, MemoryEntry] = {}
         self._by_stratum: dict[MemoryStratum, list[str]] = {
@@ -160,6 +166,8 @@ class MemoryStore:
         self._learned_core = learned_core
         self._promotion_threshold = _clamp_strength(promotion_threshold)
         self._semantic_index: dict[str, tuple[float, ...]] = {}
+        self._persistence_backend = persistence_backend
+        self._persistence_version = 0
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -380,6 +388,32 @@ class MemoryStore:
     def import_rare_heavy_state(self, checkpoint: MemoryStoreCheckpoint) -> tuple[str, ...]:
         self.restore_checkpoint(checkpoint)
         return ("rare-heavy:memory-import",)
+
+    def save_to_backend(self, *, key: str = "memory/store") -> bool:
+        """Persist the current checkpoint to the configured backend. Returns False if no backend."""
+        if self._persistence_backend is None:
+            return False
+        checkpoint = self.create_checkpoint(checkpoint_id=f"persist-{key}")
+        data = serialize_checkpoint(checkpoint)
+        self._persistence_version += 1
+        self._persistence_backend.save_checkpoint(
+            key=key, data=data, version=self._persistence_version,
+        )
+        return True
+
+    def load_from_backend(self, *, key: str = "memory/store") -> bool:
+        """Load the latest checkpoint from the configured backend. Returns False if unavailable."""
+        if self._persistence_backend is None:
+            return False
+        result = self._persistence_backend.load_checkpoint(key=key)
+        if result is None:
+            return False
+        data, version = result
+        parsed = deserialize_checkpoint(data)
+        if not parsed:
+            return False
+        self._persistence_version = version
+        return True
 
     def _entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])

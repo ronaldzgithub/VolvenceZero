@@ -6,6 +6,7 @@ from volvence_zero.credit.gate import (
     GateDecision,
     ModificationGate,
     ModificationProposal,
+    NStepAttributionEntry,
     SelfModificationRecord,
     derive_abstract_action_credit_records,
     derive_credit_records,
@@ -15,6 +16,7 @@ from volvence_zero.credit.gate import (
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
+    extract_abstract_action_credit_bonus,
     has_blocking_writeback,
 )
 
@@ -26,6 +28,7 @@ __all__ = [
     "GateDecision",
     "ModificationGate",
     "ModificationProposal",
+    "NStepAttributionEntry",
     "SelfModificationRecord",
     "derive_abstract_action_credit_records",
     "derive_credit_records",
@@ -35,5 +38,6 @@ __all__ = [
     "derive_runtime_adaptation_audit_records",
     "extend_credit_snapshot",
     "evaluate_gate",
+    "extract_abstract_action_credit_bonus",
     "has_blocking_writeback",
 ]

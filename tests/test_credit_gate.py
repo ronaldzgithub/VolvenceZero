@@ -395,3 +395,52 @@ def test_delayed_attribution_credit_records_capture_regime_and_action_history():
         "delayed_payoff_action:discovered_family_2",
     }
     assert all("source_wave_id=wave-3" in record.context for record in records)
+
+
+def test_nstep_credit_ledger_accumulates_outcomes():
+    from volvence_zero.credit import CreditLedger
+
+    ledger = CreditLedger(discount_factor=0.9, horizon_depth=5)
+    ledger.record_nstep_outcome(
+        action_id="a1", family_id="fam_0", regime_id="casual_social",
+        outcome=0.8, timestamp_ms=100,
+    )
+    ledger.record_nstep_outcome(
+        action_id="a1", family_id="fam_0", regime_id="casual_social",
+        outcome=0.6, timestamp_ms=200,
+    )
+    ledger.record_nstep_outcome(
+        action_id="a2", family_id="fam_1", regime_id="problem_solving",
+        outcome=0.3, timestamp_ms=300,
+    )
+
+    nstep_a1 = ledger.compute_nstep_return(action_id="a1")
+    nstep_a2 = ledger.compute_nstep_return(action_id="a2")
+    assert nstep_a1 > nstep_a2
+
+    snapshot = ledger.snapshot()
+    assert snapshot.delayed_ledger_size == 2
+    assert snapshot.horizon_depth == 5
+
+
+def test_rolling_payoff_differentiates_families():
+    from volvence_zero.credit import CreditLedger
+
+    ledger = CreditLedger(horizon_depth=3)
+    for i in range(5):
+        ledger.record_nstep_outcome(
+            action_id=f"good_{i}", family_id="good_family", regime_id="r1",
+            outcome=0.9, timestamp_ms=i * 100,
+        )
+        ledger.record_nstep_outcome(
+            action_id=f"bad_{i}", family_id="bad_family", regime_id="r1",
+            outcome=0.1, timestamp_ms=i * 100 + 50,
+        )
+
+    family_payoffs = ledger.rolling_payoff_by_family()
+    assert "good_family" in family_payoffs
+    assert "bad_family" in family_payoffs
+    assert family_payoffs["good_family"] > family_payoffs["bad_family"]
+
+    regime_payoffs = ledger.rolling_payoff_by_regime()
+    assert "r1" in regime_payoffs

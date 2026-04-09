@@ -12,15 +12,25 @@ from volvence_zero.credit import (
     derive_metacontroller_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
+    extract_abstract_action_credit_bonus,
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationBackbone, EvaluationModule, EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import (
+    EvaluationBackbone,
+    EvolutionDecision,
+    EvolutionJudgement,
+    JudgementCategory,
+    EvaluationModule,
+    EvaluationScore,
+    EvaluationSnapshot,
+)
 from volvence_zero.internal_rl import (
     CausalPolicyCheckpoint,
     DualTrackOptimizationReport,
     DualTrackRollout,
     InternalRLSandbox,
+    PolicyOptimizationResult,
     derive_abstract_action_credit,
 )
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
@@ -72,9 +82,13 @@ class JointCycleReport:
     applied_operations: tuple[str, ...]
     metacontroller_state: MetacontrollerRuntimeState | None
     cms_description: str
+    evolution_judgement: EvolutionJudgement | None
     owner_path: str
     schedule_telemetry: tuple[tuple[str, int], ...]
     description: str
+    policy_update_applied: bool = False
+    policy_kl_divergence: float = 0.0
+    policy_epochs_executed: int = 0
 
 
 @dataclass(frozen=True)
@@ -134,6 +148,7 @@ class ETANLJointLoop:
         self._previous_total_reward: float | None = None
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
         self._previous_family_signals: dict[str, float] = {}
+        self._previous_credit_snapshot: CreditSnapshot | None = None
 
     def _apply_temporal_reflection_writeback(
         self,
@@ -257,15 +272,20 @@ class ETANLJointLoop:
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
         self._policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
         self._sandbox.configure_runtime_backend(source_text=trace.source_text)
-        if self._previous_family_signals:
-            self._sandbox._env.set_evaluation_signals(self._previous_family_signals)
+        eval_signals = dict(self._previous_family_signals)
+        if self._previous_credit_snapshot is not None:
+            credit_bonus = extract_abstract_action_credit_bonus(self._previous_credit_snapshot)
+            eval_signals.update(credit_bonus)
+        if eval_signals:
+            self._sandbox._env.set_evaluation_signals(eval_signals)
         dual_track_rollout = self._sandbox.rollout_dual_track(
             rollout_id=f"joint-{cycle_index}",
             substrate_steps=substrate_snapshots,
         )
-        optimization_report = self._sandbox.optimize(dual_track_rollout)
-        if not isinstance(optimization_report, DualTrackOptimizationReport):
-            raise TypeError("dual-track optimization must return DualTrackOptimizationReport.")
+        optimization_result = self._sandbox.optimize_with_audit(
+            dual_track_rollout, timestamp_ms=cycle_index,
+        )
+        optimization_report = optimization_result.optimization_report
         session_id = f"joint-session-{cycle_index}"
         wave_id = f"joint-wave-{cycle_index}"
         modules = [
@@ -303,6 +323,11 @@ class ETANLJointLoop:
             active_snapshots,
             dual_track_rollout=dual_track_rollout,
         )
+        if optimization_result.modification_records:
+            enriched_credit_snapshot = extend_credit_snapshot(
+                credit_snapshot=enriched_credit_snapshot,
+                extra_modifications=optimization_result.modification_records,
+            )
         enriched_credit_snapshot = extend_credit_snapshot(
             credit_snapshot=enriched_credit_snapshot,
             extra_records=derive_delayed_attribution_credit_records(
@@ -394,6 +419,29 @@ class ETANLJointLoop:
                 rollback_applied=policy_rollback_applied,
             ),
         )
+        session_report = self._evaluation_backbone.build_session_report(
+            session_id=session_id,
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
+        )
+        replay_result = self._evaluation_backbone.run_default_evolution_benchmark(
+            timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
+        )
+        evolution_judgement = self._evaluation_backbone.judge_evolution_candidate(
+            replay_suite_result=replay_result,
+            session_report=session_report,
+        )
+        if not rollback_required and evolution_judgement.decision is EvolutionDecision.ROLLBACK:
+            self._sandbox.restore_checkpoint(cycle_checkpoint)
+            policy_rollback_applied = True
+            ssl_rollback_applied = True
+            rollback_reasons = rollback_reasons + ("evolution-judge-rollback",)
+        judge_allows_structural = (
+            evolution_judgement.decision is EvolutionDecision.PROMOTE
+            or (
+                evolution_judgement.decision is EvolutionDecision.HOLD
+                and evolution_judgement.category is not JudgementCategory.UNSAFE_MUTATION
+            )
+        )
         reflection_snapshot = ReflectionEngine(writeback_mode=WritebackMode.APPLY).reflect(
             timestamp_ms=active_snapshots["reflection"].timestamp_ms + 1,
             memory_snapshot=active_snapshots["memory"].value,
@@ -407,7 +455,7 @@ class ETANLJointLoop:
             reflection_snapshot=reflection_snapshot,
             credit_snapshot=enriched_credit_snapshot,
             timestamp_ms=active_snapshots["credit"].timestamp_ms + 175,
-            apply_enabled=apply_writeback,
+            apply_enabled=apply_writeback and judge_allows_structural,
         )
         if temporal_writeback_audits:
             enriched_credit_snapshot = extend_credit_snapshot(
@@ -431,6 +479,7 @@ class ETANLJointLoop:
         self._previous_total_reward = total_reward
         self._previous_metacontroller_state = metacontroller_state
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
+        self._previous_credit_snapshot = enriched_credit_snapshot
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
@@ -455,6 +504,7 @@ class ETANLJointLoop:
             cms_description=self._memory_store.learned_core.snapshot().description
             if self._memory_store.learned_core is not None
             else "No CMS core attached.",
+            evolution_judgement=evolution_judgement,
             owner_path=self.owner_path,
             schedule_telemetry=(
                 ("cycle_index", cycle_index),
@@ -475,6 +525,9 @@ class ETANLJointLoop:
                 f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
                 f"kernel_scores={len(kernel_scores)}, with {len(applied_operations)} bounded writeback operations."
             ),
+            policy_update_applied=optimization_result.policy_update_applied,
+            policy_kl_divergence=optimization_result.total_kl_divergence,
+            policy_epochs_executed=optimization_result.total_epochs_executed,
         )
 
     async def run_scheduled_step(

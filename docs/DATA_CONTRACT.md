@@ -249,6 +249,11 @@ class CMSBandState:
     cadence_interval: int
     observations_since_update: int
     pending_signal: tuple[float, ...]
+    learning_rate: float = 0.0
+    momentum: tuple[float, ...] = ()
+    anti_forgetting_strength: float = 0.0
+    mode: str = "vector"              # "vector" | "mlp"
+    mlp_param_count: int = 0          # 0 for vector mode
 
 @dataclass(frozen=True)
 class CMSState:
@@ -258,6 +263,22 @@ class CMSState:
     total_observations: int
     total_reflections: int
     description: str
+    variant: str = "sequential"       # "sequential" | "independent"
+
+@dataclass(frozen=True)
+class CMSCheckpointState:
+    online_fast: tuple[float, ...]
+    session_medium: tuple[float, ...]
+    background_slow: tuple[float, ...]
+    last_update_ms: int
+    total_observations: int
+    total_reflections: int
+    session_observations_since_update: int
+    background_observations_since_update: int
+    session_pending_signal: tuple[float, ...]
+    background_pending_signal: tuple[float, ...]
+    mode: str = "vector"              # "vector" | "mlp"
+    mlp_params: tuple[tuple[tuple[float, ...], ...], ...] = ()
 
 @dataclass(frozen=True)
 class MemorySnapshot:

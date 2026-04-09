@@ -16,6 +16,7 @@ from volvence_zero.temporal.metacontroller_components import (
     DecoderControl,
     DiscoveredActionFamily,
     EncodedSequence,
+    FamilyCompetitionState,
     NdimResidualDecoder,
     NdimSequenceEncoder,
     NdimSwitchUnit,
@@ -23,7 +24,9 @@ from volvence_zero.temporal.metacontroller_components import (
     ResidualDecoder,
     SequenceEncoder,
     SwitchGateDecision,
+    SwitchGateStats,
     SwitchUnit,
+    build_family_competition_state,
     discover_latent_action_family,
     residual_sequence_from_snapshot,
     summarize_feature_surface,
@@ -55,6 +58,7 @@ class TemporalAbstractionSnapshot:
     controller_params_hash: str
     description: str
     action_family_version: int = 0
+    switch_gate_stats: SwitchGateStats | None = None
 
 
 @dataclass(frozen=True)
@@ -135,7 +139,9 @@ class ActionFamilyPublicSummary:
     stagnation_pressure: float
     monopoly_pressure: float
     competition_score: float
-    summary: str
+    outcome_history: tuple[float, ...] = ()
+    outcome_driven_score: float = 0.0
+    summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -527,6 +533,8 @@ class MetacontrollerParameterStore:
                 stagnation_pressure=family.stagnation_pressure,
                 monopoly_pressure=family.monopoly_pressure,
                 competition_score=family.competition_score,
+                outcome_history=family.outcome_history,
+                outcome_driven_score=family.outcome_driven_score,
                 summary=family.summary,
             )
             for family in self.action_families

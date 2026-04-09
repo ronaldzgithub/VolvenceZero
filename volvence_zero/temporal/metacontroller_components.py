@@ -80,7 +80,27 @@ class DiscoveredActionFamily:
     stagnation_pressure: float = 0.0
     monopoly_pressure: float = 0.0
     competition_score: float = 0.0
+    outcome_history: tuple[float, ...] = ()
+    outcome_driven_score: float = 0.0
+    long_term_payoff: float = 0.5
+    delayed_credit_sum: float = 0.0
     summary: str = ""
+
+
+@dataclass(frozen=True)
+class SwitchGateStats:
+    beta_histogram: tuple[int, ...]
+    switch_frequency: float
+    mean_persistence_steps: float
+    observation_count: int
+
+
+@dataclass(frozen=True)
+class FamilyCompetitionState:
+    ranked_families: tuple[tuple[str, float], ...]
+    top1_share: float
+    monopoly_alert: bool
+    collapse_alert: bool
 
 
 @dataclass(frozen=True)
@@ -446,7 +466,7 @@ def _family_match_score(
     latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
     decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
     switch_alignment = 1.0 - abs(observation.switch_gate - family.switch_bias)
-    return (
+    base = (
         latent_similarity * 0.52
         + decoder_similarity * 0.28
         + family.stability * 0.10
@@ -456,6 +476,8 @@ def _family_match_score(
         - family.monopoly_pressure * 0.05
         - family.stagnation_pressure * 0.03
     )
+    outcome_bonus = family.outcome_driven_score * 0.15 if family.outcome_history else 0.0
+    return base + outcome_bonus
 
 
 def _family_summary(
@@ -506,6 +528,10 @@ def _refresh_family_summary(family: DiscoveredActionFamily, *, prefix: str) -> D
         stagnation_pressure=family.stagnation_pressure,
         monopoly_pressure=family.monopoly_pressure,
         competition_score=family.competition_score,
+        outcome_history=family.outcome_history,
+        outcome_driven_score=family.outcome_driven_score,
+        long_term_payoff=family.long_term_payoff,
+        delayed_credit_sum=family.delayed_credit_sum,
         summary=_family_summary(family, prefix=prefix),
     )
 
@@ -528,6 +554,7 @@ def _merge_family_pair(
     left: DiscoveredActionFamily,
     right: DiscoveredActionFamily,
 ) -> DiscoveredActionFamily:
+    merged_history = (left.outcome_history + right.outcome_history)[-12:]
     merged = DiscoveredActionFamily(
         family_id=left.family_id,
         latent_centroid=_merge_vectors(
@@ -563,8 +590,88 @@ def _merge_family_pair(
         stagnation_pressure=min(left.stagnation_pressure, right.stagnation_pressure),
         monopoly_pressure=max(left.monopoly_pressure, right.monopoly_pressure),
         competition_score=clamp_unit((left.competition_score + right.competition_score) / 2.0),
+        outcome_history=merged_history,
+        outcome_driven_score=_outcome_driven_score(merged_history),
+        long_term_payoff=clamp_unit(
+            (left.long_term_payoff * left.support + right.long_term_payoff * right.support)
+            / max(left.support + right.support, 1)
+        ),
+        delayed_credit_sum=left.delayed_credit_sum + right.delayed_credit_sum,
     )
     return _refresh_family_summary(merged, prefix=f"merged:{left.family_id}+{right.family_id}")
+
+
+def _outcome_driven_score(history: tuple[float, ...]) -> float:
+    if not history:
+        return 0.0
+    return clamp_unit(sum(history) / len(history))
+
+
+def build_family_competition_state(
+    action_families: tuple[DiscoveredActionFamily, ...],
+) -> FamilyCompetitionState:
+    if not action_families:
+        return FamilyCompetitionState(
+            ranked_families=(), top1_share=0.0, monopoly_alert=False, collapse_alert=False,
+        )
+    total_support = max(sum(f.support for f in action_families), 1)
+    ranked = sorted(
+        action_families,
+        key=lambda f: f.long_term_payoff * 0.4 + f.competition_score * 0.3 + f.stability * 0.3,
+        reverse=True,
+    )
+    ranked_tuples = tuple(
+        (f.family_id, round(f.long_term_payoff * 0.4 + f.competition_score * 0.3 + f.stability * 0.3, 4))
+        for f in ranked
+    )
+    top1_share = ranked[0].support / total_support if ranked else 0.0
+    monopoly_alert = any(f.monopoly_pressure > 0.7 and f.reuse_streak >= 4 for f in action_families)
+    collapse_alert = top1_share > 0.8 and len(action_families) > 1
+    return FamilyCompetitionState(
+        ranked_families=ranked_tuples,
+        top1_share=round(top1_share, 4),
+        monopoly_alert=monopoly_alert,
+        collapse_alert=collapse_alert,
+    )
+
+
+def update_family_outcome_history(
+    families: tuple[DiscoveredActionFamily, ...],
+    *,
+    family_id: str,
+    outcome_value: float,
+    max_history: int = 12,
+) -> tuple[DiscoveredActionFamily, ...]:
+    result: list[DiscoveredActionFamily] = []
+    for family in families:
+        if family.family_id != family_id:
+            result.append(family)
+            continue
+        new_history = (family.outcome_history + (outcome_value,))[-max_history:]
+        result.append(
+            _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=family.family_id,
+                    latent_centroid=family.latent_centroid,
+                    decoder_centroid=family.decoder_centroid,
+                    support=family.support,
+                    stability=family.stability,
+                    switch_bias=family.switch_bias,
+                    mean_posterior_drift=family.mean_posterior_drift,
+                    mean_persistence_window=family.mean_persistence_window,
+                    reuse_streak=family.reuse_streak,
+                    stagnation_pressure=family.stagnation_pressure,
+                    monopoly_pressure=family.monopoly_pressure,
+                    competition_score=family.competition_score,
+                    outcome_history=new_history,
+                    outcome_driven_score=_outcome_driven_score(new_history),
+                    long_term_payoff=family.long_term_payoff,
+                    delayed_credit_sum=family.delayed_credit_sum,
+                ),
+                prefix="outcome-updated",
+            )
+        )
+    return tuple(result)
 
 
 def _competition_score(family: DiscoveredActionFamily) -> float:
@@ -619,6 +726,10 @@ def _update_family_competition_state(
             reuse_streak=reuse_streak,
             stagnation_pressure=stagnation_pressure,
             monopoly_pressure=monopoly_pressure,
+            outcome_history=family.outcome_history,
+            outcome_driven_score=family.outcome_driven_score,
+            long_term_payoff=family.long_term_payoff,
+            delayed_credit_sum=family.delayed_credit_sum,
         )
         updated.append(
             _refresh_family_summary(
@@ -635,6 +746,10 @@ def _update_family_competition_state(
                     stagnation_pressure=refreshed.stagnation_pressure,
                     monopoly_pressure=refreshed.monopoly_pressure,
                     competition_score=_competition_score(refreshed),
+                    outcome_history=refreshed.outcome_history,
+                    outcome_driven_score=refreshed.outcome_driven_score,
+                    long_term_payoff=refreshed.long_term_payoff,
+                    delayed_credit_sum=refreshed.delayed_credit_sum,
                 ),
                 prefix="competitive" if is_active else "idle",
             )

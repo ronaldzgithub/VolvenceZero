@@ -23,6 +23,12 @@ class RegimeIdentity:
 
 
 @dataclass(frozen=True)
+class RegimeSelectionWeights:
+    weights: tuple[tuple[str, float], ...]
+    learning_rate: float = 0.02
+
+
+@dataclass(frozen=True)
 class RegimeSnapshot:
     active_regime: RegimeIdentity
     previous_regime: RegimeIdentity | None
@@ -34,7 +40,11 @@ class RegimeSnapshot:
     delayed_attributions: tuple["DelayedOutcomeAttribution", ...] = ()
     delayed_attribution_ledger: tuple["DelayedOutcomeAttribution", ...] = ()
     delayed_payoffs: tuple["DelayedOutcomePayoff", ...] = ()
+    sequence_payoffs: tuple["RegimeSequencePayoff", ...] = ()
     identity_hints: tuple[str, ...] = ()
+    effectiveness_trend: tuple[tuple[str, float], ...] = ()
+    regime_changed: bool = False
+    selection_weights: RegimeSelectionWeights | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +61,10 @@ class RegimeCheckpoint:
     last_delayed_attributions: tuple["DelayedOutcomeAttribution", ...] = ()
     delayed_attribution_ledger: tuple["DelayedOutcomeAttribution", ...] = ()
     delayed_payoffs: tuple["DelayedOutcomePayoff", ...] = ()
+    turn_evaluation_scores: tuple[float, ...] = ()
+    regime_sequence: tuple[str, ...] = ()
+    sequence_payoffs: tuple["RegimeSequencePayoff", ...] = ()
+    attribution_horizons: tuple[int, ...] = (2,)
 
 
 @dataclass(frozen=True)
@@ -79,6 +93,16 @@ class DelayedOutcomePayoff:
     regime_id: str
     abstract_action: str | None
     action_family_version: int
+    sample_count: int
+    rolling_payoff: float
+    latest_outcome: float
+    last_source_wave_id: str
+
+
+@dataclass(frozen=True)
+class RegimeSequencePayoff:
+    regime_sequence: tuple[str, ...]
+    family_version: int
     sample_count: int
     rolling_payoff: float
     latest_outcome: float
@@ -291,6 +315,7 @@ def score_regimes(
     evaluation_snapshot: EvaluationSnapshot | None,
     historical_effectiveness: Mapping[str, float],
     strategy_priors: Mapping[str, float] | None = None,
+    selection_weights: Mapping[str, float] | None = None,
 ) -> tuple[tuple[str, float], ...]:
     regime_priors = strategy_priors or {}
     if dual_track_snapshot is None:
@@ -396,14 +421,17 @@ def score_regimes(
         ),
     }
 
+    learned_weights = selection_weights or {}
     ranked: list[tuple[str, float]] = []
     for template in REGIME_TEMPLATES:
         historical = historical_effectiveness.get(template.regime_id, 0.5)
-        blended = _clamp(
+        base_score = _clamp(
             scores[template.regime_id] * 0.80
             + historical * 0.15
             + regime_priors.get(template.regime_id, 0.0)
         )
+        weight = learned_weights.get(template.regime_id, 1.0)
+        blended = _clamp(base_score * weight)
         ranked.append((template.regime_id, round(blended, 4)))
     ranked.sort(key=lambda item: item[1], reverse=True)
     return tuple(ranked)
@@ -434,14 +462,24 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
     dependencies = ("memory", "dual_track", "evaluation")
     default_wiring_level = WiringLevel.SHADOW
 
-    def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        attribution_horizons: tuple[int, ...] = (2,),
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
         super().__init__(wiring_level=wiring_level)
+        self._attribution_horizons = tuple(min(max(h, 1), 8) for h in attribution_horizons) or (2,)
         self._historical_effectiveness: dict[str, float] = {
             template.regime_id: 0.5 for template in REGIME_TEMPLATES
         }
         self._strategy_priors: dict[str, float] = {
             template.regime_id: 0.0 for template in REGIME_TEMPLATES
         }
+        self._selection_weights: dict[str, float] = {
+            template.regime_id: 1.0 for template in REGIME_TEMPLATES
+        }
+        self._selection_weight_lr = 0.02
         self._active_regime_id: str | None = None
         self._previous_regime_id: str | None = None
         self._turns_in_current_regime = 0
@@ -451,6 +489,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._last_delayed_attributions: tuple[DelayedOutcomeAttribution, ...] = ()
         self._delayed_attribution_ledger: list[DelayedOutcomeAttribution] = []
         self._delayed_payoffs: dict[tuple[str, str | None, int], DelayedOutcomePayoff] = {}
+        self._turn_evaluation_scores: list[float] = []
+        self._regime_sequence: list[str] = []
+        self._sequence_payoffs: dict[tuple[tuple[str, ...], int], RegimeSequencePayoff] = {}
+        self._effectiveness_history: dict[str, list[float]] = {
+            template.regime_id: [] for template in REGIME_TEMPLATES
+        }
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[RegimeSnapshot]:
         memory_snapshot = upstream["memory"]
@@ -464,31 +508,31 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         )
 
         self._turn_index += 1
+        self._record_turn_score(evaluation_value)
         delayed_attributions = self._apply_delayed_outcomes(evaluation_value)
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
         self._update_historical_effectiveness(evaluation_value)
+        previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_value,
             dual_track_snapshot=dual_track_value,
             evaluation_snapshot=evaluation_value,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
+            selection_weights=self._selection_weights,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
+        regime_changed = self._active_regime_id != previous_active and previous_active is not None
         abstract_action, action_family_version = _dominant_abstract_action_context(dual_track_value)
-        self._pending_outcomes.append(
-            PendingRegimeOutcome(
-                regime_id=self._active_regime_id or chosen_regime_id,
-                source_turn_index=self._turn_index,
-                source_wave_id=f"wave-{self._turn_index}",
-                abstract_action=abstract_action,
-                action_family_version=action_family_version,
-                resolution_horizon_turns=2,
-            )
+        self._enqueue_pending_outcomes(
+            regime_id=self._active_regime_id or chosen_regime_id,
+            abstract_action=abstract_action,
+            action_family_version=action_family_version,
         )
+        self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
         identity_hints = self._identity_hints(memory_value)
         active_regime = build_regime_identity(
             regime_id=self._active_regime_id or chosen_regime_id,
@@ -518,7 +562,14 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                 delayed_attributions=delayed_attributions,
                 delayed_attribution_ledger=tuple(self._delayed_attribution_ledger),
                 delayed_payoffs=self._sorted_delayed_payoffs(),
+                sequence_payoffs=self._sorted_sequence_payoffs(),
                 identity_hints=identity_hints,
+                effectiveness_trend=self._compute_effectiveness_trend(),
+                regime_changed=regime_changed,
+                selection_weights=RegimeSelectionWeights(
+                    weights=tuple(sorted(self._selection_weights.items())),
+                    learning_rate=self._selection_weight_lr,
+                ),
                 description=description,
             )
         )
@@ -535,31 +586,31 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             evaluation_snapshot = None
 
         self._turn_index += 1
+        self._record_turn_score(evaluation_snapshot)
         delayed_attributions = self._apply_delayed_outcomes(evaluation_snapshot)
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
         self._update_historical_effectiveness(evaluation_snapshot)
+        previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
+            selection_weights=self._selection_weights,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
+        regime_changed = self._active_regime_id != previous_active and previous_active is not None
         abstract_action, action_family_version = _dominant_abstract_action_context(dual_track_snapshot)
-        self._pending_outcomes.append(
-            PendingRegimeOutcome(
-                regime_id=self._active_regime_id or chosen_regime_id,
-                source_turn_index=self._turn_index,
-                source_wave_id=f"wave-{self._turn_index}",
-                abstract_action=abstract_action,
-                action_family_version=action_family_version,
-                resolution_horizon_turns=2,
-            )
+        self._enqueue_pending_outcomes(
+            regime_id=self._active_regime_id or chosen_regime_id,
+            abstract_action=abstract_action,
+            action_family_version=action_family_version,
         )
+        self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
         identity_hints = self._identity_hints(memory_snapshot)
         active_regime = build_regime_identity(
             regime_id=self._active_regime_id or chosen_regime_id,
@@ -584,10 +635,31 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                 delayed_attributions=delayed_attributions,
                 delayed_attribution_ledger=tuple(self._delayed_attribution_ledger),
                 delayed_payoffs=self._sorted_delayed_payoffs(),
+                sequence_payoffs=self._sorted_sequence_payoffs(),
                 identity_hints=identity_hints,
+                effectiveness_trend=self._compute_effectiveness_trend(),
+                regime_changed=regime_changed,
+                selection_weights=RegimeSelectionWeights(
+                    weights=tuple(sorted(self._selection_weights.items())),
+                    learning_rate=self._selection_weight_lr,
+                ),
                 description="Standalone regime snapshot.",
             )
         )
+
+    def _compute_effectiveness_trend(self) -> tuple[tuple[str, float], ...]:
+        trends: list[tuple[str, float]] = []
+        for regime_id, history in self._effectiveness_history.items():
+            if len(history) < 2:
+                trends.append((regime_id, 0.0))
+                continue
+            recent = history[-5:]
+            if len(recent) < 2:
+                trends.append((regime_id, 0.0))
+                continue
+            slope = (recent[-1] - recent[0]) / max(len(recent) - 1, 1)
+            trends.append((regime_id, round(slope, 4)))
+        return tuple(sorted(trends))
 
     def _update_historical_effectiveness(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
         if evaluation_snapshot is None or self._active_regime_id is None:
@@ -598,6 +670,57 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         blended = _clamp((relationship_score + warmth_score + task_score) / 3.0)
         current = self._historical_effectiveness[self._active_regime_id]
         self._historical_effectiveness[self._active_regime_id] = round(current * 0.7 + blended * 0.3, 4)
+        self._effectiveness_history.setdefault(self._active_regime_id, []).append(
+            self._historical_effectiveness[self._active_regime_id]
+        )
+        if len(self._effectiveness_history[self._active_regime_id]) > 20:
+            self._effectiveness_history[self._active_regime_id] = (
+                self._effectiveness_history[self._active_regime_id][-20:]
+            )
+
+    def _record_turn_score(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
+        if evaluation_snapshot is None:
+            self._turn_evaluation_scores.append(0.5)
+            return
+        relationship = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
+        warmth = _metric(evaluation_snapshot, "warmth", default=0.5)
+        task = _metric(evaluation_snapshot, "info_integration", default=0.5)
+        self._turn_evaluation_scores.append(_clamp((relationship + warmth + task) / 3.0))
+
+    def _nstep_blended_score(self, source_turn_index: int) -> float:
+        gamma = 0.85
+        horizon = self._turn_index - source_turn_index
+        if horizon <= 0:
+            return self._turn_evaluation_scores[-1] if self._turn_evaluation_scores else 0.5
+        scores: list[float] = []
+        weights: list[float] = []
+        for step in range(horizon):
+            idx = source_turn_index + step  # 0-based: turn (source+1+step) stored at index (source+step)
+            if 0 <= idx < len(self._turn_evaluation_scores):
+                scores.append(self._turn_evaluation_scores[idx])
+                weights.append(gamma ** (horizon - 1 - step))
+        if not scores:
+            return self._turn_evaluation_scores[-1] if self._turn_evaluation_scores else 0.5
+        return sum(s * w for s, w in zip(scores, weights)) / max(sum(weights), 1e-6)
+
+    def _enqueue_pending_outcomes(
+        self,
+        *,
+        regime_id: str,
+        abstract_action: str | None,
+        action_family_version: int,
+    ) -> None:
+        for horizon in self._attribution_horizons:
+            self._pending_outcomes.append(
+                PendingRegimeOutcome(
+                    regime_id=regime_id,
+                    source_turn_index=self._turn_index,
+                    source_wave_id=f"wave-{self._turn_index}",
+                    abstract_action=abstract_action,
+                    action_family_version=action_family_version,
+                    resolution_horizon_turns=horizon,
+                )
+            )
 
     def _apply_delayed_outcomes(
         self,
@@ -607,10 +730,6 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             self._last_delayed_outcomes = ()
             self._last_delayed_attributions = ()
             return ()
-        relationship_score = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
-        warmth_score = _metric(evaluation_snapshot, "warmth", default=0.5)
-        task_score = _metric(evaluation_snapshot, "info_integration", default=0.5)
-        delayed_score = _clamp((relationship_score + warmth_score + task_score) / 3.0)
         matured: list[DelayedOutcomeAttribution] = []
         remaining: list[PendingRegimeOutcome] = []
         for pending in self._pending_outcomes:
@@ -618,10 +737,16 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             if age < pending.resolution_horizon_turns:
                 remaining.append(pending)
                 continue
+            delayed_score = self._nstep_blended_score(pending.source_turn_index)
             current = self._historical_effectiveness.get(pending.regime_id, 0.5)
             self._historical_effectiveness[pending.regime_id] = round(current * 0.8 + delayed_score * 0.2, 4)
             self._strategy_priors[pending.regime_id] = _clamp(
                 self._strategy_priors.get(pending.regime_id, 0.0) + (delayed_score - 0.5) * 0.08
+            )
+            current_weight = self._selection_weights.get(pending.regime_id, 1.0)
+            advantage = delayed_score - 0.5
+            self._selection_weights[pending.regime_id] = max(
+                0.3, min(2.0, current_weight + self._selection_weight_lr * advantage * current_weight)
             )
             matured.append(
                 DelayedOutcomeAttribution(
@@ -643,6 +768,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._delayed_attribution_ledger = self._delayed_attribution_ledger[-24:]
         for attribution in matured:
             self._update_delayed_payoff(attribution)
+            self._update_sequence_payoff(attribution)
         self._last_delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in matured
         )
@@ -686,6 +812,41 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         ranked = sorted(
             self._delayed_payoffs.values(),
             key=lambda payoff: (payoff.rolling_payoff, payoff.sample_count),
+            reverse=True,
+        )
+        return tuple(ranked[:12])
+
+    def _update_sequence_payoff(self, attribution: DelayedOutcomeAttribution) -> None:
+        src_idx = attribution.source_turn_index - 1
+        seq_start = max(0, src_idx - 1)
+        regime_seq = tuple(self._regime_sequence[seq_start : src_idx + 1])
+        if not regime_seq:
+            regime_seq = (attribution.regime_id,)
+        key = (regime_seq, attribution.action_family_version)
+        current = self._sequence_payoffs.get(key)
+        if current is None:
+            self._sequence_payoffs[key] = RegimeSequencePayoff(
+                regime_sequence=regime_seq,
+                family_version=attribution.action_family_version,
+                sample_count=1,
+                rolling_payoff=attribution.outcome_score,
+                latest_outcome=attribution.outcome_score,
+                last_source_wave_id=attribution.source_wave_id,
+            )
+            return
+        self._sequence_payoffs[key] = RegimeSequencePayoff(
+            regime_sequence=regime_seq,
+            family_version=current.family_version,
+            sample_count=current.sample_count + 1,
+            rolling_payoff=round(current.rolling_payoff * 0.7 + attribution.outcome_score * 0.3, 4),
+            latest_outcome=attribution.outcome_score,
+            last_source_wave_id=attribution.source_wave_id,
+        )
+
+    def _sorted_sequence_payoffs(self) -> tuple[RegimeSequencePayoff, ...]:
+        ranked = sorted(
+            self._sequence_payoffs.values(),
+            key=lambda p: (p.rolling_payoff, p.sample_count),
             reverse=True,
         )
         return tuple(ranked[:12])
@@ -822,6 +983,10 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             last_delayed_attributions=self._last_delayed_attributions,
             delayed_attribution_ledger=tuple(self._delayed_attribution_ledger),
             delayed_payoffs=self._sorted_delayed_payoffs(),
+            turn_evaluation_scores=tuple(self._turn_evaluation_scores),
+            regime_sequence=tuple(self._regime_sequence),
+            sequence_payoffs=self._sorted_sequence_payoffs(),
+            attribution_horizons=self._attribution_horizons,
         )
 
     def restore_checkpoint(self, checkpoint: RegimeCheckpoint) -> None:
@@ -839,3 +1004,10 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             (item.regime_id, item.abstract_action, item.action_family_version): item
             for item in checkpoint.delayed_payoffs
         }
+        self._turn_evaluation_scores = list(checkpoint.turn_evaluation_scores)
+        self._regime_sequence = list(checkpoint.regime_sequence)
+        self._sequence_payoffs = {
+            (item.regime_sequence, item.family_version): item
+            for item in checkpoint.sequence_payoffs
+        }
+        self._attribution_horizons = checkpoint.attribution_horizons

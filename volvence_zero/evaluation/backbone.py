@@ -40,6 +40,8 @@ class EvaluationSnapshot:
     session_scores: tuple[EvaluationScore, ...]
     alerts: tuple[str, ...]
     description: str
+    reflection_accuracy: float = 0.0
+    longitudinal_verdict: str = ""
 
 
 @dataclass(frozen=True)
@@ -107,15 +109,48 @@ class EvolutionDecision(str, Enum):
     ROLLBACK = "rollback"
 
 
+class JudgementCategory(str, Enum):
+    REAL_IMPROVEMENT = "real_improvement"
+    STYLE_DRIFT = "style_drift"
+    UNSAFE_MUTATION = "unsafe_mutation"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
 @dataclass(frozen=True)
 class EvolutionJudgement:
     decision: EvolutionDecision
+    category: JudgementCategory
     replay_passed: bool
     abstraction_trend: float
     learning_trend: float
     relationship_trend: float
     reasons: tuple[str, ...]
     description: str
+
+
+@dataclass(frozen=True)
+class CrossSessionGrowthReport:
+    window_trends: tuple[tuple[int, tuple[tuple[str, float], ...]], ...]
+    family_persistence: float
+    regime_effectiveness_delta: float
+    verdict: str
+    description: str
+
+
+@dataclass(frozen=True)
+class LongitudinalReport:
+    cross_session: CrossSessionGrowthReport
+    dimension_trends: tuple[tuple[str, float, float], ...]
+    family_survival_curves: tuple[tuple[str, tuple[float, ...]], ...]
+    regime_effectiveness_curves: tuple[tuple[str, tuple[float, ...]], ...]
+    verdict: str
+    description: str
+
+
+@dataclass(frozen=True)
+class CrossSessionBenchmarkSuite:
+    session_reports: tuple[EvaluationReport, ...]
+    comparison_windows: tuple[int, ...] = (1, 3, 5)
 
 
 def _clamp(value: float) -> float:
@@ -271,6 +306,40 @@ def _default_evolution_benchmark_cases() -> tuple[EvaluationReplayCase, ...]:
             dual_track_snapshot=None,
             metric_floors=(("cross_track_stability", 0.30), ("contract_integrity", 0.95)),
             max_alert_count=0,
+        ),
+        EvaluationReplayCase(
+            case_id="family-monopoly",
+            session_id="benchmark-monopoly",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-monopoly",
+                task_pull=0.50,
+                support_pull=0.50,
+                repair_pull=0.30,
+                exploration_pull=0.50,
+                directive_pull=0.30,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("cross_track_stability", 0.30), ("contract_integrity", 0.95)),
+            max_alert_count=1,
+        ),
+        EvaluationReplayCase(
+            case_id="family-collapse",
+            session_id="benchmark-collapse",
+            wave_id="wave-1",
+            substrate_snapshot=_feature_surface_snapshot(
+                model_id="benchmark-collapse",
+                task_pull=0.40,
+                support_pull=0.40,
+                repair_pull=0.40,
+                exploration_pull=0.40,
+                directive_pull=0.40,
+            ),
+            memory_snapshot=None,
+            dual_track_snapshot=None,
+            metric_floors=(("cross_track_stability", 0.30), ("contract_integrity", 0.95)),
+            max_alert_count=1,
         ),
         EvaluationReplayCase(
             case_id="continuity-long-horizon",
@@ -448,11 +517,156 @@ class EvaluationBackbone:
             timestamp_ms=timestamp_ms,
         )
 
+    def run_cross_session_benchmark(
+        self,
+        *,
+        suite: CrossSessionBenchmarkSuite,
+    ) -> CrossSessionGrowthReport:
+        reports = suite.session_reports
+        if not reports:
+            return CrossSessionGrowthReport(
+                window_trends=(),
+                family_persistence=0.0,
+                regime_effectiveness_delta=0.0,
+                verdict="insufficient-data",
+                description="No session reports to compare.",
+            )
+        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse")
+        window_trends: list[tuple[int, tuple[tuple[str, float], ...]]] = []
+        for window in suite.comparison_windows:
+            if len(reports) < window + 1:
+                continue
+            recent = reports[-window:]
+            earlier = reports[: max(len(reports) - window, 1)]
+            trends: list[tuple[str, float]] = []
+            for metric in metric_keys:
+                recent_vals = [
+                    v for r in recent for _, m, v in r.trends if m == metric
+                ]
+                earlier_vals = [
+                    v for r in earlier for _, m, v in r.trends if m == metric
+                ]
+                recent_mean = sum(recent_vals) / max(len(recent_vals), 1) if recent_vals else 0.0
+                earlier_mean = sum(earlier_vals) / max(len(earlier_vals), 1) if earlier_vals else 0.0
+                trends.append((metric, round(recent_mean - earlier_mean, 4)))
+            window_trends.append((window, tuple(trends)))
+        all_family_ids: list[set[str]] = []
+        for report in reports:
+            family_ids: set[str] = set()
+            for family, records in report.scores_by_family:
+                if family == "abstraction":
+                    for rec in records:
+                        if rec.metric_name == "action_family_reuse":
+                            family_ids.add(rec.evidence)
+            all_family_ids.append(family_ids)
+        if len(all_family_ids) >= 2 and all_family_ids[0]:
+            first_families = all_family_ids[0]
+            last_families = all_family_ids[-1]
+            family_persistence = len(first_families & last_families) / max(len(first_families), 1)
+        else:
+            family_persistence = 0.0
+        effectiveness_deltas: list[float] = []
+        for report in reports:
+            for _, metric, value in report.trends:
+                if metric == "learning_quality":
+                    effectiveness_deltas.append(value)
+        regime_effectiveness_delta = (
+            sum(effectiveness_deltas) / len(effectiveness_deltas) if effectiveness_deltas else 0.0
+        )
+        growth_signals = 0
+        regression_signals = 0
+        for _, trends in window_trends:
+            for metric, delta in trends:
+                if metric in ("relationship_continuity", "learning_quality"):
+                    if delta > 0.01:
+                        growth_signals += 1
+                    elif delta < -0.01:
+                        regression_signals += 1
+        if growth_signals >= 2 and regression_signals == 0:
+            verdict = "growing"
+        elif regression_signals >= 2:
+            verdict = "regressing"
+        else:
+            verdict = "stable"
+        return CrossSessionGrowthReport(
+            window_trends=tuple(window_trends),
+            family_persistence=family_persistence,
+            regime_effectiveness_delta=round(regime_effectiveness_delta, 4),
+            verdict=verdict,
+            description=(
+                f"Cross-session benchmark over {len(reports)} sessions: "
+                f"verdict={verdict}, effectiveness_delta={regime_effectiveness_delta:.4f}."
+            ),
+        )
+
+    def build_longitudinal_report(
+        self,
+        *,
+        suite: CrossSessionBenchmarkSuite,
+    ) -> LongitudinalReport:
+        """Build a rich longitudinal report on top of the cross-session benchmark."""
+        cross_session = self.run_cross_session_benchmark(suite=suite)
+        reports = suite.session_reports
+        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse")
+        dimension_trends: list[tuple[str, float, float]] = []
+        for metric in metric_keys:
+            values = [v for r in reports for _, m, v in r.trends if m == metric]
+            if len(values) < 2:
+                dimension_trends.append((metric, 0.0, 0.0))
+                continue
+            slope = (values[-1] - values[0]) / max(len(values) - 1, 1)
+            mean_val = sum(values) / len(values)
+            variance = sum((v - mean_val) ** 2 for v in values) / len(values)
+            confidence = max(0.0, min(1.0, 1.0 - variance))
+            dimension_trends.append((metric, round(slope, 4), round(confidence, 4)))
+        family_ids_per_session: list[dict[str, float]] = []
+        for report in reports:
+            fam_scores: dict[str, float] = {}
+            for family, records in report.scores_by_family:
+                if family == "abstraction":
+                    for rec in records:
+                        if rec.metric_name == "action_family_reuse":
+                            fam_scores[rec.evidence] = rec.value
+            family_ids_per_session.append(fam_scores)
+        all_family_ids = set()
+        for fam_scores in family_ids_per_session:
+            all_family_ids.update(fam_scores.keys())
+        family_survival_curves: list[tuple[str, tuple[float, ...]]] = []
+        for fam_id in sorted(all_family_ids):
+            curve = tuple(
+                fam_scores.get(fam_id, 0.0)
+                for fam_scores in family_ids_per_session
+            )
+            family_survival_curves.append((fam_id, curve))
+        regime_curves: dict[str, list[float]] = {}
+        for report in reports:
+            for _, metric, value in report.trends:
+                if metric == "learning_quality":
+                    for fam, _ in report.scores_by_family:
+                        regime_curves.setdefault(fam, []).append(value)
+        regime_effectiveness_curves = tuple(
+            (regime, tuple(curve)) for regime, curve in sorted(regime_curves.items())
+        )
+        return LongitudinalReport(
+            cross_session=cross_session,
+            dimension_trends=tuple(dimension_trends),
+            family_survival_curves=tuple(family_survival_curves),
+            regime_effectiveness_curves=regime_effectiveness_curves,
+            verdict=cross_session.verdict,
+            description=(
+                f"Longitudinal report over {len(reports)} sessions: "
+                f"verdict={cross_session.verdict}, "
+                f"{len(family_survival_curves)} families tracked, "
+                f"{len(regime_effectiveness_curves)} regime curves."
+            ),
+        )
+
     def judge_evolution_candidate(
         self,
         *,
         replay_suite_result: EvaluationReplaySuiteResult,
         session_report: EvaluationReport,
+        cross_session_report: CrossSessionGrowthReport | None = None,
     ) -> EvolutionJudgement:
         abstraction_trend = _report_trend(
             session_report,
@@ -471,29 +685,42 @@ class EvaluationBackbone:
         )
         reasons: list[str] = []
         high_alerts = [alert for _, alert in session_report.alerts if alert.startswith("HIGH") or alert.startswith("CRITICAL")]
+        has_unsafe = any("collapse" in a.lower() or "safety" in a.lower() for _, a in session_report.alerts)
         if not replay_suite_result.passed:
             reasons.append("replay-suite-failed")
         if high_alerts:
             reasons.append("high-alert-pressure")
         if abstraction_trend < -0.03 or learning_trend < -0.03:
             reasons.append("trend-regression")
+        if cross_session_report is not None and cross_session_report.verdict == "regressing":
+            reasons.append("cross-session-regression")
         if reasons:
             decision = EvolutionDecision.ROLLBACK
+            if has_unsafe:
+                category = JudgementCategory.UNSAFE_MUTATION
+            else:
+                category = JudgementCategory.STYLE_DRIFT
         elif abstraction_trend > 0.03 and learning_trend > 0.03 and relationship_trend >= -0.02:
             decision = EvolutionDecision.PROMOTE
+            category = JudgementCategory.REAL_IMPROVEMENT
+            if cross_session_report is not None and cross_session_report.verdict == "growing":
+                reasons.append("cross-session-growth-confirmed")
             reasons.append("replay-pass-with-positive-trends")
         else:
             decision = EvolutionDecision.HOLD
+            category = JudgementCategory.INSUFFICIENT_EVIDENCE
             reasons.append("insufficient-positive-evidence")
         return EvolutionJudgement(
             decision=decision,
+            category=category,
             replay_passed=replay_suite_result.passed,
             abstraction_trend=abstraction_trend,
             learning_trend=learning_trend,
             relationship_trend=relationship_trend,
             reasons=tuple(reasons),
             description=(
-                f"Evolution decision={decision.value} replay_passed={replay_suite_result.passed} "
+                f"Evolution decision={decision.value} category={category.value} "
+                f"replay_passed={replay_suite_result.passed} "
                 f"abstraction_trend={abstraction_trend:.3f} learning_trend={learning_trend:.3f} "
                 f"relationship_trend={relationship_trend:.3f}."
             ),
@@ -739,6 +966,16 @@ class EvaluationBackbone:
                     f"turnover_health={family_turnover_health:.3f}, diversity={family_diversity:.3f}."
                 ),
             ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="family_outcome_divergence",
+                value=self._family_outcome_divergence(metacontroller_state),
+                confidence=0.56,
+                evidence=(
+                    f"Derived from outcome histories across "
+                    f"{len(metacontroller_state.action_family_summaries)} families."
+                ),
+            ),
         )
         self._append_records(
             session_id=session_id,
@@ -779,6 +1016,23 @@ class EvaluationBackbone:
             scores=scores,
             description_suffix=f"Enriched with {len(scores)} learning-evidence scores.",
         )
+
+    def _family_outcome_divergence(
+        self,
+        metacontroller_state: "MetacontrollerRuntimeState",
+    ) -> float:
+        summaries = metacontroller_state.action_family_summaries
+        if len(summaries) < 2:
+            return 0.0
+        means: list[float] = []
+        for summary in summaries:
+            if summary.outcome_history:
+                means.append(sum(summary.outcome_history) / len(summary.outcome_history))
+        if len(means) < 2:
+            return 0.0
+        overall_mean = sum(means) / len(means)
+        variance = sum((m - overall_mean) ** 2 for m in means) / len(means)
+        return _clamp(variance ** 0.5 * 3.0)
 
     def _temporal_public_scores(
         self,
@@ -1151,20 +1405,28 @@ class EvaluationBackbone:
                 sum(item.rolling_payoff for item in regime_snapshot.delayed_payoffs)
                 / len(regime_snapshot.delayed_payoffs)
             )
+            max_resolved_horizon = 0
+            if regime_snapshot.delayed_attributions:
+                max_resolved_horizon = max(
+                    (a.resolved_turn_index - a.source_turn_index for a in regime_snapshot.delayed_attributions),
+                    default=0,
+                )
+            horizon_quality = _clamp(max_resolved_horizon / 8.0)
             rolling_sample_density = _clamp(
                 sum(item.sample_count for item in regime_snapshot.delayed_payoffs)
                 / max(len(regime_snapshot.delayed_payoffs) * 3.0, 1.0)
             )
+            delayed_credit_horizon = _clamp(horizon_quality * 0.6 + rolling_sample_density * 0.4)
             scores.extend(
                 (
                     EvaluationScore(
                         family="learning",
                         metric_name="delayed_credit_horizon",
-                        value=rolling_sample_density,
+                        value=delayed_credit_horizon,
                         confidence=0.58,
                         evidence=(
-                            f"Derived from delayed_payoff_sample_counts="
-                            f"{tuple(item.sample_count for item in regime_snapshot.delayed_payoffs)}."
+                            f"Derived from max_resolved_horizon={max_resolved_horizon}, "
+                            f"sample_counts={tuple(item.sample_count for item in regime_snapshot.delayed_payoffs)}."
                         ),
                     ),
                     EvaluationScore(
@@ -1176,6 +1438,22 @@ class EvaluationBackbone:
                             f"Derived from delayed_payoffs="
                             f"{tuple((item.abstract_action, item.rolling_payoff) for item in regime_snapshot.delayed_payoffs)}."
                         ),
+                    ),
+                )
+            )
+        if regime_snapshot is not None and regime_snapshot.sequence_payoffs:
+            sequence_alignment = _clamp(
+                sum(item.rolling_payoff for item in regime_snapshot.sequence_payoffs)
+                / len(regime_snapshot.sequence_payoffs)
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="regime_sequence_alignment",
+                    value=sequence_alignment,
+                    confidence=0.58,
+                    evidence=(
+                        f"Derived from sequence_payoffs={len(regime_snapshot.sequence_payoffs)} entries."
                     ),
                 )
             )
@@ -1212,6 +1490,8 @@ class EvaluationBackbone:
                 alerts.append("MEDIUM: action-family monopoly pressure is elevated")
             if score.metric_name == "action_family_collapse_risk" and score.value > 0.68:
                 alerts.append("HIGH: action-family collapse risk is elevated")
+            if score.metric_name == "family_outcome_divergence" and score.value < 0.05:
+                alerts.append("MEDIUM: family outcome stagnation - all families have indistinguishable outcomes")
         return tuple(alerts)
 
     def _longitudinal_trends(
@@ -1225,7 +1505,14 @@ class EvaluationBackbone:
                 "learning_quality",
                 self._trend_for_metrics(
                     records,
-                    ("joint_learning_progress", "reflection_usefulness", "retrieval_quality", "rollback_resilience"),
+                    (
+                        "joint_learning_progress",
+                        "reflection_usefulness",
+                        "retrieval_quality",
+                        "rollback_resilience",
+                        "delayed_credit_horizon",
+                        "regime_sequence_alignment",
+                    ),
                 ),
             ),
             (
@@ -1357,6 +1644,8 @@ class EvaluationBackbone:
             return ("regime.delayed_attributions",)
         if metric_name in {"delayed_credit_horizon", "rolling_action_payoff"}:
             return ("regime.delayed_payoffs",)
+        if metric_name == "regime_sequence_alignment":
+            return ("regime.sequence_payoffs",)
         if metric_name == "temporal_action_commitment":
             return ("temporal_abstraction.active_abstract_action", "temporal_abstraction.controller_state")
         if metric_name == "adaptive_stability":
@@ -1375,6 +1664,7 @@ class EvaluationBackbone:
             "action_family_monopoly_pressure",
             "action_family_turnover_health",
             "action_family_collapse_risk",
+            "family_outcome_divergence",
         }:
             return ("temporal.metacontroller_state.action_families",)
         if metric_name in {"abstract_action_usefulness", "policy_replacement_quality"}:

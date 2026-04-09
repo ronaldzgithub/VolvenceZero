@@ -45,12 +45,49 @@ class PolicyConsolidation:
 
 
 @dataclass(frozen=True)
+class EvidencePack:
+    source_benchmark_ids: tuple[str, ...]
+    delayed_credit_summary: tuple[tuple[str, float], ...]
+    session_trend: tuple[tuple[str, float], ...]
+    confidence: float
+    supporting_cycles: int
+
+
+@dataclass(frozen=True)
 class TemporalStructureProposal:
     proposal_type: str
     family_id: str
     related_family_id: str | None
     confidence: float
     justification: str
+    scope: str = "single_family"
+    evidence: EvidencePack | None = None
+
+
+@dataclass(frozen=True)
+class ProposalEvidencePack:
+    benchmark_passed: bool | None
+    delayed_credit_summary: tuple[tuple[str, float], ...]
+    session_trend_delta: tuple[tuple[str, float], ...]
+
+
+@dataclass(frozen=True)
+class StructuralProposalBundle:
+    proposals: tuple[TemporalStructureProposal, ...]
+    evidence_pack: ProposalEvidencePack
+    scope: str
+    bundle_confidence: float
+
+
+@dataclass(frozen=True)
+class ProposalOutcomeEntry:
+    bundle_scope: str
+    proposal_types: tuple[str, ...]
+    bundle_confidence: float
+    pre_metric_snapshot: tuple[tuple[str, float], ...]
+    post_metric_snapshot: tuple[tuple[str, float], ...]
+    metric_delta: float
+    success: bool
 
 
 @dataclass(frozen=True)
@@ -72,6 +109,7 @@ class TemporalPriorUpdate:
     beta_threshold_delta: float = 0.0
     family_stability_delta: float = 0.0
     structure_proposals: tuple[TemporalStructureProposal, ...] = ()
+    structure_bundle: "StructuralProposalBundle | None" = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +134,7 @@ class ReflectionSnapshot:
     writeback_mode: str
     review_required: bool
     description: str
+    proposal_success_rate: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -141,10 +180,24 @@ class ReflectionEngine:
 
     def __init__(self, *, writeback_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY) -> None:
         self._writeback_mode = writeback_mode
+        self._proposal_outcome_ledger: list[ProposalOutcomeEntry] = []
+        self._last_bundle: StructuralProposalBundle | None = None
+        self._last_metric_snapshot: tuple[tuple[str, float], ...] = ()
 
     @property
     def writeback_mode(self) -> WritebackMode:
         return self._writeback_mode
+
+    @property
+    def proposal_outcome_ledger(self) -> tuple[ProposalOutcomeEntry, ...]:
+        return tuple(self._proposal_outcome_ledger)
+
+    @property
+    def proposal_success_rate(self) -> float:
+        if not self._proposal_outcome_ledger:
+            return 0.0
+        successes = sum(1 for e in self._proposal_outcome_ledger if e.success)
+        return successes / len(self._proposal_outcome_ledger)
 
     def reflect(
         self,
@@ -156,6 +209,7 @@ class ReflectionEngine:
         credit_snapshot: CreditSnapshot | None,
         regime_snapshot: RegimeSnapshot | None = None,
     ) -> ReflectionSnapshot:
+        self._update_proposal_outcome_ledger(evaluation_snapshot)
         consolidation_score = self._consolidation_score(
             memory_snapshot=memory_snapshot,
             dual_track_snapshot=dual_track_snapshot,
@@ -188,6 +242,7 @@ class ReflectionEngine:
             evaluation_snapshot=evaluation_snapshot,
         )
         review_required = self._writeback_mode is not WritebackMode.APPLY
+        self._capture_metric_snapshot(evaluation_snapshot)
         description = (
             f"Reflection generated {len(memory_consolidation.new_durable_entries)} durable proposals, "
             f"{len(policy_consolidation.strategy_priors_updated)} strategy updates, "
@@ -203,6 +258,7 @@ class ReflectionEngine:
             writeback_mode=self._writeback_mode.value,
             review_required=review_required,
             description=description,
+            proposal_success_rate=self.proposal_success_rate,
         )
 
     def apply(
@@ -442,6 +498,11 @@ class ReflectionEngine:
             evaluation_snapshot=evaluation_snapshot,
             consolidation_score=consolidation_score,
         )
+        structure_bundle = self._build_structure_bundle(
+            proposals=structure_proposals,
+            regime_snapshot=regime_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+        )
         target_groups = ["base-weights", "switch", "persistence", "learning-rate"]
         if support_presence > task_pressure + 0.08:
             target_groups.extend(["track-self", "decoder"])
@@ -503,6 +564,7 @@ class ReflectionEngine:
                 ),
             ),
             structure_proposals=structure_proposals,
+            structure_bundle=structure_bundle,
             description=(
                 f"Temporal prior update from reflection confidence={consolidation_score.confidence:.2f}, "
                 f"cross_tension={cross_tension:.2f}, world_tension={world_tension:.2f}, self_tension={self_tension:.2f}, "
@@ -809,13 +871,99 @@ class ReflectionEngine:
             f"cross_track_tension={cross_tension:.2f}, alerts={alert_count}."
         )
 
+    def _capture_metric_snapshot(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
+        if evaluation_snapshot is None:
+            self._last_metric_snapshot = ()
+            return
+        self._last_metric_snapshot = tuple(
+            (score.metric_name, score.value) for score in evaluation_snapshot.turn_scores
+        )
+
+    def _update_proposal_outcome_ledger(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
+        if self._last_bundle is None or not self._last_metric_snapshot:
+            return
+        current_metrics: dict[str, float] = {}
+        if evaluation_snapshot is not None:
+            current_metrics = {s.metric_name: s.value for s in evaluation_snapshot.turn_scores}
+        pre_dict = dict(self._last_metric_snapshot)
+        key_metrics = (
+            "cross_track_stability",
+            "action_family_monopoly_pressure",
+            "action_family_turnover_health",
+            "action_family_collapse_risk",
+        )
+        pre_vals = [pre_dict.get(m, 0.5) for m in key_metrics]
+        post_vals = [current_metrics.get(m, 0.5) for m in key_metrics]
+        pre_mean = sum(pre_vals) / max(len(pre_vals), 1)
+        post_mean = sum(post_vals) / max(len(post_vals), 1)
+        delta = post_mean - pre_mean
+        post_snapshot = tuple(sorted(current_metrics.items()))
+        entry = ProposalOutcomeEntry(
+            bundle_scope=self._last_bundle.scope,
+            proposal_types=tuple(p.proposal_type for p in self._last_bundle.proposals),
+            bundle_confidence=self._last_bundle.bundle_confidence,
+            pre_metric_snapshot=self._last_metric_snapshot,
+            post_metric_snapshot=post_snapshot,
+            metric_delta=round(delta, 4),
+            success=delta >= -0.02,
+        )
+        self._proposal_outcome_ledger.append(entry)
+        self._proposal_outcome_ledger = self._proposal_outcome_ledger[-16:]
+        self._last_bundle = None
+
+    def _build_structure_bundle(
+        self,
+        *,
+        proposals: tuple[TemporalStructureProposal, ...],
+        regime_snapshot: RegimeSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot | None,
+    ) -> StructuralProposalBundle | None:
+        if not proposals:
+            return None
+        delayed_credit_summary: tuple[tuple[str, float], ...] = ()
+        if regime_snapshot is not None and regime_snapshot.delayed_payoffs:
+            delayed_credit_summary = tuple(
+                (p.abstract_action or "none", p.rolling_payoff)
+                for p in regime_snapshot.delayed_payoffs[:4]
+            )
+        session_trend_delta: tuple[tuple[str, float], ...] = ()
+        if evaluation_snapshot is not None:
+            session_trend_delta = tuple(
+                (s.metric_name, s.value - 0.5)
+                for s in evaluation_snapshot.session_scores[:4]
+            )
+        unique_families = {p.family_id for p in proposals}
+        unique_types = {p.proposal_type for p in proposals}
+        if len(unique_families) >= 2 and len(unique_types) >= 2:
+            scope = "family-cluster"
+        elif len(unique_families) >= 2:
+            scope = "regime-sequence"
+        else:
+            scope = "single-family"
+        bundle_confidence = _clamp(
+            sum(p.confidence for p in proposals) / len(proposals)
+        )
+        evidence = ProposalEvidencePack(
+            benchmark_passed=None,
+            delayed_credit_summary=delayed_credit_summary,
+            session_trend_delta=session_trend_delta,
+        )
+        bundle = StructuralProposalBundle(
+            proposals=proposals,
+            evidence_pack=evidence,
+            scope=scope,
+            bundle_confidence=bundle_confidence,
+        )
+        self._last_bundle = bundle
+        return bundle
+
 
 class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
     slot_name = "reflection"
     owner = "ReflectionModule"
     value_type = ReflectionSnapshot
     dependencies = ("memory", "dual_track", "evaluation", "regime", "credit")
-    default_wiring_level = WiringLevel.DISABLED
+    default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
         self,

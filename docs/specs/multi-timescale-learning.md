@@ -107,6 +107,7 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-04-09: U02 CMS MLP Upgrade: CMSMemoryCore now supports `mode="mlp"` with 2-layer residual MLP per band (`CMSBandMLP`: `y = x + W1 @ tanh(W2 @ x)`). Each band has independent MLP weights, momentum, and gradient-style updates. Anti-forgetting backflow extended to MLP parameter mixing. `CMSVariant` enum (`SEQUENTIAL`/`INDEPENDENT`) added for future band composition modes. `observe_family_signal()` accepts action-family observations into session-medium band. All schema extended with backward-compatible defaults (`mode`, `mlp_param_count`, `variant`, `mlp_params`). Default `mode="vector"` preserves all existing behavior.
 - 2026-04-06: P17 Unified SSL→RL Training Pipeline: SSLRLTrainingPipeline orchestrates two-phase training — Phase 1 (SSL) discovers switching structure via Eq.3 with non-causal embedder enrichment, Phase 2 (RL) trains causal policy with binary gate. Pipeline manages convergence-based phase transition, checkpointing, and rollback. PipelineConfig controls n_z, convergence thresholds, and max steps.
 - 2026-04-08: 默认 session 主链切换到真实 transformers substrate + ACTIVE temporal/reflection；background-slow reflection 新增 typed controller-prior writeback bridge 并进入默认主链
 - 2026-04-06: P14 M3 optimizer integration: dual-timescale momentum (fast_beta=0.9, slow_beta=0.99) replaces direct gradient application in SSL trainer; slow momentum signal feeds into CMS session-medium band; SSLTrainingReport carries m3_slow_momentum_signal; joint loop routes M3 slow signal to CMS after SSL optimization
