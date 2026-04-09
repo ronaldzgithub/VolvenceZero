@@ -27,10 +27,17 @@ class ResponseContext:
     primary_reflection_lesson: str | None
     primary_reflection_tension: str | None
     joint_schedule_action: str
+    user_input: str = ""
+    retrieved_memories: tuple[str, ...] = ()
+    controller_description: str = ""
 
 
 class ResponseSynthesizer:
-    """Expression-layer synthesizer over structured runtime state."""
+    """Expression-layer synthesizer over structured runtime state.
+
+    Base class uses fixed templates. Subclass ``LLMResponseSynthesizer``
+    replaces templates with real LLM generation.
+    """
 
     def synthesize(
         self,
@@ -164,4 +171,73 @@ class ResponseSynthesizer:
             regime_id=context.regime_id,
             abstract_action=context.abstract_action,
             rationale=f"Synthesized from {context.regime_name}; {rationale}.",
+        )
+
+
+class LLMResponseSynthesizer(ResponseSynthesizer):
+    """Expression-layer synthesizer backed by a real LLM.
+
+    Uses ``OpenWeightResidualRuntime.generate()`` to produce text,
+    with system prompt assembled from live cognitive state via
+    ``volvence_zero.agent.prompts.build_system_prompt``.
+    """
+
+    def __init__(
+        self,
+        *,
+        runtime: object,
+        max_new_tokens: int = 256,
+        temperature: float = 0.7,
+    ) -> None:
+        self._runtime = runtime
+        self._max_new_tokens = max_new_tokens
+        self._temperature = temperature
+
+    def synthesize(
+        self,
+        *,
+        context: ResponseContext,
+    ) -> AgentResponse:
+        from volvence_zero.agent.prompts import build_system_prompt
+
+        system_prompt = build_system_prompt(
+            context=context,
+            retrieved_memories=context.retrieved_memories,
+            controller_description=context.controller_description,
+        )
+
+        user_input = context.user_input
+        if not user_input:
+            return super().synthesize(context=context)
+
+        control_params: tuple[float, ...] = ()
+        control_scale = 0.0
+
+        result = self._runtime.generate(
+            prompt=user_input,
+            system_context=system_prompt,
+            max_new_tokens=self._max_new_tokens,
+            temperature=self._temperature,
+            control_parameters=control_params,
+            control_scale=control_scale,
+        )
+
+        generated_text = result.text.strip()
+        if not generated_text:
+            return super().synthesize(context=context)
+
+        rationale_parts = [
+            f"regime={context.regime_id or 'none'}",
+            f"model={self._runtime.model_id}",
+            f"tokens={result.token_count}",
+        ]
+        if context.abstract_action:
+            rationale_parts.append(f"temporal={context.abstract_action}")
+        rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
+
+        return AgentResponse(
+            text=generated_text,
+            regime_id=context.regime_id,
+            abstract_action=context.abstract_action,
+            rationale=f"LLM generated; {', '.join(rationale_parts)}.",
         )

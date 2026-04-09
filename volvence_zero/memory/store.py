@@ -89,6 +89,65 @@ class MemoryStoreCheckpoint:
     semantic_index: tuple[tuple[str, tuple[float, ...]], ...]
 
 
+def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
+    """Reconstruct a MemoryStoreCheckpoint from a deserialized dict.
+
+    Returns None if the dict is missing required fields or has
+    incompatible structure.
+    """
+    try:
+        entries_raw = parsed.get("entries", [])
+        entries = tuple(
+            MemoryEntry(
+                entry_id=str(e["entry_id"]),
+                content=str(e["content"]),
+                track=Track(e["track"]),
+                stratum=str(e["stratum"]),
+                created_at_ms=int(e["created_at_ms"]),
+                last_accessed_ms=int(e["last_accessed_ms"]),
+                strength=float(e["strength"]),
+                tags=tuple(str(t) for t in e.get("tags", ())),
+            )
+            for e in entries_raw
+        )
+        cms_raw = parsed.get("cms_state")
+        cms_state: CMSCheckpointState | None = None
+        if cms_raw is not None and isinstance(cms_raw, dict):
+            cms_state = CMSCheckpointState(
+                online_fast=tuple(float(v) for v in cms_raw["online_fast"]),
+                session_medium=tuple(float(v) for v in cms_raw["session_medium"]),
+                background_slow=tuple(float(v) for v in cms_raw["background_slow"]),
+                last_update_ms=int(cms_raw["last_update_ms"]),
+                total_observations=int(cms_raw["total_observations"]),
+                total_reflections=int(cms_raw["total_reflections"]),
+                session_observations_since_update=int(cms_raw["session_observations_since_update"]),
+                background_observations_since_update=int(cms_raw["background_observations_since_update"]),
+                session_pending_signal=tuple(float(v) for v in cms_raw["session_pending_signal"]),
+                background_pending_signal=tuple(float(v) for v in cms_raw["background_pending_signal"]),
+                mode=str(cms_raw.get("mode", "vector")),
+                mlp_params=tuple(
+                    tuple(tuple(float(x) for x in group) for group in band)
+                    for band in cms_raw.get("mlp_params", ())
+                ),
+            )
+        semantic_raw = parsed.get("semantic_index", [])
+        semantic_index = tuple(
+            (str(pair[0]), tuple(float(v) for v in pair[1]))
+            for pair in semantic_raw
+        )
+        return MemoryStoreCheckpoint(
+            checkpoint_id=str(parsed.get("checkpoint_id", "restored")),
+            entries=entries,
+            pending_promotions=tuple(str(p) for p in parsed.get("pending_promotions", ())),
+            pending_decays=tuple(str(d) for d in parsed.get("pending_decays", ())),
+            cms_state=cms_state,
+            promotion_threshold=float(parsed.get("promotion_threshold", 0.3)),
+            semantic_index=semantic_index,
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _clamp_strength(value: float) -> float:
     return max(0.0, min(1.0, value))
 
@@ -412,6 +471,10 @@ class MemoryStore:
         parsed = deserialize_checkpoint(data)
         if not parsed:
             return False
+        checkpoint = _reconstruct_checkpoint(parsed)
+        if checkpoint is None:
+            return False
+        self.restore_checkpoint(checkpoint)
         self._persistence_version = version
         return True
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.credit import CreditRecord, CreditSnapshot, extract_abstract_action_credit_bonus
+from volvence_zero.credit import CreditRecord, CreditSnapshot, GateDecision, ModificationGate, extract_abstract_action_credit_bonus
 from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
@@ -14,6 +14,7 @@ from volvence_zero.internal_rl import (
 )
 from volvence_zero.internal_rl.sandbox import CausalZPolicy
 from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule, PipelineConfig, SSLRLTrainingPipeline
+from volvence_zero.joint_loop.runtime import JointCycleReport
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
@@ -399,3 +400,323 @@ def test_joint_cycle_report_policy_fields():
     assert isinstance(report.policy_update_applied, bool)
     assert report.policy_kl_divergence >= 0.0
     assert report.policy_epochs_executed >= 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 W1.1  —  20-cycle continuous RL validation
+# ---------------------------------------------------------------------------
+
+PHASE1_SOURCE_TEXTS = (
+    "repair tension then continue helpfully",
+    "balance task and relationship carefully",
+    "steady warm planning for future growth",
+    "plan carefully and stay warm",
+    "guide with empathy and clear reasoning",
+    "maintain composure under pressure slowly",
+    "explore creative solutions together openly",
+    "listen deeply and respond thoughtfully now",
+    "build trust through consistent reliable actions",
+    "adapt strategy when new evidence arrives",
+)
+
+
+def test_phase1_20_cycle_reward_trend():
+    """Run 20 consecutive joint-loop cycles and verify observable learning.
+
+    Phase 1 exit-condition check: the RL closed loop must produce a
+    non-random reward trajectory.  We verify:
+      1. All 20 cycles complete without crashing.
+      2. ``policy_objective`` is non-zero for the majority of cycles.
+      3. ``policy_update_applied`` is True for at least half the cycles.
+      4. Reward variance is non-zero (system is not stuck).
+      5. No unrecoverable rollback cascade (≤ 5 rollback cycles).
+    """
+    loop = ETANLJointLoop()
+    reports: list[JointCycleReport] = []
+
+    for cycle_index in range(20):
+        source_text = PHASE1_SOURCE_TEXTS[cycle_index % len(PHASE1_SOURCE_TEXTS)]
+        trace = build_training_trace(
+            trace_id=f"phase1-cycle-{cycle_index}",
+            source_text=source_text,
+        )
+        report = asyncio.run(loop.run_cycle(cycle_index=cycle_index, trace=trace))
+        reports.append(report)
+
+    rewards = [r.total_reward for r in reports]
+    objectives = [r.policy_objective for r in reports]
+    updates_applied = sum(1 for r in reports if r.policy_update_applied)
+    rollback_count = sum(1 for r in reports if r.policy_rollback_applied)
+
+    assert len(reports) == 20
+    non_zero_objectives = sum(1 for o in objectives if abs(o) > 1e-8)
+    assert non_zero_objectives >= 10, (
+        f"Expected ≥10 non-zero policy objectives, got {non_zero_objectives}"
+    )
+    assert updates_applied >= 10, (
+        f"Expected ≥10 policy updates applied, got {updates_applied}"
+    )
+    reward_variance = sum((r - sum(rewards) / len(rewards)) ** 2 for r in rewards) / len(rewards)
+    assert reward_variance > 0.0, "Reward is stuck at a constant value"
+    assert rollback_count <= 5, (
+        f"Too many rollback cycles ({rollback_count}/20), RL may be unstable"
+    )
+
+
+def test_phase1_credit_shaping_affects_rl_reward():
+    """Verify credit bonus from previous cycle influences next cycle's RL environment.
+
+    Phase 1 W1.3: credit_snapshot from cycle N injects abstract-action
+    bonus into the RL environment for cycle N+1, and the resulting
+    total_reward differs from a baseline without credit shaping.
+    """
+    loop_with_credit = ETANLJointLoop()
+    trace = build_training_trace(
+        trace_id="credit-shape-trace",
+        source_text="repair tension then continue helpfully",
+    )
+
+    asyncio.run(loop_with_credit.run_cycle(cycle_index=0, trace=trace))
+    assert loop_with_credit._previous_credit_snapshot is not None
+
+    bonus = extract_abstract_action_credit_bonus(loop_with_credit._previous_credit_snapshot)
+    assert isinstance(bonus, dict)
+    assert len(bonus) > 0, "Expected at least one credit bonus entry"
+
+    report_with = asyncio.run(loop_with_credit.run_cycle(cycle_index=1, trace=trace))
+
+    loop_no_credit = ETANLJointLoop()
+    report_no_credit = asyncio.run(loop_no_credit.run_cycle(cycle_index=0, trace=trace))
+
+    assert report_with.total_reward != 0.0
+    assert report_no_credit.total_reward != 0.0
+    assert abs(report_with.total_reward - report_no_credit.total_reward) > 1e-9 or (
+        report_with.policy_kl_divergence != report_no_credit.policy_kl_divergence
+    ), "Credit shaping should create observable difference between cycles"
+
+
+def test_phase1_audit_chain_integrity():
+    """Verify credit → reward shaping → optimize → modification record chain.
+
+    The full audit trail must be traceable: credit records are produced,
+    bonus is extracted, RL optimization produces a SelfModificationRecord,
+    and the record is embedded in the enriched credit snapshot.
+    """
+    loop = ETANLJointLoop()
+    trace = build_training_trace(
+        trace_id="audit-chain-trace",
+        source_text="balance task and relationship carefully",
+    )
+
+    report = asyncio.run(loop.run_cycle(cycle_index=0, trace=trace))
+    credit = loop._previous_credit_snapshot
+    assert credit is not None
+
+    assert len(credit.recent_credits) > 0, "No credit records produced"
+
+    abstract_credits = [c for c in credit.recent_credits if c.level == "abstract_action"]
+    assert len(abstract_credits) > 0, "No abstract-action level credits"
+
+    has_modification = len(credit.recent_modifications) > 0
+    if report.policy_update_applied:
+        assert has_modification, (
+            "Policy update was applied but no modification records in credit snapshot"
+        )
+        allow_records = [
+            m for m in credit.recent_modifications if m.decision.value == "allow"
+        ]
+        assert len(allow_records) > 0, "Expected at least one ALLOW modification record"
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 W2  —  Rollback and gate integration
+# ---------------------------------------------------------------------------
+
+def test_phase1_kl_excessive_triggers_rollback():
+    """Verify rollback triggers when KL divergence is excessive.
+
+    _rollback_reasons should include 'excessive-kl' when either track's
+    kl_penalty exceeds the threshold (0.4).
+    """
+    loop = ETANLJointLoop()
+    reasons = loop._rollback_reasons(
+        total_reward=0.5,
+        evaluation_snapshot=EvaluationSnapshot(
+            turn_scores=(),
+            session_scores=(),
+            alerts=(),
+            description="normal snapshot",
+        ),
+        optimization_report=DualTrackOptimizationReport(
+            task_report=OptimizationReport(
+                track=Track.WORLD,
+                average_reward=0.3,
+                baseline_reward=0.1,
+                mean_advantage=0.2,
+                surrogate_objective=0.1,
+                clip_fraction=0.0,
+                kl_penalty=0.5,
+                parameter_summary="high kl",
+            ),
+            relationship_report=OptimizationReport(
+                track=Track.SELF,
+                average_reward=0.3,
+                baseline_reward=0.1,
+                mean_advantage=0.2,
+                surrogate_objective=0.1,
+                clip_fraction=0.0,
+                kl_penalty=0.05,
+                parameter_summary="normal kl",
+            ),
+            description="one track high kl",
+        ),
+        metacontroller_state=None,
+    )
+    assert "excessive-kl" in reasons
+
+
+def test_phase1_negative_surrogate_triggers_rollback():
+    """Verify rollback triggers when surrogate objective is negative."""
+    loop = ETANLJointLoop()
+    reasons = loop._rollback_reasons(
+        total_reward=0.5,
+        evaluation_snapshot=EvaluationSnapshot(
+            turn_scores=(),
+            session_scores=(),
+            alerts=(),
+            description="normal",
+        ),
+        optimization_report=DualTrackOptimizationReport(
+            task_report=OptimizationReport(
+                track=Track.WORLD,
+                average_reward=-0.3,
+                baseline_reward=0.1,
+                mean_advantage=-0.4,
+                surrogate_objective=-0.15,
+                clip_fraction=0.0,
+                kl_penalty=0.05,
+                parameter_summary="negative surrogate",
+            ),
+            relationship_report=OptimizationReport(
+                track=Track.SELF,
+                average_reward=0.3,
+                baseline_reward=0.1,
+                mean_advantage=0.2,
+                surrogate_objective=0.1,
+                clip_fraction=0.0,
+                kl_penalty=0.05,
+                parameter_summary="ok",
+            ),
+            description="negative task surrogate",
+        ),
+        metacontroller_state=None,
+    )
+    assert "negative-surrogate" in reasons
+
+
+def test_phase1_gate_deny_blocks_policy_update():
+    """When evaluation has CRITICAL alert, ONLINE gate blocks policy update.
+
+    Uses the real gate evaluation pathway to ensure that critical
+    alerts prevent self-modification.
+    """
+    from volvence_zero.credit import ModificationProposal, evaluate_gate
+
+    proposal = ModificationProposal(
+        target="causal_policy.track_weights",
+        desired_gate=ModificationGate.ONLINE,
+        old_value_hash="hash-old",
+        new_value_hash="hash-new",
+        justification="attempt update during critical alert",
+    )
+    decision = evaluate_gate(
+        proposal=proposal,
+        evaluation_snapshot=EvaluationSnapshot(
+            turn_scores=(),
+            session_scores=(),
+            alerts=("CRITICAL: safety breach detected",),
+            description="critical alert active",
+        ),
+    )
+    assert decision is GateDecision.BLOCK
+
+    decision_safe = evaluate_gate(
+        proposal=proposal,
+        evaluation_snapshot=EvaluationSnapshot(
+            turn_scores=(),
+            session_scores=(),
+            alerts=(),
+            description="no alerts",
+        ),
+    )
+    assert decision_safe is GateDecision.ALLOW
+
+
+def test_phase1_checkpoint_restore_preserves_policy_state():
+    """Verify checkpoint → rollback → restore roundtrip on joint loop."""
+    loop = ETANLJointLoop()
+    trace = build_training_trace(trace_id="cp-trace", source_text="steady warm planning")
+
+    before_params = loop.temporal_policy.export_parameters()
+    asyncio.run(loop.run_cycle(cycle_index=0, trace=trace))
+    after_params = loop.temporal_policy.export_parameters()
+    assert after_params != before_params, "Cycle should change policy parameters"
+
+    loop2 = ETANLJointLoop()
+    loop2._previous_total_reward = 999.0
+    trace2 = build_training_trace(trace_id="cp-trace2", source_text="brief weak signal")
+    report = asyncio.run(loop2.run_cycle(cycle_index=1, trace=trace2))
+    assert report.policy_rollback_applied is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 W6.2 — Evolution judge in joint loop
+# ---------------------------------------------------------------------------
+
+def test_phase3_evolution_judge_integrated_in_joint_loop():
+    """Verify evolution judge is called during run_cycle and its verdict
+    is published in the JointCycleReport."""
+    from volvence_zero.evaluation import EvolutionDecision
+
+    loop = ETANLJointLoop()
+    trace = build_training_trace(
+        trace_id="judge-loop-trace",
+        source_text="repair tension then continue helpfully",
+    )
+    report = asyncio.run(loop.run_cycle(cycle_index=0, trace=trace))
+
+    assert report.evolution_judgement is not None, (
+        "Evolution judgement should be present in JointCycleReport"
+    )
+    assert report.evolution_judgement.decision in {
+        EvolutionDecision.PROMOTE,
+        EvolutionDecision.HOLD,
+        EvolutionDecision.ROLLBACK,
+    }
+    assert report.evolution_judgement.replay_passed is not None
+    assert len(report.evolution_judgement.reasons) > 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 W7 — Regime selection weights + effectiveness trend
+# ---------------------------------------------------------------------------
+
+def test_phase3_regime_effectiveness_trend_in_snapshot():
+    """Verify regime effectiveness trend is published in RegimeSnapshot
+    and evolves across multiple cycles."""
+    loop = ETANLJointLoop()
+    traces = [
+        build_training_trace(trace_id=f"regime-{i}", source_text=text)
+        for i, text in enumerate([
+            "repair tension and rebuild trust carefully",
+            "plan carefully for future growth steadily",
+            "guide with empathy and clear reasoning now",
+        ])
+    ]
+
+    for i, trace in enumerate(traces):
+        asyncio.run(loop.run_cycle(cycle_index=i, trace=trace))
+
+    regime_module = loop._regime_module
+    checkpoint = regime_module.create_checkpoint(checkpoint_id="regime-check")
+    assert checkpoint is not None

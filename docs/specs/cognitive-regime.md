@@ -93,5 +93,6 @@ class RegimeIdentity:
 
 ## 变更日志
 
+- 2026-04-09: U03 Regime A/B verification: RegimeSelectionWeights confirmed to diverge from uniform (1.0) after delayed outcomes accumulate via process_standalone loop. Learned weights stay within [0.3, 2.0] range. effectiveness_trend published in RegimeSnapshot and verified non-empty after 4 turns.
 - 2026-04-06: 补充 owner-side metacontroller evidence ingest 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取

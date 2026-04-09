@@ -309,3 +309,150 @@ def test_persistence_backend_version_cleanup():
         _, latest_version = result
         assert latest_version == 6
 
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Persistence full roundtrip (save → restart → load → verify)
+# ---------------------------------------------------------------------------
+
+def test_phase4_persistence_full_roundtrip_restores_store_state():
+    """Save MemoryStore to filesystem backend, create a fresh store,
+    load from backend, and verify entries are restored."""
+    import tempfile
+    from volvence_zero.memory import (
+        FileSystemPersistenceBackend,
+        MemoryStore,
+        MemoryStratum,
+        MemoryWriteRequest,
+        Track,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir)
+        store1 = MemoryStore(persistence_backend=backend)
+        store1.write(
+            MemoryWriteRequest(
+                content="persistent fact alpha",
+                track=Track.WORLD,
+                stratum=MemoryStratum.DURABLE,
+                strength=0.9,
+                tags=("fact", "alpha"),
+            ),
+            timestamp_ms=100,
+        )
+        store1.write(
+            MemoryWriteRequest(
+                content="relationship memory beta",
+                track=Track.SELF,
+                stratum=MemoryStratum.EPISODIC,
+                strength=0.7,
+                tags=("relationship",),
+            ),
+            timestamp_ms=200,
+        )
+        saved = store1.save_to_backend(key="memory/store")
+        assert saved is True
+
+        store2 = MemoryStore(persistence_backend=backend)
+        loaded = store2.load_from_backend(key="memory/store")
+        assert loaded is True, "load_from_backend should succeed"
+
+        assert len(store2._entries) >= 2, (
+            f"Expected ≥2 entries after restore, got {len(store2._entries)}"
+        )
+
+        restored_content = {e.content for e in store2._entries.values()}
+        assert "persistent fact alpha" in restored_content, (
+            f"Expected 'persistent fact alpha' in restored store, got: {restored_content}"
+        )
+        assert "relationship memory beta" in restored_content, (
+            f"Expected 'relationship memory beta' in restored store, got: {restored_content}"
+        )
+
+        restored_tracks = {e.content: e.track for e in store2._entries.values()}
+        assert restored_tracks["persistent fact alpha"] is Track.WORLD
+        assert restored_tracks["relationship memory beta"] is Track.SELF
+
+
+def test_phase4_persistence_with_cms_mlp_roundtrip():
+    """Save CMS MLP state via persistence backend and verify restoration."""
+    import tempfile
+    from volvence_zero.memory import (
+        CMSMemoryCore,
+        FileSystemPersistenceBackend,
+        MemoryStore,
+        MemoryWriteRequest,
+        MemoryStratum,
+        Track,
+    )
+    from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, FeatureSignal
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir)
+        cms = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        store1 = MemoryStore(learned_core=cms, persistence_backend=backend)
+        substrate = SubstrateSnapshot(
+            model_id="persist-test",
+            is_frozen=True,
+            surface_kind=SurfaceKind.FEATURE_SURFACE,
+            token_logits=(0.5,),
+            feature_surface=(
+                FeatureSignal(name="val", values=(0.7, 0.3), source="test", layer_hint=0),
+            ),
+            residual_activations=(),
+            residual_sequence=(),
+            unavailable_fields=(),
+            description="persist substrate",
+        )
+        for i in range(5):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+
+        snap1 = cms.snapshot()
+        saved = store1.save_to_backend(key="memory/cms-test")
+        assert saved is True
+
+        cms2 = CMSMemoryCore(mode="mlp", d_in=4, d_hidden=8)
+        store2 = MemoryStore(learned_core=cms2, persistence_backend=backend)
+        loaded = store2.load_from_backend(key="memory/cms-test")
+        assert loaded is True
+
+        snap2 = cms2.snapshot()
+        assert snap1.online_fast.vector == snap2.online_fast.vector, (
+            "CMS online band should match after persistence roundtrip"
+        )
+
+
+def test_phase4_persistence_version_incompatibility_safe_degradation():
+    """When checkpoint version is incompatible, load should fail gracefully."""
+    import tempfile
+    from volvence_zero.memory import (
+        FileSystemPersistenceBackend,
+        MemoryStore,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir)
+        backend.save_checkpoint(
+            key="memory/bad",
+            data=b'{"_schema_version": 999, "entries": []}',
+            version=1,
+        )
+
+        store = MemoryStore(persistence_backend=backend)
+        loaded = store.load_from_backend(key="memory/bad")
+        assert loaded is False, "Incompatible version should cause safe degradation"
+
+
+def test_phase4_persistence_missing_key_returns_false():
+    """Load with non-existent key should return False."""
+    import tempfile
+    from volvence_zero.memory import (
+        FileSystemPersistenceBackend,
+        MemoryStore,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        backend = FileSystemPersistenceBackend(base_dir=tmpdir)
+        store = MemoryStore(persistence_backend=backend)
+        loaded = store.load_from_backend(key="does/not/exist")
+        assert loaded is False
+

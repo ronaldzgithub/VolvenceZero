@@ -270,3 +270,89 @@ def test_final_wiring_can_seed_memory_query_from_previous_wave_snapshots():
 
     retrieved_contents = tuple(entry.content for entry in result.active_snapshots["memory"].value.retrieved_entries)
     assert "repair_controller maintain a calm supportive tone while planning next steps" in retrieved_contents
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 W10.1 — Reflection promotion evaluation
+# ---------------------------------------------------------------------------
+
+def test_reflection_accuracy_populated_in_evaluation_snapshot():
+    """Verify reflection_accuracy is populated in EvaluationSnapshot
+    during run_final_wiring_turn when a ReflectionModule is present."""
+    from volvence_zero.evaluation import EvaluationSnapshot
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="ref-acc-model",
+                feature_surface=(FeatureSignal(name="ctx", values=(0.5,), source="test"),),
+            ),
+            session_id="ref-acc-session",
+            wave_id="w1",
+        )
+    )
+
+    eval_snap = result.active_snapshots["evaluation"].value
+    assert isinstance(eval_snap, EvaluationSnapshot)
+    assert isinstance(eval_snap.reflection_accuracy, float)
+    assert eval_snap.reflection_accuracy >= 0.0
+
+
+def test_reflection_promotion_eligible_rejects_insufficient_data():
+    """Promotion should be rejected when too few proposal outcomes exist."""
+    from volvence_zero.evaluation import EvaluationSnapshot
+    from volvence_zero.integration import reflection_promotion_eligible
+    from volvence_zero.reflection import ReflectionEngine, WritebackMode
+
+    engine = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY)
+    eval_snap = EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(),
+        alerts=(),
+        reflection_accuracy=0.0,
+        description="empty",
+    )
+
+    eligible, reason = reflection_promotion_eligible(
+        evaluation_snapshot=eval_snap,
+        reflection_engine=engine,
+    )
+    assert eligible is False
+    assert "insufficient" in reason
+
+
+def test_reflection_promotion_eligible_accepts_high_accuracy():
+    """Promotion should be accepted when accuracy is high enough."""
+    from volvence_zero.evaluation import EvaluationSnapshot
+    from volvence_zero.integration import reflection_promotion_eligible
+    from volvence_zero.reflection import ReflectionEngine, WritebackMode, ProposalOutcomeEntry
+
+    engine = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY)
+    for i in range(8):
+        engine._proposal_outcome_ledger.append(
+            ProposalOutcomeEntry(
+                bundle_scope="single_family",
+                proposal_types=("merge",),
+                bundle_confidence=0.8,
+                pre_metric_snapshot=(("stability", 0.5),),
+                post_metric_snapshot=(("stability", 0.6),),
+                metric_delta=0.1,
+                success=True,
+            )
+        )
+
+    eval_snap = EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(),
+        alerts=(),
+        reflection_accuracy=engine.proposal_success_rate,
+        description="high accuracy",
+    )
+
+    eligible, reason = reflection_promotion_eligible(
+        evaluation_snapshot=eval_snap,
+        reflection_engine=engine,
+    )
+    assert eligible is True
+    assert "eligible" in reason

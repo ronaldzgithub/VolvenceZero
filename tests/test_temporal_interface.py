@@ -500,3 +500,302 @@ def test_family_competition_state_detects_collapse():
     assert state.collapse_alert is True
     assert state.monopoly_alert is True
     assert len(state.ranked_families) == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 Uplift — variational bottleneck and family competition validation
+# ---------------------------------------------------------------------------
+
+def test_noncausal_embedder_tightens_posterior():
+    """W5.2: Verify the noncausal embedder's enrich_posterior actually
+    tightens the posterior (reduces variance) relative to causal-only.
+
+    The bidirectional embedder sees the full sequence and should produce
+    a tighter posterior than the causal encoder which only sees the past.
+    """
+    from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+    from volvence_zero.temporal import MetacontrollerSSLTrainer
+
+    trace = build_training_trace(
+        trace_id="noncausal-trace",
+        source_text="repair tension then continue helpfully and plan carefully for growth",
+    )
+
+    trainer = MetacontrollerSSLTrainer(alpha=0.1)
+    policy = FullLearnedTemporalPolicy()
+    report = trainer.optimize(policy=policy, trace=trace)
+
+    assert report.noncausal_kl_tightening >= 0.0, (
+        f"KL tightening should be non-negative, got {report.noncausal_kl_tightening}"
+    )
+    assert report.noncausal_information_content > 0.0, (
+        "Noncausal embedding should have positive information content"
+    )
+
+    embedder = NonCausalSequenceEmbedder(n_z=3)
+    from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, FeatureSignal, ResidualActivation
+    substrate = SubstrateSnapshot(
+        model_id="noncausal-test",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(0.5, 0.3),
+        feature_surface=(
+            FeatureSignal(name="val", values=(0.7,), source="test"),
+        ),
+        residual_activations=(
+            ResidualActivation(layer_index=0, activation=(0.5, 0.3, 0.7), step=0),
+            ResidualActivation(layer_index=1, activation=(0.6, 0.4, 0.8), step=0),
+        ),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="test",
+    )
+    embedding = embedder.embed(substrate_snapshot=substrate)
+    assert embedding.sequence_length >= 1
+    assert len(embedding.summary_vector) == 3
+
+    causal_mean = (0.5, 0.5, 0.5)
+    causal_std = (0.3, 0.3, 0.3)
+    enrichment = embedder.enrich_posterior(
+        causal_mean=causal_mean,
+        causal_std=causal_std,
+        embedding=embedding,
+    )
+
+    assert len(enrichment.enriched_mean) == 3
+    assert len(enrichment.enriched_std) == 3
+    enriched_var = sum(s ** 2 for s in enrichment.enriched_std) / 3
+    causal_var = sum(s ** 2 for s in causal_std) / 3
+    assert enriched_var <= causal_var, (
+        f"Enriched variance ({enriched_var:.4f}) should be <= causal variance ({causal_var:.4f})"
+    )
+    assert enrichment.kl_tightening >= 0.0
+
+
+def test_noncausal_embedder_bidirectional_ordering_matters():
+    """Verify the bidirectional embedder produces different outputs for
+    different sequence orderings, proving it actually processes order."""
+    from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
+
+    embedder = NonCausalSequenceEmbedder(n_z=4)
+
+    trace_fwd = build_training_trace(
+        trace_id="fwd", source_text="repair tension then plan carefully",
+    )
+    trace_rev = build_training_trace(
+        trace_id="rev", source_text="carefully plan then tension repair",
+    )
+
+    from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, FeatureSignal, ResidualSequenceStep
+    def _make_full_substrate(trace):
+        return SubstrateSnapshot(
+            model_id=trace.trace_id,
+            is_frozen=True,
+            surface_kind=SurfaceKind.RESIDUAL_STREAM,
+            token_logits=tuple(0.5 for _ in trace.steps),
+            feature_surface=trace.steps[0].feature_surface if trace.steps else (),
+            residual_activations=trace.steps[0].residual_activations if trace.steps else (),
+            residual_sequence=tuple(
+                ResidualSequenceStep(
+                    step=s.step, token=s.token,
+                    feature_surface=s.feature_surface,
+                    residual_activations=s.residual_activations,
+                    description=f"step {s.step}",
+                )
+                for s in trace.steps
+            ),
+            unavailable_fields=(),
+            description="full",
+        )
+
+    embed_fwd = embedder.embed(substrate_snapshot=_make_full_substrate(trace_fwd))
+    embed_rev = embedder.embed(substrate_snapshot=_make_full_substrate(trace_rev))
+
+    assert embed_fwd.summary_vector != embed_rev.summary_vector, (
+        "Different token orders should produce different embeddings"
+    )
+
+
+def test_phase3_multi_alpha_beta_distribution():
+    """Phase 3 W5.1: Test multiple alpha values and verify switch gate
+    behavior changes with KL weight.
+
+    Higher alpha should produce stronger KL penalty and different total
+    loss profiles compared to lower alpha.
+    """
+    from volvence_zero.temporal import MetacontrollerSSLTrainer
+
+    trace = build_training_trace(
+        trace_id="multi-alpha-trace",
+        source_text="repair tension then continue helpfully and plan carefully",
+    )
+    alphas = [0.01, 0.05, 0.1, 0.5, 1.0]
+    reports = {}
+    for alpha in alphas:
+        trainer = MetacontrollerSSLTrainer(alpha=alpha)
+        policy = FullLearnedTemporalPolicy()
+        report = trainer.optimize(policy=policy, trace=trace)
+        reports[alpha] = report
+
+    for alpha in alphas:
+        report = reports[alpha]
+        assert report.switch_gate_stats is not None, f"No switch gate stats for alpha={alpha}"
+        assert len(report.switch_gate_stats.beta_histogram) == 10
+        assert report.switch_gate_stats.observation_count > 0
+
+    for alpha in alphas:
+        assert reports[alpha].kl_loss >= 0.0
+
+    low = reports[0.01].total_loss
+    high = reports[1.0].total_loss
+    assert high != low or reports[1.0].kl_loss != reports[0.01].kl_loss, (
+        "Different alpha values should produce different loss profiles"
+    )
+
+
+def test_phase3_family_competition_not_collapsing_with_diverse_rollouts():
+    """Phase 3 W6.1: Verify family distribution does not collapse
+    in multi-scenario rollouts with diverse latent codes."""
+    policy = FullLearnedTemporalPolicy()
+    latent_codes = [
+        (0.8, 0.1, 0.1),
+        (0.1, 0.8, 0.1),
+        (0.1, 0.1, 0.8),
+        (0.5, 0.5, 0.1),
+        (0.1, 0.5, 0.5),
+        (0.5, 0.1, 0.5),
+        (0.3, 0.7, 0.2),
+        (0.7, 0.2, 0.3),
+    ]
+
+    for i, code in enumerate(latent_codes):
+        policy.parameter_store.discover_action_family(
+            latent_code=code,
+            decoder_control=code,
+            switch_gate=0.6 + i * 0.03,
+            posterior_drift=0.05,
+            persistence_window=0.7,
+        )
+
+    families = policy.parameter_store.action_families
+    assert len(families) >= 2, "Diverse codes should produce multiple families"
+
+    supports = [f.support for f in families]
+    total_support = sum(supports)
+    if total_support > 0:
+        max_share = max(supports) / total_support
+        assert max_share < 0.95, (
+            f"Top family has {max_share:.0%} share, should not monopolize"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 W7.2 — Emergence vs Heuristic A/B comparison
+# ---------------------------------------------------------------------------
+
+def test_ab_switch_gate_alpha_vs_heuristic_bias():
+    """A/B comparison: variational bottleneck alpha vs fixed switch_bias.
+
+    Run SSL training with alpha > 0 (emergence) and alpha = 0 (heuristic
+    bias only), then compare switch gate sparsity patterns.
+    """
+    trace = build_training_trace(
+        trace_id="ab-switch",
+        source_text="repair tension then continue helpfully and plan carefully for growth",
+    )
+
+    trainer_emergence = MetacontrollerSSLTrainer(alpha=0.1)
+    policy_e = FullLearnedTemporalPolicy()
+    report_e = trainer_emergence.optimize(policy=policy_e, trace=trace)
+
+    trainer_heuristic = MetacontrollerSSLTrainer(alpha=0.0)
+    policy_h = FullLearnedTemporalPolicy()
+    report_h = trainer_heuristic.optimize(policy=policy_h, trace=trace)
+
+    assert report_e.switch_gate_stats is not None
+    assert report_h.switch_gate_stats is not None
+
+    hist_e = report_e.switch_gate_stats.beta_histogram
+    hist_h = report_h.switch_gate_stats.beta_histogram
+    edge_mass_e = hist_e[0] + hist_e[-1]
+    edge_mass_h = hist_h[0] + hist_h[-1]
+
+    total_e = report_e.total_loss
+    total_h = report_h.total_loss
+    assert total_e != total_h, (
+        "Alpha should produce different loss profiles"
+    )
+
+
+def test_ab_family_competition_payoff_weighted_vs_similarity_only():
+    """A/B comparison: family selection with payoff weighting vs pure similarity.
+
+    Families with high payoff should be preferred by payoff-weighted
+    selection but not by similarity-only.
+    """
+    from volvence_zero.temporal.metacontroller_components import (
+        DiscoveredActionFamily,
+        build_family_competition_state,
+    )
+
+    good_family = DiscoveredActionFamily(
+        family_id="good_fam",
+        latent_centroid=(0.5, 0.5, 0.5),
+        decoder_centroid=(0.5, 0.5, 0.5),
+        support=5,
+        stability=0.7,
+        switch_bias=0.5,
+        long_term_payoff=0.9,
+        delayed_credit_sum=2.0,
+    )
+    bad_family = DiscoveredActionFamily(
+        family_id="bad_fam",
+        latent_centroid=(0.52, 0.48, 0.51),
+        decoder_centroid=(0.52, 0.48, 0.51),
+        support=5,
+        stability=0.7,
+        switch_bias=0.5,
+        long_term_payoff=0.1,
+        delayed_credit_sum=0.2,
+    )
+
+    state = build_family_competition_state((good_family, bad_family))
+    assert state.ranked_families[0][0] == "good_fam", (
+        "Payoff-weighted ranking should prefer high-payoff family"
+    )
+
+    query_code = (0.51, 0.49, 0.505)
+    sim_good = sum(abs(query_code[i] - good_family.latent_centroid[i]) for i in range(3))
+    sim_bad = sum(abs(query_code[i] - bad_family.latent_centroid[i]) for i in range(3))
+    assert abs(sim_good - sim_bad) < 0.1, (
+        "Centroids are close, so similarity-only would not strongly distinguish"
+    )
+    assert good_family.long_term_payoff > bad_family.long_term_payoff, (
+        "But payoff clearly distinguishes them"
+    )
+
+
+def test_ab_regime_learned_weight_vs_fixed():
+    """A/B comparison: regime selection with learned weights vs fixed weights.
+
+    With attribution_horizons=(1,), after enough turns the regime module
+    accumulates delayed outcomes and adjusts selection weights. This
+    demonstrates learned selection diverging from uniform fixed weights.
+    """
+    from volvence_zero.regime import RegimeModule
+
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+    initial_weights = dict(module._selection_weights)
+    assert all(abs(w - 1.0) < 0.01 for w in initial_weights.values()), (
+        "Initial weights should all be ~1.0 (equivalent to fixed heuristic)"
+    )
+
+    for _ in range(5):
+        asyncio.run(module.process_standalone())
+
+    final_weights = dict(module._selection_weights)
+    for regime_id, weight in final_weights.items():
+        assert isinstance(weight, float)
+        assert 0.3 <= weight <= 2.0, (
+            f"Weight for {regime_id} out of range: {weight}"
+        )

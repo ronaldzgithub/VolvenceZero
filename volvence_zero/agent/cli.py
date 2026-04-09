@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import time
 from typing import Callable, TextIO
 
+from volvence_zero.agent.response import LLMResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.substrate import SubstrateFallbackMode
 
@@ -40,8 +42,12 @@ async def run_repl(
         if user_input.lower() in {"exit", "quit"}:
             writer("bye")
             return
+        t0 = time.perf_counter()
         result = await runner.run_turn(user_input)
-        writer(render_turn_result(result))
+        elapsed = time.perf_counter() - t0
+        output = render_turn_result(result)
+        output += f"\n  time: {elapsed:.2f}s"
+        writer(output)
 
 
 def _stdin_reader(stdin: TextIO) -> Callable[[], str]:
@@ -95,22 +101,55 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Use 'allow-builtin' for local dev and 'deny' for evaluation or production-like runs."
         ),
     )
+    parser.add_argument(
+        "--llm",
+        action="store_true",
+        help="Enable LLM-backed response generation instead of template synthesis.",
+    )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=256,
+        help="Maximum new tokens to generate when --llm is enabled.",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.7,
+        help="Sampling temperature for LLM generation.",
+    )
     return parser
 
 
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
+    from volvence_zero.substrate import build_transformers_runtime_with_fallback
+
+    fallback_mode = (
+        SubstrateFallbackMode.DENY.value
+        if args.disable_substrate_fallback
+        else args.substrate_fallback_mode
+    )
+    runtime = build_transformers_runtime_with_fallback(
+        model_id=args.substrate_model_id,
+        device=args.substrate_device,
+        local_files_only=args.substrate_local_files_only,
+        fallback_mode=fallback_mode,
+    )
+    synthesizer = None
+    if args.llm:
+        synthesizer = LLMResponseSynthesizer(
+            runtime=runtime,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+        )
+
     runner = AgentSessionRunner(
         session_id=args.session_id,
-        substrate_model_id=args.substrate_model_id,
-        substrate_device=args.substrate_device,
-        substrate_local_files_only=args.substrate_local_files_only,
-        substrate_fallback_mode=(
-            SubstrateFallbackMode.DENY.value
-            if args.disable_substrate_fallback
-            else args.substrate_fallback_mode
-        ),
+        default_residual_runtime=runtime,
+        response_synthesizer=synthesizer,
+        substrate_fallback_mode=fallback_mode,
     )
     asyncio.run(
         run_repl(

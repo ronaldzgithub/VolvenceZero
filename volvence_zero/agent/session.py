@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from volvence_zero.agent.response import AgentResponse, ResponseContext, ResponseSynthesizer
+from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit import ModificationProposal
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import (
@@ -23,6 +23,9 @@ from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     SubstrateFallbackMode,
     SubstrateAdapter,
+    SubstrateSnapshot,
+    TrainingTrace,
+    TraceStep,
     build_training_trace,
 )
 from volvence_zero.temporal import (
@@ -86,7 +89,10 @@ class AgentSessionRunner:
         self._reflection_mode = reflection_mode
         self._temporal_policy = temporal_policy or FullLearnedTemporalPolicy()
         self._credit_proposals = credit_proposals
-        self._response_synthesizer = response_synthesizer or ResponseSynthesizer()
+        if response_synthesizer is not None:
+            self._response_synthesizer = response_synthesizer
+        else:
+            self._response_synthesizer = ResponseSynthesizer()
         self._substrate_adapter_factory = substrate_adapter_factory
         self._regime_module = RegimeModule(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
@@ -106,6 +112,7 @@ class AgentSessionRunner:
         self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
+        self._previous_substrate_snapshot: SubstrateSnapshot | None = None
 
     @property
     def session_id(self) -> str:
@@ -119,12 +126,10 @@ class AgentSessionRunner:
         self._turn_index += 1
         wave_id = f"wave-{self._turn_index}"
         substrate_adapter = self._build_substrate_adapter(user_input=user_input)
+        trace = self._build_training_trace_from_substrate(user_input=user_input)
         joint_result = await self._joint_loop.run_scheduled_step(
             turn_index=self._turn_index,
-            trace=build_training_trace(
-                trace_id=f"{self._session_id}:joint:{self._turn_index}",
-                source_text=user_input,
-            ),
+            trace=trace,
             schedule=self._joint_schedule,
             apply_writeback=self._reflection_mode is not WritebackMode.APPLY,
         )
@@ -145,6 +150,9 @@ class AgentSessionRunner:
             **integration_result.active_snapshots,
             **integration_result.shadow_snapshots,
         }
+        substrate_snap = integration_result.active_snapshots.get("substrate")
+        if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
+            self._previous_substrate_snapshot = substrate_snap.value
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
@@ -158,6 +166,34 @@ class AgentSessionRunner:
         return OpenWeightResidualStreamSubstrateAdapter(
             runtime=self._default_residual_runtime,
             default_source_text=user_input,
+        )
+
+    def _build_training_trace_from_substrate(self, *, user_input: str) -> TrainingTrace:
+        """Build a training trace from real substrate data when available.
+
+        When a previous turn produced a real substrate snapshot, construct
+        the trace from its residual sequence.  Otherwise fall back to the
+        simulated ``build_training_trace``.
+        """
+        prev = self._previous_substrate_snapshot
+        if prev is None or not prev.residual_sequence:
+            return build_training_trace(
+                trace_id=f"{self._session_id}:joint:{self._turn_index}",
+                source_text=user_input,
+            )
+        steps = tuple(
+            TraceStep(
+                step=rs.step,
+                token=rs.token,
+                feature_surface=rs.feature_surface,
+                residual_activations=rs.residual_activations,
+            )
+            for rs in prev.residual_sequence
+        )
+        return TrainingTrace(
+            trace_id=f"{self._session_id}:real:{self._turn_index}",
+            source_text=user_input,
+            steps=steps,
         )
 
     def _to_turn_result(
@@ -218,6 +254,15 @@ class AgentSessionRunner:
             primary_reflection_lesson = next(iter(reflection_snapshot.value.lessons_extracted), None)
             primary_reflection_tension = next(iter(reflection_snapshot.value.tensions_identified), None)
 
+        retrieved_memories: tuple[str, ...] = ()
+        if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
+            retrieved_memories = tuple(
+                entry.content for entry in memory_snapshot.value.retrieved_entries[:5]
+            )
+        controller_description = ""
+        if metacontroller_state is not None:
+            controller_description = metacontroller_state.description
+
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
                 regime_id=active_regime,
@@ -239,6 +284,9 @@ class AgentSessionRunner:
                 primary_reflection_lesson=primary_reflection_lesson,
                 primary_reflection_tension=primary_reflection_tension,
                 joint_schedule_action=joint_result.schedule_action,
+                user_input=user_input,
+                retrieved_memories=retrieved_memories,
+                controller_description=controller_description,
             )
         )
 
@@ -285,4 +333,41 @@ def default_active_runner() -> AgentSessionRunner:
             reflection=WiringLevel.ACTIVE,
             temporal=WiringLevel.ACTIVE,
         )
+    )
+
+
+def llm_active_runner(
+    *,
+    model_id: str = "Qwen/Qwen2.5-3B-Instruct",
+    device: str = "auto",
+    max_new_tokens: int = 256,
+    temperature: float = 0.7,
+    local_files_only: bool = False,
+    session_id: str = "llm-session",
+) -> AgentSessionRunner:
+    """Create a runner that uses a real LLM for response generation."""
+    runtime = build_transformers_runtime_with_fallback(
+        model_id=model_id,
+        device=device,
+        local_files_only=local_files_only,
+    )
+    synthesizer = LLMResponseSynthesizer(
+        runtime=runtime,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+    )
+    return AgentSessionRunner(
+        session_id=session_id,
+        default_residual_runtime=runtime,
+        response_synthesizer=synthesizer,
+        config=FinalRolloutConfig(
+            substrate=WiringLevel.ACTIVE,
+            memory=WiringLevel.ACTIVE,
+            dual_track=WiringLevel.ACTIVE,
+            evaluation=WiringLevel.ACTIVE,
+            regime=WiringLevel.ACTIVE,
+            credit=WiringLevel.ACTIVE,
+            reflection=WiringLevel.ACTIVE,
+            temporal=WiringLevel.ACTIVE,
+        ),
     )

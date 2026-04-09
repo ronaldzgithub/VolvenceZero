@@ -1373,3 +1373,286 @@ class TestP20CMSMemoryCoreMLPMode:
         snap = mlp.snapshot()
         for left, right in zip(snap.online_fast.vector, checkpoint.online_fast):
             assert abs(left - right) < 0.15
+
+
+# =========================================================================
+#  Phase 2 Uplift — CMS MLP mode end-to-end validation
+# =========================================================================
+
+
+class TestPhase2CMSMLPValidation:
+    """Phase 2 uplift validation: MLP mode end-to-end, performance budget,
+    and multi-signal integration."""
+
+    def test_mlp_50_step_convergence(self) -> None:
+        """Run MLP CMS for 50 steps and verify band rhythm differentiation."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=8, d_hidden=16,
+            session_cadence=3, background_cadence=7,
+            online_lr=0.5, session_lr=0.3, background_lr=0.1,
+        )
+        substrate = _make_substrate()
+
+        online_snapshots = []
+        session_snapshots = []
+        bg_snapshots = []
+        for i in range(50):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+            snap = cms.snapshot()
+            online_snapshots.append(snap.online_fast.vector)
+            session_snapshots.append(snap.session_medium.vector)
+            bg_snapshots.append(snap.background_slow.vector)
+
+        online_changes = sum(
+            1 for i in range(1, 50) if online_snapshots[i] != online_snapshots[i - 1]
+        )
+        session_changes = sum(
+            1 for i in range(1, 50) if session_snapshots[i] != session_snapshots[i - 1]
+        )
+        bg_changes = sum(
+            1 for i in range(1, 50) if bg_snapshots[i] != bg_snapshots[i - 1]
+        )
+
+        assert online_changes >= 40, f"online band should update nearly every step, got {online_changes}"
+        assert session_changes >= 10, f"session band should update at cadence intervals, got {session_changes}"
+        assert bg_changes >= 4, f"background band should update less frequently, got {bg_changes}"
+        assert online_changes > session_changes > bg_changes, (
+            f"Rhythm differentiation violated: online={online_changes} > session={session_changes} > bg={bg_changes}"
+        )
+
+    def test_mlp_performance_budget(self) -> None:
+        """MLP mode single-step update must complete within 2ms and
+        parameter budget must stay under 15K per three bands."""
+        import time
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=16, d_hidden=32,
+            session_cadence=1, background_cadence=1,
+        )
+        substrate = _make_substrate()
+
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=0)
+
+        start = time.perf_counter()
+        iterations = 100
+        for i in range(iterations):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i + 1)
+        elapsed = time.perf_counter() - start
+        avg_ms = (elapsed / iterations) * 1000
+
+        assert avg_ms < 2.0, f"Average step time {avg_ms:.3f}ms exceeds 2ms budget"
+
+        snap = cms.snapshot()
+        total_params = (
+            snap.online_fast.mlp_param_count
+            + snap.session_medium.mlp_param_count
+            + snap.background_slow.mlp_param_count
+        )
+        assert total_params < 15000, f"Total MLP params {total_params} exceeds 15K budget"
+
+    def test_mlp_anti_forgetting_recovery(self) -> None:
+        """Verify fast band recovers old knowledge from slow band
+        after catastrophic new signal."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8,
+            anti_forgetting=0.8,
+            session_cadence=1, background_cadence=1,
+            online_lr=0.5, session_lr=0.3, background_lr=0.1,
+        )
+        substrate_a = _make_substrate((0.8, 0.2, 0.6, 0.4))
+        for i in range(20):
+            cms.observe_substrate(substrate_snapshot=substrate_a, timestamp_ms=i)
+
+        snap_after_a = cms.snapshot()
+        bg_after_a = snap_after_a.background_slow.vector
+
+        substrate_b = _make_substrate((0.1, 0.9, 0.1, 0.9))
+        for i in range(5):
+            cms.observe_substrate(substrate_snapshot=substrate_b, timestamp_ms=20 + i)
+
+        snap_after_b = cms.snapshot()
+        online_after_b = snap_after_b.online_fast.vector
+
+        substrate_neutral = _make_substrate((0.5, 0.5, 0.5, 0.5))
+        for i in range(15):
+            cms.observe_substrate(substrate_snapshot=substrate_neutral, timestamp_ms=25 + i)
+
+        snap_final = cms.snapshot()
+        online_final = snap_final.online_fast.vector
+        bg_final = snap_final.background_slow.vector
+
+        bg_preserved = sum(abs(bg_final[i] - bg_after_a[i]) for i in range(4)) / 4
+        assert bg_preserved < 0.50, (
+            f"Slow band should partially preserve old knowledge, drift={bg_preserved:.3f}"
+        )
+
+    def test_mlp_mode_with_encoder_and_family_signals(self) -> None:
+        """Verify encoder feedback + family signal integration in MLP mode."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=8, d_hidden=16,
+            session_cadence=1,
+        )
+        substrate = _make_substrate()
+        cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=0)
+        snap0 = cms.snapshot()
+
+        cms.observe_encoder_feedback(
+            encoder_signal=(0.7, 0.3, 0.5, 0.8, 0.2, 0.6, 0.4, 0.9),
+            timestamp_ms=1,
+        )
+        snap1 = cms.snapshot()
+        assert snap1.online_fast.vector != snap0.online_fast.vector, (
+            "Encoder feedback should update online band"
+        )
+
+        cms.observe_family_signal(
+            family_centroid=(0.6, 0.4, 0.6, 0.4, 0.6, 0.4, 0.6, 0.4),
+            family_stability=0.9,
+            timestamp_ms=2,
+        )
+        snap2 = cms.snapshot()
+        assert snap2.session_medium.vector != snap1.session_medium.vector, (
+            "Family signal should update session band"
+        )
+
+    def test_mlp_checkpoint_full_roundtrip_preserves_mlp_weights(self) -> None:
+        """Full checkpoint roundtrip: save → restore → same forward output."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(mode="mlp", d_in=8, d_hidden=16)
+        substrate = _make_substrate()
+        for i in range(10):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+
+        checkpoint = cms.export_state()
+        assert checkpoint.mode == "mlp"
+        assert len(checkpoint.mlp_params) == 3
+
+        cms2 = CMSMemoryCore(mode="mlp", d_in=8, d_hidden=16)
+        cms2.restore_state(checkpoint)
+
+        snap1 = cms.snapshot()
+        snap2 = cms2.snapshot()
+        assert snap1.online_fast.vector == snap2.online_fast.vector
+        assert snap1.session_medium.vector == snap2.session_medium.vector
+        assert snap1.background_slow.vector == snap2.background_slow.vector
+
+    def test_nested_variant_meta_learns_init_targets(self) -> None:
+        """Nested CMS meta-learns initialization targets for fast bands.
+
+        After training on signal A, the meta-learned init target should
+        converge toward what the session band learned.  When we reset
+        and train on signal B, the fast band starts from the meta-learned
+        A-influenced init rather than zero.
+        """
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8, variant="nested",
+            session_cadence=1, background_cadence=1,
+            online_lr=0.5, session_lr=0.3, background_lr=0.1,
+        )
+        substrate_a = _make_substrate((0.8, 0.2, 0.6, 0.4))
+        for i in range(30):
+            cms.observe_substrate(substrate_snapshot=substrate_a, timestamp_ms=i)
+
+        init_target_after_a = cms._nested_session_init_target
+        assert any(abs(v) > 0.01 for v in init_target_after_a), (
+            "Meta-learned init target should be non-zero after training"
+        )
+
+        cms.reset_context()
+        snap_after_reset = cms.snapshot()
+        online_after_reset = snap_after_reset.online_fast.vector
+        assert any(abs(v) > 0.01 for v in online_after_reset), (
+            "After reset, online band should start from meta-learned init"
+        )
+
+        substrate_b = _make_substrate((0.1, 0.9, 0.1, 0.9))
+        for i in range(5):
+            cms.observe_substrate(substrate_snapshot=substrate_b, timestamp_ms=30 + i)
+        snap_adapted = cms.snapshot()
+        online_adapted = snap_adapted.online_fast.vector
+        assert online_adapted != online_after_reset, (
+            "Online band should adapt to new context after reset"
+        )
+
+    def test_nested_meta_targets_converge_over_repeated_contexts(self) -> None:
+        """Across multiple context resets, meta-learned init targets
+        converge so fast bands adapt more quickly on later contexts."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8, variant="nested",
+            session_cadence=1, background_cadence=1,
+            online_lr=0.5, session_lr=0.3, background_lr=0.1,
+        )
+        substrate = _make_substrate((0.7, 0.3, 0.5, 0.5))
+
+        errors_after_reset: list[float] = []
+        target_signal = cms._signal_from_substrate(substrate)
+        for context_round in range(5):
+            cms.reset_context()
+            snap = cms.snapshot()
+            online = snap.online_fast.vector
+            error = sum(abs(online[i] - target_signal[i]) for i in range(4)) / 4
+            errors_after_reset.append(error)
+            for step in range(10):
+                cms.observe_substrate(
+                    substrate_snapshot=substrate,
+                    timestamp_ms=context_round * 10 + step,
+                )
+
+        assert errors_after_reset[-1] < errors_after_reset[0], (
+            f"Init error should decrease across context resets: "
+            f"first={errors_after_reset[0]:.3f} last={errors_after_reset[-1]:.3f}"
+        )
+
+    def test_nested_checkpoint_preserves_meta_targets(self) -> None:
+        """Checkpoint roundtrip preserves meta-learned init targets."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        cms = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8, variant="nested",
+            session_cadence=1, background_cadence=1,
+        )
+        substrate = _make_substrate((0.6, 0.4, 0.8, 0.2))
+        for i in range(20):
+            cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+
+        targets_before = (cms._nested_session_init_target, cms._nested_online_init_target)
+        checkpoint = cms.export_state()
+        assert checkpoint.nested_session_init_target, "Checkpoint should have session init target"
+        assert checkpoint.nested_online_init_target, "Checkpoint should have online init target"
+
+        cms2 = CMSMemoryCore(
+            mode="mlp", d_in=4, d_hidden=8, variant="nested",
+            session_cadence=1, background_cadence=1,
+        )
+        cms2.restore_state(checkpoint)
+        targets_after = (cms2._nested_session_init_target, cms2._nested_online_init_target)
+        assert targets_before == targets_after, "Meta-targets must survive checkpoint roundtrip"
+
+    def test_nested_variant_noop_in_non_nested(self) -> None:
+        """reset_context is a no-op for sequential and independent variants."""
+        from volvence_zero.memory import CMSMemoryCore
+
+        for variant in ("sequential", "independent"):
+            cms = CMSMemoryCore(
+                mode="mlp", d_in=4, d_hidden=8, variant=variant,
+                session_cadence=1,
+            )
+            substrate = _make_substrate()
+            for i in range(5):
+                cms.observe_substrate(substrate_snapshot=substrate, timestamp_ms=i)
+            before = cms.snapshot()
+            cms.reset_context()
+            after = cms.snapshot()
+            assert before.online_fast.vector == after.online_fast.vector

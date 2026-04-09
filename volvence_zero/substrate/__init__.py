@@ -17,6 +17,7 @@ from volvence_zero.substrate.adapter import (
 from volvence_zero.substrate.residual_backend import (
     build_builtin_transformers_runtime,
     build_transformers_runtime_with_fallback,
+    GenerationResult,
     HashingWhitespaceTokenizer,
     NoOpResidualInterventionBackend,
     OpenWeightResidualInterventionBackend,
@@ -42,6 +43,7 @@ __all__ = [
     "feature_signal_map",
     "feature_signal_value",
     "FeatureSurfaceSubstrateAdapter",
+    "GenerationResult",
     "HashingWhitespaceTokenizer",
     "NoOpResidualInterventionBackend",
     "OpenWeightResidualInterventionBackend",

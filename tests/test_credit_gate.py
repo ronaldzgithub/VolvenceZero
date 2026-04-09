@@ -444,3 +444,70 @@ def test_rolling_payoff_differentiates_families():
 
     regime_payoffs = ledger.rolling_payoff_by_regime()
     assert "r1" in regime_payoffs
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Delayed credit integration validation
+# ---------------------------------------------------------------------------
+
+def test_phase4_credit_ledger_horizon_depth_controls_nstep_window():
+    """Verify horizon_depth limits the outcome history per action."""
+    from volvence_zero.credit import CreditLedger
+
+    ledger = CreditLedger(discount_factor=0.9, horizon_depth=3)
+    for i in range(10):
+        ledger.record_nstep_outcome(
+            action_id="a1", family_id="fam_0", regime_id="r1",
+            outcome=float(i), timestamp_ms=i * 100,
+        )
+
+    for entry in ledger._nstep_ledger:
+        if entry.action_id == "a1":
+            assert len(entry.outcome_history) <= 3, (
+                f"History should be bounded by horizon_depth=3, got {len(entry.outcome_history)}"
+            )
+
+    snapshot = ledger.snapshot()
+    assert snapshot.horizon_depth == 3
+    assert snapshot.delayed_ledger_size == 1
+
+
+def test_phase4_credit_ledger_max_entries_bounded():
+    """Verify FIFO eviction when ledger exceeds max_entries."""
+    from volvence_zero.credit import CreditLedger
+
+    ledger = CreditLedger(horizon_depth=2)
+    ledger._max_ledger_entries = 5
+
+    for i in range(10):
+        ledger.record_nstep_outcome(
+            action_id=f"action_{i}", family_id="fam_0", regime_id="r1",
+            outcome=0.5, timestamp_ms=i * 100,
+        )
+
+    assert len(ledger._nstep_ledger) <= 5
+
+
+def test_phase4_rolling_payoff_differentiates_across_cycles():
+    """Rolling payoff should show divergence between good and bad families
+    after multiple cycles of different outcomes."""
+    from volvence_zero.credit import CreditLedger
+
+    ledger = CreditLedger(horizon_depth=5, discount_factor=0.95)
+    for i in range(20):
+        ledger.record_nstep_outcome(
+            action_id=f"good_{i}", family_id="good_fam", regime_id="r1",
+            outcome=0.8 + (i % 3) * 0.05, timestamp_ms=i * 100,
+        )
+        ledger.record_nstep_outcome(
+            action_id=f"bad_{i}", family_id="bad_fam", regime_id="r1",
+            outcome=0.2 - (i % 3) * 0.05, timestamp_ms=i * 100 + 50,
+        )
+
+    family_payoffs = ledger.rolling_payoff_by_family()
+    assert family_payoffs["good_fam"] > family_payoffs["bad_fam"], (
+        f"Good family payoff ({family_payoffs['good_fam']}) should exceed "
+        f"bad family ({family_payoffs['bad_fam']})"
+    )
+    gap = family_payoffs["good_fam"] - family_payoffs["bad_fam"]
+    assert gap > 0.3, f"Payoff gap {gap:.3f} should be substantial"

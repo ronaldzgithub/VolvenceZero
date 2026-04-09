@@ -155,6 +155,7 @@ class CMSBandMLP:
 class CMSVariant(str, Enum):
     SEQUENTIAL = "sequential"
     INDEPENDENT = "independent"
+    NESTED = "nested"
 
 
 @dataclass(frozen=True)
@@ -197,6 +198,8 @@ class CMSCheckpointState:
     background_pending_signal: tuple[float, ...]
     mode: str = "vector"
     mlp_params: tuple[tuple[tuple[float, ...], ...], ...] = ()
+    nested_session_init_target: tuple[float, ...] = ()
+    nested_online_init_target: tuple[float, ...] = ()
 
 
 class CMSMemoryCore:
@@ -260,6 +263,9 @@ class CMSMemoryCore:
             )
             self._session_pending_signal = tuple(0.0 for _ in range(d_in))
             self._background_pending_signal = tuple(0.0 for _ in range(d_in))
+            self._nested_session_init_target = tuple(0.0 for _ in range(d_in))
+            self._nested_online_init_target = tuple(0.0 for _ in range(d_in))
+            self._nested_context_steps = 0
         else:
             self._dim = dim
             self._d_hidden = 0
@@ -294,6 +300,10 @@ class CMSMemoryCore:
             if self._variant is CMSVariant.INDEPENDENT:
                 session_signal = signal
                 background_signal = signal
+            elif self._variant is CMSVariant.NESTED:
+                session_signal = online_signal
+                background_signal = self._session_mlp.representation_vector()
+                self._nested_context_steps += 1
             else:
                 session_signal = online_signal
                 background_signal = self._session_mlp.representation_vector()
@@ -316,6 +326,9 @@ class CMSMemoryCore:
                     cadence_interval=self._background_cadence,
                 )
             )
+
+            if self._variant is CMSVariant.NESTED:
+                self._update_nested_meta_targets()
 
             if self._anti_forgetting > 0:
                 self._apply_anti_forgetting_mlp()
@@ -501,6 +514,57 @@ class CMSMemoryCore:
         self._last_update_ms = timestamp_ms
 
     # ------------------------------------------------------------------
+    # reset_context (nested variant)
+    # ------------------------------------------------------------------
+
+    def reset_context(self) -> None:
+        """Re-initialize fast bands from meta-learned targets (nested CMS).
+
+        In nested mode each slow band meta-learns the *ideal starting
+        point* for its faster neighbor.  ``reset_context`` re-initializes
+        the fast bands from these learned targets — not by copying the
+        slow band's current state, but from targets the slow band has
+        been optimizing toward via ``_update_nested_meta_targets``.
+
+        In non-nested modes this is a no-op.
+        """
+        if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
+            return
+        self._session_mlp.load_representation(self._nested_session_init_target)
+        self._online_mlp.load_representation(self._nested_online_init_target)
+        self._session_observations_since_update = 0
+        self._session_pending_signal = tuple(0.0 for _ in range(self._dim))
+        self._nested_context_steps = 0
+
+    def _update_nested_meta_targets(self) -> None:
+        """Meta-learn initialization targets for faster bands.
+
+        The slow band observes what the session band converged to and
+        moves its meta-target toward that endpoint.  Similarly the
+        session band's converged state teaches the online band's target.
+
+        This implements NL Appendix A.5's nested CMS: the i-th layer
+        meta-learns the initial state for layer i+1.
+        """
+        meta_lr = self._background_lr * 0.5
+        session_converged = self._session_mlp.representation_vector()
+        self._nested_session_init_target = tuple(
+            _clamp(
+                self._nested_session_init_target[i]
+                + meta_lr * (session_converged[i] - self._nested_session_init_target[i])
+            )
+            for i in range(self._dim)
+        )
+        online_converged = self._online_mlp.representation_vector()
+        self._nested_online_init_target = tuple(
+            _clamp(
+                self._nested_online_init_target[i]
+                + meta_lr * (online_converged[i] - self._nested_online_init_target[i])
+            )
+            for i in range(self._dim)
+        )
+
+    # ------------------------------------------------------------------
     # export / restore / snapshot
     # ------------------------------------------------------------------
 
@@ -517,6 +581,8 @@ class CMSMemoryCore:
                 background_observations_since_update=self._background_observations_since_update,
                 session_pending_signal=self._session_pending_signal,
                 background_pending_signal=self._background_pending_signal,
+                nested_session_init_target=self._nested_session_init_target,
+                nested_online_init_target=self._nested_online_init_target,
                 mode="mlp",
                 mlp_params=(
                     self._online_mlp.export_params(),
@@ -555,6 +621,10 @@ class CMSMemoryCore:
                 self._online_mlp.load_representation(state.online_fast)
                 self._session_mlp.load_representation(state.session_medium)
                 self._background_mlp.load_representation(state.background_slow)
+            if state.nested_session_init_target:
+                self._nested_session_init_target = state.nested_session_init_target
+            if state.nested_online_init_target:
+                self._nested_online_init_target = state.nested_online_init_target
         elif self._mode == "vector":
             self._online_fast = state.online_fast
             self._session_medium = state.session_medium

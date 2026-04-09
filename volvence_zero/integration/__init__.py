@@ -4,6 +4,7 @@ from volvence_zero.integration.final_wiring import (
     FinalRolloutConfig,
     build_acceptance_report,
     build_final_runtime_modules,
+    reflection_promotion_eligible,
     run_final_wiring_turn,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "FinalRolloutConfig",
     "build_acceptance_report",
     "build_final_runtime_modules",
+    "reflection_promotion_eligible",
     "run_final_wiring_turn",
 ]

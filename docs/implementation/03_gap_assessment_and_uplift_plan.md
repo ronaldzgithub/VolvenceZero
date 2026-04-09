@@ -352,25 +352,25 @@
 
 ## 2. 差距总览矩阵
 
-| 需求 | 成熟度 | 最大瓶颈 |
-|------|--------|----------|
-| R1 多时间尺度学习 | 3.5 | CMS 维度太低，非 MLP 级；rare-heavy 无真实训练 |
-| R2 稳定基底 + 控制器 | 3.5 | 未验证真实模型场景；Hope 自修改 Titans 缺失 |
-| R3 时间抽象 | 4.0 | alpha 可控变分瓶颈 + SwitchGateStats + FamilyCompetitionState |
-| R4 内部控制 | 4.0 | 已有多 epoch GAE PPO-clip + 审计；因果策略切换未端到端验证 |
-| R5 记忆连续谱 | 4.5 | PersistenceBackend + FileSystemPersistenceBackend 实现跨 session 持久化 |
-| R6 反思与整合 | 4.5 | 默认 SHADOW + EvidencePack + scope 扩展 + proposal_success_rate |
-| R7 双轨分离 | 4.0 | 缺少有效性评估证据 |
-| R8 快照契约 | 4.5 | 最成熟，仅缺并发和跨服务 |
-| R9 层级信用 | 4.5 | N-step attribution ledger + rolling payoff + 信用 reward shaping |
-| R10 门控自修改 | 4.5 | Evolution judge 已完整接入 run_cycle() + 结构门控 |
-| R11 可命名状态 | 4.0 | 缺前瞻性候选策略发布 |
-| R12 全面评估 | 4.5 | LongitudinalReport + reflection_accuracy + longitudinal_verdict |
-| R13 SSL-RL 交替 | 4.0 | RL 优化器已完整（多 epoch GAE + KL 早停）；多尺度交替未实现 |
-| R14 Regime 身份 | 4.0 | RegimeSelectionWeights REINFORCE 更新 + effectiveness_trend |
-| R15 迁移纪律 | 4.0 | shadow→active 自动化不足 |
+| 需求 | 成熟度 | 最大瓶颈 | 本轮更新 |
+|------|--------|----------|----------|
+| R1 多时间尺度学习 | 4.0 | MLP CMS 已端到端验证 (d_in=16, d_hidden=32)；nested 变体含元学习；rare-heavy 无真实训练 | nested 元学习 init target 收敛验证 |
+| R2 稳定基底 + 控制器 | 3.5 | 未验证真实模型场景；Hope 自修改 Titans 缺失 | — |
+| R3 时间抽象 | 4.0 | alpha 可控变分瓶颈 + SwitchGateStats + FamilyCompetitionState；多 alpha A/B 验证完成 | A/B: alpha vs switch_bias 对比 |
+| R4 内部控制 | 4.0 | 20-cycle 连续运行 reward 趋势验证通过；因果策略切换未端到端验证 | 20-cycle 闭环验证 |
+| R5 记忆连续谱 | 4.5 | PersistenceBackend load 路径修复；CMS MLP 持久化往返验证；nested 变体 checkpoint 含 meta-targets | load_from_backend 修复 + CMS MLP 持久化往返 |
+| R6 反思与整合 | 4.5 | 默认 SHADOW + reflection_accuracy 写入 EvaluationSnapshot + reflection_promotion_eligible 门控函数 | reflection_accuracy 注入 + 提升门控 |
+| R7 双轨分离 | 4.0 | 缺少有效性评估证据 | — |
+| R8 快照契约 | 4.5 | 最成熟，仅缺并发和跨服务 | — |
+| R9 层级信用 | 4.5 | N-step attribution ledger + rolling payoff + 信用 reward shaping；20-cycle 信用→RL 闭环验证 | 信用 reward shaping A/B 验证 |
+| R10 门控自修改 | 4.5 | Evolution judge 已完整接入 run_cycle() + 结构门控 | — |
+| R11 可命名状态 | 4.0 | 缺前瞻性候选策略发布 | — |
+| R12 全面评估 | 4.5 | LongitudinalReport + reflection_accuracy 实际注入 + longitudinal_verdict | reflection_accuracy 运行时写入 |
+| R13 SSL-RL 交替 | 4.0 | RL 优化器已完整（多 epoch GAE + KL 早停）；非因果嵌入器 posterior tightening 验证通过；多尺度交替未实现 | 非因果嵌入器 enrich_posterior 验证 |
+| R14 Regime 身份 | 4.0 | RegimeSelectionWeights REINFORCE 更新 + effectiveness_trend；A/B 对比验证 | A/B: learned weight vs fixed |
+| R15 迁移纪律 | 4.0 | shadow→active 自动化仍需手动触发；reflection_promotion_eligible 评估函数就位 | 提升条件评估函数 |
 
-**系统平均成熟度：4.3 / 5**（Phase 4 完成后更新）
+**系统平均成熟度：4.2 / 5**（uplift 轮次更新 2026-04-09）
 
 ---
 

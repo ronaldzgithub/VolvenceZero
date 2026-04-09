@@ -263,7 +263,7 @@ class CMSState:
     total_observations: int
     total_reflections: int
     description: str
-    variant: str = "sequential"       # "sequential" | "independent"
+    variant: str = "sequential"       # "sequential" | "independent" | "nested"
 
 @dataclass(frozen=True)
 class CMSCheckpointState:
@@ -279,6 +279,8 @@ class CMSCheckpointState:
     background_pending_signal: tuple[float, ...]
     mode: str = "vector"              # "vector" | "mlp"
     mlp_params: tuple[tuple[tuple[float, ...], ...], ...] = ()
+    nested_session_init_target: tuple[float, ...] = ()   # nested 变体: session band 元学习的初始化目标
+    nested_online_init_target: tuple[float, ...] = ()    # nested 变体: online band 元学习的初始化目标
 
 @dataclass(frozen=True)
 class MemorySnapshot:
@@ -472,6 +474,8 @@ class EvaluationSnapshot:
     session_scores: tuple[EvaluationScore, ...]     # 会话累计评分
     alerts: tuple[str, ...]                          # 安全/有界性告警
     description: str
+    reflection_accuracy: float = 0.0                 # 反思 proposal 预测准确率 (由 final_wiring 从 ReflectionEngine.proposal_success_rate 注入)
+    longitudinal_verdict: str = ""                   # 跨 session 纵向评估结论 ("growing" | "stable" | "regressing" | "")
 ```
 
 **当前实现口径**：

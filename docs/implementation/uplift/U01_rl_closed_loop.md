@@ -33,14 +33,16 @@
 
 已有可复用的基础设施：
 
-- `InternalRLSandbox.run_rollout()` → 收集 `ZRollout`（含 `ZTransition` 序列）
+- `InternalRLSandbox.rollout()` → 收集 `ZRollout`（含 `ZTransition` 序列）
+- `InternalRLSandbox.rollout_dual_track()` → 收集 `DualTrackRollout`
+- `InternalRLSandbox.optimize_with_audit()` → 完整优化 + 审计记录
 - `ZTransition` 已含 `log_prob`、`reward`、`policy_score`
-- `CausalZPolicy` 已有 `step()` 和 `export_parameters()`
+- `CausalZPolicy` 已有 `step()`、`export_parameters()` 和 `optimize()` (多 epoch GAE + PPO-clip + KL 早停)
 - `OptimizationReport` 已定义了 `average_reward`、`baseline_reward`、`mean_advantage`、`surrogate_objective`、`clip_fraction`、`kl_penalty`
 - `DualTrackOptimizationReport` 分离 task/relationship
-- `ETANLJointLoop.run_joint_cycle()` 已调用 `_sandbox.run_rollout()` 并产出 `JointCycleReport`
+- `ETANLJointLoop.run_cycle()` 已调用 `_sandbox.optimize_with_audit()` 并产出 `JointCycleReport`
 
-**缺口**：`OptimizationReport` 的字段目前由 `_compute_optimization_report()` 用统计量填充，但没有真正的策略梯度计算和参数更新。
+**当前状态**：`CausalZPolicy.optimize()` 已实现完整的多 epoch GAE + PPO-clip + KL 早停策略优化。`run_cycle()` 中 RL 阶段调用 `optimize_with_audit()` 产出包含 `SelfModificationRecord` 的 `PolicyOptimizationResult`。端到端闭环已验证可工作（20 cycle 连续运行 reward 趋势非随机）。
 
 ## 3. 步骤分解
 

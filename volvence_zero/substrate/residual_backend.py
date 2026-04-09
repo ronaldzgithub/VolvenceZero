@@ -49,6 +49,14 @@ class OpenWeightRuntimeCapture:
     description: str
 
 
+@dataclass(frozen=True)
+class GenerationResult:
+    text: str
+    token_count: int
+    capture: OpenWeightRuntimeCapture | None
+    description: str
+
+
 class SubstrateFallbackMode(str, Enum):
     ALLOW_BUILTIN = "allow-builtin"
     DENY = "deny"
@@ -109,6 +117,29 @@ class OpenWeightResidualRuntime(ABC):
         track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> ResidualControlApplication:
         """Apply bounded residual intervention through the runtime."""
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        system_context: str = "",
+        max_new_tokens: int = 256,
+        temperature: float = 0.7,
+        control_parameters: tuple[float, ...] = (),
+        control_scale: float = 0.0,
+    ) -> GenerationResult:
+        """Generate text using the underlying model.
+
+        Subclasses that hold a real model override this to run
+        autoregressive decoding.  The default implementation returns
+        a placeholder so synthetic runtimes remain functional.
+        """
+        return GenerationResult(
+            text=f"[generation not supported by {self.model_id}]",
+            token_count=0,
+            capture=None,
+            description=f"{self.model_id} does not support generation",
+        )
 
 
 class ResidualInterventionBackend(ABC):
@@ -607,6 +638,83 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"transformers-open-weight:{self.model_id} device={self._device} "
                 f"layers={self._layer_indices} effect={tuple(round(value, 3) for value in downstream_effect)}."
+            ),
+        )
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        system_context: str = "",
+        max_new_tokens: int = 256,
+        temperature: float = 0.7,
+        control_parameters: tuple[float, ...] = (),
+        control_scale: float = 0.0,
+    ) -> GenerationResult:
+        full_prompt = f"{system_context}\n{prompt}".strip() if system_context else prompt.strip()
+        effective_prompt = full_prompt or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_prompt)
+        input_ids = model_inputs["input_ids"]
+        prompt_length = int(input_ids.shape[-1])
+
+        control_delta = None
+        if control_parameters and control_scale > 0:
+            control_delta = self._build_control_delta(
+                applied_control=control_parameters,
+                track_scale=(control_scale, control_scale, control_scale),
+            )
+        captured_layers: dict[int, object] = {}
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                self._make_capture_hook(
+                    layer_index=layer_index,
+                    captured_layers=captured_layers,
+                    control_delta=control_delta,
+                )
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                generate_kwargs: dict[str, object] = {
+                    "max_new_tokens": max_new_tokens,
+                    "do_sample": temperature > 0,
+                    "pad_token_id": getattr(self._tokenizer, "eos_token_id", 0) or 0,
+                }
+                if temperature > 0:
+                    generate_kwargs["temperature"] = temperature
+                output_ids = self._model.generate(input_ids, **generate_kwargs)
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        new_token_ids = output_ids[0, prompt_length:]
+        generated_text = self._tokenizer.decode(new_token_ids, skip_special_tokens=True)
+        token_count = int(new_token_ids.shape[0])
+
+        capture = None
+        if captured_layers:
+            try:
+                logits_pass = self._model(output_ids[:, :prompt_length])
+                logits = self._extract_logits(outputs=logits_pass)
+                capture = self._build_runtime_capture(
+                    source_text=effective_prompt,
+                    input_ids=input_ids,
+                    logits=logits,
+                    captured_layers=captured_layers,
+                    control_applied=control_delta is not None,
+                )
+            except Exception:
+                pass
+
+        return GenerationResult(
+            text=generated_text,
+            token_count=token_count,
+            capture=capture,
+            description=(
+                f"Generated {token_count} tokens from {self.model_id} "
+                f"device={self._device} temp={temperature} "
+                f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
 

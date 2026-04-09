@@ -67,6 +67,34 @@ class FinalRolloutConfig:
         }.get(module_name, default)
 
 
+def reflection_promotion_eligible(
+    *,
+    evaluation_snapshot: EvaluationSnapshot,
+    min_accuracy: float = 0.6,
+    min_observations: int = 5,
+    reflection_engine: ReflectionEngine | None = None,
+) -> tuple[bool, str]:
+    """Evaluate whether reflection should be promoted from SHADOW to ACTIVE.
+
+    Returns (eligible, reason). Promotion requires:
+    1. reflection_accuracy >= min_accuracy
+    2. At least min_observations proposal outcomes tracked
+
+    This is a read-only evaluation — actual promotion is a manual config change.
+    The caller should separately verify via evolution judge that no
+    UNSAFE_MUTATION verdicts have occurred in the relevant window.
+    """
+    accuracy = evaluation_snapshot.reflection_accuracy
+    if reflection_engine is None:
+        return (False, f"no reflection engine; accuracy={accuracy:.2f}")
+    ledger = reflection_engine.proposal_outcome_ledger
+    if len(ledger) < min_observations:
+        return (False, f"insufficient observations: {len(ledger)}/{min_observations}")
+    if accuracy < min_accuracy:
+        return (False, f"accuracy {accuracy:.2f} < threshold {min_accuracy:.2f}")
+    return (True, f"eligible: accuracy={accuracy:.2f} observations={len(ledger)}")
+
+
 @dataclass(frozen=True)
 class FinalAcceptanceReport:
     passed: bool
@@ -397,6 +425,13 @@ async def run_final_wiring_turn(
             writeback_result=writeback_result,
             joint_loop_result=joint_loop_result,
             regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
+        )
+        reflection_accuracy = 0.0
+        if reflection_module is not None:
+            reflection_accuracy = reflection_module.engine.proposal_success_rate
+        enriched_evaluation = replace(
+            enriched_evaluation,
+            reflection_accuracy=reflection_accuracy,
         )
         active_snapshots["evaluation"] = evaluation_module.publish(enriched_evaluation)
         if credit_module is not None:
