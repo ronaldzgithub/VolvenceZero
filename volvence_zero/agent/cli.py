@@ -18,10 +18,18 @@ def render_turn_result(result: AgentTurnResult) -> str:
         f"  temporal: {result.active_abstract_action or 'none'}",
         f"  acceptance: {'pass' if result.acceptance_passed else 'fail'}",
     ]
+    if result.prediction_error is not None:
+        lines.append(
+            "  prediction_error: "
+            f"reward={result.prediction_error.signed_reward:.2f} "
+            f"magnitude={result.prediction_error.magnitude:.2f}"
+        )
     if result.evaluation_alerts:
         lines.append(f"  alerts: {', '.join(result.evaluation_alerts)}")
     if result.acceptance_issues:
         lines.append(f"  issues: {', '.join(result.acceptance_issues)}")
+    if result.reflection_promotion_eligible:
+        lines.append(f"  reflection_promotion: eligible ({result.reflection_promotion_reason})")
     lines.append(f"  rationale: {result.response.rationale}")
     return "\n".join(lines)
 

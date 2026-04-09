@@ -12,6 +12,7 @@ from volvence_zero.credit import (
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import EvaluationModule, EvaluationScore, EvaluationSnapshot
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
+from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
 from volvence_zero.regime import DelayedOutcomeAttribution, DelayedOutcomePayoff, RegimeModule
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.runtime import WiringLevel, propagate
@@ -83,6 +84,64 @@ def test_reflection_module_consolidates_memory_and_policy_from_inputs():
     assert reflection_snapshot.consolidation_score.confidence >= 0.0
     assert reflection_snapshot.lessons_extracted
     assert reflection_snapshot.tensions_identified
+
+
+def test_reflection_consumes_prediction_error_snapshot():
+    reflection = ReflectionModule(wiring_level=WiringLevel.ACTIVE)
+    prediction_error_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(
+            source_turn_index=1,
+            target_turn_index=2,
+            predicted_task_progress=0.8,
+            predicted_relationship_delta=0.8,
+            predicted_regime_stability=0.7,
+            predicted_action_payoff=0.6,
+            confidence=0.8,
+            description="pred",
+        ),
+        actual_outcome=ActualOutcome(
+            observed_turn_index=2,
+            task_progress=0.2,
+            relationship_delta=0.3,
+            regime_stability=0.4,
+            action_payoff=0.1,
+            description="actual",
+        ),
+        next_prediction=PredictedOutcome(
+            source_turn_index=2,
+            target_turn_index=3,
+            predicted_task_progress=0.5,
+            predicted_relationship_delta=0.5,
+            predicted_regime_stability=0.5,
+            predicted_action_payoff=0.5,
+            confidence=0.5,
+            description="next",
+        ),
+        error=PredictionError(
+            task_error=-0.6,
+            relationship_error=-0.5,
+            regime_error=-0.3,
+            action_error=-0.5,
+            magnitude=1.9,
+            signed_reward=-0.475,
+            description="large negative errors",
+        ),
+        turn_index=2,
+        bootstrap=False,
+        description="pe chain",
+    )
+    snapshot = asyncio.run(
+        reflection.process_standalone(
+            prediction_error_snapshot=prediction_error_snapshot,
+            timestamp_ms=20,
+        )
+    ).value
+    assert snapshot.primary_prediction_error_dimension == "task"
+    assert snapshot.error_driven_lesson_count >= 1
+    assert snapshot.repeated_prediction_failures
+    assert any("prediction_error" in tension for tension in snapshot.tensions_identified)
+    assert "prediction_error=task" in snapshot.interaction_trace_summary
+    assert snapshot.consolidation_score.description
 
 
 def test_reflection_ignores_runtime_fallback_caution_as_relationship_tension():

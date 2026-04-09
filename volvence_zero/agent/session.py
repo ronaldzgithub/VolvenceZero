@@ -14,6 +14,7 @@ from volvence_zero.integration import (
 )
 from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport, JointLoopSchedule, ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot, MemoryStore
+from volvence_zero.prediction import ActualOutcome, PredictedOutcome, PredictionError, PredictionErrorModule
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -49,6 +50,10 @@ class AgentTurnResult:
     active_abstract_action: str | None
     metacontroller_state: MetacontrollerRuntimeState | None
     evaluation_alerts: tuple[str, ...]
+    evaluated_prediction: PredictedOutcome | None
+    actual_outcome: ActualOutcome | None
+    next_prediction: PredictedOutcome | None
+    prediction_error: PredictionError | None
     bounded_writeback_applied: bool
     writeback_source: str | None
     writeback_operations: tuple[str, ...]
@@ -58,6 +63,8 @@ class AgentTurnResult:
     joint_cycle_report: JointCycleReport | None
     response: AgentResponse
     event_count: int
+    reflection_promotion_eligible: bool = False
+    reflection_promotion_reason: str = ""
 
 
 class AgentSessionRunner:
@@ -97,6 +104,9 @@ class AgentSessionRunner:
         self._regime_module = RegimeModule(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
         )
+        self._prediction_module = PredictionErrorModule(
+            wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
+        )
         self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
             model_id=substrate_model_id,
             device=substrate_device,
@@ -113,6 +123,7 @@ class AgentSessionRunner:
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
+        self._previous_prediction_reward: float = 0.0
 
     @property
     def session_id(self) -> str:
@@ -127,6 +138,11 @@ class AgentSessionRunner:
         wave_id = f"wave-{self._turn_index}"
         substrate_adapter = self._build_substrate_adapter(user_input=user_input)
         trace = self._build_training_trace_from_substrate(user_input=user_input)
+        self._joint_loop.set_external_learning_signals(
+            {"prediction_error_reward": self._previous_prediction_reward}
+            if abs(self._previous_prediction_reward) > 1e-8
+            else {}
+        )
         joint_result = await self._joint_loop.run_scheduled_step(
             turn_index=self._turn_index,
             trace=trace,
@@ -142,6 +158,7 @@ class AgentSessionRunner:
             credit_proposals=self._credit_proposals,
             reflection_mode=self._reflection_mode,
             temporal_policy=self._temporal_policy,
+            prediction_module=self._prediction_module,
             regime_module=self._regime_module,
             session_id=self._session_id,
             wave_id=wave_id,
@@ -153,6 +170,8 @@ class AgentSessionRunner:
         substrate_snap = integration_result.active_snapshots.get("substrate")
         if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
             self._previous_substrate_snapshot = substrate_snap.value
+        if integration_result.prediction_error_snapshot is not None:
+            self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
@@ -232,9 +251,18 @@ class AgentSessionRunner:
             temporal_is_switching = temporal_snapshot.value.controller_state.is_switching
 
         evaluation_alerts: tuple[str, ...] = ()
+        prediction_error = None
+        evaluated_prediction = None
+        actual_outcome = None
+        next_prediction = None
         evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
         if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot):
             evaluation_alerts = evaluation_snapshot.value.alerts
+        if integration_result.prediction_error_snapshot is not None:
+            evaluated_prediction = integration_result.prediction_error_snapshot.evaluated_prediction
+            actual_outcome = integration_result.prediction_error_snapshot.actual_outcome
+            next_prediction = integration_result.prediction_error_snapshot.next_prediction
+            prediction_error = integration_result.prediction_error_snapshot.error
 
         memory_retrieval_count = 0
         memory_snapshot = integration_result.active_snapshots.get("memory")
@@ -308,6 +336,10 @@ class AgentSessionRunner:
             active_abstract_action=active_abstract_action,
             metacontroller_state=metacontroller_state,
             evaluation_alerts=evaluation_alerts,
+            evaluated_prediction=evaluated_prediction,
+            actual_outcome=actual_outcome,
+            next_prediction=next_prediction,
+            prediction_error=prediction_error,
             bounded_writeback_applied=bool(
                 integration_result.writeback_result is not None
                 and integration_result.writeback_result.applied_operations
@@ -324,6 +356,8 @@ class AgentSessionRunner:
             joint_cycle_report=joint_result.cycle_report,
             response=response,
             event_count=integration_result.event_count,
+            reflection_promotion_eligible=integration_result.reflection_promotion_eligible,
+            reflection_promotion_reason=integration_result.reflection_promotion_reason,
         )
 
 

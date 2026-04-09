@@ -149,6 +149,10 @@ class ETANLJointLoop:
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
         self._previous_family_signals: dict[str, float] = {}
         self._previous_credit_snapshot: CreditSnapshot | None = None
+        self._external_learning_signals: dict[str, float] = {}
+
+    def set_external_learning_signals(self, signals: dict[str, float]) -> None:
+        self._external_learning_signals = dict(signals)
 
     def _apply_temporal_reflection_writeback(
         self,
@@ -273,6 +277,7 @@ class ETANLJointLoop:
         self._policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
         self._sandbox.configure_runtime_backend(source_text=trace.source_text)
         eval_signals = dict(self._previous_family_signals)
+        eval_signals.update(self._external_learning_signals)
         if self._previous_credit_snapshot is not None:
             credit_bonus = extract_abstract_action_credit_bonus(self._previous_credit_snapshot)
             eval_signals.update(credit_bonus)

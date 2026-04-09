@@ -11,15 +11,17 @@ from volvence_zero.credit import (
     SelfModificationRecord,
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
+    derive_prediction_error_credit_records,
     has_blocking_writeback,
 )
-from volvence_zero.dual_track import DualTrackModule
+from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
 from volvence_zero.evaluation import (
     EvaluationModule,
     EvaluationSnapshot,
     EvolutionJudgement,
 )
 from volvence_zero.memory import MemoryModule, MemoryStore
+from volvence_zero.prediction import PredictedOutcome, PredictionErrorModule, PredictionErrorSnapshot
 from volvence_zero.reflection import (
     ReflectionEngine,
     ReflectionModule,
@@ -27,7 +29,7 @@ from volvence_zero.reflection import (
     WritebackMode,
     WritebackResult,
 )
-from volvence_zero.regime import RegimeModule
+from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
@@ -46,6 +48,7 @@ class FinalRolloutConfig:
     memory: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
+    prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
@@ -60,6 +63,7 @@ class FinalRolloutConfig:
             "memory": self.memory,
             "dual_track": self.dual_track,
             "evaluation": self.evaluation,
+            "prediction_error": self.prediction_error,
             "regime": self.regime,
             "credit": self.credit,
             "reflection": self.reflection,
@@ -115,6 +119,9 @@ class FinalIntegrationResult:
     writeback_result: WritebackResult | None
     writeback_source: str | None
     temporal_runtime_state: MetacontrollerRuntimeState | None
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None
+    reflection_promotion_eligible: bool = False
+    reflection_promotion_reason: str = ""
     evolution_judgement: EvolutionJudgement | None = None
 
 
@@ -228,6 +235,7 @@ def build_final_runtime_modules(
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
     temporal_policy: TemporalPolicy | None = None,
+    prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -252,6 +260,10 @@ def build_final_runtime_modules(
         regime_module
         or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
+        ),
+        prediction_module
+        or PredictionErrorModule(
+            wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
         ),
         CreditModule(
             pending_proposals=credit_proposals,
@@ -278,6 +290,7 @@ async def run_final_wiring_turn(
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
     temporal_policy: TemporalPolicy | None = None,
+    prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -289,6 +302,7 @@ async def run_final_wiring_turn(
         credit_proposals=credit_proposals,
         reflection_mode=reflection_mode,
         temporal_policy=temporal_policy,
+        prediction_module=prediction_module,
         regime_module=regime_module,
         session_id=session_id,
         wave_id=wave_id,
@@ -380,6 +394,14 @@ async def run_final_wiring_turn(
             ),
         )
     evaluation_snapshot = active_snapshots.get("evaluation")
+    prediction_snapshot_value = (
+        active_snapshots.get("prediction_error").value
+        if active_snapshots.get("prediction_error") is not None
+        and isinstance(active_snapshots.get("prediction_error").value, PredictionErrorSnapshot)
+        else None
+    )
+    reflection_promote = False
+    reflection_promote_reason = ""
     if (
         evaluation_module is not None
         and evaluation_snapshot is not None
@@ -434,6 +456,10 @@ async def run_final_wiring_turn(
             reflection_accuracy=reflection_accuracy,
         )
         active_snapshots["evaluation"] = evaluation_module.publish(enriched_evaluation)
+        reflection_promote, reflection_promote_reason = reflection_promotion_eligible(
+            evaluation_snapshot=enriched_evaluation,
+            reflection_engine=reflection_module.engine if reflection_module is not None else None,
+        )
         if credit_module is not None:
             extra_credits = derive_learning_evidence_credit_records(
                 evaluation_snapshot=enriched_evaluation,
@@ -444,6 +470,11 @@ async def run_final_wiring_turn(
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
             )
             extra_credits = extra_credits + delayed_credits
+            if prediction_snapshot_value is not None:
+                extra_credits = extra_credits + derive_prediction_error_credit_records(
+                    prediction_error=prediction_snapshot_value.error,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
+                )
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)
         if credit_module is not None:
@@ -462,6 +493,9 @@ async def run_final_wiring_turn(
         writeback_result=writeback_result,
         writeback_source=writeback_source,
         temporal_runtime_state=temporal_module.export_runtime_state() if temporal_module is not None else None,
+        prediction_error_snapshot=prediction_snapshot_value,
+        reflection_promotion_eligible=reflection_promote,
+        reflection_promotion_reason=reflection_promote_reason,
     )
 
 
@@ -477,7 +511,17 @@ def build_acceptance_report(
     disabled_slots = tuple(
         sorted(
             name
-            for name in ("substrate", "memory", "dual_track", "evaluation", "regime", "credit", "reflection", "temporal")
+            for name in (
+                "substrate",
+                "memory",
+                "dual_track",
+                "evaluation",
+                "prediction_error",
+                "regime",
+                "credit",
+                "reflection",
+                "temporal",
+            )
             if config.level_for(name, WiringLevel.DISABLED) is WiringLevel.DISABLED
         )
     )
@@ -489,6 +533,7 @@ def build_acceptance_report(
         "memory",
         "dual_track",
         "evaluation",
+        "prediction_error",
         "regime",
         "credit",
     }

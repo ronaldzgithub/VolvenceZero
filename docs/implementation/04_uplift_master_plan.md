@@ -164,11 +164,13 @@ docs/implementation/uplift/
 | 能否整合经验为持久记忆？ | 否 | 否 | 部分 | ✅ |
 | 内部状态可反思/评估/回滚？ | ✅ | ✅ | ✅ | ✅ |
 | 新层不破坏模块所有权？ | ✅ | ✅ | ✅ | ✅ |
+| 能否显式产出 predicted outcome 并在下一轮比较 actual outcome？ | 否 | 否 | 否 | 否 |
 
 ### 8.2 成熟度提升目标
 
 | 需求 | 当前 | Phase 1 后 | Phase 2 后 | Phase 3 后 | Phase 4 后 |
 |------|------|-----------|-----------|-----------|-----------|
+| R-PE 预测误差原语 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
 | R1 多时间尺度 | 3.5 | 3.5 | 4.5 | 4.5 | 4.5 |
 | R2 稳定基底 | 3.5 | 3.5 | 4.0 | 4.0 | 4.0 |
 | R3 时间抽象 | 3.5 | 3.5 | 3.5 | 4.5 | 4.5 |
@@ -184,17 +186,16 @@ docs/implementation/uplift/
 | R13 SSL-RL 交替 | 2.5 | 4.0 | 4.0 | 4.5 | 4.5 |
 | R14 Regime 身份 | 3.5 | 3.5 | 3.5 | 4.0 | 4.5 |
 | R15 迁移纪律 | 4.0 | 4.0 | 4.0 | 4.0 | 4.5 |
-| **平均** | **3.5** | **3.7** | **3.9** | **4.2** | **4.5** |
+| **平均（R1–R15）** | **4.0** | **4.1** | **4.2** | **4.3** | **4.4** |
 
 ### 8.3 系统状态标签
 
 | 时刻 | 系统状态 |
 |------|---------|
-| 当前（P09 完成） | 契约骨架完备，能力点可运行但无学习闭环 |
-| Phase 1 完成 | 系统能学习——RL 闭环打通，策略可更新 |
-| Phase 2 完成 | 系统有容量——CMS 升级为 MLP 级，多时间尺度真实 |
-| Phase 3 完成 | 系统能涌现——切换/竞争/选择由数据驱动 |
-| Phase 4 完成 | 系统能进化——跨 session 增长有证据 |
+| 当前（uplift Phase 1–4 验证完成后） | 契约骨架完备，学习闭环可运行，LLM 表达层已接通，但 prediction-error-first 主通路缺失 |
+| Design v2 Gap Closure / Phase PE 完成 | 系统以 prediction error 作为一级学习信号，credit/evaluation 退居下游聚合层 |
+| Design v2 Gap Closure / Phase RF 完成 | 反思 SHADOW→ACTIVE 提升条件接入主循环，可运行时观察 |
+| Design v2 Gap Closure / 全部完成 | 设计 v2 与代码主链一致，uplift 文档与 maturity 口径同步 |
 
 ## 9. 风险总览
 
@@ -215,6 +216,7 @@ docs/implementation/uplift/
 | `01_package_registry.md` | 本计划的改动在已有包内部，不新增包，不改 owner/slot |
 | `02_eta_nl_next_stage.md` | 本计划的 Phase 3–4 覆盖其 Phase A–E，并前置解决 RL 闭环和 CMS 容量 |
 | `03_gap_assessment_and_uplift_plan.md` | 本计划的源评估文档，差距族定义和提升路线的出处 |
+| `05_design_v2_upgrade_plan.md` | `next_gen_emogpt.md` v2 重写后的对齐方案：补齐 R-PE、反思提升主链、文档一致性和残差干预验证 |
 | `packages/P00–P09` | 每个 Phase 步骤标注了涉及的包，具体变更在子计划中展开 |
 | `docs/specs/*.md` | 每个 Phase 完成后需同步更新的 spec 在子计划中列出 |
 

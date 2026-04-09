@@ -16,6 +16,7 @@ from volvence_zero.memory import (
     MemoryStratum,
     Track,
 )
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.regime import RegimeCheckpoint, RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
@@ -135,6 +136,9 @@ class ReflectionSnapshot:
     review_required: bool
     description: str
     proposal_success_rate: float = 0.0
+    primary_prediction_error_dimension: str | None = None
+    repeated_prediction_failures: tuple[str, ...] = ()
+    error_driven_lesson_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -175,6 +179,90 @@ def _relationship_relevant_alerts(evaluation_snapshot: EvaluationSnapshot | None
     )
 
 
+def _primary_prediction_error_dimension(
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> str | None:
+    if prediction_error_snapshot is None:
+        return None
+    error = prediction_error_snapshot.error
+    candidates = (
+        ("task", abs(error.task_error)),
+        ("relationship", abs(error.relationship_error)),
+        ("regime", abs(error.regime_error)),
+        ("action", abs(error.action_error)),
+    )
+    name, magnitude = max(candidates, key=lambda item: item[1])
+    return name if magnitude > 0.05 else None
+
+
+def _repeated_prediction_failures(
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> tuple[str, ...]:
+    primary = _primary_prediction_error_dimension(prediction_error_snapshot)
+    if primary is None:
+        return ()
+    error = prediction_error_snapshot.error
+    failures: list[str] = []
+    if primary == "relationship" and error.relationship_error < -0.05:
+        failures.append("prediction_error:relationship")
+    if primary == "task" and error.task_error < -0.05:
+        failures.append("prediction_error:task")
+    if primary == "action" and abs(error.action_error) > 0.20:
+        failures.append("prediction_error:action")
+    if primary == "regime" and error.regime_error < -0.05:
+        failures.append("prediction_error:regime")
+    return tuple(failures)
+
+
+def _prediction_error_tensions(
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> tuple[str, ...]:
+    if prediction_error_snapshot is None:
+        return ()
+    error = prediction_error_snapshot.error
+    tensions: list[str] = []
+    if error.relationship_error < -0.10:
+        tensions.append("prediction_error_relationship_mismatch")
+    if error.task_error < -0.10:
+        tensions.append("prediction_error_task_mismatch")
+    if abs(error.action_error) > 0.20:
+        tensions.append("prediction_error_action_instability")
+    if error.regime_error < -0.10:
+        tensions.append("prediction_error_regime_instability")
+    return tuple(tensions)
+
+
+def _prediction_error_lessons(
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> tuple[str, ...]:
+    if prediction_error_snapshot is None:
+        return ()
+    error = prediction_error_snapshot.error
+    lessons: list[str] = []
+    if error.relationship_error < -0.10:
+        lessons.append("relationship_strategy_mismatch")
+    if error.task_error < -0.10:
+        lessons.append("task_framing_inadequate")
+    if abs(error.action_error) > 0.20:
+        lessons.append("abstract_action_instability")
+    if error.regime_error < -0.10:
+        lessons.append("regime_selection_mismatch")
+    return tuple(lessons)
+
+
+def _count_error_driven_lessons(lessons: tuple[str, ...]) -> int:
+    return sum(
+        1
+        for lesson in lessons
+        if lesson in {
+            "relationship_strategy_mismatch",
+            "task_framing_inadequate",
+            "abstract_action_instability",
+            "regime_selection_mismatch",
+        }
+    )
+
+
 class ReflectionEngine:
     """Builds proposal-first slow reflection artifacts from current session state."""
 
@@ -207,6 +295,7 @@ class ReflectionEngine:
         dual_track_snapshot: DualTrackSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None = None,
         regime_snapshot: RegimeSnapshot | None = None,
     ) -> ReflectionSnapshot:
         self._update_proposal_outcome_ledger(evaluation_snapshot)
@@ -215,6 +304,7 @@ class ReflectionEngine:
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             credit_snapshot=credit_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
         )
         memory_consolidation = self._memory_consolidation(
             timestamp_ms=timestamp_ms,
@@ -230,16 +320,22 @@ class ReflectionEngine:
             regime_snapshot=regime_snapshot,
             consolidation_score=consolidation_score,
         )
-        tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot)
+        pe_tensions = _prediction_error_tensions(prediction_error_snapshot)
+        tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot) + pe_tensions
         lessons = self._lessons(
             memory_consolidation=memory_consolidation,
             policy_consolidation=policy_consolidation,
             tensions=tensions,
+            prediction_error_snapshot=prediction_error_snapshot,
         )
+        primary_error_dimension = _primary_prediction_error_dimension(prediction_error_snapshot)
+        repeated_failures = _repeated_prediction_failures(prediction_error_snapshot)
+        error_driven_lesson_count = _count_error_driven_lessons(lessons)
         trace_summary = self._interaction_trace_summary(
             memory_snapshot=memory_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
         )
         review_required = self._writeback_mode is not WritebackMode.APPLY
         self._capture_metric_snapshot(evaluation_snapshot)
@@ -255,6 +351,9 @@ class ReflectionEngine:
             interaction_trace_summary=trace_summary,
             tensions_identified=tensions,
             lessons_extracted=lessons,
+            primary_prediction_error_dimension=primary_error_dimension,
+            repeated_prediction_failures=repeated_failures,
+            error_driven_lesson_count=error_driven_lesson_count,
             writeback_mode=self._writeback_mode.value,
             review_required=review_required,
             description=description,
@@ -746,6 +845,7 @@ class ReflectionEngine:
         dual_track_snapshot: DualTrackSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
     ) -> ConsolidationScore:
         memory_pressure = _clamp(
             len(memory_snapshot.retrieved_entries) / 5.0 if memory_snapshot is not None else 0.0
@@ -766,12 +866,17 @@ class ReflectionEngine:
             session_values = tuple(value for _, value in credit_snapshot.session_level_credits)
             if session_values:
                 session_bonus = _clamp(sum(session_values) / len(session_values) * 0.15)
-        promotion_score = _clamp(0.35 + memory_pressure * 0.25 + positive_credit * 0.40 + session_bonus - cross_tension * 0.15)
-        decay_score = _clamp(0.10 + negative_credit * 0.75 + alert_pressure * 0.2)
+        pe_penalty = 0.0
+        if prediction_error_snapshot is not None:
+            pe_penalty = min(prediction_error_snapshot.error.magnitude / 4.0, 1.0)
+        promotion_score = _clamp(
+            0.35 + memory_pressure * 0.25 + positive_credit * 0.40 + session_bonus - cross_tension * 0.15 - pe_penalty * 0.12
+        )
+        decay_score = _clamp(0.10 + negative_credit * 0.75 + alert_pressure * 0.2 + pe_penalty * 0.15)
         threshold_delta = max(-0.05, min(0.05, (cross_tension + alert_pressure - promotion_score) * 0.04))
         strategy_gain = max(0.02, min(0.08, 0.02 + promotion_score * 0.05))
         regime_effectiveness_gain = max(0.2, min(0.45, 0.2 + promotion_score * 0.25))
-        confidence = _clamp((memory_pressure + positive_credit + (1.0 - cross_tension)) / 3.0)
+        confidence = _clamp((memory_pressure + positive_credit + (1.0 - cross_tension) + (1.0 - pe_penalty)) / 4.0)
         return ConsolidationScore(
             promotion_score=promotion_score,
             decay_score=decay_score,
@@ -819,6 +924,7 @@ class ReflectionEngine:
         memory_consolidation: MemoryConsolidation,
         policy_consolidation: PolicyConsolidation,
         tensions: tuple[str, ...],
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
     ) -> tuple[str, ...]:
         lessons: list[str] = []
         if memory_consolidation.new_durable_entries or memory_consolidation.promoted_entries:
@@ -854,6 +960,7 @@ class ReflectionEngine:
             lessons.append("keep_controller_guard_signal_in_background")
         if tensions:
             lessons.append("review_tension_before_auto_writeback")
+        lessons.extend(_prediction_error_lessons(prediction_error_snapshot))
         return tuple(dict.fromkeys(lessons))
 
     def _interaction_trace_summary(
@@ -862,13 +969,17 @@ class ReflectionEngine:
         memory_snapshot: MemorySnapshot | None,
         dual_track_snapshot: DualTrackSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
     ) -> str:
         memory_count = len(memory_snapshot.retrieved_entries) if memory_snapshot else 0
         cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot else 0.0
         alert_count = len(evaluation_snapshot.alerts) if evaluation_snapshot else 0
+        pe_dimension = _primary_prediction_error_dimension(prediction_error_snapshot) or "none"
+        pe_magnitude = prediction_error_snapshot.error.magnitude if prediction_error_snapshot is not None else 0.0
         return (
             f"Reflection input summary: retrieved_entries={memory_count}, "
-            f"cross_track_tension={cross_tension:.2f}, alerts={alert_count}."
+            f"cross_track_tension={cross_tension:.2f}, alerts={alert_count}, "
+            f"prediction_error={pe_dimension}:{pe_magnitude:.2f}."
         )
 
     def _capture_metric_snapshot(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
@@ -962,7 +1073,7 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
     slot_name = "reflection"
     owner = "ReflectionModule"
     value_type = ReflectionSnapshot
-    dependencies = ("memory", "dual_track", "evaluation", "regime", "credit")
+    dependencies = ("memory", "dual_track", "evaluation", "regime", "credit", "prediction_error")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -984,6 +1095,7 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
         evaluation_snapshot = upstream["evaluation"]
         credit_snapshot = upstream["credit"]
         regime_snapshot = upstream["regime"]
+        prediction_error_snapshot = upstream["prediction_error"]
         return self.publish(
             self._engine.reflect(
                 timestamp_ms=max(
@@ -1003,6 +1115,9 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 else None,
                 credit_snapshot=credit_snapshot.value
                 if isinstance(credit_snapshot.value, CreditSnapshot)
+                else None,
+                prediction_error_snapshot=prediction_error_snapshot.value
+                if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
                 else None,
                 regime_snapshot=regime_snapshot.value if isinstance(regime_snapshot.value, RegimeSnapshot) else None,
             )
@@ -1024,6 +1139,9 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 else None,
                 credit_snapshot=kwargs.get("credit_snapshot")
                 if isinstance(kwargs.get("credit_snapshot"), CreditSnapshot)
+                else None,
+                prediction_error_snapshot=kwargs.get("prediction_error_snapshot")
+                if isinstance(kwargs.get("prediction_error_snapshot"), PredictionErrorSnapshot)
                 else None,
                 regime_snapshot=kwargs.get("regime_snapshot")
                 if isinstance(kwargs.get("regime_snapshot"), RegimeSnapshot)

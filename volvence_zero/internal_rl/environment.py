@@ -92,17 +92,21 @@ class InternalRLEnvironment:
         control_energy: float,
         policy_replacement_quality: float,
     ) -> tuple[tuple[str, float], ...]:
+        prediction_error_reward = self._evaluation_family_signals.get("prediction_error_reward", 0.0)
+        has_primary_pe = abs(prediction_error_reward) > 1e-8
         components: list[tuple[str, float]] = [
-            ("control_effect", sum(downstream_effect) / len(downstream_effect)),
-            ("control_energy_bonus", control_energy * 0.05),
-            ("replacement_alignment", policy_replacement_quality * 0.08),
-            ("persistence_bonus", (1.0 - temporal_step.controller_state.switch_gate) * 0.04),
+            ("control_effect", sum(downstream_effect) / len(downstream_effect) * (0.12 if has_primary_pe else 1.0)),
+            ("control_energy_bonus", control_energy * (0.01 if has_primary_pe else 0.05)),
+            ("replacement_alignment", policy_replacement_quality * (0.02 if has_primary_pe else 0.08)),
+            ("persistence_bonus", (1.0 - temporal_step.controller_state.switch_gate) * (0.01 if has_primary_pe else 0.04)),
             (
                 "switch_bonus",
-                0.06 if temporal_step.controller_state.is_switching else 0.0,
+                (0.01 if has_primary_pe else 0.06) if temporal_step.controller_state.is_switching else 0.0,
             ),
-            ("staleness_penalty", -temporal_step.controller_state.steps_since_switch * 0.01),
+            ("staleness_penalty", -temporal_step.controller_state.steps_since_switch * (0.002 if has_primary_pe else 0.01)),
         ]
+        if has_primary_pe:
+            components.append(("primary_prediction_error", prediction_error_reward * 0.70))
         if not self._evaluation_family_signals:
             return tuple(components)
         task_delta = self._family_delta("task")
@@ -111,24 +115,25 @@ class InternalRLEnvironment:
         abstraction_delta = self._family_delta("abstraction")
         stability_delta = (self._family_delta("safety") + relationship_delta) / 2.0
         if track is Track.WORLD:
-            task_weight = 0.24
-            relationship_weight = 0.05
-            stability_weight = 0.08
+            task_weight = 0.03 if has_primary_pe else 0.24
+            relationship_weight = 0.01 if has_primary_pe else 0.05
+            stability_weight = 0.01 if has_primary_pe else 0.08
         elif track is Track.SELF:
-            task_weight = 0.05
-            relationship_weight = 0.24
-            stability_weight = 0.10
+            task_weight = 0.01 if has_primary_pe else 0.05
+            relationship_weight = 0.03 if has_primary_pe else 0.24
+            stability_weight = 0.015 if has_primary_pe else 0.10
         else:
-            task_weight = 0.14
-            relationship_weight = 0.14
-            stability_weight = 0.09
+            task_weight = 0.015 if has_primary_pe else 0.14
+            relationship_weight = 0.015 if has_primary_pe else 0.14
+            stability_weight = 0.01 if has_primary_pe else 0.09
         components.extend(
             (
                 ("task_outcome_delta", task_delta * task_weight),
                 ("relationship_outcome_delta", relationship_delta * relationship_weight),
-                ("learning_outcome_delta", learning_delta * 0.12),
-                ("abstraction_outcome_delta", abstraction_delta * 0.10),
+                ("learning_outcome_delta", learning_delta * (0.01 if has_primary_pe else 0.12)),
+                ("abstraction_outcome_delta", abstraction_delta * (0.01 if has_primary_pe else 0.10)),
                 ("stability_outcome_delta", stability_delta * stability_weight),
+                ("prediction_error_reward", prediction_error_reward * (0.05 if has_primary_pe else 0.15)),
             )
         )
         return tuple(components)

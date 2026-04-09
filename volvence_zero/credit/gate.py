@@ -8,6 +8,7 @@ from uuid import uuid4
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.memory import Track
+from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:
@@ -153,6 +154,111 @@ def derive_credit_records(
         )
     )
     return tuple(records)
+
+
+def derive_credit_records_from_prediction_error_first(
+    *,
+    dual_track_snapshot: DualTrackSnapshot,
+    evaluation_snapshot: EvaluationSnapshot,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Primary credit derivation path.
+
+    When prediction error is available, PE-derived records are the primary
+    signal and evaluation-derived records are reduced to lightweight
+    readout/evidence credits. Without PE, fall back to the legacy path.
+    """
+    if prediction_error_snapshot is None:
+        return derive_credit_records(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=timestamp_ms,
+        )
+    records = list(
+        derive_prediction_error_credit_records(
+            prediction_error=prediction_error_snapshot.error,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+    if evaluation_snapshot.turn_scores:
+        for score in evaluation_snapshot.turn_scores:
+            if score.family in {"task", "relationship", "learning", "abstraction", "safety"}:
+                records.append(
+                    CreditRecord(
+                        record_id=str(uuid4()),
+                        level="evaluation_readout",
+                        track=(
+                            Track.WORLD
+                            if score.family == "task"
+                            else Track.SELF
+                            if score.family == "relationship"
+                            else Track.SHARED
+                        ),
+                        source_event=f"evaluation_readout:{score.metric_name}",
+                        credit_value=_clamp(score.value * 0.25),
+                        context=score.evidence,
+                        timestamp_ms=timestamp_ms,
+                    )
+                )
+    records.append(
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:cross_track_tension",
+            credit_value=_clamp(0.5 - dual_track_snapshot.cross_track_tension),
+            context=dual_track_snapshot.description,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+    return tuple(records)
+
+
+def derive_prediction_error_credit_records(
+    *,
+    prediction_error: PredictionError,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    records = (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.WORLD,
+            source_event="pe:task",
+            credit_value=_clamp(prediction_error.task_error),
+            context=prediction_error.description,
+            timestamp_ms=timestamp_ms,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SELF,
+            source_event="pe:relationship",
+            credit_value=_clamp(prediction_error.relationship_error),
+            context=prediction_error.description,
+            timestamp_ms=timestamp_ms,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:regime",
+            credit_value=_clamp(prediction_error.regime_error),
+            context=prediction_error.description,
+            timestamp_ms=timestamp_ms,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:action",
+            credit_value=_clamp(prediction_error.action_error),
+            context=prediction_error.description,
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+    return records
 
 
 def derive_abstract_action_credit_records(
@@ -440,6 +546,7 @@ def extract_abstract_action_credit_bonus(
     credit_snapshot: CreditSnapshot,
     *,
     bonus_weight: float = 0.1,
+    pe_magnitude: float = 0.0,
 ) -> dict[str, float]:
     """Aggregate abstract-action credit into per-family bonus signals.
 
@@ -455,7 +562,8 @@ def extract_abstract_action_credit_bonus(
     result: dict[str, float] = {}
     for family, values in family_credits.items():
         mean_credit = sum(values) / len(values) if values else 0.0
-        result[family] = _clamp(mean_credit * bonus_weight)
+        magnitude_boost = 1.0 + max(0.0, pe_magnitude)
+        result[family] = _clamp(mean_credit * bonus_weight * magnitude_boost)
     return result
 
 
@@ -612,7 +720,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
     slot_name = "credit"
     owner = "CreditModule"
     value_type = CreditSnapshot
-    dependencies = ("dual_track", "evaluation")
+    dependencies = ("dual_track", "evaluation", "prediction_error")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -633,18 +741,23 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[CreditSnapshot]:
         dual_track_snapshot = upstream["dual_track"]
         evaluation_snapshot = upstream["evaluation"]
+        prediction_error_snapshot = upstream["prediction_error"]
         dual_track_value = (
             dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
         )
         evaluation_value = (
             evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         )
+        prediction_error_value = (
+            prediction_error_snapshot.value if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot) else None
+        )
         if dual_track_value is None or evaluation_value is None:
             return self.publish(self._ledger.snapshot())
 
-        credits = derive_credit_records(
+        credits = derive_credit_records_from_prediction_error_first(
             dual_track_snapshot=dual_track_value,
             evaluation_snapshot=evaluation_value,
+            prediction_error_snapshot=prediction_error_value,
             timestamp_ms=max(dual_track_snapshot.timestamp_ms, evaluation_snapshot.timestamp_ms),
         )
         self._ledger.record_credits(credits)
@@ -658,6 +771,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
     async def process_standalone(self, **kwargs: object) -> Snapshot[CreditSnapshot]:
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         evaluation_snapshot = kwargs.get("evaluation_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
         proposals = kwargs.get("proposals", self._pending_proposals)
         if not isinstance(proposals, tuple):
             raise TypeError("proposals must be a tuple when provided.")
@@ -665,9 +779,10 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         if isinstance(dual_track_snapshot, DualTrackSnapshot) and isinstance(
             evaluation_snapshot, EvaluationSnapshot
         ):
-            credits = derive_credit_records(
+            credits = derive_credit_records_from_prediction_error_first(
                 dual_track_snapshot=dual_track_snapshot,
                 evaluation_snapshot=evaluation_snapshot,
+                prediction_error_snapshot=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
                 timestamp_ms=int(kwargs.get("timestamp_ms", 1)),
             )
             self._ledger.record_credits(credits)

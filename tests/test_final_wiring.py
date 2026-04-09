@@ -272,6 +272,25 @@ def test_final_wiring_can_seed_memory_query_from_previous_wave_snapshots():
     assert "repair_controller maintain a calm supportive tone while planning next steps" in retrieved_contents
 
 
+def test_final_wiring_exposes_prediction_error_and_reflection_promotion_fields():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="prediction-model",
+                feature_surface=(FeatureSignal(name="prediction_context", values=(0.6,), source="adapter"),),
+            ),
+            session_id="prediction-session",
+            wave_id="wave-1",
+        )
+    )
+
+    assert result.prediction_error_snapshot is not None
+    assert isinstance(result.reflection_promotion_eligible, bool)
+    assert isinstance(result.reflection_promotion_reason, str)
+    assert "prediction_error" in result.active_snapshots
+
+
 # ---------------------------------------------------------------------------
 # Phase 4 W10.1 — Reflection promotion evaluation
 # ---------------------------------------------------------------------------

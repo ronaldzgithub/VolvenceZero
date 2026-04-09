@@ -15,7 +15,9 @@ def test_render_turn_result_contains_core_fields():
     assert result.wave_id in rendered
     assert "regime:" in rendered
     assert "temporal:" in rendered
+    assert "prediction_error:" in rendered
     assert "rationale:" in rendered
+    assert "time:" not in rendered
 
 
 def test_run_repl_handles_single_turn_and_exit():
@@ -86,6 +88,24 @@ def test_cli_parser_accepts_real_substrate_arguments():
     assert args.substrate_local_files_only is True
     assert args.disable_substrate_fallback is False
     assert args.substrate_fallback_mode == "allow-builtin"
+
+
+def test_cli_parser_accepts_llm_generation_arguments():
+    parser = build_arg_parser()
+
+    args = parser.parse_args(
+        [
+            "--llm",
+            "--max-new-tokens",
+            "128",
+            "--temperature",
+            "0.5",
+        ]
+    )
+
+    assert args.llm is True
+    assert args.max_new_tokens == 128
+    assert abs(args.temperature - 0.5) < 1e-6
 
 
 def test_render_trial_turn_result_contains_kernel_fields():
