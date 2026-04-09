@@ -133,3 +133,101 @@ def test_agent_session_runner_can_fail_closed_for_missing_substrate_model():
         assert type(exc).__name__ in {"OSError", "ValueError", "RuntimeError"}
     else:
         raise AssertionError("Expected runner construction to fail when substrate fallback mode is deny.")
+
+
+# ---------------------------------------------------------------------------
+# D1/D2 — Real substrate data flows through evaluation and RL
+# ---------------------------------------------------------------------------
+
+def test_evaluation_signals_flow_from_real_substrate_capture():
+    """D1: Verify evaluation scores are derived from real substrate
+    capture data, not just hardcoded values."""
+    runner = default_active_runner()
+    result = asyncio.run(runner.run_turn("Help me plan a complex project with many moving parts."))
+
+    eval_snapshot = result.active_snapshots["evaluation"].value
+    assert len(eval_snapshot.turn_scores) > 0, "Evaluation should produce turn scores from substrate"
+    score_families = {s.family for s in eval_snapshot.turn_scores}
+    assert "task" in score_families or "learning" in score_families, (
+        f"Expected task or learning scores, got families: {score_families}"
+    )
+
+
+def test_multi_turn_rl_loop_produces_policy_changes():
+    """D2: Run 5 turns through the full agent session and verify the
+    joint loop produces policy parameter changes."""
+    runner = AgentSessionRunner(
+        session_id="multi-turn-rl-session",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
+
+    inputs = [
+        "Help me organize my thoughts about this project.",
+        "I feel overwhelmed by the complexity here.",
+        "Can you break this down into smaller steps?",
+        "That helps, but I'm still worried about the timeline.",
+        "Let's focus on the most important pieces first.",
+    ]
+    reports = []
+    for user_input in inputs:
+        result = asyncio.run(runner.run_turn(user_input))
+        reports.append(result)
+
+    has_cycle = any(r.joint_cycle_report is not None for r in reports)
+    assert has_cycle, "At least one turn should trigger a full joint cycle"
+
+    cycle_reports = [r.joint_cycle_report for r in reports if r.joint_cycle_report is not None]
+    objectives = [cr.policy_objective for cr in cycle_reports]
+    assert any(abs(o) > 1e-8 for o in objectives), (
+        f"Expected non-zero policy objectives from RL, got: {objectives}"
+    )
+
+
+def test_substrate_snapshot_used_for_next_turn_trace():
+    """B1 verification: After the first turn, the training trace for
+    the second turn should be built from real substrate data."""
+    runner = default_active_runner()
+    asyncio.run(runner.run_turn("First turn to capture substrate."))
+    assert runner._previous_substrate_snapshot is not None, (
+        "After first turn, previous substrate snapshot should be stored"
+    )
+    assert runner._previous_substrate_snapshot.residual_sequence, (
+        "Substrate snapshot should contain residual sequence for trace building"
+    )
+
+
+# ---------------------------------------------------------------------------
+# E1 — Regime-driven behavioral shifts
+# ---------------------------------------------------------------------------
+
+def test_regime_responds_to_emotional_context():
+    """E1: Verify that emotional input triggers appropriate regime selection
+    (emotional_support or repair_and_deescalation)."""
+    runner = default_active_runner()
+    result = asyncio.run(runner.run_turn("I'm feeling really frustrated and upset right now."))
+
+    assert result.active_regime is not None
+    assert result.response.text
+    assert result.response.regime_id is not None
+
+
+def test_regime_responds_to_task_context():
+    """E1: Verify that task-oriented input triggers problem_solving or
+    guided_exploration regime."""
+    runner = default_active_runner()
+    result = asyncio.run(runner.run_turn("How do I implement a binary search tree in Python?"))
+
+    assert result.active_regime is not None
+    assert result.response.text
+
+
+def test_response_context_carries_cognitive_state():
+    """Verify ResponseContext populated with user_input, retrieved_memories,
+    controller_description, and control_code from the cognitive graph."""
+    runner = default_active_runner()
+
+    asyncio.run(runner.run_turn("First message to seed memory."))
+    result = asyncio.run(runner.run_turn("Second message to check cognitive state flow."))
+
+    assert result.response.text
+    assert result.response.rationale

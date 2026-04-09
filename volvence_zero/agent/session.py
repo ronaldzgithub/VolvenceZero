@@ -260,8 +260,13 @@ class AgentSessionRunner:
                 entry.content for entry in memory_snapshot.value.retrieved_entries[:5]
             )
         controller_description = ""
+        control_code: tuple[float, ...] = ()
         if metacontroller_state is not None:
             controller_description = metacontroller_state.description
+        if temporal_snapshot is not None and isinstance(
+            temporal_snapshot.value, TemporalAbstractionSnapshot
+        ):
+            control_code = temporal_snapshot.value.controller_state.code
 
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
@@ -287,6 +292,7 @@ class AgentSessionRunner:
                 user_input=user_input,
                 retrieved_memories=retrieved_memories,
                 controller_description=controller_description,
+                control_code=control_code,
             )
         )
 

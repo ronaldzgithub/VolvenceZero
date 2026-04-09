@@ -30,6 +30,7 @@ class ResponseContext:
     user_input: str = ""
     retrieved_memories: tuple[str, ...] = ()
     controller_description: str = ""
+    control_code: tuple[float, ...] = ()
 
 
 class ResponseSynthesizer:
@@ -210,8 +211,8 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         if not user_input:
             return super().synthesize(context=context)
 
-        control_params: tuple[float, ...] = ()
-        control_scale = 0.0
+        control_params = context.control_code
+        control_scale = context.temporal_switch_gate * 0.15 if control_params else 0.0
 
         result = self._runtime.generate(
             prompt=user_input,
