@@ -94,13 +94,14 @@
 
 ### 6. 信用分配与自修改
 
-**对应需求**：R9（层级信用分配）、R10（有门控的分层自修改）
+**对应需求**：R-PE（prediction error 为原始学习信号）、R9（层级信用分配）、R10（有门控的分层自修改）
 
 | Spec | 内容 |
 |------|------|
-| [credit-and-self-modification.md](./credit-and-self-modification.md) | 层级信用分配、语义化奖励记录、门控自修改规则 |
+| [credit-and-self-modification.md](./credit-and-self-modification.md) | prediction error 派生的层级信用分配、语义化奖励记录、门控自修改规则 |
 
 **核心不变量**：
+- prediction error / LSS 是所有信用的源头，信用是其聚合层
 - 稀疏奖励是常态，不是边缘情况
 - 自修改有门控：在线/后台/离线/人工审核分层
 - 实时运行期间不可无限制突变基础模型

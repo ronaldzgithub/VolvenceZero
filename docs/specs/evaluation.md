@@ -10,6 +10,7 @@
 
 ## 关键不变量
 
+- **评估是 prediction error 的可读层**：评估分数是对预测误差的结构化 readout，不是学习信号的源头（R-PE）
 - 评估不仅衡量有用性，还衡量连续性、稳定性、信任和长期适应
 - 评估信号应回馈到学习循环（不只是离线报告）
 - 评估按轨道分别衡量（R7 双轨隔离）
@@ -92,6 +93,7 @@
 
 ## 变更日志
 
+- 2026-04-09: next_gen_emogpt v2: evaluation repositioned as readout of prediction error (R-PE), not the source of learning; acceptance questions now test for explicit prediction error exposure, dual-track error trajectories, and latent control
 - 2026-04-09: U04 reflection_accuracy injection: `run_final_wiring_turn()` now writes `ReflectionEngine.proposal_success_rate` into `EvaluationSnapshot.reflection_accuracy` field. New `reflection_promotion_eligible()` function evaluates SHADOW→ACTIVE readiness (requires accuracy >= 0.6 and >= 5 proposal outcomes). `LongitudinalReport` and cross-session benchmark suite verified end-to-end.
 - 2026-04-06: P13 evaluation feedback loop: EvaluationBackbone.family_signals returns structured per-family signals (F1-F6); joint loop uses family signals for rollback decisions and SSL learning rate modulation; InternalRLEnvironment accepts evaluation signals for reward shaping
 - 2026-04-08: session report 新增长期 trend；fallback / rollback / delayed attribution 进入 first-class evidence；新增 fixed replay suite gate

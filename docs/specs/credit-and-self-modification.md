@@ -1,8 +1,8 @@
 # 信用分配与自修改 Spec
 
 > Status: draft
-> Last updated: 2026-04-06
-> 对应需求: R9, R10
+> Last updated: 2026-04-09
+> 对应需求: R-PE, R9, R10
 
 ## 要解决的问题
 
@@ -10,6 +10,7 @@
 
 ## 关键不变量
 
+- **Prediction error / LSS 是信用的源头**：所有信用记录派生自 prediction error，而非外加标签（R-PE）
 - 稀疏奖励是常态，不是边缘情况
 - 自修改有门控：在线/后台/离线/人工审核分层
 - 实时运行期间不可无限制突变基础模型
@@ -102,6 +103,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 ## 变更日志
 
+- 2026-04-09: next_gen_emogpt v2: R-PE (prediction error as primitive learning signal) added; credit repositioned as aggregation layer downstream of prediction error, not the source of learning itself
 - 2026-04-09: U04 N-step attribution and rolling payoff verification: CreditLedger N-step ledger (`record_nstep_outcome`, `compute_nstep_return`, `rolling_payoff_by_family`/`_by_regime`) verified end-to-end. Horizon depth controls outcome window. FIFO eviction at max_ledger_entries. Rolling payoff differentiates good/bad families after 20 cycles. Credit reward shaping (`extract_abstract_action_credit_bonus`) confirmed to affect RL environment reward via joint loop integration.
 - 2026-04-06: P12 hierarchical credit with temporal discount: CreditLedger tracks session-level credits with configurable gamma; CreditSnapshot gains session_level_credits and discount_factor; aggregate_session_credits computes discounted sums; reflection consolidation score uses session-level credit bonus
 - 2026-04-06: 补充 retrieval / reflection / joint-loop learning evidence 进入 shared credit 的当前实现口径
