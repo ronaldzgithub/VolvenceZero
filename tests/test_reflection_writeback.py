@@ -654,3 +654,79 @@ def test_structural_proposal_has_scope_and_evidence():
     )
     assert default_proposal.scope == "single_family"
     assert default_proposal.evidence is None
+
+
+def test_reflection_pe_driven_strategy_direction():
+    from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
+    from volvence_zero.dual_track import DualTrackSnapshot, TrackState
+
+    pe = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.7, 0.7, 0.7, 0.7, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.8, 0.6, 0.5, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.5, "next"),
+        error=PredictionError(-0.5, 0.1, -0.1, -0.2, 0.9, -0.175, "task much worse"),
+        turn_index=1,
+        bootstrap=False,
+        description="task worse",
+    )
+    reflection = ReflectionModule(wiring_level=WiringLevel.ACTIVE)
+    snapshot = asyncio.run(
+        reflection.process_standalone(
+            prediction_error_snapshot=pe,
+            timestamp_ms=30,
+        )
+    ).value
+    assert any(
+        "world_track" in update or "task" in update.lower()
+        for update in snapshot.policy_consolidation.strategy_priors_updated
+    ) or any(
+        "task" in lesson.lower()
+        for lesson in snapshot.lessons_extracted
+    )
+
+
+def test_reflection_pe_driven_memory_consolidation():
+    from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
+
+    pe = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.8, 0.8, 0.7, 0.7, 0.8, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.3, 0.5, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.5, "next"),
+        error=PredictionError(-0.6, -0.5, -0.2, -0.4, 1.7, -0.425, "large negative errors"),
+        turn_index=1,
+        bootstrap=False,
+        description="large negative PE",
+    )
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(content="task plan A", track=Track.WORLD, stratum=MemoryStratum.EPISODIC, strength=0.8),
+        timestamp_ms=1,
+    )
+    store.write(
+        MemoryWriteRequest(content="relationship note B", track=Track.SELF, stratum=MemoryStratum.EPISODIC, strength=0.3),
+        timestamp_ms=2,
+    )
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="check memory consolidation with PE",
+            timestamp_ms=10,
+        )
+    ).value
+    engine = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY)
+    snapshot = engine.reflect(
+        timestamp_ms=20,
+        memory_snapshot=memory_snapshot,
+        dual_track_snapshot=None,
+        evaluation_snapshot=None,
+        credit_snapshot=None,
+        prediction_error_snapshot=pe,
+    )
+    assert snapshot.error_driven_lesson_count >= 1
+    assert snapshot.primary_prediction_error_dimension is not None
+
+
+def test_evaluation_backbone_docstring_labels_readout():
+    from volvence_zero.evaluation import EvaluationBackbone
+
+    assert "readout" in EvaluationBackbone.__doc__.lower() or "observability" in EvaluationBackbone.__doc__.lower()
+    assert "NOT" in EvaluationBackbone.__doc__ or "not the primary" in EvaluationBackbone.__doc__.lower()

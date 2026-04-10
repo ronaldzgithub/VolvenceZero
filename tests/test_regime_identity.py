@@ -723,3 +723,51 @@ def test_regime_changed_flag_on_switch():
     assert hasattr(snapshot2, "selection_weights")
     if snapshot2.selection_weights is not None:
         assert len(snapshot2.selection_weights.weights) > 0
+
+
+def test_regime_effectiveness_uses_prediction_error_when_available():
+    from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
+
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+    asyncio.run(module.process_standalone())
+
+    pe_positive = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.5, 0.5, 0.5, 0.5, 0.5, "pred"),
+        actual_outcome=ActualOutcome(1, 0.7, 0.7, 0.7, 0.7, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.6, 0.6, 0.6, 0.6, 0.6, "next"),
+        error=PredictionError(0.2, 0.2, 0.2, 0.2, 0.8, 0.2, "positive PE"),
+        turn_index=1,
+        bootstrap=False,
+        description="positive PE",
+    )
+    before = dict(module._historical_effectiveness)
+    module._update_historical_effectiveness(None, prediction_error_snapshot=pe_positive)
+    after = dict(module._historical_effectiveness)
+    active_id = module._active_regime_id
+    assert active_id is not None
+    assert after[active_id] > before[active_id], (
+        f"Positive PE should increase effectiveness: before={before[active_id]:.4f} after={after[active_id]:.4f}"
+    )
+
+
+def test_regime_turn_score_uses_prediction_error_when_available():
+    from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
+
+    module = RegimeModule(attribution_horizons=(1,), wiring_level=WiringLevel.ACTIVE)
+    asyncio.run(module.process_standalone())
+    initial_count = len(module._turn_evaluation_scores)
+
+    pe = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.5, 0.5, 0.5, 0.5, 0.5, "pred"),
+        actual_outcome=ActualOutcome(1, 0.3, 0.3, 0.3, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.4, 0.4, 0.4, 0.4, 0.4, "next"),
+        error=PredictionError(-0.2, -0.2, -0.2, -0.2, 0.8, -0.2, "negative PE"),
+        turn_index=1,
+        bootstrap=False,
+        description="negative PE",
+    )
+    module._record_turn_score(None, prediction_error_snapshot=pe)
+    assert len(module._turn_evaluation_scores) == initial_count + 1
+    assert module._turn_evaluation_scores[-1] < 0.5, (
+        f"Negative PE should produce below-baseline turn score: {module._turn_evaluation_scores[-1]:.4f}"
+    )

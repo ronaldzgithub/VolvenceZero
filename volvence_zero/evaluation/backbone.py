@@ -374,7 +374,15 @@ def _report_trend(
 
 
 class EvaluationBackbone:
-    """Minimal turn/session evaluator with evidence and alerts."""
+    """Observability readout layer for the cognitive loop.
+
+    This backbone produces evaluation scores for **monitoring, alerting,
+    and evidence** purposes.  It is NOT the primary learning signal source.
+    The primary learning signal is prediction error (R-PE), produced by
+    ``PredictionErrorModule``.  Scores from this backbone are consumed by
+    the PE module as **inputs to prediction construction**, and by credit
+    as **lightweight readout evidence** — not as direct reward.
+    """
 
     def __init__(self) -> None:
         self._records: list[EvaluationRecord] = []
@@ -422,7 +430,12 @@ class EvaluationBackbone:
         )
 
     def family_signals(self, evaluation_snapshot: EvaluationSnapshot) -> dict[str, float]:
-        """Extract per-family average signal from an evaluation snapshot.
+        """Extract per-family average readout signal from an evaluation snapshot.
+
+        These signals are **readouts**, not primary learning signals.
+        They are consumed by ``PredictionErrorModule`` for constructing
+        predicted outcomes and by the joint loop for rollback gating.
+        The actual learning primitive is prediction error (R-PE).
 
         Returns signals for 6 families: task, interaction, relationship,
         learning, abstraction, safety.
@@ -1081,6 +1094,12 @@ class EvaluationBackbone:
         memory_snapshot: MemorySnapshot | None,
         dual_track_snapshot: DualTrackSnapshot | None,
     ) -> tuple[EvaluationScore, ...]:
+        """Build per-turn observability readout scores.
+
+        These scores measure what is happening in the current turn for
+        **monitoring and evidence** purposes.  They are NOT reward signals.
+        The primary learning signal is prediction error (R-PE).
+        """
         memory_count = len(memory_snapshot.retrieved_entries) if memory_snapshot else 0
         cross_tension = dual_track_snapshot.cross_track_tension if dual_track_snapshot else 0.0
         relationship_stability = _clamp(1.0 - cross_tension)
@@ -1253,6 +1272,11 @@ class EvaluationBackbone:
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None",
     ) -> tuple[EvaluationScore, ...]:
+        """Build readout evidence scores for the learning loop.
+
+        These are descriptive observations, not primary learning signals.
+        The actual learning driver is prediction error (R-PE).
+        """
         from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
         from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
 

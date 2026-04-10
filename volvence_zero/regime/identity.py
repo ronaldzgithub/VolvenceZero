@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Mapping
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:
@@ -459,7 +460,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
     slot_name = "regime"
     owner = "RegimeModule"
     value_type = RegimeSnapshot
-    dependencies = ("memory", "dual_track", "evaluation")
+    dependencies = ("memory", "dual_track", "evaluation", "prediction_error")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -500,20 +501,26 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         memory_snapshot = upstream["memory"]
         dual_track_snapshot = upstream["dual_track"]
         evaluation_snapshot = upstream["evaluation"]
+        prediction_error_snapshot = upstream["prediction_error"]
 
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
         evaluation_value = (
             evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         )
+        pe_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
 
         self._turn_index += 1
-        self._record_turn_score(evaluation_value)
+        self._record_turn_score(evaluation_value, prediction_error_snapshot=pe_value)
         delayed_attributions = self._apply_delayed_outcomes(evaluation_value)
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
-        self._update_historical_effectiveness(evaluation_value)
+        self._update_historical_effectiveness(evaluation_value, prediction_error_snapshot=pe_value)
         previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_value,
@@ -661,13 +668,23 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             trends.append((regime_id, round(slope, 4)))
         return tuple(sorted(trends))
 
-    def _update_historical_effectiveness(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
-        if evaluation_snapshot is None or self._active_regime_id is None:
+    def _update_historical_effectiveness(
+        self,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        *,
+        prediction_error_snapshot: PredictionErrorSnapshot | None = None,
+    ) -> None:
+        if self._active_regime_id is None:
             return
-        relationship_score = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
-        warmth_score = _metric(evaluation_snapshot, "warmth", default=0.5)
-        task_score = _metric(evaluation_snapshot, "info_integration", default=0.5)
-        blended = _clamp((relationship_score + warmth_score + task_score) / 3.0)
+        if prediction_error_snapshot is not None:
+            blended = _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
+        elif evaluation_snapshot is not None:
+            relationship_score = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
+            warmth_score = _metric(evaluation_snapshot, "warmth", default=0.5)
+            task_score = _metric(evaluation_snapshot, "info_integration", default=0.5)
+            blended = _clamp((relationship_score + warmth_score + task_score) / 3.0)
+        else:
+            return
         current = self._historical_effectiveness[self._active_regime_id]
         self._historical_effectiveness[self._active_regime_id] = round(current * 0.7 + blended * 0.3, 4)
         self._effectiveness_history.setdefault(self._active_regime_id, []).append(
@@ -678,7 +695,17 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                 self._effectiveness_history[self._active_regime_id][-20:]
             )
 
-    def _record_turn_score(self, evaluation_snapshot: EvaluationSnapshot | None) -> None:
+    def _record_turn_score(
+        self,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        *,
+        prediction_error_snapshot: PredictionErrorSnapshot | None = None,
+    ) -> None:
+        if prediction_error_snapshot is not None:
+            self._turn_evaluation_scores.append(
+                _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
+            )
+            return
         if evaluation_snapshot is None:
             self._turn_evaluation_scores.append(0.5)
             return

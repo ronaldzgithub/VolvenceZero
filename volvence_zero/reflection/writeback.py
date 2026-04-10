@@ -312,6 +312,7 @@ class ReflectionEngine:
             credit_snapshot=credit_snapshot,
             consolidation_score=consolidation_score,
             regime_snapshot=regime_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
         )
         policy_consolidation = self._policy_consolidation(
             dual_track_snapshot=dual_track_snapshot,
@@ -319,6 +320,7 @@ class ReflectionEngine:
             credit_snapshot=credit_snapshot,
             regime_snapshot=regime_snapshot,
             consolidation_score=consolidation_score,
+            prediction_error_snapshot=prediction_error_snapshot,
         )
         pe_tensions = _prediction_error_tensions(prediction_error_snapshot)
         tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot) + pe_tensions
@@ -456,6 +458,7 @@ class ReflectionEngine:
         credit_snapshot: CreditSnapshot | None,
         consolidation_score: ConsolidationScore,
         regime_snapshot: RegimeSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None = None,
     ) -> MemoryConsolidation:
         if memory_snapshot is None:
             return MemoryConsolidation((), (), (), ())
@@ -506,6 +509,22 @@ class ReflectionEngine:
                     )
                 for regime_id, score in regime_snapshot.delayed_outcomes:
                     beliefs_updated.append(f"delayed_regime:{regime_id}:{score:.2f}")
+        if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap:
+            pe = prediction_error_snapshot.error
+            if pe.relationship_error < -0.15:
+                for entry in memory_snapshot.retrieved_entries:
+                    if entry.track is Track.SELF and entry.strength < 0.5 and entry.entry_id not in decayed_entries:
+                        decayed_entries.append(entry.entry_id)
+                        break
+            if pe.task_error < -0.15:
+                for entry in memory_snapshot.retrieved_entries[:promotion_limit]:
+                    if (
+                        entry.track is Track.WORLD
+                        and entry.stratum != MemoryStratum.DURABLE.value
+                        and entry.entry_id not in promoted_entries
+                    ):
+                        promoted_entries.append(entry.entry_id)
+                        break
         return MemoryConsolidation(
             new_durable_entries=tuple(new_durable_entries),
             promoted_entries=tuple(promoted_entries),
@@ -521,6 +540,7 @@ class ReflectionEngine:
         credit_snapshot: CreditSnapshot | None,
         regime_snapshot: RegimeSnapshot | None,
         consolidation_score: ConsolidationScore,
+        prediction_error_snapshot: PredictionErrorSnapshot | None = None,
     ) -> PolicyConsolidation:
         controller_updates: list[str] = []
         strategy_priors_updated: list[str] = []
@@ -553,7 +573,13 @@ class ReflectionEngine:
             support_presence = _metric(evaluation_snapshot, "support_presence", default=self_tension)
             if dual_track_snapshot.cross_track_tension > 0.5:
                 controller_updates.append("reduce_cross_track_tension_before_widening_scope")
-            if support_presence > task_pressure + 0.08 and consolidation_score.strategy_gain >= 0.03:
+            if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap:
+                pe = prediction_error_snapshot.error
+                if pe.relationship_error < pe.task_error - 0.05 and consolidation_score.strategy_gain >= 0.03:
+                    strategy_priors_updated.append("increase_self_track_priority")
+                elif pe.task_error < pe.relationship_error - 0.05 and consolidation_score.strategy_gain >= 0.03:
+                    strategy_priors_updated.append("increase_world_track_priority")
+            elif support_presence > task_pressure + 0.08 and consolidation_score.strategy_gain >= 0.03:
                 strategy_priors_updated.append("increase_self_track_priority")
             elif task_pressure > support_presence + 0.08 and consolidation_score.strategy_gain >= 0.03:
                 strategy_priors_updated.append("increase_world_track_priority")
@@ -565,7 +591,11 @@ class ReflectionEngine:
             elif dual_track_snapshot.world_track.tension_level > 0 and consolidation_score.strategy_gain >= 0.03:
                 strategy_priors_updated.append("increase_world_track_priority")
 
-        if evaluation_snapshot is not None:
+        if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap and regime_snapshot is not None:
+            regime_effectiveness_updated.append(
+                (regime_snapshot.active_regime.regime_id, _clamp(0.5 + prediction_error_snapshot.error.regime_error))
+            )
+        elif evaluation_snapshot is not None:
             for score in evaluation_snapshot.session_scores[:4]:
                 if regime_snapshot is not None and score.family in {"relationship", "task"}:
                     regime_effectiveness_updated.append(
