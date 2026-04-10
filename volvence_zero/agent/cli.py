@@ -30,6 +30,12 @@ def render_turn_result(result: AgentTurnResult) -> str:
         lines.append(f"  issues: {', '.join(result.acceptance_issues)}")
     if result.reflection_promotion_eligible:
         lines.append(f"  reflection_promotion: eligible ({result.reflection_promotion_reason})")
+    if result.imagination_result is not None:
+        lines.append(
+            f"  imagination: {result.imagination_result.selected_trajectory.candidate_id} "
+            f"reward={result.imagination_result.selected_trajectory.cumulative_reward:.2f} "
+            f"({len(result.imagination_result.trajectories)} candidates)"
+        )
     lines.append(f"  rationale: {result.response.rationale}")
     return "\n".join(lines)
 

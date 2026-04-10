@@ -14,6 +14,7 @@ from volvence_zero.integration import (
 )
 from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport, JointLoopSchedule, ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot, MemoryStore
+from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction import ActualOutcome, PredictedOutcome, PredictionError, PredictionErrorModule
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
@@ -65,6 +66,7 @@ class AgentTurnResult:
     event_count: int
     reflection_promotion_eligible: bool = False
     reflection_promotion_reason: str = ""
+    imagination_result: ImaginationResult | None = None
 
 
 class AgentSessionRunner:
@@ -124,6 +126,7 @@ class AgentSessionRunner:
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
         self._previous_prediction_reward: float = 0.0
+        self._recommended_z: tuple[float, ...] | None = None
 
     @property
     def session_id(self) -> str:
@@ -172,11 +175,17 @@ class AgentSessionRunner:
             self._previous_substrate_snapshot = substrate_snap.value
         if integration_result.prediction_error_snapshot is not None:
             self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
+        imagination_result = self._run_imagination(integration_result)
+        if imagination_result is not None:
+            self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
+        else:
+            self._recommended_z = None
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
             integration_result=integration_result,
             joint_result=joint_result,
+            imagination_result=imagination_result,
         )
 
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:
@@ -222,6 +231,7 @@ class AgentSessionRunner:
         wave_id: str,
         integration_result: FinalIntegrationResult,
         joint_result: ScheduledJointLoopResult,
+        imagination_result: ImaginationResult | None = None,
     ) -> AgentTurnResult:
         active_regime = None
         regime_snapshot = integration_result.active_snapshots.get("regime") or integration_result.shadow_snapshots.get(
@@ -358,6 +368,54 @@ class AgentSessionRunner:
             event_count=integration_result.event_count,
             reflection_promotion_eligible=integration_result.reflection_promotion_eligible,
             reflection_promotion_reason=integration_result.reflection_promotion_reason,
+            imagination_result=imagination_result,
+        )
+
+    def _run_imagination(self, integration_result: FinalIntegrationResult) -> ImaginationResult | None:
+        evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
+        dual_track_snapshot = integration_result.active_snapshots.get("dual_track")
+        regime_snapshot = integration_result.active_snapshots.get("regime")
+        if (
+            evaluation_snapshot is None
+            or not isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+            or dual_track_snapshot is None
+        ):
+            return None
+        from volvence_zero.dual_track import DualTrackSnapshot as DTS
+
+        if not isinstance(dual_track_snapshot.value, DTS):
+            return None
+        regime_value = (
+            regime_snapshot.value
+            if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
+            else None
+        )
+        metacontroller_state = integration_result.temporal_runtime_state
+        prior_mean: tuple[float, ...] = (0.5, 0.5, 0.5)
+        prior_std: tuple[float, ...] = (0.1, 0.1, 0.1)
+        action_family_centroids: tuple[tuple[str, tuple[float, ...]], ...] = ()
+        if metacontroller_state is not None:
+            prior_mean = metacontroller_state.prior_mean or prior_mean
+            prior_std = metacontroller_state.prior_std or prior_std
+            action_family_centroids = tuple(
+                (summary.family_id, (summary.stability, summary.switch_bias, summary.competition_score))
+                for summary in metacontroller_state.action_family_summaries
+                if summary.support >= 2
+            )
+        previous_prediction = (
+            integration_result.prediction_error_snapshot.next_prediction
+            if integration_result.prediction_error_snapshot is not None
+            else None
+        )
+        return imagine(
+            current_substrate=self._previous_substrate_snapshot,
+            current_evaluation=evaluation_snapshot.value,
+            current_dual_track=dual_track_snapshot.value,
+            current_regime=regime_value,
+            previous_prediction=previous_prediction,
+            action_family_centroids=action_family_centroids,
+            prior_mean=prior_mean,
+            prior_std=prior_std,
         )
 
 
