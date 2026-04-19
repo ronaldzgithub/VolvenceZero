@@ -9,7 +9,8 @@ from volvence_zero.agent import (
     run_multi_path_benchmark,
     run_substrate_path_benchmark,
 )
-from volvence_zero.joint_loop import JointLoopSchedule
+from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
+from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
@@ -241,6 +242,44 @@ def test_multi_turn_rl_loop_produces_policy_changes():
     )
 
 
+def test_agent_session_runner_executes_rare_heavy_import_when_high_pe_persists():
+    runner = AgentSessionRunner(
+        session_id="rare-heavy-session",
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+        rare_heavy_trace_window=2,
+        rare_heavy_min_traces=2,
+        rare_heavy_cooldown_turns=0,
+        rare_heavy_pipeline_config=PipelineConfig(
+            n_z=3,
+            ssl_min_steps=1,
+            ssl_max_steps=1,
+            rl_max_steps=1,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("Seed the first trace for rare-heavy review."))
+    runner._previous_prediction_reward = -0.7
+    runner._previous_prediction_magnitude = 1.35
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.9,
+        relationship_error=0.6,
+        regime_error=0.4,
+        action_error=0.8,
+        magnitude=1.35,
+        signed_reward=-0.7,
+        description="Persistent high prediction error should trigger rare-heavy import.",
+    )
+
+    result = asyncio.run(runner.run_turn("Continue after the high-error turn."))
+
+    assert result.rare_heavy_result is not None
+    assert result.rare_heavy_result.recommended is True
+    assert result.rare_heavy_result.applied is True
+    assert result.rare_heavy_result.artifact_id is not None
+    assert "rare-heavy:temporal-import" in result.rare_heavy_result.applied_operations
+    assert result.joint_schedule_action == "full-cycle-pe"
+
+
 def test_substrate_snapshot_used_for_next_turn_trace():
     """B1 verification: After the first turn, the training trace for
     the second turn should be built from real substrate data."""
@@ -252,6 +291,33 @@ def test_substrate_snapshot_used_for_next_turn_trace():
     assert runner._previous_substrate_snapshot.residual_sequence, (
         "Substrate snapshot should contain residual sequence for trace building"
     )
+
+
+def test_pe_scheduled_session_turns_still_emit_learning_scores():
+    runner = AgentSessionRunner(
+        session_id="pe-scheduled-session",
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+    )
+    runner._previous_prediction_reward = -0.5
+    runner._previous_prediction_magnitude = 0.8
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.5,
+        relationship_error=0.3,
+        regime_error=0.2,
+        action_error=0.4,
+        magnitude=0.8,
+        signed_reward=-0.5,
+        description="PE-scheduled full cycle.",
+    )
+
+    result = asyncio.run(runner.run_turn("Use the PE-scheduled path."))
+    scores = {
+        score.metric_name: score.value
+        for score in result.active_snapshots["evaluation"].value.turn_scores
+    }
+
+    assert result.joint_schedule_action == "full-cycle-pe"
+    assert "joint_learning_progress" in scores
 
 
 # ---------------------------------------------------------------------------

@@ -1472,7 +1472,7 @@ class EvaluationBackbone:
                     f"Derived from action={schedule_action}, mean_transition_reward={cycle_report.mean_transition_reward:.3f}, "
                     f"total_reward={cycle_report.total_reward:.3f}, policy_objective={cycle_report.policy_objective:.3f}."
                 )
-            elif schedule_action == "ssl-only":
+            elif schedule_action in {"ssl-only", "ssl-only-pe"}:
                 joint_progress = _clamp(
                     0.65
                     - min(joint_loop_result.ssl_prediction_loss * 0.08, 0.2)

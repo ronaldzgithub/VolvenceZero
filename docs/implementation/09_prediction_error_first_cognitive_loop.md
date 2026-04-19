@@ -98,6 +98,24 @@
 - 根据 task / relationship / regime / action 的主导误差维度调整 promotion threshold
 - 把 prediction error 维度纳入 retrieval query facets
 
+### 8. Joint Loop 已接入 PE scheduling
+
+`volvence_zero.joint_loop.runtime` 中：
+
+- `JointLoopSchedule` 新增 `pe_full_cycle_threshold` / `pe_ssl_threshold` / `pe_rare_heavy_threshold`
+- `run_scheduled_step()` 会优先根据 prediction error 决定 `full-cycle-pe` / `ssl-only-pe`
+- `schedule_telemetry` 会显式发布 `pe_full_cycle_due` / `pe_ssl_due` / `pe_rare_heavy_due`
+- `JointCycleReport` 与 `ScheduledJointLoopResult` 会显式标记 `rare_heavy_review_recommended`
+
+### 9. Session owner 已接入 bounded rare-heavy execution
+
+`volvence_zero.agent.session` 中：
+
+- `AgentSessionRunner` 会维护最近 trace window，并在高 PE 持续时触发 bounded rare-heavy review
+- rare-heavy offline owner 使用克隆出的 temporal snapshot / memory checkpoint 跑 `SSLRLTrainingPipeline`
+- 当 offline pipeline 至少完成 1 个 RL step 时，session owner 会通过 `apply_rare_heavy_artifact()` 把 artifact 导回 online owner
+- import 仍严格经过 owner-side surface，不直接越权改 online temporal / memory 内部状态
+
 ## 主链结构
 
 ```mermaid
@@ -124,6 +142,11 @@ flowchart TD
   - `test_final_wiring_exposes_prediction_error_and_reflection_promotion_fields`
   - `test_memory_store_applies_prediction_error_signal`
   - `test_memory_module_consumes_prediction_error_snapshot`
+- `test_eta_nl_joint_loop_pe_schedules_full_cycle`
+- `test_eta_nl_joint_loop_pe_schedules_ssl_only`
+- `test_eta_nl_joint_loop_flags_rare_heavy_review_on_high_pe`
+- `test_agent_session_runner_executes_rare_heavy_import_when_high_pe_persists`
+- `test_pe_scheduled_session_turns_still_emit_learning_scores`
 
 ## 当前状态判断
 
@@ -134,13 +157,14 @@ flowchart TD
 推进到：
 
 - “prediction error 已进入主链，并成为 credit / evaluation / reflection / regime / temporal / memory 的显式一级驱动”
+- “prediction error 已进入主链，并开始直接驱动 joint_loop 的训练日程选择，以及 session owner 上的 bounded rare-heavy import 闭环”
 
 ## 仍未完成的部分
 
 虽然主通路已经接上，但还未完全达到最终目标：
 
 1. `PredictionErrorModule` 仍依赖 base evaluation / dual-track / regime 作为输入，而不是更强的世界模型层
-2. `joint_loop` 还没有完全围绕 PE 做训练日程编排，只是通过 `prediction_error_reward` 接入外部信号
+2. rare-heavy 已接上 bounded offline import，但还没有进一步扩展成更强的 replay ranking / artifact acceptance benchmark / multi-artifact selection
 3. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度
 ## 相关文件
 

@@ -94,6 +94,7 @@ rare-heavy (定期离线):
 - 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
 - 当前 rare-heavy v0 已补充离线路径：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 可导出 controller/memory artifact，由 runtime owner 通过显式 import/rollback surface 应用；完整 base-model 级干预仍属于后续增强
+- 当前 `AgentSessionRunner` 已补充 bounded rare-heavy execution 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 克隆 offline temporal/memory state，运行轻量 `SSLRLTrainingPipeline`，并仅在 offline RL 至少执行 1 步后通过 owner-side import surface 回写 online owner
 
 ## 与其他能力域的关系
 

@@ -73,9 +73,9 @@ class ResponseSynthesizer:
         transition_hint = ""
         if context.temporal_is_switching or context.temporal_switch_gate >= 0.65:
             transition_hint = " I am deliberately shifting the internal control path rather than answering on autopilot."
-        elif context.joint_schedule_action == "ssl-only":
+        elif context.joint_schedule_action in {"ssl-only", "ssl-only-pe"}:
             transition_hint = " I am keeping the current frame stable long enough to consolidate it before widening."
-        elif context.joint_schedule_action == "full-cycle":
+        elif context.joint_schedule_action in {"full-cycle", "full-cycle-pe"}:
             transition_hint = " I have already run a deeper internal cycle, so I can shape this reply more deliberately."
 
         regime_shift_hint = ""

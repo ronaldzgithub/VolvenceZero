@@ -279,6 +279,87 @@ def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
     assert dict(full_cycle.schedule_telemetry)["rl_due"] == 1
 
 
+def test_eta_nl_joint_loop_pe_schedules_full_cycle():
+    loop = ETANLJointLoop()
+    loop.set_external_learning_signals(
+        {
+            "prediction_error_magnitude": 0.8,
+            "prediction_error_reward": -0.4,
+        }
+    )
+    trace = build_training_trace(trace_id="pe-full-cycle-trace", source_text="repair then continue carefully")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+        )
+    )
+
+    assert result.schedule_action == "full-cycle-pe"
+    assert result.cycle_report is not None
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["pe_full_cycle_due"] == 1
+
+
+def test_eta_nl_joint_loop_pe_schedules_ssl_only():
+    loop = ETANLJointLoop()
+    loop.set_external_learning_signals(
+        {
+            "prediction_error_magnitude": 0.25,
+            "prediction_error_reward": 0.0,
+        }
+    )
+    trace = build_training_trace(trace_id="pe-ssl-trace", source_text="steady careful adjustment")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(
+                ssl_interval=99,
+                rl_interval=99,
+                pe_full_cycle_threshold=0.6,
+                pe_ssl_threshold=0.18,
+            ),
+        )
+    )
+
+    assert result.schedule_action == "ssl-only-pe"
+    assert result.cycle_report is None
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["pe_ssl_due"] == 1
+
+
+def test_eta_nl_joint_loop_flags_rare_heavy_review_on_high_pe():
+    loop = ETANLJointLoop()
+    loop.set_external_learning_signals(
+        {
+            "prediction_error_magnitude": 1.3,
+            "prediction_error_reward": -0.5,
+        }
+    )
+    trace = build_training_trace(trace_id="pe-rare-heavy-trace", source_text="persistent failure pattern")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(
+                ssl_interval=99,
+                rl_interval=99,
+                pe_full_cycle_threshold=0.6,
+                pe_rare_heavy_threshold=1.2,
+            ),
+        )
+    )
+
+    assert result.rare_heavy_review_recommended is True
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["pe_rare_heavy_due"] == 1
+
+
 def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     pipeline = SSLRLTrainingPipeline(
         config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)

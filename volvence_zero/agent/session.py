@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
@@ -12,8 +12,15 @@ from volvence_zero.integration import (
     FinalRolloutConfig,
     run_final_wiring_turn,
 )
-from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport, JointLoopSchedule, ScheduledJointLoopResult
-from volvence_zero.memory import MemorySnapshot, MemoryStore
+from volvence_zero.joint_loop import (
+    ETANLJointLoop,
+    JointCycleReport,
+    JointLoopSchedule,
+    PipelineConfig,
+    SSLRLTrainingPipeline,
+    ScheduledJointLoopResult,
+)
+from volvence_zero.memory import CMSMemoryCore, MemorySnapshot, MemoryStore
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction import ActualOutcome, PredictedOutcome, PredictionError, PredictionErrorModule
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
@@ -33,6 +40,7 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
+    MetacontrollerParameterStore,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalPolicy,
@@ -73,6 +81,16 @@ class AgentTurnResult:
     reflection_promotion_eligible: bool = False
     reflection_promotion_reason: str = ""
     imagination_result: ImaginationResult | None = None
+    rare_heavy_result: RareHeavyTurnResult | None = None
+
+
+@dataclass(frozen=True)
+class RareHeavyTurnResult:
+    recommended: bool
+    applied: bool
+    artifact_id: str | None
+    applied_operations: tuple[str, ...]
+    description: str
 
 
 @dataclass(frozen=True)
@@ -139,6 +157,11 @@ class AgentSessionRunner:
         substrate_runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
+        rare_heavy_enabled: bool = True,
+        rare_heavy_trace_window: int = 5,
+        rare_heavy_min_traces: int = 4,
+        rare_heavy_cooldown_turns: int = 3,
+        rare_heavy_pipeline_config: PipelineConfig | None = None,
     ) -> None:
         self._session_id = session_id
         self._config = config or FinalRolloutConfig()
@@ -174,9 +197,19 @@ class AgentSessionRunner:
         )
         self._joint_loop = joint_loop or ETANLJointLoop(
             policy=self._temporal_policy,
+            memory_store=self._memory_store,
             residual_runtime=self._default_residual_runtime,
         )
         self._joint_schedule = joint_schedule or JointLoopSchedule()
+        self._rare_heavy_enabled = rare_heavy_enabled
+        self._rare_heavy_trace_window = max(1, rare_heavy_trace_window)
+        self._rare_heavy_min_traces = max(1, min(rare_heavy_min_traces, self._rare_heavy_trace_window))
+        self._rare_heavy_cooldown_turns = max(0, rare_heavy_cooldown_turns)
+        self._rare_heavy_pipeline_config = rare_heavy_pipeline_config or PipelineConfig(
+            ssl_min_steps=2,
+            ssl_max_steps=3,
+            rl_max_steps=2,
+        )
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
@@ -184,6 +217,8 @@ class AgentSessionRunner:
         self._previous_prediction_magnitude: float = 0.0
         self._previous_prediction_error: PredictionError | None = None
         self._recommended_z: tuple[float, ...] | None = None
+        self._recent_training_traces: list[TrainingTrace] = []
+        self._last_rare_heavy_turn_index = 0
 
     @property
     def session_id(self) -> str:
@@ -198,6 +233,7 @@ class AgentSessionRunner:
         wave_id = f"wave-{self._turn_index}"
         substrate_adapter = self._build_substrate_adapter(user_input=user_input)
         trace = self._build_training_trace_from_substrate(user_input=user_input)
+        self._record_training_trace(trace)
         pe_task_error = self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
         pe_relationship_error = self._previous_prediction_error.relationship_error if self._previous_prediction_error is not None else 0.0
         pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
@@ -253,12 +289,125 @@ class AgentSessionRunner:
             self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
         else:
             self._recommended_z = None
+        rare_heavy_result = self._maybe_apply_rare_heavy(
+            wave_id=wave_id,
+            joint_result=joint_result,
+        )
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
             integration_result=integration_result,
             joint_result=joint_result,
             imagination_result=imagination_result,
+            rare_heavy_result=rare_heavy_result,
+        )
+
+    def _record_training_trace(self, trace: TrainingTrace) -> None:
+        self._recent_training_traces.append(trace)
+        if len(self._recent_training_traces) > self._rare_heavy_trace_window:
+            del self._recent_training_traces[:-self._rare_heavy_trace_window]
+
+    def _effective_rare_heavy_pipeline_config(self) -> PipelineConfig:
+        policy_n_z = self._joint_loop.temporal_policy.parameter_store.n_z
+        if self._rare_heavy_pipeline_config.n_z == policy_n_z:
+            return self._rare_heavy_pipeline_config
+        return replace(self._rare_heavy_pipeline_config, n_z=policy_n_z)
+
+    def _clone_memory_store_for_rare_heavy(self) -> MemoryStore:
+        checkpoint = self._joint_loop.memory_store.export_rare_heavy_state(
+            checkpoint_id=f"{self._session_id}:rare-heavy-seed:{self._turn_index}"
+        )
+        learned_core = None
+        if checkpoint.cms_state is not None:
+            learned_core = CMSMemoryCore(
+                dim=len(checkpoint.cms_state.online_fast),
+                mode=checkpoint.cms_state.mode,
+            )
+        cloned_store = MemoryStore(learned_core=learned_core)
+        cloned_store.import_rare_heavy_state(checkpoint)
+        return cloned_store
+
+    def _build_rare_heavy_pipeline(self) -> SSLRLTrainingPipeline:
+        policy_n_z = self._joint_loop.temporal_policy.parameter_store.n_z
+        cloned_policy = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=policy_n_z),
+        )
+        cloned_policy.apply_rare_heavy_snapshot(
+            self._joint_loop.temporal_policy.export_rare_heavy_snapshot()
+        )
+        return SSLRLTrainingPipeline(
+            config=self._effective_rare_heavy_pipeline_config(),
+            policy=cloned_policy,
+            memory_store=self._clone_memory_store_for_rare_heavy(),
+        )
+
+    def _maybe_apply_rare_heavy(
+        self,
+        *,
+        wave_id: str,
+        joint_result: ScheduledJointLoopResult,
+    ) -> RareHeavyTurnResult | None:
+        if not joint_result.rare_heavy_review_recommended:
+            return None
+        if not self._rare_heavy_enabled:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=None,
+                applied_operations=(),
+                description="Rare-heavy review was recommended, but session owner has rare-heavy execution disabled.",
+            )
+        turns_since_last_import = self._turn_index - self._last_rare_heavy_turn_index
+        if self._last_rare_heavy_turn_index and turns_since_last_import < self._rare_heavy_cooldown_turns:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=None,
+                applied_operations=(),
+                description=(
+                    f"Rare-heavy review was recommended, but cooldown is active "
+                    f"({turns_since_last_import}/{self._rare_heavy_cooldown_turns} turns since last import)."
+                ),
+            )
+        if len(self._recent_training_traces) < self._rare_heavy_min_traces:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=None,
+                applied_operations=(),
+                description=(
+                    f"Rare-heavy review was recommended, but only {len(self._recent_training_traces)} traces are available; "
+                    f"need {self._rare_heavy_min_traces}."
+                ),
+            )
+        pipeline = self._build_rare_heavy_pipeline()
+        traces = tuple(self._recent_training_traces[-self._rare_heavy_trace_window :])
+        pipeline_result = pipeline.run_pipeline(traces=traces)
+        artifact = pipeline.export_rare_heavy_artifact(
+            artifact_id=f"{self._session_id}:{wave_id}:rare-heavy"
+        )
+        if pipeline_result.rl_steps_completed <= 0:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=artifact.artifact_id,
+                applied_operations=(),
+                description=(
+                    f"Rare-heavy pipeline exported {artifact.artifact_id}, but no offline RL steps completed; "
+                    f"skipping import. {pipeline_result.description}"
+                ),
+            )
+        import_result = self._joint_loop.apply_rare_heavy_artifact(
+            artifact,
+            checkpoint_id=f"{self._session_id}:{wave_id}:rare-heavy-import",
+        )
+        self._last_rare_heavy_turn_index = self._turn_index
+        return RareHeavyTurnResult(
+            recommended=True,
+            applied=True,
+            artifact_id=artifact.artifact_id,
+            applied_operations=import_result.applied_operations,
+            description=f"{pipeline_result.description} {import_result.description}",
         )
 
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:
@@ -305,6 +454,7 @@ class AgentSessionRunner:
         integration_result: FinalIntegrationResult,
         joint_result: ScheduledJointLoopResult,
         imagination_result: ImaginationResult | None = None,
+        rare_heavy_result: RareHeavyTurnResult | None = None,
     ) -> AgentTurnResult:
         active_regime = None
         regime_snapshot = integration_result.active_snapshots.get("regime") or integration_result.shadow_snapshots.get(
@@ -457,6 +607,7 @@ class AgentSessionRunner:
             reflection_promotion_eligible=integration_result.reflection_promotion_eligible,
             reflection_promotion_reason=integration_result.reflection_promotion_reason,
             imagination_result=imagination_result,
+            rare_heavy_result=rare_heavy_result,
         )
 
     def _run_imagination(self, integration_result: FinalIntegrationResult) -> ImaginationResult | None:
@@ -626,7 +777,7 @@ async def run_substrate_path_benchmark(
         if turns
         else 0.0
     )
-    full_cycle_count = sum(1 for turn in turns if turn.joint_schedule_action == "full-cycle")
+    full_cycle_count = sum(1 for turn in turns if turn.joint_schedule_action in {"full-cycle", "full-cycle-pe"})
     metric_means = tuple(
         sorted(
             (

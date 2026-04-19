@@ -490,6 +490,7 @@ class ETANLJointLoop:
         self._previous_metacontroller_state = metacontroller_state
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
         self._previous_credit_snapshot = enriched_credit_snapshot
+        rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=JointLoopSchedule())
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
@@ -538,6 +539,7 @@ class ETANLJointLoop:
             policy_update_applied=optimization_result.policy_update_applied,
             policy_kl_divergence=optimization_result.total_kl_divergence,
             policy_epochs_executed=optimization_result.total_epochs_executed,
+            rare_heavy_review_recommended=rare_heavy_review_recommended,
         )
 
     async def run_scheduled_step(
@@ -560,6 +562,7 @@ class ETANLJointLoop:
             if self._memory_store.learned_core is not None
             else "No CMS core attached."
         )
+        rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=active_schedule)
         if pe_full_cycle_due or (active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0):
             cycle_report = await self.run_cycle(
                 cycle_index=turn_index,
@@ -578,6 +581,7 @@ class ETANLJointLoop:
                 owner_path=self.owner_path,
                 schedule_telemetry=schedule_telemetry,
                 description=cycle_report.description,
+                rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
             )
         if pe_ssl_due or (active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0):
             ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
@@ -597,6 +601,7 @@ class ETANLJointLoop:
                     f"Scheduled joint loop owner={self.owner_path} ran ssl-only at turn {turn_index} with "
                     f"pred={ssl_report.prediction_loss:.2f}, kl={ssl_report.kl_loss:.2f}."
                 ),
+                rare_heavy_review_recommended=rare_heavy_review_recommended,
             )
         metacontroller_state = self._policy.export_runtime_state()
         return ScheduledJointLoopResult(
@@ -611,6 +616,7 @@ class ETANLJointLoop:
             owner_path=self.owner_path,
             schedule_telemetry=schedule_telemetry,
             description=f"Scheduled joint loop owner={self.owner_path} collected evidence only at turn {turn_index}.",
+            rare_heavy_review_recommended=rare_heavy_review_recommended,
         )
 
     def _schedule_telemetry(
