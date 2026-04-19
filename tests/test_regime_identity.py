@@ -771,3 +771,37 @@ def test_regime_turn_score_uses_prediction_error_when_available():
     assert module._turn_evaluation_scores[-1] < 0.5, (
         f"Negative PE should produce below-baseline turn score: {module._turn_evaluation_scores[-1]:.4f}"
     )
+
+
+def test_score_regimes_uses_prediction_error_bias():
+    from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
+    from volvence_zero.regime.identity import REGIME_TEMPLATES, score_regimes
+
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.8, 0.5, 0.5, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.5, 0.1, 0.3, 0.4, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.1,
+            relationship_error=-0.7,
+            regime_error=-0.4,
+            action_error=-0.2,
+            magnitude=1.4,
+            signed_reward=-0.35,
+            description="relationship shortfall",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="relationship shortfall",
+    )
+    ranked = score_regimes(
+        memory_snapshot=None,
+        dual_track_snapshot=None,
+        evaluation_snapshot=None,
+        prediction_error_snapshot=pe_snapshot,
+        historical_effectiveness={template.regime_id: 0.5 for template in REGIME_TEMPLATES},
+        strategy_priors={template.regime_id: 0.0 for template in REGIME_TEMPLATES},
+        selection_weights={template.regime_id: 1.0 for template in REGIME_TEMPLATES},
+    )
+    top_ids = [regime_id for regime_id, _ in ranked[:2]]
+    assert "repair_and_deescalation" in top_ids or "emotional_support" in top_ids

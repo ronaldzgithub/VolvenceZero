@@ -192,8 +192,8 @@ docs/implementation/uplift/
 
 | 时刻 | 系统状态 |
 |------|---------|
-| 当前（uplift Phase 1–4 验证完成后） | 契约骨架完备，学习闭环可运行，LLM 表达层已接通，但 prediction-error-first 主通路缺失 |
-| Design v2 Gap Closure / Phase PE 完成 | 系统以 prediction error 作为一级学习信号，credit/evaluation 退居下游聚合层 |
+| 当前（uplift Phase 1–4 + PE 主通路接入后） | 契约骨架完备，学习闭环可运行，LLM 表达层已接通，prediction-error-first 主通路已接入 |
+| Design v2 Gap Closure / Phase PE 完成 | 系统以 prediction error 作为一级学习信号，credit/evaluation 退居下游聚合层，temporal/regime/reflection 显式消费 PE |
 | Design v2 Gap Closure / Phase RF 完成 | 反思 SHADOW→ACTIVE 提升条件接入主循环，可运行时观察 |
 | Design v2 Gap Closure / 全部完成 | 设计 v2 与代码主链一致，uplift 文档与 maturity 口径同步 |
 

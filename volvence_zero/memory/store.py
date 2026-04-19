@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
 from volvence_zero.memory.cms import CMSCheckpointState, CMSMemoryCore, CMSState
@@ -14,6 +14,9 @@ from volvence_zero.memory.persistence import (
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
+
+if TYPE_CHECKING:
+    from volvence_zero.prediction import PredictionErrorSnapshot
 
 
 class Track(str, Enum):
@@ -335,6 +338,54 @@ class MemoryStore:
                 timestamp_ms=timestamp_ms,
             )
 
+    def apply_prediction_error_signal(
+        self,
+        *,
+        prediction_error_snapshot: "PredictionErrorSnapshot | None",
+        timestamp_ms: int,
+    ) -> tuple[str, ...]:
+        if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+            return ()
+        pe = prediction_error_snapshot.error
+        operations: list[str] = []
+        magnitude = pe.magnitude
+        primary_dimension = max(
+            (
+                ("task", abs(pe.task_error)),
+                ("relationship", abs(pe.relationship_error)),
+                ("regime", abs(pe.regime_error)),
+                ("action", abs(pe.action_error)),
+            ),
+            key=lambda item: item[1],
+        )[0]
+        target_track = (
+            Track.WORLD if primary_dimension == "task"
+            else Track.SELF if primary_dimension == "relationship"
+            else Track.SHARED
+        )
+        if magnitude >= 0.15:
+            entry = self.write(
+                MemoryWriteRequest(
+                    content=f"prediction_error:{primary_dimension}:{prediction_error_snapshot.error.description}",
+                    track=target_track,
+                    stratum=MemoryStratum.EPISODIC if magnitude < 1.0 else MemoryStratum.DURABLE,
+                    tags=("prediction_error", primary_dimension),
+                    strength=_clamp_strength(min(1.0, 0.45 + magnitude * 0.2)),
+                ),
+                timestamp_ms=timestamp_ms,
+            )
+            operations.append(f"prediction-error-write:{entry.entry_id}")
+        if pe.relationship_error < -0.15:
+            self._promotion_threshold = _clamp_strength(self._promotion_threshold - 0.03)
+            operations.append("prediction-error:lower-promotion-threshold")
+        if pe.task_error < -0.15:
+            self._promotion_threshold = _clamp_strength(self._promotion_threshold - 0.02)
+            operations.append("prediction-error:task-threshold-adjust")
+        if pe.signed_reward > 0.15:
+            self._promotion_threshold = _clamp_strength(self._promotion_threshold + 0.01)
+            operations.append("prediction-error:raise-promotion-threshold")
+        return tuple(operations)
+
     def apply_reflection_consolidation(
         self,
         *,
@@ -597,7 +648,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
     slot_name = "memory"
     owner = "MemoryModule"
     value_type = MemorySnapshot
-    dependencies = ("substrate", "temporal_abstraction", "dual_track")
+    dependencies = ("substrate", "temporal_abstraction", "dual_track", "prediction_error")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(self, *, store: MemoryStore | None = None, wiring_level: WiringLevel | None = None) -> None:
@@ -609,12 +660,24 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         return self._store
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[MemorySnapshot]:
+        from volvence_zero.prediction import PredictionErrorSnapshot
+
         substrate_snapshot = upstream["substrate"]
         temporal_snapshot = upstream.get("temporal_abstraction")
         dual_track_snapshot = upstream.get("dual_track")
+        prediction_error_snapshot = upstream.get("prediction_error")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if prediction_error_snapshot is not None and isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
         self._store.observe_substrate(
             substrate_snapshot=substrate_value,
+            timestamp_ms=substrate_snapshot.timestamp_ms,
+        )
+        self._store.apply_prediction_error_signal(
+            prediction_error_snapshot=prediction_error_value,
             timestamp_ms=substrate_snapshot.timestamp_ms,
         )
         for request in build_memory_write_requests(
@@ -633,6 +696,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                     substrate_snapshot=substrate_value,
                     temporal_value=temporal_snapshot.value if temporal_snapshot is not None else None,
                     dual_track_value=dual_track_snapshot.value if dual_track_snapshot is not None else None,
+                    prediction_error_value=prediction_error_value,
                 ),
             ),
             timestamp_ms=substrate_snapshot.timestamp_ms,
@@ -640,6 +704,8 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         return self.publish(self._store.snapshot(retrieved_entries=retrieval.entries))
 
     async def process_standalone(self, **kwargs: object) -> Snapshot[MemorySnapshot]:
+        from volvence_zero.prediction import PredictionErrorSnapshot
+
         timestamp_ms = int(kwargs.get("timestamp_ms", 0)) or 1
         user_text = kwargs.get("user_text")
         if user_text is not None and not isinstance(user_text, str):
@@ -649,11 +715,16 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             raise TypeError("query_facets must be a tuple when provided.")
         temporal_snapshot = kwargs.get("temporal_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
 
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
         self._store.observe_substrate(
             substrate_snapshot=substrate_value,
+            timestamp_ms=timestamp_ms,
+        )
+        self._store.apply_prediction_error_signal(
+            prediction_error_snapshot=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
             timestamp_ms=timestamp_ms,
         )
 
@@ -674,6 +745,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                     substrate_snapshot=substrate_value,
                     temporal_value=temporal_snapshot,
                     dual_track_value=dual_track_snapshot,
+                    prediction_error_value=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
                 ),
             ),
             timestamp_ms=timestamp_ms,
@@ -686,6 +758,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         substrate_snapshot: SubstrateSnapshot | None,
         temporal_value: Any = None,
         dual_track_value: Any = None,
+        prediction_error_value: "PredictionErrorSnapshot | None" = None,
     ) -> tuple[str, ...]:
         facets: list[str] = []
         if self._store.learned_core is not None:
@@ -701,6 +774,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             facets.extend(_query_parts_from_feature_surface(substrate_snapshot.feature_surface))
         facets.extend(_temporal_query_facets(temporal_value))
         facets.extend(_dual_track_query_facets(dual_track_value))
+        facets.extend(_prediction_error_query_facets(prediction_error_value))
         return tuple(facets)
 
 
@@ -727,3 +801,22 @@ def _dual_track_query_facets(dual_track_value: Any) -> tuple[str, ...]:
         facets.append(f"self-goal:{goal}")
     facets.append(f"cross-track:{dual_track_value.cross_track_tension:.2f}")
     return tuple(facets)
+
+
+def _prediction_error_query_facets(prediction_error_value: "PredictionErrorSnapshot | None") -> tuple[str, ...]:
+    if prediction_error_value is None or prediction_error_value.bootstrap:
+        return ()
+    pe = prediction_error_value.error
+    dominant_dimension = max(
+        (
+            ("task", abs(pe.task_error)),
+            ("relationship", abs(pe.relationship_error)),
+            ("regime", abs(pe.regime_error)),
+            ("action", abs(pe.action_error)),
+        ),
+        key=lambda item: item[1],
+    )[0]
+    return (
+        f"prediction_error:{dominant_dimension}",
+        f"prediction_reward:{pe.signed_reward:.2f}",
+    )

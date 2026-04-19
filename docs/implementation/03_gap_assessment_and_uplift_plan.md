@@ -354,7 +354,7 @@
 
 | 需求 | 成熟度 | 最大瓶颈 | 本轮更新 |
 |------|--------|----------|----------|
-| R-PE 预测误差原语 | 0.0 | 代码中尚无 PredictedOutcome / PredictionError 主通路；credit 和 evaluation 仍是一级信号源 | 待 Design v2 Gap Closure Phase PE 实施 |
+| R-PE 预测误差原语 | 4.5 | prediction chain 已入主链并驱动 credit/evaluation/reflection/regime/temporal/memory；joint_loop 仍未完全 PE-scheduled | PE-first 主通路 + memory owner-side 接入完成 |
 | R1 多时间尺度学习 | 4.0 | MLP CMS 已端到端验证 (d_in=16, d_hidden=32)；nested 变体含元学习；rare-heavy 无真实训练 | nested 元学习 init target 收敛验证 |
 | R2 稳定基底 + 控制器 | 4.0 | 已完成 `distilgpt2` / `Qwen-0.5B` strict-local 验证；更强模型继续扩展中 | 真实 substrate 双模型 strict-local 验证 |
 | R3 时间抽象 | 4.0 | alpha 可控变分瓶颈 + SwitchGateStats + FamilyCompetitionState；多 alpha A/B 验证完成 | A/B: alpha vs switch_bias 对比 |
@@ -371,13 +371,13 @@
 | R14 Regime 身份 | 4.0 | RegimeSelectionWeights REINFORCE 更新 + effectiveness_trend；A/B 对比验证 | A/B: learned weight vs fixed |
 | R15 迁移纪律 | 4.0 | shadow→active 自动化仍需手动触发；reflection_promotion_eligible 评估函数就位 | 提升条件评估函数 |
 
-**系统平均成熟度：4.0 / 5**（仅统计 R1–R15 的 uplift 当前值；R-PE 单列为新增设计缺口）
+**系统平均成熟度：4.0 / 5**（R1–R15）；**R-PE：4.5 / 5**
 
 **状态说明**：
 
 - Phase 1–4 的原 uplift 目标已完成到“**验证完成 + 部分实现**”状态：大部分核心能力已在代码中存在并通过测试验证
-- 但 `next_gen_emogpt.md` v2 新增的 **R-PE** 仍未进入主链，因此系统尚未达到“prediction error 为唯一原语”的设计形态
-- 当前真实状态应描述为：**契约骨架完备，学习闭环可运行，LLM 表达层已接通，但 prediction-error-first 主通路缺失**
+- `next_gen_emogpt.md` v2 新增的 **R-PE** 已进入主链：prediction chain 已显式发布，并驱动 credit/evaluation/reflection/regime/temporal/memory
+- 当前真实状态应描述为：**契约骨架完备，学习闭环可运行，LLM 表达层已接通，prediction-error-first 主通路已接入，memory owner-side 已接入，但 joint_loop 仍未完全 PE-scheduled**
 
 ---
 

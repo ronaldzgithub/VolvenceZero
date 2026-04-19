@@ -8,6 +8,7 @@ from hashlib import sha256
 from typing import Any, Mapping
 
 from volvence_zero.memory import MemorySnapshot, Track
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
@@ -1700,7 +1701,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     slot_name = "temporal_abstraction"
     owner = "TemporalModule"
     value_type = TemporalAbstractionSnapshot
-    dependencies = ("substrate", "memory", "reflection")
+    dependencies = ("substrate", "memory", "reflection", "prediction_error")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -1727,11 +1728,18 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         substrate_snapshot = upstream["substrate"]
         memory_snapshot = upstream["memory"]
         reflection_snapshot = upstream["reflection"]
+        prediction_error_snapshot = upstream["prediction_error"]
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         reflection_value = (
             reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
         )
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        self._apply_prediction_error_signal(prediction_error_value)
         if not isinstance(substrate_value, SubstrateSnapshot):
             step = PlaceholderTemporalPolicy().step(
                 substrate_snapshot=SubstrateSnapshot(
@@ -1773,6 +1781,10 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
         memory_snapshot = kwargs.get("memory_snapshot")
         reflection_snapshot = kwargs.get("reflection_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        self._apply_prediction_error_signal(
+            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
+        )
         step = self._policy.step(
             substrate_snapshot=substrate_snapshot,
             previous_snapshot=self._previous_snapshot,
@@ -1790,3 +1802,22 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
+
+    def _apply_prediction_error_signal(
+        self,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+    ) -> None:
+        if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+            return
+        if not hasattr(self._policy, "fit_from_signals"):
+            return
+        pe = prediction_error_snapshot.error
+        signed_reward = pe.signed_reward
+        target_residual = _clamp(0.45 + abs(pe.task_error) * 0.30 + max(signed_reward, 0.0) * 0.10)
+        target_memory = _clamp(0.25 + abs(pe.regime_error) * 0.25 + abs(pe.action_error) * 0.10)
+        target_reflection = _clamp(0.25 + abs(pe.relationship_error) * 0.30 + abs(pe.action_error) * 0.15)
+        self._policy.fit_from_signals(
+            residual_strength=target_residual,
+            memory_strength=target_memory,
+            reflection_strength=target_reflection,
+        )

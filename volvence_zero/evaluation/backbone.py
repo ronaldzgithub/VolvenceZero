@@ -1030,6 +1030,98 @@ class EvaluationBackbone:
             description_suffix=f"Enriched with {len(scores)} learning-evidence scores.",
         )
 
+    def record_prediction_error_evidence(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        base_snapshot: EvaluationSnapshot,
+        prediction_error_snapshot: "PredictionErrorSnapshot | None",
+    ) -> EvaluationSnapshot:
+        scores = self._prediction_error_scores(prediction_error_snapshot=prediction_error_snapshot)
+        if not scores:
+            return base_snapshot
+        return self.record_external_scores(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            base_snapshot=base_snapshot,
+            scores=scores,
+            description_suffix=f"Enriched with {len(scores)} prediction-error scores.",
+        )
+
+    def _prediction_error_scores(
+        self,
+        *,
+        prediction_error_snapshot: "PredictionErrorSnapshot | None",
+    ) -> tuple[EvaluationScore, ...]:
+        if prediction_error_snapshot is None:
+            return ()
+        pe = prediction_error_snapshot.error
+        if prediction_error_snapshot.bootstrap:
+            return (
+                EvaluationScore(
+                    family="learning",
+                    metric_name="prediction_error_bootstrap",
+                    value=1.0,
+                    confidence=0.95,
+                    evidence=prediction_error_snapshot.description,
+                ),
+            )
+        predictive_accuracy = _clamp(1.0 - min(pe.magnitude / 4.0, 1.0))
+        return (
+            EvaluationScore(
+                family="learning",
+                metric_name="prediction_error_magnitude",
+                value=_clamp(min(pe.magnitude / 4.0, 1.0)),
+                confidence=0.82,
+                evidence=pe.description,
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="prediction_error_reward",
+                value=_clamp(0.5 + pe.signed_reward * 0.5),
+                confidence=0.82,
+                evidence=pe.description,
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="predictive_accuracy",
+                value=predictive_accuracy,
+                confidence=0.8,
+                evidence=prediction_error_snapshot.description,
+            ),
+            EvaluationScore(
+                family="task",
+                metric_name="task_prediction_alignment",
+                value=_clamp(1.0 - abs(pe.task_error)),
+                confidence=0.78,
+                evidence=pe.description,
+            ),
+            EvaluationScore(
+                family="relationship",
+                metric_name="relationship_prediction_alignment",
+                value=_clamp(1.0 - abs(pe.relationship_error)),
+                confidence=0.78,
+                evidence=pe.description,
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="action_prediction_alignment",
+                value=_clamp(1.0 - abs(pe.action_error)),
+                confidence=0.78,
+                evidence=pe.description,
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="primary_prediction_error",
+                value=_clamp(max(abs(pe.task_error), abs(pe.relationship_error), abs(pe.regime_error), abs(pe.action_error))),
+                confidence=0.8,
+                evidence=pe.description,
+            ),
+        )
+
     def _family_outcome_divergence(
         self,
         metacontroller_state: "MetacontrollerRuntimeState",

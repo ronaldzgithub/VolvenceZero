@@ -89,12 +89,16 @@ class JointCycleReport:
     policy_update_applied: bool = False
     policy_kl_divergence: float = 0.0
     policy_epochs_executed: int = 0
+    rare_heavy_review_recommended: bool = False
 
 
 @dataclass(frozen=True)
 class JointLoopSchedule:
     ssl_interval: int = 1
     rl_interval: int = 3
+    pe_full_cycle_threshold: float = 0.6
+    pe_ssl_threshold: float = 0.18
+    pe_rare_heavy_threshold: float = 1.2
 
 
 @dataclass(frozen=True)
@@ -110,6 +114,7 @@ class ScheduledJointLoopResult:
     owner_path: str
     schedule_telemetry: tuple[tuple[str, int], ...]
     description: str
+    rare_heavy_review_recommended: bool = False
 
 
 @dataclass(frozen=True)
@@ -544,6 +549,8 @@ class ETANLJointLoop:
         apply_writeback: bool = True,
     ) -> ScheduledJointLoopResult:
         active_schedule = schedule or JointLoopSchedule()
+        pe_full_cycle_due = self._pe_full_cycle_due(schedule=active_schedule)
+        pe_ssl_due = self._pe_ssl_due(schedule=active_schedule)
         schedule_telemetry = self._schedule_telemetry(
             turn_index=turn_index,
             schedule=active_schedule,
@@ -553,7 +560,7 @@ class ETANLJointLoop:
             if self._memory_store.learned_core is not None
             else "No CMS core attached."
         )
-        if active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0:
+        if pe_full_cycle_due or (active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0):
             cycle_report = await self.run_cycle(
                 cycle_index=turn_index,
                 trace=trace,
@@ -561,7 +568,7 @@ class ETANLJointLoop:
             )
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
-                schedule_action="full-cycle",
+                schedule_action="full-cycle-pe" if pe_full_cycle_due else "full-cycle",
                 cycle_report=cycle_report,
                 kernel_scores=cycle_report.kernel_scores,
                 ssl_prediction_loss=cycle_report.ssl_prediction_loss,
@@ -572,12 +579,12 @@ class ETANLJointLoop:
                 schedule_telemetry=schedule_telemetry,
                 description=cycle_report.description,
             )
-        if active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0:
+        if pe_ssl_due or (active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0):
             ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
             metacontroller_state = self._policy.export_runtime_state()
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
-                schedule_action="ssl-only",
+                schedule_action="ssl-only-pe" if pe_ssl_due and not pe_full_cycle_due else "ssl-only",
                 cycle_report=None,
                 kernel_scores=(),
                 ssl_prediction_loss=ssl_report.prediction_loss,
@@ -614,13 +621,40 @@ class ETANLJointLoop:
     ) -> tuple[tuple[str, int], ...]:
         ssl_due = int(schedule.ssl_interval > 0 and turn_index % schedule.ssl_interval == 0)
         rl_due = int(schedule.rl_interval > 0 and turn_index % schedule.rl_interval == 0)
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        pe_full_cycle_due = int(self._pe_full_cycle_due(schedule=schedule))
+        pe_ssl_due = int(self._pe_ssl_due(schedule=schedule))
+        pe_rare_heavy_due = int(self._pe_rare_heavy_due(schedule=schedule))
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
             ("rl_interval", schedule.rl_interval),
             ("ssl_due", ssl_due),
             ("rl_due", rl_due),
+            ("pe_full_cycle_due", pe_full_cycle_due),
+            ("pe_ssl_due", pe_ssl_due),
+            ("pe_rare_heavy_due", pe_rare_heavy_due),
+            ("pe_magnitude_x1000", int(pe_magnitude * 1000)),
+            ("pe_abs_reward_x1000", int(pe_abs_reward * 1000)),
         )
+
+    def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        return pe_magnitude >= schedule.pe_full_cycle_threshold or pe_abs_reward >= schedule.pe_full_cycle_threshold * 0.5
+
+    def _pe_ssl_due(self, *, schedule: JointLoopSchedule) -> bool:
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        return (
+            not self._pe_full_cycle_due(schedule=schedule)
+            and (pe_magnitude >= schedule.pe_ssl_threshold or pe_abs_reward >= schedule.pe_ssl_threshold)
+        )
+
+    def _pe_rare_heavy_due(self, *, schedule: JointLoopSchedule) -> bool:
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        return pe_magnitude >= schedule.pe_rare_heavy_threshold
 
     def apply_rare_heavy_artifact(
         self,

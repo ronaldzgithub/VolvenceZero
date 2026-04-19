@@ -4,6 +4,7 @@ import asyncio
 
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.reflection import TemporalPriorUpdate, TemporalStructureProposal
+from volvence_zero.prediction import ActualOutcome, PredictionError, PredictionErrorSnapshot, PredictedOutcome
 from volvence_zero.substrate import SimulatedResidualSubstrateAdapter, build_training_trace
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -500,6 +501,45 @@ def test_family_competition_state_detects_collapse():
     assert state.collapse_alert is True
     assert state.monopoly_alert is True
     assert len(state.ranked_families) == 2
+
+
+def test_temporal_module_consumes_prediction_error_signal():
+    temporal = TemporalModule(policy=FullLearnedTemporalPolicy(), wiring_level=WiringLevel.ACTIVE)
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="pe-temporal-model",
+                feature_surface=(FeatureSignal(name="ctx", values=(0.7, 0.2), source="adapter"),),
+            ),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone()
+    ).value
+    before = temporal.policy.export_parameters()
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.1, 0.4, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.4,
+            relationship_error=-0.5,
+            regime_error=-0.2,
+            action_error=-0.3,
+            magnitude=1.4,
+            signed_reward=-0.35,
+            description="prediction error",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+    asyncio.run(
+        temporal.process_standalone(
+            substrate_snapshot=substrate_snapshot,
+            prediction_error_snapshot=pe_snapshot,
+        )
+    )
+    after = temporal.policy.export_parameters()
+    assert after != before
 
 
 # ---------------------------------------------------------------------------

@@ -314,24 +314,28 @@ def score_regimes(
     memory_snapshot: MemorySnapshot | None,
     dual_track_snapshot: DualTrackSnapshot | None,
     evaluation_snapshot: EvaluationSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None,
     historical_effectiveness: Mapping[str, float],
     strategy_priors: Mapping[str, float] | None = None,
     selection_weights: Mapping[str, float] | None = None,
 ) -> tuple[tuple[str, float], ...]:
     regime_priors = strategy_priors or {}
+    pe_task_shortfall = max(-prediction_error_snapshot.error.task_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
+    pe_relationship_shortfall = max(-prediction_error_snapshot.error.relationship_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
+    pe_regime_shortfall = max(-prediction_error_snapshot.error.regime_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
+    pe_action_shortfall = max(-prediction_error_snapshot.error.action_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
     if dual_track_snapshot is None:
         base = 0.1
-        return tuple(
-            (
-                template.regime_id,
-                _clamp(
-                    base
-                    + historical_effectiveness.get(template.regime_id, 0.0) * 0.1
-                    + regime_priors.get(template.regime_id, 0.0)
-                ),
-            )
-            for template in REGIME_TEMPLATES
-        )
+        cold_scores = {
+            "casual_social": _clamp(base + historical_effectiveness.get("casual_social", 0.0) * 0.1 + regime_priors.get("casual_social", 0.0) + pe_relationship_shortfall * 0.03),
+            "acquaintance_building": _clamp(base + historical_effectiveness.get("acquaintance_building", 0.0) * 0.1 + regime_priors.get("acquaintance_building", 0.0) + pe_relationship_shortfall * 0.04),
+            "emotional_support": _clamp(base + historical_effectiveness.get("emotional_support", 0.0) * 0.1 + regime_priors.get("emotional_support", 0.0) + pe_relationship_shortfall * 0.20),
+            "guided_exploration": _clamp(base + historical_effectiveness.get("guided_exploration", 0.0) * 0.1 + regime_priors.get("guided_exploration", 0.0) + pe_action_shortfall * 0.10),
+            "problem_solving": _clamp(base + historical_effectiveness.get("problem_solving", 0.0) * 0.1 + regime_priors.get("problem_solving", 0.0) + pe_task_shortfall * 0.18),
+            "repair_and_deescalation": _clamp(base + historical_effectiveness.get("repair_and_deescalation", 0.0) * 0.1 + regime_priors.get("repair_and_deescalation", 0.0) + pe_relationship_shortfall * 0.22 + pe_regime_shortfall * 0.08),
+        }
+        ranked = tuple(sorted(cold_scores.items(), key=lambda item: item[1], reverse=True))
+        return ranked
 
     world_tension = dual_track_snapshot.world_track.tension_level
     self_tension = dual_track_snapshot.self_track.tension_level
@@ -350,7 +354,6 @@ def score_regimes(
     support_dominance = _clamp(max(support_presence - task_pressure, 0.0) / 0.35)
     world_drive, self_drive, shared_drive, switch_pressure = _controller_profile(dual_track_snapshot)
     repair_bias, task_bias, exploration_bias, stabilize_bias = _abstract_action_profile(dual_track_snapshot)
-
     scores = {
         "casual_social": _clamp(
             0.34 * (1.0 - max(world_tension, self_tension))
@@ -364,6 +367,7 @@ def score_regimes(
             - 0.12 * exploration_bias
             - 0.10 * task_pressure
             - 0.16 * task_dominance
+            + pe_relationship_shortfall * 0.05
         ),
         "acquaintance_building": _clamp(
             0.26 * self_presence
@@ -375,6 +379,7 @@ def score_regimes(
             + 0.08 * balance
             - 0.08 * world_tension
             + 0.06 * stabilize_bias
+            + pe_relationship_shortfall * 0.06
         ),
         "emotional_support": _clamp(
             0.28 * self_tension
@@ -387,6 +392,8 @@ def score_regimes(
             + 0.12 * shared_drive
             + 0.08 * switch_pressure
             + 0.12 * repair_bias
+            + pe_relationship_shortfall * 0.18
+            + pe_regime_shortfall * 0.08
         ),
         "guided_exploration": _clamp(
             0.24 * balance
@@ -397,6 +404,7 @@ def score_regimes(
             + 0.12 * self_presence
             + 0.10 * world_presence
             + 0.26 * exploration_bias
+            + pe_action_shortfall * 0.12
         ),
         "problem_solving": _clamp(
             0.25 * world_tension
@@ -408,6 +416,8 @@ def score_regimes(
             + 0.20 * world_drive
             + 0.11 * switch_pressure
             + 0.22 * task_bias
+            + pe_task_shortfall * 0.18
+            + pe_action_shortfall * 0.08
         ),
         "repair_and_deescalation": _clamp(
             0.34 * cross_tension
@@ -419,6 +429,8 @@ def score_regimes(
             + 0.30 * repair_bias
             - 0.08 * task_dominance
             - 0.10 * support_dominance
+            + pe_relationship_shortfall * 0.20
+            + pe_regime_shortfall * 0.10
         ),
     }
 
@@ -526,6 +538,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             memory_snapshot=memory_value,
             dual_track_snapshot=dual_track_value,
             evaluation_snapshot=evaluation_value,
+            prediction_error_snapshot=pe_value,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,
@@ -585,25 +598,29 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         memory_snapshot = kwargs.get("memory_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         evaluation_snapshot = kwargs.get("evaluation_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
         if not isinstance(memory_snapshot, MemorySnapshot):
             memory_snapshot = None
         if not isinstance(dual_track_snapshot, DualTrackSnapshot):
             dual_track_snapshot = None
         if not isinstance(evaluation_snapshot, EvaluationSnapshot):
             evaluation_snapshot = None
+        if not isinstance(prediction_error_snapshot, PredictionErrorSnapshot):
+            prediction_error_snapshot = None
 
         self._turn_index += 1
-        self._record_turn_score(evaluation_snapshot)
+        self._record_turn_score(evaluation_snapshot, prediction_error_snapshot=prediction_error_snapshot)
         delayed_attributions = self._apply_delayed_outcomes(evaluation_snapshot)
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
-        self._update_historical_effectiveness(evaluation_snapshot)
+        self._update_historical_effectiveness(evaluation_snapshot, prediction_error_snapshot=prediction_error_snapshot)
         previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,

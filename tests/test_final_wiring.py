@@ -289,6 +289,8 @@ def test_final_wiring_exposes_prediction_error_and_reflection_promotion_fields()
     assert isinstance(result.reflection_promotion_eligible, bool)
     assert isinstance(result.reflection_promotion_reason, str)
     assert "prediction_error" in result.active_snapshots
+    turn_metrics = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
+    assert "prediction_error_bootstrap" in turn_metrics or "prediction_error_magnitude" in turn_metrics
 
 
 # ---------------------------------------------------------------------------

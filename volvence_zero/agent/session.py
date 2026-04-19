@@ -181,6 +181,8 @@ class AgentSessionRunner:
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
         self._previous_prediction_reward: float = 0.0
+        self._previous_prediction_magnitude: float = 0.0
+        self._previous_prediction_error: PredictionError | None = None
         self._recommended_z: tuple[float, ...] | None = None
 
     @property
@@ -196,9 +198,23 @@ class AgentSessionRunner:
         wave_id = f"wave-{self._turn_index}"
         substrate_adapter = self._build_substrate_adapter(user_input=user_input)
         trace = self._build_training_trace_from_substrate(user_input=user_input)
+        pe_task_error = self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
+        pe_relationship_error = self._previous_prediction_error.relationship_error if self._previous_prediction_error is not None else 0.0
+        pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
+        pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
         self._joint_loop.set_external_learning_signals(
-            {"prediction_error_reward": self._previous_prediction_reward}
-            if abs(self._previous_prediction_reward) > 1e-8
+            {
+                "prediction_error_reward": self._previous_prediction_reward,
+                "prediction_error_magnitude": self._previous_prediction_magnitude,
+                "prediction_error_task_error": pe_task_error,
+                "prediction_error_relationship_error": pe_relationship_error,
+                "prediction_error_regime_error": pe_regime_error,
+                "prediction_error_action_error": pe_action_error,
+            }
+            if (
+                abs(self._previous_prediction_reward) > 1e-8
+                or self._previous_prediction_magnitude > 1e-8
+            )
             else {}
         )
         joint_result = await self._joint_loop.run_scheduled_step(
@@ -230,6 +246,8 @@ class AgentSessionRunner:
             self._previous_substrate_snapshot = substrate_snap.value
         if integration_result.prediction_error_snapshot is not None:
             self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
+            self._previous_prediction_magnitude = integration_result.prediction_error_snapshot.error.magnitude
+            self._previous_prediction_error = integration_result.prediction_error_snapshot.error
         imagination_result = self._run_imagination(integration_result)
         if imagination_result is not None:
             self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]

@@ -11,6 +11,7 @@ from volvence_zero.memory import (
     RetrievalQuery,
     Track,
 )
+from volvence_zero.prediction import ActualOutcome, PredictionError, PredictionErrorSnapshot, PredictedOutcome
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -455,4 +456,65 @@ def test_phase4_persistence_missing_key_returns_false():
         store = MemoryStore(persistence_backend=backend)
         loaded = store.load_from_backend(key="does/not/exist")
         assert loaded is False
+
+
+def test_memory_store_applies_prediction_error_signal():
+    store = MemoryStore()
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.1, 0.4, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.4,
+            relationship_error=-0.5,
+            regime_error=-0.2,
+            action_error=-0.3,
+            magnitude=1.4,
+            signed_reward=-0.35,
+            description="prediction error",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+    before_threshold = store.promotion_threshold
+    ops = store.apply_prediction_error_signal(
+        prediction_error_snapshot=pe_snapshot,
+        timestamp_ms=123,
+    )
+    assert ops
+    assert any("prediction-error-write:" in op for op in ops)
+    assert store.promotion_threshold != before_threshold
+    assert any("prediction_error:" in entry.content for entry in store._entries.values())
+
+
+def test_memory_module_consumes_prediction_error_snapshot():
+    module = MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE)
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.1, 0.4, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.4,
+            relationship_error=-0.5,
+            regime_error=-0.2,
+            action_error=-0.3,
+            magnitude=1.4,
+            signed_reward=-0.35,
+            description="prediction error",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+    snapshot = asyncio.run(
+        module.process_standalone(
+            timestamp_ms=50,
+            user_text="remember this turn",
+            prediction_error_snapshot=pe_snapshot,
+        )
+    )
+    contents = tuple(entry.content for entry in snapshot.value.retrieved_entries)
+    all_contents = tuple(entry.content for entry in module.store._entries.values())
+    assert any("prediction_error:" in content for content in all_contents)
 

@@ -437,10 +437,17 @@ async def run_final_wiring_turn(
                 scores=joint_kernel_scores,
                 description_suffix=f"Enriched with {len(joint_kernel_scores)} ETA kernel scores.",
             )
-        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+        enriched_evaluation = evaluation_module.backbone.record_prediction_error_evidence(
             session_id=session_id,
             wave_id=wave_id,
             timestamp_ms=evaluation_snapshot.timestamp_ms + 3,
+            base_snapshot=enriched_evaluation,
+            prediction_error_snapshot=prediction_snapshot_value,
+        )
+        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 4,
             base_snapshot=enriched_evaluation,
             memory_snapshot=active_snapshots.get("memory").value if active_snapshots.get("memory") is not None else None,
             reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
