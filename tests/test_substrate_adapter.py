@@ -341,3 +341,41 @@ def test_build_transformers_runtime_with_fallback_honors_deny_mode():
         assert type(exc).__name__ in {"OSError", "ValueError", "RuntimeError"}
     else:
         raise AssertionError("Expected missing local model to fail when fallback mode is deny.")
+
+
+def test_build_transformers_runtime_with_fallback_prefers_local_then_fallbacks():
+    runtime = build_transformers_runtime_with_fallback(
+        model_id="missing-local-model",
+        local_files_only=True,
+        runtime_mode="prefer-local",
+        builtin_model_id="prefer-local-builtin",
+    )
+
+    assert isinstance(runtime, TransformersOpenWeightResidualRuntime)
+    assert runtime.model_id == "prefer-local-builtin"
+    assert runtime.runtime_origin == "builtin-fallback"
+    assert runtime.fallback_active is True
+
+
+def test_build_transformers_runtime_with_fallback_builtin_only_uses_builtin_runtime():
+    runtime = build_transformers_runtime_with_fallback(
+        model_id="unused-model-id",
+        runtime_mode="builtin-only",
+        builtin_model_id="builtin-only-runtime",
+    )
+
+    assert isinstance(runtime, TransformersOpenWeightResidualRuntime)
+    assert runtime.model_id == "builtin-only-runtime"
+    assert runtime.runtime_origin == "builtin-fallback"
+
+
+def test_open_weight_adapter_description_exposes_runtime_metadata():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="metadata-runtime")
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+
+    snapshot = asyncio.run(adapter.capture(source_text="real runtime metadata please"))
+
+    assert "runtime_origin=synthetic-open-weight" in snapshot.description
+    assert "capture_source=fallback" in snapshot.description
+    assert "fallback_active=1" in snapshot.description
+    assert "residual_sequence_len=" in snapshot.description

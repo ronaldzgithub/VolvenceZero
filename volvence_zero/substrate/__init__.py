@@ -25,6 +25,7 @@ from volvence_zero.substrate.residual_backend import (
     OpenWeightRuntimeCapture,
     ResidualControlApplication,
     ResidualInterventionBackend,
+    LocalSubstrateRuntimeMode,
     SimulatedResidualSubstrateAdapter,
     SyntheticOpenWeightResidualRuntime,
     SubstrateFallbackMode,
@@ -36,6 +37,7 @@ from volvence_zero.substrate.residual_backend import (
     apply_residual_control,
     build_training_trace,
     resolve_substrate_fallback_mode,
+    resolve_local_runtime_mode,
 )
 
 __all__ = [
@@ -50,6 +52,7 @@ __all__ = [
     "OpenWeightResidualRuntime",
     "OpenWeightResidualStreamSubstrateAdapter",
     "OpenWeightRuntimeCapture",
+    "LocalSubstrateRuntimeMode",
     "PlaceholderSubstrateAdapter",
     "ResidualActivation",
     "ResidualControlApplication",
@@ -74,4 +77,5 @@ __all__ = [
     "build_builtin_transformers_runtime",
     "build_transformers_runtime_with_fallback",
     "resolve_substrate_fallback_mode",
+    "resolve_local_runtime_mode",
 ]

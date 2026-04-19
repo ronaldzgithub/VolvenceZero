@@ -238,6 +238,14 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         if effective_source_text is None:
             raise ValueError("OpenWeightResidualStreamSubstrateAdapter requires source_text.")
         capture = self._runtime.capture(source_text=effective_source_text)
+        runtime_origin = getattr(self._runtime, "runtime_origin", "unknown")
+        fallback_active = 1 if getattr(self._runtime, "fallback_active", False) else 0
+        capture_source = getattr(self._runtime, "capture_source", "unknown")
+        description = (
+            f"{capture.description} runtime_origin={runtime_origin} "
+            f"capture_source={capture_source} fallback_active={fallback_active} "
+            f"residual_sequence_len={len(capture.residual_sequence)}."
+        )
         return SubstrateSnapshot(
             model_id=self.model_id,
             is_frozen=self.is_frozen,
@@ -247,7 +255,7 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
             residual_activations=capture.residual_activations,
             residual_sequence=capture.residual_sequence,
             unavailable_fields=(),
-            description=capture.description,
+            description=description,
         )
 
 

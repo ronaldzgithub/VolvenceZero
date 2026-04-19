@@ -62,6 +62,12 @@ class SubstrateFallbackMode(str, Enum):
     DENY = "deny"
 
 
+class LocalSubstrateRuntimeMode(str, Enum):
+    STRICT_LOCAL = "strict-local"
+    PREFER_LOCAL = "prefer-local"
+    BUILTIN_ONLY = "builtin-only"
+
+
 @dataclass
 class HashingWhitespaceTokenizer:
     """Minimal local tokenizer for bundled tiny transformers runtimes."""
@@ -102,6 +108,7 @@ class OpenWeightResidualRuntime(ABC):
 
     model_id: str
     is_frozen: bool
+    runtime_origin: str = "unknown"
 
     @abstractmethod
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
@@ -140,6 +147,14 @@ class OpenWeightResidualRuntime(ABC):
             capture=None,
             description=f"{self.model_id} does not support generation",
         )
+
+    @property
+    def fallback_active(self) -> bool:
+        return self.runtime_origin in {"builtin-fallback", "synthetic-open-weight"}
+
+    @property
+    def capture_source(self) -> str:
+        return "real" if not self.fallback_active else "fallback"
 
 
 class ResidualInterventionBackend(ABC):
@@ -329,6 +344,26 @@ def resolve_substrate_fallback_mode(
     return SubstrateFallbackMode.ALLOW_BUILTIN if fallback_to_builtin else SubstrateFallbackMode.DENY
 
 
+def resolve_local_runtime_mode(
+    *,
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
+    local_files_only: bool = False,
+    fallback_mode: SubstrateFallbackMode | str | None = None,
+    fallback_to_builtin: bool | None = None,
+) -> LocalSubstrateRuntimeMode | None:
+    if runtime_mode is not None:
+        return LocalSubstrateRuntimeMode(runtime_mode)
+    resolved_fallback = resolve_substrate_fallback_mode(
+        fallback_mode=fallback_mode,
+        fallback_to_builtin=fallback_to_builtin,
+    )
+    if local_files_only and resolved_fallback is SubstrateFallbackMode.DENY:
+        return LocalSubstrateRuntimeMode.STRICT_LOCAL
+    if local_files_only and resolved_fallback is SubstrateFallbackMode.ALLOW_BUILTIN:
+        return LocalSubstrateRuntimeMode.PREFER_LOCAL
+    return None
+
+
 class TraceResidualInterventionBackend(ResidualInterventionBackend):
     """Executable trace-backed backend approximating residual intervention."""
 
@@ -488,6 +523,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     def __init__(self, *, model_id: str = "synthetic-open-weight-runtime") -> None:
         self.model_id = model_id
         self.is_frozen = True
+        self.runtime_origin = "synthetic-open-weight"
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         trace = build_training_trace(trace_id=f"{self.model_id}:capture", source_text=source_text)
@@ -566,6 +602,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._activation_width = max(1, activation_width)
         self._control_scale = max(0.0, control_scale)
         self._runtime_origin = runtime_origin
+        self.runtime_origin = runtime_origin
         self._tokenizer = tokenizer or self._transformers.AutoTokenizer.from_pretrained(
             model_id,
             local_files_only=local_files_only,
@@ -1253,18 +1290,40 @@ def build_transformers_runtime_with_fallback(
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
     fallback_mode: SubstrateFallbackMode | str | None = None,
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
     builtin_model_id: str = "builtin-transformers-runtime",
 ) -> TransformersOpenWeightResidualRuntime:
+    resolved_runtime_mode = resolve_local_runtime_mode(
+        runtime_mode=runtime_mode,
+        local_files_only=local_files_only,
+        fallback_mode=fallback_mode,
+        fallback_to_builtin=fallback_to_builtin,
+    )
+    if resolved_runtime_mode is LocalSubstrateRuntimeMode.BUILTIN_ONLY:
+        return build_builtin_transformers_runtime(
+            model_id=builtin_model_id,
+            device=device,
+        )
     resolved_mode = resolve_substrate_fallback_mode(
         fallback_mode=fallback_mode,
         fallback_to_builtin=fallback_to_builtin,
     )
+    effective_local_files_only = local_files_only
+    effective_runtime_origin = "hf-local" if local_files_only else "hf-pretrained"
+    if resolved_runtime_mode is LocalSubstrateRuntimeMode.STRICT_LOCAL:
+        effective_local_files_only = True
+        resolved_mode = SubstrateFallbackMode.DENY
+        effective_runtime_origin = "hf-local"
+    elif resolved_runtime_mode is LocalSubstrateRuntimeMode.PREFER_LOCAL:
+        effective_local_files_only = True
+        resolved_mode = SubstrateFallbackMode.ALLOW_BUILTIN
+        effective_runtime_origin = "hf-local"
     try:
         return TransformersOpenWeightResidualRuntime(
             model_id=model_id,
             device=device,
-            local_files_only=local_files_only,
-            runtime_origin="hf-pretrained",
+            local_files_only=effective_local_files_only,
+            runtime_origin=effective_runtime_origin,
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):

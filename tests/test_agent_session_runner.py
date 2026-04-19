@@ -119,6 +119,10 @@ def test_agent_session_runner_defaults_to_real_transformers_runtime_with_builtin
 
     assert result.active_snapshots["substrate"].value.model_id == "runner-transformers-runtime"
     assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
+    assert result.substrate_runtime_origin == "builtin-fallback"
+    assert result.substrate_fallback_active is True
+    assert result.substrate_capture_source == "fallback"
+    assert result.substrate_residual_sequence_length > 0
 
 
 def test_agent_session_runner_can_fail_closed_for_missing_substrate_model():
@@ -126,13 +130,44 @@ def test_agent_session_runner_can_fail_closed_for_missing_substrate_model():
         AgentSessionRunner(
             session_id="deny-runtime-session",
             substrate_model_id="missing-local-model",
-            substrate_local_files_only=True,
-            substrate_fallback_mode=SubstrateFallbackMode.DENY,
+            substrate_runtime_mode="strict-local",
         )
     except Exception as exc:
         assert type(exc).__name__ in {"OSError", "ValueError", "RuntimeError"}
     else:
         raise AssertionError("Expected runner construction to fail when substrate fallback mode is deny.")
+
+
+def test_agent_session_runner_prefer_local_mode_marks_fallback_metadata():
+    runner = AgentSessionRunner(
+        session_id="prefer-local-session",
+        substrate_model_id="missing-local-model",
+        substrate_runtime_mode="prefer-local",
+    )
+
+    result = asyncio.run(runner.run_turn("Please use a local model when available."))
+
+    assert result.substrate_runtime_origin == "builtin-fallback"
+    assert result.substrate_fallback_active is True
+    assert result.substrate_capture_source == "fallback"
+    assert result.substrate_model_id == "runner-transformers-runtime"
+
+
+def test_agent_session_runner_reports_real_runtime_metadata_for_injected_runtime():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="real-path-runtime")
+    runtime.runtime_origin = "hf-local"
+    runner = AgentSessionRunner(
+        session_id="real-path-session",
+        default_residual_runtime=runtime,
+    )
+
+    result = asyncio.run(runner.run_turn("Use the injected local runtime path."))
+
+    assert result.substrate_model_id == "real-path-runtime"
+    assert result.substrate_runtime_origin == "hf-local"
+    assert result.substrate_fallback_active is False
+    assert result.substrate_capture_source == "real"
+    assert result.substrate_residual_sequence_length > 0
 
 
 # ---------------------------------------------------------------------------

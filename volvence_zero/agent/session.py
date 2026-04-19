@@ -21,6 +21,7 @@ from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
+    LocalSubstrateRuntimeMode,
     OpenWeightResidualStreamSubstrateAdapter,
     OpenWeightResidualRuntime,
     SubstrateFallbackMode,
@@ -64,6 +65,11 @@ class AgentTurnResult:
     joint_cycle_report: JointCycleReport | None
     response: AgentResponse
     event_count: int
+    substrate_model_id: str | None = None
+    substrate_runtime_origin: str | None = None
+    substrate_fallback_active: bool = False
+    substrate_capture_source: str | None = None
+    substrate_residual_sequence_length: int = 0
     reflection_promotion_eligible: bool = False
     reflection_promotion_reason: str = ""
     imagination_result: ImaginationResult | None = None
@@ -89,6 +95,7 @@ class AgentSessionRunner:
         substrate_local_files_only: bool = False,
         substrate_fallback_to_builtin: bool | None = None,
         substrate_fallback_mode: SubstrateFallbackMode | str | None = None,
+        substrate_runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
     ) -> None:
@@ -109,12 +116,18 @@ class AgentSessionRunner:
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
         )
+        self._substrate_runtime_mode = (
+            LocalSubstrateRuntimeMode(substrate_runtime_mode)
+            if substrate_runtime_mode is not None
+            else None
+        )
         self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
             model_id=substrate_model_id,
             device=substrate_device,
             local_files_only=substrate_local_files_only,
             fallback_to_builtin=substrate_fallback_to_builtin,
             fallback_mode=substrate_fallback_mode,
+            runtime_mode=self._substrate_runtime_mode,
             builtin_model_id="runner-transformers-runtime",
         )
         self._joint_loop = joint_loop or ETANLJointLoop(
@@ -279,6 +292,16 @@ class AgentSessionRunner:
         if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             memory_retrieval_count = len(memory_snapshot.value.retrieved_entries)
 
+        substrate_model_id = None
+        substrate_runtime_origin = getattr(self._default_residual_runtime, "runtime_origin", None)
+        substrate_fallback_active = bool(getattr(self._default_residual_runtime, "fallback_active", False))
+        substrate_capture_source = getattr(self._default_residual_runtime, "capture_source", None)
+        substrate_residual_sequence_length = 0
+        substrate_snapshot = integration_result.active_snapshots.get("substrate")
+        if substrate_snapshot is not None and isinstance(substrate_snapshot.value, SubstrateSnapshot):
+            substrate_model_id = substrate_snapshot.value.model_id
+            substrate_residual_sequence_length = len(substrate_snapshot.value.residual_sequence)
+
         reflection_lesson_count = 0
         reflection_tension_count = 0
         primary_reflection_lesson = None
@@ -366,6 +389,11 @@ class AgentSessionRunner:
             joint_cycle_report=joint_result.cycle_report,
             response=response,
             event_count=integration_result.event_count,
+            substrate_model_id=substrate_model_id,
+            substrate_runtime_origin=substrate_runtime_origin,
+            substrate_fallback_active=substrate_fallback_active,
+            substrate_capture_source=substrate_capture_source,
+            substrate_residual_sequence_length=substrate_residual_sequence_length,
             reflection_promotion_eligible=integration_result.reflection_promotion_eligible,
             reflection_promotion_reason=integration_result.reflection_promotion_reason,
             imagination_result=imagination_result,
