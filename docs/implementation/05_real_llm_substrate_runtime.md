@@ -71,6 +71,7 @@
 | 模型 | strict-local | prefer-local | 当前状态 | 备注 |
 |------|--------------|--------------|----------|------|
 | `distilgpt2` | 可用 | 可用 | 已通过 1-turn 与 5-turn 验收 | 当前推荐默认模型 |
+| `Qwen/Qwen2.5-0.5B-Instruct` | 可用 | 可用 | 已通过 strict-local 单轮验收 | 当前更平衡的真实本地基底候选 |
 | `Qwen/Qwen2.5-3B-Instruct` | 未完成 | 未完成 | tokenizer 本地离线兼容仍待收口 | 已加入 tokenizer `use_fast=False` 本地回退尝试 |
 
 ### Qwen 当前缺口
@@ -95,6 +96,16 @@
 如果 `strict_local_runtime_available` 为 `False`，则说明还不能把该模型纳入正式 strict-local 验收矩阵。
 
 ## 推荐运行方式
+
+### 当前推荐真实本地基底
+
+如果目标是继续推进真实 substrate 的长期学习价值验证，当前推荐优先使用：
+
+- `Qwen/Qwen2.5-0.5B-Instruct`
+
+如果目标是最小成本、任务导向的本地 strict-local 验证，则保留：
+
+- `distilgpt2`
 
 ### 最严格验收
 

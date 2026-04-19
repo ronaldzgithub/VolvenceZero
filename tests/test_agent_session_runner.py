@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.agent import AgentSessionRunner, default_active_runner, run_substrate_path_benchmark
+from volvence_zero.agent import (
+    AgentSessionRunner,
+    MultiPathBenchmarkReport,
+    default_active_runner,
+    run_multi_path_benchmark,
+    run_substrate_path_benchmark,
+)
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.substrate import (
@@ -309,4 +315,40 @@ def test_run_substrate_path_benchmark_collects_turn_metrics():
     assert 0.0 <= report.acceptance_rate <= 1.0
     assert report.mean_residual_sequence_length > 0
     assert report.mean_turn_score_count > 0
+    assert isinstance(report.metric_means, tuple)
+    assert report.mean_policy_objective >= 0.0 or report.mean_policy_objective <= 0.0
+    assert report.max_family_version >= 0
+    assert report.description
+
+
+def test_run_multi_path_benchmark_compares_paths():
+    builtin_runner = AgentSessionRunner(
+        session_id="multi-benchmark-builtin",
+        substrate_model_id="distilgpt2",
+        substrate_runtime_mode="builtin-only",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
+    local_runner = AgentSessionRunner(
+        session_id="multi-benchmark-local",
+        substrate_model_id="distilgpt2",
+        substrate_runtime_mode="strict-local",
+        substrate_device="cpu",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
+    report = asyncio.run(
+        run_multi_path_benchmark(
+            baseline_label="builtin",
+            path_runners=(("builtin", builtin_runner), ("hf-local", local_runner)),
+            user_inputs=(
+                "Help me structure a plan.",
+                "I need the next step.",
+                "Summarize the main risk.",
+            ),
+        )
+    )
+
+    assert isinstance(report, MultiPathBenchmarkReport)
+    assert report.baseline_label == "builtin"
+    assert len(report.path_reports) == 2
+    assert len(report.metric_deltas_from_baseline) == 1
     assert report.description

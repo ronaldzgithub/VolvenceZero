@@ -88,6 +88,9 @@ class SubstrateBenchmarkTurn:
     acceptance_passed: bool
     turn_score_count: int
     evaluation_alert_count: int
+    policy_objective: float = 0.0
+    action_family_version: int = 0
+    metrics: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,17 @@ class SubstrateBenchmarkReport:
     mean_residual_sequence_length: float
     mean_turn_score_count: float
     full_cycle_count: int
+    metric_means: tuple[tuple[str, float], ...]
+    mean_policy_objective: float
+    max_family_version: int
+    description: str
+
+
+@dataclass(frozen=True)
+class MultiPathBenchmarkReport:
+    path_reports: tuple[SubstrateBenchmarkReport, ...]
+    metric_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    baseline_label: str
     description: str
 
 
@@ -536,12 +550,31 @@ async def run_substrate_path_benchmark(
     user_inputs: tuple[str, ...],
 ) -> SubstrateBenchmarkReport:
     turns: list[SubstrateBenchmarkTurn] = []
+    metric_totals: dict[str, float] = {}
+    metric_counts: dict[str, int] = {}
     for user_input in user_inputs:
         result = await runner.run_turn(user_input)
         eval_snapshot = result.active_snapshots.get("evaluation")
         turn_score_count = 0
+        metric_pairs: tuple[tuple[str, float], ...] = ()
         if eval_snapshot is not None and isinstance(eval_snapshot.value, EvaluationSnapshot):
             turn_score_count = len(eval_snapshot.value.turn_scores)
+            metric_pairs = tuple(
+                (f"{score.family}:{score.metric_name}", score.value)
+                for score in eval_snapshot.value.turn_scores
+            )
+            for key, value in metric_pairs:
+                metric_totals[key] = metric_totals.get(key, 0.0) + value
+                metric_counts[key] = metric_counts.get(key, 0) + 1
+        family_version = 0
+        temporal_snapshot = result.active_snapshots.get("temporal_abstraction")
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
+            family_version = temporal_snapshot.value.action_family_version
+        policy_objective = (
+            result.joint_cycle_report.policy_objective
+            if result.joint_cycle_report is not None
+            else 0.0
+        )
         turns.append(
             SubstrateBenchmarkTurn(
                 turn_index=runner.turn_index,
@@ -555,6 +588,9 @@ async def run_substrate_path_benchmark(
                 acceptance_passed=result.acceptance_passed,
                 turn_score_count=turn_score_count,
                 evaluation_alert_count=len(result.evaluation_alerts),
+                policy_objective=policy_objective,
+                action_family_version=family_version,
+                metrics=metric_pairs,
             )
         )
     acceptance_rate = (
@@ -573,6 +609,21 @@ async def run_substrate_path_benchmark(
         else 0.0
     )
     full_cycle_count = sum(1 for turn in turns if turn.joint_schedule_action == "full-cycle")
+    metric_means = tuple(
+        sorted(
+            (
+                key,
+                round(metric_totals[key] / max(metric_counts.get(key, 1), 1), 4),
+            )
+            for key in metric_totals
+        )
+    )
+    mean_policy_objective = (
+        sum(turn.policy_objective for turn in turns) / max(len(turns), 1)
+        if turns
+        else 0.0
+    )
+    max_family_version = max((turn.action_family_version for turn in turns), default=0)
     return SubstrateBenchmarkReport(
         path_label=path_label,
         turns=tuple(turns),
@@ -580,9 +631,51 @@ async def run_substrate_path_benchmark(
         mean_residual_sequence_length=mean_seq_len,
         mean_turn_score_count=mean_turn_scores,
         full_cycle_count=full_cycle_count,
+        metric_means=metric_means,
+        mean_policy_objective=mean_policy_objective,
+        max_family_version=max_family_version,
         description=(
             f"Substrate benchmark path={path_label} turns={len(turns)} "
             f"acceptance_rate={acceptance_rate:.2f} mean_seq_len={mean_seq_len:.2f} "
-            f"full_cycles={full_cycle_count}."
+            f"full_cycles={full_cycle_count} mean_policy_objective={mean_policy_objective:.3f} "
+            f"max_family_version={max_family_version}."
+        ),
+    )
+
+
+async def run_multi_path_benchmark(
+    *,
+    baseline_label: str,
+    path_runners: tuple[tuple[str, AgentSessionRunner], ...],
+    user_inputs: tuple[str, ...],
+) -> MultiPathBenchmarkReport:
+    reports: list[SubstrateBenchmarkReport] = []
+    for label, runner in path_runners:
+        report = await run_substrate_path_benchmark(
+            path_label=label,
+            runner=runner,
+            user_inputs=user_inputs,
+        )
+        reports.append(report)
+    baseline_report = next(report for report in reports if report.path_label == baseline_label)
+    baseline_metrics = dict(baseline_report.metric_means)
+    metric_deltas: list[tuple[str, tuple[tuple[str, float], ...]]] = []
+    for report in reports:
+        if report.path_label == baseline_label:
+            continue
+        report_metrics = dict(report.metric_means)
+        keys = sorted(set(report_metrics) | set(baseline_metrics))
+        deltas = tuple(
+            (key, round(report_metrics.get(key, 0.0) - baseline_metrics.get(key, 0.0), 4))
+            for key in keys
+        )
+        metric_deltas.append((report.path_label, deltas))
+    return MultiPathBenchmarkReport(
+        path_reports=tuple(reports),
+        metric_deltas_from_baseline=tuple(metric_deltas),
+        baseline_label=baseline_label,
+        description=(
+            f"Multi-path benchmark over {len(user_inputs)} turns with baseline={baseline_label} "
+            f"across {len(reports)} paths."
         ),
     )

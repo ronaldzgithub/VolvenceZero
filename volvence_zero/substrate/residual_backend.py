@@ -1339,6 +1339,7 @@ def build_transformers_runtime_with_fallback(
     model_id: str,
     model_source: str | None = None,
     device: str = "auto",
+    layer_indices: tuple[int, ...] | None = None,
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
     fallback_mode: SubstrateFallbackMode | str | None = None,
@@ -1375,6 +1376,7 @@ def build_transformers_runtime_with_fallback(
             model_id=model_id,
             pretrained_source=model_source or model_id,
             device=device,
+            layer_indices=layer_indices,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
         )

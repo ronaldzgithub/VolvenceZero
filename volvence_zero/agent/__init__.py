@@ -3,10 +3,12 @@ from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, 
 from volvence_zero.agent.session import (
     AgentSessionRunner,
     AgentTurnResult,
+    MultiPathBenchmarkReport,
     SubstrateBenchmarkReport,
     SubstrateBenchmarkTurn,
     default_active_runner,
     llm_active_runner,
+    run_multi_path_benchmark,
     run_substrate_path_benchmark,
 )
 from volvence_zero.agent.trial import (
@@ -21,6 +23,7 @@ __all__ = [
     "AgentSessionRunner",
     "LLMResponseSynthesizer",
     "AgentTurnResult",
+    "MultiPathBenchmarkReport",
     "SubstrateBenchmarkReport",
     "SubstrateBenchmarkTurn",
     "ResponseSynthesizer",
@@ -28,6 +31,7 @@ __all__ = [
     "build_trial_arg_parser",
     "default_active_runner",
     "llm_active_runner",
+    "run_multi_path_benchmark",
     "run_substrate_path_benchmark",
     "main",
     "render_trial_turn_result",

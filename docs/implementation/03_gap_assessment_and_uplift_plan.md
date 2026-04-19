@@ -356,7 +356,7 @@
 |------|--------|----------|----------|
 | R-PE 预测误差原语 | 0.0 | 代码中尚无 PredictedOutcome / PredictionError 主通路；credit 和 evaluation 仍是一级信号源 | 待 Design v2 Gap Closure Phase PE 实施 |
 | R1 多时间尺度学习 | 4.0 | MLP CMS 已端到端验证 (d_in=16, d_hidden=32)；nested 变体含元学习；rare-heavy 无真实训练 | nested 元学习 init target 收敛验证 |
-| R2 稳定基底 + 控制器 | 3.5 | 未验证真实模型场景；Hope 自修改 Titans 缺失 | — |
+| R2 稳定基底 + 控制器 | 4.0 | 已完成 `distilgpt2` / `Qwen-0.5B` strict-local 验证；更强模型继续扩展中 | 真实 substrate 双模型 strict-local 验证 |
 | R3 时间抽象 | 4.0 | alpha 可控变分瓶颈 + SwitchGateStats + FamilyCompetitionState；多 alpha A/B 验证完成 | A/B: alpha vs switch_bias 对比 |
 | R4 内部控制 | 4.0 | 20-cycle 连续运行 reward 趋势验证通过；因果策略切换未端到端验证 | 20-cycle 闭环验证 |
 | R5 记忆连续谱 | 4.5 | PersistenceBackend load 路径修复；CMS MLP 持久化往返验证；nested 变体 checkpoint 含 meta-targets | load_from_backend 修复 + CMS MLP 持久化往返 |

@@ -95,6 +95,7 @@
 ## 当前基线模型
 
 - `distilgpt2`：已通过 strict-local 单轮和 5-turn 稳定性验收
+- `Qwen/Qwen2.5-0.5B-Instruct`：已通过 strict-local 单轮验收，并在 20/50-turn benchmark 中成为 `preferred`
 - `Qwen/Qwen2.5-3B-Instruct`：本地 tokenizer 离线兼容仍待收口
 
 ## 结果归档建议
