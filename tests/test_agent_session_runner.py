@@ -138,6 +138,23 @@ def test_agent_session_runner_can_fail_closed_for_missing_substrate_model():
         raise AssertionError("Expected runner construction to fail when substrate fallback mode is deny.")
 
 
+def test_agent_session_runner_uses_explicit_model_source_for_strict_local():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            AgentSessionRunner(
+                session_id="explicit-source-session",
+                substrate_model_id="distilgpt2",
+                substrate_model_source=tmpdir,
+                substrate_runtime_mode="strict-local",
+            )
+        except Exception as exc:
+            assert type(exc).__name__ in {"OSError", "ValueError", "RuntimeError"}
+        else:
+            raise AssertionError("Expected explicit empty local model source to fail in strict-local mode.")
+
+
 def test_agent_session_runner_prefer_local_mode_marks_fallback_metadata():
     runner = AgentSessionRunner(
         session_id="prefer-local-session",

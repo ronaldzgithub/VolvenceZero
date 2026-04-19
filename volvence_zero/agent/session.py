@@ -117,6 +117,7 @@ class AgentSessionRunner:
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         default_residual_runtime: OpenWeightResidualRuntime | None = None,
         substrate_model_id: str = "distilgpt2",
+        substrate_model_source: str | None = None,
         substrate_device: str = "auto",
         substrate_local_files_only: bool = False,
         substrate_fallback_to_builtin: bool | None = None,
@@ -149,6 +150,7 @@ class AgentSessionRunner:
         )
         self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
             model_id=substrate_model_id,
+            model_source=substrate_model_source,
             device=substrate_device,
             local_files_only=substrate_local_files_only,
             fallback_to_builtin=substrate_fallback_to_builtin,
@@ -491,6 +493,7 @@ def default_active_runner() -> AgentSessionRunner:
 def llm_active_runner(
     *,
     model_id: str = "Qwen/Qwen2.5-3B-Instruct",
+    model_source: str | None = None,
     device: str = "auto",
     max_new_tokens: int = 256,
     temperature: float = 0.7,
@@ -500,6 +503,7 @@ def llm_active_runner(
     """Create a runner that uses a real LLM for response generation."""
     runtime = build_transformers_runtime_with_fallback(
         model_id=model_id,
+        model_source=model_source,
         device=device,
         local_files_only=local_files_only,
     )

@@ -612,6 +612,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self,
         *,
         model_id: str,
+        pretrained_source: str | None = None,
         device: str = "cpu",
         model: object | None = None,
         tokenizer: object | None = None,
@@ -626,6 +627,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._torch = importlib.import_module("torch")
         self._transformers = importlib.import_module("transformers")
         self.model_id = model_id
+        self._pretrained_source = pretrained_source or model_id
         self.is_frozen = True
         self._device = self._resolve_device(device=device)
         self._max_length = max(1, max_length)
@@ -635,11 +637,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._runtime_origin = runtime_origin
         self.runtime_origin = runtime_origin
         self._tokenizer = tokenizer or self._load_tokenizer(
-            model_id=model_id,
+            model_id=self._pretrained_source,
             local_files_only=local_files_only,
         )
         self._model = model or self._transformers.AutoModelForCausalLM.from_pretrained(
-            model_id,
+            self._pretrained_source,
             local_files_only=local_files_only,
         )
         self._prepare_model()
@@ -930,14 +932,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
     def _residual_semantic_profile(self, *, captured_layers: dict[int, object]) -> tuple[float, ...]:
         stacked = self._torch.stack(
-            [captured_layers[layer_index][0].to(self._device) for layer_index in self._layer_indices],
+            [captured_layers[layer_index][0].to(self._device, dtype=self._torch.float32) for layer_index in self._layer_indices],
             dim=0,
         )
         mean_hidden = stacked.mean(dim=(0, 1))
         tail_hidden = stacked[:, -1, :].mean(dim=0)
         dispersion_hidden = stacked.std(dim=1).mean(dim=0) if stacked.shape[1] > 1 else self._torch.zeros_like(mean_hidden)
         composite = mean_hidden * 0.55 + tail_hidden * 0.30 + dispersion_hidden * 0.15
-        projected = self._semantic_basis @ composite
+        projected = self._semantic_basis.to(dtype=self._torch.float32) @ composite.to(dtype=self._torch.float32)
         norm = projected.norm().clamp_min(1e-6)
         normalized = (projected / norm).detach().cpu().tolist()
         return tuple(float(value) for value in normalized)
@@ -1335,6 +1337,7 @@ def build_builtin_transformers_runtime(
 def build_transformers_runtime_with_fallback(
     *,
     model_id: str,
+    model_source: str | None = None,
     device: str = "auto",
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
@@ -1370,6 +1373,7 @@ def build_transformers_runtime_with_fallback(
     try:
         return TransformersOpenWeightResidualRuntime(
             model_id=model_id,
+            pretrained_source=model_source or model_id,
             device=device,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
@@ -1492,9 +1496,11 @@ def _is_transformers_runtime_fallback_error(exc: Exception) -> bool:
 def probe_local_model_compatibility(
     *,
     model_id: str,
+    model_source: str | None = None,
     device: str = "cpu",
 ) -> LocalModelCompatibilityReport:
     transformers = importlib.import_module("transformers")
+    load_source = model_source or model_id
     local_tokenizer_available = False
     local_model_available = False
     strict_local_runtime_available = False
@@ -1503,24 +1509,25 @@ def probe_local_model_compatibility(
     try:
         try:
             transformers.AutoTokenizer.from_pretrained(
-                model_id,
+                load_source,
                 local_files_only=True,
             )
             local_tokenizer_available = True
         except Exception:
             transformers.AutoTokenizer.from_pretrained(
-                model_id,
+                load_source,
                 local_files_only=True,
                 use_fast=False,
             )
             local_tokenizer_available = True
         transformers.AutoModelForCausalLM.from_pretrained(
-            model_id,
+            load_source,
             local_files_only=True,
         )
         local_model_available = True
         runtime = build_transformers_runtime_with_fallback(
             model_id=model_id,
+            model_source=model_source,
             device=device,
             local_files_only=True,
             runtime_mode=LocalSubstrateRuntimeMode.STRICT_LOCAL,

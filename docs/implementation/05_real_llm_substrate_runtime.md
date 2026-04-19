@@ -124,6 +124,25 @@ runner = AgentSessionRunner(
 - 本地已下载模型：走真实 HF 本地模型
 - 本地未下载模型：回退到 builtin runtime，并显式标记 fallback
 
+### 显式本地目录路径
+
+如果某个模型（例如 Qwen）在 repo id + cache 形式下本地离线不稳定，可以直接指定本地目录：
+
+```python
+runner = AgentSessionRunner(
+    substrate_model_id="Qwen/Qwen2.5-3B-Instruct",
+    substrate_model_source="/absolute/path/to/local/model",
+    substrate_runtime_mode="strict-local",
+)
+```
+
+语义上：
+
+- `substrate_model_id` 用于逻辑标识和结果展示
+- `substrate_model_source` 用于真正的 `from_pretrained(...)` 加载源
+
+这能避免 “repo id 解析 + cache 猜测” 带来的不确定性。
+
 ## 如何判断当前是否真的跑在真实模型上
 
 看 `AgentTurnResult` 和 `SubstrateSnapshot`：
