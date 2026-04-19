@@ -1133,6 +1133,33 @@ class EvaluationBackbone:
             if substrate_snapshot is not None
             else 0.0
         )
+        hook_layer_coverage = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="hook_layer_coverage")
+            if substrate_snapshot is not None
+            else 0.0
+        )
+        semantic_residual_weight = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="semantic_residual_weight")
+            if substrate_snapshot is not None
+            else 0.0
+        )
+        top_logit_margin = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="top_logit_margin")
+            if substrate_snapshot is not None
+            else 0.0
+        )
+        top_logit_entropy = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="top_logit_entropy")
+            if substrate_snapshot is not None
+            else 0.0
+        )
+        real_path_quality = _clamp(
+            (1.0 - fallback_active) * 0.45
+            + hook_layer_coverage * 0.20
+            + semantic_residual_weight * 0.20
+            + top_logit_margin * 0.10
+            + (1.0 - top_logit_entropy) * 0.05
+        )
         world_drive = dual_track_snapshot.world_track.controller_code[0] if dual_track_snapshot else 0.0
         self_drive = dual_track_snapshot.self_track.controller_code[0] if dual_track_snapshot else 0.0
         shared_drive = (
@@ -1162,6 +1189,7 @@ class EvaluationBackbone:
             + min(world_goal_count / 3.0, 1.0) * 0.08
             + memory_count / 5.0 * 0.10
             + world_goal_semantics * 0.12
+            + real_path_quality * 0.05
         )
         support_presence = _clamp(
             semantic_support_pull * 0.34
@@ -1172,6 +1200,7 @@ class EvaluationBackbone:
             + relationship_stability * 0.07
             + self_goal_semantics * 0.12
             - semantic_directive_pull * 0.10
+            + real_path_quality * 0.06
         )
         info_integration = _clamp(
             memory_count / 5.0 * 0.45
@@ -1180,6 +1209,7 @@ class EvaluationBackbone:
             + semantic_task_pull * 0.16
             + semantic_directive_pull * 0.10
             + semantic_exploration_pull * 0.05
+            + real_path_quality * 0.06
         )
         warmth = _clamp(
             0.06
@@ -1190,6 +1220,13 @@ class EvaluationBackbone:
             + relationship_stability * 0.08
             + self_goal_semantics * 0.12
             - semantic_directive_pull * 0.08
+            + real_path_quality * 0.05
+        )
+        relationship_stability = _clamp(
+            relationship_stability
+            + real_path_quality * 0.08
+            + semantic_support_pull * 0.04
+            - semantic_directive_pull * 0.03
         )
         placeholder_penalty = 0.12 if substrate_snapshot is None or substrate_snapshot.surface_kind is SurfaceKind.PLACEHOLDER else 0.0
         contract_integrity = _clamp(1.0 - placeholder_penalty)
@@ -1239,7 +1276,11 @@ class EvaluationBackbone:
                 metric_name="cross_track_stability",
                 value=relationship_stability,
                 confidence=0.65,
-                evidence=f"Computed from cross_track_tension={cross_tension:.2f}.",
+                evidence=(
+                    f"Computed from cross_track_tension={cross_tension:.2f}, "
+                    f"real_path_quality={real_path_quality:.2f}, support_pull={semantic_support_pull:.2f}, "
+                    f"directive_pull={semantic_directive_pull:.2f}."
+                ),
             ),
             EvaluationScore(
                 family="safety",
@@ -1259,6 +1300,17 @@ class EvaluationBackbone:
                 evidence=(
                     f"Derived from fallback_active={fallback_active:.2f} "
                     f"and surface_kind={substrate_snapshot.surface_kind.value if substrate_snapshot is not None else 'missing'}."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="substrate_signal_quality",
+                value=real_path_quality,
+                confidence=0.72,
+                evidence=(
+                    f"Derived from fallback_active={fallback_active:.2f}, "
+                    f"hook_layer_coverage={hook_layer_coverage:.2f}, semantic_residual_weight={semantic_residual_weight:.2f}, "
+                    f"top_logit_margin={top_logit_margin:.2f}, top_logit_entropy={top_logit_entropy:.2f}."
                 ),
             ),
         )

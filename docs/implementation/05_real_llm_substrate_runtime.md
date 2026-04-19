@@ -66,6 +66,34 @@
 - 中间层 hook 结构简单
 - 足够完成“一轮真实模型主链跑通”的验收
 
+## 当前模型兼容性矩阵
+
+| 模型 | strict-local | prefer-local | 当前状态 | 备注 |
+|------|--------------|--------------|----------|------|
+| `distilgpt2` | 可用 | 可用 | 已通过 1-turn 与 5-turn 验收 | 当前推荐默认模型 |
+| `Qwen/Qwen2.5-3B-Instruct` | 未完成 | 未完成 | tokenizer 本地离线兼容仍待收口 | 已加入 tokenizer `use_fast=False` 本地回退尝试 |
+
+### Qwen 当前缺口
+
+- 主要问题不在主链路，而在 tokenizer 的本地离线兼容路径
+- 当前 runtime 已加入“本地 fast tokenizer 失败时回退到 slow tokenizer”的策略
+- 下一步需要在你的机器上确认 Qwen 本地权重目录、tokenizer 文件和 strict-local 行为是否一致
+- 当前探针结果仍显示 `ConnectTimeout`，说明 **本地离线依赖尚未完全闭合**
+
+### 兼容性探针
+
+可以使用：
+
+- `volvence_zero.substrate.probe_local_model_compatibility`
+
+它会检查：
+
+- tokenizer 是否本地可用
+- model weights 是否本地可用
+- strict-local runtime 是否真的能完成一次 capture
+
+如果 `strict_local_runtime_available` 为 `False`，则说明还不能把该模型纳入正式 strict-local 验收矩阵。
+
 ## 推荐运行方式
 
 ### 最严格验收
@@ -152,6 +180,66 @@ runtime_origin=hf-local capture_source=real fallback_active=0 residual_sequence_
 1. 先保持 `prefer-local`
 2. 保留 builtin fallback 可运行性
 3. 不回退 substrate contract，只回退真实 runtime 模式
+
+## 正式验收协议
+
+### 验收 1：strict-local 单轮
+
+目标：证明系统不是 fallback，而是真正跑在本地冻结模型上。
+
+通过标准：
+
+- `substrate_runtime_origin == "hf-local"`
+- `substrate_fallback_active is False`
+- `substrate_capture_source == "real"`
+- `substrate_residual_sequence_length > 0`
+- `acceptance_passed is True`
+
+### 验收 2：strict-local 多轮稳定性
+
+目标：证明真实 substrate 不是一次性可用，而是多轮稳定。
+
+通过标准：
+
+- 连续 5 turn 都满足单轮标准
+- `mean_seq_len > 0`
+- `all_acceptance == True`
+- 至少 1 次 `full-cycle`
+
+### 验收 3：`hf-local` vs `builtin` 对比
+
+目标：证明真实 substrate 至少具备稳定、可比较、可分析的学习信号。
+
+通过标准：
+
+- 两条路径都能跑通 benchmark
+- 输出 JSON 对比报告
+- 至少包含：
+  - acceptance rate
+  - residual sequence 长度
+  - turn score 数量
+  - family / regime 轨迹
+  - joint loop 行为
+
+### 推荐验收命令
+
+1. `strict-local` 单轮：
+
+```python
+runner = AgentSessionRunner(
+    substrate_model_id="distilgpt2",
+    substrate_runtime_mode="strict-local",
+    substrate_device="cpu",
+)
+```
+
+2. `strict-local` 多轮 benchmark：
+
+使用代码内的 `run_substrate_path_benchmark()` 对固定输入序列运行。
+
+3. hook 层校准：
+
+使用 `run_hook_layer_calibration()` 对不同 `layer_indices` 组合生成校准报告。
 
 ## 相关文件
 

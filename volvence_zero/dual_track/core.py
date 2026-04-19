@@ -214,14 +214,52 @@ def derive_track_state(
     )
 
 
-def derive_cross_track_tension(world_track: TrackState, self_track: TrackState) -> float:
+def derive_cross_track_tension(
+    world_track: TrackState,
+    self_track: TrackState,
+    *,
+    substrate_snapshot: SubstrateSnapshot | None = None,
+) -> float:
     goal_overlap = len(set(world_track.active_goals) & set(self_track.active_goals))
     overlap_penalty = 0.15 if goal_overlap else 0.0
     controller_divergence = (
         abs(world_track.controller_code[0] - self_track.controller_code[0]) * 0.45
         + abs(world_track.controller_code[1] - self_track.controller_code[1]) * 0.20
     )
-    return _clamp(abs(world_track.tension_level - self_track.tension_level) + overlap_penalty + controller_divergence)
+    semantic_support = (
+        feature_signal_value(substrate_snapshot.feature_surface, name="semantic_support_pull")
+        if substrate_snapshot is not None
+        else 0.0
+    )
+    semantic_task = (
+        feature_signal_value(substrate_snapshot.feature_surface, name="semantic_task_pull")
+        if substrate_snapshot is not None
+        else 0.0
+    )
+    semantic_exploration = (
+        feature_signal_value(substrate_snapshot.feature_surface, name="semantic_exploration_pull")
+        if substrate_snapshot is not None
+        else 0.0
+    )
+    fallback_active = (
+        feature_signal_value(substrate_snapshot.feature_surface, name="fallback_active")
+        if substrate_snapshot is not None
+        else 0.0
+    )
+    hook_coverage = (
+        feature_signal_value(substrate_snapshot.feature_surface, name="hook_layer_coverage")
+        if substrate_snapshot is not None
+        else 0.0
+    )
+    real_path_bonus = (1.0 - fallback_active) * (0.05 + hook_coverage * 0.08)
+    coordination_bonus = min(semantic_support, semantic_task) * 0.08 + semantic_exploration * 0.04
+    return _clamp(
+        abs(world_track.tension_level - self_track.tension_level)
+        + overlap_penalty
+        + controller_divergence
+        - real_path_bonus
+        - coordination_bonus
+    )
 
 
 class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
@@ -270,7 +308,11 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 substrate_snapshot=substrate_value,
             )
 
-        cross_track_tension = derive_cross_track_tension(world_track, self_track)
+        cross_track_tension = derive_cross_track_tension(
+            world_track,
+            self_track,
+            substrate_snapshot=substrate_value,
+        )
         description = (
             f"Dual-track state with world_tension={world_track.tension_level:.2f}, "
             f"self_tension={self_track.tension_level:.2f}, "
@@ -320,7 +362,11 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             temporal_snapshot=temporal_snapshot,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
         )
-        cross_track_tension = derive_cross_track_tension(world_track, self_track)
+        cross_track_tension = derive_cross_track_tension(
+            world_track,
+            self_track,
+            substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
+        )
         return self.publish(
             DualTrackSnapshot(
                 world_track=world_track,

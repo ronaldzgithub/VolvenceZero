@@ -379,3 +379,56 @@ def test_open_weight_adapter_description_exposes_runtime_metadata():
     assert "capture_source=fallback" in snapshot.description
     assert "fallback_active=1" in snapshot.description
     assert "residual_sequence_len=" in snapshot.description
+
+
+def test_run_hook_layer_calibration_reports_recommended_layers():
+    from volvence_zero.substrate import run_hook_layer_calibration
+
+    def runtime_builder(layer_indices: tuple[int, ...]):
+        model = GPT2LMHeadModel(
+            GPT2Config(
+                vocab_size=64,
+                n_positions=32,
+                n_ctx=32,
+                n_embd=24,
+                n_layer=4,
+                n_head=4,
+            )
+        )
+        return TransformersOpenWeightResidualRuntime(
+            model_id="calibration-runtime",
+            model=model,
+            tokenizer=_TinyWhitespaceTokenizer(),
+            device="cpu",
+            layer_indices=layer_indices,
+            activation_width=6,
+            top_k_logits=4,
+        )
+
+    report = run_hook_layer_calibration(
+        model_id="calibration-runtime",
+        source_text="calm reflective collaboration",
+        runtime_builder=runtime_builder,
+        layer_index_sets=((0, 1), (1, 2), (2, 3)),
+    )
+
+    assert report.model_id == "calibration-runtime"
+    assert len(report.cases) == 3
+    assert report.recommended_layers in ((0, 1), (1, 2), (2, 3))
+    assert all(case.residual_sequence_length > 0 for case in report.cases)
+    assert all(0.0 <= case.signal_quality <= 1.0 for case in report.cases)
+
+
+def test_probe_local_model_compatibility_reports_missing_model():
+    from volvence_zero.substrate import LocalModelCompatibilityReport, probe_local_model_compatibility
+
+    report = probe_local_model_compatibility(
+        model_id="definitely-missing-local-model",
+        device="cpu",
+    )
+
+    assert isinstance(report, LocalModelCompatibilityReport)
+    assert report.model_id == "definitely-missing-local-model"
+    assert report.strict_local_runtime_available is False
+    assert report.error_type is not None
+    assert report.description

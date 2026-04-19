@@ -1,6 +1,14 @@
 from volvence_zero.agent.cli import build_arg_parser, main, render_turn_result, run_repl
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseSynthesizer
-from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner, llm_active_runner
+from volvence_zero.agent.session import (
+    AgentSessionRunner,
+    AgentTurnResult,
+    SubstrateBenchmarkReport,
+    SubstrateBenchmarkTurn,
+    default_active_runner,
+    llm_active_runner,
+    run_substrate_path_benchmark,
+)
 from volvence_zero.agent.trial import (
     build_trial_arg_parser,
     render_trial_turn_result,
@@ -13,11 +21,14 @@ __all__ = [
     "AgentSessionRunner",
     "LLMResponseSynthesizer",
     "AgentTurnResult",
+    "SubstrateBenchmarkReport",
+    "SubstrateBenchmarkTurn",
     "ResponseSynthesizer",
     "build_arg_parser",
     "build_trial_arg_parser",
     "default_active_runner",
     "llm_active_runner",
+    "run_substrate_path_benchmark",
     "main",
     "render_trial_turn_result",
     "render_turn_result",

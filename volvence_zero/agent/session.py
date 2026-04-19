@@ -75,6 +75,32 @@ class AgentTurnResult:
     imagination_result: ImaginationResult | None = None
 
 
+@dataclass(frozen=True)
+class SubstrateBenchmarkTurn:
+    turn_index: int
+    substrate_runtime_origin: str | None
+    substrate_fallback_active: bool
+    substrate_capture_source: str | None
+    substrate_residual_sequence_length: int
+    active_regime: str | None
+    active_abstract_action: str | None
+    joint_schedule_action: str
+    acceptance_passed: bool
+    turn_score_count: int
+    evaluation_alert_count: int
+
+
+@dataclass(frozen=True)
+class SubstrateBenchmarkReport:
+    path_label: str
+    turns: tuple[SubstrateBenchmarkTurn, ...]
+    acceptance_rate: float
+    mean_residual_sequence_length: float
+    mean_turn_score_count: float
+    full_cycle_count: int
+    description: str
+
+
 class AgentSessionRunner:
     """Minimal session runner over the final wiring graph."""
 
@@ -495,5 +521,64 @@ def llm_active_runner(
             credit=WiringLevel.ACTIVE,
             reflection=WiringLevel.ACTIVE,
             temporal=WiringLevel.ACTIVE,
+        ),
+    )
+
+
+async def run_substrate_path_benchmark(
+    *,
+    path_label: str,
+    runner: AgentSessionRunner,
+    user_inputs: tuple[str, ...],
+) -> SubstrateBenchmarkReport:
+    turns: list[SubstrateBenchmarkTurn] = []
+    for user_input in user_inputs:
+        result = await runner.run_turn(user_input)
+        eval_snapshot = result.active_snapshots.get("evaluation")
+        turn_score_count = 0
+        if eval_snapshot is not None and isinstance(eval_snapshot.value, EvaluationSnapshot):
+            turn_score_count = len(eval_snapshot.value.turn_scores)
+        turns.append(
+            SubstrateBenchmarkTurn(
+                turn_index=runner.turn_index,
+                substrate_runtime_origin=result.substrate_runtime_origin,
+                substrate_fallback_active=result.substrate_fallback_active,
+                substrate_capture_source=result.substrate_capture_source,
+                substrate_residual_sequence_length=result.substrate_residual_sequence_length,
+                active_regime=result.active_regime,
+                active_abstract_action=result.active_abstract_action,
+                joint_schedule_action=result.joint_schedule_action,
+                acceptance_passed=result.acceptance_passed,
+                turn_score_count=turn_score_count,
+                evaluation_alert_count=len(result.evaluation_alerts),
+            )
+        )
+    acceptance_rate = (
+        sum(1 for turn in turns if turn.acceptance_passed) / max(len(turns), 1)
+        if turns
+        else 0.0
+    )
+    mean_seq_len = (
+        sum(turn.substrate_residual_sequence_length for turn in turns) / max(len(turns), 1)
+        if turns
+        else 0.0
+    )
+    mean_turn_scores = (
+        sum(turn.turn_score_count for turn in turns) / max(len(turns), 1)
+        if turns
+        else 0.0
+    )
+    full_cycle_count = sum(1 for turn in turns if turn.joint_schedule_action == "full-cycle")
+    return SubstrateBenchmarkReport(
+        path_label=path_label,
+        turns=tuple(turns),
+        acceptance_rate=acceptance_rate,
+        mean_residual_sequence_length=mean_seq_len,
+        mean_turn_score_count=mean_turn_scores,
+        full_cycle_count=full_cycle_count,
+        description=(
+            f"Substrate benchmark path={path_label} turns={len(turns)} "
+            f"acceptance_rate={acceptance_rate:.2f} mean_seq_len={mean_seq_len:.2f} "
+            f"full_cycles={full_cycle_count}."
         ),
     )

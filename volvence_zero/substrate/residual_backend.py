@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import importlib
 import math
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
@@ -54,6 +54,37 @@ class GenerationResult:
     text: str
     token_count: int
     capture: OpenWeightRuntimeCapture | None
+    description: str
+
+
+@dataclass(frozen=True)
+class HookLayerCalibrationCase:
+    layer_indices: tuple[int, ...]
+    hook_layer_coverage: float
+    residual_sequence_length: int
+    semantic_separation: float
+    signal_quality: float
+    runtime_origin: str
+    description: str
+
+
+@dataclass(frozen=True)
+class HookLayerCalibrationReport:
+    model_id: str
+    source_text: str
+    cases: tuple[HookLayerCalibrationCase, ...]
+    recommended_layers: tuple[int, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class LocalModelCompatibilityReport:
+    model_id: str
+    local_tokenizer_available: bool
+    local_model_available: bool
+    strict_local_runtime_available: bool
+    error_type: str | None
+    error_message: str
     description: str
 
 
@@ -603,8 +634,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._control_scale = max(0.0, control_scale)
         self._runtime_origin = runtime_origin
         self.runtime_origin = runtime_origin
-        self._tokenizer = tokenizer or self._transformers.AutoTokenizer.from_pretrained(
-            model_id,
+        self._tokenizer = tokenizer or self._load_tokenizer(
+            model_id=model_id,
             local_files_only=local_files_only,
         )
         self._model = model or self._transformers.AutoModelForCausalLM.from_pretrained(
@@ -754,6 +785,24 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
+
+    def _load_tokenizer(self, *, model_id: str, local_files_only: bool):
+        try:
+            return self._transformers.AutoTokenizer.from_pretrained(
+                model_id,
+                local_files_only=local_files_only,
+            )
+        except Exception as first_exc:
+            if not local_files_only:
+                raise
+            try:
+                return self._transformers.AutoTokenizer.from_pretrained(
+                    model_id,
+                    local_files_only=True,
+                    use_fast=False,
+                )
+            except Exception:
+                raise first_exc
 
     def _resolve_device(self, *, device: str) -> str:
         if device != "auto":
@@ -1334,6 +1383,98 @@ def build_transformers_runtime_with_fallback(
         )
 
 
+def run_hook_layer_calibration(
+    *,
+    model_id: str,
+    source_text: str,
+    runtime_builder: Callable[[tuple[int, ...]], OpenWeightResidualRuntime],
+    layer_index_sets: tuple[tuple[int, ...], ...],
+) -> HookLayerCalibrationReport:
+    cases: list[HookLayerCalibrationCase] = []
+    for layer_indices in layer_index_sets:
+        runtime = runtime_builder(layer_indices)
+        capture = runtime.capture(source_text=source_text)
+        feature_map = {signal.name: signal.values[0] for signal in capture.feature_surface if signal.values}
+        task_pull = feature_map.get("semantic_task_pull", 0.0)
+        support_pull = feature_map.get("semantic_support_pull", 0.0)
+        repair_pull = feature_map.get("semantic_repair_pull", 0.0)
+        directive_pull = feature_map.get("semantic_directive_pull", 0.0)
+        exploration_pull = feature_map.get("semantic_exploration_pull", 0.0)
+        hook_coverage = feature_map.get("hook_layer_coverage", 0.0)
+        fallback_active = feature_map.get("fallback_active", 0.0)
+        semantic_separation = _clamp_unit(
+            max(task_pull, support_pull, repair_pull, directive_pull, exploration_pull)
+            - min(task_pull, support_pull, repair_pull, directive_pull, exploration_pull)
+        )
+        signal_quality = _clamp_unit(
+            hook_coverage * 0.35
+            + (1.0 - fallback_active) * 0.25
+            + feature_map.get("top_logit_margin", 0.0) * 0.15
+            + (1.0 - feature_map.get("top_logit_entropy", 0.0)) * 0.10
+            + semantic_separation * 0.15
+        )
+        cases.append(
+            HookLayerCalibrationCase(
+                layer_indices=layer_indices,
+                hook_layer_coverage=round(hook_coverage, 4),
+                residual_sequence_length=len(capture.residual_sequence),
+                semantic_separation=round(semantic_separation, 4),
+                signal_quality=round(signal_quality, 4),
+                runtime_origin=getattr(runtime, "runtime_origin", "unknown"),
+                description=capture.description,
+            )
+        )
+    ranked = sorted(
+        cases,
+        key=lambda item: (
+            item.signal_quality,
+            item.semantic_separation,
+            item.hook_layer_coverage,
+            item.residual_sequence_length,
+        ),
+        reverse=True,
+    )
+    recommended_layers = ranked[0].layer_indices if ranked else ()
+    return HookLayerCalibrationReport(
+        model_id=model_id,
+        source_text=source_text,
+        cases=tuple(cases),
+        recommended_layers=recommended_layers,
+        description=(
+            f"Hook layer calibration for {model_id} over {len(cases)} cases; "
+            f"recommended_layers={recommended_layers}."
+        ),
+    )
+    resolved_mode = resolve_substrate_fallback_mode(
+        fallback_mode=fallback_mode,
+        fallback_to_builtin=fallback_to_builtin,
+    )
+    effective_local_files_only = local_files_only
+    effective_runtime_origin = "hf-local" if local_files_only else "hf-pretrained"
+    if resolved_runtime_mode is LocalSubstrateRuntimeMode.STRICT_LOCAL:
+        effective_local_files_only = True
+        resolved_mode = SubstrateFallbackMode.DENY
+        effective_runtime_origin = "hf-local"
+    elif resolved_runtime_mode is LocalSubstrateRuntimeMode.PREFER_LOCAL:
+        effective_local_files_only = True
+        resolved_mode = SubstrateFallbackMode.ALLOW_BUILTIN
+        effective_runtime_origin = "hf-local"
+    try:
+        return TransformersOpenWeightResidualRuntime(
+            model_id=model_id,
+            device=device,
+            local_files_only=effective_local_files_only,
+            runtime_origin=effective_runtime_origin,
+        )
+    except Exception as exc:
+        if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):
+            raise
+        return build_builtin_transformers_runtime(
+            model_id=builtin_model_id,
+            device=device,
+        )
+
+
 def _is_transformers_runtime_fallback_error(exc: Exception) -> bool:
     if isinstance(exc, (OSError, ValueError, RuntimeError, TimeoutError)):
         return True
@@ -1346,6 +1487,65 @@ def _is_transformers_runtime_fallback_error(exc: Exception) -> bool:
     if module_name.startswith("huggingface_hub.errors"):
         return True
     return False
+
+
+def probe_local_model_compatibility(
+    *,
+    model_id: str,
+    device: str = "cpu",
+) -> LocalModelCompatibilityReport:
+    transformers = importlib.import_module("transformers")
+    local_tokenizer_available = False
+    local_model_available = False
+    strict_local_runtime_available = False
+    error_type: str | None = None
+    error_message = ""
+    try:
+        try:
+            transformers.AutoTokenizer.from_pretrained(
+                model_id,
+                local_files_only=True,
+            )
+            local_tokenizer_available = True
+        except Exception:
+            transformers.AutoTokenizer.from_pretrained(
+                model_id,
+                local_files_only=True,
+                use_fast=False,
+            )
+            local_tokenizer_available = True
+        transformers.AutoModelForCausalLM.from_pretrained(
+            model_id,
+            local_files_only=True,
+        )
+        local_model_available = True
+        runtime = build_transformers_runtime_with_fallback(
+            model_id=model_id,
+            device=device,
+            local_files_only=True,
+            runtime_mode=LocalSubstrateRuntimeMode.STRICT_LOCAL,
+        )
+        runtime.capture(source_text="local compatibility probe")
+        strict_local_runtime_available = True
+        description = (
+            f"Local model compatibility OK for {model_id}: tokenizer/model/runtime all available."
+        )
+    except Exception as exc:
+        error_type = type(exc).__name__
+        error_message = str(exc)
+        description = (
+            f"Local model compatibility probe failed for {model_id}: "
+            f"{error_type}: {error_message}"
+        )
+    return LocalModelCompatibilityReport(
+        model_id=model_id,
+        local_tokenizer_available=local_tokenizer_available,
+        local_model_available=local_model_available,
+        strict_local_runtime_available=strict_local_runtime_available,
+        error_type=error_type,
+        error_message=error_message,
+        description=description,
+    )
 
 
 def _normalized_token_value(token: str) -> float:

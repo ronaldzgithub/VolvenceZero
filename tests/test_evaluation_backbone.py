@@ -647,3 +647,41 @@ def test_longitudinal_report_from_session_sequence():
     assert longitudinal.verdict in ("growing", "stable", "regressing", "insufficient-data")
     assert len(longitudinal.dimension_trends) > 0
     assert longitudinal.description
+
+
+def test_evaluation_backbone_emits_substrate_signal_quality():
+    backbone = EvaluationBackbone()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="real-calibration-model",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(0.9, 0.5, 0.2),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.7,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.3,), source="test"),
+            FeatureSignal(name="semantic_repair_pull", values=(0.2,), source="test"),
+            FeatureSignal(name="semantic_exploration_pull", values=(0.4,), source="test"),
+            FeatureSignal(name="semantic_directive_pull", values=(0.6,), source="test"),
+            FeatureSignal(name="fallback_active", values=(0.0,), source="test"),
+            FeatureSignal(name="hook_layer_coverage", values=(0.8,), source="test"),
+            FeatureSignal(name="semantic_residual_weight", values=(0.45,), source="test"),
+            FeatureSignal(name="top_logit_margin", values=(0.4,), source="test"),
+            FeatureSignal(name="top_logit_entropy", values=(0.2,), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="calibrated real substrate",
+    )
+    snapshot = asyncio.run(
+        EvaluationModule(backbone=backbone, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s-calibration",
+            wave_id="w1",
+            timestamp_ms=10,
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+
+    metrics = {score.metric_name: score.value for score in snapshot.value.turn_scores}
+    assert "substrate_signal_quality" in metrics
+    assert metrics["substrate_signal_quality"] > 0.0

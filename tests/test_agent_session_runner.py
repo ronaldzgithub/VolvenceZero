@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.agent import AgentSessionRunner, default_active_runner
+from volvence_zero.agent import AgentSessionRunner, default_active_runner, run_substrate_path_benchmark
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.substrate import (
@@ -266,3 +266,30 @@ def test_response_context_carries_cognitive_state():
 
     assert result.response.text
     assert result.response.rationale
+
+
+def test_run_substrate_path_benchmark_collects_turn_metrics():
+    runner = AgentSessionRunner(
+        session_id="benchmark-session",
+        substrate_model_id="distilgpt2",
+        substrate_runtime_mode="builtin-only",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
+    report = asyncio.run(
+        run_substrate_path_benchmark(
+            path_label="builtin",
+            runner=runner,
+            user_inputs=(
+                "Help me structure a plan.",
+                "I need the next step.",
+                "Summarize the main risk.",
+            ),
+        )
+    )
+
+    assert report.path_label == "builtin"
+    assert len(report.turns) == 3
+    assert 0.0 <= report.acceptance_rate <= 1.0
+    assert report.mean_residual_sequence_length > 0
+    assert report.mean_turn_score_count > 0
+    assert report.description
