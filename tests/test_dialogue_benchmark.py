@@ -5,17 +5,24 @@ import asyncio
 from volvence_zero.agent import (
     AgentSessionRunner,
     DEFAULT_DIALOGUE_CASE_VARIANTS,
+    DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
+    DEFAULT_DIALOGUE_REPLAY_SEEDS,
     DEFAULT_DIALOGUE_PROOF_CASES,
+    build_dialogue_replay_selection_artifact,
     build_standard_dialogue_runner,
     default_dialogue_ablation_profiles,
     dialogue_case_variants,
+    dialogue_paraphrase_families,
     DialogueBenchmarkTurn,
     ScriptedDialogueCase,
     build_dialogue_case_report,
+    build_dialogue_replay_ranking_report,
+    generate_stochastic_dialogue_case_variants,
     run_dialogue_pe_eta_ablation_benchmark,
     run_dialogue_pe_eta_benchmark,
     run_dialogue_pe_eta_case,
     run_dialogue_pe_eta_perturbation_benchmark,
+    run_dialogue_pe_eta_systematic_replay_benchmark,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
@@ -46,6 +53,18 @@ def _synthetic_perturbation_runner(profile_label: str, variant) -> AgentSessionR
         model_id=f"dialogue-perturb:{profile_label}:{variant.case.case_id}"
     )
     runtime.runtime_origin = f"synthetic-perturb-{profile_label}"
+    return build_standard_dialogue_runner(
+        profile_label=profile_label,
+        case=variant.case,
+        residual_runtime=runtime,
+    )
+
+
+def _synthetic_systematic_runner(profile_label: str, variant) -> AgentSessionRunner:
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id=f"dialogue-systematic:{profile_label}:{variant.case.case_id}"
+    )
+    runtime.runtime_origin = f"synthetic-systematic-{profile_label}"
     return build_standard_dialogue_runner(
         profile_label=profile_label,
         case=variant.case,
@@ -112,6 +131,15 @@ def test_dialogue_benchmark_exposes_default_case_variants():
     assert ("repair", "wording_shift") in labels
     assert ("goal_drift", "pressure_shift_late") in labels
     assert all(variant.case.case_id.startswith(f"{variant.base_case_id}__") for variant in variants)
+
+
+def test_dialogue_benchmark_exposes_default_paraphrase_families():
+    families = dialogue_paraphrase_families()
+
+    assert len(families) == len(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES)
+    family_ids = {(family.base_case_id, family.family_label) for family in families}
+    assert ("repair", "repair_family") in family_ids
+    assert ("goal_drift", "goal_drift_family") in family_ids
 
 
 def test_run_dialogue_pe_eta_case_collects_pe_and_eta_trajectories():
@@ -198,6 +226,73 @@ def test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports():
         for case_id, _ in report.ablation_report.case_deltas_from_baseline
     }
     assert case_ids == variant_ids
+
+
+def test_generate_stochastic_dialogue_case_variants_is_deterministic():
+    first = generate_stochastic_dialogue_case_variants(seeds=(0, 1))
+    second = generate_stochastic_dialogue_case_variants(seeds=(0, 1))
+
+    assert tuple(variant.case.case_id for variant in first) == tuple(variant.case.case_id for variant in second)
+    assert all("__seed_" in variant.case.case_id for variant in first)
+    assert len(first) == len(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES) * 2
+
+
+def test_build_dialogue_replay_ranking_report_sorts_by_diagnostic_score():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+
+    assert len(ranking.entries) == 2
+    assert ranking.entries[0].diagnostic_score >= ranking.entries[1].diagnostic_score
+    assert ranking.entries[0].gap_vs_eta_no_pe >= 0.0
+
+
+def test_build_dialogue_replay_selection_artifact_keeps_top_k_entries():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:3],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:3],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:3],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+
+    assert artifact.artifact_id == "dialogue-replay-selection"
+    assert len(artifact.selected_variants) == 2
+    assert len(artifact.ranking_entries) == 2
+
+
+def test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants():
+    report = asyncio.run(
+        run_dialogue_pe_eta_systematic_replay_benchmark(
+            seeds=(0,),
+            include_fixed_variants=False,
+            runner_factory=_synthetic_systematic_runner,
+        )
+    )
+
+    assert len(report.variant_cases) == len(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES)
+    assert len(report.replay_ranking_report.entries) == len(report.variant_cases)
+    assert report.perturbation_report.ablation_report.baseline_label == "pe-eta"
+
+
+def test_default_dialogue_replay_seeds_are_exposed():
+    assert DEFAULT_DIALOGUE_REPLAY_SEEDS == (0, 1, 2)
 
 
 def test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit():

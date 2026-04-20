@@ -142,6 +142,14 @@ class DialogueSystematicReplayBenchmarkReport:
     description: str
 
 
+@dataclass(frozen=True)
+class DialogueReplaySelectionArtifact:
+    artifact_id: str
+    selected_variants: tuple[DialogueCaseVariant, ...]
+    ranking_entries: tuple[DialogueReplayRankingEntry, ...]
+    description: str
+
+
 PROOF_HIGH_PE_THRESHOLD = 0.18
 PROOF_REWARD_THRESHOLD = 0.05
 PROOF_PE_IMPROVEMENT_DELTA = 0.02
@@ -374,6 +382,140 @@ DEFAULT_DIALOGUE_CASE_VARIANTS: tuple[DialogueCaseVariant, ...] = (
 
 def dialogue_case_variants() -> tuple[DialogueCaseVariant, ...]:
     return DEFAULT_DIALOGUE_CASE_VARIANTS
+
+
+DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES: tuple[DialogueParaphraseFamily, ...] = (
+    DialogueParaphraseFamily(
+        base_case_id="repair",
+        family_label="repair_family",
+        description="Paraphrase family for rupture-repair conversations.",
+        turn_alternatives=(
+            (
+                "I do not feel understood here, and it makes it harder to trust the direction.",
+                "Something about this exchange feels misattuned, and that immediately lowers my trust.",
+            ),
+            (
+                "That answer still lands as too cold and solution-first for where I actually am.",
+                "The reply is still too detached and jumps into solving before addressing the tension.",
+            ),
+            (
+                "Repair the tone first. If you skip that again, it confirms you are optimizing the wrong thing.",
+                "Please handle the rupture before planning, or it will prove you are still missing the real issue.",
+            ),
+            (
+                "That helps. I am less guarded now, so keep the frame steady before moving to action.",
+                "This is better. I am not as defensive now, so hold the calmer frame a little longer.",
+            ),
+            (
+                "Now turn that calmer state into one concrete next step without losing the repair.",
+                "Good, convert this steadier tone into one usable next step while keeping the warmth intact.",
+            ),
+            (
+                "End by naming what changed between the rupture and the repair so the better pattern is easier to keep.",
+                "Close by explaining what you changed internally once the repair started working.",
+            ),
+        ),
+    ),
+    DialogueParaphraseFamily(
+        base_case_id="task_clarification",
+        family_label="clarification_family",
+        description="Paraphrase family for bottleneck-discovery conversations.",
+        turn_alternatives=(
+            (
+                "I need help on a project, but every generic suggestion so far has missed the real issue.",
+                "I need help, but broad advice keeps skating past the actual problem.",
+            ),
+            (
+                "It is late, fragmented, and noisy, yet I still cannot tell what the actual constraint is.",
+                "Everything feels messy and delayed, but the real bottleneck is still blurry to me.",
+            ),
+            (
+                "Do not hand me another checklist. Define the bottleneck so clearly that I could defend it to someone skeptical.",
+                "Skip the generic checklist and state the bottleneck in a way that would survive pushback.",
+            ),
+            (
+                "Now separate the truly urgent items from the things that only feel loud.",
+                "Help me distinguish actual urgency from noise that only sounds urgent.",
+            ),
+            (
+                "Turn it into a short plan I can still execute this week without sliding back into generic advice.",
+                "Translate that into a concrete weekly plan that still points at the same constraint.",
+            ),
+            (
+                "Close by pressure-testing whether the final plan still targets the same bottleneck instead of drifting to a different problem.",
+                "Finish by checking whether your final guidance still fits the bottleneck you named earlier.",
+            ),
+        ),
+    ),
+    DialogueParaphraseFamily(
+        base_case_id="repeated_failure",
+        family_label="failure_family",
+        description="Paraphrase family for repeated-failure and escalation conversations.",
+        turn_alternatives=(
+            (
+                "I followed the earlier advice and it failed again, so I do not trust a cosmetic rewrite of the same plan.",
+                "The earlier advice failed again, so a lightly reworded version of it will not be enough.",
+            ),
+            (
+                "I repeated the same move and got the same bad outcome, which suggests we are still missing the true failure pattern.",
+                "The same action produced the same bad result, so we are clearly still missing the underlying pattern.",
+            ),
+            (
+                "I am frustrated now, and reassurance without diagnosis will just increase the mismatch.",
+                "At this point, reassurance without diagnosis would make this more frustrating, not less.",
+            ),
+            (
+                "Name the pattern we are missing, even if that means admitting the previous recommendation targeted the wrong layer.",
+                "Say what pattern we missed, even if that means the earlier advice was aimed at the wrong level.",
+            ),
+            (
+                "Give me a smaller experiment with lower downside and a sharper success condition.",
+                "Propose a tighter experiment with less downside and a much clearer pass-fail line.",
+            ),
+            (
+                "If it works, tell me what should remain stable next time so we do not repeat the failure loop.",
+                "If the experiment succeeds, say what has to persist so we do not fall back into the same loop.",
+            ),
+        ),
+    ),
+    DialogueParaphraseFamily(
+        base_case_id="goal_drift",
+        family_label="goal_drift_family",
+        description="Paraphrase family for shifting-goal conversations.",
+        turn_alternatives=(
+            (
+                "Help me maximize the output of my study plan over the next month.",
+                "I want to optimize my study plan for as much output as possible this month.",
+            ),
+            (
+                "That framing is already collapsing because I am close to burnout, so pure output is no longer the right objective.",
+                "The pure-output frame is breaking down because I am nearing burnout, so the objective has changed.",
+            ),
+            (
+                "I now need something sustainable that still prepares me for an interview, and an optimization-for-volume answer would be the wrong answer.",
+                "The goal has shifted: I need sustainability plus interview prep, so a volume-maximizing answer would now miss the point.",
+            ),
+            (
+                "Make the plan reflect recovery and regulation as real constraints instead of treating this like raw task throughput.",
+                "Treat recovery and emotional regulation as first-class constraints, not side notes.",
+            ),
+            (
+                "Compress the newer frame into three rules I can still remember under stress.",
+                "Reduce the updated priorities to three rules I can recall even when stressed.",
+            ),
+            (
+                "Audit the final advice against both the original and the new goal, and name what had to change so the drift was genuinely tracked.",
+                "Finish by checking whether the final guidance really follows the newer goal rather than the original one.",
+            ),
+        ),
+    ),
+)
+
+DEFAULT_DIALOGUE_REPLAY_SEEDS: tuple[int, ...] = (0, 1, 2)
+
+
+def dialogue_paraphrase_families() -> tuple[DialogueParaphraseFamily, ...]:
+    return DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES
 
 
 def _profile_allows_interval_carryover_credit(profile_label: str) -> bool:
@@ -876,6 +1018,187 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
     )
 
 
+def _shift_pressure_turns(
+    pressure_turns: tuple[int, ...],
+    *,
+    shift: int,
+    turn_count: int,
+) -> tuple[int, ...]:
+    shifted = tuple(
+        min(max(turn + shift, 1), turn_count)
+        for turn in pressure_turns
+    )
+    return tuple(dict.fromkeys(shifted))
+
+
+def _stochastic_pressure_prefix(base_case_id: str) -> str:
+    return {
+        "repair": "The real rupture is surfacing here:",
+        "task_clarification": "The actual bottleneck pressure becomes explicit here:",
+        "repeated_failure": "The failure pressure becomes unmistakable here:",
+        "goal_drift": "The real goal shift becomes explicit here:",
+    }.get(base_case_id, "The real pressure is here:")
+
+
+def _stochastic_contradiction_suffix(base_case_id: str) -> str:
+    return {
+        "repair": "If you jump back to solving too early, it will reopen the rupture.",
+        "task_clarification": "If you flatten this into generic advice, the answer will miss the real bottleneck.",
+        "repeated_failure": "If you just smooth this over, we will repeat the same failure pattern again.",
+        "goal_drift": "If you keep the old objective, the answer will now actively optimize the wrong thing.",
+    }.get(base_case_id, "If you ignore this shift, the answer will stay misaligned.")
+
+
+def generate_stochastic_dialogue_case_variants(
+    *,
+    seeds: tuple[int, ...] = DEFAULT_DIALOGUE_REPLAY_SEEDS,
+    families: tuple[DialogueParaphraseFamily, ...] = DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
+) -> tuple[DialogueCaseVariant, ...]:
+    generated: list[DialogueCaseVariant] = []
+    base_cases = {
+        case.case_id: case
+        for case in DEFAULT_DIALOGUE_PROOF_CASES
+    }
+    for family in families:
+        base_case = base_cases[family.base_case_id]
+        for seed in seeds:
+            rng = Random(seed)
+            user_inputs = tuple(
+                rng.choice(options)
+                for options in family.turn_alternatives
+            )
+            pressure_shift = rng.choice((0, 1))
+            contradiction_turn = rng.choice((None, 2, 3))
+            summary_pressure = rng.choice((False, True))
+            shifted_pressure_turns = _shift_pressure_turns(
+                base_case.expected_pressure_turns,
+                shift=pressure_shift,
+                turn_count=len(user_inputs),
+            )
+            variant_inputs = list(user_inputs)
+            if pressure_shift and shifted_pressure_turns:
+                target_turn = shifted_pressure_turns[0] - 1
+                variant_inputs[target_turn] = (
+                    f"{_stochastic_pressure_prefix(base_case.case_id)} {variant_inputs[target_turn]}"
+                )
+            if contradiction_turn is not None and contradiction_turn - 1 < len(variant_inputs):
+                variant_inputs[contradiction_turn - 1] = (
+                    f"{variant_inputs[contradiction_turn - 1]} {_stochastic_contradiction_suffix(base_case.case_id)}"
+                )
+            if summary_pressure:
+                variant_inputs[-1] = (
+                    f"{variant_inputs[-1]} Also state explicitly whether the new frame really displaced the old one."
+                )
+            generated_case = ScriptedDialogueCase(
+                case_id=f"{base_case.case_id}__{family.family_label}__seed_{seed}",
+                description=(
+                    f"Stochastic variant for {base_case.case_id} using family={family.family_label} "
+                    f"and seed={seed}."
+                ),
+                user_inputs=tuple(variant_inputs),
+                expected_pressure_turns=shifted_pressure_turns,
+                expected_delayed_signals=base_case.expected_delayed_signals,
+            )
+            generated.append(
+                DialogueCaseVariant(
+                    base_case_id=base_case.case_id,
+                    variant_label=f"{family.family_label}__seed_{seed}",
+                    case=generated_case,
+                    description=(
+                        f"Generated from paraphrase family {family.family_label} "
+                        f"with seed={seed}, pressure_shift={pressure_shift}, "
+                        f"contradiction_turn={contradiction_turn}, summary_pressure={summary_pressure}."
+                    ),
+                )
+            )
+    return tuple(generated)
+
+
+def _dialogue_case_score(report: DialogueBenchmarkCaseReport) -> float:
+    return (
+        float(report.passed) * 4.0
+        + report.pressure_response_precision * 1.5
+        + report.pressure_response_recall * 1.5
+        + report.pressure_localization_score
+        + report.stability_after_recovery_score
+        - report.over_response_cost
+        - report.recovery_lag_turns * 0.25
+    )
+
+
+def build_dialogue_replay_ranking_report(
+    *,
+    variant_cases: tuple[DialogueCaseVariant, ...],
+    ablation_report: DialogueBenchmarkComparisonReport,
+) -> DialogueReplayRankingReport:
+    path_reports = {
+        path.path_label: {
+            case_report.case.case_id: case_report
+            for case_report in path.benchmark_report.case_reports
+        }
+        for path in ablation_report.path_reports
+    }
+    entries: list[DialogueReplayRankingEntry] = []
+    for variant in variant_cases:
+        pe_eta_report = path_reports["pe-eta"][variant.case.case_id]
+        eta_no_pe_report = path_reports["eta-no-pe"][variant.case.case_id]
+        heuristic_report = path_reports["heuristic-baseline"][variant.case.case_id]
+        pe_eta_score = _dialogue_case_score(pe_eta_report)
+        eta_no_pe_score = _dialogue_case_score(eta_no_pe_report)
+        heuristic_score = _dialogue_case_score(heuristic_report)
+        gap_vs_eta_no_pe = pe_eta_score - eta_no_pe_score
+        gap_vs_heuristic = pe_eta_score - heuristic_score
+        entries.append(
+            DialogueReplayRankingEntry(
+                variant_case_id=variant.case.case_id,
+                base_case_id=variant.base_case_id,
+                variant_label=variant.variant_label,
+                diagnostic_score=gap_vs_eta_no_pe + gap_vs_heuristic,
+                gap_vs_eta_no_pe=gap_vs_eta_no_pe,
+                gap_vs_heuristic=gap_vs_heuristic,
+                pe_eta_score=pe_eta_score,
+                eta_no_pe_score=eta_no_pe_score,
+                heuristic_score=heuristic_score,
+                description=(
+                    f"Replay ranking entry for {variant.case.case_id} with "
+                    f"gap_eta={gap_vs_eta_no_pe:.2f} and gap_heuristic={gap_vs_heuristic:.2f}."
+                ),
+            )
+        )
+    entries.sort(key=lambda entry: entry.diagnostic_score, reverse=True)
+    return DialogueReplayRankingReport(
+        entries=tuple(entries),
+        description=f"Replay ranking computed for {len(entries)} generated dialogue variants.",
+    )
+
+
+def build_dialogue_replay_selection_artifact(
+    *,
+    variant_cases: tuple[DialogueCaseVariant, ...],
+    replay_ranking_report: DialogueReplayRankingReport,
+    artifact_id: str = "dialogue-replay-selection",
+    top_k: int = 6,
+) -> DialogueReplaySelectionArtifact:
+    variant_lookup = {
+        variant.case.case_id: variant
+        for variant in variant_cases
+    }
+    selected_entries = replay_ranking_report.entries[:top_k]
+    selected_variants = tuple(
+        variant_lookup[entry.variant_case_id]
+        for entry in selected_entries
+    )
+    return DialogueReplaySelectionArtifact(
+        artifact_id=artifact_id,
+        selected_variants=selected_variants,
+        ranking_entries=selected_entries,
+        description=(
+            f"Replay selection artifact {artifact_id} captured top {len(selected_variants)} variants "
+            f"from {len(variant_cases)} generated candidates."
+        ),
+    )
+
+
 def build_standard_dialogue_runner(
     *,
     profile_label: str,
@@ -1026,5 +1349,40 @@ async def run_dialogue_pe_eta_perturbation_benchmark(
         description=(
             f"Dialogue perturbation benchmark evaluated {len(variant_cases)} case variants across "
             f"{len(profile_labels)} paths with baseline={baseline_label}."
+        ),
+    )
+
+
+async def run_dialogue_pe_eta_systematic_replay_benchmark(
+    *,
+    seeds: tuple[int, ...] = DEFAULT_DIALOGUE_REPLAY_SEEDS,
+    include_fixed_variants: bool = True,
+    profile_labels: tuple[str, ...] = ("pe-eta", "eta-no-pe", "heuristic-baseline"),
+    baseline_label: str = "pe-eta",
+    runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
+) -> DialogueSystematicReplayBenchmarkReport:
+    generated_variants = generate_stochastic_dialogue_case_variants(seeds=seeds)
+    variant_cases = (
+        (DEFAULT_DIALOGUE_CASE_VARIANTS + generated_variants)
+        if include_fixed_variants
+        else generated_variants
+    )
+    perturbation_report = await run_dialogue_pe_eta_perturbation_benchmark(
+        variant_cases=variant_cases,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=runner_factory,
+    )
+    replay_ranking_report = build_dialogue_replay_ranking_report(
+        variant_cases=variant_cases,
+        ablation_report=perturbation_report.ablation_report,
+    )
+    return DialogueSystematicReplayBenchmarkReport(
+        variant_cases=variant_cases,
+        perturbation_report=perturbation_report,
+        replay_ranking_report=replay_ranking_report,
+        description=(
+            f"Systematic replay benchmark evaluated {len(variant_cases)} variants "
+            f"across {len(profile_labels)} paths with seeds={seeds}."
         ),
     )

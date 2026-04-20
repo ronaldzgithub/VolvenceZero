@@ -181,7 +181,22 @@
 
 并覆盖 `repair` / `task_clarification` / `repeated_failure` / `goal_drift` 四类 canonical cases。
 
-### 14. Dialogue proof gate 已与 runtime 阈值对齐
+### 14. Dialogue benchmark 已接入 systematic replay / stochastic perturbation
+
+当前 `volvence_zero.agent.dialogue_benchmark` 已新增：
+
+- `DialogueParaphraseFamily`
+- `generate_stochastic_dialogue_case_variants()`
+- `DialogueReplayRankingReport`
+- `run_dialogue_pe_eta_systematic_replay_benchmark()`
+
+当前系统支持：
+
+- paraphrase family 组织
+- seed 驱动的 stochastic variants
+- 基于 `pe-eta` 相对 strict baselines gap 的 replay ranking
+
+### 15. Dialogue proof gate 已与 runtime 阈值对齐
 
 `volvence_zero.agent.dialogue_benchmark` 中：
 
@@ -260,6 +275,19 @@ flowchart TD
 - `wording_shift`
 - `pressure_shift_late`
 
+最近一次真实 systematic replay benchmark（`seeds=(0,)`, generated variants only）：
+
+- `pe-eta`：`4/4` passed
+- `eta-no-pe`：`0/4` passed
+- `heuristic-baseline`：`0/4` passed
+
+Replay ranking top entries：
+
+1. `repair__repair_family__seed_0`
+2. `repeated_failure__failure_family__seed_0`
+3. `goal_drift__goal_drift_family__seed_0`
+4. `task_clarification__clarification_family__seed_0`
+
 相关新增测试：
 
 - `test_eta_nl_joint_loop_pe_schedules_full_cycle`
@@ -281,6 +309,10 @@ flowchart TD
 - `test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit`
 - `test_dialogue_benchmark_exposes_default_case_variants`
 - `test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports`
+- `test_dialogue_benchmark_exposes_default_paraphrase_families`
+- `test_generate_stochastic_dialogue_case_variants_is_deterministic`
+- `test_build_dialogue_replay_ranking_report_sorts_by_diagnostic_score`
+- `test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants`
 
 ## 当前状态判断
 
@@ -298,6 +330,8 @@ flowchart TD
 - “在当前严格版 dialogue A/B baseline 下，`pe-eta` 已经能和 `eta-no-pe` / `heuristic-baseline` 拉开”
 - “benchmark 现在不只给 pass/fail，还能定量说明 `pe-eta` 响应得更早、更贴近 pressure window”
 - “benchmark 现在还能显示 `pe-eta` 为了换取更高 recall 和更低 lag 所付出的额外 response cost，以及恢复后能否真正稳定下来”
+- “这些优势现在已经在固定 perturbation / replay variants 上保持，而不只局限于 canonical case wording”
+- “系统现在已经开始支持对生成 variants 做 replay ranking，而不只是在手写变体上观测分离”
 
 ## 仍未完成的部分
 
@@ -305,7 +339,7 @@ flowchart TD
 
 1. `PredictionErrorModule` 仍依赖 base evaluation / dual-track / regime 作为输入，而不是更强的世界模型层
 2. 当前 `eta-no-pe` 已是更严格 baseline，但仍然不是更彻底的 PE-off / ETA-off 因果隔离实现
-3. perturbation 层目前仍是固定 variants，尚未扩展成更大规模 replay ranking / paraphrase family / stochastic perturbation
+3. 当前 replay ranking 已支持固定 paraphrase family + seed 生成，但尚未扩展成更大规模 stochastic search / richer paraphrase space
 4. rare-heavy 已接上 bounded offline import，但还没有进一步扩展成更强的 artifact acceptance benchmark / multi-artifact selection
 5. 生成式用户模拟器仍未接入 dialogue harness
 6. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度

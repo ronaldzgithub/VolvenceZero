@@ -572,6 +572,25 @@ P04 当前实现口径：
 - `recovery_lag_turns`
 - `pressure_localization_score`
 
+当前还补充了更细的 response quality 指标：
+
+- `pressure_response_precision`
+- `pressure_response_recall`
+- `over_response_cost`
+- `stability_after_recovery_score`
+
+这些指标分别回答：
+
+- 有效 temporal response 里有多少真的压在 pressure window 附近
+- pressure window 里的关键 turn 有多少被系统真正覆盖
+- 系统是否在无压力区段过度响应
+- 一旦恢复后，后段轨迹是否保持稳定而非再次震荡
+
+当前 harness 还支持固定 perturbation / replay variants，用于检查 proof 结果是否只绑定在单一措辞模板上。当前代表性变体包括：
+
+- `wording_shift`
+- `pressure_shift_late`
+
 ### 12.4 评估频率
 
 | 测试类别 | 频率 | 触发条件 |
@@ -623,7 +642,7 @@ class EvaluationReport:
 当前实现补充：
 
 - PE-first 主链相关指标（如 `prediction_error_magnitude`、`prediction_error_reward`、`predictive_accuracy`、`task_prediction_alignment`、`relationship_prediction_alignment`、`action_prediction_alignment`）先进入 evaluation records / report，再由 `EvaluationSnapshot` 暴露最小公共读数
-- dialogue benchmark report 是评估体系的内部证明工件，不改变 `evaluation` slot 的公共 snapshot shape
+- dialogue benchmark report / perturbation report 是评估体系的内部证明工件，不改变 `evaluation` slot 的公共 snapshot shape
 
 ### 13.3 与 DATA_CONTRACT 的关系
 
@@ -661,7 +680,7 @@ class EvaluationReport:
   - `pe-eta`: `4/4` passed
   - `eta-no-pe`: `0/4` passed
   - `heuristic-baseline`: `0/4` passed
-- 当前 benchmark 已能给出 `recovery_lag_turns` / `pressure_localization_score` 两个定量响应指标
+- 当前 benchmark 已能给出 `recovery_lag_turns` / `pressure_localization_score`，以及 precision / recall / over-response / recovery-stability 这组更细的 response quality 指标
 
 ---
 

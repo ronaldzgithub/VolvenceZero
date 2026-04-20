@@ -99,6 +99,24 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前主链已新增正式 `prediction_error` owner/slot，公共交换固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
 - `memory` / `regime` / `credit` / `reflection` / `temporal` 已直接消费 `prediction_error`；`evaluation` 只在 final wiring 中追加 prediction-error evidence，保持 readout 定位
 
+### 直接依赖 vs enrichment
+
+当前运行时需要明确区分两层关系：
+
+1. **direct dependency**：模块在 `process()` 中通过 upstream dict 直接声明并读取的 slot
+2. **enrichment / post-processing**：编排层或 final wiring 在主传播完成后额外读取某些结果，生成附加 evidence / report / writeback
+
+这两层关系不能混写，否则会误导 reader 以为：
+
+- 某模块在 runtime DAG 中直接依赖了一个其实只在 post-processing 才读取的 slot
+- 或某个 report/evidence 工件也是正式 slot owner
+
+当前最典型的例子：
+
+- `evaluation` 的 direct dependency 仍是其模块声明的 upstream slots
+- 但 final wiring 会在 propagation 之后额外读取 `prediction_error`、joint-loop result、writeback result，为 `evaluation` 追加 evidence
+- 这属于 **evaluation enrichment**，不是 `EvaluationModule.process()` 的 direct dependency
+
 ### 内部状态发布（R11）
 
 每个模块必须能命名和发布其内部状态，包含：
@@ -120,6 +138,7 @@ P00 运行时内核固定以下最小守卫和视图：
 
 ## 变更日志
 
+- 2026-04-20: 新增“direct dependency vs enrichment”边界说明，明确 `evaluation` 对 `prediction_error` 的 final-wiring evidence append 属于 post-processing，而非模块 direct dependency
 - 2026-04-06: P18 Propagation Topo-Sort + Guard Closure: propagate() now auto-sorts modules by declared dependencies (topo_sort_modules). Cycle detection via detect_dependency_cycle; cycles fall back gracefully to input order. Post-propagation guard closure verifies immutability of all published snapshots. CyclicDependencyError added to runtime contract errors.
 - 2026-04-08: 默认主链切到真实 transformers substrate；`reflection` / `temporal` 默认 ACTIVE；slow reflection 新增 typed `TemporalPriorUpdate` 写回 temporal owner，并带 target-specific gate / audit
 - 2026-04-06: 补充 open-weight runtime / adapter / intervention backend 三层契约，以及 session 级 substrate 注入点

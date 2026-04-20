@@ -102,6 +102,31 @@
 - 压力位置后移后，优势是否还在
 - 定量指标是否在 variant 层保持分离
 
+## Systematic Replay 层
+
+当前 benchmark 已进一步新增：
+
+- `DialogueParaphraseFamily`
+- `generate_stochastic_dialogue_case_variants()`
+- `DialogueReplayRankingReport`
+- `run_dialogue_pe_eta_systematic_replay_benchmark()`
+
+这意味着 perturbation 不再只停留在手写 variants，而是可以：
+
+- 按 paraphrase family 组织变体
+- 用 seed 生成可重复的 stochastic variants
+- 对变体按“诊断性”做 replay ranking
+
+当前默认 `seeds=(0, 1)`，可按需扩展。
+
+现在还支持：
+
+- `DEFAULT_DIALOGUE_REPLAY_SEEDS = (0, 1, 2)`
+- `DialogueReplaySelectionArtifact`
+- `build_dialogue_replay_selection_artifact()`
+
+也就是说，系统不仅能对生成 variants 做 replay ranking，还能从 ranking 中直接抽出一个 top-k selection artifact，作为后续 artifact acceptance / replay selection 的输入集合。
+
 ## 初版 acceptance rules
 
 当前 case-level 通过条件：
@@ -207,6 +232,38 @@
 - `pressure_shift_late`
 
 也就是说，当前 benchmark 已经不只是在 canonical wording 上看到优势，而是在固定改写与压力位置平移后仍能保持分离。
+
+在最近一次真实 systematic replay benchmark（`seeds=(0,)`, generated variants only）中：
+
+- `pe-eta`: `4/4` passed
+- `eta-no-pe`: `0/4` passed
+- `heuristic-baseline`: `0/4` passed
+
+Replay ranking 的前几项为：
+
+1. `repair__repair_family__seed_0`
+2. `repeated_failure__failure_family__seed_0`
+3. `goal_drift__goal_drift_family__seed_0`
+4. `task_clarification__clarification_family__seed_0`
+
+对应的 `diagnostic_score` 大致在 `14.167 ~ 18.0` 区间，说明这些生成变体对区分 `pe-eta` 与 strict baselines 是有序且可排序的，而不是只剩“全过/全不过”的粗粒度判断。
+
+在最近一次更大的真实 systematic replay benchmark（`seeds=(0,1,2)`, generated variants only）中：
+
+- `pe-eta`: `12/12` passed
+- `eta-no-pe`: `0/12` passed
+- `heuristic-baseline`: `0/12` passed
+
+并且 top replay selection artifact（`top_k=6`）已经能稳定挑出最有诊断性的 variants，例如：
+
+1. `repair__repair_family__seed_0`
+2. `repair__repair_family__seed_2`
+3. `task_clarification__clarification_family__seed_2`
+4. `repair__repair_family__seed_1`
+5. `repeated_failure__failure_family__seed_0`
+6. `repeated_failure__failure_family__seed_1`
+
+对应的 `diagnostic_score` 大致在 `18.0 ~ 19.0`，说明这批候选不仅能区分路径，而且已经可以作为后续 artifact acceptance / replay selection 的输入集合。
 
 ## 这还不能证明什么
 
