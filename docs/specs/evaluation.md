@@ -80,6 +80,7 @@
 - 当前 dialogue proof harness 还支持 A/B baseline（`pe-eta` / `eta-no-pe` / `heuristic-baseline`），并基于 case-level summary metrics 输出相对 delta report；其中 `eta-no-pe` 已改为严格 baseline，不再因为普通 interval update 获得 PE-trigger credit
 - 当前 dialogue proof harness 还支持更细的定量 response 指标：`recovery_lag_turns` 与 `pressure_localization_score`，用于衡量系统是否更早、更准确地把 temporal response 放在 pressure window 附近
 - 当前 dialogue proof harness 还进一步记录 `pressure_response_precision`、`pressure_response_recall`、`over_response_cost`、`stability_after_recovery_score`，用于衡量 response 的精确度、覆盖度、额外成本和恢复后的稳定性
+- 当前 dialogue proof harness 已接入固定 perturbation / replay variants（如 `wording_shift`、`pressure_shift_late`），可在改写措辞和压力位置平移后继续比较 `pe-eta`、`eta-no-pe` 与 `heuristic-baseline`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
@@ -103,6 +104,7 @@
 - 2026-04-20: `eta-no-pe` baseline tightened: dialogue benchmark no longer grants PE-trigger credit to plain interval updates on the `eta-no-pe` path, allowing `pe-eta` to separate from the learned-but-non-PE baseline
 - 2026-04-20: 新增 dialogue quantitative response metrics: `recovery_lag_turns` and `pressure_localization_score` quantify how early and how precisely the system responds around pressure turns, still without changing `evaluation` snapshot public shape
 - 2026-04-20: 新增 advanced dialogue response metrics: `pressure_response_precision`, `pressure_response_recall`, `over_response_cost`, and `stability_after_recovery_score` to quantify response quality beyond simple pass/fail and lag/localization
+- 2026-04-20: 新增 dialogue perturbation benchmark: `run_dialogue_pe_eta_perturbation_benchmark()` evaluates fixed replay/perturbation variants across wording shifts and pressure-position shifts, preserving the same public `evaluation` snapshot shape
 - 2026-04-09: U04 reflection_accuracy injection: `run_final_wiring_turn()` now writes `ReflectionEngine.proposal_success_rate` into `EvaluationSnapshot.reflection_accuracy` field. New `reflection_promotion_eligible()` function evaluates SHADOW→ACTIVE readiness (requires accuracy >= 0.6 and >= 5 proposal outcomes). `LongitudinalReport` and cross-session benchmark suite verified end-to-end.
 - 2026-04-06: P13 evaluation feedback loop: EvaluationBackbone.family_signals returns structured per-family signals (F1-F6); joint loop uses family signals for rollback decisions and SSL learning rate modulation; InternalRLEnvironment accepts evaluation signals for reward shaping
 - 2026-04-08: session report 新增长期 trend；fallback / rollback / delayed attribution 进入 first-class evidence；新增 fixed replay suite gate

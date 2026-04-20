@@ -82,6 +82,26 @@
 - `over_response_cost`：落在 pressure window 外的 response 数量相对整段 case 的归一化成本，越低越好
 - `stability_after_recovery_score`：首次有效 response 且 pressure 主段结束后，后续 turns 中有多少比例真正进入了“无额外触发且低 PE”的 calm tail
 
+## Perturbation / Replay 层
+
+当前 benchmark 已补一层固定变体：
+
+- `wording_shift`
+- `pressure_shift_late`
+
+并覆盖 4 个基底 cases：
+
+- `repair`
+- `task_clarification`
+- `repeated_failure`
+- `goal_drift`
+
+因此当前 `dialogue_benchmark` 不只会跑 4 个 canonical cases，还可以跑 8 个固定 replay/perturbation variants，用来检查：
+
+- 改写措辞后，优势是否还在
+- 压力位置后移后，优势是否还在
+- 定量指标是否在 variant 层保持分离
+
 ## 初版 acceptance rules
 
 当前 case-level 通过条件：
@@ -174,6 +194,19 @@
 
 - `pe-eta` 在 `repair` / `task_clarification` / `repeated_failure` 中确实为了响应压力付出了一些额外 controller update 成本
 - 但这些额外响应同时换来了更高的 recall、更低的 recovery lag 和更高的 localization
+
+在最近一次真实 perturbation benchmark 中：
+
+- `pe-eta`: `8/8` passed
+- `eta-no-pe`: `0/8` passed
+- `heuristic-baseline`: `0/8` passed
+
+而且这种优势在两个 variant families 上都保住了：
+
+- `wording_shift`
+- `pressure_shift_late`
+
+也就是说，当前 benchmark 已经不只是在 canonical wording 上看到优势，而是在固定改写与压力位置平移后仍能保持分离。
 
 ## 这还不能证明什么
 

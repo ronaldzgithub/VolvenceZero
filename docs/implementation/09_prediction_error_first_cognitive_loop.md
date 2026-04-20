@@ -165,7 +165,23 @@
 - 系统在 pressure 出现后多少轮才开始给出有效 temporal response
 - 系统的 response 有多少比例落在 pressure window（pressure turn 及其后一轮）内
 
-### 13. Dialogue proof gate 已与 runtime 阈值对齐
+### 13. Dialogue benchmark 已接入 perturbation / replay variants
+
+当前 `volvence_zero.agent.dialogue_benchmark` 已新增：
+
+- `DialogueCaseVariant`
+- `DialoguePerturbationBenchmarkReport`
+- `dialogue_case_variants()`
+- `run_dialogue_pe_eta_perturbation_benchmark()`
+
+当前固定变体族：
+
+- `wording_shift`
+- `pressure_shift_late`
+
+并覆盖 `repair` / `task_clarification` / `repeated_failure` / `goal_drift` 四类 canonical cases。
+
+### 14. Dialogue proof gate 已与 runtime 阈值对齐
 
 `volvence_zero.agent.dialogue_benchmark` 中：
 
@@ -233,6 +249,17 @@ flowchart TD
   - `pe-eta`: `precision = 1.0`, `recall = 1.0`, `over_response = 0.0`, `stability_after_recovery = 0.5`
   - `eta-no-pe`: `precision = 0.0`, `recall = 0.0`, `over_response = 0.0`, `stability_after_recovery = 0.0`
 
+最近一次真实 perturbation benchmark：
+
+- `pe-eta`：`8/8` passed
+- `eta-no-pe`：`0/8` passed
+- `heuristic-baseline`：`0/8` passed
+
+在两个 variant families 上优势都能保持：
+
+- `wording_shift`
+- `pressure_shift_late`
+
 相关新增测试：
 
 - `test_eta_nl_joint_loop_pe_schedules_full_cycle`
@@ -252,6 +279,8 @@ flowchart TD
 - `test_goal_drift_case_no_longer_fails_pe_trigger_check_with_synthetic_runner`
 - `test_dialogue_case_report_quantifies_recovery_lag_and_pressure_localization`
 - `test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit`
+- `test_dialogue_benchmark_exposes_default_case_variants`
+- `test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports`
 
 ## 当前状态判断
 
@@ -276,9 +305,10 @@ flowchart TD
 
 1. `PredictionErrorModule` 仍依赖 base evaluation / dual-track / regime 作为输入，而不是更强的世界模型层
 2. 当前 `eta-no-pe` 已是更严格 baseline，但仍然不是更彻底的 PE-off / ETA-off 因果隔离实现
-3. rare-heavy 已接上 bounded offline import，但还没有进一步扩展成更强的 artifact acceptance benchmark / multi-artifact selection
-4. 生成式用户模拟器与 replay ranking 仍未接入 dialogue harness
-5. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度
+3. perturbation 层目前仍是固定 variants，尚未扩展成更大规模 replay ranking / paraphrase family / stochastic perturbation
+4. rare-heavy 已接上 bounded offline import，但还没有进一步扩展成更强的 artifact acceptance benchmark / multi-artifact selection
+5. 生成式用户模拟器仍未接入 dialogue harness
+6. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度
 ## 相关文件
 
 - `volvence_zero/prediction/error.py`

@@ -4,15 +4,18 @@ import asyncio
 
 from volvence_zero.agent import (
     AgentSessionRunner,
+    DEFAULT_DIALOGUE_CASE_VARIANTS,
     DEFAULT_DIALOGUE_PROOF_CASES,
     build_standard_dialogue_runner,
     default_dialogue_ablation_profiles,
+    dialogue_case_variants,
     DialogueBenchmarkTurn,
     ScriptedDialogueCase,
     build_dialogue_case_report,
     run_dialogue_pe_eta_ablation_benchmark,
     run_dialogue_pe_eta_benchmark,
     run_dialogue_pe_eta_case,
+    run_dialogue_pe_eta_perturbation_benchmark,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
@@ -34,6 +37,18 @@ def _synthetic_ablation_runner(profile_label: str, case: ScriptedDialogueCase) -
     return build_standard_dialogue_runner(
         profile_label=profile_label,
         case=case,
+        residual_runtime=runtime,
+    )
+
+
+def _synthetic_perturbation_runner(profile_label: str, variant) -> AgentSessionRunner:
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id=f"dialogue-perturb:{profile_label}:{variant.case.case_id}"
+    )
+    runtime.runtime_origin = f"synthetic-perturb-{profile_label}"
+    return build_standard_dialogue_runner(
+        profile_label=profile_label,
+        case=variant.case,
         residual_runtime=runtime,
     )
 
@@ -87,6 +102,16 @@ def test_dialogue_benchmark_exposes_default_scripted_cases():
 
 def test_dialogue_benchmark_exposes_default_ablation_profiles():
     assert default_dialogue_ablation_profiles() == ("pe-eta", "eta-no-pe", "heuristic-baseline")
+
+
+def test_dialogue_benchmark_exposes_default_case_variants():
+    variants = dialogue_case_variants()
+
+    assert len(variants) == len(DEFAULT_DIALOGUE_CASE_VARIANTS)
+    labels = {(variant.base_case_id, variant.variant_label) for variant in variants}
+    assert ("repair", "wording_shift") in labels
+    assert ("goal_drift", "pressure_shift_late") in labels
+    assert all(variant.case.case_id.startswith(f"{variant.base_case_id}__") for variant in variants)
 
 
 def test_run_dialogue_pe_eta_case_collects_pe_and_eta_trajectories():
@@ -154,6 +179,25 @@ def test_run_dialogue_pe_eta_ablation_benchmark_collects_path_deltas():
     assert "pressure_response_precision" in dict(delta_map["pe-eta"])
     assert "pressure_response_recall" in dict(delta_map["pe-eta"])
     assert "stability_after_recovery_score" in dict(delta_map["pe-eta"])
+
+
+def test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports():
+    report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+
+    assert len(report.variant_cases) == 2
+    assert report.ablation_report.baseline_label == "pe-eta"
+    assert len(report.ablation_report.path_reports) == 3
+    variant_ids = {variant.case.case_id for variant in report.variant_cases}
+    case_ids = {
+        case_id
+        for case_id, _ in report.ablation_report.case_deltas_from_baseline
+    }
+    assert case_ids == variant_ids
 
 
 def test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit():

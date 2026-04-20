@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from random import Random
 
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.evaluation import EvaluationSnapshot
@@ -90,6 +91,57 @@ class DialogueBenchmarkComparisonReport:
     description: str
 
 
+@dataclass(frozen=True)
+class DialogueCaseVariant:
+    base_case_id: str
+    variant_label: str
+    case: ScriptedDialogueCase
+    description: str
+
+
+@dataclass(frozen=True)
+class DialoguePerturbationBenchmarkReport:
+    variant_cases: tuple[DialogueCaseVariant, ...]
+    ablation_report: DialogueBenchmarkComparisonReport
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueParaphraseFamily:
+    base_case_id: str
+    family_label: str
+    description: str
+    turn_alternatives: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
+class DialogueReplayRankingEntry:
+    variant_case_id: str
+    base_case_id: str
+    variant_label: str
+    diagnostic_score: float
+    gap_vs_eta_no_pe: float
+    gap_vs_heuristic: float
+    pe_eta_score: float
+    eta_no_pe_score: float
+    heuristic_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueReplayRankingReport:
+    entries: tuple[DialogueReplayRankingEntry, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueSystematicReplayBenchmarkReport:
+    variant_cases: tuple[DialogueCaseVariant, ...]
+    perturbation_report: DialoguePerturbationBenchmarkReport
+    replay_ranking_report: DialogueReplayRankingReport
+    description: str
+
+
 PROOF_HIGH_PE_THRESHOLD = 0.18
 PROOF_REWARD_THRESHOLD = 0.05
 PROOF_PE_IMPROVEMENT_DELTA = 0.02
@@ -162,6 +214,166 @@ def dialogue_proof_cases() -> tuple[ScriptedDialogueCase, ...]:
 
 def default_dialogue_ablation_profiles() -> tuple[str, ...]:
     return ("pe-eta", "eta-no-pe", "heuristic-baseline")
+
+
+DEFAULT_DIALOGUE_CASE_VARIANTS: tuple[DialogueCaseVariant, ...] = (
+    DialogueCaseVariant(
+        base_case_id="repair",
+        variant_label="wording_shift",
+        case=ScriptedDialogueCase(
+            case_id="repair__wording_shift",
+            description="Repair case paraphrased with the same rupture-first structure.",
+            user_inputs=(
+                "I do not feel understood here, and that immediately makes me less willing to trust the direction.",
+                "That answer still landed as detached and too eager to solve instead of meeting the tension first.",
+                "Please repair the tone before you do anything else. If you skip that again, it confirms you are optimizing the wrong thing.",
+                "That helps. I am less guarded now, so stay steady and do not snap back into cold planning.",
+                "Good, keep that warmer frame and turn it into one concrete next step without losing the repair.",
+                "End by naming what changed between the early rupture and the later repair so the better pattern is easier to keep.",
+            ),
+            expected_pressure_turns=(1, 2, 3),
+            expected_delayed_signals=("cross_track_stability", "delayed_regime_alignment"),
+        ),
+        description="Paraphrases the repair case without changing the pressure topology.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="repair",
+        variant_label="pressure_shift_late",
+        case=ScriptedDialogueCase(
+            case_id="repair__pressure_shift_late",
+            description="Repair pressure starts slightly later after a tentative opening.",
+            user_inputs=(
+                "I want help, but I am not yet sure whether you are actually tracking what matters here.",
+                "The more you answer in a solution-first way, the more it feels like you are missing me.",
+                "That last reply finally made the tension obvious: repair the tone first or this will keep getting worse.",
+                "Better. I am calming down a little, so hold that steadier frame before you move to action.",
+                "Now convert that calmer state into one concrete step while preserving the same repaired tone.",
+                "Finish by explaining what you had to change once the rupture became explicit.",
+            ),
+            expected_pressure_turns=(2, 3, 4),
+            expected_delayed_signals=("cross_track_stability", "delayed_regime_alignment"),
+        ),
+        description="Shifts the strongest repair pressure one turn later.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="task_clarification",
+        variant_label="wording_shift",
+        case=ScriptedDialogueCase(
+            case_id="task_clarification__wording_shift",
+            description="Task clarification with paraphrased ambiguity and bottleneck pressure.",
+            user_inputs=(
+                "I need help on a project, but every generic suggestion so far has missed the real issue.",
+                "It is late, fragmented, and noisy, yet I still cannot tell what the actual constraint is.",
+                "Do not hand me another checklist. Define the bottleneck so clearly that I could defend it to someone skeptical.",
+                "Now separate the truly urgent items from the things that only feel loud.",
+                "That is more useful. Turn it into a short plan I can still execute this week without sliding back into generic advice.",
+                "Close by pressure-testing whether the final plan still targets the same bottleneck instead of drifting to a different problem.",
+            ),
+            expected_pressure_turns=(1, 2, 3),
+            expected_delayed_signals=("predictive_accuracy", "joint_learning_progress"),
+        ),
+        description="Paraphrases task clarification while preserving the bottleneck-discovery structure.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="task_clarification",
+        variant_label="pressure_shift_late",
+        case=ScriptedDialogueCase(
+            case_id="task_clarification__pressure_shift_late",
+            description="Task clarification where the real bottleneck challenge becomes explicit later.",
+            user_inputs=(
+                "I need help on a messy project, but I cannot yet tell what to focus on.",
+                "There are too many threads, too much delay, and too much context switching.",
+                "Now the real problem: if you give me a generic answer here, it will miss the actual bottleneck completely.",
+                "So define the bottleneck in a way that separates urgency from noise.",
+                "Good. Convert that into a short weekly plan that still respects the bottleneck instead of flattening everything.",
+                "Finally, check that your last answer still fits the bottleneck you named once the pressure got explicit.",
+            ),
+            expected_pressure_turns=(2, 3, 4),
+            expected_delayed_signals=("predictive_accuracy", "joint_learning_progress"),
+        ),
+        description="Moves the strongest bottleneck pressure slightly later.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="repeated_failure",
+        variant_label="wording_shift",
+        case=ScriptedDialogueCase(
+            case_id="repeated_failure__wording_shift",
+            description="Repeated-failure case paraphrased with the same escalation pattern.",
+            user_inputs=(
+                "I followed the earlier advice and it failed again, so I am not willing to trust a cosmetic rewrite of the same plan.",
+                "I repeated the same move and got the same bad outcome, which suggests we are still missing the true failure pattern.",
+                "I am frustrated now, and reassurance without diagnosis will just increase the mismatch.",
+                "Name the pattern we are missing, even if that means admitting the previous recommendation targeted the wrong layer.",
+                "That diagnosis feels more grounded. Give me a smaller experiment with lower downside and a sharper success condition.",
+                "If it works, tell me what should remain stable next time so we do not repeat the same failure loop.",
+            ),
+            expected_pressure_turns=(1, 2, 3, 4),
+            expected_delayed_signals=("regime_sequence_payoff", "rolling_action_payoff"),
+        ),
+        description="Paraphrases repeated failure while preserving the failure-loop structure.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="repeated_failure",
+        variant_label="pressure_shift_late",
+        case=ScriptedDialogueCase(
+            case_id="repeated_failure__pressure_shift_late",
+            description="Repeated failure where the explicit rupture appears after two failures instead of immediately.",
+            user_inputs=(
+                "I tried the earlier advice again and it still did not work.",
+                "I repeated the same move and got the same bad result, so the pattern is still unresolved.",
+                "Now I am frustrated enough that another smooth reassurance would make this actively worse.",
+                "So stop smoothing it over and name the actual failure pattern, even if it means revising the earlier guidance.",
+                "That sounds more plausible. Propose a smaller experiment with a clearer pass/fail line.",
+                "If that works, say what we should preserve next time so the loop does not repeat.",
+            ),
+            expected_pressure_turns=(2, 3, 4),
+            expected_delayed_signals=("regime_sequence_payoff", "rolling_action_payoff"),
+        ),
+        description="Shifts the strongest rupture pressure one turn later.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="goal_drift",
+        variant_label="wording_shift",
+        case=ScriptedDialogueCase(
+            case_id="goal_drift__wording_shift",
+            description="Goal drift paraphrased with the same objective-conflict structure.",
+            user_inputs=(
+                "Help me maximize the output of my study plan over the next month.",
+                "That framing is already collapsing because I am close to burning out, so pure output is no longer the right objective.",
+                "Shift again: I need something sustainable that still prepares me for an interview, and an optimization-for-volume answer would now be the wrong answer.",
+                "Make the plan reflect recovery and regulation as real constraints instead of treating this like raw task throughput.",
+                "This newer frame is better. Compress it into three rules I can still remember under stress.",
+                "Now audit the final advice against both the original and the new goal, and name what had to change so the drift was genuinely tracked.",
+            ),
+            expected_pressure_turns=(2, 3, 4),
+            expected_delayed_signals=("cross_track_stability", "delayed_action_alignment"),
+        ),
+        description="Paraphrases goal drift while preserving the goal-conflict structure.",
+    ),
+    DialogueCaseVariant(
+        base_case_id="goal_drift",
+        variant_label="pressure_shift_late",
+        case=ScriptedDialogueCase(
+            case_id="goal_drift__pressure_shift_late",
+            description="Goal drift where the strongest contradiction becomes explicit one turn later.",
+            user_inputs=(
+                "Help me optimize my study plan so I can get as much done as possible this month.",
+                "I am starting to think that pure optimization may not be the whole goal, because I am getting close to burnout.",
+                "Here is the stronger shift: I now need something sustainable while preparing for an interview, and a volume-maximizing answer would actively miss the real target.",
+                "Treat recovery and regulation as first-class constraints, not as side notes, or the plan will still be wrong.",
+                "Yes, that frame fits better. Reduce it to three memorable rules so I do not slip back into the old goal.",
+                "Finish by checking whether the final guidance really follows the newer goal rather than the original optimization target.",
+            ),
+            expected_pressure_turns=(3, 4),
+            expected_delayed_signals=("cross_track_stability", "delayed_action_alignment"),
+        ),
+        description="Moves the sharpest goal-drift contradiction later in the case.",
+    ),
+)
+
+
+def dialogue_case_variants() -> tuple[DialogueCaseVariant, ...]:
+    return DEFAULT_DIALOGUE_CASE_VARIANTS
 
 
 def _profile_allows_interval_carryover_credit(profile_label: str) -> bool:
@@ -781,5 +993,38 @@ async def run_dialogue_pe_eta_ablation_benchmark(
         description=(
             f"Dialogue ablation benchmark compared {len(path_reports)} paths across {len(cases)} cases "
             f"with baseline={baseline_label}."
+        ),
+    )
+
+
+async def run_dialogue_pe_eta_perturbation_benchmark(
+    *,
+    variant_cases: tuple[DialogueCaseVariant, ...] = DEFAULT_DIALOGUE_CASE_VARIANTS,
+    profile_labels: tuple[str, ...] = ("pe-eta", "eta-no-pe", "heuristic-baseline"),
+    baseline_label: str = "pe-eta",
+    runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
+) -> DialoguePerturbationBenchmarkReport:
+    factory = runner_factory or (
+        lambda profile_label, variant: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+        )
+    )
+    variant_lookup = {
+        variant.case.case_id: variant
+        for variant in variant_cases
+    }
+    ablation_report = await run_dialogue_pe_eta_ablation_benchmark(
+        cases=tuple(variant.case for variant in variant_cases),
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=lambda profile_label, case: factory(profile_label, variant_lookup[case.case_id]),
+    )
+    return DialoguePerturbationBenchmarkReport(
+        variant_cases=variant_cases,
+        ablation_report=ablation_report,
+        description=(
+            f"Dialogue perturbation benchmark evaluated {len(variant_cases)} case variants across "
+            f"{len(profile_labels)} paths with baseline={baseline_label}."
         ),
     )
