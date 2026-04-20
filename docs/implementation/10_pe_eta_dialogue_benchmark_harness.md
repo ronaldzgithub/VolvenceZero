@@ -124,6 +124,9 @@
 - `DEFAULT_DIALOGUE_REPLAY_SEEDS = (0, 1, 2)`
 - `DialogueReplaySelectionArtifact`
 - `build_dialogue_replay_selection_artifact()`
+- `build_replay_selection_training_traces()`
+- `train_rare_heavy_artifact_from_replay_selection()`
+- `run_replay_selection_artifact_acceptance_benchmark()`
 
 也就是说，系统不仅能对生成 variants 做 replay ranking，还能从 ranking 中直接抽出一个 top-k selection artifact，作为后续 artifact acceptance / replay selection 的输入集合。
 
@@ -264,6 +267,36 @@ Replay ranking 的前几项为：
 6. `repeated_failure__failure_family__seed_1`
 
 对应的 `diagnostic_score` 大致在 `18.0 ~ 19.0`，说明这批候选不仅能区分路径，而且已经可以作为后续 artifact acceptance / replay selection 的输入集合。
+
+## Replay Selection Acceptance
+
+当前系统已能把：
+
+- replay ranking top-k selection artifact
+- 转成 rare-heavy training traces
+- 训练出 `RareHeavyArtifact`
+- 再把它导回 runner，对 selected variants 做 pre/post acceptance benchmark
+
+在最近一次真实 replay-selection acceptance benchmark 中：
+
+- 选取了 `top_k=6` 个最有诊断性的 variants
+- rare-heavy import 操作稳定成功（`rare-heavy:temporal-import`, `rare-heavy:memory-import`）
+- acceptance report 的整体 `mean_score_delta = 0.104`
+- `passed_case_delta = 0`
+
+也就是说：
+
+- 这条 rare-heavy acceptance 流程已经打通
+- 但收益还是 mixed，而不是稳定提升
+
+当前 sample：
+
+- `repair__repair_family__seed_1`: `score_delta = +0.500`
+- `repeated_failure__failure_family__seed_1`: `score_delta = +1.000`
+- `task_clarification__clarification_family__seed_2`: `score_delta = -0.500`
+- `repeated_failure__failure_family__seed_0`: `score_delta = -0.375`
+
+这说明 replay selection 已经能作为 rare-heavy 的正式验收入口，但“selection -> training -> acceptance” 这条链路还需要更强的 artifact selection / acceptance criteria，不能把当前 pipeline 误当成已经稳定增益。
 
 ## 这还不能证明什么
 

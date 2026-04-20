@@ -8,6 +8,7 @@ from volvence_zero.agent import (
     DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
     DEFAULT_DIALOGUE_REPLAY_SEEDS,
     DEFAULT_DIALOGUE_PROOF_CASES,
+    build_replay_selection_training_traces,
     build_dialogue_replay_selection_artifact,
     build_standard_dialogue_runner,
     default_dialogue_ablation_profiles,
@@ -18,11 +19,13 @@ from volvence_zero.agent import (
     build_dialogue_case_report,
     build_dialogue_replay_ranking_report,
     generate_stochastic_dialogue_case_variants,
+    run_replay_selection_artifact_acceptance_benchmark,
     run_dialogue_pe_eta_ablation_benchmark,
     run_dialogue_pe_eta_benchmark,
     run_dialogue_pe_eta_case,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
+    train_rare_heavy_artifact_from_replay_selection,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
@@ -67,6 +70,18 @@ def _synthetic_systematic_runner(profile_label: str, variant) -> AgentSessionRun
     runtime.runtime_origin = f"synthetic-systematic-{profile_label}"
     return build_standard_dialogue_runner(
         profile_label=profile_label,
+        case=variant.case,
+        residual_runtime=runtime,
+    )
+
+
+def _synthetic_acceptance_runner(variant) -> AgentSessionRunner:
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id=f"dialogue-acceptance:{variant.case.case_id}"
+    )
+    runtime.runtime_origin = "synthetic-acceptance"
+    return build_standard_dialogue_runner(
+        profile_label="pe-eta",
         case=variant.case,
         residual_runtime=runtime,
     )
@@ -275,6 +290,76 @@ def test_build_dialogue_replay_selection_artifact_keeps_top_k_entries():
     assert artifact.artifact_id == "dialogue-replay-selection"
     assert len(artifact.selected_variants) == 2
     assert len(artifact.ranking_entries) == 2
+
+
+def test_build_replay_selection_training_traces_matches_selected_variants():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    traces = build_replay_selection_training_traces(artifact)
+
+    assert len(traces) == 2
+    assert traces[0].trace_id.startswith("replay-selection:")
+
+
+def test_train_rare_heavy_artifact_from_replay_selection_exports_artifact():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    rare_heavy_artifact = train_rare_heavy_artifact_from_replay_selection(artifact)
+
+    assert rare_heavy_artifact.artifact_id.endswith(":rare-heavy")
+
+
+def test_run_replay_selection_artifact_acceptance_benchmark_returns_case_reports():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    acceptance_report = asyncio.run(
+        run_replay_selection_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_synthetic_acceptance_runner,
+        )
+    )
+
+    assert len(acceptance_report.case_reports) == 2
+    assert acceptance_report.artifact.artifact_id.endswith(":rare-heavy")
 
 
 def test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants():

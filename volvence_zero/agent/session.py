@@ -17,6 +17,8 @@ from volvence_zero.joint_loop import (
     JointCycleReport,
     JointLoopSchedule,
     PipelineConfig,
+    RareHeavyArtifact,
+    RareHeavyImportResult,
     SSLRLTrainingPipeline,
     ScheduledJointLoopResult,
 )
@@ -227,6 +229,21 @@ class AgentSessionRunner:
     @property
     def turn_index(self) -> int:
         return self._turn_index
+
+    @property
+    def temporal_latent_dim(self) -> int:
+        return self._joint_loop.temporal_policy.parameter_store.n_z
+
+    def apply_rare_heavy_artifact(
+        self,
+        artifact: RareHeavyArtifact,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> RareHeavyImportResult:
+        return self._joint_loop.apply_rare_heavy_artifact(
+            artifact,
+            checkpoint_id=checkpoint_id,
+        )
 
     async def run_turn(self, user_input: str) -> AgentTurnResult:
         self._turn_index += 1

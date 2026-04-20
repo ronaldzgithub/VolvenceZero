@@ -7,9 +7,16 @@ from random import Random
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
+from volvence_zero.joint_loop import (
+    ETANLJointLoop,
+    JointLoopSchedule,
+    PipelineConfig,
+    RareHeavyArtifact,
+    RareHeavyImportResult,
+    SSLRLTrainingPipeline,
+)
 from volvence_zero.runtime import WiringLevel
-from volvence_zero.substrate import OpenWeightResidualRuntime
+from volvence_zero.substrate import OpenWeightResidualRuntime, TrainingTrace, build_training_trace
 from volvence_zero.temporal import TemporalAbstractionSnapshot
 from volvence_zero.temporal import FullLearnedTemporalPolicy, HeuristicTemporalPolicy
 
@@ -147,6 +154,26 @@ class DialogueReplaySelectionArtifact:
     artifact_id: str
     selected_variants: tuple[DialogueCaseVariant, ...]
     ranking_entries: tuple[DialogueReplayRankingEntry, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueArtifactAcceptanceCaseReport:
+    variant: DialogueCaseVariant
+    baseline_report: DialogueBenchmarkCaseReport
+    adapted_report: DialogueBenchmarkCaseReport
+    score_delta: float
+    import_result: RareHeavyImportResult
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueArtifactAcceptanceReport:
+    artifact: RareHeavyArtifact
+    selection_artifact: DialogueReplaySelectionArtifact
+    case_reports: tuple[DialogueArtifactAcceptanceCaseReport, ...]
+    mean_score_delta: float
+    passed_case_delta: int
     description: str
 
 
@@ -1199,6 +1226,59 @@ def build_dialogue_replay_selection_artifact(
     )
 
 
+def build_replay_selection_training_traces(
+    selection_artifact: DialogueReplaySelectionArtifact,
+) -> tuple[TrainingTrace, ...]:
+    return tuple(
+        build_training_trace(
+            trace_id=f"replay-selection:{variant.case.case_id}",
+            source_text=" ".join(variant.case.user_inputs),
+        )
+        for variant in selection_artifact.selected_variants
+    )
+
+
+def train_rare_heavy_artifact_from_replay_selection(
+    selection_artifact: DialogueReplaySelectionArtifact,
+    *,
+    pipeline_config: PipelineConfig | None = None,
+) -> RareHeavyArtifact:
+    traces = build_replay_selection_training_traces(selection_artifact)
+    pipeline = SSLRLTrainingPipeline(
+        config=pipeline_config or PipelineConfig(ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=2),
+    )
+    pipeline.run_pipeline(traces=traces)
+    return pipeline.export_rare_heavy_artifact(
+        artifact_id=f"{selection_artifact.artifact_id}:rare-heavy"
+    )
+
+
+def _aligned_pipeline_config_for_runner(
+    *,
+    runner: AgentSessionRunner,
+    pipeline_config: PipelineConfig | None,
+) -> PipelineConfig:
+    if pipeline_config is not None:
+        if pipeline_config.n_z == runner.temporal_latent_dim:
+            return pipeline_config
+        return PipelineConfig(
+            n_z=runner.temporal_latent_dim,
+            ssl_convergence_threshold=pipeline_config.ssl_convergence_threshold,
+            ssl_min_steps=pipeline_config.ssl_min_steps,
+            ssl_max_steps=pipeline_config.ssl_max_steps,
+            rl_max_steps=pipeline_config.rl_max_steps,
+            rl_convergence_threshold=pipeline_config.rl_convergence_threshold,
+            transition_kl_threshold=pipeline_config.transition_kl_threshold,
+            binary_gate_rl=pipeline_config.binary_gate_rl,
+        )
+    return PipelineConfig(
+        n_z=runner.temporal_latent_dim,
+        ssl_min_steps=2,
+        ssl_max_steps=3,
+        rl_max_steps=2,
+    )
+
+
 def build_standard_dialogue_runner(
     *,
     profile_label: str,
@@ -1384,5 +1464,75 @@ async def run_dialogue_pe_eta_systematic_replay_benchmark(
         description=(
             f"Systematic replay benchmark evaluated {len(variant_cases)} variants "
             f"across {len(profile_labels)} paths with seeds={seeds}."
+        ),
+    )
+
+
+async def run_replay_selection_artifact_acceptance_benchmark(
+    selection_artifact: DialogueReplaySelectionArtifact,
+    *,
+    rare_heavy_artifact: RareHeavyArtifact | None = None,
+    profile_label: str = "pe-eta",
+    runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner] | None = None,
+    pipeline_config: PipelineConfig | None = None,
+) -> DialogueArtifactAcceptanceReport:
+    factory = runner_factory or (
+        lambda variant: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+        )
+    )
+    sample_runner = factory(selection_artifact.selected_variants[0])
+    artifact = rare_heavy_artifact or train_rare_heavy_artifact_from_replay_selection(
+        selection_artifact,
+        pipeline_config=_aligned_pipeline_config_for_runner(
+            runner=sample_runner,
+            pipeline_config=pipeline_config,
+        ),
+    )
+    allow_interval_carryover_credit = _profile_allows_interval_carryover_credit(profile_label)
+    case_reports: list[DialogueArtifactAcceptanceCaseReport] = []
+    for index, variant in enumerate(selection_artifact.selected_variants):
+        baseline_runner = sample_runner if index == 0 else factory(variant)
+        baseline_report = await run_dialogue_pe_eta_case(
+            case=variant.case,
+            runner=baseline_runner,
+            allow_interval_carryover_credit=allow_interval_carryover_credit,
+        )
+        adapted_runner = factory(variant)
+        import_result = adapted_runner.apply_rare_heavy_artifact(
+            artifact,
+            checkpoint_id=f"{selection_artifact.artifact_id}:{variant.case.case_id}:acceptance",
+        )
+        adapted_report = await run_dialogue_pe_eta_case(
+            case=variant.case,
+            runner=adapted_runner,
+            allow_interval_carryover_credit=allow_interval_carryover_credit,
+        )
+        score_delta = _dialogue_case_score(adapted_report) - _dialogue_case_score(baseline_report)
+        case_reports.append(
+            DialogueArtifactAcceptanceCaseReport(
+                variant=variant,
+                baseline_report=baseline_report,
+                adapted_report=adapted_report,
+                score_delta=score_delta,
+                import_result=import_result,
+                description=(
+                    f"Acceptance benchmark for {variant.case.case_id} produced delta={score_delta:.3f} "
+                    f"after applying artifact {artifact.artifact_id}."
+                ),
+            )
+        )
+    mean_score_delta = _mean(tuple(report.score_delta for report in case_reports))
+    passed_case_delta = sum(int(report.adapted_report.passed) - int(report.baseline_report.passed) for report in case_reports)
+    return DialogueArtifactAcceptanceReport(
+        artifact=artifact,
+        selection_artifact=selection_artifact,
+        case_reports=tuple(case_reports),
+        mean_score_delta=mean_score_delta,
+        passed_case_delta=passed_case_delta,
+        description=(
+            f"Replay selection artifact acceptance benchmark evaluated {len(case_reports)} selected variants "
+            f"with mean_score_delta={mean_score_delta:.3f} and passed_case_delta={passed_case_delta}."
         ),
     )

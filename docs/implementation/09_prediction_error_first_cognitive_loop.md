@@ -288,6 +288,23 @@ Replay ranking top entries：
 3. `goal_drift__goal_drift_family__seed_0`
 4. `task_clarification__clarification_family__seed_0`
 
+最近一次更大的真实 systematic replay benchmark（`seeds=(0,1,2)`, generated variants only）：
+
+- `pe-eta`：`12/12` passed
+- `eta-no-pe`：`0/12` passed
+- `heuristic-baseline`：`0/12` passed
+
+Replay selection artifact（`top_k=6`）也已经可用，并能稳定挑出诊断分数最高的 generated variants。
+
+Replay-selection rare-heavy acceptance benchmark 也已经打通：
+
+- 选取 `top_k=6` variants
+- rare-heavy import 成功
+- `mean_score_delta = 0.104`
+- `passed_case_delta = 0`
+
+这说明 replay ranking 已经不只是评估层读数，而是开始进入 rare-heavy artifact acceptance 入口。
+
 相关新增测试：
 
 - `test_eta_nl_joint_loop_pe_schedules_full_cycle`
@@ -313,6 +330,9 @@ Replay ranking top entries：
 - `test_generate_stochastic_dialogue_case_variants_is_deterministic`
 - `test_build_dialogue_replay_ranking_report_sorts_by_diagnostic_score`
 - `test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants`
+- `test_build_replay_selection_training_traces_matches_selected_variants`
+- `test_train_rare_heavy_artifact_from_replay_selection_exports_artifact`
+- `test_run_replay_selection_artifact_acceptance_benchmark_returns_case_reports`
 
 ## 当前状态判断
 
@@ -332,6 +352,7 @@ Replay ranking top entries：
 - “benchmark 现在还能显示 `pe-eta` 为了换取更高 recall 和更低 lag 所付出的额外 response cost，以及恢复后能否真正稳定下来”
 - “这些优势现在已经在固定 perturbation / replay variants 上保持，而不只局限于 canonical case wording”
 - “系统现在已经开始支持对生成 variants 做 replay ranking，而不只是在手写变体上观测分离”
+- “系统现在已经把 replay selection artifact 接到 rare-heavy acceptance 入口，但 acceptance 收益仍是 mixed，需要更强 selection/acceptance criteria”
 
 ## 仍未完成的部分
 
@@ -340,7 +361,7 @@ Replay ranking top entries：
 1. `PredictionErrorModule` 仍依赖 base evaluation / dual-track / regime 作为输入，而不是更强的世界模型层
 2. 当前 `eta-no-pe` 已是更严格 baseline，但仍然不是更彻底的 PE-off / ETA-off 因果隔离实现
 3. 当前 replay ranking 已支持固定 paraphrase family + seed 生成，但尚未扩展成更大规模 stochastic search / richer paraphrase space
-4. rare-heavy 已接上 bounded offline import，但还没有进一步扩展成更强的 artifact acceptance benchmark / multi-artifact selection
+4. replay selection 已接到 rare-heavy acceptance 流程，但 artifact acceptance criteria 仍偏弱，当前收益是 mixed 而非稳定增益
 5. 生成式用户模拟器仍未接入 dialogue harness
 6. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度
 ## 相关文件
