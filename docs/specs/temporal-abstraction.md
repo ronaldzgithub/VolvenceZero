@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-04-06
+> Last updated: 2026-04-20
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -83,6 +83,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - `substrate` 快照：当前可实现的 substrate surface；当前阶段优先消费 `feature_surface`，只有在 hook 可用时才消费 `residual_activations`
 - `memory` 快照：相关记忆上下文
 - `reflection` 快照：策略沉淀（控制器参数更新）
+- `prediction_error` 快照：上一轮 outcome mismatch 的 carryover learning signal，用于 owner-side controller 调节与 schedule 触发
 
 **产出的输出**：
 - `temporal_abstraction` 快照：`TemporalAbstractionSnapshot`
@@ -113,6 +114,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 SSL trainer 已改成更接近 Eq.3 的结构：prefix posterior inference + Gaussian-like prior regularization + action prediction + closed-form KL，并发布 posterior drift
 - 当前 env 已新增 owner-side residual intervention backend，用 `e_{t,l} ← e_{t,l} + U_t · e_{t,l}` 形式的近似 hook 生成 `downstream_effect`；session / joint-loop 主链默认优先走 open-weight residual runtime，trace backend 退为 fallback
 - 当前 internal RL sandbox 已支持 `baseline / causal / causal-binary` 三条 rollout 路径；`causal-binary` 会在 replacement 路径上对 `beta_t` 做 Heaviside-like 二值化，更接近 ETA B.5
+- 当前 `TemporalModule` 已直接消费 `prediction_error` slot；高 PE 不再只经 evaluation 旁路感知，而是直接进入 owner-side update / scheduling surface
 - 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
@@ -122,6 +124,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 | 关系 | 能力域 | 说明 |
 |------|--------|------|
 | 依赖 | 契约式运行时（5.5）| 通过快照发布控制器状态 |
+| 依赖 | Prediction Error 主链 | 直接消费上一轮 outcome mismatch，驱动 owner-side temporal 调节 |
 | 依赖 | 多时间尺度学习（5.1）| 在 online-fast 时间尺度运行 |
 | 被依赖 | 双轨学习（5.4）| 提供 z_task / z_rel 控制器代码 |
 | 被依赖 | 认知 Regime（5.8）| 控制器切换与 regime 切换对齐 |
@@ -130,6 +133,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-04-20: 接口契约补充 `prediction_error` 直接输入；当前实现口径明确 `TemporalModule` 已直接消费 `prediction_error` slot，而不再只经 evaluation 旁路感知高 PE
 - 2026-04-09: next_gen_emogpt v2 terminology alignment: paper term `subgoal` mapped to repo term `abstract action` as default; `z_t` = controller code, `beta_t` = switch gate, `U_t` = decoder output / residual controller; two-stage (SSL then Internal RL) made non-optional constraint; non-causal → causal transition explicitly documented as design invariant
 - 2026-04-09: U03 Emergence vs Heuristic A/B verification: (1) Switch gate: alpha=0.1 vs alpha=0.0 produces different loss profiles, confirming variational bottleneck affects switch behavior. (2) Family competition: payoff-weighted ranking prefers high long_term_payoff families over similarity-only selection when centroids are equidistant. (3) NonCausalSequenceEmbedder.enrich_posterior confirmed to reduce posterior variance (enriched_var <= causal_var) and produce positive kl_tightening. Bidirectional ordering sensitivity verified.
 - 2026-04-06: 补充 learned-lite temporal policy 的当前实现口径，并记录 runtime-visible metacontroller owner state

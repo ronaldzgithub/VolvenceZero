@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 数据契约文档
 
 > Status: draft
-> Version: 0.1
-> Last updated: 2026-04-08
+> Version: 0.2
+> Last updated: 2026-04-20
 > Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`
 
 ---
@@ -558,6 +558,63 @@ class ReflectionSnapshot:
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层
 **发布频率**：每会话后（异步）
 
+### 3.9 Prediction Error（PredictionError）
+
+**Slot**: `prediction_error`
+
+```python
+@dataclass(frozen=True)
+class PredictedOutcome:
+    source_turn_index: int
+    target_turn_index: int
+    predicted_task_progress: float
+    predicted_relationship_delta: float
+    predicted_regime_stability: float
+    predicted_action_payoff: float
+    confidence: float
+    description: str
+
+@dataclass(frozen=True)
+class ActualOutcome:
+    observed_turn_index: int
+    task_progress: float
+    relationship_delta: float
+    regime_stability: float
+    action_payoff: float
+    description: str
+
+@dataclass(frozen=True)
+class PredictionError:
+    task_error: float
+    relationship_error: float
+    regime_error: float
+    action_error: float
+    magnitude: float
+    signed_reward: float
+    description: str
+
+@dataclass(frozen=True)
+class PredictionErrorSnapshot:
+    evaluated_prediction: PredictedOutcome | None
+    actual_outcome: ActualOutcome
+    next_prediction: PredictedOutcome
+    error: PredictionError
+    turn_index: int
+    bootstrap: bool
+    description: str
+```
+
+**当前实现口径**：
+
+- `prediction_error` 已是正式 ACTIVE runtime slot，而不是临时日志对象
+- 快照最小公开链固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
+- `error` 维度固定覆盖 `task` / `relationship` / `regime` / `action`
+- `bootstrap=True` 表示当前 turn 还没有可结算的上一轮 prediction，不应被下游当作正式误差信号消费
+- live session 中，部分消费者会把 `prediction_error` 视为“上一轮 carryover learning evidence”，以避免同轮自因果闭环
+
+**消费者**：记忆系统、时间抽象层、认知 Regime 层、信用分配、慢反思路径；`evaluation` 在 final wiring 中追加 PE evidence，但不把它变成新的模块 owner
+**发布频率**：每 turn
+
 ---
 
 ## 4. 编排器接口
@@ -665,30 +722,31 @@ async def propagate(
 ## 5. 快照依赖图
 
 ```
-                    ┌──────────────────────────────────────┐
-                    │                                      │
-substrate ──────────┼──→ temporal_abstraction ──┬──→ dual_track
-                    │                           │        │
-                    ├──→ memory ────────────────┤        │
-                    │        │                  │        │
-                    │        └──────────────────┼──→ regime
-                    │                           │        │
-                    └───────────────────────────┼──→ credit
-                                                │        │
-                                                └──→ evaluation
-                                                         │
-                                         (async) ──→ reflection
-                                                         │
-                                                    ┌────┴────┐
-                                                    ▼         ▼
-                                                 memory    credit
-                                              (write-back) (update)
+substrate ───────────────┬────────→ memory ───────────────┬────────→ dual_track
+                         │                                │
+                         ├────────→ evaluation            ├────────→ regime
+                         │                                │             │
+                         └────────→ temporal_abstraction  │             │
+                                                          │             │
+dual_track ──────────────┬────────────────────────────────┘             │
+evaluation ──────────────┼──────────────────────────────────────────────┤
+regime ──────────────────┘                                              │
+                                                                         ▼
+                                                           prediction_error
+                                                             ├──→ memory
+                                                             ├──→ temporal_abstraction
+                                                             ├──→ regime
+                                                             ├──→ credit
+                                                             └──→ reflection (async)
+
+reflection ───────────────────────────────────────────────→ memory / credit / temporal writeback
 ```
 
 **依赖规则**：
 - 每个模块只读取上游快照，不反向依赖
 - `reflection` 是唯一的异步模块，会话后运行
 - `reflection` 的产物通过正式 API 写回 `memory` 和 `credit`
+- `prediction_error` 是显式学习证据层；部分 live runtime 路径把它当作跨 turn carryover signal，而不是同 turn 自举输入
 
 **关于直接消费与间接消费**：上图展示的是**直接快照依赖**。Slot 注册表（第 6 节）中列出的消费者是**声明的直接消费者**——即模块在 `process()` 中从 upstream dict 读取的 slot。模块不通过中间模块间接获取数据，而是直接声明并读取所需的上游快照。
 
@@ -698,14 +756,15 @@ substrate ──────────┼──→ temporal_abstraction ──
 
 | Slot Name | Owner 模块 | Value 类型 | 发布频率 | 消费者 |
 |-----------|-----------|-----------|----------|--------|
-| `substrate` | SubstrateModule | SubstrateSnapshot | 每 token/turn | temporal_abstraction, memory, dual_track |
-| `temporal_abstraction` | MetacontrollerModule | TemporalAbstractionSnapshot | 每 turn | orchestrator, dual_track, regime, evaluation |
-| `memory` | MemoryModule | MemorySnapshot | 每 turn ~ 每会话 | orchestrator, temporal_abstraction, dual_track, regime, reflection |
-| `dual_track` | DualTrackModule | DualTrackSnapshot | 每 turn | orchestrator, memory, credit, evaluation |
-| `credit` | CreditModule | CreditSnapshot | 每 turn ~ 每会话 | orchestrator, memory, evaluation |
-| `regime` | RegimeModule | RegimeSnapshot | 每 turn | orchestrator, temporal_abstraction, memory, evaluation |
-| `evaluation` | EvaluationModule | EvaluationSnapshot | 每 turn ~ 每会话 | orchestrator, credit, gate |
-| `reflection` | ReflectionModule | ReflectionSnapshot | 每会话后（异步） | memory, credit, temporal_abstraction, regime |
+| `substrate` | SubstrateModule | SubstrateSnapshot | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
+| `temporal_abstraction` | TemporalModule | TemporalAbstractionSnapshot | 每 turn | memory, dual_track |
+| `memory` | MemoryModule | MemorySnapshot | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
+| `dual_track` | DualTrackModule | DualTrackSnapshot | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
+| `evaluation` | EvaluationModule | EvaluationSnapshot | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
+| `regime` | RegimeModule | RegimeSnapshot | 每 turn | prediction_error, reflection |
+| `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
+| `credit` | CreditModule | CreditSnapshot | 每 turn ~ 每会话 | reflection |
+| `reflection` | ReflectionModule | ReflectionSnapshot | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
 
 ---
 

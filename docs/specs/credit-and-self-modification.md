@@ -1,7 +1,7 @@
 # 信用分配与自修改 Spec
 
 > Status: draft
-> Last updated: 2026-04-09
+> Last updated: 2026-04-20
 > 对应需求: R-PE, R9, R10
 
 ## 要解决的问题
@@ -67,7 +67,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 **消费的输入**：
 - `dual_track` 快照：轨道标记和信用分配上下文
-- `temporal_abstraction` 快照：抽象动作信息（用于抽象动作级信用）
+- `prediction_error` 快照：原始 learning signal；credit 由其在多层级上聚合
 - `evaluation` 快照：评估分数（用于门控决策）
 
 **产出的输出**：
@@ -84,7 +84,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 | 关系 | 能力域 | 说明 |
 |------|--------|------|
 | 依赖 | 契约式运行时（5.5）| 通过快照发布信用和自修改记录 |
-| 依赖 | 时间抽象（5.2）| 消费抽象动作信息用于信用分配 |
+| 依赖 | Prediction Error 主链 | 直接消费 prediction error 并派生多层级 credit |
 | 依赖 | 双轨学习（5.4）| 按轨道隔离信用分配 |
 | 依赖 | 评估体系（5.7）| 评估分数驱动门控决策 |
 | 被依赖 | 连续记忆（5.3）| 信用记录作为反思输入 |
@@ -99,10 +99,12 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - joint loop 现在会把 metacontroller rollback / drift evidence 写入 owner-side modification audit，供 reflection / writeback 直接消费
 - joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
+- 当前 direct module dependencies 已收敛到 `dual_track + evaluation + prediction_error`；抽象动作 / delayed outcome 证据通过 dual-track、regime ledger 和 prediction-error chain 进入 credit owner，而不是要求 credit 直接持有 temporal owner
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 
 ## 变更日志
 
+- 2026-04-20: 接口契约按当前代码收敛为直接消费 `dual_track + evaluation + prediction_error`；temporal / delayed outcome 证据通过上游 owner 发布的结构化状态间接进入 credit owner
 - 2026-04-09: next_gen_emogpt v2: R-PE (prediction error as primitive learning signal) added; credit repositioned as aggregation layer downstream of prediction error, not the source of learning itself
 - 2026-04-09: U04 N-step attribution and rolling payoff verification: CreditLedger N-step ledger (`record_nstep_outcome`, `compute_nstep_return`, `rolling_payoff_by_family`/`_by_regime`) verified end-to-end. Horizon depth controls outcome window. FIFO eviction at max_ledger_entries. Rolling payoff differentiates good/bad families after 20 cycles. Credit reward shaping (`extract_abstract_action_credit_bonus`) confirmed to affect RL environment reward via joint loop integration.
 - 2026-04-06: P12 hierarchical credit with temporal discount: CreditLedger tracks session-level credits with configurable gamma; CreditSnapshot gains session_level_credits and discount_factor; aggregate_session_credits computes discounted sums; reflection consolidation score uses session-level credit bonus

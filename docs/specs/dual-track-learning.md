@@ -1,7 +1,7 @@
 # 双轨学习 Spec
 
 > Status: draft
-> Last updated: 2026-04-08
+> Last updated: 2026-04-20
 > 对应需求: R7
 
 ## 要解决的问题
@@ -55,8 +55,7 @@
 **消费的输入**：
 - `memory` 快照：按轨道检索的记忆
 - `temporal_abstraction` 快照：控制器状态；当前实现口径下优先消费上一轮已发布 temporal snapshot，避免同轮循环依赖
-- `credit` 快照：按轨道分配的信用（P03 阶段可先由 dual-track owner 发布占位 recent signal）
-- `evaluation` 快照：按轨道的评估分数（后续包正式接入）
+- `substrate` 快照：公开 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive
 
 **产出的输出**：
 - `dual_track` 快照：`DualTrackSnapshot`
@@ -71,6 +70,7 @@
 - dual-track owner 现也直接消费 substrate owner 发布的 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive，而不是在 consumer 侧重建文本语义
 - `abstract_action_hint`、`action_family_version_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据，以及该证据来自哪一代 family bank
 - 默认 final wiring 下，dual-track 通过上一轮已发布的 temporal snapshot 闭合 `temporal -> dual_track`，避免打破 runtime 单轮 DAG
+- `credit` / `evaluation` 当前是 dual-track 的下游消费者，而不是 direct module dependencies；dual-track owner 先发布稳定 track state，再由下游按需聚合
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节
 
@@ -87,6 +87,7 @@
 
 ## 变更日志
 
+- 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + temporal_abstraction + substrate`；`credit` / `evaluation` 明确为 dual-track 的下游消费者而非 direct dependencies
 - 2026-04-06: P11 dual-track z-space separation: ControllerState.track_codes carries per-track projected latent codes; DualTrackModule now reads track-specific z_task/z_rel via temporal-track-projected path; CausalZPolicy uses amplified track projection
 - 2026-04-08: dual-track 新增 substrate semantic feature ingest，用公开 `semantic_*` feature signals 区分 world/self drive，并在 sparse-memory turn 上发布更稳定的 track state
 - 2026-04-06: 补充 dual-track 消费 temporal snapshot、发布 controller source / abstract action hint 的当前实现口径

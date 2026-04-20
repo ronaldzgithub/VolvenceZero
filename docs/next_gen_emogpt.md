@@ -1,6 +1,7 @@
 # Next-Generation EmoGPT — System Design
 
 > Status: v2 draft
+> Last updated: 2026-04-20
 > Scope: system-level thesis and invariants (not implementation spec)
 > Sources: Nested Learning (NL, arXiv:2512.24695), Emergent Temporal Abstractions (ETA, arXiv:2512.20605)
 > Downstream: `docs/specs/*.md`, `docs/DATA_CONTRACT.md`, `.cursor/rules/`
@@ -292,6 +293,7 @@ The design is on-track only if the answer to most of these becomes "yes":
 9. Can it consolidate experience into durable memory and controller priors?
 10. Can it expose enough internal state to support reflection, evaluation, and rollback?
 11. Can new adaptive layers be added without destroying module ownership and public contracts?
+12. Can fixed multi-turn dialogue benchmarks show that high prediction error triggers temporally aligned controller changes and later improvement relative to weak baselines?
 
 ---
 

@@ -1,7 +1,7 @@
 # 契约式运行时 Spec
 
 > Status: draft
-> Last updated: 2026-04-08
+> Last updated: 2026-04-20
 > 对应需求: R8, R11, R15
 
 ## 要解决的问题
@@ -96,6 +96,8 @@ P00 运行时内核固定以下最小守卫和视图：
 - `FinalRolloutConfig` 默认已把 `reflection` / `temporal` 提升为 `ACTIVE`；acceptance report 也把两者缺失视为真实回归而非可选增强
 - slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
 - agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
+- 当前主链已新增正式 `prediction_error` owner/slot，公共交换固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
+- `memory` / `regime` / `credit` / `reflection` / `temporal` 已直接消费 `prediction_error`；`evaluation` 只在 final wiring 中追加 prediction-error evidence，保持 readout 定位
 
 ### 内部状态发布（R11）
 

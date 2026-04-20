@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 调试与可观测性体系
 
 > Status: draft
-> Version: 0.1
-> Last updated: 2026-03-25
+> Version: 0.2
+> Last updated: 2026-04-20
 > 对应需求: R8（快照优先、契约优先）、R11（可学习的内部状态表示）、R15（迁移可解释性和可回滚）
 
 ---
@@ -86,6 +86,11 @@ class DebugEvent:
 | `evaluation.score` | 评估评分 | `family`, `metric`, `value`, `confidence` |
 | `evaluation.alert` | 安全/有界性告警 | `alert_type`, `severity`, `details` |
 | `contract.violation` | 契约违反（必须 fail loudly） | `violation_type`, `module`, `details` |
+
+当前实现补充：
+
+- prediction chain 当前主要通过 `prediction_error` slot 的 `snapshot.published` / `snapshot.consumed` 事件被追踪，而不是依赖单独的专用事件类型
+- 也就是说，调试主问题已经从“有没有日志写出来”转为“主链有没有正式发布并被下游消费”
 
 ### 3.2 因果链
 
@@ -279,6 +284,26 @@ DualTrackComparison (per turn):
 - 信用分配严重偏向一轨 → 另一轨可能被忽视
 - `z_task` 和 `z_rel` 高度相似 → 双轨可能退化为单轨
 
+### 5.5 Prediction-Error 链检查器
+
+对每轮的 prediction chain 做显式审计：
+
+```
+PredictionErrorTrace (per turn):
+├── evaluated_prediction 是否存在
+├── actual_outcome 是否成功结算上一轮 prediction
+├── next_prediction 是否面向下一轮发布
+├── error 四维分解：task / relationship / regime / action
+├── magnitude / signed_reward
+└── bootstrap 标记（避免把首轮占位误当成真实学习信号）
+```
+
+**异常检测**：
+
+- 长时间只有 `bootstrap=True` → prediction loop 没有真正接上主链
+- `prediction_error` 被发布但几乎没有被 `memory` / `regime` / `credit` / `temporal` / `reflection` 消费 → PE-first 只是名义接线
+- 某一维 error 长期主导且无后续调整 → 可能说明 temporal / regime / memory 的 owner-side 调节没有生效
+
 ---
 
 ## 6. Layer 4: 会话级仪表盘
@@ -364,6 +389,24 @@ ReflectionAudit:
 - writeback mode 和 review_required 作为审查入口
 - 正式写回默认关闭，先审计再放大范围
 
+### 6.5 Dialogue Proof 回放
+
+除了普通 session replay，当前还需要有一层固定 scripted case 的 proof replay：
+
+```
+DialogueProofReplay:
+├── case_id / baseline path
+├── pressure turns
+├── high-PE turns
+├── `*-pe` schedule / rare-heavy recommendation
+├── abstract action / regime / switch_gate trajectory
+├── delayed improvement verdict
+├── recovery_lag_turns
+└── pressure_localization_score
+```
+
+它回答的不是“聊天看起来顺不顺”，而是“高 PE 是否真的驱动了后续 temporal response，并在后段留下更好 readout”。
+
 ---
 
 ## 7. Layer 5: 纵向分析面板
@@ -375,6 +418,7 @@ ReflectionAudit:
 ```
 LearningCurves:
 ├── 评估族分数趋势（6 族 × 多会话）
+├── prediction error 趋势（magnitude / signed_reward / per-dimension error）
 ├── 记忆系统增长曲线（各层级条目数、提升/衰减率）
 ├── 控制器稳定性（z_t 方差趋势、切换频率趋势）
 ├── Regime 效果趋势（各 regime 的历史评分）
@@ -673,8 +717,8 @@ SnapshotSizeReport (per turn):
 |--------|---------------------|
 | Layer 1 事件日志 | 评估指标计算的原始事件流 |
 | Layer 2 契约守卫 | 安全与有界性评估的输入 |
-| Layer 3 Turn 检查器 | 交互质量和抽象质量评估的输入 |
-| Layer 4 会话仪表盘 | 关系连续性和学习质量评估的输入 |
+| Layer 3 Turn 检查器 | 交互质量、抽象质量、prediction-error chain 完整性的输入 |
+| Layer 4 会话仪表盘 | 关系连续性、学习质量、dialogue proof replay 的输入 |
 | Layer 5 纵向分析 | 长期适应和漂移检测的输入 |
 
 详见 `docs/EVALUATION_SYSTEM.md`。

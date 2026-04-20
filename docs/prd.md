@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 产品需求文档 (PRD)
 
 > Status: draft
-> Version: 0.2
-> Last updated: 2026-03-25
+> Version: 0.3
+> Last updated: 2026-04-20
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
@@ -62,7 +62,24 @@
 
 ## 4. 系统需求
 
-> 以下 R1-R15 直接源自 `docs/next_gen_emogpt.md`，是系统的目标状态需求。
+> 以下 R-PE 与 R1-R15 直接源自 `docs/next_gen_emogpt.md`，是系统的目标状态需求。
+
+### R-PE. Prediction Error 是原始学习信号
+
+系统必须显式产出“预测 -> 实际结果 -> prediction error”链路，并把它作为主学习原语，而不是把学习建立在 evaluation / credit 的二级读数之上。
+
+**最低要求**：
+
+- 每轮显式发布 `evaluated_prediction`
+- 下一轮显式发布 `actual_outcome`
+- 结算得到 machine-readable `prediction_error`
+- 下游 `credit` / `memory` / `temporal` / `regime` / `reflection` 必须可直接消费 prediction error，而不是只能读 aggregate scores
+
+**关键不变量**：
+
+- evaluation 是 prediction error 的 readout，不是学习源头
+- credit 是 prediction error 的聚合与审计层，不是学习源头
+- reward / punishment 应能回译为 prediction error 的符号和幅度
 
 ### R1. 多时间尺度学习（必须）
 
@@ -402,12 +419,13 @@
 
 **这是实现其他能力域的必要脚手架**——没有契约式运行时，其他能力域无法安全组合。
 
-### 5.6 信用分配与自修改（R9, R10）
+### 5.6 信用分配与自修改（R-PE, R9, R10）
 
 **要解决的问题**：如何在多个时间尺度上分配信用，并安全地让系统改进自身？
 
 **工程挑战**：
 
+- 把 prediction error 提升为正式 learning primitive，而不是仅保留在日志/调试层
 - 实现从 token 级到抽象动作级的层级信用分配
 - 设计语义化的奖励记录（不是纯数值，而是包含上下文和结果的结构化记录）
 - 实现门控自修改：定义什么可在线改、什么需后台验证、什么需离线重训练
@@ -423,7 +441,8 @@
 
 - 设计覆盖 6 个评估族的指标体系（任务能力、交互质量、关系连续性、学习质量、抽象质量、安全与有界性）
 - 实现跨会话的纵向评估（不只是单轮）
-- 将评估信号回馈到学习循环（而非仅用于离线报告）
+- 将评估保持在 readout / gate 层，而不是反向替代 prediction error 成为学习源
+- 设计 scripted dialogue benchmark，证明高 PE 是否真的触发 temporal abstraction 变化并带来 delayed improvement
 
 ### 5.8 认知 Regime（R14）
 
@@ -568,6 +587,16 @@
 **验证**：regime 可被记忆、选择和训练；评估覆盖关系连续性和学习质量
 
 **对应能力域**：5.7, 5.8
+
+## 10.1 当前进展快照（2026-04-20）
+
+当前工程进展已经从“先搭 8 个能力域的骨架”推进到“让 prediction error 真正进入主链并驱动后续 owner”的阶段：
+
+- `prediction_error` 已作为正式 runtime slot 落地主链
+- `memory` / `regime` / `credit` / `reflection` / `temporal` 已接入 PE-first 消费面
+- session owner 已接入 bounded `rare-heavy` review / import
+- 顶层评估已新增 scripted dialogue benchmark，用于证明 `high PE -> temporal response -> delayed improvement`
+- 当前默认 A/B 结果已经能把 `pe-eta` 与 `eta-no-pe` / `heuristic-baseline` 拉开
 
 ## 11. 参考文档
 
