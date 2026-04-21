@@ -8,9 +8,12 @@ from volvence_zero.agent import (
     DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
     DEFAULT_DIALOGUE_REPLAY_SEEDS,
     DEFAULT_DIALOGUE_PROOF_CASES,
+    DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
+    DialogueArtifactAcceptanceGateConfig,
     build_replay_selection_training_traces,
     build_dialogue_replay_selection_artifact,
     build_standard_dialogue_runner,
+    default_rare_heavy_candidate_configs,
     default_dialogue_ablation_profiles,
     dialogue_case_variants,
     dialogue_paraphrase_families,
@@ -25,6 +28,7 @@ from volvence_zero.agent import (
     run_dialogue_pe_eta_case,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
+    run_multi_artifact_acceptance_benchmark,
     train_rare_heavy_artifact_from_replay_selection,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
@@ -360,6 +364,43 @@ def test_run_replay_selection_artifact_acceptance_benchmark_returns_case_reports
 
     assert len(acceptance_report.case_reports) == 2
     assert acceptance_report.artifact.artifact_id.endswith(":rare-heavy")
+    assert acceptance_report.decision.accepted is False
+    assert acceptance_report.decision.rollback_applied is True
+    assert all(report.rollback_operations for report in acceptance_report.case_reports)
+
+
+def test_replay_selection_artifact_acceptance_can_be_forced_accept():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    acceptance_report = asyncio.run(
+        run_replay_selection_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_synthetic_acceptance_runner,
+            gate_config=DialogueArtifactAcceptanceGateConfig(
+                min_mean_score_delta=-1.0,
+                min_passed_case_delta=-10,
+                min_positive_case_fraction=0.0,
+                min_worst_case_delta=-1.0,
+            ),
+        )
+    )
+
+    assert acceptance_report.decision.accepted is True
+    assert acceptance_report.decision.rollback_applied is False
+    assert all(not report.rollback_operations for report in acceptance_report.case_reports)
 
 
 def test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants():
@@ -380,6 +421,13 @@ def test_default_dialogue_replay_seeds_are_exposed():
     assert DEFAULT_DIALOGUE_REPLAY_SEEDS == (0, 1, 2)
 
 
+def test_default_rare_heavy_candidate_configs_are_exposed():
+    configs = default_rare_heavy_candidate_configs()
+
+    assert configs == DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS
+    assert len(configs) >= 3
+
+
 def test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit():
     report = asyncio.run(
         run_dialogue_pe_eta_ablation_benchmark(
@@ -394,6 +442,67 @@ def test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit():
 
     assert delta_map["pe-eta"]["pe_triggered_turn_count"] == 0.0
     assert delta_map["eta-no-pe"]["pe_triggered_turn_count"] < 0.0
+
+
+def test_run_multi_artifact_acceptance_benchmark_orders_candidates():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    comparison = asyncio.run(
+        run_multi_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_synthetic_acceptance_runner,
+        )
+    )
+
+    assert len(comparison.candidate_reports) == len(DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS)
+    assert comparison.chosen_candidate_label is not None
+    assert comparison.candidate_reports[0].candidate_score >= comparison.candidate_reports[-1].candidate_score
+
+
+def test_run_multi_artifact_acceptance_benchmark_can_choose_accepted_candidate():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+    comparison = asyncio.run(
+        run_multi_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_synthetic_acceptance_runner,
+            gate_config=DialogueArtifactAcceptanceGateConfig(
+                min_mean_score_delta=-1.0,
+                min_passed_case_delta=-10,
+                min_positive_case_fraction=0.0,
+                min_worst_case_delta=-1.0,
+            ),
+        )
+    )
+
+    assert comparison.chosen_candidate_label is not None
+    assert comparison.chosen_accepted is True
 
 
 def test_dialogue_case_report_flags_missing_pe_and_temporal_change():

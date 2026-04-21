@@ -4,11 +4,14 @@ import argparse
 import asyncio
 import os
 import time
+from functools import partial
 from typing import Callable, TextIO
 
 from volvence_zero.agent.response import LLMResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.substrate import SubstrateFallbackMode
+
+DEFAULT_CHAT_MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
 def render_turn_result(result: AgentTurnResult) -> str:
@@ -40,27 +43,73 @@ def render_turn_result(result: AgentTurnResult) -> str:
     return "\n".join(lines)
 
 
+def _prefix_chat_text(*, speaker: str, text: str) -> str:
+    lines = text.splitlines() or [""]
+    prefixed_lines = [f"{speaker}{lines[0]}"]
+    indent = " " * len(speaker)
+    prefixed_lines.extend(f"{indent}{line}" for line in lines[1:])
+    return "\n".join(prefixed_lines)
+
+
+def render_chat_turn_result(result: AgentTurnResult, *, include_meta: bool = False) -> str:
+    lines = [_prefix_chat_text(speaker="ai> ", text=result.response.text)]
+    if not include_meta:
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            f"  regime: {result.active_regime or 'none'}",
+            f"  temporal: {result.active_abstract_action or 'none'}",
+            f"  joint_schedule: {result.joint_schedule_action}",
+            f"  acceptance: {'pass' if result.acceptance_passed else 'fail'}",
+        ]
+    )
+    if result.prediction_error is not None:
+        lines.append(
+            "  prediction_error: "
+            f"reward={result.prediction_error.signed_reward:.2f} "
+            f"magnitude={result.prediction_error.magnitude:.2f}"
+        )
+    if result.evaluation_alerts:
+        lines.append(f"  alerts: {', '.join(result.evaluation_alerts)}")
+    if result.acceptance_issues:
+        lines.append(f"  issues: {', '.join(result.acceptance_issues)}")
+    return "\n".join(lines)
+
+
 async def run_repl(
     *,
     runner: AgentSessionRunner,
     reader: Callable[[], str],
     writer: Callable[[str], None],
     prompt: str = "you> ",
+    banner: str = "VolvenceZero REPL. Type 'exit' or 'quit' to stop.",
+    render_result: Callable[[AgentTurnResult], str] = render_turn_result,
+    show_timing: bool = True,
 ) -> None:
-    writer("VolvenceZero REPL. Type 'exit' or 'quit' to stop.")
+    writer(banner)
     while True:
         writer(prompt)
-        user_input = reader().strip()
+        try:
+            user_input = reader().strip()
+        except KeyboardInterrupt:
+            writer("bye")
+            return
         if not user_input:
             continue
         if user_input.lower() in {"exit", "quit"}:
             writer("bye")
             return
         t0 = time.perf_counter()
-        result = await runner.run_turn(user_input)
+        try:
+            result = await runner.run_turn(user_input)
+        except KeyboardInterrupt:
+            writer("bye")
+            return
         elapsed = time.perf_counter() - t0
-        output = render_turn_result(result)
-        output += f"\n  time: {elapsed:.2f}s"
+        output = render_result(result)
+        if show_timing:
+            output += f"\n  time: {elapsed:.2f}s"
         writer(output)
 
 
@@ -78,6 +127,20 @@ def _stdout_writer(stdout: TextIO) -> Callable[[str], None]:
     return _write
 
 
+def should_use_llm(*, chat_mode: bool, llm_flag: bool) -> bool:
+    return chat_mode or llm_flag
+
+
+def should_prefer_local_files(
+    *,
+    local_files_only_flag: bool,
+    allow_remote_model_fetch: bool,
+) -> bool:
+    if local_files_only_flag:
+        return True
+    return not allow_remote_model_fetch
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the minimal VolvenceZero agent REPL.")
     default_fallback_mode = os.getenv("VOLVENCE_SUBSTRATE_FALLBACK_MODE", SubstrateFallbackMode.ALLOW_BUILTIN.value)
@@ -88,7 +151,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--substrate-model-id",
-        default="distilgpt2",
+        default=DEFAULT_CHAT_MODEL_ID,
         help="Preferred Hugging Face causal LM model id for the default real substrate runtime.",
     )
     parser.add_argument(
@@ -100,6 +163,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--substrate-local-files-only",
         action="store_true",
         help="Load the preferred Hugging Face model only from local files.",
+    )
+    parser.add_argument(
+        "--allow-remote-model-fetch",
+        action="store_true",
+        help="Allow the CLI to fetch model files from the Hugging Face Hub when they are not already cached locally.",
     )
     parser.add_argument(
         "--disable-substrate-fallback",
@@ -114,6 +182,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Fallback policy for substrate loading. "
             "Use 'allow-builtin' for local dev and 'deny' for evaluation or production-like runs."
         ),
+    )
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Run a simple chat view that prints only the assistant reply by default.",
+    )
+    parser.add_argument(
+        "--show-meta",
+        action="store_true",
+        help="When used with --chat, also print compact runtime metadata after each reply.",
     )
     parser.add_argument(
         "--llm",
@@ -145,14 +223,19 @@ def main() -> int:
         if args.disable_substrate_fallback
         else args.substrate_fallback_mode
     )
+    use_llm = should_use_llm(chat_mode=args.chat, llm_flag=args.llm)
+    prefer_local_files = should_prefer_local_files(
+        local_files_only_flag=args.substrate_local_files_only,
+        allow_remote_model_fetch=args.allow_remote_model_fetch,
+    )
     runtime = build_transformers_runtime_with_fallback(
         model_id=args.substrate_model_id,
         device=args.substrate_device,
-        local_files_only=args.substrate_local_files_only,
+        local_files_only=prefer_local_files,
         fallback_mode=fallback_mode,
     )
     synthesizer = None
-    if args.llm:
+    if use_llm:
         synthesizer = LLMResponseSynthesizer(
             runtime=runtime,
             max_new_tokens=args.max_new_tokens,
@@ -165,11 +248,21 @@ def main() -> int:
         response_synthesizer=synthesizer,
         substrate_fallback_mode=fallback_mode,
     )
+    banner = "VolvenceZero REPL. Type 'exit' or 'quit' to stop."
+    render_result = render_turn_result
+    show_timing = True
+    if args.chat:
+        banner = "VolvenceZero Chat. Type 'exit' or 'quit' to stop."
+        render_result = partial(render_chat_turn_result, include_meta=args.show_meta)
+        show_timing = False
     asyncio.run(
         run_repl(
             runner=runner,
             reader=_stdin_reader(__import__("sys").stdin),
             writer=_stdout_writer(__import__("sys").stdout),
+            banner=banner,
+            render_result=render_result,
+            show_timing=show_timing,
         )
     )
     return 0

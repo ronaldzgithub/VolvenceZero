@@ -283,11 +283,14 @@ Replay ranking 的前几项为：
 - rare-heavy import 操作稳定成功（`rare-heavy:temporal-import`, `rare-heavy:memory-import`）
 - acceptance report 的整体 `mean_score_delta = 0.104`
 - `passed_case_delta = 0`
+- `positive_case_fraction = 0.333`
+- `worst_case_delta = -0.500`
 
 也就是说：
 
 - 这条 rare-heavy acceptance 流程已经打通
 - 但收益还是 mixed，而不是稳定提升
+- 在默认 gate 下，artifact 会被 **reject** 并触发 rollback
 
 当前 sample：
 
@@ -297,6 +300,87 @@ Replay ranking 的前几项为：
 - `repeated_failure__failure_family__seed_0`: `score_delta = -0.375`
 
 这说明 replay selection 已经能作为 rare-heavy 的正式验收入口，但“selection -> training -> acceptance” 这条链路还需要更强的 artifact selection / acceptance criteria，不能把当前 pipeline 误当成已经稳定增益。
+
+## Multi-Artifact Comparison
+
+当前系统还支持：
+
+- `DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS`
+- `DialogueArtifactCandidateReport`
+- `DialogueArtifactComparisonReport`
+- `run_multi_artifact_acceptance_benchmark()`
+
+也就是说，现在不再是“训练一个 artifact 然后直接判”，而是：
+
+1. 同一 selection artifact
+2. 训练多组 candidate configs
+3. 分别跑 acceptance benchmark
+4. 按统一 candidate score 排序
+5. 选择 best-of-n candidate 进入 gate 结论
+
+这使得 rare-heavy 不再只是单候选碰运气，而开始接近真正的慢层候选选择系统。
+
+在最近一次真实 multi-artifact acceptance comparison（同一 selection, `top_k=4`）中：
+
+- 比较了 3 个 candidate configs：
+  - `balanced`
+  - `more-rl`
+  - `more-ssl`
+- 当前最佳候选是：`more-ssl`
+- 但它仍未通过默认 gate
+
+当前最优候选 `more-ssl` 的结果：
+
+- `mean_score_delta = 0.438`
+- `passed_case_delta = 0`
+- `positive_case_fraction = 0.750`
+- `worst_case_delta = 0.000`
+
+默认 gate 下它仍被 reject，唯一剩余拒绝原因是：
+
+- `passed-case-delta-below-threshold`
+
+而 `balanced` / `more-rl` 则更差，仍同时触发：
+
+- `passed-case-delta-below-threshold`
+- `positive-case-fraction-below-threshold`
+- `worst-case-delta-below-threshold`
+
+这说明 current selection/training/gate 组合已经足够区分 candidate quality，但还没有候选能在“真正提升通过数”这个最强标准上过线。
+
+当前默认 gate 的拒绝原因包括：
+
+- `passed-case-delta-below-threshold`
+- `positive-case-fraction-below-threshold`
+- `worst-case-delta-below-threshold`
+
+并且 reject 后会对每个 adapted runner 执行：
+
+- `rare-heavy:temporal-rollback`
+- `rare-heavy:memory-rollback`
+
+因此现在已经不是“人眼看报告后手动决定”，而是有正式的 acceptance / reject gate + rollback policy。
+
+在最近一次真实 multi-artifact acceptance comparison 中：
+
+- 比较了 3 个候选：
+  - `balanced`
+  - `more-rl`
+  - `more-ssl`
+- 当前最优候选是：`more-ssl`
+
+它的结果是：
+
+- `mean_score_delta = 0.438`
+- `passed_case_delta = 0`
+- `positive_case_fraction = 0.750`
+- `worst_case_delta = 0.000`
+
+但默认 gate 仍然拒绝它，因为唯一剩余未满足的条件是：
+
+- `passed-case-delta-below-threshold`
+
+这说明 current best-of-n 已经能找到“明显比其它候选更好”的 candidate，但默认 acceptance gate 仍坚持要求真正提升通过数，而不是只接受 mixed-gain 的局部改善。
 
 ## 这还不能证明什么
 

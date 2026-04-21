@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import patch
 
 from volvence_zero.agent.response import LLMResponseSynthesizer, ResponseContext
+from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.credit import (
     CreditModule,
@@ -17,6 +19,7 @@ from volvence_zero.prediction import PredictionErrorModule, PredictionErrorSnaps
 from volvence_zero.regime import RegimeIdentity, RegimeSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
+    build_builtin_transformers_runtime,
     FeatureSignal,
     GenerationResult,
     ResidualActivation,
@@ -33,12 +36,14 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         super().__init__(model_id="capture-runtime")
         self.last_control_scale = 0.0
         self.last_control_parameters: tuple[float, ...] = ()
+        self.last_chat_messages: tuple[tuple[str, str], ...] = ()
 
     def generate(
         self,
         *,
         prompt: str,
         system_context: str = "",
+        chat_messages: tuple[tuple[str, str], ...] = (),
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
@@ -47,6 +52,7 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         del max_new_tokens, temperature
         self.last_control_scale = control_scale
         self.last_control_parameters = control_parameters
+        self.last_chat_messages = chat_messages
         capture = self.capture(source_text=f"{system_context} {prompt}".strip())
         return GenerationResult(
             text="generated",
@@ -236,6 +242,33 @@ def test_llm_response_synthesizer_passes_control_signal():
     assert response.text == "generated"
     assert runtime.last_control_parameters == (0.4, 0.5, 0.6)
     assert runtime.last_control_scale > 0.0
+    assert runtime.last_chat_messages[0][0] == "system"
+    assert runtime.last_chat_messages[-1] == ("user", "Help me think through this")
+
+
+def test_system_prompt_explicitly_forbids_dialogue_continuation():
+    prompt = build_system_prompt(
+        context=ResponseContext(
+            regime_id="casual_social",
+            regime_name="casual social",
+            regime_switched=False,
+            abstract_action=None,
+            alert_count=0,
+            retrieved_memory_count=0,
+            temporal_switch_gate=0.0,
+            temporal_is_switching=False,
+            reflection_lesson_count=0,
+            reflection_tension_count=0,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson=None,
+            primary_reflection_tension=None,
+            joint_schedule_action="ssl-only",
+            user_input="hi",
+        )
+    )
+
+    assert "Reply as the assistant to the latest user message only." in prompt
+    assert "Do not continue the conversation on behalf of the user." in prompt
 
 
 def test_agent_session_runner_exposes_prediction_error_from_second_turn():
@@ -265,6 +298,60 @@ def test_generate_returns_capture_when_control_is_applied():
     assert result.capture is not None
     assert result.capture.residual_sequence
     assert runtime.last_control_scale > 0.0
+
+
+def test_transformers_runtime_generate_passes_attention_mask():
+    runtime = build_builtin_transformers_runtime()
+    captured_kwargs: dict[str, object] = {}
+    torch = runtime._torch
+
+    def fake_generate(**kwargs):
+        captured_kwargs.update(kwargs)
+        input_ids = kwargs["input_ids"]
+        appended = torch.full((1, 1), 1, dtype=input_ids.dtype, device=input_ids.device)
+        return torch.cat((input_ids, appended), dim=1)
+
+    with patch.object(runtime._model, "generate", side_effect=fake_generate):
+        runtime.generate(
+            prompt="hello",
+            system_context="be helpful",
+            chat_messages=(("system", "be helpful"), ("user", "hello")),
+            max_new_tokens=8,
+        )
+
+    assert "attention_mask" in captured_kwargs
+
+
+def test_transformers_runtime_uses_chat_template_when_available():
+    runtime = build_builtin_transformers_runtime()
+    torch = runtime._torch
+
+    def fake_apply_chat_template(messages, *, tokenize, add_generation_prompt, return_tensors=None, return_dict=None):
+        assert add_generation_prompt is True
+        assert messages == [
+            {"role": "system", "content": "System guidance"},
+            {"role": "user", "content": "Hello there"},
+        ]
+        if tokenize is True:
+            assert return_tensors == "pt"
+            assert return_dict is True
+            return {
+                "input_ids": torch.tensor([[7, 8, 9]], dtype=torch.long),
+                "attention_mask": torch.tensor([[1, 1, 1]], dtype=torch.long),
+            }
+        return "<chat-template-rendered>"
+
+    runtime._tokenizer.apply_chat_template = fake_apply_chat_template
+
+    source_text, model_inputs = runtime._build_generation_inputs(
+        prompt="Hello there",
+        system_context="System guidance",
+        chat_messages=(("system", "System guidance"), ("user", "Hello there")),
+    )
+
+    assert "system: System guidance" in source_text
+    assert "user: Hello there" in source_text
+    assert "attention_mask" in model_inputs
 
 
 def test_actual_outcome_uses_substrate_level_deltas():

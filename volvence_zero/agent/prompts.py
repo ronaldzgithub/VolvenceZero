@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from volvence_zero.agent.response import ResponseContext
 
+ChatMessage = tuple[str, str]
+
 
 REGIME_GUIDANCE = {
     "repair_and_deescalation": (
@@ -55,6 +57,18 @@ def build_system_prompt(
         "You have both intellectual capability and emotional intelligence. "
         "You adapt your tone and approach based on what the conversation needs."
     )
+    sections.append(
+        "Reply as the assistant to the latest user message only. "
+        "Do not continue the conversation on behalf of the user. "
+        "Do not write role labels, scripts, templates, example dialogues, or headings like "
+        "'Conversation', 'Situation', or 'Response'. "
+        "Stay grounded in the user's actual message and answer directly."
+    )
+    sections.append(
+        "Keep the reply compact and natural. "
+        "Use at most one clarifying question when genuinely needed. "
+        "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts."
+    )
 
     regime_id = context.regime_id or "casual_social"
     guidance = REGIME_GUIDANCE.get(regime_id, REGIME_GUIDANCE["casual_social"])
@@ -80,3 +94,22 @@ def build_system_prompt(
         )
 
     return "\n\n".join(sections)
+
+
+def build_chat_messages(
+    *,
+    context: ResponseContext,
+    retrieved_memories: tuple[str, ...] = (),
+    controller_description: str = "",
+) -> tuple[ChatMessage, ...]:
+    system_prompt = build_system_prompt(
+        context=context,
+        retrieved_memories=retrieved_memories,
+        controller_description=controller_description,
+    )
+    if not context.user_input:
+        return (("system", system_prompt),)
+    return (
+        ("system", system_prompt),
+        ("user", context.user_input),
+    )

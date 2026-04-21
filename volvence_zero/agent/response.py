@@ -199,9 +199,14 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         *,
         context: ResponseContext,
     ) -> AgentResponse:
-        from volvence_zero.agent.prompts import build_system_prompt
+        from volvence_zero.agent.prompts import build_chat_messages, build_system_prompt
 
         system_prompt = build_system_prompt(
+            context=context,
+            retrieved_memories=context.retrieved_memories,
+            controller_description=context.controller_description,
+        )
+        chat_messages = build_chat_messages(
             context=context,
             retrieved_memories=context.retrieved_memories,
             controller_description=context.controller_description,
@@ -217,6 +222,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         result = self._runtime.generate(
             prompt=user_input,
             system_context=system_prompt,
+            chat_messages=chat_messages,
             max_new_tokens=self._max_new_tokens,
             temperature=self._temperature,
             control_parameters=control_params,

@@ -12,6 +12,7 @@ from volvence_zero.joint_loop import (
     JointLoopSchedule,
     PipelineConfig,
     RareHeavyArtifact,
+    RareHeavyImportCheckpoint,
     RareHeavyImportResult,
     SSLRLTrainingPipeline,
 )
@@ -164,6 +165,7 @@ class DialogueArtifactAcceptanceCaseReport:
     adapted_report: DialogueBenchmarkCaseReport
     score_delta: float
     import_result: RareHeavyImportResult
+    rollback_operations: tuple[str, ...]
     description: str
 
 
@@ -174,6 +176,43 @@ class DialogueArtifactAcceptanceReport:
     case_reports: tuple[DialogueArtifactAcceptanceCaseReport, ...]
     mean_score_delta: float
     passed_case_delta: int
+    positive_case_fraction: float
+    worst_case_delta: float
+    decision: DialogueArtifactAcceptanceDecision
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueArtifactCandidateReport:
+    candidate_label: str
+    pipeline_config: PipelineConfig
+    acceptance_report: DialogueArtifactAcceptanceReport
+    candidate_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueArtifactComparisonReport:
+    selection_artifact: DialogueReplaySelectionArtifact
+    candidate_reports: tuple[DialogueArtifactCandidateReport, ...]
+    chosen_candidate_label: str | None
+    chosen_accepted: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueArtifactAcceptanceGateConfig:
+    min_mean_score_delta: float = 0.1
+    min_passed_case_delta: int = 1
+    min_positive_case_fraction: float = 0.6
+    min_worst_case_delta: float = -0.25
+
+
+@dataclass(frozen=True)
+class DialogueArtifactAcceptanceDecision:
+    accepted: bool
+    reasons: tuple[str, ...]
+    rollback_applied: bool
     description: str
 
 
@@ -539,6 +578,37 @@ DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES: tuple[DialogueParaphraseFamily, ...] = (
 )
 
 DEFAULT_DIALOGUE_REPLAY_SEEDS: tuple[int, ...] = (0, 1, 2)
+
+
+DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS: tuple[tuple[str, PipelineConfig], ...] = (
+    (
+        "balanced",
+        PipelineConfig(
+            ssl_min_steps=2,
+            ssl_max_steps=3,
+            rl_max_steps=2,
+            binary_gate_rl=True,
+        ),
+    ),
+    (
+        "more-rl",
+        PipelineConfig(
+            ssl_min_steps=2,
+            ssl_max_steps=3,
+            rl_max_steps=4,
+            binary_gate_rl=True,
+        ),
+    ),
+    (
+        "more-ssl",
+        PipelineConfig(
+            ssl_min_steps=3,
+            ssl_max_steps=4,
+            rl_max_steps=2,
+            binary_gate_rl=True,
+        ),
+    ),
+)
 
 
 def dialogue_paraphrase_families() -> tuple[DialogueParaphraseFamily, ...]:
@@ -1226,6 +1296,50 @@ def build_dialogue_replay_selection_artifact(
     )
 
 
+def default_rare_heavy_candidate_configs() -> tuple[tuple[str, PipelineConfig], ...]:
+    return DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS
+
+
+def evaluate_dialogue_artifact_acceptance(
+    *,
+    mean_score_delta: float,
+    passed_case_delta: int,
+    positive_case_fraction: float,
+    worst_case_delta: float,
+    gate_config: DialogueArtifactAcceptanceGateConfig,
+) -> DialogueArtifactAcceptanceDecision:
+    reasons: list[str] = []
+    if mean_score_delta < gate_config.min_mean_score_delta:
+        reasons.append("mean-score-delta-below-threshold")
+    if passed_case_delta < gate_config.min_passed_case_delta:
+        reasons.append("passed-case-delta-below-threshold")
+    if positive_case_fraction < gate_config.min_positive_case_fraction:
+        reasons.append("positive-case-fraction-below-threshold")
+    if worst_case_delta < gate_config.min_worst_case_delta:
+        reasons.append("worst-case-delta-below-threshold")
+    accepted = not reasons
+    return DialogueArtifactAcceptanceDecision(
+        accepted=accepted,
+        reasons=tuple(reasons),
+        rollback_applied=not accepted,
+        description=(
+            f"Artifact acceptance decision accepted={accepted} mean_delta={mean_score_delta:.3f} "
+            f"passed_case_delta={passed_case_delta} positive_fraction={positive_case_fraction:.3f} "
+            f"worst_case_delta={worst_case_delta:.3f}."
+        ),
+    )
+
+
+def _dialogue_artifact_acceptance_score(report: DialogueArtifactAcceptanceReport) -> float:
+    return (
+        float(report.decision.accepted) * 5.0
+        + report.mean_score_delta * 2.0
+        + report.positive_case_fraction
+        + float(report.passed_case_delta) * 0.5
+        + report.worst_case_delta
+    )
+
+
 def build_replay_selection_training_traces(
     selection_artifact: DialogueReplaySelectionArtifact,
 ) -> tuple[TrainingTrace, ...]:
@@ -1475,6 +1589,7 @@ async def run_replay_selection_artifact_acceptance_benchmark(
     profile_label: str = "pe-eta",
     runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner] | None = None,
     pipeline_config: PipelineConfig | None = None,
+    gate_config: DialogueArtifactAcceptanceGateConfig | None = None,
 ) -> DialogueArtifactAcceptanceReport:
     factory = runner_factory or (
         lambda variant: build_standard_dialogue_runner(
@@ -1491,7 +1606,16 @@ async def run_replay_selection_artifact_acceptance_benchmark(
         ),
     )
     allow_interval_carryover_credit = _profile_allows_interval_carryover_credit(profile_label)
-    case_reports: list[DialogueArtifactAcceptanceCaseReport] = []
+    raw_case_results: list[
+        tuple[
+            DialogueCaseVariant,
+            DialogueBenchmarkCaseReport,
+            DialogueBenchmarkCaseReport,
+            float,
+            RareHeavyImportResult,
+            AgentSessionRunner,
+        ]
+    ] = []
     for index, variant in enumerate(selection_artifact.selected_variants):
         baseline_runner = sample_runner if index == 0 else factory(variant)
         baseline_report = await run_dialogue_pe_eta_case(
@@ -1510,6 +1634,37 @@ async def run_replay_selection_artifact_acceptance_benchmark(
             allow_interval_carryover_credit=allow_interval_carryover_credit,
         )
         score_delta = _dialogue_case_score(adapted_report) - _dialogue_case_score(baseline_report)
+        raw_case_results.append(
+            (
+                variant,
+                baseline_report,
+                adapted_report,
+                score_delta,
+                import_result,
+                adapted_runner,
+            )
+        )
+    score_deltas = tuple(item[3] for item in raw_case_results)
+    mean_score_delta = _mean(score_deltas)
+    passed_case_delta = sum(int(item[2].passed) - int(item[1].passed) for item in raw_case_results)
+    positive_case_fraction = (
+        sum(1 for delta in score_deltas if delta > 0.0) / len(score_deltas)
+        if score_deltas
+        else 0.0
+    )
+    worst_case_delta = min(score_deltas, default=0.0)
+    decision = evaluate_dialogue_artifact_acceptance(
+        mean_score_delta=mean_score_delta,
+        passed_case_delta=passed_case_delta,
+        positive_case_fraction=positive_case_fraction,
+        worst_case_delta=worst_case_delta,
+        gate_config=gate_config or DialogueArtifactAcceptanceGateConfig(),
+    )
+    case_reports: list[DialogueArtifactAcceptanceCaseReport] = []
+    for variant, baseline_report, adapted_report, score_delta, import_result, adapted_runner in raw_case_results:
+        rollback_operations = ()
+        if decision.rollback_applied:
+            rollback_operations = adapted_runner.rollback_rare_heavy_import(import_result.checkpoint)
         case_reports.append(
             DialogueArtifactAcceptanceCaseReport(
                 variant=variant,
@@ -1517,22 +1672,74 @@ async def run_replay_selection_artifact_acceptance_benchmark(
                 adapted_report=adapted_report,
                 score_delta=score_delta,
                 import_result=import_result,
+                rollback_operations=rollback_operations,
                 description=(
                     f"Acceptance benchmark for {variant.case.case_id} produced delta={score_delta:.3f} "
                     f"after applying artifact {artifact.artifact_id}."
                 ),
             )
         )
-    mean_score_delta = _mean(tuple(report.score_delta for report in case_reports))
-    passed_case_delta = sum(int(report.adapted_report.passed) - int(report.baseline_report.passed) for report in case_reports)
     return DialogueArtifactAcceptanceReport(
         artifact=artifact,
         selection_artifact=selection_artifact,
         case_reports=tuple(case_reports),
         mean_score_delta=mean_score_delta,
         passed_case_delta=passed_case_delta,
+        positive_case_fraction=positive_case_fraction,
+        worst_case_delta=worst_case_delta,
+        decision=decision,
         description=(
             f"Replay selection artifact acceptance benchmark evaluated {len(case_reports)} selected variants "
-            f"with mean_score_delta={mean_score_delta:.3f} and passed_case_delta={passed_case_delta}."
+            f"with mean_score_delta={mean_score_delta:.3f}, passed_case_delta={passed_case_delta}, "
+            f"positive_case_fraction={positive_case_fraction:.3f}, worst_case_delta={worst_case_delta:.3f}, "
+            f"accepted={decision.accepted}."
+        ),
+    )
+
+
+async def run_multi_artifact_acceptance_benchmark(
+    selection_artifact: DialogueReplaySelectionArtifact,
+    *,
+    candidate_configs: tuple[tuple[str, PipelineConfig], ...] = DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
+    profile_label: str = "pe-eta",
+    runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner] | None = None,
+    gate_config: DialogueArtifactAcceptanceGateConfig | None = None,
+) -> DialogueArtifactComparisonReport:
+    candidate_reports: list[DialogueArtifactCandidateReport] = []
+    for candidate_label, pipeline_config in candidate_configs:
+        acceptance_report = await run_replay_selection_artifact_acceptance_benchmark(
+            selection_artifact,
+            profile_label=profile_label,
+            runner_factory=runner_factory,
+            pipeline_config=pipeline_config,
+            gate_config=gate_config,
+        )
+        candidate_score = _dialogue_artifact_acceptance_score(acceptance_report)
+        candidate_reports.append(
+            DialogueArtifactCandidateReport(
+                candidate_label=candidate_label,
+                pipeline_config=pipeline_config,
+                acceptance_report=acceptance_report,
+                candidate_score=candidate_score,
+                description=(
+                    f"Candidate {candidate_label} scored {candidate_score:.3f} with "
+                    f"accepted={acceptance_report.decision.accepted}."
+                ),
+            )
+        )
+    candidate_reports.sort(key=lambda report: report.candidate_score, reverse=True)
+    chosen_candidate = candidate_reports[0] if candidate_reports else None
+    return DialogueArtifactComparisonReport(
+        selection_artifact=selection_artifact,
+        candidate_reports=tuple(candidate_reports),
+        chosen_candidate_label=chosen_candidate.candidate_label if chosen_candidate is not None else None,
+        chosen_accepted=(
+            chosen_candidate.acceptance_report.decision.accepted
+            if chosen_candidate is not None
+            else False
+        ),
+        description=(
+            f"Multi-artifact acceptance compared {len(candidate_reports)} candidates and chose "
+            f"{chosen_candidate.candidate_label if chosen_candidate is not None else 'none'}."
         ),
     )

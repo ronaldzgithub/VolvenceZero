@@ -161,6 +161,7 @@ class OpenWeightResidualRuntime(ABC):
         *,
         prompt: str,
         system_context: str = "",
+        chat_messages: tuple[tuple[str, str], ...] = (),
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
@@ -716,14 +717,17 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         prompt: str,
         system_context: str = "",
+        chat_messages: tuple[tuple[str, str], ...] = (),
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
     ) -> GenerationResult:
-        full_prompt = f"{system_context}\n{prompt}".strip() if system_context else prompt.strip()
-        effective_prompt = full_prompt or "<empty>"
-        model_inputs = self._tokenize(source_text=effective_prompt)
+        effective_prompt, model_inputs = self._build_generation_inputs(
+            prompt=prompt,
+            system_context=system_context,
+            chat_messages=chat_messages,
+        )
         input_ids = model_inputs["input_ids"]
         prompt_length = int(input_ids.shape[-1])
 
@@ -750,16 +754,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "max_new_tokens": max_new_tokens,
                     "do_sample": temperature > 0,
                     "pad_token_id": getattr(self._tokenizer, "eos_token_id", 0) or 0,
+                    "eos_token_id": self._generation_eos_token_id(),
+                    "repetition_penalty": 1.08,
                 }
                 if temperature > 0:
                     generate_kwargs["temperature"] = temperature
-                output_ids = self._model.generate(input_ids, **generate_kwargs)
+                output_ids = self._model.generate(**model_inputs, **generate_kwargs)
         finally:
             for hook in hooks:
                 hook.remove()
 
         new_token_ids = output_ids[0, prompt_length:]
-        generated_text = self._tokenizer.decode(new_token_ids, skip_special_tokens=True)
+        generated_text = self._decode_generated_text(token_ids=new_token_ids)
         token_count = int(new_token_ids.shape[0])
 
         capture = None
@@ -787,6 +793,103 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
+
+    def _build_generation_inputs(
+        self,
+        *,
+        prompt: str,
+        system_context: str,
+        chat_messages: tuple[tuple[str, str], ...],
+    ) -> tuple[str, dict[str, object]]:
+        source_text = self._chat_messages_to_source_text(
+            prompt=prompt,
+            system_context=system_context,
+            chat_messages=chat_messages,
+        )
+        if chat_messages:
+            apply_chat_template = getattr(self._tokenizer, "apply_chat_template", None)
+            if callable(apply_chat_template):
+                chat_payload = [
+                    {
+                        "role": role,
+                        "content": content,
+                    }
+                    for role, content in chat_messages
+                ]
+                try:
+                    encoded = apply_chat_template(
+                        chat_payload,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_tensors="pt",
+                        return_dict=True,
+                    )
+                except TypeError:
+                    encoded = None
+                if encoded is not None:
+                    return source_text, self._prepare_model_inputs(encoded=encoded)
+                rendered = apply_chat_template(
+                    chat_payload,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                if isinstance(rendered, str) and rendered.strip():
+                    return rendered.strip(), self._tokenize(source_text=rendered.strip())
+            fallback_sections = [f"{role.upper()}:\n{content}" for role, content in chat_messages if content.strip()]
+            fallback_sections.append("ASSISTANT:\n")
+            rendered_fallback = "\n\n".join(fallback_sections).strip()
+            if rendered_fallback:
+                return rendered_fallback, self._tokenize(source_text=rendered_fallback)
+        return source_text, self._tokenize(source_text=source_text)
+
+    def _chat_messages_to_source_text(
+        self,
+        *,
+        prompt: str,
+        system_context: str,
+        chat_messages: tuple[tuple[str, str], ...],
+    ) -> str:
+        if chat_messages:
+            rendered_messages = [
+                f"{role}: {content}"
+                for role, content in chat_messages
+                if content.strip()
+            ]
+            return "\n".join(rendered_messages).strip() or "<empty>"
+        full_prompt = f"{system_context}\n{prompt}".strip() if system_context else prompt.strip()
+        return full_prompt or "<empty>"
+
+    def _prepare_model_inputs(self, *, encoded) -> dict[str, object]:
+        model_inputs: dict[str, object] = {}
+        for key, value in encoded.items():
+            if isinstance(value, self._torch.Tensor):
+                model_inputs[key] = value.to(self._device)
+            else:
+                model_inputs[key] = value
+        input_ids = model_inputs.get("input_ids")
+        if not isinstance(input_ids, self._torch.Tensor):
+            raise ValueError(f"Transformers runtime '{self.model_id}' chat template did not return tensor input_ids.")
+        return model_inputs
+
+    def _generation_eos_token_id(self) -> int | list[int]:
+        token_ids: list[int] = []
+        eos_token_id = getattr(self._tokenizer, "eos_token_id", None)
+        if isinstance(eos_token_id, int) and eos_token_id >= 0:
+            token_ids.append(eos_token_id)
+        elif isinstance(eos_token_id, (list, tuple)):
+            token_ids.extend(token_id for token_id in eos_token_id if isinstance(token_id, int) and token_id >= 0)
+        convert_tokens_to_ids = getattr(self._tokenizer, "convert_tokens_to_ids", None)
+        if callable(convert_tokens_to_ids):
+            for token in ("<|im_end|>", "<|eot_id|>"):
+                token_id = convert_tokens_to_ids(token)
+                if isinstance(token_id, int) and token_id >= 0:
+                    token_ids.append(token_id)
+        unique_ids = list(dict.fromkeys(token_ids))
+        if not unique_ids:
+            return 0
+        if len(unique_ids) == 1:
+            return unique_ids[0]
+        return unique_ids
 
     def _load_tokenizer(self, *, model_id: str, local_files_only: bool):
         try:
@@ -1157,6 +1260,23 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             cleaned = token.replace("Ġ", "").replace("▁", "").strip()
             normalized.append(cleaned or f"<tok:{token_ids[index]}>")
         return tuple(normalized)
+
+    def _decode_generated_text(self, *, token_ids) -> str:
+        try:
+            return str(self._tokenizer.decode(token_ids, skip_special_tokens=True)).strip()
+        except AttributeError:
+            pass
+        flattened_ids = tuple(int(token_id) for token_id in token_ids.tolist())
+        try:
+            tokens = tuple(self._tokenizer.convert_ids_to_tokens(flattened_ids))
+        except AttributeError:
+            tokens = tuple(str(token_id) for token_id in flattened_ids)
+        cleaned_tokens = [
+            token.replace("Ġ", " ").replace("▁", " ").strip()
+            for token in tokens
+            if token.strip()
+        ]
+        return " ".join(cleaned_tokens).strip()
 
     def _build_runtime_capture(
         self,

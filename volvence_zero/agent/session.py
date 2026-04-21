@@ -18,6 +18,7 @@ from volvence_zero.joint_loop import (
     JointLoopSchedule,
     PipelineConfig,
     RareHeavyArtifact,
+    RareHeavyImportCheckpoint,
     RareHeavyImportResult,
     SSLRLTrainingPipeline,
     ScheduledJointLoopResult,
@@ -244,6 +245,12 @@ class AgentSessionRunner:
             artifact,
             checkpoint_id=checkpoint_id,
         )
+
+    def rollback_rare_heavy_import(
+        self,
+        checkpoint: RareHeavyImportCheckpoint,
+    ) -> tuple[str, ...]:
+        return self._joint_loop.rollback_rare_heavy_import(checkpoint)
 
     async def run_turn(self, user_input: str) -> AgentTurnResult:
         self._turn_index += 1
@@ -692,7 +699,7 @@ def default_active_runner() -> AgentSessionRunner:
 
 def llm_active_runner(
     *,
-    model_id: str = "Qwen/Qwen2.5-3B-Instruct",
+    model_id: str = "Qwen/Qwen2.5-0.5B-Instruct",
     model_source: str | None = None,
     device: str = "auto",
     max_new_tokens: int = 256,

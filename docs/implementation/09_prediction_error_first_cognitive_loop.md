@@ -302,8 +302,36 @@ Replay-selection rare-heavy acceptance benchmark 也已经打通：
 - rare-heavy import 成功
 - `mean_score_delta = 0.104`
 - `passed_case_delta = 0`
+- `positive_case_fraction = 0.333`
+- `worst_case_delta = -0.500`
 
 这说明 replay ranking 已经不只是评估层读数，而是开始进入 rare-heavy artifact acceptance 入口。
+
+当前默认 gate 下：
+
+- artifact 会被 `reject`
+- reject 理由包括：
+  - `passed-case-delta-below-threshold`
+  - `positive-case-fraction-below-threshold`
+  - `worst-case-delta-below-threshold`
+- reject 后会触发：
+  - `rare-heavy:temporal-rollback`
+  - `rare-heavy:memory-rollback`
+
+最近一次真实 multi-artifact acceptance comparison：
+
+- 候选：`balanced` / `more-rl` / `more-ssl`
+- 当前最优候选：`more-ssl`
+- `more-ssl` 的结果：
+  - `mean_score_delta = 0.438`
+  - `passed_case_delta = 0`
+  - `positive_case_fraction = 0.750`
+  - `worst_case_delta = 0.000`
+- 但在默认 gate 下仍然 `reject`
+- 当前唯一剩余拒绝原因：
+  - `passed-case-delta-below-threshold`
+
+这说明 multi-artifact comparison 已经能把“相对更好的候选”挑出来，但当前 gate 仍坚持要求真正提高通过数，而不是只接受 mixed-gain 的局部改善。
 
 相关新增测试：
 
@@ -333,6 +361,10 @@ Replay-selection rare-heavy acceptance benchmark 也已经打通：
 - `test_build_replay_selection_training_traces_matches_selected_variants`
 - `test_train_rare_heavy_artifact_from_replay_selection_exports_artifact`
 - `test_run_replay_selection_artifact_acceptance_benchmark_returns_case_reports`
+- `test_replay_selection_artifact_acceptance_can_be_forced_accept`
+- `test_default_rare_heavy_candidate_configs_are_exposed`
+- `test_run_multi_artifact_acceptance_benchmark_orders_candidates`
+- `test_run_multi_artifact_acceptance_benchmark_can_choose_accepted_candidate`
 
 ## 当前状态判断
 
@@ -353,6 +385,9 @@ Replay-selection rare-heavy acceptance benchmark 也已经打通：
 - “这些优势现在已经在固定 perturbation / replay variants 上保持，而不只局限于 canonical case wording”
 - “系统现在已经开始支持对生成 variants 做 replay ranking，而不只是在手写变体上观测分离”
 - “系统现在已经把 replay selection artifact 接到 rare-heavy acceptance 入口，但 acceptance 收益仍是 mixed，需要更强 selection/acceptance criteria”
+- “系统现在已经有 multi-artifact comparison / best-of-n acceptance 流程，不再是只训一个 artifact 就判”
+- “系统现在已经有正式的 rare-heavy artifact acceptance / reject gate + rollback policy，而不只是人工读报告”
+- “系统现在已经能从多候选中挑出当前最优 artifact（目前是 `more-ssl`），但默认 gate 仍坚持拒绝未提升通过数的候选”
 
 ## 仍未完成的部分
 
@@ -361,7 +396,7 @@ Replay-selection rare-heavy acceptance benchmark 也已经打通：
 1. `PredictionErrorModule` 仍依赖 base evaluation / dual-track / regime 作为输入，而不是更强的世界模型层
 2. 当前 `eta-no-pe` 已是更严格 baseline，但仍然不是更彻底的 PE-off / ETA-off 因果隔离实现
 3. 当前 replay ranking 已支持固定 paraphrase family + seed 生成，但尚未扩展成更大规模 stochastic search / richer paraphrase space
-4. replay selection 已接到 rare-heavy acceptance 流程，但 artifact acceptance criteria 仍偏弱，当前收益是 mixed 而非稳定增益
+4. multi-artifact comparison 已接上，但当前 best candidate 仍未稳定通过默认 gate，说明 selection scoring / training config / gate calibration 还需要继续优化
 5. 生成式用户模拟器仍未接入 dialogue harness
 6. memory 虽然已 PE-first 接入，但 durable compression / forgetting policy 仍未完全由 PE 统一调度
 ## 相关文件
