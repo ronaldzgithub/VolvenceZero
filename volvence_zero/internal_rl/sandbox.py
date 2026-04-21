@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from volvence_zero.credit import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
-from volvence_zero.internal_rl.environment import InternalRLEnvStep, InternalRLEnvironment
+from volvence_zero.internal_rl.environment import (
+    InternalRLDelayedCreditAssignment,
+    InternalRLEnvStep,
+    InternalRLEnvironment,
+    InternalRLProofEpisode,
+    InternalRLProofProgress,
+)
 from volvence_zero.memory import Track
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
@@ -14,6 +20,11 @@ from volvence_zero.temporal import (
     MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
     TemporalAbstractionSnapshot,
+)
+from volvence_zero.temporal.metacontroller_components import (
+    _project_to_ndim,
+    residual_sequence_from_snapshot,
+    summarize_residual_activations,
 )
 
 
@@ -33,9 +44,17 @@ class ZTransition:
     policy_score: float
     log_prob: float
     reward: float
+    raw_reward: float
     policy_replacement_quality: float
     backend_name: str
     backend_fidelity: float
+    reward_components: tuple[tuple[str, float], ...] = ()
+    reward_mode: str = "dense"
+    proof_subgoal_id: str | None = None
+    proof_subgoal_score: float = 0.0
+    proof_subgoal_completed: bool = False
+    proof_terminal_success: bool = False
+    active_family_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +65,12 @@ class ZRollout:
     total_reward: float
     description: str
     replacement_mode: str = "causal"
+    reward_mode: str = "dense"
+    proof_episode_id: str | None = None
+    completed_subgoals: tuple[str, ...] = ()
+    completed_family_ids: tuple[str, ...] = ()
+    terminal_success: bool = False
+    delayed_credit_assignments: tuple[InternalRLDelayedCreditAssignment, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -91,6 +116,7 @@ class OptimizationReport:
     parameter_summary: str
     epochs_executed: int = 1
     kl_early_stopped: bool = False
+    parameters_changed: bool = False
 
 
 @dataclass(frozen=True)
@@ -137,6 +163,29 @@ def _surface_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> t
     return _project_to_ndim(tuple(_clamp(v) for v in values), n_z)
 
 
+def _sequence_observation_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> tuple[float, ...]:
+    sequence = residual_sequence_from_snapshot(substrate_snapshot)
+    if not sequence:
+        return tuple(0.0 for _ in range(n_z))
+    summary_vectors = tuple(
+        summarize_residual_activations(step.residual_activations, step.feature_surface)
+        for step in sequence
+    )
+    averaged = tuple(
+        sum(vector[index] for vector in summary_vectors) / len(summary_vectors)
+        for index in range(3)
+    )
+    peaked = tuple(max(vector[index] for vector in summary_vectors) for index in range(3))
+    trended = tuple(summary_vectors[-1][index] - summary_vectors[0][index] for index in range(3))
+    raw = tuple(
+        _clamp(averaged[index] * 0.45 + peaked[index] * 0.35 + trended[index] * 0.20)
+        for index in range(3)
+    )
+    if n_z <= 3:
+        return raw[:n_z]
+    return _project_to_ndim(raw, n_z)
+
+
 class CausalZPolicy:
     """Small causal policy over z-space with per-track recurrent state."""
 
@@ -161,9 +210,13 @@ class CausalZPolicy:
         *,
         substrate_snapshot: SubstrateSnapshot,
         state: CausalPolicyState,
+        observation_mode: str = "default",
     ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], tuple[float, ...], float, float]:
         n = self.n_z
-        surface = _surface_signature(substrate_snapshot, n)
+        if observation_mode == "proof":
+            surface = _sequence_observation_signature(substrate_snapshot, n)
+        else:
+            surface = _surface_signature(substrate_snapshot, n)
         weights = self._parameter_store.track_weights[state.track]
         w_len = min(len(weights), n)
         track_projected = tuple(
@@ -340,12 +393,17 @@ class CausalZPolicy:
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
     ) -> tuple[float, ...]:
-        """Generalized Advantage Estimation (GAE-lambda).
-
-        Uses the policy score as a lightweight value estimate. Advantages
-        are normalized to zero mean / unit variance for stable gradients.
-        """
         n = len(rollout.transitions)
+        if rollout.reward_mode.startswith("proof"):
+            returns = [0.0] * n
+            running_return = 0.0
+            for index in range(n - 1, -1, -1):
+                running_return = rollout.transitions[index].reward + gamma * running_return
+                returns[index] = running_return
+            mean_return = sum(returns) / max(n, 1)
+            var_return = sum((value - mean_return) ** 2 for value in returns) / max(n, 1)
+            std_return = max(var_return ** 0.5, 1e-8)
+            return tuple((value - mean_return) / std_return for value in returns)
         values = tuple(t.policy_score for t in rollout.transitions)
         rewards = tuple(t.reward for t in rollout.transitions)
         advantages = [0.0] * n
@@ -471,6 +529,29 @@ class InternalRLSandbox:
             source_text=source_text,
         )
 
+    def _apply_delayed_credit_assignments(
+        self,
+        *,
+        transitions: tuple[ZTransition, ...],
+        assignments: tuple[InternalRLDelayedCreditAssignment, ...],
+    ) -> tuple[ZTransition, ...]:
+        if not transitions or not assignments:
+            return transitions
+        adjusted_rewards = [transition.raw_reward for transition in transitions]
+        for assignment in assignments:
+            start = max(0, assignment.start_step)
+            end = min(len(transitions) - 1, assignment.end_step)
+            if end < start:
+                continue
+            span = end - start + 1
+            distributed_reward = assignment.reward / max(span, 1)
+            for step_index in range(start, end + 1):
+                adjusted_rewards[step_index] += distributed_reward
+        return tuple(
+            replace(transition, reward=_clamp(adjusted_rewards[index]))
+            for index, transition in enumerate(transitions)
+        )
+
     def rollout(
         self,
         *,
@@ -478,10 +559,16 @@ class InternalRLSandbox:
         substrate_steps: tuple[SubstrateSnapshot, ...],
         track: Track = Track.SHARED,
         replacement_mode: str = "causal",
+        proof_episode: InternalRLProofEpisode | None = None,
     ) -> ZRollout:
+        if replacement_mode in {"causal", "causal-binary"}:
+            self._policy.parameter_store.require_causal_takeover_phase(
+                operation=f"InternalRLSandbox.rollout[{replacement_mode}]"
+            )
         previous_snapshot: TemporalAbstractionSnapshot | None = None
         transitions: list[ZTransition] = []
         policy_state = self._causal_policy.initial_state(track=track)
+        proof_progress: InternalRLProofProgress | None = None
         for step_index, substrate_snapshot in enumerate(substrate_steps):
             (
                 policy_state,
@@ -493,6 +580,7 @@ class InternalRLSandbox:
             ) = self._causal_policy.step(
                 substrate_snapshot=substrate_snapshot,
                 state=policy_state,
+                observation_mode="proof" if proof_episode is not None else "default",
             )
             env_step = self._env.step(
                 substrate_snapshot=substrate_snapshot,
@@ -502,6 +590,10 @@ class InternalRLSandbox:
                 policy_latent_override=policy_action if replacement_mode in {"causal", "causal-binary"} else None,
                 policy_replacement_score=policy_score if replacement_mode in {"causal", "causal-binary"} else 0.0,
                 binary_gate_override=replacement_mode == "causal-binary",
+                step_index=step_index,
+                is_terminal_step=step_index == len(substrate_steps) - 1,
+                proof_episode=proof_episode,
+                proof_progress=proof_progress,
             )
             transitions.append(
                 ZTransition(
@@ -519,21 +611,44 @@ class InternalRLSandbox:
                     policy_score=policy_score,
                     log_prob=log_prob,
                     reward=env_step.reward,
+                    raw_reward=env_step.reward,
                     policy_replacement_quality=env_step.policy_replacement_quality,
                     backend_name=env_step.backend_name,
                     backend_fidelity=env_step.backend_fidelity,
+                    reward_components=env_step.reward_components,
+                    reward_mode=env_step.reward_mode,
+                    proof_subgoal_id=env_step.proof_subgoal_id,
+                    proof_subgoal_score=env_step.proof_subgoal_score,
+                    proof_subgoal_completed=env_step.proof_subgoal_completed,
+                    proof_terminal_success=env_step.proof_terminal_success,
+                    active_family_id=env_step.active_family_id,
                 )
             )
             previous_snapshot = env_step.next_previous_snapshot
-        total_reward = sum(transition.reward for transition in transitions)
+            proof_progress = env_step.proof_progress
+        rollout_transitions = tuple(transitions)
+        if proof_progress is not None and proof_progress.delayed_credit_assignments:
+            rollout_transitions = self._apply_delayed_credit_assignments(
+                transitions=rollout_transitions,
+                assignments=proof_progress.delayed_credit_assignments,
+            )
+        total_reward = sum(transition.reward for transition in rollout_transitions)
         return ZRollout(
             rollout_id=rollout_id,
             track=track,
-            transitions=tuple(transitions),
+            transitions=rollout_transitions,
             total_reward=total_reward,
             replacement_mode=replacement_mode,
+            reward_mode="proof-delayed" if proof_progress is not None else "dense",
+            proof_episode_id=proof_episode.episode_id if proof_episode is not None else None,
+            completed_subgoals=proof_progress.completed_subgoals if proof_progress is not None else (),
+            completed_family_ids=proof_progress.completed_family_ids if proof_progress is not None else (),
+            terminal_success=proof_progress.terminal_success if proof_progress is not None else False,
+            delayed_credit_assignments=proof_progress.delayed_credit_assignments if proof_progress is not None else (),
             description=(
-                f"Internal RL rollout mode={replacement_mode} track={track.value} over {len(transitions)} abstract actions "
+                f"Internal RL rollout mode={replacement_mode} reward_mode="
+                f"{'proof-delayed' if proof_progress is not None else 'dense'} "
+                f"track={track.value} over {len(rollout_transitions)} abstract actions "
                 f"with total reward {total_reward:.2f}."
             ),
         )
@@ -543,18 +658,21 @@ class InternalRLSandbox:
         *,
         rollout_id: str,
         substrate_steps: tuple[SubstrateSnapshot, ...],
+        proof_episode: InternalRLProofEpisode | None = None,
     ) -> DualTrackRollout:
         task_rollout = self.rollout(
             rollout_id=f"{rollout_id}:task",
             substrate_steps=substrate_steps,
             track=Track.WORLD,
             replacement_mode="causal-binary",
+            proof_episode=proof_episode,
         )
         relationship_rollout = self.rollout(
             rollout_id=f"{rollout_id}:relationship",
             substrate_steps=substrate_steps,
             track=Track.SELF,
             replacement_mode="causal-binary",
+            proof_episode=proof_episode,
         )
         return DualTrackRollout(
             task_rollout=task_rollout,
@@ -572,11 +690,17 @@ class InternalRLSandbox:
         self._causal_policy.restore_checkpoint(checkpoint)
 
     def optimize(self, rollout: ZRollout | DualTrackRollout) -> DualTrackOptimizationReport | OptimizationReport:
+        self._policy.parameter_store.require_causal_takeover_phase(
+            operation="InternalRLSandbox.optimize"
+        )
         if isinstance(rollout, DualTrackRollout):
             return self._optimize_dual_track(rollout).optimization_report
         return self._optimize_single(rollout)
 
     def optimize_with_audit(self, rollout: DualTrackRollout, *, timestamp_ms: int = 0) -> PolicyOptimizationResult:
+        self._policy.parameter_store.require_causal_takeover_phase(
+            operation="InternalRLSandbox.optimize_with_audit"
+        )
         return self._optimize_dual_track(rollout, timestamp_ms=timestamp_ms)
 
     def _optimize_dual_track(
@@ -632,9 +756,16 @@ class InternalRLSandbox:
                 clip_fraction=0.0,
                 kl_penalty=0.0,
                 parameter_summary="no-op",
+                parameters_changed=False,
             )
         average_reward = rollout.total_reward / len(rollout.transitions)
         reward_scale = max(average_reward, 0.05)
+        before_hash = stable_value_hash(
+            (
+                self._causal_policy.export_parameters(),
+                self._policy.export_parameters(),
+            )
+        )
         causal_report = self._causal_policy.optimize(rollout=rollout)
         if rollout.track is Track.WORLD:
             self._policy.fit_from_signals(
@@ -642,20 +773,47 @@ class InternalRLSandbox:
                 memory_strength=0.20,
                 reflection_strength=0.15,
             )
-            return causal_report
+            after_hash = stable_value_hash(
+                (
+                    self._causal_policy.export_parameters(),
+                    self._policy.export_parameters(),
+                )
+            )
+            return replace(
+                causal_report,
+                parameters_changed=before_hash != after_hash,
+            )
         if rollout.track is Track.SELF:
             self._policy.fit_from_signals(
                 residual_strength=0.35,
                 memory_strength=0.25,
                 reflection_strength=max(0.25, reward_scale),
             )
-            return causal_report
+            after_hash = stable_value_hash(
+                (
+                    self._causal_policy.export_parameters(),
+                    self._policy.export_parameters(),
+                )
+            )
+            return replace(
+                causal_report,
+                parameters_changed=before_hash != after_hash,
+            )
         self._policy.fit_from_signals(
             residual_strength=max(0.4, reward_scale),
             memory_strength=0.25,
             reflection_strength=0.35 if average_reward > 0.4 else 0.2,
         )
-        return causal_report
+        after_hash = stable_value_hash(
+            (
+                self._causal_policy.export_parameters(),
+                self._policy.export_parameters(),
+            )
+        )
+        return replace(
+            causal_report,
+            parameters_changed=before_hash != after_hash,
+        )
 
 
     def _reward_for_step(

@@ -18,6 +18,7 @@ from volvence_zero.joint_loop.runtime import JointCycleReport
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
+    SyntheticOpenWeightResidualRuntime,
     ResidualSequenceStep,
     SubstrateSnapshot,
     SurfaceKind,
@@ -361,8 +362,10 @@ def test_eta_nl_joint_loop_flags_rare_heavy_review_on_high_pe():
 
 
 def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="rare-heavy-runtime")
     pipeline = SSLRLTrainingPipeline(
-        config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
+        config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1),
+        residual_runtime=runtime.clone_for_rare_heavy(),
     )
     traces = tuple(
         build_training_trace(trace_id=f"rare-heavy-{index}", source_text="repair tension then plan steadily")
@@ -371,19 +374,26 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     pipeline.run_pipeline(traces=traces)
     artifact = pipeline.export_rare_heavy_artifact(artifact_id="offline-artifact")
 
-    loop = ETANLJointLoop()
+    assert artifact.substrate_checkpoint is not None
+
+    loop = ETANLJointLoop(residual_runtime=runtime)
     before = loop.temporal_policy.export_parameters()
     result = loop.apply_rare_heavy_artifact(artifact)
     after = loop.temporal_policy.export_parameters()
 
     assert result.artifact_id == "offline-artifact"
     assert "rare-heavy:temporal-import" in result.applied_operations
+    assert "rare-heavy:substrate-import" in result.applied_operations
     assert after != before
+    assert artifact.substrate_checkpoint is not None
+    assert artifact.substrate_checkpoint.training_mode == "adapter-delta-v2"
+    assert artifact.substrate_checkpoint.adapter_parameter_count > 0
 
     rollback_operations = loop.rollback_rare_heavy_import(result.checkpoint)
     restored = loop.temporal_policy.export_parameters()
 
     assert "rare-heavy:temporal-rollback" in rollback_operations
+    assert "rare-heavy:substrate-rollback" in rollback_operations
     assert restored == before
 
 

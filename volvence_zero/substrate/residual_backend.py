@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
+import hashlib
 import importlib
 import math
 from typing import Callable, Iterable, Sequence
@@ -86,6 +87,37 @@ class LocalModelCompatibilityReport:
     error_type: str | None
     error_message: str
     description: str
+
+
+@dataclass(frozen=True)
+class SubstrateDeltaAdapterLayer:
+    layer_index: int
+    delta_vector: tuple[float, ...]
+    mean_abs_delta: float
+    description: str
+
+
+@dataclass(frozen=True)
+class SubstrateRareHeavyCheckpoint:
+    checkpoint_id: str
+    model_id: str
+    runtime_origin: str
+    control_scale: float
+    semantic_text_weight: float
+    semantic_residual_weight: float
+    semantic_anchor_bias: tuple[float, ...]
+    update_count: int
+    source_batch_count: int
+    mean_sequence_length: float
+    mean_residual_magnitude: float
+    description: str
+    checkpoint_version: int = 1
+    training_mode: str = "bounded-state-v1"
+    compatibility_fingerprint: str = ""
+    adapter_scale: float = 0.0
+    adapter_parameter_count: int = 0
+    adapter_training_loss: float = 0.0
+    adapter_layers: tuple[SubstrateDeltaAdapterLayer, ...] = ()
 
 
 class SubstrateFallbackMode(str, Enum):
@@ -187,6 +219,35 @@ class OpenWeightResidualRuntime(ABC):
     @property
     def capture_source(self) -> str:
         return "real" if not self.fallback_active else "fallback"
+
+    def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement rare-heavy substrate export."
+        )
+
+    def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement rare-heavy substrate import."
+        )
+
+    def restore_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        return self.import_rare_heavy_state(checkpoint)
+
+    def train_rare_heavy(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...] = (),
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+        checkpoint_id: str | None = None,
+    ) -> SubstrateRareHeavyCheckpoint:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement rare-heavy substrate training."
+        )
+
+    def clone_for_rare_heavy(self) -> "OpenWeightResidualRuntime":
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement rare-heavy runtime cloning."
+        )
 
 
 class ResidualInterventionBackend(ABC):
@@ -318,6 +379,218 @@ def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     if not left or not right:
         return 0.0
     return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
+
+
+RARE_HEAVY_ANCHOR_ORDER = ("task", "support", "repair", "exploration", "directive")
+
+
+def _mean_feature_value(substrates: Sequence[SubstrateSnapshot], *, name: str) -> float:
+    values: list[float] = []
+    for substrate in substrates:
+        for feature in substrate.feature_surface:
+            if feature.name == name and feature.values:
+                values.append(float(sum(feature.values) / len(feature.values)))
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def _flatten_substrate_batches(
+    substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+) -> tuple[SubstrateSnapshot, ...]:
+    return tuple(snapshot for batch in substrate_steps_per_trace for snapshot in batch)
+
+
+def _mean_sequence_length(substrates: Sequence[SubstrateSnapshot]) -> float:
+    if not substrates:
+        return 0.0
+    return sum(
+        max(len(substrate.residual_sequence), 1)
+        for substrate in substrates
+    ) / len(substrates)
+
+
+def _mean_residual_magnitude(substrates: Sequence[SubstrateSnapshot]) -> float:
+    values: list[float] = []
+    for substrate in substrates:
+        if substrate.residual_activations:
+            values.extend(
+                abs(value)
+                for activation in substrate.residual_activations
+                for value in activation.activation
+            )
+        else:
+            values.extend(
+                abs(value)
+                for feature in substrate.feature_surface
+                for value in feature.values
+            )
+    if not values:
+        return 0.0
+    return _clamp_unit(sum(values) / len(values))
+
+
+def _derive_anchor_bias(substrates: Sequence[SubstrateSnapshot]) -> tuple[float, ...]:
+    means = tuple(
+        _mean_feature_value(substrates, name=f"semantic_{anchor}_pull")
+        for anchor in RARE_HEAVY_ANCHOR_ORDER
+    )
+    if not any(abs(value) > 1e-8 for value in means):
+        return tuple(0.0 for _ in RARE_HEAVY_ANCHOR_ORDER)
+    center = sum(means) / len(means)
+    return tuple(
+        max(-0.2, min(0.2, (value - center) * 0.5))
+        for value in means
+    )
+
+
+def _normalize_semantic_weights(*, text_weight: float, residual_weight: float) -> tuple[float, float]:
+    text = max(0.05, min(0.95, text_weight))
+    residual = max(0.05, min(0.95, residual_weight))
+    total = text + residual
+    if total <= 1e-8:
+        return (0.5, 0.5)
+    return (text / total, residual / total)
+
+
+def _mean_abs_delta(values: Sequence[float]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _clamp_delta_vector(values: Sequence[float], *, limit: float = 0.20) -> tuple[float, ...]:
+    return tuple(max(-limit, min(limit, float(value))) for value in values)
+
+
+def _adapter_parameter_count(adapter_layers: Sequence[SubstrateDeltaAdapterLayer]) -> int:
+    return sum(len(layer.delta_vector) for layer in adapter_layers)
+
+
+def _build_compatibility_fingerprint(
+    *,
+    model_id: str,
+    runtime_origin: str,
+    hidden_size: int,
+    layer_indices: Sequence[int],
+    training_mode: str,
+) -> str:
+    raw = "|".join(
+        (
+            model_id,
+            runtime_origin,
+            str(hidden_size),
+            ",".join(str(index) for index in layer_indices),
+            training_mode,
+        )
+    )
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{training_mode}:{digest}"
+
+
+def _checkpoint_with_adapter_payload(
+    checkpoint: SubstrateRareHeavyCheckpoint,
+    *,
+    training_mode: str,
+    compatibility_fingerprint: str,
+    adapter_scale: float,
+    adapter_training_loss: float,
+    adapter_layers: Sequence[SubstrateDeltaAdapterLayer],
+    description: str,
+) -> SubstrateRareHeavyCheckpoint:
+    layer_tuple = tuple(adapter_layers)
+    return replace(
+        checkpoint,
+        checkpoint_version=2,
+        training_mode=training_mode,
+        compatibility_fingerprint=compatibility_fingerprint,
+        adapter_scale=max(0.0, adapter_scale),
+        adapter_parameter_count=_adapter_parameter_count(layer_tuple),
+        adapter_training_loss=max(0.0, adapter_training_loss),
+        adapter_layers=layer_tuple,
+        description=description,
+    )
+
+
+def _derive_rare_heavy_checkpoint(
+    *,
+    checkpoint_id: str,
+    model_id: str,
+    runtime_origin: str,
+    current_control_scale: float,
+    default_text_weight: float,
+    default_residual_weight: float,
+    previous_update_count: int,
+    substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+) -> SubstrateRareHeavyCheckpoint:
+    flattened = _flatten_substrate_batches(substrate_steps_per_trace)
+    if not flattened:
+        text_weight, residual_weight = _normalize_semantic_weights(
+            text_weight=default_text_weight,
+            residual_weight=default_residual_weight,
+        )
+        return SubstrateRareHeavyCheckpoint(
+            checkpoint_id=checkpoint_id,
+            model_id=model_id,
+            runtime_origin=runtime_origin,
+            control_scale=max(0.04, min(0.30, current_control_scale)),
+            semantic_text_weight=text_weight,
+            semantic_residual_weight=residual_weight,
+            semantic_anchor_bias=tuple(0.0 for _ in RARE_HEAVY_ANCHOR_ORDER),
+            update_count=previous_update_count,
+            source_batch_count=0,
+            mean_sequence_length=0.0,
+            mean_residual_magnitude=0.0,
+            description=(
+                f"Rare-heavy substrate checkpoint for {model_id} exported without offline substrate batches; "
+                f"state kept unchanged."
+            ),
+        )
+    mean_seq_len = _mean_sequence_length(flattened)
+    mean_residual = _mean_residual_magnitude(flattened)
+    hook_coverage = _mean_feature_value(flattened, name="hook_layer_coverage")
+    residual_signal = max(
+        mean_residual,
+        _mean_feature_value(flattened, name="residual_mean_abs"),
+    )
+    sequence_signal = _clamp_unit(mean_seq_len / 10.0)
+    residual_target = (
+        default_residual_weight * 0.60
+        + residual_signal * 0.22
+        + sequence_signal * 0.10
+        + hook_coverage * 0.08
+    )
+    text_weight, residual_weight = _normalize_semantic_weights(
+        text_weight=1.0 - residual_target,
+        residual_weight=residual_target,
+    )
+    target_control_scale = max(
+        0.04,
+        min(
+            0.30,
+            current_control_scale * 0.60
+            + (0.08 + residual_signal * 0.12 + hook_coverage * 0.05 + sequence_signal * 0.03) * 0.40,
+        ),
+    )
+    anchor_bias = _derive_anchor_bias(flattened)
+    return SubstrateRareHeavyCheckpoint(
+        checkpoint_id=checkpoint_id,
+        model_id=model_id,
+        runtime_origin=runtime_origin,
+        control_scale=target_control_scale,
+        semantic_text_weight=text_weight,
+        semantic_residual_weight=residual_weight,
+        semantic_anchor_bias=anchor_bias,
+        update_count=previous_update_count + 1,
+        source_batch_count=len(substrate_steps_per_trace),
+        mean_sequence_length=mean_seq_len,
+        mean_residual_magnitude=mean_residual,
+        description=(
+            f"Rare-heavy substrate checkpoint for {model_id}: batches={len(substrate_steps_per_trace)}, "
+            f"seq_len={mean_seq_len:.2f}, residual={mean_residual:.3f}, hook_coverage={hook_coverage:.3f}, "
+            f"control_scale={target_control_scale:.3f}."
+        ),
+    )
 
 
 SEMANTIC_ANCHOR_BANK: dict[str, tuple[str, ...]] = {
@@ -556,28 +829,66 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self.model_id = model_id
         self.is_frozen = True
         self.runtime_origin = "synthetic-open-weight"
+        self._rare_heavy_control_scale = 0.12
+        self._rare_heavy_semantic_text_weight = 0.85
+        self._rare_heavy_semantic_residual_weight = 0.15
+        self._rare_heavy_anchor_bias = tuple(0.0 for _ in RARE_HEAVY_ANCHOR_ORDER)
+        self._rare_heavy_update_count = 0
+        self._rare_heavy_adapter_scale = 0.0
+        self._rare_heavy_adapter_layers: dict[int, tuple[float, ...]] = {}
+        self._rare_heavy_activation_width = 0
+        self._rare_heavy_layer_indices: tuple[int, ...] = ()
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         trace = build_training_trace(trace_id=f"{self.model_id}:capture", source_text=source_text)
+        self._remember_trace_shape(trace)
         latest_step = trace.steps[-1]
+        adapted_residuals = self._apply_adapter_to_residuals(latest_step.residual_activations)
+        feature_surface = latest_step.feature_surface + (
+            FeatureSignal(
+                name="semantic_text_weight",
+                values=(self._rare_heavy_semantic_text_weight,),
+                source="synthetic-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="semantic_residual_weight",
+                values=(self._rare_heavy_semantic_residual_weight,),
+                source="synthetic-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_rare_heavy_update_count",
+                values=(_clamp_unit(self._rare_heavy_update_count / 10.0),),
+                source="synthetic-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_delta_parameter_count",
+                values=(_clamp_unit(_adapter_parameter_count(self._export_adapter_layers()) / 64.0),),
+                source="synthetic-open-weight-semantic",
+            ),
+        )
+        residual_sequence = tuple(
+            ResidualSequenceStep(
+                step=step.step,
+                token=step.token,
+                feature_surface=step.feature_surface,
+                residual_activations=self._apply_adapter_to_residuals(step.residual_activations),
+                description=f"Synthetic hook token '{step.token}' at step {step.step}.",
+            )
+            for step in trace.steps
+        )
         return OpenWeightRuntimeCapture(
             token_logits=tuple(
                 min(sum(feature.values) / max(len(feature.values), 1), 1.0)
-                for feature in latest_step.feature_surface
+                for feature in feature_surface
             ),
-            feature_surface=latest_step.feature_surface,
-            residual_activations=latest_step.residual_activations,
-            residual_sequence=tuple(
-                ResidualSequenceStep(
-                    step=step.step,
-                    token=step.token,
-                    feature_surface=step.feature_surface,
-                    residual_activations=step.residual_activations,
-                    description=f"Synthetic hook token '{step.token}' at step {step.step}.",
-                )
-                for step in trace.steps
+            feature_surface=feature_surface,
+            residual_activations=adapted_residuals,
+            residual_sequence=residual_sequence,
+            description=(
+                f"Synthetic frozen open-weight capture for len={len(source_text)} "
+                f"rare_heavy_updates={self._rare_heavy_update_count} "
+                f"adapter_params={_adapter_parameter_count(self._export_adapter_layers())}."
             ),
-            description=f"Synthetic frozen open-weight capture for len={len(source_text)}.",
         )
 
     def apply_control(
@@ -589,9 +900,11 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> ResidualControlApplication:
         del source_text
+        scale_ratio = max(0.25, min(2.0, self._rare_heavy_control_scale / 0.12))
+        scaled_control = tuple(value * scale_ratio for value in applied_control)
         result = TraceResidualInterventionBackend().apply_control(
             substrate_snapshot=substrate_snapshot,
-            applied_control=applied_control,
+            applied_control=scaled_control,
             track_scale=track_scale,
         )
         return ResidualControlApplication(
@@ -604,6 +917,276 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"{result.description}"
             ),
         )
+
+    def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
+        adapter_layers = self._export_adapter_layers()
+        hidden_size = self._rare_heavy_activation_width
+        layer_indices = self._rare_heavy_layer_indices
+        training_mode = "adapter-delta-v2" if adapter_layers else "bounded-state-v1"
+        return SubstrateRareHeavyCheckpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            control_scale=self._rare_heavy_control_scale,
+            semantic_text_weight=self._rare_heavy_semantic_text_weight,
+            semantic_residual_weight=self._rare_heavy_semantic_residual_weight,
+            semantic_anchor_bias=self._rare_heavy_anchor_bias,
+            update_count=self._rare_heavy_update_count,
+            source_batch_count=0,
+            mean_sequence_length=0.0,
+            mean_residual_magnitude=0.0,
+            description=(
+                f"Synthetic rare-heavy checkpoint for {self.model_id} "
+                f"updates={self._rare_heavy_update_count}."
+            ),
+            checkpoint_version=2 if adapter_layers else 1,
+            training_mode=training_mode,
+            compatibility_fingerprint=(
+                _build_compatibility_fingerprint(
+                    model_id=self.model_id,
+                    runtime_origin=self.runtime_origin,
+                    hidden_size=hidden_size,
+                    layer_indices=layer_indices,
+                    training_mode=training_mode,
+                )
+                if hidden_size > 0 and layer_indices
+                else ""
+            ),
+            adapter_scale=self._rare_heavy_adapter_scale,
+            adapter_parameter_count=_adapter_parameter_count(adapter_layers),
+            adapter_training_loss=0.0,
+            adapter_layers=adapter_layers,
+        )
+
+    def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        if checkpoint.model_id != self.model_id:
+            raise ValueError(
+                f"Synthetic runtime {self.model_id!r} cannot import checkpoint for {checkpoint.model_id!r}."
+            )
+        text_weight, residual_weight = _normalize_semantic_weights(
+            text_weight=checkpoint.semantic_text_weight,
+            residual_weight=checkpoint.semantic_residual_weight,
+        )
+        self._rare_heavy_control_scale = max(0.04, min(0.30, checkpoint.control_scale))
+        self._rare_heavy_semantic_text_weight = text_weight
+        self._rare_heavy_semantic_residual_weight = residual_weight
+        self._rare_heavy_anchor_bias = tuple(
+            max(-0.2, min(0.2, value))
+            for value in checkpoint.semantic_anchor_bias[: len(RARE_HEAVY_ANCHOR_ORDER)]
+        )
+        if len(self._rare_heavy_anchor_bias) < len(RARE_HEAVY_ANCHOR_ORDER):
+            self._rare_heavy_anchor_bias = self._rare_heavy_anchor_bias + tuple(
+                0.0 for _ in range(len(RARE_HEAVY_ANCHOR_ORDER) - len(self._rare_heavy_anchor_bias))
+            )
+        self._rare_heavy_update_count = max(0, checkpoint.update_count)
+        self._rare_heavy_adapter_scale = max(0.0, checkpoint.adapter_scale)
+        self._rare_heavy_adapter_layers = {
+            layer.layer_index: _clamp_delta_vector(layer.delta_vector)
+            for layer in checkpoint.adapter_layers
+        }
+        if checkpoint.adapter_layers:
+            self._rare_heavy_activation_width = len(checkpoint.adapter_layers[0].delta_vector)
+            self._rare_heavy_layer_indices = tuple(layer.layer_index for layer in checkpoint.adapter_layers)
+        return ("rare-heavy:substrate-import",)
+
+    def restore_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        self.import_rare_heavy_state(checkpoint)
+        return ("rare-heavy:substrate-rollback",)
+
+    def train_rare_heavy(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...] = (),
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+        checkpoint_id: str | None = None,
+    ) -> SubstrateRareHeavyCheckpoint:
+        checkpoint = _derive_rare_heavy_checkpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy-trained",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            current_control_scale=self._rare_heavy_control_scale,
+            default_text_weight=self._rare_heavy_semantic_text_weight,
+            default_residual_weight=self._rare_heavy_semantic_residual_weight,
+            previous_update_count=self._rare_heavy_update_count,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+        )
+        adapter_layers, training_loss = self._train_adapter_deltas(
+            traces=traces,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+        )
+        if not adapter_layers:
+            return checkpoint
+        return _checkpoint_with_adapter_payload(
+            checkpoint,
+            training_mode="adapter-delta-v2",
+            compatibility_fingerprint=_build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._rare_heavy_activation_width,
+                layer_indices=self._rare_heavy_layer_indices,
+                training_mode="adapter-delta-v2",
+            ),
+            adapter_scale=1.0,
+            adapter_training_loss=training_loss,
+            adapter_layers=adapter_layers,
+            description=(
+                f"{checkpoint.description} Synthetic adapter-delta payload "
+                f"layers={len(adapter_layers)} loss={training_loss:.4f}."
+            ),
+        )
+
+    def clone_for_rare_heavy(self) -> "OpenWeightResidualRuntime":
+        cloned = SyntheticOpenWeightResidualRuntime(model_id=self.model_id)
+        cloned.import_rare_heavy_state(self.export_rare_heavy_state())
+        return cloned
+
+    def _remember_trace_shape(self, trace: TrainingTrace) -> None:
+        layer_indices = tuple(
+            sorted(
+                {
+                    activation.layer_index
+                    for step in trace.steps
+                    for activation in step.residual_activations
+                }
+            )
+        )
+        if layer_indices:
+            self._rare_heavy_layer_indices = layer_indices
+        for step in trace.steps:
+            for activation in step.residual_activations:
+                if activation.activation:
+                    self._rare_heavy_activation_width = len(activation.activation)
+                    return
+
+    def _apply_adapter_to_residuals(
+        self,
+        residual_activations: tuple[ResidualActivation, ...],
+    ) -> tuple[ResidualActivation, ...]:
+        if not self._rare_heavy_adapter_layers or self._rare_heavy_adapter_scale <= 0.0:
+            return residual_activations
+        adapted: list[ResidualActivation] = []
+        for activation in residual_activations:
+            delta_vector = self._rare_heavy_adapter_layers.get(activation.layer_index)
+            if delta_vector is None or not activation.activation:
+                adapted.append(activation)
+                continue
+            values = tuple(
+                _clamp_signed(base + delta * self._rare_heavy_adapter_scale)
+                for base, delta in zip(activation.activation, delta_vector, strict=True)
+            )
+            adapted.append(
+                ResidualActivation(
+                    layer_index=activation.layer_index,
+                    activation=values,
+                    step=activation.step,
+                )
+            )
+        return tuple(adapted)
+
+    def _export_adapter_layers(self) -> tuple[SubstrateDeltaAdapterLayer, ...]:
+        return tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer_index,
+                delta_vector=delta_vector,
+                mean_abs_delta=_mean_abs_delta(delta_vector),
+                description=(
+                    f"Synthetic adapter delta for layer {layer_index} "
+                    f"width={len(delta_vector)}."
+                ),
+            )
+            for layer_index, delta_vector in sorted(self._rare_heavy_adapter_layers.items())
+        )
+
+    def _train_adapter_deltas(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...],
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+    ) -> tuple[tuple[SubstrateDeltaAdapterLayer, ...], float]:
+        if not traces or not substrate_steps_per_trace:
+            return ((), 0.0)
+        torch = importlib.import_module("torch")
+        target_vectors = self._target_layer_vectors(substrate_steps_per_trace=substrate_steps_per_trace)
+        base_vectors = self._trace_layer_vectors(traces=traces)
+        common_layers = tuple(layer for layer in self._rare_heavy_layer_indices if layer in target_vectors and layer in base_vectors)
+        if not common_layers or self._rare_heavy_activation_width <= 0:
+            return ((), 0.0)
+        parameters = {
+            layer: torch.tensor(
+                self._rare_heavy_adapter_layers.get(
+                    layer,
+                    tuple(0.0 for _ in range(self._rare_heavy_activation_width)),
+                ),
+                dtype=torch.float32,
+                requires_grad=True,
+            )
+            for layer in common_layers
+        }
+        optimizer = torch.optim.Adam(tuple(parameters.values()), lr=0.08)
+        final_loss = 0.0
+        for _ in range(12):
+            optimizer.zero_grad()
+            total_loss = torch.tensor(0.0, dtype=torch.float32)
+            for layer in common_layers:
+                base = torch.tensor(base_vectors[layer], dtype=torch.float32)
+                target = torch.tensor(target_vectors[layer], dtype=torch.float32)
+                predicted = base + parameters[layer]
+                total_loss = total_loss + torch.mean((predicted - target) ** 2)
+                total_loss = total_loss + torch.mean(parameters[layer] ** 2) * 0.01
+            total_loss.backward()
+            optimizer.step()
+            final_loss = float(total_loss.detach().item())
+        adapter_layers = tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer,
+                delta_vector=_clamp_delta_vector(parameters[layer].detach().tolist(), limit=0.18),
+                mean_abs_delta=_mean_abs_delta(parameters[layer].detach().tolist()),
+                description=f"Synthetic trained adapter delta for layer {layer}.",
+            )
+            for layer in common_layers
+        )
+        return (adapter_layers, final_loss)
+
+    def _target_layer_vectors(
+        self,
+        *,
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+    ) -> dict[int, tuple[float, ...]]:
+        values: dict[int, list[tuple[float, ...]]] = {}
+        for batch in substrate_steps_per_trace:
+            for snapshot in batch:
+                for activation in snapshot.residual_activations:
+                    if activation.activation:
+                        values.setdefault(activation.layer_index, []).append(activation.activation)
+        return {
+            layer: tuple(
+                sum(vector[index] for vector in vectors) / len(vectors)
+                for index in range(len(vectors[0]))
+            )
+            for layer, vectors in values.items()
+            if vectors
+        }
+
+    def _trace_layer_vectors(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...],
+    ) -> dict[int, tuple[float, ...]]:
+        values: dict[int, list[tuple[float, ...]]] = {}
+        for trace in traces:
+            self._remember_trace_shape(trace)
+            for step in trace.steps:
+                for activation in step.residual_activations:
+                    if activation.activation:
+                        values.setdefault(activation.layer_index, []).append(activation.activation)
+        return {
+            layer: tuple(
+                sum(vector[index] for vector in vectors) / len(vectors)
+                for index in range(len(vectors[0]))
+            )
+            for layer, vectors in values.items()
+            if vectors
+        }
 
 
 class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
@@ -660,6 +1243,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             projection_dim=self._semantic_projection_dim,
         )
         self._semantic_anchor_profiles = _anchor_profile_bank(dim=self._semantic_projection_dim)
+        base_text_weight, base_residual_weight = self._base_semantic_weights()
+        self._rare_heavy_control_scale = self._control_scale
+        self._rare_heavy_semantic_text_weight = base_text_weight
+        self._rare_heavy_semantic_residual_weight = base_residual_weight
+        self._rare_heavy_anchor_bias = tuple(0.0 for _ in RARE_HEAVY_ANCHOR_ORDER)
+        self._rare_heavy_update_count = 0
+        self._rare_heavy_adapter_scale = 0.0
+        self._rare_heavy_adapter_deltas: dict[int, object] = {}
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         return self._capture_with_hooks(source_text=source_text)
@@ -1018,15 +1609,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             rows.append(row)
         return self._torch.stack(rows, dim=0).to(self._device)
 
+    def _base_semantic_weights(self) -> tuple[float, float]:
+        if self._runtime_origin == "builtin-fallback":
+            return (0.9, 0.1)
+        return (0.55, 0.45)
+
     def _semantic_profile_from_capture(self, *, source_text: str, captured_layers: dict[int, object]) -> tuple[float, ...]:
         text_profile = _hashed_semantic_embedding(source_text, dim=self._semantic_projection_dim)
         residual_profile = self._residual_semantic_profile(captured_layers=captured_layers)
-        if self._runtime_origin == "builtin-fallback":
-            text_weight = 0.9
-            residual_weight = 0.1
-        else:
-            text_weight = 0.55
-            residual_weight = 0.45
+        text_weight, residual_weight = _normalize_semantic_weights(
+            text_weight=self._rare_heavy_semantic_text_weight,
+            residual_weight=self._rare_heavy_semantic_residual_weight,
+        )
         combined = tuple(
             text_value * text_weight + residual_value * residual_weight
             for text_value, residual_value in zip(text_profile, residual_profile, strict=True)
@@ -1091,9 +1685,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         raw_repair_pull = relative_pull("repair")
         raw_exploration_pull = relative_pull("exploration")
         raw_directive_pull = relative_pull("directive")
+        raw_task_pull = _clamp_unit(raw_task_pull + self._rare_heavy_anchor_bias[0])
+        raw_support_pull = _clamp_unit(raw_support_pull + self._rare_heavy_anchor_bias[1])
+        raw_repair_pull = _clamp_unit(raw_repair_pull + self._rare_heavy_anchor_bias[2])
+        raw_exploration_pull = _clamp_unit(raw_exploration_pull + self._rare_heavy_anchor_bias[3])
+        raw_directive_pull = _clamp_unit(raw_directive_pull + self._rare_heavy_anchor_bias[4])
         semantic_task_pull = _clamp_unit(raw_task_pull * 0.35 + raw_directive_pull * 0.65)
         semantic_support_pull = _clamp_unit(raw_support_pull * 0.75 + raw_repair_pull * 0.25)
         semantic_repair_pull = _clamp_unit(raw_repair_pull * 0.80 + raw_support_pull * 0.20)
+        text_weight, residual_weight = _normalize_semantic_weights(
+            text_weight=self._rare_heavy_semantic_text_weight,
+            residual_weight=self._rare_heavy_semantic_residual_weight,
+        )
 
         return (
             FeatureSignal(
@@ -1123,12 +1726,22 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ),
             FeatureSignal(
                 name="semantic_text_weight",
-                values=((0.9 if self._runtime_origin == "builtin-fallback" else 0.55),),
+                values=(text_weight,),
                 source="transformers-open-weight-semantic",
             ),
             FeatureSignal(
                 name="semantic_residual_weight",
-                values=((0.1 if self._runtime_origin == "builtin-fallback" else 0.45),),
+                values=(residual_weight,),
+                source="transformers-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_rare_heavy_update_count",
+                values=(_clamp_unit(self._rare_heavy_update_count / 10.0),),
+                source="transformers-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_delta_parameter_count",
+                values=(_clamp_unit(len(self._rare_heavy_adapter_deltas) * self._hidden_size / 512.0),),
                 source="transformers-open-weight-semantic",
             ),
         )
@@ -1172,6 +1785,148 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             control_applied=applied_control is not None,
         )
 
+    def _capture_hidden_state_means(
+        self,
+        *,
+        source_text: str,
+    ) -> dict[int, object]:
+        effective_source = source_text.strip() or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_source)
+        captured_layers: dict[int, object] = {}
+
+        def make_hook(layer_index: int):
+            def hook(module, args, output):
+                del module
+                del args
+                captured_layers[layer_index] = self._extract_hidden_tensor(output=output).detach().cpu()
+                return None
+
+            return hook
+
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(make_hook(layer_index))
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                self._model(**model_inputs)
+        finally:
+            for hook in hooks:
+                hook.remove()
+        return {
+            layer_index: captured_layers[layer_index][0].to(self._device, dtype=self._torch.float32).mean(dim=0)
+            for layer_index in self._layer_indices
+            if layer_index in captured_layers
+        }
+
+    def _target_semantic_profile_tensor(
+        self,
+        *,
+        substrates: Sequence[SubstrateSnapshot],
+        source_text: str,
+    ):
+        feature_names = {
+            "task": "semantic_task_pull",
+            "support": "semantic_support_pull",
+            "repair": "semantic_repair_pull",
+            "exploration": "semantic_exploration_pull",
+            "directive": "semantic_directive_pull",
+        }
+        weights = tuple(_mean_feature_value(substrates, name=feature_names[anchor]) for anchor in RARE_HEAVY_ANCHOR_ORDER)
+        if any(weight > 1e-6 for weight in weights):
+            target = self._torch.zeros(self._semantic_projection_dim, dtype=self._torch.float32, device=self._device)
+            for anchor, weight in zip(RARE_HEAVY_ANCHOR_ORDER, weights, strict=True):
+                anchor_profile = self._torch.tensor(
+                    self._semantic_anchor_profiles[anchor],
+                    dtype=self._torch.float32,
+                    device=self._device,
+                )
+                target = target + anchor_profile * float(weight)
+            return target / target.norm().clamp_min(1e-6)
+        return self._torch.tensor(
+            _hashed_semantic_embedding(source_text, dim=self._semantic_projection_dim),
+            dtype=self._torch.float32,
+            device=self._device,
+        )
+
+    def _target_residual_tensor(
+        self,
+        *,
+        substrates: Sequence[SubstrateSnapshot],
+    ):
+        return self._torch.tensor(
+            max(
+                _mean_residual_magnitude(substrates),
+                _mean_feature_value(substrates, name="residual_mean_abs"),
+            ),
+            dtype=self._torch.float32,
+            device=self._device,
+        )
+
+    def _train_adapter_deltas(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...],
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+    ) -> tuple[tuple[SubstrateDeltaAdapterLayer, ...], float]:
+        if not traces or not substrate_steps_per_trace:
+            return ((), 0.0)
+        paired = tuple(zip(traces, substrate_steps_per_trace))
+        if not paired:
+            return ((), 0.0)
+        parameters = {
+            layer_index: self._torch.nn.Parameter(
+                self._rare_heavy_adapter_deltas.get(
+                    layer_index,
+                    self._torch.zeros(self._hidden_size, dtype=self._torch.float32, device=self._device),
+                ).detach().clone().to(self._device, dtype=self._torch.float32)
+            )
+            for layer_index in self._layer_indices
+        }
+        optimizer = self._torch.optim.Adam(tuple(parameters.values()), lr=0.03)
+        final_loss = 0.0
+        for _ in range(max(4, min(12, len(paired) * 2))):
+            optimizer.zero_grad()
+            total_loss = self._torch.tensor(0.0, dtype=self._torch.float32, device=self._device)
+            for trace, batch in paired:
+                base_means = self._capture_hidden_state_means(source_text=trace.source_text)
+                available_layers = tuple(layer for layer in self._layer_indices if layer in base_means)
+                if not available_layers:
+                    continue
+                predicted_layers = self._torch.stack(
+                    tuple(base_means[layer] + parameters[layer] for layer in available_layers),
+                    dim=0,
+                )
+                composite = predicted_layers.mean(dim=0)
+                projected = self._semantic_basis.to(dtype=self._torch.float32) @ composite.to(dtype=self._torch.float32)
+                predicted_profile = projected / projected.norm().clamp_min(1e-6)
+                target_profile = self._target_semantic_profile_tensor(
+                    substrates=batch,
+                    source_text=trace.source_text,
+                )
+                predicted_residual = self._torch.tanh(predicted_layers.abs().mean())
+                target_residual = self._target_residual_tensor(substrates=batch)
+                total_loss = total_loss + self._torch.mean((predicted_profile - target_profile) ** 2)
+                total_loss = total_loss + (predicted_residual - target_residual) ** 2 * 0.15
+            total_loss = total_loss / max(len(paired), 1)
+            total_loss = total_loss + sum(parameter.pow(2).mean() for parameter in parameters.values()) * 0.002
+            total_loss.backward()
+            optimizer.step()
+            final_loss = float(total_loss.detach().item())
+        adapter_layers = tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer_index,
+                delta_vector=_clamp_delta_vector(parameters[layer_index].detach().cpu().tolist(), limit=0.18),
+                mean_abs_delta=_mean_abs_delta(parameters[layer_index].detach().cpu().tolist()),
+                description=(
+                    f"Transformers trained adapter delta for layer {layer_index} "
+                    f"hidden={self._hidden_size}."
+                ),
+            )
+            for layer_index in self._layer_indices
+        )
+        return (adapter_layers, final_loss)
+
     def _tokenize(self, *, source_text: str) -> dict[str, object]:
         encoded = self._tokenizer(
             source_text,
@@ -1204,7 +1959,170 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             )
         control_vector = self._torch.tensor(coeffs, dtype=self._torch.float32, device=self._device)
         delta = control_vector @ self._control_basis
-        return delta * self._control_scale
+        return delta * self._rare_heavy_control_scale
+
+    def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
+        adapter_layers = self._export_adapter_layers()
+        training_mode = "adapter-delta-v2" if adapter_layers else "bounded-state-v1"
+        return SubstrateRareHeavyCheckpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            control_scale=self._rare_heavy_control_scale,
+            semantic_text_weight=self._rare_heavy_semantic_text_weight,
+            semantic_residual_weight=self._rare_heavy_semantic_residual_weight,
+            semantic_anchor_bias=self._rare_heavy_anchor_bias,
+            update_count=self._rare_heavy_update_count,
+            source_batch_count=0,
+            mean_sequence_length=0.0,
+            mean_residual_magnitude=0.0,
+            description=(
+                f"Transformers rare-heavy checkpoint for {self.model_id} "
+                f"updates={self._rare_heavy_update_count}."
+            ),
+            checkpoint_version=2 if adapter_layers else 1,
+            training_mode=training_mode,
+            compatibility_fingerprint=_build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._hidden_size,
+                layer_indices=self._layer_indices,
+                training_mode=training_mode,
+            ),
+            adapter_scale=self._rare_heavy_adapter_scale,
+            adapter_parameter_count=_adapter_parameter_count(adapter_layers),
+            adapter_training_loss=0.0,
+            adapter_layers=adapter_layers,
+        )
+
+    def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        if checkpoint.model_id != self.model_id:
+            raise ValueError(
+                f"Transformers runtime {self.model_id!r} cannot import checkpoint for {checkpoint.model_id!r}."
+            )
+        if checkpoint.compatibility_fingerprint and checkpoint.training_mode != "bounded-state-v1":
+            expected = _build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._hidden_size,
+                layer_indices=self._layer_indices,
+                training_mode=checkpoint.training_mode,
+            )
+            if checkpoint.compatibility_fingerprint != expected:
+                raise ValueError(
+                    f"Checkpoint fingerprint {checkpoint.compatibility_fingerprint!r} does not match runtime {expected!r}."
+                )
+        text_weight, residual_weight = _normalize_semantic_weights(
+            text_weight=checkpoint.semantic_text_weight,
+            residual_weight=checkpoint.semantic_residual_weight,
+        )
+        self._rare_heavy_control_scale = max(0.04, min(0.30, checkpoint.control_scale))
+        self._rare_heavy_semantic_text_weight = text_weight
+        self._rare_heavy_semantic_residual_weight = residual_weight
+        anchor_bias = tuple(
+            max(-0.2, min(0.2, value))
+            for value in checkpoint.semantic_anchor_bias[: len(RARE_HEAVY_ANCHOR_ORDER)]
+        )
+        if len(anchor_bias) < len(RARE_HEAVY_ANCHOR_ORDER):
+            anchor_bias = anchor_bias + tuple(
+                0.0 for _ in range(len(RARE_HEAVY_ANCHOR_ORDER) - len(anchor_bias))
+            )
+        self._rare_heavy_anchor_bias = anchor_bias
+        self._rare_heavy_update_count = max(0, checkpoint.update_count)
+        self._rare_heavy_adapter_scale = max(0.0, checkpoint.adapter_scale)
+        self._rare_heavy_adapter_deltas = {
+            layer.layer_index: self._torch.tensor(
+                _clamp_delta_vector(layer.delta_vector),
+                dtype=self._torch.float32,
+                device=self._device,
+            )
+            for layer in checkpoint.adapter_layers
+        }
+        return ("rare-heavy:substrate-import",)
+
+    def restore_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        self.import_rare_heavy_state(checkpoint)
+        return ("rare-heavy:substrate-rollback",)
+
+    def train_rare_heavy(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...] = (),
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
+        checkpoint_id: str | None = None,
+    ) -> SubstrateRareHeavyCheckpoint:
+        base_text_weight, base_residual_weight = self._base_semantic_weights()
+        checkpoint = _derive_rare_heavy_checkpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy-trained",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            current_control_scale=self._rare_heavy_control_scale,
+            default_text_weight=base_text_weight,
+            default_residual_weight=base_residual_weight,
+            previous_update_count=self._rare_heavy_update_count,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+        )
+        adapter_layers, training_loss = self._train_adapter_deltas(
+            traces=traces,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+        )
+        if not adapter_layers:
+            return checkpoint
+        return _checkpoint_with_adapter_payload(
+            checkpoint,
+            training_mode="adapter-delta-v2",
+            compatibility_fingerprint=_build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._hidden_size,
+                layer_indices=self._layer_indices,
+                training_mode="adapter-delta-v2",
+            ),
+            adapter_scale=1.0,
+            adapter_training_loss=training_loss,
+            adapter_layers=adapter_layers,
+            description=(
+                f"{checkpoint.description} Adapter-delta payload "
+                f"layers={len(adapter_layers)} loss={training_loss:.4f}."
+            ),
+        )
+
+    def clone_for_rare_heavy(self) -> "OpenWeightResidualRuntime":
+        cloned = TransformersOpenWeightResidualRuntime(
+            model_id=self.model_id,
+            pretrained_source=self._pretrained_source,
+            device=self._device,
+            model=self._model,
+            tokenizer=self._tokenizer,
+            max_length=self._max_length,
+            top_k_logits=self._top_k_logits,
+            activation_width=self._activation_width,
+            layer_indices=self._layer_indices,
+            control_scale=self._control_scale,
+            runtime_origin=self._runtime_origin,
+        )
+        cloned.import_rare_heavy_state(self.export_rare_heavy_state())
+        return cloned
+
+    def _adapter_delta_for_layer(self, *, layer_index: int):
+        delta = self._rare_heavy_adapter_deltas.get(layer_index)
+        if delta is None or self._rare_heavy_adapter_scale <= 0.0:
+            return None
+        return delta * self._rare_heavy_adapter_scale
+
+    def _export_adapter_layers(self) -> tuple[SubstrateDeltaAdapterLayer, ...]:
+        return tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer_index,
+                delta_vector=_clamp_delta_vector(delta.detach().cpu().tolist(), limit=0.18),
+                mean_abs_delta=_mean_abs_delta(delta.detach().cpu().tolist()),
+                description=(
+                    f"Transformers adapter delta for layer {layer_index} "
+                    f"hidden={self._hidden_size}."
+                ),
+            )
+            for layer_index, delta in sorted(self._rare_heavy_adapter_deltas.items())
+        )
 
     def _make_capture_hook(
         self,
@@ -1217,10 +2135,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             del module
             del args
             hidden = self._extract_hidden_tensor(output=output)
-            if control_delta is None:
+            adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
+            if adapter_delta is None and control_delta is None:
                 captured_layers[layer_index] = hidden.detach().cpu()
                 return None
-            adjusted = hidden + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+            adjusted = hidden
+            if adapter_delta is not None:
+                adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+            if control_delta is not None:
+                adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
             captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):
                 return (adjusted, *output[1:])

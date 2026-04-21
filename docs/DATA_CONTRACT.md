@@ -201,6 +201,7 @@ class TemporalAbstractionSnapshot:
     controller_params_hash: str         # U_t 参数的哈希（用于变更检测）
     description: str                    # 模块自身生成的状态描述
     action_family_version: int = 0      # owner-side discovered family bank 版本
+    memory_feedback_signal: tuple[float, ...] = ()  # temporal owner 发布给 memory owner 的上一轮 learned feedback signal
 ```
 
 **当前实现口径**：
@@ -208,7 +209,7 @@ class TemporalAbstractionSnapshot:
 - P08 已固定 `controller_state` 的 machine-readable shape
 - 当前实现支持 `placeholder` / `heuristic` / `learned-lite` / `full-learned` 四类可替换策略位点
 - `active_abstract_action` 和 `description` 是可读输出，不作为 machine state 的唯一来源
-- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score，以及 discovered family summary/version；公共 `TemporalAbstractionSnapshot` 仅新增 `action_family_version` 这一最小 machine-readable bridge
+- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score，以及 discovered family summary/version；公共 `TemporalAbstractionSnapshot` 额外允许发布 `memory_feedback_signal`，供 memory owner 在自己的 processing path 中消费，而不是由 orchestrator 直接 side-effect memory owner
 - internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
 - substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
 - 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；当前 `TransformersOpenWeightResidualRuntime` 已实现 middle-layer hook capture/intervention，`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
@@ -284,12 +285,12 @@ class CMSCheckpointState:
 
 @dataclass(frozen=True)
 class MemorySnapshot:
-    # 按层级组织的记忆摘要
-    transient_summary: str              # 瞬态工作状态摘要（模块自身生成）
-    episodic_summary: str               # 会话情景状态摘要
-    durable_summary: str                # 持久语义记忆摘要
+    # artifact / explanation layer 的按层级摘要；不等同于 learned core 全量真相
+    transient_summary: str              # 瞬态 artifact 摘要（模块自身生成）
+    episodic_summary: str               # 会话 artifact 摘要
+    durable_summary: str                # 持久 durable artifact 摘要
 
-    # 本轮检索到的相关记忆
+    # 本轮检索到的相关 artifact；由 learned-core-guided recall 选出
     retrieved_entries: tuple[MemoryEntry, ...]
 
     # 统计信息
@@ -299,6 +300,7 @@ class MemorySnapshot:
     cms_state: CMSState | None          # owner 发布的 machine-readable CMS 多频带状态
 
     description: str                    # 模块自身生成的整体状态描述
+    lifecycle_metrics: tuple[tuple[str, float], ...] = ()  # owner 负责的 lifecycle telemetry，如 reset、slow->fast benefit、learned recall evidence
 ```
 
 **owner 规则**：
@@ -307,7 +309,9 @@ class MemorySnapshot:
 - 消费者不得直接持有或修改 memory 内部存储结构
 - 提升、衰减、部分重建的 pending 状态由 Memory owner 自身发布
 - `cms_state` 是 Memory owner 对外发布的唯一 CMS 可读状态；消费者不得自行拼装 band cadence
-- semantic retrieval index 属于 Memory owner 内部索引，不通过独立 slot 暴露
+- `lifecycle_metrics` 只发布 owner 自身负责的 nested lifecycle telemetry；消费者不得自行推断 reset、slow-to-fast transfer、或 learned-core-guided recall 是否发生
+- 显式 `MemoryEntry` 属于 artifact / explanation layer；主记忆基底由 owner 内部 learned core 承担
+- semantic retrieval index 属于 Memory owner 内部 derived index，不通过独立 slot 暴露
 - runtime retrieval facets 可消费上一轮已经发布的 `temporal_abstraction` / `dual_track` 快照；不得通过同轮直接调用形成第二 owner 或循环依赖
 
 **消费者**：编排器、时间抽象层、双轨学习层、认知 Regime 层、慢反思路径

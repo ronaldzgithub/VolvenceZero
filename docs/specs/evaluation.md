@@ -94,6 +94,8 @@
 - 当前 dialogue proof harness 已接入固定 perturbation / replay variants（如 `wording_shift`、`pressure_shift_late`），可在改写措辞和压力位置平移后继续比较 `pe-eta`、`eta-no-pe` 与 `heuristic-baseline`
 - 当前 dialogue proof harness 还支持 paraphrase families、seed 驱动的 stochastic variants、replay ranking 和 top-k replay selection artifact，可把最有诊断性的 variants 继续输送给后续 artifact acceptance / replay selection 流程
 - 当前 dialogue proof harness 还支持 rare-heavy artifact acceptance / reject gate + rollback policy：selection artifact 可驱动 rare-heavy 训练与 import，然后用 selected variants 做 pre/post acceptance benchmark，并在 mixed-gain 条件下自动 reject + rollback
+- 当前 evaluation 层还新增独立的 ETA internal-RL strong-proof 工件：它与 dialogue PE harness 分离，专门验证 hierarchical sparse-reward success、abstract-action reuse、held-out composition 与 delayed credit alignment；该工件同样只消费 runtime/evaluation evidence，不新增 runtime slot
+- 当前 ETA strong-proof acceptance 也与 NL essence acceptance 显式分离：前者回答“internal RL 是否在抽象动作层形成论文式强证据”，后者回答“系统是否默认呈现 NL/多时间尺度设计本质”
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 
 ### Dialogue Proof Harness 边界
@@ -103,6 +105,13 @@
 - 它读取 turn-level runtime result 与 evaluation evidence
 - 它产出 case/path/comparison/perturbation report
 - 它可以作为 widening / rollout 的证据输入
+- 它**不**改变 `EvaluationSnapshot` 公共结构，也不成为新的学习 owner
+
+同理，ETA internal-RL strong-proof benchmark 也是评估体系的内部证明工件：
+
+- 它读取 `internal_rl` rollout、metacontroller family telemetry 与 delayed credit assignment
+- 它产出 case/profile/acceptance report
+- 它验证的是 paper-like hierarchical sparse-reward 命题，而不是普通 turn-level PE 响应
 - 它**不**改变 `EvaluationSnapshot` 公共结构，也不成为新的学习 owner
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节

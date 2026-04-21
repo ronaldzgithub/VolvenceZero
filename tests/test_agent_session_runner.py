@@ -97,6 +97,36 @@ def test_agent_session_runner_exposes_bounded_writeback_state():
     assert isinstance(result.writeback_blocks, tuple)
 
 
+def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
+    runner = AgentSessionRunner(session_id="session-post-writeback", reflection_mode=WritebackMode.APPLY)
+
+    first = asyncio.run(runner.run_turn("Remember that I prefer calm and structured support."))
+    boundary_ops = runner.begin_new_context(reason="test-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert first.bounded_writeback_applied is False
+    assert any(op.startswith("session-post-slow-loop:enqueued:") for op in boundary_ops)
+    assert len(slow_loop_results) == 1
+    assert slow_loop_results[0].writeback_result is not None
+    assert slow_loop_results[0].applied is True or slow_loop_results[0].blocked is True
+
+    second = asyncio.run(runner.run_turn("Continue in the next context."))
+
+    assert second.session_post_completed_job_count >= 1
+
+
+def test_agent_session_runner_session_post_loop_fails_closed_when_apply_disabled():
+    runner = AgentSessionRunner(session_id="session-post-proposal", reflection_mode=WritebackMode.PROPOSAL_ONLY)
+
+    asyncio.run(runner.run_turn("Capture reflection proposals without applying them."))
+    runner.begin_new_context(reason="proposal-only-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert len(slow_loop_results) == 1
+    assert slow_loop_results[0].writeback_result is not None
+    assert "writeback-mode-not-apply" in slow_loop_results[0].writeback_result.blocked_operations
+
+
 def test_agent_session_runner_accepts_hook_ready_substrate_factory():
     runtime = SyntheticOpenWeightResidualRuntime(model_id="hook-ready-runtime")
     runner = AgentSessionRunner(
@@ -277,6 +307,9 @@ def test_agent_session_runner_executes_rare_heavy_import_when_high_pe_persists()
     assert result.rare_heavy_result.applied is True
     assert result.rare_heavy_result.artifact_id is not None
     assert "rare-heavy:temporal-import" in result.rare_heavy_result.applied_operations
+    assert "rare-heavy:substrate-import" in result.rare_heavy_result.applied_operations
+    assert result.rare_heavy_result.substrate_status == "imported"
+    assert result.rare_heavy_result.substrate_training_mode == "adapter-delta-v2"
     assert result.joint_schedule_action == "full-cycle-pe"
 
 

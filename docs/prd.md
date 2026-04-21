@@ -2,7 +2,7 @@
 
 > Status: draft
 > Version: 0.3
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
@@ -588,15 +588,29 @@
 
 **对应能力域**：5.7, 5.8
 
-## 10.1 当前进展快照（2026-04-20）
+## 10.1 当前进展快照（2026-04-21）
 
-当前工程进展已经从“先搭 8 个能力域的骨架”推进到“让 prediction error 真正进入主链并驱动后续 owner”的阶段：
+当前工程进展已经从“先搭 8 个能力域的骨架”推进到“让 prediction error 真正进入主链，并让多时间尺度证据链开始闭合”的阶段。
 
-- `prediction_error` 已作为正式 runtime slot 落地主链
-- `memory` / `regime` / `credit` / `reflection` / `temporal` 已接入 PE-first 消费面
-- session owner 已接入 bounded `rare-heavy` review / import
-- 顶层评估已新增 scripted dialogue benchmark，用于证明 `high PE -> temporal response -> delayed improvement`
-- 当前默认 A/B 结果已经能把 `pe-eta` 与 `eta-no-pe` / `heuristic-baseline` 拉开
+### 已实现并优于旧版顶层文档的部分
+
+- `prediction_error` 已作为正式 runtime slot 落地主链，`memory` / `regime` / `credit` / `reflection` / `temporal` 都已直接接入 PE-first 消费面。
+- session owner 已接入 bounded `rare-heavy` review / import，temporal 与 memory 两侧都具备 checkpoint / rollback / import surface。
+- 顶层评估已不止是固定 scripted dialogue benchmark；当前还覆盖 perturbation、systematic replay、replay selection artifact、multi-artifact acceptance、以及 staged real comprehensive benchmark。
+- final integration 已把 temporal public evidence、prediction-error evidence、cross-session verdict、evolution judge、以及 reflection -> temporal bounded writeback 收敛到同一条 integration spine。
+
+### 部分实现 / 仍受 gate 约束的部分
+
+- reflection writeback 已能作用到 memory / regime / temporal，但仍受 `writeback_mode`、credit gate、evolution judge 约束，不是无条件默认放开。
+- CMS 的 nested MLP profile、slow-to-fast initialization、以及 lifecycle telemetry 已落地，但这仍是当前工程实现形态，不代表 R1/R5 的全部目标空间已经完成。
+- `rare-heavy` 不是每次推荐都会执行；仍需要满足 cooldown、trace window、以及 offline RL 至少执行 1 步等条件。
+
+### 仍属目标态、尚未完全实现的部分
+
+- 独立的 session-post async slow reflection worker / queue 还不是默认主路径；当前运行时仍以 turn 级 integration 为主。
+- `rare-heavy` 当前主要是 temporal + memory artifact 的离线路径，还不是基础模型持续预训练/蒸馏。
+- 双轨语义已经进入 memory / credit / evaluation / regime，但默认 runtime 还没有两个完全独立的 track-specific metacontroller。
+- 文档中提到的 Titans/DGD 式 online-fast substrate 自修改，目前还没有正式 runtime owner 路径。
 
 ## 11. 参考文档
 

@@ -1,7 +1,7 @@
 # PE-ETA Dialogue Benchmark Harness
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 > Scope: prove prediction-error-based temporal abstraction with scripted multi-turn dialogue cases
 
 ## Goal
@@ -11,6 +11,21 @@
 - turn 级是否显式产出 `predicted -> actual -> prediction_error`
 - 高 PE turn 之后，是否出现 `*-pe` schedule、abstract action / regime / switch 行为变化
 - 这些变化是否在 case 后段带来更低 PE 或更好的 delayed outcome
+
+## 当前最小证明义务
+
+当前 repo 不把这个 harness 表述成“论文级证明”，而是把它收束成 4 条最小 proof obligations：
+
+1. `PE-schedule coupling`
+   - `prediction_error` 不只是日志，而是真的进入 joint loop schedule，影响 `evidence-only / ssl-only[-pe] / full-cycle[-pe] / rare-heavy review`
+2. `multi-timescale default path`
+   - 默认 `pe-eta` 主路径里，至少能同时看到 `online-fast` 学习、`background-slow` writeback，以及 nested CMS lifecycle signals
+3. `slow-shapes-fast`
+   - nested CMS 的慢层状态不只存在于 owner 内部，而是能在 context boundary 后通过 observable reset / init benefit 影响快层
+4. `rare-heavy-net-benefit`
+   - rare-heavy 不是“有这条链路就算数”，而是默认 proof profile 下需要相对 `pe-eta-no-rare-heavy` 表现出可读的净增益
+
+这四条 proof obligations 对应的是**工程层面的 ETA/NL 对齐证据**，不是对论文全部命题的完全复现。
 
 ## 当前实现
 
@@ -89,6 +104,8 @@
 - temporal abstraction：`joint_schedule_action` / `active_abstract_action` / `switch_gate` / `action_family_version`
 - regime：`active_regime`
 - background-slow：`bounded_writeback_applied` / `reflection_promotion_eligible`
+- nested lifecycle：`nested_profile_active` / `nested_context_reset_applied` / `slow_to_fast_init_benefit`
+- evolution judge：`evolution_decision` / `evolution_category` / `cross_session_verdict`
 - rare-heavy：`recommended` / `applied`
 - delayed outcome readout：`learning` / `relationship` / `abstraction` 相关 evaluation metrics
 
@@ -107,6 +124,9 @@
 - `bounded_writeback_turn_count`：有多少 turn 发生了 reflection/background writeback
 - `reflection_promotion_eligible_turn_count`：有多少 turn 达到了 background consolidation eligibility
 - `rare_heavy_recommended_count` / `rare_heavy_applied_count`：rare-heavy 在整段 case 中被建议/真正执行了多少次
+- `evolution_judge_turn_count` / `evolution_judge_rollback_count` / `evolution_judge_structural_allow_count`
+- `nested_profile_active_turn_count` / `nested_context_reset_count` / `mean_slow_to_fast_init_benefit`
+- `store_nested_context_reset_count` / `boundary_reset_observed_on_first_turn` / `first_turn_slow_to_fast_init_benefit` / `mean_reset_turn_slow_to_fast_init_benefit`
 
 另外，benchmark report / comparison report 现在还会显式发布：
 
@@ -114,6 +134,56 @@
 - `metric_deltas_from_baseline`
 
 这样不再只保留 case-by-case delta，也可以直接看 profile 级平均差异。
+
+## Proof Gate 对齐口径
+
+当前 benchmark 明确区分两类信号：
+
+- `pressure/high-PE detection`
+  - 用来定义 scripted case 的压力窗口和 delayed payoff 观察窗口
+- `PE scheduler due`
+  - 用来判断 `*-pe` schedule label 是否与 runtime 的 `JointLoopSchedule` 语义一致
+
+两者不再混成同一个 gate：
+
+- pressure 仍允许较低 reward 阈值去识别“用户压力已显著上升”
+- 但 `ssl-only-pe / full-cycle-pe` 的显式记分，必须满足 runtime 级 PE schedule 触发语义
+
+这样 benchmark 证明的是：
+
+- “系统是否感受到了 pressure”
+- 以及“系统是否真的按 runtime 的 PE schedule 进入了学习路径”
+
+而不是把二者混写成一个单一指标。
+
+## Real Proof Profile
+
+为了避免 `slow-shapes-fast` 和 `rare-heavy-net-benefit` 被 proof profile 配置本身直接掩盖，当前 real comprehensive benchmark 推荐单独使用最小 proof profile：
+
+- `canonical_case_limit >= 2`
+- `profile_labels = ("pe-eta", "pe-eta-no-rare-heavy", "eta-no-pe", "heuristic-baseline")`
+- `perturbation_variant_limit = 1`
+- `replay_family_limit = 1`
+- `candidate_config_limit = 1`
+- 优先使用 staged comprehensive benchmark 保存可复查 artifact
+
+proof profile 的目的不是跑最大全量 benchmark，而是确保四条 proof obligations 至少有机会在真实路径上被观测到。
+
+## Longitudinal / Essence 层
+
+当前 benchmark 还额外补了两层：
+
+- `run_dialogue_pe_eta_longitudinal_benchmark()`
+- `build_dialogue_nl_essence_assessment()`
+
+前者会在同一 runner 上跨 context 跑 canonical cases，显式产出 `cross_session_verdict`；后者会把 benchmark 输出压成 6 条 `nested learning essence` gates：
+
+- `pe-first`
+- `multi-timescale-default`
+- `rare-heavy-net-benefit`
+- `slow-shapes-fast`
+- `judge-gated-evolution`
+- `cross-session-growth`
 
 ## Perturbation / Replay 层
 
@@ -310,6 +380,14 @@ Replay ranking 的前几项为：
 - 训练出 `RareHeavyArtifact`
 - 再把它导回 runner，对 selected variants 做 pre/post acceptance benchmark
 
+当前 acceptance gate 还额外会检查 substrate rare-heavy evidence：
+
+- artifact 是否携带 `substrate_checkpoint`
+- `substrate_update_count` 是否非零
+- `substrate_source_batch_count` 是否满足最小值
+- `substrate_mean_sequence_length` / `substrate_mean_residual_magnitude` 是否达到最小训练证据
+- `substrate_import_success_fraction` 是否表明确实通过 owner-side substrate import 生效
+
 在最近一次真实 replay-selection acceptance benchmark 中：
 
 - 选取了 `top_k=6` 个最有诊断性的 variants
@@ -333,6 +411,11 @@ Replay ranking 的前几项为：
 - `repeated_failure__failure_family__seed_0`: `score_delta = -0.375`
 
 这说明 replay selection 已经能作为 rare-heavy 的正式验收入口，但“selection -> training -> acceptance” 这条链路还需要更强的 artifact selection / acceptance criteria，不能把当前 pipeline 误当成已经稳定增益。
+
+另外，benchmark / replay report 现在会把 `pe-eta` 相对 `pe-eta-no-rare-heavy` 的差异单独量化，而不再只隐含在通用 baseline delta 中：
+
+- ablation report 会显式发布 `rare_heavy_metric_deltas` / `rare_heavy_case_deltas`
+- replay ranking 会显式发布 `gap_vs_no_rare_heavy` 与 `mean_gap_vs_no_rare_heavy`
 
 ## Multi-Artifact Comparison
 
@@ -420,6 +503,12 @@ Replay ranking 的前几项为：
 当前还新增：
 
 - `run_dialogue_pe_eta_comprehensive_benchmark()`
+- `DialogueRealComprehensiveBenchmarkConfig`
+- `DialogueComprehensiveStage`
+- `DialogueSharedRunnerFactories`
+- `build_real_dialogue_comprehensive_runner_factories()`
+- `run_real_dialogue_pe_eta_comprehensive_benchmark()`
+- `run_real_dialogue_pe_eta_comprehensive_benchmark_staged()`
 
 这条入口会把以下几层串成一次完整跑法：
 
@@ -437,6 +526,58 @@ Replay ranking 的前几项为：
 
 放在同一个报告链里看。
 
+## 真实可跑完的 Runner
+
+之前直接调用 comprehensive benchmark 的默认真实路径，有两个工程性问题：
+
+1. 如果没有显式传入 shared runtime，很多 case/profile/variant 会重复构造真实 `AgentSessionRunner`
+2. 这会导致真实 substrate/runtime 被反复初始化，使全量跑法变得非常慢，而且缺少阶段进度感
+
+当前已补：
+
+- `build_real_dialogue_comprehensive_runner_factories()`：先构造一个 shared real `OpenWeightResidualRuntime`，再把它注入 canonical / perturbation / systematic replay / acceptance 四类 runner factory
+- `run_real_dialogue_pe_eta_comprehensive_benchmark()`：按 phase 顺序执行
+  - canonical ablation
+  - longitudinal benchmark
+  - essence assessment
+  - perturbation benchmark
+  - systematic replay benchmark
+  - selection artifact
+  - multi-artifact acceptance
+- `run_real_dialogue_pe_eta_comprehensive_benchmark_staged()`：在上述 phase 外再包一层 checkpoint executor
+  - 每个 phase 结束后把 stage result 写到 `output_dir`
+  - 写 `manifest.json` 记录当前 config 和已完成 stages
+  - `resume=True` 时优先从已完成 stage 恢复
+  - 如果 final report 已存在，会在建 runtime 之前直接返回
+- `DialogueRealComprehensiveBenchmarkConfig`：给真实跑法提供 bounded 默认配置，例如：
+  - `replay_seeds=(0,)`
+  - `selection_top_k=4`
+  - 可限制 canonical cases / perturbation variants / replay families / candidate configs
+
+这意味着现在已经有一条“真实 runtime + comprehensive evidence chain + bounded default scale”的正式入口，而不是只能靠 synthetic runner 或一次性全量脚本碰运气。
+
+当前 staged executor 的 phase 顺序固定为：
+
+1. `canonical_ablation`
+2. `longitudinal`
+3. `essence`
+4. `perturbation`
+5. `systematic_replay`
+6. `selection_artifact`
+7. `artifact_comparison`
+8. `final_report`
+
+因此“全量 real comprehensive 也能分批稳定跑”的实际含义是：
+
+- 中断后不需要从头重跑
+- 可以先跑到某个 stage，确认结果后再继续
+- 后续 resume 不会再重复做重型 runtime 初始化和已完成 benchmark
+
+另外，这条真实 runner 链也顺手暴露并推动修复了两类兼容问题：
+
+- `heuristic-baseline` 在真实 `AgentSessionRunner` 下不再要求 heuristic temporal policy 必须携带 `parameter_store`
+- CMS medium/background band 在 rare-heavy import / acceptance 路径上，遇到 signal / pending signal 维度不一致时，会先做 owner-side 对齐，而不是直接越界
+
 ## 这还不能证明什么
 
 当前还**不能**直接证明：
@@ -446,6 +587,18 @@ Replay ranking 的前几项为：
 - rare-heavy artifact selection 已达到最优
 - 每个时间尺度都已经形成了自己粒度清晰、稳定迁移的抽象对象
 - 在开放式生成用户环境中也一定成立
+
+更精确地说，当前 harness 证明的是：
+
+- ETA/NL 的若干关键链路已经进入默认运行时
+- 默认主路径已经能给出多时间尺度与 nested CMS 的可检查 telemetry
+- repo 内部已经具备“失败时能解释原因”的 proof surface
+
+它**还不能**证明：
+
+- 论文级“涌现时间抽象”已经成立
+- 论文级“continuum memory / Hope / self-modifying learner”已经被完整复现
+- 当前对话 benchmark 的优势足以外推到开放域 continual learning
 
 要继续收紧证据，需要下一步补：
 

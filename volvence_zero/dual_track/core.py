@@ -166,6 +166,7 @@ def derive_track_state(
     memory_entries: tuple[MemoryEntry, ...],
     shared_entries: tuple[MemoryEntry, ...] = (),
     temporal_snapshot: Any = None,
+    track_temporal_snapshot: Any = None,
     substrate_snapshot: SubstrateSnapshot | None = None,
 ) -> TrackState:
     projected_shared_entries = _project_shared_entries(shared_entries, track=track)
@@ -174,6 +175,7 @@ def derive_track_state(
     temporal_controller_code, abstract_action_hint, action_family_version_hint, controller_source = _temporal_track_context(
         track=track,
         temporal_snapshot=temporal_snapshot,
+        track_temporal_snapshot=track_temporal_snapshot,
     )
     semantic_primary, semantic_shared, semantic_repair = _substrate_track_context(
         track=track,
@@ -266,27 +268,33 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
     slot_name = "dual_track"
     owner = "DualTrackModule"
     value_type = DualTrackSnapshot
-    dependencies = ("memory", "temporal_abstraction", "substrate")
+    dependencies = ("memory", "temporal_abstraction", "world_temporal", "self_temporal", "substrate")
     default_wiring_level = WiringLevel.SHADOW
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[DualTrackSnapshot]:
         memory_snapshot = upstream["memory"]
         temporal_snapshot = upstream.get("temporal_abstraction")
+        world_temporal_snapshot = upstream.get("world_temporal")
+        self_temporal_snapshot = upstream.get("self_temporal")
         substrate_snapshot = upstream.get("substrate")
         memory_value = memory_snapshot.value
         temporal_value = temporal_snapshot.value if temporal_snapshot is not None else None
+        world_temporal_value = world_temporal_snapshot.value if world_temporal_snapshot is not None else None
+        self_temporal_value = self_temporal_snapshot.value if self_temporal_snapshot is not None else None
         substrate_value = substrate_snapshot.value if substrate_snapshot is not None and isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         if not isinstance(memory_value, MemorySnapshot):
             world_track = derive_track_state(
                 track=Track.WORLD,
                 memory_entries=(),
                 temporal_snapshot=temporal_value,
+                track_temporal_snapshot=world_temporal_value,
                 substrate_snapshot=substrate_value,
             )
             self_track = derive_track_state(
                 track=Track.SELF,
                 memory_entries=(),
                 temporal_snapshot=temporal_value,
+                track_temporal_snapshot=self_temporal_value,
                 substrate_snapshot=substrate_value,
             )
         else:
@@ -298,6 +306,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 memory_entries=world_entries,
                 shared_entries=shared_entries,
                 temporal_snapshot=temporal_value,
+                track_temporal_snapshot=world_temporal_value,
                 substrate_snapshot=substrate_value,
             )
             self_track = derive_track_state(
@@ -305,6 +314,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 memory_entries=self_entries,
                 shared_entries=shared_entries,
                 temporal_snapshot=temporal_value,
+                track_temporal_snapshot=self_temporal_value,
                 substrate_snapshot=substrate_value,
             )
 
@@ -333,6 +343,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         world_entries = kwargs.get("world_entries")
         self_entries = kwargs.get("self_entries")
         temporal_snapshot = kwargs.get("temporal_snapshot")
+        world_temporal_snapshot = kwargs.get("world_temporal_snapshot")
+        self_temporal_snapshot = kwargs.get("self_temporal_snapshot")
         substrate_snapshot = kwargs.get("substrate_snapshot")
         shared_entries = kwargs.get("shared_entries")
         if world_entries is None:
@@ -353,6 +365,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             memory_entries=world_entries,
             shared_entries=shared_entries,
             temporal_snapshot=temporal_snapshot,
+            track_temporal_snapshot=world_temporal_snapshot,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
         )
         self_track = derive_track_state(
@@ -360,6 +373,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             memory_entries=self_entries,
             shared_entries=shared_entries,
             temporal_snapshot=temporal_snapshot,
+            track_temporal_snapshot=self_temporal_snapshot,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
         )
         cross_track_tension = derive_cross_track_tension(
@@ -381,9 +395,33 @@ def _temporal_track_context(
     *,
     track: Track,
     temporal_snapshot: Any,
+    track_temporal_snapshot: Any = None,
 ) -> tuple[tuple[float, float, float], str | None, int, str]:
     from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
 
+    if isinstance(track_temporal_snapshot, TemporalAbstractionSnapshot):
+        controller_code = track_temporal_snapshot.controller_state.code
+        if len(controller_code) >= 3:
+            return (
+                (
+                    _clamp(controller_code[0]),
+                    _clamp(controller_code[1]),
+                    _clamp(track_temporal_snapshot.controller_state.switch_gate),
+                ),
+                track_temporal_snapshot.active_abstract_action,
+                track_temporal_snapshot.action_family_version,
+                "temporal-track-owner",
+            )
+        return (
+            (
+                _clamp(controller_code[0]) if controller_code else 0.0,
+                _clamp(controller_code[1]) if len(controller_code) > 1 else 0.0,
+                _clamp(track_temporal_snapshot.controller_state.switch_gate),
+            ),
+            track_temporal_snapshot.active_abstract_action,
+            track_temporal_snapshot.action_family_version,
+            "temporal-track-owner",
+        )
     if not isinstance(temporal_snapshot, TemporalAbstractionSnapshot):
         return ((0.0, 0.0, 0.0), None, 0, "memory")
     track_code = _extract_track_code(temporal_snapshot, track)

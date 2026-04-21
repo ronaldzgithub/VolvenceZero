@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import asyncio
 from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit import ModificationProposal
-from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationReport, EvaluationSnapshot, EvolutionJudgement
 from volvence_zero.integration import (
     FinalIntegrationResult,
     FinalRolloutConfig,
+    SessionPostWritebackRequest,
+    apply_session_post_writeback_request,
     run_final_wiring_turn,
 )
 from volvence_zero.joint_loop import (
@@ -23,10 +26,10 @@ from volvence_zero.joint_loop import (
     SSLRLTrainingPipeline,
     ScheduledJointLoopResult,
 )
-from volvence_zero.memory import CMSMemoryCore, MemorySnapshot, MemoryStore
+from volvence_zero.memory import MemorySnapshot, MemoryStore, build_default_memory_store
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction import ActualOutcome, PredictedOutcome, PredictionError, PredictionErrorModule
-from volvence_zero.reflection import ReflectionSnapshot, WritebackMode
+from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
@@ -47,6 +50,12 @@ from volvence_zero.temporal import (
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalPolicy,
+)
+from volvence_zero.agent.session_post_slow_loop import (
+    SessionPostSlowLoopJob,
+    SessionPostSlowLoopQueue,
+    SessionPostSlowLoopQueueState,
+    SessionPostSlowLoopResult,
 )
 
 
@@ -85,6 +94,23 @@ class AgentTurnResult:
     reflection_promotion_reason: str = ""
     imagination_result: ImaginationResult | None = None
     rare_heavy_result: RareHeavyTurnResult | None = None
+    evolution_judgement: EvolutionJudgement | None = None
+    cross_session_verdict: str = ""
+    nested_profile_active: bool = False
+    nested_context_reset_applied: bool = False
+    nested_context_reset_total_count: int = 0
+    slow_to_fast_init_benefit: float = 0.0
+    slow_to_fast_target_distance_before: float = 0.0
+    slow_to_fast_target_distance_after: float = 0.0
+    slow_to_fast_target_alignment_gain: float = 0.0
+    learned_memory_primary: bool = False
+    artifact_consolidation_count: int = 0
+    learned_recall_count: int = 0
+    learned_recall_confidence: float = 0.0
+    learned_recall_core_guided: bool = False
+    session_post_pending_job_count: int = 0
+    session_post_completed_job_count: int = 0
+    session_post_last_completed_job_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +119,8 @@ class RareHeavyTurnResult:
     applied: bool
     artifact_id: str | None
     applied_operations: tuple[str, ...]
+    substrate_status: str
+    substrate_training_mode: str
     description: str
 
 
@@ -147,6 +175,8 @@ class AgentSessionRunner:
         memory_store: MemoryStore | None = None,
         reflection_mode: WritebackMode = WritebackMode.APPLY,
         temporal_policy: TemporalPolicy | None = None,
+        world_temporal_policy: FullLearnedTemporalPolicy | None = None,
+        self_temporal_policy: FullLearnedTemporalPolicy | None = None,
         credit_proposals: tuple[ModificationProposal, ...] = (),
         response_synthesizer: ResponseSynthesizer | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
@@ -165,12 +195,28 @@ class AgentSessionRunner:
         rare_heavy_min_traces: int = 4,
         rare_heavy_cooldown_turns: int = 3,
         rare_heavy_pipeline_config: PipelineConfig | None = None,
+        external_prediction_error_drive: bool = True,
     ) -> None:
         self._session_id = session_id
         self._config = config or FinalRolloutConfig()
-        self._memory_store = memory_store or MemoryStore()
         self._reflection_mode = reflection_mode
-        self._temporal_policy = temporal_policy or FullLearnedTemporalPolicy()
+        if world_temporal_policy is not None:
+            self._world_temporal_policy = world_temporal_policy
+        elif isinstance(temporal_policy, FullLearnedTemporalPolicy):
+            self._world_temporal_policy = temporal_policy
+        else:
+            self._world_temporal_policy = FullLearnedTemporalPolicy()
+        if self_temporal_policy is not None:
+            self._self_temporal_policy = self_temporal_policy
+        else:
+            self._self_temporal_policy = FullLearnedTemporalPolicy(
+                parameter_store=MetacontrollerParameterStore(
+                    n_z=self._world_temporal_policy.parameter_store.n_z
+                )
+            )
+        self._evaluation_backbone = EvaluationBackbone()
+        default_latent_dim = self._world_temporal_policy.parameter_store.n_z
+        self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -199,9 +245,11 @@ class AgentSessionRunner:
             builtin_model_id="runner-transformers-runtime",
         )
         self._joint_loop = joint_loop or ETANLJointLoop(
-            policy=self._temporal_policy,
+            world_policy=self._world_temporal_policy,
+            self_policy=self._self_temporal_policy,
             memory_store=self._memory_store,
             residual_runtime=self._default_residual_runtime,
+            evaluation_backbone=self._evaluation_backbone,
         )
         self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._rare_heavy_enabled = rare_heavy_enabled
@@ -213,6 +261,7 @@ class AgentSessionRunner:
             ssl_max_steps=3,
             rl_max_steps=2,
         )
+        self._external_prediction_error_drive = external_prediction_error_drive
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
@@ -221,7 +270,13 @@ class AgentSessionRunner:
         self._previous_prediction_error: PredictionError | None = None
         self._recommended_z: tuple[float, ...] | None = None
         self._recent_training_traces: list[TrainingTrace] = []
+        self._recent_substrate_batches: list[tuple[SubstrateSnapshot, ...]] = []
         self._last_rare_heavy_turn_index = 0
+        self._context_index = 1
+        self._completed_session_reports: list[EvaluationReport] = []
+        self._session_post_lock = asyncio.Lock()
+        self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
+        self._last_session_post_writeback_request: SessionPostWritebackRequest | None = None
 
     @property
     def session_id(self) -> str:
@@ -235,15 +290,185 @@ class AgentSessionRunner:
     def temporal_latent_dim(self) -> int:
         return self._joint_loop.temporal_policy.parameter_store.n_z
 
+    @property
+    def residual_runtime(self) -> OpenWeightResidualRuntime:
+        return self._joint_loop.residual_runtime or self._default_residual_runtime
+
+    @property
+    def evaluation_backbone(self) -> EvaluationBackbone:
+        return self._evaluation_backbone
+
+    @property
+    def completed_session_reports(self) -> tuple[EvaluationReport, ...]:
+        return tuple(self._completed_session_reports)
+
+    @property
+    def session_post_queue_state(self) -> SessionPostSlowLoopQueueState:
+        return self._session_post_queue.snapshot()
+
+    @property
+    def active_context_session_id(self) -> str:
+        return f"{self._session_id}:context-{self._context_index}"
+
+    async def drain_session_post_slow_loop(self) -> tuple[SessionPostSlowLoopResult, ...]:
+        self._session_post_queue.schedule()
+        await self._session_post_queue.wait_for_idle()
+        return self._session_post_queue.consume_completed_results()
+
+    def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
+        operations: list[str] = []
+        active_report = self._maybe_build_current_session_report()
+        session_post_job = self._build_session_post_slow_loop_job(
+            active_report=active_report,
+        )
+        if active_report is not None:
+            self._completed_session_reports.append(active_report)
+            operations.append(f"session-report:checkpoint:{self.active_context_session_id}")
+        operations.extend(
+            self._memory_store.reset_nested_context(
+                reason=reason,
+                timestamp_ms=max(self._turn_index, 1),
+            )
+        )
+        self._context_index += 1
+        self._upstream_snapshots = {}
+        self._previous_substrate_snapshot = None
+        self._previous_prediction_reward = 0.0
+        self._previous_prediction_magnitude = 0.0
+        self._previous_prediction_error = None
+        self._recommended_z = None
+        self._recent_substrate_batches = []
+        if session_post_job is not None:
+            self._session_post_queue.enqueue(session_post_job)
+            self._session_post_queue.schedule()
+            operations.append(f"session-post-slow-loop:enqueued:{session_post_job.job_id}")
+        return tuple(operations)
+
+    def _maybe_build_current_session_report(self) -> EvaluationReport | None:
+        records = tuple(
+            record
+            for record in self._evaluation_backbone.records
+            if record.session_id == self.active_context_session_id
+        )
+        if not records:
+            return None
+        return self._evaluation_backbone.build_session_report(
+            session_id=self.active_context_session_id,
+            timestamp_ms=max(record.timestamp_ms for record in records) + 1,
+        )
+
+    def build_current_session_report(self) -> EvaluationReport | None:
+        return self._maybe_build_current_session_report()
+
+    def _build_session_post_slow_loop_job(
+        self,
+        *,
+        active_report: EvaluationReport | None,
+    ) -> SessionPostSlowLoopJob | None:
+        request = self._last_session_post_writeback_request
+        if (
+            active_report is None
+            or request is None
+            or request.context_session_id != self.active_context_session_id
+        ):
+            return None
+        prediction_error_summary: tuple[tuple[str, float], ...] = ()
+        if self._previous_prediction_error is not None:
+            prediction_error_summary = (
+                ("task_error", self._previous_prediction_error.task_error),
+                ("relationship_error", self._previous_prediction_error.relationship_error),
+                ("regime_error", self._previous_prediction_error.regime_error),
+                ("action_error", self._previous_prediction_error.action_error),
+                ("magnitude", self._previous_prediction_error.magnitude),
+                ("signed_reward", self._previous_prediction_error.signed_reward),
+            )
+        job = SessionPostSlowLoopJob(
+            job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
+            context_session_id=request.context_session_id,
+            closed_at_turn=self._turn_index,
+            session_report=active_report,
+            prior_session_report_count=len(self._completed_session_reports),
+            trace_count=len(self._recent_training_traces),
+            substrate_batch_count=len(self._recent_substrate_batches),
+            prediction_error_summary=prediction_error_summary,
+            writeback_request=request,
+            description=(
+                f"Session-post slow loop job for {request.context_session_id} with "
+                f"{len(self._recent_training_traces)} traces and {len(self._recent_substrate_batches)} substrate batches."
+            ),
+        )
+        self._last_session_post_writeback_request = None
+        return job
+
+    async def _run_session_post_slow_loop_job(
+        self,
+        job: SessionPostSlowLoopJob,
+    ) -> SessionPostSlowLoopResult:
+        async with self._session_post_lock:
+            writeback_result, _ = apply_session_post_writeback_request(
+                request=job.writeback_request,
+                memory_store=self._memory_store,
+                temporal_policy=self._world_temporal_policy,
+                regime_module=self._regime_module,
+            )
+        return SessionPostSlowLoopResult(
+            job_id=job.job_id,
+            context_session_id=job.context_session_id,
+            closed_at_turn=job.closed_at_turn,
+            writeback_result=writeback_result,
+            applied=bool(writeback_result is not None and writeback_result.applied_operations),
+            blocked=bool(writeback_result is not None and writeback_result.blocked_operations),
+            description=(
+                f"Session-post slow loop finished for {job.context_session_id} "
+                f"applied={bool(writeback_result is not None and writeback_result.applied_operations)} "
+                f"blocked={bool(writeback_result is not None and writeback_result.blocked_operations)}."
+            ),
+        )
+
+    def _collect_session_post_writeback_result(self) -> WritebackResult | None:
+        completed = self._session_post_queue.consume_completed_results()
+        if not completed:
+            return None
+        applied_operations: tuple[str, ...] = ()
+        blocked_operations: tuple[str, ...] = ()
+        checkpoint = None
+        descriptions: list[str] = []
+        for result in completed:
+            if result.writeback_result is None:
+                descriptions.append(result.description)
+                continue
+            applied_operations = applied_operations + result.writeback_result.applied_operations
+            blocked_operations = blocked_operations + result.writeback_result.blocked_operations
+            if result.writeback_result.checkpoint is not None:
+                checkpoint = result.writeback_result.checkpoint
+            descriptions.append(result.writeback_result.description)
+        return WritebackResult(
+            applied_operations=applied_operations,
+            blocked_operations=blocked_operations,
+            checkpoint=checkpoint,
+            description=" ".join(descriptions),
+        )
+
     def apply_rare_heavy_artifact(
         self,
         artifact: RareHeavyArtifact,
         *,
         checkpoint_id: str | None = None,
     ) -> RareHeavyImportResult:
-        return self._joint_loop.apply_rare_heavy_artifact(
+        result = self._joint_loop.apply_rare_heavy_artifact(
             artifact,
             checkpoint_id=checkpoint_id,
+        )
+        reset_operations = self._memory_store.reset_nested_context(
+            reason="rare-heavy-import",
+            timestamp_ms=max(self._turn_index, 1),
+        )
+        if not reset_operations:
+            return result
+        return replace(
+            result,
+            applied_operations=result.applied_operations + reset_operations,
+            description=f"{result.description} Nested context reset applied after import.",
         )
 
     def rollback_rare_heavy_import(
@@ -253,70 +478,89 @@ class AgentSessionRunner:
         return self._joint_loop.rollback_rare_heavy_import(checkpoint)
 
     async def run_turn(self, user_input: str) -> AgentTurnResult:
-        self._turn_index += 1
-        wave_id = f"wave-{self._turn_index}"
-        substrate_adapter = self._build_substrate_adapter(user_input=user_input)
-        trace = self._build_training_trace_from_substrate(user_input=user_input)
-        self._record_training_trace(trace)
-        pe_task_error = self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
-        pe_relationship_error = self._previous_prediction_error.relationship_error if self._previous_prediction_error is not None else 0.0
-        pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
-        pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
-        self._joint_loop.set_external_learning_signals(
-            {
-                "prediction_error_reward": self._previous_prediction_reward,
-                "prediction_error_magnitude": self._previous_prediction_magnitude,
-                "prediction_error_task_error": pe_task_error,
-                "prediction_error_relationship_error": pe_relationship_error,
-                "prediction_error_regime_error": pe_regime_error,
-                "prediction_error_action_error": pe_action_error,
-            }
-            if (
-                abs(self._previous_prediction_reward) > 1e-8
-                or self._previous_prediction_magnitude > 1e-8
+        deferred_writeback_result = self._collect_session_post_writeback_result()
+        self._session_post_queue.schedule()
+        async with self._session_post_lock:
+            self._turn_index += 1
+            wave_id = f"wave-{self._turn_index}"
+            context_session_id = self.active_context_session_id
+            substrate_adapter = self._build_substrate_adapter(user_input=user_input)
+            trace = self._build_training_trace_from_substrate(user_input=user_input)
+            self._record_training_trace(trace)
+            pe_task_error = self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
+            pe_relationship_error = (
+                self._previous_prediction_error.relationship_error if self._previous_prediction_error is not None else 0.0
             )
-            else {}
-        )
-        joint_result = await self._joint_loop.run_scheduled_step(
-            turn_index=self._turn_index,
-            trace=trace,
-            schedule=self._joint_schedule,
-            apply_writeback=self._reflection_mode is not WritebackMode.APPLY,
-        )
-        integration_result = await run_final_wiring_turn(
-            config=self._config,
-            substrate_adapter=substrate_adapter,
-            memory_store=self._memory_store,
-            upstream_snapshots=self._upstream_snapshots,
-            joint_loop_result=joint_result,
-            credit_proposals=self._credit_proposals,
-            reflection_mode=self._reflection_mode,
-            temporal_policy=self._temporal_policy,
-            prediction_module=self._prediction_module,
-            regime_module=self._regime_module,
-            session_id=self._session_id,
-            wave_id=wave_id,
-        )
-        self._upstream_snapshots = {
-            **integration_result.active_snapshots,
-            **integration_result.shadow_snapshots,
-        }
-        substrate_snap = integration_result.active_snapshots.get("substrate")
-        if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
-            self._previous_substrate_snapshot = substrate_snap.value
-        if integration_result.prediction_error_snapshot is not None:
-            self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
-            self._previous_prediction_magnitude = integration_result.prediction_error_snapshot.error.magnitude
-            self._previous_prediction_error = integration_result.prediction_error_snapshot.error
-        imagination_result = self._run_imagination(integration_result)
-        if imagination_result is not None:
-            self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
-        else:
-            self._recommended_z = None
-        rare_heavy_result = self._maybe_apply_rare_heavy(
-            wave_id=wave_id,
-            joint_result=joint_result,
-        )
+            pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
+            pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
+            if self._external_prediction_error_drive:
+                self._joint_loop.set_external_learning_signals(
+                    {
+                        "prediction_error_reward": self._previous_prediction_reward,
+                        "prediction_error_magnitude": self._previous_prediction_magnitude,
+                        "prediction_error_task_error": pe_task_error,
+                        "prediction_error_relationship_error": pe_relationship_error,
+                        "prediction_error_regime_error": pe_regime_error,
+                        "prediction_error_action_error": pe_action_error,
+                    }
+                    if (
+                        abs(self._previous_prediction_reward) > 1e-8
+                        or self._previous_prediction_magnitude > 1e-8
+                    )
+                    else {}
+                )
+            else:
+                self._joint_loop.set_external_learning_signals({})
+            joint_result = await self._joint_loop.run_scheduled_step(
+                turn_index=self._turn_index,
+                trace=trace,
+                session_id=context_session_id,
+                wave_id=wave_id,
+                prior_session_reports=self.completed_session_reports,
+                schedule=self._joint_schedule,
+                apply_writeback=False,
+            )
+            integration_result = await run_final_wiring_turn(
+                config=self._config,
+                substrate_adapter=substrate_adapter,
+                memory_store=self._memory_store,
+                evaluation_backbone=self._evaluation_backbone,
+                prior_session_reports=self.completed_session_reports,
+                upstream_snapshots=self._upstream_snapshots,
+                joint_loop_result=joint_result,
+                credit_proposals=self._credit_proposals,
+                reflection_mode=self._reflection_mode,
+            world_temporal_policy=self._world_temporal_policy,
+            self_temporal_policy=self._self_temporal_policy,
+                prediction_module=self._prediction_module,
+                regime_module=self._regime_module,
+                session_id=context_session_id,
+                wave_id=wave_id,
+                apply_slow_writeback=False,
+            )
+            self._last_session_post_writeback_request = integration_result.session_post_writeback_request
+            self._upstream_snapshots = {
+                **integration_result.active_snapshots,
+                **integration_result.shadow_snapshots,
+            }
+            substrate_snap = integration_result.active_snapshots.get("substrate")
+            if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
+                self._previous_substrate_snapshot = substrate_snap.value
+                self._record_substrate_batch(self._substrate_batch_from_snapshot(substrate_snap.value))
+            if integration_result.prediction_error_snapshot is not None:
+                self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
+                self._previous_prediction_magnitude = integration_result.prediction_error_snapshot.error.magnitude
+                self._previous_prediction_error = integration_result.prediction_error_snapshot.error
+            imagination_result = self._run_imagination(integration_result)
+            if imagination_result is not None:
+                self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
+            else:
+                self._recommended_z = None
+            rare_heavy_result = self._maybe_apply_rare_heavy(
+                wave_id=wave_id,
+                joint_result=joint_result,
+            )
+        self._session_post_queue.schedule()
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
@@ -324,12 +568,39 @@ class AgentSessionRunner:
             joint_result=joint_result,
             imagination_result=imagination_result,
             rare_heavy_result=rare_heavy_result,
+            deferred_writeback_result=deferred_writeback_result,
+            queue_state=self.session_post_queue_state,
         )
 
     def _record_training_trace(self, trace: TrainingTrace) -> None:
         self._recent_training_traces.append(trace)
         if len(self._recent_training_traces) > self._rare_heavy_trace_window:
             del self._recent_training_traces[:-self._rare_heavy_trace_window]
+
+    def _record_substrate_batch(self, batch: tuple[SubstrateSnapshot, ...]) -> None:
+        if not batch:
+            return
+        self._recent_substrate_batches.append(batch)
+        if len(self._recent_substrate_batches) > self._rare_heavy_trace_window:
+            del self._recent_substrate_batches[:-self._rare_heavy_trace_window]
+
+    def _substrate_batch_from_snapshot(self, snapshot: SubstrateSnapshot) -> tuple[SubstrateSnapshot, ...]:
+        if not snapshot.residual_sequence:
+            return (snapshot,)
+        return tuple(
+            SubstrateSnapshot(
+                model_id=snapshot.model_id,
+                is_frozen=snapshot.is_frozen,
+                surface_kind=snapshot.surface_kind,
+                token_logits=snapshot.token_logits,
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                residual_sequence=(step,),
+                unavailable_fields=snapshot.unavailable_fields,
+                description=f"{snapshot.description} rare-heavy-step={step.step}",
+            )
+            for step in snapshot.residual_sequence
+        )
 
     def _effective_rare_heavy_pipeline_config(self) -> PipelineConfig:
         policy_n_z = self._joint_loop.temporal_policy.parameter_store.n_z
@@ -341,12 +612,8 @@ class AgentSessionRunner:
         checkpoint = self._joint_loop.memory_store.export_rare_heavy_state(
             checkpoint_id=f"{self._session_id}:rare-heavy-seed:{self._turn_index}"
         )
-        learned_core = None
-        if checkpoint.cms_state is not None:
-            learned_core = CMSMemoryCore(
-                dim=len(checkpoint.cms_state.online_fast),
-                mode=checkpoint.cms_state.mode,
-            )
+        source_core = self._joint_loop.memory_store.learned_core
+        learned_core = source_core.clone_empty() if source_core is not None else None
         cloned_store = MemoryStore(learned_core=learned_core)
         cloned_store.import_rare_heavy_state(checkpoint)
         return cloned_store
@@ -363,6 +630,11 @@ class AgentSessionRunner:
             config=self._effective_rare_heavy_pipeline_config(),
             policy=cloned_policy,
             memory_store=self._clone_memory_store_for_rare_heavy(),
+            residual_runtime=(
+                self._joint_loop.residual_runtime.clone_for_rare_heavy()
+                if self._joint_loop.residual_runtime is not None
+                else None
+            ),
         )
 
     def _maybe_apply_rare_heavy(
@@ -379,6 +651,8 @@ class AgentSessionRunner:
                 applied=False,
                 artifact_id=None,
                 applied_operations=(),
+                substrate_status="skipped",
+                substrate_training_mode="not-run",
                 description="Rare-heavy review was recommended, but session owner has rare-heavy execution disabled.",
             )
         turns_since_last_import = self._turn_index - self._last_rare_heavy_turn_index
@@ -388,6 +662,8 @@ class AgentSessionRunner:
                 applied=False,
                 artifact_id=None,
                 applied_operations=(),
+                substrate_status="skipped",
+                substrate_training_mode="not-run",
                 description=(
                     f"Rare-heavy review was recommended, but cooldown is active "
                     f"({turns_since_last_import}/{self._rare_heavy_cooldown_turns} turns since last import)."
@@ -399,6 +675,8 @@ class AgentSessionRunner:
                 applied=False,
                 artifact_id=None,
                 applied_operations=(),
+                substrate_status="skipped",
+                substrate_training_mode="not-run",
                 description=(
                     f"Rare-heavy review was recommended, but only {len(self._recent_training_traces)} traces are available; "
                     f"need {self._rare_heavy_min_traces}."
@@ -406,7 +684,24 @@ class AgentSessionRunner:
             )
         pipeline = self._build_rare_heavy_pipeline()
         traces = tuple(self._recent_training_traces[-self._rare_heavy_trace_window :])
-        pipeline_result = pipeline.run_pipeline(traces=traces)
+        substrate_batches = tuple(self._recent_substrate_batches[-self._rare_heavy_trace_window :])
+        try:
+            pipeline_result = pipeline.run_pipeline(
+                traces=traces,
+                substrate_steps_per_trace=substrate_batches if substrate_batches else None,
+            )
+        except RuntimeError as exc:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=None,
+                applied_operations=(),
+                substrate_status="incompatible",
+                substrate_training_mode="unsupported",
+                description=(
+                    f"Rare-heavy pipeline failed closed during substrate training/import preparation: {exc}"
+                ),
+            )
         artifact = pipeline.export_rare_heavy_artifact(
             artifact_id=f"{self._session_id}:{wave_id}:rare-heavy"
         )
@@ -416,21 +711,38 @@ class AgentSessionRunner:
                 applied=False,
                 artifact_id=artifact.artifact_id,
                 applied_operations=(),
+                substrate_status="skipped",
+                substrate_training_mode=pipeline_result.substrate_training_mode,
                 description=(
                     f"Rare-heavy pipeline exported {artifact.artifact_id}, but no offline RL steps completed; "
                     f"skipping import. {pipeline_result.description}"
                 ),
             )
-        import_result = self._joint_loop.apply_rare_heavy_artifact(
-            artifact,
-            checkpoint_id=f"{self._session_id}:{wave_id}:rare-heavy-import",
-        )
+        try:
+            import_result = self.apply_rare_heavy_artifact(
+                artifact,
+                checkpoint_id=f"{self._session_id}:{wave_id}:rare-heavy-import",
+            )
+        except (TypeError, ValueError, RuntimeError) as exc:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=artifact.artifact_id,
+                applied_operations=(),
+                substrate_status="incompatible",
+                substrate_training_mode=pipeline_result.substrate_training_mode,
+                description=(
+                    f"{pipeline_result.description} Rare-heavy import failed closed: {exc}"
+                ),
+            )
         self._last_rare_heavy_turn_index = self._turn_index
         return RareHeavyTurnResult(
             recommended=True,
             applied=True,
             artifact_id=artifact.artifact_id,
             applied_operations=import_result.applied_operations,
+            substrate_status="imported",
+            substrate_training_mode=pipeline_result.substrate_training_mode,
             description=f"{pipeline_result.description} {import_result.description}",
         )
 
@@ -479,6 +791,8 @@ class AgentSessionRunner:
         joint_result: ScheduledJointLoopResult,
         imagination_result: ImaginationResult | None = None,
         rare_heavy_result: RareHeavyTurnResult | None = None,
+        deferred_writeback_result: WritebackResult | None = None,
+        queue_state: SessionPostSlowLoopQueueState | None = None,
     ) -> AgentTurnResult:
         active_regime = None
         regime_snapshot = integration_result.active_snapshots.get("regime") or integration_result.shadow_snapshots.get(
@@ -522,9 +836,34 @@ class AgentSessionRunner:
             prediction_error = integration_result.prediction_error_snapshot.error
 
         memory_retrieval_count = 0
+        nested_profile_active = False
+        nested_context_reset_applied = False
+        nested_context_reset_total_count = 0
+        slow_to_fast_init_benefit = 0.0
+        slow_to_fast_target_distance_before = 0.0
+        slow_to_fast_target_distance_after = 0.0
+        slow_to_fast_target_alignment_gain = 0.0
+        learned_memory_primary = False
+        artifact_consolidation_count = 0
+        learned_recall_count = 0
+        learned_recall_confidence = 0.0
+        learned_recall_core_guided = False
         memory_snapshot = integration_result.active_snapshots.get("memory")
         if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             memory_retrieval_count = len(memory_snapshot.value.retrieved_entries)
+            lifecycle_metrics = dict(memory_snapshot.value.lifecycle_metrics)
+            nested_profile_active = lifecycle_metrics.get("nested_profile_active", 0.0) > 0.0
+            nested_context_reset_applied = lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0
+            nested_context_reset_total_count = int(lifecycle_metrics.get("nested_context_reset_count", 0.0))
+            slow_to_fast_init_benefit = lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0)
+            slow_to_fast_target_distance_before = lifecycle_metrics.get("slow_to_fast_target_distance_before", 0.0)
+            slow_to_fast_target_distance_after = lifecycle_metrics.get("slow_to_fast_target_distance_after", 0.0)
+            slow_to_fast_target_alignment_gain = lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0)
+            learned_memory_primary = lifecycle_metrics.get("learned_memory_primary", 0.0) > 0.0
+            artifact_consolidation_count = int(lifecycle_metrics.get("artifact_consolidation_count", 0.0))
+            learned_recall_count = int(lifecycle_metrics.get("learned_recall_count", 0.0))
+            learned_recall_confidence = lifecycle_metrics.get("last_learned_recall_confidence", 0.0)
+            learned_recall_core_guided = lifecycle_metrics.get("last_learned_recall_driver_is_core", 0.0) > 0.0
 
         substrate_model_id = None
         substrate_runtime_origin = getattr(self._default_residual_runtime, "runtime_origin", None)
@@ -590,9 +929,11 @@ class AgentSessionRunner:
                 control_code=control_code,
             )
         )
+        effective_writeback_result = deferred_writeback_result or integration_result.writeback_result
+        effective_queue_state = queue_state or self.session_post_queue_state
 
         return AgentTurnResult(
-            session_id=self._session_id,
+            session_id=self.active_context_session_id,
             wave_id=wave_id,
             user_input=user_input,
             active_snapshots=integration_result.active_snapshots,
@@ -608,15 +949,15 @@ class AgentSessionRunner:
             next_prediction=next_prediction,
             prediction_error=prediction_error,
             bounded_writeback_applied=bool(
-                integration_result.writeback_result is not None
-                and integration_result.writeback_result.applied_operations
+                effective_writeback_result is not None
+                and effective_writeback_result.applied_operations
             ),
             writeback_source=integration_result.writeback_source,
-            writeback_operations=integration_result.writeback_result.applied_operations
-            if integration_result.writeback_result is not None
+            writeback_operations=effective_writeback_result.applied_operations
+            if effective_writeback_result is not None
             else (),
-            writeback_blocks=integration_result.writeback_result.blocked_operations
-            if integration_result.writeback_result is not None
+            writeback_blocks=effective_writeback_result.blocked_operations
+            if effective_writeback_result is not None
             else (),
             joint_schedule_action=joint_result.schedule_action,
             joint_learning_summary=joint_result.description,
@@ -632,6 +973,23 @@ class AgentSessionRunner:
             reflection_promotion_reason=integration_result.reflection_promotion_reason,
             imagination_result=imagination_result,
             rare_heavy_result=rare_heavy_result,
+            evolution_judgement=integration_result.evolution_judgement,
+            cross_session_verdict=integration_result.cross_session_verdict,
+            nested_profile_active=nested_profile_active,
+            nested_context_reset_applied=nested_context_reset_applied,
+            nested_context_reset_total_count=nested_context_reset_total_count,
+            slow_to_fast_init_benefit=slow_to_fast_init_benefit,
+            slow_to_fast_target_distance_before=slow_to_fast_target_distance_before,
+            slow_to_fast_target_distance_after=slow_to_fast_target_distance_after,
+            slow_to_fast_target_alignment_gain=slow_to_fast_target_alignment_gain,
+            learned_memory_primary=learned_memory_primary,
+            artifact_consolidation_count=artifact_consolidation_count,
+            learned_recall_count=learned_recall_count,
+            learned_recall_confidence=learned_recall_confidence,
+            learned_recall_core_guided=learned_recall_core_guided,
+            session_post_pending_job_count=effective_queue_state.pending_job_count,
+            session_post_completed_job_count=effective_queue_state.completed_job_count,
+            session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,
         )
 
     def _run_imagination(self, integration_result: FinalIntegrationResult) -> ImaginationResult | None:

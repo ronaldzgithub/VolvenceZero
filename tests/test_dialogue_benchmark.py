@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from volvence_zero.agent import (
     AgentSessionRunner,
@@ -10,7 +11,15 @@ from volvence_zero.agent import (
     DEFAULT_DIALOGUE_PROOF_CASES,
     DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
     DialogueArtifactAcceptanceGateConfig,
+    DialogueComprehensiveStage,
+    DialogueNLEssenceAcceptanceConfig,
+    DialogueNLEssenceAcceptanceDecision,
+    DialogueNLEssenceAssessmentReport,
+    DialogueBenchmarkReport,
     DialogueRealComprehensiveBenchmarkConfig,
+    DialogueSharedRunnerFactories,
+    evaluate_dialogue_nl_essence_acceptance,
+    build_dialogue_nl_essence_assessment,
     build_replay_selection_training_traces,
     build_dialogue_replay_selection_artifact,
     build_real_dialogue_comprehensive_runner_factories,
@@ -18,6 +27,7 @@ from volvence_zero.agent import (
     default_rare_heavy_candidate_configs,
     default_dialogue_ablation_profiles,
     default_dialogue_comprehensive_profiles,
+    default_dialogue_real_proof_config,
     dialogue_case_variants,
     dialogue_paraphrase_families,
     DialogueBenchmarkTurn,
@@ -30,9 +40,11 @@ from volvence_zero.agent import (
     run_dialogue_pe_eta_benchmark,
     run_dialogue_pe_eta_case,
     run_dialogue_pe_eta_comprehensive_benchmark,
+    run_dialogue_pe_eta_longitudinal_benchmark,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
     run_real_dialogue_pe_eta_comprehensive_benchmark,
+    run_real_dialogue_pe_eta_comprehensive_benchmark_staged,
     run_multi_artifact_acceptance_benchmark,
     train_rare_heavy_artifact_from_replay_selection,
 )
@@ -96,6 +108,35 @@ def _synthetic_acceptance_runner(variant) -> AgentSessionRunner:
     )
 
 
+def _synthetic_shared_factories() -> DialogueSharedRunnerFactories:
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="dialogue-staged-shared")
+    runtime.runtime_origin = "synthetic-staged-shared"
+    return DialogueSharedRunnerFactories(
+        residual_runtime=runtime,
+        canonical_runner_factory=lambda profile_label, case: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=case,
+            residual_runtime=runtime,
+        ),
+        perturbation_runner_factory=lambda profile_label, variant: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+            residual_runtime=runtime,
+        ),
+        systematic_runner_factory=lambda profile_label, variant: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+            residual_runtime=runtime,
+        ),
+        acceptance_runner_factory=lambda variant: build_standard_dialogue_runner(
+            profile_label="pe-eta",
+            case=variant.case,
+            residual_runtime=runtime,
+        ),
+        description="synthetic shared benchmark factories",
+    )
+
+
 def _benchmark_turn(
     *,
     turn_index: int,
@@ -110,6 +151,16 @@ def _benchmark_turn(
     action_family_version: int = 0,
     bounded_writeback_applied: bool = False,
     reflection_promotion_eligible: bool = False,
+    evolution_decision: str | None = None,
+    evolution_category: str | None = None,
+    cross_session_verdict: str = "",
+    nested_profile_active: bool = True,
+    nested_context_reset_applied: bool = False,
+    nested_context_reset_total_count: int = 0,
+    slow_to_fast_init_benefit: float = 0.0,
+    slow_to_fast_target_distance_before: float = 0.0,
+    slow_to_fast_target_distance_after: float = 0.0,
+    slow_to_fast_target_alignment_gain: float = 0.0,
 ) -> DialogueBenchmarkTurn:
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
@@ -132,11 +183,21 @@ def _benchmark_turn(
         reflection_promotion_eligible=reflection_promotion_eligible,
         rare_heavy_recommended=pe_triggered,
         rare_heavy_applied=False,
+        evolution_decision=evolution_decision,
+        evolution_category=evolution_category,
+        cross_session_verdict=cross_session_verdict,
+        nested_profile_active=nested_profile_active,
+        nested_context_reset_applied=nested_context_reset_applied,
+        nested_context_reset_total_count=nested_context_reset_total_count,
+        slow_to_fast_init_benefit=slow_to_fast_init_benefit,
         outcome_metrics=(
             ("learning:joint_learning_progress", delayed_metric),
             ("relationship:cross_track_stability", delayed_metric),
         ),
         description="synthetic benchmark turn",
+        slow_to_fast_target_distance_before=slow_to_fast_target_distance_before,
+        slow_to_fast_target_distance_after=slow_to_fast_target_distance_after,
+        slow_to_fast_target_alignment_gain=slow_to_fast_target_alignment_gain,
     )
 
 
@@ -148,7 +209,7 @@ def test_dialogue_benchmark_exposes_default_scripted_cases():
 
 
 def test_dialogue_benchmark_exposes_default_ablation_profiles():
-    assert default_dialogue_ablation_profiles() == ("pe-eta", "eta-no-pe", "heuristic-baseline")
+    assert default_dialogue_ablation_profiles() == ("pe-eta", "pe-drive-off", "eta-off", "timescale-off")
 
 
 def test_dialogue_benchmark_exposes_default_comprehensive_profiles():
@@ -157,8 +218,9 @@ def test_dialogue_benchmark_exposes_default_comprehensive_profiles():
         "pe-eta-online-only",
         "pe-eta-no-writeback",
         "pe-eta-no-rare-heavy",
-        "eta-no-pe",
-        "heuristic-baseline",
+        "pe-drive-off",
+        "eta-off",
+        "timescale-off",
     )
 
 
@@ -204,6 +266,7 @@ def test_run_dialogue_pe_eta_case_collects_pe_and_eta_trajectories():
     assert report.prediction_chain_turn_count >= 1
     assert isinstance(report.turns[0].outcome_metrics, tuple)
     assert report.turns[0].joint_schedule_action
+    assert report.turns[0].nested_profile_active is True
 
 
 def test_run_dialogue_pe_eta_benchmark_runs_complete_scripted_suite():
@@ -233,16 +296,17 @@ def test_run_dialogue_pe_eta_ablation_benchmark_collects_path_deltas():
     )
 
     assert report.baseline_label == "pe-eta"
-    assert len(report.path_reports) == 3
+    assert len(report.path_reports) == 4
     assert len(report.case_deltas_from_baseline) == 2
     case_id, path_deltas = report.case_deltas_from_baseline[0]
     assert case_id in {"repair", "task_clarification"}
     delta_map = dict(path_deltas)
     assert "pe-eta" in delta_map
-    assert "eta-no-pe" in delta_map
-    assert "heuristic-baseline" in delta_map
+    assert "pe-drive-off" in delta_map
+    assert "eta-off" in delta_map
+    assert "timescale-off" in delta_map
     assert dict(delta_map["pe-eta"])["passed"] == 0.0
-    assert dict(delta_map["eta-no-pe"])["pe_triggered_turn_count"] <= 0.0
+    assert dict(delta_map["pe-drive-off"])["pe_triggered_turn_count"] <= 0.0
     assert "recovery_lag_turns" in dict(delta_map["pe-eta"])
     assert "pressure_localization_score" in dict(delta_map["pe-eta"])
     assert "over_response_cost" in dict(delta_map["pe-eta"])
@@ -251,8 +315,8 @@ def test_run_dialogue_pe_eta_ablation_benchmark_collects_path_deltas():
     assert "stability_after_recovery_score" in dict(delta_map["pe-eta"])
     profile_means = dict(report.metric_deltas_from_baseline)
     assert "pe-eta" in profile_means
-    assert "eta-no-pe" in profile_means
-    assert "bounded_writeback_turn_count" in dict(profile_means["eta-no-pe"])
+    assert "pe-drive-off" in profile_means
+    assert "bounded_writeback_turn_count" in dict(profile_means["pe-drive-off"])
 
 
 def test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports():
@@ -265,7 +329,7 @@ def test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports():
 
     assert len(report.variant_cases) == 2
     assert report.ablation_report.baseline_label == "pe-eta"
-    assert len(report.ablation_report.path_reports) == 3
+    assert len(report.ablation_report.path_reports) == 4
     variant_ids = {variant.case.case_id for variant in report.variant_cases}
     case_ids = {
         case_id
@@ -462,9 +526,397 @@ def test_run_dialogue_pe_eta_comprehensive_benchmark_runs_end_to_end():
 
     assert report.profile_labels == default_dialogue_comprehensive_profiles()
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
+    assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
+    assert isinstance(report.essence_report, DialogueNLEssenceAssessmentReport)
+    assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert len(report.selection_artifact.selected_variants) == 1
     assert len(report.artifact_comparison_report.candidate_reports) == 1
     assert report.description
+
+
+def test_run_dialogue_pe_eta_longitudinal_benchmark_emits_cross_session_report():
+    report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+
+    assert len(report.case_reports) == 2
+    assert len(report.session_reports) == 2
+    assert report.cross_session_report.verdict in {"growing", "stable", "regressing"}
+    assert report.description
+
+
+def test_build_dialogue_nl_essence_assessment_uses_nested_and_cross_session_evidence():
+    ablation_report = asyncio.run(
+        run_dialogue_pe_eta_ablation_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_ablation_runner,
+        )
+    )
+    benchmark_report = next(
+        path.benchmark_report
+        for path in ablation_report.path_reports
+        if path.path_label == "pe-eta"
+    )
+    longitudinal_report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        comparison_report=ablation_report,
+        cross_session_report=longitudinal_report.cross_session_report,
+    )
+
+    assert assessment.path_label == "pe-eta"
+    assert assessment.total_gate_count == 6
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    assert "multi-timescale-default" in gate_map
+    assert "cross-session-growth" in gate_map
+    assert "rare-heavy-net-benefit" in gate_map
+
+
+def test_dialogue_nl_essence_acceptance_fails_closed_when_required_gate_is_missing():
+    benchmark_report = asyncio.run(
+        run_dialogue_pe_eta_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            runner_factory=_synthetic_runner,
+        )
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+    )
+    decision = evaluate_dialogue_nl_essence_acceptance(assessment)
+
+    assert isinstance(decision, DialogueNLEssenceAcceptanceDecision)
+    assert decision.accepted is False
+    assert "failed-gate:rare-heavy-net-benefit" in decision.reasons
+
+
+def test_slow_shapes_fast_gate_reports_config_artifact_when_case_count_is_below_proof_minimum():
+    ablation_report = asyncio.run(
+        run_dialogue_pe_eta_ablation_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_ablation_runner,
+        )
+    )
+    benchmark_report = next(
+        path.benchmark_report
+        for path in ablation_report.path_reports
+        if path.path_label == "pe-eta"
+    )
+    longitudinal_report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        comparison_report=ablation_report,
+        cross_session_report=longitudinal_report.cross_session_report,
+        longitudinal_report=longitudinal_report,
+        proof_min_canonical_cases=2,
+    )
+
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    slow_shapes_fast = gate_map["slow-shapes-fast"]
+
+    assert slow_shapes_fast.passed is False
+    evidence = dict(slow_shapes_fast.evidence)
+    assert evidence["failure_mode"] == "config-artifact"
+    assert evidence["proof_min_case_count_satisfied"] == 0.0
+
+
+def test_dialogue_nl_essence_acceptance_passes_with_longitudinal_nested_evidence():
+    ablation_report = asyncio.run(
+        run_dialogue_pe_eta_ablation_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_ablation_runner,
+        )
+    )
+    benchmark_report = next(
+        path.benchmark_report
+        for path in ablation_report.path_reports
+        if path.path_label == "pe-eta"
+    )
+    longitudinal_report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        comparison_report=ablation_report,
+        cross_session_report=longitudinal_report.cross_session_report,
+        longitudinal_report=longitudinal_report,
+    )
+
+    decision = evaluate_dialogue_nl_essence_acceptance(
+        assessment,
+        config=DialogueNLEssenceAcceptanceConfig(
+            required_gate_ids=(
+                "pe-first",
+                "multi-timescale-default",
+                "slow-shapes-fast",
+                "judge-gated-evolution",
+                "cross-session-growth",
+            ),
+            min_passed_gate_count=5,
+        ),
+    )
+
+    assert decision.accepted is True
+    assert not decision.blocked_gate_ids
+
+
+def test_rare_heavy_net_benefit_gate_fails_closed_without_no_rare_heavy_comparison():
+    benchmark_report = asyncio.run(
+        run_dialogue_pe_eta_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=_synthetic_runner,
+        )
+    )
+    longitudinal_report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        cross_session_report=longitudinal_report.cross_session_report,
+        longitudinal_report=longitudinal_report,
+    )
+
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    rare_heavy_gate = gate_map["rare-heavy-net-benefit"]
+    assert rare_heavy_gate.passed is False
+    assert dict(rare_heavy_gate.evidence)["failure_mode"] == "missing-no-rare-heavy-comparison"
+
+
+def test_explicit_pe_schedule_labels_do_not_receive_credit_below_runtime_reward_threshold():
+    case = ScriptedDialogueCase(
+        case_id="pe-threshold-alignment",
+        description="Explicit -pe labels should still satisfy runtime PE schedule semantics.",
+        user_inputs=("turn-1", "turn-2"),
+        expected_pressure_turns=(1,),
+    )
+    turns = (
+        _benchmark_turn(
+            turn_index=1,
+            pe=0.05,
+            reward=0.10,
+            action="evidence-only",
+            regime="repair",
+            abstract_action="observe",
+            switch_gate=0.1,
+            delayed_metric=0.2,
+        ),
+        _benchmark_turn(
+            turn_index=2,
+            pe=0.04,
+            reward=0.01,
+            action="ssl-only-pe",
+            regime="repair",
+            abstract_action="adapt",
+            switch_gate=0.7,
+            delayed_metric=0.3,
+        ),
+    )
+
+    report = build_dialogue_case_report(
+        case=case,
+        turns=turns,
+        allow_interval_carryover_credit=False,
+    )
+
+    assert report.high_pe_turn_count == 1
+    assert report.pe_triggered_turn_count == 0
+
+
+def test_case_report_tracks_store_nested_reset_deltas_without_turn_level_overcount():
+    case = ScriptedDialogueCase(
+        case_id="nested-reset-diagnostics",
+        description="Case report should distinguish turn-level reset flags from owner-level reset count.",
+        user_inputs=("turn-1", "turn-2", "turn-3"),
+        expected_pressure_turns=(1,),
+    )
+    turns = (
+        _benchmark_turn(
+            turn_index=1,
+            pe=0.25,
+            reward=0.2,
+            action="ssl-only-pe",
+            regime="repair",
+            abstract_action="adapt",
+            switch_gate=0.8,
+            delayed_metric=0.2,
+            pe_triggered=True,
+            nested_context_reset_applied=True,
+            nested_context_reset_total_count=1,
+            slow_to_fast_init_benefit=0.02,
+            slow_to_fast_target_distance_before=0.02,
+            slow_to_fast_target_distance_after=0.0,
+            slow_to_fast_target_alignment_gain=0.02,
+        ),
+        _benchmark_turn(
+            turn_index=2,
+            pe=0.1,
+            reward=0.02,
+            action="evidence-only",
+            regime="repair",
+            abstract_action="stabilize",
+            switch_gate=0.2,
+            delayed_metric=0.4,
+            nested_context_reset_total_count=1,
+            slow_to_fast_init_benefit=0.02,
+            slow_to_fast_target_distance_before=0.0,
+            slow_to_fast_target_distance_after=0.0,
+            slow_to_fast_target_alignment_gain=0.0,
+        ),
+        _benchmark_turn(
+            turn_index=3,
+            pe=0.08,
+            reward=0.01,
+            action="evidence-only",
+            regime="repair",
+            abstract_action="stabilize",
+            switch_gate=0.1,
+            delayed_metric=0.6,
+            nested_context_reset_total_count=1,
+            slow_to_fast_init_benefit=0.02,
+            slow_to_fast_target_distance_before=0.0,
+            slow_to_fast_target_distance_after=0.0,
+            slow_to_fast_target_alignment_gain=0.0,
+        ),
+    )
+
+    report = build_dialogue_case_report(case=case, turns=turns)
+
+    assert report.nested_context_reset_count == 1
+    assert report.store_nested_context_reset_count == 1
+    assert report.boundary_reset_observed_on_first_turn is True
+    assert report.first_turn_slow_to_fast_init_benefit == 0.02
+    assert report.mean_reset_turn_slow_to_fast_init_benefit == 0.02
+    assert report.first_turn_slow_to_fast_target_distance_before == 0.02
+    assert report.first_turn_slow_to_fast_target_distance_after == 0.0
+    assert report.first_turn_slow_to_fast_target_alignment_gain == 0.02
+    assert report.mean_reset_turn_slow_to_fast_target_distance_before == 0.02
+    assert report.mean_reset_turn_slow_to_fast_target_distance_after == 0.0
+    assert report.mean_reset_turn_slow_to_fast_target_alignment_gain == 0.02
+
+
+def test_slow_shapes_fast_gate_identifies_already_near_target_when_benefit_is_small():
+    case = ScriptedDialogueCase(
+        case_id="nested-already-near-target",
+        description="Small displacement can still mean reset is healthy if the state was already near its target.",
+        user_inputs=("turn-1", "turn-2"),
+        expected_pressure_turns=(1,),
+    )
+    case_report = build_dialogue_case_report(
+        case=case,
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.22,
+                reward=0.12,
+                action="ssl-only-pe",
+                regime="repair",
+                abstract_action="adapt",
+                switch_gate=0.8,
+                delayed_metric=0.2,
+                pe_triggered=True,
+                nested_context_reset_applied=True,
+                nested_context_reset_total_count=1,
+                slow_to_fast_init_benefit=0.002,
+                slow_to_fast_target_distance_before=0.002,
+                slow_to_fast_target_distance_after=0.001,
+                slow_to_fast_target_alignment_gain=0.001,
+            ),
+            _benchmark_turn(
+                turn_index=2,
+                pe=0.09,
+                reward=0.01,
+                action="evidence-only",
+                regime="repair",
+                abstract_action="stabilize",
+                switch_gate=0.2,
+                delayed_metric=0.5,
+                nested_context_reset_total_count=1,
+                slow_to_fast_target_distance_before=0.0,
+                slow_to_fast_target_distance_after=0.0,
+                slow_to_fast_target_alignment_gain=0.0,
+            ),
+        ),
+    )
+    benchmark_report = DialogueBenchmarkReport(
+        case_reports=(case_report,),
+        passed_case_count=int(case_report.passed),
+        total_case_count=1,
+        metric_means=tuple(
+            (key, float(value))
+            for key, value in (
+                ("prediction_chain_turn_count", float(case_report.prediction_chain_turn_count)),
+                ("pe_triggered_turn_count", float(case_report.pe_triggered_turn_count)),
+                ("delayed_improvement_observed", float(case_report.delayed_improvement_observed)),
+                ("online_learning_turn_count", float(case_report.online_learning_turn_count)),
+                ("bounded_writeback_turn_count", float(case_report.bounded_writeback_turn_count)),
+                ("nested_profile_active_turn_count", float(case_report.nested_profile_active_turn_count)),
+                ("learned_memory_primary_turn_count", float(case_report.learned_memory_primary_turn_count)),
+                ("store_nested_context_reset_count", float(case_report.store_nested_context_reset_count)),
+                ("mean_reset_turn_slow_to_fast_init_benefit", case_report.mean_reset_turn_slow_to_fast_init_benefit),
+                (
+                    "mean_reset_turn_slow_to_fast_target_distance_before",
+                    case_report.mean_reset_turn_slow_to_fast_target_distance_before,
+                ),
+                (
+                    "mean_reset_turn_slow_to_fast_target_distance_after",
+                    case_report.mean_reset_turn_slow_to_fast_target_distance_after,
+                ),
+                (
+                    "mean_reset_turn_slow_to_fast_target_alignment_gain",
+                    case_report.mean_reset_turn_slow_to_fast_target_alignment_gain,
+                ),
+                ("boundary_reset_observed_on_first_turn", float(case_report.boundary_reset_observed_on_first_turn)),
+                ("evolution_judge_turn_count", float(case_report.evolution_judge_turn_count)),
+                ("evolution_judge_structural_allow_count", float(case_report.evolution_judge_structural_allow_count)),
+                ("core_guided_recall_turn_count", float(case_report.core_guided_recall_turn_count)),
+                ("mean_learned_recall_confidence", case_report.mean_learned_recall_confidence),
+                ("max_artifact_consolidation_count", float(case_report.max_artifact_consolidation_count)),
+            )
+        ),
+        description="single-case benchmark report",
+    )
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        proof_min_canonical_cases=1,
+    )
+    slow_shapes_fast_gate = {gate.gate_id: gate for gate in assessment.gates}["slow-shapes-fast"]
+
+    assert slow_shapes_fast_gate.passed is False
+    evidence = dict(slow_shapes_fast_gate.evidence)
+    assert evidence["failure_mode"] == "already-near-target"
+    assert evidence["alignment_interpretation"] == "already-near-target"
+    assert evidence["weak_benefit_explained_by_target_proximity"] == 1.0
 
 
 def test_build_real_dialogue_comprehensive_runner_factories_share_runtime():
@@ -485,30 +937,101 @@ def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin
     progress_messages: list[str] = []
     report = asyncio.run(
         run_real_dialogue_pe_eta_comprehensive_benchmark(
-            config=DialogueRealComprehensiveBenchmarkConfig(
-                runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
-                profile_labels=("pe-eta", "eta-no-pe"),
-                canonical_case_limit=1,
-                perturbation_variant_limit=1,
-                replay_family_limit=1,
-                replay_seeds=(0,),
-                selection_top_k=1,
-                candidate_config_limit=1,
-            ),
+            config=default_dialogue_real_proof_config(),
             progress_callback=progress_messages.append,
         )
     )
 
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
+    assert len(report.longitudinal_report.case_reports) == 2
+    assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
+    assert report.essence_report.total_gate_count == 6
+    assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert len(report.selection_artifact.selected_variants) == 1
     assert len(report.artifact_comparison_report.candidate_reports) == 1
+    assert "rare_heavy_gate_passed=" in report.description
+    assert "rare_heavy_gate_failure_mode=" in report.description
     assert "shared runtime" in report.description
     assert progress_messages[0].startswith("Building shared real residual runtime")
     assert progress_messages[-1] == "Real comprehensive benchmark finished."
 
 
+def test_run_real_dialogue_pe_eta_comprehensive_benchmark_staged_persists_and_resumes(tmp_path):
+    config = default_dialogue_real_proof_config(runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY)
+    first_progress: list[str] = []
+    first_report = asyncio.run(
+        run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
+            output_dir=tmp_path,
+            config=config,
+            shared_factories=_synthetic_shared_factories(),
+            longitudinal_runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+            progress_callback=first_progress.append,
+        )
+    )
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert DialogueComprehensiveStage.FINAL_REPORT.value in manifest["completed_stages"]
+    assert manifest["summary"]["stage"] == DialogueComprehensiveStage.FINAL_REPORT.value
+    assert manifest["summary"]["rare_heavy_gate"]["present"] is True
+    assert "failure_mode" in manifest["summary"]["rare_heavy_gate"]
+    assert "essence_accepted" in manifest["summary"]
+    assert first_report.selection_artifact.selected_variants
+    assert "rare_heavy_gate_passed=" in first_report.description
+    assert any("Running canonical ablation" in message for message in first_progress)
+
+    second_progress: list[str] = []
+    resumed_report = asyncio.run(
+        run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
+            output_dir=tmp_path,
+            config=config,
+            resume=True,
+            progress_callback=second_progress.append,
+        )
+    )
+
+    assert resumed_report.description == first_report.description
+    assert second_progress == ["Resuming final comprehensive report from checkpoint."]
+
+
 def test_default_dialogue_replay_seeds_are_exposed():
     assert DEFAULT_DIALOGUE_REPLAY_SEEDS == (0, 1, 2)
+
+
+def test_default_dialogue_real_proof_config_requires_multiple_canonical_cases():
+    config = default_dialogue_real_proof_config()
+
+    assert isinstance(config, DialogueRealComprehensiveBenchmarkConfig)
+    assert config.profile_labels == ("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off")
+    assert config.canonical_case_limit == 2
+    assert config.proof_min_canonical_cases == 2
+    assert config.runtime_mode == LocalSubstrateRuntimeMode.BUILTIN_ONLY
+
+
+def test_pe_drive_off_runner_disables_external_prediction_error_drive():
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    runner = build_standard_dialogue_runner(profile_label="pe-drive-off", case=case)
+
+    assert runner._external_prediction_error_drive is False
+    assert runner._joint_schedule.pe_ssl_threshold < 900.0
+
+
+def test_timescale_off_runner_uses_non_nested_memory_profile():
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    runner = build_standard_dialogue_runner(profile_label="timescale-off", case=case)
+    memory_snapshot = runner._memory_store.snapshot(retrieved_entries=())
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
+
+    assert lifecycle_metrics["nested_profile_active"] == 0.0
+
+
+def test_eta_off_runner_uses_placeholder_temporal_policy_and_no_joint_learning():
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    runner = build_standard_dialogue_runner(profile_label="eta-off", case=case)
+
+    assert runner._temporal_policy.mode.value == "placeholder"
+    assert runner._joint_schedule.ssl_interval == 0
+    assert runner._joint_schedule.rl_interval == 0
+    assert runner._external_prediction_error_drive is False
 
 
 def test_default_rare_heavy_candidate_configs_are_exposed():
@@ -531,7 +1054,7 @@ def test_eta_no_pe_baseline_does_not_receive_interval_carryover_credit():
     delta_map = {label: dict(deltas) for label, deltas in path_deltas}
 
     assert delta_map["pe-eta"]["pe_triggered_turn_count"] == 0.0
-    assert delta_map["eta-no-pe"]["pe_triggered_turn_count"] < 0.0
+    assert delta_map["pe-drive-off"]["pe_triggered_turn_count"] < 0.0
 
 
 def test_run_multi_artifact_acceptance_benchmark_orders_candidates():
@@ -593,6 +1116,75 @@ def test_run_multi_artifact_acceptance_benchmark_can_choose_accepted_candidate()
 
     assert comparison.chosen_candidate_label is not None
     assert comparison.chosen_accepted is True
+
+
+def test_replay_selection_acceptance_reports_substrate_evidence():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        replay_ranking_report=ranking,
+        top_k=2,
+    )
+
+    acceptance_report = asyncio.run(
+        run_replay_selection_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_synthetic_acceptance_runner,
+        )
+    )
+
+    evidence = dict(acceptance_report.substrate_evidence)
+    assert acceptance_report.artifact.substrate_checkpoint is not None
+    assert evidence["substrate_checkpoint_present"] == 1.0
+    assert evidence["substrate_update_count"] >= 1.0
+    assert evidence["substrate_import_success_fraction"] == 1.0
+
+
+def test_ablation_report_quantifies_rare_heavy_gap_against_no_rare_heavy():
+    report = asyncio.run(
+        run_dialogue_pe_eta_ablation_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_ablation_runner,
+        )
+    )
+
+    assert report.rare_heavy_metric_deltas
+    metric_delta_map = dict(report.rare_heavy_metric_deltas)
+    assert metric_delta_map["rare_heavy_applied_count"] >= 0.0
+    assert len(report.rare_heavy_case_deltas) == 1
+    case_id, case_deltas = report.rare_heavy_case_deltas[0]
+    assert case_id == "repair"
+    assert "rare_heavy_applied_count" in dict(case_deltas)
+
+
+def test_replay_ranking_quantifies_gap_vs_no_rare_heavy_when_profile_is_present():
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:2],
+        ablation_report=perturbation_report.ablation_report,
+    )
+
+    assert ranking.entries
+    assert ranking.mean_gap_vs_no_rare_heavy >= 0.0
+    assert all(entry.no_rare_heavy_score >= 0.0 for entry in ranking.entries)
 
 
 def test_dialogue_case_report_flags_missing_pe_and_temporal_change():

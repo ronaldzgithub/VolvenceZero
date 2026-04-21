@@ -104,7 +104,7 @@ class MetacontrollerSSLTrainer:
         latest_label = "unassigned_action"
         posterior_drift_total = 0.0
         store = policy.parameter_store
-        store.set_learning_phase("ssl", structure_frozen=False)
+        store.require_ssl_discovery_phase(operation="MetacontrollerSSLTrainer.optimize")
         previous_hidden_state = store.latest_posterior_hidden_state
         previous_code = tuple(0.0 for _ in range(n))
         previous_steps = 0
@@ -120,9 +120,12 @@ class MetacontrollerSSLTrainer:
             next_step = trace.steps[next_index]
             substrate_snapshot = self._snapshot_from_prefix(trace=trace, prefix=prefix)
             if self._ndim_encoder is not None:
+                if store.ndim_encoder_parameters is None:
+                    raise RuntimeError("n_z > 3 requires ndim encoder parameters in the metacontroller store.")
                 encoded = self._ndim_encoder.encode(
                     substrate_snapshot=substrate_snapshot,
                     previous_hidden_state=previous_hidden_state,
+                    params=store.ndim_encoder_parameters,
                 )
             else:
                 encoded = self._encoder.encode(
@@ -154,11 +157,16 @@ class MetacontrollerSSLTrainer:
             if self._ndim_decoder is not None:
                 if self._ndim_switch is None:
                     raise RuntimeError("Ndim switch unit must be available when n_z > 3.")
+                if store.ndim_switch_parameters is None:
+                    raise RuntimeError("n_z > 3 requires ndim switch parameters in the metacontroller store.")
+                if store.ndim_decoder_parameters is None:
+                    raise RuntimeError("n_z > 3 requires ndim decoder parameters in the metacontroller store.")
                 beta_cont, _, scalar_beta = self._ndim_switch.compute(
                     z_tilde=encoded.z_tilde,
                     previous_code=previous_code,
                     memory_signal=0.0,
                     reflection_signal=0.0,
+                    params=store.ndim_switch_parameters,
                 )
                 latent_code = tuple(
                     _clamp(
@@ -169,7 +177,10 @@ class MetacontrollerSSLTrainer:
                 )
                 is_switching = scalar_beta >= store.beta_threshold
                 persistence_window = 0.0 if is_switching else float(previous_steps + 1)
-                decoder_control = self._ndim_decoder.decode(latent_code=latent_code)
+                decoder_control = self._ndim_decoder.decode(
+                    latent_code=latent_code,
+                    params=store.ndim_decoder_parameters,
+                )
             else:
                 switch_decision = self._switch.compute_decision(
                     previous_code=previous_code,
@@ -357,6 +368,120 @@ class MetacontrollerSSLTrainer:
     ) -> None:
         store = policy.parameter_store
         learning_rate = store.learning_rate * 0.10
+        if (
+            store.n_z > 3
+            and store.ndim_encoder_parameters is not None
+            and store.ndim_switch_parameters is not None
+            and store.ndim_decoder_parameters is not None
+        ):
+            target_delta = tuple(
+                target_action[index] - decoder_control.decoder_output[index]
+                for index in range(len(target_action))
+            )
+            posterior_delta = tuple(
+                target_action[index] - encoded.posterior.posterior_mean[index]
+                for index in range(len(target_action))
+            )
+            store.ndim_encoder_parameters = type(store.ndim_encoder_parameters)(
+                n_input=store.ndim_encoder_parameters.n_input,
+                gru=type(store.ndim_encoder_parameters.gru)(
+                    W_z=store.ndim_encoder_parameters.gru.W_z,
+                    U_z=store.ndim_encoder_parameters.gru.U_z,
+                    b_z=tuple(
+                        _clamp(
+                            bias + posterior_delta[index] * learning_rate * 0.05
+                        )
+                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_z)
+                    ),
+                    W_r=store.ndim_encoder_parameters.gru.W_r,
+                    U_r=store.ndim_encoder_parameters.gru.U_r,
+                    b_r=tuple(
+                        _clamp(
+                            bias + posterior_delta[index] * learning_rate * 0.03
+                        )
+                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_r)
+                    ),
+                    W_h=store.ndim_encoder_parameters.gru.W_h,
+                    U_h=store.ndim_encoder_parameters.gru.U_h,
+                    b_h=tuple(
+                        _clamp(
+                            bias + posterior_delta[index] * learning_rate * 0.04
+                        )
+                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_h)
+                    ),
+                ),
+                posterior_proj=self._m3_encoder.update(
+                    gradients=tuple(
+                        tuple(
+                            posterior_delta[row_index] * encoded.posterior.hidden_state[col_index]
+                            for col_index in range(len(row))
+                        )
+                        for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_proj)
+                    ),
+                    learning_rate=learning_rate,
+                    parameters=store.ndim_encoder_parameters.posterior_proj,
+                ),
+                posterior_std_proj=self._m3_encoder.update(
+                    gradients=tuple(
+                        tuple(
+                            (0.25 - encoded.posterior.posterior_std[row_index]) * encoded.posterior.hidden_state[col_index]
+                            for col_index in range(len(row))
+                        )
+                        for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_std_proj)
+                    ),
+                    learning_rate=learning_rate * 0.75,
+                    parameters=store.ndim_encoder_parameters.posterior_std_proj,
+                ),
+            )
+            store.ndim_decoder_parameters = type(store.ndim_decoder_parameters)(
+                decoder_ffn=type(store.ndim_decoder_parameters.decoder_ffn)(
+                    W1=self._m3_decoder.update(
+                        gradients=tuple(
+                            tuple(
+                                target_delta[row_index] * encoded.z_tilde[col_index]
+                                for col_index in range(len(row))
+                            )
+                            for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W1)
+                        ),
+                        learning_rate=learning_rate,
+                        parameters=store.ndim_decoder_parameters.decoder_ffn.W1,
+                    ),
+                    b1=tuple(
+                        _clamp(
+                            bias + target_delta[index] * learning_rate * 0.05
+                        )
+                        for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b1)
+                    ),
+                    W2=self._m3_decoder.update(
+                        gradients=tuple(
+                            tuple(
+                                target_delta[row_index] * decoder_control.decoder_output[col_index]
+                                for col_index in range(len(row))
+                            )
+                            for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W2)
+                        ),
+                        learning_rate=learning_rate,
+                        parameters=store.ndim_decoder_parameters.decoder_ffn.W2,
+                    ),
+                    b2=tuple(
+                        _clamp(
+                            bias + target_delta[index] * learning_rate * 0.05
+                        )
+                        for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b2)
+                    ),
+                )
+            )
+            gate_delta = (0.35 - prediction_loss) * learning_rate * 0.25 + kl_loss * 0.01
+            store.ndim_switch_parameters = type(store.ndim_switch_parameters)(
+                gate_ffn=type(store.ndim_switch_parameters.gate_ffn)(
+                    W1=store.ndim_switch_parameters.gate_ffn.W1,
+                    b1=tuple(_clamp(bias + gate_delta) for bias in store.ndim_switch_parameters.gate_ffn.b1),
+                    W2=store.ndim_switch_parameters.gate_ffn.W2,
+                    b2=tuple(_clamp(bias + gate_delta) for bias in store.ndim_switch_parameters.gate_ffn.b2),
+                )
+            )
+            store.switch_bias = _clamp(store.switch_bias + (0.35 - prediction_loss) * 0.05)
+            return
         encoder_gradients: list[tuple[float, ...]] = []
         decoder_gradients: list[tuple[float, ...]] = []
         for row_index, row in enumerate(store.encoder_weights):

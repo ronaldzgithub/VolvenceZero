@@ -20,8 +20,8 @@ from volvence_zero.internal_rl.sandbox import (
     DualTrackOptimizationReport,
     InternalRLSandbox,
 )
-from volvence_zero.memory import CMSMemoryCore, MemoryStore, MemoryStoreCheckpoint, Track
-from volvence_zero.substrate import SubstrateSnapshot, TrainingTrace
+from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, Track, build_default_memory_store
+from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateRareHeavyCheckpoint, SubstrateSnapshot, TrainingTrace
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterStore,
@@ -78,6 +78,8 @@ class PipelineResult:
     final_ssl_loss: float
     final_total_reward: float
     transition_step: int
+    substrate_training_mode: str
+    substrate_checkpoint_present: bool
     description: str
 
 
@@ -88,6 +90,7 @@ class RareHeavyArtifact:
     created_at_ms: int
     temporal_snapshot: MetacontrollerParameterSnapshot
     memory_checkpoint: MemoryStoreCheckpoint | None
+    substrate_checkpoint: SubstrateRareHeavyCheckpoint | None
     transition_step: int
     final_ssl_loss: float
     final_total_reward: float
@@ -114,6 +117,7 @@ class SSLRLTrainingPipeline:
         config: PipelineConfig | None = None,
         policy: FullLearnedTemporalPolicy | None = None,
         memory_store: MemoryStore | None = None,
+        residual_runtime: OpenWeightResidualRuntime | None = None,
     ) -> None:
         self._config = config or PipelineConfig()
         n_z = self._config.n_z
@@ -122,9 +126,10 @@ class SSLRLTrainingPipeline:
         else:
             store = MetacontrollerParameterStore(n_z=n_z)
             self._policy = FullLearnedTemporalPolicy(parameter_store=store)
-        self._sandbox = InternalRLSandbox(policy=self._policy)
+        self._residual_runtime = residual_runtime
+        self._sandbox = InternalRLSandbox(policy=self._policy, residual_runtime=residual_runtime)
         self._ssl_trainer = MetacontrollerSSLTrainer(n_z=n_z)
-        self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore(dim=n_z))
+        self._memory_store = memory_store or build_default_memory_store(latent_dim=n_z)
         self._phase = TrainingPhase.SSL
         self._policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         self._ssl_loss_history: list[float] = []
@@ -133,6 +138,7 @@ class SSLRLTrainingPipeline:
         self._phase_reports: list[PhaseReport] = []
         self._transition_step = -1
         self._ssl_checkpoint: CausalPolicyCheckpoint | None = None
+        self._substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
 
     @property
     def phase(self) -> TrainingPhase:
@@ -157,41 +163,57 @@ class SSLRLTrainingPipeline:
         cfg = self._config
         ssl_steps = 0
         rl_steps = 0
+        if not traces:
+            raise ValueError("SSLRLTrainingPipeline requires at least one training trace.")
+        rl_batches = self._resolve_rl_batches(
+            traces=traces,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+        )
 
-        for i, trace in enumerate(traces):
-            if self._phase == TrainingPhase.COMPLETE:
-                break
-
-            if self._phase == TrainingPhase.SSL:
-                report = self._run_ssl_step(step_index=i, trace=trace)
-                self._phase_reports.append(report)
-                ssl_steps += 1
-                if self._should_transition_to_rl(ssl_steps):
-                    self._phase = TrainingPhase.TRANSITION
-                    self._transition_step = i
-                    self._ssl_checkpoint = self._sandbox.create_checkpoint(
-                        checkpoint_id=f"ssl-phase-{i}",
-                    )
-                    self._phase = TrainingPhase.RL
-
-            elif self._phase == TrainingPhase.RL:
-                substrates = (
-                    substrate_steps_per_trace[i]
-                    if substrate_steps_per_trace and i < len(substrate_steps_per_trace)
-                    else self._substrates_from_trace(trace)
+        while self._phase == TrainingPhase.SSL and ssl_steps < cfg.ssl_max_steps:
+            trace_index = ssl_steps % len(traces)
+            report = self._run_ssl_step(step_index=ssl_steps, trace=traces[trace_index])
+            self._phase_reports.append(report)
+            ssl_steps += 1
+            if self._should_transition_to_rl(ssl_steps):
+                self._phase = TrainingPhase.TRANSITION
+                self._transition_step = ssl_steps - 1
+                self._ssl_checkpoint = self._sandbox.create_checkpoint(
+                    checkpoint_id=f"ssl-phase-{self._transition_step}",
                 )
-                report = self._run_rl_step(step_index=i, substrates=substrates)
-                self._phase_reports.append(report)
-                rl_steps += 1
-                if self._should_complete(rl_steps):
-                    self._phase = TrainingPhase.COMPLETE
+                self._phase = TrainingPhase.RL
 
-        if ssl_steps >= cfg.ssl_max_steps and self._phase == TrainingPhase.SSL:
+        if self._phase == TrainingPhase.SSL:
             self._transition_step = ssl_steps - 1
             self._phase = TrainingPhase.COMPLETE
 
+        while self._phase == TrainingPhase.RL and rl_steps < cfg.rl_max_steps:
+            batch_index = rl_steps % len(rl_batches)
+            report = self._run_rl_step(step_index=rl_steps, substrates=rl_batches[batch_index])
+            self._phase_reports.append(report)
+            rl_steps += 1
+            if self._should_complete(rl_steps):
+                self._phase = TrainingPhase.COMPLETE
+
+        if self._residual_runtime is not None:
+            self._substrate_checkpoint = self._residual_runtime.train_rare_heavy(
+                traces=traces,
+                substrate_steps_per_trace=rl_batches,
+                checkpoint_id=f"{self.owner_path}:substrate",
+            )
+            if self._substrate_checkpoint.training_mode != "adapter-delta-v2":
+                raise RuntimeError(
+                    f"{type(self._residual_runtime).__name__} exported unsupported substrate training mode "
+                    f"{self._substrate_checkpoint.training_mode!r}; adapter-delta-v2 is required."
+                )
+
         final_ssl = self._ssl_loss_history[-1] if self._ssl_loss_history else 0.0
         final_reward = self._rl_reward_history[-1] if self._rl_reward_history else 0.0
+        substrate_training_mode = (
+            self._substrate_checkpoint.training_mode
+            if self._substrate_checkpoint is not None
+            else "not-run"
+        )
 
         return PipelineResult(
             config=cfg,
@@ -203,11 +225,13 @@ class SSLRLTrainingPipeline:
             final_ssl_loss=final_ssl,
             final_total_reward=final_reward,
             transition_step=self._transition_step,
+            substrate_training_mode=substrate_training_mode,
+            substrate_checkpoint_present=self._substrate_checkpoint is not None,
             description=(
                 f"Pipeline completed: ssl={ssl_steps}, rl={rl_steps}, "
                 f"owner={self.owner_path}, phase={self._phase.value}, "
                 f"ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "
-                f"transition_at={self._transition_step}."
+                f"transition_at={self._transition_step}, substrate={substrate_training_mode}."
             ),
         )
 
@@ -323,6 +347,18 @@ class SSLRLTrainingPipeline:
         metric = self._rl_convergence_metric()
         return metric < cfg.rl_convergence_threshold
 
+    def _resolve_rl_batches(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...],
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...] | None,
+    ) -> tuple[tuple[SubstrateSnapshot, ...], ...]:
+        if substrate_steps_per_trace:
+            filtered = tuple(batch for batch in substrate_steps_per_trace if batch)
+            if filtered:
+                return filtered
+        return tuple(self._substrates_from_trace(trace) for trace in traces)
+
     def _substrates_from_trace(self, trace: TrainingTrace) -> tuple[SubstrateSnapshot, ...]:
         from volvence_zero.substrate import SurfaceKind
         return tuple(
@@ -357,6 +393,7 @@ class SSLRLTrainingPipeline:
         *,
         artifact_id: str | None = None,
         include_memory: bool = True,
+        include_substrate: bool = True,
     ) -> RareHeavyArtifact:
         final_ssl = self._ssl_loss_history[-1] if self._ssl_loss_history else 0.0
         final_reward = self._rl_reward_history[-1] if self._rl_reward_history else 0.0
@@ -366,11 +403,18 @@ class SSLRLTrainingPipeline:
             created_at_ms=int(time.time() * 1000),
             temporal_snapshot=self._policy.export_rare_heavy_snapshot(),
             memory_checkpoint=self._memory_store.export_rare_heavy_state() if include_memory else None,
+            substrate_checkpoint=(
+                self._substrate_checkpoint
+                if include_substrate
+                else None
+            ),
             transition_step=self._transition_step,
             final_ssl_loss=final_ssl,
             final_total_reward=final_reward,
             description=(
                 f"Rare-heavy artifact exported from {self.owner_path} with phase={self._phase.value}, "
-                f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}."
+                f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "
+                f"substrate={'yes' if self._substrate_checkpoint is not None and include_substrate else 'no'}"
+                f"/{self._substrate_checkpoint.training_mode if self._substrate_checkpoint is not None and include_substrate else 'not-run'}."
             ),
         )

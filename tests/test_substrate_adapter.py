@@ -250,6 +250,47 @@ def test_open_weight_residual_backend_delegates_to_runtime():
     assert applied.downstream_effect != (0.0, 0.0, 0.0)
 
 
+def test_synthetic_runtime_trains_adapter_delta_checkpoint_and_restores_cleanly():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-adapter-runtime")
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+    traces = tuple(
+        build_training_trace(trace_id=f"synthetic-trace-{index}", source_text=text)
+        for index, text in enumerate(
+            (
+                "calm reflective collaboration",
+                "steady repair before planning",
+            )
+        )
+    )
+    substrate_batches = tuple(
+        (asyncio.run(adapter.capture(source_text=trace.source_text)),)
+        for trace in traces
+    )
+
+    checkpoint = runtime.clone_for_rare_heavy().train_rare_heavy(
+        traces=traces,
+        substrate_steps_per_trace=substrate_batches,
+    )
+
+    assert checkpoint.training_mode == "adapter-delta-v2"
+    assert checkpoint.adapter_layers
+    assert checkpoint.adapter_parameter_count > 0
+
+    fresh = SyntheticOpenWeightResidualRuntime(model_id="synthetic-adapter-runtime")
+    prior = fresh.export_rare_heavy_state()
+    before = fresh.capture(source_text="steady repair before planning")
+    fresh.import_rare_heavy_state(checkpoint)
+    after = fresh.capture(source_text="steady repair before planning")
+
+    assert after.residual_activations != before.residual_activations
+
+    rollback_operations = fresh.restore_rare_heavy_state(prior)
+    restored = fresh.capture(source_text="steady repair before planning")
+
+    assert "rare-heavy:substrate-rollback" in rollback_operations
+    assert restored.residual_activations == before.residual_activations
+
+
 def test_transformers_open_weight_runtime_captures_real_middle_layer_hooks():
     runtime = _build_tiny_transformers_runtime()
 
@@ -287,6 +328,48 @@ def test_transformers_open_weight_runtime_applies_residual_control_via_hooks():
     assert applied.applied_snapshot.residual_sequence
     assert applied.downstream_effect != (0.0, 0.0, 0.0)
     assert applied.applied_snapshot.residual_activations != snapshot.residual_activations
+
+
+def test_transformers_runtime_trains_adapter_delta_checkpoint_and_roundtrips():
+    runtime = _build_tiny_transformers_runtime()
+    adapter = OpenWeightResidualStreamSubstrateAdapter(runtime=runtime)
+    traces = tuple(
+        build_training_trace(trace_id=f"tiny-trace-{index}", source_text=text)
+        for index, text in enumerate(
+            (
+                "calm reflective collaboration",
+                "steady guided exploration",
+            )
+        )
+    )
+    substrate_batches = tuple(
+        (asyncio.run(adapter.capture(source_text=trace.source_text)),)
+        for trace in traces
+    )
+
+    checkpoint = runtime.clone_for_rare_heavy().train_rare_heavy(
+        traces=traces,
+        substrate_steps_per_trace=substrate_batches,
+    )
+
+    assert checkpoint.training_mode == "adapter-delta-v2"
+    assert checkpoint.adapter_layers
+    assert checkpoint.adapter_parameter_count > 0
+    assert checkpoint.compatibility_fingerprint
+
+    fresh = _build_tiny_transformers_runtime()
+    prior = fresh.export_rare_heavy_state()
+    before = fresh.capture(source_text="steady guided exploration")
+    fresh.import_rare_heavy_state(checkpoint)
+    after = fresh.capture(source_text="steady guided exploration")
+
+    assert after.residual_activations != before.residual_activations
+
+    rollback_operations = fresh.restore_rare_heavy_state(prior)
+    restored = fresh.capture(source_text="steady guided exploration")
+
+    assert "rare-heavy:substrate-rollback" in rollback_operations
+    assert restored.residual_activations == before.residual_activations
 
 
 def test_builtin_transformers_runtime_is_deterministic_across_instances():

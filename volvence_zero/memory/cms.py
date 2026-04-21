@@ -556,6 +556,11 @@ class CMSMemoryCore:
         self._session_pending_signal = tuple(0.0 for _ in range(self._dim))
         self._nested_context_steps = 0
 
+    def nested_reset_targets(self) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
+        if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
+            return None
+        return (self._nested_online_init_target, self._nested_session_init_target)
+
     def _update_nested_meta_targets(self) -> None:
         """Meta-learn initialization targets for faster bands.
 
@@ -779,6 +784,13 @@ class CMSMemoryCore:
         base = tuple(values[index % len(values)] for index in range(self._dim))
         return tuple(_clamp(value) for value in base)
 
+    def _align_signal_dim(self, signal: tuple[float, ...]) -> tuple[float, ...]:
+        if len(signal) == self._dim:
+            return signal
+        if not signal:
+            return tuple(0.0 for _ in range(self._dim))
+        return tuple(signal[index % len(signal)] for index in range(self._dim))
+
     # ------------------------------------------------------------------
     # internal helpers — vector mode
     # ------------------------------------------------------------------
@@ -845,6 +857,8 @@ class CMSMemoryCore:
         cadence_interval: int,
     ) -> tuple[tuple[float, ...], tuple[float, ...], int, tuple[float, ...]]:
         """Cadence-gated gradient update for medium/slow bands (vector mode)."""
+        pending_signal = self._align_signal_dim(pending_signal)
+        signal = self._align_signal_dim(signal)
         next_count = observations_since_update + 1
         next_pending = tuple(
             _clamp((pending_signal[index] * observations_since_update + signal[index]) / next_count)
@@ -874,6 +888,8 @@ class CMSMemoryCore:
         cadence_interval: int,
     ) -> tuple[tuple[float, ...], int]:
         """Cadence-gated MLP update for medium/slow bands."""
+        pending_signal = self._align_signal_dim(pending_signal)
+        signal = self._align_signal_dim(signal)
         next_count = observations_since_update + 1
         next_pending = tuple(
             _clamp((pending_signal[i] * observations_since_update + signal[i]) / next_count)

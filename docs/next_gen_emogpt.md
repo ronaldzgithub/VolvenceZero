@@ -1,7 +1,7 @@
 # Next-Generation EmoGPT — System Design
 
 > Status: v2 draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 > Scope: system-level thesis and invariants (not implementation spec)
 > Sources: Nested Learning (NL, arXiv:2512.24695), Emergent Temporal Abstractions (ETA, arXiv:2512.20605)
 > Downstream: `docs/specs/*.md`, `docs/DATA_CONTRACT.md`, `.cursor/rules/`
@@ -294,6 +294,30 @@ The design is on-track only if the answer to most of these becomes "yes":
 10. Can it expose enough internal state to support reflection, evaluation, and rollback?
 11. Can new adaptive layers be added without destroying module ownership and public contracts?
 12. Can fixed multi-turn dialogue benchmarks show that high prediction error triggers temporally aligned controller changes and later improvement relative to weak baselines?
+
+---
+
+## Part 6.1. Current Implementation Delta (Non-Normative)
+
+This section records the current implementation delta without relaxing the target-state requirements above. If there is any tension between current code and this document, treat the numbered requirements in this file as the target, and treat downstream system/spec docs as the current implementation source.
+
+### Already landed in runtime or evidence paths
+
+- `prediction_error` is already a first-class ACTIVE runtime object; `memory`, `temporal`, `regime`, `credit`, and `reflection` directly consume it in the live stack.
+- The session owner already runs a bounded PE-scheduled joint loop and can trigger `rare-heavy` review/import for temporal and memory artifacts with checkpoint/rollback surfaces.
+- The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
+
+### Partially landed or still gated
+
+- Slow reflection can already write back bounded changes to memory, regime, and temporal priors, but application is still gated by writeback mode, credit gating, and evolution judgement rather than being an always-on unconstrained path.
+- CMS has landed as a machine-readable owner state with nested MLP profiles and slow-to-fast initialization telemetry, but this is one concrete engineering realization of the memory/timescale thesis rather than the full design space.
+
+### Still target-state, not fully implemented
+
+- The default runtime path is still primarily turn-synchronous integration; a clearly separate async session-post reflection worker/queue is not yet the main orchestration path.
+- `rare-heavy` currently updates and re-imports temporal/memory artifacts; it is not yet a full stable-substrate pretraining/distillation pipeline.
+- Dual-track semantics already exist in memory/credit/evaluation/regime, but the default runtime still does not run two fully separate track-specific metacontrollers.
+- Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is not yet present as a formal runtime owner path.
 
 ---
 

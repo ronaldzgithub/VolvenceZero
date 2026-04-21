@@ -788,9 +788,13 @@ class TestP17SSLRLPipeline:
 
     def test_pipeline_can_export_rare_heavy_artifact(self) -> None:
         from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+        from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
 
         cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
-        pipeline = SSLRLTrainingPipeline(config=cfg)
+        pipeline = SSLRLTrainingPipeline(
+            config=cfg,
+            residual_runtime=SyntheticOpenWeightResidualRuntime(model_id="algo-depth-runtime"),
+        )
         traces = self._make_traces(5)
         pipeline.run_pipeline(traces=traces)
         artifact = pipeline.export_rare_heavy_artifact(artifact_id="rare-heavy-1")
@@ -801,6 +805,10 @@ class TestP17SSLRLPipeline:
         assert artifact.temporal_snapshot.active_label.startswith("discovered_family_")
         assert artifact.temporal_snapshot.structure_frozen is True
         assert artifact.temporal_snapshot.learning_phase == "rl"
+        assert artifact.substrate_checkpoint is not None
+        assert artifact.substrate_checkpoint.model_id == "algo-depth-runtime"
+        assert artifact.substrate_checkpoint.training_mode == "adapter-delta-v2"
+        assert artifact.substrate_checkpoint.adapter_parameter_count > 0
 
 
 # =========================================================================

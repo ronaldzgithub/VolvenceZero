@@ -1159,6 +1159,74 @@ class NdimFFNParams:
     b2: Vec
 
 
+@dataclass(frozen=True)
+class NdimEncoderParameters:
+    n_input: int
+    gru: NdimGRUParams
+    posterior_proj: Mat
+    posterior_std_proj: Mat
+
+
+@dataclass(frozen=True)
+class NdimSwitchParameters:
+    gate_ffn: NdimFFNParams
+
+
+@dataclass(frozen=True)
+class NdimDecoderParameters:
+    decoder_ffn: NdimFFNParams
+
+
+def build_ndim_encoder_parameters(
+    *,
+    n_z: int = DEFAULT_N_Z,
+    n_input: int | None = None,
+    seed: int = 42,
+) -> NdimEncoderParameters:
+    input_dim = n_input or n_z
+    params = init_gru_params(input_dim, n_z, seed=seed)
+    return NdimEncoderParameters(
+        n_input=input_dim,
+        gru=NdimGRUParams(
+            W_z=params["W_z"],
+            U_z=params["U_z"],
+            b_z=params["b_z"],
+            W_r=params["W_r"],
+            U_r=params["U_r"],
+            b_r=params["b_r"],
+            W_h=params["W_h"],
+            U_h=params["U_h"],
+            b_h=params["b_h"],
+        ),
+        posterior_proj=rand_mat(n_z, n_z, scale=0.1, seed=seed + 10),
+        posterior_std_proj=rand_mat(n_z, n_z, scale=0.05, seed=seed + 11),
+    )
+
+
+def build_ndim_switch_parameters(*, n_z: int = DEFAULT_N_Z, seed: int = 42) -> NdimSwitchParameters:
+    ffn_params = init_ffn_params(n_z * 2, n_z, n_z, seed=seed + 20)
+    return NdimSwitchParameters(
+        gate_ffn=NdimFFNParams(
+            W1=ffn_params["W1"],
+            b1=ffn_params["b1"],
+            W2=ffn_params["W2"],
+            b2=ffn_params["b2"],
+        )
+    )
+
+
+def build_ndim_decoder_parameters(*, n_z: int = DEFAULT_N_Z, seed: int = 42) -> NdimDecoderParameters:
+    ffn_params = init_ffn_params(n_z, n_z, n_z, seed=seed + 30)
+    return NdimDecoderParameters(
+        decoder_ffn=NdimFFNParams(
+            W1=ffn_params["W1"],
+            b1=ffn_params["b1"],
+            W2=ffn_params["W2"],
+            b2=ffn_params["b2"],
+        )
+    )
+
+
 def _project_to_ndim(raw: tuple[float, ...], n: int) -> Vec:
     """Project an arbitrary-length raw vector to n dimensions via tiling/truncation."""
     if not raw:
@@ -1197,19 +1265,15 @@ class NdimSequenceEncoder:
 
     def __init__(self, *, n_z: int = DEFAULT_N_Z, n_input: int | None = None, seed: int = 42) -> None:
         self._n_z = n_z
-        self._n_input = n_input or n_z
-        params = init_gru_params(self._n_input, n_z, seed=seed)
-        self._gru = NdimGRUParams(
-            W_z=params["W_z"], U_z=params["U_z"], b_z=params["b_z"],
-            W_r=params["W_r"], U_r=params["U_r"], b_r=params["b_r"],
-            W_h=params["W_h"], U_h=params["U_h"], b_h=params["b_h"],
-        )
-        self._posterior_proj = rand_mat(n_z, n_z, scale=0.1, seed=seed + 10)
-        self._posterior_std_proj = rand_mat(n_z, n_z, scale=0.05, seed=seed + 11)
+        self._params = build_ndim_encoder_parameters(n_z=n_z, n_input=n_input, seed=seed)
 
     @property
     def n_z(self) -> int:
         return self._n_z
+
+    @property
+    def parameters(self) -> NdimEncoderParameters:
+        return self._params
 
     def encode(
         self,
@@ -1217,9 +1281,11 @@ class NdimSequenceEncoder:
         substrate_snapshot: SubstrateSnapshot,
         previous_hidden_state: Vec | None = None,
         cms_context: Vec | None = None,
+        params: NdimEncoderParameters | None = None,
     ) -> EncodedSequence:
+        active_params = params or self._params
         h = previous_hidden_state or zeros(self._n_z)
-        step_vectors = _summarize_substrate_ndim(substrate_snapshot, self._n_input)
+        step_vectors = _summarize_substrate_ndim(substrate_snapshot, active_params.n_input)
         hidden_history: list[Vec] = []
         for step_vec in step_vectors:
             if cms_context is not None:
@@ -1228,9 +1294,9 @@ class NdimSequenceEncoder:
                 aug = step_vec
             h = gru_cell(
                 x=aug, h_prev=h,
-                W_z=self._gru.W_z, U_z=self._gru.U_z, b_z=self._gru.b_z,
-                W_r=self._gru.W_r, U_r=self._gru.U_r, b_r=self._gru.b_r,
-                W_h=self._gru.W_h, U_h=self._gru.U_h, b_h=self._gru.b_h,
+                W_z=active_params.gru.W_z, U_z=active_params.gru.U_z, b_z=active_params.gru.b_z,
+                W_r=active_params.gru.W_r, U_r=active_params.gru.U_r, b_r=active_params.gru.b_r,
+                W_h=active_params.gru.W_h, U_h=active_params.gru.U_h, b_h=active_params.gru.b_h,
             )
             hidden_history.append(h)
         avg_hidden = tuple(
@@ -1245,13 +1311,13 @@ class NdimSequenceEncoder:
         )
         posterior_mean = vec_clamp(
             vec_add(
-                vec_scale(mat_vec(self._posterior_proj, h), 0.7),
+                vec_scale(mat_vec(active_params.posterior_proj, h), 0.7),
                 vec_scale(avg_hidden, 0.3),
             ),
             0.0, 1.0,
         )
         posterior_std = vec_clamp(
-            vec_abs(mat_vec(self._posterior_std_proj, h)),
+            vec_abs(mat_vec(active_params.posterior_std_proj, h)),
             0.05, 0.95,
         )
         sample_noise = vec_clamp(
@@ -1287,11 +1353,11 @@ class NdimSwitchUnit:
 
     def __init__(self, *, n_z: int = DEFAULT_N_Z, seed: int = 42) -> None:
         self._n_z = n_z
-        ffn_params = init_ffn_params(n_z * 2, n_z, n_z, seed=seed + 20)
-        self._ffn = NdimFFNParams(
-            W1=ffn_params["W1"], b1=ffn_params["b1"],
-            W2=ffn_params["W2"], b2=ffn_params["b2"],
-        )
+        self._params = build_ndim_switch_parameters(n_z=n_z, seed=seed)
+
+    @property
+    def parameters(self) -> NdimSwitchParameters:
+        return self._params
 
     def compute(
         self,
@@ -1300,11 +1366,19 @@ class NdimSwitchUnit:
         previous_code: Vec,
         memory_signal: float = 0.0,
         reflection_signal: float = 0.0,
+        params: NdimSwitchParameters | None = None,
     ) -> tuple[Vec, Vec, float]:
         """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
+        active_params = params or self._params
         delta = vec_abs(vec_sub(z_tilde, previous_code))
         gate_input = delta + z_tilde
-        raw = ffn_2layer(x=gate_input, W1=self._ffn.W1, b1=self._ffn.b1, W2=self._ffn.W2, b2=self._ffn.b2)
+        raw = ffn_2layer(
+            x=gate_input,
+            W1=active_params.gate_ffn.W1,
+            b1=active_params.gate_ffn.b1,
+            W2=active_params.gate_ffn.W2,
+            b2=active_params.gate_ffn.b2,
+        )
         bias = memory_signal * 0.1 + reflection_signal * 0.2
         beta_continuous = vec_sigmoid(vec_add(raw, tuple(bias for _ in range(self._n_z))))
         threshold = 0.55
@@ -1318,17 +1392,20 @@ class NdimResidualDecoder:
 
     def __init__(self, *, n_z: int = DEFAULT_N_Z, seed: int = 42) -> None:
         self._n_z = n_z
-        ffn_params = init_ffn_params(n_z, n_z, n_z, seed=seed + 30)
-        self._ffn = NdimFFNParams(
-            W1=ffn_params["W1"], b1=ffn_params["b1"],
-            W2=ffn_params["W2"], b2=ffn_params["b2"],
-        )
+        self._params = build_ndim_decoder_parameters(n_z=n_z, seed=seed)
 
-    def decode(self, *, latent_code: Vec) -> DecoderControl:
+    @property
+    def parameters(self) -> NdimDecoderParameters:
+        return self._params
+
+    def decode(self, *, latent_code: Vec, params: NdimDecoderParameters | None = None) -> DecoderControl:
+        active_params = params or self._params
         decoder_output = ffn_2layer(
             x=latent_code,
-            W1=self._ffn.W1, b1=self._ffn.b1,
-            W2=self._ffn.W2, b2=self._ffn.b2,
+            W1=active_params.decoder_ffn.W1,
+            b1=active_params.decoder_ffn.b1,
+            W2=active_params.decoder_ffn.W2,
+            b2=active_params.decoder_ffn.b2,
         )
         applied_control = vec_clamp(
             vec_add(vec_scale(latent_code, 0.65), vec_scale(decoder_output, 0.35)),

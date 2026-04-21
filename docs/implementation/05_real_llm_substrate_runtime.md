@@ -107,6 +107,24 @@
 
 - `distilgpt2`
 
+## Rare-heavy substrate v1
+
+当前真实 substrate runtime 还不是完整 continual pretraining 系统，但已经补齐 rare-heavy v1 的 owner-side contract：
+
+- `export_rare_heavy_state()`：导出 substrate slow learner checkpoint
+- `import_rare_heavy_state()`：通过 owner surface 应用 rare-heavy checkpoint
+- `restore_rare_heavy_state()`：回滚到导入前 checkpoint
+- `clone_for_rare_heavy()`：为 offline pipeline 克隆一个不污染 live session 的 substrate owner
+- `train_rare_heavy()`：基于最近的 substrate capture batches 产出 bounded substrate checkpoint
+
+当前 rare-heavy substrate checkpoint 的语义是：
+
+- 不直接修改 foundation model 权重
+- 只更新 substrate owner 持有的 bounded slow learner state（例如 residual control scale、语义 text/residual 混合权重、anchor bias）
+- 通过同一条 artifact/import/rollback surface 与 temporal / memory rare-heavy 保持一致
+
+因此，这一层的目标是先把 rare-heavy 从 “controller/memory only” 提升为 “substrate-aware slow learner”，而不是在主链里偷偷做 base-model 微调。
+
 ### 最严格验收
 
 ```python
@@ -224,6 +242,17 @@ runtime_origin=hf-local capture_source=real fallback_active=0 residual_sequence_
 - `substrate_capture_source == "real"`
 - `substrate_residual_sequence_length > 0`
 - `acceptance_passed is True`
+
+### 验收 1.5：rare-heavy substrate import / rollback
+
+目标：证明真实或 builtin substrate owner 都能通过 rare-heavy artifact 接受一次 bounded slow update，并可回滚。
+
+通过标准：
+
+- rare-heavy artifact 含非空 substrate checkpoint
+- import operations 包含 `rare-heavy:substrate-import`
+- rollback operations 包含 `rare-heavy:substrate-rollback`
+- temporal / memory rare-heavy 原有导入与回滚行为不回归
 
 ### 验收 2：strict-local 多轮稳定性
 

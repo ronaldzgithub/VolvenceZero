@@ -1,7 +1,7 @@
 # 多时间尺度学习框架 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 > 对应需求: R1, R2, R13
 
 ## 要解决的问题
@@ -89,13 +89,27 @@ rare-heavy (定期离线):
 - 当前 substrate owner 已落地 `TransformersOpenWeightResidualRuntime` 的真实 middle-layer hook capture/intervention，实现了比 trace backend 更接近 frozen-model residual path 的 online-fast 控制接口
 - 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
 - 当前 `AgentSessionRunner` 默认已直接消费真实 transformers substrate，并把 `reflection` / `temporal` 放入 ACTIVE 主链；response layer 只读取 distilled kernel context，但默认行为已受 active temporal/reflection 状态驱动
+- 当前 `AgentSessionRunner` 默认 memory owner 已携带 learned CMS core（默认 nested MLP profile），不再停留在“无 learned core”的空壳路径；context boundary / rare-heavy import 后会触发 owner-controlled nested reset，并通过 memory lifecycle telemetry 发布 `slow_to_fast_init_benefit`
 - 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并已扩展为 group-level selective writeback（如 `encoder` / `decoder` / `track-*` / `action-families` / `beta-threshold`），受 target-specific credit gate 约束
 - 当前 background-slow 反思还可基于 delayed attribution 生成 bounded structural temporal proposal（`merge` / `split` / `prune`），并沿同一条 gate / audit / rollback 链路进入 temporal owner
 - 当前 session-medium delayed path 已从单条 delayed outcome 扩展为 multi-step attribution ledger：regime owner 会保留最近 resolved attribution，并发布 rolling payoff summary，供 evaluation / credit / reflection 读取，而不需要 consumer 自己拼接长期轨迹
 - 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
-- 当前 rare-heavy v0 已补充离线路径：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 可导出 controller/memory artifact，由 runtime owner 通过显式 import/rollback surface 应用；完整 base-model 级干预仍属于后续增强
-- 当前 `AgentSessionRunner` 已补充 bounded rare-heavy execution 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 克隆 offline temporal/memory state，运行轻量 `SSLRLTrainingPipeline`，并仅在 offline RL 至少执行 1 步后通过 owner-side import surface 回写 online owner
+- 当前 rare-heavy v1 已补充 substrate-aware 离线路径：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 现在可同时导出 `temporal / memory / substrate` 三类 artifact；其中 substrate 部分仍是 owner-side bounded checkpoint（控制尺度、语义混合权重、anchor bias 等），不是完整 base-model 参数重写
+- 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 应用，fallback runtime 允许 no-op/bounded 实现但 contract shape 保持一致
+- 当前 `SSLRLTrainingPipeline` 已从“trace 顺序绑定”的轻量 pass 收敛为分阶段 batch loop：SSL 阶段按 trace 迭代直到收敛或上限，RL 阶段按 substrate batch 迭代直到收敛或上限，并在结束后导出 substrate rare-heavy checkpoint
+- 当前 `AgentSessionRunner` 已补充 substrate-aware rare-heavy execution 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 与最近真实 substrate capture window 克隆 offline temporal/memory/substrate state，运行轻量 `SSLRLTrainingPipeline`，并在 offline RL 至少执行 1 步后通过 owner-side import surface 回写 online owner
+
+## 当前 proof surface
+
+当前 repo 在多时间尺度学习上优先证明 2 条工程命题：
+
+1. `PE-schedule coupling`
+   - `prediction_error` 已直接驱动 `JointLoopSchedule` 的 `ssl-only[-pe] / full-cycle[-pe] / rare-heavy review`
+2. `multi-timescale default path`
+   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` 学习、`background-slow` writeback、以及 nested CMS lifecycle signals
+
+这两条 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习”，不是“论文级最优性或完整因果隔离已经成立”。
 
 ## 与其他能力域的关系
 

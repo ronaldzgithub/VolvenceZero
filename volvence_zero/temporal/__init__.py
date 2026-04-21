@@ -1,6 +1,7 @@
 from volvence_zero.temporal.interface import (
     ActionFamilyPublicSummary,
     ControllerState,
+    DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
     LearnedLiteTemporalPolicy,
@@ -9,11 +10,14 @@ from volvence_zero.temporal.interface import (
     MetacontrollerRuntimeState,
     PlaceholderTemporalPolicy,
     TemporalAbstractionSnapshot,
+    TemporalAggregateModule,
     TemporalControllerParameters,
     TemporalImplementationMode,
     TemporalModule,
     TemporalPolicy,
     TemporalStep,
+    TrackTemporalModule,
+    build_temporal_runtime_state_aggregate,
 )
 from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
 from volvence_zero.temporal.metacontroller_components import (
@@ -50,6 +54,7 @@ from volvence_zero.temporal.training import fit_policy_from_trace_dataset
 
 __all__ = [
     "ControllerState",
+    "DualTrackRareHeavySnapshot",
     "FullLearnedTemporalPolicy",
     "HeuristicTemporalPolicy",
     "LearnedLiteTemporalPolicy",
@@ -73,12 +78,15 @@ __all__ = [
     "PosteriorEnrichment",
     "SSLTrainingReport",
     "TemporalAbstractionSnapshot",
+    "TemporalAggregateModule",
     "TemporalControllerParameters",
     "TemporalImplementationMode",
     "TemporalModule",
     "TemporalPolicy",
     "TemporalStep",
+    "TrackTemporalModule",
     "Vec",
+    "build_temporal_runtime_state_aggregate",
     "ffn_2layer",
     "fit_policy_from_trace_dataset",
     "gru_cell",

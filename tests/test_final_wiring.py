@@ -107,6 +107,33 @@ def test_final_wiring_can_apply_bounded_writeback_when_enabled():
     assert result.writeback_result.description
 
 
+def test_final_wiring_can_defer_slow_writeback_into_session_post_request():
+    policy = FullLearnedTemporalPolicy()
+    before = policy.export_parameters()
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(reflection=WiringLevel.ACTIVE, temporal=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="deferred-apply-model",
+                feature_surface=(FeatureSignal(name="deferred_context", values=(0.9,), source="adapter"),),
+            ),
+            memory_store=MemoryStore(),
+            reflection_mode=WritebackMode.APPLY,
+            temporal_policy=policy,
+            session_id="s-deferred",
+            wave_id="w-deferred",
+            apply_slow_writeback=False,
+        )
+    )
+    after = policy.export_parameters()
+
+    assert result.writeback_result is None
+    assert result.session_post_writeback_request is not None
+    assert result.session_post_writeback_request.context_session_id == "s-deferred"
+    assert after == before
+
+
 def test_final_wiring_applies_reflection_temporal_prior_update_to_owner_policy():
     policy = FullLearnedTemporalPolicy()
     before = policy.export_parameters()

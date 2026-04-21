@@ -32,17 +32,19 @@ from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
     DualTrackRollout,
     InternalRLSandbox,
+    OptimizationReport,
     PolicyOptimizationResult,
     derive_abstract_action_credit,
 )
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
-from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, build_default_memory_store
+from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, Track, build_default_memory_store
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
+    SubstrateRareHeavyCheckpoint,
     ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
     SubstrateSnapshot,
@@ -51,11 +53,15 @@ from volvence_zero.substrate import (
     TrainingTrace,
 )
 from volvence_zero.temporal import (
+    DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
+    MetacontrollerParameterStore,
     MetacontrollerSSLTrainer,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
-    TemporalModule,
+    TemporalAggregateModule,
+    TrackTemporalModule,
+    build_temporal_runtime_state_aggregate,
 )
 from volvence_zero.memory import MemoryModule
 from volvence_zero.substrate import SubstrateModule
@@ -122,8 +128,10 @@ class ScheduledJointLoopResult:
 @dataclass(frozen=True)
 class RareHeavyImportCheckpoint:
     artifact_id: str
-    policy_checkpoint: CausalPolicyCheckpoint
+    world_policy_checkpoint: CausalPolicyCheckpoint
+    self_policy_checkpoint: CausalPolicyCheckpoint
     memory_checkpoint: MemoryStoreCheckpoint
+    substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
 
 
 @dataclass(frozen=True)
@@ -143,14 +151,21 @@ class ETANLJointLoop:
         self,
         *,
         policy: FullLearnedTemporalPolicy | None = None,
+        world_policy: FullLearnedTemporalPolicy | None = None,
+        self_policy: FullLearnedTemporalPolicy | None = None,
         memory_store: MemoryStore | None = None,
         residual_runtime: OpenWeightResidualRuntime | None = None,
         evaluation_backbone: EvaluationBackbone | None = None,
     ) -> None:
-        self._policy = policy or FullLearnedTemporalPolicy()
-        self._sandbox = InternalRLSandbox(policy=self._policy, residual_runtime=residual_runtime)
+        self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
+        self._self_policy = self_policy or FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=self._world_policy.parameter_store.n_z)
+        )
+        self._world_sandbox = InternalRLSandbox(policy=self._world_policy, residual_runtime=residual_runtime)
+        self._self_sandbox = InternalRLSandbox(policy=self._self_policy, residual_runtime=residual_runtime)
+        self._residual_runtime = residual_runtime
         self._ssl_trainer = MetacontrollerSSLTrainer()
-        default_latent_dim = self._policy.parameter_store.n_z
+        default_latent_dim = self._world_policy.parameter_store.n_z
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._evaluation_backbone = evaluation_backbone or EvaluationBackbone()
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
@@ -265,7 +280,25 @@ class ETANLJointLoop:
 
     @property
     def temporal_policy(self) -> FullLearnedTemporalPolicy:
-        return self._policy
+        return self._world_policy
+
+    @property
+    def world_temporal_policy(self) -> FullLearnedTemporalPolicy:
+        return self._world_policy
+
+    @property
+    def self_temporal_policy(self) -> FullLearnedTemporalPolicy:
+        return self._self_policy
+
+    @property
+    def residual_runtime(self) -> OpenWeightResidualRuntime | None:
+        return self._residual_runtime
+
+    def _aggregate_metacontroller_state(self) -> MetacontrollerRuntimeState:
+        return build_temporal_runtime_state_aggregate(
+            world_state=self._world_policy.export_runtime_state(),
+            self_state=self._self_policy.export_runtime_state(),
+        )
 
     async def run_cycle(
         self,
@@ -277,30 +310,106 @@ class ETANLJointLoop:
         prior_session_reports: tuple[EvaluationReport, ...] = (),
         apply_writeback: bool = True,
     ) -> JointCycleReport:
-        cycle_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}")
-        self._policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
-        ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
-        if ssl_report.m3_slow_momentum_signal and self._memory_store is not None:
-            self._memory_store.observe_encoder_feedback(
-                encoder_signal=ssl_report.m3_slow_momentum_signal,
-                timestamp_ms=cycle_index + 1,
-            )
+        world_cycle_checkpoint = self._world_sandbox.create_checkpoint(
+            checkpoint_id=f"joint-cycle-{cycle_index}:world"
+        )
+        self_cycle_checkpoint = self._self_sandbox.create_checkpoint(
+            checkpoint_id=f"joint-cycle-{cycle_index}:self"
+        )
+        self._world_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+        world_ssl_report = self._ssl_trainer.optimize(policy=self._world_policy, trace=trace)
+        self._self_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+        self_ssl_report = self._ssl_trainer.optimize(policy=self._self_policy, trace=trace)
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
-        self._policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
-        self._sandbox.configure_runtime_backend(source_text=trace.source_text)
+        self._world_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
+        self._self_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
+        self._world_sandbox.configure_runtime_backend(source_text=trace.source_text)
+        self._self_sandbox.configure_runtime_backend(source_text=trace.source_text)
         eval_signals = dict(self._previous_family_signals)
         eval_signals.update(self._external_learning_signals)
         if self._previous_credit_snapshot is not None:
             credit_bonus = extract_abstract_action_credit_bonus(self._previous_credit_snapshot)
             eval_signals.update(credit_bonus)
         if eval_signals:
-            self._sandbox._env.set_evaluation_signals(eval_signals)
-        dual_track_rollout = self._sandbox.rollout_dual_track(
-            rollout_id=f"joint-{cycle_index}",
+            self._world_sandbox._env.set_evaluation_signals(eval_signals)
+            self._self_sandbox._env.set_evaluation_signals(eval_signals)
+        task_rollout = self._world_sandbox.rollout(
+            rollout_id=f"joint-{cycle_index}:task",
             substrate_steps=substrate_snapshots,
+            track=Track.WORLD,
+            replacement_mode="causal-binary",
         )
-        optimization_result = self._sandbox.optimize_with_audit(
-            dual_track_rollout, timestamp_ms=cycle_index,
+        relationship_rollout = self._self_sandbox.rollout(
+            rollout_id=f"joint-{cycle_index}:relationship",
+            substrate_steps=substrate_snapshots,
+            track=Track.SELF,
+            replacement_mode="causal-binary",
+        )
+        dual_track_rollout = DualTrackRollout(
+            task_rollout=task_rollout,
+            relationship_rollout=relationship_rollout,
+            description=(
+                f"Dual-track rollout task_reward={task_rollout.total_reward:.2f}, "
+                f"relationship_reward={relationship_rollout.total_reward:.2f}."
+            ),
+        )
+        world_before_hash = stable_value_hash(self._world_sandbox.causal_policy.export_parameters())
+        self_before_hash = stable_value_hash(self._self_sandbox.causal_policy.export_parameters())
+        task_report = self._world_sandbox.optimize(task_rollout)
+        relationship_report = self._self_sandbox.optimize(relationship_rollout)
+        if not isinstance(task_report, OptimizationReport):
+            raise TypeError("Expected OptimizationReport for world track optimization.")
+        if not isinstance(relationship_report, OptimizationReport):
+            raise TypeError("Expected OptimizationReport for self track optimization.")
+        world_after_hash = stable_value_hash(self._world_sandbox.causal_policy.export_parameters())
+        self_after_hash = stable_value_hash(self._self_sandbox.causal_policy.export_parameters())
+        modification_records: list[SelfModificationRecord] = []
+        if world_before_hash != world_after_hash:
+            modification_records.append(
+                SelfModificationRecord(
+                    target="causal_policy.world_track_weights",
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.ALLOW,
+                    old_value_hash=world_before_hash,
+                    new_value_hash=world_after_hash,
+                    justification=(
+                        f"World-track RL update task_obj={task_report.surrogate_objective:.3f} "
+                        f"kl={task_report.kl_penalty:.3f} epochs={task_report.epochs_executed}"
+                    ),
+                    timestamp_ms=cycle_index,
+                    is_reversible=True,
+                )
+            )
+        if self_before_hash != self_after_hash:
+            modification_records.append(
+                SelfModificationRecord(
+                    target="causal_policy.self_track_weights",
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.ALLOW,
+                    old_value_hash=self_before_hash,
+                    new_value_hash=self_after_hash,
+                    justification=(
+                        f"Self-track RL update rel_obj={relationship_report.surrogate_objective:.3f} "
+                        f"kl={relationship_report.kl_penalty:.3f} epochs={relationship_report.epochs_executed}"
+                    ),
+                    timestamp_ms=cycle_index,
+                    is_reversible=True,
+                )
+            )
+        optimization_report = DualTrackOptimizationReport(
+            task_report=task_report,
+            relationship_report=relationship_report,
+            description=(
+                f"task_adv={task_report.mean_advantage:.3f}, "
+                f"rel_adv={relationship_report.mean_advantage:.3f}"
+            ),
+        )
+        optimization_result = PolicyOptimizationResult(
+            optimization_report=optimization_report,
+            modification_records=tuple(modification_records),
+            policy_update_applied=bool(modification_records),
+            total_kl_divergence=task_report.kl_penalty + relationship_report.kl_penalty,
+            total_epochs_executed=task_report.epochs_executed + relationship_report.epochs_executed,
         )
         optimization_report = optimization_result.optimization_report
         session_id = session_id or f"joint-session-{cycle_index}"
@@ -310,7 +419,24 @@ class ETANLJointLoop:
                 adapter=SimulatedResidualSubstrateAdapter(trace=trace),
                 wiring_level=WiringLevel.ACTIVE,
             ),
-            MemoryModule(store=self._memory_store, wiring_level=WiringLevel.ACTIVE),
+            MemoryModule(
+                store=self._memory_store,
+                wiring_level=WiringLevel.ACTIVE,
+                memory_feedback_signal=tuple(
+                    (
+                        (world_ssl_report.m3_slow_momentum_signal[index] if index < len(world_ssl_report.m3_slow_momentum_signal) else 0.0)
+                        + (self_ssl_report.m3_slow_momentum_signal[index] if index < len(self_ssl_report.m3_slow_momentum_signal) else 0.0)
+                    )
+                    / 2.0
+                    for index in range(
+                        max(
+                            len(world_ssl_report.m3_slow_momentum_signal),
+                            len(self_ssl_report.m3_slow_momentum_signal),
+                            0,
+                        )
+                    )
+                ),
+            ),
             DualTrackModule(wiring_level=WiringLevel.ACTIVE),
             EvaluationModule(
                 backbone=self._evaluation_backbone,
@@ -324,9 +450,28 @@ class ETANLJointLoop:
                 engine=ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY),
                 wiring_level=WiringLevel.ACTIVE,
             ),
-            TemporalModule(policy=self._policy, wiring_level=WiringLevel.ACTIVE),
+            TrackTemporalModule(
+                track=Track.WORLD,
+                policy=self._world_policy,
+                wiring_level=WiringLevel.ACTIVE,
+            ),
+            TrackTemporalModule(
+                track=Track.SELF,
+                policy=self._self_policy,
+                wiring_level=WiringLevel.ACTIVE,
+            ),
+            TemporalAggregateModule(wiring_level=WiringLevel.ACTIVE),
         ]
-        temporal_module = modules[-1]
+        world_temporal_module = next(
+            module
+            for module in modules
+            if isinstance(module, TrackTemporalModule) and module.track is Track.WORLD
+        )
+        self_temporal_module = next(
+            module
+            for module in modules
+            if isinstance(module, TrackTemporalModule) and module.track is Track.SELF
+        )
         recorder = EventRecorder()
         active_snapshots = await propagate(
             modules,
@@ -380,7 +525,7 @@ class ETANLJointLoop:
             temporal_snapshot=temporal_value,
         )
         self._modulate_ssl_learning_rate(evaluation_snapshot)
-        pre_rollback_metacontroller_state = temporal_module.export_runtime_state()
+        pre_rollback_metacontroller_state = self._aggregate_metacontroller_state()
         rollback_reasons = self._rollback_reasons(
             total_reward=total_reward,
             evaluation_snapshot=evaluation_snapshot,
@@ -391,10 +536,11 @@ class ETANLJointLoop:
         policy_rollback_applied = False
         ssl_rollback_applied = False
         if rollback_required:
-            self._sandbox.restore_checkpoint(cycle_checkpoint)
+            self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
+            self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
             policy_rollback_applied = True
             ssl_rollback_applied = True
-        metacontroller_state = self._policy.export_runtime_state()
+        metacontroller_state = self._aggregate_metacontroller_state()
         policy_objective = (
             optimization_report.task_report.surrogate_objective
             + optimization_report.relationship_report.surrogate_objective
@@ -456,7 +602,8 @@ class ETANLJointLoop:
             cross_session_report=cross_session_report,
         )
         if not rollback_required and evolution_judgement.decision is EvolutionDecision.ROLLBACK:
-            self._sandbox.restore_checkpoint(cycle_checkpoint)
+            self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
+            self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
             policy_rollback_applied = True
             ssl_rollback_applied = True
             rollback_reasons = rollback_reasons + ("evolution-judge-rollback",)
@@ -476,16 +623,28 @@ class ETANLJointLoop:
             regime_snapshot=active_snapshots["regime"].value,
         )
         temporal_writeback_operations, temporal_writeback_audits = self._apply_temporal_reflection_writeback(
-            temporal_module=temporal_module,
+            temporal_module=world_temporal_module,
             reflection_snapshot=reflection_snapshot,
             credit_snapshot=enriched_credit_snapshot,
             timestamp_ms=active_snapshots["credit"].timestamp_ms + 175,
+            apply_enabled=apply_writeback and judge_allows_structural,
+        )
+        self_track_temporal_writeback_operations, self_track_temporal_writeback_audits = self._apply_temporal_reflection_writeback(
+            temporal_module=self_temporal_module,
+            reflection_snapshot=reflection_snapshot,
+            credit_snapshot=enriched_credit_snapshot,
+            timestamp_ms=active_snapshots["credit"].timestamp_ms + 176,
             apply_enabled=apply_writeback and judge_allows_structural,
         )
         if temporal_writeback_audits:
             enriched_credit_snapshot = extend_credit_snapshot(
                 credit_snapshot=enriched_credit_snapshot,
                 extra_modifications=temporal_writeback_audits,
+            )
+        if self_track_temporal_writeback_audits:
+            enriched_credit_snapshot = extend_credit_snapshot(
+                credit_snapshot=enriched_credit_snapshot,
+                extra_modifications=self_track_temporal_writeback_audits,
             )
         applied_operations: tuple[str, ...] = regime_operations
         if apply_writeback:
@@ -496,7 +655,11 @@ class ETANLJointLoop:
                 regime_module=self._regime_module,
                 checkpoint_id=f"{session_id}:{wave_id}",
             ).applied_operations
-        applied_operations = applied_operations + temporal_writeback_operations
+        applied_operations = (
+            applied_operations
+            + temporal_writeback_operations
+            + self_track_temporal_writeback_operations
+        )
         if ssl_rollback_applied:
             applied_operations = applied_operations + ("ssl-rollback",)
         if policy_rollback_applied:
@@ -509,9 +672,9 @@ class ETANLJointLoop:
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
-            ssl_prediction_loss=ssl_report.prediction_loss,
-            ssl_kl_loss=ssl_report.kl_loss,
-            ssl_posterior_drift=ssl_report.posterior_drift,
+            ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss) / 2.0,
+            ssl_kl_loss=(world_ssl_report.kl_loss + self_ssl_report.kl_loss) / 2.0,
+            ssl_posterior_drift=(world_ssl_report.posterior_drift + self_ssl_report.posterior_drift) / 2.0,
             total_reward=total_reward,
             mean_transition_reward=mean_transition_reward,
             task_reward=dual_track_rollout.task_rollout.total_reward,
@@ -540,8 +703,9 @@ class ETANLJointLoop:
                 ("rl_due", 1),
             ),
             description=(
-                f"Joint ETA/NL cycle {cycle_index} owner={self.owner_path} ran ssl(pred={ssl_report.prediction_loss:.2f}, "
-                f"kl={ssl_report.kl_loss:.2f}, drift={ssl_report.posterior_drift:.2f}) and dual-track rollout "
+                f"Joint ETA/NL cycle {cycle_index} owner={self.owner_path} ran ssl("
+                f"world_pred={world_ssl_report.prediction_loss:.2f}, self_pred={self_ssl_report.prediction_loss:.2f}, "
+                f"world_kl={world_ssl_report.kl_loss:.2f}, self_kl={self_ssl_report.kl_loss:.2f}) and dual-track rollout "
                 f"task={dual_track_rollout.task_rollout.total_reward:.2f}, "
                 f"relationship={dual_track_rollout.relationship_rollout.total_reward:.2f}, "
                 f"mean_reward={mean_transition_reward:.2f}, "
@@ -568,6 +732,8 @@ class ETANLJointLoop:
         schedule: JointLoopSchedule | None = None,
         apply_writeback: bool = True,
     ) -> ScheduledJointLoopResult:
+        self._world_policy.parameter_store.set_learning_phase("runtime")
+        self._self_policy.parameter_store.set_learning_phase("runtime")
         active_schedule = schedule or JointLoopSchedule()
         pe_full_cycle_due = self._pe_full_cycle_due(schedule=active_schedule)
         pe_ssl_due = self._pe_ssl_due(schedule=active_schedule)
@@ -605,26 +771,32 @@ class ETANLJointLoop:
                 rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
             )
         if pe_ssl_due or (active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0):
-            ssl_report = self._ssl_trainer.optimize(policy=self._policy, trace=trace)
-            metacontroller_state = self._policy.export_runtime_state()
+            self._world_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+            self._self_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+            world_ssl_report = self._ssl_trainer.optimize(policy=self._world_policy, trace=trace)
+            self_ssl_report = self._ssl_trainer.optimize(policy=self._self_policy, trace=trace)
+            metacontroller_state = self._aggregate_metacontroller_state()
+            self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+            self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
                 schedule_action="ssl-only-pe" if pe_ssl_due and not pe_full_cycle_due else "ssl-only",
                 cycle_report=None,
                 kernel_scores=(),
-                ssl_prediction_loss=ssl_report.prediction_loss,
-                ssl_kl_loss=ssl_report.kl_loss,
+                ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss) / 2.0,
+                ssl_kl_loss=(world_ssl_report.kl_loss + self_ssl_report.kl_loss) / 2.0,
                 metacontroller_state=metacontroller_state,
                 cms_description=cms_description,
                 owner_path=self.owner_path,
                 schedule_telemetry=schedule_telemetry,
                 description=(
                     f"Scheduled joint loop owner={self.owner_path} ran ssl-only at turn {turn_index} with "
-                    f"pred={ssl_report.prediction_loss:.2f}, kl={ssl_report.kl_loss:.2f}."
+                    f"world_pred={world_ssl_report.prediction_loss:.2f}, self_pred={self_ssl_report.prediction_loss:.2f}, "
+                    f"world_kl={world_ssl_report.kl_loss:.2f}, self_kl={self_ssl_report.kl_loss:.2f}."
                 ),
                 rare_heavy_review_recommended=rare_heavy_review_recommended,
             )
-        metacontroller_state = self._policy.export_runtime_state()
+        metacontroller_state = self._aggregate_metacontroller_state()
         return ScheduledJointLoopResult(
             turn_index=turn_index,
             schedule_action="evidence-only",
@@ -690,17 +862,43 @@ class ETANLJointLoop:
         checkpoint_id: str | None = None,
     ) -> RareHeavyImportResult:
         checkpoint_label = checkpoint_id or f"rare-heavy:{artifact.artifact_id}"
-        policy_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"{checkpoint_label}:policy")
+        world_policy_checkpoint = self._world_sandbox.create_checkpoint(
+            checkpoint_id=f"{checkpoint_label}:world-policy"
+        )
+        self_policy_checkpoint = self._self_sandbox.create_checkpoint(
+            checkpoint_id=f"{checkpoint_label}:self-policy"
+        )
         memory_checkpoint = self._memory_store.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:memory")
-        applied_operations = self._policy.apply_rare_heavy_snapshot(artifact.temporal_snapshot)
+        substrate_checkpoint = (
+            self._residual_runtime.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:substrate")
+            if self._residual_runtime is not None and artifact.substrate_checkpoint is not None
+            else None
+        )
+        if isinstance(artifact.temporal_snapshot, DualTrackRareHeavySnapshot):
+            applied_operations = self._world_policy.apply_rare_heavy_snapshot(
+                artifact.temporal_snapshot.world_snapshot
+            ) + self._self_policy.apply_rare_heavy_snapshot(
+                artifact.temporal_snapshot.self_snapshot
+            )
+        else:
+            applied_operations = self._world_policy.apply_rare_heavy_snapshot(artifact.temporal_snapshot)
+            applied_operations = applied_operations + self._self_policy.apply_rare_heavy_snapshot(
+                artifact.temporal_snapshot
+            )
         if artifact.memory_checkpoint is not None:
             applied_operations = applied_operations + self._memory_store.import_rare_heavy_state(
                 artifact.memory_checkpoint
             )
+        if artifact.substrate_checkpoint is not None and self._residual_runtime is not None:
+            applied_operations = applied_operations + self._residual_runtime.import_rare_heavy_state(
+                artifact.substrate_checkpoint
+            )
         checkpoint = RareHeavyImportCheckpoint(
             artifact_id=artifact.artifact_id,
-            policy_checkpoint=policy_checkpoint,
+            world_policy_checkpoint=world_policy_checkpoint,
+            self_policy_checkpoint=self_policy_checkpoint,
             memory_checkpoint=memory_checkpoint,
+            substrate_checkpoint=substrate_checkpoint,
         )
         return RareHeavyImportResult(
             artifact_id=artifact.artifact_id,
@@ -713,9 +911,17 @@ class ETANLJointLoop:
         )
 
     def rollback_rare_heavy_import(self, checkpoint: RareHeavyImportCheckpoint) -> tuple[str, ...]:
-        self._sandbox.restore_checkpoint(checkpoint.policy_checkpoint)
+        self._world_sandbox.restore_checkpoint(checkpoint.world_policy_checkpoint)
+        self._self_sandbox.restore_checkpoint(checkpoint.self_policy_checkpoint)
         self._memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
-        return ("rare-heavy:temporal-rollback", "rare-heavy:memory-rollback")
+        operations = [
+            "rare-heavy:world-temporal-rollback",
+            "rare-heavy:self-temporal-rollback",
+            "rare-heavy:memory-rollback",
+        ]
+        if checkpoint.substrate_checkpoint is not None and self._residual_runtime is not None:
+            operations.extend(self._residual_runtime.restore_rare_heavy_state(checkpoint.substrate_checkpoint))
+        return tuple(operations)
 
     def _enrich_credit_snapshot(
         self,
@@ -798,7 +1004,9 @@ class ETANLJointLoop:
         )
         base_lr = 0.08
         modulated_lr = base_lr * (0.5 + quality_signal)
-        self._policy.parameter_store.learning_rate = max(0.01, min(0.15, modulated_lr))
+        adjusted_lr = max(0.01, min(0.15, modulated_lr))
+        self._world_policy.parameter_store.learning_rate = adjusted_lr
+        self._self_policy.parameter_store.learning_rate = adjusted_lr
 
     def _metacontroller_drift_exceeds_limit(
         self,
