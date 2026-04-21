@@ -10,8 +10,10 @@ from volvence_zero.agent import (
     DEFAULT_DIALOGUE_PROOF_CASES,
     DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
     DialogueArtifactAcceptanceGateConfig,
+    DialogueRealComprehensiveBenchmarkConfig,
     build_replay_selection_training_traces,
     build_dialogue_replay_selection_artifact,
+    build_real_dialogue_comprehensive_runner_factories,
     build_standard_dialogue_runner,
     default_rare_heavy_candidate_configs,
     default_dialogue_ablation_profiles,
@@ -30,11 +32,12 @@ from volvence_zero.agent import (
     run_dialogue_pe_eta_comprehensive_benchmark,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
+    run_real_dialogue_pe_eta_comprehensive_benchmark,
     run_multi_artifact_acceptance_benchmark,
     train_rare_heavy_artifact_from_replay_selection,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
-from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
+from volvence_zero.substrate import LocalSubstrateRuntimeMode, SyntheticOpenWeightResidualRuntime
 
 
 def _synthetic_runner(case: ScriptedDialogueCase) -> AgentSessionRunner:
@@ -462,6 +465,46 @@ def test_run_dialogue_pe_eta_comprehensive_benchmark_runs_end_to_end():
     assert len(report.selection_artifact.selected_variants) == 1
     assert len(report.artifact_comparison_report.candidate_reports) == 1
     assert report.description
+
+
+def test_build_real_dialogue_comprehensive_runner_factories_share_runtime():
+    factories = build_real_dialogue_comprehensive_runner_factories(
+        runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+    )
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    variant = DEFAULT_DIALOGUE_CASE_VARIANTS[0]
+    runner = factories.canonical_runner_factory("pe-eta", case)
+    acceptance_runner = factories.acceptance_runner_factory(variant)
+
+    assert runner._default_residual_runtime is factories.residual_runtime
+    assert acceptance_runner._default_residual_runtime is factories.residual_runtime
+    assert factories.description
+
+
+def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin_runtime():
+    progress_messages: list[str] = []
+    report = asyncio.run(
+        run_real_dialogue_pe_eta_comprehensive_benchmark(
+            config=DialogueRealComprehensiveBenchmarkConfig(
+                runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+                profile_labels=("pe-eta", "eta-no-pe"),
+                canonical_case_limit=1,
+                perturbation_variant_limit=1,
+                replay_family_limit=1,
+                replay_seeds=(0,),
+                selection_top_k=1,
+                candidate_config_limit=1,
+            ),
+            progress_callback=progress_messages.append,
+        )
+    )
+
+    assert report.canonical_ablation_report.baseline_label == "pe-eta"
+    assert len(report.selection_artifact.selected_variants) == 1
+    assert len(report.artifact_comparison_report.candidate_reports) == 1
+    assert "shared runtime" in report.description
+    assert progress_messages[0].startswith("Building shared real residual runtime")
+    assert progress_messages[-1] == "Real comprehensive benchmark finished."
 
 
 def test_default_dialogue_replay_seeds_are_exposed():

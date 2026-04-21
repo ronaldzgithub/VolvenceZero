@@ -6,6 +6,7 @@ from volvence_zero.memory.persistence import (
     serialize_checkpoint,
 )
 from volvence_zero.memory.store import (
+    build_default_memory_store,
     MemoryEntry,
     MemoryModule,
     MemoryStoreCheckpoint,
@@ -31,6 +32,7 @@ __all__ = [
     "PersistenceBackend",
     "deserialize_checkpoint",
     "serialize_checkpoint",
+    "build_default_memory_store",
     "MemoryEntry",
     "MemoryModule",
     "MemoryStoreCheckpoint",

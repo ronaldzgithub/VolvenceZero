@@ -17,7 +17,9 @@ from volvence_zero.credit import (
 )
 from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import (
+    CrossSessionBenchmarkSuite,
     EvaluationBackbone,
+    EvaluationReport,
     EvolutionDecision,
     EvolutionJudgement,
     JudgementCategory,
@@ -34,7 +36,7 @@ from volvence_zero.internal_rl import (
     derive_abstract_action_credit,
 )
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
-from volvence_zero.memory import CMSMemoryCore, MemoryStore, MemoryStoreCheckpoint
+from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, build_default_memory_store
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
@@ -143,12 +145,14 @@ class ETANLJointLoop:
         policy: FullLearnedTemporalPolicy | None = None,
         memory_store: MemoryStore | None = None,
         residual_runtime: OpenWeightResidualRuntime | None = None,
+        evaluation_backbone: EvaluationBackbone | None = None,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
         self._sandbox = InternalRLSandbox(policy=self._policy, residual_runtime=residual_runtime)
         self._ssl_trainer = MetacontrollerSSLTrainer()
-        self._memory_store = memory_store or MemoryStore(learned_core=CMSMemoryCore())
-        self._evaluation_backbone = EvaluationBackbone()
+        default_latent_dim = self._policy.parameter_store.n_z
+        self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
+        self._evaluation_backbone = evaluation_backbone or EvaluationBackbone()
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
         self._previous_total_reward: float | None = None
         self._previous_metacontroller_state: MetacontrollerRuntimeState | None = None
@@ -268,6 +272,9 @@ class ETANLJointLoop:
         *,
         cycle_index: int,
         trace: TrainingTrace,
+        session_id: str | None = None,
+        wave_id: str | None = None,
+        prior_session_reports: tuple[EvaluationReport, ...] = (),
         apply_writeback: bool = True,
     ) -> JointCycleReport:
         cycle_checkpoint = self._sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}")
@@ -296,8 +303,8 @@ class ETANLJointLoop:
             dual_track_rollout, timestamp_ms=cycle_index,
         )
         optimization_report = optimization_result.optimization_report
-        session_id = f"joint-session-{cycle_index}"
-        wave_id = f"joint-wave-{cycle_index}"
+        session_id = session_id or f"joint-session-{cycle_index}"
+        wave_id = wave_id or f"joint-wave-{cycle_index}"
         modules = [
             SubstrateModule(
                 adapter=SimulatedResidualSubstrateAdapter(trace=trace),
@@ -433,12 +440,20 @@ class ETANLJointLoop:
             session_id=session_id,
             timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
         )
+        cross_session_report = None
+        if prior_session_reports:
+            cross_session_report = self._evaluation_backbone.run_cross_session_benchmark(
+                suite=CrossSessionBenchmarkSuite(
+                    session_reports=prior_session_reports + (session_report,),
+                )
+            )
         replay_result = self._evaluation_backbone.run_default_evolution_benchmark(
             timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
         )
         evolution_judgement = self._evaluation_backbone.judge_evolution_candidate(
             replay_suite_result=replay_result,
             session_report=session_report,
+            cross_session_report=cross_session_report,
         )
         if not rollback_required and evolution_judgement.decision is EvolutionDecision.ROLLBACK:
             self._sandbox.restore_checkpoint(cycle_checkpoint)
@@ -547,6 +562,9 @@ class ETANLJointLoop:
         *,
         turn_index: int,
         trace: TrainingTrace,
+        session_id: str | None = None,
+        wave_id: str | None = None,
+        prior_session_reports: tuple[EvaluationReport, ...] = (),
         schedule: JointLoopSchedule | None = None,
         apply_writeback: bool = True,
     ) -> ScheduledJointLoopResult:
@@ -567,6 +585,9 @@ class ETANLJointLoop:
             cycle_report = await self.run_cycle(
                 cycle_index=turn_index,
                 trace=trace,
+                session_id=session_id,
+                wave_id=wave_id,
+                prior_session_reports=prior_session_reports,
                 apply_writeback=apply_writeback,
             )
             return ScheduledJointLoopResult(

@@ -766,6 +766,8 @@ class EvaluationBackbone:
             session_scores=self._session_scores_for(session_id=session_id),
             alerts=alerts,
             description=f"{base_snapshot.description} {description_suffix}",
+            reflection_accuracy=base_snapshot.reflection_accuracy,
+            longitudinal_verdict=base_snapshot.longitudinal_verdict,
         )
 
     def record_temporal_public_evidence(
@@ -1426,6 +1428,7 @@ class EvaluationBackbone:
 
         scores: list[EvaluationScore] = []
         if memory_snapshot is not None:
+            lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
             retrieval_quality = _clamp(
                 len(memory_snapshot.retrieved_entries) / 5.0 + (0.1 if memory_snapshot.cms_state is not None else 0.0)
             )
@@ -1441,6 +1444,47 @@ class EvaluationBackbone:
                     ),
                 )
             )
+            nested_profile_active = lifecycle_metrics.get("nested_profile_active", 0.0)
+            if nested_profile_active > 0.0:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="nested_profile_active",
+                            value=_clamp(nested_profile_active),
+                            confidence=0.72,
+                            evidence=(
+                                f"Derived from nested_context_reset_count="
+                                f"{lifecycle_metrics.get('nested_context_reset_count', 0.0):.0f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="slow_to_fast_init_benefit",
+                            value=_clamp(
+                                lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0)
+                                + lifecycle_metrics.get("last_nested_reset_online_seed_strength", 0.0) * 0.35
+                            ),
+                            confidence=0.65,
+                            evidence=(
+                                f"Derived from transfer_strength="
+                                f"{lifecycle_metrics.get('slow_to_fast_init_benefit', 0.0):.3f}, "
+                                f"online_seed_strength="
+                                f"{lifecycle_metrics.get('last_nested_reset_online_seed_strength', 0.0):.3f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="nested_context_reuse",
+                            value=_clamp(lifecycle_metrics.get("nested_context_reset_count", 0.0) / 3.0),
+                            confidence=0.61,
+                            evidence=(
+                                f"Derived from nested_context_reset_count="
+                                f"{lifecycle_metrics.get('nested_context_reset_count', 0.0):.0f}."
+                            ),
+                        ),
+                    )
+                )
         if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
             confidence = reflection_snapshot.consolidation_score.confidence
             applied_count = len(writeback_result.applied_operations) if isinstance(writeback_result, WritebackResult) else 0
@@ -1677,6 +1721,8 @@ class EvaluationBackbone:
                         "joint_learning_progress",
                         "reflection_usefulness",
                         "retrieval_quality",
+                        "slow_to_fast_init_benefit",
+                        "nested_context_reuse",
                         "rollback_resilience",
                         "delayed_credit_horizon",
                         "regime_sequence_alignment",

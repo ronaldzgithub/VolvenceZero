@@ -286,6 +286,26 @@ class CMSMemoryCore:
     def mode(self) -> str:
         return self._mode
 
+    @property
+    def variant(self) -> str:
+        return self._variant.value
+
+    def clone_empty(self) -> "CMSMemoryCore":
+        return CMSMemoryCore(
+            dim=self._dim,
+            mode=self._mode,
+            d_in=self._dim,
+            d_hidden=self._d_hidden,
+            variant=self._variant.value,
+            session_cadence=self._session_cadence,
+            background_cadence=self._background_cadence,
+            online_lr=self._online_lr,
+            session_lr=self._session_lr,
+            background_lr=self._background_lr,
+            momentum_beta=self._momentum_beta,
+            anti_forgetting=self._anti_forgetting,
+        )
+
     # ------------------------------------------------------------------
     # observe_substrate
     # ------------------------------------------------------------------

@@ -79,6 +79,7 @@ class MemorySnapshot:
     pending_decays: int
     cms_state: CMSState | None
     description: str
+    lifecycle_metrics: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -206,6 +207,19 @@ def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
     return preview
 
 
+def build_default_memory_store(*, latent_dim: int = 8, nested_profile: bool = True) -> "MemoryStore":
+    variant = "nested" if nested_profile else "sequential"
+    learned_core = CMSMemoryCore(
+        mode="mlp",
+        d_in=max(latent_dim, 4),
+        d_hidden=max(latent_dim * 2, 8),
+        variant=variant,
+        session_cadence=2,
+        background_cadence=4,
+    )
+    return MemoryStore(learned_core=learned_core)
+
+
 class MemoryStore:
     """Owner-controlled memory store with per-stratum indexes."""
 
@@ -230,6 +244,13 @@ class MemoryStore:
         self._semantic_index: dict[str, tuple[float, ...]] = {}
         self._persistence_backend = persistence_backend
         self._persistence_version = 0
+        self._context_reset_count = 0
+        self._last_context_reset_ms = 0
+        self._last_context_reset_reason = ""
+        self._last_context_reset_applied = False
+        self._last_context_reset_online_seed_strength = 0.0
+        self._last_context_reset_session_seed_strength = 0.0
+        self._last_context_reset_transfer_strength = 0.0
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -238,6 +259,35 @@ class MemoryStore:
     @property
     def promotion_threshold(self) -> float:
         return self._promotion_threshold
+
+    def reset_nested_context(self, *, reason: str, timestamp_ms: int) -> tuple[str, ...]:
+        self._last_context_reset_ms = timestamp_ms
+        self._last_context_reset_reason = reason
+        if self._learned_core is None or self._learned_core.mode != "mlp" or self._learned_core.variant != "nested":
+            self._last_context_reset_applied = False
+            self._last_context_reset_online_seed_strength = 0.0
+            self._last_context_reset_session_seed_strength = 0.0
+            self._last_context_reset_transfer_strength = 0.0
+            return ()
+        before_state = self._learned_core.snapshot()
+        before_online = before_state.online_fast.vector
+        self._learned_core.reset_context()
+        after_state = self._learned_core.snapshot()
+        after_online = after_state.online_fast.vector
+        after_session = after_state.session_medium.vector
+        self._context_reset_count += 1
+        self._last_context_reset_applied = True
+        self._last_context_reset_online_seed_strength = sum(abs(value) for value in after_online) / max(
+            len(after_online), 1
+        )
+        self._last_context_reset_session_seed_strength = sum(abs(value) for value in after_session) / max(
+            len(after_session), 1
+        )
+        self._last_context_reset_transfer_strength = sum(
+            abs(after_value - before_value)
+            for after_value, before_value in zip(after_online, before_online, strict=True)
+        ) / max(len(after_online), 1)
+        return ("nested-context-reset",)
 
     def write(self, request: MemoryWriteRequest, *, timestamp_ms: int) -> MemoryEntry:
         entry = MemoryEntry(
@@ -301,6 +351,11 @@ class MemoryStore:
         )
         if self._learned_core is not None:
             description += f" {self._learned_core.snapshot().description}"
+        if self._last_context_reset_reason:
+            description += (
+                f" last_reset_reason={self._last_context_reset_reason} "
+                f"applied={self._last_context_reset_applied} count={self._context_reset_count}."
+            )
         return MemorySnapshot(
             transient_summary=summarize_entries(
                 transient_entries, fallback="No transient working-state memories."
@@ -316,6 +371,18 @@ class MemoryStore:
             pending_promotions=len(self._pending_promotions),
             pending_decays=len(self._pending_decays),
             cms_state=self._learned_core.snapshot() if self._learned_core is not None else None,
+            lifecycle_metrics=(
+                ("nested_profile_active", float(
+                    self._learned_core is not None
+                    and self._learned_core.mode == "mlp"
+                    and self._learned_core.variant == "nested"
+                )),
+                ("nested_context_reset_count", float(self._context_reset_count)),
+                ("last_nested_reset_applied", float(self._last_context_reset_applied)),
+                ("last_nested_reset_online_seed_strength", self._last_context_reset_online_seed_strength),
+                ("last_nested_reset_session_seed_strength", self._last_context_reset_session_seed_strength),
+                ("slow_to_fast_init_benefit", self._last_context_reset_transfer_strength),
+            ),
             description=description,
         )
 

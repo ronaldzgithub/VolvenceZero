@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from random import Random
+from typing import Any
 
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.evaluation import EvaluationSnapshot
@@ -18,7 +19,14 @@ from volvence_zero.joint_loop import (
 )
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
-from volvence_zero.substrate import OpenWeightResidualRuntime, TrainingTrace, build_training_trace
+from volvence_zero.substrate import (
+    build_transformers_runtime_with_fallback,
+    LocalSubstrateRuntimeMode,
+    OpenWeightResidualRuntime,
+    SubstrateFallbackMode,
+    TrainingTrace,
+    build_training_trace,
+)
 from volvence_zero.temporal import TemporalAbstractionSnapshot
 from volvence_zero.temporal import FullLearnedTemporalPolicy, HeuristicTemporalPolicy
 
@@ -235,6 +243,45 @@ class DialogueComprehensiveBenchmarkReport:
     selection_artifact: DialogueReplaySelectionArtifact
     artifact_comparison_report: DialogueArtifactComparisonReport
     description: str
+
+
+@dataclass(frozen=True)
+class DialogueSharedRunnerFactories:
+    residual_runtime: OpenWeightResidualRuntime
+    canonical_runner_factory: Callable[[str, ScriptedDialogueCase], AgentSessionRunner]
+    perturbation_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner]
+    systematic_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner]
+    acceptance_runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueRealComprehensiveBenchmarkConfig:
+    model_id: str = "distilgpt2"
+    model_source: str | None = None
+    device: str = "auto"
+    local_files_only: bool = False
+    fallback_to_builtin: bool | None = None
+    fallback_mode: SubstrateFallbackMode | str | None = None
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.PREFER_LOCAL
+    profile_labels: tuple[str, ...] = (
+        "pe-eta",
+        "pe-eta-online-only",
+        "pe-eta-no-writeback",
+        "pe-eta-no-rare-heavy",
+        "eta-no-pe",
+        "heuristic-baseline",
+    )
+    baseline_label: str = "pe-eta"
+    canonical_case_limit: int | None = None
+    perturbation_variant_limit: int | None = None
+    replay_family_limit: int | None = None
+    replay_seeds: tuple[int, ...] = (0,)
+    include_fixed_variants_in_replay: bool = False
+    selection_top_k: int = 4
+    candidate_configs: tuple[tuple[str, PipelineConfig], ...] | None = None
+    candidate_config_limit: int | None = None
+    acceptance_profile_label: str = "pe-eta"
 
 
 PROOF_HIGH_PE_THRESHOLD = 0.18
@@ -1191,6 +1238,12 @@ def _mean_summary_metrics(
     )
 
 
+def _limit_items(items: tuple[Any, ...], limit: int | None) -> tuple[Any, ...]:
+    if limit is None or limit <= 0 or limit >= len(items):
+        return items
+    return items[:limit]
+
+
 def _shift_pressure_turns(
     pressure_turns: tuple[int, ...],
     *,
@@ -1546,6 +1599,69 @@ def build_standard_dialogue_runner(
             rare_heavy_enabled=False,
         )
     raise ValueError(f"Unsupported dialogue ablation profile: {profile_label}")
+
+
+def build_real_dialogue_comprehensive_runner_factories(
+    *,
+    model_id: str = "distilgpt2",
+    model_source: str | None = None,
+    device: str = "auto",
+    local_files_only: bool = False,
+    fallback_to_builtin: bool | None = None,
+    fallback_mode: SubstrateFallbackMode | str | None = None,
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.PREFER_LOCAL,
+    acceptance_profile_label: str = "pe-eta",
+) -> DialogueSharedRunnerFactories:
+    residual_runtime = build_transformers_runtime_with_fallback(
+        model_id=model_id,
+        model_source=model_source,
+        device=device,
+        local_files_only=local_files_only,
+        fallback_to_builtin=fallback_to_builtin,
+        fallback_mode=fallback_mode,
+        runtime_mode=runtime_mode,
+        builtin_model_id="dialogue-comprehensive-builtin",
+    )
+
+    def canonical_runner_factory(profile_label: str, case: ScriptedDialogueCase) -> AgentSessionRunner:
+        return build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=case,
+            residual_runtime=residual_runtime,
+        )
+
+    def perturbation_runner_factory(profile_label: str, variant: DialogueCaseVariant) -> AgentSessionRunner:
+        return build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+            residual_runtime=residual_runtime,
+        )
+
+    def systematic_runner_factory(profile_label: str, variant: DialogueCaseVariant) -> AgentSessionRunner:
+        return build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=variant.case,
+            residual_runtime=residual_runtime,
+        )
+
+    def acceptance_runner_factory(variant: DialogueCaseVariant) -> AgentSessionRunner:
+        return build_standard_dialogue_runner(
+            profile_label=acceptance_profile_label,
+            case=variant.case,
+            residual_runtime=residual_runtime,
+        )
+
+    return DialogueSharedRunnerFactories(
+        residual_runtime=residual_runtime,
+        canonical_runner_factory=canonical_runner_factory,
+        perturbation_runner_factory=perturbation_runner_factory,
+        systematic_runner_factory=systematic_runner_factory,
+        acceptance_runner_factory=acceptance_runner_factory,
+        description=(
+            f"Shared real dialogue runner factories created for model={residual_runtime.model_id} "
+            f"origin={getattr(residual_runtime, 'runtime_origin', 'unknown')}."
+        ),
+    )
 
 
 async def run_dialogue_pe_eta_ablation_benchmark(
@@ -1933,5 +2049,96 @@ async def run_dialogue_pe_eta_comprehensive_benchmark(
             f"Comprehensive dialogue benchmark ran canonical={len(canonical_cases)}, perturbation={len(variant_cases)}, "
             f"replay_generated={len(systematic_replay_report.variant_cases)}, profiles={len(profile_labels)}, "
             f"selection_top_k={len(selection_artifact.selected_variants)}, candidates={len(candidate_configs)}."
+        ),
+    )
+
+
+async def run_real_dialogue_pe_eta_comprehensive_benchmark(
+    *,
+    config: DialogueRealComprehensiveBenchmarkConfig | None = None,
+    progress_callback: Callable[[str], None] | None = None,
+) -> DialogueComprehensiveBenchmarkReport:
+    active_config = config or DialogueRealComprehensiveBenchmarkConfig()
+    emit_progress = progress_callback or (lambda message: None)
+    emit_progress("Building shared real residual runtime for comprehensive benchmark.")
+    shared_factories = build_real_dialogue_comprehensive_runner_factories(
+        model_id=active_config.model_id,
+        model_source=active_config.model_source,
+        device=active_config.device,
+        local_files_only=active_config.local_files_only,
+        fallback_to_builtin=active_config.fallback_to_builtin,
+        fallback_mode=active_config.fallback_mode,
+        runtime_mode=active_config.runtime_mode,
+        acceptance_profile_label=active_config.acceptance_profile_label,
+    )
+    canonical_cases = _limit_items(DEFAULT_DIALOGUE_PROOF_CASES, active_config.canonical_case_limit)
+    perturbation_variants = _limit_items(DEFAULT_DIALOGUE_CASE_VARIANTS, active_config.perturbation_variant_limit)
+    replay_families = _limit_items(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES, active_config.replay_family_limit)
+    candidate_configs = _limit_items(
+        active_config.candidate_configs or DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
+        active_config.candidate_config_limit,
+    )
+    emit_progress(
+        f"Running canonical ablation on {len(canonical_cases)} cases across {len(active_config.profile_labels)} profiles."
+    )
+    canonical_ablation_report = await run_dialogue_pe_eta_ablation_benchmark(
+        cases=canonical_cases,
+        profile_labels=active_config.profile_labels,
+        baseline_label=active_config.baseline_label,
+        runner_factory=shared_factories.canonical_runner_factory,
+    )
+    emit_progress(
+        f"Running perturbation benchmark on {len(perturbation_variants)} fixed variants."
+    )
+    perturbation_report = await run_dialogue_pe_eta_perturbation_benchmark(
+        variant_cases=perturbation_variants,
+        profile_labels=active_config.profile_labels,
+        baseline_label=active_config.baseline_label,
+        runner_factory=shared_factories.perturbation_runner_factory,
+    )
+    emit_progress(
+        f"Running systematic replay benchmark with seeds={active_config.replay_seeds} "
+        f"and families={len(replay_families)}."
+    )
+    systematic_replay_report = await run_dialogue_pe_eta_systematic_replay_benchmark(
+        seeds=active_config.replay_seeds,
+        families=replay_families,
+        include_fixed_variants=active_config.include_fixed_variants_in_replay,
+        profile_labels=active_config.profile_labels,
+        baseline_label=active_config.baseline_label,
+        runner_factory=shared_factories.systematic_runner_factory,
+    )
+    if not systematic_replay_report.variant_cases:
+        raise ValueError("Real comprehensive benchmark requires at least one replay variant.")
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=systematic_replay_report.variant_cases,
+        replay_ranking_report=systematic_replay_report.replay_ranking_report,
+        artifact_id="dialogue-real-comprehensive-selection",
+        top_k=min(active_config.selection_top_k, len(systematic_replay_report.variant_cases)),
+    )
+    emit_progress(
+        f"Running multi-artifact acceptance on top_k={len(selection_artifact.selected_variants)} "
+        f"with {len(candidate_configs)} candidates."
+    )
+    artifact_comparison_report = await run_multi_artifact_acceptance_benchmark(
+        selection_artifact,
+        candidate_configs=candidate_configs,
+        profile_label=active_config.acceptance_profile_label,
+        runner_factory=shared_factories.acceptance_runner_factory,
+    )
+    emit_progress("Real comprehensive benchmark finished.")
+    return DialogueComprehensiveBenchmarkReport(
+        profile_labels=active_config.profile_labels,
+        canonical_ablation_report=canonical_ablation_report,
+        perturbation_report=perturbation_report,
+        systematic_replay_report=systematic_replay_report,
+        selection_artifact=selection_artifact,
+        artifact_comparison_report=artifact_comparison_report,
+        description=(
+            f"Real comprehensive dialogue benchmark used shared runtime "
+            f"origin={getattr(shared_factories.residual_runtime, 'runtime_origin', 'unknown')} "
+            f"canonical={len(canonical_cases)} perturbation={len(perturbation_variants)} "
+            f"replay_variants={len(systematic_replay_report.variant_cases)} "
+            f"selection_top_k={len(selection_artifact.selected_variants)} candidates={len(candidate_configs)}."
         ),
     )
