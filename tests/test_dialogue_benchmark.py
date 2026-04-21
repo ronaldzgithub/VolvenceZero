@@ -15,6 +15,7 @@ from volvence_zero.agent import (
     build_standard_dialogue_runner,
     default_rare_heavy_candidate_configs,
     default_dialogue_ablation_profiles,
+    default_dialogue_comprehensive_profiles,
     dialogue_case_variants,
     dialogue_paraphrase_families,
     DialogueBenchmarkTurn,
@@ -26,6 +27,7 @@ from volvence_zero.agent import (
     run_dialogue_pe_eta_ablation_benchmark,
     run_dialogue_pe_eta_benchmark,
     run_dialogue_pe_eta_case,
+    run_dialogue_pe_eta_comprehensive_benchmark,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
     run_multi_artifact_acceptance_benchmark,
@@ -103,6 +105,8 @@ def _benchmark_turn(
     delayed_metric: float,
     pe_triggered: bool = False,
     action_family_version: int = 0,
+    bounded_writeback_applied: bool = False,
+    reflection_promotion_eligible: bool = False,
 ) -> DialogueBenchmarkTurn:
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
@@ -121,6 +125,8 @@ def _benchmark_turn(
         regime_error=pe * 0.2,
         action_error=pe * 0.4,
         has_prediction_chain=True,
+        bounded_writeback_applied=bounded_writeback_applied,
+        reflection_promotion_eligible=reflection_promotion_eligible,
         rare_heavy_recommended=pe_triggered,
         rare_heavy_applied=False,
         outcome_metrics=(
@@ -140,6 +146,17 @@ def test_dialogue_benchmark_exposes_default_scripted_cases():
 
 def test_dialogue_benchmark_exposes_default_ablation_profiles():
     assert default_dialogue_ablation_profiles() == ("pe-eta", "eta-no-pe", "heuristic-baseline")
+
+
+def test_dialogue_benchmark_exposes_default_comprehensive_profiles():
+    assert default_dialogue_comprehensive_profiles() == (
+        "pe-eta",
+        "pe-eta-online-only",
+        "pe-eta-no-writeback",
+        "pe-eta-no-rare-heavy",
+        "eta-no-pe",
+        "heuristic-baseline",
+    )
 
 
 def test_dialogue_benchmark_exposes_default_case_variants():
@@ -196,6 +213,9 @@ def test_run_dialogue_pe_eta_benchmark_runs_complete_scripted_suite():
     assert report.total_case_count == len(DEFAULT_DIALOGUE_PROOF_CASES)
     assert len(report.case_reports) == len(DEFAULT_DIALOGUE_PROOF_CASES)
     assert report.description
+    metric_means = dict(report.metric_means)
+    assert "bounded_writeback_turn_count" in metric_means
+    assert "rare_heavy_recommended_count" in metric_means
     for case_report in report.case_reports:
         assert len(case_report.turns) == len(case_report.case.user_inputs)
         assert isinstance(case_report.acceptance_checks, tuple)
@@ -226,6 +246,10 @@ def test_run_dialogue_pe_eta_ablation_benchmark_collects_path_deltas():
     assert "pressure_response_precision" in dict(delta_map["pe-eta"])
     assert "pressure_response_recall" in dict(delta_map["pe-eta"])
     assert "stability_after_recovery_score" in dict(delta_map["pe-eta"])
+    profile_means = dict(report.metric_deltas_from_baseline)
+    assert "pe-eta" in profile_means
+    assert "eta-no-pe" in profile_means
+    assert "bounded_writeback_turn_count" in dict(profile_means["eta-no-pe"])
 
 
 def test_run_dialogue_pe_eta_perturbation_benchmark_collects_variant_reports():
@@ -417,6 +441,29 @@ def test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_vari
     assert report.perturbation_report.ablation_report.baseline_label == "pe-eta"
 
 
+def test_run_dialogue_pe_eta_comprehensive_benchmark_runs_end_to_end():
+    report = asyncio.run(
+        run_dialogue_pe_eta_comprehensive_benchmark(
+            canonical_cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
+            seeds=(0,),
+            families=DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1],
+            selection_top_k=1,
+            candidate_configs=DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:1],
+            canonical_runner_factory=_synthetic_ablation_runner,
+            perturbation_runner_factory=_synthetic_perturbation_runner,
+            systematic_runner_factory=_synthetic_systematic_runner,
+            acceptance_runner_factory=_synthetic_acceptance_runner,
+        )
+    )
+
+    assert report.profile_labels == default_dialogue_comprehensive_profiles()
+    assert report.canonical_ablation_report.baseline_label == "pe-eta"
+    assert len(report.selection_artifact.selected_variants) == 1
+    assert len(report.artifact_comparison_report.candidate_reports) == 1
+    assert report.description
+
+
 def test_default_dialogue_replay_seeds_are_exposed():
     assert DEFAULT_DIALOGUE_REPLAY_SEEDS == (0, 1, 2)
 
@@ -580,6 +627,8 @@ def test_dialogue_case_report_passes_when_pe_drives_temporal_and_delayed_change(
             abstract_action="stabilize",
             switch_gate=0.61,
             delayed_metric=0.36,
+            bounded_writeback_applied=True,
+            reflection_promotion_eligible=True,
         ),
         _benchmark_turn(
             turn_index=3,
@@ -617,6 +666,8 @@ def test_dialogue_case_report_passes_when_pe_drives_temporal_and_delayed_change(
     assert report.pressure_response_precision == 1.0
     assert report.pressure_response_recall == 1.0
     assert report.stability_after_recovery_score == 0.0
+    assert report.bounded_writeback_turn_count == 1
+    assert report.reflection_promotion_eligible_turn_count == 1
 
 
 def test_dialogue_case_report_counts_cross_turn_pe_trigger():

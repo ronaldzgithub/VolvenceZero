@@ -16,6 +16,7 @@ from volvence_zero.joint_loop import (
     RareHeavyImportResult,
     SSLRLTrainingPipeline,
 )
+from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import OpenWeightResidualRuntime, TrainingTrace, build_training_trace
 from volvence_zero.temporal import TemporalAbstractionSnapshot
@@ -49,6 +50,8 @@ class DialogueBenchmarkTurn:
     regime_error: float
     action_error: float
     has_prediction_chain: bool
+    bounded_writeback_applied: bool
+    reflection_promotion_eligible: bool
     rare_heavy_recommended: bool
     rare_heavy_applied: bool
     outcome_metrics: tuple[tuple[str, float], ...]
@@ -68,6 +71,11 @@ class DialogueBenchmarkCaseReport:
     pressure_response_precision: float
     pressure_response_recall: float
     stability_after_recovery_score: float
+    online_learning_turn_count: int
+    bounded_writeback_turn_count: int
+    reflection_promotion_eligible_turn_count: int
+    rare_heavy_recommended_count: int
+    rare_heavy_applied_count: int
     temporal_change_count: int
     delayed_improvement_observed: bool
     acceptance_checks: tuple[tuple[str, bool], ...]
@@ -81,6 +89,7 @@ class DialogueBenchmarkReport:
     case_reports: tuple[DialogueBenchmarkCaseReport, ...]
     passed_case_count: int
     total_case_count: int
+    metric_means: tuple[tuple[str, float], ...]
     description: str
 
 
@@ -96,6 +105,7 @@ class DialogueBenchmarkComparisonReport:
     baseline_label: str
     path_reports: tuple[DialogueBenchmarkPathReport, ...]
     case_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, tuple[tuple[str, float], ...]], ...]], ...]
+    metric_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
     description: str
 
 
@@ -216,6 +226,17 @@ class DialogueArtifactAcceptanceDecision:
     description: str
 
 
+@dataclass(frozen=True)
+class DialogueComprehensiveBenchmarkReport:
+    profile_labels: tuple[str, ...]
+    canonical_ablation_report: DialogueBenchmarkComparisonReport
+    perturbation_report: DialoguePerturbationBenchmarkReport
+    systematic_replay_report: DialogueSystematicReplayBenchmarkReport
+    selection_artifact: DialogueReplaySelectionArtifact
+    artifact_comparison_report: DialogueArtifactComparisonReport
+    description: str
+
+
 PROOF_HIGH_PE_THRESHOLD = 0.18
 PROOF_REWARD_THRESHOLD = 0.05
 PROOF_PE_IMPROVEMENT_DELTA = 0.02
@@ -288,6 +309,17 @@ def dialogue_proof_cases() -> tuple[ScriptedDialogueCase, ...]:
 
 def default_dialogue_ablation_profiles() -> tuple[str, ...]:
     return ("pe-eta", "eta-no-pe", "heuristic-baseline")
+
+
+def default_dialogue_comprehensive_profiles() -> tuple[str, ...]:
+    return (
+        "pe-eta",
+        "pe-eta-online-only",
+        "pe-eta-no-writeback",
+        "pe-eta-no-rare-heavy",
+        "eta-no-pe",
+        "heuristic-baseline",
+    )
 
 
 DEFAULT_DIALOGUE_CASE_VARIANTS: tuple[DialogueCaseVariant, ...] = (
@@ -616,7 +648,7 @@ def dialogue_paraphrase_families() -> tuple[DialogueParaphraseFamily, ...]:
 
 
 def _profile_allows_interval_carryover_credit(profile_label: str) -> bool:
-    return profile_label == "pe-eta"
+    return profile_label.startswith("pe-eta")
 
 
 def _metric_pairs(result: AgentTurnResult) -> tuple[tuple[str, float], ...]:
@@ -957,6 +989,21 @@ def build_dialogue_case_report(
     switch_gate_span = 0.0
     if turns:
         switch_gate_span = max(turn.switch_gate for turn in turns) - min(turn.switch_gate for turn in turns)
+    online_learning_turn_count = sum(
+        1 for turn in turns if turn.joint_schedule_action != "evidence-only"
+    )
+    bounded_writeback_turn_count = sum(
+        1 for turn in turns if turn.bounded_writeback_applied
+    )
+    reflection_promotion_eligible_turn_count = sum(
+        1 for turn in turns if turn.reflection_promotion_eligible
+    )
+    rare_heavy_recommended_count = sum(
+        1 for turn in turns if turn.rare_heavy_recommended
+    )
+    rare_heavy_applied_count = sum(
+        1 for turn in turns if turn.rare_heavy_applied
+    )
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     delayed_improvement_observed = _delayed_improvement_observed(turns)
     acceptance_checks = (
@@ -983,6 +1030,11 @@ def build_dialogue_case_report(
         pressure_response_precision=pressure_response_precision,
         pressure_response_recall=pressure_response_recall,
         stability_after_recovery_score=stability_after_recovery_score,
+        online_learning_turn_count=online_learning_turn_count,
+        bounded_writeback_turn_count=bounded_writeback_turn_count,
+        reflection_promotion_eligible_turn_count=reflection_promotion_eligible_turn_count,
+        rare_heavy_recommended_count=rare_heavy_recommended_count,
+        rare_heavy_applied_count=rare_heavy_applied_count,
         temporal_change_count=temporal_change_count,
         delayed_improvement_observed=delayed_improvement_observed,
         acceptance_checks=acceptance_checks,
@@ -994,7 +1046,9 @@ def build_dialogue_case_report(
             f"pe_triggered={pe_triggered_turn_count}, recovery_lag={recovery_lag_turns}, "
             f"pressure_localization={pressure_localization_score:.2f}, precision={pressure_response_precision:.2f}, "
             f"recall={pressure_response_recall:.2f}, over_response={over_response_cost:.2f}, "
-            f"stability_after_recovery={stability_after_recovery_score:.2f}, temporal_changes={temporal_change_count}, "
+            f"stability_after_recovery={stability_after_recovery_score:.2f}, online_learning={online_learning_turn_count}, "
+            f"writeback_turns={bounded_writeback_turn_count}, rare_heavy_applied={rare_heavy_applied_count}, "
+            f"temporal_changes={temporal_change_count}, "
             f"switch_gate_span={switch_gate_span:.2f}, delayed_improvement={delayed_improvement_observed}."
         ),
     )
@@ -1029,6 +1083,8 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
             and result.next_prediction is not None
             and result.prediction_error is not None
         ),
+        bounded_writeback_applied=result.bounded_writeback_applied,
+        reflection_promotion_eligible=result.reflection_promotion_eligible,
         rare_heavy_recommended=bool(result.rare_heavy_result is not None and result.rare_heavy_result.recommended),
         rare_heavy_applied=bool(result.rare_heavy_result is not None and result.rare_heavy_result.applied),
         outcome_metrics=_metric_pairs(result),
@@ -1084,6 +1140,7 @@ async def run_dialogue_pe_eta_benchmark(
         case_reports=tuple(case_reports),
         passed_case_count=passed_case_count,
         total_case_count=len(case_reports),
+        metric_means=_mean_summary_metrics(tuple(case_reports)),
         description=(
             f"Dialogue proof benchmark processed {len(case_reports)} scripted cases with "
             f"{passed_case_count} passing the current PE-ETA evidence gate."
@@ -1095,7 +1152,6 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
     turns = report.turns
     mean_pe = _mean(tuple(turn.prediction_error_magnitude for turn in turns))
     mean_switch_gate = _mean(tuple(turn.switch_gate for turn in turns))
-    rare_heavy_count = sum(1 for turn in turns if turn.rare_heavy_applied)
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -1107,11 +1163,31 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("pressure_response_precision", report.pressure_response_precision),
         ("pressure_response_recall", report.pressure_response_recall),
         ("stability_after_recovery_score", report.stability_after_recovery_score),
+        ("online_learning_turn_count", float(report.online_learning_turn_count)),
+        ("bounded_writeback_turn_count", float(report.bounded_writeback_turn_count)),
+        ("reflection_promotion_eligible_turn_count", float(report.reflection_promotion_eligible_turn_count)),
+        ("rare_heavy_recommended_count", float(report.rare_heavy_recommended_count)),
+        ("rare_heavy_applied_count", float(report.rare_heavy_applied_count)),
         ("temporal_change_count", float(report.temporal_change_count)),
         ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
         ("mean_prediction_error", mean_pe),
         ("mean_switch_gate", mean_switch_gate),
-        ("rare_heavy_applied_count", float(rare_heavy_count)),
+    )
+
+
+def _mean_summary_metrics(
+    reports: tuple[DialogueBenchmarkCaseReport, ...],
+) -> tuple[tuple[str, float], ...]:
+    if not reports:
+        return ()
+    metric_names = tuple(key for key, _ in _case_summary_metrics(reports[0]))
+    metric_totals = {key: 0.0 for key in metric_names}
+    for report in reports:
+        for key, value in _case_summary_metrics(report):
+            metric_totals[key] += value
+    return tuple(
+        (key, round(metric_totals[key] / len(reports), 4))
+        for key in metric_names
     )
 
 
@@ -1405,6 +1481,28 @@ def build_standard_dialogue_runner(
             default_residual_runtime=residual_runtime,
             joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
         )
+    if profile_label == "pe-eta-online-only":
+        return AgentSessionRunner(
+            session_id=f"dialogue-ablation:{profile_label}:{case.case_id}",
+            default_residual_runtime=residual_runtime,
+            reflection_mode=WritebackMode.PROPOSAL_ONLY,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            rare_heavy_enabled=False,
+        )
+    if profile_label == "pe-eta-no-writeback":
+        return AgentSessionRunner(
+            session_id=f"dialogue-ablation:{profile_label}:{case.case_id}",
+            default_residual_runtime=residual_runtime,
+            reflection_mode=WritebackMode.PROPOSAL_ONLY,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+        )
+    if profile_label == "pe-eta-no-rare-heavy":
+        return AgentSessionRunner(
+            session_id=f"dialogue-ablation:{profile_label}:{case.case_id}",
+            default_residual_runtime=residual_runtime,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            rare_heavy_enabled=False,
+        )
     if profile_label == "eta-no-pe":
         return AgentSessionRunner(
             session_id=f"dialogue-ablation:{profile_label}:{case.case_id}",
@@ -1480,6 +1578,7 @@ async def run_dialogue_pe_eta_ablation_benchmark(
         for case_report in baseline_path.benchmark_report.case_reports
     }
     case_deltas_from_baseline: list[tuple[str, tuple[tuple[str, tuple[tuple[str, float], ...]], ...]]] = []
+    metric_deltas_by_profile = {path.path_label: [] for path in path_reports}
     for case_id, baseline_case in baseline_reports.items():
         path_deltas: list[tuple[str, tuple[tuple[str, float], ...]]] = []
         baseline_metrics = dict(_case_summary_metrics(baseline_case))
@@ -1488,25 +1587,50 @@ async def run_dialogue_pe_eta_ablation_benchmark(
                 report for report in path.benchmark_report.case_reports if report.case.case_id == case_id
             )
             current_metrics = dict(_case_summary_metrics(path_case))
+            metric_delta = tuple(
+                sorted(
+                    (
+                        key,
+                        round(current_metrics[key] - baseline_metrics[key], 4),
+                    )
+                    for key in baseline_metrics
+                )
+            )
+            metric_deltas_by_profile[path.path_label].append(dict(metric_delta))
             path_deltas.append(
                 (
                     path.path_label,
-                    tuple(
-                        sorted(
-                            (
-                                key,
-                                round(current_metrics[key] - baseline_metrics[key], 4),
-                            )
-                            for key in baseline_metrics
-                        )
-                    ),
+                    metric_delta,
                 )
             )
         case_deltas_from_baseline.append((case_id, tuple(path_deltas)))
+    metric_deltas_from_baseline: list[tuple[str, tuple[tuple[str, float], ...]]] = []
+    for path in path_reports:
+        per_case_deltas = metric_deltas_by_profile[path.path_label]
+        if not per_case_deltas:
+            metric_deltas_from_baseline.append((path.path_label, ()))
+            continue
+        metric_names = tuple(per_case_deltas[0].keys())
+        metric_deltas_from_baseline.append(
+            (
+                path.path_label,
+                tuple(
+                    (
+                        key,
+                        round(
+                            sum(case_delta[key] for case_delta in per_case_deltas) / len(per_case_deltas),
+                            4,
+                        ),
+                    )
+                    for key in metric_names
+                ),
+            )
+        )
     return DialogueBenchmarkComparisonReport(
         baseline_label=baseline_label,
         path_reports=tuple(path_reports),
         case_deltas_from_baseline=tuple(case_deltas_from_baseline),
+        metric_deltas_from_baseline=tuple(metric_deltas_from_baseline),
         description=(
             f"Dialogue ablation benchmark compared {len(path_reports)} paths across {len(cases)} cases "
             f"with baseline={baseline_label}."
@@ -1550,12 +1674,16 @@ async def run_dialogue_pe_eta_perturbation_benchmark(
 async def run_dialogue_pe_eta_systematic_replay_benchmark(
     *,
     seeds: tuple[int, ...] = DEFAULT_DIALOGUE_REPLAY_SEEDS,
+    families: tuple[DialogueParaphraseFamily, ...] = DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
     include_fixed_variants: bool = True,
     profile_labels: tuple[str, ...] = ("pe-eta", "eta-no-pe", "heuristic-baseline"),
     baseline_label: str = "pe-eta",
     runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
 ) -> DialogueSystematicReplayBenchmarkReport:
-    generated_variants = generate_stochastic_dialogue_case_variants(seeds=seeds)
+    generated_variants = generate_stochastic_dialogue_case_variants(
+        seeds=seeds,
+        families=families,
+    )
     variant_cases = (
         (DEFAULT_DIALOGUE_CASE_VARIANTS + generated_variants)
         if include_fixed_variants
@@ -1741,5 +1869,69 @@ async def run_multi_artifact_acceptance_benchmark(
         description=(
             f"Multi-artifact acceptance compared {len(candidate_reports)} candidates and chose "
             f"{chosen_candidate.candidate_label if chosen_candidate is not None else 'none'}."
+        ),
+    )
+
+
+async def run_dialogue_pe_eta_comprehensive_benchmark(
+    *,
+    canonical_cases: tuple[ScriptedDialogueCase, ...] = DEFAULT_DIALOGUE_PROOF_CASES,
+    variant_cases: tuple[DialogueCaseVariant, ...] = DEFAULT_DIALOGUE_CASE_VARIANTS,
+    seeds: tuple[int, ...] = DEFAULT_DIALOGUE_REPLAY_SEEDS,
+    families: tuple[DialogueParaphraseFamily, ...] = DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
+    profile_labels: tuple[str, ...] = default_dialogue_comprehensive_profiles(),
+    baseline_label: str = "pe-eta",
+    selection_top_k: int = 6,
+    candidate_configs: tuple[tuple[str, PipelineConfig], ...] = DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
+    canonical_runner_factory: Callable[[str, ScriptedDialogueCase], AgentSessionRunner] | None = None,
+    perturbation_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
+    systematic_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
+    acceptance_runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner] | None = None,
+    acceptance_profile_label: str = "pe-eta",
+) -> DialogueComprehensiveBenchmarkReport:
+    canonical_ablation_report = await run_dialogue_pe_eta_ablation_benchmark(
+        cases=canonical_cases,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=canonical_runner_factory,
+    )
+    perturbation_report = await run_dialogue_pe_eta_perturbation_benchmark(
+        variant_cases=variant_cases,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=perturbation_runner_factory,
+    )
+    systematic_replay_report = await run_dialogue_pe_eta_systematic_replay_benchmark(
+        seeds=seeds,
+        families=families,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=systematic_runner_factory,
+    )
+    if not systematic_replay_report.variant_cases:
+        raise ValueError("Comprehensive benchmark requires at least one generated replay variant.")
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=systematic_replay_report.variant_cases,
+        replay_ranking_report=systematic_replay_report.replay_ranking_report,
+        artifact_id="dialogue-comprehensive-selection",
+        top_k=min(selection_top_k, len(systematic_replay_report.variant_cases)),
+    )
+    artifact_comparison_report = await run_multi_artifact_acceptance_benchmark(
+        selection_artifact,
+        candidate_configs=candidate_configs,
+        profile_label=acceptance_profile_label,
+        runner_factory=acceptance_runner_factory,
+    )
+    return DialogueComprehensiveBenchmarkReport(
+        profile_labels=profile_labels,
+        canonical_ablation_report=canonical_ablation_report,
+        perturbation_report=perturbation_report,
+        systematic_replay_report=systematic_replay_report,
+        selection_artifact=selection_artifact,
+        artifact_comparison_report=artifact_comparison_report,
+        description=(
+            f"Comprehensive dialogue benchmark ran canonical={len(canonical_cases)}, perturbation={len(variant_cases)}, "
+            f"replay_generated={len(systematic_replay_report.variant_cases)}, profiles={len(profile_labels)}, "
+            f"selection_top_k={len(selection_artifact.selected_variants)}, candidates={len(candidate_configs)}."
         ),
     )

@@ -26,6 +26,7 @@
 - `DialogueBenchmarkReport`
 - `DialogueBenchmarkPathReport`
 - `DialogueBenchmarkComparisonReport`
+- `DialogueComprehensiveBenchmarkReport`
 
 核心入口：
 
@@ -34,7 +35,9 @@
 - `run_dialogue_pe_eta_benchmark()`
 - `build_standard_dialogue_runner()`
 - `default_dialogue_ablation_profiles()`
+- `default_dialogue_comprehensive_profiles()`
 - `run_dialogue_pe_eta_ablation_benchmark()`
+- `run_dialogue_pe_eta_comprehensive_benchmark()`
 - `build_dialogue_case_report()`
 
 ## 默认场景
@@ -60,6 +63,24 @@
 
 这三条路径的目标不是给出论文级“因果隔离”，而是先提供一个 repo 内部可重复的 A/B 证据面；其中 `eta-no-pe` 现已是更严格的 baseline，而不是早期会吃到 interval carryover credit 的弱版本。
 
+## Comprehensive 多时间尺度路径
+
+为了把“系统结构已经支持多时间尺度学习，但证据还不够完整”这件事再往前推进，当前又补了一层更强的 profile matrix：
+
+- `pe-eta`：完整路径
+- `pe-eta-online-only`：保留 online-fast PE + ETA，但关闭 background writeback 和 rare-heavy import
+- `pe-eta-no-writeback`：保留 PE + ETA + rare-heavy recommendation/import，但把 reflection 降到 `proposal-only`
+- `pe-eta-no-rare-heavy`：保留 PE + ETA + writeback，但关闭 rare-heavy execution
+- `eta-no-pe`
+- `heuristic-baseline`
+
+这组 profiles 的目标不是只回答“主路径比 baseline 强不强”，而是进一步回答：
+
+- 强度主要来自 online-fast 还是 full stack
+- background writeback 是否提供额外增益
+- rare-heavy 是否已经在当前 benchmark 下带来稳定净收益
+- full path 相对 `online-only` / `no-writeback` / `no-rare-heavy` 的 gap 是否可读
+
 ## 记录的证据
 
 每个 benchmark turn 现在显式记录：
@@ -67,6 +88,7 @@
 - prediction error：`magnitude` / `signed_reward` / `task_error` / `relationship_error` / `regime_error` / `action_error`
 - temporal abstraction：`joint_schedule_action` / `active_abstract_action` / `switch_gate` / `action_family_version`
 - regime：`active_regime`
+- background-slow：`bounded_writeback_applied` / `reflection_promotion_eligible`
 - rare-heavy：`recommended` / `applied`
 - delayed outcome readout：`learning` / `relationship` / `abstraction` 相关 evaluation metrics
 
@@ -81,6 +103,17 @@
 - `pressure_response_recall`：预期 pressure turns 中有多少比例在自己的 pressure window 内得到了有效 response
 - `over_response_cost`：落在 pressure window 外的 response 数量相对整段 case 的归一化成本，越低越好
 - `stability_after_recovery_score`：首次有效 response 且 pressure 主段结束后，后续 turns 中有多少比例真正进入了“无额外触发且低 PE”的 calm tail
+- `online_learning_turn_count`：有多少 turn 真正进入了非 `evidence-only` 的 online 学习路径
+- `bounded_writeback_turn_count`：有多少 turn 发生了 reflection/background writeback
+- `reflection_promotion_eligible_turn_count`：有多少 turn 达到了 background consolidation eligibility
+- `rare_heavy_recommended_count` / `rare_heavy_applied_count`：rare-heavy 在整段 case 中被建议/真正执行了多少次
+
+另外，benchmark report / comparison report 现在还会显式发布：
+
+- `metric_means`
+- `metric_deltas_from_baseline`
+
+这样不再只保留 case-by-case delta，也可以直接看 profile 级平均差异。
 
 ## Perturbation / Replay 层
 
@@ -382,6 +415,28 @@ Replay ranking 的前几项为：
 
 这说明 current best-of-n 已经能找到“明显比其它候选更好”的 candidate，但默认 acceptance gate 仍坚持要求真正提升通过数，而不是只接受 mixed-gain 的局部改善。
 
+## Comprehensive Benchmark 入口
+
+当前还新增：
+
+- `run_dialogue_pe_eta_comprehensive_benchmark()`
+
+这条入口会把以下几层串成一次完整跑法：
+
+1. canonical cases 上的 multi-profile ablation
+2. fixed perturbation variants 上的 multi-profile ablation
+3. systematic replay / stochastic variants + replay ranking
+4. replay selection artifact 构建
+5. multi-artifact acceptance comparison
+
+也就是说，现在 benchmark 不再只是分散的几个 helper，而是有一个 repo 内部可直接调用的“强证据套件”入口，能把：
+
+- online-fast 响应
+- background writeback
+- rare-heavy selection / import / rollback
+
+放在同一个报告链里看。
+
 ## 这还不能证明什么
 
 当前还**不能**直接证明：
@@ -389,14 +444,15 @@ Replay ranking 的前几项为：
 - 这些 temporal abstractions 已达到论文级“涌现”结论
 - PE 是唯一原因，而非其它共变信号
 - rare-heavy artifact selection 已达到最优
+- 每个时间尺度都已经形成了自己粒度清晰、稳定迁移的抽象对象
 - 在开放式生成用户环境中也一定成立
 
 要继续收紧证据，需要下一步补：
 
-- replay ranking / artifact acceptance benchmark
-- multi-artifact selection
 - 生成式用户模拟器
-- 更严格的 PE-off / ETA-off 因果隔离实现（不仅是弱 profile）
+- 更严格的 PE-off / ETA-off / timescale-off 因果隔离实现（不仅是当前 profile matrix）
+- 面向 session-medium / background-slow / rare-heavy 的独立抽象迁移指标
+- 更长程的跨会话 benchmark，而不只是单 case / variant 内 delayed payoff
 
 ## 相关测试
 
@@ -408,4 +464,4 @@ Replay ranking 的前几项为：
 本轮已验证：
 
 - `python -m pytest tests/test_dialogue_benchmark.py -q`
-- `python -m pytest tests/test_agent_session_runner.py -q -k "rare_heavy or pe_scheduled or multi_turn_rl_loop_produces_policy_changes or run_substrate_path_benchmark_collects_turn_metrics"`
+- `python -m pytest tests/test_agent_cli.py -q`
