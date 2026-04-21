@@ -104,6 +104,8 @@ class MetacontrollerSSLTrainer:
         latest_label = "unassigned_action"
         posterior_drift_total = 0.0
         store = policy.parameter_store
+        if store.learning_phase == "runtime" and store.structure_frozen:
+            store.set_learning_phase("ssl", structure_frozen=False)
         store.require_ssl_discovery_phase(operation="MetacontrollerSSLTrainer.optimize")
         previous_hidden_state = store.latest_posterior_hidden_state
         previous_code = tuple(0.0 for _ in range(n))

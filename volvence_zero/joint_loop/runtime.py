@@ -60,8 +60,10 @@ from volvence_zero.temporal import (
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalAggregateModule,
+    TrackTemporalConsolidationModule,
     TrackTemporalModule,
     build_temporal_runtime_state_aggregate,
+    clone_full_learned_temporal_policy,
 )
 from volvence_zero.memory import MemoryModule
 from volvence_zero.substrate import SubstrateModule
@@ -161,6 +163,8 @@ class ETANLJointLoop:
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
             parameter_store=MetacontrollerParameterStore(n_z=self._world_policy.parameter_store.n_z)
         )
+        if self_policy is None:
+            self._self_policy = clone_full_learned_temporal_policy(self._world_policy)
         self._world_sandbox = InternalRLSandbox(policy=self._world_policy, residual_runtime=residual_runtime)
         self._self_sandbox = InternalRLSandbox(policy=self._self_policy, residual_runtime=residual_runtime)
         self._residual_runtime = residual_runtime
@@ -437,6 +441,17 @@ class ETANLJointLoop:
                     )
                 ),
             ),
+            TrackTemporalModule(
+                track=Track.WORLD,
+                policy=self._world_policy,
+                wiring_level=WiringLevel.ACTIVE,
+            ),
+            TrackTemporalModule(
+                track=Track.SELF,
+                policy=self._self_policy,
+                wiring_level=WiringLevel.ACTIVE,
+            ),
+            TemporalAggregateModule(wiring_level=WiringLevel.ACTIVE),
             DualTrackModule(wiring_level=WiringLevel.ACTIVE),
             EvaluationModule(
                 backbone=self._evaluation_backbone,
@@ -450,17 +465,16 @@ class ETANLJointLoop:
                 engine=ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY),
                 wiring_level=WiringLevel.ACTIVE,
             ),
-            TrackTemporalModule(
+            TrackTemporalConsolidationModule(
                 track=Track.WORLD,
                 policy=self._world_policy,
                 wiring_level=WiringLevel.ACTIVE,
             ),
-            TrackTemporalModule(
+            TrackTemporalConsolidationModule(
                 track=Track.SELF,
                 policy=self._self_policy,
                 wiring_level=WiringLevel.ACTIVE,
             ),
-            TemporalAggregateModule(wiring_level=WiringLevel.ACTIVE),
         ]
         world_temporal_module = next(
             module

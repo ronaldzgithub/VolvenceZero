@@ -29,6 +29,10 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 
 
+def _set_ssl_phase(policy: FullLearnedTemporalPolicy) -> None:
+    policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+
+
 def test_temporal_module_builds_placeholder_snapshot():
     substrate_snapshot = asyncio.run(
         SubstrateModule(
@@ -183,6 +187,7 @@ def test_full_learned_policy_uses_residual_sequence_and_exports_decoder_state():
 def test_ssl_trainer_updates_full_learned_policy_metrics():
     trace = build_training_trace(trace_id="ssl-trace", source_text="steady repair and guided exploration")
     policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy)
     trainer = MetacontrollerSSLTrainer()
 
     report = trainer.optimize(policy=policy, trace=trace)
@@ -416,10 +421,12 @@ def test_ssl_alpha_controls_kl_weight():
 
     low_alpha = MetacontrollerSSLTrainer(alpha=0.01)
     policy_low = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy_low)
     report_low = low_alpha.optimize(policy=policy_low, trace=trace)
 
     high_alpha = MetacontrollerSSLTrainer(alpha=1.0)
     policy_high = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy_high)
     report_high = high_alpha.optimize(policy=policy_high, trace=trace)
 
     assert report_low.kl_loss >= 0.0
@@ -433,6 +440,7 @@ def test_switch_gate_stats_published_in_ssl_report():
     trace = build_training_trace(trace_id="stats-trace", source_text="repair tension then plan")
     trainer = MetacontrollerSSLTrainer(alpha=0.1)
     policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy)
     report = trainer.optimize(policy=policy, trace=trace)
 
     assert report.switch_gate_stats is not None
@@ -563,6 +571,7 @@ def test_noncausal_embedder_tightens_posterior():
 
     trainer = MetacontrollerSSLTrainer(alpha=0.1)
     policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy)
     report = trainer.optimize(policy=policy, trace=trace)
 
     assert report.noncausal_kl_tightening >= 0.0, (
@@ -674,6 +683,7 @@ def test_phase3_multi_alpha_beta_distribution():
     for alpha in alphas:
         trainer = MetacontrollerSSLTrainer(alpha=alpha)
         policy = FullLearnedTemporalPolicy()
+        _set_ssl_phase(policy)
         report = trainer.optimize(policy=policy, trace=trace)
         reports[alpha] = report
 
@@ -746,10 +756,12 @@ def test_ab_switch_gate_alpha_vs_heuristic_bias():
 
     trainer_emergence = MetacontrollerSSLTrainer(alpha=0.1)
     policy_e = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy_e)
     report_e = trainer_emergence.optimize(policy=policy_e, trace=trace)
 
     trainer_heuristic = MetacontrollerSSLTrainer(alpha=0.0)
     policy_h = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy_h)
     report_h = trainer_heuristic.optimize(policy=policy_h, trace=trace)
 
     assert report_e.switch_gate_stats is not None

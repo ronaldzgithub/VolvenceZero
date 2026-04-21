@@ -2257,7 +2257,9 @@ def build_dialogue_replay_ranking_report(
         }
         for path in ablation_report.path_reports
     }
-    required_paths = ("pe-eta", "eta-no-pe", "heuristic-baseline")
+    pe_drive_control_label = "pe-drive-off" if "pe-drive-off" in path_reports else "eta-no-pe"
+    eta_control_label = "eta-off" if "eta-off" in path_reports else "heuristic-baseline"
+    required_paths = ("pe-eta", pe_drive_control_label, eta_control_label)
     missing_paths = tuple(path for path in required_paths if path not in path_reports)
     if missing_paths:
         raise ValueError(
@@ -2269,23 +2271,23 @@ def build_dialogue_replay_ranking_report(
     no_rare_heavy_gaps: list[float] = []
     for variant in variant_cases:
         pe_eta_report = path_reports["pe-eta"][variant.case.case_id]
-        eta_no_pe_report = path_reports["eta-no-pe"][variant.case.case_id]
-        heuristic_report = path_reports["heuristic-baseline"][variant.case.case_id]
+        pe_drive_report = path_reports[pe_drive_control_label][variant.case.case_id]
+        eta_control_report = path_reports[eta_control_label][variant.case.case_id]
         no_rare_heavy_report = (
             no_rare_heavy_path.get(variant.case.case_id)
             if no_rare_heavy_path is not None
             else None
         )
         pe_eta_score = _dialogue_case_score(pe_eta_report)
-        eta_no_pe_score = _dialogue_case_score(eta_no_pe_report)
-        heuristic_score = _dialogue_case_score(heuristic_report)
+        pe_drive_score = _dialogue_case_score(pe_drive_report)
+        eta_control_score = _dialogue_case_score(eta_control_report)
         no_rare_heavy_score = (
             _dialogue_case_score(no_rare_heavy_report)
             if no_rare_heavy_report is not None
             else 0.0
         )
-        gap_vs_eta_no_pe = pe_eta_score - eta_no_pe_score
-        gap_vs_heuristic = pe_eta_score - heuristic_score
+        gap_vs_pe_drive = pe_eta_score - pe_drive_score
+        gap_vs_eta_control = pe_eta_score - eta_control_score
         gap_vs_no_rare_heavy = (
             pe_eta_score - no_rare_heavy_score
             if no_rare_heavy_report is not None
@@ -2298,17 +2300,17 @@ def build_dialogue_replay_ranking_report(
                 variant_case_id=variant.case.case_id,
                 base_case_id=variant.base_case_id,
                 variant_label=variant.variant_label,
-                diagnostic_score=gap_vs_eta_no_pe + gap_vs_heuristic,
-                gap_vs_eta_no_pe=gap_vs_eta_no_pe,
-                gap_vs_heuristic=gap_vs_heuristic,
+                diagnostic_score=gap_vs_pe_drive + gap_vs_eta_control,
+                gap_vs_eta_no_pe=gap_vs_pe_drive,
+                gap_vs_heuristic=gap_vs_eta_control,
                 pe_eta_score=pe_eta_score,
-                eta_no_pe_score=eta_no_pe_score,
-                heuristic_score=heuristic_score,
+                eta_no_pe_score=pe_drive_score,
+                heuristic_score=eta_control_score,
                 gap_vs_no_rare_heavy=gap_vs_no_rare_heavy,
                 no_rare_heavy_score=no_rare_heavy_score,
                 description=(
                     f"Replay ranking entry for {variant.case.case_id} with "
-                    f"gap_eta={gap_vs_eta_no_pe:.2f}, gap_heuristic={gap_vs_heuristic:.2f}, "
+                    f"gap_pe_drive={gap_vs_pe_drive:.2f}, gap_eta_off={gap_vs_eta_control:.2f}, "
                     f"gap_no_rare_heavy={gap_vs_no_rare_heavy:.2f}."
                 ),
             )

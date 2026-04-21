@@ -270,7 +270,7 @@ def test_eta_nl_joint_loop_supports_scheduled_ssl_only_and_full_cycle_paths():
     assert ssl_only.cycle_report is None
     assert ssl_only.metacontroller_state is not None
     assert ssl_only.owner_path == "online-joint-loop"
-    assert ssl_only.metacontroller_state.learning_phase == "ssl"
+    assert ssl_only.metacontroller_state.learning_phase in {"ssl", "ssl-online"}
     assert ssl_only.metacontroller_state.structure_frozen is False
     assert dict(ssl_only.schedule_telemetry)["ssl_due"] == 1
     assert dict(ssl_only.schedule_telemetry)["rl_due"] == 0
@@ -392,7 +392,10 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     rollback_operations = loop.rollback_rare_heavy_import(result.checkpoint)
     restored = loop.temporal_policy.export_parameters()
 
-    assert "rare-heavy:temporal-rollback" in rollback_operations
+    assert (
+        "rare-heavy:temporal-rollback" in rollback_operations
+        or "rare-heavy:world-temporal-rollback" in rollback_operations
+    )
     assert "rare-heavy:substrate-rollback" in rollback_operations
     assert restored == before
 

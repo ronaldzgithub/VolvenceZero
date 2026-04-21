@@ -97,9 +97,7 @@ def _synthetic_systematic_runner(profile_label: str, variant) -> AgentSessionRun
 
 
 def _synthetic_acceptance_runner(variant) -> AgentSessionRunner:
-    runtime = SyntheticOpenWeightResidualRuntime(
-        model_id=f"dialogue-acceptance:{variant.case.case_id}"
-    )
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="dialogue-acceptance:shared")
     runtime.runtime_origin = "synthetic-acceptance"
     return build_standard_dialogue_runner(
         profile_label="pe-eta",

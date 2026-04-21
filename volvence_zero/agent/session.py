@@ -45,11 +45,13 @@ from volvence_zero.substrate import (
     build_training_trace,
 )
 from volvence_zero.temporal import (
+    DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
     MetacontrollerParameterStore,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalPolicy,
+    clone_full_learned_temporal_policy,
 )
 from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopJob,
@@ -209,11 +211,8 @@ class AgentSessionRunner:
         if self_temporal_policy is not None:
             self._self_temporal_policy = self_temporal_policy
         else:
-            self._self_temporal_policy = FullLearnedTemporalPolicy(
-                parameter_store=MetacontrollerParameterStore(
-                    n_z=self._world_temporal_policy.parameter_store.n_z
-                )
-            )
+            self._self_temporal_policy = clone_full_learned_temporal_policy(self._world_temporal_policy)
+        self._temporal_policy = self._world_temporal_policy
         self._evaluation_backbone = EvaluationBackbone()
         default_latent_dim = self._world_temporal_policy.parameter_store.n_z
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
@@ -618,13 +617,17 @@ class AgentSessionRunner:
         cloned_store.import_rare_heavy_state(checkpoint)
         return cloned_store
 
-    def _build_rare_heavy_pipeline(self) -> SSLRLTrainingPipeline:
-        policy_n_z = self._joint_loop.temporal_policy.parameter_store.n_z
+    def _build_rare_heavy_pipeline(
+        self,
+        *,
+        source_policy: FullLearnedTemporalPolicy,
+    ) -> SSLRLTrainingPipeline:
+        policy_n_z = source_policy.parameter_store.n_z
         cloned_policy = FullLearnedTemporalPolicy(
             parameter_store=MetacontrollerParameterStore(n_z=policy_n_z),
         )
         cloned_policy.apply_rare_heavy_snapshot(
-            self._joint_loop.temporal_policy.export_rare_heavy_snapshot()
+            source_policy.export_rare_heavy_snapshot()
         )
         return SSLRLTrainingPipeline(
             config=self._effective_rare_heavy_pipeline_config(),
@@ -682,11 +685,20 @@ class AgentSessionRunner:
                     f"need {self._rare_heavy_min_traces}."
                 ),
             )
-        pipeline = self._build_rare_heavy_pipeline()
+        world_pipeline = self._build_rare_heavy_pipeline(
+            source_policy=self._joint_loop.world_temporal_policy
+        )
+        self_pipeline = self._build_rare_heavy_pipeline(
+            source_policy=self._joint_loop.self_temporal_policy
+        )
         traces = tuple(self._recent_training_traces[-self._rare_heavy_trace_window :])
         substrate_batches = tuple(self._recent_substrate_batches[-self._rare_heavy_trace_window :])
         try:
-            pipeline_result = pipeline.run_pipeline(
+            world_pipeline_result = world_pipeline.run_pipeline(
+                traces=traces,
+                substrate_steps_per_trace=substrate_batches if substrate_batches else None,
+            )
+            self_pipeline_result = self_pipeline.run_pipeline(
                 traces=traces,
                 substrate_steps_per_trace=substrate_batches if substrate_batches else None,
             )
@@ -702,20 +714,53 @@ class AgentSessionRunner:
                     f"Rare-heavy pipeline failed closed during substrate training/import preparation: {exc}"
                 ),
             )
-        artifact = pipeline.export_rare_heavy_artifact(
-            artifact_id=f"{self._session_id}:{wave_id}:rare-heavy"
+        world_artifact = world_pipeline.export_rare_heavy_artifact(
+            artifact_id=f"{self._session_id}:{wave_id}:rare-heavy:world"
         )
-        if pipeline_result.rl_steps_completed <= 0:
+        self_artifact = self_pipeline.export_rare_heavy_artifact(
+            artifact_id=f"{self._session_id}:{wave_id}:rare-heavy:self"
+        )
+        artifact = RareHeavyArtifact(
+            artifact_id=f"{self._session_id}:{wave_id}:rare-heavy",
+            owner_path=world_artifact.owner_path,
+            created_at_ms=world_artifact.created_at_ms,
+            temporal_snapshot=DualTrackRareHeavySnapshot(
+                world_snapshot=world_artifact.temporal_snapshot,
+                self_snapshot=self_artifact.temporal_snapshot,
+                description=(
+                    f"Dual rare-heavy snapshot world={world_artifact.artifact_id} "
+                    f"self={self_artifact.artifact_id}."
+                ),
+            ),
+            memory_checkpoint=world_artifact.memory_checkpoint,
+            substrate_checkpoint=world_artifact.substrate_checkpoint,
+            transition_step=max(world_artifact.transition_step, self_artifact.transition_step),
+            final_ssl_loss=(world_artifact.final_ssl_loss + self_artifact.final_ssl_loss) / 2.0,
+            final_total_reward=(world_artifact.final_total_reward + self_artifact.final_total_reward) / 2.0,
+            description=(
+                f"Dual-track rare-heavy artifact world={world_artifact.artifact_id} "
+                f"self={self_artifact.artifact_id}."
+            ),
+        )
+        combined_rl_steps = (
+            world_pipeline_result.rl_steps_completed + self_pipeline_result.rl_steps_completed
+        )
+        combined_substrate_mode = (
+            world_pipeline_result.substrate_training_mode
+            if world_pipeline_result.substrate_training_mode == self_pipeline_result.substrate_training_mode
+            else f"{world_pipeline_result.substrate_training_mode}+{self_pipeline_result.substrate_training_mode}"
+        )
+        if combined_rl_steps <= 0:
             return RareHeavyTurnResult(
                 recommended=True,
                 applied=False,
                 artifact_id=artifact.artifact_id,
                 applied_operations=(),
                 substrate_status="skipped",
-                substrate_training_mode=pipeline_result.substrate_training_mode,
+                substrate_training_mode=combined_substrate_mode,
                 description=(
                     f"Rare-heavy pipeline exported {artifact.artifact_id}, but no offline RL steps completed; "
-                    f"skipping import. {pipeline_result.description}"
+                    f"skipping import. world={world_pipeline_result.description} self={self_pipeline_result.description}"
                 ),
             )
         try:
@@ -730,9 +775,10 @@ class AgentSessionRunner:
                 artifact_id=artifact.artifact_id,
                 applied_operations=(),
                 substrate_status="incompatible",
-                substrate_training_mode=pipeline_result.substrate_training_mode,
+                substrate_training_mode=combined_substrate_mode,
                 description=(
-                    f"{pipeline_result.description} Rare-heavy import failed closed: {exc}"
+                    f"{world_pipeline_result.description} {self_pipeline_result.description} "
+                    f"Rare-heavy import failed closed: {exc}"
                 ),
             )
         self._last_rare_heavy_turn_index = self._turn_index
@@ -742,8 +788,11 @@ class AgentSessionRunner:
             artifact_id=artifact.artifact_id,
             applied_operations=import_result.applied_operations,
             substrate_status="imported",
-            substrate_training_mode=pipeline_result.substrate_training_mode,
-            description=f"{pipeline_result.description} {import_result.description}",
+            substrate_training_mode=combined_substrate_mode,
+            description=(
+                f"{world_pipeline_result.description} {self_pipeline_result.description} "
+                f"{import_result.description}"
+            ),
         )
 
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:

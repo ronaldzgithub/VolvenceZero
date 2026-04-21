@@ -95,9 +95,9 @@ rare-heavy (定期离线):
 - 当前 session-medium delayed path 已从单条 delayed outcome 扩展为 multi-step attribution ledger：regime owner 会保留最近 resolved attribution，并发布 rolling payoff summary，供 evaluation / credit / reflection 读取，而不需要 consumer 自己拼接长期轨迹
 - 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
-- 当前 rare-heavy v1 已补充 substrate-aware 离线路径：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 现在可同时导出 `temporal / memory / substrate` 三类 artifact；其中 substrate 部分仍是 owner-side bounded checkpoint（控制尺度、语义混合权重、anchor bias 等），不是完整 base-model 参数重写
-- 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 应用，fallback runtime 允许 no-op/bounded 实现但 contract shape 保持一致
-- 当前 `SSLRLTrainingPipeline` 已从“trace 顺序绑定”的轻量 pass 收敛为分阶段 batch loop：SSL 阶段按 trace 迭代直到收敛或上限，RL 阶段按 substrate batch 迭代直到收敛或上限，并在结束后导出 substrate rare-heavy checkpoint
+- 当前 substrate rare-heavy 已从 v1 的 bounded scalar state 升级到 `adapter-delta-v2` owner path：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 现在可同时导出 `temporal / memory / substrate` 三类 artifact，其中 substrate checkpoint 不再只携带控制尺度、语义混合权重和 anchor bias，还会携带 owner-side adapter delta payload、compatibility fingerprint、training mode 与 payload parameter count
+- 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 应用。live runtime 仍保持 frozen substrate，offline clone 才允许执行 adapter/delta-style 训练
+- 当前 `SSLRLTrainingPipeline` 已从“trace 顺序绑定”的轻量 pass 收敛为分阶段 batch loop：SSL 阶段按 trace 迭代直到收敛或上限，RL 阶段按 substrate batch 迭代直到收敛或上限，并在结束后导出 substrate rare-heavy checkpoint；若 substrate owner 没有产出 `adapter-delta-v2` checkpoint，pipeline 会 fail closed，而不是静默退回旧 bounded 模式
 - 当前 `AgentSessionRunner` 已补充 substrate-aware rare-heavy execution 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 与最近真实 substrate capture window 克隆 offline temporal/memory/substrate state，运行轻量 `SSLRLTrainingPipeline`，并在 offline RL 至少执行 1 步后通过 owner-side import surface 回写 online owner
 
 ## 当前 proof surface

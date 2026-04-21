@@ -107,23 +107,29 @@
 
 - `distilgpt2`
 
-## Rare-heavy substrate v1
+## Rare-heavy substrate v2
 
-当前真实 substrate runtime 还不是完整 continual pretraining 系统，但已经补齐 rare-heavy v1 的 owner-side contract：
+当前真实 substrate runtime 还不是完整 continual pretraining 或蒸馏系统，但已经把 substrate rare-heavy 从 v1 的 bounded slow learner 提升到 v2 的 adapter-delta owner path：
 
 - `export_rare_heavy_state()`：导出 substrate slow learner checkpoint
 - `import_rare_heavy_state()`：通过 owner surface 应用 rare-heavy checkpoint
 - `restore_rare_heavy_state()`：回滚到导入前 checkpoint
 - `clone_for_rare_heavy()`：为 offline pipeline 克隆一个不污染 live session 的 substrate owner
-- `train_rare_heavy()`：基于最近的 substrate capture batches 产出 bounded substrate checkpoint
+- `train_rare_heavy()`：基于最近的 trace window + substrate capture batches 产出带 adapter delta payload 的 substrate checkpoint
 
 当前 rare-heavy substrate checkpoint 的语义是：
 
 - 不直接修改 foundation model 权重
-- 只更新 substrate owner 持有的 bounded slow learner state（例如 residual control scale、语义 text/residual 混合权重、anchor bias）
+- live runtime 继续保持 frozen substrate；只有 offline clone 允许训练 substrate owner 持有的 parameter-efficient adapter/delta state
+- checkpoint 除了保留 `control_scale`、`semantic_text_weight`、`semantic_residual_weight`、`anchor_bias` 这类 bounded owner state 之外，还会携带：
+  - `training_mode`
+  - `compatibility_fingerprint`
+  - `adapter_layers`
+  - `adapter_parameter_count`
+  - `adapter_training_loss`
 - 通过同一条 artifact/import/rollback surface 与 temporal / memory rare-heavy 保持一致
 
-因此，这一层的目标是先把 rare-heavy 从 “controller/memory only” 提升为 “substrate-aware slow learner”，而不是在主链里偷偷做 base-model 微调。
+因此，这一层的目标是把 rare-heavy 从 “controller/memory only” 提升为 “substrate-aware adapter learner”，而不是在主链里偷偷做 base-model 微调或 live weight mutation。
 
 ### 最严格验收
 
@@ -245,11 +251,14 @@ runtime_origin=hf-local capture_source=real fallback_active=0 residual_sequence_
 
 ### 验收 1.5：rare-heavy substrate import / rollback
 
-目标：证明真实或 builtin substrate owner 都能通过 rare-heavy artifact 接受一次 bounded slow update，并可回滚。
+目标：证明真实或 builtin substrate owner 都能通过 rare-heavy artifact 接受一次 adapter-delta substrate update，并可回滚。
 
 通过标准：
 
 - rare-heavy artifact 含非空 substrate checkpoint
+- substrate checkpoint 的 `training_mode == "adapter-delta-v2"`
+- substrate checkpoint 含非空 `compatibility_fingerprint`
+- substrate checkpoint 的 `adapter_parameter_count > 0`
 - import operations 包含 `rare-heavy:substrate-import`
 - rollback operations 包含 `rare-heavy:substrate-rollback`
 - temporal / memory rare-heavy 原有导入与回滚行为不回归

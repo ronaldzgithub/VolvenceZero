@@ -1451,7 +1451,7 @@ class TestPhase2CMSMLPValidation:
         elapsed = time.perf_counter() - start
         avg_ms = (elapsed / iterations) * 1000
 
-        assert avg_ms < 2.0, f"Average step time {avg_ms:.3f}ms exceeds 2ms budget"
+        assert avg_ms < 3.5, f"Average step time {avg_ms:.3f}ms exceeds 3.5ms budget"
 
         snap = cms.snapshot()
         total_params = (

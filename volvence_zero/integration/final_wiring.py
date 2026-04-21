@@ -43,11 +43,14 @@ from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
+    TemporalConsolidationSnapshot,
     TemporalPolicy,
     TemporalAggregateModule,
     TemporalModule,
+    TrackTemporalConsolidationModule,
     TrackTemporalModule,
     build_temporal_runtime_state_aggregate,
+    clone_full_learned_temporal_policy,
 )
 
 
@@ -396,6 +399,13 @@ def build_final_runtime_modules(
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
 ) -> list[Any]:
+    resolved_world_temporal_policy = world_temporal_policy or temporal_policy or FullLearnedTemporalPolicy()
+    if self_temporal_policy is not None:
+        resolved_self_temporal_policy = self_temporal_policy
+    elif isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_self_temporal_policy = clone_full_learned_temporal_policy(resolved_world_temporal_policy)
+    else:
+        resolved_self_temporal_policy = FullLearnedTemporalPolicy()
     return [
         SubstrateModule(
             adapter=substrate_adapter,
@@ -404,6 +414,19 @@ def build_final_runtime_modules(
         MemoryModule(
             store=memory_store or build_default_memory_store(),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
+        ),
+        TrackTemporalModule(
+            track=Track.WORLD,
+            policy=resolved_world_temporal_policy,
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        TrackTemporalModule(
+            track=Track.SELF,
+            policy=resolved_self_temporal_policy,
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        TemporalAggregateModule(
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
@@ -430,17 +453,14 @@ def build_final_runtime_modules(
             engine=ReflectionEngine(writeback_mode=reflection_mode),
             wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
         ),
-        TrackTemporalModule(
+        TrackTemporalConsolidationModule(
             track=Track.WORLD,
-            policy=world_temporal_policy or temporal_policy or FullLearnedTemporalPolicy(),
+            policy=resolved_world_temporal_policy,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
-        TrackTemporalModule(
+        TrackTemporalConsolidationModule(
             track=Track.SELF,
-            policy=self_temporal_policy or FullLearnedTemporalPolicy(),
-            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
-        ),
-        TemporalAggregateModule(
+            policy=resolved_self_temporal_policy,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
     ]
@@ -668,7 +688,7 @@ async def run_final_wiring_turn(
         writeback_result, temporal_audits = apply_session_post_writeback_request(
             request=session_post_writeback_request,
             memory_store=memory_store,
-            temporal_policy=temporal_policy,
+            temporal_policy=world_temporal_policy or temporal_policy,
             regime_module=regime_module,
         )
         if credit_module is not None and temporal_audits:

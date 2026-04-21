@@ -46,7 +46,11 @@ def test_agent_session_runner_reuses_session_memory_across_turns():
     assert first.wave_id == "wave-1"
     assert second.wave_id == "wave-2"
     assert len(second.active_snapshots["memory"].value.retrieved_entries) >= 1
-    assert second.active_snapshots["dual_track"].value.world_track.controller_source in ("temporal+memory", "temporal-track-projected")
+    assert second.active_snapshots["dual_track"].value.world_track.controller_source in (
+        "temporal+memory",
+        "temporal-track-projected",
+        "temporal-track-owner",
+    )
 
 
 def test_agent_session_runner_exposes_temporal_and_regime_views():

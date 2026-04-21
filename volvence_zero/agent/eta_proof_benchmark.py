@@ -599,6 +599,10 @@ def run_eta_internal_rl_proof_benchmark(
                 snapshots = _build_case_snapshots(case)
                 if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
                     sandbox.configure_runtime_backend(source_text=case.source_text)
+                if profile.replacement_mode in {"causal", "causal-binary"} or profile.optimize_after_rollout:
+                    sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
+                else:
+                    sandbox.policy.parameter_store.set_learning_phase("runtime")
                 train_rollout = sandbox.rollout(
                     rollout_id=f"{profile_label}:{case.case_id}:train:{epoch}",
                     substrate_steps=snapshots,
@@ -617,6 +621,10 @@ def run_eta_internal_rl_proof_benchmark(
             snapshots = _build_case_snapshots(case)
             if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
                 sandbox.configure_runtime_backend(source_text=case.source_text)
+            if profile.replacement_mode in {"causal", "causal-binary"}:
+                sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
+            else:
+                sandbox.policy.parameter_store.set_learning_phase("runtime")
             rollout = sandbox.rollout(
                 rollout_id=f"{profile_label}:{case.case_id}:eval",
                 substrate_steps=snapshots,

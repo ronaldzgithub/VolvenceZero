@@ -23,6 +23,7 @@ from volvence_zero.internal_rl.sandbox import (
 from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, Track, build_default_memory_store
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateRareHeavyCheckpoint, SubstrateSnapshot, TrainingTrace
 from volvence_zero.temporal import (
+    DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
     MetacontrollerParameterStore,
     MetacontrollerParameterSnapshot,
@@ -88,7 +89,7 @@ class RareHeavyArtifact:
     artifact_id: str
     owner_path: str
     created_at_ms: int
-    temporal_snapshot: MetacontrollerParameterSnapshot
+    temporal_snapshot: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot
     memory_checkpoint: MemoryStoreCheckpoint | None
     substrate_checkpoint: SubstrateRareHeavyCheckpoint | None
     transition_step: int

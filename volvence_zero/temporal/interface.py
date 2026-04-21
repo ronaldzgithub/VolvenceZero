@@ -79,6 +79,18 @@ class TemporalStep:
 
 
 @dataclass(frozen=True)
+class TemporalConsolidationSnapshot:
+    track: str
+    prediction_error_applied: bool
+    reflection_observed: bool
+    active_abstract_action: str
+    controller_params_hash: str
+    learning_phase: str
+    structure_frozen: bool
+    description: str
+
+
+@dataclass(frozen=True)
 class TemporalControllerParameters:
     residual_weight: float
     memory_weight: float
@@ -2027,6 +2039,12 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
 
+
+def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
+    cloned_store = MetacontrollerParameterStore(n_z=source_policy.parameter_store.n_z)
+    cloned_store.restore_parameter_snapshot(source_policy.export_rare_heavy_snapshot())
+    return FullLearnedTemporalPolicy(parameter_store=cloned_store)
+
     def _apply_prediction_error_signal(
         self,
         prediction_error_snapshot: PredictionErrorSnapshot | None,
@@ -2257,7 +2275,7 @@ def build_temporal_runtime_state_aggregate(
 
 class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     value_type = TemporalAbstractionSnapshot
-    dependencies = ("substrate", "memory", "reflection", "prediction_error")
+    dependencies = ("substrate", "memory")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -2291,19 +2309,8 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     ) -> Snapshot[TemporalAbstractionSnapshot]:
         substrate_snapshot = upstream["substrate"]
         memory_snapshot = upstream["memory"]
-        reflection_snapshot = upstream["reflection"]
-        prediction_error_snapshot = upstream["prediction_error"]
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
-        reflection_value = (
-            reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
-        )
-        prediction_error_value = (
-            prediction_error_snapshot.value
-            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
-            else None
-        )
-        self._apply_prediction_error_signal(prediction_error_value)
         if not isinstance(substrate_value, SubstrateSnapshot):
             step = PlaceholderTemporalPolicy().step(
                 substrate_snapshot=SubstrateSnapshot(
@@ -2319,14 +2326,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 ),
                 previous_snapshot=self._previous_snapshot,
                 memory_snapshot=memory_value,
-                reflection_snapshot=reflection_value,
+                reflection_snapshot=None,
             )
         else:
             step = self._policy.step(
                 substrate_snapshot=substrate_value,
                 previous_snapshot=self._previous_snapshot,
                 memory_snapshot=memory_value,
-                reflection_snapshot=reflection_value,
+                reflection_snapshot=None,
             )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
@@ -2344,16 +2351,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         if not isinstance(substrate_snapshot, SubstrateSnapshot):
             raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
         memory_snapshot = kwargs.get("memory_snapshot")
-        reflection_snapshot = kwargs.get("reflection_snapshot")
-        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
-        self._apply_prediction_error_signal(
-            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
-        )
         step = self._policy.step(
             substrate_snapshot=substrate_snapshot,
             previous_snapshot=self._previous_snapshot,
             memory_snapshot=memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None,
-            reflection_snapshot=reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None,
+            reflection_snapshot=None,
         )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
@@ -2366,25 +2368,133 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
 
-    def _apply_prediction_error_signal(
+
+def _apply_track_prediction_error_signal(
+    *,
+    track: Track,
+    policy: TemporalPolicy,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> bool:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return False
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        target_residual = _clamp(0.40 + abs(pe.task_error) * 0.40 + abs(pe.action_error) * 0.10)
+        target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.20 + abs(pe.task_error) * 0.10)
+        target_reflection = _clamp(0.10 + abs(pe.relationship_error) * 0.10)
+    else:
+        target_residual = _clamp(0.25 + abs(pe.relationship_error) * 0.35 + abs(pe.regime_error) * 0.10)
+        target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.15 + abs(pe.action_error) * 0.10)
+        target_reflection = _clamp(0.30 + abs(pe.relationship_error) * 0.35 + abs(pe.action_error) * 0.10)
+    policy.fit_from_signals(
+        residual_strength=target_residual,
+        memory_strength=target_memory,
+        reflection_strength=target_reflection,
+    )
+    return True
+
+
+class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapshot]):
+    value_type = TemporalConsolidationSnapshot
+    dependencies = ("reflection", "prediction_error")
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
         self,
-        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        *,
+        track: Track,
+        policy: TemporalPolicy | None = None,
+        wiring_level: WiringLevel | None = None,
     ) -> None:
-        if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
-            return
-        pe = prediction_error_snapshot.error
-        if self._track is Track.WORLD:
-            target_residual = _clamp(0.40 + abs(pe.task_error) * 0.40 + abs(pe.action_error) * 0.10)
-            target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.20 + abs(pe.task_error) * 0.10)
-            target_reflection = _clamp(0.10 + abs(pe.relationship_error) * 0.10)
-        else:
-            target_residual = _clamp(0.25 + abs(pe.relationship_error) * 0.35 + abs(pe.regime_error) * 0.10)
-            target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.15 + abs(pe.action_error) * 0.10)
-            target_reflection = _clamp(0.30 + abs(pe.relationship_error) * 0.35 + abs(pe.action_error) * 0.10)
-        self._policy.fit_from_signals(
-            residual_strength=target_residual,
-            memory_strength=target_memory,
-            reflection_strength=target_reflection,
+        super().__init__(wiring_level=wiring_level)
+        self._track = track
+        self.slot_name = f"{track.value}_temporal_consolidation"
+        self.owner = f"{track.value.title()}TemporalConsolidationModule"
+        self._policy = policy or FullLearnedTemporalPolicy()
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[TemporalConsolidationSnapshot]:
+        reflection_snapshot = upstream["reflection"]
+        prediction_error_snapshot = upstream["prediction_error"]
+        reflection_value = (
+            reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
+        )
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        prediction_error_applied = _apply_track_prediction_error_signal(
+            track=self._track,
+            policy=self._policy,
+            prediction_error_snapshot=prediction_error_value,
+        )
+        runtime_state = self._policy.export_runtime_state()
+        return self.publish(
+            TemporalConsolidationSnapshot(
+                track=self._track.value,
+                prediction_error_applied=prediction_error_applied,
+                reflection_observed=reflection_value is not None,
+                active_abstract_action=runtime_state.active_label,
+                controller_params_hash=_hash_payload(
+                    {
+                        "track": self._track.value,
+                        "phase": runtime_state.learning_phase,
+                        "structure_frozen": runtime_state.structure_frozen,
+                        "active_label": runtime_state.active_label,
+                        "temporal_parameters": runtime_state.temporal_parameters,
+                    }
+                ),
+                learning_phase=runtime_state.learning_phase,
+                structure_frozen=runtime_state.structure_frozen,
+                description=(
+                    f"{self._track.value}-track temporal consolidation observed "
+                    f"prediction_error={'yes' if prediction_error_applied else 'no'} "
+                    f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"phase={runtime_state.learning_phase} frozen={runtime_state.structure_frozen}."
+                ),
+            )
+        )
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalConsolidationSnapshot]:
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        reflection_snapshot = kwargs.get("reflection_snapshot")
+        prediction_error_value = (
+            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
+        )
+        reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None
+        prediction_error_applied = _apply_track_prediction_error_signal(
+            track=self._track,
+            policy=self._policy,
+            prediction_error_snapshot=prediction_error_value,
+        )
+        runtime_state = self._policy.export_runtime_state()
+        return self.publish(
+            TemporalConsolidationSnapshot(
+                track=self._track.value,
+                prediction_error_applied=prediction_error_applied,
+                reflection_observed=reflection_value is not None,
+                active_abstract_action=runtime_state.active_label,
+                controller_params_hash=_hash_payload(
+                    {
+                        "track": self._track.value,
+                        "phase": runtime_state.learning_phase,
+                        "structure_frozen": runtime_state.structure_frozen,
+                        "active_label": runtime_state.active_label,
+                        "temporal_parameters": runtime_state.temporal_parameters,
+                    }
+                ),
+                learning_phase=runtime_state.learning_phase,
+                structure_frozen=runtime_state.structure_frozen,
+                description=(
+                    f"{self._track.value}-track temporal consolidation observed "
+                    f"prediction_error={'yes' if prediction_error_applied else 'no'} "
+                    f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"phase={runtime_state.learning_phase} frozen={runtime_state.structure_frozen}."
+                ),
+            )
         )
 
 
