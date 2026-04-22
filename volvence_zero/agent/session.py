@@ -12,6 +12,7 @@ from volvence_zero.application.runtime import (
     ApplicationOutcomeAttribution,
     ApplicationSequencePayoff,
     ApplicationCaseCluster,
+    DelayedCreditSummary,
     ApplicationRareHeavyCheckpoint,
     ApplicationRareHeavyState,
     BoundaryPolicySnapshot,
@@ -225,11 +226,16 @@ def _abstract_action_alignment(
     *,
     regime_id: str | None,
     abstract_action: str | None,
+    action_family_version: int,
     outcome_score: float,
 ) -> float:
     if abstract_action is None:
-        return outcome_score
+        family_bonus = min(max(action_family_version, 0), 4) / 4.0
+        return _clamp(outcome_score * 0.78 + family_bonus * 0.22)
     action_label = abstract_action.lower()
+    if action_label.startswith("latent-family-v"):
+        family_bonus = min(max(action_family_version, 0), 4) / 4.0
+        return _clamp(outcome_score * 0.72 + (0.5 + family_bonus * 0.5) * 0.28)
     if regime_id == "problem_solving":
         action_bias = 1.0 if "task_controller" in action_label else 0.45
     elif regime_id == "repair_and_deescalation":
@@ -289,6 +295,18 @@ def _experience_deltas_from_prior_update(
                 confidence=update.confidence,
                 blocked=update.target in blocked_target_set,
                 description=update.hint.description,
+            )
+        )
+    for update in prior_update.retrieval_readout_updates:
+        deltas.append(
+            ExperienceDelta(
+                delta_id=update.update_id,
+                delta_type="retrieval-readout-delta",
+                target_slot="retrieval_policy",
+                summary=update.description,
+                confidence=update.confidence,
+                blocked=update.target in blocked_target_set,
+                description=update.checkpoint.description,
             )
         )
     return tuple(deltas)
@@ -941,6 +959,14 @@ class AgentSessionRunner:
         playbook_rule_count = 0
         playbook_band_ids: tuple[str, ...] = ()
         continuum_profile_id: str | None = None
+        retrieval_fast_prior_strength = 0.0
+        retrieval_fast_prior_attribution_count = 0
+        retrieval_fast_prior_sequence_count = 0
+        retrieval_regime_bias = 0.0
+        retrieval_action_bias = 0.0
+        retrieval_family_bias = 0.0
+        retrieval_knowledge_weight_bias = 0.0
+        retrieval_experience_weight_bias = 0.0
         case_snapshot = self._upstream_snapshots.get("case_memory")
         if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
             case_problem_patterns = case_snapshot.value.active_problem_patterns
@@ -983,6 +1009,33 @@ class AgentSessionRunner:
             playbook_rule_count = len(playbook_snapshot.value.matched_rules)
             playbook_band_ids = playbook_snapshot.value.active_band_ids
             continuum_profile_id = continuum_profile_id or playbook_snapshot.value.continuum_profile_id
+        fast_prior_snapshot = self.experience_fast_prior_snapshot
+        if fast_prior_snapshot is not None:
+            fast_prior = fast_prior_snapshot.value
+            retrieval_fast_prior_strength = fast_prior.prior_strength
+            retrieval_fast_prior_attribution_count = len(fast_prior.source_attribution_ids)
+            retrieval_fast_prior_sequence_count = len(fast_prior.source_sequence_ids)
+            retrieval_knowledge_weight_bias = fast_prior.knowledge_weight_bias
+            retrieval_experience_weight_bias = fast_prior.experience_weight_bias
+            if regime_id is not None:
+                retrieval_regime_bias = next(
+                    (item.bias for item in fast_prior.regime_biases if item.regime_id == regime_id),
+                    0.0,
+                )
+            if abstract_action is not None:
+                retrieval_action_bias = next(
+                    (item.bias for item in fast_prior.action_biases if item.abstract_action == abstract_action),
+                    0.0,
+                )
+            if action_family_version > 0:
+                retrieval_family_bias = next(
+                    (
+                        item.continuation_bias
+                        for item in fast_prior.family_biases
+                        if item.action_family_version == action_family_version
+                    ),
+                    0.0,
+                )
         job = SessionPostSlowLoopJob(
             job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
             context_session_id=request.context_session_id,
@@ -1015,6 +1068,14 @@ class AgentSessionRunner:
             case_band_ids=case_band_ids,
             case_mean_continuum_position=case_mean_continuum_position,
             playbook_band_ids=playbook_band_ids,
+            retrieval_fast_prior_strength=retrieval_fast_prior_strength,
+            retrieval_fast_prior_attribution_count=retrieval_fast_prior_attribution_count,
+            retrieval_fast_prior_sequence_count=retrieval_fast_prior_sequence_count,
+            retrieval_regime_bias=retrieval_regime_bias,
+            retrieval_action_bias=retrieval_action_bias,
+            retrieval_family_bias=retrieval_family_bias,
+            retrieval_knowledge_weight_bias=retrieval_knowledge_weight_bias,
+            retrieval_experience_weight_bias=retrieval_experience_weight_bias,
         )
         self._last_session_post_writeback_request = None
         return job
@@ -1055,6 +1116,7 @@ class AgentSessionRunner:
         abstract_action_alignment = _abstract_action_alignment(
             regime_id=job.regime_id,
             abstract_action=job.abstract_action,
+            action_family_version=job.action_family_version,
             outcome_score=outcome_score,
         )
         dominant_band_id = (
@@ -1118,6 +1180,31 @@ class AgentSessionRunner:
                 ),
             ),
         )
+        delayed_credit_summary = DelayedCreditSummary(
+            summary_id=f"{job.job_id}:delayed-credit-summary",
+            regime_id=job.regime_id,
+            abstract_action=job.abstract_action,
+            action_family_version=job.action_family_version,
+            retrieval_policy_id=job.retrieval_policy_id,
+            knowledge_weight=job.knowledge_weight,
+            experience_weight=job.experience_weight,
+            retrieval_mix_alignment=retrieval_mix_alignment,
+            regime_alignment=regime_alignment,
+            abstract_action_alignment=abstract_action_alignment,
+            outcome_score=outcome_score,
+            sequence_payoff=sequence_payoffs[0].rolling_payoff,
+            continuum_alignment=continuum_alignment,
+            attribution_count=len(delayed_outcome_ledger),
+            sequence_count=len(sequence_payoffs),
+            continuum_profile_id=job.continuum_profile_id,
+            dominant_band_id=dominant_band_id,
+            mean_continuum_position=job.case_mean_continuum_position,
+            description=(
+                f"Delayed credit summary for regime={job.regime_id} abstract_action={job.abstract_action} "
+                f"family_version={job.action_family_version} outcome={outcome_score:.2f} "
+                f"mix_alignment={retrieval_mix_alignment:.2f} sequence_payoff={sequence_payoffs[0].rolling_payoff:.2f}."
+            ),
+        )
         mean_experience_quality = _clamp(
             (
                 retrieval_mix_alignment
@@ -1140,12 +1227,43 @@ class AgentSessionRunner:
                 experience_weight=job.experience_weight,
                 case_hit_count=job.case_hit_count,
                 mean_experience_quality=mean_experience_quality,
+                retrieval_readout_checkpoint=self._application_rare_heavy_state.retrieval_readout_checkpoint,
+                retrieval_fast_prior_strength=max(job.retrieval_fast_prior_strength, mean_experience_quality),
+                retrieval_fast_prior_attribution_count=max(job.retrieval_fast_prior_attribution_count, 1),
+                retrieval_fast_prior_sequence_count=max(job.retrieval_fast_prior_sequence_count, 1),
+                retrieval_regime_bias=max(job.retrieval_regime_bias, regime_alignment - 0.5),
+                retrieval_action_bias=max(job.retrieval_action_bias, abstract_action_alignment - 0.5),
+                retrieval_family_bias=max(job.retrieval_family_bias, outcome_score - 0.5),
+                retrieval_knowledge_weight_bias=(
+                    job.retrieval_knowledge_weight_bias - max(retrieval_mix_alignment - 0.5, 0.0) * 0.5
+                ),
+                retrieval_experience_weight_bias=(
+                    job.retrieval_experience_weight_bias + max(retrieval_mix_alignment - 0.5, 0.0) * 0.5
+                ),
+                retrieval_source_attribution_ids=tuple(
+                    item.attribution_id for item in delayed_outcome_ledger
+                ),
+                retrieval_source_sequence_ids=tuple(
+                    item.sequence_id for item in sequence_payoffs
+                ),
+                retrieval_mean_retrieval_mix_alignment=retrieval_mix_alignment,
+                retrieval_mean_regime_alignment=regime_alignment,
+                retrieval_mean_action_alignment=abstract_action_alignment,
+                retrieval_mean_sequence_payoff=(
+                    sum(item.rolling_payoff for item in sequence_payoffs) / len(sequence_payoffs)
+                    if sequence_payoffs
+                    else 0.0
+                ),
             )
         )
         application_apply_enabled = (
             job.writeback_request.reflection_apply_enabled
             and job.writeback_request.structural_writeback_allowed
             and mean_experience_quality >= 0.52
+        )
+        retrieval_checkpoint_apply_enabled = (
+            job.writeback_request.reflection_apply_enabled
+            and mean_experience_quality >= 0.45
         )
         if not job.writeback_request.reflection_apply_enabled:
             application_block_reason = "writeback-mode-not-apply"
@@ -1169,6 +1287,7 @@ class AgentSessionRunner:
                 timestamp_ms=max(job.closed_at_turn, 1) + 2,
                 checkpoint_id=job.writeback_request.checkpoint_id,
                 apply_enabled=application_apply_enabled,
+                retrieval_apply_enabled=retrieval_checkpoint_apply_enabled,
                 blocked_reason=application_block_reason,
             )
         if application_prior_writeback_report is None:
@@ -1220,6 +1339,7 @@ class AgentSessionRunner:
             experience_deltas=experience_deltas,
             delayed_outcome_ledger=delayed_outcome_ledger,
             sequence_payoffs=sequence_payoffs,
+            delayed_credit_summary=delayed_credit_summary,
             application_prior_update=application_prior_update,
             application_prior_writeback_report=application_prior_writeback_report,
             application_prior_audits=application_prior_audits,

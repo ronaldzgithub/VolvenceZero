@@ -19,6 +19,8 @@ from volvence_zero.application import (
     PlaybookRule,
     ProfessionalScope,
     ResponseMode,
+    RetrievalReadoutCheckpoint,
+    RetrievalReadoutPriorUpdate,
     RiskBand,
     StrategyPlaybookPriorUpdate,
 )
@@ -77,6 +79,8 @@ def test_retrieval_control_readout_stays_compact_and_adjusts_domains():
             regime_fast_prior_bias=0.05,
             action_fast_prior_bias=0.08,
             family_fast_prior_bias=0.06,
+            action_family_version=1,
+            switch_gate=0.18,
             continuum_active_band_ids=("background-slow", "tower-readout"),
         )
     )
@@ -130,6 +134,64 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
     assert proposal.case_memory_updates[0].target.startswith("application.case_memory.records.")
     assert proposal.strategy_playbook_updates[0].rule.recommended_ordering
     assert proposal.boundary_policy_updates[0].hint.trigger_reasons
+
+
+def test_application_prior_writeback_applies_retrieval_readout_checkpoint_owner_side():
+    rare_heavy_state = ApplicationRareHeavyState()
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="job:retrieval-readout",
+        retrieval_readout_updates=(
+            RetrievalReadoutPriorUpdate(
+                update_id="update:retrieval-readout",
+                target="application.retrieval_readout.checkpoint",
+                checkpoint=RetrievalReadoutCheckpoint(
+                    checkpoint_id="retrieval-readout:job",
+                    parameters=RetrievalControlReadoutParameters.default().updated_from_slow_prior(
+                        strength=0.72,
+                        attribution_count=4,
+                        sequence_count=2,
+                        regime_bias=0.14,
+                        action_bias=0.18,
+                        family_bias=0.12,
+                        knowledge_weight_bias=-0.08,
+                        experience_weight_bias=0.10,
+                    ),
+                    confidence=0.74,
+                    description="Session-post retrieval readout checkpoint.",
+                    source_session_post_job_id="job:retrieval-readout",
+                    source_attribution_ids=("attr:1", "attr:2"),
+                    source_sequence_ids=("seq:1",),
+                    mean_retrieval_mix_alignment=0.68,
+                    mean_regime_alignment=0.66,
+                    mean_action_alignment=0.64,
+                    mean_sequence_payoff=0.72,
+                ),
+                confidence=0.74,
+                description="Promote retrieval readout checkpoint from delayed evidence.",
+            ),
+        ),
+        description="Application prior update with retrieval readout checkpoint.",
+    )
+
+    operations, blocks, audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        case_memory_store=ApplicationCaseMemoryStore(),
+        application_rare_heavy_state=rare_heavy_state,
+        credit_snapshot=None,
+        timestamp_ms=10,
+        checkpoint_id="checkpoint:test",
+        apply_enabled=True,
+        blocked_reason="allow",
+    )
+
+    assert report is not None
+    assert not blocks
+    assert any(op.startswith("application-prior:retrieval-readout:") for op in operations)
+    assert rare_heavy_state.retrieval_readout_checkpoint is not None
+    assert rare_heavy_state.retrieval_readout_checkpoint.checkpoint_id == "retrieval-readout:job"
+    assert rare_heavy_state.retrieval_readout_checkpoint.source_attribution_ids == ("attr:1", "attr:2")
+    assert rare_heavy_state.retrieval_readout_checkpoint.source_sequence_ids == ("seq:1",)
+    assert audits
 
 
 def test_final_wiring_turn_builds_expected_active_and_shadow_chain():

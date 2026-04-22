@@ -560,11 +560,21 @@ class BoundaryPolicyPriorUpdate:
 
 
 @dataclass(frozen=True)
+class RetrievalReadoutPriorUpdate:
+    update_id: str
+    target: str
+    checkpoint: RetrievalReadoutCheckpoint
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
 class ApplicationPriorUpdate:
     source_session_post_job_id: str
     case_memory_updates: tuple[CaseMemoryPriorUpdate, ...]
     strategy_playbook_updates: tuple[StrategyPlaybookPriorUpdate, ...]
     boundary_policy_updates: tuple[BoundaryPolicyPriorUpdate, ...]
+    retrieval_readout_updates: tuple[RetrievalReadoutPriorUpdate, ...]
     description: str
 
 
@@ -604,6 +614,7 @@ class ExperienceConsolidationSnapshot:
 - 不自己成为 `case_memory` / `strategy_playbook` / `boundary_policy` 的第二 owner
 - 为 application 层公开 delayed outcome attribution：至少覆盖 `regime`, `abstract_action`, retrieval mix, `action_family_version` 与 sequence payoff
 - 作为 experience 进入 ETA 的第三入口：把经验变成 ETA 可读的 delayed credit surface，并在 judge / credit gate 放行时驱动 owner-side prior update
+- retrieval readout 参数若需慢层更新，也应作为 typed prior update 暴露，并继续遵守 session-owned / owner-side apply 语义
 
 ## 10.3 Direct Dependencies
 
@@ -616,6 +627,7 @@ apply 语义要求：
 - 真正的 apply 只能发生在 session owner 驱动的 owner-side writeback helper 中
 - `EvolutionJudgement` 与 target-specific credit gate 必须先裁决，再允许 application prior update 进入 owner
 - rollback 必须沿 application owner checkpoint / rare-heavy rollback 链回滚，而不是由 `ExperienceConsolidationModule` 直接反写其他 owner
+- retrieval readout 参数不得在 turn-time 直接按 fast prior 改写；若发生参数更新，必须走 `RetrievalReadoutPriorUpdate -> gated checkpoint apply`
 
 上游来源：
 
@@ -647,12 +659,14 @@ class ApplicationRareHeavyCheckpoint:
     domain_template_biases: tuple[tuple[str, float], ...]
     case_clusters: tuple[ApplicationCaseCluster, ...]
     distilled_playbook_rules: tuple[PlaybookRule, ...]
+    retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None
     description: str
 ```
 
 **不变量**：
 - checkpoint 属于 session owner 管辖的 application rare-heavy state
 - `retrieval_policy` 只能读取 domain bias 的公共效果，不能直接接管 checkpoint 本体
+- `retrieval_policy` 若消费 retrieval readout checkpoint，也只能读取其 compact 参数效果，不能因此把 checkpoint owner 身份回收为 turn-time 第二 owner
 - `case_memory` 只能读取 cluster fallback / enrichment，不得因此回收 `memory` owner 身份
 - `strategy_playbook` 只能消费 distilled rules 作为 prior，不得反向成为 `temporal` 的第二 owner
 - rollback 必须沿 rare-heavy rollback 链回滚 application state

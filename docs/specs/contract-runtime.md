@@ -110,6 +110,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前表达层已新增正式 `response_assembly` surface：它读取 `regime`、`temporal_abstraction`、`memory`、`reflection`、`domain_knowledge`、`case_memory`、`strategy_playbook`、`boundary_policy`，发布 compact prompt residue、generation constraints 与 numeric control。`session` / `response` / runtime 只能消费该公共 surface，不应继续在下游重建 knowledge/case/playbook/boundary 的表达语义
 - 当前 `retrieval_policy` 还应被理解为 **compact retrieval control surface**：`ETA` / temporal 只通过该 surface 对 knowledge/experience owners 施加影响，而不吸收知识库/经验库本体。应用层后续若引入 learned readout，也应替换在 readout seam 内，而不是让 `RetrievalPolicyModule` 或 `temporal` owner 直接回收知识/经验所有权
 - 当前 session-post 侧的 application prior proposal 也应保持为 **owner-side helper**：慢层经验可以生成 `ApplicationPriorUpdate` 提案，但它只能沿 `experience_consolidation -> experience_fast_prior -> owner-side apply` 的公共链回流，不能形成新的 `session -> temporal` 或 `evaluation -> temporal` 旁路
+- 若 `retrieval_policy` 引入 owner-side 参数化 readout，则参数更新也必须走 **session-owned proposal / credit gate / rare-heavy checkpoint** 路径；`RetrievalPolicyModule` 继续是唯一 turn-time owner，禁止新增专门“替它改参数”的第二 owner
 
 ### 直接依赖 vs enrichment
 

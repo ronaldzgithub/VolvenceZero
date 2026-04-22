@@ -1830,23 +1830,21 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             else 0.0
         )
         track_scale = 0.85 if track is Track.SHARED else 1.0
+        prior_strength = experience_fast_prior_snapshot.prior_strength
+        continuation_pressure = max(action_bias, 0.0) * 0.34 + max(family_bias, 0.0) * 0.42 + max(sequence_bias, 0.0) * 0.24
+        exploration_pressure = max(-action_bias, 0.0) * 0.26 + max(-family_bias, 0.0) * 0.44 + max(-sequence_bias, 0.0) * 0.30
         switch_pressure_delta = max(
             -0.18,
             min(
                 0.18,
-                -(
-                    action_bias * 0.38
-                    + family_bias * 0.42
-                    + sequence_bias * 0.20
-                )
-                * track_scale,
+                (exploration_pressure - continuation_pressure) * (0.22 + prior_strength * 0.16) * track_scale,
             ),
         )
         self._parameter_store.record_fast_prior_signals(
-            strength=experience_fast_prior_snapshot.prior_strength,
-            action_bias=action_bias,
-            family_bias=family_bias,
-            sequence_bias=sequence_bias,
+            strength=prior_strength,
+            action_bias=action_bias * (1.0 + prior_strength * 0.10),
+            family_bias=family_bias * (1.0 + prior_strength * 0.14),
+            sequence_bias=sequence_bias * (1.0 + prior_strength * 0.12),
             switch_pressure_delta=switch_pressure_delta,
         )
 

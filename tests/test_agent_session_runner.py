@@ -223,6 +223,37 @@ def test_agent_session_runner_publishes_experience_consolidation_after_session_p
         record.metric_name == "delayed_retrieval_mix_alignment"
         for record in runner.evaluation_backbone.records
     )
+    assert runner._application_rare_heavy_state.retrieval_readout_checkpoint is not None
+    checkpoint = runner._application_rare_heavy_state.retrieval_readout_checkpoint
+    assert checkpoint.source_attribution_ids
+    assert checkpoint.source_sequence_ids
+    assert checkpoint.mean_retrieval_mix_alignment > 0.0
+
+
+def test_agent_session_runner_uses_gated_retrieval_readout_checkpoint_next_turn():
+    runner = AgentSessionRunner(
+        session_id="retrieval-readout-checkpoint-session",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need calm support with the smallest next step."))
+    runner.begin_new_context(reason="retrieval-readout-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    assert runner._application_rare_heavy_state.retrieval_readout_checkpoint is not None
+    checkpoint = runner._application_rare_heavy_state.retrieval_readout_checkpoint
+    assert checkpoint.source_attribution_ids
+    assert checkpoint.source_sequence_ids
+
+    next_result = asyncio.run(runner.run_turn("Help me continue in the next context."))
+    retrieval_policy = next_result.active_snapshots["retrieval_policy"].value
+
+    assert "checkpoint=present" in retrieval_policy.description
 
 
 def test_agent_session_runner_derives_case_and_playbook_eta_signals_between_turns():
@@ -528,7 +559,19 @@ def test_agent_session_runner_blocks_application_promotion_when_judge_holds_or_r
 
     assert slow_loop_results
     assert slow_loop_results[0].experience_deltas
-    assert all(delta.blocked for delta in slow_loop_results[0].experience_deltas)
+    structural_deltas = tuple(
+        delta
+        for delta in slow_loop_results[0].experience_deltas
+        if delta.target_slot in {"case_memory", "strategy_playbook", "boundary_policy"}
+    )
+    retrieval_deltas = tuple(
+        delta
+        for delta in slow_loop_results[0].experience_deltas
+        if delta.target_slot == "retrieval_policy"
+    )
+    assert structural_deltas
+    assert all(delta.blocked for delta in structural_deltas)
+    assert retrieval_deltas
     assert slow_loop_results[0].application_prior_writeback_report is not None
     assert slow_loop_results[0].application_prior_writeback_report.blocked_targets
 

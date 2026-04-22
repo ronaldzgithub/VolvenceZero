@@ -22,6 +22,8 @@ def _dedupe(items: tuple[str, ...]) -> tuple[str, ...]:
 class RetrievalControlReadoutInputs:
     regime_id: str
     abstract_action: str | None
+    action_family_version: int
+    switch_gate: float
     knowledge_domains: tuple[str, ...]
     experience_domains: tuple[str, ...]
     world_weight: float
@@ -51,6 +53,15 @@ class RetrievalControlReadout:
     experience_domains: tuple[str, ...]
     knowledge_weight: float
     experience_weight: float
+    knowledge_domain_ranking: tuple[str, ...]
+    experience_domain_ranking: tuple[str, ...]
+    response_mode_hint: str
+    clarification_bias: float
+    refer_out_bias: float
+    answer_depth_bias: float
+    continuum_target_position: float
+    ordering_bias: tuple[str, ...]
+    ordering_driver: str
     description: str
 
 
@@ -61,6 +72,12 @@ class RetrievalReadoutCheckpoint:
     confidence: float
     description: str
     source_session_post_job_id: str | None = None
+    source_attribution_ids: tuple[str, ...] = ()
+    source_sequence_ids: tuple[str, ...] = ()
+    mean_retrieval_mix_alignment: float = 0.0
+    mean_regime_alignment: float = 0.0
+    mean_action_alignment: float = 0.0
+    mean_sequence_payoff: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -85,6 +102,8 @@ class RetrievalReadoutFeatures:
     family_fast_prior_bias: float
     action_is_stabilize: float
     action_is_task: float
+    action_family_activation: float
+    switch_gate_signal: float
 
 
 @dataclass(frozen=True)
@@ -121,6 +140,12 @@ class RetrievalControlReadoutParameters:
     stabilization_domain_head: RetrievalReadoutHead
     structured_domain_head: RetrievalReadoutHead
     guidance_domain_head: RetrievalReadoutHead
+    support_response_head: RetrievalReadoutHead
+    clarify_response_head: RetrievalReadoutHead
+    structure_response_head: RetrievalReadoutHead
+    refer_out_response_head: RetrievalReadoutHead
+    answer_depth_head: RetrievalReadoutHead
+    continuum_target_head: RetrievalReadoutHead
 
     @classmethod
     def default(cls) -> "RetrievalControlReadoutParameters":
@@ -209,6 +234,81 @@ class RetrievalControlReadoutParameters:
                     ("playbook_experience_hint", 0.05),
                 ),
             ),
+            support_response_head=RetrievalReadoutHead(
+                bias=0.32,
+                weights=(
+                    ("support_mode", 0.22),
+                    ("repair_mode", 0.08),
+                    ("self_bias", 0.14),
+                    ("continuum_focus", 0.12),
+                    ("continuum_reconstruction_pressure", 0.08),
+                    ("action_is_stabilize", 0.14),
+                    ("action_fast_prior_bias", 0.08),
+                    ("family_fast_prior_bias", 0.06),
+                    ("switch_gate_signal", 0.04),
+                ),
+            ),
+            clarify_response_head=RetrievalReadoutHead(
+                bias=0.20,
+                weights=(
+                    ("continuum_reconstruction_pressure", 0.18),
+                    ("continuum_focus", 0.10),
+                    ("sequence_payoff_signal", -0.06),
+                    ("switch_gate_signal", 0.10),
+                    ("action_family_activation", 0.06),
+                    ("action_fast_prior_bias", -0.04),
+                ),
+            ),
+            structure_response_head=RetrievalReadoutHead(
+                bias=0.22,
+                weights=(
+                    ("problem_solving_mode", 0.22),
+                    ("world_bias", 0.16),
+                    ("delayed_payoff_signal", 0.08),
+                    ("sequence_payoff_signal", 0.08),
+                    ("playbook_knowledge_hint", 0.08),
+                    ("action_is_task", 0.12),
+                    ("action_family_activation", 0.06),
+                ),
+            ),
+            refer_out_response_head=RetrievalReadoutHead(
+                bias=0.08,
+                weights=(
+                    ("continuum_reconstruction_pressure", 0.22),
+                    ("continuum_slow_share", 0.12),
+                    ("switch_gate_signal", 0.08),
+                    ("family_fast_prior_bias", -0.06),
+                    ("sequence_payoff_signal", -0.06),
+                ),
+            ),
+            answer_depth_head=RetrievalReadoutHead(
+                bias=0.42,
+                weights=(
+                    ("world_bias", 0.12),
+                    ("problem_solving_mode", 0.10),
+                    ("continuum_reconstruction_pressure", 0.16),
+                    ("continuum_focus", 0.10),
+                    ("switch_gate_signal", 0.08),
+                    ("playbook_knowledge_hint", 0.08),
+                    ("family_fast_prior_bias", -0.06),
+                ),
+            ),
+            continuum_target_head=RetrievalReadoutHead(
+                bias=0.50,
+                weights=(
+                    ("support_mode", 0.16),
+                    ("repair_mode", 0.12),
+                    ("problem_solving_mode", -0.14),
+                    ("self_bias", 0.12),
+                    ("world_bias", -0.10),
+                    ("continuum_focus", 0.16),
+                    ("continuum_slow_share", 0.10),
+                    ("continuum_reconstruction_pressure", 0.12),
+                    ("action_is_stabilize", 0.10),
+                    ("action_is_task", -0.08),
+                    ("family_fast_prior_bias", 0.06),
+                ),
+            ),
         )
 
     def updated_from_slow_prior(
@@ -287,6 +387,53 @@ class RetrievalControlReadoutParameters:
                     ("playbook_experience_hint", max(family_shift, 0.0) * delta_scale * 0.08),
                 ),
             ),
+            support_response_head=self.support_response_head.shifted(
+                bias_delta=max(action_shift, 0.0) * delta_scale * 0.12,
+                weight_deltas=(
+                    ("action_fast_prior_bias", max(action_shift, 0.0) * delta_scale * 0.16),
+                    ("family_fast_prior_bias", max(family_shift, 0.0) * delta_scale * 0.10),
+                ),
+            ),
+            clarify_response_head=self.clarify_response_head.shifted(
+                bias_delta=max(regime_shift, 0.0) * delta_scale * 0.10,
+                weight_deltas=(
+                    ("continuum_reconstruction_pressure", bounded_strength * delta_scale * 0.16),
+                    ("switch_gate_signal", max(action_shift, 0.0) * delta_scale * 0.12),
+                ),
+            ),
+            structure_response_head=self.structure_response_head.shifted(
+                bias_delta=max(regime_shift, 0.0) * delta_scale * 0.08,
+                weight_deltas=(
+                    ("sequence_payoff_signal", max(family_shift, 0.0) * delta_scale * 0.14),
+                    ("delayed_payoff_signal", max(regime_shift, 0.0) * delta_scale * 0.12),
+                    ("action_family_activation", max(family_shift, 0.0) * delta_scale * 0.10),
+                ),
+            ),
+            refer_out_response_head=self.refer_out_response_head.shifted(
+                bias_delta=bounded_strength * delta_scale * 0.08,
+                weight_deltas=(
+                    ("continuum_reconstruction_pressure", bounded_strength * delta_scale * 0.16),
+                    ("switch_gate_signal", max(action_shift, 0.0) * delta_scale * 0.08),
+                ),
+            ),
+            answer_depth_head=self.answer_depth_head.shifted(
+                bias_delta=bounded_strength * delta_scale * 0.06,
+                weight_deltas=(
+                    ("continuum_reconstruction_pressure", bounded_strength * delta_scale * 0.14),
+                    ("switch_gate_signal", max(action_shift, 0.0) * delta_scale * 0.08),
+                ),
+            ),
+            continuum_target_head=self.continuum_target_head.shifted(
+                bias_delta=(
+                    max(action_shift, 0.0) * delta_scale * 0.10
+                    - max(regime_shift, 0.0) * delta_scale * 0.06
+                ),
+                weight_deltas=(
+                    ("family_fast_prior_bias", max(family_shift, 0.0) * delta_scale * 0.12),
+                    ("action_fast_prior_bias", max(action_shift, 0.0) * delta_scale * 0.10),
+                    ("continuum_focus", bounded_strength * delta_scale * 0.10),
+                ),
+            ),
         )
 
 
@@ -302,8 +449,18 @@ class RetrievalControlReadoutStrategy:
 
     def build(self, inputs: RetrievalControlReadoutInputs) -> RetrievalControlReadout:
         features = self._extract_features(inputs)
-        knowledge_weight = _clamp(self._parameters.knowledge_weight_head.evaluate(features))
-        experience_weight = _clamp(self._parameters.experience_weight_head.evaluate(features))
+        effective_parameters = self._parameters.updated_from_slow_prior(
+            strength=inputs.fast_prior_strength,
+            attribution_count=inputs.fast_prior_attribution_count,
+            sequence_count=inputs.fast_prior_sequence_count,
+            regime_bias=inputs.regime_fast_prior_bias,
+            action_bias=inputs.action_fast_prior_bias,
+            family_bias=inputs.family_fast_prior_bias,
+            knowledge_weight_bias=inputs.knowledge_weight_bias,
+            experience_weight_bias=inputs.experience_weight_bias,
+        )
+        knowledge_weight = _clamp(effective_parameters.knowledge_weight_head.evaluate(features))
+        experience_weight = _clamp(effective_parameters.experience_weight_head.evaluate(features))
         total_weight = knowledge_weight + experience_weight
         if total_weight <= 1e-6:
             knowledge_weight = 0.5
@@ -311,20 +468,43 @@ class RetrievalControlReadoutStrategy:
         else:
             knowledge_weight = _clamp(knowledge_weight / total_weight)
             experience_weight = _clamp(experience_weight / total_weight)
+        knowledge_domains = self._rank_knowledge_domains(
+            knowledge_domains=inputs.knowledge_domains,
+            features=features,
+            parameters=effective_parameters,
+        )
         experience_domains = self._adjust_experience_domains(
             experience_domains=inputs.experience_domains,
             features=features,
-            parameters=self._parameters,
+            parameters=effective_parameters,
+        )
+        response_mode_hint, clarification_bias, refer_out_bias, answer_depth_bias = (
+            self._response_hints(features=features, parameters=effective_parameters)
+        )
+        continuum_target_position = _clamp(effective_parameters.continuum_target_head.evaluate(features))
+        ordering_bias, ordering_driver = self._ordering_bias(
+            response_mode_hint=response_mode_hint,
+            continuum_target_position=continuum_target_position,
+            experience_domains=experience_domains,
         )
         return RetrievalControlReadout(
-            knowledge_domains=inputs.knowledge_domains,
+            knowledge_domains=knowledge_domains,
             experience_domains=experience_domains,
             knowledge_weight=knowledge_weight,
             experience_weight=experience_weight,
+            knowledge_domain_ranking=knowledge_domains,
+            experience_domain_ranking=experience_domains,
+            response_mode_hint=response_mode_hint,
+            clarification_bias=clarification_bias,
+            refer_out_bias=refer_out_bias,
+            answer_depth_bias=answer_depth_bias,
+            continuum_target_position=continuum_target_position,
+            ordering_bias=ordering_bias,
+            ordering_driver=ordering_driver,
             description=(
-                f"Retrieval control readout selected {len(inputs.knowledge_domains)} knowledge domains and "
+                f"Retrieval control readout selected {len(knowledge_domains)} knowledge domains and "
                 f"{len(experience_domains)} experience domains from compact ETA/application control using "
-                "owner-side parameterized readout. "
+                "owner-side parameterized readout with shared retrieval/response/boundary advisories. "
                 f"bands={','.join(inputs.continuum_active_band_ids) if inputs.continuum_active_band_ids else 'none'} "
                 f"regime={inputs.regime_id} abstract_action={inputs.abstract_action or 'none'}."
             ),
@@ -356,7 +536,68 @@ class RetrievalControlReadoutStrategy:
             family_fast_prior_bias=_clamp(0.5 + inputs.family_fast_prior_bias * 0.5),
             action_is_stabilize=1.0 if "stabilize" in action_label else 0.0,
             action_is_task=1.0 if "task" in action_label or "structure" in action_label else 0.0,
+            action_family_activation=_clamp(min(max(inputs.action_family_version, 0), 6) / 6.0),
+            switch_gate_signal=_clamp(inputs.switch_gate),
         )
+
+    def _rank_knowledge_domains(
+        self,
+        *,
+        knowledge_domains: tuple[str, ...],
+        features: RetrievalReadoutFeatures,
+        parameters: RetrievalControlReadoutParameters,
+    ) -> tuple[str, ...]:
+        if not knowledge_domains:
+            return ()
+        structured_score = parameters.structured_domain_head.evaluate(features)
+        support_score = parameters.support_response_head.evaluate(features)
+        if structured_score >= support_score:
+            return knowledge_domains
+        if len(knowledge_domains) <= 1:
+            return knowledge_domains
+        return (knowledge_domains[0],) + tuple(sorted(knowledge_domains[1:]))
+
+    def _response_hints(
+        self,
+        *,
+        features: RetrievalReadoutFeatures,
+        parameters: RetrievalControlReadoutParameters,
+    ) -> tuple[str, float, float, float]:
+        support_score = _clamp(parameters.support_response_head.evaluate(features))
+        clarify_score = _clamp(parameters.clarify_response_head.evaluate(features))
+        structure_score = _clamp(parameters.structure_response_head.evaluate(features))
+        refer_out_score = _clamp(parameters.refer_out_response_head.evaluate(features))
+        if refer_out_score >= max(clarify_score, structure_score, support_score) and refer_out_score >= 0.56:
+            response_mode_hint = "refer-out"
+        elif clarify_score >= max(structure_score, support_score) and clarify_score >= 0.48:
+            response_mode_hint = "clarify"
+        elif structure_score >= support_score:
+            response_mode_hint = "structure"
+        else:
+            response_mode_hint = "support"
+        clarification_bias = _clamp(clarify_score * 0.7 + refer_out_score * 0.15)
+        refer_out_bias = _clamp(refer_out_score * 0.75 + clarify_score * 0.10)
+        answer_depth_bias = _clamp(parameters.answer_depth_head.evaluate(features))
+        return response_mode_hint, clarification_bias, refer_out_bias, answer_depth_bias
+
+    def _ordering_bias(
+        self,
+        *,
+        response_mode_hint: str,
+        continuum_target_position: float,
+        experience_domains: tuple[str, ...],
+    ) -> tuple[tuple[str, ...], str]:
+        if response_mode_hint == "refer-out":
+            return (("stabilize", "bounded_handoff"), "retrieval-refer-out")
+        if response_mode_hint == "clarify":
+            if continuum_target_position >= 0.66:
+                return (("stabilize", "clarify_goal"), "retrieval-support-clarify")
+            return (("clarify_goal", "split_axes"), "retrieval-clarify-first")
+        if response_mode_hint == "structure":
+            return (("structure_options", "smallest_next_step"), "retrieval-structure-first")
+        if continuum_target_position >= 0.66 or "stabilization_patterns" in experience_domains:
+            return (("stabilize", "acknowledge"), "retrieval-support-first")
+        return (("acknowledge", "smallest_next_step"), "retrieval-support-balanced")
 
     def _adjust_experience_domains(
         self,

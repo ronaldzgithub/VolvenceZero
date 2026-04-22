@@ -42,10 +42,15 @@ from volvence_zero.application.runtime import (
     ProfessionalScope,
     RetrievalPolicyModule,
     RetrievalPolicySnapshot,
+    RetrievalReadoutPriorUpdate,
     RiskBand,
     StrategyPlaybookPriorUpdate,
     StrategyPlaybookModule,
     StrategyPlaybookSnapshot,
+)
+from volvence_zero.application.retrieval_readout import (
+    RetrievalControlReadoutParameters,
+    RetrievalReadoutCheckpoint,
 )
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
@@ -112,6 +117,9 @@ __all__ = [
     "ProfessionalScope",
     "RetrievalPolicyModule",
     "RetrievalPolicySnapshot",
+    "RetrievalControlReadoutParameters",
+    "RetrievalReadoutCheckpoint",
+    "RetrievalReadoutPriorUpdate",
     "RiskBand",
     "StrategyPlaybookPriorUpdate",
     "StrategyPlaybookModule",

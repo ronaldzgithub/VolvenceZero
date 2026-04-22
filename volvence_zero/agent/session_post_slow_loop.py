@@ -10,6 +10,7 @@ from volvence_zero.application.runtime import (
     ApplicationPriorWritebackReport,
     ApplicationOutcomeAttribution,
     ApplicationSequencePayoff,
+    DelayedCreditSummary,
     ExperienceDelta,
 )
 from volvence_zero.evaluation.backbone import EvaluationReport
@@ -71,6 +72,7 @@ class SessionPostSlowLoopResult:
     experience_deltas: tuple[ExperienceDelta, ...] = ()
     delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = ()
     sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = ()
+    delayed_credit_summary: DelayedCreditSummary | None = None
     application_prior_update: ApplicationPriorUpdate | None = None
     application_prior_writeback_report: ApplicationPriorWritebackReport | None = None
     application_prior_audits: tuple[SelfModificationRecord, ...] = ()

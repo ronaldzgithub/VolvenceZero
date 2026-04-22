@@ -44,6 +44,12 @@ class ApplicationPriorProposalInputs:
     retrieval_family_bias: float = 0.0
     retrieval_knowledge_weight_bias: float = 0.0
     retrieval_experience_weight_bias: float = 0.0
+    retrieval_source_attribution_ids: tuple[str, ...] = ()
+    retrieval_source_sequence_ids: tuple[str, ...] = ()
+    retrieval_mean_retrieval_mix_alignment: float = 0.0
+    retrieval_mean_regime_alignment: float = 0.0
+    retrieval_mean_action_alignment: float = 0.0
+    retrieval_mean_sequence_payoff: float = 0.0
 
 
 class ApplicationPriorProposalBuilder:
@@ -218,9 +224,16 @@ class ApplicationPriorProposalBuilder:
             parameters=updated_parameters,
             confidence=_clamp(0.5 + inputs.mean_experience_quality * 0.35),
             source_session_post_job_id=inputs.job_id,
+            source_attribution_ids=inputs.retrieval_source_attribution_ids,
+            source_sequence_ids=inputs.retrieval_source_sequence_ids,
+            mean_retrieval_mix_alignment=inputs.retrieval_mean_retrieval_mix_alignment,
+            mean_regime_alignment=inputs.retrieval_mean_regime_alignment,
+            mean_action_alignment=inputs.retrieval_mean_action_alignment,
+            mean_sequence_payoff=inputs.retrieval_mean_sequence_payoff,
             description=(
                 f"Session-post retrieval readout checkpoint from {inputs.job_id} with "
-                f"strength={inputs.retrieval_fast_prior_strength:.2f}."
+                f"strength={inputs.retrieval_fast_prior_strength:.2f} "
+                f"attr={len(inputs.retrieval_source_attribution_ids)} seq={len(inputs.retrieval_source_sequence_ids)}."
             ),
         )
 

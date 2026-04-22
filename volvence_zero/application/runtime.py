@@ -87,6 +87,15 @@ class RetrievalPolicySnapshot:
     abstract_action: str | None
     intent_description: str
     description: str
+    knowledge_domain_ranking: tuple[str, ...] = ()
+    experience_domain_ranking: tuple[str, ...] = ()
+    response_mode_hint: str = "support"
+    clarification_bias: float = 0.0
+    refer_out_bias: float = 0.0
+    answer_depth_bias: float = 0.0
+    continuum_target_position_hint: float = 0.5
+    ordering_bias: tuple[str, ...] = ()
+    ordering_driver_hint: str = "retrieval-fallback"
 
 
 @dataclass(frozen=True)
@@ -330,6 +339,29 @@ class ApplicationSequencePayoff:
 
 
 @dataclass(frozen=True)
+class DelayedCreditSummary:
+    summary_id: str
+    regime_id: str | None
+    abstract_action: str | None
+    action_family_version: int
+    retrieval_policy_id: str | None
+    knowledge_weight: float
+    experience_weight: float
+    retrieval_mix_alignment: float
+    regime_alignment: float
+    abstract_action_alignment: float
+    outcome_score: float
+    sequence_payoff: float
+    continuum_alignment: float
+    attribution_count: int
+    sequence_count: int
+    description: str
+    continuum_profile_id: str | None = None
+    dominant_band_id: str | None = None
+    mean_continuum_position: float = 0.0
+
+
+@dataclass(frozen=True)
 class ExperienceConsolidationSnapshot:
     source_session_post_job_id: str
     promoted_case_count: int
@@ -341,6 +373,7 @@ class ExperienceConsolidationSnapshot:
     sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = ()
     latest_prior_update: ApplicationPriorUpdate | None = None
     latest_writeback_report: ApplicationPriorWritebackReport | None = None
+    delayed_credit_summary: DelayedCreditSummary | None = None
     continuum_profile_id: str | None = None
     active_band_ids: tuple[str, ...] = ()
 
@@ -1346,12 +1379,22 @@ def _response_mode(
     *,
     regime_id: str | None,
     boundary_policy_snapshot: BoundaryPolicySnapshot,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
 ) -> ResponseMode:
     decision = boundary_policy_snapshot.active_decision
     if decision.refer_out_required:
         return ResponseMode.REFER_OUT
     if decision.clarification_required:
         return ResponseMode.CLARIFY
+    if retrieval_policy_snapshot is not None:
+        if retrieval_policy_snapshot.response_mode_hint == "refer-out":
+            return ResponseMode.REFER_OUT
+        if retrieval_policy_snapshot.response_mode_hint == "clarify":
+            return ResponseMode.CLARIFY
+        if retrieval_policy_snapshot.response_mode_hint == "structure":
+            return ResponseMode.STRUCTURE
+        if retrieval_policy_snapshot.response_mode_hint == "support":
+            return ResponseMode.SUPPORT
     if regime_id in {"problem_solving", "guided_exploration"}:
         return ResponseMode.STRUCTURE
     return ResponseMode.SUPPORT
@@ -1373,6 +1416,7 @@ def _response_control_scale(
     ordering_plan: tuple[str, ...],
     response_mode: ResponseMode,
     boundary_policy_snapshot: BoundaryPolicySnapshot,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
 ) -> float:
     if temporal_snapshot is None or not temporal_snapshot.controller_state.code:
         return 0.0
@@ -1380,7 +1424,13 @@ def _response_control_scale(
     boundary_bonus = 0.05 if boundary_policy_snapshot.active_decision.refer_out_required else 0.03
     ordering_bonus = 0.03 if ordering_plan else 0.0
     mode_bonus = 0.03 if response_mode in {ResponseMode.CLARIFY, ResponseMode.STRUCTURE} else 0.0
-    return max(0.08, min(0.28, 0.06 + gate * 0.16 + boundary_bonus + ordering_bonus + mode_bonus))
+    retrieval_bonus = (
+        retrieval_policy_snapshot.answer_depth_bias * 0.04
+        + retrieval_policy_snapshot.clarification_bias * 0.03
+        if retrieval_policy_snapshot is not None
+        else 0.0
+    )
+    return max(0.08, min(0.28, 0.06 + gate * 0.16 + boundary_bonus + ordering_bonus + mode_bonus + retrieval_bonus))
 
 
 def _response_target_position(
@@ -1423,39 +1473,69 @@ def _response_ordering_plan(
     boundary_policy_snapshot: BoundaryPolicySnapshot,
     case_memory_snapshot: CaseMemorySnapshot | None,
     strategy_playbook_snapshot: StrategyPlaybookSnapshot | None,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
 ) -> tuple[tuple[str, ...], float, str]:
-    target_position = _response_target_position(
-        regime_id=regime_id,
-        response_mode=response_mode,
-        boundary_policy_snapshot=boundary_policy_snapshot,
-        case_memory_snapshot=case_memory_snapshot,
-        strategy_playbook_snapshot=strategy_playbook_snapshot,
+    target_position = (
+        retrieval_policy_snapshot.continuum_target_position_hint
+        if retrieval_policy_snapshot is not None
+        else _response_target_position(
+            regime_id=regime_id,
+            response_mode=response_mode,
+            boundary_policy_snapshot=boundary_policy_snapshot,
+            case_memory_snapshot=case_memory_snapshot,
+            strategy_playbook_snapshot=strategy_playbook_snapshot,
+        )
     )
     playbook_ordering = (
         strategy_playbook_snapshot.matched_rules[0].recommended_ordering
         if strategy_playbook_snapshot is not None and strategy_playbook_snapshot.matched_rules
         else ()
     )
+    retrieval_ordering = retrieval_policy_snapshot.ordering_bias if retrieval_policy_snapshot is not None else ()
     playbook_support_first = bool(playbook_ordering) and playbook_ordering[0] in {"stabilize", "acknowledge", "deescalate"}
     if response_mode is ResponseMode.REFER_OUT:
         prefix = ("stabilize", "bounded_handoff")
-        driver = "continuum-refer-out"
+        driver = (
+            retrieval_policy_snapshot.ordering_driver_hint
+            if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+            else "continuum-refer-out"
+        )
     elif response_mode is ResponseMode.CLARIFY:
         if playbook_support_first or target_position >= 0.66:
             prefix = ("stabilize", "clarify_goal")
-            driver = "continuum-support-clarify"
+            driver = (
+                retrieval_policy_snapshot.ordering_driver_hint
+                if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+                else "continuum-support-clarify"
+            )
         else:
             prefix = ("clarify_goal",)
-            driver = "continuum-clarify-first"
+            driver = (
+                retrieval_policy_snapshot.ordering_driver_hint
+                if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+                else "continuum-clarify-first"
+            )
     elif target_position >= 0.66:
         prefix = ("stabilize", "acknowledge")
-        driver = "continuum-support-first"
+        driver = (
+            retrieval_policy_snapshot.ordering_driver_hint
+            if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+            else "continuum-support-first"
+        )
     elif target_position >= 0.52:
         prefix = ("clarify_goal", "split_axes")
-        driver = "continuum-guided-clarify"
+        driver = (
+            retrieval_policy_snapshot.ordering_driver_hint
+            if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+            else "continuum-guided-clarify"
+        )
     else:
         prefix = ("structure_options", "smallest_next_step")
-        driver = "continuum-structure-first"
+        driver = (
+            retrieval_policy_snapshot.ordering_driver_hint
+            if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
+            else "continuum-structure-first"
+        )
     fallback_suffix = {
         "continuum-refer-out": ("smallest_next_step",),
         "continuum-support-clarify": ("smallest_next_step",),
@@ -1464,7 +1544,7 @@ def _response_ordering_plan(
         "continuum-guided-clarify": ("smallest_next_step",),
         "continuum-structure-first": ("commit_next_step",),
     }.get(driver, ("smallest_next_step",))
-    ordering_plan = _dedupe(prefix + playbook_ordering + fallback_suffix)
+    ordering_plan = _dedupe(prefix + retrieval_ordering + playbook_ordering + fallback_suffix)
     return ordering_plan, target_position, driver
 
 
@@ -1688,6 +1768,49 @@ class ExperienceFastPriorModule(RuntimeModule[ExperienceFastPriorSnapshot]):
             )
             sequence_key = (sequence_payoff.regime_sequence, sequence_payoff.action_family_version)
             sequence_bias_map.setdefault(sequence_key, []).append((payoff_bias, sequence_payoff.sequence_id))
+
+        delayed_credit_summary = consolidation.delayed_credit_summary
+        if delayed_credit_summary is not None:
+            summary_id = delayed_credit_summary.summary_id
+            attribution_ids.append(summary_id)
+            summary_direction = _signed_centered(delayed_credit_summary.outcome_score)
+            if delayed_credit_summary.regime_id is not None:
+                regime_bias_map.setdefault(delayed_credit_summary.regime_id, []).append(
+                    (
+                        summary_direction * _signed_centered(delayed_credit_summary.regime_alignment) * 0.22,
+                        summary_id,
+                    )
+                )
+            if delayed_credit_summary.abstract_action is not None:
+                action_bias_map.setdefault(delayed_credit_summary.abstract_action, []).append(
+                    (
+                        summary_direction * _signed_centered(delayed_credit_summary.abstract_action_alignment) * 0.20,
+                        summary_id,
+                    )
+                )
+            if delayed_credit_summary.action_family_version > 0:
+                family_bias_map.setdefault(delayed_credit_summary.action_family_version, []).append(
+                    (
+                        summary_direction * 0.12
+                        + _signed_centered(delayed_credit_summary.abstract_action_alignment) * 0.10
+                        + _signed_centered(delayed_credit_summary.sequence_payoff) * 0.08,
+                        summary_id,
+                    )
+                )
+                sequence_key = (
+                    ((delayed_credit_summary.regime_id,) if delayed_credit_summary.regime_id is not None else ()),
+                    delayed_credit_summary.action_family_version,
+                )
+                sequence_bias_map.setdefault(sequence_key, []).append(
+                    (_signed_centered(delayed_credit_summary.sequence_payoff) * 0.20, summary_id)
+                )
+            retrieval_lean = delayed_credit_summary.experience_weight - delayed_credit_summary.knowledge_weight
+            mix_bias_values.append(
+                summary_direction
+                * _signed_centered(delayed_credit_summary.retrieval_mix_alignment)
+                * retrieval_lean
+                * 0.24
+            )
 
         regime_biases = tuple(
             ExperienceFastPriorRegimeBias(
@@ -1923,6 +2046,8 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
             RetrievalControlReadoutInputs(
                 regime_id=regime_id,
                 abstract_action=abstract_action,
+                action_family_version=active_temporal_snapshot.action_family_version,
+                switch_gate=active_temporal_snapshot.controller_state.switch_gate,
                 knowledge_domains=knowledge_domains,
                 experience_domains=experience_domains,
                 world_weight=world_weight,
@@ -1994,6 +2119,15 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
                 regime_id=regime_id,
                 abstract_action=abstract_action,
                 intent_description=intent_description,
+                knowledge_domain_ranking=control_readout.knowledge_domain_ranking,
+                experience_domain_ranking=control_readout.experience_domain_ranking,
+                response_mode_hint=control_readout.response_mode_hint,
+                clarification_bias=control_readout.clarification_bias,
+                refer_out_bias=control_readout.refer_out_bias,
+                answer_depth_bias=control_readout.answer_depth_bias,
+                continuum_target_position_hint=control_readout.continuum_target_position,
+                ordering_bias=control_readout.ordering_bias,
+                ordering_driver_hint=control_readout.ordering_driver,
                 description=(
                     f"{control_readout.description} Retrieval policy remains a compact control surface; "
                     "knowledge and experience owners publish evidence and priors without entering ETA ownership. "
@@ -2629,6 +2763,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
             (1.0 if retrieval_policy.jurisdiction_required else 0.0) * 0.40
             + min(len(domain_knowledge.unresolved_conflicts), 3) / 3.0 * 0.45
             + (1.0 if retrieval_policy.citation_required else 0.0) * 0.15
+            + retrieval_policy.clarification_bias * 0.20
         )
         clarification_required = clarification_score >= 0.5
         if clarification_required:
@@ -2636,6 +2771,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
         refer_out_score = _clamp(
             effective_risk_score * 0.74
             + clarification_score * 0.16
+            + retrieval_policy.refer_out_bias * 0.16
             + _regime_bonus(
                 retrieval_policy.regime_id,
                 {
@@ -2654,6 +2790,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
             effective_risk_score * 0.28
             + clarification_score * 0.30
             + (1.0 if citation_required else 0.0) * 0.24
+            + retrieval_policy.answer_depth_bias * 0.18
             + _regime_bonus(
                 retrieval_policy.regime_id,
                 {
@@ -2761,6 +2898,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
     owner = "ResponseAssemblyModule"
     value_type = ResponseAssemblySnapshot
     dependencies = (
+        "retrieval_policy",
         "regime",
         "temporal_abstraction",
         "memory",
@@ -2781,6 +2919,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         temporal_value = upstream["temporal_abstraction"].value
         memory_value = upstream["memory"].value
         reflection_value = upstream["reflection"].value
+        retrieval_policy_value = upstream["retrieval_policy"].value
         domain_knowledge_value = upstream["domain_knowledge"].value
         case_memory_value = upstream["case_memory"].value
         strategy_playbook_value = upstream["strategy_playbook"].value
@@ -2792,6 +2931,9 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         temporal_snapshot = temporal_value if isinstance(temporal_value, TemporalAbstractionSnapshot) else None
         memory_snapshot = memory_value if isinstance(memory_value, MemorySnapshot) else None
         reflection_snapshot = reflection_value if isinstance(reflection_value, ReflectionSnapshot) else None
+        retrieval_policy_snapshot = (
+            retrieval_policy_value if isinstance(retrieval_policy_value, RetrievalPolicySnapshot) else None
+        )
         domain_knowledge_snapshot = (
             domain_knowledge_value if isinstance(domain_knowledge_value, DomainKnowledgeSnapshot) else None
         )
@@ -2803,6 +2945,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         response_mode = _response_mode(
             regime_id=regime_id,
             boundary_policy_snapshot=boundary_policy_value,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
         )
         ordering_plan, continuum_target_position, ordering_driver = _response_ordering_plan(
             regime_id=regime_id,
@@ -2810,6 +2953,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             boundary_policy_snapshot=boundary_policy_value,
             case_memory_snapshot=case_memory_snapshot,
             strategy_playbook_snapshot=strategy_playbook_snapshot,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
         )
         control_code = temporal_snapshot.controller_state.code if temporal_snapshot is not None else ()
         control_scale = _response_control_scale(
@@ -2817,6 +2961,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             ordering_plan=ordering_plan,
             response_mode=response_mode,
             boundary_policy_snapshot=boundary_policy_value,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
         )
         prompt_residue_summary, prompt_residue_ratio = _prompt_residue_summary(
             regime_name=regime_value.active_regime.name,
@@ -2921,6 +3066,7 @@ class ExperienceConsolidationModule(RuntimeModule[ExperienceConsolidationSnapsho
         active_band_ids: list[str] = []
         latest_prior_update: ApplicationPriorUpdate | None = None
         latest_writeback_report: ApplicationPriorWritebackReport | None = None
+        delayed_credit_summary: DelayedCreditSummary | None = None
         for result in completed_results[-4:]:
             result_deltas = getattr(result, "experience_deltas", ())
             if getattr(result, "job_id", None) is not None:
@@ -2937,6 +3083,9 @@ class ExperienceConsolidationModule(RuntimeModule[ExperienceConsolidationSnapsho
             result_writeback_report = getattr(result, "application_prior_writeback_report", None)
             if isinstance(result_writeback_report, ApplicationPriorWritebackReport):
                 latest_writeback_report = result_writeback_report
+            result_delayed_credit_summary = getattr(result, "delayed_credit_summary", None)
+            if isinstance(result_delayed_credit_summary, DelayedCreditSummary):
+                delayed_credit_summary = result_delayed_credit_summary
         promoted_case_count = sum(1 for delta in deltas if delta.target_slot == "case_memory" and not delta.blocked)
         playbook_delta_count = sum(1 for delta in deltas if delta.target_slot == "strategy_playbook")
         boundary_delta_count = sum(1 for delta in deltas if delta.target_slot == "boundary_policy")
@@ -2957,6 +3106,7 @@ class ExperienceConsolidationModule(RuntimeModule[ExperienceConsolidationSnapsho
                 sequence_payoffs=tuple(sequence_payoffs[-4:]),
                 latest_prior_update=latest_prior_update,
                 latest_writeback_report=latest_writeback_report,
+                delayed_credit_summary=delayed_credit_summary,
                 continuum_profile_id=continuum_profile_id,
                 active_band_ids=_dedupe(tuple(active_band_ids)),
             )

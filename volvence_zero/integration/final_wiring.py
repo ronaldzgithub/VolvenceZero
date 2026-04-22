@@ -381,6 +381,7 @@ def _apply_application_prior_writeback(
     timestamp_ms: int,
     checkpoint_id: str,
     apply_enabled: bool,
+    retrieval_apply_enabled: bool | None = None,
     blocked_reason: str,
 ) -> tuple[
     tuple[str, ...],
@@ -390,6 +391,7 @@ def _apply_application_prior_writeback(
 ]:
     if prior_update is None:
         return ((), (), (), None)
+    resolved_retrieval_apply_enabled = apply_enabled if retrieval_apply_enabled is None else retrieval_apply_enabled
     proposed_targets = tuple(
         update.target
         for update in (
@@ -610,7 +612,7 @@ def _apply_application_prior_writeback(
 
     for update in prior_update.retrieval_readout_updates:
         before_hash = current_retrieval_readout_hash()
-        if not apply_enabled:
+        if not resolved_retrieval_apply_enabled:
             blocked_targets.append(update.target)
             blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
             audit_records.append(
