@@ -94,17 +94,17 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
 - 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认 frozen-substrate doctrine 下，该 owner 只发布 proposal / evidence，不触发 live substrate mutation
-- `FinalRolloutConfig` 默认已把 `reflection` / `temporal` 提升为 `ACTIVE`；acceptance report 也把两者缺失视为真实回归而非可选增强
+- `FinalRolloutConfig` 当前默认采用 strict Phase 1 application rollout：`retrieval_policy`、`domain_knowledge`、`boundary_policy` 保持 `ACTIVE`，`case_memory`、`strategy_playbook`、`session_post_slow_loop`、`experience_consolidation` 默认不进入 turn-time active application surface；若要验证后续 phase，必须显式 widen config
 - slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
 - agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
 - 当前主链已新增正式 `prediction_error` owner/slot，公共交换固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
 - `memory` / `regime` / `credit` / `reflection` / `temporal` 已直接消费 `prediction_error`；`evaluation` 只在 final wiring 中追加 prediction-error evidence，保持 readout 定位
 - 当前 temporal 区域已从单 owner 扩展为 staged multi-owner contract：`world_temporal`、`self_temporal`、`world_temporal_consolidation`、`self_temporal_consolidation` 各自拥有独立 slot；`temporal_abstraction` 由 `TemporalAggregateModule` 作为公共聚合 owner 对下游发布兼容快照
 - 这类 aggregate slot 只允许发布 compact public state；不得反向成为底层 track owner 的第二所有者
-- 当前 session-post slow loop 也已升级为正式运行时 surface：`session_post_slow_loop` 由独立 owner 发布 queue state 与 recent completion summaries；`AgentSessionRunner` 负责驱动该 owner 刷新，但消费者只读取公共 slot，不读取 runner 私有队列
+- 当前 session-post slow loop 也已升级为正式运行时 surface：`session_post_slow_loop` 由独立 owner 发布 queue state 与 recent completion summaries；`AgentSessionRunner` 负责驱动该 owner 刷新，但在 strict Phase 1 默认口径下它只作为 shadow/report surface 暴露，不作为 turn-time active application slot
 - 当前应用层第一阶段也已新增正式 surface：`retrieval_policy`、`domain_knowledge`、`boundary_policy` 作为独立 owner 发布在线检索控制、专业事实证据与边界判断；response/evaluation 只能消费这些公共快照，不允许反向读取 owner 私有知识存储
-- 当前应用层第二阶段已新增 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers；该 surface 只服务 retrieval mix 和 evaluation evidence，不允许把案例经验重新折叠回 `memory` 主快照
-- 当前应用层第三阶段已新增 `strategy_playbook` 与 `experience_consolidation`：前者作为 turn-time 公共 slot 发布 problem-pattern-level strategy priors，后者作为 session-post report surface 发布 machine-readable experience deltas。两者都不得越权成为 `temporal` / `regime` / `session_post_slow_loop` 的第二 owner
+- 当前应用层第二阶段已新增 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers；该 surface 只服务 retrieval mix 和 evaluation evidence，不允许把案例经验重新折叠回 `memory` 主快照。strict Phase 1 默认下该 surface 不进入 active application chain，只有在显式 widen Phase 2 时才 turn-time 可见
+- 当前应用层第三阶段已新增 `strategy_playbook` 与 `experience_consolidation`：前者作为 turn-time 公共 slot 发布 problem-pattern-level strategy priors，后者作为 session-post report surface 发布 machine-readable experience deltas。两者都不得越权成为 `temporal` / `regime` / `session_post_slow_loop` 的第二 owner；strict Phase 1 默认下它们只作为 widened/shadow phase 的后续 surface
 - 当前应用层第四阶段已新增 application rare-heavy checkpoint/state：它不作为 turn-time slot 发布，而是沿现有 rare-heavy artifact/import/rollback 链由 session owner 管理，并把离线 domain bias、case cluster 与 distilled playbook 通过 `retrieval_policy` / `case_memory` / `strategy_playbook` 的公共快照间接体现在 fast path 中
 
 ### 直接依赖 vs enrichment

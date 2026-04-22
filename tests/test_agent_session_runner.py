@@ -15,11 +15,13 @@ from volvence_zero.application import (
     ApplicationRareHeavyCheckpoint,
     PlaybookRule,
 )
+from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
 from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.agent.session import RareHeavyPreImportEvaluation
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
     SubstrateFallbackMode,
@@ -44,8 +46,8 @@ def test_agent_session_runner_executes_single_turn():
     assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
-    assert "session_post_slow_loop" in result.active_snapshots
-    assert result.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
+    assert "session_post_slow_loop" in result.shadow_snapshots
+    assert result.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():
@@ -155,7 +157,7 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
     boundary_ops = runner.begin_new_context(reason="test-boundary")
 
     assert first.bounded_writeback_applied is False
-    assert first.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
+    assert first.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
     assert any(op.startswith("session-post-slow-loop:enqueued:") for op in boundary_ops)
     assert runner.session_post_snapshot is not None
     assert runner.session_post_snapshot.value.queue_state.pending_job_count == 1
@@ -173,11 +175,18 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
     second = asyncio.run(runner.run_turn("Continue in the next context."))
 
     assert second.session_post_completed_job_count >= 1
-    assert second.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
+    assert second.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
 
 
 def test_agent_session_runner_publishes_experience_consolidation_after_session_post_completion():
-    runner = AgentSessionRunner(session_id="experience-consolidation-session", reflection_mode=WritebackMode.APPLY)
+    runner = AgentSessionRunner(
+        session_id="experience-consolidation-session",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
 
     asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
     runner.begin_new_context(reason="experience-consolidation-boundary")
@@ -201,6 +210,10 @@ def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fas
         default_residual_runtime=runtime,
         joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99),
         rare_heavy_enabled=False,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
     )
     artifact = RareHeavyArtifact(
         artifact_id="phase4-artifact",

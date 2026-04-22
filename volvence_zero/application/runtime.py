@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING, Any, Mapping
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.application.storage import (
+    ApplicationCaseMemoryStore,
+    ApplicationDomainKnowledgeStore,
+    CaseMemoryRecord,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -804,10 +809,12 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
         self,
         *,
         rare_heavy_state: ApplicationRareHeavyState | None = None,
+        store: ApplicationDomainKnowledgeStore | None = None,
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._rare_heavy_state = rare_heavy_state
+        self._store = store
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[DomainKnowledgeSnapshot]:
         from volvence_zero.regime import RegimeSnapshot
@@ -829,49 +836,90 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
             unresolved_conflicts.append("jurisdiction-unspecified")
         hits: list[KnowledgeHit] = []
         domain_biases = dict(self._rare_heavy_state.domain_template_biases) if self._rare_heavy_state is not None else {}
-        for index, domain in enumerate(retrieval_policy.knowledge_domains[:3], start=1):
-            source_type = _domain_source_type(domain)
-            confidence = _clamp(
-                0.48
-                + retrieval_policy.knowledge_weight * 0.35
-                + (0.05 if memory_text else 0.0)
-                + domain_biases.get(domain, 0.0) * 0.08
+        records = (
+            self._store.query(
+                domains=retrieval_policy.knowledge_domains,
+                query_text=f"{memory_text} {retrieval_policy.intent_description}",
+                jurisdiction_required=retrieval_policy.jurisdiction_required,
+                limit=3,
             )
-            hit = KnowledgeHit(
-                hit_id=f"{domain}:{index}",
-                domain=domain,
-                topic_tags=_domain_topic_tags(domain),
-                jurisdiction_tags=_domain_jurisdiction_tags(
-                    domain,
-                    jurisdiction_required=retrieval_policy.jurisdiction_required,
-                ),
-                freshness_label="phase1-mock-current",
-                confidence=confidence,
-                evidence_strength=(
-                    EvidenceStrength.HIGH if confidence >= 0.8 else
-                    EvidenceStrength.MEDIUM if confidence >= 0.6 else
-                    EvidenceStrength.LOW
-                ),
-                summary=_domain_summary(domain, regime_id=retrieval_policy.regime_id),
-                conflict_markers=("jurisdiction-unspecified",)
-                if "jurisdiction-unspecified" in unresolved_conflicts and domain in {"family_transition", "professional_process"}
-                else (),
-                citations=(
-                    KnowledgeCitation(
-                        citation_id=f"{domain}:primary",
-                        source_type=source_type,
-                        title=f"{domain.replace('_', ' ')} guidance",
-                        locator="phase1-placeholder",
-                        snippet=_domain_summary(domain, regime_id=retrieval_policy.regime_id),
-                        url=None,
+            if self._store is not None
+            else ()
+        )
+        if records:
+            for record in records:
+                confidence = _clamp(record.confidence + domain_biases.get(record.domain, 0.0) * 0.08)
+                hits.append(
+                    KnowledgeHit(
+                        hit_id=record.record_id,
+                        domain=record.domain,
+                        topic_tags=record.topic_tags,
+                        jurisdiction_tags=record.jurisdiction_tags,
+                        freshness_label=record.freshness_label,
+                        confidence=confidence,
+                        evidence_strength=EvidenceStrength(record.evidence_strength),
+                        summary=record.summary,
+                        conflict_markers=record.conflict_markers,
+                        citations=(
+                            KnowledgeCitation(
+                                citation_id=f"{record.record_id}:primary",
+                                source_type=KnowledgeSourceType(record.source_type),
+                                title=record.title,
+                                locator=record.locator,
+                                snippet=record.snippet,
+                                url=record.url,
+                            ),
+                        ),
+                        description=(
+                            f"Knowledge record {record.record_id} aligned to regime={retrieval_policy.regime_id} "
+                            f"and world_weight={retrieval_policy.world_weight:.2f}."
+                        ),
+                    )
+                )
+        else:
+            for index, domain in enumerate(retrieval_policy.knowledge_domains[:3], start=1):
+                source_type = _domain_source_type(domain)
+                confidence = _clamp(
+                    0.48
+                    + retrieval_policy.knowledge_weight * 0.35
+                    + (0.05 if memory_text else 0.0)
+                    + domain_biases.get(domain, 0.0) * 0.08
+                )
+                hit = KnowledgeHit(
+                    hit_id=f"{domain}:{index}",
+                    domain=domain,
+                    topic_tags=_domain_topic_tags(domain),
+                    jurisdiction_tags=_domain_jurisdiction_tags(
+                        domain,
+                        jurisdiction_required=retrieval_policy.jurisdiction_required,
                     ),
-                ),
-                description=(
-                    f"Knowledge hit for {domain} aligned to regime={retrieval_policy.regime_id} "
-                    f"and world_weight={retrieval_policy.world_weight:.2f}."
-                ),
-            )
-            hits.append(hit)
+                    freshness_label="phase1-mock-current",
+                    confidence=confidence,
+                    evidence_strength=(
+                        EvidenceStrength.HIGH if confidence >= 0.8 else
+                        EvidenceStrength.MEDIUM if confidence >= 0.6 else
+                        EvidenceStrength.LOW
+                    ),
+                    summary=_domain_summary(domain, regime_id=retrieval_policy.regime_id),
+                    conflict_markers=("jurisdiction-unspecified",)
+                    if "jurisdiction-unspecified" in unresolved_conflicts and domain in {"family_transition", "professional_process"}
+                    else (),
+                    citations=(
+                        KnowledgeCitation(
+                            citation_id=f"{domain}:primary",
+                            source_type=source_type,
+                            title=f"{domain.replace('_', ' ')} guidance",
+                            locator="phase1-placeholder",
+                            snippet=_domain_summary(domain, regime_id=retrieval_policy.regime_id),
+                            url=None,
+                        ),
+                    ),
+                    description=(
+                        f"Knowledge hit for {domain} aligned to regime={retrieval_policy.regime_id} "
+                        f"and world_weight={retrieval_policy.world_weight:.2f}."
+                    ),
+                )
+                hits.append(hit)
         retrieval_policy_id = f"policy:{hash(retrieval_policy.intent_description) & 0xFFFF:04x}"
         return self.publish(
             DomainKnowledgeSnapshot(
@@ -903,10 +951,12 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         self,
         *,
         rare_heavy_state: ApplicationRareHeavyState | None = None,
+        store: ApplicationCaseMemoryStore | None = None,
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._rare_heavy_state = rare_heavy_state
+        self._store = store
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[CaseMemorySnapshot]:
         from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -928,6 +978,51 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         active_problem_patterns: list[str] = []
         active_risk_markers: list[str] = []
         retrieval_policy_id = f"policy:{hash(retrieval_policy.intent_description) & 0xFFFF:04x}"
+        records = (
+            self._store.query(
+                experience_domains=retrieval_policy.experience_domains,
+                regime_id=retrieval_policy.regime_id,
+                risk_band=retrieval_policy.risk_band.value,
+                limit=3,
+            )
+            if self._store is not None
+            else ()
+        )
+        for record in records:
+            active_problem_patterns.append(record.problem_pattern)
+            active_risk_markers.extend(record.risk_markers)
+            hits.append(
+                CaseEpisodeHit(
+                    case_id=record.case_id,
+                    domain=record.domain,
+                    problem_pattern=record.problem_pattern,
+                    user_state_pattern=record.user_state_pattern,
+                    risk_markers=record.risk_markers,
+                    track_tags=record.track_tags,
+                    regime_tags=record.regime_tags,
+                    intervention_steps=tuple(
+                        CaseInterventionStep(
+                            step_id=f"{record.case_id}:{step_index}",
+                            step_order=step_index,
+                            regime_id=retrieval_policy.regime_id,
+                            abstract_action=retrieval_policy.abstract_action,
+                            action_label=step,
+                            description=f"Persisted case ordering step {step}.",
+                        )
+                        for step_index, step in enumerate(record.intervention_ordering, start=1)
+                    ),
+                    outcome=CaseOutcomeSummary(
+                        outcome_label=ExperienceOutcomeLabel(record.outcome_label),
+                        delayed_signal_count=record.delayed_signal_count,
+                        escalation_observed=record.escalation_observed,
+                        repair_observed=record.repair_observed,
+                        confidence=record.confidence,
+                        description=record.description,
+                    ),
+                    relevance_score=record.relevance_score,
+                    description=record.description,
+                )
+            )
         for index, entry in enumerate(entries, start=1):
             problem_pattern = _entry_problem_pattern(entry)
             user_state_pattern = _entry_user_state_pattern(entry)
@@ -1027,6 +1122,29 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
 
     async def process_standalone(self, **kwargs: Any) -> Snapshot[CaseMemorySnapshot]:
         raise NotImplementedError("CaseMemoryModule should be driven by RetrievalPolicySnapshot.")
+
+    @staticmethod
+    def records_from_snapshot(snapshot: CaseMemorySnapshot) -> tuple[CaseMemoryRecord, ...]:
+        return tuple(
+            CaseMemoryRecord(
+                case_id=hit.case_id,
+                domain=hit.domain,
+                problem_pattern=hit.problem_pattern,
+                user_state_pattern=hit.user_state_pattern,
+                risk_markers=hit.risk_markers,
+                track_tags=hit.track_tags,
+                regime_tags=hit.regime_tags,
+                intervention_ordering=tuple(step.action_label for step in hit.intervention_steps),
+                outcome_label=hit.outcome.outcome_label,
+                delayed_signal_count=hit.outcome.delayed_signal_count,
+                escalation_observed=hit.outcome.escalation_observed,
+                repair_observed=hit.outcome.repair_observed,
+                confidence=hit.outcome.confidence,
+                relevance_score=hit.relevance_score,
+                description=hit.description,
+            )
+            for hit in snapshot.hits
+        )
 
 
 class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):

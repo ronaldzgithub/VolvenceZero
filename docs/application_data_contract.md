@@ -532,6 +532,8 @@ runtime 层只关心：
 - `domain_knowledge`
 - `boundary_policy`
 
+默认 runtime 口径要求上述三者进入 turn-time active chain；其余 application surface 只有在显式 widen phase 时才进入 active application 输出。
+
 ### Phase 2 Added
 
 - `case_memory`

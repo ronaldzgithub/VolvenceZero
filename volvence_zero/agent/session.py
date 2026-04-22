@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import asyncio
 from dataclasses import dataclass, replace
+import os
 from typing import Any
 
 from volvence_zero.application.runtime import (
@@ -16,6 +17,13 @@ from volvence_zero.application.runtime import (
     ExperienceConsolidationSnapshot,
     ExperienceDelta,
     StrategyPlaybookSnapshot,
+)
+from volvence_zero.application.storage import (
+    ApplicationCaseMemoryStore,
+    ApplicationDomainKnowledgeStore,
+    build_default_case_memory_store,
+    build_default_domain_knowledge_store,
+    build_filesystem_persistence_backend,
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit.gate import (
@@ -289,6 +297,9 @@ class AgentSessionRunner:
         temporal_policy: TemporalPolicy | None = None,
         world_temporal_policy: FullLearnedTemporalPolicy | None = None,
         self_temporal_policy: FullLearnedTemporalPolicy | None = None,
+        domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
+        case_memory_store: ApplicationCaseMemoryStore | None = None,
+        application_persistence_dir: str | None = None,
         credit_proposals: tuple[ModificationProposal, ...] = (),
         response_synthesizer: ResponseSynthesizer | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
@@ -330,6 +341,21 @@ class AgentSessionRunner:
         self._temporal_policy = self._world_temporal_policy
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
+        domain_backend = None
+        case_backend = None
+        if application_persistence_dir is not None:
+            domain_backend = build_filesystem_persistence_backend(
+                base_dir=os.path.join(application_persistence_dir, "domain_knowledge")
+            )
+            case_backend = build_filesystem_persistence_backend(
+                base_dir=os.path.join(application_persistence_dir, "case_memory")
+            )
+        self._domain_knowledge_store = domain_knowledge_store or build_default_domain_knowledge_store(
+            persistence_backend=domain_backend
+        )
+        self._case_memory_store = case_memory_store or build_default_case_memory_store(
+            persistence_backend=case_backend
+        )
         world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
         default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
@@ -398,9 +424,13 @@ class AgentSessionRunner:
         self._completed_session_reports: list[EvaluationReport] = []
         self._session_post_lock = asyncio.Lock()
         self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
-        self._session_post_module = SessionPostSlowLoopModule(wiring_level=WiringLevel.ACTIVE)
+        self._session_post_module = SessionPostSlowLoopModule(
+            wiring_level=self._config.level_for("session_post_slow_loop", WiringLevel.SHADOW),
+        )
         self._session_post_snapshot: Snapshot[SessionPostSlowLoopSnapshot] | None = None
-        self._experience_consolidation_module = ExperienceConsolidationModule(wiring_level=WiringLevel.ACTIVE)
+        self._experience_consolidation_module = ExperienceConsolidationModule(
+            wiring_level=self._config.level_for("experience_consolidation", WiringLevel.SHADOW),
+        )
         self._experience_consolidation_snapshot: Snapshot[ExperienceConsolidationSnapshot] | None = None
         self._last_session_post_writeback_request: SessionPostWritebackRequest | None = None
         self._publish_session_post_snapshot()
@@ -792,6 +822,8 @@ class AgentSessionRunner:
                 config=self._config,
                 substrate_adapter=substrate_adapter,
                 application_rare_heavy_state=self._application_rare_heavy_state,
+                domain_knowledge_store=self._domain_knowledge_store,
+                case_memory_store=self._case_memory_store,
                 memory_store=self._memory_store,
                 evaluation_backbone=self._evaluation_backbone,
                 prior_session_reports=self.completed_session_reports,
@@ -815,6 +847,18 @@ class AgentSessionRunner:
                 **integration_result.active_snapshots,
                 **integration_result.shadow_snapshots,
             }
+            case_snapshot = integration_result.active_snapshots.get("case_memory")
+            if (
+                self._config.is_active("case_memory")
+                and case_snapshot is not None
+                and isinstance(case_snapshot.value, CaseMemorySnapshot)
+            ):
+                from volvence_zero.application.runtime import CaseMemoryModule
+
+                self._case_memory_store.upsert_records(
+                    CaseMemoryModule.records_from_snapshot(case_snapshot.value)
+                )
+                self._case_memory_store.save_to_backend()
             substrate_snap = integration_result.active_snapshots.get("substrate")
             if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
                 self._previous_substrate_snapshot = substrate_snap.value
@@ -2028,15 +2072,22 @@ class AgentSessionRunner:
         session_post_snapshot = self._publish_session_post_snapshot()
         experience_consolidation_snapshot = self._publish_experience_consolidation_snapshot()
         active_snapshots = dict(integration_result.active_snapshots)
-        active_snapshots["session_post_slow_loop"] = session_post_snapshot
-        active_snapshots["experience_consolidation"] = experience_consolidation_snapshot
+        shadow_snapshots = dict(integration_result.shadow_snapshots)
+        if self._config.is_active("session_post_slow_loop"):
+            active_snapshots["session_post_slow_loop"] = session_post_snapshot
+        else:
+            shadow_snapshots["session_post_slow_loop"] = session_post_snapshot
+        if self._config.is_active("experience_consolidation"):
+            active_snapshots["experience_consolidation"] = experience_consolidation_snapshot
+        else:
+            shadow_snapshots["experience_consolidation"] = experience_consolidation_snapshot
 
         return AgentTurnResult(
             session_id=self.active_context_session_id,
             wave_id=wave_id,
             user_input=user_input,
             active_snapshots=active_snapshots,
-            shadow_snapshots=integration_result.shadow_snapshots,
+            shadow_snapshots=shadow_snapshots,
             acceptance_passed=integration_result.acceptance_report.passed,
             acceptance_issues=integration_result.acceptance_report.issues,
             active_regime=active_regime,

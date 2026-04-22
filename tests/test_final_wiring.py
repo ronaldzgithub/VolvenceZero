@@ -35,8 +35,6 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "memory" in result.active_snapshots
     assert "retrieval_policy" in result.active_snapshots
     assert "domain_knowledge" in result.active_snapshots
-    assert "case_memory" in result.active_snapshots
-    assert "strategy_playbook" in result.active_snapshots
     assert "boundary_policy" in result.active_snapshots
     assert "dual_track" in result.active_snapshots
     assert "evaluation" in result.active_snapshots
@@ -45,13 +43,15 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
     assert "substrate_self_mod" in result.active_snapshots
+    assert "case_memory" not in result.active_snapshots
+    assert "strategy_playbook" not in result.active_snapshots
+    assert "case_memory" in result.acceptance_report.disabled_slots
+    assert "strategy_playbook" in result.acceptance_report.disabled_slots
     assert result.temporal_runtime_state is not None
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "retrieval_quality" in metric_names
     assert "knowledge_hit_count" in metric_names
-    assert "case_hit_count" in metric_names
-    assert "playbook_match_count" in metric_names
     assert "boundary_clarification_triggered" in metric_names
     assert "reflection_usefulness" in metric_names
     assert "fallback_reliance" in metric_names
@@ -103,7 +103,7 @@ def test_final_wiring_phase2_case_memory_publishes_sibling_case_hits():
     )
     result = asyncio.run(
         run_final_wiring_turn(
-            config=FinalRolloutConfig(),
+            config=FinalRolloutConfig(case_memory=WiringLevel.ACTIVE),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
                 model_id="phase2-case-model",
                 feature_surface=(FeatureSignal(name="phase2_context", values=(0.61,), source="adapter"),),
@@ -137,7 +137,10 @@ def test_final_wiring_phase3_strategy_playbook_publishes_rules_from_case_memory(
     )
     result = asyncio.run(
         run_final_wiring_turn(
-            config=FinalRolloutConfig(),
+            config=FinalRolloutConfig(
+                case_memory=WiringLevel.ACTIVE,
+                strategy_playbook=WiringLevel.ACTIVE,
+            ),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
                 model_id="phase3-playbook-model",
                 feature_surface=(FeatureSignal(name="phase3_context", values=(0.64,), source="adapter"),),

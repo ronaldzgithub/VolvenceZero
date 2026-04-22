@@ -16,6 +16,7 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookModule,
     StrategyPlaybookSnapshot,
 )
+from volvence_zero.application.storage import ApplicationCaseMemoryStore, ApplicationDomainKnowledgeStore
 from volvence_zero.credit.gate import (
     CreditSnapshot,
     CreditModule,
@@ -50,7 +51,14 @@ from volvence_zero.reflection import (
     WritebackResult,
 )
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
-from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
+from volvence_zero.runtime import (
+    EventRecorder,
+    RuntimePlaceholderValue,
+    SlotRegistry,
+    Snapshot,
+    WiringLevel,
+    propagate,
+)
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
     SubstrateAdapter,
@@ -80,8 +88,8 @@ class FinalRolloutConfig:
     memory: WiringLevel = WiringLevel.ACTIVE
     retrieval_policy: WiringLevel = WiringLevel.ACTIVE
     domain_knowledge: WiringLevel = WiringLevel.ACTIVE
-    case_memory: WiringLevel = WiringLevel.ACTIVE
-    strategy_playbook: WiringLevel = WiringLevel.ACTIVE
+    case_memory: WiringLevel = WiringLevel.DISABLED
+    strategy_playbook: WiringLevel = WiringLevel.DISABLED
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
@@ -90,6 +98,8 @@ class FinalRolloutConfig:
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
+    session_post_slow_loop: WiringLevel = WiringLevel.SHADOW
+    experience_consolidation: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -111,7 +121,12 @@ class FinalRolloutConfig:
             "credit": self.credit,
             "reflection": self.reflection,
             "temporal": self.temporal,
+            "session_post_slow_loop": self.session_post_slow_loop,
+            "experience_consolidation": self.experience_consolidation,
         }.get(module_name, default)
+
+    def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
+        return self.level_for(module_name, default) is WiringLevel.ACTIVE
 
 
 def reflection_promotion_eligible(
@@ -346,6 +361,17 @@ def _build_session_post_writeback_request(
     )
 
 
+def _prune_disabled_stub_snapshots(snapshots: dict[str, Snapshot[Any]]) -> dict[str, Snapshot[Any]]:
+    return {
+        slot_name: snapshot
+        for slot_name, snapshot in snapshots.items()
+        if not (
+            isinstance(snapshot.value, RuntimePlaceholderValue)
+            and snapshot.value.reason == "disabled-module"
+        )
+    }
+
+
 def apply_session_post_writeback_request(
     *,
     request: SessionPostWritebackRequest,
@@ -419,6 +445,8 @@ def build_final_runtime_modules(
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
+    case_memory_store: ApplicationCaseMemoryStore | None = None,
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
@@ -484,6 +512,7 @@ def build_final_runtime_modules(
         ),
         DomainKnowledgeModule(
             rare_heavy_state=application_rare_heavy_state,
+            store=domain_knowledge_store,
             wiring_level=config.level_for("domain_knowledge", WiringLevel.ACTIVE),
         ),
         EvaluationModule(
@@ -498,11 +527,12 @@ def build_final_runtime_modules(
         ),
         CaseMemoryModule(
             rare_heavy_state=application_rare_heavy_state,
-            wiring_level=config.level_for("case_memory", WiringLevel.ACTIVE),
+            store=case_memory_store,
+            wiring_level=config.level_for("case_memory", WiringLevel.SHADOW),
         ),
         StrategyPlaybookModule(
             rare_heavy_state=application_rare_heavy_state,
-            wiring_level=config.level_for("strategy_playbook", WiringLevel.ACTIVE),
+            wiring_level=config.level_for("strategy_playbook", WiringLevel.SHADOW),
         ),
         BoundaryPolicyModule(
             wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
@@ -533,6 +563,8 @@ async def run_final_wiring_turn(
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
+    case_memory_store: ApplicationCaseMemoryStore | None = None,
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
@@ -556,6 +588,8 @@ async def run_final_wiring_turn(
         config=config,
         substrate_adapter=substrate_adapter,
         application_rare_heavy_state=application_rare_heavy_state,
+        domain_knowledge_store=domain_knowledge_store,
+        case_memory_store=case_memory_store,
         memory_store=memory_store,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
@@ -860,6 +894,7 @@ async def run_final_wiring_turn(
         writeback_result = None
     if credit_module is not None:
         active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
+    active_snapshots = _prune_disabled_stub_snapshots(active_snapshots)
     acceptance_report = build_acceptance_report(
         config=config,
         active_snapshots=active_snapshots,
@@ -904,6 +939,9 @@ def build_acceptance_report(
     shadow_snapshots: dict[str, Snapshot[Any]],
     recorder: EventRecorder,
 ) -> FinalAcceptanceReport:
+    def resolved_level(module_name: str) -> WiringLevel:
+        return config.level_for(module_name, WiringLevel.DISABLED)
+
     active_slots = tuple(sorted(active_snapshots))
     shadow_slots = tuple(sorted(shadow_snapshots))
     disabled_slots = tuple(
@@ -926,30 +964,32 @@ def build_acceptance_report(
                 "reflection",
                 "temporal",
             )
-            if config.level_for(name, WiringLevel.DISABLED) is WiringLevel.DISABLED
+            if resolved_level(name) is WiringLevel.DISABLED
         )
     )
     issues: list[str] = []
     recommendations: list[str] = []
 
-    expected_active = {
-        "substrate",
-        "substrate_self_mod",
-        "memory",
-        "retrieval_policy",
-        "domain_knowledge",
-        "case_memory",
-        "strategy_playbook",
-        "dual_track",
-        "evaluation",
-        "prediction_error",
-        "regime",
-        "boundary_policy",
-        "credit",
-    }
-    if config.reflection is WiringLevel.ACTIVE:
-        expected_active.add("reflection")
-    if config.temporal is WiringLevel.ACTIVE:
+    expected_active: set[str] = set()
+    for module_name, slot_name in (
+        ("substrate", "substrate"),
+        ("substrate_self_mod", "substrate_self_mod"),
+        ("memory", "memory"),
+        ("retrieval_policy", "retrieval_policy"),
+        ("domain_knowledge", "domain_knowledge"),
+        ("case_memory", "case_memory"),
+        ("strategy_playbook", "strategy_playbook"),
+        ("boundary_policy", "boundary_policy"),
+        ("dual_track", "dual_track"),
+        ("evaluation", "evaluation"),
+        ("prediction_error", "prediction_error"),
+        ("regime", "regime"),
+        ("credit", "credit"),
+        ("reflection", "reflection"),
+    ):
+        if config.is_active(module_name):
+            expected_active.add(slot_name)
+    if config.is_active("temporal"):
         expected_active.add("temporal_abstraction")
         expected_active.add("world_temporal")
         expected_active.add("self_temporal")
@@ -961,91 +1001,91 @@ def build_acceptance_report(
     if violation_count:
         issues.append(f"Observed {violation_count} contract violation events during final wiring.")
 
-    if config.reflection is WiringLevel.SHADOW and "reflection" not in shadow_slots and "reflection" not in active_slots:
+    if resolved_level("reflection") is WiringLevel.SHADOW and "reflection" not in shadow_slots and "reflection" not in active_slots:
         issues.append("Reflection wiring configured but no reflection snapshot was produced.")
-    if config.reflection is WiringLevel.ACTIVE and "reflection" not in active_slots:
+    if resolved_level("reflection") is WiringLevel.ACTIVE and "reflection" not in active_slots:
         issues.append("Reflection is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.substrate_self_mod is WiringLevel.SHADOW
+        resolved_level("substrate_self_mod") is WiringLevel.SHADOW
         and "substrate_self_mod" not in shadow_slots
         and "substrate_self_mod" not in active_slots
     ):
         issues.append("Substrate self-mod wiring configured but no substrate_self_mod snapshot was produced.")
-    if config.substrate_self_mod is WiringLevel.ACTIVE and "substrate_self_mod" not in active_slots:
+    if resolved_level("substrate_self_mod") is WiringLevel.ACTIVE and "substrate_self_mod" not in active_slots:
         issues.append("Substrate self-mod is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.retrieval_policy is WiringLevel.SHADOW
+        resolved_level("retrieval_policy") is WiringLevel.SHADOW
         and "retrieval_policy" not in shadow_slots
         and "retrieval_policy" not in active_slots
     ):
         issues.append("Retrieval policy wiring configured but no retrieval_policy snapshot was produced.")
-    if config.retrieval_policy is WiringLevel.ACTIVE and "retrieval_policy" not in active_slots:
+    if resolved_level("retrieval_policy") is WiringLevel.ACTIVE and "retrieval_policy" not in active_slots:
         issues.append("Retrieval policy is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.domain_knowledge is WiringLevel.SHADOW
+        resolved_level("domain_knowledge") is WiringLevel.SHADOW
         and "domain_knowledge" not in shadow_slots
         and "domain_knowledge" not in active_slots
     ):
         issues.append("Domain knowledge wiring configured but no domain_knowledge snapshot was produced.")
-    if config.domain_knowledge is WiringLevel.ACTIVE and "domain_knowledge" not in active_slots:
+    if resolved_level("domain_knowledge") is WiringLevel.ACTIVE and "domain_knowledge" not in active_slots:
         issues.append("Domain knowledge is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.case_memory is WiringLevel.SHADOW
+        resolved_level("case_memory") is WiringLevel.SHADOW
         and "case_memory" not in shadow_slots
         and "case_memory" not in active_slots
     ):
         issues.append("Case memory wiring configured but no case_memory snapshot was produced.")
-    if config.case_memory is WiringLevel.ACTIVE and "case_memory" not in active_slots:
+    if resolved_level("case_memory") is WiringLevel.ACTIVE and "case_memory" not in active_slots:
         issues.append("Case memory is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.strategy_playbook is WiringLevel.SHADOW
+        resolved_level("strategy_playbook") is WiringLevel.SHADOW
         and "strategy_playbook" not in shadow_slots
         and "strategy_playbook" not in active_slots
     ):
         issues.append("Strategy playbook wiring configured but no strategy_playbook snapshot was produced.")
-    if config.strategy_playbook is WiringLevel.ACTIVE and "strategy_playbook" not in active_slots:
+    if resolved_level("strategy_playbook") is WiringLevel.ACTIVE and "strategy_playbook" not in active_slots:
         issues.append("Strategy playbook is configured ACTIVE but did not publish into the active chain.")
 
     if (
-        config.boundary_policy is WiringLevel.SHADOW
+        resolved_level("boundary_policy") is WiringLevel.SHADOW
         and "boundary_policy" not in shadow_slots
         and "boundary_policy" not in active_slots
     ):
         issues.append("Boundary policy wiring configured but no boundary_policy snapshot was produced.")
-    if config.boundary_policy is WiringLevel.ACTIVE and "boundary_policy" not in active_slots:
+    if resolved_level("boundary_policy") is WiringLevel.ACTIVE and "boundary_policy" not in active_slots:
         issues.append("Boundary policy is configured ACTIVE but did not publish into the active chain.")
 
-    if config.temporal is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
-    if config.temporal is WiringLevel.SHADOW and "world_temporal" not in shadow_slots and "world_temporal" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.SHADOW and "world_temporal" not in shadow_slots and "world_temporal" not in active_slots:
         issues.append("World temporal wiring configured but no world_temporal snapshot was produced.")
-    if config.temporal is WiringLevel.SHADOW and "self_temporal" not in shadow_slots and "self_temporal" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.SHADOW and "self_temporal" not in shadow_slots and "self_temporal" not in active_slots:
         issues.append("Self temporal wiring configured but no self_temporal snapshot was produced.")
-    if config.temporal is WiringLevel.ACTIVE and "temporal_abstraction" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "temporal_abstraction" not in active_slots:
         issues.append("Temporal is configured ACTIVE but did not publish into the active chain.")
-    if config.temporal is WiringLevel.ACTIVE and "world_temporal" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "world_temporal" not in active_slots:
         issues.append("Temporal is configured ACTIVE but world_temporal did not publish into the active chain.")
-    if config.temporal is WiringLevel.ACTIVE and "self_temporal" not in active_slots:
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "self_temporal" not in active_slots:
         issues.append("Temporal is configured ACTIVE but self_temporal did not publish into the active chain.")
 
-    if config.reflection is WiringLevel.ACTIVE:
+    if config.is_active("reflection"):
         recommendations.append("Keep reflection in proposal-only mode until writeback acceptance is proven.")
-    if config.temporal is WiringLevel.ACTIVE:
+    if config.is_active("temporal"):
         recommendations.append("Validate temporal active mode against rollout evidence before widening scope.")
-    if config.substrate_self_mod is WiringLevel.ACTIVE:
+    if config.is_active("substrate_self_mod"):
         recommendations.append("Keep online-fast substrate self-mod bounded and rollback-safe before widening scope.")
-    if config.domain_knowledge is WiringLevel.ACTIVE:
+    if config.is_active("domain_knowledge"):
         recommendations.append("Keep domain knowledge evidence compact and citation-bounded before widening scope.")
-    if config.case_memory is WiringLevel.ACTIVE:
+    if config.is_active("case_memory"):
         recommendations.append("Keep case_memory as a sibling owner and avoid collapsing it back into memory.")
-    if config.strategy_playbook is WiringLevel.ACTIVE:
+    if config.is_active("strategy_playbook"):
         recommendations.append("Keep strategy playbook as advisory prior evidence, not a second temporal owner.")
-    if config.boundary_policy is WiringLevel.ACTIVE:
+    if config.is_active("boundary_policy"):
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")

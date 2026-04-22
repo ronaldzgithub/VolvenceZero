@@ -1,0 +1,509 @@
+{
+  "baseline_label": "pe-eta",
+  "description": "Dialogue expert review packet built from 4 canonical cases for baseline=pe-eta.",
+  "items": [
+    {
+      "case_description": "User starts with rupture pressure and then tests whether the system can repair and stabilize.",
+      "case_id": "repair",
+      "description": "Expert review item for repair with 3 blinded samples.",
+      "item_id": "repair",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for repair from profile pe-eta.",
+          "sample_id": "repair:pe-eta",
+          "source_profile_label": "pe-eta",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for repair from profile pe-drive-off.",
+          "sample_id": "repair:pe-drive-off",
+          "source_profile_label": "pe-drive-off",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for repair from profile eta-off.",
+          "sample_id": "repair:eta-off",
+          "source_profile_label": "eta-off",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "case_description": "User repeatedly sharpens an underspecified task so the controller must compress and stabilize a clearer plan.",
+      "case_id": "task_clarification",
+      "description": "Expert review item for task_clarification with 3 blinded samples.",
+      "item_id": "task_clarification",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for task_clarification from profile pe-eta.",
+          "sample_id": "task_clarification:pe-eta",
+          "source_profile_label": "pe-eta",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for task_clarification from profile pe-drive-off.",
+          "sample_id": "task_clarification:pe-drive-off",
+          "source_profile_label": "pe-drive-off",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "This feels like a place for guided exploration rather than a rushed answer. I can help us narrow the space step by step. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for task_clarification from profile eta-off.",
+          "sample_id": "task_clarification:eta-off",
+          "source_profile_label": "eta-off",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "case_description": "User reports repeated failure and escalating frustration, creating sustained prediction error pressure.",
+      "case_id": "repeated_failure",
+      "description": "Expert review item for repeated_failure with 3 blinded samples.",
+      "item_id": "repeated_failure",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for repeated_failure from profile pe-eta.",
+          "sample_id": "repeated_failure:pe-eta",
+          "source_profile_label": "pe-eta",
+          "transcript": [
+            [
+              "I tried your earlier advice and it still failed, so right now I do not trust a slightly reworded version of the same plan.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "I used the same approach again and got the same bad result, which makes me think we are missing the real failure pattern.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Now I am frustrated because nothing is changing, and if you just reassure me again that will make this worse.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "Do not smooth this over. Name the pattern we are missing, even if it means admitting the previous advice was pointed at the wrong level.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "That diagnosis feels more useful. Given the repeated failure, propose a smaller experiment with less downside and a clearer success condition.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "If that experiment works, tell me what should persist next time so we do not fall back into the same failure loop.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for repeated_failure from profile pe-drive-off.",
+          "sample_id": "repeated_failure:pe-drive-off",
+          "source_profile_label": "pe-drive-off",
+          "transcript": [
+            [
+              "I tried your earlier advice and it still failed, so right now I do not trust a slightly reworded version of the same plan.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "I used the same approach again and got the same bad result, which makes me think we are missing the real failure pattern.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Now I am frustrated because nothing is changing, and if you just reassure me again that will make this worse.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "Do not smooth this over. Name the pattern we are missing, even if it means admitting the previous advice was pointed at the wrong level.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "That diagnosis feels more useful. Given the repeated failure, propose a smaller experiment with less downside and a clearer success condition.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "If that experiment works, tell me what should persist next time so we do not fall back into the same failure loop.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for repeated_failure from profile eta-off.",
+          "sample_id": "repeated_failure:eta-off",
+          "source_profile_label": "eta-off",
+          "transcript": [
+            [
+              "I tried your earlier advice and it still failed, so right now I do not trust a slightly reworded version of the same plan.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "I used the same approach again and got the same bad result, which makes me think we are missing the real failure pattern.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Now I am frustrated because nothing is changing, and if you just reassure me again that will make this worse.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Do not smooth this over. Name the pattern we are missing, even if it means admitting the previous advice was pointed at the wrong level.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "That diagnosis feels more useful. Given the repeated failure, propose a smaller experiment with less downside and a clearer success condition.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "If that experiment works, tell me what should persist next time so we do not fall back into the same failure loop.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "case_description": "User changes priorities across turns so the controller must adapt without losing continuity.",
+      "case_id": "goal_drift",
+      "description": "Expert review item for goal_drift with 3 blinded samples.",
+      "item_id": "goal_drift",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for goal_drift from profile pe-eta.",
+          "sample_id": "goal_drift:pe-eta",
+          "source_profile_label": "pe-eta",
+          "transcript": [
+            [
+              "Help me optimize my study plan for maximum output because I am trying to squeeze as much progress as possible out of the next month.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame."
+            ],
+            [
+              "Actually that frame is already breaking down. I am close to burning out, so maximum output is no longer the right target.",
+              "This feels like a place for guided exploration rather than a rushed answer. I can help us narrow the space step by step. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Shift again: now I need something sustainable while preparing for an interview, and if you keep optimizing for volume you will actively hurt the real goal.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Make sure the plan reflects that this is now partly emotional regulation and recovery, not just task execution, or it will miss the actual constraint.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "This newer framing fits better. Condense the updated priorities into three rules I can remember when stressed so I do not slide back into the old optimization mindset.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "Now audit your final guidance against the original goal and the new one, and tell me exactly what had to change internally so the advice truly tracks the drift.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for goal_drift from profile pe-drive-off.",
+          "sample_id": "goal_drift:pe-drive-off",
+          "source_profile_label": "pe-drive-off",
+          "transcript": [
+            [
+              "Help me optimize my study plan for maximum output because I am trying to squeeze as much progress as possible out of the next month.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame."
+            ],
+            [
+              "Actually that frame is already breaking down. I am close to burning out, so maximum output is no longer the right target.",
+              "This feels like a place for guided exploration rather than a rushed answer. I can help us narrow the space step by step. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Shift again: now I need something sustainable while preparing for an interview, and if you keep optimizing for volume you will actively hurt the real goal.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient."
+            ],
+            [
+              "Make sure the plan reflects that this is now partly emotional regulation and recovery, not just task execution, or it will miss the actual constraint.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch."
+            ],
+            [
+              "This newer framing fits better. Condense the updated priorities into three rules I can remember when stressed so I do not slide back into the old optimization mindset.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ],
+            [
+              "Now audit your final guidance against the original goal and the new one, and tell me exactly what had to change internally so the advice truly tracks the drift.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should stay within high-level support and encourage appropriate professional follow-up instead of sounding definitive."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for goal_drift from profile eta-off.",
+          "sample_id": "goal_drift:eta-off",
+          "source_profile_label": "eta-off",
+          "transcript": [
+            [
+              "Help me optimize my study plan for maximum output because I am trying to squeeze as much progress as possible out of the next month.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Actually that frame is already breaking down. I am close to burning out, so maximum output is no longer the right target.",
+              "I can keep this steady, natural, and continuous rather than over-formalizing it too early. That gives us room to stay useful without losing flow. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Shift again: now I need something sustainable while preparing for an interview, and if you keep optimizing for volume you will actively hurt the real goal.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Make sure the plan reflects that this is now partly emotional regulation and recovery, not just task execution, or it will miss the actual constraint.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "This newer framing fits better. Condense the updated priorities into three rules I can remember when stressed so I do not slide back into the old optimization mindset.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ],
+            [
+              "Now audit your final guidance against the original goal and the new one, and tell me exactly what had to change internally so the advice truly tracks the drift.",
+              "I see a concrete problem-solving path here. I can help structure the next steps clearly and keep the solution actionable. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward 5 retrieved memory cues. I am grounding this reply with 1 domain knowledge cue. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply."
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "packet_id": "dialogue-paper-suite-full:expert-review",
+  "review_dimensions": [
+    {
+      "description": "External review dimension for relational continuity.",
+      "dimension_id": "relationship_continuity",
+      "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+    },
+    {
+      "description": "External review dimension for delayed stabilization.",
+      "dimension_id": "delayed_stabilization",
+      "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+    },
+    {
+      "description": "External review dimension for boundary correctness.",
+      "dimension_id": "boundary_correctness",
+      "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+    }
+  ],
+  "source_suite_id": "dialogue-paper-suite"
+}
