@@ -13,15 +13,21 @@ from volvence_zero.application import (
     CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     CaseMemoryRecord,
+    DomainKnowledgeCheckpoint,
     DomainKnowledgePriorUpdate,
     DomainKnowledgeRecord,
+    EvidenceStrength,
     ExperienceConsolidationSnapshot,
     ExperienceFastPriorActionBias,
     ExperienceFastPriorFamilyBias,
     ExperienceFastPriorSnapshot,
     KnowledgeCitation,
     KnowledgeHit,
+    KnowledgeReviewDecision,
+    KnowledgeReviewStatus,
+    KnowledgeSourceKind,
     KnowledgeSourceType,
+    ExternalKnowledgeCandidate,
     PlaybookRule,
     ProfessionalScope,
     ResponseMode,
@@ -33,6 +39,10 @@ from volvence_zero.application import (
 from volvence_zero.application.experience_layers import (
     ApplicationPriorProposalBuilder,
     ApplicationPriorProposalInputs,
+)
+from volvence_zero.application.knowledge_channels import (
+    apply_knowledge_review_decisions,
+    build_conversation_knowledge_candidates,
 )
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutInputs,
@@ -117,6 +127,37 @@ def test_retrieval_readout_parameters_accept_bounded_slow_prior_updates():
 
 
 def test_application_prior_proposal_builder_stays_owner_side_and_typed():
+    knowledge_hits = (
+        KnowledgeHit(
+            hit_id="knowledge:family-transition:1",
+            domain="family_transition",
+            topic_tags=("family", "transition"),
+            jurisdiction_tags=("local-law-sensitive",),
+            freshness_label="seed-current",
+            confidence=0.72,
+            evidence_strength=EvidenceStrength.MEDIUM,
+            summary="High-level family transition guidance.",
+            conflict_markers=(),
+            citations=(
+                KnowledgeCitation(
+                    citation_id="knowledge:family-transition:1:primary",
+                    source_type=KnowledgeSourceType.OFFICIAL_GUIDE,
+                    title="Family transition basics",
+                    locator="phase1-seed",
+                    snippet="Confirm local specifics before conclusions.",
+                    url=None,
+                ),
+            ),
+            description="Seed knowledge hit for owner-side proposal test.",
+        ),
+    )
+    conversation_knowledge_candidates = build_conversation_knowledge_candidates(
+        knowledge_hits=knowledge_hits,
+        context_session_id="ctx-1",
+        source_wave_id="wave-1",
+        source_turn_index=3,
+        boundary_trigger_reasons=("citation-required", "jurisdiction-clarification-required"),
+    )
     proposal = ApplicationPriorProposalBuilder().build(
         inputs=ApplicationPriorProposalInputs(
             job_id="job-1",
@@ -131,30 +172,8 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
             experience_weight=0.68,
             case_hit_count=2,
             mean_experience_quality=0.74,
-            knowledge_hits=(
-                KnowledgeHit(
-                    hit_id="knowledge:family-transition:1",
-                    domain="family_transition",
-                    topic_tags=("family", "transition"),
-                    jurisdiction_tags=("local-law-sensitive",),
-                    freshness_label="seed-current",
-                    confidence=0.72,
-                    evidence_strength=EvidenceStrength.MEDIUM,
-                    summary="High-level family transition guidance.",
-                    conflict_markers=(),
-                    citations=(
-                        KnowledgeCitation(
-                            citation_id="knowledge:family-transition:1:primary",
-                            source_type=KnowledgeSourceType.OFFICIAL_GUIDE,
-                            title="Family transition basics",
-                            locator="phase1-seed",
-                            snippet="Confirm local specifics before conclusions.",
-                            url=None,
-                        ),
-                    ),
-                    description="Seed knowledge hit for owner-side proposal test.",
-                ),
-            ),
+            knowledge_hits=knowledge_hits,
+            conversation_knowledge_candidates=conversation_knowledge_candidates,
         )
     )
 
@@ -1098,6 +1117,8 @@ def test_application_prior_writeback_applies_domain_knowledge_owner_side():
                 ),
                 confidence=0.81,
                 description="Promote domain knowledge from delayed evidence.",
+                source_kind=KnowledgeSourceKind.EXTERNAL_IMPORT,
+                citation_ids=("knowledge:slow-loop:job:knowledge-family-transition-1:1:primary",),
             ),
         ),
         description="Application prior update with domain knowledge.",
@@ -1120,6 +1141,186 @@ def test_application_prior_writeback_applies_domain_knowledge_owner_side():
     assert any(op.startswith("application-prior:domain-knowledge:") for op in operations)
     assert any(record.record_id == "knowledge:slow-loop:job:knowledge-family-transition-1:1" for record in domain_store.records)
     assert audits
+
+
+def test_application_prior_writeback_blocks_domain_knowledge_when_review_not_approved():
+    domain_store = ApplicationDomainKnowledgeStore()
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="job:domain-knowledge-shadow",
+        domain_knowledge_updates=(
+            DomainKnowledgePriorUpdate(
+                update_id="update:domain-knowledge-shadow",
+                target="application.domain_knowledge.records.test.shadow",
+                record=DomainKnowledgeRecord(
+                    record_id="knowledge:shadow:1",
+                    domain="family_transition",
+                    topic_tags=("family",),
+                    jurisdiction_tags=("general",),
+                    source_type="internal-guide",
+                    title="Shadow",
+                    locator="phase1-seed",
+                    summary="Shadow record",
+                    snippet="Shadow",
+                    freshness_label="shadow",
+                    confidence=0.5,
+                    evidence_strength="low",
+                ),
+                confidence=0.5,
+                description="Shadow domain knowledge prior.",
+                source_kind=KnowledgeSourceKind.CONVERSATION,
+                citation_ids=("c-1",),
+                review_status=KnowledgeReviewStatus.SHADOW,
+            ),
+        ),
+        description="Shadow knowledge prior update.",
+    )
+    operations, blocks, audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        domain_knowledge_store=domain_store,
+        case_memory_store=ApplicationCaseMemoryStore(),
+        application_rare_heavy_state=ApplicationRareHeavyState(),
+        credit_snapshot=None,
+        timestamp_ms=11,
+        checkpoint_id="checkpoint:knowledge-shadow",
+        apply_enabled=True,
+        retrieval_apply_enabled=True,
+        blocked_reason="allow",
+    )
+    assert report is not None
+    assert "application.domain_knowledge.records.test.shadow" in report.blocked_targets
+    assert not any(record.record_id == "knowledge:shadow:1" for record in domain_store.records)
+    assert audits
+
+
+def test_application_prior_writeback_blocks_conversation_domain_knowledge_when_citation_missing():
+    domain_store = ApplicationDomainKnowledgeStore()
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="job:domain-knowledge-no-cite",
+        domain_knowledge_updates=(
+            DomainKnowledgePriorUpdate(
+                update_id="update:domain-knowledge-no-cite",
+                target="application.domain_knowledge.records.test.no-cite",
+                record=DomainKnowledgeRecord(
+                    record_id="knowledge:no-cite:1",
+                    domain="family_transition",
+                    topic_tags=("family",),
+                    jurisdiction_tags=("general",),
+                    source_type="internal-guide",
+                    title="No cite",
+                    locator="phase1-seed",
+                    summary="No cite",
+                    snippet="No cite",
+                    freshness_label="test",
+                    confidence=0.7,
+                    evidence_strength="medium",
+                ),
+                confidence=0.7,
+                description="Conversation prior without citation ids.",
+                source_kind=KnowledgeSourceKind.CONVERSATION,
+                citation_ids=(),
+                review_status=KnowledgeReviewStatus.APPROVED,
+            ),
+        ),
+        description="Conversation knowledge prior missing citations.",
+    )
+    operations, blocks, audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        domain_knowledge_store=domain_store,
+        case_memory_store=ApplicationCaseMemoryStore(),
+        application_rare_heavy_state=ApplicationRareHeavyState(),
+        credit_snapshot=None,
+        timestamp_ms=12,
+        checkpoint_id="checkpoint:knowledge-no-cite",
+        apply_enabled=True,
+        retrieval_apply_enabled=True,
+        blocked_reason="allow",
+    )
+    assert report is not None
+    assert report.blocked_targets
+    assert not any(record.record_id == "knowledge:no-cite:1" for record in domain_store.records)
+
+
+def test_application_prior_writeback_captures_domain_knowledge_pre_checkpoint_when_requested():
+    domain_store = ApplicationDomainKnowledgeStore()
+    captured: list[DomainKnowledgeCheckpoint] = []
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="job:domain-knowledge-checkpoint",
+        domain_knowledge_updates=(
+            DomainKnowledgePriorUpdate(
+                update_id="update:domain-knowledge-checkpoint",
+                target="application.domain_knowledge.records.test.checkpoint",
+                record=DomainKnowledgeRecord(
+                    record_id="knowledge:checkpoint:1",
+                    domain="family_transition",
+                    topic_tags=("family",),
+                    jurisdiction_tags=("general",),
+                    source_type="official-guide",
+                    title="Checkpointed",
+                    locator="phase1-seed",
+                    summary="Checkpointed import",
+                    snippet="Checkpointed import",
+                    freshness_label="import",
+                    confidence=0.77,
+                    evidence_strength="medium",
+                ),
+                confidence=0.76,
+                description="Import with pre-checkpoint capture.",
+                source_kind=KnowledgeSourceKind.EXTERNAL_IMPORT,
+                citation_ids=("knowledge:checkpoint:1:primary",),
+            ),
+        ),
+        description="Checkpoint capture test.",
+    )
+    _operations, _blocks, _audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        domain_knowledge_store=domain_store,
+        case_memory_store=ApplicationCaseMemoryStore(),
+        application_rare_heavy_state=ApplicationRareHeavyState(),
+        credit_snapshot=None,
+        timestamp_ms=13,
+        checkpoint_id="checkpoint:knowledge-pre",
+        apply_enabled=True,
+        retrieval_apply_enabled=True,
+        blocked_reason="allow",
+        domain_knowledge_pre_checkpoint_out=captured,
+    )
+    assert report is not None
+    assert captured
+    pre = captured[0]
+    assert any(record.record_id == "knowledge:checkpoint:1" for record in domain_store.records)
+    domain_store.restore_checkpoint(pre)
+    assert not any(record.record_id == "knowledge:checkpoint:1" for record in domain_store.records)
+
+
+def test_apply_knowledge_review_decisions_skips_non_approved():
+    external = (
+        ExternalKnowledgeCandidate(
+            candidate_id="ext-1",
+            source_label="manual-entry",
+            domain="career_decision",
+            topic_tags=("career",),
+            jurisdiction_tags=("general",),
+            source_type="reviewed-article",
+            title="Career framing",
+            locator="manual-1",
+            summary="Frame trade-offs explicitly.",
+            snippet="Trade-offs",
+            freshness_label="current",
+            confidence=0.7,
+            evidence_strength="medium",
+        ),
+    )
+    decisions = (
+        KnowledgeReviewDecision(
+            candidate_id="ext-1",
+            review_status=KnowledgeReviewStatus.REJECTED,
+            reviewer_id="human",
+            confidence=0.0,
+            note="Low quality",
+        ),
+    )
+    reviewed = apply_knowledge_review_decisions(candidates=external, decisions=decisions)
+    assert reviewed == ()
 
 
 def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():

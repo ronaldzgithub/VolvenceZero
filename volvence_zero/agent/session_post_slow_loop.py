@@ -10,6 +10,7 @@ from volvence_zero.application.runtime import (
     ApplicationPriorWritebackReport,
     ApplicationOutcomeAttribution,
     ApplicationSequencePayoff,
+    ConversationKnowledgeCandidate,
     DelayedCreditSummary,
     ExperienceDelta,
     KnowledgeHit,
@@ -37,6 +38,7 @@ class SessionPostSlowLoopJob:
     case_risk_markers: tuple[str, ...] = ()
     knowledge_domains: tuple[str, ...] = ()
     knowledge_hits: tuple[KnowledgeHit, ...] = ()
+    conversation_knowledge_candidates: tuple[ConversationKnowledgeCandidate, ...] = ()
     boundary_trigger_reasons: tuple[str, ...] = ()
     regime_id: str | None = None
     abstract_action: str | None = None
@@ -75,6 +77,7 @@ class SessionPostSlowLoopResult:
     delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = ()
     sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = ()
     delayed_credit_summary: DelayedCreditSummary | None = None
+    conversation_knowledge_candidates: tuple[ConversationKnowledgeCandidate, ...] = ()
     application_prior_update: ApplicationPriorUpdate | None = None
     application_prior_writeback_report: ApplicationPriorWritebackReport | None = None
     application_prior_audits: tuple[SelfModificationRecord, ...] = ()

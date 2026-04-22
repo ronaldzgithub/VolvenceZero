@@ -14,7 +14,11 @@ from volvence_zero.agent import (
 from volvence_zero.application import (
     ApplicationCaseCluster,
     ApplicationRareHeavyCheckpoint,
+    DomainKnowledgeRecord,
+    KnowledgeReviewStatus,
+    KnowledgeSourceKind,
     PlaybookRule,
+    ReviewedKnowledgeCandidate,
 )
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.integration import FinalRolloutConfig
@@ -278,6 +282,10 @@ def test_agent_session_runner_promotes_domain_knowledge_for_next_turn():
     slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
 
     assert slow_loop_results
+    assert slow_loop_results[0].conversation_knowledge_candidates
+    assert all(
+        not candidate.is_fallback_hit for candidate in slow_loop_results[0].conversation_knowledge_candidates
+    )
     latest_prior = slow_loop_results[0].application_prior_update
     assert latest_prior is not None
     assert latest_prior.domain_knowledge_updates
@@ -410,6 +418,30 @@ def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fas
                 ),
             ),
             description="Application rare-heavy checkpoint for phase4 test.",
+            reviewed_knowledge_candidates=(
+                ReviewedKnowledgeCandidate(
+                    candidate_id="phase4-reviewed-knowledge",
+                    source_kind=KnowledgeSourceKind.RARE_HEAVY_IMPORT,
+                    review_status=KnowledgeReviewStatus.APPROVED,
+                    record=DomainKnowledgeRecord(
+                        record_id="knowledge:rare-heavy:phase4-reviewed-knowledge",
+                        domain="career_decision",
+                        topic_tags=("career", "import"),
+                        jurisdiction_tags=("general",),
+                        source_type="reviewed-article",
+                        title="Rare-heavy imported career framing",
+                        locator="rare-heavy-import",
+                        summary="Imported distilled career framing from rare-heavy reviewed channel.",
+                        snippet="Imported distilled career framing from rare-heavy reviewed channel.",
+                        freshness_label="rare-heavy-import",
+                        confidence=0.74,
+                        evidence_strength="medium",
+                    ),
+                    source_candidate_ids=("phase4-reviewed-knowledge",),
+                    review_note="Approved reviewed import artifact.",
+                    confidence=0.74,
+                ),
+            ),
         ),
     )
 
@@ -421,6 +453,11 @@ def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fas
     strategy_playbook = result.active_snapshots["strategy_playbook"].value
 
     assert "rare-heavy:application-domain-refresh" in import_result.applied_operations
+    assert "rare-heavy:application-reviewed-knowledge-import" in import_result.applied_operations
+    assert any(
+        record.record_id == "knowledge:rare-heavy:phase4-reviewed-knowledge"
+        for record in runner._domain_knowledge_store.records
+    )
     assert "career_decision" in retrieval_policy.knowledge_domains
     assert "family-transition-high-emotion" in case_memory.active_problem_patterns
     assert any(rule.problem_pattern == "family-transition-high-emotion" for rule in strategy_playbook.matched_rules)

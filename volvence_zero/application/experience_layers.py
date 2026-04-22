@@ -7,8 +7,11 @@ from volvence_zero.application.runtime import (
     BoundaryPolicyPriorUpdate,
     BoundaryPriorHint,
     CaseMemoryPriorUpdate,
+    ConversationKnowledgeCandidate,
     DomainKnowledgePriorUpdate,
     KnowledgeHit,
+    KnowledgeReviewStatus,
+    KnowledgeSourceKind,
     PlaybookRule,
     RetrievalReadoutPriorUpdate,
     StrategyPlaybookPriorUpdate,
@@ -39,6 +42,7 @@ class ApplicationPriorProposalInputs:
     case_hit_count: int
     mean_experience_quality: float
     knowledge_hits: tuple[KnowledgeHit, ...] = ()
+    conversation_knowledge_candidates: tuple[ConversationKnowledgeCandidate, ...] = ()
     retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
     retrieval_fast_prior_strength: float = 0.0
     retrieval_fast_prior_attribution_count: int = 0
@@ -169,7 +173,13 @@ class ApplicationPriorProposalBuilder:
                     description="Promote boundary prior from repeated slow-loop boundary triggers.",
                 )
             )
-        for index, hit in enumerate(inputs.knowledge_hits, start=1):
+        hits_by_id = {hit.hit_id: hit for hit in inputs.knowledge_hits}
+        for index, candidate in enumerate(inputs.conversation_knowledge_candidates[:1], start=1):
+            if candidate.review_status is not KnowledgeReviewStatus.APPROVED:
+                continue
+            hit = hits_by_id.get(candidate.knowledge_hit_id)
+            if hit is None:
+                continue
             citation = hit.citations[0] if hit.citations else None
             title = citation.title if citation is not None else f"{hit.domain.replace('_', ' ')} guidance"
             locator = citation.locator if citation is not None else f"promoted:{hit.hit_id}"
@@ -199,8 +209,12 @@ class ApplicationPriorProposalBuilder:
                     confidence=_clamp(hit.confidence * 0.45 + inputs.mean_experience_quality * 0.40 + 0.10),
                     description=(
                         f"Promote knowledge prior for domain={hit.domain} from session-post evidence "
-                        f"using hit={hit.hit_id}."
+                        f"using hit={hit.hit_id} candidate={candidate.candidate_id}."
                     ),
+                    source_kind=KnowledgeSourceKind.CONVERSATION,
+                    source_candidate_ids=(candidate.candidate_id,),
+                    review_status=candidate.review_status,
+                    citation_ids=tuple(candidate.citation_ids),
                 )
             )
         retrieval_checkpoint = self._build_retrieval_readout_checkpoint(inputs=inputs)

@@ -39,6 +39,10 @@ from volvence_zero.application.experience_layers import (
     ApplicationPriorProposalBuilder,
     ApplicationPriorProposalInputs,
 )
+from volvence_zero.application.knowledge_channels import (
+    build_conversation_knowledge_candidates,
+    domain_knowledge_prior_updates_from_reviewed,
+)
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit.gate import (
     GateDecision,
@@ -1051,6 +1055,13 @@ class AgentSessionRunner:
                     ),
                     0.0,
                 )
+        conversation_knowledge_candidates = build_conversation_knowledge_candidates(
+            knowledge_hits=knowledge_hits,
+            context_session_id=request.context_session_id,
+            source_wave_id=request.source_wave_id,
+            source_turn_index=self._turn_index,
+            boundary_trigger_reasons=boundary_trigger_reasons,
+        )
         job = SessionPostSlowLoopJob(
             job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
             context_session_id=request.context_session_id,
@@ -1069,6 +1080,7 @@ class AgentSessionRunner:
             case_risk_markers=case_risk_markers,
             knowledge_domains=knowledge_domains,
             knowledge_hits=knowledge_hits,
+            conversation_knowledge_candidates=conversation_knowledge_candidates,
             boundary_trigger_reasons=boundary_trigger_reasons,
             regime_id=regime_id,
             abstract_action=abstract_action,
@@ -1245,6 +1257,7 @@ class AgentSessionRunner:
                 case_hit_count=job.case_hit_count,
                 mean_experience_quality=mean_experience_quality,
                 knowledge_hits=job.knowledge_hits,
+                conversation_knowledge_candidates=job.conversation_knowledge_candidates,
                 retrieval_readout_checkpoint=self._application_rare_heavy_state.retrieval_readout_checkpoint,
                 retrieval_fast_prior_strength=max(job.retrieval_fast_prior_strength, mean_experience_quality),
                 retrieval_fast_prior_attribution_count=max(job.retrieval_fast_prior_attribution_count, 1),
@@ -1359,6 +1372,7 @@ class AgentSessionRunner:
             delayed_outcome_ledger=delayed_outcome_ledger,
             sequence_payoffs=sequence_payoffs,
             delayed_credit_summary=delayed_credit_summary,
+            conversation_knowledge_candidates=job.conversation_knowledge_candidates,
             application_prior_update=application_prior_update,
             application_prior_writeback_report=application_prior_writeback_report,
             application_prior_audits=application_prior_audits,
@@ -1464,14 +1478,46 @@ class AgentSessionRunner:
             result,
             checkpoint=replace(result.checkpoint, application_checkpoint=application_checkpoint),
         )
-        if not reset_operations and not application_operations:
+        knowledge_import_operations: tuple[str, ...] = ()
+        if artifact.application_checkpoint is not None and artifact.application_checkpoint.reviewed_knowledge_candidates:
+            reviewed = artifact.application_checkpoint.reviewed_knowledge_candidates
+            knowledge_updates = domain_knowledge_prior_updates_from_reviewed(
+                job_id=f"{artifact.artifact_id}:rare-heavy-knowledge-import",
+                reviewed=reviewed,
+            )
+            if knowledge_updates:
+                knowledge_prior = ApplicationPriorUpdate(
+                    source_session_post_job_id=f"{artifact.artifact_id}:rare-heavy-knowledge-import",
+                    domain_knowledge_updates=knowledge_updates,
+                    description="Rare-heavy reviewed knowledge import batch (owner-side gated writeback).",
+                )
+                (
+                    knowledge_import_operations,
+                    _knowledge_blocks,
+                    _knowledge_audits,
+                    _knowledge_report,
+                ) = _apply_application_prior_writeback(
+                    prior_update=knowledge_prior,
+                    domain_knowledge_store=self._domain_knowledge_store,
+                    case_memory_store=self._case_memory_store,
+                    application_rare_heavy_state=self._application_rare_heavy_state,
+                    credit_snapshot=None,
+                    timestamp_ms=max(self._turn_index, 1) + 3,
+                    checkpoint_id=checkpoint_id or artifact.artifact_id,
+                    apply_enabled=True,
+                    retrieval_apply_enabled=True,
+                    blocked_reason="allow",
+                )
+        tail_operations = application_operations + knowledge_import_operations + reset_operations
+        if not tail_operations:
             return result
         return replace(
             result,
-            applied_operations=result.applied_operations + application_operations + reset_operations,
+            applied_operations=result.applied_operations + tail_operations,
             description=(
                 f"{result.description} "
                 f"{'Application rare-heavy state imported. ' if application_operations else ''}"
+                f"{'Reviewed domain knowledge import applied. ' if knowledge_import_operations else ''}"
                 f"{'Nested context reset applied after import.' if reset_operations else ''}"
             ).strip(),
         )

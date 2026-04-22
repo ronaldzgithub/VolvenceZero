@@ -1,7 +1,7 @@
 # VolvenceZero Application Data Contract
 
 > Status: draft
-> Last updated: 2026-04-22
+> Last updated: 2026-04-22 (dual knowledge channels)
 > Scope: application-layer contracts for knowledge, experience, boundary, and retrieval orchestration
 > Source: `docs/application_system_design.md`, `docs/DATA_CONTRACT.md`, `docs/specs/contract-runtime.md`
 
@@ -252,92 +252,146 @@ class DomainKnowledgeSnapshot:
 - `memory` 只提供个体上下文和 query facets
 - `dual_track` / `regime` 提供这轮检索排序 prior
 
-## 6.4 External Knowledge Ingest Contract
+## 6.4 Dual knowledge channels (shared typed language)
 
-关键外部知识**不应**在 turn-time 由 `DomainKnowledgeModule` 直接联网抓取、解析并写入 store。  
-它必须走独立的 import / review / owner-side writeback 路径，再由 `domain_knowledge` 在后续轮次中作为稳定事实层查询。
+知识进入系统必须遵守两条**正式入口**，并在下游收敛到同一条 owner-side apply surface（`_apply_application_prior_writeback`）：
 
-最小新增契约：
+1. **对话知识通道（conversation）**：session-post 先把当轮 `KnowledgeHit` 与最小对话证据（session / wave / turn / citation ids）折叠为 `ConversationKnowledgeCandidate`，再由 `ApplicationPriorProposalBuilder` 仅对 `APPROVED` 候选生成 `DomainKnowledgePriorUpdate`。
+2. **专门知识通道（external / reviewed）**：文件/人工/离线产物先进入 `ExternalKnowledgeCandidate`，经显式 `KnowledgeReviewDecision` 收敛为 `ReviewedKnowledgeCandidate`（或直接把已审核产物放入 `ApplicationRareHeavyCheckpoint.reviewed_knowledge_candidates`），再转成 `DomainKnowledgePriorUpdate`。
+
+共享契约（实现见 `volvence_zero/application/runtime.py` 与 `volvence_zero/application/knowledge_channels.py`）：
 
 ```python
+class KnowledgeSourceKind(str, Enum):
+    CONVERSATION = "conversation"
+    EXTERNAL_IMPORT = "external-import"
+    RARE_HEAVY_IMPORT = "rare-heavy-import"
+
+
+class KnowledgeReviewStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SHADOW = "shadow"
+
+
+@dataclass(frozen=True)
+class ConversationKnowledgeCandidate:
+    candidate_id: str
+    source_context_session_id: str
+    source_wave_id: str
+    source_turn_index: int
+    turn_reference: str
+    domain: str
+    knowledge_hit_id: str
+    citation_ids: tuple[str, ...]
+    summary: str
+    confidence: float
+    boundary_aligned: bool
+    review_status: KnowledgeReviewStatus
+    is_fallback_hit: bool
+    description: str
+
+
 @dataclass(frozen=True)
 class ExternalKnowledgeCandidate:
     candidate_id: str
-    source_type: KnowledgeSourceType
-    title: str
-    locator: str
-    snippet: str
-    url: str | None
+    source_label: str
     domain: str
     topic_tags: tuple[str, ...]
     jurisdiction_tags: tuple[str, ...]
+    source_type: str
+    title: str
+    locator: str
+    summary: str
+    snippet: str
     freshness_label: str
-    evidence_strength: EvidenceStrength
-    extracted_at_turn: int | None
-    checksum: str
-    description: str
+    confidence: float
+    evidence_strength: str
+    conflict_markers: tuple[str, ...] = ()
+    url: str | None = None
+    description: str = ""
 
 
 @dataclass(frozen=True)
-class KnowledgeOutcomeAttribution:
-    attribution_id: str
-    source_context_session_id: str
-    source_wave_id: str
-    retrieval_policy_id: str | None
-    knowledge_hit_ids: tuple[str, ...]
-    citation_ids: tuple[str, ...]
-    domains: tuple[str, ...]
-    citation_required: bool
-    jurisdiction_required: bool
-    factual_support_score: float
-    boundary_alignment: float
-    outcome_score: float
-    description: str
+class KnowledgeReviewDecision:
+    candidate_id: str
+    review_status: KnowledgeReviewStatus
+    reviewer_id: str
+    confidence: float
+    note: str
+    supersedes_record_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewedKnowledgeCandidate:
+    candidate_id: str
+    source_kind: KnowledgeSourceKind
+    review_status: KnowledgeReviewStatus
+    record: DomainKnowledgeRecord
+    source_candidate_ids: tuple[str, ...]
+    review_note: str
+    confidence: float
+    supersedes_record_id: str | None = None
+
+
+@dataclass(frozen=True)
+class KnowledgeImportSession:
+    session_id: str
+    source_kind: KnowledgeSourceKind
+    source_label: str
+    pending_candidates: tuple[ExternalKnowledgeCandidate, ...] = ()
+    reviewed_candidates: tuple[ReviewedKnowledgeCandidate, ...] = ()
+    applied_candidate_ids: tuple[str, ...] = ()
+    blocked_candidate_ids: tuple[str, ...] = ()
+    description: str = ""
+
+
+KnowledgeImportBatch = KnowledgeImportSession  # 同义别名
 
 
 @dataclass(frozen=True)
 class DomainKnowledgePriorUpdate:
     update_id: str
     target: str
-    operation: str  # add | revise | deprecate | supersede
     record: DomainKnowledgeRecord
-    supersedes_record_id: str | None
-    source_candidate_ids: tuple[str, ...]
-    source_outcome_attribution_ids: tuple[str, ...]
     confidence: float
-    review_required: bool
     description: str
-
-
-@dataclass(frozen=True)
-class DomainKnowledgeWritebackReport:
-    proposed_target_count: int
-    applied_targets: tuple[str, ...]
-    blocked_targets: tuple[str, ...]
-    review_pending_targets: tuple[str, ...]
-    audit_record_count: int
-    description: str
+    source_kind: KnowledgeSourceKind = KnowledgeSourceKind.CONVERSATION
+    source_candidate_ids: tuple[str, ...] = ()
+    review_status: KnowledgeReviewStatus = KnowledgeReviewStatus.APPROVED
+    citation_ids: tuple[str, ...] = ()
+    supersedes_record_id: str | None = None
 ```
 
 ## 6.5 Apply Semantics
 
-- 外部知识源只能产出 `ExternalKnowledgeCandidate`，**不能直接写** `ApplicationDomainKnowledgeStore`
-- `DomainKnowledgeModule.process()` 继续只负责 query + publish，不承担 ingest / review / writeback
-- 候选外部知识必须先经过 review / dedupe / freshness / jurisdiction 标注，再转换成 `DomainKnowledgePriorUpdate`
-- `KnowledgeOutcomeAttribution` 是知识侧 delayed-credit 证据面，用来回答“哪些知识 hit 真的帮助了 factual support / boundary correctness”
-- 真正的 apply 必须由 session owner 驱动的 owner-side helper 完成，例如 `domain_knowledge_store.apply_prior_update(...)`
-- `add` / `revise` / `supersede` 默认可逆，并要求生成 checkpoint / import batch；`deprecate` 不得在 turn-time 直接删除历史记录
-- 高风险、强地域性或需要 citation compliance 的知识更新默认 `review_required=True`
+- **禁止**从对话或 pipeline **直接**写入 `ApplicationDomainKnowledgeStore`；只能产出候选 / typed prior update，再由 session owner 调用共享 writeback helper。
+- **禁止**把 `surface-fallback` 合成命中（`KnowledgeHit` 描述含 `Fallback knowledge hit` 或 citation `locator=="surface-fallback"`）当成可持久化事实；对应候选必须为 `SHADOW`，且 writeback 对 `CONVERSATION` 来源额外拒绝 `citation_ids` 为空或 `record.locator=="surface-fallback"` 的提案。
+- `DomainKnowledgeModule.process()` 继续只读 query + publish；ingest / review / writeback 不属于该 owner。
+- 所有已审核写入仍复用 `ApplicationPriorWritebackReport` + `SelfModificationRecord`；可选在 writeback 前捕获 `DomainKnowledgeCheckpoint`（`domain_knowledge_pre_checkpoint_out`）用于回滚演示/集成测试。
 
-## 6.6 Minimal External Flow
+## 6.6 Minimal flows
 
-最小外部知识流转应为：
+**对话提升（session-post）**
 
-1. 外部来源（文件、人工录入、reviewed import、离线管线）产生 `ExternalKnowledgeCandidate`
-2. review/gate 层做去重、冲突检测、freshness 标注、jurisdiction 标注
-3. session-owned helper 将候选知识与 `KnowledgeOutcomeAttribution` 证据汇总为 `DomainKnowledgePriorUpdate`
-4. owner-side writeback helper 在 gate 放行后写入 `ApplicationDomainKnowledgeStore`
-5. 后续轮次由 `DomainKnowledgeModule` 正常 query 并发布 `DomainKnowledgeSnapshot`
+1. `DomainKnowledgeModule` 发布 compact `KnowledgeHit`（store-backed 或 surface-fallback）。
+2. `AgentSessionRunner` 构建 `ConversationKnowledgeCandidate` 并写入 `SessionPostSlowLoopJob` / `SessionPostSlowLoopResult`。
+3. `ApplicationPriorProposalBuilder` 只对 `APPROVED` 候选（且能匹配到对应 `KnowledgeHit`）生成 `DomainKnowledgePriorUpdate`（`source_kind=CONVERSATION`，`citation_ids` 来自命中）。
+4. `_apply_application_prior_writeback` 在 credit + review + citation gate 通过后 upsert store。
+
+**专门通道（external / rare-heavy）**
+
+1. 上游产出 `ExternalKnowledgeCandidate` 或 `ReviewedKnowledgeCandidate`（可直接嵌入 `ApplicationRareHeavyCheckpoint.reviewed_knowledge_candidates`）。
+2. `apply_knowledge_review_decisions`（或人工工具）把 external 候选收敛为 `ReviewedKnowledgeCandidate`（当前最小实现只保留 `APPROVED`）。
+3. `domain_knowledge_prior_updates_from_reviewed` 转为 `DomainKnowledgePriorUpdate`（`source_kind` 为 `EXTERNAL_IMPORT` 或 `RARE_HEAVY_IMPORT`）。
+4. `AgentSessionRunner.apply_rare_heavy_artifact` 在 rare-heavy application checkpoint import 之后，复用同一条 `_apply_application_prior_writeback` 写入 store。
+
+### 6.6.1 测试与 rollout 顺序（建议）
+
+1. `tests/test_final_wiring.py`：writeback gate（review / citation / pre-checkpoint）与 `apply_knowledge_review_decisions` 最小行为。
+2. `tests/test_agent_session_runner.py`：session-post 候选 + rare-heavy reviewed import 进入 store 的端到端。
+3. 后续：把更重的 dedupe / jurisdiction 合规校验放进 review helper，而不是散落到 `DomainKnowledgeModule` 或 DAG 消费者。
 
 ---
 
@@ -712,7 +766,6 @@ class ExperienceConsolidationSnapshot:
     delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...]
     sequence_payoffs: tuple[ApplicationSequencePayoff, ...]
     delayed_credit_summary: DelayedCreditSummary | None
-    knowledge_outcome_attributions: tuple[KnowledgeOutcomeAttribution, ...]
     latest_prior_update: ApplicationPriorUpdate | None
     latest_writeback_report: ApplicationPriorWritebackReport | None
     continuum_profile_id: str | None
@@ -731,7 +784,7 @@ class ExperienceConsolidationSnapshot:
 - 不自己成为 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` 的第二 owner
 - 为 application 层公开 delayed outcome attribution：至少覆盖 `regime`, `abstract_action`, retrieval mix, `action_family_version` 与 sequence payoff
 - 把这些 application delayed credit 再压成一个共享 `DelayedCreditSummary`，供 `experience_fast_prior` 与 shared control readout 消费，避免 fast path 从多个局部统计各自重拼第二套信用语义
-- 若慢层对外部知识进行了 review/import，它也应公开 `KnowledgeOutcomeAttribution`，说明哪些知识 hit 真正贡献了 factual support / boundary correctness
+- 当前 phase-1 下，知识学习只通过 `ApplicationPriorUpdate.domain_knowledge_updates` 回流；若未来补 external knowledge review/import，再单独扩展知识侧 delayed attribution contract
 - 作为 experience 进入 ETA 的第三入口：把经验变成 ETA 可读的 delayed credit surface，并在 judge / credit gate 放行时驱动 owner-side prior update
 - retrieval readout 参数若需慢层更新，也应作为 typed prior update 暴露，并继续遵守 session-owned / owner-side apply 语义
 

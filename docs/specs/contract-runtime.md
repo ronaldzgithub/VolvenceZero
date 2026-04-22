@@ -103,6 +103,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - 这类 aggregate slot 只允许发布 compact public state；不得反向成为底层 track owner 的第二所有者
 - 当前 session-post slow loop 也已升级为正式运行时 surface：`session_post_slow_loop` 由独立 owner 发布 queue state 与 recent completion summaries；`AgentSessionRunner` 负责驱动该 owner 刷新。默认口径下它仍保持 report/shadow surface，而 `experience_consolidation` 作为其下游 session-owned public snapshot 对外暴露
 - 当前应用层第一阶段也已新增正式 surface：`retrieval_policy`、`domain_knowledge`、`boundary_policy` 作为独立 owner 发布在线检索控制、专业事实证据与边界判断；response/evaluation 只能消费这些公共快照，不允许反向读取 owner 私有知识存储
+- 当前 `domain_knowledge` 已升级为**双通道** slow-path learning contract：session-post 先把当轮 `KnowledgeHit` 折叠为 `ConversationKnowledgeCandidate`，再生成 typed `DomainKnowledgePriorUpdate`；外部 / rare-heavy 则通过 `ReviewedKnowledgeCandidate`（可嵌入 `ApplicationRareHeavyCheckpoint.reviewed_knowledge_candidates`）转成同一 `DomainKnowledgePriorUpdate` 类型，最终都经 owner-side gate + audit + store writeback 回流；`DomainKnowledgeModule.process()` 继续只读 query，不承担 ingest / writeback
 - 当前应用层第二阶段已新增 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers；该 surface 只服务 retrieval mix 和 evaluation evidence，不允许把案例经验重新折叠回 `memory` 主快照。当前默认口径下该 surface 进入 active application chain
 - 当前应用层第三阶段已新增 `strategy_playbook`、`experience_consolidation` 与 `experience_fast_prior`：前者作为 turn-time 公共 slot 发布 problem-pattern-level strategy priors，`experience_consolidation` 作为 session-post 公共 surface 发布 machine-readable experience deltas、typed `ApplicationPriorUpdate` 与 writeback report，`experience_fast_prior` 负责把 delayed credit 压成 fast-path 可消费 bias。三者都不得越权成为 `temporal` / `regime` / `session_post_slow_loop` 的第二 owner；当前默认口径下 `strategy_playbook` 与 `experience_fast_prior` 进入 active chain，`experience_consolidation` 继续保持 session-owned active public surface
 - application prior 的真正 apply 属于 owner-side post-processing：它必须先通过 `EvolutionJudgement` 与 target-specific credit gate，再由 session owner 驱动 writeback helper 调用 application owners 的 apply surface，不能进入 turn-time direct dependency DAG
@@ -113,7 +114,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前 session-post 侧的 application prior proposal 也应保持为 **owner-side helper**：慢层经验可以生成 `ApplicationPriorUpdate` 提案，但它只能沿 `experience_consolidation -> experience_fast_prior -> owner-side apply` 的公共链回流，不能形成新的 `session -> temporal` 或 `evaluation -> temporal` 旁路
 - 若 `retrieval_policy` 引入 owner-side 参数化 readout，则参数更新也必须走 **session-owned proposal / credit gate / rare-heavy checkpoint** 路径；`RetrievalPolicyModule` 继续是唯一 turn-time owner，禁止新增专门“替它改参数”的第二 owner
 - 当前 application slow loop 已补充 `DelayedCreditSummary`：它把 `regime`、`abstract_action`、`action_family_version`、retrieval mix、sequence payoff 与 continuum alignment 压成 session-owned 公共摘要，再经 `experience_consolidation -> experience_fast_prior` 进入下一轮 `retrieval_policy` 与 temporal owner 的 fast path；该摘要仍不得绕过 credit gate 直接写穿下游 owner
-- 当前外部 `domain_knowledge` ingest 也应遵守同一 owner-side 纪律：外部来源只能产出 reviewed candidate / typed prior update，由 session owner 驱动 gate + writeback helper 写入知识 owner；`DomainKnowledgeModule.process()` 继续只读查询，不直接联网抓取或反写 store
+- 当前外部 `domain_knowledge` ingest 也应遵守同一 owner-side 纪律：外部来源只能产出 `ExternalKnowledgeCandidate` / `ReviewedKnowledgeCandidate` / typed prior update，由 session owner（含 `apply_rare_heavy_artifact` 后的批量 import）驱动 gate + writeback helper 写入知识 owner；`DomainKnowledgeModule.process()` 继续只读查询，不直接联网抓取或反写 store；`surface-fallback` 命中不得持久化为事实（候选为 `SHADOW`，writeback 对 `CONVERSATION` 来源校验 `citation_ids` 与 locator）
 
 ### 直接依赖 vs enrichment
 
@@ -157,6 +158,7 @@ P00 运行时内核固定以下最小守卫和视图：
 
 - 2026-04-22: 应用层 shared control advisories + delayed credit summary 口径：`retrieval_policy` 可发布 retrieval/response/boundary 共用 advisory hint；session-post 新增 `DelayedCreditSummary`，沿 `experience_consolidation -> experience_fast_prior` 公共链回流到 retrieval/temporal fast path
 - 2026-04-22: 补充 external `domain_knowledge` ingest contract 口径，明确 reviewed candidate / typed prior update / owner-side writeback 路径，禁止 `DomainKnowledgeModule` 在 turn-time 直接抓取并写回外部知识
+- 2026-04-22: 双知识通道落地：session-post 产出 `ConversationKnowledgeCandidate`；`ApplicationRareHeavyCheckpoint` 携带 `ReviewedKnowledgeCandidate`；`_apply_application_prior_writeback` 统一 gate（含 fallback/citation/review）与可选 `DomainKnowledgeCheckpoint` 预捕获
 - 2026-04-20: 新增“direct dependency vs enrichment”边界说明，明确 `evaluation` 对 `prediction_error` 的 final-wiring evidence append 属于 post-processing，而非模块 direct dependency
 - 2026-04-06: P18 Propagation Topo-Sort + Guard Closure: propagate() now auto-sorts modules by declared dependencies (topo_sort_modules). Cycle detection via detect_dependency_cycle; cycles fall back gracefully to input order. Post-propagation guard closure verifies immutability of all published snapshots. CyclicDependencyError added to runtime contract errors.
 - 2026-04-08: 默认主链切到真实 transformers substrate；`reflection` / `temporal` 默认 ACTIVE；slow reflection 新增 typed `TemporalPriorUpdate` 写回 temporal owner，并带 target-specific gate / audit

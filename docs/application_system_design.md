@@ -260,6 +260,8 @@ flowchart TD
 
 > 客观上有哪些规则、流程、事实、程序、专业边界。
 
+当前实现中，知识系统在 phase-1 最小闭环之上补齐**双通道**入口：session-post 先把命中折叠为 `ConversationKnowledgeCandidate` 再生成 `DomainKnowledgePriorUpdate`；外部 / rare-heavy 则通过 `ReviewedKnowledgeCandidate`（可随 `ApplicationRareHeavyCheckpoint` 进入系统）转成同一 prior 类型，最终都走共享 gate + audit + `ApplicationDomainKnowledgeStore` writeback。`DomainKnowledgeModule` 仍只读 query，不承担 ingest / review / writeback；`surface-fallback` 命中只可作为 `SHADOW` 候选，不得持久化为事实。
+
 ---
 
 ## 5.2 Case memory system

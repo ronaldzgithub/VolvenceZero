@@ -12,9 +12,12 @@ from volvence_zero.application.runtime import (
     CaseMemoryModule,
     CaseMemorySnapshot,
     DomainKnowledgeModule,
+    DomainKnowledgePriorUpdate,
     DomainKnowledgeSnapshot,
     ExperienceFastPriorModule,
     ExperienceFastPriorSnapshot,
+    KnowledgeReviewStatus,
+    KnowledgeSourceKind,
     ResponseAssemblyModule,
     ResponseAssemblySnapshot,
     RetrievalPolicyModule,
@@ -23,7 +26,11 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookSnapshot,
     RetrievalReadoutPriorUpdate,
 )
-from volvence_zero.application.storage import ApplicationCaseMemoryStore, ApplicationDomainKnowledgeStore
+from volvence_zero.application.storage import (
+    ApplicationCaseMemoryStore,
+    ApplicationDomainKnowledgeStore,
+    DomainKnowledgeCheckpoint,
+)
 from volvence_zero.credit.gate import (
     CreditSnapshot,
     CreditModule,
@@ -384,6 +391,7 @@ def _apply_application_prior_writeback(
     apply_enabled: bool,
     retrieval_apply_enabled: bool | None = None,
     blocked_reason: str,
+    domain_knowledge_pre_checkpoint_out: list[DomainKnowledgeCheckpoint] | None = None,
 ) -> tuple[
     tuple[str, ...],
     tuple[str, ...],
@@ -393,6 +401,7 @@ def _apply_application_prior_writeback(
     if prior_update is None:
         return ((), (), (), None)
     resolved_retrieval_apply_enabled = apply_enabled if retrieval_apply_enabled is None else retrieval_apply_enabled
+    resolved_domain_apply_enabled = resolved_retrieval_apply_enabled
     proposed_targets = tuple(
         update.target
         for update in (
@@ -442,6 +451,18 @@ def _apply_application_prior_writeback(
             credit_snapshot,
             target_prefix=target,
         )
+
+    def should_block_domain_knowledge_prior(update: DomainKnowledgePriorUpdate) -> tuple[bool, str]:
+        if update.review_status is not KnowledgeReviewStatus.APPROVED:
+            return True, "knowledge-review-not-approved"
+        if update.source_kind is KnowledgeSourceKind.CONVERSATION:
+            if not update.citation_ids:
+                return True, "knowledge-citation-missing"
+            if update.record.locator == "surface-fallback":
+                return True, "knowledge-fallback-record-blocked"
+        return False, "allow"
+
+    domain_pre_checkpoint_captured = False
 
     for update in prior_update.case_memory_updates:
         before_hash = current_case_hash()
@@ -503,7 +524,7 @@ def _apply_application_prior_writeback(
 
     for update in prior_update.domain_knowledge_updates:
         before_hash = current_domain_knowledge_hash()
-        if not apply_enabled:
+        if not resolved_domain_apply_enabled:
             blocked_targets.append(update.target)
             blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
             audit_records.append(
@@ -540,6 +561,34 @@ def _apply_application_prior_writeback(
                 )
             )
             continue
+        schema_block, schema_reason = should_block_domain_knowledge_prior(update)
+        if schema_block:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{schema_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application domain-knowledge prior writeback blocked by shared knowledge gate "
+                        f"({schema_reason.replace('-', ' ')})."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if domain_knowledge_pre_checkpoint_out is not None and not domain_pre_checkpoint_captured:
+            domain_knowledge_pre_checkpoint_out.append(
+                domain_knowledge_store.create_checkpoint(
+                    checkpoint_id=f"{checkpoint_id}:domain-knowledge-pre",
+                )
+            )
+            domain_pre_checkpoint_captured = True
         domain_knowledge_store.upsert_records((update.record,))
         domain_knowledge_store.save_to_backend()
         after_hash = current_domain_knowledge_hash()

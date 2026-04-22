@@ -124,6 +124,94 @@ class KnowledgeHit:
     description: str
 
 
+class KnowledgeSourceKind(str, Enum):
+    CONVERSATION = "conversation"
+    EXTERNAL_IMPORT = "external-import"
+    RARE_HEAVY_IMPORT = "rare-heavy-import"
+
+
+class KnowledgeReviewStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SHADOW = "shadow"
+
+
+@dataclass(frozen=True)
+class ConversationKnowledgeCandidate:
+    candidate_id: str
+    source_context_session_id: str
+    source_wave_id: str
+    source_turn_index: int
+    turn_reference: str
+    domain: str
+    knowledge_hit_id: str
+    citation_ids: tuple[str, ...]
+    summary: str
+    confidence: float
+    boundary_aligned: bool
+    review_status: KnowledgeReviewStatus
+    is_fallback_hit: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class ExternalKnowledgeCandidate:
+    candidate_id: str
+    source_label: str
+    domain: str
+    topic_tags: tuple[str, ...]
+    jurisdiction_tags: tuple[str, ...]
+    source_type: str
+    title: str
+    locator: str
+    summary: str
+    snippet: str
+    freshness_label: str
+    confidence: float
+    evidence_strength: str
+    conflict_markers: tuple[str, ...] = ()
+    url: str | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class KnowledgeReviewDecision:
+    candidate_id: str
+    review_status: KnowledgeReviewStatus
+    reviewer_id: str
+    confidence: float
+    note: str
+    supersedes_record_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewedKnowledgeCandidate:
+    candidate_id: str
+    source_kind: KnowledgeSourceKind
+    review_status: KnowledgeReviewStatus
+    record: DomainKnowledgeRecord
+    source_candidate_ids: tuple[str, ...]
+    review_note: str
+    confidence: float
+    supersedes_record_id: str | None = None
+
+
+@dataclass(frozen=True)
+class KnowledgeImportSession:
+    session_id: str
+    source_kind: KnowledgeSourceKind
+    source_label: str
+    pending_candidates: tuple[ExternalKnowledgeCandidate, ...] = ()
+    reviewed_candidates: tuple[ReviewedKnowledgeCandidate, ...] = ()
+    applied_candidate_ids: tuple[str, ...] = ()
+    blocked_candidate_ids: tuple[str, ...] = ()
+    description: str = ""
+
+
+KnowledgeImportBatch = KnowledgeImportSession
+
+
 @dataclass(frozen=True)
 class DomainKnowledgeSnapshot:
     retrieval_policy_id: str
@@ -281,6 +369,11 @@ class DomainKnowledgePriorUpdate:
     record: DomainKnowledgeRecord
     confidence: float
     description: str
+    source_kind: KnowledgeSourceKind = KnowledgeSourceKind.CONVERSATION
+    source_candidate_ids: tuple[str, ...] = ()
+    review_status: KnowledgeReviewStatus = KnowledgeReviewStatus.APPROVED
+    citation_ids: tuple[str, ...] = ()
+    supersedes_record_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -456,6 +549,7 @@ class ApplicationRareHeavyCheckpoint:
     distilled_playbook_rules: tuple[PlaybookRule, ...]
     description: str
     boundary_prior_hints: tuple[BoundaryPriorHint, ...] = ()
+    reviewed_knowledge_candidates: tuple[ReviewedKnowledgeCandidate, ...] = ()
     continuum_profile_id: str | None = None
     retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
 
@@ -1587,6 +1681,7 @@ class ApplicationRareHeavyState:
         self._distilled_playbook_rules: tuple[PlaybookRule, ...] = ()
         self._boundary_prior_hints: tuple[BoundaryPriorHint, ...] = ()
         self._retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
+        self._reviewed_knowledge_candidates: tuple[ReviewedKnowledgeCandidate, ...] = ()
 
     @property
     def domain_template_biases(self) -> tuple[tuple[str, float], ...]:
@@ -1607,6 +1702,10 @@ class ApplicationRareHeavyState:
     @property
     def retrieval_readout_checkpoint(self) -> RetrievalReadoutCheckpoint | None:
         return self._retrieval_readout_checkpoint
+
+    @property
+    def reviewed_knowledge_candidates(self) -> tuple[ReviewedKnowledgeCandidate, ...]:
+        return self._reviewed_knowledge_candidates
 
     def upsert_distilled_playbook_rules(self, rules: tuple[PlaybookRule, ...]) -> tuple[str, ...]:
         by_pattern = {rule.problem_pattern: rule for rule in self._distilled_playbook_rules}
@@ -1658,12 +1757,14 @@ class ApplicationRareHeavyState:
             case_clusters=self._case_clusters,
             distilled_playbook_rules=self._distilled_playbook_rules,
             boundary_prior_hints=self._boundary_prior_hints,
+            reviewed_knowledge_candidates=self._reviewed_knowledge_candidates,
             continuum_profile_id=None,
             retrieval_readout_checkpoint=self._retrieval_readout_checkpoint,
             description=(
                 f"Application rare-heavy checkpoint with {len(self._domain_template_biases)} domain biases, "
                 f"{len(self._case_clusters)} case clusters, {len(self._distilled_playbook_rules)} playbook rules, "
-                f"{len(self._boundary_prior_hints)} boundary prior hints, and "
+                f"{len(self._boundary_prior_hints)} boundary prior hints, "
+                f"{len(self._reviewed_knowledge_candidates)} reviewed knowledge candidates, and "
                 f"{'a' if self._retrieval_readout_checkpoint is not None else 'no'} retrieval readout checkpoint."
             ),
         )
@@ -1674,12 +1775,14 @@ class ApplicationRareHeavyState:
         self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
         self._boundary_prior_hints = checkpoint.boundary_prior_hints
         self._retrieval_readout_checkpoint = checkpoint.retrieval_readout_checkpoint
+        self._reviewed_knowledge_candidates = checkpoint.reviewed_knowledge_candidates
         return (
             "rare-heavy:application-domain-refresh",
             "rare-heavy:application-case-clusters-import",
             "rare-heavy:application-playbook-import",
             "rare-heavy:application-boundary-import",
             "rare-heavy:application-retrieval-readout-import",
+            "rare-heavy:application-reviewed-knowledge-import",
         )
 
     def restore_rare_heavy_state(self, checkpoint: ApplicationRareHeavyCheckpoint) -> tuple[str, ...]:
@@ -1688,12 +1791,14 @@ class ApplicationRareHeavyState:
         self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
         self._boundary_prior_hints = checkpoint.boundary_prior_hints
         self._retrieval_readout_checkpoint = checkpoint.retrieval_readout_checkpoint
+        self._reviewed_knowledge_candidates = checkpoint.reviewed_knowledge_candidates
         return (
             "rare-heavy:application-domain-rollback",
             "rare-heavy:application-case-clusters-rollback",
             "rare-heavy:application-playbook-rollback",
             "rare-heavy:application-boundary-rollback",
             "rare-heavy:application-retrieval-readout-rollback",
+            "rare-heavy:application-reviewed-knowledge-rollback",
         )
 
 
