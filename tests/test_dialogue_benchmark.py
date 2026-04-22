@@ -214,6 +214,10 @@ def _benchmark_turn(
     memory_tower_depth: int = 0,
     memory_tower_alignment: float = 0.0,
     memory_tower_profile_id: str = "",
+    case_memory_surface_active: bool = False,
+    strategy_playbook_surface_active: bool = False,
+    experience_fast_prior_surface_active: bool = False,
+    experience_consolidation_surface_active: bool = False,
 ) -> DialogueBenchmarkTurn:
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
@@ -257,6 +261,10 @@ def _benchmark_turn(
         slow_to_fast_target_distance_before=slow_to_fast_target_distance_before,
         slow_to_fast_target_distance_after=slow_to_fast_target_distance_after,
         slow_to_fast_target_alignment_gain=slow_to_fast_target_alignment_gain,
+        case_memory_surface_active=case_memory_surface_active,
+        strategy_playbook_surface_active=strategy_playbook_surface_active,
+        experience_fast_prior_surface_active=experience_fast_prior_surface_active,
+        experience_consolidation_surface_active=experience_consolidation_surface_active,
     )
 
 
@@ -819,6 +827,10 @@ def test_run_dialogue_pe_eta_case_collects_pe_and_eta_trajectories():
     assert isinstance(report.turns[0].outcome_metrics, tuple)
     assert report.turns[0].joint_schedule_action
     assert report.turns[0].nested_profile_active is True
+    assert report.turns[0].case_memory_surface_active is True
+    assert report.turns[0].strategy_playbook_surface_active is True
+    assert report.turns[0].experience_fast_prior_surface_active is True
+    assert report.turns[0].experience_consolidation_surface_active is True
 
 
 def test_run_dialogue_pe_eta_benchmark_runs_complete_scripted_suite():
@@ -834,9 +846,21 @@ def test_run_dialogue_pe_eta_benchmark_runs_complete_scripted_suite():
     metric_means = dict(report.metric_means)
     assert "bounded_writeback_turn_count" in metric_means
     assert "rare_heavy_recommended_count" in metric_means
+    assert "case_memory_surface_turn_count" in metric_means
+    assert "strategy_playbook_surface_turn_count" in metric_means
+    assert "experience_fast_prior_surface_turn_count" in metric_means
+    assert "experience_consolidation_surface_turn_count" in metric_means
+    assert metric_means["case_memory_surface_turn_count"] > 0.0
+    assert metric_means["strategy_playbook_surface_turn_count"] > 0.0
+    assert metric_means["experience_fast_prior_surface_turn_count"] > 0.0
+    assert metric_means["experience_consolidation_surface_turn_count"] > 0.0
     for case_report in report.case_reports:
         assert len(case_report.turns) == len(case_report.case.user_inputs)
         assert isinstance(case_report.acceptance_checks, tuple)
+        assert case_report.case_memory_surface_turn_count > 0
+        assert case_report.strategy_playbook_surface_turn_count > 0
+        assert case_report.experience_fast_prior_surface_turn_count > 0
+        assert case_report.experience_consolidation_surface_turn_count > 0
 
 
 def test_run_dialogue_pe_eta_ablation_benchmark_collects_path_deltas():
@@ -1130,6 +1154,14 @@ def test_run_dialogue_pe_eta_comprehensive_benchmark_runs_end_to_end():
     assert len(report.selection_artifact.selected_variants) == 1
     assert len(report.artifact_comparison_report.candidate_reports) == 1
     assert report.description
+    canonical_path = next(
+        path for path in report.canonical_ablation_report.path_reports if path.path_label == "pe-eta"
+    )
+    canonical_metric_means = dict(canonical_path.benchmark_report.metric_means)
+    assert canonical_metric_means["case_memory_surface_turn_count"] > 0.0
+    assert canonical_metric_means["strategy_playbook_surface_turn_count"] > 0.0
+    assert canonical_metric_means["experience_fast_prior_surface_turn_count"] > 0.0
+    assert canonical_metric_means["experience_consolidation_surface_turn_count"] > 0.0
 
 
 def test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env_evidence():
@@ -1314,7 +1346,7 @@ def test_build_dialogue_nl_essence_assessment_uses_nested_and_cross_session_evid
     )
 
     assert assessment.path_label == "pe-eta"
-    assert assessment.total_gate_count == 7
+    assert assessment.total_gate_count == 8
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     assert "multi-timescale-default" in gate_map
     assert "online-fast-pe-coupling" in gate_map
@@ -1904,7 +1936,7 @@ def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
     assert len(report.longitudinal_report.case_reports) == 2
     assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
-    assert report.essence_report.total_gate_count == 7
+    assert report.essence_report.total_gate_count == 8
     assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert report.open_ablation_report is not None
     assert report.open_ablation_report.baseline_label == "pe-eta"

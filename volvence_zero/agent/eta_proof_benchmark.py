@@ -209,6 +209,7 @@ class ETAProofProfileConfig:
     optimize_after_rollout: bool
     policy_kind: str
     use_noop_backend: bool = False
+    use_temporal_fast_prior: bool = True
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -449,6 +450,7 @@ def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
 def default_eta_proof_profiles() -> tuple[str, ...]:
     return (
         "full-internal-rl",
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
@@ -617,6 +619,14 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             optimize_after_rollout=True,
             policy_kind="full",
         )
+    if profile_label == "full-no-fast-prior":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            use_temporal_fast_prior=False,
+        )
     if profile_label == "full-no-optimize":
         return ETAProofProfileConfig(
             profile_label=profile_label,
@@ -690,118 +700,8 @@ def _build_case_snapshots(case: ETAProofCase) -> tuple[SubstrateSnapshot, ...]:
 
 
 def _credit_alignment_score(rollout: ZRollout) -> float:
-    if not rollout.delayed_credit_assignments:
-        return 0.0
-    aligned = 0.0
-    for assignment in rollout.delayed_credit_assignments:
-        start = max(0, assignment.start_step)
-        end = min(len(rollout.transitions) - 1, assignment.end_step)
-        if end < start:
-            continue
-        if assignment.reason == "terminal-success":
-            matched = any(transition.proof_terminal_success for transition in rollout.transitions[start : end + 1])
-        else:
-            matched = any(
-                transition.proof_subgoal_id == assignment.subgoal_id and transition.active_family_id not in {None, "unassigned"}
-                for transition in rollout.transitions[start : end + 1]
-            )
-        if matched:
-            aligned += 1.0
-    return aligned / max(len(rollout.delayed_credit_assignments), 1)
-
-
-def _apply_temporal_fast_prior_from_rollouts(
-    *,
-    sandbox: InternalRLSandbox,
-    rollouts: tuple[ZRollout, ...],
-) -> None:
-    if not hasattr(sandbox.policy, "parameter_store"):
-        return
-    parameter_store = sandbox.policy.parameter_store
-    if not rollouts:
-        parameter_store.record_fast_prior_signals(
-            strength=0.0,
-            action_bias=0.0,
-            family_bias=0.0,
-            sequence_bias=0.0,
-            switch_pressure_delta=0.0,
-        )
-        return
-    credit_alignment = _mean(tuple(_credit_alignment_score(rollout) for rollout in rollouts))
-    terminal_success_rate = _mean(tuple(float(rollout.terminal_success) for rollout in rollouts))
-    family_assignment_rate = _mean(
-        tuple(
-            sum(1.0 for family_id in rollout.completed_family_ids if family_id != "unassigned")
-            / max(len(rollout.completed_family_ids), 1)
-            if rollout.completed_family_ids
-            else 0.0
-            for rollout in rollouts
-        )
-    )
-    sequence_completion_rate = _mean(
-        tuple(
-            len(rollout.completed_subgoals) / max(len(rollout.delayed_credit_assignments), 1)
-            if rollout.delayed_credit_assignments
-            else float(rollout.terminal_success)
-            for rollout in rollouts
-        )
-    )
-    strength = max(
-        0.0,
-        min(
-            1.0,
-            credit_alignment * 0.40
-            + family_assignment_rate * 0.25
-            + terminal_success_rate * 0.20
-            + sequence_completion_rate * 0.15,
-        ),
-    )
-    action_bias = max(
-        -1.0,
-        min(
-            1.0,
-            (family_assignment_rate - 0.5) * 0.50
-            + (credit_alignment - 0.5) * 0.30
-            + (terminal_success_rate - 0.5) * 0.20,
-        ),
-    )
-    family_bias = max(
-        -1.0,
-        min(
-            1.0,
-            (credit_alignment - 0.5) * 0.45
-            + (sequence_completion_rate - 0.5) * 0.35
-            + (family_assignment_rate - 0.5) * 0.20,
-        ),
-    )
-    sequence_bias = max(
-        -1.0,
-        min(
-            1.0,
-            (sequence_completion_rate - 0.5) * 0.55
-            + (terminal_success_rate - 0.5) * 0.25
-            + (credit_alignment - 0.5) * 0.20,
-        ),
-    )
-    switch_pressure_delta = max(
-        -0.18,
-        min(
-            0.18,
-            -(
-                action_bias * 0.35
-                + family_bias * 0.40
-                + sequence_bias * 0.25
-            )
-            * max(strength, 0.2),
-        ),
-    )
-    parameter_store.record_fast_prior_signals(
-        strength=strength,
-        action_bias=action_bias,
-        family_bias=family_bias,
-        sequence_bias=sequence_bias,
-        switch_pressure_delta=switch_pressure_delta,
-    )
+    sandbox = InternalRLSandbox()
+    return sandbox._delayed_credit_alignment((rollout,))
 
 
 def _episode_report(
@@ -981,9 +881,9 @@ def run_eta_internal_rl_proof_benchmark(
                 parameter_change_norms.append(optimize_report.parameter_change_norm)
                 value_losses.append(optimize_report.value_loss)
                 replacement_effect_deltas.append(optimize_report.replacement_effect_delta)
-            _apply_temporal_fast_prior_from_rollouts(
-                sandbox=sandbox,
-                rollouts=tuple(train_rollouts),
+            sandbox.ingest_temporal_fast_prior(
+                tuple(train_rollouts),
+                enabled=profile.use_temporal_fast_prior,
             )
         episode_reports: list[ETAProofEpisodeReport] = []
         for case in train_cases + eval_cases:
@@ -1050,6 +950,10 @@ def run_eta_internal_rl_proof_benchmark(
         )
     baseline_report = next(report for report in profile_reports if report.profile_label == baseline_label)
     baseline_metrics = dict(baseline_report.metric_means)
+    no_fast_prior_report = next(
+        (report for report in profile_reports if report.profile_label == "full-no-fast-prior"),
+        None,
+    )
     deltas: list[tuple[str, tuple[tuple[str, float], ...]]] = []
     for report in profile_reports:
         if report.profile_label == baseline_label:
@@ -1063,6 +967,44 @@ def run_eta_internal_rl_proof_benchmark(
                 ),
             )
         )
+    if no_fast_prior_report is not None:
+        no_fast_prior_metrics = dict(no_fast_prior_report.metric_means)
+        baseline_metric_means = baseline_report.metric_means + (
+            (
+                "heldout_family_reuse_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_family_reuse_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_family_reuse_rate", 0.0),
+            ),
+            (
+                "heldout_credit_alignment_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_credit_alignment", 0.0)
+                - no_fast_prior_metrics.get("heldout_credit_alignment", 0.0),
+            ),
+            (
+                "heldout_strong_success_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_strong_success_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_strong_success_rate", 0.0),
+            ),
+        )
+        profile_reports = [
+            ETAProofProfileReport(
+                profile_label=report.profile_label,
+                backend_label=report.backend_label,
+                episode_reports=report.episode_reports,
+                metric_means=baseline_metric_means if report.profile_label == baseline_label else report.metric_means,
+                training_update_count=report.training_update_count,
+                rollout_batch_count=report.rollout_batch_count,
+                mean_rollouts_per_update=report.mean_rollouts_per_update,
+                training_transition_count=report.training_transition_count,
+                training_parameter_change_count=report.training_parameter_change_count,
+                training_parameter_change_rate=report.training_parameter_change_rate,
+                mean_parameter_change_norm=report.mean_parameter_change_norm,
+                mean_value_loss=report.mean_value_loss,
+                mean_replacement_effect_delta=report.mean_replacement_effect_delta,
+                description=report.description,
+            )
+            for report in profile_reports
+        ]
     return ETAProofBenchmarkReport(
         profile_reports=tuple(profile_reports),
         baseline_label=baseline_label,

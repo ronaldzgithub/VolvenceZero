@@ -282,15 +282,19 @@ def test_llm_response_synthesizer_passes_control_signal():
     assert runtime.last_generation_constraints.ordering_bias == ("stabilize", "structure_options")
     assert runtime.last_generation_constraints.continuum_target_position == 0.78
     assert runtime.last_generation_constraints.ordering_driver == "continuum-support-first"
+    assert runtime.last_generation_constraints.decoding_profile == "support-first"
+    assert runtime.last_control_scale > 0.22
     assert runtime.last_chat_messages[0][0] == "system"
     assert runtime.last_chat_messages[-1] == ("user", "Help me think through this")
 
 
-def test_transformers_runtime_continuum_generation_controls_shape_sampling():
+def test_transformers_runtime_decoding_profiles_shape_sampling():
     runtime = TransformersOpenWeightResidualRuntime.__new__(TransformersOpenWeightResidualRuntime)
-    support_tokens, support_temp = runtime._apply_continuum_generation_controls(
+    support_tokens, support_temp, support_penalty, support_top_p = runtime._apply_continuum_generation_controls(
         max_new_tokens=256,
         temperature=0.7,
+        repetition_penalty=1.08,
+        top_p=1.0,
         constraints=GenerationConstraints(
             response_mode="support",
             answer_depth_limit="standard",
@@ -298,11 +302,29 @@ def test_transformers_runtime_continuum_generation_controls_shape_sampling():
             max_questions=0,
             continuum_target_position=0.78,
             ordering_driver="continuum-support-first",
+            decoding_profile="support-first",
         ),
     )
-    structure_tokens, structure_temp = runtime._apply_continuum_generation_controls(
+    clarify_tokens, clarify_temp, clarify_penalty, clarify_top_p = runtime._apply_continuum_generation_controls(
         max_new_tokens=256,
         temperature=0.7,
+        repetition_penalty=1.08,
+        top_p=1.0,
+        constraints=GenerationConstraints(
+            response_mode="clarify",
+            answer_depth_limit="standard",
+            citation_mode="optional",
+            max_questions=1,
+            continuum_target_position=0.58,
+            ordering_driver="continuum-clarify-first",
+            decoding_profile="clarify-first",
+        ),
+    )
+    structure_tokens, structure_temp, structure_penalty, structure_top_p = runtime._apply_continuum_generation_controls(
+        max_new_tokens=256,
+        temperature=0.7,
+        repetition_penalty=1.08,
+        top_p=1.0,
         constraints=GenerationConstraints(
             response_mode="structure",
             answer_depth_limit="standard",
@@ -310,11 +332,14 @@ def test_transformers_runtime_continuum_generation_controls_shape_sampling():
             max_questions=0,
             continuum_target_position=0.34,
             ordering_driver="continuum-structure-first",
+            decoding_profile="structure-first",
         ),
     )
 
-    assert support_tokens < structure_tokens
-    assert support_temp > structure_temp
+    assert clarify_tokens < support_tokens < structure_tokens
+    assert support_temp > clarify_temp > structure_temp
+    assert support_penalty <= clarify_penalty <= structure_penalty
+    assert support_top_p >= clarify_top_p >= structure_top_p
 
 
 def test_transformers_runtime_support_first_trim_shortens_long_opening():

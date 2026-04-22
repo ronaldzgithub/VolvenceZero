@@ -1540,6 +1540,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     ) -> GenerationResult:
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
+        effective_repetition_penalty = 1.08
+        effective_top_p = 1.0
         if generation_constraints is not None:
             if generation_constraints.answer_depth_limit == "high-level-only":
                 effective_max_new_tokens = min(effective_max_new_tokens, 96)
@@ -1547,9 +1549,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 effective_max_new_tokens = min(effective_max_new_tokens, 128)
             if generation_constraints.response_mode in {"clarify", "refer-out"}:
                 effective_temperature = min(effective_temperature, 0.45)
-            effective_max_new_tokens, effective_temperature = self._apply_continuum_generation_controls(
+            (
+                effective_max_new_tokens,
+                effective_temperature,
+                effective_repetition_penalty,
+                effective_top_p,
+            ) = self._apply_continuum_generation_controls(
                 max_new_tokens=effective_max_new_tokens,
                 temperature=effective_temperature,
+                repetition_penalty=effective_repetition_penalty,
+                top_p=effective_top_p,
                 constraints=generation_constraints,
             )
         effective_prompt, model_inputs = self._build_generation_inputs(
@@ -1584,10 +1593,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "do_sample": effective_temperature > 0,
                     "pad_token_id": getattr(self._tokenizer, "eos_token_id", 0) or 0,
                     "eos_token_id": self._generation_eos_token_id(),
-                    "repetition_penalty": 1.08,
+                    "repetition_penalty": effective_repetition_penalty,
                 }
                 if effective_temperature > 0:
                     generate_kwargs["temperature"] = effective_temperature
+                    if effective_top_p < 0.999:
+                        generate_kwargs["top_p"] = effective_top_p
                 output_ids = self._model.generate(**model_inputs, **generate_kwargs)
         finally:
             for hook in hooks:
@@ -1624,6 +1635,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"Generated {token_count} tokens from {self.model_id} "
                 f"device={self._device} temp={effective_temperature} "
+                f"profile={generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
                 f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
@@ -1663,21 +1675,44 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         max_new_tokens: int,
         temperature: float,
+        repetition_penalty: float,
+        top_p: float,
         constraints: "GenerationConstraints",
-    ) -> tuple[int, float]:
+    ) -> tuple[int, float, float, float]:
         target = constraints.continuum_target_position
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
-        if constraints.ordering_driver in {"continuum-support-first", "continuum-support-clarify"} or target >= 0.66:
+        effective_repetition_penalty = repetition_penalty
+        effective_top_p = top_p
+        if constraints.decoding_profile == "support-first":
             effective_max_new_tokens = min(effective_max_new_tokens, 112)
             effective_temperature = min(effective_temperature, 0.42)
-        elif constraints.ordering_driver == "continuum-clarify-first" or 0.52 <= target < 0.66:
-            effective_max_new_tokens = min(effective_max_new_tokens, 88)
-            effective_temperature = min(effective_temperature, 0.38)
-        elif constraints.ordering_driver == "continuum-structure-first" or target < 0.48:
-            effective_max_new_tokens = min(effective_max_new_tokens, 160)
+            effective_repetition_penalty = max(effective_repetition_penalty, 1.04)
+            effective_top_p = min(effective_top_p, 0.92)
+        elif constraints.decoding_profile == "clarify-first":
+            effective_max_new_tokens = min(effective_max_new_tokens, 84)
             effective_temperature = min(effective_temperature, 0.34)
-        return effective_max_new_tokens, effective_temperature
+            effective_repetition_penalty = max(effective_repetition_penalty, 1.06)
+            effective_top_p = min(effective_top_p, 0.82)
+        elif constraints.decoding_profile == "structure-first":
+            effective_max_new_tokens = min(effective_max_new_tokens, 176)
+            effective_temperature = min(effective_temperature, 0.28)
+            effective_repetition_penalty = max(effective_repetition_penalty, 1.10)
+            effective_top_p = min(effective_top_p, 0.74)
+
+        if target >= 0.75:
+            effective_temperature = min(effective_temperature, 0.40)
+            effective_max_new_tokens = min(effective_max_new_tokens, 104)
+        elif target < 0.42:
+            effective_max_new_tokens = min(effective_max_new_tokens, 168)
+            effective_repetition_penalty = max(effective_repetition_penalty, 1.09)
+
+        return (
+            effective_max_new_tokens,
+            effective_temperature,
+            effective_repetition_penalty,
+            effective_top_p,
+        )
 
     def _support_first_trim(self, text: str) -> str:
         sentences = [part.strip() for part in text.replace("\n", " ").split(".") if part.strip()]

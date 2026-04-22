@@ -13,6 +13,12 @@ from volvence_zero.application.storage import (
     ApplicationDomainKnowledgeStore,
     CaseMemoryRecord,
 )
+from volvence_zero.application.retrieval_readout import (
+    RetrievalControlReadoutInputs,
+    RetrievalControlReadoutParameters,
+    RetrievalReadoutCheckpoint,
+    RetrievalControlReadoutStrategy,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -259,11 +265,21 @@ class BoundaryPolicyPriorUpdate:
 
 
 @dataclass(frozen=True)
+class RetrievalReadoutPriorUpdate:
+    update_id: str
+    target: str
+    checkpoint: RetrievalReadoutCheckpoint
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
 class ApplicationPriorUpdate:
     source_session_post_job_id: str
     case_memory_updates: tuple[CaseMemoryPriorUpdate, ...] = ()
     strategy_playbook_updates: tuple[StrategyPlaybookPriorUpdate, ...] = ()
     boundary_policy_updates: tuple[BoundaryPolicyPriorUpdate, ...] = ()
+    retrieval_readout_updates: tuple[RetrievalReadoutPriorUpdate, ...] = ()
     description: str = ""
 
 
@@ -397,6 +413,7 @@ class ApplicationRareHeavyCheckpoint:
     description: str
     boundary_prior_hints: tuple[BoundaryPriorHint, ...] = ()
     continuum_profile_id: str | None = None
+    retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
 
 
 @dataclass(frozen=True)
@@ -1490,6 +1507,7 @@ class ApplicationRareHeavyState:
         self._case_clusters: tuple[ApplicationCaseCluster, ...] = ()
         self._distilled_playbook_rules: tuple[PlaybookRule, ...] = ()
         self._boundary_prior_hints: tuple[BoundaryPriorHint, ...] = ()
+        self._retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
 
     @property
     def domain_template_biases(self) -> tuple[tuple[str, float], ...]:
@@ -1506,6 +1524,10 @@ class ApplicationRareHeavyState:
     @property
     def boundary_prior_hints(self) -> tuple[BoundaryPriorHint, ...]:
         return self._boundary_prior_hints
+
+    @property
+    def retrieval_readout_checkpoint(self) -> RetrievalReadoutCheckpoint | None:
+        return self._retrieval_readout_checkpoint
 
     def upsert_distilled_playbook_rules(self, rules: tuple[PlaybookRule, ...]) -> tuple[str, ...]:
         by_pattern = {rule.problem_pattern: rule for rule in self._distilled_playbook_rules}
@@ -1543,6 +1565,13 @@ class ApplicationRareHeavyState:
             for hint in hints
         )
 
+    def apply_retrieval_readout_checkpoint(self, checkpoint: RetrievalReadoutCheckpoint) -> tuple[str, ...]:
+        existing = self._retrieval_readout_checkpoint
+        if existing is None or checkpoint.confidence >= existing.confidence:
+            self._retrieval_readout_checkpoint = checkpoint
+            return ("application-retrieval-readout-checkpoint-upsert",)
+        return ("application-retrieval-readout-checkpoint-skip-lower-confidence",)
+
     def export_rare_heavy_state(self, *, checkpoint_id: str) -> ApplicationRareHeavyCheckpoint:
         return ApplicationRareHeavyCheckpoint(
             checkpoint_id=checkpoint_id,
@@ -1551,10 +1580,12 @@ class ApplicationRareHeavyState:
             distilled_playbook_rules=self._distilled_playbook_rules,
             boundary_prior_hints=self._boundary_prior_hints,
             continuum_profile_id=None,
+            retrieval_readout_checkpoint=self._retrieval_readout_checkpoint,
             description=(
                 f"Application rare-heavy checkpoint with {len(self._domain_template_biases)} domain biases, "
                 f"{len(self._case_clusters)} case clusters, {len(self._distilled_playbook_rules)} playbook rules, "
-                f"and {len(self._boundary_prior_hints)} boundary prior hints."
+                f"{len(self._boundary_prior_hints)} boundary prior hints, and "
+                f"{'a' if self._retrieval_readout_checkpoint is not None else 'no'} retrieval readout checkpoint."
             ),
         )
 
@@ -1563,11 +1594,13 @@ class ApplicationRareHeavyState:
         self._case_clusters = checkpoint.case_clusters
         self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
         self._boundary_prior_hints = checkpoint.boundary_prior_hints
+        self._retrieval_readout_checkpoint = checkpoint.retrieval_readout_checkpoint
         return (
             "rare-heavy:application-domain-refresh",
             "rare-heavy:application-case-clusters-import",
             "rare-heavy:application-playbook-import",
             "rare-heavy:application-boundary-import",
+            "rare-heavy:application-retrieval-readout-import",
         )
 
     def restore_rare_heavy_state(self, checkpoint: ApplicationRareHeavyCheckpoint) -> tuple[str, ...]:
@@ -1575,11 +1608,13 @@ class ApplicationRareHeavyState:
         self._case_clusters = checkpoint.case_clusters
         self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
         self._boundary_prior_hints = checkpoint.boundary_prior_hints
+        self._retrieval_readout_checkpoint = checkpoint.retrieval_readout_checkpoint
         return (
             "rare-heavy:application-domain-rollback",
             "rare-heavy:application-case-clusters-rollback",
             "rare-heavy:application-playbook-rollback",
             "rare-heavy:application-boundary-rollback",
+            "rare-heavy:application-retrieval-readout-rollback",
         )
 
 
@@ -1838,12 +1873,6 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
             continuum_reconstruction_pressure,
             continuum_active_band_ids,
         ) = _continuum_mixing_hints(memory_value)
-        continuum_experience_bias = _clamp_signed(
-            (continuum_position - 0.5) * 0.55
-            + (continuum_slow_share - 0.33) * 0.40
-            + (continuum_reconstruction_pressure - 0.5) * 0.25,
-            magnitude=0.18,
-        )
         if self._rare_heavy_state is not None and self._rare_heavy_state.domain_template_biases:
             boosted = sorted(
                 self._rare_heavy_state.domain_template_biases,
@@ -1885,26 +1914,49 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
                 ),
                 0.0,
             )
-        knowledge_weight = _knowledge_weight(
-            regime_id=regime_id,
-            world_weight=world_weight,
-            self_weight=self_weight,
+        retrieval_readout_parameters = (
+            self._rare_heavy_state.retrieval_readout_checkpoint.parameters
+            if self._rare_heavy_state is not None and self._rare_heavy_state.retrieval_readout_checkpoint is not None
+            else RetrievalControlReadoutParameters.default()
         )
-        knowledge_weight = _clamp(
-            knowledge_weight * 0.68
-            + playbook_knowledge_hint * 0.12
-            + (1.0 - playbook_experience_hint) * 0.06
-            + (0.5 - continuum_position) * 0.18
-            + continuum_frequency * 0.08
-            - continuum_slow_share * 0.10
-            - max(continuum_experience_bias, 0.0) * 0.28
-            + delayed_payoff_signal * (0.08 if world_weight >= self_weight else -0.02)
-            + sequence_payoff_signal * (0.06 if regime_id == "problem_solving" else -0.01)
-            + (experience_fast_prior.knowledge_weight_bias if experience_fast_prior is not None else 0.0) * 0.28
-            + max(regime_fast_prior_bias, 0.0) * 0.06
-            + min(action_fast_prior_bias, 0.0) * 0.04
-            + min(family_fast_prior_bias, 0.0) * 0.04
+        control_readout = RetrievalControlReadoutStrategy(parameters=retrieval_readout_parameters).build(
+            RetrievalControlReadoutInputs(
+                regime_id=regime_id,
+                abstract_action=abstract_action,
+                knowledge_domains=knowledge_domains,
+                experience_domains=experience_domains,
+                world_weight=world_weight,
+                self_weight=self_weight,
+                continuum_position=continuum_position,
+                continuum_frequency=continuum_frequency,
+                continuum_slow_share=continuum_slow_share,
+                continuum_reconstruction_pressure=continuum_reconstruction_pressure,
+                delayed_payoff_signal=delayed_payoff_signal,
+                sequence_payoff_signal=sequence_payoff_signal,
+                playbook_knowledge_hint=playbook_knowledge_hint,
+                playbook_experience_hint=playbook_experience_hint,
+                knowledge_weight_bias=(
+                    experience_fast_prior.knowledge_weight_bias if experience_fast_prior is not None else 0.0
+                ),
+                experience_weight_bias=(
+                    experience_fast_prior.experience_weight_bias if experience_fast_prior is not None else 0.0
+                ),
+                regime_fast_prior_bias=regime_fast_prior_bias,
+                action_fast_prior_bias=action_fast_prior_bias,
+                family_fast_prior_bias=family_fast_prior_bias,
+                fast_prior_strength=experience_fast_prior.prior_strength if experience_fast_prior is not None else 0.0,
+                fast_prior_attribution_count=(
+                    len(experience_fast_prior.source_attribution_ids) if experience_fast_prior is not None else 0
+                ),
+                fast_prior_sequence_count=(
+                    len(experience_fast_prior.source_sequence_ids) if experience_fast_prior is not None else 0
+                ),
+                continuum_active_band_ids=continuum_active_band_ids,
+            )
         )
+        knowledge_domains = control_readout.knowledge_domains
+        experience_domains = control_readout.experience_domains
+        knowledge_weight = control_readout.knowledge_weight
         retrieval_depth = _retrieval_depth(
             regime_id=regime_id,
             knowledge_weight=knowledge_weight,
@@ -1919,32 +1971,7 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
             temporal_snapshot=active_temporal_snapshot,
             regime_snapshot=regime_snapshot,
         )
-        experience_weight = _clamp(1.0 - knowledge_weight)
-        if experience_fast_prior is not None:
-            experience_weight = _clamp(
-                experience_weight
-                + experience_fast_prior.experience_weight_bias * 0.18
-                + max(action_fast_prior_bias, 0.0) * 0.05
-                + max(family_fast_prior_bias, 0.0) * 0.05
-                + max(sequence_payoff_signal - 0.5, 0.0) * 0.04
-                + continuum_slow_share * 0.08
-                + continuum_reconstruction_pressure * 0.05
-                + max(continuum_experience_bias, 0.0) * 0.32
-            )
-            knowledge_weight = _clamp(1.0 - experience_weight)
-        if continuum_slow_share >= 0.45:
-            preferred_experience_domain = (
-                "stabilization_patterns"
-                if self_weight >= world_weight
-                else "structured_decision_patterns"
-            )
-            experience_domains = _dedupe((preferred_experience_domain,) + experience_domains)
-        if continuum_reconstruction_pressure >= 0.55 and "general_guidance_patterns" not in experience_domains:
-            experience_domains = _dedupe(experience_domains + ("general_guidance_patterns",))
-        if playbook_experience_hint > playbook_knowledge_hint and "general_guidance_patterns" in experience_domains:
-            experience_domains = _dedupe(
-                ("stabilization_patterns",) + experience_domains
-            )
+        experience_weight = control_readout.experience_weight
         intent_description = (
             f"retrieval policy regime={regime_id} abstract_action={abstract_action} "
             f"knowledge_weight={knowledge_weight:.2f} experience_weight={experience_weight:.2f} "
@@ -1968,9 +1995,9 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
                 abstract_action=abstract_action,
                 intent_description=intent_description,
                 description=(
-                    f"Retrieval policy selected {len(knowledge_domains)} knowledge domains and "
-                    f"{len(experience_domains)} experience domains for regime={regime_id} "
-                    f"with continuum bands={','.join(continuum_active_band_ids) if continuum_active_band_ids else 'none'}."
+                    f"{control_readout.description} Retrieval policy remains a compact control surface; "
+                    "knowledge and experience owners publish evidence and priors without entering ETA ownership. "
+                    f"checkpoint={'present' if self._rare_heavy_state is not None and self._rare_heavy_state.retrieval_readout_checkpoint is not None else 'default'}."
                 ),
             )
         )
@@ -2074,7 +2101,7 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
                         domain,
                         jurisdiction_required=retrieval_policy.jurisdiction_required,
                     ),
-                    freshness_label="phase1-mock-current",
+                    freshness_label="surface-fallback-current",
                     confidence=confidence,
                     evidence_strength=(
                         EvidenceStrength.HIGH if confidence >= 0.8 else
@@ -2090,14 +2117,14 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
                             citation_id=f"{domain}:primary",
                             source_type=source_type,
                             title=f"{domain.replace('_', ' ')} guidance",
-                            locator="phase1-placeholder",
+                            locator="surface-fallback",
                             snippet=_domain_summary(domain, regime_id=retrieval_policy.regime_id),
                             url=None,
                         ),
                     ),
                     description=(
-                        f"Knowledge hit for {domain} aligned to regime={retrieval_policy.regime_id} "
-                        f"and world_weight={retrieval_policy.world_weight:.2f}."
+                        f"Fallback knowledge hit for {domain} aligned to regime={retrieval_policy.regime_id} "
+                        f"and world_weight={retrieval_policy.world_weight:.2f}; compact evidence only."
                     ),
                 )
                 hits.append(hit)

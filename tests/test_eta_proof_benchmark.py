@@ -92,6 +92,7 @@ def test_eta_proof_benchmark_exposes_default_cases_and_profiles():
     assert any(case.branch_depth >= 4 for case in cases if case.split == "heldout")
     assert default_eta_proof_profiles() == (
         "full-internal-rl",
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
@@ -135,7 +136,7 @@ def test_default_eta_proof_environment_supports_reset_and_step():
 
 def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     report = run_eta_internal_rl_proof_benchmark(
-        profile_labels=("full-internal-rl", "full-no-optimize"),
+        profile_labels=("full-internal-rl", "full-no-fast-prior"),
         train_epochs=1,
     )
 
@@ -155,6 +156,22 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert report.profile_reports[0].training_parameter_change_rate > 0.0
     assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
+
+
+def test_eta_proof_benchmark_exposes_no_fast_prior_ablation_gaps():
+    report = run_eta_internal_rl_proof_benchmark(
+        profile_labels=("full-internal-rl", "full-no-fast-prior"),
+        train_epochs=1,
+    )
+
+    baseline_metrics = dict(next(item.metric_means for item in report.profile_reports if item.profile_label == "full-internal-rl"))
+    assert "heldout_family_reuse_gap_vs_no_fast_prior" in baseline_metrics
+    assert "heldout_credit_alignment_gap_vs_no_fast_prior" in baseline_metrics
+    assert "heldout_strong_success_gap_vs_no_fast_prior" in baseline_metrics
+    ablation_deltas = dict(next(values for label, values in report.metric_deltas_from_baseline if label == "full-no-fast-prior"))
+    assert "heldout_family_reuse_rate" in ablation_deltas
+    assert "heldout_credit_alignment" in ablation_deltas
+    assert "heldout_strong_success_rate" in ablation_deltas
 
 
 def test_eta_proof_benchmark_accumulates_temporal_fast_prior_metrics_after_training():
@@ -221,30 +238,35 @@ def test_eta_internal_rl_assessment_exposes_gate_specific_best_control_evidence(
     composition_evidence = dict(gate_map["heldout-composition"].evidence)
 
     assert success_evidence["best_control_terminal_success_label"] in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
         "noop-backend",
     }
     assert success_evidence["best_control_strong_success_label"] in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
         "noop-backend",
     }
     assert reuse_evidence["best_control_reuse_label"] in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
         "noop-backend",
     }
     assert reuse_evidence["best_control_credit_alignment_label"] in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
         "noop-backend",
     }
     assert composition_evidence["best_control_subgoal_completion_label"] in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",
@@ -326,6 +348,7 @@ def test_run_eta_internal_rl_paper_suite_emits_interval_summaries(tmp_path):
     assert report.interpretation_summary.dominant_failure_mode
     assert report.interpretation_summary.strongest_competing_control
     assert report.interpretation_summary.strongest_competing_control in {
+        "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
         "learned-lite-causal",

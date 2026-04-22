@@ -49,6 +49,14 @@ class SessionPostSlowLoopJob:
     case_band_ids: tuple[str, ...] = ()
     case_mean_continuum_position: float = 0.0
     playbook_band_ids: tuple[str, ...] = ()
+    retrieval_fast_prior_strength: float = 0.0
+    retrieval_fast_prior_attribution_count: int = 0
+    retrieval_fast_prior_sequence_count: int = 0
+    retrieval_regime_bias: float = 0.0
+    retrieval_action_bias: float = 0.0
+    retrieval_family_bias: float = 0.0
+    retrieval_knowledge_weight_bias: float = 0.0
+    retrieval_experience_weight_bias: float = 0.0
 
 
 @dataclass(frozen=True)

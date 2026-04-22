@@ -954,6 +954,129 @@ class InternalRLSandbox:
             source_text=source_text,
         )
 
+    def ingest_temporal_fast_prior(
+        self,
+        rollouts: ZRollout | tuple[ZRollout, ...],
+        *,
+        enabled: bool = True,
+    ) -> tuple[float, float, float, float, float]:
+        normalized_rollouts = rollouts if isinstance(rollouts, tuple) else (rollouts,)
+        if not enabled or not normalized_rollouts:
+            self._policy.parameter_store.record_fast_prior_signals(
+                strength=0.0,
+                action_bias=0.0,
+                family_bias=0.0,
+                sequence_bias=0.0,
+                switch_pressure_delta=0.0,
+            )
+            return (0.0, 0.0, 0.0, 0.0, 0.0)
+        credit_alignment = self._delayed_credit_alignment(normalized_rollouts)
+        terminal_success_rate = sum(float(rollout.terminal_success) for rollout in normalized_rollouts) / len(normalized_rollouts)
+        family_assignment_rate = sum(
+            (
+                sum(1.0 for family_id in rollout.completed_family_ids if family_id != "unassigned")
+                / max(len(rollout.completed_family_ids), 1)
+            )
+            if rollout.completed_family_ids
+            else 0.0
+            for rollout in normalized_rollouts
+        ) / len(normalized_rollouts)
+        sequence_completion_rate = sum(
+            (
+                len(rollout.completed_subgoals) / max(len(rollout.delayed_credit_assignments), 1)
+                if rollout.delayed_credit_assignments
+                else float(rollout.terminal_success)
+            )
+            for rollout in normalized_rollouts
+        ) / len(normalized_rollouts)
+        strength = max(
+            0.0,
+            min(
+                1.0,
+                credit_alignment * 0.40
+                + family_assignment_rate * 0.25
+                + terminal_success_rate * 0.20
+                + sequence_completion_rate * 0.15,
+            ),
+        )
+        action_bias = max(
+            -1.0,
+            min(
+                1.0,
+                (family_assignment_rate - 0.5) * 0.50
+                + (credit_alignment - 0.5) * 0.30
+                + (terminal_success_rate - 0.5) * 0.20,
+            ),
+        )
+        family_bias = max(
+            -1.0,
+            min(
+                1.0,
+                (credit_alignment - 0.5) * 0.45
+                + (sequence_completion_rate - 0.5) * 0.35
+                + (family_assignment_rate - 0.5) * 0.20,
+            ),
+        )
+        sequence_bias = max(
+            -1.0,
+            min(
+                1.0,
+                (sequence_completion_rate - 0.5) * 0.55
+                + (terminal_success_rate - 0.5) * 0.25
+                + (credit_alignment - 0.5) * 0.20,
+            ),
+        )
+        switch_pressure_delta = max(
+            -0.18,
+            min(
+                0.18,
+                -(
+                    action_bias * 0.35
+                    + family_bias * 0.40
+                    + sequence_bias * 0.25
+                )
+                * max(strength, 0.2),
+            ),
+        )
+        self._policy.parameter_store.record_fast_prior_signals(
+            strength=strength,
+            action_bias=action_bias,
+            family_bias=family_bias,
+            sequence_bias=sequence_bias,
+            switch_pressure_delta=switch_pressure_delta,
+        )
+        return (strength, action_bias, family_bias, sequence_bias, switch_pressure_delta)
+
+    def _delayed_credit_alignment(self, rollouts: tuple[ZRollout, ...]) -> float:
+        if not rollouts:
+            return 0.0
+        aligned_scores: list[float] = []
+        for rollout in rollouts:
+            if not rollout.delayed_credit_assignments:
+                aligned_scores.append(0.0)
+                continue
+            aligned = 0.0
+            for assignment in rollout.delayed_credit_assignments:
+                start = max(0, assignment.start_step)
+                end = min(len(rollout.transitions) - 1, assignment.end_step)
+                if end < start:
+                    continue
+                if assignment.reason == "terminal-success":
+                    matched = any(
+                        transition.proof_terminal_success
+                        for transition in rollout.transitions[start : end + 1]
+                    )
+                else:
+                    matched = any(
+                        transition.proof_subgoal_id == assignment.subgoal_id
+                        and transition.active_family_id not in {None, "unassigned"}
+                        for transition in rollout.transitions[start : end + 1]
+                    )
+                if matched:
+                    aligned += 1.0
+            aligned_scores.append(aligned / max(len(rollout.delayed_credit_assignments), 1))
+        return sum(aligned_scores) / len(aligned_scores)
+
     def _apply_delayed_credit_assignments(
         self,
         *,

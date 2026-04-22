@@ -14,10 +14,7 @@ from volvence_zero.application.runtime import (
     ApplicationCaseCluster,
     ApplicationRareHeavyCheckpoint,
     ApplicationRareHeavyState,
-    BoundaryPolicyPriorUpdate,
-    BoundaryPriorHint,
     BoundaryPolicySnapshot,
-    CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     DomainKnowledgeSnapshot,
     ExperienceConsolidationModule,
@@ -25,19 +22,20 @@ from volvence_zero.application.runtime import (
     ExperienceDelta,
     ExperienceFastPriorModule,
     ExperienceFastPriorSnapshot,
-    PlaybookRule,
     ResponseAssemblySnapshot,
     RetrievalPolicySnapshot,
-    StrategyPlaybookPriorUpdate,
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
-    CaseMemoryRecord,
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
     build_filesystem_persistence_backend,
+)
+from volvence_zero.application.experience_layers import (
+    ApplicationPriorProposalBuilder,
+    ApplicationPriorProposalInputs,
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit.gate import (
@@ -245,155 +243,7 @@ def _abstract_action_alignment(
     return _clamp(outcome_score * 0.65 + action_bias * 0.35)
 
 
-def _application_ordering_for_pattern(
-    *,
-    problem_pattern: str,
-    regime_id: str | None,
-) -> tuple[str, ...]:
-    if problem_pattern == "family-transition-high-emotion":
-        return ("stabilize", "split_axes", "smallest_next_step")
-    if problem_pattern == "relational-repair" or regime_id == "repair_and_deescalation":
-        return ("acknowledge", "deescalate", "repair-next-step")
-    if problem_pattern == "structured-decision-overwhelm" or regime_id == "problem_solving":
-        return ("narrow_scope", "option_compare", "smallest_next_step")
-    if regime_id == "emotional_support":
-        return ("acknowledge", "stabilize", "smallest_next_step")
-    return ("acknowledge", "smallest_next_step")
-
-
-def _application_pacing_for_regime(regime_id: str | None) -> str:
-    if regime_id in {"emotional_support", "repair_and_deescalation"}:
-        return "gradual"
-    if regime_id == "problem_solving":
-        return "structured"
-    return "balanced"
-
-
-def _build_application_prior_update(
-    *,
-    job: SessionPostSlowLoopJob,
-    mean_experience_quality: float,
-) -> ApplicationPriorUpdate | None:
-    case_updates: list[CaseMemoryPriorUpdate] = []
-    playbook_updates: list[StrategyPlaybookPriorUpdate] = []
-    boundary_updates: list[BoundaryPolicyPriorUpdate] = []
-    primary_domain = next(iter(job.experience_domains), "general_guidance_patterns")
-    outcome_label = "improved" if mean_experience_quality >= 0.6 else "stable"
-    for pattern in job.case_problem_patterns:
-        ordering = _application_ordering_for_pattern(problem_pattern=pattern, regime_id=job.regime_id)
-        case_updates.append(
-            CaseMemoryPriorUpdate(
-                update_id=f"{job.job_id}:case-update:{pattern}",
-                target=f"application.case_memory.records.{pattern}",
-                record=CaseMemoryRecord(
-                    case_id=f"case:slow-loop:{job.job_id}:{pattern}",
-                    domain=primary_domain,
-                    problem_pattern=pattern,
-                    user_state_pattern="slow-loop-promoted",
-                    risk_markers=job.case_risk_markers,
-                    track_tags=("self",)
-                    if job.regime_id in {"emotional_support", "repair_and_deescalation"}
-                    else ("world",),
-                    regime_tags=(job.regime_id,) if job.regime_id is not None else (),
-                    intervention_ordering=ordering,
-                    outcome_label=outcome_label,
-                    delayed_signal_count=max(job.case_hit_count, 1),
-                    escalation_observed="refer-out-required" in job.boundary_trigger_reasons,
-                    repair_observed=job.regime_id == "repair_and_deescalation",
-                    confidence=_clamp(0.52 + mean_experience_quality * 0.36),
-                    relevance_score=_clamp(0.48 + mean_experience_quality * 0.42),
-                    description=(
-                        f"Session-post promoted case prior for pattern={pattern} "
-                        f"quality={mean_experience_quality:.2f}."
-                    ),
-                ),
-                confidence=_clamp(0.52 + mean_experience_quality * 0.36),
-                description=f"Promote case prior for pattern={pattern} from session-post evidence.",
-            )
-        )
-        playbook_updates.append(
-            StrategyPlaybookPriorUpdate(
-                update_id=f"{job.job_id}:playbook-update:{pattern}",
-                target=f"application.strategy_playbook.rules.{pattern}",
-                rule=PlaybookRule(
-                    rule_id=f"playbook:slow-loop:{pattern}:{job.closed_at_turn}",
-                    problem_pattern=pattern,
-                    recommended_regime=job.regime_id,
-                    recommended_ordering=ordering,
-                    recommended_pacing=_application_pacing_for_regime(job.regime_id),
-                    avoid_patterns=("procedure-dump-too-early",)
-                    if "child-impact" in job.case_risk_markers
-                    else ("over-directive-solutioning",),
-                    knowledge_weight_hint=_clamp(job.knowledge_weight + 0.08),
-                    experience_weight_hint=_clamp(job.experience_weight + 0.12),
-                    applicability_scope=((job.regime_id,) if job.regime_id is not None else ())
-                    + job.case_risk_markers[:2],
-                    confidence=_clamp(0.5 + mean_experience_quality * 0.4),
-                    description=(
-                        f"Session-post promoted playbook prior for pattern={pattern} "
-                        f"with regime={job.regime_id}."
-                    ),
-                ),
-                confidence=_clamp(0.5 + mean_experience_quality * 0.4),
-                description=f"Promote playbook prior for pattern={pattern} from session-post evidence.",
-            )
-        )
-    if job.boundary_trigger_reasons:
-        boundary_updates.append(
-            BoundaryPolicyPriorUpdate(
-                update_id=f"{job.job_id}:boundary-update",
-                target=(
-                    f"application.boundary_policy.hints.{job.regime_id or 'shared'}."
-                    f"{len(job.boundary_trigger_reasons)}"
-                ),
-                hint=BoundaryPriorHint(
-                    hint_id=f"boundary-hint:{job.job_id}",
-                    regime_id=job.regime_id,
-                    trigger_reasons=job.boundary_trigger_reasons,
-                    answer_depth_limit_hint=(
-                        "high-level-only"
-                        if "refer-out-required" in job.boundary_trigger_reasons
-                        or "citation-required" in job.boundary_trigger_reasons
-                        else "support-first"
-                    ),
-                    clarification_required="jurisdiction-clarification-required" in job.boundary_trigger_reasons,
-                    refer_out_required="refer-out-required" in job.boundary_trigger_reasons,
-                    blocked_topics=("definitive-domain-conclusion",)
-                    if "citation-required" in job.boundary_trigger_reasons
-                    else (),
-                    required_disclaimers=(
-                        ("professional-handoff",)
-                        if "refer-out-required" in job.boundary_trigger_reasons
-                        else ()
-                    )
-                    + (
-                        ("clarify-before-concluding",)
-                        if "jurisdiction-clarification-required" in job.boundary_trigger_reasons
-                        else ()
-                    ),
-                    confidence=_clamp(0.5 + mean_experience_quality * 0.34),
-                    description=(
-                        f"Session-post boundary prior from triggers={job.boundary_trigger_reasons} "
-                        f"quality={mean_experience_quality:.2f}."
-                    ),
-                ),
-                confidence=_clamp(0.5 + mean_experience_quality * 0.34),
-                description="Promote boundary prior from repeated slow-loop boundary triggers.",
-            )
-        )
-    if not case_updates and not playbook_updates and not boundary_updates:
-        return None
-    return ApplicationPriorUpdate(
-        source_session_post_job_id=job.job_id,
-        case_memory_updates=tuple(case_updates),
-        strategy_playbook_updates=tuple(playbook_updates),
-        boundary_policy_updates=tuple(boundary_updates),
-        description=(
-            f"Application prior update proposed from {job.job_id} with "
-            f"{len(case_updates)} case updates, {len(playbook_updates)} playbook updates, "
-            f"and {len(boundary_updates)} boundary updates."
-        ),
-    )
+_APPLICATION_PRIOR_PROPOSAL_BUILDER = ApplicationPriorProposalBuilder()
 
 
 def _experience_deltas_from_prior_update(
@@ -872,27 +722,6 @@ class AgentSessionRunner:
 
     def _experience_eta_signals(self) -> dict[str, float]:
         signals: dict[str, float] = {}
-        experience_snapshot = self.experience_consolidation_snapshot or self._upstream_snapshots.get("experience_consolidation")
-        if (
-            experience_snapshot is not None
-            and isinstance(experience_snapshot.value, ExperienceConsolidationSnapshot)
-        ):
-            delayed_outcome_ledger = experience_snapshot.value.delayed_outcome_ledger
-            sequence_payoffs = experience_snapshot.value.sequence_payoffs
-            if delayed_outcome_ledger:
-                signals["delayed_retrieval_mix_alignment"] = _clamp(
-                    sum(item.retrieval_mix_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
-                )
-                signals["delayed_regime_alignment"] = _clamp(
-                    sum(item.regime_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
-                )
-                signals["delayed_abstract_action_alignment"] = _clamp(
-                    sum(item.abstract_action_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
-                )
-            if sequence_payoffs:
-                signals["regime_sequence_payoff"] = _clamp(
-                    sum(item.rolling_payoff for item in sequence_payoffs) / len(sequence_payoffs)
-                )
         fast_prior_snapshot = self.experience_fast_prior_snapshot
         if fast_prior_snapshot is not None:
             fast_prior = fast_prior_snapshot.value
@@ -904,6 +733,9 @@ class AgentSessionRunner:
             if retrieval_snapshot is not None and isinstance(retrieval_snapshot.value, RetrievalPolicySnapshot):
                 signals["experience_retrieval_mix_bias"] = _clamp(
                     0.5 + (fast_prior.experience_weight_bias - fast_prior.knowledge_weight_bias)
+                )
+                signals["delayed_retrieval_mix_alignment"] = _clamp(
+                    0.5 + (fast_prior.experience_weight_bias - fast_prior.knowledge_weight_bias) * 0.5
                 )
             regime_snapshot = self._upstream_snapshots.get("regime")
             if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
@@ -917,6 +749,7 @@ class AgentSessionRunner:
                     0.0,
                 )
                 signals["experience_regime_bias"] = _clamp(0.5 + matching_regime_bias)
+                signals["delayed_regime_alignment"] = _clamp(0.5 + matching_regime_bias * 0.5)
             temporal_snapshot = self._upstream_snapshots.get("temporal_abstraction")
             if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
                 active_action = temporal_snapshot.value.active_abstract_action
@@ -939,6 +772,14 @@ class AgentSessionRunner:
                     0.0,
                 )
                 signals["experience_action_family_bias"] = _clamp(0.5 + family_bias)
+                signals["delayed_abstract_action_alignment"] = _clamp(
+                    0.5 + ((action_bias + family_bias) / 2.0) * 0.5
+                )
+            if fast_prior.sequence_biases:
+                signals["regime_sequence_payoff"] = _clamp(
+                    0.5
+                    + sum(item.payoff_bias for item in fast_prior.sequence_biases) / len(fast_prior.sequence_biases) * 0.5
+                )
         case_snapshot = self._upstream_snapshots.get("case_memory")
         if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
             if case_snapshot.value.hits:
@@ -1286,9 +1127,20 @@ class AgentSessionRunner:
             )
             / 4.0
         )
-        application_prior_update = _build_application_prior_update(
-            job=job,
-            mean_experience_quality=mean_experience_quality,
+        application_prior_update = _APPLICATION_PRIOR_PROPOSAL_BUILDER.build(
+            inputs=ApplicationPriorProposalInputs(
+                job_id=job.job_id,
+                closed_at_turn=job.closed_at_turn,
+                regime_id=job.regime_id,
+                experience_domains=job.experience_domains,
+                case_problem_patterns=job.case_problem_patterns,
+                case_risk_markers=job.case_risk_markers,
+                boundary_trigger_reasons=job.boundary_trigger_reasons,
+                knowledge_weight=job.knowledge_weight,
+                experience_weight=job.experience_weight,
+                case_hit_count=job.case_hit_count,
+                mean_experience_quality=mean_experience_quality,
+            )
         )
         application_apply_enabled = (
             job.writeback_request.reflection_apply_enabled
@@ -1491,9 +1343,20 @@ class AgentSessionRunner:
         *,
         checkpoint_id: str | None = None,
     ) -> RareHeavyImportResult:
-        return self._joint_loop.review_rare_heavy_artifact(
+        application_checkpoint = self._application_rare_heavy_state.export_rare_heavy_state(
+            checkpoint_id=f"{checkpoint_id or artifact.artifact_id}:application-review"
+        )
+        result = self._joint_loop.review_rare_heavy_artifact(
             artifact,
             checkpoint_id=checkpoint_id,
+        )
+        return replace(
+            result,
+            checkpoint=replace(result.checkpoint, application_checkpoint=application_checkpoint),
+            description=(
+                f"{result.description} "
+                "Application rare-heavy state remained under session-owned review."
+            ).strip(),
         )
 
     def rollback_rare_heavy_import(

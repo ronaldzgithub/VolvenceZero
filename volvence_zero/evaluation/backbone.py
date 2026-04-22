@@ -922,6 +922,16 @@ class EvaluationBackbone:
             family="learning",
             metric_name="playbook_confidence_mean",
         )
+        positive_experience_payoff_values = tuple(
+            value
+            for value in (
+                delayed_mix_alignment,
+                delayed_regime_alignment,
+                delayed_action_alignment,
+                regime_sequence_payoff,
+            )
+            if value > 0.0
+        )
         reasons: list[str] = []
         high_alerts = [alert for _, alert in session_report.alerts if alert.startswith("HIGH") or alert.startswith("CRITICAL")]
         has_unsafe = any("collapse" in a.lower() or "safety" in a.lower() for _, a in session_report.alerts)
@@ -962,17 +972,8 @@ class EvaluationBackbone:
                     playbook_confidence,
                 )
                 == 0.0
-                or min(
-                    value
-                    for value in (
-                        delayed_mix_alignment,
-                        delayed_regime_alignment,
-                        delayed_action_alignment,
-                        regime_sequence_payoff,
-                    )
-                    if value > 0.0
-                )
-                >= 0.52
+                or not positive_experience_payoff_values
+                or min(positive_experience_payoff_values) >= 0.52
             )
         ):
             decision = EvolutionDecision.PROMOTE

@@ -99,6 +99,11 @@ VolvenceZero 的应用层不是“一个模型 + 一个 prompt + 一个知识库
 - **经验不应直接成为 ETA owner 本体的一部分**
 - **ETA 负责选择和调度经验，不负责吞并经验所有权**
 
+同理，**知识也只能以 influence 的形式进入 ETA/NL**。  
+ETA 应该读取的是紧凑的 `retrieval_policy` / readout control，  
+NL 应该读取的是慢层压缩后的 `experience_consolidation` / `experience_fast_prior`，  
+而不是把知识条目正文、案例正文或 playbook 本体并进 `temporal` / metacontroller 私有状态。
+
 ---
 
 ## 4. Layered Architecture
@@ -412,6 +417,13 @@ flowchart TD
 4. `memory` 发布的 `continuum_profile` 提供当前频谱位置、恢复压力与 readout 结构
 5. `boundary_policy` 收紧或放开允许动作范围
 6. 最终形成一个显式的 `retrieval_policy`
+
+这里 `retrieval_policy` 更准确地说应是 **ETA 对检索层的紧凑控制读出面**。  
+它可以内部由启发式或后续 learned readout 产生，但无论实现怎么演进，都应保持：
+
+- ETA 只发布 compact control
+- knowledge / case / playbook owners 只返回 compact evidence / compact priors
+- knowledge / experience 本体不进入 ETA owner
 
 ### 6.1 Four Experience Entry Points Into ETA
 

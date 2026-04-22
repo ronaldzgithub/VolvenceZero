@@ -60,6 +60,13 @@ Postgres、pgvector、对象存储或其他实现都属于 owner 的内部实现
 - 经验 owner 不得成为 `temporal` 的第二 owner
 - experience -> ETA 的所有影响都应通过 public snapshot 或正式 gate 暴露
 
+同样地，knowledge -> ETA 也必须遵守相同边界：
+
+- ETA 可以发布知识检索控制
+- ETA 不拥有知识事实本体
+- `domain_knowledge` 不得因为 turn-time usefulness 而回收 `temporal` / `memory` owner 身份
+- knowledge 对 ETA 的影响必须经 `retrieval_policy`、`domain_knowledge`、`boundary_policy` 这些公共 surface 暴露
+
 ---
 
 ## 3. Slot Map
@@ -170,6 +177,7 @@ class RetrievalPolicySnapshot:
 - 不拥有知识事实或案例经验本身
 - 默认应优先消费已发布的控制状态与语义状态（如 `abstract_action`, track weights, regime），而不是靠关键词匹配直接路由 domain
 - 作为 experience 进入 ETA 的第一入口：决定是否需要经验检索、需要哪些 `experience_domains`、以及 `experience_weight`
+- 作为 **compact retrieval control readout surface**：它应把 ETA / regime / dual-track / memory continuum / delayed fast prior 压成最小控制读出，而不是把应用层知识/经验本体并进自身私有状态
 
 ## 5.4 Direct Dependencies
 
@@ -309,6 +317,7 @@ class CaseMemorySnapshot:
 - 作为 ETA fast-path 可读的经验样本面，而不是直接写入 `temporal`
 - 发布的 `continuum_location` 不只是证据字段，还应用于后续 playbook ranking
 - 共享 core memory 发布的 continuum frequency 语义，但不回收 `memory` owner 身份
+- 其 compact sample surface 可以影响 ETA，但不能因为被 ETA 消费而变成 `temporal` / `regime` 的第二 owner
 
 ## 7.3 Direct Dependencies
 
@@ -361,6 +370,7 @@ class StrategyPlaybookSnapshot:
 - 作为 ETA 在线控制层的外部经验参考面
 - 作为 experience 进入 ETA 的第二入口：为 ETA 提供 ordering / pacing / avoid-pattern prior
 - 在当前口径下，rule ranking 应消费 case hit 的 continuum 位置、band 角色与恢复来源，而不是只按离散 pattern 先后顺序
+- playbook 是 compact abstraction owner，不是 session glue 中可随处扩写的辅助字典
 
 ## 8.3 Direct Dependencies
 
@@ -445,6 +455,7 @@ class ExperienceFastPriorSnapshot:
 - 把慢层信用压缩成 compact fast prior，而不是直接修改 `regime` / `retrieval_policy` / `temporal` 私有状态
 - 作为 experience 进入 ETA 的 delayed-credit-to-fast-path 公共中继面
 - 保持 advisory / bias 语义，不回收下游 owner 身份
+- 它应继续作为 slow -> fast 的**唯一公共压缩中继面**；若需要更 learned 的 readout，应替换在该压缩或消费 seam 内，而不是额外新增旁路 signal owner
 
 ## 9.5.3 Direct Dependencies
 
@@ -727,6 +738,15 @@ class ResponseAssemblySnapshot:
 - `continuum-clarify-first`
 - `continuum-structure-first`
 - `continuum-support-clarify`
+
+表达层 generation constraints 在当前口径下还应把 `continuum_target_position` 映射成显式 decoding profile，例如：
+
+- `support-first`
+- `clarify-first`
+- `structure-first`
+
+也就是说，generation-side control 不再只是连续调 `temperature/max_new_tokens`，  
+而是先选中一个 decoding profile 模板，再在模板内部做连续微调。
 
 ---
 

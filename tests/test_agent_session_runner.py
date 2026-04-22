@@ -49,6 +49,10 @@ def test_agent_session_runner_executes_single_turn():
     assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
+    assert "case_memory" in result.active_snapshots
+    assert "strategy_playbook" in result.active_snapshots
+    assert "experience_fast_prior" in result.active_snapshots
+    assert "experience_consolidation" in result.active_snapshots
     assert "session_post_slow_loop" in result.shadow_snapshots
     assert result.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
@@ -263,8 +267,8 @@ def test_agent_session_runner_feeds_delayed_experience_credit_into_next_turn_sch
     turn_scores = {score.metric_name: score.value for score in result.active_snapshots["evaluation"].value.turn_scores}
 
     assert "scheduler_experience_credit" in turn_scores
-    assert "experience_fast_prior" in result.shadow_snapshots
-    experience_fast_prior = result.shadow_snapshots["experience_fast_prior"].value
+    assert "experience_fast_prior" in result.active_snapshots
+    experience_fast_prior = result.active_snapshots["experience_fast_prior"].value
     assert experience_fast_prior.source_attribution_ids
     assert experience_fast_prior.prior_strength > 0.0
     assert result.metacontroller_state is not None
@@ -345,6 +349,138 @@ def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fas
     assert "career_decision" in retrieval_policy.knowledge_domains
     assert "family-transition-high-emotion" in case_memory.active_problem_patterns
     assert any(rule.problem_pattern == "family-transition-high-emotion" for rule in strategy_playbook.matched_rules)
+
+
+def test_agent_session_runner_keeps_application_checkpoint_attached_during_rare_heavy_review():
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id="phase4-review-runtime",
+        allow_live_substrate_mutation=True,
+    )
+    runner = AgentSessionRunner(
+        session_id="phase4-review-session",
+        default_residual_runtime=runtime,
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99),
+        rare_heavy_enabled=False,
+    )
+    artifact = RareHeavyArtifact(
+        artifact_id="phase4-review-artifact",
+        owner_path="offline-sslrl-pipeline",
+        created_at_ms=1,
+        temporal_snapshot=runner._joint_loop.world_temporal_policy.export_rare_heavy_snapshot(),
+        memory_checkpoint=runner._joint_loop.memory_store.export_rare_heavy_state(checkpoint_id="phase4-review-memory"),
+        substrate_checkpoint=None,
+        transition_step=0,
+        final_ssl_loss=0.1,
+        final_total_reward=0.2,
+        description="Phase 4 review artifact.",
+        application_checkpoint=ApplicationRareHeavyCheckpoint(
+            checkpoint_id="phase4-review-application",
+            domain_template_biases=(("career_decision", 0.9),),
+            case_clusters=(),
+            distilled_playbook_rules=(),
+            description="Application checkpoint carried only for review-path coverage.",
+        ),
+    )
+
+    review_result = runner.review_rare_heavy_artifact(artifact, checkpoint_id="phase4-review")
+
+    assert review_result.applied_operations == ()
+    assert review_result.checkpoint.application_checkpoint is not None
+    assert review_result.checkpoint.application_checkpoint.checkpoint_id == "phase4-review:application-review"
+    assert "session-owned review" in review_result.description
+
+
+def test_agent_session_runner_default_profile_forms_widened_phase234_chain():
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id="phase234-default-runtime",
+        allow_live_substrate_mutation=True,
+    )
+    runner = AgentSessionRunner(
+        session_id="phase234-default-chain",
+        default_residual_runtime=runtime,
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99),
+        rare_heavy_enabled=False,
+        reflection_mode=WritebackMode.APPLY,
+    )
+
+    first = asyncio.run(
+        runner.run_turn("I feel overwhelmed about divorce and need calm support with the smallest next step first.")
+    )
+
+    assert "case_memory" in first.active_snapshots
+    assert "strategy_playbook" in first.active_snapshots
+    assert "experience_fast_prior" in first.active_snapshots
+    assert "experience_consolidation" in first.active_snapshots
+
+    runner.begin_new_context(reason="phase234-default-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+    assert slow_loop_results
+
+    second = asyncio.run(runner.run_turn("Continue in the next context with what you learned."))
+    second_scores = {score.metric_name: score.value for score in second.active_snapshots["evaluation"].value.turn_scores}
+    second_fast_prior = second.active_snapshots["experience_fast_prior"].value
+    second_consolidation = second.active_snapshots["experience_consolidation"].value
+
+    assert second_consolidation.delayed_outcome_ledger
+    assert second_fast_prior.prior_strength > 0.0
+    assert "scheduler_experience_credit" in second_scores
+    assert "delayed_fast_prior_available" in second_scores
+
+    artifact = RareHeavyArtifact(
+        artifact_id="phase234-default-artifact",
+        owner_path="offline-sslrl-pipeline",
+        created_at_ms=2,
+        temporal_snapshot=runner._joint_loop.world_temporal_policy.export_rare_heavy_snapshot(),
+        memory_checkpoint=runner._joint_loop.memory_store.export_rare_heavy_state(
+            checkpoint_id="phase234-default-memory"
+        ),
+        substrate_checkpoint=None,
+        transition_step=0,
+        final_ssl_loss=0.1,
+        final_total_reward=0.2,
+        description="Phase 4 artifact for widened default profile.",
+        application_checkpoint=ApplicationRareHeavyCheckpoint(
+            checkpoint_id="phase234-default-application",
+            domain_template_biases=(("career_decision", 0.95),),
+            case_clusters=(
+                ApplicationCaseCluster(
+                    cluster_id="phase234-default-cluster",
+                    problem_pattern="family-transition-high-emotion",
+                    exemplar_count=3,
+                    mean_relevance=0.8,
+                    risk_markers=("risk-medium",),
+                    description="Cluster imported into widened default profile.",
+                ),
+            ),
+            distilled_playbook_rules=(
+                PlaybookRule(
+                    rule_id="phase234-default-playbook",
+                    problem_pattern="family-transition-high-emotion",
+                    recommended_regime="emotional_support",
+                    recommended_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                    recommended_pacing="gradual",
+                    avoid_patterns=("procedure-dump-too-early",),
+                    knowledge_weight_hint=0.3,
+                    experience_weight_hint=0.8,
+                    applicability_scope=("emotional_support",),
+                    confidence=0.84,
+                    description="Rare-heavy distilled playbook for widened default profile.",
+                ),
+            ),
+            description="Application rare-heavy checkpoint for widened default profile.",
+        ),
+    )
+
+    import_result = runner.apply_rare_heavy_artifact(artifact, checkpoint_id="phase234-default-import")
+    third = asyncio.run(runner.run_turn("Help me think through the life decision while keeping me steady."))
+    third_retrieval = third.active_snapshots["retrieval_policy"].value
+    third_case_memory = third.active_snapshots["case_memory"].value
+    third_strategy_playbook = third.active_snapshots["strategy_playbook"].value
+
+    assert "rare-heavy:application-domain-refresh" in import_result.applied_operations
+    assert "career_decision" in third_retrieval.knowledge_domains
+    assert "family-transition-high-emotion" in third_case_memory.active_problem_patterns
+    assert any(rule.rule_id == "phase234-default-playbook" for rule in third_strategy_playbook.matched_rules)
 
 
 def test_agent_session_runner_session_post_loop_fails_closed_when_apply_disabled():

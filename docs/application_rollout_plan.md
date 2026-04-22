@@ -497,3 +497,21 @@ Phase 2 要避免这两种情况。
 
 > 先让系统“知道什么时候该查什么，并且不越界”，再让系统“逐渐变得更会处理”。  
 
+### 12.1 Retrieval/Experience refit note
+
+当进入 retrieval / experience refit 时，推荐再细分为三个子阶段：
+
+1. **Boundary refactor only**
+   - 先把 `retrieval_policy` 的启发式混合抽到独立 readout seam
+   - 保持 `RetrievalPolicySnapshot` 外部 contract 不变
+   - 先收紧 owner/readout/post-writeback 边界，不急于 learned 化
+
+2. **Experience layer cleanup**
+   - 固定 `case_memory` / `strategy_playbook` / `experience_fast_prior` / `experience_consolidation` 的职责分层
+   - 去掉 session/runtime glue 中重复的经验拼装逻辑
+   - 保持 slow -> fast 只经 `experience_fast_prior`
+
+3. **Controlled learned readout insertion**
+   - 只有在前两步稳定后，才考虑把 readout seam 从手工公式替换为更 learned 的 owner-side readout
+   - 这一步仍不得新增“外挂第二 owner”，而应复用现有 ETA/NL + session-post ledger 闭环
+

@@ -12,6 +12,7 @@ from volvence_zero.application import (
     CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     CaseMemoryRecord,
+    ExperienceConsolidationSnapshot,
     ExperienceFastPriorActionBias,
     ExperienceFastPriorFamilyBias,
     ExperienceFastPriorSnapshot,
@@ -20,6 +21,15 @@ from volvence_zero.application import (
     ResponseMode,
     RiskBand,
     StrategyPlaybookPriorUpdate,
+)
+from volvence_zero.application.experience_layers import (
+    ApplicationPriorProposalBuilder,
+    ApplicationPriorProposalInputs,
+)
+from volvence_zero.application.retrieval_readout import (
+    RetrievalControlReadoutInputs,
+    RetrievalControlReadoutParameters,
+    RetrievalControlReadoutStrategy,
 )
 from volvence_zero.application.runtime import _response_ordering_plan
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
@@ -43,6 +53,83 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import ControllerState, FullLearnedTemporalPolicy, TemporalAbstractionSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
+
+
+def test_retrieval_control_readout_stays_compact_and_adjusts_domains():
+    readout = RetrievalControlReadoutStrategy().build(
+        RetrievalControlReadoutInputs(
+            regime_id="emotional_support",
+            abstract_action="stabilize_controller",
+            knowledge_domains=("family_transition",),
+            experience_domains=("general_guidance_patterns",),
+            world_weight=0.32,
+            self_weight=0.71,
+            continuum_position=0.78,
+            continuum_frequency=0.25,
+            continuum_slow_share=0.51,
+            continuum_reconstruction_pressure=0.62,
+            delayed_payoff_signal=0.58,
+            sequence_payoff_signal=0.54,
+            playbook_knowledge_hint=0.34,
+            playbook_experience_hint=0.73,
+            knowledge_weight_bias=-0.08,
+            experience_weight_bias=0.12,
+            regime_fast_prior_bias=0.05,
+            action_fast_prior_bias=0.08,
+            family_fast_prior_bias=0.06,
+            continuum_active_band_ids=("background-slow", "tower-readout"),
+        )
+    )
+
+    assert readout.knowledge_domains == ("family_transition",)
+    assert "stabilization_patterns" in readout.experience_domains
+    assert readout.experience_weight > readout.knowledge_weight
+    assert "compact ETA/application control" in readout.description
+
+
+def test_retrieval_readout_parameters_accept_bounded_slow_prior_updates():
+    base = RetrievalControlReadoutParameters.default()
+    updated = base.updated_from_slow_prior(
+        strength=0.82,
+        attribution_count=5,
+        sequence_count=3,
+        regime_bias=0.18,
+        action_bias=0.24,
+        family_bias=0.16,
+        knowledge_weight_bias=-0.10,
+        experience_weight_bias=0.14,
+    )
+
+    assert updated != base
+    assert updated.experience_weight_head.bias > base.experience_weight_head.bias
+    assert updated.knowledge_weight_head.bias < base.knowledge_weight_head.bias
+    assert updated.stabilization_domain_head.bias > base.stabilization_domain_head.bias
+
+
+def test_application_prior_proposal_builder_stays_owner_side_and_typed():
+    proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-1",
+            closed_at_turn=3,
+            regime_id="emotional_support",
+            experience_domains=("stabilization_patterns",),
+            case_problem_patterns=("family-transition-high-emotion",),
+            case_risk_markers=("risk-medium", "child-impact"),
+            boundary_trigger_reasons=("citation-required", "jurisdiction-clarification-required"),
+            knowledge_weight=0.42,
+            experience_weight=0.68,
+            case_hit_count=2,
+            mean_experience_quality=0.74,
+        )
+    )
+
+    assert proposal is not None
+    assert proposal.case_memory_updates
+    assert proposal.strategy_playbook_updates
+    assert proposal.boundary_policy_updates
+    assert proposal.case_memory_updates[0].target.startswith("application.case_memory.records.")
+    assert proposal.strategy_playbook_updates[0].rule.recommended_ordering
+    assert proposal.boundary_policy_updates[0].hint.trigger_reasons
 
 
 def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
@@ -72,10 +159,9 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
     assert "substrate_self_mod" in result.active_snapshots
-    assert "case_memory" not in result.active_snapshots
-    assert "strategy_playbook" not in result.active_snapshots
-    assert "case_memory" in result.acceptance_report.disabled_slots
-    assert "strategy_playbook" in result.acceptance_report.disabled_slots
+    assert "case_memory" in result.active_snapshots
+    assert "strategy_playbook" in result.active_snapshots
+    assert "experience_fast_prior" in result.active_snapshots
     assert result.temporal_runtime_state is not None
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
@@ -202,7 +288,7 @@ def test_final_wiring_phase3_strategy_playbook_publishes_rules_from_case_memory(
     assert "application_continuum_playbook_transfer" in metric_names
 
 
-def test_final_wiring_exposes_shadow_experience_fast_prior_contract():
+def test_final_wiring_exposes_active_experience_fast_prior_contract():
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
@@ -215,10 +301,43 @@ def test_final_wiring_exposes_shadow_experience_fast_prior_contract():
         )
     )
 
-    assert "experience_fast_prior" in result.shadow_snapshots
-    experience_fast_prior = result.shadow_snapshots["experience_fast_prior"].value
+    assert "experience_fast_prior" in result.active_snapshots
+    experience_fast_prior = result.active_snapshots["experience_fast_prior"].value
     assert experience_fast_prior.prior_strength == 0.0
     assert experience_fast_prior.source_attribution_ids == ()
+
+
+def test_final_wiring_surfaces_upstream_experience_consolidation_with_session_owned_active_level():
+    upstream_consolidation = Snapshot(
+        slot_name="experience_consolidation",
+        owner="ExperienceConsolidationModule",
+        version=3,
+        timestamp_ms=7,
+        value=ExperienceConsolidationSnapshot(
+            source_session_post_job_id="job:seeded",
+            promoted_case_count=0,
+            playbook_delta_count=0,
+            boundary_delta_count=0,
+            deltas=(),
+            description="Seeded consolidation snapshot from session-owned surface.",
+        ),
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="experience-consolidation-upstream-model",
+                feature_surface=(FeatureSignal(name="experience_consolidation_context", values=(0.52,), source="adapter"),),
+            ),
+            upstream_snapshots={"experience_consolidation": upstream_consolidation},
+            session_id="experience-consolidation-upstream-session",
+            wave_id="experience-consolidation-upstream-wave",
+        )
+    )
+
+    assert result.active_snapshots["experience_consolidation"] is upstream_consolidation
+    assert result.active_snapshots["experience_fast_prior"].value.prior_strength == 0.0
 
 
 def test_final_wiring_temporal_owner_consumes_upstream_experience_fast_prior():
@@ -434,8 +553,8 @@ def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
                 model_id="retrieval-mix-baseline",
                 feature_surface=(
-                    FeatureSignal(name="semantic_support_pull", values=(0.78,), source="adapter"),
-                    FeatureSignal(name="semantic_repair_pull", values=(0.56,), source="adapter"),
+                    FeatureSignal(name="career_decision_signal", values=(0.62,), source="adapter"),
+                    FeatureSignal(name="offer_tradeoff_signal", values=(0.71,), source="adapter"),
                 ),
             ),
             session_id="retrieval-mix-session",
@@ -452,16 +571,16 @@ def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():
             distilled_playbook_rules=(
                 PlaybookRule(
                     rule_id="playbook:eta-prior",
-                    problem_pattern="family-transition-high-emotion",
-                    recommended_regime="repair_and_deescalation",
-                    recommended_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                        problem_pattern="career_decision_tradeoff",
+                        recommended_regime="guided_exploration",
+                        recommended_ordering=("narrow_scope", "option_compare", "smallest_next_step"),
                     recommended_pacing="gradual",
                     avoid_patterns=("procedure-dump-too-early",),
                     knowledge_weight_hint=0.22,
-                    experience_weight_hint=0.82,
-                    applicability_scope=("repair_and_deescalation",),
-                    confidence=0.86,
-                    description="Distilled playbook prior for support-first retrieval mix.",
+                        experience_weight_hint=0.82,
+                        applicability_scope=("guided_exploration",),
+                        confidence=0.86,
+                        description="Distilled playbook prior for exploration-weighted retrieval mix.",
                 ),
             ),
             description="rare-heavy playbook prior",
@@ -473,8 +592,8 @@ def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
                 model_id="retrieval-mix-prior",
                 feature_surface=(
-                    FeatureSignal(name="semantic_support_pull", values=(0.78,), source="adapter"),
-                    FeatureSignal(name="semantic_repair_pull", values=(0.56,), source="adapter"),
+                    FeatureSignal(name="career_decision_signal", values=(0.62,), source="adapter"),
+                    FeatureSignal(name="offer_tradeoff_signal", values=(0.71,), source="adapter"),
                 ),
             ),
             application_rare_heavy_state=rare_heavy_state,

@@ -21,6 +21,7 @@ from volvence_zero.application.runtime import (
     RetrievalPolicySnapshot,
     StrategyPlaybookModule,
     StrategyPlaybookSnapshot,
+    RetrievalReadoutPriorUpdate,
 )
 from volvence_zero.application.storage import ApplicationCaseMemoryStore, ApplicationDomainKnowledgeStore
 from volvence_zero.credit.gate import (
@@ -94,9 +95,9 @@ class FinalRolloutConfig:
     memory: WiringLevel = WiringLevel.ACTIVE
     retrieval_policy: WiringLevel = WiringLevel.ACTIVE
     domain_knowledge: WiringLevel = WiringLevel.ACTIVE
-    case_memory: WiringLevel = WiringLevel.DISABLED
-    strategy_playbook: WiringLevel = WiringLevel.DISABLED
-    experience_fast_prior: WiringLevel = WiringLevel.SHADOW
+    case_memory: WiringLevel = WiringLevel.ACTIVE
+    strategy_playbook: WiringLevel = WiringLevel.ACTIVE
+    experience_fast_prior: WiringLevel = WiringLevel.ACTIVE
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
     response_assembly: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
@@ -107,7 +108,7 @@ class FinalRolloutConfig:
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
     session_post_slow_loop: WiringLevel = WiringLevel.SHADOW
-    experience_consolidation: WiringLevel = WiringLevel.SHADOW
+    experience_consolidation: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -395,6 +396,7 @@ def _apply_application_prior_writeback(
             *prior_update.case_memory_updates,
             *prior_update.strategy_playbook_updates,
             *prior_update.boundary_policy_updates,
+            *prior_update.retrieval_readout_updates,
         )
     )
     if not proposed_targets:
@@ -424,6 +426,9 @@ def _apply_application_prior_writeback(
 
     def current_boundary_hash() -> str:
         return stable_value_hash(application_rare_heavy_state.boundary_prior_hints)
+
+    def current_retrieval_readout_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.retrieval_readout_checkpoint)
 
     def should_block_target(target: str) -> bool:
         return credit_snapshot is not None and has_blocking_writeback(
@@ -589,6 +594,63 @@ def _apply_application_prior_writeback(
         after_hash = current_boundary_hash()
         applied_targets.append(update.target)
         applied_operations.append(f"application-prior:boundary:{update.hint.hint_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.retrieval_readout_updates:
+        before_hash = current_retrieval_readout_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application retrieval readout checkpoint writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application retrieval readout checkpoint writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.apply_retrieval_readout_checkpoint(update.checkpoint)
+        after_hash = current_retrieval_readout_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:retrieval-readout:{update.checkpoint.checkpoint_id}")
         audit_records.append(
             SelfModificationRecord(
                 target=update.target,
@@ -890,6 +952,17 @@ async def run_final_wiring_turn(
         session_id=session_id,
         wave_id=wave_id,
     )
+    if upstream_snapshots:
+        for slot_name in ("session_post_slow_loop", "experience_consolidation"):
+            upstream_snapshot = upstream_snapshots.get(slot_name)
+            if upstream_snapshot is None:
+                continue
+            resolved_level = config.level_for(slot_name, WiringLevel.DISABLED)
+            if resolved_level is WiringLevel.ACTIVE:
+                active_snapshots.setdefault(slot_name, upstream_snapshot)
+                shadow_snapshots.pop(slot_name, None)
+            elif resolved_level is WiringLevel.SHADOW:
+                shadow_snapshots.setdefault(slot_name, upstream_snapshot)
     writeback_result: WritebackResult | None = None
     writeback_source: str | None = None
     reflection_module = next((module for module in modules if isinstance(module, ReflectionModule)), None)
@@ -919,6 +992,7 @@ async def run_final_wiring_turn(
     domain_knowledge_snapshot = active_snapshots.get("domain_knowledge")
     case_memory_snapshot = active_snapshots.get("case_memory")
     strategy_playbook_snapshot = active_snapshots.get("strategy_playbook")
+    experience_fast_prior_snapshot = active_snapshots.get("experience_fast_prior")
     boundary_policy_snapshot = active_snapshots.get("boundary_policy")
     response_assembly_snapshot = active_snapshots.get("response_assembly")
     prediction_snapshot_value = (
@@ -1009,6 +1083,12 @@ async def run_final_wiring_turn(
                 strategy_playbook_snapshot.value
                 if strategy_playbook_snapshot is not None
                 and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
+                else None
+            ),
+            experience_fast_prior_snapshot=(
+                experience_fast_prior_snapshot.value
+                if experience_fast_prior_snapshot is not None
+                and isinstance(experience_fast_prior_snapshot.value, ExperienceFastPriorSnapshot)
                 else None
             ),
             boundary_policy_snapshot=(
@@ -1402,6 +1482,10 @@ def build_acceptance_report(
         recommendations.append("Keep strategy playbook as advisory prior evidence, not a second temporal owner.")
     if config.is_active("experience_fast_prior"):
         recommendations.append("Keep experience fast prior compact and advisory so downstream owners remain primary.")
+    if config.is_active("experience_consolidation"):
+        recommendations.append(
+            "Treat experience_consolidation as a session-owned post surface and pass it forward via snapshots, not a second final-wiring owner."
+        )
     if config.is_active("boundary_policy"):
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if config.is_active("response_assembly"):

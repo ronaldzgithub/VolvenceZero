@@ -104,6 +104,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 temporal owner 已支持显式消费 `experience_fast_prior`：它不会直接接收 session-post 对私有参数的写穿，而是把 public fast prior 转成 owner-side continuation bias 与 switch-pressure delta，再在 `step()` 内部作用于 action family continuation 和 switch unit
 - 当前这条 owner-side fast-prior consumption 已进一步前推到 action-family discovery / competition：public fast prior 不直接指定 family，而是作为 owner 内部的 `reuse/create/split/competition` 偏置，影响当前 active family 的 continuation、competition score、monopoly / stagnation 调节
 - 当前 ETA proof benchmark 也已接入 temporal fast prior：训练 rollouts 会把 delayed credit / family reuse / sequence completion 压缩成一个小的 temporal fast prior，再回灌到后续 proof rollouts；benchmark 会显式发布 `temporal_fast_prior_strength` 与 `temporal_fast_prior_switch_delta`
+- 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
 - `learned-lite` 仍保留为 fallback / rollback baseline；`full-learned` 是当前默认 temporal owner

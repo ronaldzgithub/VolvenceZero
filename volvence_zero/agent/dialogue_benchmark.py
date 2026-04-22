@@ -319,6 +319,10 @@ class DialogueBenchmarkTurn:
     slow_to_fast_target_distance_before: float = 0.0
     slow_to_fast_target_distance_after: float = 0.0
     slow_to_fast_target_alignment_gain: float = 0.0
+    case_memory_surface_active: bool = False
+    strategy_playbook_surface_active: bool = False
+    experience_fast_prior_surface_active: bool = False
+    experience_consolidation_surface_active: bool = False
 
 
 @dataclass(frozen=True)
@@ -383,6 +387,10 @@ class DialogueBenchmarkCaseReport:
     mean_reset_turn_slow_to_fast_target_distance_before: float = 0.0
     mean_reset_turn_slow_to_fast_target_distance_after: float = 0.0
     mean_reset_turn_slow_to_fast_target_alignment_gain: float = 0.0
+    case_memory_surface_turn_count: int = 0
+    strategy_playbook_surface_turn_count: int = 0
+    experience_fast_prior_surface_turn_count: int = 0
+    experience_consolidation_surface_turn_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -430,6 +438,10 @@ class OpenDialogueCaseReport:
     mean_memory_tower_depth: float = 0.0
     mean_memory_tower_alignment: float = 0.0
     memory_tower_profile_turn_count: int = 0
+    case_memory_surface_turn_count: int = 0
+    strategy_playbook_surface_turn_count: int = 0
+    experience_fast_prior_surface_turn_count: int = 0
+    experience_consolidation_surface_turn_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -2115,6 +2127,18 @@ def build_open_dialogue_case_report(
     online_fast_substrate_applied_count = sum(
         1 for turn in turns if turn.online_fast_substrate_applied
     )
+    case_memory_surface_turn_count = sum(
+        1 for turn in turns if turn.case_memory_surface_active
+    )
+    strategy_playbook_surface_turn_count = sum(
+        1 for turn in turns if turn.strategy_playbook_surface_active
+    )
+    experience_fast_prior_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_fast_prior_surface_active
+    )
+    experience_consolidation_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_consolidation_surface_active
+    )
     mean_online_fast_substrate_parameter_change_rate = _mean(
         tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
     )
@@ -2164,6 +2188,18 @@ def build_open_dialogue_case_report(
     )
     online_fast_substrate_applied_count = sum(
         1 for turn in turns if turn.online_fast_substrate_applied
+    )
+    case_memory_surface_turn_count = sum(
+        1 for turn in turns if turn.case_memory_surface_active
+    )
+    strategy_playbook_surface_turn_count = sum(
+        1 for turn in turns if turn.strategy_playbook_surface_active
+    )
+    experience_fast_prior_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_fast_prior_surface_active
+    )
+    experience_consolidation_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_consolidation_surface_active
     )
     mean_online_fast_substrate_parameter_change_rate = _mean(
         tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
@@ -2237,6 +2273,10 @@ def build_open_dialogue_case_report(
         online_fast_substrate_applied_count=online_fast_substrate_applied_count,
         mean_online_fast_substrate_parameter_change_rate=mean_online_fast_substrate_parameter_change_rate,
         mean_online_fast_substrate_optimizer_state_norm=mean_online_fast_substrate_optimizer_state_norm,
+        case_memory_surface_turn_count=case_memory_surface_turn_count,
+        strategy_playbook_surface_turn_count=strategy_playbook_surface_turn_count,
+        experience_fast_prior_surface_turn_count=experience_fast_prior_surface_turn_count,
+        experience_consolidation_surface_turn_count=experience_consolidation_surface_turn_count,
         temporal_change_count=temporal_change_count,
         late_episode_stability_score=late_episode_stability_score,
         delayed_improvement_observed=delayed_improvement_observed,
@@ -2469,6 +2509,18 @@ def build_dialogue_case_report(
     online_fast_substrate_applied_count = sum(
         1 for turn in turns if turn.online_fast_substrate_applied
     )
+    case_memory_surface_turn_count = sum(
+        1 for turn in turns if turn.case_memory_surface_active
+    )
+    strategy_playbook_surface_turn_count = sum(
+        1 for turn in turns if turn.strategy_playbook_surface_active
+    )
+    experience_fast_prior_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_fast_prior_surface_active
+    )
+    experience_consolidation_surface_turn_count = sum(
+        1 for turn in turns if turn.experience_consolidation_surface_active
+    )
     mean_online_fast_substrate_parameter_change_rate = _mean(
         tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
     )
@@ -2536,6 +2588,10 @@ def build_dialogue_case_report(
         online_fast_substrate_applied_count=online_fast_substrate_applied_count,
         mean_online_fast_substrate_parameter_change_rate=mean_online_fast_substrate_parameter_change_rate,
         mean_online_fast_substrate_optimizer_state_norm=mean_online_fast_substrate_optimizer_state_norm,
+        case_memory_surface_turn_count=case_memory_surface_turn_count,
+        strategy_playbook_surface_turn_count=strategy_playbook_surface_turn_count,
+        experience_fast_prior_surface_turn_count=experience_fast_prior_surface_turn_count,
+        experience_consolidation_surface_turn_count=experience_consolidation_surface_turn_count,
         temporal_change_count=temporal_change_count,
         delayed_improvement_observed=delayed_improvement_observed,
         acceptance_checks=acceptance_checks,
@@ -2600,6 +2656,7 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         if result.evolution_judgement is not None
         else None
     )
+    active_slots = result.active_snapshots
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
         wave_id=result.wave_id,
@@ -2698,6 +2755,10 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
             if result.online_fast_substrate_result is not None
             else 0.0
         ),
+        case_memory_surface_active="case_memory" in active_slots,
+        strategy_playbook_surface_active="strategy_playbook" in active_slots,
+        experience_fast_prior_surface_active="experience_fast_prior" in active_slots,
+        experience_consolidation_surface_active="experience_consolidation" in active_slots,
     )
 
 
@@ -2782,6 +2843,10 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
         ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
         ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
+        ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
+        ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
+        ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
+        ("experience_consolidation_surface_turn_count", float(report.experience_consolidation_surface_turn_count)),
         ("rare_heavy_recommended_count", float(report.rare_heavy_recommended_count)),
         ("rare_heavy_applied_count", float(report.rare_heavy_applied_count)),
         ("rare_heavy_pre_import_pass_count", float(report.rare_heavy_pre_import_pass_count)),
@@ -3011,6 +3076,10 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
         ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
         ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
+        ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
+        ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
+        ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
+        ("experience_consolidation_surface_turn_count", float(report.experience_consolidation_surface_turn_count)),
         ("rare_heavy_recommended_count", float(report.rare_heavy_recommended_count)),
         ("rare_heavy_applied_count", float(report.rare_heavy_applied_count)),
         ("rare_heavy_pre_import_pass_count", float(report.rare_heavy_pre_import_pass_count)),

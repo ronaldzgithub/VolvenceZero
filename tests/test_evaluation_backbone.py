@@ -520,6 +520,56 @@ def test_evaluation_backbone_can_judge_evolution_candidate():
     assert judgement.category
 
 
+def test_evaluation_backbone_judge_handles_playbook_confidence_without_delayed_payoffs():
+    from uuid import uuid4
+
+    backbone = EvaluationBackbone()
+    benchmark = backbone.run_default_evolution_benchmark(timestamp_ms=100)
+    report = EvaluationReport(
+        report_id=str(uuid4()),
+        report_type="session",
+        timestamp_ms=300,
+        session_ids=("judge-playbook-only",),
+        scores_by_family=(
+            (
+                "learning",
+                (
+                    EvaluationRecord(
+                        record_id=str(uuid4()),
+                        session_id="judge-playbook-only",
+                        wave_id="wave-1",
+                        timestamp_ms=1,
+                        timescale="session",
+                        family="learning",
+                        metric_name="playbook_confidence_mean",
+                        value=0.71,
+                        confidence=0.7,
+                        track="cross",
+                        evidence="playbook confidence available before delayed payoff evidence matures",
+                        signal_sources=(),
+                    ),
+                ),
+            ),
+        ),
+        alerts=(),
+        trends=(
+            ("learning", "learning_quality", 0.05),
+            ("abstraction", "abstraction_reuse", 0.04),
+            ("relationship", "relationship_continuity", 0.02),
+        ),
+        recommendations=(),
+        description="playbook-only report",
+    )
+
+    judgement = backbone.judge_evolution_candidate(
+        replay_suite_result=benchmark,
+        session_report=report,
+    )
+
+    assert judgement.decision in {EvolutionDecision.PROMOTE, EvolutionDecision.HOLD}
+    assert judgement.category is not None
+
+
 def test_cross_session_benchmark_computes_growth_verdict():
     from uuid import uuid4
 
