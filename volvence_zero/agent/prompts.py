@@ -87,6 +87,38 @@ def build_system_prompt(
     if controller_description:
         sections.append(f"Internal state: {controller_description}")
 
+    if context.knowledge_summaries:
+        knowledge_text = "; ".join(context.knowledge_summaries[:3])
+        sections.append(f"Relevant domain guidance: {knowledge_text}")
+
+    if context.case_patterns:
+        sections.append(
+            "Relevant prior case patterns: " + "; ".join(context.case_patterns[:3])
+        )
+
+    if context.citation_required:
+        sections.append(
+            "When giving factual or procedural guidance, keep it bounded, high-level, and clearly grounded "
+            "in sourceable information rather than sounding definitive."
+        )
+
+    if context.boundary_clarification_required:
+        sections.append(
+            "Some domain-critical context is still missing. Ask for the missing local or factual detail before "
+            "you over-commit."
+        )
+
+    if context.boundary_refer_out_required:
+        sections.append(
+            "The current boundary state requires a cautious response. Stay supportive, avoid definitive domain "
+            "conclusions, and encourage appropriate professional follow-up."
+        )
+
+    if context.boundary_required_disclaimers:
+        sections.append(
+            "Boundary reminders: " + "; ".join(context.boundary_required_disclaimers[:3])
+        )
+
     if context.regime_switched:
         sections.append(
             "You have just shifted your interaction frame. "

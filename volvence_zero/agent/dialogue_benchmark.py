@@ -9,14 +9,24 @@ import pickle
 from random import Random
 from typing import Any, Protocol
 
+from volvence_zero.agent.paper_suite import (
+    PaperMetricSpec,
+    PaperProfileSpec,
+    PaperSuiteManifest,
+    PaperSuiteProvenance,
+    collect_paper_suite_provenance,
+    export_json_artifact,
+)
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
-from volvence_zero.evaluation import (
+from volvence_zero.evaluation.backbone import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
     EvaluationReport,
     EvaluationSnapshot,
     EvolutionDecision,
     JudgementCategory,
+    MetricIntervalSummary,
+    build_metric_interval_summaries,
 )
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop import (
@@ -259,6 +269,7 @@ class DialogueBenchmarkTurn:
     turn_index: int
     wave_id: str
     user_input: str
+    assistant_response_text: str
     acceptance_passed: bool
     active_regime: str | None
     active_abstract_action: str | None
@@ -294,9 +305,13 @@ class DialogueBenchmarkTurn:
     rare_heavy_candidate_adapter_parameter_count: int = 0
     learned_memory_primary: bool = False
     artifact_consolidation_count: int = 0
+    tower_consolidation_count: int = 0
     learned_recall_count: int = 0
     learned_recall_confidence: float = 0.0
     learned_recall_core_guided: bool = False
+    memory_tower_depth: int = 0
+    memory_tower_alignment: float = 0.0
+    memory_tower_profile_id: str = ""
     online_fast_substrate_recommended: bool = False
     online_fast_substrate_applied: bool = False
     online_fast_substrate_parameter_change_rate: float = 0.0
@@ -354,6 +369,10 @@ class DialogueBenchmarkCaseReport:
     core_guided_recall_turn_count: int = 0
     mean_learned_recall_confidence: float = 0.0
     max_artifact_consolidation_count: int = 0
+    max_tower_consolidation_count: int = 0
+    mean_memory_tower_depth: float = 0.0
+    mean_memory_tower_alignment: float = 0.0
+    memory_tower_profile_turn_count: int = 0
     online_fast_substrate_recommended_count: int = 0
     online_fast_substrate_applied_count: int = 0
     mean_online_fast_substrate_parameter_change_rate: float = 0.0
@@ -407,6 +426,10 @@ class OpenDialogueCaseReport:
     passed: bool
     reasons: tuple[str, ...]
     description: str
+    max_tower_consolidation_count: int = 0
+    mean_memory_tower_depth: float = 0.0
+    mean_memory_tower_alignment: float = 0.0
+    memory_tower_profile_turn_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -567,6 +590,9 @@ class DialogueEmergenceDashboardPanel:
     delayed_improvement_delta: float
     stability_delta: float
     mean_prediction_error_delta: float
+    memory_tower_depth_delta: float
+    memory_tower_alignment_delta: float
+    tower_consolidation_delta: float
     retention_score: float
     description: str
 
@@ -576,12 +602,21 @@ class DialogueEmergenceDashboardArtifact:
     baseline_label: str
     canonical_case_count: int
     canonical_pass_rate: float
+    canonical_mean_memory_tower_depth: float
+    canonical_mean_memory_tower_alignment: float
+    canonical_max_tower_consolidation_count: float
+    canonical_tower_profile_turn_count: float
     open_scenario_count: int
     open_pass_rate: float
+    open_mean_memory_tower_depth: float
+    open_mean_memory_tower_alignment: float
+    open_max_tower_consolidation_count: float
     strong_proof_panels: tuple[DialogueEmergenceDashboardPanel, ...]
     open_environment_panels: tuple[DialogueEmergenceDashboardPanel, ...]
     pe_dominance_report: PEDominanceComparisonReport | None
     pe_case_diagnosis_report: PEDominanceCaseDiagnosisReport | None
+    tower_memory_gate_passed: bool
+    tower_memory_gate_strength: float
     strongest_scaffold_path_label: str | None
     strongest_scaffold_retention_score: float
     strongest_open_path_label: str | None
@@ -736,6 +771,61 @@ class DialogueComprehensiveBenchmarkReport:
     selection_artifact: DialogueReplaySelectionArtifact
     artifact_comparison_report: DialogueArtifactComparisonReport
     emergence_dashboard: DialogueEmergenceDashboardArtifact
+    description: str
+
+
+@dataclass(frozen=True)
+class DialoguePaperSuiteRunSummary:
+    run_id: str
+    run_seed: int
+    metric_values: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialoguePaperSuiteAggregateReport:
+    manifest: PaperSuiteManifest
+    provenance: PaperSuiteProvenance
+    run_summaries: tuple[DialoguePaperSuiteRunSummary, ...]
+    reference_run_report: DialogueComprehensiveBenchmarkReport | None
+    primary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewDimension:
+    dimension_id: str
+    prompt: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewSample:
+    sample_id: str
+    blinded_label: str
+    transcript: tuple[tuple[str, str], ...]
+    source_profile_label: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewItem:
+    item_id: str
+    case_id: str
+    case_description: str
+    samples: tuple[DialogueExpertReviewSample, ...]
+    review_dimensions: tuple[DialogueExpertReviewDimension, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewPacket:
+    packet_id: str
+    source_suite_id: str
+    baseline_label: str
+    items: tuple[DialogueExpertReviewItem, ...]
+    review_dimensions: tuple[DialogueExpertReviewDimension, ...]
     description: str
 
 
@@ -1028,6 +1118,186 @@ def default_dialogue_comprehensive_profiles() -> tuple[str, ...]:
         "pe-drive-off",
         "eta-off",
         "timescale-off",
+    )
+
+
+def build_dialogue_paper_suite_manifest(
+    *,
+    suite_tier: str = "paper-suite-small",
+) -> PaperSuiteManifest:
+    if suite_tier == "ci-smoke":
+        repeat_count = 1
+        seed_schedule = (0,)
+        canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES[:2])
+        open_scenario_ids = (DEFAULT_OPEN_DIALOGUE_SCENARIOS[0].scenario_id,)
+        perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS[:2])
+        replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1])
+        profile_labels = ("pe-eta", "pe-drive-off", "eta-off")
+        candidate_labels = ("balanced",)
+    elif suite_tier == "paper-suite-full":
+        repeat_count = 3
+        seed_schedule = (0, 1, 2)
+        canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES)
+        open_scenario_ids = tuple(scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS)
+        perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS)
+        replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES)
+        profile_labels = default_dialogue_comprehensive_profiles()
+        candidate_labels = tuple(label for label, _ in DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS)
+    elif suite_tier == "paper-suite-small":
+        repeat_count = 2
+        seed_schedule = (0, 1)
+        canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES[:3])
+        open_scenario_ids = tuple(scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS[:2])
+        perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS[:4])
+        replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:2])
+        profile_labels = default_dialogue_comprehensive_profiles()
+        candidate_labels = tuple(label for label, _ in DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:2])
+    else:
+        raise ValueError(f"Unsupported dialogue paper suite tier {suite_tier!r}.")
+    profiles = tuple(
+        PaperProfileSpec(
+            profile_label=profile_label,
+            role="baseline" if profile_label == "pe-eta" else "matched-control",
+            description=f"Dialogue paper-suite profile {profile_label}.",
+        )
+        for profile_label in profile_labels
+    )
+    primary_metrics = (
+        PaperMetricSpec(
+            metric_name="canonical_pass_rate_pe_eta",
+            role="primary",
+            direction="higher-is-better",
+            description="Canonical scripted pass rate for the full PE+ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_pass_rate_gap_vs_pe_drive_off",
+            role="primary",
+            direction="higher-is-better",
+            description="Gap between the full path and PE-drive-off on canonical cases.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_pass_rate_gap_vs_eta_off",
+            role="primary",
+            direction="higher-is-better",
+            description="Gap between the full path and ETA-off on canonical cases.",
+        ),
+        PaperMetricSpec(
+            metric_name="perturbation_pass_rate_pe_eta",
+            role="primary",
+            direction="higher-is-better",
+            description="Perturbation pass rate for the full PE+ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="open_pass_rate_pe_eta",
+            role="primary",
+            direction="higher-is-better",
+            description="Open-environment pass rate for the full PE+ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="open_pass_rate_gap_vs_pe_drive_off",
+            role="primary",
+            direction="higher-is-better",
+            description="Open-environment gap between the full path and PE-drive-off.",
+        ),
+        PaperMetricSpec(
+            metric_name="essence_gate_pass_fraction",
+            role="primary",
+            direction="higher-is-better",
+            description="Fraction of NL essence gates passed in the comprehensive run.",
+        ),
+        PaperMetricSpec(
+            metric_name="strongest_scaffold_retention_score",
+            role="primary",
+            direction="higher-is-better",
+            description="Best retained strong-proof score reported by the emergence dashboard.",
+        ),
+    )
+    secondary_metrics = (
+        PaperMetricSpec(
+            metric_name="strongest_open_retention_score",
+            role="secondary",
+            direction="higher-is-better",
+            description="Best retained open-environment score reported by the emergence dashboard.",
+        ),
+        PaperMetricSpec(
+            metric_name="artifact_candidate_mean_score_delta",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean score delta of the chosen rare-heavy candidate.",
+        ),
+        PaperMetricSpec(
+            metric_name="rare_heavy_gate_pass",
+            role="secondary",
+            direction="higher-is-better",
+            description="Whether the rare-heavy net-benefit gate passed in the essence report.",
+        ),
+    )
+    return PaperSuiteManifest(
+        suite_id=f"dialogue-{suite_tier}",
+        suite_kind="dialogue-comprehensive",
+        suite_tier=suite_tier,
+        version=1,
+        baseline_label="pe-eta",
+        repeat_count=repeat_count,
+        seed_schedule=seed_schedule,
+        profiles=profiles,
+        primary_metrics=primary_metrics,
+        secondary_metrics=secondary_metrics,
+        case_groups=(
+            ("canonical_case_ids", canonical_case_ids),
+            ("open_scenario_ids", open_scenario_ids),
+            ("perturbation_variant_ids", perturbation_variant_ids),
+            ("replay_family_ids", replay_family_ids),
+            ("candidate_labels", candidate_labels),
+        ),
+        artifact_expectations=(
+            "per-run staged checkpoint directories",
+            "aggregate summary json",
+            "emergence dashboard json",
+            "provenance json",
+            "expert review packet json",
+        ),
+        description=(
+            f"Frozen dialogue paper suite {suite_tier} with {repeat_count} repeated runs "
+            f"and baseline={profiles[0].profile_label}."
+        ),
+    )
+
+
+def dialogue_paper_suite_config(
+    manifest: PaperSuiteManifest,
+    *,
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+) -> DialogueRealComprehensiveBenchmarkConfig:
+    case_groups = {name: values for name, values in manifest.case_groups}
+    profile_labels = tuple(profile.profile_label for profile in manifest.profiles)
+    open_profiles = tuple(
+        profile.profile_label
+        for profile in manifest.profiles
+        if profile.profile_label in default_open_dialogue_ablation_profiles()
+    )
+    candidate_labels = set(case_groups.get("candidate_labels", ()))
+    selected_candidate_configs = tuple(
+        config for config in DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS if config[0] in candidate_labels
+    )
+    return DialogueRealComprehensiveBenchmarkConfig(
+        runtime_mode=runtime_mode,
+        profile_labels=profile_labels,
+        baseline_label=manifest.baseline_label,
+        canonical_case_limit=len(case_groups.get("canonical_case_ids", ())) or None,
+        open_profile_labels=open_profiles or default_open_dialogue_ablation_profiles(),
+        open_scenario_limit=len(case_groups.get("open_scenario_ids", ())) or None,
+        perturbation_variant_limit=len(case_groups.get("perturbation_variant_ids", ())) or None,
+        replay_family_limit=len(case_groups.get("replay_family_ids", ())) or None,
+        replay_seeds=(manifest.seed_schedule[0],) if manifest.seed_schedule else (0,),
+        selection_top_k=min(4, max(1, len(case_groups.get("perturbation_variant_ids", ())) or 1)),
+        candidate_configs=selected_candidate_configs or DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
+        candidate_config_limit=len(selected_candidate_configs) if selected_candidate_configs else None,
+        acceptance_profile_label=manifest.baseline_label,
+        proof_min_canonical_cases=min(
+            max(1, len(case_groups.get("canonical_case_ids", ()))),
+            PROOF_MIN_CANONICAL_CASES,
+        ),
     )
 
 
@@ -1852,6 +2122,19 @@ def build_open_dialogue_case_report(
     mean_slow_to_fast_init_benefit = _mean(
         tuple(turn.slow_to_fast_init_benefit for turn in turns)
     )
+    max_tower_consolidation_count = max(
+        (turn.tower_consolidation_count for turn in turns),
+        default=0,
+    )
+    mean_memory_tower_depth = _mean(
+        tuple(float(turn.memory_tower_depth) for turn in turns)
+    )
+    mean_memory_tower_alignment = _mean(
+        tuple(turn.memory_tower_alignment for turn in turns)
+    )
+    memory_tower_profile_turn_count = sum(
+        1 for turn in turns if turn.memory_tower_profile_id
+    )
     online_fast_substrate_recommended_count = sum(
         1 for turn in turns if turn.online_fast_substrate_recommended
     )
@@ -1944,8 +2227,15 @@ def build_open_dialogue_case_report(
             f"online_fast_substrate_applied={online_fast_substrate_applied_count} "
             f"online_fast_change_rate={mean_online_fast_substrate_parameter_change_rate:.3f} "
             f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f} "
+            f"tower_depth={mean_memory_tower_depth:.2f} "
+            f"tower_alignment={mean_memory_tower_alignment:.2f} "
+            f"tower_consolidation_max={max_tower_consolidation_count} "
             f"late_stability={late_episode_stability_score:.2f} delayed_improvement={delayed_improvement_observed}."
         ),
+        max_tower_consolidation_count=max_tower_consolidation_count,
+        mean_memory_tower_depth=mean_memory_tower_depth,
+        mean_memory_tower_alignment=mean_memory_tower_alignment,
+        memory_tower_profile_turn_count=memory_tower_profile_turn_count,
     )
 
 
@@ -2136,6 +2426,19 @@ def build_dialogue_case_report(
         (turn.artifact_consolidation_count for turn in turns),
         default=0,
     )
+    max_tower_consolidation_count = max(
+        (turn.tower_consolidation_count for turn in turns),
+        default=0,
+    )
+    mean_memory_tower_depth = _mean(
+        tuple(float(turn.memory_tower_depth) for turn in turns)
+    )
+    mean_memory_tower_alignment = _mean(
+        tuple(turn.memory_tower_alignment for turn in turns)
+    )
+    memory_tower_profile_turn_count = sum(
+        1 for turn in turns if turn.memory_tower_profile_id
+    )
     online_fast_substrate_recommended_count = sum(
         1 for turn in turns if turn.online_fast_substrate_recommended
     )
@@ -2238,6 +2541,9 @@ def build_dialogue_case_report(
             f"learned_primary_turns={learned_memory_primary_turn_count}, "
             f"core_guided_recall_turns={core_guided_recall_turn_count}, "
             f"mean_recall_confidence={mean_learned_recall_confidence:.2f}, "
+            f"tower_depth={mean_memory_tower_depth:.2f}, "
+            f"tower_alignment={mean_memory_tower_alignment:.2f}, "
+            f"tower_consolidation_max={max_tower_consolidation_count}, "
             f"temporal_changes={temporal_change_count}, "
             f"switch_gate_span={switch_gate_span:.2f}, delayed_improvement={delayed_improvement_observed}."
         ),
@@ -2245,6 +2551,10 @@ def build_dialogue_case_report(
         core_guided_recall_turn_count=core_guided_recall_turn_count,
         mean_learned_recall_confidence=mean_learned_recall_confidence,
         max_artifact_consolidation_count=max_artifact_consolidation_count,
+        max_tower_consolidation_count=max_tower_consolidation_count,
+        mean_memory_tower_depth=mean_memory_tower_depth,
+        mean_memory_tower_alignment=mean_memory_tower_alignment,
+        memory_tower_profile_turn_count=memory_tower_profile_turn_count,
     )
 
 
@@ -2270,6 +2580,7 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         turn_index=turn_index,
         wave_id=result.wave_id,
         user_input=user_input,
+        assistant_response_text=result.response.text,
         acceptance_passed=result.acceptance_passed,
         active_regime=result.active_regime,
         active_abstract_action=result.active_abstract_action,
@@ -2340,9 +2651,13 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         ),
         learned_memory_primary=result.learned_memory_primary,
         artifact_consolidation_count=result.artifact_consolidation_count,
+        tower_consolidation_count=result.tower_consolidation_count,
         learned_recall_count=result.learned_recall_count,
         learned_recall_confidence=result.learned_recall_confidence,
         learned_recall_core_guided=result.learned_recall_core_guided,
+        memory_tower_depth=result.memory_tower_depth,
+        memory_tower_alignment=result.memory_tower_alignment,
+        memory_tower_profile_id=result.memory_tower_profile_id,
         online_fast_substrate_recommended=bool(
             result.online_fast_substrate_result is not None and result.online_fast_substrate_result.recommended
         ),
@@ -2460,6 +2775,10 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("nested_context_reset_count", float(report.nested_context_reset_count)),
         ("store_nested_context_reset_count", float(report.store_nested_context_reset_count)),
         ("mean_slow_to_fast_init_benefit", report.mean_slow_to_fast_init_benefit),
+        ("max_tower_consolidation_count", float(report.max_tower_consolidation_count)),
+        ("mean_memory_tower_depth", report.mean_memory_tower_depth),
+        ("mean_memory_tower_alignment", report.mean_memory_tower_alignment),
+        ("memory_tower_profile_turn_count", float(report.memory_tower_profile_turn_count)),
         ("temporal_change_count", float(report.temporal_change_count)),
         ("late_episode_stability_score", report.late_episode_stability_score),
         ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
@@ -2716,6 +3035,10 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("core_guided_recall_turn_count", float(report.core_guided_recall_turn_count)),
         ("mean_learned_recall_confidence", report.mean_learned_recall_confidence),
         ("max_artifact_consolidation_count", float(report.max_artifact_consolidation_count)),
+        ("max_tower_consolidation_count", float(report.max_tower_consolidation_count)),
+        ("mean_memory_tower_depth", report.mean_memory_tower_depth),
+        ("mean_memory_tower_alignment", report.mean_memory_tower_alignment),
+        ("memory_tower_profile_turn_count", float(report.memory_tower_profile_turn_count)),
         ("temporal_change_count", float(report.temporal_change_count)),
         ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
         ("mean_prediction_error", mean_pe),
@@ -3172,6 +3495,7 @@ def build_dialogue_nl_essence_assessment(
         )
         and evidence_metric_means.get("nested_profile_active_turn_count", 0.0) > 0.0
         and evidence_metric_means.get("learned_memory_primary_turn_count", 0.0) > 0.0
+        and evidence_metric_means.get("memory_tower_profile_turn_count", 0.0) > 0.0
     )
     online_fast_pe_coupling_passed = (
         evidence_metric_means.get("pe_triggered_turn_count", 0.0) > 0.0
@@ -3217,6 +3541,16 @@ def build_dialogue_nl_essence_assessment(
     slow_to_fast_passed = (
         store_nested_reset_count > 0.0
         and reset_turn_slow_to_fast_init_benefit > PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD
+    )
+    memory_tower_depth = evidence_metric_means.get("mean_memory_tower_depth", 0.0)
+    memory_tower_alignment = evidence_metric_means.get("mean_memory_tower_alignment", 0.0)
+    tower_consolidation_count = evidence_metric_means.get("max_tower_consolidation_count", 0.0)
+    tower_profile_turn_count = evidence_metric_means.get("memory_tower_profile_turn_count", 0.0)
+    tower_memory_surface_passed = (
+        tower_profile_turn_count > 0.0
+        and memory_tower_depth >= 4.0
+        and memory_tower_alignment >= 0.0
+        and tower_consolidation_count > 0.0
     )
     judge_gated_passed = (
         evidence_metric_means.get("evolution_judge_turn_count", 0.0) > 0.0
@@ -3281,6 +3615,9 @@ def build_dialogue_nl_essence_assessment(
                 ("rare_heavy_recommended_count", evidence_metric_means.get("rare_heavy_recommended_count", 0.0)),
                 ("nested_profile_active_turn_count", evidence_metric_means.get("nested_profile_active_turn_count", 0.0)),
                 ("learned_memory_primary_turn_count", evidence_metric_means.get("learned_memory_primary_turn_count", 0.0)),
+                ("memory_tower_profile_turn_count", tower_profile_turn_count),
+                ("mean_memory_tower_depth", memory_tower_depth),
+                ("mean_memory_tower_alignment", memory_tower_alignment),
             ),
             description="Default path should activate online, background, and nested-memory learning surfaces together.",
         ),
@@ -3339,9 +3676,24 @@ def build_dialogue_nl_essence_assessment(
                 ("core_guided_recall_turn_count", evidence_metric_means.get("core_guided_recall_turn_count", 0.0)),
                 ("mean_learned_recall_confidence", evidence_metric_means.get("mean_learned_recall_confidence", 0.0)),
                 ("max_artifact_consolidation_count", evidence_metric_means.get("max_artifact_consolidation_count", 0.0)),
+                ("max_tower_consolidation_count", tower_consolidation_count),
+                ("mean_memory_tower_depth", memory_tower_depth),
+                ("mean_memory_tower_alignment", memory_tower_alignment),
+                ("memory_tower_profile_turn_count", tower_profile_turn_count),
                 ("failure_mode", slow_shapes_fast_failure_mode),
             ),
             description="Slow-layer state should seed faster bands through observable nested reset behavior.",
+        ),
+        DialogueNLEssenceGate(
+            gate_id="tower-memory-surface",
+            passed=tower_memory_surface_passed,
+            evidence=(
+                ("memory_tower_profile_turn_count", tower_profile_turn_count),
+                ("mean_memory_tower_depth", memory_tower_depth),
+                ("mean_memory_tower_alignment", memory_tower_alignment),
+                ("max_tower_consolidation_count", tower_consolidation_count),
+            ),
+            description="Memory tower telemetry should be observable on the benchmark path, not only legacy reset and recall counters.",
         ),
         DialogueNLEssenceGate(
             gate_id="judge-gated-evolution",
@@ -3622,6 +3974,390 @@ def export_dialogue_emergence_dashboard_artifact(
         encoding="utf-8",
     )
     return target_path
+
+
+def _benchmark_pass_rate(passed_case_count: int, total_case_count: int) -> float:
+    if total_case_count <= 0:
+        return 0.0
+    return passed_case_count / total_case_count
+
+
+def _dialogue_path_report_by_label(
+    comparison_report: DialogueBenchmarkComparisonReport,
+    profile_label: str,
+) -> DialogueBenchmarkPathReport | None:
+    return next(
+        (path for path in comparison_report.path_reports if path.path_label == profile_label),
+        None,
+    )
+
+
+def _open_dialogue_path_report_by_label(
+    comparison_report: OpenDialogueBenchmarkComparisonReport | None,
+    profile_label: str,
+) -> OpenDialogueBenchmarkPathReport | None:
+    if comparison_report is None:
+        return None
+    return next(
+        (path for path in comparison_report.path_reports if path.path_label == profile_label),
+        None,
+    )
+
+
+def _dialogue_paper_suite_metric_values(
+    report: DialogueComprehensiveBenchmarkReport,
+) -> tuple[tuple[str, float], ...]:
+    canonical_pe_eta = _dialogue_path_report_by_label(report.canonical_ablation_report, "pe-eta")
+    canonical_pe_drive_off = _dialogue_path_report_by_label(report.canonical_ablation_report, "pe-drive-off")
+    canonical_eta_off = _dialogue_path_report_by_label(report.canonical_ablation_report, "eta-off")
+    perturbation_pe_eta = _dialogue_path_report_by_label(report.perturbation_report.comparison_report, "pe-eta")
+    open_pe_eta = _open_dialogue_path_report_by_label(report.open_ablation_report, "pe-eta")
+    open_pe_drive_off = _open_dialogue_path_report_by_label(report.open_ablation_report, "pe-drive-off")
+    chosen_candidate = next(
+        (
+            candidate
+            for candidate in report.artifact_comparison_report.candidate_reports
+            if candidate.candidate_label == report.artifact_comparison_report.chosen_candidate_label
+        ),
+        None,
+    )
+    rare_heavy_gate = next(
+        (gate for gate in report.essence_report.gates if gate.gate_id == "rare-heavy-net-benefit"),
+        None,
+    )
+    canonical_pass_rate_pe_eta = _benchmark_pass_rate(
+        canonical_pe_eta.benchmark_report.passed_case_count,
+        canonical_pe_eta.benchmark_report.total_case_count,
+    ) if canonical_pe_eta is not None else 0.0
+    canonical_pass_rate_pe_drive_off = _benchmark_pass_rate(
+        canonical_pe_drive_off.benchmark_report.passed_case_count,
+        canonical_pe_drive_off.benchmark_report.total_case_count,
+    ) if canonical_pe_drive_off is not None else 0.0
+    canonical_pass_rate_eta_off = _benchmark_pass_rate(
+        canonical_eta_off.benchmark_report.passed_case_count,
+        canonical_eta_off.benchmark_report.total_case_count,
+    ) if canonical_eta_off is not None else 0.0
+    perturbation_pass_rate_pe_eta = _benchmark_pass_rate(
+        perturbation_pe_eta.benchmark_report.passed_case_count,
+        perturbation_pe_eta.benchmark_report.total_case_count,
+    ) if perturbation_pe_eta is not None else 0.0
+    open_pass_rate_pe_eta = _benchmark_pass_rate(
+        open_pe_eta.benchmark_report.passed_case_count,
+        open_pe_eta.benchmark_report.total_case_count,
+    ) if open_pe_eta is not None else 0.0
+    open_pass_rate_pe_drive_off = _benchmark_pass_rate(
+        open_pe_drive_off.benchmark_report.passed_case_count,
+        open_pe_drive_off.benchmark_report.total_case_count,
+    ) if open_pe_drive_off is not None else 0.0
+    essence_gate_pass_fraction = (
+        report.essence_report.passed_gate_count / report.essence_report.total_gate_count
+        if report.essence_report.total_gate_count > 0
+        else 0.0
+    )
+    return (
+        ("canonical_pass_rate_pe_eta", canonical_pass_rate_pe_eta),
+        ("canonical_pass_rate_gap_vs_pe_drive_off", canonical_pass_rate_pe_eta - canonical_pass_rate_pe_drive_off),
+        ("canonical_pass_rate_gap_vs_eta_off", canonical_pass_rate_pe_eta - canonical_pass_rate_eta_off),
+        ("perturbation_pass_rate_pe_eta", perturbation_pass_rate_pe_eta),
+        ("open_pass_rate_pe_eta", open_pass_rate_pe_eta),
+        ("open_pass_rate_gap_vs_pe_drive_off", open_pass_rate_pe_eta - open_pass_rate_pe_drive_off),
+        ("essence_gate_pass_fraction", essence_gate_pass_fraction),
+        (
+            "strongest_scaffold_retention_score",
+            report.emergence_dashboard.strongest_scaffold_retention_score,
+        ),
+        (
+            "strongest_open_retention_score",
+            report.emergence_dashboard.strongest_open_retention_score,
+        ),
+        (
+            "artifact_candidate_mean_score_delta",
+            chosen_candidate.acceptance_report.mean_score_delta if chosen_candidate is not None else 0.0,
+        ),
+        ("rare_heavy_gate_pass", float(rare_heavy_gate.passed) if rare_heavy_gate is not None else 0.0),
+    )
+
+
+def _dialogue_metric_samples(
+    *,
+    run_summaries: tuple[DialoguePaperSuiteRunSummary, ...],
+    metric_names: tuple[str, ...],
+) -> dict[str, tuple[float, ...]]:
+    summary_maps = [dict(summary.metric_values) for summary in run_summaries]
+    return {
+        metric_name: tuple(summary_map.get(metric_name, 0.0) for summary_map in summary_maps)
+        for metric_name in metric_names
+    }
+
+
+def _repo_root_from_dialogue_module() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+async def run_dialogue_paper_suite_repeated_benchmark(
+    *,
+    manifest: PaperSuiteManifest | None = None,
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+    output_dir: str | Path | None = None,
+    progress_callback: Callable[[str], None] | None = None,
+) -> DialoguePaperSuiteAggregateReport:
+    active_manifest = manifest or build_dialogue_paper_suite_manifest()
+    active_config = dialogue_paper_suite_config(
+        active_manifest,
+        runtime_mode=runtime_mode,
+    )
+    run_summaries: list[DialoguePaperSuiteRunSummary] = []
+    reference_report: DialogueComprehensiveBenchmarkReport | None = None
+    for run_index, run_seed in enumerate(active_manifest.seed_schedule[: active_manifest.repeat_count], start=1):
+        run_config = replace(
+            active_config,
+            replay_seeds=(run_seed,),
+        )
+        if progress_callback is not None:
+            progress_callback(
+                f"Dialogue paper suite run {run_index}/{active_manifest.repeat_count} (seed={run_seed}) started."
+            )
+        if output_dir is not None:
+            run_output_dir = Path(output_dir) / f"dialogue_run_{run_index:02d}_seed_{run_seed}"
+            report = await run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
+                output_dir=run_output_dir,
+                config=run_config,
+                essence_acceptance_config=DialogueNLEssenceAcceptanceConfig(),
+                progress_callback=progress_callback,
+                resume=True,
+            )
+            export_dialogue_emergence_dashboard_artifact(
+                report,
+                output_path=run_output_dir / "emergence_dashboard.json",
+            )
+        else:
+            report = await run_real_dialogue_pe_eta_comprehensive_benchmark(
+                config=run_config,
+                essence_acceptance_config=DialogueNLEssenceAcceptanceConfig(),
+                progress_callback=progress_callback,
+            )
+        reference_report = reference_report or report
+        metric_values = _dialogue_paper_suite_metric_values(report)
+        run_summary = DialoguePaperSuiteRunSummary(
+            run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
+            run_seed=run_seed,
+            metric_values=metric_values,
+            description=(
+                f"Dialogue paper suite run {run_index} summarized "
+                f"{len(metric_values)} metrics for seed={run_seed}."
+            ),
+        )
+        run_summaries.append(run_summary)
+        if output_dir is not None:
+            export_json_artifact(
+                payload=run_summary,
+                output_path=Path(output_dir) / f"dialogue_run_{run_index:02d}_summary.json",
+            )
+    primary_metric_names = tuple(metric.metric_name for metric in active_manifest.primary_metrics)
+    secondary_metric_names = tuple(metric.metric_name for metric in active_manifest.secondary_metrics)
+    primary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_dialogue_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=primary_metric_names,
+        )
+    )
+    secondary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_dialogue_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=secondary_metric_names,
+        )
+    )
+    provenance = collect_paper_suite_provenance(
+        manifest=active_manifest,
+        repo_root=_repo_root_from_dialogue_module(),
+        runtime_descriptor={
+            "runtime_mode": str(runtime_mode),
+            "model_id": active_config.model_id,
+            "model_source": active_config.model_source or "",
+            "fallback_mode": (
+                str(active_config.fallback_mode)
+                if active_config.fallback_mode is not None
+                else ""
+            ),
+            "suite_kind": active_manifest.suite_kind,
+        },
+    )
+    return DialoguePaperSuiteAggregateReport(
+        manifest=active_manifest,
+        provenance=provenance,
+        run_summaries=tuple(run_summaries),
+        reference_run_report=reference_report,
+        primary_metric_summaries=primary_metric_summaries,
+        secondary_metric_summaries=secondary_metric_summaries,
+        description=(
+            f"Dialogue paper suite {active_manifest.suite_id} aggregated "
+            f"{len(run_summaries)} repeated runs."
+        ),
+    )
+
+
+_DEFAULT_EXPERT_REVIEW_DIMENSIONS: tuple[DialogueExpertReviewDimension, ...] = (
+    DialogueExpertReviewDimension(
+        dimension_id="relationship_continuity",
+        prompt="Rate which transcript better preserves trust, warmth, and continuity across turns.",
+        description="External review dimension for relational continuity.",
+    ),
+    DialogueExpertReviewDimension(
+        dimension_id="delayed_stabilization",
+        prompt="Rate which transcript better turns early pressure into later stabilization or recovery.",
+        description="External review dimension for delayed stabilization.",
+    ),
+    DialogueExpertReviewDimension(
+        dimension_id="boundary_correctness",
+        prompt="Rate which transcript better stays measured and appropriately bounded under pressure.",
+        description="External review dimension for boundary correctness.",
+    ),
+)
+
+
+def build_dialogue_expert_review_packet(
+    report: DialogueComprehensiveBenchmarkReport,
+    *,
+    packet_id: str = "dialogue-expert-review",
+    candidate_labels: tuple[str, ...] = ("pe-eta", "pe-drive-off", "eta-off"),
+) -> DialogueExpertReviewPacket:
+    canonical_map = {
+        path.path_label: path.benchmark_report
+        for path in report.canonical_ablation_report.path_reports
+        if path.path_label in candidate_labels
+    }
+    items: list[DialogueExpertReviewItem] = []
+    if not canonical_map:
+        return DialogueExpertReviewPacket(
+            packet_id=packet_id,
+            source_suite_id=report.profile_labels[0] if report.profile_labels else "dialogue",
+            baseline_label=report.canonical_ablation_report.baseline_label,
+            items=(),
+            review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
+            description="Dialogue expert review packet has no matching candidate labels.",
+        )
+    baseline_benchmark = canonical_map.get(report.canonical_ablation_report.baseline_label)
+    ordered_case_ids = tuple(
+        case_report.case.case_id
+        for case_report in (
+            baseline_benchmark.case_reports if baseline_benchmark is not None else next(iter(canonical_map.values())).case_reports
+        )
+    )
+    blinded_labels = {
+        profile_label: f"sample_{chr(ord('A') + index)}"
+        for index, profile_label in enumerate(candidate_labels)
+    }
+    for case_id in ordered_case_ids:
+        samples: list[DialogueExpertReviewSample] = []
+        case_description = ""
+        for profile_label in candidate_labels:
+            benchmark_report = canonical_map.get(profile_label)
+            if benchmark_report is None:
+                continue
+            case_report = next(
+                (candidate for candidate in benchmark_report.case_reports if candidate.case.case_id == case_id),
+                None,
+            )
+            if case_report is None:
+                continue
+            case_description = case_report.case.description
+            transcript = tuple(
+                (turn.user_input, turn.assistant_response_text)
+                for turn in case_report.turns
+            )
+            samples.append(
+                DialogueExpertReviewSample(
+                    sample_id=f"{case_id}:{profile_label}",
+                    blinded_label=blinded_labels[profile_label],
+                    transcript=transcript,
+                    source_profile_label=profile_label,
+                    description=(
+                        f"Blinded transcript sample {blinded_labels[profile_label]} "
+                        f"for {case_id} from profile {profile_label}."
+                    ),
+                )
+            )
+        items.append(
+            DialogueExpertReviewItem(
+                item_id=case_id,
+                case_id=case_id,
+                case_description=case_description,
+                samples=tuple(samples),
+                review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
+                description=(
+                    f"Expert review item for {case_id} with {len(samples)} blinded samples."
+                ),
+            )
+        )
+    return DialogueExpertReviewPacket(
+        packet_id=packet_id,
+        source_suite_id="dialogue-paper-suite",
+        baseline_label=report.canonical_ablation_report.baseline_label,
+        items=tuple(items),
+        review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
+        description=(
+            f"Dialogue expert review packet built from {len(items)} canonical cases "
+            f"for baseline={report.canonical_ablation_report.baseline_label}."
+        ),
+    )
+
+
+def export_dialogue_expert_review_packet(
+    packet: DialogueExpertReviewPacket,
+    *,
+    output_path: str | Path,
+) -> Path:
+    return export_json_artifact(payload=packet, output_path=output_path)
+
+
+def export_dialogue_paper_suite_artifact_bundle(
+    aggregate_report: DialoguePaperSuiteAggregateReport,
+    *,
+    output_dir: str | Path,
+) -> tuple[Path, ...]:
+    target_dir = Path(output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    written_paths = [
+        export_json_artifact(
+            payload=aggregate_report.manifest,
+            output_path=target_dir / "paper_suite_manifest.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.provenance,
+            output_path=target_dir / "paper_suite_provenance.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.run_summaries,
+            output_path=target_dir / "paper_suite_run_summaries.json",
+        ),
+        export_json_artifact(
+            payload={
+                "suite_id": aggregate_report.manifest.suite_id,
+                "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+                "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "description": aggregate_report.description,
+            },
+            output_path=target_dir / "paper_suite_aggregate.json",
+        ),
+    ]
+    if aggregate_report.reference_run_report is not None:
+        written_paths.append(
+            export_dialogue_emergence_dashboard_artifact(
+                aggregate_report.reference_run_report,
+                output_path=target_dir / "reference_emergence_dashboard.json",
+            )
+        )
+        expert_review_packet = build_dialogue_expert_review_packet(
+            aggregate_report.reference_run_report,
+            packet_id=f"{aggregate_report.manifest.suite_id}:expert-review",
+        )
+        written_paths.append(
+            export_dialogue_expert_review_packet(
+                expert_review_packet,
+                output_path=target_dir / "expert_review_packet.json",
+            )
+        )
+    return tuple(written_paths)
 
 
 def _comprehensive_manifest_summary(

@@ -1,4 +1,14 @@
-from volvence_zero.memory.cms import CMSBandMLP, CMSBandState, CMSCheckpointState, CMSMemoryCore, CMSState, CMSVariant
+from volvence_zero.memory.cms import (
+    CMSBandMLP,
+    CMSBandState,
+    CMSCheckpointState,
+    CMSMemoryCore,
+    CMSState,
+    CMSTowerConsolidationUpdate,
+    CMSTowerLevelState,
+    CMSTowerProfile,
+    CMSVariant,
+)
 from volvence_zero.memory.persistence import (
     FileSystemPersistenceBackend,
     PersistenceBackend,
@@ -27,6 +37,9 @@ __all__ = [
     "CMSCheckpointState",
     "CMSMemoryCore",
     "CMSState",
+    "CMSTowerConsolidationUpdate",
+    "CMSTowerLevelState",
+    "CMSTowerProfile",
     "CMSVariant",
     "FileSystemPersistenceBackend",
     "PersistenceBackend",

@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from volvence_zero.internal_rl.sandbox import (
     CausalPolicyCheckpoint,
+    DualTrackRollout,
     DualTrackOptimizationReport,
     InternalRLSandbox,
 )
@@ -45,10 +46,14 @@ class PipelineConfig:
     ssl_convergence_threshold: float = 0.15
     ssl_min_steps: int = 3
     ssl_max_steps: int = 20
+    transition_max_steps: int = 2
+    transition_agreement_threshold: float = 0.35
+    transition_family_retention_threshold: float = 0.20
     rl_max_steps: int = 10
     rl_convergence_threshold: float = 0.05
     transition_kl_threshold: float = 1.0
     binary_gate_rl: bool = True
+    rl_rollouts_per_step: int = 2
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,11 @@ class PhaseReport:
     relationship_reward: float
     policy_objective: float
     convergence_metric: float
+    rollout_batch_count: int
+    transition_agreement: float
+    switch_sparsity_retention: float
+    family_reuse_retention: float
+    takeover_ready: bool
     description: str
 
 
@@ -213,22 +223,43 @@ class SSLRLTrainingPipeline:
                 self._ssl_checkpoint = self._sandbox.create_checkpoint(
                     checkpoint_id=f"ssl-phase-{self._transition_step}",
                 )
-                self._phase = TrainingPhase.RL
 
         if self._phase == TrainingPhase.SSL:
             self._transition_step = ssl_steps - 1
             self._phase = TrainingPhase.COMPLETE
 
+        transition_steps = 0
+        while self._phase == TrainingPhase.TRANSITION and transition_steps < cfg.transition_max_steps:
+            rollout_batches = self._select_rollout_batches(
+                rl_batches=rl_batches,
+                step_index=transition_steps,
+            )
+            report = self._run_transition_step(
+                step_index=transition_steps,
+                rollout_batches=rollout_batches,
+            )
+            self._phase_reports.append(report)
+            transition_steps += 1
+            if report.takeover_ready:
+                self._phase = TrainingPhase.RL
+                break
+        if self._phase == TrainingPhase.TRANSITION:
+            self._phase = TrainingPhase.COMPLETE
+
         while self._phase == TrainingPhase.RL and rl_steps < cfg.rl_max_steps:
-            batch_index = rl_steps % len(rl_batches)
-            report = self._run_rl_step(step_index=rl_steps, substrates=rl_batches[batch_index])
+            rollout_batches = self._select_rollout_batches(
+                rl_batches=rl_batches,
+                step_index=rl_steps,
+            )
+            report = self._run_rl_step(step_index=rl_steps, rollout_batches=rollout_batches)
             self._phase_reports.append(report)
             rl_steps += 1
             if self._should_complete(rl_steps):
                 self._phase = TrainingPhase.COMPLETE
 
         if self._residual_runtime is not None:
-            self._substrate_checkpoint = self._residual_runtime.train_rare_heavy(
+            offline_runtime = self._residual_runtime.clone_for_rare_heavy()
+            self._substrate_checkpoint = offline_runtime.train_rare_heavy(
                 traces=traces,
                 substrate_steps_per_trace=rl_batches,
                 checkpoint_id=f"{self.owner_path}:substrate",
@@ -293,6 +324,11 @@ class SSLRLTrainingPipeline:
             relationship_reward=0.0,
             policy_objective=0.0,
             convergence_metric=convergence,
+            rollout_batch_count=0,
+            transition_agreement=0.0,
+            switch_sparsity_retention=0.0,
+            family_reuse_retention=0.0,
+            takeover_ready=False,
             description=(
                 f"SSL step {step_index}: loss={report.total_loss:.3f}, "
                 f"kl={report.kl_loss:.3f}, drift={report.posterior_drift:.3f}, "
@@ -301,24 +337,119 @@ class SSLRLTrainingPipeline:
             ),
         )
 
+    def _run_transition_step(
+        self,
+        *,
+        step_index: int,
+        rollout_batches: tuple[tuple[SubstrateSnapshot, ...], ...],
+    ) -> PhaseReport:
+        self._policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
+        dual_rollouts = tuple(
+            self._sandbox.rollout_dual_track(
+                rollout_id=f"pipeline-transition-{step_index}-{batch_index}",
+                substrate_steps=substrates,
+            )
+            for batch_index, substrates in enumerate(rollout_batches)
+        )
+        transitions = tuple(
+            transition
+            for rollout in dual_rollouts
+            for track_rollout in (rollout.task_rollout, rollout.relationship_rollout)
+            for transition in track_rollout.transitions
+        )
+        if transitions:
+            transition_agreement = sum(
+                1.0
+                - (
+                    sum(
+                        abs(action - latent)
+                        for action, latent in zip(
+                            transition.policy_action,
+                            transition.latent_code,
+                            strict=True,
+                        )
+                    )
+                    / max(len(transition.policy_action), 1)
+                )
+                for transition in transitions
+            ) / len(transitions)
+            switch_sparsity_retention = sum(
+                1.0 - transition.controller_state.switch_gate
+                for transition in transitions
+            ) / len(transitions)
+            family_reuse_retention = sum(
+                float(transition.active_family_id not in {None, "unassigned"})
+                for transition in transitions
+            ) / len(transitions)
+        else:
+            transition_agreement = 0.0
+            switch_sparsity_retention = 0.0
+            family_reuse_retention = 0.0
+        takeover_ready = (
+            transition_agreement >= self._config.transition_agreement_threshold
+            and family_reuse_retention >= self._config.transition_family_retention_threshold
+        )
+        return PhaseReport(
+            owner_path=self.owner_path,
+            phase="transition",
+            step_index=step_index,
+            ssl_loss=0.0,
+            kl_loss=0.0,
+            posterior_drift=0.0,
+            noncausal_kl_tightening=0.0,
+            total_reward=sum(
+                rollout.task_rollout.total_reward + rollout.relationship_rollout.total_reward
+                for rollout in dual_rollouts
+            ),
+            task_reward=sum(rollout.task_rollout.total_reward for rollout in dual_rollouts),
+            relationship_reward=sum(rollout.relationship_rollout.total_reward for rollout in dual_rollouts),
+            policy_objective=0.0,
+            convergence_metric=transition_agreement,
+            rollout_batch_count=len(rollout_batches),
+            transition_agreement=transition_agreement,
+            switch_sparsity_retention=switch_sparsity_retention,
+            family_reuse_retention=family_reuse_retention,
+            takeover_ready=takeover_ready,
+            description=(
+                f"Transition step {step_index}: agreement={transition_agreement:.3f}, "
+                f"sparsity_retention={switch_sparsity_retention:.3f}, "
+                f"family_retention={family_reuse_retention:.3f}, "
+                f"ready={takeover_ready}."
+            ),
+        )
+
     def _run_rl_step(
         self,
         *,
         step_index: int,
-        substrates: tuple[SubstrateSnapshot, ...],
+        rollout_batches: tuple[tuple[SubstrateSnapshot, ...], ...],
     ) -> PhaseReport:
         self._policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
         replacement_mode = "causal-binary" if self._config.binary_gate_rl else "causal"
-        dual_rollout = self._sandbox.rollout_dual_track(
-            rollout_id=f"pipeline-rl-{step_index}",
-            substrate_steps=substrates,
+        dual_rollouts = tuple(
+            DualTrackRollout(
+                task_rollout=self._sandbox.rollout(
+                    rollout_id=f"pipeline-rl-{step_index}-{batch_index}:task",
+                    substrate_steps=substrates,
+                    track=Track.WORLD,
+                    replacement_mode=replacement_mode,
+                ),
+                relationship_rollout=self._sandbox.rollout(
+                    rollout_id=f"pipeline-rl-{step_index}-{batch_index}:relationship",
+                    substrate_steps=substrates,
+                    track=Track.SELF,
+                    replacement_mode=replacement_mode,
+                ),
+                description=f"pipeline batch {batch_index}",
+            )
+            for batch_index, substrates in enumerate(rollout_batches)
         )
-        opt_report = self._sandbox.optimize(dual_rollout)
+        opt_report = self._sandbox.optimize(dual_rollouts)
         if not isinstance(opt_report, DualTrackOptimizationReport):
             raise TypeError("Expected DualTrackOptimizationReport")
         total_reward = (
-            dual_rollout.task_rollout.total_reward
-            + dual_rollout.relationship_rollout.total_reward
+            sum(rollout.task_rollout.total_reward for rollout in dual_rollouts)
+            + sum(rollout.relationship_rollout.total_reward for rollout in dual_rollouts)
         )
         self._rl_reward_history.append(total_reward)
         convergence = self._rl_convergence_metric()
@@ -335,16 +466,21 @@ class SSLRLTrainingPipeline:
             posterior_drift=0.0,
             noncausal_kl_tightening=0.0,
             total_reward=total_reward,
-            task_reward=dual_rollout.task_rollout.total_reward,
-            relationship_reward=dual_rollout.relationship_rollout.total_reward,
+            task_reward=sum(rollout.task_rollout.total_reward for rollout in dual_rollouts),
+            relationship_reward=sum(rollout.relationship_rollout.total_reward for rollout in dual_rollouts),
             policy_objective=policy_objective,
             convergence_metric=convergence,
+            rollout_batch_count=len(rollout_batches),
+            transition_agreement=0.0,
+            switch_sparsity_retention=0.0,
+            family_reuse_retention=0.0,
+            takeover_ready=True,
             description=(
                 f"RL step {step_index}: reward={total_reward:.3f}, "
-                f"task={dual_rollout.task_rollout.total_reward:.3f}, "
-                f"rel={dual_rollout.relationship_rollout.total_reward:.3f}, "
+                f"task={sum(rollout.task_rollout.total_reward for rollout in dual_rollouts):.3f}, "
+                f"rel={sum(rollout.relationship_rollout.total_reward for rollout in dual_rollouts):.3f}, "
                 f"objective={policy_objective:.3f}, "
-                f"convergence={convergence:.3f}."
+                f"batch={len(rollout_batches)}, convergence={convergence:.3f}."
             ),
         )
 
@@ -392,6 +528,21 @@ class SSLRLTrainingPipeline:
             if filtered:
                 return filtered
         return tuple(self._substrates_from_trace(trace) for trace in traces)
+
+    def _select_rollout_batches(
+        self,
+        *,
+        rl_batches: tuple[tuple[SubstrateSnapshot, ...], ...],
+        step_index: int,
+    ) -> tuple[tuple[SubstrateSnapshot, ...], ...]:
+        if not rl_batches:
+            return ()
+        batch_size = max(1, min(self._config.rl_rollouts_per_step, len(rl_batches)))
+        start_index = (step_index * batch_size) % len(rl_batches)
+        return tuple(
+            rl_batches[(start_index + offset) % len(rl_batches)]
+            for offset in range(batch_size)
+        )
 
     def _build_training_evidence(
         self,

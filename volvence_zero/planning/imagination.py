@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.prediction.error import (
     ActualOutcome,
     PredictedOutcome,

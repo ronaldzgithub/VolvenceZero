@@ -5,7 +5,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 
-from volvence_zero.evaluation import EvaluationReport
+from volvence_zero.evaluation.backbone import EvaluationReport
 from volvence_zero.integration import SessionPostWritebackRequest
 from volvence_zero.reflection import WritebackResult
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel

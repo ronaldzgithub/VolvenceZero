@@ -60,7 +60,7 @@ return Snapshot(slot_name="my_module",
 | `online-fast` | 控制器层参数、记忆写入 | 各控制器模块 |
 | `session-medium` | 中频层聚合 | 记忆/决策模块 |
 | `background-slow` | 慢反思整合 | 反思模块 → 记忆 + 策略 |
-| `rare-heavy` | 基础模型更新 | 离线训练管线（不在运行时） |
+| `rare-heavy` | offline substrate-owner refresh / artifact training | 离线训练管线（不在运行时） |
 
 ## 例外
 

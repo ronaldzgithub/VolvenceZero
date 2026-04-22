@@ -6,7 +6,13 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
-from volvence_zero.memory.cms import CMSCheckpointState, CMSMemoryCore, CMSState
+from volvence_zero.memory.cms import (
+    CMSCheckpointState,
+    CMSMemoryCore,
+    CMSState,
+    CMSTowerConsolidationUpdate,
+    CMSTowerProfile,
+)
 from volvence_zero.memory.persistence import (
     PersistenceBackend,
     deserialize_checkpoint,
@@ -16,7 +22,7 @@ from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
 if TYPE_CHECKING:
-    from volvence_zero.prediction import PredictionErrorSnapshot
+    from volvence_zero.prediction.error import PredictionErrorSnapshot
 
 
 class Track(str, Enum):
@@ -133,6 +139,16 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                     tuple(tuple(float(x) for x in group) for group in band)
                     for band in cms_raw.get("mlp_params", ())
                 ),
+                nested_session_init_target=tuple(
+                    float(v) for v in cms_raw.get("nested_session_init_target", ())
+                ),
+                nested_online_init_target=tuple(
+                    float(v) for v in cms_raw.get("nested_online_init_target", ())
+                ),
+                tower_meta_levels=tuple(
+                    (str(level[0]), tuple(float(v) for v in level[1]))
+                    for level in cms_raw.get("tower_meta_levels", ())
+                ),
             )
         semantic_raw = parsed.get("semantic_index", [])
         semantic_index = tuple(
@@ -203,6 +219,32 @@ def _mean_abs(values: tuple[float, ...]) -> float:
     return sum(abs(value) for value in values) / len(values)
 
 
+def _align_signal(signal: tuple[float, ...], *, dim: int) -> tuple[float, ...]:
+    if len(signal) == dim:
+        return signal
+    if not signal:
+        return tuple(0.0 for _ in range(dim))
+    return tuple(signal[index % len(signal)] for index in range(dim))
+
+
+def _blend_signals(
+    *,
+    dim: int,
+    weighted_signals: tuple[tuple[tuple[float, ...], float], ...],
+) -> tuple[float, ...]:
+    total_weight = sum(weight for _, weight in weighted_signals if weight > 0.0)
+    if total_weight <= 1e-6:
+        return tuple(0.0 for _ in range(dim))
+    blended = [0.0 for _ in range(dim)]
+    for signal, weight in weighted_signals:
+        if weight <= 0.0:
+            continue
+        aligned = _align_signal(signal, dim=dim)
+        for index in range(dim):
+            blended[index] += aligned[index] * weight
+    return tuple(_clamp_strength(value / total_weight) for value in blended)
+
+
 def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
     collected = tuple(entries)
     if not collected:
@@ -215,9 +257,13 @@ def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
 
 @dataclass(frozen=True)
 class LearnedMemoryRecall:
+    query_base_signal: tuple[float, ...]
     query_signal: tuple[float, ...]
     core_signal: tuple[float, ...]
+    tower_profile_id: str
+    tower_depth: int
     retrieval_confidence: float
+    tower_alignment: float
     artifact_weight: float
     learned_weight: float
     description: str
@@ -366,8 +412,8 @@ class DerivedRetrievalIndex:
     def __init__(self) -> None:
         self._artifact_embeddings: dict[str, tuple[float, ...]] = {}
 
-    def index_entry(self, entry: MemoryEntry) -> None:
-        self._artifact_embeddings[entry.entry_id] = _semantic_embedding(
+    def index_entry(self, entry: MemoryEntry, *, embedding: tuple[float, ...] | None = None) -> None:
+        self._artifact_embeddings[entry.entry_id] = embedding or _semantic_embedding(
             text=entry.content,
             tags=entry.tags,
         )
@@ -427,6 +473,10 @@ class MemoryStore:
         self._last_recall_driver = "artifact-only"
         self._fast_memory_signal_count = 0
         self._last_fast_memory_signal_norm = 0.0
+        self._tower_consolidation_count = 0
+        self._last_tower_depth = 0
+        self._last_tower_alignment = 0.0
+        self._last_tower_profile_id = "artifact-only"
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -515,16 +565,13 @@ class MemoryStore:
             tags=request.tags,
         )
         self._artifact_store.write(entry)
-        self._derived_index.index_entry(entry)
+        self._derived_index.index_entry(entry, embedding=self._entry_signal(entry))
         self._observe_artifact_entry(entry=entry, timestamp_ms=timestamp_ms, source="write")
         return entry
 
     def retrieve(self, query: RetrievalQuery, *, timestamp_ms: int) -> RetrievalResult:
         tokens = _tokenize(query.text)
-        query_embedding = _semantic_embedding(
-            text=" ".join(part for part in (query.text, *query.facets) if part),
-            tags=query.facets,
-        )
+        query_embedding = self._query_base_signal(query)
         learned_recall = self._build_learned_recall(query=query, query_embedding=query_embedding)
         strata = query.strata or tuple(MemoryStratum)
         matches: list[tuple[float, MemoryEntry]] = []
@@ -550,6 +597,9 @@ class MemoryStore:
             if learned_recall.learned_weight >= learned_recall.artifact_weight
             else "artifact-guided"
         )
+        self._last_tower_depth = learned_recall.tower_depth
+        self._last_tower_alignment = learned_recall.tower_alignment
+        self._last_tower_profile_id = learned_recall.tower_profile_id
         return RetrievalResult(
             query=query,
             entries=tuple(entry for _, entry in matches[: query.limit]),
@@ -602,9 +652,12 @@ class MemoryStore:
                 ("slow_to_fast_target_alignment_gain", self._last_context_reset_target_alignment_gain),
                 ("learned_memory_primary", float(self._learned_core is not None)),
                 ("artifact_consolidation_count", float(self._artifact_consolidation_count)),
+                ("tower_consolidation_count", float(self._tower_consolidation_count)),
                 ("learned_recall_count", float(self._learned_recall_count)),
                 ("last_learned_recall_confidence", self._last_recall_confidence),
                 ("last_learned_recall_driver_is_core", float(self._last_recall_driver == "learned-core-guided")),
+                ("last_memory_tower_depth", float(self._last_tower_depth)),
+                ("last_memory_tower_alignment", self._last_tower_alignment),
                 ("fast_memory_signal_count", float(self._fast_memory_signal_count)),
                 ("last_fast_memory_signal_norm", self._last_fast_memory_signal_norm),
             ),
@@ -722,14 +775,14 @@ class MemoryStore:
             )
             if updated is None:
                 continue
-            self._derived_index.index_entry(updated)
+            self._derived_index.index_entry(updated, embedding=self._entry_signal(updated))
             self._observe_artifact_entry(entry=updated, timestamp_ms=timestamp_ms, source="promotion")
             applied.append(f"promoted:{entry_id}")
         for entry in new_durable_entries:
             if entry.strength < self._promotion_threshold:
                 continue
             self._artifact_store.write(entry)
-            self._derived_index.index_entry(entry)
+            self._derived_index.index_entry(entry, embedding=self._entry_signal(entry))
             self._observe_artifact_entry(entry=entry, timestamp_ms=timestamp_ms, source="reflection-durable")
             applied.append(f"durable:{entry.entry_id}")
         for entry_id in decayed_entries:
@@ -753,11 +806,25 @@ class MemoryStore:
                 tags=("belief_update",),
             )
             self._artifact_store.write(belief_entry)
-            self._derived_index.index_entry(belief_entry)
+            self._derived_index.index_entry(belief_entry, embedding=self._entry_signal(belief_entry))
             self._observe_artifact_entry(entry=belief_entry, timestamp_ms=timestamp_ms, source="belief-update")
             applied.append(f"belief:{belief_entry.entry_id}")
         if self._learned_core is not None:
-            self._learned_core.reflect_lessons(lesson_count=lesson_count, timestamp_ms=timestamp_ms)
+            tower_update = self._build_tower_consolidation_update(
+                promoted_entries=promoted_entries,
+                new_durable_entries=new_durable_entries,
+                beliefs_updated=beliefs_updated,
+                lesson_count=lesson_count,
+                promotion_boost=promotion_boost,
+                decay_scale=decay_scale,
+            )
+            applied = list(applied) + list(
+                self._learned_core.apply_tower_consolidation(
+                    update=tower_update,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+            self._tower_consolidation_count += 1
         return tuple(applied)
 
     def apply_promotion_threshold_update(self, *, delta: float) -> str:
@@ -873,14 +940,22 @@ class MemoryStore:
             )
 
     def _entry_signal(self, entry: MemoryEntry) -> tuple[float, ...]:
-        dim = self._learned_signal_dim()
-        semantic = _semantic_embedding(
-            text=f"{entry.track.value}:{entry.stratum}:{entry.content}",
-            tags=entry.tags + (entry.track.value, entry.stratum),
-            dim=dim,
+        return self._owner_signal(
+            text=entry.content,
+            tags=entry.tags,
+            track=entry.track,
+            stratum=entry.stratum,
+            strength=entry.strength,
         )
-        strength = _clamp_strength(entry.strength)
-        return tuple(_clamp_strength(value * (0.55 + strength * 0.45)) for value in semantic)
+
+    def _query_base_signal(self, query: RetrievalQuery) -> tuple[float, ...]:
+        return self._owner_signal(
+            text=query.text,
+            tags=query.facets,
+            track=query.track,
+            stratum=None,
+            strength=0.75,
+        )
 
     def _entry_learned_affinity(
         self,
@@ -895,6 +970,147 @@ class MemoryStore:
             return len(self._learned_core.snapshot().online_fast.vector)
         return 6
 
+    def _owner_signal(
+        self,
+        *,
+        text: str,
+        tags: tuple[str, ...],
+        track: Track | None,
+        stratum: str | None,
+        strength: float,
+        base_signal: tuple[float, ...] = (),
+    ) -> tuple[float, ...]:
+        dim = self._learned_signal_dim()
+        semantic = _semantic_embedding(
+            text=" ".join(
+                part
+                for part in (
+                    text,
+                    track.value if track is not None else "",
+                    stratum or "",
+                )
+                if part
+            ),
+            tags=tags
+            + ((track.value,) if track is not None else ())
+            + ((stratum,) if stratum is not None else ()),
+            dim=dim,
+        )
+        metadata = _semantic_embedding(
+            text=" ".join(
+                part
+                for part in (
+                    track.value if track is not None else "",
+                    stratum or "",
+                )
+                if part
+            ),
+            tags=tags,
+            dim=dim,
+        )
+        return _blend_signals(
+            dim=dim,
+            weighted_signals=(
+                (semantic, 0.62 + _clamp_strength(strength) * 0.18),
+                (metadata, 0.18),
+                (base_signal, 0.2 if base_signal else 0.0),
+            ),
+        )
+
+    def _tower_profile(self) -> CMSTowerProfile | None:
+        if self._learned_core is None:
+            return None
+        return self._learned_core.snapshot().tower_profile
+
+    def _tower_signal(self) -> tuple[float, ...]:
+        tower_profile = self._tower_profile()
+        if tower_profile is None:
+            return tuple(0.0 for _ in range(self._learned_signal_dim()))
+        return tower_profile.readout_vector
+
+    def _average_signal(self, signals: tuple[tuple[float, ...], ...]) -> tuple[float, ...]:
+        if not signals:
+            return tuple(0.0 for _ in range(self._learned_signal_dim()))
+        return _blend_signals(
+            dim=self._learned_signal_dim(),
+            weighted_signals=tuple((signal, 1.0) for signal in signals),
+        )
+
+    def _build_tower_consolidation_update(
+        self,
+        *,
+        promoted_entries: tuple[str, ...],
+        new_durable_entries: tuple[MemoryEntry, ...],
+        beliefs_updated: tuple[str, ...],
+        lesson_count: int,
+        promotion_boost: float,
+        decay_scale: float,
+    ) -> CMSTowerConsolidationUpdate:
+        promoted_signals = tuple(
+            self._entry_signal(entry)
+            for entry_id in promoted_entries
+            if (entry := self._artifact_store.get(entry_id)) is not None
+        )
+        durable_signals = tuple(self._entry_signal(entry) for entry in new_durable_entries)
+        belief_signals = tuple(
+            self._owner_signal(
+                text=belief,
+                tags=("belief_update",),
+                track=Track.SHARED,
+                stratum=MemoryStratum.DURABLE.value,
+                strength=0.55 + promotion_boost * 0.2,
+            )
+            for belief in beliefs_updated
+        )
+        lesson_signal = tuple(
+            _clamp_strength(lesson_count / (index + 3))
+            for index in range(self._learned_signal_dim())
+        )
+        session_signal = _blend_signals(
+            dim=self._learned_signal_dim(),
+            weighted_signals=(
+                (lesson_signal, 0.3 if lesson_count else 0.0),
+                (self._average_signal(promoted_signals), 0.25 if promoted_signals else 0.0),
+                (self._average_signal(durable_signals), 0.25 if durable_signals else 0.0),
+                (self._average_signal(belief_signals), 0.2 if belief_signals else 0.0),
+            ),
+        )
+        background_signal = _blend_signals(
+            dim=self._learned_signal_dim(),
+            weighted_signals=(
+                (lesson_signal, 0.2 if lesson_count else 0.0),
+                (self._average_signal(durable_signals), 0.4 if durable_signals else 0.0),
+                (self._average_signal(belief_signals), 0.25 if belief_signals else 0.0),
+                (self._tower_signal(), 0.15 if self._learned_core is not None else 0.0),
+            ),
+        )
+        online_signal = _blend_signals(
+            dim=self._learned_signal_dim(),
+            weighted_signals=(
+                (self._average_signal(promoted_signals), 0.35 if promoted_signals else 0.0),
+                (self._average_signal(belief_signals), 0.2 if belief_signals else 0.0),
+                (lesson_signal, 0.15 if lesson_count else 0.0),
+                (session_signal, 0.3 if any(session_signal) else 0.0),
+            ),
+        )
+        return CMSTowerConsolidationUpdate(
+            online_signal=online_signal,
+            session_signal=session_signal,
+            background_signal=background_signal,
+            decay_pressure=_clamp_strength(decay_scale),
+            reset_fast_context=(
+                self._learned_core is not None
+                and self._learned_core.variant == "nested"
+                and promotion_boost >= 0.45
+                and lesson_count > 0
+            ),
+            description=(
+                f"tower update lessons={lesson_count} promoted={len(promoted_entries)} "
+                f"durable={len(new_durable_entries)} beliefs={len(beliefs_updated)} "
+                f"promotion_boost={promotion_boost:.2f} decay_scale={decay_scale:.2f}"
+            ),
+        )
+
     def _build_learned_recall(
         self,
         *,
@@ -902,44 +1118,51 @@ class MemoryStore:
         query_embedding: tuple[float, ...],
     ) -> LearnedMemoryRecall:
         dim = self._learned_signal_dim()
-        projected_query = _semantic_embedding(
-            text=" ".join(part for part in (query.text, *query.facets) if part),
-            tags=query.facets + ((query.track.value,) if query.track is not None else ()),
-            dim=dim,
-        )
+        projected_query = self._query_base_signal(query)
         if self._learned_core is None:
             return LearnedMemoryRecall(
+                query_base_signal=projected_query,
                 query_signal=projected_query,
                 core_signal=tuple(0.0 for _ in range(dim)),
+                tower_profile_id="artifact-only",
+                tower_depth=0,
                 retrieval_confidence=0.0,
+                tower_alignment=0.0,
                 artifact_weight=2.6,
                 learned_weight=0.0,
                 description="Artifact-only retrieval because no learned core is active.",
             )
         cms_state = self._learned_core.snapshot()
-        fast = cms_state.online_fast.vector
-        medium = cms_state.session_medium.vector
-        slow = cms_state.background_slow.vector
-        core_signal = tuple(
-            _clamp_strength(fast[index] * 0.5 + medium[index] * 0.3 + slow[index] * 0.2)
-            for index in range(len(fast))
-        )
-        query_signal = tuple(
-            _clamp_strength(projected_query[index] * 0.55 + core_signal[index] * 0.45)
-            for index in range(len(core_signal))
+        tower_profile = cms_state.tower_profile
+        core_signal = tower_profile.readout_vector if tower_profile is not None else self._tower_signal()
+        query_signal = _blend_signals(
+            dim=len(core_signal),
+            weighted_signals=(
+                (projected_query, 0.58),
+                (core_signal, 0.42),
+            ),
         )
         confidence = _cosine_similarity(query_signal, core_signal)
-        learned_weight = 4.0 + max(confidence, 0.0) * 2.0
-        artifact_weight = 1.3 + max(0.0, 1.0 - confidence) * 0.8
+        alignment = _cosine_similarity(projected_query, core_signal)
+        depth_bonus = max(float(cms_state.tower_depth) - 3.0, 0.0) * 0.2
+        learned_weight = 3.8 + max(confidence, 0.0) * 1.8 + depth_bonus
+        artifact_weight = 1.2 + max(0.0, 1.0 - confidence) * 0.7
         return LearnedMemoryRecall(
+            query_base_signal=projected_query,
             query_signal=query_signal,
             core_signal=core_signal,
+            tower_profile_id=tower_profile.profile_id if tower_profile is not None else "cms-flat",
+            tower_depth=cms_state.tower_depth,
             retrieval_confidence=confidence,
+            tower_alignment=alignment,
             artifact_weight=artifact_weight,
             learned_weight=learned_weight,
             description=(
-                f"Learned recall blends query with CMS core confidence={confidence:.2f}; "
-                f"learned_weight={learned_weight:.2f} artifact_weight={artifact_weight:.2f}."
+                f"Learned recall blends owner query with memory tower profile="
+                f"{tower_profile.profile_id if tower_profile is not None else 'cms-flat'} "
+                f"depth={cms_state.tower_depth} confidence={confidence:.2f} "
+                f"alignment={alignment:.2f}; learned_weight={learned_weight:.2f} "
+                f"artifact_weight={artifact_weight:.2f}."
             ),
         )
 
@@ -1056,7 +1279,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         return self._store
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[MemorySnapshot]:
-        from volvence_zero.prediction import PredictionErrorSnapshot
+        from volvence_zero.prediction.error import PredictionErrorSnapshot
 
         substrate_snapshot = upstream["substrate"]
         temporal_snapshot = upstream.get("temporal_abstraction")
@@ -1111,7 +1334,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         return self.publish(self._store.snapshot(retrieved_entries=retrieval.entries))
 
     async def process_standalone(self, **kwargs: object) -> Snapshot[MemorySnapshot]:
-        from volvence_zero.prediction import PredictionErrorSnapshot
+        from volvence_zero.prediction.error import PredictionErrorSnapshot
 
         timestamp_ms = int(kwargs.get("timestamp_ms", 0)) or 1
         user_text = kwargs.get("user_text")
@@ -1188,6 +1411,13 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                     f"cms:{cms_state.background_slow.name}",
                 )
             )
+            if cms_state.tower_profile is not None:
+                facets.extend(
+                    (
+                        f"cms:tower:{cms_state.tower_profile.profile_id}",
+                        f"cms:tower-depth:{cms_state.tower_depth}",
+                    )
+                )
         if substrate_snapshot is not None:
             facets.extend(_query_parts_from_feature_surface(substrate_snapshot.feature_surface))
         facets.extend(_temporal_query_facets(temporal_value))

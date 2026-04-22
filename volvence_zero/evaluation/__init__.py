@@ -5,6 +5,8 @@ from volvence_zero.evaluation.backbone import (
     EvolutionDecision,
     EvolutionJudgement,
     JudgementCategory,
+    MetricIntervalSummary,
+    PairwiseMetricEffect,
     EvaluationReplayCase,
     EvaluationReplayCaseResult,
     EvaluationReplaySuiteResult,
@@ -15,6 +17,9 @@ from volvence_zero.evaluation.backbone import (
     EvaluationSnapshot,
     EvaluationTrack,
     LongitudinalReport,
+    build_metric_interval_summaries,
+    build_metric_interval_summary,
+    build_pairwise_metric_effect,
 )
 
 __all__ = [
@@ -34,4 +39,9 @@ __all__ = [
     "EvaluationSnapshot",
     "EvaluationTrack",
     "LongitudinalReport",
+    "MetricIntervalSummary",
+    "PairwiseMetricEffect",
+    "build_metric_interval_summaries",
+    "build_metric_interval_summary",
+    "build_pairwise_metric_effect",
 ]

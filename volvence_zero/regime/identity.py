@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
-from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from volvence_zero.credit import (
+from volvence_zero.credit.gate import (
     CreditModule,
     CreditSnapshot,
     GateDecision,
@@ -16,7 +16,7 @@ from volvence_zero.credit import (
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import (
+from volvence_zero.evaluation.backbone import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
     EvaluationReport,
@@ -105,12 +105,14 @@ class JointCycleReport:
     policy_kl_divergence: float = 0.0
     policy_epochs_executed: int = 0
     rare_heavy_review_recommended: bool = False
+    rl_batch_rollout_count: int = 1
 
 
 @dataclass(frozen=True)
 class JointLoopSchedule:
     ssl_interval: int = 1
     rl_interval: int = 3
+    rl_batch_max_wait_turns: int = 2
     pe_full_cycle_threshold: float = 0.6
     pe_ssl_threshold: float = 0.18
     pe_substrate_online_fast_threshold: float = 0.18
@@ -180,6 +182,7 @@ class ETANLJointLoop:
         residual_runtime: OpenWeightResidualRuntime | None = None,
         evaluation_backbone: EvaluationBackbone | None = None,
         primary_prediction_error_dominance_enabled: bool = True,
+        rl_batch_accumulation_size: int = 1,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -203,6 +206,9 @@ class ETANLJointLoop:
         self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._last_schedule_action = "evidence-only"
         self._last_learning_turn_index = 0
+        self._rl_batch_accumulation_size = max(1, rl_batch_accumulation_size)
+        self._pending_task_rollouts: list = []
+        self._pending_relationship_rollouts: list = []
         self.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
@@ -436,10 +442,45 @@ class ETANLJointLoop:
                 f"relationship_reward={relationship_rollout.total_reward:.2f}."
             ),
         )
+        self._pending_task_rollouts.append(task_rollout)
+        self._pending_relationship_rollouts.append(relationship_rollout)
+        batch_due = len(self._pending_task_rollouts) >= self._rl_batch_accumulation_size
         world_before_hash = stable_value_hash(self._world_sandbox.causal_policy.export_parameters())
         self_before_hash = stable_value_hash(self._self_sandbox.causal_policy.export_parameters())
-        task_report = self._world_sandbox.optimize(task_rollout)
-        relationship_report = self._self_sandbox.optimize(relationship_rollout)
+        if batch_due:
+            task_batch = tuple(self._pending_task_rollouts)
+            relationship_batch = tuple(self._pending_relationship_rollouts)
+            task_report = self._world_sandbox.optimize(task_batch)
+            relationship_report = self._self_sandbox.optimize(relationship_batch)
+            self._pending_task_rollouts.clear()
+            self._pending_relationship_rollouts.clear()
+            rl_batch_rollout_count = len(task_batch)
+        else:
+            task_report = OptimizationReport(
+                track=Track.WORLD,
+                average_reward=0.0,
+                baseline_reward=0.0,
+                mean_advantage=0.0,
+                surrogate_objective=0.0,
+                clip_fraction=0.0,
+                kl_penalty=0.0,
+                parameter_summary="waiting-for-batch",
+                rollout_count=len(self._pending_task_rollouts),
+                transition_count=sum(len(rollout.transitions) for rollout in self._pending_task_rollouts),
+            )
+            relationship_report = OptimizationReport(
+                track=Track.SELF,
+                average_reward=0.0,
+                baseline_reward=0.0,
+                mean_advantage=0.0,
+                surrogate_objective=0.0,
+                clip_fraction=0.0,
+                kl_penalty=0.0,
+                parameter_summary="waiting-for-batch",
+                rollout_count=len(self._pending_relationship_rollouts),
+                transition_count=sum(len(rollout.transitions) for rollout in self._pending_relationship_rollouts),
+            )
+            rl_batch_rollout_count = len(self._pending_task_rollouts)
         if not isinstance(task_report, OptimizationReport):
             raise TypeError("Expected OptimizationReport for world track optimization.")
         if not isinstance(relationship_report, OptimizationReport):
@@ -770,8 +811,8 @@ class ETANLJointLoop:
             ssl_posterior_drift=(world_ssl_report.posterior_drift + self_ssl_report.posterior_drift) / 2.0,
             total_reward=total_reward,
             mean_transition_reward=mean_transition_reward,
-            task_reward=dual_track_rollout.task_rollout.total_reward,
-            relationship_reward=dual_track_rollout.relationship_rollout.total_reward,
+            task_reward=task_report.average_reward * max(task_report.transition_count, 1),
+            relationship_reward=relationship_report.average_reward * max(relationship_report.transition_count, 1),
             ssl_rollback_applied=ssl_rollback_applied,
             policy_rollback_applied=policy_rollback_applied,
             rollback_reasons=rollback_reasons,
@@ -812,6 +853,7 @@ class ETANLJointLoop:
             policy_kl_divergence=optimization_result.total_kl_divergence,
             policy_epochs_executed=optimization_result.total_epochs_executed,
             rare_heavy_review_recommended=rare_heavy_review_recommended,
+            rl_batch_rollout_count=rl_batch_rollout_count,
         )
 
     async def run_scheduled_step(
@@ -831,6 +873,9 @@ class ETANLJointLoop:
         pe_full_cycle_due = self._pe_full_cycle_due(schedule=active_schedule)
         pe_ssl_due = self._pe_ssl_due(schedule=active_schedule)
         substrate_online_fast_due = self._pe_substrate_online_fast_due(schedule=active_schedule)
+        rl_due = active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0
+        rl_batch_ready_due = self._rl_batch_ready_due()
+        rl_batch_wait_due = self._rl_batch_wait_due(turn_index=turn_index, schedule=active_schedule)
         latent_continuation_due = self._latent_continuation_due(
             turn_index=turn_index,
             schedule=active_schedule,
@@ -845,7 +890,18 @@ class ETANLJointLoop:
             else "No CMS core attached."
         )
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=active_schedule)
-        if pe_full_cycle_due or (active_schedule.rl_interval > 0 and turn_index % active_schedule.rl_interval == 0):
+        should_run_cycle = pe_full_cycle_due or rl_due or rl_batch_ready_due or rl_batch_wait_due
+        if should_run_cycle:
+            if pe_full_cycle_due:
+                schedule_action = "full-cycle-pe"
+            elif rl_batch_wait_due:
+                schedule_action = "full-cycle-batch-forced"
+            elif rl_batch_ready_due and self._effective_rl_batch_target() > 1:
+                schedule_action = "full-cycle-batch"
+            elif rl_due and self._effective_rl_batch_target() > 1:
+                schedule_action = "full-cycle-collect"
+            else:
+                schedule_action = "full-cycle"
             cycle_report = await self.run_cycle(
                 cycle_index=turn_index,
                 trace=trace,
@@ -856,12 +912,12 @@ class ETANLJointLoop:
             )
             self._record_schedule_outcome(
                 turn_index=turn_index,
-                schedule_action="full-cycle-pe" if pe_full_cycle_due else "full-cycle",
+                schedule_action=schedule_action,
                 metacontroller_state=cycle_report.metacontroller_state,
             )
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
-                schedule_action="full-cycle-pe" if pe_full_cycle_due else "full-cycle",
+                schedule_action=schedule_action,
                 cycle_report=cycle_report,
                 kernel_scores=cycle_report.kernel_scores,
                 ssl_prediction_loss=cycle_report.ssl_prediction_loss,
@@ -952,12 +1008,20 @@ class ETANLJointLoop:
         pe_substrate_online_fast_due = int(self._pe_substrate_online_fast_due(schedule=schedule))
         pe_rare_heavy_due = int(self._pe_rare_heavy_due(schedule=schedule))
         latent_continuation_due = int(self._latent_continuation_due(turn_index=turn_index, schedule=schedule))
+        batch_target = self._effective_rl_batch_target()
+        pending_batch_count = self._pending_rl_batch_count()
+        rl_batch_ready_due = int(self._rl_batch_ready_due())
+        rl_batch_wait_due = int(self._rl_batch_wait_due(turn_index=turn_index, schedule=schedule))
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
             ("rl_interval", schedule.rl_interval),
+            ("rl_batch_target", batch_target),
+            ("pending_batch_count", pending_batch_count),
             ("ssl_due", ssl_due),
             ("rl_due", rl_due),
+            ("rl_batch_ready_due", rl_batch_ready_due),
+            ("rl_batch_wait_due", rl_batch_wait_due),
             ("pe_full_cycle_due", pe_full_cycle_due),
             ("pe_ssl_due", pe_ssl_due),
             ("pe_substrate_online_fast_due", pe_substrate_online_fast_due),
@@ -992,12 +1056,42 @@ class ETANLJointLoop:
             or pe_abs_reward >= schedule.pe_substrate_online_fast_threshold * 0.5
         )
 
+    def _effective_rl_batch_target(self) -> int:
+        return max(1, self._rl_batch_accumulation_size)
+
+    def _pending_rl_batch_count(self) -> int:
+        return len(self._pending_task_rollouts)
+
+    def _rl_batch_ready_due(self) -> bool:
+        target = self._effective_rl_batch_target()
+        return self._pending_rl_batch_count() + 1 >= target
+
+    def _rl_batch_wait_due(
+        self,
+        *,
+        turn_index: int,
+        schedule: JointLoopSchedule,
+    ) -> bool:
+        if self._pending_rl_batch_count() <= 0:
+            return False
+        if schedule.rl_batch_max_wait_turns <= 0:
+            return False
+        if self._last_learning_turn_index <= 0:
+            return False
+        return turn_index - self._last_learning_turn_index >= schedule.rl_batch_max_wait_turns
+
+    def _require_live_substrate_mutation_enabled(self, *, operation: str) -> None:
+        if self._residual_runtime is None:
+            raise RuntimeError(f"{operation} requires a residual runtime.")
+        self._residual_runtime.require_live_substrate_mutation(operation=operation)
+
     def apply_rare_heavy_artifact(
         self,
         artifact: RareHeavyArtifact,
         *,
         checkpoint_id: str | None = None,
     ) -> RareHeavyImportResult:
+        self._require_live_substrate_mutation_enabled(operation="apply_rare_heavy_artifact()")
         checkpoint_label = checkpoint_id or f"rare-heavy:{artifact.artifact_id}"
         world_policy_checkpoint = self._world_sandbox.create_checkpoint(
             checkpoint_id=f"{checkpoint_label}:world-policy"
@@ -1066,6 +1160,7 @@ class ETANLJointLoop:
         *,
         checkpoint_id: str | None = None,
     ) -> OnlineFastImportResult:
+        self._require_live_substrate_mutation_enabled(operation="apply_online_fast_substrate_checkpoint()")
         prior_checkpoint = (
             self._residual_runtime.export_online_fast_state(
                 checkpoint_id=checkpoint_id or f"{checkpoint.checkpoint_id}:prior"

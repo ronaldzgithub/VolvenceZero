@@ -707,8 +707,10 @@ class TestP17SSLRLPipeline:
         assert result.rl_steps_completed >= 1
         assert result.transition_step >= 0
         ssl_reports = [r for r in result.phase_reports if r.phase == "ssl"]
+        transition_reports = [r for r in result.phase_reports if r.phase == "transition"]
         rl_reports = [r for r in result.phase_reports if r.phase == "rl"]
         assert len(ssl_reports) >= 2
+        assert len(transition_reports) >= 1
         assert len(rl_reports) >= 1
 
     def test_pipeline_respects_convergence(self) -> None:
@@ -756,8 +758,13 @@ class TestP17SSLRLPipeline:
             assert report.owner_path == "offline-sslrl-pipeline"
             if report.phase == "ssl":
                 assert report.ssl_loss >= 0.0
+                assert report.rollout_batch_count == 0
+            elif report.phase == "transition":
+                assert report.transition_agreement >= 0.0
+                assert report.rollout_batch_count >= 1
             elif report.phase == "rl":
                 assert report.total_reward != 0.0 or report.policy_objective != 0.0
+                assert report.rollout_batch_count >= 1
 
     def test_pipeline_rollback_to_ssl(self) -> None:
         from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig

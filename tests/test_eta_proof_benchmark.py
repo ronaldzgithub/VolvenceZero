@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAInternalRLAcceptanceConfig,
+    build_eta_proof_paper_suite_manifest,
     build_default_eta_proof_environment,
     build_eta_internal_rl_assessment,
     default_eta_proof_cases,
     default_eta_proof_profiles,
     default_eta_proof_routes,
     evaluate_eta_internal_rl_acceptance,
+    export_eta_internal_rl_paper_suite_artifact_bundle,
     run_eta_internal_rl_backend_robustness_benchmark,
+    run_eta_internal_rl_paper_suite,
     run_eta_internal_rl_proof_benchmark,
 )
 from volvence_zero.internal_rl import InternalRLProofEpisode, InternalRLProofSubgoal, InternalRLSandbox
@@ -138,12 +141,17 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
 
     assert report.baseline_label == "full-internal-rl"
     assert report.backend_label == "trace"
+    assert report.rollout_batch_count >= 1
     assert len(report.profile_reports) == 2
     metric_names = {name for name, _ in report.profile_reports[0].metric_means}
     assert "heldout_strong_success_rate" in metric_names
+    assert "heldout_strong_success_std" in metric_names
     assert "heldout_family_reuse_rate" in metric_names
     assert report.profile_reports[0].training_update_count > 0
+    assert report.profile_reports[0].rollout_batch_count > 0
+    assert report.profile_reports[0].mean_rollouts_per_update >= 1.0
     assert report.profile_reports[0].training_parameter_change_rate > 0.0
+    assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
 
 
@@ -181,6 +189,9 @@ def test_eta_internal_rl_assessment_exposes_policy_update_gate():
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     assert "policy-update-evidence" in gate_map
     assert gate_map["policy-update-evidence"].passed is True
+    assert "statistical-batch-evidence" in gate_map
+    statistical_evidence = dict(gate_map["statistical-batch-evidence"].evidence)
+    assert statistical_evidence["mean_rollouts_per_update"] >= 0.0
 
 
 def test_eta_internal_rl_assessment_exposes_gate_specific_best_control_evidence():
@@ -262,8 +273,54 @@ def test_eta_internal_rl_acceptance_passes_with_relaxed_thresholds():
             min_strong_success_rate=0.0,
             max_backend_success_gap=1.0,
             min_policy_update_rate=0.0,
+            min_rollouts_per_update=0.0,
+            min_parameter_change_norm=0.0,
+            min_replacement_effect_delta=0.0,
+            max_heldout_success_std=1.0,
             min_passed_gate_count=max(assessment.passed_gate_count, 1),
         ),
     )
 
     assert decision.accepted is True
+
+
+def test_eta_proof_paper_suite_manifest_freezes_primary_metrics():
+    manifest = build_eta_proof_paper_suite_manifest(suite_tier="paper-suite-small")
+
+    assert manifest.suite_kind == "eta-internal-rl-proof"
+    assert manifest.baseline_label == "full-internal-rl"
+    assert manifest.repeat_count == 2
+    assert manifest.seed_schedule == (0, 1)
+    assert any(metric.metric_name == "heldout_strong_success_rate" for metric in manifest.primary_metrics)
+    assert any(metric.metric_name == "mean_rollouts_per_update" for metric in manifest.secondary_metrics)
+
+
+def test_run_eta_internal_rl_paper_suite_emits_interval_summaries(tmp_path):
+    manifest = build_eta_proof_paper_suite_manifest(suite_tier="ci-smoke")
+
+    report = run_eta_internal_rl_paper_suite(
+        manifest=manifest,
+        output_dir=tmp_path,
+    )
+
+    assert report.manifest.suite_id == "eta-proof-ci-smoke"
+    assert report.run_summaries
+    assert report.primary_metric_summaries
+    assert any(summary.metric_name == "mean_rollouts_per_update" for summary in report.secondary_metric_summaries)
+    assert report.provenance.manifest_hash
+    assert report.reference_assessment is not None
+
+
+def test_eta_paper_suite_artifact_bundle_exports_reference_reports(tmp_path):
+    manifest = build_eta_proof_paper_suite_manifest(suite_tier="ci-smoke")
+    report = run_eta_internal_rl_paper_suite(manifest=manifest)
+
+    written_paths = export_eta_internal_rl_paper_suite_artifact_bundle(
+        report,
+        output_dir=tmp_path,
+    )
+
+    assert written_paths
+    assert (tmp_path / "paper_suite_manifest.json").exists()
+    assert (tmp_path / "reference_benchmark_report.json").exists()
+    assert (tmp_path / "reference_assessment.json").exists()

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import math
 
-from volvence_zero.credit import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
+from volvence_zero.credit.gate import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.internal_rl.environment import (
     InternalRLDelayedCreditAssignment,
     InternalRLEnvStep,
@@ -48,6 +49,13 @@ class ZTransition:
     policy_replacement_quality: float
     backend_name: str
     backend_fidelity: float
+    policy_mean: tuple[float, ...] = ()
+    policy_std: tuple[float, ...] = ()
+    policy_noise: tuple[float, ...] = ()
+    value_estimate: float = 0.0
+    return_estimate: float = 0.0
+    advantage_estimate: float = 0.0
+    replacement_effect_delta: float = 0.0
     reward_components: tuple[tuple[str, float], ...] = ()
     reward_mode: str = "dense"
     proof_subgoal_id: str | None = None
@@ -95,6 +103,8 @@ class CausalPolicyParameters:
     persistence: float
     learning_rate: float
     update_step: int
+    critic_weights: tuple[float, ...] = ()
+    critic_bias: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -117,6 +127,27 @@ class OptimizationReport:
     epochs_executed: int = 1
     kl_early_stopped: bool = False
     parameters_changed: bool = False
+    rollout_count: int = 1
+    transition_count: int = 0
+    mean_return: float = 0.0
+    value_loss: float = 0.0
+    parameter_change_norm: float = 0.0
+    replacement_effect_delta: float = 0.0
+
+
+@dataclass(frozen=True)
+class TransitionBatchTargets:
+    transitions: tuple[ZTransition, ...]
+    normalized_advantages: tuple[float, ...]
+    returns: tuple[float, ...]
+    mean_return: float
+    value_loss: float
+
+
+@dataclass(frozen=True)
+class PolicyBatchResult:
+    report: OptimizationReport
+    updated_rollouts: tuple[ZRollout, ...]
 
 
 @dataclass(frozen=True)
@@ -154,13 +185,26 @@ def _surface_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> t
         ]
     if not values:
         return tuple(0.0 for _ in range(n_z))
+    average = sum(values) / len(values)
+    maximum = max(values)
+    minimum = min(values)
+    spread = maximum - minimum
+    stability = 1.0 - spread
+    leading = values[-1] if values else 0.0
+    richness = tuple(
+        _clamp(value)
+        for value in (
+            average,
+            maximum,
+            spread,
+            stability,
+            leading,
+        )
+    )
     if n_z <= 3:
-        average = sum(values) / len(values)
-        maximum = max(values)
-        spread = maximum - min(values)
-        return (_clamp(average), _clamp(maximum), _clamp(spread))
+        return richness[:n_z]
     from volvence_zero.temporal.metacontroller_components import _project_to_ndim
-    return _project_to_ndim(tuple(_clamp(v) for v in values), n_z)
+    return _project_to_ndim(richness, n_z)
 
 
 def _sequence_observation_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> tuple[float, ...]:
@@ -177,20 +221,35 @@ def _sequence_observation_signature(substrate_snapshot: SubstrateSnapshot, n_z: 
     )
     peaked = tuple(max(vector[index] for vector in summary_vectors) for index in range(3))
     trended = tuple(summary_vectors[-1][index] - summary_vectors[0][index] for index in range(3))
+    volatility = tuple(abs(trended[index]) for index in range(3))
+    persistence = tuple(
+        _clamp(1.0 - abs(peaked[index] - averaged[index]))
+        for index in range(3)
+    )
     raw = tuple(
-        _clamp(averaged[index] * 0.45 + peaked[index] * 0.35 + trended[index] * 0.20)
+        _clamp(averaged[index] * 0.35 + peaked[index] * 0.25 + trended[index] * 0.20 + persistence[index] * 0.20)
         for index in range(3)
     )
     if n_z <= 3:
         return raw[:n_z]
-    return _project_to_ndim(raw, n_z)
+    enriched = raw + volatility + persistence
+    return _project_to_ndim(enriched, n_z)
 
 
 class CausalZPolicy:
-    """Small causal policy over z-space with per-track recurrent state."""
+    """Causal z-policy with bounded stochastic actions and a lightweight critic."""
 
     def __init__(self, *, parameter_store: MetacontrollerParameterStore) -> None:
         self._parameter_store = parameter_store
+        self._value_weights: dict[Track, tuple[float, ...]] = {
+            track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
+            for track in (Track.WORLD, Track.SELF, Track.SHARED)
+        }
+        self._value_bias: dict[Track, float] = {
+            Track.WORLD: 0.05,
+            Track.SELF: 0.05,
+            Track.SHARED: 0.05,
+        }
 
     @property
     def n_z(self) -> int:
@@ -211,30 +270,58 @@ class CausalZPolicy:
         substrate_snapshot: SubstrateSnapshot,
         state: CausalPolicyState,
         observation_mode: str = "default",
-    ) -> tuple[CausalPolicyState, tuple[float, ...], tuple[float, ...], tuple[float, ...], float, float]:
+    ) -> tuple[
+        CausalPolicyState,
+        tuple[float, ...],
+        tuple[float, ...],
+        tuple[float, ...],
+        tuple[float, ...],
+        tuple[float, ...],
+        tuple[float, ...],
+        float,
+        float,
+        float,
+    ]:
         n = self.n_z
         if observation_mode == "proof":
             surface = _sequence_observation_signature(substrate_snapshot, n)
         else:
             surface = _surface_signature(substrate_snapshot, n)
-        weights = self._parameter_store.track_weights[state.track]
-        w_len = min(len(weights), n)
-        track_projected = tuple(
-            _clamp(surface[i] * (weights[i % w_len] if i < w_len else 0.3) * 1.5 + surface[i] * 0.25)
-            for i in range(n)
+        features = self._policy_features(
+            surface=surface,
+            previous_action=state.previous_action,
+            previous_hidden_state=state.hidden_state,
         )
         hidden_state = tuple(
             _clamp(
                 previous * self._parameter_store.persistence
                 + current * (1.0 - self._parameter_store.persistence)
             )
-            for previous, current in zip(state.hidden_state, track_projected)
+            for previous, current in zip(state.hidden_state, features, strict=True)
         )
-        policy_action = self._policy_action(
+        weights = self._project_track_weights(track=state.track, n=n)
+        policy_mean = self._policy_mean(
             hidden_state=hidden_state,
             surface=surface,
             previous_action=state.previous_action,
             weights=weights,
+        )
+        policy_std = self._policy_std(
+            hidden_state=hidden_state,
+            surface=surface,
+            previous_action=state.previous_action,
+            policy_mean=policy_mean,
+        )
+        policy_noise = self._policy_noise(
+            hidden_state=hidden_state,
+            surface=surface,
+            step_index=state.step_index,
+            track=state.track,
+        )
+        policy_action = self._sample_action(
+            policy_mean=policy_mean,
+            policy_std=policy_std,
+            policy_noise=policy_noise,
         )
         next_state = CausalPolicyState(
             track=state.track,
@@ -248,8 +335,28 @@ class CausalZPolicy:
             surface=surface,
             policy_action=policy_action,
         )
-        log_prob = self._log_prob(policy_score=policy_score)
-        return next_state, surface, hidden_state, policy_action, policy_score, log_prob
+        log_prob = self._log_prob(
+            policy_action=policy_action,
+            policy_mean=policy_mean,
+            policy_std=policy_std,
+        )
+        value_estimate = self._value_estimate(
+            track=state.track,
+            hidden_state=hidden_state,
+            surface=surface,
+        )
+        return (
+            next_state,
+            surface,
+            hidden_state,
+            policy_action,
+            policy_mean,
+            policy_std,
+            policy_noise,
+            policy_score,
+            log_prob,
+            value_estimate,
+        )
 
     def export_parameters(self) -> tuple[CausalPolicyParameters, ...]:
         return tuple(
@@ -259,6 +366,8 @@ class CausalZPolicy:
                 persistence=self._parameter_store.persistence,
                 learning_rate=self._parameter_store.learning_rate,
                 update_step=self._parameter_store.update_steps[track],
+                critic_weights=self._value_weights[track],
+                critic_bias=self._value_bias[track],
             )
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
         )
@@ -274,12 +383,128 @@ class CausalZPolicy:
         self._parameter_store.track_weights = {
             params.track: params.weights for params in checkpoint.parameters_by_track
         }
+        self._value_weights = {
+            params.track: (
+                params.critic_weights
+                if params.critic_weights
+                else tuple(weight * 0.8 for weight in params.weights)
+            )
+            for params in checkpoint.parameters_by_track
+        }
+        self._value_bias = {
+            params.track: params.critic_bias
+            for params in checkpoint.parameters_by_track
+        }
         self._parameter_store.persistence = checkpoint.parameters_by_track[0].persistence
         self._parameter_store.learning_rate = checkpoint.parameters_by_track[0].learning_rate
         self._parameter_store.update_steps = {
             params.track: params.update_step for params in checkpoint.parameters_by_track
         }
         self._parameter_store.restore_parameter_snapshot(checkpoint.metacontroller_snapshot)
+
+    def _project_track_weights(self, *, track: Track, n: int) -> tuple[float, ...]:
+        weights = self._parameter_store.track_weights[track]
+        if len(weights) == n:
+            return weights
+        if len(weights) > n:
+            return weights[:n]
+        if not weights:
+            return tuple(1.0 / max(n, 1) for _ in range(n))
+        padded = list(weights)
+        while len(padded) < n:
+            padded.append(weights[len(padded) % len(weights)])
+        total = max(sum(padded), 1e-6)
+        return tuple(value / total for value in padded)
+
+    def _policy_features(
+        self,
+        *,
+        surface: tuple[float, ...],
+        previous_action: tuple[float, ...],
+        previous_hidden_state: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        return tuple(
+            _clamp(
+                surface[index] * 0.50
+                + previous_action[index] * 0.20
+                + previous_hidden_state[index] * 0.30
+            )
+            for index in range(len(surface))
+        )
+
+    def _policy_mean(
+        self,
+        *,
+        hidden_state: tuple[float, ...],
+        surface: tuple[float, ...],
+        previous_action: tuple[float, ...],
+        weights: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        return tuple(
+            _clamp(
+                hidden_state[index] * 0.40
+                + surface[index] * 0.25
+                + previous_action[index] * 0.15
+                + weights[index] * 0.20
+            )
+            for index in range(len(hidden_state))
+        )
+
+    def _policy_std(
+        self,
+        *,
+        hidden_state: tuple[float, ...],
+        surface: tuple[float, ...],
+        previous_action: tuple[float, ...],
+        policy_mean: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        return tuple(
+            max(
+                0.05,
+                min(
+                    0.25,
+                    0.08
+                    + abs(hidden_state[index] - surface[index]) * 0.08
+                    + abs(policy_mean[index] - previous_action[index]) * 0.10,
+                ),
+            )
+            for index in range(len(policy_mean))
+        )
+
+    def _policy_noise(
+        self,
+        *,
+        hidden_state: tuple[float, ...],
+        surface: tuple[float, ...],
+        step_index: int,
+        track: Track,
+    ) -> tuple[float, ...]:
+        track_factor = {
+            Track.WORLD: 1.0,
+            Track.SELF: 1.7,
+            Track.SHARED: 2.3,
+        }[track]
+        return tuple(
+            math.sin(
+                (step_index + 1) * (index + 1) * 1.618
+                + hidden_state[index] * 7.0
+                + surface[index] * 11.0
+                + track_factor
+            )
+            for index in range(len(hidden_state))
+        )
+
+    def _sample_action(
+        self,
+        *,
+        policy_mean: tuple[float, ...],
+        policy_std: tuple[float, ...],
+        policy_noise: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        return tuple(
+            _clamp(policy_mean[index] + policy_std[index] * policy_noise[index] * 0.5)
+            for index in range(len(policy_mean))
+        )
 
     def _policy_score(
         self,
@@ -290,77 +515,95 @@ class CausalZPolicy:
         policy_action: tuple[float, ...],
     ) -> float:
         n = len(hidden_state)
-        w_len = len(weights)
-        score = sum((weights[i % w_len] if i < w_len else 0.3) * hidden_state[i] for i in range(n)) / max(n, 1) * 3
-        score += sum((weights[i % w_len] if i < w_len else 0.3) * surface[i] for i in range(n)) / max(n, 1) * 3 * 0.5
-        score += sum((weights[i % w_len] if i < w_len else 0.3) * policy_action[i] for i in range(n)) / max(n, 1) * 3 * 0.35
+        score = sum(weights[i] * hidden_state[i] for i in range(n)) / max(n, 1) * 2.0
+        score += sum(weights[i] * surface[i] for i in range(n)) / max(n, 1) * 1.5
+        score += sum(weights[i] * policy_action[i] for i in range(n)) / max(n, 1) * 1.0
         return _clamp(score)
 
-    def _policy_action(
+    def _log_prob(
         self,
         *,
+        policy_action: tuple[float, ...],
+        policy_mean: tuple[float, ...],
+        policy_std: tuple[float, ...],
+    ) -> float:
+        total = 0.0
+        for action_value, mean_value, std_value in zip(policy_action, policy_mean, policy_std, strict=True):
+            variance = max(std_value * std_value, 1e-6)
+            total += -0.5 * (((action_value - mean_value) ** 2) / variance + math.log(2.0 * math.pi * variance))
+        return total
+
+    def _value_estimate(
+        self,
+        *,
+        track: Track,
         hidden_state: tuple[float, ...],
         surface: tuple[float, ...],
-        previous_action: tuple[float, ...],
-        weights: tuple[float, ...],
-    ) -> tuple[float, ...]:
-        n = len(hidden_state)
-        w_len = len(weights)
-        proposal = tuple(
-            _clamp(
-                hidden_state[i] * 0.50
-                + surface[i] * 0.30
-                + previous_action[i] * 0.20
-                + (weights[i % w_len] if i < w_len else 0.3) * 0.10
-            )
-            for i in range(n)
-        )
-        return self._normalize_weights(proposal)
-
-    def _log_prob(self, *, policy_score: float) -> float:
-        centered = policy_score - 0.5
-        return -(centered * centered) / 0.125
-
-    def _normalize_weights(self, weights: tuple[float, ...]) -> tuple[float, ...]:
-        total = max(sum(weights), 1e-6)
-        return tuple(value / total for value in weights)
+    ) -> float:
+        weights = self._project_track_weights(track=track, n=len(hidden_state))
+        critic_weights = self._value_weights[track]
+        score = sum(
+            (hidden_state[index] * 0.55 + surface[index] * 0.45)
+            * critic_weights[index]
+            * (0.6 + weights[index] * 0.4)
+            for index in range(len(hidden_state))
+        ) / max(len(hidden_state), 1)
+        score += self._value_bias[track]
+        return max(-1.0, min(1.0, math.tanh(score * 2.5)))
 
     def _trajectory_gradient(
         self,
         *,
-        rollout: ZRollout,
+        transitions: tuple[ZTransition, ...],
         advantages: tuple[float, ...],
+        track: Track,
     ) -> tuple[float, ...]:
-        dims = len(rollout.transitions[0].observation_signature)
+        dims = len(transitions[0].observation_signature)
         accum = [0.0 for _ in range(dims)]
-        for transition, advantage in zip(rollout.transitions, advantages):
+        track_weights = self._project_track_weights(track=track, n=dims)
+        for transition, advantage in zip(transitions, advantages, strict=True):
             for index, value in enumerate(transition.observation_signature):
+                variance = max(transition.policy_std[index] ** 2, 1e-6)
+                score_term = (transition.policy_action[index] - transition.policy_mean[index]) / variance
                 accum[index] += (
-                    value * advantage
-                    + transition.policy_action[index] * transition.policy_replacement_quality * 0.5
+                    score_term
+                    * max(value * 0.6 + transition.hidden_state[index] * 0.4, 1e-3)
+                    * (0.55 + track_weights[index] * 0.45)
+                    * advantage
                 )
-        scale = 1.0 / max(len(rollout.transitions), 1)
+        scale = 1.0 / max(len(transitions), 1)
         return tuple(delta * scale for delta in accum)
 
     def _surrogate_metrics(
         self,
         *,
-        rollout: ZRollout,
+        transitions: tuple[ZTransition, ...],
         advantages: tuple[float, ...],
         old_weights: tuple[float, ...],
         new_weights: tuple[float, ...],
-    ) -> tuple[float, float, float]:
+    ) -> tuple[float, float, float, float]:
         clipped = 0
         objective_terms: list[float] = []
         kl_terms: list[float] = []
-        for transition, advantage in zip(rollout.transitions, advantages):
-            new_score = self._policy_score(
-                weights=new_weights,
+        replacement_effects: list[float] = []
+        for transition, advantage in zip(transitions, advantages, strict=True):
+            new_mean = self._policy_mean(
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
-                policy_action=transition.policy_action,
+                previous_action=transition.policy_action,
+                weights=new_weights,
             )
-            new_log_prob = self._log_prob(policy_score=new_score)
+            new_std = self._policy_std(
+                hidden_state=transition.hidden_state,
+                surface=transition.observation_signature,
+                previous_action=transition.policy_action,
+                policy_mean=new_mean,
+            )
+            new_log_prob = self._log_prob(
+                policy_action=transition.policy_action,
+                policy_mean=new_mean,
+                policy_std=new_std,
+            )
             ratio = 2.718281828 ** (new_log_prob - transition.log_prob)
             clipped_ratio = max(
                 1.0 - self._parameter_store.clip_epsilon,
@@ -374,17 +617,118 @@ class CausalZPolicy:
                 objective_terms.append(min(unclipped_objective, clipped_objective))
             else:
                 objective_terms.append(max(unclipped_objective, clipped_objective))
-            old_score = self._policy_score(
-                weights=old_weights,
+            old_mean = self._policy_mean(
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
-                policy_action=transition.policy_action,
+                previous_action=transition.policy_action,
+                weights=old_weights,
             )
-            kl_terms.append(abs(new_score - old_score))
-        clip_fraction = clipped / max(len(rollout.transitions), 1)
+            old_std = self._policy_std(
+                hidden_state=transition.hidden_state,
+                surface=transition.observation_signature,
+                previous_action=transition.policy_action,
+                policy_mean=old_mean,
+            )
+            kl_terms.append(
+                self._gaussian_kl(
+                    old_mean=old_mean,
+                    old_std=old_std,
+                    new_mean=new_mean,
+                    new_std=new_std,
+                )
+            )
+            replacement_effects.append(
+                self._mean_abs_delta(new_mean, old_mean) + transition.policy_replacement_quality * 0.1
+            )
+        clip_fraction = clipped / max(len(transitions), 1)
         surrogate_objective = sum(objective_terms) / max(len(objective_terms), 1)
         kl_penalty = sum(kl_terms) / max(len(kl_terms), 1)
-        return (surrogate_objective, clip_fraction, kl_penalty)
+        replacement_effect_delta = sum(replacement_effects) / max(len(replacement_effects), 1)
+        return (surrogate_objective, clip_fraction, kl_penalty, replacement_effect_delta)
+
+    def _estimate_rollout_targets(
+        self,
+        *,
+        rollout: ZRollout,
+        gamma: float = 0.99,
+        gae_lambda: float = 0.95,
+    ) -> TransitionBatchTargets:
+        n = len(rollout.transitions)
+        returns = [0.0] * n
+        if rollout.reward_mode.startswith("proof"):
+            running_return = 0.0
+            for index in range(n - 1, -1, -1):
+                running_return = rollout.transitions[index].reward + gamma * running_return
+                returns[index] = running_return
+            mean_return = sum(returns) / max(n, 1)
+            var_return = sum((value - mean_return) ** 2 for value in returns) / max(n, 1)
+            std_return = max(var_return ** 0.5, 1e-8)
+            normalized_advantages = tuple((value - mean_return) / std_return for value in returns)
+        else:
+            values = tuple(t.value_estimate for t in rollout.transitions)
+            raw_advantages = [0.0] * n
+            last_gae = 0.0
+            for index in range(n - 1, -1, -1):
+                next_value = values[index + 1] if index + 1 < n else 0.0
+                delta = rollout.transitions[index].reward + gamma * next_value - values[index]
+                last_gae = delta + gamma * gae_lambda * last_gae
+                raw_advantages[index] = last_gae
+                returns[index] = raw_advantages[index] + values[index]
+            mean_advantage = sum(raw_advantages) / max(n, 1)
+            var_advantage = sum((value - mean_advantage) ** 2 for value in raw_advantages) / max(n, 1)
+            std_advantage = max(var_advantage ** 0.5, 1e-8)
+            normalized_advantages = tuple((value - mean_advantage) / std_advantage for value in raw_advantages)
+            mean_return = sum(returns) / max(n, 1)
+        value_loss = sum(
+            (returns[index] - rollout.transitions[index].value_estimate) ** 2
+            for index in range(n)
+        ) / max(n, 1)
+        updated = tuple(
+            replace(
+                transition,
+                return_estimate=returns[index],
+                advantage_estimate=normalized_advantages[index],
+            )
+            for index, transition in enumerate(rollout.transitions)
+        )
+        return TransitionBatchTargets(
+            transitions=updated,
+            normalized_advantages=normalized_advantages,
+            returns=tuple(returns),
+            mean_return=sum(returns) / max(n, 1),
+            value_loss=value_loss,
+        )
+
+    def _aggregate_batch_targets(
+        self,
+        *,
+        rollouts: tuple[ZRollout, ...],
+        gamma: float = 0.99,
+        gae_lambda: float = 0.95,
+    ) -> tuple[tuple[ZRollout, ...], tuple[ZTransition, ...], tuple[float, ...], float, float]:
+        updated_rollouts: list[ZRollout] = []
+        aggregated_transitions: list[ZTransition] = []
+        aggregated_advantages: list[float] = []
+        mean_returns: list[float] = []
+        value_losses: list[float] = []
+        for rollout in rollouts:
+            targets = self._estimate_rollout_targets(
+                rollout=rollout,
+                gamma=gamma,
+                gae_lambda=gae_lambda,
+            )
+            updated_rollouts.append(replace(rollout, transitions=targets.transitions))
+            aggregated_transitions.extend(targets.transitions)
+            aggregated_advantages.extend(targets.normalized_advantages)
+            mean_returns.append(targets.mean_return)
+            value_losses.append(targets.value_loss)
+        return (
+            tuple(updated_rollouts),
+            tuple(aggregated_transitions),
+            tuple(aggregated_advantages),
+            sum(mean_returns) / max(len(mean_returns), 1),
+            sum(value_losses) / max(len(value_losses), 1),
+        )
 
     def _compute_gae(
         self,
@@ -393,71 +737,130 @@ class CausalZPolicy:
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
     ) -> tuple[float, ...]:
-        n = len(rollout.transitions)
-        if rollout.reward_mode.startswith("proof"):
-            returns = [0.0] * n
-            running_return = 0.0
-            for index in range(n - 1, -1, -1):
-                running_return = rollout.transitions[index].reward + gamma * running_return
-                returns[index] = running_return
-            mean_return = sum(returns) / max(n, 1)
-            var_return = sum((value - mean_return) ** 2 for value in returns) / max(n, 1)
-            std_return = max(var_return ** 0.5, 1e-8)
-            return tuple((value - mean_return) / std_return for value in returns)
-        values = tuple(t.policy_score for t in rollout.transitions)
-        rewards = tuple(t.reward for t in rollout.transitions)
-        advantages = [0.0] * n
-        last_gae = 0.0
-        for t in range(n - 1, -1, -1):
-            next_value = values[t + 1] if t + 1 < n else 0.0
-            delta = rewards[t] + gamma * next_value - values[t]
-            last_gae = delta + gamma * gae_lambda * last_gae
-            advantages[t] = last_gae
-        mean_adv = sum(advantages) / max(n, 1)
-        var_adv = sum((a - mean_adv) ** 2 for a in advantages) / max(n, 1)
-        std_adv = max(var_adv ** 0.5, 1e-8)
-        return tuple((a - mean_adv) / std_adv for a in advantages)
+        return self._estimate_rollout_targets(
+            rollout=rollout,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
+        ).normalized_advantages
+
+    def _gaussian_kl(
+        self,
+        *,
+        old_mean: tuple[float, ...],
+        old_std: tuple[float, ...],
+        new_mean: tuple[float, ...],
+        new_std: tuple[float, ...],
+    ) -> float:
+        total = 0.0
+        for om, os, nm, ns in zip(old_mean, old_std, new_mean, new_std, strict=True):
+            old_var = max(os * os, 1e-6)
+            new_var = max(ns * ns, 1e-6)
+            total += math.log(max(ns, 1e-6) / max(os, 1e-6)) + (old_var + (om - nm) ** 2) / (2.0 * new_var) - 0.5
+        return total / max(len(old_mean), 1)
+
+    def _mean_abs_delta(
+        self,
+        left: tuple[float, ...],
+        right: tuple[float, ...],
+    ) -> float:
+        return sum(abs(lv - rv) for lv, rv in zip(left, right, strict=True)) / max(len(left), 1)
+
+    def _update_value_head(
+        self,
+        *,
+        track: Track,
+        transitions: tuple[ZTransition, ...],
+        returns: tuple[float, ...],
+    ) -> float:
+        weights = list(self._value_weights[track])
+        bias = self._value_bias[track]
+        lr = self._parameter_store.learning_rate * 0.35
+        deltas = [0.0 for _ in weights]
+        bias_delta = 0.0
+        for transition, return_value in zip(transitions, returns, strict=True):
+            features = tuple(
+                _clamp(transition.hidden_state[index] * 0.55 + transition.observation_signature[index] * 0.45)
+                for index in range(len(weights))
+            )
+            error = return_value - transition.value_estimate
+            for index, feature_value in enumerate(features):
+                deltas[index] += error * feature_value
+            bias_delta += error
+        scale = 1.0 / max(len(transitions), 1)
+        for index, delta in enumerate(deltas):
+            weights[index] = _clamp(weights[index] + lr * delta * scale)
+        bias = max(-1.0, min(1.0, bias + lr * bias_delta * scale * 0.25))
+        self._value_weights[track] = tuple(weights)
+        self._value_bias[track] = bias
+        return sum(abs(delta) for delta in deltas) * scale
 
     def optimize(
         self,
         *,
-        rollout: ZRollout,
+        rollouts: tuple[ZRollout, ...] | ZRollout | None = None,
+        rollout: ZRollout | None = None,
         n_epochs: int = 3,
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
         max_kl: float = 0.05,
-    ) -> OptimizationReport:
-        if not rollout.transitions:
-            return OptimizationReport(
-                track=rollout.track,
-                average_reward=0.0,
-                baseline_reward=0.0,
-                mean_advantage=0.0,
-                surrogate_objective=0.0,
-                clip_fraction=0.0,
-                kl_penalty=0.0,
-                parameter_summary="no-op",
+    ) -> PolicyBatchResult:
+        selected_rollouts = rollouts if rollouts is not None else rollout
+        if selected_rollouts is None:
+            selected_rollouts = ()
+        normalized_rollouts = (
+            selected_rollouts
+            if isinstance(selected_rollouts, tuple)
+            else (selected_rollouts,)
+        )
+        filtered_rollouts = tuple(rollout for rollout in normalized_rollouts if rollout.transitions)
+        if not filtered_rollouts:
+            empty_track = normalized_rollouts[0].track if normalized_rollouts else Track.SHARED
+            return PolicyBatchResult(
+                report=OptimizationReport(
+                    track=empty_track,
+                    average_reward=0.0,
+                    baseline_reward=0.0,
+                    mean_advantage=0.0,
+                    surrogate_objective=0.0,
+                    clip_fraction=0.0,
+                    kl_penalty=0.0,
+                    parameter_summary="no-op",
+                    rollout_count=len(normalized_rollouts),
+                    transition_count=0,
+                ),
+                updated_rollouts=normalized_rollouts,
             )
-        rewards = tuple(transition.reward for transition in rollout.transitions)
-        baseline_reward = sum(rewards) / len(rewards)
-        advantages = self._compute_gae(rollout=rollout, gamma=gamma, gae_lambda=gae_lambda)
-        mean_advantage = sum(advantages) / len(advantages)
-        initial_weights = self._parameter_store.track_weights[rollout.track]
+        track = filtered_rollouts[0].track
+        updated_rollouts, transitions, advantages, mean_return, value_loss = self._aggregate_batch_targets(
+            rollouts=filtered_rollouts,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
+        )
+        rewards = tuple(transition.reward for transition in transitions)
+        baseline_reward = sum(rewards) / max(len(rewards), 1)
+        mean_advantage = sum(advantages) / max(len(advantages), 1)
+        initial_weights = self._project_track_weights(track=track, n=self.n_z)
+        previous_weights = initial_weights
         best_surrogate = -1.0
         best_clip_fraction = 0.0
         best_kl = 0.0
+        best_replacement_delta = 0.0
         kl_early_stopped = False
         epochs_executed = 0
         for epoch in range(n_epochs):
-            previous_weights = self._parameter_store.track_weights[rollout.track]
-            gradient = self._trajectory_gradient(rollout=rollout, advantages=advantages)
-            proposed_weights = tuple(
-                _clamp(weight + self._parameter_store.learning_rate * delta)
-                for weight, delta in zip(previous_weights, gradient)
+            gradient = self._trajectory_gradient(
+                transitions=transitions,
+                advantages=advantages,
+                track=track,
             )
-            normalized_weights = self._normalize_weights(proposed_weights)
-            surrogate_objective, clip_fraction, kl_penalty = self._surrogate_metrics(
-                rollout=rollout,
+            proposed_weights = tuple(
+                _clamp(weight + self._parameter_store.learning_rate * delta * 0.12)
+                for weight, delta in zip(previous_weights, gradient, strict=True)
+            )
+            total = max(sum(proposed_weights), 1e-6)
+            normalized_weights = tuple(weight / total for weight in proposed_weights)
+            surrogate_objective, clip_fraction, kl_penalty, replacement_effect_delta = self._surrogate_metrics(
+                transitions=transitions,
                 advantages=advantages,
                 old_weights=initial_weights,
                 new_weights=normalized_weights,
@@ -466,35 +869,57 @@ class CausalZPolicy:
             best_surrogate = surrogate_objective
             best_clip_fraction = clip_fraction
             best_kl = kl_penalty
-            if surrogate_objective >= -0.05:
-                self._parameter_store.track_weights[rollout.track] = normalized_weights
+            best_replacement_delta = replacement_effect_delta
+            if surrogate_objective >= -0.15:
+                self._parameter_store.track_weights[track] = normalized_weights
+                previous_weights = normalized_weights
             if kl_penalty > max_kl:
                 kl_early_stopped = True
                 break
+        value_change_norm = self._update_value_head(
+            track=track,
+            transitions=transitions,
+            returns=tuple(transition.return_estimate for transition in transitions),
+        )
         self._parameter_store.persistence = _clamp(
             self._parameter_store.persistence
-            + mean_advantage * self._parameter_store.learning_rate * 0.05
+            + mean_advantage * self._parameter_store.learning_rate * 0.03
         )
-        self._parameter_store.update_steps[rollout.track] += 1
+        self._parameter_store.update_steps[track] += 1
         self._parameter_store.align_temporal_from_tracks()
-        return OptimizationReport(
-            track=rollout.track,
-            average_reward=rollout.total_reward / len(rollout.transitions),
-            baseline_reward=baseline_reward,
-            mean_advantage=mean_advantage,
-            surrogate_objective=best_surrogate,
-            clip_fraction=best_clip_fraction,
-            kl_penalty=best_kl,
-            epochs_executed=epochs_executed,
-            kl_early_stopped=kl_early_stopped,
-            parameter_summary=(
-                f"track={rollout.track.value} weights={self._parameter_store.track_weights[rollout.track]} "
-                f"persistence={self._parameter_store.persistence:.3f} "
-                f"step={self._parameter_store.update_steps[rollout.track]} "
-                f"objective={best_surrogate:.3f} epochs={epochs_executed}/{n_epochs} "
-                f"kl_stopped={kl_early_stopped} "
-                f"replacement={sum(t.policy_replacement_quality for t in rollout.transitions)/len(rollout.transitions):.3f}"
+        parameter_change_norm = self._mean_abs_delta(
+            initial_weights,
+            self._project_track_weights(track=track, n=self.n_z),
+        ) + value_change_norm
+        return PolicyBatchResult(
+            report=OptimizationReport(
+                track=track,
+                average_reward=sum(rollout.total_reward for rollout in updated_rollouts)
+                / max(sum(len(rollout.transitions) for rollout in updated_rollouts), 1),
+                baseline_reward=baseline_reward,
+                mean_advantage=mean_advantage,
+                surrogate_objective=best_surrogate,
+                clip_fraction=best_clip_fraction,
+                kl_penalty=best_kl,
+                epochs_executed=epochs_executed,
+                kl_early_stopped=kl_early_stopped,
+                parameters_changed=parameter_change_norm > 1e-6,
+                rollout_count=len(updated_rollouts),
+                transition_count=len(transitions),
+                mean_return=mean_return,
+                value_loss=value_loss,
+                parameter_change_norm=parameter_change_norm,
+                replacement_effect_delta=best_replacement_delta,
+                parameter_summary=(
+                    f"track={track.value} rollouts={len(updated_rollouts)} transitions={len(transitions)} "
+                    f"weights={self._parameter_store.track_weights[track]} "
+                    f"persistence={self._parameter_store.persistence:.3f} "
+                    f"objective={best_surrogate:.3f} value_loss={value_loss:.3f} "
+                    f"epochs={epochs_executed}/{n_epochs} kl_stopped={kl_early_stopped} "
+                    f"replacement_delta={best_replacement_delta:.3f}"
+                ),
             ),
+            updated_rollouts=updated_rollouts,
         )
 
 
@@ -575,8 +1000,12 @@ class InternalRLSandbox:
                 observation_signature,
                 hidden_state,
                 policy_action,
+                policy_mean,
+                policy_std,
+                policy_noise,
                 policy_score,
                 log_prob,
+                value_estimate,
             ) = self._causal_policy.step(
                 substrate_snapshot=substrate_snapshot,
                 state=policy_state,
@@ -608,11 +1037,19 @@ class InternalRLSandbox:
                     applied_control=env_step.applied_control,
                     downstream_effect=env_step.downstream_effect,
                     hidden_state=hidden_state,
+                    policy_mean=policy_mean,
+                    policy_std=policy_std,
+                    policy_noise=policy_noise,
                     policy_score=policy_score,
                     log_prob=log_prob,
+                    value_estimate=value_estimate,
                     reward=env_step.reward,
                     raw_reward=env_step.reward,
                     policy_replacement_quality=env_step.policy_replacement_quality,
+                    replacement_effect_delta=self._mean_abs_tuple(
+                        env_step.applied_control,
+                        env_step.downstream_effect,
+                    ),
                     backend_name=env_step.backend_name,
                     backend_fidelity=env_step.backend_fidelity,
                     reward_components=env_step.reward_components,
@@ -653,6 +1090,16 @@ class InternalRLSandbox:
             ),
         )
 
+    def _mean_abs_tuple(
+        self,
+        left: tuple[float, ...],
+        right: tuple[float, ...],
+    ) -> float:
+        if not left or not right:
+            return 0.0
+        count = min(len(left), len(right))
+        return sum(abs(left[index] - right[index]) for index in range(count)) / max(count, 1)
+
     def rollout_dual_track(
         self,
         *,
@@ -689,26 +1136,57 @@ class InternalRLSandbox:
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
         self._causal_policy.restore_checkpoint(checkpoint)
 
-    def optimize(self, rollout: ZRollout | DualTrackRollout) -> DualTrackOptimizationReport | OptimizationReport:
+    def optimize(
+        self,
+        rollout: ZRollout | DualTrackRollout | tuple[ZRollout, ...] | tuple[DualTrackRollout, ...],
+    ) -> DualTrackOptimizationReport | OptimizationReport:
         self._policy.parameter_store.require_causal_takeover_phase(
             operation="InternalRLSandbox.optimize"
         )
+        if isinstance(rollout, tuple):
+            if not rollout:
+                return OptimizationReport(
+                    track=Track.SHARED,
+                    average_reward=0.0,
+                    baseline_reward=0.0,
+                    mean_advantage=0.0,
+                    surrogate_objective=0.0,
+                    clip_fraction=0.0,
+                    kl_penalty=0.0,
+                    parameter_summary="no-op",
+                    transition_count=0,
+                    rollout_count=0,
+                )
+            if isinstance(rollout[0], DualTrackRollout):
+                return self._optimize_dual_track(rollout).optimization_report
+            return self._optimize_single(rollout)
         if isinstance(rollout, DualTrackRollout):
             return self._optimize_dual_track(rollout).optimization_report
         return self._optimize_single(rollout)
 
-    def optimize_with_audit(self, rollout: DualTrackRollout, *, timestamp_ms: int = 0) -> PolicyOptimizationResult:
+    def optimize_with_audit(
+        self,
+        rollout: DualTrackRollout | tuple[DualTrackRollout, ...],
+        *,
+        timestamp_ms: int = 0,
+    ) -> PolicyOptimizationResult:
         self._policy.parameter_store.require_causal_takeover_phase(
             operation="InternalRLSandbox.optimize_with_audit"
         )
         return self._optimize_dual_track(rollout, timestamp_ms=timestamp_ms)
 
     def _optimize_dual_track(
-        self, rollout: DualTrackRollout, *, timestamp_ms: int = 0
+        self,
+        rollout: DualTrackRollout | tuple[DualTrackRollout, ...],
+        *,
+        timestamp_ms: int = 0,
     ) -> PolicyOptimizationResult:
+        normalized_rollouts = rollout if isinstance(rollout, tuple) else (rollout,)
         before_hash = stable_value_hash(self._causal_policy.export_parameters())
-        task_report = self._optimize_single(rollout.task_rollout)
-        relationship_report = self._optimize_single(rollout.relationship_rollout)
+        task_report = self._optimize_single(tuple(item.task_rollout for item in normalized_rollouts))
+        relationship_report = self._optimize_single(
+            tuple(item.relationship_rollout for item in normalized_rollouts)
+        )
         after_hash = stable_value_hash(self._causal_policy.export_parameters())
         params_changed = before_hash != after_hash
         dual_report = DualTrackOptimizationReport(
@@ -716,7 +1194,8 @@ class InternalRLSandbox:
             relationship_report=relationship_report,
             description=(
                 f"task_adv={task_report.mean_advantage:.3f}, "
-                f"rel_adv={relationship_report.mean_advantage:.3f}"
+                f"rel_adv={relationship_report.mean_advantage:.3f}, "
+                f"task_rollouts={task_report.rollout_count}, rel_rollouts={relationship_report.rollout_count}"
             ),
         )
         total_kl = task_report.kl_penalty + relationship_report.kl_penalty
@@ -745,10 +1224,12 @@ class InternalRLSandbox:
             total_epochs_executed=total_epochs,
         )
 
-    def _optimize_single(self, rollout: ZRollout) -> OptimizationReport:
-        if not rollout.transitions:
+    def _optimize_single(self, rollout: ZRollout | tuple[ZRollout, ...]) -> OptimizationReport:
+        normalized_rollouts = rollout if isinstance(rollout, tuple) else (rollout,)
+        filtered_rollouts = tuple(item for item in normalized_rollouts if item.transitions)
+        if not filtered_rollouts:
             return OptimizationReport(
-                track=rollout.track,
+                track=normalized_rollouts[0].track if normalized_rollouts else Track.SHARED,
                 average_reward=0.0,
                 baseline_reward=0.0,
                 mean_advantage=0.0,
@@ -758,7 +1239,11 @@ class InternalRLSandbox:
                 parameter_summary="no-op",
                 parameters_changed=False,
             )
-        average_reward = rollout.total_reward / len(rollout.transitions)
+        primary_rollout = filtered_rollouts[0]
+        average_reward = sum(item.total_reward for item in filtered_rollouts) / max(
+            sum(len(item.transitions) for item in filtered_rollouts),
+            1,
+        )
         reward_scale = max(average_reward, 0.05)
         before_hash = stable_value_hash(
             (
@@ -766,8 +1251,9 @@ class InternalRLSandbox:
                 self._policy.export_parameters(),
             )
         )
-        causal_report = self._causal_policy.optimize(rollout=rollout)
-        if rollout.track is Track.WORLD:
+        batch_result = self._causal_policy.optimize(rollouts=filtered_rollouts)
+        causal_report = batch_result.report
+        if primary_rollout.track is Track.WORLD:
             self._policy.fit_from_signals(
                 residual_strength=max(0.45, reward_scale),
                 memory_strength=0.20,
@@ -783,7 +1269,7 @@ class InternalRLSandbox:
                 causal_report,
                 parameters_changed=before_hash != after_hash,
             )
-        if rollout.track is Track.SELF:
+        if primary_rollout.track is Track.SELF:
             self._policy.fit_from_signals(
                 residual_strength=0.35,
                 memory_strength=0.25,

@@ -614,9 +614,9 @@
 ### 仍属目标态、尚未完全实现的部分
 
 - 独立的 session-post async slow reflection worker / queue 还不是默认主路径；当前运行时仍以 turn 级 integration 为主。
-- `rare-heavy` 当前已经是 temporal + memory + substrate artifact 的离线路径：它能对 substrate owner 的 adapter-delta 状态做离线训练、导入与回滚，但还不是完整的基础模型持续预训练/蒸馏。
+- `rare-heavy` 当前已经是 temporal + memory + substrate artifact 的离线路径：它能对 substrate owner 的 adapter-delta 状态做离线训练与回滚评审，但默认 frozen-substrate doctrine 下不会自动导入 live runtime；它还不是完整的基础模型持续预训练/蒸馏。
 - 双轨语义已经进入 memory / credit / evaluation / regime，但默认 runtime 还没有两个完全独立的 track-specific metacontroller。
-- 文档中提到的 Titans/DGD 式 online-fast substrate 自修改，目前还没有正式 runtime owner 路径。
+- 文档中提到的 Titans/DGD 式 online-fast substrate 自修改，当前也不是默认 live 路径；repo 中即便存在 bounded substrate delta proposal machinery，也只作为 review/evidence 或显式 experimental mode 使用。
 
 ## 11. 参考文档
 

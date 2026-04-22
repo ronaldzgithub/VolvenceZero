@@ -81,7 +81,9 @@ class _BackboneWrappedCausalLM(nn.Module):
         return self._base(*args, **kwargs)
 
 
-def _build_tiny_transformers_runtime() -> TransformersOpenWeightResidualRuntime:
+def _build_tiny_transformers_runtime(
+    *, allow_live_substrate_mutation: bool = False
+) -> TransformersOpenWeightResidualRuntime:
     model = GPT2LMHeadModel(
         GPT2Config(
             vocab_size=64,
@@ -100,6 +102,7 @@ def _build_tiny_transformers_runtime() -> TransformersOpenWeightResidualRuntime:
         layer_indices=(1, 2),
         activation_width=6,
         top_k_logits=4,
+        allow_live_substrate_mutation=allow_live_substrate_mutation,
     )
 
 
@@ -277,7 +280,10 @@ def test_synthetic_runtime_trains_adapter_delta_checkpoint_and_restores_cleanly(
     assert checkpoint.adapter_layers
     assert checkpoint.adapter_parameter_count > 0
 
-    fresh = SyntheticOpenWeightResidualRuntime(model_id="synthetic-adapter-runtime")
+    fresh = SyntheticOpenWeightResidualRuntime(
+        model_id="synthetic-adapter-runtime",
+        allow_live_substrate_mutation=True,
+    )
     prior = fresh.export_rare_heavy_state()
     before = fresh.capture(source_text="steady repair before planning")
     fresh.import_rare_heavy_state(checkpoint)
@@ -358,7 +364,7 @@ def test_transformers_runtime_trains_adapter_delta_checkpoint_and_roundtrips():
     assert checkpoint.adapter_parameter_count > 0
     assert checkpoint.compatibility_fingerprint
 
-    fresh = _build_tiny_transformers_runtime()
+    fresh = _build_tiny_transformers_runtime(allow_live_substrate_mutation=True)
     prior = fresh.export_rare_heavy_state()
     before = fresh.capture(source_text="steady guided exploration")
     fresh.import_rare_heavy_state(checkpoint)
@@ -373,8 +379,21 @@ def test_transformers_runtime_trains_adapter_delta_checkpoint_and_roundtrips():
     assert restored.residual_activations == before.residual_activations
 
 
+def test_synthetic_runtime_blocks_online_fast_checkpoint_by_default():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-online-fast-runtime-blocked")
+    try:
+        runtime.export_online_fast_state()
+    except RuntimeError as exc:
+        assert "frozen-substrate doctrine" in str(exc)
+    else:
+        raise AssertionError("Expected frozen-substrate doctrine to block online-fast export by default.")
+
+
 def test_synthetic_runtime_applies_online_fast_checkpoint_and_restores_cleanly():
-    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-online-fast-runtime")
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id="synthetic-online-fast-runtime",
+        allow_live_substrate_mutation=True,
+    )
     prior = runtime.export_online_fast_state()
     before = runtime.capture(source_text="steady repair before planning")
     layer_width = len(before.residual_activations[0].activation)
@@ -413,7 +432,7 @@ def test_synthetic_runtime_applies_online_fast_checkpoint_and_restores_cleanly()
 
 
 def test_transformers_runtime_applies_online_fast_checkpoint_and_roundtrips():
-    runtime = _build_tiny_transformers_runtime()
+    runtime = _build_tiny_transformers_runtime(allow_live_substrate_mutation=True)
     prior = runtime.export_online_fast_state()
     before = runtime.capture(source_text="steady guided exploration")
     layer_width = len(before.residual_activations[0].activation)

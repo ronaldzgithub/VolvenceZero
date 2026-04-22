@@ -88,7 +88,9 @@
 - 当前 `EvaluationBackbone.run_replay_suite()` 已提供固定 replay/scenario gate，可作为后续 widening 的证据入口
 - 当前 `EvaluationBackbone` 已提供 default evolution benchmark 与 `judge_evolution_candidate()`，把 replay suite + session trend 显式映射到 `promote / hold / rollback`
 - 当前 `evaluation` 已会对 family monopoly/collapse 输出显式 alert，并把这类 abstraction 竞争风险返回给 reflection / judge / rollout gate 使用
+- 当前 `evaluation` 已开始直接读取 memory owner 发布的 tower telemetry：如 `memory_tower_depth`、`memory_tower_alignment`、`tower_consolidation_activity`，不再只通过 nested reset / recall confidence 间接推断 memory 深层结构
 - 当前 `volvence_zero.agent.dialogue_benchmark` 已新增 fixed scripted dialogue proof harness：它不改变 `evaluation` snapshot schema，而是按 case 聚合 `prediction_error`、`joint_schedule_action`、`abstract_action`、`regime`、`switch_gate` 与 F4/F5/F2 相关 metrics，用于判断 PE 是否真的驱动 temporal abstraction 与后段改善
+- 当前 dialogue benchmark 也已开始把 tower telemetry 聚合进 case/report/gate：`memory_tower_profile_turn_count`、`mean_memory_tower_depth`、`mean_memory_tower_alignment`、`max_tower_consolidation_count` 已进入 benchmark summary，而不再只依赖 reset / recall 指标
 - 当前 dialogue proof harness 默认已从弱 A/B baseline 切到更接近论文风格的正交 profile matrix（`pe-eta` / `pe-drive-off` / `eta-off` / `timescale-off`），并继续保留 `pe-eta-no-rare-heavy` 作为 rare-heavy 对照面
 - 当前 stronger proof config 还会把 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`、`pe-eta-pe-readout-only` 纳入同一张 proof matrix，用于把 scaffold removal 与 PE readout-only 变成 first-class comparison，而不是只在单独 debug run 里观察
 - 当前 `eta-off` baseline 的口径已进一步收紧为“保留最小 temporal controller capacity，但关闭 ETA-style learned/full temporal path、joint learning 与 PE drive”，不再把“没有 ETA”直接等同于 placeholder/no-temporal-control
@@ -108,6 +110,10 @@
 - 当前 evaluation 层还新增独立的 ETA internal-RL strong-proof 工件：它与 dialogue PE harness 分离，专门验证 hierarchical sparse-reward success、abstract-action reuse、held-out composition、delayed credit alignment 和 policy-update evidence；该工件同样只消费 runtime/evaluation evidence，不新增 runtime slot
 - 当前 ETA strong-proof acceptance 也与 NL essence acceptance 显式分离：前者回答“internal RL 是否在抽象动作层形成论文式强证据”，后者回答“系统是否默认呈现 NL/多时间尺度设计本质”
 - 当前 ETA strong-proof acceptance 的 gate 也已收紧：每个 gate 都会发布自己的 best competing control 与 raw mechanism metrics，因此默认 acceptance 更偏 fail-closed；“默认不通过”现在应被理解为机制识别门槛提高，而不是 proof harness 回退
+- 当前 ETA proof report 还会显式发布 stronger batch/statistical evidence：`rollout_batch_count`、`mean_rollouts_per_update`、`training_transition_count`、`mean_parameter_change_norm`、`mean_value_loss`、`mean_replacement_effect_delta` 与 `heldout_strong_success_std`
+- 当前 evaluation 层也把 `statistical-batch-evidence` 提升为独立 acceptance gate，用来区分“有 mechanism demo”与“有足够统计强度支撑 stronger ETA claim”
+- 当前评估层已新增 paper-suite uplift 入口：dialogue 与 ETA proof 均支持 versioned manifest、repeated-run aggregate、`MetricIntervalSummary`、provenance bundle，以及分层 CI（`ci-smoke` / `paper-suite-small` / `paper-suite-full`）
+- 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 
 ### Dialogue Proof Harness 边界

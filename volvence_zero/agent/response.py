@@ -31,6 +31,16 @@ class ResponseContext:
     retrieved_memories: tuple[str, ...] = ()
     controller_description: str = ""
     control_code: tuple[float, ...] = ()
+    knowledge_hit_count: int = 0
+    knowledge_summaries: tuple[str, ...] = ()
+    case_hit_count: int = 0
+    case_patterns: tuple[str, ...] = ()
+    citation_required: bool = False
+    boundary_risk_band: str = "low"
+    boundary_answer_depth_limit: str = "standard"
+    boundary_clarification_required: bool = False
+    boundary_refer_out_required: bool = False
+    boundary_required_disclaimers: tuple[str, ...] = ()
 
 
 class ResponseSynthesizer:
@@ -98,6 +108,34 @@ class ResponseSynthesizer:
                 f"{'' if context.reflection_lesson_count == 1 else 's'} shaping how I respond."
             )
 
+        knowledge_hint = ""
+        if context.knowledge_hit_count:
+            knowledge_hint = (
+                f" I am grounding this reply with {context.knowledge_hit_count} domain knowledge cue"
+                f"{'' if context.knowledge_hit_count == 1 else 's'}."
+            )
+
+        case_hint = ""
+        if context.case_hit_count:
+            case_hint = (
+                f" I am also checking {context.case_hit_count} similar case pattern"
+                f"{'' if context.case_hit_count == 1 else 's'} for pacing rather than copying them literally."
+            )
+
+        boundary_hint = ""
+        if context.boundary_refer_out_required:
+            boundary_hint = (
+                " I should stay within high-level support and encourage appropriate professional follow-up "
+                "instead of sounding definitive."
+            )
+        elif context.boundary_clarification_required:
+            boundary_hint = (
+                " I should keep this bounded and ask for any missing local or contextual detail before acting "
+                "over-certain."
+            )
+        elif context.citation_required:
+            boundary_hint = " I should keep any factual guidance sourced, bounded, and clearly non-definitive."
+
         tension_hint = ""
         if context.primary_reflection_tension is not None:
             tension_hint = f" {tension_hint_map.get(context.primary_reflection_tension, 'I want to keep an eye on the tensions that are still open rather than collapsing too quickly.')}"
@@ -147,8 +185,11 @@ class ResponseSynthesizer:
         text += regime_shift_hint
         text += memory_hint
         text += reflection_hint
+        text += knowledge_hint
+        text += case_hint
         text += lesson_hint
         text += tension_hint
+        text += boundary_hint
 
         rationale_parts = [f"regime={context.regime_id or 'none'}"]
         if context.abstract_action:
@@ -157,6 +198,11 @@ class ResponseSynthesizer:
         rationale_parts.append(f"joint={context.joint_schedule_action}")
         if context.alert_count:
             rationale_parts.append(f"alerts={context.alert_count}")
+        if context.knowledge_hit_count:
+            rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
+        if context.case_hit_count:
+            rationale_parts.append(f"case_hits={context.case_hit_count}")
+        rationale_parts.append(f"risk={context.boundary_risk_band}")
         if context.reflection_lesson_count:
             rationale_parts.append(f"reflection_lessons={context.reflection_lesson_count}")
         if context.primary_reflection_lesson is not None:
@@ -241,6 +287,11 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         if context.abstract_action:
             rationale_parts.append(f"temporal={context.abstract_action}")
         rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
+        if context.knowledge_hit_count:
+            rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
+        if context.case_hit_count:
+            rationale_parts.append(f"case_hits={context.case_hit_count}")
+        rationale_parts.append(f"risk={context.boundary_risk_band}")
 
         return AgentResponse(
             text=generated_text,

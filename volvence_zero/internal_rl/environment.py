@@ -54,6 +54,9 @@ class InternalRLDelayedCreditAssignment:
     reward: float
     reason: str
     subgoal_id: str | None = None
+    alignment_score: float = 0.0
+    window_length: int = 0
+    reward_mode: str = "dense"
 
 
 @dataclass(frozen=True)
@@ -349,6 +352,9 @@ class InternalRLEnvironment:
                         reward=proof_episode.subgoal_reward,
                         reason="subgoal-complete",
                         subgoal_id=subgoal.subgoal_id,
+                        alignment_score=subgoal_score,
+                        window_length=max(subgoal.credit_horizon, 1),
+                        reward_mode="proof-sparse",
                     )
                 )
                 completed_subgoals = completed_subgoals + (subgoal.subgoal_id,)
@@ -382,6 +388,9 @@ class InternalRLEnvironment:
                         reward=proof_episode.terminal_reward,
                         reason="terminal-success",
                         subgoal_id=subgoal_id,
+                        alignment_score=1.0,
+                        window_length=3,
+                        reward_mode="proof-sparse",
                     )
                 )
             else:

@@ -4,6 +4,7 @@ import asyncio
 
 from volvence_zero.memory import (
     CMSMemoryCore,
+    build_default_memory_store,
     MemoryModule,
     MemoryStore,
     MemoryStratum,
@@ -262,6 +263,101 @@ def test_memory_store_observes_fast_memory_signal_and_publishes_lifecycle_metric
 
     assert metrics["fast_memory_signal_count"] == 1.0
     assert metrics["last_fast_memory_signal_norm"] > 0.0
+
+
+def test_memory_store_nested_tower_profile_is_machine_readable():
+    store = build_default_memory_store(latent_dim=6, nested_profile=True)
+
+    snapshot = store.snapshot(retrieved_entries=())
+
+    assert snapshot.cms_state is not None
+    assert snapshot.cms_state.tower_profile is not None
+    assert snapshot.cms_state.tower_depth >= 5
+    assert snapshot.cms_state.tower_profile.levels[-1].level_id == "tower-readout"
+    assert snapshot.cms_state.tower_profile.readout_vector
+
+
+def test_memory_store_tower_guided_retrieval_publishes_tower_metrics():
+    store = build_default_memory_store(latent_dim=6, nested_profile=True)
+    store.write(
+        MemoryWriteRequest(
+            content="steady reflective repair planning with warmth",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("repair", "planning", "warmth"),
+            strength=0.9,
+        ),
+        timestamp_ms=10,
+    )
+
+    result = store.retrieve(
+        RetrievalQuery(
+            text="warm supportive repair planning",
+            track=Track.SELF,
+            strata=(MemoryStratum.DURABLE,),
+            limit=2,
+            facets=("repair", "planning"),
+        ),
+        timestamp_ms=20,
+    )
+    snapshot = store.snapshot(retrieved_entries=result.entries)
+    metrics = dict(snapshot.lifecycle_metrics)
+
+    assert result.entries
+    assert metrics["last_memory_tower_depth"] >= 5.0
+    assert metrics["last_memory_tower_alignment"] >= 0.0
+    assert snapshot.cms_state is not None
+    assert snapshot.cms_state.tower_profile is not None
+    assert snapshot.cms_state.tower_profile.profile_id != "artifact-only"
+
+
+def test_memory_store_reflection_consolidation_updates_tower_and_restores_checkpoint():
+    store = MemoryStore(
+        learned_core=CMSMemoryCore(
+            mode="mlp",
+            d_in=4,
+            d_hidden=8,
+            variant="nested",
+            session_cadence=1,
+            background_cadence=1,
+        )
+    )
+    promoted = store.write(
+        MemoryWriteRequest(
+            content="repair this durable lesson",
+            track=Track.SELF,
+            stratum=MemoryStratum.EPISODIC,
+            tags=("repair",),
+            strength=0.9,
+        ),
+        timestamp_ms=5,
+    )
+    checkpoint = store.create_checkpoint(checkpoint_id="tower-before")
+    before = store.learned_core.snapshot()
+
+    operations = store.apply_reflection_consolidation(
+        new_durable_entries=(),
+        promoted_entries=(promoted.entry_id,),
+        decayed_entries=(),
+        beliefs_updated=("reinforce:self:repair",),
+        promotion_boost=0.7,
+        decay_scale=0.2,
+        lesson_count=3,
+        timestamp_ms=6,
+    )
+    after = store.learned_core.snapshot()
+
+    assert any(operation.startswith("tower-consolidation:") for operation in operations)
+    assert checkpoint.cms_state is not None
+    assert checkpoint.cms_state.tower_meta_levels
+    assert before.tower_profile is not None
+    assert after.tower_profile is not None
+    assert before.tower_profile.readout_vector != after.tower_profile.readout_vector
+
+    store.restore_checkpoint(checkpoint)
+    restored = store.learned_core.snapshot()
+    assert restored.tower_profile is not None
+    assert restored.tower_profile.readout_vector == before.tower_profile.readout_vector
 
 
 def test_persistence_backend_round_trip():

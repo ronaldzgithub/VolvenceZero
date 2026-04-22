@@ -99,7 +99,7 @@ Not all knowledge should live in one parameter block. Not all state should updat
 
 **R2. Stable Substrate + Adaptive Controllers**
 
-The system distinguishes a relatively stable foundation substrate from higher-level adaptive controllers. The default stance: freeze or slowly update the foundation model; place most online adaptation in bounded controller layers, memory writes, routing policies, and reflection-driven updates.
+The system distinguishes a relatively stable foundation substrate from higher-level adaptive controllers. The default stance is now stricter: keep the foundation substrate frozen in the live runtime, and place online adaptation in bounded controller layers, memory writes, routing policies, and reflection-driven updates. Substrate-level training or artifact import belongs to offline owner paths unless an explicit experimental live-mutation mode is enabled.
 
 ETA's rate-distortion analysis demonstrates that freezing the base model is necessary for discovering temporal abstractions — joint training leads to degenerate solutions. NL's frequency-ordered levels reinforce this: different levels must keep clear update boundaries instead of collapsing all learning into one gradient flow.
 
@@ -166,7 +166,7 @@ ETA's temporal abstraction simplifies credit assignment: each abstract action co
 
 **R10. Self-Modification Must Be Gated and Layered**
 
-Allowed self-modification targets: retrieval weighting, strategy priors, abstract controller parameters, reflection heuristics, memory promotion thresholds. Direct unrestricted mutation of the foundation model during live operation is out of scope.
+Allowed self-modification targets: retrieval weighting, strategy priors, abstract controller parameters, reflection heuristics, memory promotion thresholds. Live foundation-substrate mutation is blocked by default; any substrate-level adaptation must stay offline or be explicitly quarantined as experimental.
 
 Gating rules define what can be modified online, what requires background validation, what requires offline retraining, and what requires human review.
 
@@ -304,7 +304,7 @@ This section records the current implementation delta without relaxing the targe
 ### Already landed in runtime or evidence paths
 
 - `prediction_error` is already a first-class ACTIVE runtime object; `memory`, `temporal`, `regime`, `credit`, and `reflection` directly consume it in the live stack.
-- The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review/import: offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
+- The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review. Offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
 - The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
 
 ### Partially landed or still gated
@@ -315,9 +315,9 @@ This section records the current implementation delta without relaxing the targe
 
 ### Still target-state, not fully implemented
 
-- `rare-heavy` is no longer only a temporal/memory artifact path: the current runtime can clone substrate state into an offline owner, train a bounded adapter-delta-style substrate update, export/import/rollback it through the same rare-heavy artifact path, and verify it through replay-selection and acceptance gates. What is still missing is a fuller stable-substrate continual pretraining/distillation pipeline beyond this bounded substrate-aware adapter path.
+- `rare-heavy` is no longer only a temporal/memory artifact path: the current runtime can clone substrate state into an offline owner, train a bounded adapter-delta-style substrate update, export it through the same rare-heavy artifact path, and verify it through replay-selection and acceptance gates. In the default frozen-substrate doctrine, live sessions keep those artifacts in review-only mode unless an explicit experimental live-mutation path is enabled. What is still missing is a fuller stable-substrate continual pretraining/distillation pipeline beyond this bounded substrate-aware adapter path.
 - Dual-track control is no longer only semantic: the default runtime now runs separate `world` / `self` temporal owners and updates them independently. What remains unfinished is the final paper-complete endpoint: stronger per-track causal isolation in all downstream evidence paths and a less aggregate-dependent public surface for consumers such as evaluation and benchmarks.
-- Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is not yet present as a formal runtime owner path.
+- Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is still not part of the default runtime doctrine. The repo may carry bounded substrate-delta proposal machinery for evidence or experimental mode, but the live default path keeps substrate mutation disabled.
 
 ---
 

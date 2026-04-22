@@ -5,9 +5,9 @@ from enum import Enum
 from typing import Mapping
 from uuid import uuid4
 
-from volvence_zero.credit import CreditSnapshot, GateDecision
+from volvence_zero.credit.gate import CreditSnapshot, GateDecision
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.memory import (
     MemoryEntry,
     MemorySnapshot,
@@ -16,7 +16,7 @@ from volvence_zero.memory import (
     MemoryStratum,
     Track,
 )
-from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.regime import RegimeCheckpoint, RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 

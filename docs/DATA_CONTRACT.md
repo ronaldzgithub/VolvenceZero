@@ -171,6 +171,85 @@ class SessionPostSlowLoopSnapshot:
 - turn latency 不等待 slow loop 完成
 - `session_post_slow_loop` 是独立公共 slot；queue state / 最近完成结果必须通过快照发布，而不是要求消费者读取 `AgentSessionRunner` 私有状态
 
+### 2.8 Application Retrieval / Knowledge / Boundary（应用层检索与边界）
+
+应用层第一阶段新增三类正式 slot，用于把“ETA 在线控制 -> 专业知识证据 -> 边界约束”提升为公共运行时 surface：
+
+```python
+@dataclass(frozen=True)
+class RetrievalPolicySnapshot:
+    knowledge_domains: tuple[str, ...]
+    experience_domains: tuple[str, ...]
+    knowledge_weight: float
+    experience_weight: float
+    world_weight: float
+    self_weight: float
+    retrieval_depth: KnowledgeDepth
+    citation_required: bool
+    jurisdiction_required: bool
+    risk_band: RiskBand
+    regime_id: str | None
+    abstract_action: str | None
+    intent_description: str
+    description: str
+
+@dataclass(frozen=True)
+class DomainKnowledgeSnapshot:
+    retrieval_policy_id: str
+    active_domains: tuple[str, ...]
+    hits: tuple[KnowledgeHit, ...]
+    citation_required: bool
+    jurisdiction_required: bool
+    unresolved_conflicts: tuple[str, ...]
+    description: str
+
+@dataclass(frozen=True)
+class BoundaryPolicySnapshot:
+    active_decision: BoundaryDecision
+    trigger_reasons: tuple[str, ...]
+    description: str
+```
+
+**不变量**：
+- `retrieval_policy` 是控制层到检索层的唯一主接口
+- `domain_knowledge` 只发布 compact 外部事实证据，不越权写 `memory`
+- `boundary_policy` 只发布回答边界与降级策略，不直接接管 response owner
+- 具体存储技术不属于 runtime contract；owner 只对外发布 machine-readable snapshot
+
+### 2.9 Application Case Memory（应用层案例经验）
+
+应用层第二阶段新增 `case_memory` slot，用于把案例经验样本与普通连续记忆显式分离：
+
+```python
+@dataclass(frozen=True)
+class CaseEpisodeHit:
+    case_id: str
+    domain: str
+    problem_pattern: str
+    user_state_pattern: str
+    risk_markers: tuple[str, ...]
+    track_tags: tuple[str, ...]
+    regime_tags: tuple[str, ...]
+    intervention_steps: tuple[CaseInterventionStep, ...]
+    outcome: CaseOutcomeSummary
+    relevance_score: float
+    description: str
+
+@dataclass(frozen=True)
+class CaseMemorySnapshot:
+    retrieval_policy_id: str
+    hits: tuple[CaseEpisodeHit, ...]
+    active_problem_patterns: tuple[str, ...]
+    active_risk_markers: tuple[str, ...]
+    description: str
+```
+
+**不变量**：
+- `case_memory` 是 `memory` 的 sibling owner，不是 `memory` 的附带字段
+- `case_memory` 只发布 compact case hits，不发布完整案例原文
+- response/evaluation 只能消费公共 snapshot，不得直连 case store
+- `case_memory` 当前只提供 retrieval mix 和 evidence，不直接生成策略先验
+
 ### 2.6 RuntimePlaceholderValue（缺失与禁用占位）
 
 用于统一表示缺失 upstream 和禁用模块发布的 stub 快照。
@@ -245,6 +324,7 @@ class SubstrateSnapshot:
 - 当前增强 contract：`surface_kind=RESIDUAL_STREAM`，发布当前步 `residual_activations` + 可选 `residual_sequence`
 - `residual_sequence` 是 temporal / internal_rl 的正式 sequence-aware 输入；fallback adapter 可发布空序列或单步合成序列
 - 当前已补充 hook-ready owner contract：`OpenWeightResidualRuntime.capture(source_text) -> OpenWeightRuntimeCapture`，由 `OpenWeightResidualStreamSubstrateAdapter` 负责把 open-weight runtime 暴露为稳定的 `SubstrateSnapshot`
+- frozen-substrate doctrine 现明确区分两类 runtime capability：live runtime 默认只允许 `capture()` / `apply_control()` / `generate()`；`import_rare_heavy_state()`、`train_rare_heavy()`、`apply_online_fast_state()` 这类 mutation surface 只允许 offline clone 或显式 experimental live-mutation mode 使用
 - 当前已落地 `TransformersOpenWeightResidualRuntime`：可对 Hugging Face open-weight causal LM 的中间层 block 注册真实 forward hook，发布 middle-layer residual capture，并通过 owner-side hook 返回受控干预后的新 capture；owner 同时负责把更大 hidden state 压缩成稳定 summary signals（如 `top_logit_entropy`、`top_logit_margin`、`hook_layer_coverage`、`fallback_active`）
 - substrate owner 现进一步在 `feature_surface` 发布 turn-level semantic hints：`semantic_task_pull`、`semantic_support_pull`、`semantic_repair_pull`、`semantic_exploration_pull`，以及 `semantic_text_weight` / `semantic_residual_weight`；下游直接消费这些公开 signals，而不在 consumer 侧重建文本语义
 - substrate owner 当前还会在 `feature_surface` 发布 substrate rare-heavy telemetry，例如 `substrate_rare_heavy_update_count` 与 `substrate_delta_parameter_count`，用于让 evaluation / acceptance / replay artifact 读取“是否真的存在 substrate-level slow update evidence”，而不是由 consumer 侧猜测
@@ -252,7 +332,7 @@ class SubstrateSnapshot:
 - 当前默认 session/runner/CLI 已优先使用 `TransformersOpenWeightResidualRuntime`；若首选 HF model 不可用且 fallback mode 允许，则回退到内置 tiny transformers runtime，而不是 synthetic runtime
 - 内置 tiny transformers runtime 现固定 deterministic seed，保证 fallback 模式下的 substrate capture 和 semantic hints 可复现
 - 当前 session/runner 已允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 open-weight adapter；表达层不再直接消费完整 snapshot dict，而只消费 richer distilled response context，避免跨 loop 持有 live snapshot 引用
-- 当前 substrate rare-heavy checkpoint 也已升级到 owner-side `adapter-delta-v2` contract：checkpoint 除了已有的 `control_scale`、`semantic_text_weight`、`semantic_residual_weight`、`semantic_anchor_bias`、`update_count` 等 evidence 字段外，还允许发布 `training_mode`、`compatibility_fingerprint`、`adapter_scale`、`adapter_parameter_count`、`adapter_training_loss` 与 `adapter_layers`。这些字段只允许 substrate owner 在 `export / import / restore_rare_heavy_state()` surface 上读写，session / joint loop 只能搬运 artifact，不可重建或直写 payload
+- 当前 substrate rare-heavy checkpoint 也已升级到 owner-side `adapter-delta-v2` contract：checkpoint 除了已有的 `control_scale`、`semantic_text_weight`、`semantic_residual_weight`、`semantic_anchor_bias`、`update_count` 等 evidence 字段外，还允许发布 `training_mode`、`compatibility_fingerprint`、`adapter_scale`、`adapter_parameter_count`、`adapter_training_loss` 与 `adapter_layers`。这些字段只允许 substrate owner 在 `export / import / restore_rare_heavy_state()` surface 上读写，session / joint loop 只能搬运 artifact，不可重建或直写 payload。默认 frozen-substrate doctrine 下，live session 只能生成或评审这类 artifact，不能自动导入
 
 **消费者**：Metacontroller、记忆系统、双轨学习层、评估体系
 **发布频率**：每 turn（当前稳定）；未来可扩展到每 token

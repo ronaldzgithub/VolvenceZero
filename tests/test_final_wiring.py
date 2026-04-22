@@ -33,6 +33,10 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert result.acceptance_report.passed is True
     assert "substrate" in result.active_snapshots
     assert "memory" in result.active_snapshots
+    assert "retrieval_policy" in result.active_snapshots
+    assert "domain_knowledge" in result.active_snapshots
+    assert "case_memory" in result.active_snapshots
+    assert "boundary_policy" in result.active_snapshots
     assert "dual_track" in result.active_snapshots
     assert "evaluation" in result.active_snapshots
     assert "regime" in result.active_snapshots
@@ -44,13 +48,77 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "retrieval_quality" in metric_names
+    assert "knowledge_hit_count" in metric_names
+    assert "case_hit_count" in metric_names
+    assert "boundary_clarification_triggered" in metric_names
     assert "reflection_usefulness" in metric_names
     assert "fallback_reliance" in metric_names
     assert "temporal_action_commitment" in metric_names
+    assert "memory_tower_depth" in metric_names
+    assert "memory_tower_alignment" in metric_names
+    assert "tower_consolidation_activity" in metric_names
     assert "substrate_online_fast_change_rate" in metric_names
     assert "substrate_online_fast_gate_preview" in metric_names
     assert "substrate_online_fast_optimizer_norm" in metric_names
     assert "substrate_online_fast_recommended" in metric_names
+
+
+def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="phase1-knowledge-model",
+                feature_surface=(FeatureSignal(name="phase1_context", values=(0.55,), source="adapter"),),
+            ),
+            session_id="phase1-session",
+            wave_id="phase1-wave",
+        )
+    )
+
+    retrieval_policy = result.active_snapshots["retrieval_policy"].value
+    domain_knowledge = result.active_snapshots["domain_knowledge"].value
+    boundary_policy = result.active_snapshots["boundary_policy"].value
+
+    assert retrieval_policy.knowledge_domains
+    assert domain_knowledge.hits
+    assert domain_knowledge.active_domains == retrieval_policy.knowledge_domains
+    assert boundary_policy.active_decision.risk_band.value in {"low", "medium", "high", "critical"}
+    assert isinstance(boundary_policy.trigger_reasons, tuple)
+
+
+def test_final_wiring_phase2_case_memory_publishes_sibling_case_hits():
+    memory_store = MemoryStore()
+    memory_store.write(
+        request=MemoryWriteRequest(
+            content="I feel overwhelmed about divorce and want the smallest next step first.",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.8,
+            tags=("divorce", "overwhelmed"),
+        ),
+        timestamp_ms=1,
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="phase2-case-model",
+                feature_surface=(FeatureSignal(name="phase2_context", values=(0.61,), source="adapter"),),
+            ),
+            memory_store=memory_store,
+            session_id="phase2-session",
+            wave_id="phase2-wave",
+        )
+    )
+
+    case_memory = result.active_snapshots["case_memory"].value
+    metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
+
+    assert case_memory.hits
+    assert case_memory.active_problem_patterns
+    assert "case_hit_count" in metric_names
+    assert "case_relevance_mean" in metric_names
 
 
 def test_final_wiring_honors_kill_switches():

@@ -5,8 +5,13 @@ import asyncio
 from dataclasses import dataclass, replace
 from typing import Any
 
+from volvence_zero.application.runtime import (
+    BoundaryPolicySnapshot,
+    CaseMemorySnapshot,
+    DomainKnowledgeSnapshot,
+)
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
-from volvence_zero.credit import (
+from volvence_zero.credit.gate import (
     GateDecision,
     ModificationGate,
     ModificationProposal,
@@ -14,7 +19,7 @@ from volvence_zero.credit import (
     extend_credit_snapshot,
     evaluate_gate,
 )
-from volvence_zero.evaluation import (
+from volvence_zero.evaluation.backbone import (
     EvaluationBackbone,
     EvaluationReport,
     EvaluationScore,
@@ -43,7 +48,12 @@ from volvence_zero.joint_loop import (
 )
 from volvence_zero.memory import MemorySnapshot, MemoryStore, build_default_memory_store
 from volvence_zero.planning import ImaginationResult, imagine
-from volvence_zero.prediction import ActualOutcome, PredictedOutcome, PredictionError, PredictionErrorModule
+from volvence_zero.prediction.error import (
+    ActualOutcome,
+    PredictedOutcome,
+    PredictionError,
+    PredictionErrorModule,
+)
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -125,9 +135,13 @@ class AgentTurnResult:
     slow_to_fast_target_alignment_gain: float = 0.0
     learned_memory_primary: bool = False
     artifact_consolidation_count: int = 0
+    tower_consolidation_count: int = 0
     learned_recall_count: int = 0
     learned_recall_confidence: float = 0.0
     learned_recall_core_guided: bool = False
+    memory_tower_depth: int = 0
+    memory_tower_alignment: float = 0.0
+    memory_tower_profile_id: str = ""
     session_post_pending_job_count: int = 0
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
@@ -279,6 +293,7 @@ class AgentSessionRunner:
         substrate_fallback_to_builtin: bool | None = None,
         substrate_fallback_mode: SubstrateFallbackMode | str | None = None,
         substrate_runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
+        allow_live_substrate_mutation: bool = False,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
         rare_heavy_enabled: bool = True,
@@ -336,6 +351,7 @@ class AgentSessionRunner:
             fallback_mode=substrate_fallback_mode,
             runtime_mode=self._substrate_runtime_mode,
             builtin_model_id="runner-transformers-runtime",
+            allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
         self._joint_loop = joint_loop or ETANLJointLoop(
             world_policy=self._world_temporal_policy,
@@ -1175,6 +1191,50 @@ class AgentSessionRunner:
                 result=blocked_result,
             )
             return blocked_result
+        if not self.residual_runtime.supports_live_substrate_mutation:
+            self._append_online_fast_credit_audit(
+                integration_result=integration_result,
+                record=SelfModificationRecord(
+                    target=substrate_self_mod.target,
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash="substrate.online_fast:pre",
+                    new_value_hash=substrate_self_mod.checkpoint_hash,
+                    justification=(
+                        "Frozen-substrate doctrine kept the online-fast substrate proposal in review-only mode. "
+                        f"{substrate_self_mod.description}"
+                    ),
+                    timestamp_ms=self._turn_index,
+                    is_reversible=True,
+                    checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                    lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                    proposal_hash=substrate_self_mod.checkpoint_hash,
+                ),
+            )
+            blocked_result = OnlineFastSubstrateTurnResult(
+                recommended=True,
+                applied=False,
+                gate_decision="frozen-substrate-doctrine",
+                applied_operations=(),
+                blocked_operations=("online-fast:frozen-substrate-doctrine",),
+                parameter_change_rate=substrate_self_mod.parameter_change_rate,
+                optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
+                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
+                optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
+                fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                description=(
+                    "Online-fast substrate self-mod proposal stayed review-only because the live runtime "
+                    "is operating under the frozen-substrate doctrine."
+                ),
+            )
+            self._append_online_fast_evaluation_evidence(
+                integration_result=integration_result,
+                wave_id=wave_id,
+                result=blocked_result,
+            )
+            return blocked_result
         import_result = self._joint_loop.apply_online_fast_substrate_checkpoint(
             substrate_self_mod.checkpoint,
             checkpoint_id=f"{self._session_id}:{wave_id}:online-fast-substrate",
@@ -1427,6 +1487,44 @@ class AgentSessionRunner:
                 pre_import_passed=pre_import_evaluation.accepted,
                 pre_import_judgement=pre_import_evaluation.judgement,
             )
+        if not self.residual_runtime.supports_live_substrate_mutation:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=artifact.artifact_id,
+                applied_operations=(),
+                substrate_status="review-only",
+                substrate_training_mode=combined_substrate_mode,
+                description=(
+                    f"{world_pipeline_result.description} {self_pipeline_result.description} "
+                    "Rare-heavy candidate stayed review-only because the live runtime is enforcing the "
+                    "frozen-substrate doctrine."
+                ),
+                import_decision="blocked-by-doctrine",
+                reject_reason="frozen-substrate-doctrine",
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
+                candidate_adapter_parameter_count=(
+                    artifact.substrate_checkpoint.adapter_parameter_count
+                    if artifact.substrate_checkpoint is not None
+                    else 0
+                ),
+                candidate_adapter_training_loss=(
+                    artifact.substrate_checkpoint.adapter_training_loss
+                    if artifact.substrate_checkpoint is not None
+                    else 0.0
+                ),
+                pre_import_case_count=pre_import_evaluation.case_count,
+                pre_import_mean_score_delta=pre_import_evaluation.mean_score_delta,
+                pre_import_worst_score_delta=pre_import_evaluation.worst_score_delta,
+                pre_import_positive_fraction=pre_import_evaluation.positive_fraction,
+                pre_import_passed=pre_import_evaluation.accepted,
+                pre_import_judgement=pre_import_evaluation.judgement,
+            )
         try:
             import_result = self.apply_rare_heavy_artifact(
                 artifact,
@@ -1606,9 +1704,13 @@ class AgentSessionRunner:
         slow_to_fast_target_alignment_gain = 0.0
         learned_memory_primary = False
         artifact_consolidation_count = 0
+        tower_consolidation_count = 0
         learned_recall_count = 0
         learned_recall_confidence = 0.0
         learned_recall_core_guided = False
+        memory_tower_depth = 0
+        memory_tower_alignment = 0.0
+        memory_tower_profile_id = ""
         memory_snapshot = integration_result.active_snapshots.get("memory")
         if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             memory_retrieval_count = len(memory_snapshot.value.retrieved_entries)
@@ -1622,9 +1724,15 @@ class AgentSessionRunner:
             slow_to_fast_target_alignment_gain = lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0)
             learned_memory_primary = lifecycle_metrics.get("learned_memory_primary", 0.0) > 0.0
             artifact_consolidation_count = int(lifecycle_metrics.get("artifact_consolidation_count", 0.0))
+            tower_consolidation_count = int(lifecycle_metrics.get("tower_consolidation_count", 0.0))
             learned_recall_count = int(lifecycle_metrics.get("learned_recall_count", 0.0))
             learned_recall_confidence = lifecycle_metrics.get("last_learned_recall_confidence", 0.0)
             learned_recall_core_guided = lifecycle_metrics.get("last_learned_recall_driver_is_core", 0.0) > 0.0
+            memory_tower_depth = int(lifecycle_metrics.get("last_memory_tower_depth", 0.0))
+            memory_tower_alignment = lifecycle_metrics.get("last_memory_tower_alignment", 0.0)
+            cms_state = memory_snapshot.value.cms_state
+            if cms_state is not None and cms_state.tower_profile is not None:
+                memory_tower_profile_id = cms_state.tower_profile.profile_id
 
         substrate_model_id = None
         substrate_runtime_origin = getattr(self._default_residual_runtime, "runtime_origin", None)
@@ -1662,6 +1770,34 @@ class AgentSessionRunner:
             temporal_snapshot.value, TemporalAbstractionSnapshot
         ):
             control_code = temporal_snapshot.value.controller_state.code
+        knowledge_hit_count = 0
+        knowledge_summaries: tuple[str, ...] = ()
+        case_hit_count = 0
+        case_patterns: tuple[str, ...] = ()
+        citation_required = False
+        boundary_risk_band = "low"
+        boundary_answer_depth_limit = "standard"
+        boundary_clarification_required = False
+        boundary_refer_out_required = False
+        boundary_required_disclaimers: tuple[str, ...] = ()
+        domain_knowledge_snapshot = integration_result.active_snapshots.get("domain_knowledge")
+        if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot):
+            knowledge_hit_count = len(domain_knowledge_snapshot.value.hits)
+            knowledge_summaries = tuple(hit.summary for hit in domain_knowledge_snapshot.value.hits[:3])
+            citation_required = domain_knowledge_snapshot.value.citation_required
+        case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
+        if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot):
+            case_hit_count = len(case_memory_snapshot.value.hits)
+            case_patterns = tuple(case.problem_pattern for case in case_memory_snapshot.value.hits[:3])
+        boundary_policy_snapshot = integration_result.active_snapshots.get("boundary_policy")
+        if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot):
+            decision = boundary_policy_snapshot.value.active_decision
+            citation_required = citation_required or decision.citation_required
+            boundary_risk_band = decision.risk_band.value
+            boundary_answer_depth_limit = decision.answer_depth_limit
+            boundary_clarification_required = decision.clarification_required
+            boundary_refer_out_required = decision.refer_out_required
+            boundary_required_disclaimers = decision.required_disclaimers
 
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
@@ -1688,6 +1824,16 @@ class AgentSessionRunner:
                 retrieved_memories=retrieved_memories,
                 controller_description=controller_description,
                 control_code=control_code,
+                knowledge_hit_count=knowledge_hit_count,
+                knowledge_summaries=knowledge_summaries,
+                case_hit_count=case_hit_count,
+                case_patterns=case_patterns,
+                citation_required=citation_required,
+                boundary_risk_band=boundary_risk_band,
+                boundary_answer_depth_limit=boundary_answer_depth_limit,
+                boundary_clarification_required=boundary_clarification_required,
+                boundary_refer_out_required=boundary_refer_out_required,
+                boundary_required_disclaimers=boundary_required_disclaimers,
             )
         )
         effective_writeback_result = deferred_writeback_result or integration_result.writeback_result
@@ -1748,9 +1894,13 @@ class AgentSessionRunner:
             slow_to_fast_target_alignment_gain=slow_to_fast_target_alignment_gain,
             learned_memory_primary=learned_memory_primary,
             artifact_consolidation_count=artifact_consolidation_count,
+            tower_consolidation_count=tower_consolidation_count,
             learned_recall_count=learned_recall_count,
             learned_recall_confidence=learned_recall_confidence,
             learned_recall_core_guided=learned_recall_core_guided,
+            memory_tower_depth=memory_tower_depth,
+            memory_tower_alignment=memory_tower_alignment,
+            memory_tower_profile_id=memory_tower_profile_id,
             session_post_pending_job_count=effective_queue_state.pending_job_count,
             session_post_completed_job_count=effective_queue_state.completed_job_count,
             session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,

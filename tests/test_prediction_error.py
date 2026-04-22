@@ -277,6 +277,68 @@ def test_system_prompt_explicitly_forbids_dialogue_continuation():
     assert "Do not continue the conversation on behalf of the user." in prompt
 
 
+def test_system_prompt_includes_knowledge_and_boundary_context():
+    prompt = build_system_prompt(
+        context=ResponseContext(
+            regime_id="problem_solving",
+            regime_name="problem solving",
+            regime_switched=False,
+            abstract_action="structured_planning",
+            alert_count=0,
+            retrieved_memory_count=0,
+            temporal_switch_gate=0.4,
+            temporal_is_switching=False,
+            reflection_lesson_count=0,
+            reflection_tension_count=0,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson=None,
+            primary_reflection_tension=None,
+            joint_schedule_action="ssl-only",
+            user_input="What should I do next?",
+            knowledge_hit_count=2,
+            knowledge_summaries=("Keep guidance high-level and jurisdiction-aware.",),
+            citation_required=True,
+            boundary_risk_band="medium",
+            boundary_answer_depth_limit="high-level-only",
+            boundary_clarification_required=True,
+            boundary_refer_out_required=False,
+            boundary_required_disclaimers=("jurisdiction-variance",),
+        )
+    )
+
+    assert "Relevant domain guidance" in prompt
+    assert "sourceable information" in prompt
+    assert "missing local or factual detail" in prompt
+    assert "jurisdiction-variance" in prompt
+
+
+def test_system_prompt_includes_case_patterns_when_available():
+    prompt = build_system_prompt(
+        context=ResponseContext(
+            regime_id="guided_exploration",
+            regime_name="guided exploration",
+            regime_switched=False,
+            abstract_action="stabilize_then_structure",
+            alert_count=0,
+            retrieved_memory_count=0,
+            temporal_switch_gate=0.3,
+            temporal_is_switching=False,
+            reflection_lesson_count=0,
+            reflection_tension_count=0,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson=None,
+            primary_reflection_tension=None,
+            joint_schedule_action="ssl-only",
+            user_input="What should I do first?",
+            case_hit_count=2,
+            case_patterns=("family-transition-high-emotion", "needs-structure"),
+        )
+    )
+
+    assert "Relevant prior case patterns" in prompt
+    assert "family-transition-high-emotion" in prompt
+
+
 def test_agent_session_runner_exposes_prediction_error_from_second_turn():
     runner = AgentSessionRunner(session_id="pe-session")
     first = asyncio.run(runner.run_turn("First turn for bootstrap."))

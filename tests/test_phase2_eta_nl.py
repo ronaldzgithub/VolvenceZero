@@ -20,6 +20,7 @@ from volvence_zero.memory import Track
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
     SubstrateDeltaAdapterLayer,
+    SubstrateOnlineFastCheckpoint,
     SyntheticOpenWeightResidualRuntime,
     ResidualSequenceStep,
     SubstrateSnapshot,
@@ -79,6 +80,8 @@ def test_internal_rl_sandbox_runs_dual_track_rollout():
     assert dual_rollout.relationship_rollout.transitions
     assert dual_rollout.task_rollout.replacement_mode == "causal-binary"
     assert dual_rollout.task_rollout.transitions[0].policy_action
+    assert dual_rollout.task_rollout.transitions[0].policy_mean
+    assert dual_rollout.task_rollout.transitions[0].policy_std
     assert dual_rollout.task_rollout.transitions[0].applied_control
     assert dual_rollout.task_rollout.transitions[0].policy_replacement_quality >= -1.0
     assert dual_rollout.task_rollout.transitions[0].backend_name == "trace-residual-backend"
@@ -166,6 +169,73 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.metacontroller_state.encoder_optimizer_state is not None
     assert report.metacontroller_state.decoder_optimizer_state is not None
     assert any(operation.startswith("temporal-prior:") for operation in report.applied_operations)
+
+
+def test_eta_nl_joint_loop_supports_rl_batch_accumulation():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    trace_a = build_training_trace(trace_id="batch-trace-a", source_text="repair tension then continue helpfully")
+    trace_b = build_training_trace(trace_id="batch-trace-b", source_text="steady support then deepen planning")
+
+    first = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace_a))
+    second = asyncio.run(loop.run_cycle(cycle_index=2, trace=trace_b))
+
+    assert first.rl_batch_rollout_count == 1
+    assert first.policy_update_applied is False
+    assert second.rl_batch_rollout_count == 2
+    assert second.policy_epochs_executed >= 2
+
+
+def test_eta_nl_joint_loop_schedule_exposes_batch_collect_and_flush_actions():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    trace = build_training_trace(trace_id="scheduled-batch-trace", source_text="repair then continue carefully")
+
+    collect = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=3),
+        )
+    )
+    flush = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=2,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=3),
+        )
+    )
+
+    assert collect.schedule_action == "full-cycle-collect"
+    assert collect.cycle_report is not None
+    assert collect.cycle_report.policy_update_applied is False
+    assert dict(collect.schedule_telemetry)["rl_batch_target"] == 2
+    assert dict(collect.schedule_telemetry)["rl_due"] == 1
+    assert flush.schedule_action == "full-cycle-batch"
+    assert flush.cycle_report is not None
+    assert flush.cycle_report.rl_batch_rollout_count == 2
+
+
+def test_eta_nl_joint_loop_schedule_can_force_batch_flush_after_wait():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=3)
+    trace = build_training_trace(trace_id="scheduled-force-flush", source_text="steady support then deepen planning")
+
+    first = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=10),
+        )
+    )
+    forced = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=3,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, rl_batch_max_wait_turns=2),
+        )
+    )
+
+    assert first.schedule_action == "full-cycle-collect"
+    assert forced.schedule_action == "full-cycle-batch-forced"
+    assert forced.cycle_report is not None
 
 
 def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
@@ -444,7 +514,30 @@ def test_eta_nl_joint_loop_can_schedule_latent_continuation_without_fresh_pe_dri
     assert dict(second.schedule_telemetry)["latent_continuation_due"] == 1
 
 
-def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
+def test_eta_nl_joint_loop_blocks_rare_heavy_artifact_import_under_frozen_substrate_doctrine():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="rare-heavy-runtime-blocked")
+    pipeline = SSLRLTrainingPipeline(
+        config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1),
+        residual_runtime=runtime.clone_for_rare_heavy(),
+    )
+    traces = tuple(
+        build_training_trace(trace_id=f"rare-heavy-blocked-{index}", source_text="repair tension then plan steadily")
+        for index in range(5)
+    )
+    pipeline.run_pipeline(traces=traces)
+    artifact = pipeline.export_rare_heavy_artifact(artifact_id="offline-artifact-blocked")
+
+    loop = ETANLJointLoop(residual_runtime=runtime)
+
+    try:
+        loop.apply_rare_heavy_artifact(artifact)
+    except RuntimeError as exc:
+        assert "frozen-substrate doctrine" in str(exc)
+    else:
+        raise AssertionError("Expected frozen-substrate doctrine to block rare-heavy artifact import.")
+
+
+def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact_in_experimental_mode():
     runtime = SyntheticOpenWeightResidualRuntime(model_id="rare-heavy-runtime")
     pipeline = SSLRLTrainingPipeline(
         config=PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1),
@@ -462,7 +555,12 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     assert artifact.training_evidence.trace_count == len(traces)
     assert artifact.training_evidence.alignment_ratio > 0.0
 
-    loop = ETANLJointLoop(residual_runtime=runtime)
+    loop = ETANLJointLoop(
+        residual_runtime=SyntheticOpenWeightResidualRuntime(
+            model_id="rare-heavy-runtime",
+            allow_live_substrate_mutation=True,
+        )
+    )
     before = loop.temporal_policy.export_parameters()
     result = loop.apply_rare_heavy_artifact(artifact)
     after = loop.temporal_policy.export_parameters()
@@ -486,8 +584,36 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     assert restored == before
 
 
-def test_eta_nl_joint_loop_can_apply_and_rollback_online_fast_substrate_checkpoint():
-    runtime = SyntheticOpenWeightResidualRuntime(model_id="online-fast-runtime")
+def test_eta_nl_joint_loop_blocks_online_fast_substrate_checkpoint_under_frozen_substrate_doctrine():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="online-fast-runtime-blocked")
+    loop = ETANLJointLoop(residual_runtime=runtime)
+    prior = SubstrateOnlineFastCheckpoint(
+        checkpoint_id="online-fast-checkpoint-blocked",
+        model_id=runtime.model_id,
+        runtime_origin=runtime.runtime_origin,
+        delta_scale=0.08,
+        update_count=1,
+        source_wave_id="wave-1",
+        source_turn_index=1,
+        gate="online",
+        optimizer_state_norm=0.4,
+        parameter_change_rate=0.3,
+        description="online-fast substrate checkpoint",
+    )
+
+    try:
+        loop.apply_online_fast_substrate_checkpoint(prior)
+    except RuntimeError as exc:
+        assert "frozen-substrate doctrine" in str(exc)
+    else:
+        raise AssertionError("Expected frozen-substrate doctrine to block online-fast substrate import.")
+
+
+def test_eta_nl_joint_loop_can_apply_and_rollback_online_fast_substrate_checkpoint_in_experimental_mode():
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id="online-fast-runtime",
+        allow_live_substrate_mutation=True,
+    )
     loop = ETANLJointLoop(residual_runtime=runtime)
     prior = runtime.export_online_fast_state()
     before = runtime.capture(source_text="repair then continue steadily")
@@ -535,10 +661,12 @@ def test_causal_policy_multi_epoch_optimization():
     steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
     rollout = sandbox.rollout(rollout_id="me-1", substrate_steps=steps)
 
-    single_epoch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=1)
+    single_epoch_batch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=1)
+    single_epoch = single_epoch_batch.report
     sandbox.restore_checkpoint(sandbox.create_checkpoint(checkpoint_id="reset-me"))
 
-    multi_epoch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=3)
+    multi_epoch_batch = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=3)
+    multi_epoch = multi_epoch_batch.report
 
     assert single_epoch.epochs_executed == 1
     assert multi_epoch.epochs_executed >= 1
@@ -552,7 +680,8 @@ def test_causal_policy_kl_early_stopping():
     steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
     rollout = sandbox.rollout(rollout_id="kl-1", substrate_steps=steps)
 
-    report = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=10, max_kl=0.001)
+    batch_result = sandbox.causal_policy.optimize(rollout=rollout, n_epochs=10, max_kl=0.001)
+    report = batch_result.report
 
     assert report.epochs_executed <= 10
     if report.kl_penalty > 0.001:
@@ -567,7 +696,15 @@ def test_causal_policy_gae_advantages():
     steps = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
     rollout = sandbox.rollout(rollout_id="gae-1", substrate_steps=steps)
 
-    advantages = causal._compute_gae(rollout=rollout, gamma=0.99, gae_lambda=0.95)
+    compute_gae = getattr(causal, "_compute_gae", None)
+    if callable(compute_gae):
+        advantages = compute_gae(rollout=rollout, gamma=0.99, gae_lambda=0.95)
+    else:
+        advantages = causal._estimate_rollout_targets(
+            rollout=rollout,
+            gamma=0.99,
+            gae_lambda=0.95,
+        ).normalized_advantages
 
     assert len(advantages) == len(rollout.transitions)
     mean_adv = sum(advantages) / len(advantages)

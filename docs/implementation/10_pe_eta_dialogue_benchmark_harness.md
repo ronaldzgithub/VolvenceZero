@@ -237,7 +237,7 @@ open-environment 层遵守 3 条边界：
 - `bounded_writeback_turn_count`：有多少 turn 发生了 reflection/background writeback
 - `reflection_promotion_eligible_turn_count`：有多少 turn 达到了 background consolidation eligibility
 - `session_post_completed_job_count`：有多少 turn 已观察到 session-post slow loop 完成回执
-- `rare_heavy_recommended_count` / `rare_heavy_applied_count`：rare-heavy 在整段 case 中被建议/真正执行了多少次
+- `rare_heavy_recommended_count` / `rare_heavy_applied_count`：rare-heavy 在整段 case 中被建议/真正执行了多少次；在默认 frozen-substrate doctrine 下，`applied_count` 应接近 0，而 `recommended_count` 继续作为慢层 review evidence
 - `rare_heavy_pre_import_pass_count` / `rare_heavy_pre_import_reject_count`：rare-heavy 候选在导入前 replay gate 中通过/被拒绝的次数
 - `mean_rare_heavy_pre_import_score_delta`：导入前 replay 上 candidate 相对 baseline 的平均分数改善
 - `mean_rare_heavy_candidate_alignment`：offline rare-heavy bundle 中 trace/substrate 对齐度
@@ -745,6 +745,79 @@ Replay ranking 的前几项为：
 
 - `heuristic-baseline` 在真实 `AgentSessionRunner` 下不再要求 heuristic temporal policy 必须携带 `parameter_store`
 - CMS medium/background band 在 rare-heavy import / acceptance 路径上，遇到 signal / pending signal 维度不一致时，会先做 owner-side 对齐，而不是直接越界
+
+## Paper-Suite Uplift
+
+为了把当前 harness 从“机制证明 + acceptance gate”继续推进到论文式 empirical closure，repo 现在补了三层正式入口：
+
+- `build_dialogue_paper_suite_manifest()`
+- `dialogue_paper_suite_config()`
+- `run_dialogue_paper_suite_repeated_benchmark()`
+
+### Frozen tiers
+
+当前 dialogue 证据链已显式区分 3 个 tier：
+
+- `ci-smoke`
+  - 面向 PR / regression，最小 scope，单 seed，单次运行
+- `paper-suite-small`
+  - 面向 nightly / routine evidence refresh，固定 seeds，重复运行，输出 uncertainty
+- `paper-suite-full`
+  - 面向 release / paper bundle，更多 seeds 与更完整 suite
+
+### What the repeated suite adds
+
+这层不是把现有 comprehensive benchmark 推翻重写，而是在其外面补一个**冻结 + 重复 + 聚合**层：
+
+- 每次 run 固定 manifest
+- 每次 run 仍复用 `run_real_dialogue_pe_eta_comprehensive_benchmark[_staged]()`
+- suite 级额外汇总：
+  - `canonical_pass_rate_pe_eta`
+  - `canonical_pass_rate_gap_vs_pe_drive_off`
+  - `canonical_pass_rate_gap_vs_eta_off`
+  - `perturbation_pass_rate_pe_eta`
+  - `open_pass_rate_pe_eta`
+  - `open_pass_rate_gap_vs_pe_drive_off`
+  - `essence_gate_pass_fraction`
+  - `strongest_scaffold_retention_score`
+- 并进一步导出：
+  - `MetricIntervalSummary`
+  - provenance bundle
+  - expert-review packet
+
+### Artifact bundle
+
+当前 dialogue paper suite bundle 至少导出：
+
+- `paper_suite_manifest.json`
+- `paper_suite_provenance.json`
+- `paper_suite_run_summaries.json`
+- `paper_suite_aggregate.json`
+- `reference_emergence_dashboard.json`
+- `expert_review_packet.json`
+
+其中 `expert_review_packet` 的作用不是替代 benchmark，而是给后续外部/专家盲评提供固定 transcript 包，避免外部锚点重新手工整理数据。
+
+### CI / script entrypoints
+
+新增脚本入口：
+
+- `scripts/run_dialogue_paper_suite.sh`
+
+新增 workflow tiers：
+
+- 现有 `.github/workflows/nl-essence-acceptance.yml`
+  - 继续承担 PR smoke / merge gate
+- `.github/workflows/paper-suite-nightly.yml`
+  - 跑 `paper-suite-small`
+- `.github/workflows/paper-suite-release.yml`
+  - 跑 `paper-suite-full`
+
+因此当前 dialogue evidence chain 的定位变成：
+
+- **acceptance**：保证默认主链没有回退
+- **paper-suite-small**：保证机制优势在固定 suite 上有 repeated-run + uncertainty
+- **paper-suite-full**：形成可归档、可对外复查的 artifact pack
 
 ## 这还不能证明什么
 

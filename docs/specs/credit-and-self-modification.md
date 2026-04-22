@@ -57,12 +57,12 @@
 | 修改目标 | 门控级别 | 触发条件 | 算法基础 |
 |----------|----------|----------|----------|
 | 检索权重、策略先验 | 在线可改 | 每轮/每 wave | CMS 高频层 |
-| bounded substrate delta | 在线可改 | 上一轮 PE carryover + ONLINE gate allow | substrate self-mod owner + runtime apply surface |
+| bounded substrate delta proposal | 实验/隔离路径 | 上一轮 PE carryover + ONLINE gate allow + explicit experimental mode | substrate self-mod owner + runtime apply surface |
 | 抽象控制器参数、反思启发式 | 后台验证 | 会话后反思 | CMS 中频层 |
 | 记忆提升阈值、基底微调 | 离线重训练 | 定期批量 | CMS 低频层 |
 | 基础模型结构变更 | 人工审核 | 版本发布 | — |
 
-CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习率 `η^(i)` 控制每层的适应幅度。Hope 的自修改 Titans（附录 A.7）实现有界自修改——修改范围限于记忆模块的参数，基础模型保持冻结。
+CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习率 `η^(i)` 控制每层的适应幅度。Hope 的自修改 Titans（附录 A.7）实现有界自修改——修改范围限于记忆模块的参数，基础模型保持冻结。对当前 repo 而言，substrate delta proposal 主要承担 evidence / audit 角色；live substrate mutation 默认关闭。
 
 ## 接口契约
 
@@ -100,9 +100,11 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - joint loop 现在会把 metacontroller rollback / drift evidence 写入 owner-side modification audit，供 reflection / writeback 直接消费
 - joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
-- 当前 session runtime 已新增 online-fast substrate self-mod audit：当 `substrate_self_mod` owner 提出 bounded delta proposal 且 `JointLoopSchedule` / `ModificationGate.ONLINE` 允许时，session owner 会通过 substrate runtime apply surface 落地，并把 allow/block 结果写成 `SelfModificationRecord(target=\"substrate.online_fast.delta\")` 进入正式 `credit` snapshot
+- 当前 session runtime 已新增 online-fast substrate self-mod audit：当 `substrate_self_mod` owner 提出 bounded delta proposal 时，session owner 会把 allow/block 结果写成 `SelfModificationRecord(target=\"substrate.online_fast.delta\")` 进入正式 `credit` snapshot。默认 frozen-substrate doctrine 下，这类 proposal 保持 review-only；只有显式 experimental live-mutation mode 才会走 substrate runtime apply surface
 - 当前 direct module dependencies 已收敛到 `dual_track + evaluation + prediction_error`；抽象动作 / delayed outcome 证据通过 dual-track、regime ledger 和 prediction-error chain 进入 credit owner，而不是要求 credit 直接持有 temporal owner
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
+- 当前 internal RL delayed credit 也已补充 batch-friendly bookkeeping：proof path 的 delayed assignment 现在会显式携带 `alignment_score`、`window_length` 与 `reward_mode`，便于同一套 credit 结构同时服务训练和 proof report
+- 当前 abstract-action RL 更新已不再只吃单 rollout credit；batch rollout 的 `return_estimate` / `advantage_estimate` 也成为可检查的 owner-side training evidence
 
 ## 变更日志
 

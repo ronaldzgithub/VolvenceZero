@@ -8,7 +8,7 @@ from hashlib import sha256
 from typing import Any, Mapping
 
 from volvence_zero.memory import MemorySnapshot, Track
-from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind

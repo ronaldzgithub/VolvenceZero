@@ -13,3 +13,4 @@
 volvence_zero/agent/__pycache__/session.cpython-313.pyc
 /volvence_zero/substrate/__pycache__
 /volvence_zero/agent/__pycache__
+*.pyc

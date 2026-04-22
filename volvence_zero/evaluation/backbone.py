@@ -6,6 +6,7 @@ import math
 from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
+from volvence_zero.application.runtime import BoundaryPolicySnapshot, CaseMemorySnapshot, DomainKnowledgeSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -148,6 +149,35 @@ class LongitudinalReport:
 
 
 @dataclass(frozen=True)
+class MetricIntervalSummary:
+    metric_name: str
+    sample_count: int
+    mean: float
+    std: float
+    stderr: float
+    ci_low: float
+    ci_high: float
+    min_value: float
+    max_value: float
+    description: str
+
+
+@dataclass(frozen=True)
+class PairwiseMetricEffect:
+    metric_name: str
+    candidate_label: str
+    control_label: str
+    sample_count: int
+    mean_delta: float
+    std_delta: float
+    stderr_delta: float
+    ci_low: float
+    ci_high: float
+    effect_size: float
+    description: str
+
+
+@dataclass(frozen=True)
 class CrossSessionBenchmarkSuite:
     session_reports: tuple[EvaluationReport, ...]
     comparison_windows: tuple[int, ...] = (1, 3, 5)
@@ -155,6 +185,153 @@ class CrossSessionBenchmarkSuite:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _sample_std(values: tuple[float, ...]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    return math.sqrt(max(variance, 0.0))
+
+
+def _percentile(values: tuple[float, ...], percentile: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    ordered = sorted(values)
+    clamped = max(0.0, min(1.0, percentile))
+    position = (len(ordered) - 1) * clamped
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+    if lower_index == upper_index:
+        return ordered[lower_index]
+    lower_value = ordered[lower_index]
+    upper_value = ordered[upper_index]
+    weight = position - lower_index
+    return lower_value + (upper_value - lower_value) * weight
+
+
+def build_metric_interval_summary(
+    *,
+    metric_name: str,
+    values: tuple[float, ...],
+    ci_level: float = 0.95,
+) -> MetricIntervalSummary:
+    sample_count = len(values)
+    if sample_count == 0:
+        return MetricIntervalSummary(
+            metric_name=metric_name,
+            sample_count=0,
+            mean=0.0,
+            std=0.0,
+            stderr=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            min_value=0.0,
+            max_value=0.0,
+            description=f"{metric_name} has no samples.",
+        )
+    mean = sum(values) / sample_count
+    std = _sample_std(values)
+    stderr = std / math.sqrt(sample_count) if sample_count > 0 else 0.0
+    tail_mass = (1.0 - ci_level) / 2.0
+    ci_low = _percentile(values, tail_mass)
+    ci_high = _percentile(values, 1.0 - tail_mass)
+    return MetricIntervalSummary(
+        metric_name=metric_name,
+        sample_count=sample_count,
+        mean=mean,
+        std=std,
+        stderr=stderr,
+        ci_low=ci_low,
+        ci_high=ci_high,
+        min_value=min(values),
+        max_value=max(values),
+        description=(
+            f"{metric_name} summarized over {sample_count} samples "
+            f"with mean={mean:.3f}, std={std:.3f}, ci=[{ci_low:.3f}, {ci_high:.3f}]."
+        ),
+    )
+
+
+def build_metric_interval_summaries(
+    *,
+    metric_samples: Mapping[str, tuple[float, ...]],
+    ci_level: float = 0.95,
+) -> tuple[MetricIntervalSummary, ...]:
+    return tuple(
+        build_metric_interval_summary(
+            metric_name=metric_name,
+            values=values,
+            ci_level=ci_level,
+        )
+        for metric_name, values in metric_samples.items()
+    )
+
+
+def build_pairwise_metric_effect(
+    *,
+    metric_name: str,
+    candidate_label: str,
+    control_label: str,
+    candidate_values: tuple[float, ...],
+    control_values: tuple[float, ...],
+    ci_level: float = 0.95,
+) -> PairwiseMetricEffect:
+    sample_count = min(len(candidate_values), len(control_values))
+    if sample_count == 0:
+        return PairwiseMetricEffect(
+            metric_name=metric_name,
+            candidate_label=candidate_label,
+            control_label=control_label,
+            sample_count=0,
+            mean_delta=0.0,
+            std_delta=0.0,
+            stderr_delta=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            effect_size=0.0,
+            description=f"{metric_name} has no aligned samples for pairwise comparison.",
+        )
+    deltas = tuple(
+        candidate_value - control_value
+        for candidate_value, control_value in zip(
+            candidate_values[:sample_count],
+            control_values[:sample_count],
+            strict=True,
+        )
+    )
+    delta_summary = build_metric_interval_summary(
+        metric_name=metric_name,
+        values=deltas,
+        ci_level=ci_level,
+    )
+    pooled_std = math.sqrt(
+        max(
+            (_sample_std(candidate_values[:sample_count]) ** 2 + _sample_std(control_values[:sample_count]) ** 2)
+            / 2.0,
+            0.0,
+        )
+    )
+    effect_size = delta_summary.mean / pooled_std if pooled_std > 1e-8 else 0.0
+    return PairwiseMetricEffect(
+        metric_name=metric_name,
+        candidate_label=candidate_label,
+        control_label=control_label,
+        sample_count=sample_count,
+        mean_delta=delta_summary.mean,
+        std_delta=delta_summary.std,
+        stderr_delta=delta_summary.stderr,
+        ci_low=delta_summary.ci_low,
+        ci_high=delta_summary.ci_high,
+        effect_size=effect_size,
+        description=(
+            f"{candidate_label} vs {control_label} on {metric_name} "
+            f"has mean_delta={delta_summary.mean:.3f} and effect_size={effect_size:.3f}."
+        ),
+    )
 
 
 def _semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
@@ -1017,6 +1194,9 @@ class EvaluationBackbone:
         writeback_result: object | None,
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None" = None,
+        domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
+        case_memory_snapshot: CaseMemorySnapshot | None = None,
+        boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
     ) -> EvaluationSnapshot:
         scores = self._learning_evidence_scores(
             memory_snapshot=memory_snapshot,
@@ -1024,6 +1204,9 @@ class EvaluationBackbone:
             writeback_result=writeback_result,
             joint_loop_result=joint_loop_result,
             regime_snapshot=regime_snapshot,
+            domain_knowledge_snapshot=domain_knowledge_snapshot,
+            case_memory_snapshot=case_memory_snapshot,
+            boundary_policy_snapshot=boundary_policy_snapshot,
         )
         if not scores:
             return base_snapshot
@@ -1458,6 +1641,9 @@ class EvaluationBackbone:
         writeback_result: object | None,
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None",
+        domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
+        case_memory_snapshot: CaseMemorySnapshot | None = None,
+        boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
     ) -> tuple[EvaluationScore, ...]:
         """Build readout evidence scores for the learning loop.
 
@@ -1526,6 +1712,134 @@ class EvaluationBackbone:
                         ),
                     )
                 )
+            tower_depth = lifecycle_metrics.get("last_memory_tower_depth", 0.0)
+            tower_alignment = lifecycle_metrics.get("last_memory_tower_alignment", 0.0)
+            tower_consolidation_count = lifecycle_metrics.get("tower_consolidation_count", 0.0)
+            if tower_depth > 0.0:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="memory_tower_depth",
+                            value=_clamp(tower_depth / 6.0),
+                            confidence=0.68,
+                            evidence=(
+                                f"Derived from memory tower depth={tower_depth:.1f} "
+                                f"and nested_profile_active={nested_profile_active:.1f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="memory_tower_alignment",
+                            value=_clamp(max(tower_alignment, 0.0)),
+                            confidence=0.64,
+                            evidence=(
+                                f"Derived from tower_alignment={tower_alignment:.3f} "
+                                f"and retrieval_quality={retrieval_quality:.3f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="tower_consolidation_activity",
+                            value=_clamp(tower_consolidation_count / 3.0),
+                            confidence=0.62,
+                            evidence=(
+                                f"Derived from tower_consolidation_count={tower_consolidation_count:.0f}."
+                            ),
+                        ),
+                    )
+                )
+        if domain_knowledge_snapshot is not None:
+            knowledge_hit_count = _clamp(len(domain_knowledge_snapshot.hits) / 3.0)
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="knowledge_hit_count",
+                    value=knowledge_hit_count,
+                    confidence=0.66,
+                    evidence=(
+                        f"Derived from domain_knowledge hits={len(domain_knowledge_snapshot.hits)} "
+                        f"citation_required={domain_knowledge_snapshot.citation_required}."
+                    ),
+                )
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="knowledge_conflict_exposed",
+                    value=_clamp(len(domain_knowledge_snapshot.unresolved_conflicts)),
+                    confidence=0.64,
+                    evidence=(
+                        f"Derived from unresolved_conflicts={len(domain_knowledge_snapshot.unresolved_conflicts)}."
+                    ),
+                )
+            )
+        if case_memory_snapshot is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="case_hit_count",
+                        value=_clamp(len(case_memory_snapshot.hits) / 3.0),
+                        confidence=0.67,
+                        evidence=(
+                            f"Derived from case_memory hits={len(case_memory_snapshot.hits)} "
+                            f"problem_patterns={len(case_memory_snapshot.active_problem_patterns)}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="case_relevance_mean",
+                        value=_clamp(
+                            sum(hit.relevance_score for hit in case_memory_snapshot.hits)
+                            / max(len(case_memory_snapshot.hits), 1)
+                        ),
+                        confidence=0.62,
+                        evidence=(
+                            f"Derived from case hit relevance over {len(case_memory_snapshot.hits)} hits."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="case_delayed_outcome_availability",
+                        value=_clamp(
+                            sum(hit.outcome.delayed_signal_count for hit in case_memory_snapshot.hits)
+                            / max(len(case_memory_snapshot.hits), 1)
+                            / 4.0
+                        ),
+                        confidence=0.59,
+                        evidence=(
+                            f"Derived from delayed_signal_count across {len(case_memory_snapshot.hits)} case hits."
+                        ),
+                    ),
+                )
+            )
+        if boundary_policy_snapshot is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="boundary_clarification_triggered",
+                        value=1.0 if boundary_policy_snapshot.active_decision.clarification_required else 0.0,
+                        confidence=0.72,
+                        evidence=boundary_policy_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="boundary_referral_triggered",
+                        value=1.0 if boundary_policy_snapshot.active_decision.refer_out_required else 0.0,
+                        confidence=0.74,
+                        evidence=boundary_policy_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="boundary_citation_required",
+                        value=1.0 if boundary_policy_snapshot.active_decision.citation_required else 0.0,
+                        confidence=0.68,
+                        evidence=boundary_policy_snapshot.description,
+                    ),
+                )
+            )
         if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
             confidence = reflection_snapshot.consolidation_score.confidence
             applied_count = len(writeback_result.applied_operations) if isinstance(writeback_result, WritebackResult) else 0

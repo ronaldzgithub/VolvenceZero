@@ -174,6 +174,24 @@ class CMSBandState:
 
 
 @dataclass(frozen=True)
+class CMSTowerLevelState:
+    level_id: str
+    role: str
+    vector: tuple[float, ...]
+    cadence_interval: int
+    source_level_ids: tuple[str, ...] = ()
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CMSTowerProfile:
+    profile_id: str
+    levels: tuple[CMSTowerLevelState, ...]
+    readout_vector: tuple[float, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class CMSState:
     online_fast: CMSBandState
     session_medium: CMSBandState
@@ -182,6 +200,8 @@ class CMSState:
     total_reflections: int
     description: str
     variant: str = "sequential"
+    tower_profile: CMSTowerProfile | None = None
+    tower_depth: int = 0
 
 
 @dataclass(frozen=True)
@@ -200,6 +220,17 @@ class CMSCheckpointState:
     mlp_params: tuple[tuple[tuple[float, ...], ...], ...] = ()
     nested_session_init_target: tuple[float, ...] = ()
     nested_online_init_target: tuple[float, ...] = ()
+    tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
+
+
+@dataclass(frozen=True)
+class CMSTowerConsolidationUpdate:
+    online_signal: tuple[float, ...] = ()
+    session_signal: tuple[float, ...] = ()
+    background_signal: tuple[float, ...] = ()
+    decay_pressure: float = 0.0
+    reset_fast_context: bool = False
+    description: str = ""
 
 
 class CMSMemoryCore:
@@ -398,47 +429,14 @@ class CMSMemoryCore:
 
     def reflect_lessons(self, *, lesson_count: int, timestamp_ms: int) -> None:
         lesson_signal = tuple(_clamp(lesson_count / (index + 3)) for index in range(self._dim))
-        self._total_reflections += 1
-
-        if self._mode == "mlp":
-            self._session_mlp.update(target=lesson_signal)
-            background_signal = (
-                lesson_signal
-                if self._variant is CMSVariant.INDEPENDENT
-                else self._session_mlp.representation_vector()
-            )
-            self._background_pending_signal, self._background_observations_since_update = (
-                self._integrate_signal_mlp(
-                    mlp=self._background_mlp,
-                    pending_signal=self._background_pending_signal,
-                    observations_since_update=self._background_observations_since_update,
-                    signal=background_signal,
-                    cadence_interval=max(self._background_cadence - 1, 1),
-                )
-            )
-        else:
-            self._session_medium, self._session_momentum = self._gradient_update(
-                current=self._session_medium,
-                target=lesson_signal,
-                momentum=self._session_momentum,
-                lr=self._session_lr * 0.83,
-            )
-            (
-                self._background_slow,
-                self._background_pending_signal,
-                self._background_observations_since_update,
-                self._background_momentum,
-            ) = self._integrate_signal_gradient(
-                current_vector=self._background_slow,
-                pending_signal=self._background_pending_signal,
-                observations_since_update=self._background_observations_since_update,
-                momentum=self._background_momentum,
-                signal=lesson_signal,
-                lr=self._background_lr * 2.0,
-                cadence_interval=max(self._background_cadence - 1, 1),
-            )
-
-        self._last_update_ms = timestamp_ms
+        self.apply_tower_consolidation(
+            update=CMSTowerConsolidationUpdate(
+                session_signal=lesson_signal,
+                background_signal=lesson_signal,
+                description=f"lesson-count:{lesson_count}",
+            ),
+            timestamp_ms=timestamp_ms,
+        )
 
     # ------------------------------------------------------------------
     # observe_encoder_feedback
@@ -620,6 +618,7 @@ class CMSMemoryCore:
                 background_pending_signal=self._background_pending_signal,
                 nested_session_init_target=self._nested_session_init_target,
                 nested_online_init_target=self._nested_online_init_target,
+                tower_meta_levels=self._export_tower_meta_levels(),
                 mode="mlp",
                 mlp_params=(
                     self._online_mlp.export_params(),
@@ -638,6 +637,7 @@ class CMSMemoryCore:
             background_observations_since_update=self._background_observations_since_update,
             session_pending_signal=self._session_pending_signal,
             background_pending_signal=self._background_pending_signal,
+            tower_meta_levels=self._export_tower_meta_levels(),
         )
 
     def restore_state(self, state: CMSCheckpointState) -> None:
@@ -662,6 +662,7 @@ class CMSMemoryCore:
                 self._nested_session_init_target = state.nested_session_init_target
             if state.nested_online_init_target:
                 self._nested_online_init_target = state.nested_online_init_target
+            self._restore_tower_meta_levels(state.tower_meta_levels)
         elif self._mode == "vector":
             self._online_fast = state.online_fast
             self._session_medium = state.session_medium
@@ -714,6 +715,18 @@ class CMSMemoryCore:
                 f"online_lr={self._online_lr}, session_lr={self._session_lr}, "
                 f"bg_lr={self._background_lr}, anti_forgetting={self._anti_forgetting}."
             ),
+            tower_profile=self._build_tower_profile(
+                online_vector=self._online_fast,
+                session_vector=self._session_medium,
+                background_vector=self._background_slow,
+            ),
+            tower_depth=len(
+                self._build_tower_profile(
+                    online_vector=self._online_fast,
+                    session_vector=self._session_medium,
+                    background_vector=self._background_slow,
+                ).levels
+            ),
         )
 
     def _snapshot_mlp(self) -> CMSState:
@@ -721,6 +734,11 @@ class CMSMemoryCore:
         session_rep = self._session_mlp.representation_vector()
         bg_rep = self._background_mlp.representation_vector()
         pc = self._online_mlp.parameter_count()
+        tower_profile = self._build_tower_profile(
+            online_vector=online_rep,
+            session_vector=session_rep,
+            background_vector=bg_rep,
+        )
         return CMSState(
             online_fast=CMSBandState(
                 name="online-fast",
@@ -770,7 +788,115 @@ class CMSMemoryCore:
                 f"bg_lr={self._background_lr}, anti_forgetting={self._anti_forgetting}."
             ),
             variant=self._variant.value,
+            tower_profile=tower_profile,
+            tower_depth=len(tower_profile.levels),
         )
+
+    def apply_tower_consolidation(
+        self,
+        *,
+        update: CMSTowerConsolidationUpdate,
+        timestamp_ms: int,
+    ) -> tuple[str, ...]:
+        self._total_reflections += 1
+        applied: list[str] = []
+        online_signal = self._align_signal_dim(update.online_signal)
+        session_signal = self._align_signal_dim(update.session_signal)
+        background_signal = self._align_signal_dim(update.background_signal)
+
+        if self._mode == "mlp":
+            if any(value > 0.0 for value in online_signal):
+                self._online_mlp.update(
+                    target=self._blend_signal(
+                        self._online_mlp.representation_vector(),
+                        online_signal,
+                        rate=0.55,
+                    )
+                )
+                applied.append("tower-consolidation:online")
+            if any(value > 0.0 for value in session_signal):
+                self._session_mlp.update(
+                    target=self._blend_signal(
+                        self._session_mlp.representation_vector(),
+                        session_signal,
+                        rate=0.62,
+                    )
+                )
+                applied.append("tower-consolidation:session")
+            if any(value > 0.0 for value in background_signal):
+                self._background_mlp.update(
+                    target=self._blend_signal(
+                        self._background_mlp.representation_vector(),
+                        background_signal,
+                        rate=0.7,
+                    )
+                )
+                applied.append("tower-consolidation:background")
+            if update.decay_pressure > 0.0:
+                pressure = _clamp(update.decay_pressure)
+                background_rep = self._background_mlp.representation_vector()
+                self._session_mlp.update(
+                    target=self._blend_signal(
+                        self._session_mlp.representation_vector(),
+                        background_rep,
+                        rate=pressure * 0.35,
+                    )
+                )
+                self._online_mlp.update(
+                    target=self._blend_signal(
+                        self._online_mlp.representation_vector(),
+                        self._session_mlp.representation_vector(),
+                        rate=pressure * 0.2,
+                    )
+                )
+                applied.append("tower-consolidation:decay-pressure")
+            if self._variant is CMSVariant.NESTED:
+                self._update_nested_meta_targets()
+                applied.append("tower-consolidation:meta-targets")
+        else:
+            if any(value > 0.0 for value in online_signal):
+                self._online_fast, self._online_momentum = self._gradient_update(
+                    current=self._online_fast,
+                    target=self._blend_signal(self._online_fast, online_signal, rate=0.55),
+                    momentum=self._online_momentum,
+                    lr=self._online_lr * 0.5,
+                )
+                applied.append("tower-consolidation:online")
+            if any(value > 0.0 for value in session_signal):
+                self._session_medium, self._session_momentum = self._gradient_update(
+                    current=self._session_medium,
+                    target=self._blend_signal(self._session_medium, session_signal, rate=0.62),
+                    momentum=self._session_momentum,
+                    lr=self._session_lr,
+                )
+                applied.append("tower-consolidation:session")
+            if any(value > 0.0 for value in background_signal):
+                self._background_slow, self._background_momentum = self._gradient_update(
+                    current=self._background_slow,
+                    target=self._blend_signal(self._background_slow, background_signal, rate=0.7),
+                    momentum=self._background_momentum,
+                    lr=self._background_lr * 1.5,
+                )
+                applied.append("tower-consolidation:background")
+            if update.decay_pressure > 0.0:
+                pressure = _clamp(update.decay_pressure)
+                self._session_medium = self._blend_signal(
+                    self._session_medium,
+                    self._background_slow,
+                    rate=pressure * 0.25,
+                )
+                self._online_fast = self._blend_signal(
+                    self._online_fast,
+                    self._session_medium,
+                    rate=pressure * 0.15,
+                )
+                applied.append("tower-consolidation:decay-pressure")
+
+        if update.reset_fast_context and self._variant is CMSVariant.NESTED and self._mode == "mlp":
+            self.reset_context()
+            applied.append("tower-consolidation:nested-reset")
+        self._last_update_ms = timestamp_ms
+        return tuple(applied)
 
     # ------------------------------------------------------------------
     # internal helpers — signal extraction
@@ -802,6 +928,129 @@ class CMSMemoryCore:
         if not signal:
             return tuple(0.0 for _ in range(self._dim))
         return tuple(signal[index % len(signal)] for index in range(self._dim))
+
+    def _blend_signal(
+        self,
+        current: tuple[float, ...],
+        incoming: tuple[float, ...],
+        *,
+        rate: float,
+    ) -> tuple[float, ...]:
+        current = self._align_signal_dim(current)
+        incoming = self._align_signal_dim(incoming)
+        return tuple(
+            _clamp(current[index] * (1.0 - rate) + incoming[index] * rate)
+            for index in range(self._dim)
+        )
+
+    def _export_tower_meta_levels(self) -> tuple[tuple[str, tuple[float, ...]], ...]:
+        if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
+            return ()
+        return (
+            ("nested-online-prior", self._nested_online_init_target),
+            ("nested-session-prior", self._nested_session_init_target),
+        )
+
+    def _restore_tower_meta_levels(
+        self,
+        tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...],
+    ) -> None:
+        for level_id, vector in tower_meta_levels:
+            if level_id == "nested-online-prior" and vector:
+                self._nested_online_init_target = vector
+            elif level_id == "nested-session-prior" and vector:
+                self._nested_session_init_target = vector
+
+    def _build_tower_profile(
+        self,
+        *,
+        online_vector: tuple[float, ...],
+        session_vector: tuple[float, ...],
+        background_vector: tuple[float, ...],
+    ) -> CMSTowerProfile:
+        levels = [
+            CMSTowerLevelState(
+                level_id="online-fast",
+                role="fast-band",
+                vector=online_vector,
+                cadence_interval=1,
+                description="Highest-frequency online adaptation band.",
+            ),
+            CMSTowerLevelState(
+                level_id="session-medium",
+                role="session-band",
+                vector=session_vector,
+                cadence_interval=self._session_cadence,
+                source_level_ids=("online-fast",),
+                description="Mid-frequency session aggregation band.",
+            ),
+            CMSTowerLevelState(
+                level_id="background-slow",
+                role="slow-band",
+                vector=background_vector,
+                cadence_interval=self._background_cadence,
+                source_level_ids=("session-medium",),
+                description="Low-frequency background consolidation band.",
+            ),
+        ]
+        weighted_levels: list[tuple[tuple[float, ...], float]] = [
+            (online_vector, 0.42),
+            (session_vector, 0.28),
+            (background_vector, 0.2),
+        ]
+        if self._variant is CMSVariant.NESTED and self._mode == "mlp":
+            levels.extend(
+                (
+                    CMSTowerLevelState(
+                        level_id="nested-online-prior",
+                        role="meta-init",
+                        vector=self._nested_online_init_target,
+                        cadence_interval=self._session_cadence,
+                        source_level_ids=("session-medium",),
+                        description="Meta-learned prior used to seed online-fast on context reset.",
+                    ),
+                    CMSTowerLevelState(
+                        level_id="nested-session-prior",
+                        role="meta-init",
+                        vector=self._nested_session_init_target,
+                        cadence_interval=self._background_cadence,
+                        source_level_ids=("background-slow",),
+                        description="Meta-learned prior used to seed session-medium on context reset.",
+                    ),
+                )
+            )
+            weighted_levels.extend(
+                (
+                    (self._nested_online_init_target, 0.06),
+                    (self._nested_session_init_target, 0.04),
+                )
+            )
+        total_weight = sum(weight for _, weight in weighted_levels)
+        readout_vector = tuple(
+            _clamp(
+                sum(signal[index] * weight for signal, weight in weighted_levels) / max(total_weight, 1e-6)
+            )
+            for index in range(self._dim)
+        )
+        levels.append(
+            CMSTowerLevelState(
+                level_id="tower-readout",
+                role="readout",
+                vector=readout_vector,
+                cadence_interval=max(self._background_cadence, 1),
+                source_level_ids=tuple(level.level_id for level in levels),
+                description="Owner-side associative readout over the current nested memory tower.",
+            )
+        )
+        return CMSTowerProfile(
+            profile_id=f"{self._mode}:{self._variant.value}:depth{len(levels)}",
+            levels=tuple(levels),
+            readout_vector=readout_vector,
+            description=(
+                f"Nested memory tower with {len(levels)} levels, "
+                f"mode={self._mode}, variant={self._variant.value}."
+            ),
+        )
 
     # ------------------------------------------------------------------
     # internal helpers — vector mode

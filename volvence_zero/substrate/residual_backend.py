@@ -196,6 +196,8 @@ class OpenWeightResidualRuntime(ABC):
     model_id: str
     is_frozen: bool
     runtime_origin: str = "unknown"
+    supports_live_substrate_mutation: bool = False
+    supports_offline_substrate_training: bool = False
 
     @abstractmethod
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
@@ -243,6 +245,30 @@ class OpenWeightResidualRuntime(ABC):
     @property
     def capture_source(self) -> str:
         return "real" if not self.fallback_active else "fallback"
+
+    def require_live_substrate_mutation(self, *, operation: str) -> None:
+        if not self.supports_live_substrate_mutation:
+            raise RuntimeError(
+                f"{type(self).__name__} blocks {operation} because the default frozen-substrate doctrine "
+                "does not allow live substrate mutation. Keep the runtime on capture/control/generate only, "
+                "or opt into explicit experimental live mutation."
+            )
+
+    def require_offline_substrate_training(self, *, operation: str) -> None:
+        if not self.supports_offline_substrate_training:
+            raise RuntimeError(
+                f"{type(self).__name__} blocks {operation} because this runtime is not marked as an "
+                "offline substrate-artifact owner. Clone the runtime for rare-heavy/offline training first."
+            )
+
+    def require_substrate_artifact_import(self, *, operation: str) -> None:
+        if self.supports_live_substrate_mutation or self.supports_offline_substrate_training:
+            return
+        raise RuntimeError(
+            f"{type(self).__name__} blocks {operation} because importing substrate artifacts into the live "
+            "runtime is disabled under the frozen-substrate doctrine. Use an offline clone or explicit "
+            "experimental live mutation mode."
+        )
 
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
         raise NotImplementedError(
@@ -866,10 +892,18 @@ def apply_residual_control(
 class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     """Hook-shaped frozen runtime backed by the existing residual simulator."""
 
-    def __init__(self, *, model_id: str = "synthetic-open-weight-runtime") -> None:
+    def __init__(
+        self,
+        *,
+        model_id: str = "synthetic-open-weight-runtime",
+        allow_live_substrate_mutation: bool = False,
+        allow_offline_substrate_training: bool = False,
+    ) -> None:
         self.model_id = model_id
         self.is_frozen = True
         self.runtime_origin = "synthetic-open-weight"
+        self.supports_live_substrate_mutation = allow_live_substrate_mutation
+        self.supports_offline_substrate_training = allow_offline_substrate_training
         self._rare_heavy_control_scale = 0.12
         self._rare_heavy_semantic_text_weight = 0.85
         self._rare_heavy_semantic_residual_weight = 0.15
@@ -1026,6 +1060,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
 
     def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        self.require_substrate_artifact_import(operation="import_rare_heavy_state()")
         if checkpoint.model_id != self.model_id:
             raise ValueError(
                 f"Synthetic runtime {self.model_id!r} cannot import checkpoint for {checkpoint.model_id!r}."
@@ -1067,6 +1102,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
         checkpoint_id: str | None = None,
     ) -> SubstrateRareHeavyCheckpoint:
+        self.require_offline_substrate_training(operation="train_rare_heavy()")
         checkpoint = _derive_rare_heavy_checkpoint(
             checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy-trained",
             model_id=self.model_id,
@@ -1103,7 +1139,10 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
 
     def clone_for_rare_heavy(self) -> "OpenWeightResidualRuntime":
-        cloned = SyntheticOpenWeightResidualRuntime(model_id=self.model_id)
+        cloned = SyntheticOpenWeightResidualRuntime(
+            model_id=self.model_id,
+            allow_offline_substrate_training=True,
+        )
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
 
@@ -1112,6 +1151,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         checkpoint_id: str | None = None,
     ) -> SubstrateOnlineFastCheckpoint:
+        self.require_live_substrate_mutation(operation="export_online_fast_state()")
         adapter_layers = self._export_online_fast_layers()
         return SubstrateOnlineFastCheckpoint(
             checkpoint_id=checkpoint_id or f"{self.model_id}:online-fast",
@@ -1148,6 +1188,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
 
     def apply_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        self.require_live_substrate_mutation(operation="apply_online_fast_state()")
         if checkpoint.model_id != self.model_id:
             raise ValueError(
                 f"Synthetic runtime {self.model_id!r} cannot import online-fast checkpoint for "
@@ -1371,12 +1412,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_scale: float = 0.12,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
+        allow_live_substrate_mutation: bool = False,
+        allow_offline_substrate_training: bool = False,
     ) -> None:
         self._torch = importlib.import_module("torch")
         self._transformers = importlib.import_module("transformers")
         self.model_id = model_id
         self._pretrained_source = pretrained_source or model_id
         self.is_frozen = True
+        self.supports_live_substrate_mutation = allow_live_substrate_mutation
+        self.supports_offline_substrate_training = allow_offline_substrate_training
         self._device = self._resolve_device(device=device)
         self._max_length = max(1, max_length)
         self._top_k_logits = max(1, top_k_logits)
@@ -2184,6 +2229,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
 
     def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
+        self.require_substrate_artifact_import(operation="import_rare_heavy_state()")
         if checkpoint.model_id != self.model_id:
             raise ValueError(
                 f"Transformers runtime {self.model_id!r} cannot import checkpoint for {checkpoint.model_id!r}."
@@ -2239,6 +2285,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...],
         checkpoint_id: str | None = None,
     ) -> SubstrateRareHeavyCheckpoint:
+        self.require_offline_substrate_training(operation="train_rare_heavy()")
         base_text_weight, base_residual_weight = self._base_semantic_weights()
         checkpoint = _derive_rare_heavy_checkpoint(
             checkpoint_id=checkpoint_id or f"{self.model_id}:rare-heavy-trained",
@@ -2288,6 +2335,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             layer_indices=self._layer_indices,
             control_scale=self._control_scale,
             runtime_origin=self._runtime_origin,
+            allow_offline_substrate_training=True,
         )
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
@@ -2297,6 +2345,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         checkpoint_id: str | None = None,
     ) -> SubstrateOnlineFastCheckpoint:
+        self.require_live_substrate_mutation(operation="export_online_fast_state()")
         adapter_layers = self._export_online_fast_layers()
         return SubstrateOnlineFastCheckpoint(
             checkpoint_id=checkpoint_id or f"{self.model_id}:online-fast",
@@ -2329,6 +2378,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
 
     def apply_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        self.require_live_substrate_mutation(operation="apply_online_fast_state()")
         if checkpoint.model_id != self.model_id:
             raise ValueError(
                 f"Transformers runtime {self.model_id!r} cannot import online-fast checkpoint for "
@@ -2641,6 +2691,7 @@ def build_builtin_transformers_runtime(
     device: str = "cpu",
     tokenizer: object | None = None,
     layer_indices: tuple[int, ...] | None = None,
+    allow_live_substrate_mutation: bool = False,
 ) -> TransformersOpenWeightResidualRuntime:
     transformers = importlib.import_module("transformers")
     torch = importlib.import_module("torch")
@@ -2666,6 +2717,7 @@ def build_builtin_transformers_runtime(
         activation_width=8,
         top_k_logits=8,
         runtime_origin="builtin-fallback",
+        allow_live_substrate_mutation=allow_live_substrate_mutation,
     )
 
 
@@ -2680,6 +2732,7 @@ def build_transformers_runtime_with_fallback(
     fallback_mode: SubstrateFallbackMode | str | None = None,
     runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
     builtin_model_id: str = "builtin-transformers-runtime",
+    allow_live_substrate_mutation: bool = False,
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -2691,6 +2744,7 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
+            allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
     resolved_mode = resolve_substrate_fallback_mode(
         fallback_mode=fallback_mode,
@@ -2714,6 +2768,7 @@ def build_transformers_runtime_with_fallback(
             layer_indices=layer_indices,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
+            allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):
@@ -2721,6 +2776,7 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
+            allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
 
 

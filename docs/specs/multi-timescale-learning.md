@@ -15,6 +15,7 @@
 - 强化作用于压缩和结构化的内部基底，而非原始行为
 - 不同知识不存在同一个参数块中
 - 不同状态不以相同节奏更新
+- 对外时间尺度分层保持稳定，但 owner 内部允许更深的 nested tower；公开 contract 负责兼容投影，内部深度不应泄漏成新的跨模块依赖
 
 ## 工程挑战
 
@@ -40,7 +41,7 @@
 
 ```
 online-fast (每轮/每 wave):
-  SSL: 自修改 Titans 的 DGD 更新压缩当前上下文
+  SSL: metacontroller / memory 的局部压缩与状态更新
   RL:  metacontroller 的切换门和控制器代码实时适应
 
 session-medium (每场景/每会话):
@@ -52,7 +53,7 @@ background-slow (会话间):
   RL:  控制器先验和策略偏好的反思性更新
 
 rare-heavy (定期离线):
-  SSL: 基础模型的持续预训练或蒸馏
+  SSL: offline substrate artifact 训练、持续预训练或蒸馏
   RL:  完整的 Internal RL 训练循环
 ```
 
@@ -60,7 +61,7 @@ rare-heavy (定期离线):
 
 | 层 | 更新频率 | 算法基础 |
 |----|----------|----------|
-| 稳定基底 | rare-heavy（离线重训练） | 冻结 LLM，ETA rate-distortion 证明 |
+| 稳定基底 | live 默认冻结；rare-heavy 仅离线 owner path | 冻结 LLM，ETA rate-distortion 证明 |
 | 自适应控制器 | online-fast ~ session-medium | Metacontroller, Internal RL |
 | 记忆系统 | 各层不同频率 | CMS 多频率 MLP 链 |
 | 反思路径 | background-slow | CMS 低频层, SSL-RL 交替 |
@@ -87,31 +88,38 @@ rare-heavy (定期离线):
 - 当前 joint loop rollback 已扩展为 cycle 级 checkpoint：当一个 cycle 被判定为坏更新时，会同时撤销 SSL 侧和 policy 侧的本轮变更，而不是只回滚 RL policy
 - 当前 online-fast SSL 已显式区分 prior / posterior，并用 closed-form KL 约束 metacontroller latent bottle-neck；当前 internal RL env 也已通过 residual intervention backend 更接近 frozen-model-in-env 的控制路径
 - 当前 substrate owner 已落地 `TransformersOpenWeightResidualRuntime` 的真实 middle-layer hook capture/intervention，实现了比 trace backend 更接近 frozen-model residual path 的 online-fast 控制接口
-- 当前 online-fast 还新增了正式 `substrate_self_mod` owner 与 substrate runtime apply/restore surface：默认 turn path 已能基于上一轮 prediction-error carryover 形成 bounded substrate delta proposal，经 `ModificationGate.ONLINE` 预览/审计后，通过 runtime owner 的 `export/apply/restore_online_fast_state()` 执行小步在线更新
+- 当前 online-fast 会发布正式 `substrate_self_mod` proposal / telemetry surface：系统仍可基于上一轮 prediction-error carryover 形成 bounded substrate delta proposal，并通过 `ModificationGate.ONLINE` 预览/审计。但在默认 frozen-substrate doctrine 下，该 proposal 保持 review-only，不自动通过 runtime owner 的 `export/apply/restore_online_fast_state()` 落地 live substrate 更新
 - 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
 - 当前 `AgentSessionRunner` 默认已直接消费真实 transformers substrate，并把 `reflection` / `temporal` 放入 ACTIVE 主链；response layer 只读取 distilled kernel context，但默认行为已受 active temporal/reflection 状态驱动
 - 当前 `AgentSessionRunner` 默认 memory owner 已携带 learned CMS core（默认 nested MLP profile），不再停留在“无 learned core”的空壳路径；context boundary / rare-heavy import 后会触发 owner-controlled nested reset，并通过 memory lifecycle telemetry 发布 `slow_to_fast_init_benefit`
 - 当前 `background-slow` 已从 turn-synchronous bounded apply 切到 session-post slow loop：`run_final_wiring_turn()` 默认产出 machine-readable deferred slow-writeback request，`AgentSessionRunner.begin_new_context()` 会在 context boundary 把该 request 连同 session report / trace statistics / PE summary 打包进 slow-loop queue，并在后台执行 owner-side memory / regime / temporal consolidation，不阻塞用户 turn latency
 - 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并已扩展为 group-level selective writeback（如 `encoder` / `decoder` / `track-*` / `action-families` / `beta-threshold`），受 target-specific credit gate 约束
 - 当前 background-slow 反思还可基于 delayed attribution 生成 bounded structural temporal proposal（`merge` / `split` / `prune`），并沿同一条 gate / audit / rollback 链路进入 temporal owner
+- 当前 memory owner 已开始把三频带 CMS 升级为 machine-readable nested tower：对外仍发布 `online_fast / session_medium / background_slow` 摘要，但 owner 内部 tower readout / meta-init levels 已进入 retrieval 与 slow consolidation 主路径
+- 当前 background-slow memory writeback 已切到 tower-native consolidation：session-post slow loop 触发的 reflection apply 不再只做 artifact promotion + lesson count update，而会把 durable / belief / lesson pressure 压到 memory tower 的 online/session/background levels 上
 - 当前 session-medium delayed path 已从单条 delayed outcome 扩展为 multi-step attribution ledger：regime owner 会保留最近 resolved attribution，并发布 rolling payoff summary，供 evaluation / credit / reflection 读取，而不需要 consumer 自己拼接长期轨迹
 - 当前 `AgentSessionRunner` 已支持 bounded joint-loop schedule：turn 级可区分 `evidence-only`、`ssl-only`、`full-cycle`，由 orchestrator/session owner 调度而不改变 temporal owner
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
 - 当前 substrate rare-heavy 已从 v1 的 bounded scalar state 升级到 `adapter-delta-v2` owner path：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 现在可同时导出 `temporal / memory / substrate` 三类 artifact，其中 substrate checkpoint 不再只携带控制尺度、语义混合权重和 anchor bias，还会携带 owner-side adapter delta payload、compatibility fingerprint、training mode 与 payload parameter count
-- 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 应用。live runtime 仍保持 frozen substrate，offline clone 才允许执行 adapter/delta-style 训练
+- 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 应用。默认 doctrine 下 live runtime 保持 frozen substrate，只允许 offline clone 执行 adapter/delta-style 训练；live import 需要显式 experimental mode
 - 当前 `SSLRLTrainingPipeline` 已从“trace 顺序绑定”的轻量 pass 收敛为分阶段 batch loop：SSL 阶段按 trace 迭代直到收敛或上限，RL 阶段按 substrate batch 迭代直到收敛或上限，并在结束后导出 substrate rare-heavy checkpoint；若 substrate owner 没有产出 `adapter-delta-v2` checkpoint，pipeline 会 fail closed，而不是静默退回旧 bounded 模式
-- 当前 `AgentSessionRunner` 已补充 substrate-aware rare-heavy execution 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 与最近真实 substrate capture window 克隆 offline temporal/memory/substrate state，运行轻量 `SSLRLTrainingPipeline`，并在 offline RL 至少执行 1 步后通过 owner-side import surface 回写 online owner
+- 当前 `AgentSessionRunner` 已补充 substrate-aware rare-heavy review 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 与最近真实 substrate capture window 克隆 offline temporal/memory/substrate state，运行轻量 `SSLRLTrainingPipeline` 生成 candidate artifact。默认 frozen-substrate doctrine 下，这些 artifact 停留在 review-only 模式，不自动回写 online owner
+- 当前 offline pipeline 已把 `TRANSITION` 从占位状态收紧为真实 takeover phase：进入 RL 前会先跑 causal takeover 检查，显式发布 `transition_agreement`、`switch_sparsity_retention`、`family_reuse_retention` 与 `takeover_ready`
+- 当前 RL step 也已不再默认单 batch 更新：pipeline 会按 `rl_rollouts_per_step` 组合多个 rollout batch，再执行 grouped dual-track optimize
+- 当前 online-fast joint loop 已支持可配置的 rollout accumulation：允许先累积多轮 dual-track rollout，再一次性触发 RL 更新，避免把每一轮都当成独立充分统计样本
 
 ## 当前 proof surface
 
-当前 repo 在多时间尺度学习上优先证明 2 条工程命题：
+当前 repo 在多时间尺度学习上优先证明 3 条工程命题：
 
 1. `PE-schedule coupling`
    - `prediction_error` 已直接驱动 `JointLoopSchedule` 的 `ssl-only[-pe] / full-cycle[-pe] / online-fast substrate due / rare-heavy review`
 2. `multi-timescale default path`
-   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` 学习、online-fast substrate self-mod evidence、session-post `background-slow` completion、以及 nested CMS lifecycle signals；当前 benchmark 不再只把 “bounded writeback applied” 当作唯一 background-slow 证据，而是同时接受 `reflection_promotion_eligible`、`online_fast_substrate_applied_count`、`rare_heavy_recommended` 与 session-post completion telemetry
+   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` controller/memory learning、online-fast substrate proposal evidence、session-post `background-slow` completion、以及 nested CMS lifecycle signals；当前 benchmark 不再把 substrate apply 当作默认正向证据，而是接受 `reflection_promotion_eligible`、`online_fast_substrate_recommended_count`、`rare_heavy_recommended` 与 session-post completion telemetry
+3. `internal-depth-with-contract-stability`
+   - memory owner 内部可以增加 nested tower depth，但对外的 owner / snapshot graph 不增加新的跨模块依赖；下游继续只消费 `memory` slot，而不会直接触碰 tower internals
 
-这两条 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习”，不是“论文级最优性或完整因果隔离已经成立”。
+这些 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习，并开始允许 owner 内部 tower 深化”，不是“论文级最优性或完整因果隔离已经成立”。
 
 ## 与其他能力域的关系
 

@@ -100,6 +100,8 @@
   - session owner 已具备 bounded、substrate-aware 的 `rare-heavy` review/import 路径：temporal / memory / substrate 三侧都支持 checkpoint / rollback / import surface，offline pipeline 也已能产出统一 artifact。
   - session owner 已新增独立的 session-post slow loop：turn 内 final wiring 只产出 deferred slow-writeback request，真正的 `background-slow` consolidation 在 context/session boundary 后排队执行，并通过 owner-side memory / regime / temporal apply surface 落地。
   - session-post slow loop 现已从 runner telemetry 提升为正式 `session_post_slow_loop` 公共 slot：queue state 与 recent completion summaries 通过独立 snapshot 发布，外部 benchmark / report surface 可直接消费，不需要读取 session owner 私有队列。
+  - 应用层第一阶段已新增正式 `retrieval_policy` / `domain_knowledge` / `boundary_policy` surface：ETA 在线控制层先发布检索策略，知识 owner 再发布 compact 专业事实证据，边界 owner 发布 citation / clarification / refer-out 等限制，response/evaluation 只读取公共快照。
+  - 应用层第二阶段已新增正式 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers，使主链第一次具备知识 hits 与案例 hits 的 retrieval mix，同时保持 `memory` 不退化成“大一统经验仓库”。
 
 - **已落地但仍受 gate 约束的部分**
   - reflection writeback 不是无条件常开；仍受 `writeback_mode`、credit gate、evolution judge 共同约束。

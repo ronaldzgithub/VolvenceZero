@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 

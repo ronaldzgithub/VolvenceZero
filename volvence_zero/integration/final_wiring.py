@@ -3,7 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
-from volvence_zero.credit import (
+from volvence_zero.application.runtime import (
+    BoundaryPolicyModule,
+    BoundaryPolicySnapshot,
+    CaseMemoryModule,
+    CaseMemorySnapshot,
+    DomainKnowledgeModule,
+    DomainKnowledgeSnapshot,
+    RetrievalPolicyModule,
+    RetrievalPolicySnapshot,
+)
+from volvence_zero.credit.gate import (
     CreditSnapshot,
     CreditModule,
     GateDecision,
@@ -16,7 +26,7 @@ from volvence_zero.credit import (
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
-from volvence_zero.evaluation import (
+from volvence_zero.evaluation.backbone import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
     EvaluationReport,
@@ -28,7 +38,7 @@ from volvence_zero.evaluation import (
     JudgementCategory,
 )
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
-from volvence_zero.prediction import PredictedOutcome, PredictionErrorModule, PredictionErrorSnapshot
+from volvence_zero.prediction.error import PredictedOutcome, PredictionErrorModule, PredictionErrorSnapshot
 from volvence_zero.reflection import (
     ReflectionEngine,
     ReflectionModule,
@@ -65,6 +75,10 @@ class FinalRolloutConfig:
     substrate: WiringLevel = WiringLevel.ACTIVE
     substrate_self_mod: WiringLevel = WiringLevel.ACTIVE
     memory: WiringLevel = WiringLevel.ACTIVE
+    retrieval_policy: WiringLevel = WiringLevel.ACTIVE
+    domain_knowledge: WiringLevel = WiringLevel.ACTIVE
+    case_memory: WiringLevel = WiringLevel.ACTIVE
+    boundary_policy: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
     prediction_error: WiringLevel = WiringLevel.ACTIVE
@@ -81,6 +95,10 @@ class FinalRolloutConfig:
             "substrate": self.substrate,
             "substrate_self_mod": self.substrate_self_mod,
             "memory": self.memory,
+            "retrieval_policy": self.retrieval_policy,
+            "domain_knowledge": self.domain_knowledge,
+            "case_memory": self.case_memory,
+            "boundary_policy": self.boundary_policy,
             "dual_track": self.dual_track,
             "evaluation": self.evaluation,
             "prediction_error": self.prediction_error,
@@ -450,19 +468,31 @@ def build_final_runtime_modules(
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
         ),
+        regime_module
+        or RegimeModule(
+            wiring_level=config.level_for("regime", WiringLevel.SHADOW),
+        ),
+        RetrievalPolicyModule(
+            wiring_level=config.level_for("retrieval_policy", WiringLevel.ACTIVE),
+        ),
+        DomainKnowledgeModule(
+            wiring_level=config.level_for("domain_knowledge", WiringLevel.ACTIVE),
+        ),
         EvaluationModule(
             backbone=evaluation_backbone,
             session_id=session_id,
             wave_id=wave_id,
             wiring_level=config.level_for("evaluation", WiringLevel.ACTIVE),
         ),
-        regime_module
-        or RegimeModule(
-            wiring_level=config.level_for("regime", WiringLevel.SHADOW),
-        ),
         prediction_module
         or PredictionErrorModule(
             wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
+        ),
+        CaseMemoryModule(
+            wiring_level=config.level_for("case_memory", WiringLevel.ACTIVE),
+        ),
+        BoundaryPolicyModule(
+            wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
         ),
         CreditModule(
             pending_proposals=credit_proposals,
@@ -570,6 +600,10 @@ async def run_final_wiring_turn(
     session_report: EvaluationReport | None = None
     session_post_writeback_request: SessionPostWritebackRequest | None = None
     evaluation_snapshot = active_snapshots.get("evaluation")
+    retrieval_policy_snapshot = active_snapshots.get("retrieval_policy")
+    domain_knowledge_snapshot = active_snapshots.get("domain_knowledge")
+    case_memory_snapshot = active_snapshots.get("case_memory")
+    boundary_policy_snapshot = active_snapshots.get("boundary_policy")
     prediction_snapshot_value = (
         active_snapshots.get("prediction_error").value
         if active_snapshots.get("prediction_error") is not None
@@ -644,6 +678,21 @@ async def run_final_wiring_turn(
             writeback_result=writeback_result,
             joint_loop_result=joint_loop_result,
             regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
+            domain_knowledge_snapshot=(
+                domain_knowledge_snapshot.value
+                if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
+                else None
+            ),
+            case_memory_snapshot=(
+                case_memory_snapshot.value
+                if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot)
+                else None
+            ),
+            boundary_policy_snapshot=(
+                boundary_policy_snapshot.value
+                if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                else None
+            ),
         )
         substrate_self_mod_snapshot = active_snapshots.get("substrate_self_mod")
         substrate_self_mod_value = (
@@ -842,6 +891,10 @@ def build_acceptance_report(
                 "substrate",
                 "substrate_self_mod",
                 "memory",
+                "retrieval_policy",
+                "domain_knowledge",
+                "case_memory",
+                "boundary_policy",
                 "dual_track",
                 "evaluation",
                 "prediction_error",
@@ -860,10 +913,14 @@ def build_acceptance_report(
         "substrate",
         "substrate_self_mod",
         "memory",
+        "retrieval_policy",
+        "domain_knowledge",
+        "case_memory",
         "dual_track",
         "evaluation",
         "prediction_error",
         "regime",
+        "boundary_policy",
         "credit",
     }
     if config.reflection is WiringLevel.ACTIVE:
@@ -894,6 +951,42 @@ def build_acceptance_report(
     if config.substrate_self_mod is WiringLevel.ACTIVE and "substrate_self_mod" not in active_slots:
         issues.append("Substrate self-mod is configured ACTIVE but did not publish into the active chain.")
 
+    if (
+        config.retrieval_policy is WiringLevel.SHADOW
+        and "retrieval_policy" not in shadow_slots
+        and "retrieval_policy" not in active_slots
+    ):
+        issues.append("Retrieval policy wiring configured but no retrieval_policy snapshot was produced.")
+    if config.retrieval_policy is WiringLevel.ACTIVE and "retrieval_policy" not in active_slots:
+        issues.append("Retrieval policy is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        config.domain_knowledge is WiringLevel.SHADOW
+        and "domain_knowledge" not in shadow_slots
+        and "domain_knowledge" not in active_slots
+    ):
+        issues.append("Domain knowledge wiring configured but no domain_knowledge snapshot was produced.")
+    if config.domain_knowledge is WiringLevel.ACTIVE and "domain_knowledge" not in active_slots:
+        issues.append("Domain knowledge is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        config.case_memory is WiringLevel.SHADOW
+        and "case_memory" not in shadow_slots
+        and "case_memory" not in active_slots
+    ):
+        issues.append("Case memory wiring configured but no case_memory snapshot was produced.")
+    if config.case_memory is WiringLevel.ACTIVE and "case_memory" not in active_slots:
+        issues.append("Case memory is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        config.boundary_policy is WiringLevel.SHADOW
+        and "boundary_policy" not in shadow_slots
+        and "boundary_policy" not in active_slots
+    ):
+        issues.append("Boundary policy wiring configured but no boundary_policy snapshot was produced.")
+    if config.boundary_policy is WiringLevel.ACTIVE and "boundary_policy" not in active_slots:
+        issues.append("Boundary policy is configured ACTIVE but did not publish into the active chain.")
+
     if config.temporal is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
     if config.temporal is WiringLevel.SHADOW and "world_temporal" not in shadow_slots and "world_temporal" not in active_slots:
@@ -913,6 +1006,12 @@ def build_acceptance_report(
         recommendations.append("Validate temporal active mode against rollout evidence before widening scope.")
     if config.substrate_self_mod is WiringLevel.ACTIVE:
         recommendations.append("Keep online-fast substrate self-mod bounded and rollback-safe before widening scope.")
+    if config.domain_knowledge is WiringLevel.ACTIVE:
+        recommendations.append("Keep domain knowledge evidence compact and citation-bounded before widening scope.")
+    if config.case_memory is WiringLevel.ACTIVE:
+        recommendations.append("Keep case_memory as a sibling owner and avoid collapsing it back into memory.")
+    if config.boundary_policy is WiringLevel.ACTIVE:
+        recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")
 

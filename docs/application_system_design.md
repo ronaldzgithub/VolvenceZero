@@ -128,6 +128,7 @@ flowchart TD
 - 主要决策者
 - 经验沉淀者
 - 长期知识 owner
+- 在线主路径中的学习性改写对象
 
 ### 4.2 ETA online control layer
 

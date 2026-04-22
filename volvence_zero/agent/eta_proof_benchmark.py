@@ -1,6 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from random import Random
+from typing import Any
+
+from volvence_zero.agent.paper_suite import (
+    PaperMetricSpec,
+    PaperProfileSpec,
+    PaperSuiteManifest,
+    PaperSuiteProvenance,
+    collect_paper_suite_provenance,
+    export_json_artifact,
+)
+from volvence_zero.evaluation.backbone import (
+    MetricIntervalSummary,
+    build_metric_interval_summaries,
+)
 
 from volvence_zero.internal_rl import (
     HierarchicalLocation,
@@ -66,8 +82,14 @@ class ETAProofProfileReport:
     episode_reports: tuple[ETAProofEpisodeReport, ...]
     metric_means: tuple[tuple[str, float], ...]
     training_update_count: int
+    rollout_batch_count: int
+    mean_rollouts_per_update: float
+    training_transition_count: int
     training_parameter_change_count: int
     training_parameter_change_rate: float
+    mean_parameter_change_norm: float
+    mean_value_loss: float
+    mean_replacement_effect_delta: float
     description: str
 
 
@@ -77,6 +99,7 @@ class ETAProofBenchmarkReport:
     baseline_label: str
     backend_label: str
     metric_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    rollout_batch_count: int
     description: str
 
 
@@ -107,6 +130,27 @@ class ETAInternalRLAssessmentReport:
 
 
 @dataclass(frozen=True)
+class ETAProofPaperSuiteRunSummary:
+    run_id: str
+    run_seed: int
+    metric_values: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAProofPaperSuiteAggregateReport:
+    manifest: PaperSuiteManifest
+    provenance: PaperSuiteProvenance
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...]
+    reference_benchmark_report: ETAProofBenchmarkReport | None
+    reference_backend_report: ETAProofBackendComparisonReport | None
+    reference_assessment: ETAInternalRLAssessmentReport | None
+    primary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class ETAInternalRLAcceptanceConfig:
     required_gate_ids: tuple[str, ...] = (
         "sparse-reward-success",
@@ -114,6 +158,7 @@ class ETAInternalRLAcceptanceConfig:
         "heldout-composition",
         "credit-alignment",
         "policy-update-evidence",
+        "statistical-batch-evidence",
         "backend-robustness",
     )
     min_success_delta: float = 0.02
@@ -123,7 +168,11 @@ class ETAInternalRLAcceptanceConfig:
     min_strong_success_rate: float = 0.30
     max_backend_success_gap: float = 0.30
     min_policy_update_rate: float = 0.50
-    min_passed_gate_count: int = 6
+    min_rollouts_per_update: float = 2.0
+    min_parameter_change_norm: float = 0.01
+    min_replacement_effect_delta: float = 0.05
+    max_heldout_success_std: float = 0.35
+    min_passed_gate_count: int = 7
 
 
 @dataclass(frozen=True)
@@ -170,6 +219,14 @@ def _mean(values: tuple[float, ...]) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
+
+
+def _std(values: tuple[float, ...]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    mean_value = _mean(values)
+    variance = sum((value - mean_value) ** 2 for value in values) / len(values)
+    return variance ** 0.5
 
 
 def _sparsity_quality(value: float) -> float:
@@ -381,6 +438,159 @@ def default_eta_proof_profiles() -> tuple[str, ...]:
     )
 
 
+def build_eta_proof_paper_suite_manifest(
+    *,
+    suite_tier: str = "paper-suite-small",
+) -> PaperSuiteManifest:
+    if suite_tier == "ci-smoke":
+        repeat_count = 1
+        seed_schedule = (0,)
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes()[:4])
+        train_epochs = 1
+        backend_labels = ("trace",)
+    elif suite_tier == "paper-suite-full":
+        repeat_count = 3
+        seed_schedule = (0, 1, 2)
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 2
+        backend_labels = ("trace", "synthetic-open-weight")
+    elif suite_tier == "paper-suite-small":
+        repeat_count = 2
+        seed_schedule = (0, 1)
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 1
+        backend_labels = ("trace", "synthetic-open-weight")
+    else:
+        raise ValueError(f"Unsupported ETA proof paper suite tier {suite_tier!r}.")
+    return PaperSuiteManifest(
+        suite_id=f"eta-proof-{suite_tier}",
+        suite_kind="eta-internal-rl-proof",
+        suite_tier=suite_tier,
+        version=1,
+        baseline_label="full-internal-rl",
+        repeat_count=repeat_count,
+        seed_schedule=seed_schedule,
+        profiles=tuple(
+            PaperProfileSpec(
+                profile_label=profile_label,
+                role="baseline" if profile_label == "full-internal-rl" else "matched-control",
+                description=f"ETA proof profile {profile_label}.",
+            )
+            for profile_label in default_eta_proof_profiles()
+        ),
+        primary_metrics=(
+            PaperMetricSpec(
+                metric_name="heldout_terminal_success_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out terminal success rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_strong_success_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out strong sparse-reward success rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_family_reuse_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out abstract-action reuse rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_credit_alignment",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out delayed-credit alignment for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="strong_success_gap_vs_best_control",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out strong success gap between the full profile and the strongest matched control.",
+            ),
+            PaperMetricSpec(
+                metric_name="backend_success_gap",
+                role="primary",
+                direction="lower-is-better",
+                description="Gap in held-out strong success across backends for the full profile.",
+            ),
+        ),
+        secondary_metrics=(
+            PaperMetricSpec(
+                metric_name="assessment_pass_fraction",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of ETA acceptance gates passed in the assessment report.",
+            ),
+            PaperMetricSpec(
+                metric_name="policy_update_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Observed policy parameter update rate for the full profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_subgoal_completion_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out subgoal completion rate for the full profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_strong_success_std",
+                role="secondary",
+                direction="lower-is-better",
+                description="Held-out strong success variability across held-out cases.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_rollouts_per_update",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average rollout count consumed by each full-profile update.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_parameter_change_norm",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average parameter-change norm for full-profile internal RL updates.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_replacement_effect_delta",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average replacement-effect delta observed during full-profile updates.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_value_loss",
+                role="secondary",
+                direction="lower-is-better",
+                description="Average critic/value loss for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="training_transition_count",
+                role="secondary",
+                direction="higher-is-better",
+                description="Total training transitions consumed by full-profile internal RL updates.",
+            ),
+        ),
+        case_groups=(
+            ("route_ids", route_ids),
+            ("backend_labels", backend_labels),
+            ("train_epochs", (str(train_epochs),)),
+        ),
+        artifact_expectations=(
+            "per-run eta proof benchmark json",
+            "per-run backend robustness json",
+            "per-run assessment json",
+            "aggregate summary json",
+            "provenance json",
+        ),
+        description=(
+            f"Frozen ETA proof paper suite {suite_tier} with {repeat_count} repeated runs "
+            f"and backends={backend_labels}."
+        ),
+    )
+
+
 def _profile_config(profile_label: str) -> ETAProofProfileConfig:
     if profile_label == "full-internal-rl":
         return ETAProofProfileConfig(
@@ -573,6 +783,7 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
         ("mean_strong_success_rate", _mean(tuple(report.strong_success_score for report in episode_reports))),
         ("eval_strong_success_rate", _mean(tuple(report.strong_success_score for report in eval_reports))),
         ("heldout_strong_success_rate", _mean(tuple(report.strong_success_score for report in heldout_reports))),
+        ("heldout_strong_success_std", _std(tuple(report.strong_success_score for report in heldout_reports))),
         ("mean_backend_fidelity", _mean(tuple(report.backend_fidelity for report in episode_reports))),
     )
 
@@ -613,6 +824,7 @@ def run_eta_internal_rl_proof_benchmark(
     train_epochs: int = 2,
 ) -> ETAProofBenchmarkReport:
     profile_reports: list[ETAProofProfileReport] = []
+    benchmark_rollout_batch_count = 0
     for profile_label in profile_labels:
         profile = _profile_config(profile_label)
         sandbox = _build_sandbox(profile=profile, backend_label=backend_label)
@@ -620,8 +832,14 @@ def run_eta_internal_rl_proof_benchmark(
         eval_cases = tuple(case for case in cases if case.split != "train")
         family_registry: dict[str, set[str]] = {}
         training_update_count = 0
+        rollout_batch_count = 0
+        training_transition_count = 0
         training_parameter_change_count = 0
+        parameter_change_norms: list[float] = []
+        value_losses: list[float] = []
+        replacement_effect_deltas: list[float] = []
         for epoch in range(train_epochs):
+            train_rollouts: list[ZRollout] = []
             for case in train_cases:
                 snapshots = _build_case_snapshots(case)
                 if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
@@ -638,11 +856,19 @@ def run_eta_internal_rl_proof_benchmark(
                     proof_episode=case.proof_episode,
                 )
                 _update_family_registry(family_registry, train_rollout)
-                if profile.optimize_after_rollout:
-                    optimize_report = sandbox.optimize(train_rollout)
-                    training_update_count += 1
-                    if optimize_report.parameters_changed:
-                        training_parameter_change_count += 1
+                train_rollouts.append(train_rollout)
+            if profile.optimize_after_rollout and train_rollouts:
+                optimize_report = sandbox.optimize(tuple(train_rollouts))
+                training_update_count += 1
+                rollout_batch_count += 1
+                training_transition_count += sum(
+                    len(train_rollout.transitions) for train_rollout in train_rollouts
+                )
+                if optimize_report.parameters_changed:
+                    training_parameter_change_count += 1
+                parameter_change_norms.append(optimize_report.parameter_change_norm)
+                value_losses.append(optimize_report.value_loss)
+                replacement_effect_deltas.append(optimize_report.replacement_effect_delta)
         episode_reports: list[ETAProofEpisodeReport] = []
         for case in train_cases + eval_cases:
             snapshots = _build_case_snapshots(case)
@@ -670,6 +896,7 @@ def run_eta_internal_rl_proof_benchmark(
             )
             _update_family_registry(family_registry, rollout)
         metric_means = _profile_metric_means(tuple(episode_reports))
+        benchmark_rollout_batch_count += rollout_batch_count
         profile_reports.append(
             ETAProofProfileReport(
                 profile_label=profile_label,
@@ -677,15 +904,25 @@ def run_eta_internal_rl_proof_benchmark(
                 episode_reports=tuple(episode_reports),
                 metric_means=metric_means,
                 training_update_count=training_update_count,
+                rollout_batch_count=rollout_batch_count,
+                mean_rollouts_per_update=(
+                    len(train_cases)
+                    if training_update_count > 0
+                    else 0.0
+                ),
+                training_transition_count=training_transition_count,
                 training_parameter_change_count=training_parameter_change_count,
                 training_parameter_change_rate=(
                     training_parameter_change_count / training_update_count
                     if training_update_count > 0
                     else 0.0
                 ),
+                mean_parameter_change_norm=_mean(tuple(parameter_change_norms)),
+                mean_value_loss=_mean(tuple(value_losses)),
+                mean_replacement_effect_delta=_mean(tuple(replacement_effect_deltas)),
                 description=(
                     f"{profile_label} produced {len(episode_reports)} ETA proof episode reports "
-                    f"on backend={backend_label}."
+                    f"on backend={backend_label} with batch_updates={rollout_batch_count}."
                 ),
             )
         )
@@ -709,6 +946,7 @@ def run_eta_internal_rl_proof_benchmark(
         baseline_label=baseline_label,
         backend_label=backend_label,
         metric_deltas_from_baseline=tuple(deltas),
+        rollout_batch_count=benchmark_rollout_batch_count,
         description=(
             f"ETA internal-RL proof benchmark ran {len(profile_reports)} profiles on backend={backend_label} "
             f"across {len(cases)} cases."
@@ -866,13 +1104,40 @@ def build_eta_internal_rl_assessment(
             passed=(
                 full_report.training_update_count > 0
                 and full_report.training_parameter_change_rate >= 0.50
+                and full_report.mean_parameter_change_norm > 0.01
             ),
             evidence=(
                 ("training_update_count", float(full_report.training_update_count)),
+                ("rollout_batch_count", float(full_report.rollout_batch_count)),
+                ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+                ("training_transition_count", float(full_report.training_transition_count)),
                 ("training_parameter_change_count", float(full_report.training_parameter_change_count)),
                 ("training_parameter_change_rate", full_report.training_parameter_change_rate),
+                ("mean_parameter_change_norm", full_report.mean_parameter_change_norm),
+                ("mean_value_loss", full_report.mean_value_loss),
             ),
             description="Internal RL should show concrete parameter-update evidence during training, not only better outcomes.",
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="statistical-batch-evidence",
+            passed=(
+                full_report.mean_rollouts_per_update >= 2.0
+                and full_report.mean_replacement_effect_delta >= 0.05
+                and full_metrics.get("heldout_strong_success_std", 0.0) <= 0.35
+            ),
+            evidence=(
+                ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+                ("mean_replacement_effect_delta", full_report.mean_replacement_effect_delta),
+                ("heldout_strong_success_std", full_metrics.get("heldout_strong_success_std", 0.0)),
+                (
+                    "heldout_control_gap",
+                    full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+                ),
+            ),
+            description=(
+                "Stronger ETA claims require batch-level rollout evidence, non-trivial replacement effect, "
+                "and bounded held-out variance."
+            ),
         ),
         ETAInternalRLAcceptanceGate(
             gate_id="backend-robustness",
@@ -951,6 +1216,14 @@ def evaluate_eta_internal_rl_acceptance(
         reasons.append("credit-alignment-below-threshold")
     if full_profile_report.training_parameter_change_rate < active_config.min_policy_update_rate:
         reasons.append("policy-update-rate-below-threshold")
+    if full_profile_report.mean_rollouts_per_update < active_config.min_rollouts_per_update:
+        reasons.append("rollouts-per-update-below-threshold")
+    if full_profile_report.mean_parameter_change_norm < active_config.min_parameter_change_norm:
+        reasons.append("parameter-change-norm-below-threshold")
+    if full_profile_report.mean_replacement_effect_delta < active_config.min_replacement_effect_delta:
+        reasons.append("replacement-effect-delta-below-threshold")
+    if full_metrics.get("heldout_strong_success_std", 0.0) > active_config.max_heldout_success_std:
+        reasons.append("heldout-success-std-above-threshold")
     if assessment.backend_report is None:
         reasons.append("missing-backend-report")
     else:
@@ -971,3 +1244,255 @@ def evaluate_eta_internal_rl_acceptance(
             f"passed={assessment.passed_gate_count}/{assessment.total_gate_count}."
         ),
     )
+
+
+def _eta_metric_value_map(report: ETAProofProfileReport) -> dict[str, float]:
+    return dict(report.metric_means)
+
+
+def _eta_paper_suite_metric_values(
+    *,
+    benchmark_report: ETAProofBenchmarkReport,
+    backend_report: ETAProofBackendComparisonReport,
+    assessment: ETAInternalRLAssessmentReport,
+) -> tuple[tuple[str, float], ...]:
+    report_map = {
+        profile_report.profile_label: profile_report
+        for profile_report in benchmark_report.profile_reports
+    }
+    full_report = report_map["full-internal-rl"]
+    full_metrics = _eta_metric_value_map(full_report)
+    best_control_strong_success = max(
+        (
+            _eta_metric_value_map(profile_report).get("heldout_strong_success_rate", 0.0)
+            for profile_label, profile_report in report_map.items()
+            if profile_label != "full-internal-rl"
+        ),
+        default=0.0,
+    )
+    backend_strong_success_values = tuple(
+        dict(profile_report.metric_means).get("heldout_strong_success_rate", 0.0)
+        for profile_report in backend_report.profile_reports
+    )
+    return (
+        ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
+        ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+        ("heldout_family_reuse_rate", full_metrics.get("heldout_family_reuse_rate", 0.0)),
+        ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+        ("heldout_strong_success_std", full_metrics.get("heldout_strong_success_std", 0.0)),
+        (
+            "strong_success_gap_vs_best_control",
+            full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+        ),
+        (
+            "backend_success_gap",
+            max(backend_strong_success_values) - min(backend_strong_success_values)
+            if backend_strong_success_values
+            else 0.0,
+        ),
+        (
+            "assessment_pass_fraction",
+            assessment.passed_gate_count / assessment.total_gate_count
+            if assessment.total_gate_count > 0
+            else 0.0,
+        ),
+        ("policy_update_rate", full_report.training_parameter_change_rate),
+        ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+        ("mean_parameter_change_norm", full_report.mean_parameter_change_norm),
+        ("mean_replacement_effect_delta", full_report.mean_replacement_effect_delta),
+        ("mean_value_loss", full_report.mean_value_loss),
+        ("training_transition_count", float(full_report.training_transition_count)),
+        ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+    )
+
+
+def _eta_metric_samples(
+    *,
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+    metric_names: tuple[str, ...],
+) -> dict[str, tuple[float, ...]]:
+    summary_maps = [dict(summary.metric_values) for summary in run_summaries]
+    return {
+        metric_name: tuple(summary_map.get(metric_name, 0.0) for summary_map in summary_maps)
+        for metric_name in metric_names
+    }
+
+
+def _repo_root_from_eta_module() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def run_eta_internal_rl_paper_suite(
+    *,
+    manifest: PaperSuiteManifest | None = None,
+    output_dir: str | Path | None = None,
+) -> ETAProofPaperSuiteAggregateReport:
+    active_manifest = manifest or build_eta_proof_paper_suite_manifest()
+    route_ids = {
+        route_id
+        for name, values in active_manifest.case_groups
+        if name == "route_ids"
+        for route_id in values
+    }
+    train_epochs = int(
+        next(values[0] for name, values in active_manifest.case_groups if name == "train_epochs")
+    )
+    cases = tuple(case for case in default_eta_proof_cases() if case.case_id in route_ids)
+    run_summaries: list[ETAProofPaperSuiteRunSummary] = []
+    reference_benchmark_report: ETAProofBenchmarkReport | None = None
+    reference_backend_report: ETAProofBackendComparisonReport | None = None
+    reference_assessment: ETAInternalRLAssessmentReport | None = None
+    for run_index, run_seed in enumerate(active_manifest.seed_schedule[: active_manifest.repeat_count], start=1):
+        run_random = Random(run_seed)
+        ordered_cases = tuple(
+            sorted(
+                cases,
+                key=lambda case: (run_random.random(), case.case_id),
+            )
+        )
+        benchmark_report = run_eta_internal_rl_proof_benchmark(
+            cases=ordered_cases,
+            profile_labels=tuple(profile.profile_label for profile in active_manifest.profiles),
+            baseline_label=active_manifest.baseline_label,
+            backend_label="trace",
+            train_epochs=train_epochs,
+        )
+        backend_report = run_eta_internal_rl_backend_robustness_benchmark(
+            cases=ordered_cases,
+            profile_label=active_manifest.baseline_label,
+        )
+        assessment = build_eta_internal_rl_assessment(
+            benchmark_report=benchmark_report,
+            backend_report=backend_report,
+        )
+        reference_benchmark_report = reference_benchmark_report or benchmark_report
+        reference_backend_report = reference_backend_report or backend_report
+        reference_assessment = reference_assessment or assessment
+        run_summary = ETAProofPaperSuiteRunSummary(
+            run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
+            run_seed=run_seed,
+            metric_values=_eta_paper_suite_metric_values(
+                benchmark_report=benchmark_report,
+                backend_report=backend_report,
+                assessment=assessment,
+            ),
+            description=(
+                f"ETA proof paper suite run {run_index} summarized "
+                f"{len(benchmark_report.profile_reports)} profiles for seed={run_seed}."
+            ),
+        )
+        run_summaries.append(run_summary)
+        if output_dir is not None:
+            target_dir = Path(output_dir)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            export_json_artifact(
+                payload=benchmark_report,
+                output_path=target_dir / f"eta_run_{run_index:02d}_benchmark.json",
+            )
+            export_json_artifact(
+                payload=backend_report,
+                output_path=target_dir / f"eta_run_{run_index:02d}_backend.json",
+            )
+            export_json_artifact(
+                payload=assessment,
+                output_path=target_dir / f"eta_run_{run_index:02d}_assessment.json",
+            )
+            export_json_artifact(
+                payload=run_summary,
+                output_path=target_dir / f"eta_run_{run_index:02d}_summary.json",
+            )
+    primary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_eta_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=tuple(metric.metric_name for metric in active_manifest.primary_metrics),
+        )
+    )
+    secondary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_eta_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=tuple(metric.metric_name for metric in active_manifest.secondary_metrics),
+        )
+    )
+    provenance = collect_paper_suite_provenance(
+        manifest=active_manifest,
+        repo_root=_repo_root_from_eta_module(),
+        runtime_descriptor={
+            "suite_kind": active_manifest.suite_kind,
+            "train_epochs": str(train_epochs),
+            "backend_mode": "trace+synthetic-open-weight",
+        },
+    )
+    aggregate_report = ETAProofPaperSuiteAggregateReport(
+        manifest=active_manifest,
+        provenance=provenance,
+        run_summaries=tuple(run_summaries),
+        reference_benchmark_report=reference_benchmark_report,
+        reference_backend_report=reference_backend_report,
+        reference_assessment=reference_assessment,
+        primary_metric_summaries=primary_metric_summaries,
+        secondary_metric_summaries=secondary_metric_summaries,
+        description=(
+            f"ETA proof paper suite {active_manifest.suite_id} aggregated "
+            f"{len(run_summaries)} repeated runs."
+        ),
+    )
+    if output_dir is not None:
+        export_eta_internal_rl_paper_suite_artifact_bundle(
+            aggregate_report,
+            output_dir=output_dir,
+        )
+    return aggregate_report
+
+
+def export_eta_internal_rl_paper_suite_artifact_bundle(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+    *,
+    output_dir: str | Path,
+) -> tuple[Path, ...]:
+    target_dir = Path(output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    written_paths = [
+        export_json_artifact(
+            payload=aggregate_report.manifest,
+            output_path=target_dir / "paper_suite_manifest.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.provenance,
+            output_path=target_dir / "paper_suite_provenance.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.run_summaries,
+            output_path=target_dir / "paper_suite_run_summaries.json",
+        ),
+        export_json_artifact(
+            payload={
+                "suite_id": aggregate_report.manifest.suite_id,
+                "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+                "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "description": aggregate_report.description,
+            },
+            output_path=target_dir / "paper_suite_aggregate.json",
+        ),
+    ]
+    if aggregate_report.reference_benchmark_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_benchmark_report,
+                output_path=target_dir / "reference_benchmark_report.json",
+            )
+        )
+    if aggregate_report.reference_backend_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_backend_report,
+                output_path=target_dir / "reference_backend_report.json",
+            )
+        )
+    if aggregate_report.reference_assessment is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_assessment,
+                output_path=target_dir / "reference_assessment.json",
+            )
+        )
+    return tuple(written_paths)

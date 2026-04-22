@@ -13,8 +13,8 @@ from volvence_zero.substrate.residual_backend import (
 )
 
 if TYPE_CHECKING:
-    from volvence_zero.evaluation import EvaluationSnapshot
-    from volvence_zero.prediction import PredictionErrorSnapshot
+    from volvence_zero.evaluation.backbone import EvaluationSnapshot
+    from volvence_zero.prediction.error import PredictionErrorSnapshot
 
 
 def _clamp_unit(value: float) -> float:
