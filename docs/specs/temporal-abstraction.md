@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-22
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -98,6 +98,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - `learned-lite` 当前仍是最小可训练控制器，不等同于 full ETA metacontroller 或因果 `π(z_t | e_{1:t})`
 - 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前其 online owner 由 `ETANLJointLoop` 承担，offline/batch owner 由 `SSLRLTrainingPipeline` 承担
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新
+- 当前 ndim metacontroller 已收敛到**单一 owner 参数面**：SSL trainer、runtime policy、internal RL、rare-heavy snapshot/export/import 共享同一个 `MetacontrollerParameterStore` 可见的 encoder/switch/decoder 权重，不再允许 ndim 路径在 trainer/runtime 内各自持有私有网络参数
 - 当前 `TemporalModule` 默认以 `full-learned` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
@@ -112,11 +113,20 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 `full-learned` 已把 `z_t` owner 更新规则收敛到显式 posterior + learned switch 路径：`z_t = beta_t * z_candidate + (1 - beta_t) * z_{t-1}`，其中 `z_candidate` 默认来自 posterior `z_tilde`，也可由 internal RL causal policy override
 - 当前 decoder 已升级为 bounded FFN-like control generator；环境侧显式区分 `decoder_output`、`applied_control`、`downstream_effect`
 - 当前 SSL trainer 已改成更接近 Eq.3 的结构：prefix posterior inference + Gaussian-like prior regularization + action prediction + closed-form KL，并发布 posterior drift
+- 当前两阶段 ETA owner 约束已从 telemetry 收紧为**运行时守卫**：`MetacontrollerSSLTrainer.optimize()` 只能在 `ssl*` discovery phase 下运行；causal override / internal RL rollout / optimize 只能在 `runtime` / `rl*` 等 structure-frozen takeover phase 下运行
 - 当前 env 已新增 owner-side residual intervention backend，用 `e_{t,l} ← e_{t,l} + U_t · e_{t,l}` 形式的近似 hook 生成 `downstream_effect`；session / joint-loop 主链默认优先走 open-weight residual runtime，trace backend 退为 fallback
 - 当前 internal RL sandbox 已支持 `baseline / causal / causal-binary` 三条 rollout 路径；`causal-binary` 会在 replacement 路径上对 `beta_t` 做 Heaviside-like 二值化，更接近 ETA B.5
 - 当前 `TemporalModule` 已直接消费 `prediction_error` slot；高 PE 不再只经 evaluation 旁路感知，而是直接进入 owner-side update / scheduling surface
+- 当前默认主链已拆成 staged temporal surfaces：`TrackTemporalModule` 先以 `substrate + memory` 产出 same-wave early control；`TrackTemporalConsolidationModule` 再以 `reflection + prediction_error` 做 owner-side late consolidation；公共 `temporal_abstraction` 由 `TemporalAggregateModule` 聚合 `world_temporal` / `self_temporal` 后发布，避免靠共享可变状态偷渡 same-wave 顺序
+- 当前 live dual-track path 已进一步收敛：track policy 会缓存 consolidation 阶段观察到的 `reflection` 证据，并在后续 early-control `step()` 中作为 owner-side context 参与切换/编码；这让 public dual-track path 不再系统性丢失 reflection
+- 当前 heuristic / learned-lite fallback 的公开 action label 已降级为更中性的 latent-family 风格标签，避免 benchmark 仅靠手工语义名就显得“像 ETA”
+- 当前 proof harness 允许把这两层 scaffold 分别关掉：`pe-eta-no-semantic-label` 保留 latent/full path 但剥离语义标签扶手；`pe-eta-no-reflection-cache` 保留 latent/full path 但禁用 cached reflection bridge，用于检查 family 与 PE schedule 的稳健性
+- 当前 stronger proof matrix 已把 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache` 与 `pe-eta-pe-readout-only` 提升为正式 proof-oriented profiles：它们不替代轻量默认 ablation，但用于更直接地区分“latent mechanism 仍成立”与“只是 scaffold 或 PE readout 在撑”
+- 当前 `AgentSessionRunner`、`ETANLJointLoop` 和 final wiring 的默认 self-track controller 不再从独立随机 policy 起步；若用户未显式传入 self-track policy，则默认从 world-track discovered metacontroller snapshot 克隆，保证默认 runtime 的双轨 temporal owner 共享同一条 discovered lineage，同时仍保留两个独立 owner/store
 - 当前 `internal_rl` 已新增 paper-like proof mode：`InternalRLProofEpisode / InternalRLProofSubgoal / InternalRLDelayedCreditAssignment` 允许用结构化分层 sparse-reward episode 驱动 rollout，而不改变 live session 默认 dense reward 语义
 - 当前 `InternalRLSandbox` 在 proof mode 下已支持 sequence-aware causal observation（优先读 `residual_sequence` 摘要）与 delayed-return optimization；这条路径用于验证 internal RL 是否真的在抽象动作层解决延迟奖励，而不是只在 turn 级 dense shaping 下工作
+- 当前 ETA strong-proof benchmark 默认不再只比较混合 baseline，而是使用 matched controls（`full-no-optimize` / `full-no-replacement` / `learned-lite-causal` / `noop-backend`）分别隔离 RL 更新、latent replacement、controller capacity 与 backend intervention effect
+- 当前 `InternalRLSandbox.optimize()` 已补充 parameter-change evidence：proof benchmark 会记录 training-time `parameters_changed` / `training_parameter_change_rate`，避免把“最终 success 更高”误写成“internal RL 确实发生了 policy adaptation”
 - 当前 ETA strong-proof benchmark 已从 dialogue PE harness 中显式分离：新的 proof harness 关注 hierarchical sparse-reward、abstract-action family reuse、held-out composition 与 delayed credit alignment，而不把这些结论混写进普通 `temporal_abstraction` runtime slot
 - 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
 
@@ -136,6 +146,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-04-22: 补充 scaffold-ablation matched controls（`pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）的当前 proof 口径，用于测试去掉 heuristic scaffold 后的 latent family / PE schedule 稳健性
+- 2026-04-22: 当前实现口径补充 dual-track cached-reflection bridge 与 latent-family style fallback labels，进一步把 live path 从 heuristic semantics 收紧到 family/state evidence
 - 2026-04-20: 接口契约补充 `prediction_error` 直接输入；当前实现口径明确 `TemporalModule` 已直接消费 `prediction_error` slot，而不再只经 evaluation 旁路感知高 PE
 - 2026-04-09: next_gen_emogpt v2 terminology alignment: paper term `subgoal` mapped to repo term `abstract action` as default; `z_t` = controller code, `beta_t` = switch gate, `U_t` = decoder output / residual controller; two-stage (SSL then Internal RL) made non-optional constraint; non-causal → causal transition explicitly documented as design invariant
 - 2026-04-09: U03 Emergence vs Heuristic A/B verification: (1) Switch gate: alpha=0.1 vs alpha=0.0 produces different loss profiles, confirming variational bottleneck affects switch behavior. (2) Family competition: payoff-weighted ranking prefers high long_term_payoff families over similarity-only selection when centroids are equidistant. (3) NonCausalSequenceEmbedder.enrich_posterior confirmed to reduce posterior variance (enriched_var <= causal_var) and produce positive kl_tightening. Bidirectional ordering sensitivity verified.

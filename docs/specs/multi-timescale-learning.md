@@ -87,9 +87,11 @@ rare-heavy (定期离线):
 - 当前 joint loop rollback 已扩展为 cycle 级 checkpoint：当一个 cycle 被判定为坏更新时，会同时撤销 SSL 侧和 policy 侧的本轮变更，而不是只回滚 RL policy
 - 当前 online-fast SSL 已显式区分 prior / posterior，并用 closed-form KL 约束 metacontroller latent bottle-neck；当前 internal RL env 也已通过 residual intervention backend 更接近 frozen-model-in-env 的控制路径
 - 当前 substrate owner 已落地 `TransformersOpenWeightResidualRuntime` 的真实 middle-layer hook capture/intervention，实现了比 trace backend 更接近 frozen-model residual path 的 online-fast 控制接口
+- 当前 online-fast 还新增了正式 `substrate_self_mod` owner 与 substrate runtime apply/restore surface：默认 turn path 已能基于上一轮 prediction-error carryover 形成 bounded substrate delta proposal，经 `ModificationGate.ONLINE` 预览/审计后，通过 runtime owner 的 `export/apply/restore_online_fast_state()` 执行小步在线更新
 - 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
 - 当前 `AgentSessionRunner` 默认已直接消费真实 transformers substrate，并把 `reflection` / `temporal` 放入 ACTIVE 主链；response layer 只读取 distilled kernel context，但默认行为已受 active temporal/reflection 状态驱动
 - 当前 `AgentSessionRunner` 默认 memory owner 已携带 learned CMS core（默认 nested MLP profile），不再停留在“无 learned core”的空壳路径；context boundary / rare-heavy import 后会触发 owner-controlled nested reset，并通过 memory lifecycle telemetry 发布 `slow_to_fast_init_benefit`
+- 当前 `background-slow` 已从 turn-synchronous bounded apply 切到 session-post slow loop：`run_final_wiring_turn()` 默认产出 machine-readable deferred slow-writeback request，`AgentSessionRunner.begin_new_context()` 会在 context boundary 把该 request 连同 session report / trace statistics / PE summary 打包进 slow-loop queue，并在后台执行 owner-side memory / regime / temporal consolidation，不阻塞用户 turn latency
 - 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并已扩展为 group-level selective writeback（如 `encoder` / `decoder` / `track-*` / `action-families` / `beta-threshold`），受 target-specific credit gate 约束
 - 当前 background-slow 反思还可基于 delayed attribution 生成 bounded structural temporal proposal（`merge` / `split` / `prune`），并沿同一条 gate / audit / rollback 链路进入 temporal owner
 - 当前 session-medium delayed path 已从单条 delayed outcome 扩展为 multi-step attribution ledger：regime owner 会保留最近 resolved attribution，并发布 rolling payoff summary，供 evaluation / credit / reflection 读取，而不需要 consumer 自己拼接长期轨迹
@@ -105,9 +107,9 @@ rare-heavy (定期离线):
 当前 repo 在多时间尺度学习上优先证明 2 条工程命题：
 
 1. `PE-schedule coupling`
-   - `prediction_error` 已直接驱动 `JointLoopSchedule` 的 `ssl-only[-pe] / full-cycle[-pe] / rare-heavy review`
+   - `prediction_error` 已直接驱动 `JointLoopSchedule` 的 `ssl-only[-pe] / full-cycle[-pe] / online-fast substrate due / rare-heavy review`
 2. `multi-timescale default path`
-   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` 学习、`background-slow` writeback、以及 nested CMS lifecycle signals
+   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` 学习、online-fast substrate self-mod evidence、session-post `background-slow` completion、以及 nested CMS lifecycle signals；当前 benchmark 不再只把 “bounded writeback applied” 当作唯一 background-slow 证据，而是同时接受 `reflection_promotion_eligible`、`online_fast_substrate_applied_count`、`rare_heavy_recommended` 与 session-post completion telemetry
 
 这两条 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习”，不是“论文级最优性或完整因果隔离已经成立”。
 
@@ -130,6 +132,7 @@ rare-heavy (定期离线):
 - 2026-04-09: U02 CMS MLP Upgrade: CMSMemoryCore now supports `mode="mlp"` with 2-layer residual MLP per band (`CMSBandMLP`: `y = x + W1 @ tanh(W2 @ x)`). Each band has independent MLP weights, momentum, and gradient-style updates. Anti-forgetting backflow extended to MLP parameter mixing. `CMSVariant` enum (`SEQUENTIAL`/`INDEPENDENT`/`NESTED`) added for band composition modes. `observe_family_signal()` accepts action-family observations into session-medium band. All schema extended with backward-compatible defaults (`mode`, `mlp_param_count`, `variant`, `mlp_params`). Default `mode="vector"` preserves all existing behavior.
 - 2026-04-06: P17 Unified SSL→RL Training Pipeline: SSLRLTrainingPipeline orchestrates two-phase training — Phase 1 (SSL) discovers switching structure via Eq.3 with non-causal embedder enrichment, Phase 2 (RL) trains causal policy with binary gate. Pipeline manages convergence-based phase transition, checkpointing, and rollback. PipelineConfig controls n_z, convergence thresholds, and max steps.
 - 2026-04-08: 默认 session 主链切换到真实 transformers substrate + ACTIVE temporal/reflection；background-slow reflection 新增 typed controller-prior writeback bridge 并进入默认主链
+- 2026-04-22: `background-slow` 默认主路径切换到 session-post slow loop：turn 内 final wiring 改为 deferred request，context boundary enqueue queued consolidation job；dialogue longitudinal / essence benchmark 也开始把 session-post completion 作为默认 background-slow evidence
 - 2026-04-06: P14 M3 optimizer integration: dual-timescale momentum (fast_beta=0.9, slow_beta=0.99) replaces direct gradient application in SSL trainer; slow momentum signal feeds into CMS session-medium band; SSLTrainingReport carries m3_slow_momentum_signal; joint loop routes M3 slow signal to CMS after SSL optimization
 - 2026-04-06: 补充 joint loop 对 metacontroller owner state / rollback reasons 的当前实现口径
 - 2026-04-06: 补充 joint loop 的最小 SSL/RL alternation 与 kernel evidence loop

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 
 from volvence_zero.credit import CreditRecord, CreditSnapshot, GateDecision, ModificationGate, extract_abstract_action_credit_bonus
 from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
@@ -18,13 +19,14 @@ from volvence_zero.joint_loop.runtime import JointCycleReport
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
     NoOpResidualInterventionBackend,
+    SubstrateDeltaAdapterLayer,
     SyntheticOpenWeightResidualRuntime,
     ResidualSequenceStep,
     SubstrateSnapshot,
     SurfaceKind,
     build_training_trace,
 )
-from volvence_zero.temporal import FullLearnedTemporalPolicy
+from volvence_zero.temporal import ActionFamilyPublicSummary, FullLearnedTemporalPolicy
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -161,6 +163,8 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.metacontroller_state.active_label.startswith("discovered_family_")
     assert report.metacontroller_state.structure_frozen is True
     assert report.metacontroller_state.learning_phase == "rl-online"
+    assert report.metacontroller_state.encoder_optimizer_state is not None
+    assert report.metacontroller_state.decoder_optimizer_state is not None
     assert any(operation.startswith("temporal-prior:") for operation in report.applied_operations)
 
 
@@ -361,6 +365,85 @@ def test_eta_nl_joint_loop_flags_rare_heavy_review_on_high_pe():
     assert telemetry["pe_rare_heavy_due"] == 1
 
 
+def test_eta_nl_joint_loop_flags_online_fast_substrate_due_on_high_pe():
+    loop = ETANLJointLoop()
+    loop.set_external_learning_signals(
+        {
+            "prediction_error_magnitude": 0.4,
+            "prediction_error_reward": -0.2,
+        }
+    )
+    trace = build_training_trace(trace_id="pe-online-fast-trace", source_text="persistent mismatch pattern")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(
+                ssl_interval=99,
+                rl_interval=99,
+                pe_substrate_online_fast_threshold=0.18,
+            ),
+        )
+    )
+
+    assert result.substrate_online_fast_due is True
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["pe_substrate_online_fast_due"] == 1
+
+
+def test_eta_nl_joint_loop_can_schedule_latent_continuation_without_fresh_pe_drive():
+    loop = ETANLJointLoop()
+    trace = build_training_trace(trace_id="latent-continuation-trace", source_text="repair then continue carefully")
+    first = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=1, rl_interval=99),
+        )
+    )
+    assert first.metacontroller_state is not None
+    active_family = first.metacontroller_state.active_family_summary or ActionFamilyPublicSummary(
+        family_id="family-1",
+        dominant_axis="self",
+        support=3,
+        stability=0.82,
+        switch_bias=0.65,
+        mean_posterior_drift=0.08,
+        mean_persistence_window=1.2,
+        reuse_streak=2,
+        stagnation_pressure=0.10,
+        monopoly_pressure=0.15,
+        competition_score=0.78,
+        summary="test family",
+    )
+    loop._previous_metacontroller_state = replace(
+        first.metacontroller_state,
+        latest_switch_gate=0.72,
+        switch_sparsity=0.68,
+        mean_persistence_window=1.2,
+        active_family_summary=active_family,
+        active_family_competition_score=0.78,
+        action_family_monopoly_pressure=0.15,
+    )
+    loop._last_schedule_action = "ssl-only"
+    loop._last_learning_turn_index = 1
+    loop.set_external_learning_signals({})
+    second = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=2,
+            trace=trace,
+            schedule=JointLoopSchedule(
+                ssl_interval=0,
+                rl_interval=0,
+                latent_continuation_threshold=0.4,
+            ),
+        )
+    )
+    assert second.schedule_action == "ssl-only-continuation"
+    assert dict(second.schedule_telemetry)["latent_continuation_due"] == 1
+
+
 def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     runtime = SyntheticOpenWeightResidualRuntime(model_id="rare-heavy-runtime")
     pipeline = SSLRLTrainingPipeline(
@@ -375,6 +458,9 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     artifact = pipeline.export_rare_heavy_artifact(artifact_id="offline-artifact")
 
     assert artifact.substrate_checkpoint is not None
+    assert artifact.training_evidence is not None
+    assert artifact.training_evidence.trace_count == len(traces)
+    assert artifact.training_evidence.alignment_ratio > 0.0
 
     loop = ETANLJointLoop(residual_runtime=runtime)
     before = loop.temporal_policy.export_parameters()
@@ -398,6 +484,49 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact():
     )
     assert "rare-heavy:substrate-rollback" in rollback_operations
     assert restored == before
+
+
+def test_eta_nl_joint_loop_can_apply_and_rollback_online_fast_substrate_checkpoint():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="online-fast-runtime")
+    loop = ETANLJointLoop(residual_runtime=runtime)
+    prior = runtime.export_online_fast_state()
+    before = runtime.capture(source_text="repair then continue steadily")
+    layer_width = len(before.residual_activations[0].activation)
+
+    checkpoint = prior.__class__(
+        checkpoint_id="online-fast-checkpoint",
+        model_id=runtime.model_id,
+        runtime_origin=runtime.runtime_origin,
+        delta_scale=0.08,
+        update_count=1,
+        source_wave_id="wave-1",
+        source_turn_index=1,
+        gate="online",
+        optimizer_state_norm=0.4,
+        parameter_change_rate=0.3,
+        description="online-fast substrate checkpoint",
+        adapter_parameter_count=layer_width,
+        adapter_layers=(
+            SubstrateDeltaAdapterLayer(
+                layer_index=before.residual_activations[0].layer_index,
+                delta_vector=tuple(0.04 for _ in range(layer_width)),
+                mean_abs_delta=0.04,
+                description="online-fast delta",
+            ),
+        ),
+    )
+
+    result = loop.apply_online_fast_substrate_checkpoint(checkpoint)
+    after = runtime.capture(source_text="repair then continue steadily")
+
+    assert "online-fast:substrate-import" in result.applied_operations
+    assert after.residual_activations != before.residual_activations
+
+    rollback_operations = loop.rollback_online_fast_substrate_import(result.checkpoint)
+    restored = runtime.capture(source_text="repair then continue steadily")
+
+    assert "online-fast:substrate-rollback" in rollback_operations
+    assert restored.residual_activations == before.residual_activations
 
 
 def test_causal_policy_multi_epoch_optimization():

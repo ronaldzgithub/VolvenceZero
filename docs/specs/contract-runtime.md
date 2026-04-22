@@ -93,11 +93,15 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前 `TransformersOpenWeightResidualRuntime` 已实现 Hugging Face causal LM 的中层 block forward hook capture / intervention；runtime owner 负责 hook 层选择、冻结边界和控制投影、模型家族 block 解析，以及稳定 feature summary 的发布，消费者继续只读取公共快照
 - 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
+- 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner
 - `FinalRolloutConfig` 默认已把 `reflection` / `temporal` 提升为 `ACTIVE`；acceptance report 也把两者缺失视为真实回归而非可选增强
 - slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
 - agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
 - 当前主链已新增正式 `prediction_error` owner/slot，公共交换固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
 - `memory` / `regime` / `credit` / `reflection` / `temporal` 已直接消费 `prediction_error`；`evaluation` 只在 final wiring 中追加 prediction-error evidence，保持 readout 定位
+- 当前 temporal 区域已从单 owner 扩展为 staged multi-owner contract：`world_temporal`、`self_temporal`、`world_temporal_consolidation`、`self_temporal_consolidation` 各自拥有独立 slot；`temporal_abstraction` 由 `TemporalAggregateModule` 作为公共聚合 owner 对下游发布兼容快照
+- 这类 aggregate slot 只允许发布 compact public state；不得反向成为底层 track owner 的第二所有者
+- 当前 session-post slow loop 也已升级为正式运行时 surface：`session_post_slow_loop` 由独立 owner 发布 queue state 与 recent completion summaries；`AgentSessionRunner` 负责驱动该 owner 刷新，但消费者只读取公共 slot，不读取 runner 私有队列
 
 ### 直接依赖 vs enrichment
 
@@ -116,6 +120,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - `evaluation` 的 direct dependency 仍是其模块声明的 upstream slots
 - 但 final wiring 会在 propagation 之后额外读取 `prediction_error`、joint-loop result、writeback result，为 `evaluation` 追加 evidence
 - 这属于 **evaluation enrichment**，不是 `EvaluationModule.process()` 的 direct dependency
+- 同理，`substrate_self_mod` 的 direct dependency 是 `substrate + evaluation + prediction_error`；而 online-fast substrate checkpoint 的真正应用、回滚和 credit audit 属于 session/joint-loop 在 propagation 之后执行的 owner-side apply/enrichment，不意味着 `SubstrateModule.process()` 或 `EvaluationModule.process()` 直接持有 substrate runtime 写权限
 
 ### 内部状态发布（R11）
 

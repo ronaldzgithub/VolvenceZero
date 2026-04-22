@@ -1,7 +1,7 @@
 # Prediction Error 主链 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-22
 > 对应需求: R-PE
 
 ## 要解决的问题
@@ -61,6 +61,10 @@
 - 聚合读数最小固定为：
   - `magnitude`
   - `signed_reward`
+- 当前 owner 内部已收敛为单一 outcome mapper/head：prediction、actual outcome 与 error weighting 都在 `prediction_error` owner 内完成；consumer 不应重建这三段语义
+- 当前 `magnitude` / `signed_reward` 不再是简单的四维平权 L1/平均，而是结合 prediction confidence 与 axis expectation strength 的 owner-side calibrated readout
+- 当前 `evaluation` 只发布 PE-owner readout（如 `prediction_error_magnitude`、`prediction_error_reward`、`predictive_accuracy`），不再推导第二套 PE 语义
+- 当前 proof harness 允许显式区分两层含义：一层是 **PE publication/readout**（slot + evaluation evidence 仍存在），另一层是 **PE primary dominance**（是否直接主导 joint-loop schedule 与 RL reward）。`pe-eta-pe-readout-only` 用于只保留前者
 - `bootstrap=True` 表示当前 turn 尚无可结算的上一轮 prediction；下游不应把这类快照当作真实 learning evidence
 - live runtime 中，部分 consumer 会把 `prediction_error` 当作“上一轮结算出的 carryover signal”，以维持单轮 DAG 和 owner 边界
 
@@ -82,4 +86,6 @@
 
 ## 变更日志
 
+- 2026-04-22: 补充 `pe-eta-pe-readout-only` proof 口径，明确区分 PE publication/readout 与 PE primary dominance
+- 2026-04-22: 当前实现口径补充单一 owner-side mapper/head、confidence-aware calibrated error weighting，以及 evaluation 只发布 PE-owner readout 的边界
 - 2026-04-20: 初始版本。将 `prediction_error` 从 credit/evaluation 的上游设计原则提升为独立能力域 spec，固定主链契约 `evaluated_prediction -> actual_outcome -> next_prediction -> error`

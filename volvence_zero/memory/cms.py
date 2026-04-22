@@ -500,6 +500,18 @@ class CMSMemoryCore:
 
         self._last_update_ms = timestamp_ms
 
+    def observe_fast_memory_signal(
+        self,
+        *,
+        signal: tuple[float, ...],
+        timestamp_ms: int,
+    ) -> None:
+        """Accept substrate fast-memory signal as another learned update source."""
+        self.observe_encoder_feedback(
+            encoder_signal=signal,
+            timestamp_ms=timestamp_ms,
+        )
+
     # ------------------------------------------------------------------
     # observe_family_signal (MLP mode only)
     # ------------------------------------------------------------------

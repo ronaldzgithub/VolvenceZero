@@ -26,7 +26,7 @@ from volvence_zero.temporal.metacontroller_components import (
 from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
 
 
-from volvence_zero.temporal.m3_optimizer import M3Optimizer
+from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
 
 
 def _clamp(value: float) -> float:
@@ -41,6 +41,8 @@ class SSLTrainingReport:
     total_loss: float
     posterior_drift: float
     trained_steps: int
+    encoder_optimizer_state: M3OptimizerState | None = None
+    decoder_optimizer_state: M3OptimizerState | None = None
     m3_slow_momentum_signal: tuple[float, ...] = ()
     noncausal_kl_tightening: float = 0.0
     noncausal_information_content: float = 0.0
@@ -296,6 +298,12 @@ class MetacontrollerSSLTrainer:
             posterior_hidden_state=previous_hidden_state,
             posterior_drift=avg_drift,
         )
+        encoder_optimizer_state = self._m3_encoder.export_state()
+        decoder_optimizer_state = self._m3_decoder.export_state()
+        store.record_optimizer_memory_states(
+            encoder_state=encoder_optimizer_state,
+            decoder_state=decoder_optimizer_state,
+        )
         store.record_ssl_metrics(total_loss=total_loss, kl_loss=avg_kl)
         slow_signal = tuple(
             v1 + v2
@@ -313,6 +321,8 @@ class MetacontrollerSSLTrainer:
             total_loss=total_loss,
             posterior_drift=avg_drift,
             trained_steps=trained_steps,
+            encoder_optimizer_state=encoder_optimizer_state,
+            decoder_optimizer_state=decoder_optimizer_state,
             m3_slow_momentum_signal=slow_signal,
             noncausal_kl_tightening=avg_kl_tightening,
             noncausal_information_content=noncausal_embedding.information_content,

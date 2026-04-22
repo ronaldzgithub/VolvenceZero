@@ -3,7 +3,14 @@ from __future__ import annotations
 import asyncio
 
 from volvence_zero.runtime import WiringLevel, propagate
-from volvence_zero.reflection import TemporalPriorUpdate, TemporalStructureProposal
+from volvence_zero.reflection import (
+    ConsolidationScore,
+    MemoryConsolidation,
+    PolicyConsolidation,
+    ReflectionSnapshot,
+    TemporalPriorUpdate,
+    TemporalStructureProposal,
+)
 from volvence_zero.prediction import ActualOutcome, PredictionError, PredictionErrorSnapshot, PredictedOutcome
 from volvence_zero.substrate import SimulatedResidualSubstrateAdapter, build_training_trace
 from volvence_zero.substrate import (
@@ -18,10 +25,14 @@ from volvence_zero.temporal import (
     LearnedLiteTemporalPolicy,
     MetacontrollerSSLTrainer,
     PlaceholderTemporalPolicy,
+    TemporalAggregateModule,
+    TrackTemporalConsolidationModule,
+    TrackTemporalModule,
     TemporalModule,
     fit_policy_from_trace_dataset,
 )
 from volvence_zero.substrate import TrainingTraceDataset
+from volvence_zero.memory import Track
 from volvence_zero.temporal.metacontroller_components import (
     ActionFamilyObservation,
     DiscoveredActionFamily,
@@ -31,6 +42,39 @@ from volvence_zero.temporal.metacontroller_components import (
 
 def _set_ssl_phase(policy: FullLearnedTemporalPolicy) -> None:
     policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+
+
+def _reflection_snapshot(*, confidence: float = 0.8, lesson: str = "repair lesson") -> ReflectionSnapshot:
+    return ReflectionSnapshot(
+        memory_consolidation=MemoryConsolidation(
+            new_durable_entries=(),
+            promoted_entries=(),
+            decayed_entries=(),
+            beliefs_updated=(),
+        ),
+        policy_consolidation=PolicyConsolidation(
+            controller_updates=("reflection-adjustment",),
+            strategy_priors_updated=(),
+            regime_effectiveness_updated=(),
+        ),
+        consolidation_score=ConsolidationScore(
+            promotion_score=0.4,
+            decay_score=0.1,
+            threshold_delta=0.0,
+            strategy_gain=0.3,
+            regime_effectiveness_gain=0.2,
+            confidence=confidence,
+            description="reflection confidence",
+        ),
+        interaction_trace_summary="summary",
+        tensions_identified=("support-tension",),
+        lessons_extracted=(lesson,),
+        writeback_mode="apply",
+        review_required=False,
+        description="reflection snapshot",
+        proposal_success_rate=confidence,
+        error_driven_lesson_count=1,
+    )
 
 
 def test_temporal_module_builds_placeholder_snapshot():
@@ -74,7 +118,7 @@ def test_temporal_module_heuristic_switches_on_feature_signature_change():
 
     assert first.controller_state.code_dim == 3
     assert second.controller_state.is_switching is True
-    assert second.active_abstract_action.startswith("refresh-controller-context:")
+    assert second.active_abstract_action.startswith("latent-family-switch:")
 
 
 def test_temporal_module_runs_in_shadow_chain():
@@ -548,6 +592,130 @@ def test_temporal_module_consumes_prediction_error_signal():
     )
     after = temporal.policy.export_parameters()
     assert after != before
+
+
+def test_track_temporal_modules_split_early_and_late_dependencies():
+    assert TrackTemporalModule.dependencies == ("substrate", "memory")
+    assert TrackTemporalConsolidationModule.dependencies == ("reflection", "prediction_error")
+    assert TemporalAggregateModule.dependencies == ("world_temporal", "self_temporal")
+
+
+def test_track_temporal_consolidation_applies_prediction_error_after_early_control():
+    policy = FullLearnedTemporalPolicy()
+    policy.parameter_store.set_learning_phase("runtime")
+    consolidation = TrackTemporalConsolidationModule(
+        track=Track.WORLD,
+        policy=policy,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    before = policy.export_parameters()
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.1, 0.4, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.4,
+            relationship_error=-0.5,
+            regime_error=-0.2,
+            action_error=-0.3,
+            magnitude=1.4,
+            signed_reward=-0.35,
+            description="prediction error",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+    snapshot = asyncio.run(
+        consolidation.process_standalone(
+            prediction_error_snapshot=pe_snapshot,
+        )
+    )
+    after = policy.export_parameters()
+
+    assert snapshot.value.track == "world"
+    assert snapshot.value.prediction_error_applied is True
+    assert snapshot.value.reflection_observed is False
+    assert snapshot.value.learning_phase == "runtime"
+    assert snapshot.value.structure_frozen is True
+    assert after != before
+
+
+def test_track_temporal_module_uses_cached_reflection_context_from_consolidation():
+    policy = LearnedLiteTemporalPolicy()
+    temporal = TrackTemporalModule(
+        track=Track.WORLD,
+        policy=policy,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    consolidation = TrackTemporalConsolidationModule(
+        track=Track.WORLD,
+        policy=policy,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="cached-reflection-model",
+                feature_surface=(FeatureSignal(name="ctx", values=(0.7, 0.2), source="adapter"),),
+            ),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone()
+    ).value
+
+    before = asyncio.run(
+        temporal.process_standalone(
+            substrate_snapshot=substrate_snapshot,
+            reflection_snapshot=None,
+        )
+    ).value
+    asyncio.run(
+        consolidation.process_standalone(
+            reflection_snapshot=_reflection_snapshot(confidence=0.9, lesson="keep-repair-active"),
+        )
+    )
+    after = asyncio.run(
+        temporal.process_standalone(
+            substrate_snapshot=substrate_snapshot,
+        )
+    ).value
+
+    assert before.controller_state.code != after.controller_state.code
+    assert after.active_abstract_action.endswith("learned-lite")
+
+
+def test_switch_unit_continuation_bias_reduces_switch_pressure_for_strong_active_family():
+    from volvence_zero.temporal.metacontroller_components import SwitchUnit
+
+    switch_unit = SwitchUnit()
+    without_bias = switch_unit.compute_decision(
+        previous_code=(0.20, 0.20, 0.20),
+        z_tilde=(0.80, 0.75, 0.70),
+        posterior_std=(0.25, 0.25, 0.25),
+        switch_weights=(0.40, 0.35, 0.25),
+        switch_bias=0.20,
+        memory_signal=0.20,
+        reflection_signal=0.20,
+        previous_binary=0,
+        previous_steps_since_switch=1,
+    )
+    with_bias = switch_unit.compute_decision(
+        previous_code=(0.20, 0.20, 0.20),
+        z_tilde=(0.80, 0.75, 0.70),
+        posterior_std=(0.25, 0.25, 0.25),
+        switch_weights=(0.40, 0.35, 0.25),
+        switch_bias=0.20,
+        memory_signal=0.20,
+        reflection_signal=0.20,
+        active_family_outcome=0.9,
+        active_family_reuse=0.9,
+        active_family_persistence=0.9,
+        previous_binary=0,
+        previous_steps_since_switch=1,
+    )
+
+    assert with_bias.continuation_bias > 0.0
+    assert with_bias.beta_continuous < without_bias.beta_continuous
 
 
 # ---------------------------------------------------------------------------

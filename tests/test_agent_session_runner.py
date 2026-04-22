@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import types
 
 from volvence_zero.agent import (
     AgentSessionRunner,
@@ -12,6 +13,7 @@ from volvence_zero.agent import (
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
 from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
+from volvence_zero.agent.session import RareHeavyPreImportEvaluation
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
     SubstrateFallbackMode,
@@ -36,6 +38,8 @@ def test_agent_session_runner_executes_single_turn():
     assert "Transformers open-weight capture" in result.active_snapshots["substrate"].value.description
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
+    assert "session_post_slow_loop" in result.active_snapshots
+    assert result.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():
@@ -67,6 +71,7 @@ def test_agent_session_runner_exposes_temporal_and_regime_views():
     assert isinstance(result.evaluation_alerts, tuple)
     assert result.response.regime_id == result.active_regime
     assert result.response.abstract_action == result.active_abstract_action
+    assert result.active_snapshots["temporal_abstraction"].value.action_family_version == result.metacontroller_state.action_family_version
     assert result.joint_learning_summary
     evaluation_scores = {
         score.metric_name: score.value
@@ -75,9 +80,45 @@ def test_agent_session_runner_exposes_temporal_and_regime_views():
     evaluation_metric_names = set(evaluation_scores)
     assert "joint_learning_progress" in evaluation_metric_names
     assert "residual_env_fidelity" in evaluation_metric_names
+    assert "temporal_action_commitment" in evaluation_metric_names
     assert evaluation_scores["joint_learning_progress"] > 0.0
+    temporal_commitment_score = next(
+        score
+        for score in result.active_snapshots["evaluation"].value.turn_scores
+        if score.metric_name == "temporal_action_commitment"
+    )
+    assert "family_version=" in temporal_commitment_score.evidence
     credit_events = {record.source_event for record in result.active_snapshots["credit"].value.recent_credits}
     assert "joint_learning_progress" in credit_events
+
+
+def test_agent_session_runner_exposes_staged_temporal_slots():
+    runner = AgentSessionRunner(
+        session_id="staged-temporal-session",
+        joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=1),
+    )
+
+    result = asyncio.run(runner.run_turn("Please help me regulate the pressure while keeping the plan coherent."))
+
+    active_slots = set(result.active_snapshots)
+    assert "world_temporal" in active_slots
+    assert "self_temporal" in active_slots
+    assert "temporal_abstraction" in active_slots
+    assert "world_temporal_consolidation" in active_slots
+    assert "self_temporal_consolidation" in active_slots
+    assert result.active_snapshots["world_temporal_consolidation"].value.prediction_error_applied in {True, False}
+    assert result.active_snapshots["self_temporal_consolidation"].value.prediction_error_applied in {True, False}
+
+
+def test_agent_session_runner_defaults_self_temporal_to_cloned_discovered_lineage():
+    runner = AgentSessionRunner(session_id="cloned-temporal-lineage")
+
+    world_snapshot = runner._world_temporal_policy.export_rare_heavy_snapshot()
+    self_snapshot = runner._self_temporal_policy.export_rare_heavy_snapshot()
+
+    assert world_snapshot == self_snapshot
+    assert runner._world_temporal_policy is not runner._self_temporal_policy
+    assert runner._world_temporal_policy.parameter_store is not runner._self_temporal_policy.parameter_store
 
 
 def test_agent_session_runner_returns_user_visible_response():
@@ -106,17 +147,27 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
 
     first = asyncio.run(runner.run_turn("Remember that I prefer calm and structured support."))
     boundary_ops = runner.begin_new_context(reason="test-boundary")
-    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
 
     assert first.bounded_writeback_applied is False
+    assert first.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
     assert any(op.startswith("session-post-slow-loop:enqueued:") for op in boundary_ops)
+    assert runner.session_post_snapshot is not None
+    assert runner.session_post_snapshot.value.queue_state.pending_job_count == 1
+
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
     assert len(slow_loop_results) == 1
     assert slow_loop_results[0].writeback_result is not None
     assert slow_loop_results[0].applied is True or slow_loop_results[0].blocked is True
+    assert runner.session_post_snapshot is not None
+    assert runner.session_post_snapshot.value.queue_state.pending_job_count == 0
+    assert runner.session_post_snapshot.value.queue_state.completed_job_count == 1
+    assert len(runner.session_post_snapshot.value.recent_results) == 1
 
     second = asyncio.run(runner.run_turn("Continue in the next context."))
 
     assert second.session_post_completed_job_count >= 1
+    assert second.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
 
 
 def test_agent_session_runner_session_post_loop_fails_closed_when_apply_disabled():
@@ -314,7 +365,109 @@ def test_agent_session_runner_executes_rare_heavy_import_when_high_pe_persists()
     assert "rare-heavy:substrate-import" in result.rare_heavy_result.applied_operations
     assert result.rare_heavy_result.substrate_status == "imported"
     assert result.rare_heavy_result.substrate_training_mode == "adapter-delta-v2"
+    assert result.rare_heavy_result.import_decision == "imported"
+    assert result.rare_heavy_result.pre_import_passed is True
+    assert result.rare_heavy_result.pre_import_case_count >= 1
+    assert result.rare_heavy_result.bundle_trace_count >= 2
+    assert result.rare_heavy_result.bundle_alignment_ratio > 0.0
+    assert result.rare_heavy_result.candidate_adapter_parameter_count > 0
     assert result.joint_schedule_action == "full-cycle-pe"
+
+
+def test_agent_session_runner_rejects_rare_heavy_candidate_when_preimport_replay_fails():
+    runner = AgentSessionRunner(
+        session_id="rare-heavy-preimport-reject",
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+        rare_heavy_trace_window=2,
+        rare_heavy_min_traces=2,
+        rare_heavy_cooldown_turns=0,
+        rare_heavy_pipeline_config=PipelineConfig(
+            n_z=3,
+            ssl_min_steps=1,
+            ssl_max_steps=1,
+            rl_max_steps=1,
+        ),
+    )
+
+    async def _reject_candidate(self, *, artifact, bundle):
+        del artifact, bundle
+        return RareHeavyPreImportEvaluation(
+            accepted=False,
+            case_count=2,
+            baseline_mean_score=0.55,
+            candidate_mean_score=0.42,
+            mean_score_delta=-0.13,
+            worst_score_delta=-0.20,
+            positive_fraction=0.0,
+            judgement="rollback",
+            reasons=("forced-test-reject",),
+            description="Forced pre-import rejection for test coverage.",
+        )
+
+    runner._evaluate_rare_heavy_candidate = types.MethodType(_reject_candidate, runner)
+
+    asyncio.run(runner.run_turn("Seed the first trace for rare-heavy rejection."))
+    runner._previous_prediction_reward = -0.7
+    runner._previous_prediction_magnitude = 1.35
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.9,
+        relationship_error=0.6,
+        regime_error=0.4,
+        action_error=0.8,
+        magnitude=1.35,
+        signed_reward=-0.7,
+        description="Persistent high prediction error should trigger rare-heavy review.",
+    )
+
+    result = asyncio.run(runner.run_turn("Continue after the high-error turn with forced reject."))
+
+    assert result.rare_heavy_result is not None
+    assert result.rare_heavy_result.recommended is True
+    assert result.rare_heavy_result.applied is False
+    assert result.rare_heavy_result.import_decision == "rejected-pre-import"
+    assert result.rare_heavy_result.reject_reason == "forced-test-reject"
+    assert result.rare_heavy_result.pre_import_passed is False
+    assert result.rare_heavy_result.pre_import_judgement == "rollback"
+    assert result.rare_heavy_result.pre_import_mean_score_delta < 0.0
+
+
+def test_agent_session_runner_applies_online_fast_substrate_self_mod_when_pe_is_due():
+    runner = AgentSessionRunner(
+        session_id="online-fast-session",
+        joint_schedule=JointLoopSchedule(
+            ssl_interval=99,
+            rl_interval=99,
+            pe_full_cycle_threshold=0.6,
+            pe_substrate_online_fast_threshold=0.18,
+        ),
+        rare_heavy_enabled=False,
+    )
+
+    asyncio.run(runner.run_turn("Seed substrate for online-fast self-mod."))
+    runner._previous_prediction_reward = -0.25
+    runner._previous_prediction_magnitude = 0.45
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.35,
+        relationship_error=0.2,
+        regime_error=0.15,
+        action_error=0.3,
+        magnitude=0.45,
+        signed_reward=-0.25,
+        description="Moderate prediction error should trigger online-fast substrate self-mod.",
+    )
+
+    result = asyncio.run(runner.run_turn("Continue after the moderate-error turn."))
+
+    assert result.online_fast_substrate_result is not None
+    assert result.online_fast_substrate_result.recommended is True
+    assert result.online_fast_substrate_result.applied is True
+    assert "online-fast:substrate-import" in result.online_fast_substrate_result.applied_operations
+    assert result.online_fast_substrate_result.checkpoint_id
+    assert result.online_fast_substrate_result.fast_state_hash
+    assert result.online_fast_substrate_result.fast_memory_signal
+    assert "substrate_self_mod" in result.active_snapshots
+    modification_targets = {record.target for record in result.active_snapshots["credit"].value.recent_modifications}
+    assert "substrate.online_fast.delta" in modification_targets
 
 
 def test_substrate_snapshot_used_for_next_turn_trace():

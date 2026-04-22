@@ -12,10 +12,16 @@ from volvence_zero.credit import (
     derive_prediction_error_credit_records,
 )
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
-from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import InternalRLEnvironment
 from volvence_zero.memory import Track
-from volvence_zero.prediction import PredictionErrorModule, PredictionErrorSnapshot, derive_actual_outcome_from_substrate
+from volvence_zero.prediction import (
+    ActualOutcome,
+    PredictedOutcome,
+    PredictionErrorModule,
+    PredictionErrorSnapshot,
+    derive_actual_outcome_from_substrate,
+)
 from volvence_zero.regime import RegimeIdentity, RegimeSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
@@ -403,6 +409,48 @@ def test_prediction_error_module_process_is_stateful_owner():
     assert second.value.actual_outcome.observed_turn_index == 2
 
 
+def test_prediction_error_weighting_respects_prediction_confidence():
+    module = PredictionErrorModule(wiring_level=WiringLevel.ACTIVE)
+    high_conf_prediction = PredictedOutcome(
+        source_turn_index=1,
+        target_turn_index=2,
+        predicted_task_progress=0.95,
+        predicted_relationship_delta=0.92,
+        predicted_regime_stability=0.90,
+        predicted_action_payoff=0.94,
+        confidence=0.95,
+        description="high confidence",
+    )
+    low_conf_prediction = PredictedOutcome(
+        source_turn_index=1,
+        target_turn_index=2,
+        predicted_task_progress=0.55,
+        predicted_relationship_delta=0.54,
+        predicted_regime_stability=0.53,
+        predicted_action_payoff=0.56,
+        confidence=0.10,
+        description="low confidence",
+    )
+    actual = ActualOutcome(
+        observed_turn_index=2,
+        task_progress=0.35,
+        relationship_delta=0.34,
+        regime_stability=0.33,
+        action_payoff=0.36,
+        description="actual",
+    )
+    high_conf_error = module.compute_prediction_error(
+        predicted=high_conf_prediction,
+        actual_outcome=actual,
+    )
+    low_conf_error = module.compute_prediction_error(
+        predicted=low_conf_prediction,
+        actual_outcome=actual,
+    )
+    assert high_conf_error.magnitude > low_conf_error.magnitude
+    assert "weighted_axes[" in high_conf_error.description
+
+
 def test_pe_first_reward_becomes_primary_term():
     env = InternalRLEnvironment(evaluation_family_signals={"prediction_error_reward": 0.8, "task": 0.7, "relationship": 0.2, "learning": 0.6, "abstraction": 0.55, "safety": 0.9})
     step = _temporal_snapshot(0.8)
@@ -416,6 +464,93 @@ def test_pe_first_reward_becomes_primary_term():
     comp_map = dict(components)
     assert "primary_prediction_error" in comp_map
     assert abs(comp_map["primary_prediction_error"]) > abs(comp_map["task_outcome_delta"])
+
+
+def test_prediction_error_evaluation_scores_remain_readouts():
+    module = PredictionErrorModule(wiring_level=WiringLevel.ACTIVE)
+    backbone = EvaluationBackbone()
+    first = asyncio.run(
+        module.process_standalone(
+            turn_index=1,
+            substrate_snapshot=_substrate_snapshot(
+                task_pull=0.2,
+                support_pull=0.2,
+                repair_pull=0.2,
+                exploration_pull=0.3,
+                directive_pull=0.3,
+                token="prev",
+            ),
+            previous_substrate_snapshot=None,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+        )
+    )
+    second = asyncio.run(
+        module.process_standalone(
+            turn_index=2,
+            previous_prediction=first.value.next_prediction,
+            substrate_snapshot=_substrate_snapshot(
+                task_pull=0.8,
+                support_pull=0.7,
+                repair_pull=0.6,
+                exploration_pull=0.5,
+                directive_pull=0.8,
+                token="curr",
+            ),
+            previous_substrate_snapshot=_substrate_snapshot(
+                task_pull=0.2,
+                support_pull=0.2,
+                repair_pull=0.2,
+                exploration_pull=0.3,
+                directive_pull=0.3,
+                token="prev",
+            ),
+            evaluation_snapshot=_evaluation_snapshot(task=0.4, relationship=0.8, abstraction=0.7),
+            dual_track_snapshot=_dual_track_snapshot(tension=0.1),
+            regime_snapshot=_regime_snapshot(effectiveness=0.9),
+        )
+    )
+    base = _evaluation_snapshot()
+    enriched = backbone.record_prediction_error_evidence(
+        session_id="s",
+        wave_id="w",
+        timestamp_ms=2,
+        base_snapshot=base,
+        prediction_error_snapshot=second.value,
+    )
+    score_map = {score.metric_name: score for score in enriched.turn_scores}
+    assert "prediction_error_magnitude" in score_map
+    assert "prediction_error_reward" in score_map
+    assert "predictive_accuracy" in score_map
+    assert "PE-owner" in score_map["prediction_error_magnitude"].evidence
+    assert "prediction_confidence" in score_map["predictive_accuracy"].evidence
+
+
+def test_pe_readout_only_reward_keeps_readout_without_primary_dominance():
+    env = InternalRLEnvironment(
+        evaluation_family_signals={
+            "prediction_error_reward_readout": -0.4,
+            "task": 0.7,
+            "relationship": 0.2,
+            "learning": 0.6,
+            "abstraction": 0.55,
+            "safety": 0.9,
+        },
+        primary_prediction_error_enabled=False,
+    )
+    step = _temporal_snapshot(0.8)
+    components = env._reward_components(
+        track=Track.WORLD,
+        temporal_step=type("T", (), {"controller_state": step.controller_state})(),
+        downstream_effect=(0.2, 0.1, 0.3),
+        control_energy=0.2,
+        policy_replacement_quality=0.6,
+    )
+    comp_map = dict(components)
+    assert "primary_prediction_error" not in comp_map
+    assert "prediction_error_readout" in comp_map
+    assert comp_map["prediction_error_readout"] < 0.0
 
 
 def test_credit_derivation_prefers_prediction_error_when_available():

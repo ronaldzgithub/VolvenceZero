@@ -97,6 +97,80 @@ class WiringLevel(Enum):
     ACTIVE = "active"       # 模块输出写入正式 upstream
 ```
 
+### 2.7 Session-Post Slow Loop（会话后慢环）
+
+`background-slow` 的默认运行时形态是 **session-post slow loop**：
+
+- turn 主链只生成 deferred consolidation / writeback request
+- context / session boundary 把 request 排进 queue
+- queue worker 只调用 owner-side apply surface，不直接篡改 owner 内部状态
+
+```python
+@dataclass(frozen=True)
+class SessionPostWritebackRequest:
+    context_session_id: str
+    source_wave_id: str
+    session_report: EvaluationReport
+    reflection_snapshot: ReflectionSnapshot
+    credit_snapshot: CreditSnapshot | None
+    evolution_judgement: EvolutionJudgement | None
+    cross_session_verdict: str
+    writeback_source: str | None
+    reflection_apply_enabled: bool
+    structural_writeback_allowed: bool
+    checkpoint_id: str
+    description: str
+
+@dataclass(frozen=True)
+class SessionPostSlowLoopJob:
+    job_id: str
+    context_session_id: str
+    closed_at_turn: int
+    session_report: EvaluationReport
+    prior_session_report_count: int
+    trace_count: int
+    substrate_batch_count: int
+    prediction_error_summary: tuple[tuple[str, float], ...]
+    writeback_request: SessionPostWritebackRequest
+    description: str
+
+@dataclass(frozen=True)
+class SessionPostSlowLoopResult:
+    job_id: str
+    context_session_id: str
+    closed_at_turn: int
+    writeback_result: WritebackResult | None
+    applied: bool
+    blocked: bool
+    description: str
+
+@dataclass(frozen=True)
+class SessionPostSlowLoopResultSummary:
+    job_id: str
+    context_session_id: str
+    closed_at_turn: int
+    applied_operation_count: int
+    blocked_operation_count: int
+    applied: bool
+    blocked: bool
+    description: str
+
+@dataclass(frozen=True)
+class SessionPostSlowLoopSnapshot:
+    queue_state: SessionPostSlowLoopQueueState
+    recent_results: tuple[SessionPostSlowLoopResultSummary, ...]
+    last_completed_job_id: str | None
+    last_completed_context_session_id: str | None
+    description: str
+```
+
+**不变量**：
+- queue 不是新的 memory / temporal / regime owner
+- request payload 必须是 immutable 的 machine-readable contract
+- apply 仍受 `writeback_mode`、credit gate、evolution judgement 约束
+- turn latency 不等待 slow loop 完成
+- `session_post_slow_loop` 是独立公共 slot；queue state / 最近完成结果必须通过快照发布，而不是要求消费者读取 `AgentSessionRunner` 私有状态
+
 ### 2.6 RuntimePlaceholderValue（缺失与禁用占位）
 
 用于统一表示缺失 upstream 和禁用模块发布的 stub 快照。
@@ -215,6 +289,12 @@ class TemporalAbstractionSnapshot:
 - internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
 - substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
 - 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；当前 `TransformersOpenWeightResidualRuntime` 已实现 middle-layer hook capture/intervention，`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
+- 当前 default runtime 已把 temporal owner 拆成 staged slots：
+  - `world_temporal` / `self_temporal`：same-wave early control，主要消费 `substrate` 与 `memory`
+  - `world_temporal_consolidation` / `self_temporal_consolidation`：late consolidation，主要消费 `reflection` 与 `prediction_error`
+  - `temporal_abstraction`：公共聚合 slot，由 `TemporalAggregateModule` 聚合 world/self temporal 快照后发布
+- staged temporal slots 不引入第二 owner：world/self track policy 仍各自拥有自己的内部状态；聚合 slot 只发布 compact public state，不重建 producer internals
+- 当前 default self-track temporal owner 若未显式传入，会从 world-track discovered metacontroller snapshot 克隆初始参数，保证默认主链共享同一条 discovered lineage，同时维持独立 store/owner
 - 当前默认 final wiring 已把 `temporal_abstraction` 放入 ACTIVE 主链；其缺失在 acceptance report 中视为回归
 
 **消费者**：编排器、双轨学习层、认知 Regime 层、评估体系
@@ -763,7 +843,11 @@ reflection ───────────────────────
 | Slot Name | Owner 模块 | Value 类型 | 发布频率 | 消费者 |
 |-----------|-----------|-----------|----------|--------|
 | `substrate` | SubstrateModule | SubstrateSnapshot | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
-| `temporal_abstraction` | TemporalModule | TemporalAbstractionSnapshot | 每 turn | memory, dual_track |
+| `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | 每 turn | temporal_abstraction, dual_track |
+| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | 每 turn | temporal_abstraction, dual_track |
+| `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | 每 turn | final wiring / audit only |
+| `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | 每 turn | final wiring / audit only |
+| `temporal_abstraction` | TemporalAggregateModule | TemporalAbstractionSnapshot | 每 turn | memory, dual_track |
 | `memory` | MemoryModule | MemorySnapshot | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
 | `dual_track` | DualTrackModule | DualTrackSnapshot | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
 | `evaluation` | EvaluationModule | EvaluationSnapshot | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |

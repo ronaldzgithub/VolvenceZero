@@ -3,7 +3,13 @@ from __future__ import annotations
 import asyncio
 from functools import partial
 
-from volvence_zero.agent import AgentSessionRunner, render_turn_result, run_repl
+from volvence_zero.agent import (
+    AgentSessionRunner,
+    OpenDialogueREPLReader,
+    build_deterministic_user_simulator,
+    render_turn_result,
+    run_repl,
+)
 from volvence_zero.agent.cli import (
     DEFAULT_CHAT_MODEL_ID,
     build_arg_parser,
@@ -144,6 +150,54 @@ def test_run_repl_exits_cleanly_on_keyboard_interrupt():
     assert "bye" in rendered_output
 
 
+def test_run_repl_exits_cleanly_on_eof_from_simulated_reader():
+    runner = AgentSessionRunner(session_id="eof-repl-test")
+    outputs: list[str] = []
+
+    asyncio.run(
+        run_repl(
+            runner=runner,
+            reader=lambda: (_ for _ in ()).throw(EOFError()),
+            writer=outputs.append,
+        )
+    )
+
+    rendered_output = "\n".join(outputs)
+    assert "VolvenceZero REPL" in rendered_output
+    assert "bye" in rendered_output
+
+
+def test_run_repl_supports_open_dialogue_reader_feedback_loop():
+    runner = AgentSessionRunner(session_id="open-dialogue-repl-test")
+    outputs: list[str] = []
+    reader = OpenDialogueREPLReader(
+        turn_source=build_deterministic_user_simulator(
+            scenario_id="open_repair",
+            seed=4,
+            max_turns=3,
+        )
+    )
+
+    asyncio.run(
+        run_repl(
+            runner=runner,
+            reader=reader,
+            writer=outputs.append,
+            prompt="",
+            banner="VolvenceZero Open Dialogue Test",
+            render_input=lambda text: f"sim> {text}",
+            after_result=reader.observe_result,
+        )
+    )
+
+    rendered_output = "\n".join(outputs)
+    assert "VolvenceZero Open Dialogue Test" in rendered_output
+    assert "sim> " in rendered_output
+    assert "[wave-1]" in rendered_output
+    assert "bye" in rendered_output
+    assert reader.episode_state.completed is True
+
+
 def test_cli_parser_accepts_real_substrate_arguments():
     parser = build_arg_parser()
 
@@ -219,6 +273,27 @@ def test_cli_parser_accepts_llm_generation_arguments():
     assert args.llm is True
     assert args.max_new_tokens == 128
     assert abs(args.temperature - 0.5) < 1e-6
+
+
+def test_cli_parser_accepts_open_sim_arguments():
+    parser = build_arg_parser()
+
+    args = parser.parse_args(
+        [
+            "--open-sim",
+            "--open-scenario-id",
+            "open_goal_shift",
+            "--open-max-turns",
+            "5",
+            "--open-seed",
+            "9",
+        ]
+    )
+
+    assert args.open_sim is True
+    assert args.open_scenario_id == "open_goal_shift"
+    assert args.open_max_turns == 5
+    assert args.open_seed == 9
 
 
 def test_cli_parser_accepts_remote_fetch_override():

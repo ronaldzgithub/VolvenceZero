@@ -57,6 +57,7 @@ class SwitchGateDecision:
     binary_switch_rate: float
     mean_persistence_window: float
     summary: str
+    continuation_bias: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -347,6 +348,9 @@ class SwitchUnit:
         switch_bias: float,
         memory_signal: float,
         reflection_signal: float,
+        active_family_outcome: float = 0.0,
+        active_family_reuse: float = 0.0,
+        active_family_persistence: float = 0.0,
         previous_binary: int = 0,
         previous_steps_since_switch: int = 0,
     ) -> SwitchGateDecision:
@@ -355,6 +359,12 @@ class SwitchUnit:
         raw_gate += sum(weight * value for weight, value in zip(switch_weights, delta, strict=True))
         raw_gate += sum(posterior_std) / max(len(posterior_std), 1) * 0.25
         raw_gate += memory_signal * 0.10 + reflection_signal * 0.20
+        continuation_bias = clamp_unit(
+            active_family_outcome * 0.22
+            + active_family_reuse * 0.33
+            + active_family_persistence * 0.45
+        )
+        raw_gate -= continuation_bias * 0.30
         beta_continuous = clamp_unit(raw_gate)
         beta_binary = 1 if beta_continuous >= 0.55 else 0
         binary_switch_rate = (beta_binary + previous_binary) / 2.0
@@ -365,9 +375,10 @@ class SwitchUnit:
             sparsity=1.0 - beta_continuous,
             binary_switch_rate=binary_switch_rate,
             mean_persistence_window=mean_persistence_window,
+            continuation_bias=continuation_bias,
             summary=(
                 f"beta={beta_continuous:.3f} binary={beta_binary} "
-                f"sparsity={1.0 - beta_continuous:.3f}"
+                f"sparsity={1.0 - beta_continuous:.3f} continuation={continuation_bias:.3f}"
             ),
         )
 
@@ -381,6 +392,9 @@ class SwitchUnit:
         switch_bias: float,
         memory_signal: float,
         reflection_signal: float,
+        active_family_outcome: float = 0.0,
+        active_family_reuse: float = 0.0,
+        active_family_persistence: float = 0.0,
     ) -> float:
         return self.compute_decision(
             previous_code=previous_code,
@@ -390,6 +404,9 @@ class SwitchUnit:
             switch_bias=switch_bias,
             memory_signal=memory_signal,
             reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
         ).beta_continuous
 
 
@@ -1366,6 +1383,9 @@ class NdimSwitchUnit:
         previous_code: Vec,
         memory_signal: float = 0.0,
         reflection_signal: float = 0.0,
+        active_family_outcome: float = 0.0,
+        active_family_reuse: float = 0.0,
+        active_family_persistence: float = 0.0,
         params: NdimSwitchParameters | None = None,
     ) -> tuple[Vec, Vec, float]:
         """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
@@ -1379,7 +1399,12 @@ class NdimSwitchUnit:
             W2=active_params.gate_ffn.W2,
             b2=active_params.gate_ffn.b2,
         )
-        bias = memory_signal * 0.1 + reflection_signal * 0.2
+        continuation_bias = clamp_unit(
+            active_family_outcome * 0.22
+            + active_family_reuse * 0.33
+            + active_family_persistence * 0.45
+        )
+        bias = memory_signal * 0.1 + reflection_signal * 0.2 - continuation_bias * 0.30
         beta_continuous = vec_sigmoid(vec_add(raw, tuple(bias for _ in range(self._n_z))))
         threshold = 0.55
         beta_binary = tuple(1.0 if b >= threshold else 0.0 for b in beta_continuous)

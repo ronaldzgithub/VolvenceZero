@@ -197,6 +197,12 @@ def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> flo
     return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
 
 
+def _mean_abs(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
 def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
     collected = tuple(entries)
     if not collected:
@@ -419,6 +425,8 @@ class MemoryStore:
         self._learned_recall_count = 0
         self._last_recall_confidence = 0.0
         self._last_recall_driver = "artifact-only"
+        self._fast_memory_signal_count = 0
+        self._last_fast_memory_signal_norm = 0.0
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -597,6 +605,8 @@ class MemoryStore:
                 ("learned_recall_count", float(self._learned_recall_count)),
                 ("last_learned_recall_confidence", self._last_recall_confidence),
                 ("last_learned_recall_driver_is_core", float(self._last_recall_driver == "learned-core-guided")),
+                ("fast_memory_signal_count", float(self._fast_memory_signal_count)),
+                ("last_fast_memory_signal_norm", self._last_fast_memory_signal_norm),
             ),
             description=description,
         )
@@ -627,6 +637,20 @@ class MemoryStore:
         timestamp_ms: int,
     ) -> None:
         self.observe_encoder_feedback(encoder_signal=encoder_signal, timestamp_ms=timestamp_ms)
+
+    def observe_fast_memory_signal(
+        self,
+        *,
+        signal: tuple[float, ...],
+        timestamp_ms: int,
+    ) -> None:
+        self._fast_memory_signal_count += 1
+        self._last_fast_memory_signal_norm = _mean_abs(signal)
+        if self._learned_core is not None:
+            self._learned_core.observe_fast_memory_signal(
+                signal=signal,
+                timestamp_ms=timestamp_ms,
+            )
 
     def apply_prediction_error_signal(
         self,

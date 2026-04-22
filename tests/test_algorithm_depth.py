@@ -403,6 +403,7 @@ class TestP14M3Optimizer:
 
         trainer = MetacontrollerSSLTrainer()
         policy = FullLearnedTemporalPolicy()
+        policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         trace = build_training_trace(trace_id="test-m3", source_text="hello world foo bar")
         report = trainer.optimize(policy=policy, trace=trace)
         assert report.m3_slow_momentum_signal is not None
@@ -555,6 +556,7 @@ class TestP15FullLearnedNdimPolicy:
 
         store = MetacontrollerParameterStore(n_z=8)
         policy = FullLearnedTemporalPolicy(parameter_store=store)
+        policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         trace = build_training_trace(trace_id="ndim-ssl", source_text="hello world ndim test")
         trainer = MetacontrollerSSLTrainer(n_z=8)
         report = trainer.optimize(policy=policy, trace=trace)
@@ -653,6 +655,7 @@ class TestP16NonCausalEmbedder:
 
         store = MetacontrollerParameterStore(n_z=8)
         policy = FullLearnedTemporalPolicy(parameter_store=store)
+        policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
         trace = build_training_trace(trace_id="noncausal-test", source_text="alpha beta gamma delta")
         trainer = MetacontrollerSSLTrainer(n_z=8)
         report = trainer.optimize(policy=policy, trace=trace)
@@ -801,6 +804,10 @@ class TestP17SSLRLPipeline:
 
         assert artifact.artifact_id == "rare-heavy-1"
         assert artifact.owner_path == "offline-sslrl-pipeline"
+        assert artifact.training_evidence is not None
+        assert artifact.training_evidence.trace_count == len(traces)
+        assert artifact.training_evidence.resolved_rl_batch_count == len(traces)
+        assert artifact.training_evidence.alignment_ratio > 0.0
         assert artifact.temporal_snapshot.active_label
         assert artifact.temporal_snapshot.active_label.startswith("discovered_family_")
         assert artifact.temporal_snapshot.structure_frozen is True

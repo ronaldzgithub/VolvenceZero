@@ -20,6 +20,13 @@ class M3OptimizerState:
     slow_momentum: tuple[tuple[float, ...], ...]
     step_count: int
     slow_update_count: int
+    num_groups: int
+    group_dim: int
+    fast_beta: float
+    slow_beta: float
+    slow_interval: int
+    mean_fast_norm: float
+    mean_slow_norm: float
     description: str
 
 
@@ -117,16 +124,33 @@ class M3Optimizer:
         return tuple(_clamp(v * scale) for v in result)
 
     def export_state(self) -> M3OptimizerState:
+        mean_fast_norm = (
+            sum(abs(value) for row in self._fast_momentum for value in row)
+            / max(self._num_groups * self._group_dim, 1)
+        )
+        mean_slow_norm = (
+            sum(abs(value) for row in self._slow_momentum for value in row)
+            / max(self._num_groups * self._group_dim, 1)
+        )
         return M3OptimizerState(
             fast_momentum=tuple(tuple(row) for row in self._fast_momentum),
             slow_momentum=tuple(tuple(row) for row in self._slow_momentum),
             step_count=self._step_count,
             slow_update_count=self._slow_update_count,
+            num_groups=self._num_groups,
+            group_dim=self._group_dim,
+            fast_beta=self._fast_beta,
+            slow_beta=self._slow_beta,
+            slow_interval=self._slow_interval,
+            mean_fast_norm=mean_fast_norm,
+            mean_slow_norm=mean_slow_norm,
             description=(
                 f"M3 optimizer step={self._step_count}, "
                 f"slow_updates={self._slow_update_count}, "
+                f"groups={self._num_groups}, dim={self._group_dim}, "
                 f"fast_beta={self._fast_beta}, slow_beta={self._slow_beta}, "
-                f"slow_interval={self._slow_interval}."
+                f"slow_interval={self._slow_interval}, "
+                f"mean_fast_norm={mean_fast_norm:.3f}, mean_slow_norm={mean_slow_norm:.3f}."
             ),
         )
 

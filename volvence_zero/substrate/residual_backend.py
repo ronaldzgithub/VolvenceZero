@@ -120,6 +120,30 @@ class SubstrateRareHeavyCheckpoint:
     adapter_layers: tuple[SubstrateDeltaAdapterLayer, ...] = ()
 
 
+@dataclass(frozen=True)
+class SubstrateOnlineFastCheckpoint:
+    checkpoint_id: str
+    model_id: str
+    runtime_origin: str
+    delta_scale: float
+    update_count: int
+    source_wave_id: str
+    source_turn_index: int
+    gate: str
+    optimizer_state_norm: float
+    parameter_change_rate: float
+    description: str
+    checkpoint_version: int = 1
+    training_mode: str = "online-fast-delta-v1"
+    compatibility_fingerprint: str = ""
+    adapter_parameter_count: int = 0
+    adapter_layers: tuple[SubstrateDeltaAdapterLayer, ...] = ()
+    fast_state_hash: str = ""
+    source_fast_state_hash: str = ""
+    fast_memory_signal: tuple[float, ...] = ()
+    optimizer_state_description: str = ""
+
+
 class SubstrateFallbackMode(str, Enum):
     ALLOW_BUILTIN = "allow-builtin"
     DENY = "deny"
@@ -248,6 +272,23 @@ class OpenWeightResidualRuntime(ABC):
         raise NotImplementedError(
             f"{type(self).__name__} does not implement rare-heavy runtime cloning."
         )
+
+    def export_online_fast_state(
+        self,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> SubstrateOnlineFastCheckpoint:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement online-fast substrate export."
+        )
+
+    def apply_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement online-fast substrate apply."
+        )
+
+    def restore_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        return self.apply_online_fast_state(checkpoint)
 
 
 class ResidualInterventionBackend(ABC):
@@ -838,6 +879,15 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._rare_heavy_adapter_layers: dict[int, tuple[float, ...]] = {}
         self._rare_heavy_activation_width = 0
         self._rare_heavy_layer_indices: tuple[int, ...] = ()
+        self._online_fast_delta_scale = 0.0
+        self._online_fast_update_count = 0
+        self._online_fast_optimizer_state_norm = 0.0
+        self._online_fast_parameter_change_rate = 0.0
+        self._online_fast_adapter_layers: dict[int, tuple[float, ...]] = {}
+        self._online_fast_state_hash = ""
+        self._online_fast_source_state_hash = ""
+        self._online_fast_signal: tuple[float, ...] = ()
+        self._online_fast_optimizer_state_description = ""
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         trace = build_training_trace(trace_id=f"{self.model_id}:capture", source_text=source_text)
@@ -865,6 +915,21 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 values=(_clamp_unit(_adapter_parameter_count(self._export_adapter_layers()) / 64.0),),
                 source="synthetic-open-weight-semantic",
             ),
+            FeatureSignal(
+                name="substrate_online_fast_update_count",
+                values=(_clamp_unit(self._online_fast_update_count / 10.0),),
+                source="synthetic-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_online_fast_delta_parameter_count",
+                values=(_clamp_unit(_adapter_parameter_count(self._export_online_fast_layers()) / 64.0),),
+                source="synthetic-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_online_fast_parameter_change_rate",
+                values=(_clamp_unit(self._online_fast_parameter_change_rate),),
+                source="synthetic-open-weight-semantic",
+            ),
         )
         residual_sequence = tuple(
             ResidualSequenceStep(
@@ -887,7 +952,9 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"Synthetic frozen open-weight capture for len={len(source_text)} "
                 f"rare_heavy_updates={self._rare_heavy_update_count} "
-                f"adapter_params={_adapter_parameter_count(self._export_adapter_layers())}."
+                f"adapter_params={_adapter_parameter_count(self._export_adapter_layers())} "
+                f"online_fast_updates={self._online_fast_update_count} "
+                f"online_fast_params={_adapter_parameter_count(self._export_online_fast_layers())}."
             ),
         )
 
@@ -1040,6 +1107,73 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
 
+    def export_online_fast_state(
+        self,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> SubstrateOnlineFastCheckpoint:
+        adapter_layers = self._export_online_fast_layers()
+        return SubstrateOnlineFastCheckpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:online-fast",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            delta_scale=self._online_fast_delta_scale,
+            update_count=self._online_fast_update_count,
+            source_wave_id="runtime",
+            source_turn_index=self._online_fast_update_count,
+            gate="online",
+            optimizer_state_norm=self._online_fast_optimizer_state_norm,
+            parameter_change_rate=self._online_fast_parameter_change_rate,
+            description=(
+                f"Synthetic online-fast checkpoint for {self.model_id} "
+                f"updates={self._online_fast_update_count}."
+            ),
+            compatibility_fingerprint=(
+                _build_compatibility_fingerprint(
+                    model_id=self.model_id,
+                    runtime_origin=self.runtime_origin,
+                    hidden_size=self._rare_heavy_activation_width,
+                    layer_indices=self._rare_heavy_layer_indices,
+                    training_mode="online-fast-delta-v1",
+                )
+                if self._rare_heavy_activation_width > 0 and self._rare_heavy_layer_indices
+                else ""
+            ),
+            adapter_parameter_count=_adapter_parameter_count(adapter_layers),
+            adapter_layers=adapter_layers,
+            fast_state_hash=self._online_fast_state_hash,
+            source_fast_state_hash=self._online_fast_source_state_hash,
+            fast_memory_signal=self._online_fast_signal,
+            optimizer_state_description=self._online_fast_optimizer_state_description,
+        )
+
+    def apply_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        if checkpoint.model_id != self.model_id:
+            raise ValueError(
+                f"Synthetic runtime {self.model_id!r} cannot import online-fast checkpoint for "
+                f"{checkpoint.model_id!r}."
+            )
+        self._online_fast_delta_scale = max(0.0, min(0.18, checkpoint.delta_scale))
+        self._online_fast_update_count = max(0, checkpoint.update_count)
+        self._online_fast_optimizer_state_norm = _clamp_unit(checkpoint.optimizer_state_norm)
+        self._online_fast_parameter_change_rate = _clamp_unit(checkpoint.parameter_change_rate)
+        self._online_fast_state_hash = checkpoint.fast_state_hash
+        self._online_fast_source_state_hash = checkpoint.source_fast_state_hash
+        self._online_fast_signal = checkpoint.fast_memory_signal
+        self._online_fast_optimizer_state_description = checkpoint.optimizer_state_description
+        self._online_fast_adapter_layers = {
+            layer.layer_index: _clamp_delta_vector(layer.delta_vector, limit=0.12)
+            for layer in checkpoint.adapter_layers
+        }
+        if checkpoint.adapter_layers:
+            self._rare_heavy_activation_width = len(checkpoint.adapter_layers[0].delta_vector)
+            self._rare_heavy_layer_indices = tuple(layer.layer_index for layer in checkpoint.adapter_layers)
+        return ("online-fast:substrate-import",)
+
+    def restore_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        self.apply_online_fast_state(checkpoint)
+        return ("online-fast:substrate-rollback",)
+
     def _remember_trace_shape(self, trace: TrainingTrace) -> None:
         layer_indices = tuple(
             sorted(
@@ -1062,17 +1196,36 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self,
         residual_activations: tuple[ResidualActivation, ...],
     ) -> tuple[ResidualActivation, ...]:
-        if not self._rare_heavy_adapter_layers or self._rare_heavy_adapter_scale <= 0.0:
+        if (
+            not self._rare_heavy_adapter_layers
+            and not self._online_fast_adapter_layers
+        ) or (
+            self._rare_heavy_adapter_scale <= 0.0
+            and self._online_fast_delta_scale <= 0.0
+        ):
             return residual_activations
         adapted: list[ResidualActivation] = []
         for activation in residual_activations:
-            delta_vector = self._rare_heavy_adapter_layers.get(activation.layer_index)
-            if delta_vector is None or not activation.activation:
+            rare_heavy_delta = self._rare_heavy_adapter_layers.get(activation.layer_index)
+            online_fast_delta = self._online_fast_adapter_layers.get(activation.layer_index)
+            if (rare_heavy_delta is None and online_fast_delta is None) or not activation.activation:
                 adapted.append(activation)
                 continue
             values = tuple(
-                _clamp_signed(base + delta * self._rare_heavy_adapter_scale)
-                for base, delta in zip(activation.activation, delta_vector, strict=True)
+                _clamp_signed(
+                    base
+                    + (
+                        (rare_heavy_delta[index] * self._rare_heavy_adapter_scale)
+                        if rare_heavy_delta is not None
+                        else 0.0
+                    )
+                    + (
+                        (online_fast_delta[index] * self._online_fast_delta_scale)
+                        if online_fast_delta is not None
+                        else 0.0
+                    )
+                )
+                for index, base in enumerate(activation.activation)
             )
             adapted.append(
                 ResidualActivation(
@@ -1095,6 +1248,17 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 ),
             )
             for layer_index, delta_vector in sorted(self._rare_heavy_adapter_layers.items())
+        )
+
+    def _export_online_fast_layers(self) -> tuple[SubstrateDeltaAdapterLayer, ...]:
+        return tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer_index,
+                delta_vector=delta_vector,
+                mean_abs_delta=_mean_abs_delta(delta_vector),
+                description=f"Synthetic online-fast delta for layer {layer_index}.",
+            )
+            for layer_index, delta_vector in sorted(self._online_fast_adapter_layers.items())
         )
 
     def _train_adapter_deltas(
@@ -1251,6 +1415,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._rare_heavy_update_count = 0
         self._rare_heavy_adapter_scale = 0.0
         self._rare_heavy_adapter_deltas: dict[int, object] = {}
+        self._online_fast_delta_scale = 0.0
+        self._online_fast_update_count = 0
+        self._online_fast_optimizer_state_norm = 0.0
+        self._online_fast_parameter_change_rate = 0.0
+        self._online_fast_adapter_deltas: dict[int, object] = {}
+        self._online_fast_state_hash = ""
+        self._online_fast_source_state_hash = ""
+        self._online_fast_signal: tuple[float, ...] = ()
+        self._online_fast_optimizer_state_description = ""
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         return self._capture_with_hooks(source_text=source_text)
@@ -1744,6 +1917,21 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 values=(_clamp_unit(len(self._rare_heavy_adapter_deltas) * self._hidden_size / 512.0),),
                 source="transformers-open-weight-semantic",
             ),
+            FeatureSignal(
+                name="substrate_online_fast_update_count",
+                values=(_clamp_unit(self._online_fast_update_count / 10.0),),
+                source="transformers-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_online_fast_delta_parameter_count",
+                values=(_clamp_unit(len(self._online_fast_adapter_deltas) * self._hidden_size / 512.0),),
+                source="transformers-open-weight-semantic",
+            ),
+            FeatureSignal(
+                name="substrate_online_fast_parameter_change_rate",
+                values=(_clamp_unit(self._online_fast_parameter_change_rate),),
+                source="transformers-open-weight-semantic",
+            ),
         )
 
     def _capture_with_hooks(
@@ -2104,11 +2292,101 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
 
+    def export_online_fast_state(
+        self,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> SubstrateOnlineFastCheckpoint:
+        adapter_layers = self._export_online_fast_layers()
+        return SubstrateOnlineFastCheckpoint(
+            checkpoint_id=checkpoint_id or f"{self.model_id}:online-fast",
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            delta_scale=self._online_fast_delta_scale,
+            update_count=self._online_fast_update_count,
+            source_wave_id="runtime",
+            source_turn_index=self._online_fast_update_count,
+            gate="online",
+            optimizer_state_norm=self._online_fast_optimizer_state_norm,
+            parameter_change_rate=self._online_fast_parameter_change_rate,
+            description=(
+                f"Transformers online-fast checkpoint for {self.model_id} "
+                f"updates={self._online_fast_update_count}."
+            ),
+            compatibility_fingerprint=_build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._hidden_size,
+                layer_indices=self._layer_indices,
+                training_mode="online-fast-delta-v1",
+            ),
+            adapter_parameter_count=_adapter_parameter_count(adapter_layers),
+            adapter_layers=adapter_layers,
+            fast_state_hash=self._online_fast_state_hash,
+            source_fast_state_hash=self._online_fast_source_state_hash,
+            fast_memory_signal=self._online_fast_signal,
+            optimizer_state_description=self._online_fast_optimizer_state_description,
+        )
+
+    def apply_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        if checkpoint.model_id != self.model_id:
+            raise ValueError(
+                f"Transformers runtime {self.model_id!r} cannot import online-fast checkpoint for "
+                f"{checkpoint.model_id!r}."
+            )
+        if checkpoint.compatibility_fingerprint:
+            expected = _build_compatibility_fingerprint(
+                model_id=self.model_id,
+                runtime_origin=self.runtime_origin,
+                hidden_size=self._hidden_size,
+                layer_indices=self._layer_indices,
+                training_mode=checkpoint.training_mode,
+            )
+            if checkpoint.compatibility_fingerprint != expected:
+                raise ValueError(
+                    f"Online-fast checkpoint fingerprint {checkpoint.compatibility_fingerprint!r} "
+                    f"does not match runtime {expected!r}."
+                )
+        self._online_fast_delta_scale = max(0.0, min(0.18, checkpoint.delta_scale))
+        self._online_fast_update_count = max(0, checkpoint.update_count)
+        self._online_fast_optimizer_state_norm = _clamp_unit(checkpoint.optimizer_state_norm)
+        self._online_fast_parameter_change_rate = _clamp_unit(checkpoint.parameter_change_rate)
+        self._online_fast_state_hash = checkpoint.fast_state_hash
+        self._online_fast_source_state_hash = checkpoint.source_fast_state_hash
+        self._online_fast_signal = checkpoint.fast_memory_signal
+        self._online_fast_optimizer_state_description = checkpoint.optimizer_state_description
+        self._online_fast_adapter_deltas = {
+            layer.layer_index: self._torch.tensor(
+                _clamp_delta_vector(
+                    (
+                        layer.delta_vector[: self._hidden_size]
+                        + tuple(0.0 for _ in range(max(self._hidden_size - len(layer.delta_vector), 0)))
+                    ),
+                    limit=0.12,
+                ),
+                dtype=self._torch.float32,
+                device=self._device,
+            )
+            for layer in checkpoint.adapter_layers
+        }
+        return ("online-fast:substrate-import",)
+
+    def restore_online_fast_state(self, checkpoint: SubstrateOnlineFastCheckpoint) -> tuple[str, ...]:
+        self.apply_online_fast_state(checkpoint)
+        return ("online-fast:substrate-rollback",)
+
     def _adapter_delta_for_layer(self, *, layer_index: int):
-        delta = self._rare_heavy_adapter_deltas.get(layer_index)
-        if delta is None or self._rare_heavy_adapter_scale <= 0.0:
+        rare_heavy_delta = self._rare_heavy_adapter_deltas.get(layer_index)
+        online_fast_delta = self._online_fast_adapter_deltas.get(layer_index)
+        if rare_heavy_delta is None and online_fast_delta is None:
             return None
-        return delta * self._rare_heavy_adapter_scale
+        combined = None
+        if rare_heavy_delta is not None and self._rare_heavy_adapter_scale > 0.0:
+            combined = rare_heavy_delta * self._rare_heavy_adapter_scale
+        if online_fast_delta is not None and self._online_fast_delta_scale > 0.0:
+            scaled_online_fast = online_fast_delta * self._online_fast_delta_scale
+            combined = scaled_online_fast if combined is None else combined + scaled_online_fast
+        return combined
 
     def _export_adapter_layers(self) -> tuple[SubstrateDeltaAdapterLayer, ...]:
         return tuple(
@@ -2122,6 +2400,20 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 ),
             )
             for layer_index, delta in sorted(self._rare_heavy_adapter_deltas.items())
+        )
+
+    def _export_online_fast_layers(self) -> tuple[SubstrateDeltaAdapterLayer, ...]:
+        return tuple(
+            SubstrateDeltaAdapterLayer(
+                layer_index=layer_index,
+                delta_vector=_clamp_delta_vector(delta.detach().cpu().tolist(), limit=0.12),
+                mean_abs_delta=_mean_abs_delta(delta.detach().cpu().tolist()),
+                description=(
+                    f"Transformers online-fast delta for layer {layer_index} "
+                    f"hidden={self._hidden_size}."
+                ),
+            )
+            for layer_index, delta in sorted(self._online_fast_adapter_deltas.items())
         )
 
     def _make_capture_hook(

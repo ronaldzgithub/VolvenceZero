@@ -1,7 +1,7 @@
 # 评估体系 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-22
 > 对应需求: R12
 
 ## 要解决的问题
@@ -81,6 +81,7 @@
 
 - turn 级 `evaluation` snapshot 现已直接消费 `substrate` owner 发布的 semantic feature signals，并与 `memory` / `dual_track` 结合计算 `task_pressure`、`support_presence`、`warmth`
 - 当前已新增 owner-side metacontroller evidence ingest：`EvaluationBackbone` 可直接记录最小 F4/F5 指标，包括 `adaptive_stability`、`posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`、`abstract_action_usefulness`、`temporal_action_commitment`，以及 family-level metrics（`action_family_reuse`、`action_family_stability`、`action_family_diversity`、`action_family_competition_score`、`action_family_monopoly_pressure`、`action_family_turnover_health`、`action_family_collapse_risk`）
+- 当前 `temporal_action_commitment` 已不再主要依赖 public snapshot 的几何代理（code energy + named action bonus）；evaluation enrichment 会优先结合 metacontroller runtime state 的 family/version/competition/switch evidence，使 F5 更接近 owner-side latent control 证据
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress`、`rollback_resilience`、`delayed_regime_alignment`、`delayed_action_alignment`、`regime_sequence_payoff`、`delayed_credit_horizon`、`rolling_action_payoff`、`residual_env_fidelity` 作为 learning/abstraction evidence 追加进 `evaluation` snapshot，不改变公共 shape
 - 当前 `contract_integrity`、`fallback_reliance`、rollback 事件、delayed attribution outcome 已成为 first-class evaluation evidence，而不只是日志背景
 - 当前 session report 已补充 longitudinal trends：`relationship_continuity`、`learning_quality`、`abstraction_reuse`
@@ -88,14 +89,25 @@
 - 当前 `EvaluationBackbone` 已提供 default evolution benchmark 与 `judge_evolution_candidate()`，把 replay suite + session trend 显式映射到 `promote / hold / rollback`
 - 当前 `evaluation` 已会对 family monopoly/collapse 输出显式 alert，并把这类 abstraction 竞争风险返回给 reflection / judge / rollout gate 使用
 - 当前 `volvence_zero.agent.dialogue_benchmark` 已新增 fixed scripted dialogue proof harness：它不改变 `evaluation` snapshot schema，而是按 case 聚合 `prediction_error`、`joint_schedule_action`、`abstract_action`、`regime`、`switch_gate` 与 F4/F5/F2 相关 metrics，用于判断 PE 是否真的驱动 temporal abstraction 与后段改善
-- 当前 dialogue proof harness 还支持 A/B baseline（`pe-eta` / `eta-no-pe` / `heuristic-baseline`），并基于 case-level summary metrics 输出相对 delta report；其中 `eta-no-pe` 已改为严格 baseline，不再因为普通 interval update 获得 PE-trigger credit
+- 当前 dialogue proof harness 默认已从弱 A/B baseline 切到更接近论文风格的正交 profile matrix（`pe-eta` / `pe-drive-off` / `eta-off` / `timescale-off`），并继续保留 `pe-eta-no-rare-heavy` 作为 rare-heavy 对照面
+- 当前 stronger proof config 还会把 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`、`pe-eta-pe-readout-only` 纳入同一张 proof matrix，用于把 scaffold removal 与 PE readout-only 变成 first-class comparison，而不是只在单独 debug run 里观察
+- 当前 `eta-off` baseline 的口径已进一步收紧为“保留最小 temporal controller capacity，但关闭 ETA-style learned/full temporal path、joint learning 与 PE drive”，不再把“没有 ETA”直接等同于 placeholder/no-temporal-control
+- 当前 benchmark 还支持显式 scaffold-ablation controls（如 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）：它们不改变默认 profile matrix，而是用于单独回答“latent family / PE schedule 是否在去掉一层 heuristic scaffold 后仍能站住”
+- 当前 benchmark 也支持 `pe-eta-pe-readout-only`：保留 `prediction_error` slot 与 evaluation-side PE readout，但关闭 PE 对 schedule 与 RL reward 的 primary dominance，用于回答“当前改善主要由 latent mechanism 还是 PE 主导在撑”
+- 当前评估层还可对 `pe-eta`、`pe-drive-off`、`pe-eta-pe-readout-only` 生成专门的 PE-dominance comparison report，把 `prediction_chain_turn_count`、`pe_triggered_turn_count`、`pressure_response_precision`、`stability_after_recovery_score` 与 `delayed_improvement_observed` 压成 mechanism-retention / schedule-gap / reward-gap 读数
+- 当前评估层还可继续下钻成 case-level diagnosis report：对每个 scripted case 同时比较 `pe-drive-off` 与 `pe-readout-only` 相对 baseline 的掉幅，并给出 `schedule-driven` / `reward-driven` / `latent-fragility-driven` 的 failure mode 解释
 - 当前 dialogue proof harness 还支持更细的定量 response 指标：`recovery_lag_turns` 与 `pressure_localization_score`，用于衡量系统是否更早、更准确地把 temporal response 放在 pressure window 附近
 - 当前 dialogue proof harness 还进一步记录 `pressure_response_precision`、`pressure_response_recall`、`over_response_cost`、`stability_after_recovery_score`，用于衡量 response 的精确度、覆盖度、额外成本和恢复后的稳定性
-- 当前 dialogue proof harness 已接入固定 perturbation / replay variants（如 `wording_shift`、`pressure_shift_late`），可在改写措辞和压力位置平移后继续比较 `pe-eta`、`eta-no-pe` 与 `heuristic-baseline`
+- 当前 dialogue proof harness 已接入固定 perturbation / replay variants（如 `wording_shift`、`pressure_shift_late`），可在改写措辞和压力位置平移后继续比较 `pe-eta` 与各个 matched control
 - 当前 dialogue proof harness 还支持 paraphrase families、seed 驱动的 stochastic variants、replay ranking 和 top-k replay selection artifact，可把最有诊断性的 variants 继续输送给后续 artifact acceptance / replay selection 流程
 - 当前 dialogue proof harness 还支持 rare-heavy artifact acceptance / reject gate + rollback policy：selection artifact 可驱动 rare-heavy 训练与 import，然后用 selected variants 做 pre/post acceptance benchmark，并在 mixed-gain 条件下自动 reject + rollback
-- 当前 evaluation 层还新增独立的 ETA internal-RL strong-proof 工件：它与 dialogue PE harness 分离，专门验证 hierarchical sparse-reward success、abstract-action reuse、held-out composition 与 delayed credit alignment；该工件同样只消费 runtime/evaluation evidence，不新增 runtime slot
+- 当前 dialogue benchmark 还新增第一阶段 open-environment extrapolation surface：通过 deterministic、stateful 的用户模拟器生成下一轮 `user_input`，但仍复用 `AgentSessionRunner.run_turn(...)` 与 `dialogue_turn_from_result(...)` 主路径；该层产出独立 `OpenDialogueCaseReport` / `OpenDialogueBenchmarkReport`，刻意不复用 scripted `expected_pressure_turns` 指标
+- 当前 open-environment extrapolation 还已进入 comprehensive/staged benchmark 主链：real comprehensive runner 会把 `open_environment` 作为独立 stage 跑完并写入 manifest / final summary，因此 open evidence 不再只是 repo 外围的 standalone widening helper
+- 当前 comprehensive benchmark 还会发布一个独立的 `emergence dashboard` artifact：它把 strong-proof panels、open-environment panels、PE-dominance report、case diagnosis、以及 strongest retained path 压成更易读的 summary surface，避免消费者只能自己遍历 case/path report 才看出当前最强证据
+- 当前 `emergence dashboard` 还支持稳定导出：评估层会提供 JSON payload builder 与 artifact writer，脚本侧也有独立导出入口，方便把同一份 summary 交给 CI、人工 review、候选比较或 rollout 审核系统，而不是只存在于 Python dataclass 内存里
+- 当前 evaluation 层还新增独立的 ETA internal-RL strong-proof 工件：它与 dialogue PE harness 分离，专门验证 hierarchical sparse-reward success、abstract-action reuse、held-out composition、delayed credit alignment 和 policy-update evidence；该工件同样只消费 runtime/evaluation evidence，不新增 runtime slot
 - 当前 ETA strong-proof acceptance 也与 NL essence acceptance 显式分离：前者回答“internal RL 是否在抽象动作层形成论文式强证据”，后者回答“系统是否默认呈现 NL/多时间尺度设计本质”
+- 当前 ETA strong-proof acceptance 的 gate 也已收紧：每个 gate 都会发布自己的 best competing control 与 raw mechanism metrics，因此默认 acceptance 更偏 fail-closed；“默认不通过”现在应被理解为机制识别门槛提高，而不是 proof harness 回退
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 
 ### Dialogue Proof Harness 边界
@@ -107,11 +119,17 @@
 - 它可以作为 widening / rollout 的证据输入
 - 它**不**改变 `EvaluationSnapshot` 公共结构，也不成为新的学习 owner
 
+当前 open-environment dialogue benchmark 同样是评估体系的**内部 widening 证据工件**：
+
+- 它通过 deterministic user simulator 生成更开放的 episode，但 episode 仍只经由 `run_turn(user_input)` 进入主运行时
+- 它产出 open-scenario / episode report，重点检查 open episode 中的 PE 暴露、schedule coupling、多时间尺度证据与后段稳定化
+- 它**不**改变 `EvaluationSnapshot` 公共结构，也不把 user simulator 提升为新的 runtime owner
+
 同理，ETA internal-RL strong-proof benchmark 也是评估体系的内部证明工件：
 
 - 它读取 `internal_rl` rollout、metacontroller family telemetry 与 delayed credit assignment
 - 它产出 case/profile/acceptance report
-- 它验证的是 paper-like hierarchical sparse-reward 命题，而不是普通 turn-level PE 响应
+- 它验证的是 paper-like hierarchical sparse-reward 命题，而不是普通 turn-level PE 响应；当前 acceptance 已把 primary outcomes（held-out success / reuse / credit alignment）与 composite readout（strong success score）显式分离
 - 它**不**改变 `EvaluationSnapshot` 公共结构，也不成为新的学习 owner
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
@@ -130,6 +148,11 @@
 
 ## 变更日志
 
+- 2026-04-22: 补充 case-level PE dominance diagnosis report，用于定位哪一个 case 在去掉 PE 主导后最先塌以及塌在哪一层
+- 2026-04-22: 补充 PE-dominance comparison report，用于集中比较 `pe-eta` / `pe-drive-off` / `pe-eta-pe-readout-only` 三条路径的机制保留度
+- 2026-04-22: 补充 `pe-eta-pe-readout-only` profile，明确区分“PE 可见”与“PE 主导”两层 benchmark 命题
+- 2026-04-22: 补充 scaffold-ablation proof profiles（`pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）作为 evaluation 内部 matched controls，用于检验 latent family 与 PE schedule 的去扶手稳健性
+- 2026-04-22: 补充 `temporal_action_commitment` 现以 metacontroller family/state evidence 为主；`eta-off` baseline 口径收紧为 matched control 而非 placeholder/no-control
 - 2026-04-20: 接口契约补充 final-wiring evaluation enrichment 与 dialogue proof harness 边界；advanced response metrics 与 perturbation benchmark 明确为 evaluation 内部证明工件，不改变 `EvaluationSnapshot` 公共结构
 - 2026-04-09: next_gen_emogpt v2: evaluation repositioned as readout of prediction error (R-PE), not the source of learning; acceptance questions now test for explicit prediction error exposure, dual-track error trajectories, and latent control
 - 2026-04-20: 新增 dialogue proof harness：`run_dialogue_pe_eta_benchmark()` 基于 scripted multi-turn dialogue cases 聚合 PE trajectory、temporal trajectory 与 delayed outcome evidence，形成 case-level proof verdict，不改变 `evaluation` snapshot 公共结构

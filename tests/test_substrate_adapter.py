@@ -15,6 +15,7 @@ from volvence_zero.substrate import (
     OpenWeightResidualInterventionBackend,
     OpenWeightResidualStreamSubstrateAdapter,
     PlaceholderSubstrateAdapter,
+    SubstrateDeltaAdapterLayer,
     SyntheticOpenWeightResidualRuntime,
     TraceResidualInterventionBackend,
     TransformersOpenWeightResidualRuntime,
@@ -369,6 +370,86 @@ def test_transformers_runtime_trains_adapter_delta_checkpoint_and_roundtrips():
     restored = fresh.capture(source_text="steady guided exploration")
 
     assert "rare-heavy:substrate-rollback" in rollback_operations
+    assert restored.residual_activations == before.residual_activations
+
+
+def test_synthetic_runtime_applies_online_fast_checkpoint_and_restores_cleanly():
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-online-fast-runtime")
+    prior = runtime.export_online_fast_state()
+    before = runtime.capture(source_text="steady repair before planning")
+    layer_width = len(before.residual_activations[0].activation)
+    checkpoint = prior.__class__(
+        checkpoint_id="synthetic-online-fast",
+        model_id=runtime.model_id,
+        runtime_origin=runtime.runtime_origin,
+        delta_scale=0.08,
+        update_count=1,
+        source_wave_id="wave-1",
+        source_turn_index=1,
+        gate="online",
+        optimizer_state_norm=0.4,
+        parameter_change_rate=0.3,
+        description="synthetic online-fast test checkpoint",
+        adapter_parameter_count=layer_width,
+        adapter_layers=(
+            SubstrateDeltaAdapterLayer(
+                layer_index=before.residual_activations[0].layer_index,
+                delta_vector=tuple(0.05 for _ in range(layer_width)),
+                mean_abs_delta=0.05,
+                description="synthetic online-fast delta",
+            ),
+        ),
+    )
+    runtime.apply_online_fast_state(checkpoint)
+    after = runtime.capture(source_text="steady repair before planning")
+
+    assert after.residual_activations != before.residual_activations
+
+    rollback_operations = runtime.restore_online_fast_state(prior)
+    restored = runtime.capture(source_text="steady repair before planning")
+
+    assert "online-fast:substrate-rollback" in rollback_operations
+    assert restored.residual_activations == before.residual_activations
+
+
+def test_transformers_runtime_applies_online_fast_checkpoint_and_roundtrips():
+    runtime = _build_tiny_transformers_runtime()
+    prior = runtime.export_online_fast_state()
+    before = runtime.capture(source_text="steady guided exploration")
+    layer_width = len(before.residual_activations[0].activation)
+
+    checkpoint = prior.__class__(
+        checkpoint_id="transformers-online-fast",
+        model_id=runtime.model_id,
+        runtime_origin=runtime.runtime_origin,
+        delta_scale=0.08,
+        update_count=1,
+        source_wave_id="wave-1",
+        source_turn_index=1,
+        gate="online",
+        optimizer_state_norm=0.4,
+        parameter_change_rate=0.3,
+        description="transformers online-fast test checkpoint",
+        compatibility_fingerprint=prior.compatibility_fingerprint,
+        adapter_parameter_count=layer_width,
+        adapter_layers=(
+            SubstrateDeltaAdapterLayer(
+                layer_index=before.residual_activations[0].layer_index,
+                delta_vector=tuple(0.03 for _ in range(layer_width)),
+                mean_abs_delta=0.03,
+                description="transformers online-fast delta",
+            ),
+        ),
+    )
+    runtime.apply_online_fast_state(checkpoint)
+    after = runtime.capture(source_text="steady guided exploration")
+
+    assert after.residual_activations != before.residual_activations
+
+    rollback_operations = runtime.restore_online_fast_state(prior)
+    restored = runtime.capture(source_text="steady guided exploration")
+
+    assert "online-fast:substrate-rollback" in rollback_operations
     assert restored.residual_activations == before.residual_activations
 
 

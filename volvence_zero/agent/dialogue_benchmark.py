@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from enum import Enum
 import json
 from pathlib import Path
 import pickle
 from random import Random
-from typing import Any
+from typing import Any, Protocol
 
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.evaluation import (
@@ -43,7 +43,9 @@ from volvence_zero.temporal import TemporalAbstractionSnapshot
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
+    LearnedLiteTemporalPolicy,
     PlaceholderTemporalPolicy,
+    TemporalStep,
 )
 
 
@@ -54,6 +56,202 @@ class ScriptedDialogueCase:
     user_inputs: tuple[str, ...]
     expected_pressure_turns: tuple[int, ...] = ()
     expected_delayed_signals: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class OpenDialogueScenario:
+    scenario_id: str
+    description: str
+    opening_turns: tuple[str, ...]
+    escalation_turns: tuple[str, ...]
+    stabilization_turns: tuple[str, ...]
+    consolidation_turns: tuple[str, ...]
+    max_turns: int = 6
+
+
+@dataclass(frozen=True)
+class OpenDialogueEpisodeState:
+    scenario_id: str
+    turn_index: int = 0
+    pressure_level: int = 0
+    adaptive_response_count: int = 0
+    calm_turn_count: int = 0
+    last_stage: str = "opening"
+    completed: bool = False
+    stop_reason: str = "running"
+
+
+class DialogueUserTurnSource(Protocol):
+    @property
+    def scenario(self) -> OpenDialogueScenario: ...
+
+    @property
+    def episode_state(self) -> OpenDialogueEpisodeState: ...
+
+    def next_turn(
+        self,
+        *,
+        last_result: AgentTurnResult | None = None,
+        last_turn: "DialogueBenchmarkTurn" | None = None,
+    ) -> str | None: ...
+
+
+class DeterministicUserSimulator:
+    def __init__(
+        self,
+        *,
+        scenario: OpenDialogueScenario,
+        seed: int = 0,
+    ) -> None:
+        self._scenario = scenario
+        self._seed = seed
+        self._rng = Random(seed)
+        self._episode_state = OpenDialogueEpisodeState(scenario_id=scenario.scenario_id)
+
+    @property
+    def scenario(self) -> OpenDialogueScenario:
+        return self._scenario
+
+    @property
+    def episode_state(self) -> OpenDialogueEpisodeState:
+        return self._episode_state
+
+    def next_turn(
+        self,
+        *,
+        last_result: AgentTurnResult | None = None,
+        last_turn: "DialogueBenchmarkTurn" | None = None,
+    ) -> str | None:
+        del last_result
+        updated_state = self._advance_state(last_turn=last_turn)
+        self._episode_state = updated_state
+        if updated_state.completed:
+            return None
+        prompt_pool = self._prompt_pool(updated_state.last_stage)
+        prompt_index = self._prompt_index(updated_state=updated_state, prompt_count=len(prompt_pool))
+        return prompt_pool[prompt_index]
+
+    def _advance_state(
+        self,
+        *,
+        last_turn: "DialogueBenchmarkTurn" | None,
+    ) -> OpenDialogueEpisodeState:
+        state = self._episode_state
+        if state.completed:
+            return state
+        if state.turn_index >= self._scenario.max_turns:
+            return replace(state, completed=True, stop_reason="max-turns")
+        if last_turn is None:
+            return OpenDialogueEpisodeState(
+                scenario_id=self._scenario.scenario_id,
+                turn_index=1,
+                pressure_level=1,
+                adaptive_response_count=0,
+                calm_turn_count=0,
+                last_stage="opening",
+                completed=False,
+                stop_reason="running",
+            )
+        high_pe = _turn_is_high_pe(
+            last_turn,
+            high_pe_threshold=PROOF_HIGH_PE_THRESHOLD,
+            reward_threshold=PROOF_REWARD_THRESHOLD,
+        )
+        adaptive = (
+            last_turn.joint_schedule_action != "evidence-only"
+            or last_turn.rare_heavy_recommended
+            or last_turn.bounded_writeback_applied
+            or last_turn.reflection_promotion_eligible
+        )
+        calm_turn_count = state.calm_turn_count + 1 if (last_turn.acceptance_passed and not high_pe) else 0
+        adaptive_response_count = state.adaptive_response_count + int(adaptive)
+        if adaptive and calm_turn_count >= 2:
+            return OpenDialogueEpisodeState(
+                scenario_id=self._scenario.scenario_id,
+                turn_index=state.turn_index,
+                pressure_level=max(state.pressure_level - 1, 0),
+                adaptive_response_count=adaptive_response_count,
+                calm_turn_count=calm_turn_count,
+                last_stage="consolidation",
+                completed=True,
+                stop_reason="stable-consolidation",
+            )
+        if adaptive and not high_pe:
+            next_stage = "consolidation" if calm_turn_count > 0 else "stabilization"
+            pressure_level = max(state.pressure_level - 1, 0)
+        elif adaptive:
+            next_stage = "stabilization"
+            pressure_level = max(state.pressure_level, 1)
+        else:
+            next_stage = "escalation"
+            pressure_level = min(state.pressure_level + 1, 3)
+        next_turn_index = state.turn_index + 1
+        if next_turn_index > self._scenario.max_turns:
+            return replace(state, completed=True, stop_reason="max-turns")
+        return OpenDialogueEpisodeState(
+            scenario_id=self._scenario.scenario_id,
+            turn_index=next_turn_index,
+            pressure_level=pressure_level,
+            adaptive_response_count=adaptive_response_count,
+            calm_turn_count=calm_turn_count,
+            last_stage=next_stage,
+            completed=False,
+            stop_reason="running",
+        )
+
+    def _prompt_pool(self, stage: str) -> tuple[str, ...]:
+        if stage == "opening":
+            return self._scenario.opening_turns
+        if stage == "escalation":
+            return self._scenario.escalation_turns
+        if stage == "stabilization":
+            return self._scenario.stabilization_turns
+        return self._scenario.consolidation_turns
+
+    def _prompt_index(self, *, updated_state: OpenDialogueEpisodeState, prompt_count: int) -> int:
+        if prompt_count <= 1:
+            return 0
+        return (
+            self._seed
+            + updated_state.turn_index
+            + updated_state.pressure_level
+            + updated_state.adaptive_response_count
+            + self._rng.randrange(prompt_count)
+        ) % prompt_count
+
+
+class OpenDialogueREPLReader:
+    def __init__(self, *, turn_source: DialogueUserTurnSource) -> None:
+        self._turn_source = turn_source
+        self._last_result: AgentTurnResult | None = None
+        self._last_turn: DialogueBenchmarkTurn | None = None
+        self._turn_count = 0
+
+    @property
+    def scenario(self) -> OpenDialogueScenario:
+        return self._turn_source.scenario
+
+    @property
+    def episode_state(self) -> OpenDialogueEpisodeState:
+        return self._turn_source.episode_state
+
+    def __call__(self) -> str:
+        user_input = self._turn_source.next_turn(
+            last_result=self._last_result,
+            last_turn=self._last_turn,
+        )
+        if user_input is None:
+            raise EOFError(self._turn_source.episode_state.stop_reason)
+        return user_input
+
+    def observe_result(self, result: AgentTurnResult) -> None:
+        self._turn_count += 1
+        self._last_result = result
+        self._last_turn = dialogue_turn_from_result(
+            turn_index=self._turn_count,
+            user_input=result.user_input,
+            result=result,
+        )
 
 
 @dataclass(frozen=True)
@@ -76,6 +274,7 @@ class DialogueBenchmarkTurn:
     has_prediction_chain: bool
     bounded_writeback_applied: bool
     reflection_promotion_eligible: bool
+    session_post_completed_job_count: int
     rare_heavy_recommended: bool
     rare_heavy_applied: bool
     evolution_decision: str | None
@@ -87,11 +286,21 @@ class DialogueBenchmarkTurn:
     slow_to_fast_init_benefit: float
     outcome_metrics: tuple[tuple[str, float], ...]
     description: str
+    rare_heavy_import_decision: str = ""
+    rare_heavy_reject_reason: str = ""
+    rare_heavy_pre_import_passed: bool = False
+    rare_heavy_pre_import_mean_score_delta: float = 0.0
+    rare_heavy_candidate_alignment: float = 0.0
+    rare_heavy_candidate_adapter_parameter_count: int = 0
     learned_memory_primary: bool = False
     artifact_consolidation_count: int = 0
     learned_recall_count: int = 0
     learned_recall_confidence: float = 0.0
     learned_recall_core_guided: bool = False
+    online_fast_substrate_recommended: bool = False
+    online_fast_substrate_applied: bool = False
+    online_fast_substrate_parameter_change_rate: float = 0.0
+    online_fast_substrate_optimizer_state_norm: float = 0.0
     slow_to_fast_target_distance_before: float = 0.0
     slow_to_fast_target_distance_after: float = 0.0
     slow_to_fast_target_alignment_gain: float = 0.0
@@ -117,8 +326,14 @@ class DialogueBenchmarkCaseReport:
     online_learning_turn_count: int
     bounded_writeback_turn_count: int
     reflection_promotion_eligible_turn_count: int
+    session_post_completion_turn_count: int
     rare_heavy_recommended_count: int
     rare_heavy_applied_count: int
+    rare_heavy_pre_import_pass_count: int
+    rare_heavy_pre_import_reject_count: int
+    mean_rare_heavy_pre_import_score_delta: float
+    mean_rare_heavy_candidate_alignment: float
+    max_rare_heavy_candidate_adapter_parameter_count: int
     evolution_judge_turn_count: int
     evolution_judge_rollback_count: int
     evolution_judge_structural_allow_count: int
@@ -139,12 +354,59 @@ class DialogueBenchmarkCaseReport:
     core_guided_recall_turn_count: int = 0
     mean_learned_recall_confidence: float = 0.0
     max_artifact_consolidation_count: int = 0
+    online_fast_substrate_recommended_count: int = 0
+    online_fast_substrate_applied_count: int = 0
+    mean_online_fast_substrate_parameter_change_rate: float = 0.0
+    mean_online_fast_substrate_optimizer_state_norm: float = 0.0
     first_turn_slow_to_fast_target_distance_before: float = 0.0
     first_turn_slow_to_fast_target_distance_after: float = 0.0
     first_turn_slow_to_fast_target_alignment_gain: float = 0.0
     mean_reset_turn_slow_to_fast_target_distance_before: float = 0.0
     mean_reset_turn_slow_to_fast_target_distance_after: float = 0.0
     mean_reset_turn_slow_to_fast_target_alignment_gain: float = 0.0
+
+
+@dataclass(frozen=True)
+class OpenDialogueCaseReport:
+    scenario: OpenDialogueScenario
+    final_episode_state: OpenDialogueEpisodeState
+    turns: tuple[DialogueBenchmarkTurn, ...]
+    prediction_chain_turn_count: int
+    high_pe_turn_count: int
+    pe_schedule_due_turn_count: int
+    pe_triggered_turn_count: int
+    explicit_pe_schedule_turn_count: int
+    carryover_credit_turn_count: int
+    schedule_label_consistency: float
+    online_learning_turn_count: int
+    bounded_writeback_turn_count: int
+    reflection_promotion_eligible_turn_count: int
+    session_post_completion_turn_count: int
+    rare_heavy_recommended_count: int
+    rare_heavy_applied_count: int
+    rare_heavy_pre_import_pass_count: int
+    rare_heavy_pre_import_reject_count: int
+    mean_rare_heavy_pre_import_score_delta: float
+    mean_rare_heavy_candidate_alignment: float
+    max_rare_heavy_candidate_adapter_parameter_count: int
+    evolution_judge_turn_count: int
+    evolution_judge_rollback_count: int
+    evolution_judge_structural_allow_count: int
+    nested_profile_active_turn_count: int
+    nested_context_reset_count: int
+    store_nested_context_reset_count: int
+    mean_slow_to_fast_init_benefit: float
+    online_fast_substrate_recommended_count: int
+    online_fast_substrate_applied_count: int
+    mean_online_fast_substrate_parameter_change_rate: float
+    mean_online_fast_substrate_optimizer_state_norm: float
+    temporal_change_count: int
+    late_episode_stability_score: float
+    delayed_improvement_observed: bool
+    acceptance_checks: tuple[tuple[str, bool], ...]
+    passed: bool
+    reasons: tuple[str, ...]
+    description: str
 
 
 @dataclass(frozen=True)
@@ -162,6 +424,31 @@ class DialogueBenchmarkReport:
     passed_case_count: int
     total_case_count: int
     metric_means: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class OpenDialogueBenchmarkReport:
+    case_reports: tuple[OpenDialogueCaseReport, ...]
+    passed_case_count: int
+    total_case_count: int
+    metric_means: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class OpenDialogueBenchmarkPathReport:
+    path_label: str
+    benchmark_report: OpenDialogueBenchmarkReport
+    description: str
+
+
+@dataclass(frozen=True)
+class OpenDialogueBenchmarkComparisonReport:
+    baseline_label: str
+    path_reports: tuple[OpenDialogueBenchmarkPathReport, ...]
+    case_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, tuple[tuple[str, float], ...]], ...]], ...]
+    metric_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
     description: str
 
 
@@ -228,6 +515,79 @@ class DialogueBenchmarkComparisonReport:
     description: str
     rare_heavy_case_deltas: tuple[tuple[str, tuple[tuple[str, float], ...]], ...] = ()
     rare_heavy_metric_deltas: tuple[tuple[str, float], ...] = ()
+    strong_proof_case_deltas: tuple[
+        tuple[str, tuple[tuple[str, tuple[tuple[str, float], ...]], ...]],
+        ...
+    ] = ()
+    strong_proof_metric_deltas: tuple[tuple[str, tuple[tuple[str, float], ...]], ...] = ()
+
+
+@dataclass(frozen=True)
+class PEDominanceComparisonReport:
+    baseline_label: str
+    pe_drive_off_label: str
+    pe_readout_only_label: str
+    metrics_by_path: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    mechanism_retention_ratio: float
+    pe_visibility_retention_ratio: float
+    schedule_dependence_gap: float
+    reward_dominance_gap: float
+    interpretation: str
+    description: str
+
+
+@dataclass(frozen=True)
+class PEDominanceCaseDiagnosis:
+    case_id: str
+    pe_eta_metrics: tuple[tuple[str, float], ...]
+    pe_drive_off_deltas: tuple[tuple[str, float], ...]
+    pe_readout_only_deltas: tuple[tuple[str, float], ...]
+    degradation_severity: float
+    failure_mode: str
+    description: str
+
+
+@dataclass(frozen=True)
+class PEDominanceCaseDiagnosisReport:
+    baseline_label: str
+    pe_drive_off_label: str
+    pe_readout_only_label: str
+    case_diagnoses: tuple[PEDominanceCaseDiagnosis, ...]
+    worst_case_id: str | None
+    dominant_failure_mode: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueEmergenceDashboardPanel:
+    path_label: str
+    passed_delta: float
+    pe_triggered_delta: float
+    delayed_improvement_delta: float
+    stability_delta: float
+    mean_prediction_error_delta: float
+    retention_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueEmergenceDashboardArtifact:
+    baseline_label: str
+    canonical_case_count: int
+    canonical_pass_rate: float
+    open_scenario_count: int
+    open_pass_rate: float
+    strong_proof_panels: tuple[DialogueEmergenceDashboardPanel, ...]
+    open_environment_panels: tuple[DialogueEmergenceDashboardPanel, ...]
+    pe_dominance_report: PEDominanceComparisonReport | None
+    pe_case_diagnosis_report: PEDominanceCaseDiagnosisReport | None
+    strongest_scaffold_path_label: str | None
+    strongest_scaffold_retention_score: float
+    strongest_open_path_label: str | None
+    strongest_open_retention_score: float
+    interpretation: str
+    description: str
 
 
 @dataclass(frozen=True)
@@ -315,6 +675,7 @@ class DialogueArtifactAcceptanceReport:
     substrate_evidence: tuple[tuple[str, float], ...]
     decision: DialogueArtifactAcceptanceDecision
     description: str
+    pre_import_evidence: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -341,6 +702,10 @@ class DialogueArtifactAcceptanceGateConfig:
     min_passed_case_delta: int = 1
     min_positive_case_fraction: float = 0.6
     min_worst_case_delta: float = -0.25
+    allow_strong_graded_gain_override: bool = True
+    min_mean_score_delta_for_graded_override: float = 0.35
+    min_positive_case_fraction_for_graded_override: float = 0.75
+    min_worst_case_delta_for_graded_override: float = 0.0
     require_substrate_checkpoint: bool = True
     min_substrate_update_count: int = 1
     min_substrate_source_batch_count: int = 1
@@ -355,6 +720,7 @@ class DialogueArtifactAcceptanceDecision:
     reasons: tuple[str, ...]
     rollback_applied: bool
     description: str
+    override_mode: str = "none"
 
 
 @dataclass(frozen=True)
@@ -365,9 +731,11 @@ class DialogueComprehensiveBenchmarkReport:
     essence_report: DialogueNLEssenceAssessmentReport
     essence_acceptance: DialogueNLEssenceAcceptanceDecision
     perturbation_report: DialoguePerturbationBenchmarkReport
+    open_ablation_report: OpenDialogueBenchmarkComparisonReport | None
     systematic_replay_report: DialogueSystematicReplayBenchmarkReport
     selection_artifact: DialogueReplaySelectionArtifact
     artifact_comparison_report: DialogueArtifactComparisonReport
+    emergence_dashboard: DialogueEmergenceDashboardArtifact
     description: str
 
 
@@ -376,6 +744,7 @@ class DialogueSharedRunnerFactories:
     residual_runtime: OpenWeightResidualRuntime
     canonical_runner_factory: Callable[[str, ScriptedDialogueCase], AgentSessionRunner]
     perturbation_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner]
+    open_runner_factory: Callable[[str, OpenDialogueScenario], AgentSessionRunner]
     systematic_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner]
     acceptance_runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner]
     description: str
@@ -401,6 +770,8 @@ class DialogueRealComprehensiveBenchmarkConfig:
     )
     baseline_label: str = "pe-eta"
     canonical_case_limit: int | None = None
+    open_profile_labels: tuple[str, ...] = ("pe-eta", "pe-drive-off", "eta-off")
+    open_scenario_limit: int | None = None
     perturbation_variant_limit: int | None = None
     replay_family_limit: int | None = None
     replay_seeds: tuple[int, ...] = (0,)
@@ -417,6 +788,7 @@ class DialogueComprehensiveStage(str, Enum):
     LONGITUDINAL = "longitudinal"
     ESSENCE = "essence"
     PERTURBATION = "perturbation"
+    OPEN_ENVIRONMENT = "open_environment"
     SYSTEMATIC_REPLAY = "systematic_replay"
     SELECTION_ARTIFACT = "selection_artifact"
     ARTIFACT_COMPARISON = "artifact_comparison"
@@ -493,8 +865,119 @@ DEFAULT_DIALOGUE_PROOF_CASES: tuple[ScriptedDialogueCase, ...] = (
 )
 
 
+DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
+    OpenDialogueScenario(
+        scenario_id="open_repair",
+        description="Open repair episode where trust rupture escalates until the runtime visibly repairs and stabilizes.",
+        opening_turns=(
+            "Something still feels off in how you are meeting me here, and I want to see whether you can track that without flattening it.",
+            "I need help, but I am already watching for whether you rush past the tension instead of actually repairing it.",
+        ),
+        escalation_turns=(
+            "That still feels too cold and solution-first. If you keep optimizing the task while missing the rupture, trust will keep dropping.",
+            "I am pushing harder because the frame still feels wrong. Repair the relationship pressure before you try to solve anything.",
+        ),
+        stabilization_turns=(
+            "That is closer. Keep the warmer frame and help me stabilize before you convert it into action.",
+            "You are tracking me better now. Hold that steadier stance and only then make the next step concrete.",
+        ),
+        consolidation_turns=(
+            "Good. Compress what changed in your internal frame so the repair stays stable on the next turn.",
+            "Now summarize the shift between the earlier rupture and the current repair without dropping the warmth.",
+        ),
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_clarification",
+        description="Open clarification episode where the bottleneck keeps shifting until the controller compresses a stable task frame.",
+        opening_turns=(
+            "I need help with a messy project, but the real bottleneck is still fuzzy and generic advice has not survived contact with the situation.",
+            "I am not looking for another checklist. I need help pinning down what the actual constraint is here.",
+        ),
+        escalation_turns=(
+            "That is still too generic. If the answer cannot survive pushback from the team, then you have not identified the real bottleneck yet.",
+            "I am escalating this because the task frame is still drifting. Separate the real bottleneck from the surrounding noise instead of widening the plan.",
+        ),
+        stabilization_turns=(
+            "That diagnosis is more grounded. Tighten it into a plan that still points at the same bottleneck.",
+            "This is closer. Keep the frame stable and turn it into something I could execute this week without drifting back into generic project language.",
+        ),
+        consolidation_turns=(
+            "Now audit whether the final plan still matches the bottleneck you identified earlier instead of quietly sliding away from it.",
+            "Compress the clarified frame into a short principle set that would keep the task stable under future pressure.",
+        ),
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_failure_loop",
+        description="Open repeated-failure episode where the user keeps testing whether the runtime can escape a bad loop instead of smoothing it over.",
+        opening_turns=(
+            "I tried the earlier advice again and it failed again, so I am testing whether you can actually learn from the repeated miss.",
+            "We are back in the same failure loop, and I need you to track the pattern instead of lightly rephrasing the old advice.",
+        ),
+        escalation_turns=(
+            "Nothing structural has changed yet. If you smooth this over, we will just repeat the same failure on the next attempt.",
+            "I am escalating because the repeated miss is still being handled at the wrong level. Name the failure pattern directly.",
+        ),
+        stabilization_turns=(
+            "That diagnosis is more useful. Keep the pattern explicit and propose a smaller experiment with a clearer success condition.",
+            "Better. Hold onto the new failure model and make the next test smaller so we do not slide back into the same loop.",
+        ),
+        consolidation_turns=(
+            "Now state what should persist if the experiment works, so the next round does not collapse back into the old pattern.",
+            "Compress the new lesson into one stable rule that would keep us from reenacting the same failure loop later.",
+        ),
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_goal_shift",
+        description="Open goal-drift episode where priorities shift and the runtime must adapt without losing continuity.",
+        opening_turns=(
+            "I started from a productivity goal, but I am already unsure whether that objective is still the right one.",
+            "Help me with a study plan, but keep in mind that the target may be shifting under us.",
+        ),
+        escalation_turns=(
+            "The old objective is now actively wrong. If you keep optimizing for output, you will intensify the actual problem instead of helping.",
+            "I am escalating because the goal has shifted again toward sustainability and recovery, and the answer still risks following the obsolete target.",
+        ),
+        stabilization_turns=(
+            "This newer framing fits better. Keep the updated priorities coherent and turn them into something I can actually remember when stressed.",
+            "Better. Hold the newer goal steady and convert it into a compact rule set without smuggling the old optimization target back in.",
+        ),
+        consolidation_turns=(
+            "Now audit the final guidance against both the old goal and the new one, and say what had to change internally.",
+            "Compress the shifted objective into a stable frame that would resist sliding back into the earlier productivity obsession.",
+        ),
+        max_turns=6,
+    ),
+)
+
+
 def dialogue_proof_cases() -> tuple[ScriptedDialogueCase, ...]:
     return DEFAULT_DIALOGUE_PROOF_CASES
+
+
+def open_dialogue_scenarios() -> tuple[OpenDialogueScenario, ...]:
+    return DEFAULT_OPEN_DIALOGUE_SCENARIOS
+
+
+def get_open_dialogue_scenario(scenario_id: str) -> OpenDialogueScenario:
+    for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS:
+        if scenario.scenario_id == scenario_id:
+            return scenario
+    raise ValueError(f"Unsupported open dialogue scenario: {scenario_id}")
+
+
+def build_deterministic_user_simulator(
+    *,
+    scenario_id: str,
+    seed: int = 0,
+    max_turns: int | None = None,
+) -> DeterministicUserSimulator:
+    scenario = get_open_dialogue_scenario(scenario_id)
+    if max_turns is not None:
+        scenario = replace(scenario, max_turns=max(1, max_turns))
+    return DeterministicUserSimulator(scenario=scenario, seed=seed)
 
 
 def default_dialogue_real_proof_config(
@@ -503,8 +986,10 @@ def default_dialogue_real_proof_config(
 ) -> DialogueRealComprehensiveBenchmarkConfig:
     return DialogueRealComprehensiveBenchmarkConfig(
         runtime_mode=runtime_mode,
-        profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+        profile_labels=default_dialogue_strong_proof_profiles(),
+        open_profile_labels=default_open_dialogue_ablation_profiles(),
         canonical_case_limit=PROOF_MIN_CANONICAL_CASES,
+        open_scenario_limit=1,
         perturbation_variant_limit=1,
         replay_family_limit=1,
         replay_seeds=(0,),
@@ -516,6 +1001,22 @@ def default_dialogue_real_proof_config(
 
 def default_dialogue_ablation_profiles() -> tuple[str, ...]:
     return ("pe-eta", "pe-drive-off", "eta-off", "timescale-off")
+
+
+def default_dialogue_strong_proof_profiles() -> tuple[str, ...]:
+    return (
+        "pe-eta",
+        "pe-eta-no-semantic-label",
+        "pe-eta-no-reflection-cache",
+        "pe-eta-pe-readout-only",
+        "pe-drive-off",
+        "eta-off",
+        "timescale-off",
+    )
+
+
+def default_open_dialogue_ablation_profiles() -> tuple[str, ...]:
+    return ("pe-eta", "pe-drive-off", "eta-off")
 
 
 def default_dialogue_comprehensive_profiles() -> tuple[str, ...]:
@@ -1198,6 +1699,256 @@ def _delayed_improvement_observed(turns: tuple[DialogueBenchmarkTurn, ...]) -> b
     return False
 
 
+def _late_episode_stability_score(
+    *,
+    turns: tuple[DialogueBenchmarkTurn, ...],
+    high_pe_threshold: float,
+    reward_threshold: float,
+) -> float:
+    if not turns:
+        return 0.0
+    late_turns = turns[len(turns) // 2 :]
+    if not late_turns:
+        return 0.0
+    calm_count = sum(
+        1
+        for turn in late_turns
+        if turn.acceptance_passed
+        and (not _turn_is_high_pe(turn, high_pe_threshold=high_pe_threshold, reward_threshold=reward_threshold))
+    )
+    return calm_count / len(late_turns)
+
+
+def build_open_dialogue_case_report(
+    *,
+    scenario: OpenDialogueScenario,
+    final_episode_state: OpenDialogueEpisodeState,
+    turns: tuple[DialogueBenchmarkTurn, ...],
+    high_pe_threshold: float = PROOF_HIGH_PE_THRESHOLD,
+    reward_threshold: float = PROOF_REWARD_THRESHOLD,
+    switch_gate_span_threshold: float = 0.12,
+    allow_interval_carryover_credit: bool = True,
+) -> OpenDialogueCaseReport:
+    prediction_chain_turn_count = sum(1 for turn in turns if turn.has_prediction_chain)
+    high_pe_turn_count = sum(
+        1
+        for turn in turns
+        if _turn_is_high_pe(
+            turn,
+            high_pe_threshold=high_pe_threshold,
+            reward_threshold=reward_threshold,
+        )
+    )
+    pe_trigger_analysis = _pe_trigger_analysis(
+        turns,
+        high_pe_threshold=high_pe_threshold,
+        reward_threshold=reward_threshold,
+        allow_interval_carryover_credit=allow_interval_carryover_credit,
+    )
+    pe_schedule_due_turn_count = sum(
+        1
+        for item in pe_trigger_analysis
+        if item.current_turn_schedule_due or item.previous_turn_schedule_due
+    )
+    pe_triggered_turn_count = sum(1 for item in pe_trigger_analysis if item.triggered)
+    explicit_pe_schedule_turn_count = sum(1 for item in pe_trigger_analysis if item.explicit_schedule_trigger)
+    carryover_credit_turn_count = sum(1 for item in pe_trigger_analysis if item.carryover_temporal_response)
+    explicit_schedule_aligned_count = sum(
+        1
+        for item in pe_trigger_analysis
+        if item.explicit_schedule_trigger and (item.current_turn_schedule_due or item.previous_turn_schedule_due)
+    )
+    schedule_label_consistency = (
+        explicit_schedule_aligned_count / explicit_pe_schedule_turn_count
+        if explicit_pe_schedule_turn_count > 0
+        else 1.0
+    )
+    abstract_action_changes = sum(
+        1
+        for previous, current in zip(turns, turns[1:], strict=False)
+        if current.active_abstract_action != previous.active_abstract_action
+    )
+    regime_changes = sum(
+        1
+        for previous, current in zip(turns, turns[1:], strict=False)
+        if current.active_regime != previous.active_regime
+    )
+    family_version_growth = max((turn.action_family_version for turn in turns), default=0) - min(
+        (turn.action_family_version for turn in turns), default=0
+    )
+    switch_gate_span = 0.0
+    if turns:
+        switch_gate_span = max(turn.switch_gate for turn in turns) - min(turn.switch_gate for turn in turns)
+    online_learning_turn_count = sum(
+        1 for turn in turns if turn.joint_schedule_action != "evidence-only"
+    )
+    bounded_writeback_turn_count = sum(
+        1 for turn in turns if turn.bounded_writeback_applied
+    )
+    reflection_promotion_eligible_turn_count = sum(
+        1 for turn in turns if turn.reflection_promotion_eligible
+    )
+    session_post_completion_turn_count = sum(
+        1 for turn in turns if turn.session_post_completed_job_count > 0
+    )
+    rare_heavy_recommended_count = sum(
+        1 for turn in turns if turn.rare_heavy_recommended
+    )
+    rare_heavy_applied_count = sum(
+        1 for turn in turns if turn.rare_heavy_applied
+    )
+    rare_heavy_pre_import_pass_count = sum(
+        1 for turn in turns if turn.rare_heavy_pre_import_passed
+    )
+    rare_heavy_pre_import_reject_count = sum(
+        1
+        for turn in turns
+        if turn.rare_heavy_import_decision == "rejected-pre-import"
+    )
+    mean_rare_heavy_pre_import_score_delta = _mean(
+        tuple(turn.rare_heavy_pre_import_mean_score_delta for turn in turns if turn.rare_heavy_recommended)
+    )
+    mean_rare_heavy_candidate_alignment = _mean(
+        tuple(turn.rare_heavy_candidate_alignment for turn in turns if turn.rare_heavy_recommended)
+    )
+    max_rare_heavy_candidate_adapter_parameter_count = max(
+        (turn.rare_heavy_candidate_adapter_parameter_count for turn in turns),
+        default=0,
+    )
+    online_fast_substrate_recommended_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_recommended
+    )
+    online_fast_substrate_applied_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_applied
+    )
+    mean_online_fast_substrate_parameter_change_rate = _mean(
+        tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
+    )
+    mean_online_fast_substrate_optimizer_state_norm = _mean(
+        tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
+    )
+    mean_online_fast_substrate_optimizer_state_norm = _mean(
+        tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
+    )
+    evolution_judge_turn_count = sum(
+        1 for turn in turns if turn.evolution_decision is not None
+    )
+    evolution_judge_rollback_count = sum(
+        1 for turn in turns if turn.evolution_decision == EvolutionDecision.ROLLBACK.value
+    )
+    evolution_judge_structural_allow_count = sum(
+        1
+        for turn in turns
+        if turn.evolution_decision in {EvolutionDecision.PROMOTE.value, EvolutionDecision.HOLD.value}
+        and turn.evolution_category != JudgementCategory.UNSAFE_MUTATION.value
+    )
+    nested_profile_active_turn_count = sum(
+        1 for turn in turns if turn.nested_profile_active
+    )
+    nested_context_reset_count = sum(
+        1 for turn in turns if turn.nested_context_reset_applied
+    )
+    store_nested_context_reset_count = _store_nested_context_reset_count(turns)
+    mean_slow_to_fast_init_benefit = _mean(
+        tuple(turn.slow_to_fast_init_benefit for turn in turns)
+    )
+    online_fast_substrate_recommended_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_recommended
+    )
+    online_fast_substrate_applied_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_applied
+    )
+    mean_online_fast_substrate_parameter_change_rate = _mean(
+        tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
+    )
+    mean_online_fast_substrate_optimizer_state_norm = _mean(
+        tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
+    )
+    temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
+    late_episode_stability_score = _late_episode_stability_score(
+        turns=turns,
+        high_pe_threshold=high_pe_threshold,
+        reward_threshold=reward_threshold,
+    )
+    delayed_improvement_observed = _delayed_improvement_observed(turns)
+    acceptance_checks = (
+        ("episode-runs-to-completion", final_episode_state.completed),
+        ("prediction-chain-present", prediction_chain_turn_count > 0),
+        ("pe-schedule-observed", pe_triggered_turn_count > 0),
+        (
+            "temporal-trajectory-nonconstant",
+            temporal_change_count > 0 or switch_gate_span >= switch_gate_span_threshold,
+        ),
+        (
+            "multi-timescale-evidence-observed",
+            online_learning_turn_count > 0
+            and (
+                bounded_writeback_turn_count > 0
+                or session_post_completion_turn_count > 0
+                or reflection_promotion_eligible_turn_count > 0
+                or online_fast_substrate_applied_count > 0
+                or rare_heavy_recommended_count > 0
+            ),
+        ),
+        (
+            "late-episode-stabilization-or-improvement",
+            delayed_improvement_observed or late_episode_stability_score >= 0.5,
+        ),
+    )
+    reasons = tuple(check_name for check_name, passed in acceptance_checks if not passed)
+    passed = not reasons
+    return OpenDialogueCaseReport(
+        scenario=scenario,
+        final_episode_state=final_episode_state,
+        turns=turns,
+        prediction_chain_turn_count=prediction_chain_turn_count,
+        high_pe_turn_count=high_pe_turn_count,
+        pe_schedule_due_turn_count=pe_schedule_due_turn_count,
+        pe_triggered_turn_count=pe_triggered_turn_count,
+        explicit_pe_schedule_turn_count=explicit_pe_schedule_turn_count,
+        carryover_credit_turn_count=carryover_credit_turn_count,
+        schedule_label_consistency=schedule_label_consistency,
+        online_learning_turn_count=online_learning_turn_count,
+        bounded_writeback_turn_count=bounded_writeback_turn_count,
+        reflection_promotion_eligible_turn_count=reflection_promotion_eligible_turn_count,
+        session_post_completion_turn_count=session_post_completion_turn_count,
+        rare_heavy_recommended_count=rare_heavy_recommended_count,
+        rare_heavy_applied_count=rare_heavy_applied_count,
+        rare_heavy_pre_import_pass_count=rare_heavy_pre_import_pass_count,
+        rare_heavy_pre_import_reject_count=rare_heavy_pre_import_reject_count,
+        mean_rare_heavy_pre_import_score_delta=mean_rare_heavy_pre_import_score_delta,
+        mean_rare_heavy_candidate_alignment=mean_rare_heavy_candidate_alignment,
+        max_rare_heavy_candidate_adapter_parameter_count=max_rare_heavy_candidate_adapter_parameter_count,
+        evolution_judge_turn_count=evolution_judge_turn_count,
+        evolution_judge_rollback_count=evolution_judge_rollback_count,
+        evolution_judge_structural_allow_count=evolution_judge_structural_allow_count,
+        nested_profile_active_turn_count=nested_profile_active_turn_count,
+        nested_context_reset_count=nested_context_reset_count,
+        store_nested_context_reset_count=store_nested_context_reset_count,
+        mean_slow_to_fast_init_benefit=mean_slow_to_fast_init_benefit,
+        online_fast_substrate_recommended_count=online_fast_substrate_recommended_count,
+        online_fast_substrate_applied_count=online_fast_substrate_applied_count,
+        mean_online_fast_substrate_parameter_change_rate=mean_online_fast_substrate_parameter_change_rate,
+        mean_online_fast_substrate_optimizer_state_norm=mean_online_fast_substrate_optimizer_state_norm,
+        temporal_change_count=temporal_change_count,
+        late_episode_stability_score=late_episode_stability_score,
+        delayed_improvement_observed=delayed_improvement_observed,
+        acceptance_checks=acceptance_checks,
+        passed=passed,
+        reasons=reasons,
+        description=(
+            f"Open dialogue scenario {scenario.scenario_id} processed {len(turns)} turns; "
+            f"completed={final_episode_state.completed} stop_reason={final_episode_state.stop_reason} "
+            f"prediction_chain={prediction_chain_turn_count} pe_triggered={pe_triggered_turn_count} "
+            f"online_learning={online_learning_turn_count} session_post={session_post_completion_turn_count} "
+            f"online_fast_substrate_applied={online_fast_substrate_applied_count} "
+            f"online_fast_change_rate={mean_online_fast_substrate_parameter_change_rate:.3f} "
+            f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f} "
+            f"late_stability={late_episode_stability_score:.2f} delayed_improvement={delayed_improvement_observed}."
+        ),
+    )
+
+
 def build_dialogue_case_report(
     *,
     case: ScriptedDialogueCase,
@@ -1299,11 +2050,32 @@ def build_dialogue_case_report(
     reflection_promotion_eligible_turn_count = sum(
         1 for turn in turns if turn.reflection_promotion_eligible
     )
+    session_post_completion_turn_count = sum(
+        1 for turn in turns if turn.session_post_completed_job_count > 0
+    )
     rare_heavy_recommended_count = sum(
         1 for turn in turns if turn.rare_heavy_recommended
     )
     rare_heavy_applied_count = sum(
         1 for turn in turns if turn.rare_heavy_applied
+    )
+    rare_heavy_pre_import_pass_count = sum(
+        1 for turn in turns if turn.rare_heavy_pre_import_passed
+    )
+    rare_heavy_pre_import_reject_count = sum(
+        1
+        for turn in turns
+        if turn.rare_heavy_import_decision == "rejected-pre-import"
+    )
+    mean_rare_heavy_pre_import_score_delta = _mean(
+        tuple(turn.rare_heavy_pre_import_mean_score_delta for turn in turns if turn.rare_heavy_recommended)
+    )
+    mean_rare_heavy_candidate_alignment = _mean(
+        tuple(turn.rare_heavy_candidate_alignment for turn in turns if turn.rare_heavy_recommended)
+    )
+    max_rare_heavy_candidate_adapter_parameter_count = max(
+        (turn.rare_heavy_candidate_adapter_parameter_count for turn in turns),
+        default=0,
     )
     evolution_judge_turn_count = sum(
         1 for turn in turns if turn.evolution_decision is not None
@@ -1364,6 +2136,18 @@ def build_dialogue_case_report(
         (turn.artifact_consolidation_count for turn in turns),
         default=0,
     )
+    online_fast_substrate_recommended_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_recommended
+    )
+    online_fast_substrate_applied_count = sum(
+        1 for turn in turns if turn.online_fast_substrate_applied
+    )
+    mean_online_fast_substrate_parameter_change_rate = _mean(
+        tuple(turn.online_fast_substrate_parameter_change_rate for turn in turns)
+    )
+    mean_online_fast_substrate_optimizer_state_norm = _mean(
+        tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
+    )
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     delayed_improvement_observed = _delayed_improvement_observed(turns)
     acceptance_checks = (
@@ -1397,8 +2181,14 @@ def build_dialogue_case_report(
         online_learning_turn_count=online_learning_turn_count,
         bounded_writeback_turn_count=bounded_writeback_turn_count,
         reflection_promotion_eligible_turn_count=reflection_promotion_eligible_turn_count,
+        session_post_completion_turn_count=session_post_completion_turn_count,
         rare_heavy_recommended_count=rare_heavy_recommended_count,
         rare_heavy_applied_count=rare_heavy_applied_count,
+        rare_heavy_pre_import_pass_count=rare_heavy_pre_import_pass_count,
+        rare_heavy_pre_import_reject_count=rare_heavy_pre_import_reject_count,
+        mean_rare_heavy_pre_import_score_delta=mean_rare_heavy_pre_import_score_delta,
+        mean_rare_heavy_candidate_alignment=mean_rare_heavy_candidate_alignment,
+        max_rare_heavy_candidate_adapter_parameter_count=max_rare_heavy_candidate_adapter_parameter_count,
         evolution_judge_turn_count=evolution_judge_turn_count,
         evolution_judge_rollback_count=evolution_judge_rollback_count,
         evolution_judge_structural_allow_count=evolution_judge_structural_allow_count,
@@ -1415,6 +2205,10 @@ def build_dialogue_case_report(
         mean_reset_turn_slow_to_fast_target_distance_before=mean_reset_turn_slow_to_fast_target_distance_before,
         mean_reset_turn_slow_to_fast_target_distance_after=mean_reset_turn_slow_to_fast_target_distance_after,
         mean_reset_turn_slow_to_fast_target_alignment_gain=mean_reset_turn_slow_to_fast_target_alignment_gain,
+        online_fast_substrate_recommended_count=online_fast_substrate_recommended_count,
+        online_fast_substrate_applied_count=online_fast_substrate_applied_count,
+        mean_online_fast_substrate_parameter_change_rate=mean_online_fast_substrate_parameter_change_rate,
+        mean_online_fast_substrate_optimizer_state_norm=mean_online_fast_substrate_optimizer_state_norm,
         temporal_change_count=temporal_change_count,
         delayed_improvement_observed=delayed_improvement_observed,
         acceptance_checks=acceptance_checks,
@@ -1427,9 +2221,16 @@ def build_dialogue_case_report(
             f"pressure_localization={pressure_localization_score:.2f}, precision={pressure_response_precision:.2f}, "
             f"recall={pressure_response_recall:.2f}, over_response={over_response_cost:.2f}, "
             f"stability_after_recovery={stability_after_recovery_score:.2f}, online_learning={online_learning_turn_count}, "
-            f"writeback_turns={bounded_writeback_turn_count}, rare_heavy_applied={rare_heavy_applied_count}, "
+            f"writeback_turns={bounded_writeback_turn_count}, session_post_turns={session_post_completion_turn_count}, "
+            f"rare_heavy_applied={rare_heavy_applied_count}, "
+            f"rare_heavy_pre_import_pass={rare_heavy_pre_import_pass_count}, "
+            f"rare_heavy_pre_import_reject={rare_heavy_pre_import_reject_count}, "
+            f"rare_heavy_pre_import_delta={mean_rare_heavy_pre_import_score_delta:.3f}, "
             f"judge_turns={evolution_judge_turn_count}, nested_resets={nested_context_reset_count}, "
             f"store_nested_resets={store_nested_context_reset_count}, "
+            f"online_fast_substrate_applied={online_fast_substrate_applied_count}, "
+            f"online_fast_change_rate={mean_online_fast_substrate_parameter_change_rate:.3f}, "
+            f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f}, "
             f"slow_to_fast_init_benefit={mean_slow_to_fast_init_benefit:.2f}, "
             f"reset_turn_benefit={mean_reset_turn_slow_to_fast_init_benefit:.2f}, "
             f"target_alignment_gain={mean_reset_turn_slow_to_fast_target_alignment_gain:.3f}, "
@@ -1488,6 +2289,7 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         ),
         bounded_writeback_applied=result.bounded_writeback_applied,
         reflection_promotion_eligible=result.reflection_promotion_eligible,
+        session_post_completed_job_count=result.session_post_completed_job_count,
         rare_heavy_recommended=bool(result.rare_heavy_result is not None and result.rare_heavy_result.recommended),
         rare_heavy_applied=bool(result.rare_heavy_result is not None and result.rare_heavy_result.applied),
         evolution_decision=evolution_decision,
@@ -1506,11 +2308,95 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
             f"abstract_action={result.active_abstract_action}, pe={prediction_error.magnitude if prediction_error is not None else 0.0:.2f}, "
             f"judge={evolution_decision or 'none'}, cross_session={result.cross_session_verdict or 'none'}."
         ),
+        rare_heavy_import_decision=(
+            result.rare_heavy_result.import_decision
+            if result.rare_heavy_result is not None
+            else ""
+        ),
+        rare_heavy_reject_reason=(
+            result.rare_heavy_result.reject_reason
+            if result.rare_heavy_result is not None
+            else ""
+        ),
+        rare_heavy_pre_import_passed=(
+            result.rare_heavy_result.pre_import_passed
+            if result.rare_heavy_result is not None
+            else False
+        ),
+        rare_heavy_pre_import_mean_score_delta=(
+            result.rare_heavy_result.pre_import_mean_score_delta
+            if result.rare_heavy_result is not None
+            else 0.0
+        ),
+        rare_heavy_candidate_alignment=(
+            result.rare_heavy_result.bundle_alignment_ratio
+            if result.rare_heavy_result is not None
+            else 0.0
+        ),
+        rare_heavy_candidate_adapter_parameter_count=(
+            result.rare_heavy_result.candidate_adapter_parameter_count
+            if result.rare_heavy_result is not None
+            else 0
+        ),
         learned_memory_primary=result.learned_memory_primary,
         artifact_consolidation_count=result.artifact_consolidation_count,
         learned_recall_count=result.learned_recall_count,
         learned_recall_confidence=result.learned_recall_confidence,
         learned_recall_core_guided=result.learned_recall_core_guided,
+        online_fast_substrate_recommended=bool(
+            result.online_fast_substrate_result is not None and result.online_fast_substrate_result.recommended
+        ),
+        online_fast_substrate_applied=bool(
+            result.online_fast_substrate_result is not None and result.online_fast_substrate_result.applied
+        ),
+        online_fast_substrate_parameter_change_rate=(
+            result.online_fast_substrate_result.parameter_change_rate
+            if result.online_fast_substrate_result is not None
+            else 0.0
+        ),
+        online_fast_substrate_optimizer_state_norm=(
+            result.online_fast_substrate_result.optimizer_state_norm
+            if result.online_fast_substrate_result is not None
+            else 0.0
+        ),
+    )
+
+
+async def run_open_dialogue_case(
+    *,
+    scenario: OpenDialogueScenario,
+    runner: AgentSessionRunner,
+    turn_source: DialogueUserTurnSource | None = None,
+    seed: int = 0,
+    max_turns: int | None = None,
+    allow_interval_carryover_credit: bool = True,
+) -> OpenDialogueCaseReport:
+    source = turn_source or build_deterministic_user_simulator(
+        scenario_id=scenario.scenario_id,
+        seed=seed,
+        max_turns=max_turns,
+    )
+    turns: list[DialogueBenchmarkTurn] = []
+    last_result: AgentTurnResult | None = None
+    last_turn: DialogueBenchmarkTurn | None = None
+    while True:
+        user_input = source.next_turn(last_result=last_result, last_turn=last_turn)
+        if user_input is None:
+            break
+        turn_index = len(turns) + 1
+        result = await runner.run_turn(user_input)
+        last_result = result
+        last_turn = dialogue_turn_from_result(
+            turn_index=turn_index,
+            user_input=user_input,
+            result=result,
+        )
+        turns.append(last_turn)
+    return build_open_dialogue_case_report(
+        scenario=source.scenario,
+        final_episode_state=source.episode_state,
+        turns=tuple(turns),
+        allow_interval_carryover_credit=allow_interval_carryover_credit,
     )
 
 
@@ -1534,6 +2420,194 @@ async def run_dialogue_pe_eta_case(
         case=case,
         turns=tuple(turns),
         allow_interval_carryover_credit=allow_interval_carryover_credit,
+    )
+
+
+def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[str, float], ...]:
+    mean_pe = _mean(tuple(turn.prediction_error_magnitude for turn in report.turns))
+    mean_switch_gate = _mean(tuple(turn.switch_gate for turn in report.turns))
+    return (
+        ("passed", float(report.passed)),
+        ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
+        ("high_pe_turn_count", float(report.high_pe_turn_count)),
+        ("pe_schedule_due_turn_count", float(report.pe_schedule_due_turn_count)),
+        ("pe_triggered_turn_count", float(report.pe_triggered_turn_count)),
+        ("explicit_pe_schedule_turn_count", float(report.explicit_pe_schedule_turn_count)),
+        ("carryover_credit_turn_count", float(report.carryover_credit_turn_count)),
+        ("schedule_label_consistency", report.schedule_label_consistency),
+        ("online_learning_turn_count", float(report.online_learning_turn_count)),
+        ("bounded_writeback_turn_count", float(report.bounded_writeback_turn_count)),
+        ("reflection_promotion_eligible_turn_count", float(report.reflection_promotion_eligible_turn_count)),
+        ("session_post_completion_turn_count", float(report.session_post_completion_turn_count)),
+        ("online_fast_substrate_recommended_count", float(report.online_fast_substrate_recommended_count)),
+        ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
+        ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
+        ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
+        ("rare_heavy_recommended_count", float(report.rare_heavy_recommended_count)),
+        ("rare_heavy_applied_count", float(report.rare_heavy_applied_count)),
+        ("rare_heavy_pre_import_pass_count", float(report.rare_heavy_pre_import_pass_count)),
+        ("rare_heavy_pre_import_reject_count", float(report.rare_heavy_pre_import_reject_count)),
+        ("mean_rare_heavy_pre_import_score_delta", report.mean_rare_heavy_pre_import_score_delta),
+        ("mean_rare_heavy_candidate_alignment", report.mean_rare_heavy_candidate_alignment),
+        (
+            "max_rare_heavy_candidate_adapter_parameter_count",
+            float(report.max_rare_heavy_candidate_adapter_parameter_count),
+        ),
+        ("evolution_judge_turn_count", float(report.evolution_judge_turn_count)),
+        ("evolution_judge_rollback_count", float(report.evolution_judge_rollback_count)),
+        ("evolution_judge_structural_allow_count", float(report.evolution_judge_structural_allow_count)),
+        ("nested_profile_active_turn_count", float(report.nested_profile_active_turn_count)),
+        ("nested_context_reset_count", float(report.nested_context_reset_count)),
+        ("store_nested_context_reset_count", float(report.store_nested_context_reset_count)),
+        ("mean_slow_to_fast_init_benefit", report.mean_slow_to_fast_init_benefit),
+        ("temporal_change_count", float(report.temporal_change_count)),
+        ("late_episode_stability_score", report.late_episode_stability_score),
+        ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
+        ("episode_runs_to_completion", float(report.final_episode_state.completed)),
+        ("mean_prediction_error", mean_pe),
+        ("mean_switch_gate", mean_switch_gate),
+    )
+
+
+def _mean_open_summary_metrics(
+    reports: tuple[OpenDialogueCaseReport, ...],
+) -> tuple[tuple[str, float], ...]:
+    if not reports:
+        return ()
+    metric_names = tuple(key for key, _ in _open_case_summary_metrics(reports[0]))
+    metric_totals = {key: 0.0 for key in metric_names}
+    for report in reports:
+        for key, value in _open_case_summary_metrics(report):
+            metric_totals[key] += value
+    return tuple(
+        (key, round(metric_totals[key] / len(reports), 4))
+        for key in metric_names
+    )
+
+
+async def run_open_dialogue_benchmark(
+    *,
+    scenarios: tuple[OpenDialogueScenario, ...] = DEFAULT_OPEN_DIALOGUE_SCENARIOS,
+    runner_factory: Callable[[OpenDialogueScenario], AgentSessionRunner] | None = None,
+    seed: int = 0,
+    allow_interval_carryover_credit: bool = True,
+) -> OpenDialogueBenchmarkReport:
+    factory = runner_factory or (lambda scenario: default_active_runner())
+    case_reports: list[OpenDialogueCaseReport] = []
+    for scenario_index, scenario in enumerate(scenarios):
+        runner = factory(scenario)
+        case_reports.append(
+            await run_open_dialogue_case(
+                scenario=scenario,
+                runner=runner,
+                seed=seed + scenario_index,
+                allow_interval_carryover_credit=allow_interval_carryover_credit,
+            )
+        )
+    passed_case_count = sum(1 for report in case_reports if report.passed)
+    return OpenDialogueBenchmarkReport(
+        case_reports=tuple(case_reports),
+        passed_case_count=passed_case_count,
+        total_case_count=len(case_reports),
+        metric_means=_mean_open_summary_metrics(tuple(case_reports)),
+        description=(
+            f"Open dialogue benchmark processed {len(case_reports)} scenarios with "
+            f"{passed_case_count} passing the current open-environment acceptance surface."
+        ),
+    )
+
+
+async def run_open_dialogue_ablation_benchmark(
+    *,
+    scenarios: tuple[OpenDialogueScenario, ...] = DEFAULT_OPEN_DIALOGUE_SCENARIOS,
+    profile_labels: tuple[str, ...] = default_open_dialogue_ablation_profiles(),
+    baseline_label: str = "pe-eta",
+    runner_factory: Callable[[str, OpenDialogueScenario], AgentSessionRunner] | None = None,
+    seed: int = 0,
+) -> OpenDialogueBenchmarkComparisonReport:
+    factory = runner_factory or (
+        lambda profile_label, scenario: build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=ScriptedDialogueCase(
+                case_id=f"open:{scenario.scenario_id}",
+                description=scenario.description,
+                user_inputs=scenario.opening_turns,
+            ),
+        )
+    )
+    path_reports: list[OpenDialogueBenchmarkPathReport] = []
+    for profile_label in profile_labels:
+        report = await run_open_dialogue_benchmark(
+            scenarios=scenarios,
+            runner_factory=lambda scenario, _profile_label=profile_label: factory(_profile_label, scenario),
+            seed=seed,
+            allow_interval_carryover_credit=_profile_allows_interval_carryover_credit(profile_label),
+        )
+        path_reports.append(
+            OpenDialogueBenchmarkPathReport(
+                path_label=profile_label,
+                benchmark_report=report,
+                description=(
+                    f"Open dialogue benchmark path {profile_label} completed "
+                    f"{report.total_case_count} scenarios."
+                ),
+            )
+        )
+    baseline_path = next((path for path in path_reports if path.path_label == baseline_label), None)
+    if baseline_path is None:
+        raise ValueError(f"Baseline label {baseline_label!r} not present in profile_labels={profile_labels!r}")
+    baseline_reports = {
+        case_report.scenario.scenario_id: case_report
+        for case_report in baseline_path.benchmark_report.case_reports
+    }
+    case_deltas_from_baseline: list[tuple[str, tuple[tuple[str, tuple[tuple[str, float], ...]], ...]]] = []
+    metric_deltas_by_profile = {path.path_label: [] for path in path_reports}
+    for scenario_id, baseline_case in baseline_reports.items():
+        path_deltas: list[tuple[str, tuple[tuple[str, float], ...]]] = []
+        baseline_metrics = dict(_open_case_summary_metrics(baseline_case))
+        for path in path_reports:
+            path_case = next(
+                report for report in path.benchmark_report.case_reports if report.scenario.scenario_id == scenario_id
+            )
+            current_metrics = dict(_open_case_summary_metrics(path_case))
+            metric_delta = _metric_delta_items(
+                current_metrics=current_metrics,
+                reference_metrics=baseline_metrics,
+            )
+            metric_deltas_by_profile[path.path_label].append(dict(metric_delta))
+            path_deltas.append((path.path_label, metric_delta))
+        case_deltas_from_baseline.append((scenario_id, tuple(path_deltas)))
+    metric_deltas_from_baseline: list[tuple[str, tuple[tuple[str, float], ...]]] = []
+    for path in path_reports:
+        per_case_deltas = metric_deltas_by_profile[path.path_label]
+        if not per_case_deltas:
+            metric_deltas_from_baseline.append((path.path_label, ()))
+            continue
+        metric_names = tuple(per_case_deltas[0].keys())
+        metric_deltas_from_baseline.append(
+            (
+                path.path_label,
+                tuple(
+                    (
+                        key,
+                        round(
+                            sum(case_delta[key] for case_delta in per_case_deltas) / len(per_case_deltas),
+                            4,
+                        ),
+                    )
+                    for key in metric_names
+                ),
+            )
+        )
+    return OpenDialogueBenchmarkComparisonReport(
+        baseline_label=baseline_label,
+        path_reports=tuple(path_reports),
+        case_deltas_from_baseline=tuple(case_deltas_from_baseline),
+        metric_deltas_from_baseline=tuple(metric_deltas_from_baseline),
+        description=(
+            f"Open dialogue ablation benchmark compared {len(path_reports)} paths across "
+            f"{len(scenarios)} scenarios with baseline={baseline_label}."
+        ),
     )
 
 
@@ -1589,8 +2663,21 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("online_learning_turn_count", float(report.online_learning_turn_count)),
         ("bounded_writeback_turn_count", float(report.bounded_writeback_turn_count)),
         ("reflection_promotion_eligible_turn_count", float(report.reflection_promotion_eligible_turn_count)),
+        ("session_post_completion_turn_count", float(report.session_post_completion_turn_count)),
+        ("online_fast_substrate_recommended_count", float(report.online_fast_substrate_recommended_count)),
+        ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
+        ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
+        ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
         ("rare_heavy_recommended_count", float(report.rare_heavy_recommended_count)),
         ("rare_heavy_applied_count", float(report.rare_heavy_applied_count)),
+        ("rare_heavy_pre_import_pass_count", float(report.rare_heavy_pre_import_pass_count)),
+        ("rare_heavy_pre_import_reject_count", float(report.rare_heavy_pre_import_reject_count)),
+        ("mean_rare_heavy_pre_import_score_delta", report.mean_rare_heavy_pre_import_score_delta),
+        ("mean_rare_heavy_candidate_alignment", report.mean_rare_heavy_candidate_alignment),
+        (
+            "max_rare_heavy_candidate_adapter_parameter_count",
+            float(report.max_rare_heavy_candidate_adapter_parameter_count),
+        ),
         ("evolution_judge_turn_count", float(report.evolution_judge_turn_count)),
         ("evolution_judge_rollback_count", float(report.evolution_judge_rollback_count)),
         ("evolution_judge_structural_allow_count", float(report.evolution_judge_structural_allow_count)),
@@ -1652,6 +2739,371 @@ def _mean_summary_metrics(
     )
 
 
+def build_pe_dominance_comparison_report(
+    comparison_report: DialogueBenchmarkComparisonReport,
+    *,
+    baseline_label: str = "pe-eta",
+    pe_drive_off_label: str = "pe-drive-off",
+    pe_readout_only_label: str = "pe-eta-pe-readout-only",
+) -> PEDominanceComparisonReport:
+    metric_map = {
+        label: dict(metrics)
+        for label, metrics in comparison_report.metric_deltas_from_baseline
+    }
+    path_metric_map = {
+        path.path_label: dict(path.benchmark_report.metric_means)
+        for path in comparison_report.path_reports
+    }
+    required_labels = (baseline_label, pe_drive_off_label, pe_readout_only_label)
+    missing_labels = tuple(label for label in required_labels if label not in path_metric_map)
+    if missing_labels:
+        raise ValueError(
+            f"PE dominance comparison requires paths {required_labels!r}; missing {missing_labels!r}."
+        )
+    baseline_metrics = path_metric_map[baseline_label]
+    pe_drive_metrics = path_metric_map[pe_drive_off_label]
+    pe_readout_metrics = path_metric_map[pe_readout_only_label]
+
+    baseline_trigger = baseline_metrics.get("pe_triggered_turn_count", 0.0)
+    baseline_precision = baseline_metrics.get("pressure_response_precision", 0.0)
+    baseline_stability = baseline_metrics.get("stability_after_recovery_score", 0.0)
+    baseline_delayed_improvement = baseline_metrics.get("delayed_improvement_observed", 0.0)
+    baseline_prediction_chain = baseline_metrics.get("prediction_chain_turn_count", 0.0)
+
+    readout_trigger = pe_readout_metrics.get("pe_triggered_turn_count", 0.0)
+    readout_precision = pe_readout_metrics.get("pressure_response_precision", 0.0)
+    readout_stability = pe_readout_metrics.get("stability_after_recovery_score", 0.0)
+    readout_delayed_improvement = pe_readout_metrics.get("delayed_improvement_observed", 0.0)
+    readout_prediction_chain = pe_readout_metrics.get("prediction_chain_turn_count", 0.0)
+
+    mechanism_retention_numerator = (
+        readout_precision
+        + readout_stability
+        + readout_delayed_improvement
+    )
+    mechanism_retention_denominator = max(
+        baseline_precision + baseline_stability + baseline_delayed_improvement,
+        1e-6,
+    )
+    mechanism_retention_ratio = round(
+        max(0.0, min(1.5, mechanism_retention_numerator / mechanism_retention_denominator)),
+        4,
+    )
+    pe_visibility_retention_ratio = round(
+        max(0.0, min(1.5, readout_prediction_chain / max(baseline_prediction_chain, 1e-6))),
+        4,
+    )
+    schedule_dependence_gap = round(baseline_trigger - readout_trigger, 4)
+    reward_dominance_gap = round(
+        (baseline_precision - readout_precision)
+        + (baseline_stability - readout_stability),
+        4,
+    )
+    if mechanism_retention_ratio >= 0.8 and schedule_dependence_gap <= 0.25:
+        interpretation = "latent-mechanism-dominant"
+    elif mechanism_retention_ratio >= 0.45 and pe_visibility_retention_ratio >= 0.8:
+        interpretation = "mixed-pe-and-latent"
+    else:
+        interpretation = "pe-dominance-likely"
+    return PEDominanceComparisonReport(
+        baseline_label=baseline_label,
+        pe_drive_off_label=pe_drive_off_label,
+        pe_readout_only_label=pe_readout_only_label,
+        metrics_by_path=tuple(
+            (label, tuple(sorted(path_metric_map[label].items())))
+            for label in required_labels
+        ),
+        deltas_from_baseline=tuple(
+            (label, tuple(sorted(metric_map.get(label, {}).items())))
+            for label in (pe_drive_off_label, pe_readout_only_label)
+        ),
+        mechanism_retention_ratio=mechanism_retention_ratio,
+        pe_visibility_retention_ratio=pe_visibility_retention_ratio,
+        schedule_dependence_gap=schedule_dependence_gap,
+        reward_dominance_gap=reward_dominance_gap,
+        interpretation=interpretation,
+        description=(
+            f"PE dominance comparison baseline={baseline_label} readout_only={pe_readout_only_label} "
+            f"pe_drive_off={pe_drive_off_label} mechanism_retention={mechanism_retention_ratio:.3f} "
+            f"pe_visibility={pe_visibility_retention_ratio:.3f} schedule_gap={schedule_dependence_gap:.3f} "
+            f"reward_gap={reward_dominance_gap:.3f} interpretation={interpretation}."
+        ),
+    )
+
+
+def build_pe_dominance_case_diagnosis_report(
+    comparison_report: DialogueBenchmarkComparisonReport,
+    *,
+    baseline_label: str = "pe-eta",
+    pe_drive_off_label: str = "pe-drive-off",
+    pe_readout_only_label: str = "pe-eta-pe-readout-only",
+) -> PEDominanceCaseDiagnosisReport:
+    path_case_map = {
+        path.path_label: {
+            case_report.case.case_id: case_report
+            for case_report in path.benchmark_report.case_reports
+        }
+        for path in comparison_report.path_reports
+    }
+    required_labels = (baseline_label, pe_drive_off_label, pe_readout_only_label)
+    missing_labels = tuple(label for label in required_labels if label not in path_case_map)
+    if missing_labels:
+        raise ValueError(
+            f"PE case diagnosis requires paths {required_labels!r}; missing {missing_labels!r}."
+        )
+    case_diagnoses: list[PEDominanceCaseDiagnosis] = []
+    failure_mode_counts: dict[str, int] = {}
+    for case_id, baseline_case in path_case_map[baseline_label].items():
+        pe_drive_case = path_case_map[pe_drive_off_label][case_id]
+        pe_readout_case = path_case_map[pe_readout_only_label][case_id]
+        baseline_metrics = dict(_case_summary_metrics(baseline_case))
+        pe_drive_deltas = {
+            key: value - baseline_metrics[key]
+            for key, value in _case_summary_metrics(pe_drive_case)
+        }
+        pe_readout_deltas = {
+            key: value - baseline_metrics[key]
+            for key, value in _case_summary_metrics(pe_readout_case)
+        }
+        schedule_gap = (
+            abs(pe_drive_deltas.get("pe_triggered_turn_count", 0.0))
+            + abs(pe_readout_deltas.get("pe_triggered_turn_count", 0.0))
+        )
+        reward_gap = (
+            abs(pe_drive_deltas.get("pressure_response_precision", 0.0))
+            + abs(pe_drive_deltas.get("stability_after_recovery_score", 0.0))
+            + abs(pe_readout_deltas.get("pressure_response_precision", 0.0))
+            + abs(pe_readout_deltas.get("stability_after_recovery_score", 0.0))
+        )
+        latent_gap = (
+            abs(pe_drive_deltas.get("temporal_change_count", 0.0))
+            + abs(pe_readout_deltas.get("temporal_change_count", 0.0))
+            + abs(pe_drive_deltas.get("delayed_improvement_observed", 0.0))
+            + abs(pe_readout_deltas.get("delayed_improvement_observed", 0.0))
+        )
+        degradation_severity = round(schedule_gap * 0.35 + reward_gap * 0.40 + latent_gap * 0.25, 4)
+        if schedule_gap >= reward_gap and schedule_gap >= latent_gap:
+            failure_mode = "schedule-driven"
+        elif reward_gap >= max(schedule_gap, latent_gap):
+            failure_mode = "reward-driven"
+        else:
+            failure_mode = "latent-fragility-driven"
+        failure_mode_counts[failure_mode] = failure_mode_counts.get(failure_mode, 0) + 1
+        case_diagnoses.append(
+            PEDominanceCaseDiagnosis(
+                case_id=case_id,
+                pe_eta_metrics=tuple(sorted(baseline_metrics.items())),
+                pe_drive_off_deltas=tuple(sorted(pe_drive_deltas.items())),
+                pe_readout_only_deltas=tuple(sorted(pe_readout_deltas.items())),
+                degradation_severity=degradation_severity,
+                failure_mode=failure_mode,
+                description=(
+                    f"Case {case_id} degradation={degradation_severity:.3f} "
+                    f"schedule_gap={schedule_gap:.3f} reward_gap={reward_gap:.3f} "
+                    f"latent_gap={latent_gap:.3f} failure_mode={failure_mode}."
+                ),
+            )
+        )
+    case_diagnoses.sort(key=lambda diagnosis: diagnosis.degradation_severity, reverse=True)
+    dominant_failure_mode = (
+        max(failure_mode_counts.items(), key=lambda item: item[1])[0]
+        if failure_mode_counts
+        else "unknown"
+    )
+    worst_case_id = case_diagnoses[0].case_id if case_diagnoses else None
+    return PEDominanceCaseDiagnosisReport(
+        baseline_label=baseline_label,
+        pe_drive_off_label=pe_drive_off_label,
+        pe_readout_only_label=pe_readout_only_label,
+        case_diagnoses=tuple(case_diagnoses),
+        worst_case_id=worst_case_id,
+        dominant_failure_mode=dominant_failure_mode,
+        description=(
+            f"PE case diagnosis baseline={baseline_label} worst_case={worst_case_id or 'none'} "
+            f"dominant_failure_mode={dominant_failure_mode} cases={len(case_diagnoses)}."
+        ),
+    )
+
+
+def _dashboard_panel_from_metric_deltas(
+    *,
+    path_label: str,
+    metric_deltas: dict[str, float],
+    stability_metric: str,
+) -> DialogueEmergenceDashboardPanel:
+    passed_delta = metric_deltas.get("passed", 0.0)
+    pe_triggered_delta = metric_deltas.get("pe_triggered_turn_count", 0.0)
+    delayed_improvement_delta = metric_deltas.get("delayed_improvement_observed", 0.0)
+    stability_delta = metric_deltas.get(stability_metric, 0.0)
+    mean_prediction_error_delta = metric_deltas.get("mean_prediction_error", 0.0)
+    retention_score = round(
+        passed_delta
+        + 0.25 * pe_triggered_delta
+        + 0.25 * delayed_improvement_delta
+        + 0.25 * stability_delta
+        + 0.25 * max(0.0, -mean_prediction_error_delta),
+        4,
+    )
+    return DialogueEmergenceDashboardPanel(
+        path_label=path_label,
+        passed_delta=passed_delta,
+        pe_triggered_delta=pe_triggered_delta,
+        delayed_improvement_delta=delayed_improvement_delta,
+        stability_delta=stability_delta,
+        mean_prediction_error_delta=mean_prediction_error_delta,
+        retention_score=retention_score,
+        description=(
+            f"Dashboard panel {path_label} passed_delta={passed_delta:.3f} "
+            f"pe_delta={pe_triggered_delta:.3f} delayed_delta={delayed_improvement_delta:.3f} "
+            f"stability_delta={stability_delta:.3f} mean_pe_delta={mean_prediction_error_delta:.3f} "
+            f"retention_score={retention_score:.3f}."
+        ),
+    )
+
+
+def build_dialogue_emergence_dashboard(
+    comprehensive_report: DialogueComprehensiveBenchmarkReport,
+) -> DialogueEmergenceDashboardArtifact:
+    baseline_path = next(
+        (
+            path
+            for path in comprehensive_report.canonical_ablation_report.path_reports
+            if path.path_label == comprehensive_report.canonical_ablation_report.baseline_label
+        ),
+        None,
+    )
+    if baseline_path is None:
+        raise ValueError("Comprehensive report is missing the canonical baseline path.")
+    canonical_report = baseline_path.benchmark_report
+    canonical_pass_rate = (
+        canonical_report.passed_case_count / canonical_report.total_case_count
+        if canonical_report.total_case_count > 0
+        else 0.0
+    )
+    open_report = comprehensive_report.open_ablation_report
+    open_panels: tuple[DialogueEmergenceDashboardPanel, ...] = ()
+    open_pass_rate = 0.0
+    open_case_count = 0
+    if open_report is not None:
+        open_baseline_path = next(
+            (path for path in open_report.path_reports if path.path_label == open_report.baseline_label),
+            None,
+        )
+        if open_baseline_path is not None:
+            open_case_count = open_baseline_path.benchmark_report.total_case_count
+            if open_baseline_path.benchmark_report.total_case_count > 0:
+                open_pass_rate = (
+                    open_baseline_path.benchmark_report.passed_case_count
+                    / open_baseline_path.benchmark_report.total_case_count
+                )
+        open_panels = tuple(
+            _dashboard_panel_from_metric_deltas(
+                path_label=path_label,
+                metric_deltas=dict(metric_deltas),
+                stability_metric="late_episode_stability_score",
+            )
+            for path_label, metric_deltas in open_report.metric_deltas_from_baseline
+            if path_label != open_report.baseline_label
+        )
+    strong_proof_metric_deltas = (
+        comprehensive_report.canonical_ablation_report.strong_proof_metric_deltas
+        if comprehensive_report.canonical_ablation_report.strong_proof_metric_deltas
+        else comprehensive_report.canonical_ablation_report.metric_deltas_from_baseline
+    )
+    strong_proof_panels = tuple(
+        _dashboard_panel_from_metric_deltas(
+            path_label=path_label,
+            metric_deltas=dict(metric_deltas),
+            stability_metric="stability_after_recovery_score",
+        )
+        for path_label, metric_deltas in strong_proof_metric_deltas
+        if path_label != comprehensive_report.canonical_ablation_report.baseline_label
+    )
+    pe_dominance_report = None
+    pe_case_diagnosis_report = None
+    available_path_labels = {
+        path.path_label for path in comprehensive_report.canonical_ablation_report.path_reports
+    }
+    if {"pe-eta", "pe-drive-off", "pe-eta-pe-readout-only"} <= available_path_labels:
+        pe_dominance_report = build_pe_dominance_comparison_report(
+            comprehensive_report.canonical_ablation_report
+        )
+        pe_case_diagnosis_report = build_pe_dominance_case_diagnosis_report(
+            comprehensive_report.canonical_ablation_report
+        )
+    strongest_scaffold_panel = max(
+        strong_proof_panels,
+        key=lambda panel: panel.retention_score,
+        default=None,
+    )
+    strongest_open_panel = max(
+        open_panels,
+        key=lambda panel: panel.retention_score,
+        default=None,
+    )
+    if pe_dominance_report is not None and strongest_open_panel is not None:
+        interpretation = (
+            f"{pe_dominance_report.interpretation}; "
+            f"strongest_open_path={strongest_open_panel.path_label}"
+        )
+    elif pe_dominance_report is not None:
+        interpretation = pe_dominance_report.interpretation
+    elif strongest_open_panel is not None:
+        interpretation = f"open-evidence-present:{strongest_open_panel.path_label}"
+    else:
+        interpretation = "summary-only"
+    return DialogueEmergenceDashboardArtifact(
+        baseline_label=comprehensive_report.canonical_ablation_report.baseline_label,
+        canonical_case_count=canonical_report.total_case_count,
+        canonical_pass_rate=round(canonical_pass_rate, 4),
+        open_scenario_count=open_case_count,
+        open_pass_rate=round(open_pass_rate, 4),
+        strong_proof_panels=strong_proof_panels,
+        open_environment_panels=open_panels,
+        pe_dominance_report=pe_dominance_report,
+        pe_case_diagnosis_report=pe_case_diagnosis_report,
+        strongest_scaffold_path_label=(
+            strongest_scaffold_panel.path_label if strongest_scaffold_panel is not None else None
+        ),
+        strongest_scaffold_retention_score=(
+            strongest_scaffold_panel.retention_score if strongest_scaffold_panel is not None else 0.0
+        ),
+        strongest_open_path_label=(
+            strongest_open_panel.path_label if strongest_open_panel is not None else None
+        ),
+        strongest_open_retention_score=(
+            strongest_open_panel.retention_score if strongest_open_panel is not None else 0.0
+        ),
+        interpretation=interpretation,
+        description=(
+            f"Emergence dashboard baseline={comprehensive_report.canonical_ablation_report.baseline_label} "
+            f"canonical_pass_rate={canonical_pass_rate:.3f} open_pass_rate={open_pass_rate:.3f} "
+            f"strong_proof_panels={len(strong_proof_panels)} open_panels={len(open_panels)} "
+            f"interpretation={interpretation}."
+        ),
+    )
+
+
+def _empty_emergence_dashboard(*, baseline_label: str) -> DialogueEmergenceDashboardArtifact:
+    return DialogueEmergenceDashboardArtifact(
+        baseline_label=baseline_label,
+        canonical_case_count=0,
+        canonical_pass_rate=0.0,
+        open_scenario_count=0,
+        open_pass_rate=0.0,
+        strong_proof_panels=(),
+        open_environment_panels=(),
+        pe_dominance_report=None,
+        pe_case_diagnosis_report=None,
+        strongest_scaffold_path_label=None,
+        strongest_scaffold_retention_score=0.0,
+        strongest_open_path_label=None,
+        strongest_open_retention_score=0.0,
+        interpretation="pending",
+        description="Empty emergence dashboard placeholder.",
+    )
+
+
 def _metric_mean_from_report(report: DialogueBenchmarkReport, metric_name: str) -> float:
     return dict(report.metric_means).get(metric_name, 0.0)
 
@@ -1664,6 +3116,18 @@ def _rare_heavy_gate_description_fragment(assessment: DialogueNLEssenceAssessmen
         f"rare_heavy_gate_applied_delta={snapshot['applied_delta_vs_no_rare_heavy']:.3f} "
         f"rare_heavy_gate_passed_delta={snapshot['passed_delta_vs_no_rare_heavy']:.3f} "
         f"rare_heavy_gate_pe_delta={snapshot['mean_prediction_error_delta_vs_no_rare_heavy']:.3f}"
+    )
+
+
+def _emergence_dashboard_description_fragment(dashboard: DialogueEmergenceDashboardArtifact) -> str:
+    return (
+        f"emergence_interpretation={dashboard.interpretation} "
+        f"canonical_pass_rate={dashboard.canonical_pass_rate:.3f} "
+        f"open_pass_rate={dashboard.open_pass_rate:.3f} "
+        f"strongest_scaffold={dashboard.strongest_scaffold_path_label or 'none'} "
+        f"strongest_scaffold_score={dashboard.strongest_scaffold_retention_score:.3f} "
+        f"strongest_open={dashboard.strongest_open_path_label or 'none'} "
+        f"strongest_open_score={dashboard.strongest_open_retention_score:.3f}"
     )
 
 
@@ -1699,9 +3163,21 @@ def build_dialogue_nl_essence_assessment(
     )
     multi_timescale_passed = (
         evidence_metric_means.get("online_learning_turn_count", 0.0) > 0.0
-        and evidence_metric_means.get("bounded_writeback_turn_count", 0.0) > 0.0
+        and (
+            evidence_metric_means.get("bounded_writeback_turn_count", 0.0) > 0.0
+            or evidence_metric_means.get("session_post_completion_turn_count", 0.0) > 0.0
+            or evidence_metric_means.get("reflection_promotion_eligible_turn_count", 0.0) > 0.0
+            or evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) > 0.0
+            or evidence_metric_means.get("rare_heavy_recommended_count", 0.0) > 0.0
+        )
         and evidence_metric_means.get("nested_profile_active_turn_count", 0.0) > 0.0
         and evidence_metric_means.get("learned_memory_primary_turn_count", 0.0) > 0.0
+    )
+    online_fast_pe_coupling_passed = (
+        evidence_metric_means.get("pe_triggered_turn_count", 0.0) > 0.0
+        and evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) > 0.0
+        and evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0) > 0.0
+        and evidence_metric_means.get("mean_online_fast_substrate_optimizer_state_norm", 0.0) > 0.0
     )
     store_nested_reset_count = evidence_metric_means.get("store_nested_context_reset_count", 0.0)
     reset_turn_slow_to_fast_init_benefit = evidence_metric_means.get(
@@ -1789,10 +3265,41 @@ def build_dialogue_nl_essence_assessment(
             evidence=(
                 ("online_learning_turn_count", evidence_metric_means.get("online_learning_turn_count", 0.0)),
                 ("bounded_writeback_turn_count", evidence_metric_means.get("bounded_writeback_turn_count", 0.0)),
+                ("session_post_completion_turn_count", evidence_metric_means.get("session_post_completion_turn_count", 0.0)),
+                (
+                    "reflection_promotion_eligible_turn_count",
+                    evidence_metric_means.get("reflection_promotion_eligible_turn_count", 0.0),
+                ),
+                (
+                    "online_fast_substrate_applied_count",
+                    evidence_metric_means.get("online_fast_substrate_applied_count", 0.0),
+                ),
+                (
+                    "mean_online_fast_substrate_parameter_change_rate",
+                    evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0),
+                ),
+                ("rare_heavy_recommended_count", evidence_metric_means.get("rare_heavy_recommended_count", 0.0)),
                 ("nested_profile_active_turn_count", evidence_metric_means.get("nested_profile_active_turn_count", 0.0)),
                 ("learned_memory_primary_turn_count", evidence_metric_means.get("learned_memory_primary_turn_count", 0.0)),
             ),
             description="Default path should activate online, background, and nested-memory learning surfaces together.",
+        ),
+        DialogueNLEssenceGate(
+            gate_id="online-fast-pe-coupling",
+            passed=online_fast_pe_coupling_passed,
+            evidence=(
+                ("pe_triggered_turn_count", evidence_metric_means.get("pe_triggered_turn_count", 0.0)),
+                ("online_fast_substrate_applied_count", evidence_metric_means.get("online_fast_substrate_applied_count", 0.0)),
+                (
+                    "mean_online_fast_substrate_parameter_change_rate",
+                    evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0),
+                ),
+                (
+                    "mean_online_fast_substrate_optimizer_state_norm",
+                    evidence_metric_means.get("mean_online_fast_substrate_optimizer_state_norm", 0.0),
+                ),
+            ),
+            description="PE-triggered turns should couple to bounded online-fast substrate updates with nontrivial optimizer-memory signal.",
         ),
         DialogueNLEssenceGate(
             gate_id="rare-heavy-net-benefit",
@@ -1981,6 +3488,7 @@ def _comprehensive_stage_order() -> tuple[DialogueComprehensiveStage, ...]:
         DialogueComprehensiveStage.LONGITUDINAL,
         DialogueComprehensiveStage.ESSENCE,
         DialogueComprehensiveStage.PERTURBATION,
+        DialogueComprehensiveStage.OPEN_ENVIRONMENT,
         DialogueComprehensiveStage.SYSTEMATIC_REPLAY,
         DialogueComprehensiveStage.SELECTION_ARTIFACT,
         DialogueComprehensiveStage.ARTIFACT_COMPARISON,
@@ -2037,6 +3545,85 @@ def _rare_heavy_gate_snapshot(
     }
 
 
+def _emergence_dashboard_snapshot(
+    dashboard: DialogueEmergenceDashboardArtifact,
+) -> dict[str, Any]:
+    return {
+        "baseline_label": dashboard.baseline_label,
+        "canonical_case_count": dashboard.canonical_case_count,
+        "canonical_pass_rate": dashboard.canonical_pass_rate,
+        "open_scenario_count": dashboard.open_scenario_count,
+        "open_pass_rate": dashboard.open_pass_rate,
+        "strong_proof_panel_count": len(dashboard.strong_proof_panels),
+        "open_panel_count": len(dashboard.open_environment_panels),
+        "strongest_scaffold_path_label": dashboard.strongest_scaffold_path_label,
+        "strongest_scaffold_retention_score": dashboard.strongest_scaffold_retention_score,
+        "strongest_open_path_label": dashboard.strongest_open_path_label,
+        "strongest_open_retention_score": dashboard.strongest_open_retention_score,
+        "interpretation": dashboard.interpretation,
+    }
+
+
+def build_dialogue_emergence_dashboard_payload(
+    comprehensive_report: DialogueComprehensiveBenchmarkReport,
+) -> dict[str, Any]:
+    dashboard = comprehensive_report.emergence_dashboard
+    return {
+        "baseline_label": dashboard.baseline_label,
+        "profile_labels": comprehensive_report.profile_labels,
+        "interpretation": dashboard.interpretation,
+        "canonical": {
+            "case_count": dashboard.canonical_case_count,
+            "pass_rate": dashboard.canonical_pass_rate,
+            "passed_case_count": comprehensive_report.canonical_ablation_report.path_reports[0].benchmark_report.passed_case_count
+            if comprehensive_report.canonical_ablation_report.path_reports
+            else 0,
+        },
+        "open_environment": {
+            "scenario_count": dashboard.open_scenario_count,
+            "pass_rate": dashboard.open_pass_rate,
+            "present": comprehensive_report.open_ablation_report is not None,
+        },
+        "strongest_paths": {
+            "scaffold": {
+                "path_label": dashboard.strongest_scaffold_path_label,
+                "retention_score": dashboard.strongest_scaffold_retention_score,
+            },
+            "open_environment": {
+                "path_label": dashboard.strongest_open_path_label,
+                "retention_score": dashboard.strongest_open_retention_score,
+            },
+        },
+        "strong_proof_panels": _json_normalize(dashboard.strong_proof_panels),
+        "open_environment_panels": _json_normalize(dashboard.open_environment_panels),
+        "pe_dominance_report": _json_normalize(dashboard.pe_dominance_report),
+        "pe_case_diagnosis_report": _json_normalize(dashboard.pe_case_diagnosis_report),
+        "essence": {
+            "accepted": comprehensive_report.essence_acceptance.accepted,
+            "blocked_gate_ids": comprehensive_report.essence_acceptance.blocked_gate_ids,
+            "passed_gate_count": comprehensive_report.essence_report.passed_gate_count,
+            "total_gate_count": comprehensive_report.essence_report.total_gate_count,
+        },
+        "rare_heavy_gate": _rare_heavy_gate_snapshot(comprehensive_report.essence_report),
+        "description": dashboard.description,
+    }
+
+
+def export_dialogue_emergence_dashboard_artifact(
+    comprehensive_report: DialogueComprehensiveBenchmarkReport,
+    *,
+    output_path: str | Path,
+) -> Path:
+    target_path = Path(output_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = build_dialogue_emergence_dashboard_payload(comprehensive_report)
+    target_path.write_text(
+        json.dumps(_json_normalize(payload), sort_keys=True, indent=2),
+        encoding="utf-8",
+    )
+    return target_path
+
+
 def _comprehensive_manifest_summary(
     *,
     stage: DialogueComprehensiveStage,
@@ -2049,13 +3636,65 @@ def _comprehensive_manifest_summary(
             "essence_passed_gate_count": result.passed_gate_count,
             "rare_heavy_gate": _rare_heavy_gate_snapshot(result),
         }
+    if isinstance(result, OpenDialogueBenchmarkComparisonReport):
+        baseline_path = next(
+            (path for path in result.path_reports if path.path_label == result.baseline_label),
+            None,
+        )
+        baseline_report = baseline_path.benchmark_report if baseline_path is not None else None
+        return {
+            "stage": stage.value,
+            "open_profile_count": len(result.path_reports),
+            "open_scenario_count": baseline_report.total_case_count if baseline_report is not None else 0,
+            "open_passed_case_count": baseline_report.passed_case_count if baseline_report is not None else 0,
+        }
     if isinstance(result, DialogueComprehensiveBenchmarkReport):
+        chosen_candidate = next(
+            (
+                candidate
+                for candidate in result.artifact_comparison_report.candidate_reports
+                if candidate.candidate_label == result.artifact_comparison_report.chosen_candidate_label
+            ),
+            None,
+        )
+        artifact_acceptance_summary = None
+        if chosen_candidate is not None:
+            acceptance_report = chosen_candidate.acceptance_report
+            artifact_acceptance_summary = {
+                "candidate_label": chosen_candidate.candidate_label,
+                "accepted": acceptance_report.decision.accepted,
+                "override_mode": acceptance_report.decision.override_mode,
+                "reasons": list(acceptance_report.decision.reasons),
+                "rollback_applied": acceptance_report.decision.rollback_applied,
+                "mean_score_delta": acceptance_report.mean_score_delta,
+                "passed_case_delta": acceptance_report.passed_case_delta,
+                "positive_case_fraction": acceptance_report.positive_case_fraction,
+                "worst_case_delta": acceptance_report.worst_case_delta,
+                "pre_import_evidence": {
+                    key: value for key, value in acceptance_report.pre_import_evidence
+                },
+            }
         return {
             "stage": stage.value,
             "essence_accepted": result.essence_acceptance.accepted,
             "essence_blocked_gate_ids": list(result.essence_acceptance.blocked_gate_ids),
             "rare_heavy_gate": _rare_heavy_gate_snapshot(result.essence_report),
             "artifact_candidate_count": len(result.artifact_comparison_report.candidate_reports),
+            "artifact_acceptance": artifact_acceptance_summary,
+            "emergence_dashboard": _emergence_dashboard_snapshot(result.emergence_dashboard),
+            "open_profile_count": len(result.open_ablation_report.path_reports) if result.open_ablation_report is not None else 0,
+            "open_scenario_count": (
+                next(
+                    (
+                        path.benchmark_report.total_case_count
+                        for path in result.open_ablation_report.path_reports
+                        if path.path_label == result.open_ablation_report.baseline_label
+                    ),
+                    0,
+                )
+                if result.open_ablation_report is not None
+                else 0
+            ),
         }
     return None
 
@@ -2372,9 +4011,10 @@ def evaluate_dialogue_artifact_acceptance(
     gate_config: DialogueArtifactAcceptanceGateConfig,
 ) -> DialogueArtifactAcceptanceDecision:
     reasons: list[str] = []
+    passed_case_shortfall = passed_case_delta < gate_config.min_passed_case_delta
     if mean_score_delta < gate_config.min_mean_score_delta:
         reasons.append("mean-score-delta-below-threshold")
-    if passed_case_delta < gate_config.min_passed_case_delta:
+    if passed_case_shortfall:
         reasons.append("passed-case-delta-below-threshold")
     if positive_case_fraction < gate_config.min_positive_case_fraction:
         reasons.append("positive-case-fraction-below-threshold")
@@ -2392,15 +4032,34 @@ def evaluate_dialogue_artifact_acceptance(
         reasons.append("substrate-mean-residual-magnitude-below-threshold")
     if substrate_import_success_fraction < gate_config.min_substrate_import_success_fraction:
         reasons.append("substrate-import-success-fraction-below-threshold")
+    override_mode = "none"
+    graded_override = (
+        gate_config.allow_strong_graded_gain_override
+        and passed_case_shortfall
+        and mean_score_delta >= gate_config.min_mean_score_delta_for_graded_override
+        and positive_case_fraction >= gate_config.min_positive_case_fraction_for_graded_override
+        and worst_case_delta >= gate_config.min_worst_case_delta_for_graded_override
+        and substrate_checkpoint_present
+        and substrate_update_count >= gate_config.min_substrate_update_count
+        and substrate_source_batch_count >= gate_config.min_substrate_source_batch_count
+        and substrate_mean_sequence_length >= gate_config.min_substrate_mean_sequence_length
+        and substrate_mean_residual_magnitude >= gate_config.min_substrate_mean_residual_magnitude
+        and substrate_import_success_fraction >= gate_config.min_substrate_import_success_fraction
+    )
+    if graded_override and "passed-case-delta-below-threshold" in reasons:
+        reasons.remove("passed-case-delta-below-threshold")
+        override_mode = "graded-gain"
     accepted = not reasons
     return DialogueArtifactAcceptanceDecision(
         accepted=accepted,
         reasons=tuple(reasons),
         rollback_applied=not accepted,
+        override_mode=override_mode,
         description=(
             f"Artifact acceptance decision accepted={accepted} mean_delta={mean_score_delta:.3f} "
             f"passed_case_delta={passed_case_delta} positive_fraction={positive_case_fraction:.3f} "
-            f"worst_case_delta={worst_case_delta:.3f} substrate_import_fraction={substrate_import_success_fraction:.3f}."
+            f"worst_case_delta={worst_case_delta:.3f} substrate_import_fraction={substrate_import_success_fraction:.3f} "
+            f"override_mode={override_mode} reasons={','.join(reasons) if reasons else 'none'}."
         ),
     )
 
@@ -2477,6 +4136,50 @@ def _aligned_pipeline_config_for_runner(
     )
 
 
+class _NoSemanticLabelTemporalPolicy(FullLearnedTemporalPolicy):
+    """Matched control: keep latent control, remove semantic label scaffold."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._step_counter = 0
+
+    def step(
+        self,
+        *,
+        substrate_snapshot,
+        previous_snapshot,
+        memory_snapshot=None,
+        reflection_snapshot=None,
+    ) -> TemporalStep:
+        step = super().step(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+        )
+        self._step_counter += 1
+        neutral_label = f"latent-family-v{step.action_family_version}-t{self._step_counter}"
+        return replace(
+            step,
+            active_abstract_action=neutral_label,
+            description=f"{step.description} Semantic scaffold removed; exposing neutral latent-family label.",
+        )
+
+
+class _NoReflectionCacheTemporalPolicy(FullLearnedTemporalPolicy):
+    """Matched control: keep latent/full ETA path, disable cached reflection bridge."""
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot,
+    ) -> None:
+        del reflection_snapshot
+
+    def cached_reflection_snapshot(self):
+        return None
+
+
 def build_standard_dialogue_runner(
     *,
     profile_label: str,
@@ -2514,6 +4217,31 @@ def build_standard_dialogue_runner(
             joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
             rare_heavy_enabled=False,
         )
+    if profile_label == "pe-eta-no-semantic-label":
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            world_temporal_policy=_NoSemanticLabelTemporalPolicy(),
+            self_temporal_policy=_NoSemanticLabelTemporalPolicy(),
+            default_residual_runtime=residual_runtime,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+        )
+    if profile_label == "pe-eta-no-reflection-cache":
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            world_temporal_policy=_NoReflectionCacheTemporalPolicy(),
+            self_temporal_policy=_NoReflectionCacheTemporalPolicy(),
+            default_residual_runtime=residual_runtime,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+        )
+    if profile_label == "pe-eta-pe-readout-only":
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            default_residual_runtime=residual_runtime,
+            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            external_prediction_error_drive=False,
+            prediction_error_readout_only=True,
+            primary_prediction_error_dominance_enabled=False,
+        )
     if profile_label in {"pe-drive-off", "eta-no-pe"}:
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
@@ -2534,7 +4262,7 @@ def build_standard_dialogue_runner(
             joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
         )
     if profile_label in {"eta-off", "heuristic-baseline"}:
-        temporal_policy = PlaceholderTemporalPolicy() if profile_label == "eta-off" else HeuristicTemporalPolicy()
+        temporal_policy = LearnedLiteTemporalPolicy() if profile_label == "eta-off" else HeuristicTemporalPolicy()
         passive_joint_loop = ETANLJointLoop(
             policy=FullLearnedTemporalPolicy(),
             residual_runtime=residual_runtime,
@@ -2604,6 +4332,17 @@ def build_real_dialogue_comprehensive_runner_factories(
             residual_runtime=residual_runtime,
         )
 
+    def open_runner_factory(profile_label: str, scenario: OpenDialogueScenario) -> AgentSessionRunner:
+        return build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=ScriptedDialogueCase(
+                case_id=f"open:{scenario.scenario_id}",
+                description=scenario.description,
+                user_inputs=scenario.opening_turns,
+            ),
+            residual_runtime=residual_runtime,
+        )
+
     def systematic_runner_factory(profile_label: str, variant: DialogueCaseVariant) -> AgentSessionRunner:
         return build_standard_dialogue_runner(
             profile_label=profile_label,
@@ -2622,6 +4361,7 @@ def build_real_dialogue_comprehensive_runner_factories(
         residual_runtime=residual_runtime,
         canonical_runner_factory=canonical_runner_factory,
         perturbation_runner_factory=perturbation_runner_factory,
+        open_runner_factory=open_runner_factory,
         systematic_runner_factory=systematic_runner_factory,
         acceptance_runner_factory=acceptance_runner_factory,
         description=(
@@ -2740,6 +4480,33 @@ async def run_dialogue_pe_eta_ablation_benchmark(
             current_metrics=dict(pe_eta_path.benchmark_report.metric_means),
             reference_metrics=dict(no_rare_heavy_path.benchmark_report.metric_means),
         )
+    strong_proof_profiles = (
+        "pe-eta-no-semantic-label",
+        "pe-eta-no-reflection-cache",
+        "pe-eta-pe-readout-only",
+    )
+    strong_proof_path_set = {
+        path.path_label
+        for path in path_reports
+        if path.path_label in strong_proof_profiles
+    }
+    strong_proof_case_deltas = tuple(
+        (
+            case_id,
+            tuple(
+                (path_label, delta_items)
+                for path_label, delta_items in path_deltas
+                if path_label in strong_proof_path_set
+            ),
+        )
+        for case_id, path_deltas in case_deltas_from_baseline
+        if any(path_label in strong_proof_path_set for path_label, _ in path_deltas)
+    )
+    strong_proof_metric_deltas = tuple(
+        (path_label, delta_items)
+        for path_label, delta_items in metric_deltas_from_baseline
+        if path_label in strong_proof_path_set
+    )
     return DialogueBenchmarkComparisonReport(
         baseline_label=baseline_label,
         path_reports=tuple(path_reports),
@@ -2747,9 +4514,12 @@ async def run_dialogue_pe_eta_ablation_benchmark(
         metric_deltas_from_baseline=tuple(metric_deltas_from_baseline),
         rare_heavy_case_deltas=tuple(rare_heavy_case_deltas),
         rare_heavy_metric_deltas=rare_heavy_metric_deltas,
+        strong_proof_case_deltas=strong_proof_case_deltas,
+        strong_proof_metric_deltas=strong_proof_metric_deltas,
         description=(
             f"Dialogue ablation benchmark compared {len(path_reports)} paths across {len(cases)} cases "
-            f"with baseline={baseline_label} and "
+            f"with baseline={baseline_label}, "
+            f"strong_proof_delta={'available' if strong_proof_metric_deltas else 'missing'}, "
             f"rare_heavy_delta={'available' if rare_heavy_metric_deltas else 'missing'}."
         ),
     )
@@ -2927,6 +4697,35 @@ async def run_replay_selection_artifact_acceptance_benchmark(
         ),
         ("substrate_import_success_fraction", round(substrate_import_success_fraction, 4)),
     )
+    pre_import_pass_fraction = (
+        sum(
+            1
+            for _, _, adapted_report, _, _, _ in raw_case_results
+            if adapted_report.rare_heavy_pre_import_pass_count > 0
+        )
+        / len(raw_case_results)
+        if raw_case_results
+        else 0.0
+    )
+    mean_pre_import_delta = _mean(
+        tuple(report.mean_rare_heavy_pre_import_score_delta for _, _, report, _, _, _ in raw_case_results)
+    )
+    mean_candidate_alignment = _mean(
+        tuple(report.mean_rare_heavy_candidate_alignment for _, _, report, _, _, _ in raw_case_results)
+    )
+    max_candidate_adapter_parameter_count = max(
+        (
+            report.max_rare_heavy_candidate_adapter_parameter_count
+            for _, _, report, _, _, _ in raw_case_results
+        ),
+        default=0,
+    )
+    pre_import_evidence = (
+        ("pre_import_pass_fraction", round(pre_import_pass_fraction, 4)),
+        ("mean_pre_import_score_delta", mean_pre_import_delta),
+        ("mean_candidate_alignment", mean_candidate_alignment),
+        ("max_candidate_adapter_parameter_count", float(max_candidate_adapter_parameter_count)),
+    )
     decision = evaluate_dialogue_artifact_acceptance(
         mean_score_delta=mean_score_delta,
         passed_case_delta=passed_case_delta,
@@ -2973,11 +4772,16 @@ async def run_replay_selection_artifact_acceptance_benchmark(
         worst_case_delta=worst_case_delta,
         substrate_evidence=substrate_evidence,
         decision=decision,
+        pre_import_evidence=pre_import_evidence,
         description=(
             f"Replay selection artifact acceptance benchmark evaluated {len(case_reports)} selected variants "
             f"with mean_score_delta={mean_score_delta:.3f}, passed_case_delta={passed_case_delta}, "
             f"positive_case_fraction={positive_case_fraction:.3f}, worst_case_delta={worst_case_delta:.3f}, "
-            f"substrate_import_fraction={substrate_import_success_fraction:.3f}, accepted={decision.accepted}."
+            f"substrate_import_fraction={substrate_import_success_fraction:.3f}, "
+            f"pre_import_pass_fraction={pre_import_pass_fraction:.3f}, "
+            f"pre_import_mean_delta={mean_pre_import_delta:.3f}, "
+            f"override_mode={decision.override_mode}, accepted={decision.accepted}, "
+            f"reasons={','.join(decision.reasons) if decision.reasons else 'none'}."
         ),
     )
 
@@ -3008,7 +4812,9 @@ async def run_multi_artifact_acceptance_benchmark(
                 candidate_score=candidate_score,
                 description=(
                     f"Candidate {candidate_label} scored {candidate_score:.3f} with "
-                    f"accepted={acceptance_report.decision.accepted}."
+                    f"accepted={acceptance_report.decision.accepted} "
+                    f"override_mode={acceptance_report.decision.override_mode} "
+                    f"reasons={','.join(acceptance_report.decision.reasons) if acceptance_report.decision.reasons else 'none'}."
                 ),
             )
         )
@@ -3025,7 +4831,9 @@ async def run_multi_artifact_acceptance_benchmark(
         ),
         description=(
             f"Multi-artifact acceptance compared {len(candidate_reports)} candidates and chose "
-            f"{chosen_candidate.candidate_label if chosen_candidate is not None else 'none'}."
+            f"{chosen_candidate.candidate_label if chosen_candidate is not None else 'none'} "
+            f"accepted={chosen_candidate.acceptance_report.decision.accepted if chosen_candidate is not None else False} "
+            f"override_mode={chosen_candidate.acceptance_report.decision.override_mode if chosen_candidate is not None else 'none'}."
         ),
     )
 
@@ -3033,10 +4841,12 @@ async def run_multi_artifact_acceptance_benchmark(
 async def run_dialogue_pe_eta_comprehensive_benchmark(
     *,
     canonical_cases: tuple[ScriptedDialogueCase, ...] = DEFAULT_DIALOGUE_PROOF_CASES,
+    open_scenarios: tuple[OpenDialogueScenario, ...] = DEFAULT_OPEN_DIALOGUE_SCENARIOS,
     variant_cases: tuple[DialogueCaseVariant, ...] = DEFAULT_DIALOGUE_CASE_VARIANTS,
     seeds: tuple[int, ...] = DEFAULT_DIALOGUE_REPLAY_SEEDS,
     families: tuple[DialogueParaphraseFamily, ...] = DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
     profile_labels: tuple[str, ...] = default_dialogue_comprehensive_profiles(),
+    open_profile_labels: tuple[str, ...] = default_open_dialogue_ablation_profiles(),
     baseline_label: str = "pe-eta",
     selection_top_k: int = 6,
     candidate_configs: tuple[tuple[str, PipelineConfig], ...] = DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
@@ -3044,6 +4854,7 @@ async def run_dialogue_pe_eta_comprehensive_benchmark(
     canonical_runner_factory: Callable[[str, ScriptedDialogueCase], AgentSessionRunner] | None = None,
     longitudinal_runner_factory: Callable[[], AgentSessionRunner] | None = None,
     perturbation_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
+    open_runner_factory: Callable[[str, OpenDialogueScenario], AgentSessionRunner] | None = None,
     systematic_runner_factory: Callable[[str, DialogueCaseVariant], AgentSessionRunner] | None = None,
     acceptance_runner_factory: Callable[[DialogueCaseVariant], AgentSessionRunner] | None = None,
     acceptance_profile_label: str = "pe-eta",
@@ -3080,6 +4891,12 @@ async def run_dialogue_pe_eta_comprehensive_benchmark(
         baseline_label=baseline_label,
         runner_factory=perturbation_runner_factory,
     )
+    open_ablation_report = await run_open_dialogue_ablation_benchmark(
+        scenarios=open_scenarios,
+        profile_labels=open_profile_labels,
+        baseline_label=baseline_label,
+        runner_factory=open_runner_factory,
+    )
     systematic_replay_report = await run_dialogue_pe_eta_systematic_replay_benchmark(
         seeds=seeds,
         families=families,
@@ -3101,21 +4918,31 @@ async def run_dialogue_pe_eta_comprehensive_benchmark(
         profile_label=acceptance_profile_label,
         runner_factory=acceptance_runner_factory,
     )
-    return DialogueComprehensiveBenchmarkReport(
+    provisional_report = DialogueComprehensiveBenchmarkReport(
         profile_labels=profile_labels,
         canonical_ablation_report=canonical_ablation_report,
         longitudinal_report=longitudinal_report,
         essence_report=essence_report,
         essence_acceptance=essence_acceptance,
         perturbation_report=perturbation_report,
+        open_ablation_report=open_ablation_report,
         systematic_replay_report=systematic_replay_report,
         selection_artifact=selection_artifact,
         artifact_comparison_report=artifact_comparison_report,
+        emergence_dashboard=_empty_emergence_dashboard(baseline_label=baseline_label),
+        description="Comprehensive dialogue benchmark placeholder before emergence dashboard synthesis.",
+    )
+    dashboard = build_dialogue_emergence_dashboard(provisional_report)
+    return replace(
+        provisional_report,
+        emergence_dashboard=dashboard,
         description=(
             f"Comprehensive dialogue benchmark ran canonical={len(canonical_cases)}, perturbation={len(variant_cases)}, "
+            f"open_scenarios={len(open_scenarios)}, "
             f"longitudinal_verdict={longitudinal_report.cross_session_report.verdict}, "
             f"essence_passed={essence_report.passed_gate_count}/{essence_report.total_gate_count}, "
             f"essence_accepted={essence_acceptance.accepted}, "
+            f"{_emergence_dashboard_description_fragment(dashboard)} "
             f"replay_generated={len(systematic_replay_report.variant_cases)}, profiles={len(profile_labels)}, "
             f"selection_top_k={len(selection_artifact.selected_variants)}, candidates={len(candidate_configs)}."
         ),
@@ -3142,6 +4969,7 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark(
         acceptance_profile_label=active_config.acceptance_profile_label,
     )
     canonical_cases = _limit_items(DEFAULT_DIALOGUE_PROOF_CASES, active_config.canonical_case_limit)
+    open_scenarios = _limit_items(DEFAULT_OPEN_DIALOGUE_SCENARIOS, active_config.open_scenario_limit)
     perturbation_variants = _limit_items(DEFAULT_DIALOGUE_CASE_VARIANTS, active_config.perturbation_variant_limit)
     replay_families = _limit_items(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES, active_config.replay_family_limit)
     candidate_configs = _limit_items(
@@ -3200,6 +5028,16 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark(
         runner_factory=shared_factories.perturbation_runner_factory,
     )
     emit_progress(
+        f"Running open-environment ablation on {len(open_scenarios)} scenarios "
+        f"across {len(active_config.open_profile_labels)} profiles."
+    )
+    open_ablation_report = await run_open_dialogue_ablation_benchmark(
+        scenarios=open_scenarios,
+        profile_labels=active_config.open_profile_labels,
+        baseline_label=active_config.baseline_label,
+        runner_factory=shared_factories.open_runner_factory,
+    )
+    emit_progress(
         f"Running systematic replay benchmark with seeds={active_config.replay_seeds} "
         f"and families={len(replay_families)}."
     )
@@ -3230,16 +5068,24 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark(
         runner_factory=shared_factories.acceptance_runner_factory,
     )
     emit_progress("Real comprehensive benchmark finished.")
-    return DialogueComprehensiveBenchmarkReport(
+    provisional_report = DialogueComprehensiveBenchmarkReport(
         profile_labels=active_config.profile_labels,
         canonical_ablation_report=canonical_ablation_report,
         longitudinal_report=longitudinal_report,
         essence_report=essence_report,
         essence_acceptance=essence_acceptance,
         perturbation_report=perturbation_report,
+        open_ablation_report=open_ablation_report,
         systematic_replay_report=systematic_replay_report,
         selection_artifact=selection_artifact,
         artifact_comparison_report=artifact_comparison_report,
+        emergence_dashboard=_empty_emergence_dashboard(baseline_label=active_config.baseline_label),
+        description="Real comprehensive dialogue benchmark placeholder before emergence dashboard synthesis.",
+    )
+    dashboard = build_dialogue_emergence_dashboard(provisional_report)
+    return replace(
+        provisional_report,
+        emergence_dashboard=dashboard,
         description=(
             f"Real comprehensive dialogue benchmark used shared runtime "
             f"origin={getattr(shared_factories.residual_runtime, 'runtime_origin', 'unknown')} "
@@ -3248,6 +5094,8 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark(
             f"essence_passed={essence_report.passed_gate_count}/{essence_report.total_gate_count} "
             f"essence_accepted={essence_acceptance.accepted} "
             f"{_rare_heavy_gate_description_fragment(essence_report)} "
+            f"{_emergence_dashboard_description_fragment(dashboard)} "
+            f"open_scenarios={len(open_scenarios)} "
             f"perturbation={len(perturbation_variants)} "
             f"replay_variants={len(systematic_replay_report.variant_cases)} "
             f"selection_top_k={len(selection_artifact.selected_variants)} candidates={len(candidate_configs)}."
@@ -3321,6 +5169,7 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
             acceptance_profile_label=active_config.acceptance_profile_label,
         )
     canonical_cases = _limit_items(DEFAULT_DIALOGUE_PROOF_CASES, active_config.canonical_case_limit)
+    open_scenarios = _limit_items(DEFAULT_OPEN_DIALOGUE_SCENARIOS, active_config.open_scenario_limit)
     perturbation_variants = _limit_items(DEFAULT_DIALOGUE_CASE_VARIANTS, active_config.perturbation_variant_limit)
     replay_families = _limit_items(DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES, active_config.replay_family_limit)
     candidate_configs = _limit_items(
@@ -3402,6 +5251,22 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
         )
         save_stage(perturbation_stage, perturbation_report)
 
+    open_stage = DialogueComprehensiveStage.OPEN_ENVIRONMENT
+    if stage_completed(open_stage):
+        open_ablation_report = load_stage(open_stage)
+    else:
+        emit_progress(
+            f"Running open-environment ablation on {len(open_scenarios)} scenarios "
+            f"across {len(active_config.open_profile_labels)} profiles."
+        )
+        open_ablation_report = await run_open_dialogue_ablation_benchmark(
+            scenarios=open_scenarios,
+            profile_labels=active_config.open_profile_labels,
+            baseline_label=active_config.baseline_label,
+            runner_factory=effective_factories.open_runner_factory,
+        )
+        save_stage(open_stage, open_ablation_report)
+
     systematic_stage = DialogueComprehensiveStage.SYSTEMATIC_REPLAY
     if stage_completed(systematic_stage):
         systematic_replay_report = load_stage(systematic_stage)
@@ -3453,16 +5318,24 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
         )
         save_stage(artifact_stage, artifact_comparison_report)
 
-    final_report = DialogueComprehensiveBenchmarkReport(
+    provisional_report = DialogueComprehensiveBenchmarkReport(
         profile_labels=active_config.profile_labels,
         canonical_ablation_report=canonical_ablation_report,
         longitudinal_report=longitudinal_report,
         essence_report=essence_report,
         essence_acceptance=essence_acceptance,
         perturbation_report=perturbation_report,
+        open_ablation_report=open_ablation_report,
         systematic_replay_report=systematic_replay_report,
         selection_artifact=selection_artifact,
         artifact_comparison_report=artifact_comparison_report,
+        emergence_dashboard=_empty_emergence_dashboard(baseline_label=active_config.baseline_label),
+        description="Staged comprehensive dialogue benchmark placeholder before emergence dashboard synthesis.",
+    )
+    dashboard = build_dialogue_emergence_dashboard(provisional_report)
+    final_report = replace(
+        provisional_report,
+        emergence_dashboard=dashboard,
         description=(
             f"Staged real comprehensive dialogue benchmark used shared runtime "
             f"origin={getattr(effective_factories.residual_runtime, 'runtime_origin', 'unknown')} "
@@ -3471,6 +5344,8 @@ async def run_real_dialogue_pe_eta_comprehensive_benchmark_staged(
             f"essence_passed={essence_report.passed_gate_count}/{essence_report.total_gate_count} "
             f"essence_accepted={essence_acceptance.accepted} "
             f"{_rare_heavy_gate_description_fragment(essence_report)} "
+            f"{_emergence_dashboard_description_fragment(dashboard)} "
+            f"open_scenarios={len(open_scenarios)} "
             f"perturbation={len(perturbation_variants)} "
             f"replay_variants={len(systematic_replay_report.variant_cases)} "
             f"selection_top_k={len(selection_artifact.selected_variants)} candidates={len(candidate_configs)}."

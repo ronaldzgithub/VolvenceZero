@@ -54,7 +54,8 @@
 
 **消费的输入**：
 - `memory` 快照：按轨道检索的记忆
-- `temporal_abstraction` 快照：控制器状态；当前实现口径下优先消费上一轮已发布 temporal snapshot，避免同轮循环依赖
+- `world_temporal` / `self_temporal` 快照：track-specific controller state；当前默认 final wiring 已允许 same-wave 读取这两个 track owner 的公开快照
+- `temporal_abstraction` 快照：compact aggregate temporal state，供仍未切到分轨 surface 的消费者保持兼容
 - `substrate` 快照：公开 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive
 
 **产出的输出**：
@@ -69,7 +70,7 @@
 - `controller_code` 不再只由 memory heuristic 派生；当前已可融合 temporal owner 发布的 controller state
 - dual-track owner 现也直接消费 substrate owner 发布的 semantic feature signals，用于在 shared / sparse-memory turn 上区分 world/self drive，而不是在 consumer 侧重建文本语义
 - `abstract_action_hint`、`action_family_version_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据，以及该证据来自哪一代 family bank
-- 默认 final wiring 下，dual-track 通过上一轮已发布的 temporal snapshot 闭合 `temporal -> dual_track`，避免打破 runtime 单轮 DAG
+- 默认 final wiring 下，dual-track 现优先消费 same-wave 的 `world_temporal` / `self_temporal` owner 快照，再保留 `temporal_abstraction` 作为 aggregate bridge，避免让 consumer 侧重建 track-specific controller state
 - `credit` / `evaluation` 当前是 dual-track 的下游消费者，而不是 direct module dependencies；dual-track owner 先发布稳定 track state，再由下游按需聚合
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节

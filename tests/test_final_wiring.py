@@ -6,6 +6,7 @@ from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import MemoryStore, MemoryStratum, MemoryWriteRequest, Track
+from volvence_zero.prediction import PredictionErrorModule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.substrate import (
@@ -38,6 +39,7 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "credit" in result.active_snapshots
     assert "reflection" in result.active_snapshots
     assert "temporal_abstraction" in result.active_snapshots
+    assert "substrate_self_mod" in result.active_snapshots
     assert result.temporal_runtime_state is not None
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
@@ -45,6 +47,10 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "reflection_usefulness" in metric_names
     assert "fallback_reliance" in metric_names
     assert "temporal_action_commitment" in metric_names
+    assert "substrate_online_fast_change_rate" in metric_names
+    assert "substrate_online_fast_gate_preview" in metric_names
+    assert "substrate_online_fast_optimizer_norm" in metric_names
+    assert "substrate_online_fast_recommended" in metric_names
 
 
 def test_final_wiring_honors_kill_switches():
@@ -318,6 +324,48 @@ def test_final_wiring_exposes_prediction_error_and_reflection_promotion_fields()
     assert "prediction_error" in result.active_snapshots
     turn_metrics = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "prediction_error_bootstrap" in turn_metrics or "prediction_error_magnitude" in turn_metrics
+
+
+def test_final_wiring_prediction_error_metrics_remain_owner_readouts_on_second_turn():
+    prediction_module = PredictionErrorModule()
+    first = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="prediction-readout-model",
+                feature_surface=(FeatureSignal(name="prediction_context", values=(0.6,), source="adapter"),),
+            ),
+            prediction_module=prediction_module,
+            session_id="prediction-session",
+            wave_id="wave-1",
+        )
+    )
+    second = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="prediction-readout-model",
+                feature_surface=(
+                    FeatureSignal(name="semantic_task_pull", values=(0.9,), source="adapter"),
+                    FeatureSignal(name="semantic_support_pull", values=(0.8,), source="adapter"),
+                    FeatureSignal(name="semantic_repair_pull", values=(0.7,), source="adapter"),
+                    FeatureSignal(name="semantic_exploration_pull", values=(0.5,), source="adapter"),
+                    FeatureSignal(name="semantic_directive_pull", values=(0.8,), source="adapter"),
+                ),
+            ),
+            prediction_module=prediction_module,
+            session_id="prediction-session",
+            wave_id="wave-2",
+        )
+    )
+
+    del first
+    turn_scores = {score.metric_name: score for score in second.active_snapshots["evaluation"].value.turn_scores}
+    assert "prediction_error_magnitude" in turn_scores
+    assert "prediction_error_reward" in turn_scores
+    assert "predictive_accuracy" in turn_scores
+    assert "PE-owner" in turn_scores["prediction_error_magnitude"].evidence
+    assert "prediction_confidence" in turn_scores["predictive_accuracy"].evidence
 
 
 # ---------------------------------------------------------------------------

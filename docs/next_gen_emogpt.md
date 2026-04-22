@@ -66,7 +66,7 @@ The architecture tracks two partially separated learning tracks:
 - **World/task track**: facts, plans, user situations, external goals — prediction errors about task outcomes
 - **Self/relationship track**: trust, attachment, interaction regime, repair history — prediction errors about relational consequences
 
-These tracks share infrastructure but remain semantically distinct in memory writes, credit assignment, controller updates, and evaluation metrics. Relationship continuity is not a side effect of problem solving.
+These tracks share infrastructure but remain semantically distinct in memory writes, credit assignment, controller updates, and evaluation metrics. In the current default runtime, this now means separate `world_temporal` and `self_temporal` owners with independent controller state and bounded update surfaces, plus a compact public `temporal_abstraction` aggregate slot for downstream consumers. Relationship continuity is not a side effect of problem solving.
 
 **R12. Evaluation Must Cover Being, Not Only Task Success**
 
@@ -304,19 +304,19 @@ This section records the current implementation delta without relaxing the targe
 ### Already landed in runtime or evidence paths
 
 - `prediction_error` is already a first-class ACTIVE runtime object; `memory`, `temporal`, `regime`, `credit`, and `reflection` directly consume it in the live stack.
-- The session owner already runs a bounded PE-scheduled joint loop and can trigger `rare-heavy` review/import for temporal and memory artifacts with checkpoint/rollback surfaces.
+- The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review/import: offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
 - The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
 
 ### Partially landed or still gated
 
 - Slow reflection can already write back bounded changes to memory, regime, and temporal priors, but application is still gated by writeback mode, credit gating, and evolution judgement rather than being an always-on unconstrained path.
 - CMS has landed as a machine-readable owner state with nested MLP profiles and slow-to-fast initialization telemetry, but this is one concrete engineering realization of the memory/timescale thesis rather than the full design space.
+- The new session-post slow loop is now the default `background-slow` owner path: turn-time final wiring emits a deferred writeback request, and session/context boundaries enqueue bounded post-session consolidation jobs that apply through owner-side memory/regime/temporal surfaces. The path is asynchronous with respect to user-facing turn latency, but still remains gated by writeback mode, credit evidence, and evolution judgement.
 
 ### Still target-state, not fully implemented
 
-- The default runtime path is still primarily turn-synchronous integration; a clearly separate async session-post reflection worker/queue is not yet the main orchestration path.
-- `rare-heavy` currently updates and re-imports temporal/memory artifacts; it is not yet a full stable-substrate pretraining/distillation pipeline.
-- Dual-track semantics already exist in memory/credit/evaluation/regime, but the default runtime still does not run two fully separate track-specific metacontrollers.
+- `rare-heavy` is no longer only a temporal/memory artifact path: the current runtime can clone substrate state into an offline owner, train a bounded adapter-delta-style substrate update, export/import/rollback it through the same rare-heavy artifact path, and verify it through replay-selection and acceptance gates. What is still missing is a fuller stable-substrate continual pretraining/distillation pipeline beyond this bounded substrate-aware adapter path.
+- Dual-track control is no longer only semantic: the default runtime now runs separate `world` / `self` temporal owners and updates them independently. What remains unfinished is the final paper-complete endpoint: stronger per-track causal isolation in all downstream evidence paths and a less aggregate-dependent public surface for consumers such as evaluation and benchmarks.
 - Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is not yet present as a formal runtime owner path.
 
 ---

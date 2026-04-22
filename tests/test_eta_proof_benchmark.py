@@ -183,7 +183,52 @@ def test_eta_internal_rl_assessment_exposes_policy_update_gate():
     assert gate_map["policy-update-evidence"].passed is True
 
 
-def test_eta_internal_rl_default_acceptance_now_passes():
+def test_eta_internal_rl_assessment_exposes_gate_specific_best_control_evidence():
+    benchmark_report = run_eta_internal_rl_proof_benchmark()
+    backend_report = run_eta_internal_rl_backend_robustness_benchmark()
+    assessment = build_eta_internal_rl_assessment(
+        benchmark_report=benchmark_report,
+        backend_report=backend_report,
+    )
+
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    success_evidence = dict(gate_map["sparse-reward-success"].evidence)
+    reuse_evidence = dict(gate_map["abstract-action-reuse"].evidence)
+    composition_evidence = dict(gate_map["heldout-composition"].evidence)
+
+    assert success_evidence["best_control_terminal_success_label"] in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
+    assert success_evidence["best_control_strong_success_label"] in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
+    assert reuse_evidence["best_control_reuse_label"] in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
+    assert reuse_evidence["best_control_credit_alignment_label"] in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
+    assert composition_evidence["best_control_subgoal_completion_label"] in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
+
+
+def test_eta_internal_rl_default_acceptance_now_fail_closes_under_harder_mechanism_gates():
     benchmark_report = run_eta_internal_rl_proof_benchmark()
     backend_report = run_eta_internal_rl_backend_robustness_benchmark()
     assessment = build_eta_internal_rl_assessment(
@@ -192,8 +237,9 @@ def test_eta_internal_rl_default_acceptance_now_passes():
     )
     decision = evaluate_eta_internal_rl_acceptance(assessment)
 
-    assert decision.accepted is True
-    assert not decision.reasons
+    assert decision.accepted is False
+    assert decision.reasons
+    assert any(reason.startswith("failed-gate:") for reason in decision.reasons)
 
 
 def test_eta_internal_rl_acceptance_passes_with_relaxed_thresholds():

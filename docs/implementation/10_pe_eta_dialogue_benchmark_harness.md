@@ -1,7 +1,7 @@
 # PE-ETA Dialogue Benchmark Harness
 
 > Status: draft
-> Last updated: 2026-04-21
+> Last updated: 2026-04-22
 > Scope: prove prediction-error-based temporal abstraction with scripted multi-turn dialogue cases
 
 ## Goal
@@ -70,13 +70,36 @@
 
 ## 默认 A/B 路径
 
-当前内置三条对比路径：
+当前默认不再把对照面压成“PE 在 / PE 不在”这种弱二分，而是改成更接近论文风格的**正交因果矩阵**：
 
 - `pe-eta`：完整 PE + full ETA 路径
-- `eta-no-pe`：保留 learned temporal path，但在 benchmark 记分时不再让普通 interval update 获得 PE-trigger credit
-- `heuristic-baseline`：active temporal policy 换成 heuristic path，joint loop 保持被动/evidence-only，并关闭 rare-heavy
+- `pe-drive-off`：仍保留 prediction chain 与 evaluation readout，但上一轮 PE 不再驱动 joint-loop external learning / schedule
+- `eta-off`：turn 级 temporal owner 改成 placeholder control，joint loop 保持被动/evidence-only，并关闭 rare-heavy
+- `timescale-off`：保留 PE + ETA，但 memory owner 改成 non-nested profile，关闭 nested CMS / slow-to-fast 反事实收益
 
-这三条路径的目标不是给出论文级“因果隔离”，而是先提供一个 repo 内部可重复的 A/B 证据面；其中 `eta-no-pe` 现已是更严格的 baseline，而不是早期会吃到 interval carryover credit 的弱版本。
+这组路径的目标不再只是“主路径比 baseline 强不强”，而是分别回答：
+
+- 优势是否真的来自 **PE 驱动**
+- 优势是否真的来自 **ETA / temporal abstraction**
+- 优势是否真的来自 **multi-timescale / nested CMS**
+
+### Strong-Proof Scaffold Matrix
+
+在默认轻量 ablation 之外，当前 repo 还补了一组更接近“涌现性证明”口径的 stronger proof matrix：
+
+- `pe-eta`
+- `pe-eta-no-semantic-label`
+- `pe-eta-no-reflection-cache`
+- `pe-eta-pe-readout-only`
+- `pe-drive-off`
+- `eta-off`
+- `timescale-off`
+
+这组 profile 的目标不是只看“有无模块”，而是继续回答：
+
+- 去掉 semantic label scaffold 后，latent family / PE schedule 是否仍成立
+- 去掉 reflection-cache scaffold 后，family 与 delayed stabilization 是否仍可读
+- 保留 PE readout 但关闭 PE primary drive 后，改善是否还能主要成立
 
 ## Comprehensive 多时间尺度路径
 
@@ -86,8 +109,9 @@
 - `pe-eta-online-only`：保留 online-fast PE + ETA，但关闭 background writeback 和 rare-heavy import
 - `pe-eta-no-writeback`：保留 PE + ETA + rare-heavy recommendation/import，但把 reflection 降到 `proposal-only`
 - `pe-eta-no-rare-heavy`：保留 PE + ETA + writeback，但关闭 rare-heavy execution
-- `eta-no-pe`
-- `heuristic-baseline`
+- `pe-drive-off`
+- `eta-off`
+- `timescale-off`
 
 这组 profiles 的目标不是只回答“主路径比 baseline 强不强”，而是进一步回答：
 
@@ -96,6 +120,94 @@
 - rare-heavy 是否已经在当前 benchmark 下带来稳定净收益
 - full path 相对 `online-only` / `no-writeback` / `no-rare-heavy` 的 gap 是否可读
 
+## Open-Environment 外推层
+
+在 scripted / perturbation / replay 层之上，当前又新增一层第一阶段 **open-environment dialogue extrapolation**：
+
+- `OpenDialogueScenario`
+- `DeterministicUserSimulator`
+- `OpenDialogueREPLReader`
+- `run_open_dialogue_case()`
+- `run_open_dialogue_benchmark()`
+- `build_open_dialogue_case_report()`
+
+这一层的目标不是复用 scripted proof gate，而是回答：
+
+- 在更开放、非固定 `case.user_inputs` 的 episode 中，runtime 是否仍能稳定跑通 `run_turn(user_input)`
+- open episode 中是否仍可观察到 `prediction_error -> schedule -> temporal/regime change -> later stabilization` 这条主链
+- 多时间尺度证据（online learning / background writeback / session-post completion / rare-heavy recommendation）是否仍然可读
+
+### 设计边界
+
+open-environment 层遵守 3 条边界：
+
+1. 用户模拟器属于 benchmark / orchestration 层，不是新的 runtime owner
+2. episode 仍通过 `AgentSessionRunner.run_turn(user_input)` 进入主运行时，不新增快照 slot
+3. open 报告不复用 scripted `expected_pressure_turns` 指标，而改用独立的 trajectory-level acceptance surface
+
+### Runtime Integration
+
+当前 open-environment 层不是“再写一套假 benchmark loop”，而是直接复用现有 runtime seam：
+
+- benchmark 侧：`DeterministicUserSimulator.next_turn(...)` 生成下一轮用户输入，再交给 `run_turn(...)`
+- CLI 侧：`OpenDialogueREPLReader` 实现 stateful `reader()`，可直接交给 `run_repl(reader=...)`
+
+因此 open-environment episode 与正常 REPL 共享同一条 session/runtime 主路径，而不是只在离线 helper 里做假调用。
+
+### Comprehensive Integration
+
+当前 open-environment 已不再只是独立 helper：
+
+- `run_dialogue_pe_eta_comprehensive_benchmark()` 已可直接接收 open scenarios / open profile labels
+- `run_real_dialogue_pe_eta_comprehensive_benchmark_staged()` 已新增 `open_environment` stage
+- staged manifest / final report 现在会把 open-environment 统计写入 summary，而不是把 open 外推留在 comprehensive 证据链之外
+
+另外，当前 comprehensive report 还会额外产出一个 **emergence dashboard artifact**：
+
+- 它把 canonical strong-proof delta、open-environment delta、以及 `pe-dominance` / case diagnosis 压到同一个结构化 summary 里
+- 它回答的不是单个 case 是否通过，而是“现在最强的 scaffold-retention 路径是谁、最强的 open-retention 路径是谁、整体 interpretation 更接近 latent-mechanism 还是 PE-dominance”
+- staged manifest 也会写入它的轻量 snapshot，便于 resume / artifact review / rollout gate 直接读取
+
+当前还补了正式导出层：
+
+- `build_dialogue_emergence_dashboard_payload()`：把 dashboard 压成稳定 JSON payload
+- `export_dialogue_emergence_dashboard_artifact()`：把 payload 落成独立 artifact 文件
+- `scripts/export_emergence_dashboard.sh`：提供一个 repo-native script-facing 入口，直接跑 real comprehensive benchmark 并输出 dashboard JSON
+
+这意味着 open-env 仍然只是 **extrapolation evidence**，但它已经进入 repo 最强的 resumable proof pipeline。
+
+### Open Ablation Matrix
+
+在 open single-path 之上，当前还新增了一个最小 open-environment ablation 入口：
+
+- `default_open_dialogue_ablation_profiles()`
+- `run_open_dialogue_ablation_benchmark()`
+
+第一阶段默认 profile matrix 先保持最小可解释面：
+
+- `pe-eta`
+- `pe-drive-off`
+- `eta-off`
+
+它的用途不是给出完整论文级开放域结论，而是先回答：
+
+- open episode 中的优势是否仍依赖 PE external drive
+- open episode 中的优势是否仍依赖 ETA / temporal abstraction
+- 在更开放用户轨迹下，repo-native 的因果矩阵是否还能保持方向性的 separation
+
+### Open Acceptance Surface
+
+第一阶段 open-environment acceptance 不再检查 scripted pressure-localization，而改成更适合开放 episode 的 6 条 gate：
+
+- `episode-runs-to-completion`
+- `prediction-chain-present`
+- `pe-schedule-observed`
+- `temporal-trajectory-nonconstant`
+- `multi-timescale-evidence-observed`
+- `late-episode-stabilization-or-improvement`
+
+这里的意图不是证明“开放域最优性”，而是回答：在更开放的用户环境里，repo 里的 ETA/NL 主链是否仍然进入 runtime，并继续产生可检查的证据。
+
 ## 记录的证据
 
 每个 benchmark turn 现在显式记录：
@@ -103,10 +215,11 @@
 - prediction error：`magnitude` / `signed_reward` / `task_error` / `relationship_error` / `regime_error` / `action_error`
 - temporal abstraction：`joint_schedule_action` / `active_abstract_action` / `switch_gate` / `action_family_version`
 - regime：`active_regime`
-- background-slow：`bounded_writeback_applied` / `reflection_promotion_eligible`
+- background-slow：`bounded_writeback_applied` / `reflection_promotion_eligible` / `session_post_completed_job_count`
 - nested lifecycle：`nested_profile_active` / `nested_context_reset_applied` / `slow_to_fast_init_benefit`
 - evolution judge：`evolution_decision` / `evolution_category` / `cross_session_verdict`
-- rare-heavy：`recommended` / `applied`
+- rare-heavy：`recommended` / `applied` / `import_decision` / `reject_reason`
+- rare-heavy pre-import：`pre_import_passed` / `pre_import_mean_score_delta` / `candidate_alignment` / `candidate_adapter_parameter_count`
 - delayed outcome readout：`learning` / `relationship` / `abstraction` 相关 evaluation metrics
 
 每个 case report 现在还显式记录两类定量比较指标：
@@ -123,10 +236,16 @@
 - `online_learning_turn_count`：有多少 turn 真正进入了非 `evidence-only` 的 online 学习路径
 - `bounded_writeback_turn_count`：有多少 turn 发生了 reflection/background writeback
 - `reflection_promotion_eligible_turn_count`：有多少 turn 达到了 background consolidation eligibility
+- `session_post_completed_job_count`：有多少 turn 已观察到 session-post slow loop 完成回执
 - `rare_heavy_recommended_count` / `rare_heavy_applied_count`：rare-heavy 在整段 case 中被建议/真正执行了多少次
+- `rare_heavy_pre_import_pass_count` / `rare_heavy_pre_import_reject_count`：rare-heavy 候选在导入前 replay gate 中通过/被拒绝的次数
+- `mean_rare_heavy_pre_import_score_delta`：导入前 replay 上 candidate 相对 baseline 的平均分数改善
+- `mean_rare_heavy_candidate_alignment`：offline rare-heavy bundle 中 trace/substrate 对齐度
+- `max_rare_heavy_candidate_adapter_parameter_count`：候选 substrate adapter delta 的最大参数量
 - `evolution_judge_turn_count` / `evolution_judge_rollback_count` / `evolution_judge_structural_allow_count`
 - `nested_profile_active_turn_count` / `nested_context_reset_count` / `mean_slow_to_fast_init_benefit`
 - `store_nested_context_reset_count` / `boundary_reset_observed_on_first_turn` / `first_turn_slow_to_fast_init_benefit` / `mean_reset_turn_slow_to_fast_init_benefit`
+- `pe_schedule_due_turn_count` / `explicit_pe_schedule_turn_count` / `carryover_credit_turn_count` / `schedule_label_consistency`
 
 另外，benchmark report / comparison report 现在还会显式发布：
 
@@ -156,12 +275,18 @@
 
 而不是把二者混写成一个单一指标。
 
+在当前口径下，`schedule_label_consistency` 进一步要求：
+
+- 显式 `*-pe` label 不能只靠 profile 名称拿分
+- benchmark 只在 runtime 级 `JointLoopSchedule` 语义满足时，才承认显式 PE schedule credit
+- carryover credit 会与 explicit schedule credit 分开统计，避免把“PE 存在”与“PE 真驱动了学习路径”混写
+
 ## Real Proof Profile
 
 为了避免 `slow-shapes-fast` 和 `rare-heavy-net-benefit` 被 proof profile 配置本身直接掩盖，当前 real comprehensive benchmark 推荐单独使用最小 proof profile：
 
 - `canonical_case_limit >= 2`
-- `profile_labels = ("pe-eta", "pe-eta-no-rare-heavy", "eta-no-pe", "heuristic-baseline")`
+- `profile_labels = ("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off")`
 - `perturbation_variant_limit = 1`
 - `replay_family_limit = 1`
 - `candidate_config_limit = 1`
@@ -184,6 +309,13 @@ proof profile 的目的不是跑最大全量 benchmark，而是确保四条 proo
 - `slow-shapes-fast`
 - `judge-gated-evolution`
 - `cross-session-growth`
+
+其中 `multi-timescale-default` 当前不再只看 “bounded writeback 有没有 apply”，而是看默认主路径上是否出现**可观察的 background-slow 证据**，包括：
+
+- `bounded_writeback_turn_count`
+- `reflection_promotion_eligible_turn_count`
+- `rare_heavy_recommended_count`
+- `session_post_completed_job_count`
 
 ## Perturbation / Replay 层
 
@@ -388,6 +520,22 @@ Replay ranking 的前几项为：
 - `substrate_mean_sequence_length` / `substrate_mean_residual_magnitude` 是否达到最小训练证据
 - `substrate_import_success_fraction` 是否表明确实通过 owner-side substrate import 生效
 
+另外，当前 acceptance report / candidate summary 已显式把 **pre-import telemetry** 纳入说明：
+
+- `pre_import_pass_fraction`
+- `pre_import_mean_delta`
+- `mean_candidate_alignment`
+- `max_candidate_adapter_parameter_count`
+- `override_mode`
+- `reasons`
+
+这意味着报告层现在不再只说“被 reject 了”，而会区分：
+
+- artifact 在导入前 replay 就没过
+- import 后 mixed gain 仍不足
+- substrate training evidence 不够
+- 或者只是 `passed_case_delta` 没翻转
+
 在最近一次真实 replay-selection acceptance benchmark 中：
 
 - 选取了 `top_k=6` 个最有诊断性的 variants
@@ -498,6 +646,26 @@ Replay ranking 的前几项为：
 
 这说明 current best-of-n 已经能找到“明显比其它候选更好”的 candidate，但默认 acceptance gate 仍坚持要求真正提升通过数，而不是只接受 mixed-gain 的局部改善。
 
+## 当前 gate 校准口径
+
+在引入 pre-import telemetry 之后，repo 现已补了一条**极窄的 graded-gain override**：
+
+- 默认仍以 `passed_case_delta` 为强标准
+- 只有当 `passed_case_delta` 未提升、但同时满足：
+  - `mean_score_delta` 明显为正
+  - `positive_case_fraction` 足够高
+  - `worst_case_delta` 不为负
+  - substrate checkpoint / import / batch evidence 全部满足
+- 才允许把 `passed-case-delta-below-threshold` 这一条单独移除
+
+这条 override 的目标不是放松 gate，而是只在“candidate 已经表现出稳定 graded gain、且没有负面 tail 风险”时，避免被二元通过数单点卡死。
+
+因此当前口径变成：
+
+- **优先**看真正的 case pass 提升
+- **其次**才在强 graded-gain + 零负向退化的条件下启用最小 override
+- 报告必须显式发布 `override_mode`
+
 ## Comprehensive Benchmark 入口
 
 当前还新增：
@@ -602,8 +770,8 @@ Replay ranking 的前几项为：
 
 要继续收紧证据，需要下一步补：
 
-- 生成式用户模拟器
-- 更严格的 PE-off / ETA-off / timescale-off 因果隔离实现（不仅是当前 profile matrix）
+- 更强的 simulator backend（例如 LLM-backed user model），而不只停留在 deterministic open-user policy
+- 更长程的 open-environment 外推，而不只停留在 bounded first-stage episode
 - 面向 session-medium / background-slow / rare-heavy 的独立抽象迁移指标
 - 更长程的跨会话 benchmark，而不只是单 case / variant 内 delayed payoff
 

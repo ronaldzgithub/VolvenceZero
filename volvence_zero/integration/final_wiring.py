@@ -21,6 +21,7 @@ from volvence_zero.evaluation import (
     EvaluationBackbone,
     EvaluationReport,
     EvaluationModule,
+    EvaluationScore,
     EvaluationSnapshot,
     EvolutionDecision,
     EvolutionJudgement,
@@ -38,7 +39,12 @@ from volvence_zero.reflection import (
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
-from volvence_zero.substrate import SubstrateAdapter, SubstrateModule
+from volvence_zero.substrate import (
+    SubstrateAdapter,
+    SubstrateModule,
+    SubstrateSelfModModule,
+    SubstrateSelfModSnapshot,
+)
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerRuntimeState,
@@ -57,6 +63,7 @@ from volvence_zero.temporal import (
 @dataclass(frozen=True)
 class FinalRolloutConfig:
     substrate: WiringLevel = WiringLevel.ACTIVE
+    substrate_self_mod: WiringLevel = WiringLevel.ACTIVE
     memory: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
@@ -72,6 +79,7 @@ class FinalRolloutConfig:
             return WiringLevel.DISABLED
         return {
             "substrate": self.substrate,
+            "substrate_self_mod": self.substrate_self_mod,
             "memory": self.memory,
             "dual_track": self.dual_track,
             "evaluation": self.evaluation,
@@ -398,6 +406,9 @@ def build_final_runtime_modules(
     regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
+    substrate_self_mod_pe_magnitude: float = 0.0,
+    substrate_self_mod_pe_reward: float = 0.0,
+    substrate_self_mod_pe_threshold: float = 0.18,
 ) -> list[Any]:
     resolved_world_temporal_policy = world_temporal_policy or temporal_policy or FullLearnedTemporalPolicy()
     if self_temporal_policy is not None:
@@ -405,11 +416,19 @@ def build_final_runtime_modules(
     elif isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy = clone_full_learned_temporal_policy(resolved_world_temporal_policy)
     else:
-        resolved_self_temporal_policy = FullLearnedTemporalPolicy()
+        resolved_self_temporal_policy = resolved_world_temporal_policy
     return [
         SubstrateModule(
             adapter=substrate_adapter,
             wiring_level=config.level_for("substrate", WiringLevel.ACTIVE),
+        ),
+        SubstrateSelfModModule(
+            session_id=session_id,
+            wave_id=wave_id,
+            pe_threshold=substrate_self_mod_pe_threshold,
+            external_pe_magnitude=substrate_self_mod_pe_magnitude,
+            external_pe_reward=substrate_self_mod_pe_reward,
+            wiring_level=config.level_for("substrate_self_mod", WiringLevel.SHADOW),
         ),
         MemoryModule(
             store=memory_store or build_default_memory_store(),
@@ -485,6 +504,9 @@ async def run_final_wiring_turn(
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
     apply_slow_writeback: bool = True,
+    substrate_self_mod_pe_magnitude: float = 0.0,
+    substrate_self_mod_pe_reward: float = 0.0,
+    substrate_self_mod_pe_threshold: float = 0.18,
 ) -> FinalIntegrationResult:
     modules = build_final_runtime_modules(
         config=config,
@@ -500,6 +522,9 @@ async def run_final_wiring_turn(
         regime_module=regime_module,
         session_id=session_id,
         wave_id=wave_id,
+        substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
+        substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
+        substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
     )
     if upstream_snapshots:
         for module in modules:
@@ -551,6 +576,19 @@ async def run_final_wiring_turn(
         and isinstance(active_snapshots.get("prediction_error").value, PredictionErrorSnapshot)
         else None
     )
+    track_runtime_states_for_evaluation = tuple(
+        (module.track.value, runtime_state)
+        for module in temporal_modules
+        for runtime_state in (module.export_runtime_state(),)
+        if runtime_state is not None
+    )
+    temporal_runtime_state_for_evaluation = None
+    if len(track_runtime_states_for_evaluation) == 2:
+        track_state_map = dict(track_runtime_states_for_evaluation)
+        temporal_runtime_state_for_evaluation = build_temporal_runtime_state_aggregate(
+            world_state=track_state_map["world"],
+            self_state=track_state_map["self"],
+        )
     reflection_promote = False
     reflection_promote_reason = ""
     if (
@@ -573,6 +611,7 @@ async def run_final_wiring_turn(
             timestamp_ms=evaluation_snapshot.timestamp_ms + 1,
             base_snapshot=enriched_evaluation,
             temporal_snapshot=temporal_value,
+            metacontroller_state=temporal_runtime_state_for_evaluation,
         )
         joint_kernel_scores = (
             joint_loop_result.kernel_scores
@@ -606,12 +645,57 @@ async def run_final_wiring_turn(
             joint_loop_result=joint_loop_result,
             regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
         )
+        substrate_self_mod_snapshot = active_snapshots.get("substrate_self_mod")
+        substrate_self_mod_value = (
+            substrate_self_mod_snapshot.value
+            if substrate_self_mod_snapshot is not None
+            and isinstance(substrate_self_mod_snapshot.value, SubstrateSelfModSnapshot)
+            else None
+        )
+        if substrate_self_mod_value is not None:
+            enriched_evaluation = evaluation_module.backbone.record_external_scores(
+                session_id=session_id,
+                wave_id=wave_id,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
+                base_snapshot=enriched_evaluation,
+                scores=(
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_change_rate",
+                        value=substrate_self_mod_value.parameter_change_rate,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_gate_preview",
+                        value=1.0 if substrate_self_mod_value.gate_preview == GateDecision.ALLOW.value else 0.0,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_optimizer_norm",
+                        value=substrate_self_mod_value.optimizer_state_norm,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_recommended",
+                        value=1.0 if substrate_self_mod_value.recommended else 0.0,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                ),
+                description_suffix="Enriched with online-fast substrate self-mod evidence.",
+            )
         reflection_accuracy = 0.0
         if reflection_module is not None:
             reflection_accuracy = reflection_module.engine.proposal_success_rate
         session_report = evaluation_module.backbone.build_session_report(
             session_id=session_id,
-            timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
         )
         cross_session_report = None
         if prior_session_reports:
@@ -756,6 +840,7 @@ def build_acceptance_report(
             name
             for name in (
                 "substrate",
+                "substrate_self_mod",
                 "memory",
                 "dual_track",
                 "evaluation",
@@ -773,6 +858,7 @@ def build_acceptance_report(
 
     expected_active = {
         "substrate",
+        "substrate_self_mod",
         "memory",
         "dual_track",
         "evaluation",
@@ -799,6 +885,15 @@ def build_acceptance_report(
     if config.reflection is WiringLevel.ACTIVE and "reflection" not in active_slots:
         issues.append("Reflection is configured ACTIVE but did not publish into the active chain.")
 
+    if (
+        config.substrate_self_mod is WiringLevel.SHADOW
+        and "substrate_self_mod" not in shadow_slots
+        and "substrate_self_mod" not in active_slots
+    ):
+        issues.append("Substrate self-mod wiring configured but no substrate_self_mod snapshot was produced.")
+    if config.substrate_self_mod is WiringLevel.ACTIVE and "substrate_self_mod" not in active_slots:
+        issues.append("Substrate self-mod is configured ACTIVE but did not publish into the active chain.")
+
     if config.temporal is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
     if config.temporal is WiringLevel.SHADOW and "world_temporal" not in shadow_slots and "world_temporal" not in active_slots:
@@ -816,6 +911,8 @@ def build_acceptance_report(
         recommendations.append("Keep reflection in proposal-only mode until writeback acceptance is proven.")
     if config.temporal is WiringLevel.ACTIVE:
         recommendations.append("Validate temporal active mode against rollout evidence before widening scope.")
+    if config.substrate_self_mod is WiringLevel.ACTIVE:
+        recommendations.append("Keep online-fast substrate self-mod bounded and rollback-safe before widening scope.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")
 

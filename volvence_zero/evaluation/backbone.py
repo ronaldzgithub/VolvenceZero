@@ -778,8 +778,12 @@ class EvaluationBackbone:
         timestamp_ms: int,
         base_snapshot: EvaluationSnapshot,
         temporal_snapshot: "TemporalAbstractionSnapshot | None",
+        metacontroller_state: "MetacontrollerRuntimeState | None" = None,
     ) -> EvaluationSnapshot:
-        temporal_scores = self._temporal_public_scores(temporal_snapshot=temporal_snapshot)
+        temporal_scores = self._temporal_public_scores(
+            temporal_snapshot=temporal_snapshot,
+            metacontroller_state=metacontroller_state,
+        )
         return self.record_external_scores(
             session_id=session_id,
             wave_id=wave_id,
@@ -1071,28 +1075,38 @@ class EvaluationBackbone:
                     evidence=prediction_error_snapshot.description,
                 ),
             )
-        predictive_accuracy = _clamp(1.0 - min(pe.magnitude / 4.0, 1.0))
+        prediction_confidence = (
+            prediction_error_snapshot.evaluated_prediction.confidence
+            if prediction_error_snapshot.evaluated_prediction is not None
+            else 0.0
+        )
+        magnitude_readout = _clamp(min(pe.magnitude / 4.0, 1.0))
+        reward_readout = _clamp(0.5 + pe.signed_reward * 0.5)
+        predictive_accuracy = _clamp((1.0 - magnitude_readout) * 0.8 + prediction_confidence * 0.2)
         return (
             EvaluationScore(
                 family="learning",
                 metric_name="prediction_error_magnitude",
-                value=_clamp(min(pe.magnitude / 4.0, 1.0)),
+                value=magnitude_readout,
                 confidence=0.82,
-                evidence=pe.description,
+                evidence=f"PE-owner magnitude readout. {pe.description}",
             ),
             EvaluationScore(
                 family="learning",
                 metric_name="prediction_error_reward",
-                value=_clamp(0.5 + pe.signed_reward * 0.5),
+                value=reward_readout,
                 confidence=0.82,
-                evidence=pe.description,
+                evidence=f"PE-owner signed reward readout. {pe.description}",
             ),
             EvaluationScore(
                 family="learning",
                 metric_name="predictive_accuracy",
                 value=predictive_accuracy,
                 confidence=0.8,
-                evidence=prediction_error_snapshot.description,
+                evidence=(
+                    f"Derived from PE-owner magnitude={magnitude_readout:.3f} "
+                    f"and prediction_confidence={prediction_confidence:.3f}."
+                ),
             ),
             EvaluationScore(
                 family="task",
@@ -1145,27 +1159,52 @@ class EvaluationBackbone:
         self,
         *,
         temporal_snapshot: "TemporalAbstractionSnapshot | None",
+        metacontroller_state: "MetacontrollerRuntimeState | None" = None,
     ) -> tuple[EvaluationScore, ...]:
         if temporal_snapshot is None:
             return ()
         controller_state = temporal_snapshot.controller_state
-        code_energy = _clamp(
+        snapshot_code_energy = _clamp(
             sum(abs(value) for value in controller_state.code) / max(len(controller_state.code), 1)
         )
         persistence = min(controller_state.steps_since_switch / 3.0, 1.0)
         switch_commitment = _clamp(1.0 - abs(controller_state.switch_gate - (1.0 if controller_state.is_switching else 0.0)))
-        named_action_bonus = (
-            0.12
-            if temporal_snapshot.active_abstract_action
-            and temporal_snapshot.active_abstract_action != "unassigned_action"
-            else 0.0
+        family_support = 0.0
+        family_stability = 0.0
+        family_competition_score = 0.0
+        switch_sparsity = 1.0 - controller_state.switch_gate
+        policy_replacement_quality = 0.0
+        family_version = temporal_snapshot.action_family_version
+        family_count = 0
+        active_label = temporal_snapshot.active_abstract_action
+        active_family = None
+        if metacontroller_state is not None:
+            active_label = metacontroller_state.active_label
+            active_family = metacontroller_state.active_family_summary
+            family_support = _clamp(
+                min(active_family.support / 6.0, 1.0)
+                if active_family is not None
+                else 0.0
+            )
+            family_stability = _clamp(active_family.stability if active_family is not None else 0.0)
+            family_competition_score = _clamp(metacontroller_state.active_family_competition_score)
+            switch_sparsity = _clamp(metacontroller_state.switch_sparsity)
+            policy_replacement_quality = _clamp(metacontroller_state.policy_replacement_score)
+            family_version = metacontroller_state.action_family_version
+            family_count = len(metacontroller_state.action_family_summaries)
+        family_signal = _clamp(
+            family_support * 0.35
+            + family_stability * 0.35
+            + family_competition_score * 0.30
         )
         temporal_action_commitment = _clamp(
-            0.28
-            + code_energy * 0.32
-            + persistence * 0.18
-            + switch_commitment * 0.10
-            + named_action_bonus
+            0.18
+            + snapshot_code_energy * 0.18
+            + persistence * 0.12
+            + switch_commitment * 0.08
+            + switch_sparsity * 0.14
+            + family_signal * 0.20
+            + policy_replacement_quality * 0.10
         )
         return (
             EvaluationScore(
@@ -1174,8 +1213,10 @@ class EvaluationBackbone:
                 value=temporal_action_commitment,
                 confidence=0.54,
                 evidence=(
-                    f"Derived from active_abstract_action={temporal_snapshot.active_abstract_action}, "
-                    f"switch_gate={controller_state.switch_gate:.2f}, is_switching={controller_state.is_switching}, "
+                    f"Derived from active_label={active_label}, "
+                    f"switch_gate={controller_state.switch_gate:.2f}, switch_sparsity={switch_sparsity:.2f}, "
+                    f"family_version={family_version}, family_count={family_count}, "
+                    f"active_family={active_family.family_id if active_family is not None else 'none'}, "
                     f"steps_since_switch={controller_state.steps_since_switch}, code_dim={controller_state.code_dim}."
                 ),
             ),

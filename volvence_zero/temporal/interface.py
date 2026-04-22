@@ -39,6 +39,7 @@ from volvence_zero.temporal.metacontroller_components import (
     summarize_feature_surface,
     summarize_residual_activations,
 )
+from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 
 
 class TemporalImplementationMode(str, Enum):
@@ -148,6 +149,8 @@ class MetacontrollerRuntimeState:
     action_family_turnover_health: float = 0.0
     track_active_labels: tuple[tuple[str, str], ...] = ()
     track_switch_gates: tuple[tuple[str, float], ...] = ()
+    encoder_optimizer_state: M3OptimizerState | None = None
+    decoder_optimizer_state: M3OptimizerState | None = None
     description: str = ""
 
 
@@ -209,6 +212,8 @@ class MetacontrollerParameterSnapshot:
     decoder_applied_control: tuple[float, ...]
     policy_replacement_score: float
     action_families: tuple[DiscoveredActionFamily, ...] = ()
+    encoder_optimizer_state: M3OptimizerState | None = None
+    decoder_optimizer_state: M3OptimizerState | None = None
     structure_frozen: bool = False
     learning_phase: str = "runtime"
     action_family_version: int = 0
@@ -318,6 +323,8 @@ class MetacontrollerParameterStore:
         self.latest_mean_persistence_window = 0.0
         self.latest_decoder_applied_control: tuple[float, ...] = _nz_zeros(n_z)
         self.latest_policy_replacement_score = 0.0
+        self.latest_encoder_optimizer_state: M3OptimizerState | None = None
+        self.latest_decoder_optimizer_state: M3OptimizerState | None = None
         self.structure_frozen = True
         self.learning_phase = "runtime"
         self._action_family_version = 0
@@ -400,6 +407,8 @@ class MetacontrollerParameterStore:
             mean_persistence_window=self.latest_mean_persistence_window,
             decoder_applied_control=self.latest_decoder_applied_control,
             policy_replacement_score=self.latest_policy_replacement_score,
+            encoder_optimizer_state=self.latest_encoder_optimizer_state,
+            decoder_optimizer_state=self.latest_decoder_optimizer_state,
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
@@ -465,6 +474,8 @@ class MetacontrollerParameterStore:
             decoder_applied_control=self.latest_decoder_applied_control,
             policy_replacement_score=self.latest_policy_replacement_score,
             action_families=self.action_families,
+            encoder_optimizer_state=self.latest_encoder_optimizer_state,
+            decoder_optimizer_state=self.latest_decoder_optimizer_state,
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
@@ -518,6 +529,8 @@ class MetacontrollerParameterStore:
         self.latest_decoder_applied_control = snapshot.decoder_applied_control
         self.latest_policy_replacement_score = snapshot.policy_replacement_score
         self.action_families = snapshot.action_families
+        self.latest_encoder_optimizer_state = snapshot.encoder_optimizer_state
+        self.latest_decoder_optimizer_state = snapshot.decoder_optimizer_state
         self.structure_frozen = snapshot.structure_frozen
         self.learning_phase = snapshot.learning_phase
         self._action_family_version = snapshot.action_family_version
@@ -572,6 +585,15 @@ class MetacontrollerParameterStore:
         self.latest_policy_replacement_score = (
             policy_replacement_score if policy_replacement_score is not None else self.latest_policy_replacement_score
         )
+
+    def record_optimizer_memory_states(
+        self,
+        *,
+        encoder_state: M3OptimizerState | None,
+        decoder_state: M3OptimizerState | None,
+    ) -> None:
+        self.latest_encoder_optimizer_state = encoder_state
+        self.latest_decoder_optimizer_state = decoder_state
 
     def record_ssl_metrics(self, *, total_loss: float, kl_loss: float) -> None:
         self.latest_ssl_loss = total_loss
@@ -668,6 +690,37 @@ class MetacontrollerParameterStore:
             + (1.0 - average_stagnation) * 0.20
             + (1.0 - average_monopoly) * 0.15
         )
+
+    def active_family_continuation_signals(
+        self,
+        *,
+        previous_steps_since_switch: int,
+    ) -> tuple[float, float, float]:
+        active_family = next(
+            (family for family in self.action_families if family.family_id == self.latest_active_label),
+            None,
+        )
+        if active_family is None:
+            return (0.0, 0.0, 0.0)
+        outcome_strength = _clamp(
+            active_family.outcome_driven_score * 0.25
+            + active_family.long_term_payoff * 0.35
+            + min(active_family.delayed_credit_sum / 3.0, 1.0) * 0.15
+            + self.latest_policy_replacement_score * 0.25
+        )
+        reuse_strength = _clamp(
+            min(active_family.reuse_streak / 4.0, 1.0) * 0.35
+            + min(active_family.support / 6.0, 1.0) * 0.25
+            + active_family.competition_score * 0.25
+            + (1.0 - active_family.monopoly_pressure) * 0.15
+        )
+        persistence_strength = _clamp(
+            min(active_family.mean_persistence_window / 2.0, 1.0) * 0.40
+            + min(self.latest_mean_persistence_window / 2.0, 1.0) * 0.25
+            + min(previous_steps_since_switch / 3.0, 1.0) * 0.20
+            + active_family.stability * 0.15
+        )
+        return (outcome_strength, reuse_strength, persistence_strength)
 
     def discover_action_family(
         self,
@@ -1204,20 +1257,42 @@ def _code_from_feature_surface(feature_surface: tuple[FeatureSignal, ...]) -> tu
 def _abstract_action_from_code(code: tuple[float, ...], switch_gate: float) -> str:
     average, maximum, spread = code
     if switch_gate > 0.7:
-        return "refresh-controller-context"
+        return "latent-family-switch"
     if spread > 0.35:
-        return "focus-dominant-signal"
+        return "latent-family-diffuse"
     if average < 0.2 and maximum < 0.25:
-        return "hold-low-signal-context"
-    return "stabilize-current-controller"
+        return "latent-family-low-signal"
+    return "latent-family-stable"
 
 
 def _memory_signal(memory_snapshot: MemorySnapshot | None) -> float:
     if memory_snapshot is None:
         return 0.0
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
     retrieval_pressure = min(len(memory_snapshot.retrieved_entries) / 5.0, 1.0)
     promotion_pressure = min(memory_snapshot.pending_promotions / 5.0, 1.0)
-    return _clamp((retrieval_pressure + promotion_pressure) / 2.0)
+    cms_energy = 0.0
+    cms_bands = (
+        _cms_band(memory_snapshot, "online_fast"),
+        _cms_band(memory_snapshot, "session_medium"),
+        _cms_band(memory_snapshot, "background_slow"),
+    )
+    present_bands = tuple(band for band in cms_bands if band is not None)
+    if present_bands:
+        cms_energy = _clamp(
+            sum(sum(abs(value) for value in band) / max(len(band), 1) for band in present_bands)
+            / len(present_bands)
+        )
+    lifecycle_signal = _clamp(
+        lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0) * 0.45
+        + lifecycle_metrics.get("learned_recall_confidence", 0.0) * 0.55
+    )
+    return _clamp(
+        retrieval_pressure * 0.20
+        + promotion_pressure * 0.15
+        + cms_energy * 0.45
+        + lifecycle_signal * 0.20
+    )
 
 
 def _reflection_signal(reflection_snapshot: ReflectionSnapshot | None) -> float:
@@ -1225,7 +1300,16 @@ def _reflection_signal(reflection_snapshot: ReflectionSnapshot | None) -> float:
         return 0.0
     lesson_pressure = min(len(reflection_snapshot.lessons_extracted) / 4.0, 1.0)
     tension_pressure = min(len(reflection_snapshot.tensions_identified) / 4.0, 1.0)
-    return _clamp((lesson_pressure + tension_pressure) / 2.0)
+    confidence_signal = _clamp(reflection_snapshot.consolidation_score.confidence)
+    proposal_signal = _clamp(reflection_snapshot.proposal_success_rate)
+    error_signal = _clamp(min(reflection_snapshot.error_driven_lesson_count / 3.0, 1.0))
+    return _clamp(
+        lesson_pressure * 0.22
+        + tension_pressure * 0.18
+        + confidence_signal * 0.30
+        + proposal_signal * 0.15
+        + error_signal * 0.15
+    )
 
 
 def _cms_band(memory_snapshot: MemorySnapshot | None, band_name: str) -> tuple[float, ...] | None:
@@ -1254,6 +1338,16 @@ class TemporalPolicy(ABC):
         """Produce the next temporal abstraction state."""
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
+        return None
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        del reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
         return None
 
     @property
@@ -1325,6 +1419,18 @@ class HeuristicTemporalPolicy(TemporalPolicy):
 
     def __init__(self) -> None:
         self._previous_feature_signature: tuple[str, ...] = ()
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
 
     def step(
         self,
@@ -1334,10 +1440,11 @@ class HeuristicTemporalPolicy(TemporalPolicy):
         memory_snapshot: MemorySnapshot | None = None,
         reflection_snapshot: ReflectionSnapshot | None = None,
     ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
         feature_signature = _feature_signature(substrate_snapshot.feature_surface)
         residual_code = _residual_signature(substrate_snapshot)
         memory_signal = _memory_signal(memory_snapshot)
-        reflection_signal = _reflection_signal(reflection_snapshot)
+        reflection_signal = _reflection_signal(effective_reflection_snapshot)
         code = (
             _clamp(residual_code[0]),
             _clamp((residual_code[1] + memory_signal) / 2.0),
@@ -1389,6 +1496,7 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
     def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
         self._parameter_store = parameter_store or MetacontrollerParameterStore()
         self._previous_code = (0.0, 0.0, 0.0)
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
 
     @property
     def weights(self) -> Mapping[str, float]:
@@ -1449,6 +1557,17 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         self._parameter_store.persistence = persistence
         self._parameter_store.align_temporal_from_tracks()
 
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
+
     def step(
         self,
         *,
@@ -1457,9 +1576,10 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         memory_snapshot: MemorySnapshot | None = None,
         reflection_snapshot: ReflectionSnapshot | None = None,
     ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
         residual_code = _residual_signature(substrate_snapshot)
         memory_signal = _memory_signal(memory_snapshot)
-        reflection_signal = _reflection_signal(reflection_snapshot)
+        reflection_signal = _reflection_signal(effective_reflection_snapshot)
         code = (
             _clamp(
                 residual_code[0] * self._parameter_store.temporal_weights["residual"]
@@ -1544,6 +1664,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
 
     @property
     def parameter_store(self) -> MetacontrollerParameterStore:
@@ -1574,6 +1695,17 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             memory_strength=memory_strength,
             reflection_strength=reflection_strength,
         )
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
 
     def apply_reflection_prior_update(
         self,
@@ -1622,11 +1754,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         memory_snapshot: MemorySnapshot | None = None,
         reflection_snapshot: ReflectionSnapshot | None = None,
     ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
         return self._step_impl(
             substrate_snapshot=substrate_snapshot,
             previous_snapshot=previous_snapshot,
             memory_snapshot=memory_snapshot,
-            reflection_snapshot=reflection_snapshot,
+            reflection_snapshot=effective_reflection_snapshot,
             latent_override=None,
             policy_replacement_score=0.0,
             binary_gate_override=False,
@@ -1726,11 +1859,21 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         memory_signal = _memory_signal(memory_snapshot)
         reflection_signal = _reflection_signal(reflection_snapshot)
+        (
+            active_family_outcome,
+            active_family_reuse,
+            active_family_persistence,
+        ) = self._parameter_store.active_family_continuation_signals(
+            previous_steps_since_switch=previous_steps,
+        )
         beta_cont, beta_bin, scalar_beta = self._ndim_switch.compute(
             z_tilde=encoded.z_tilde,
             previous_code=previous_code,
             memory_signal=memory_signal,
             reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
             params=self._parameter_store.ndim_switch_parameters,
         )
         if binary_gate_override:
@@ -1838,6 +1981,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._latest_encoder_output_for_cms = self._encoder.encoder_output_for_cms(encoded)
         memory_signal = _memory_signal(memory_snapshot)
         reflection_signal = _reflection_signal(reflection_snapshot)
+        (
+            active_family_outcome,
+            active_family_reuse,
+            active_family_persistence,
+        ) = self._parameter_store.active_family_continuation_signals(
+            previous_steps_since_switch=previous_steps,
+        )
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,
             z_tilde=encoded.z_tilde,
@@ -1846,6 +1996,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             switch_bias=self._parameter_store.switch_bias,
             memory_signal=memory_signal,
             reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
             previous_binary=self._previous_beta_binary,
             previous_steps_since_switch=previous_steps,
         )
@@ -2039,12 +2192,6 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
 
-
-def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
-    cloned_store = MetacontrollerParameterStore(n_z=source_policy.parameter_store.n_z)
-    cloned_store.restore_parameter_snapshot(source_policy.export_rare_heavy_snapshot())
-    return FullLearnedTemporalPolicy(parameter_store=cloned_store)
-
     def _apply_prediction_error_signal(
         self,
         prediction_error_snapshot: PredictionErrorSnapshot | None,
@@ -2061,6 +2208,12 @@ def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy)
             memory_strength=target_memory,
             reflection_strength=target_reflection,
         )
+
+
+def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
+    cloned_store = MetacontrollerParameterStore(n_z=source_policy.parameter_store.n_z)
+    cloned_store.restore_parameter_snapshot(source_policy.export_rare_heavy_snapshot())
+    return FullLearnedTemporalPolicy(parameter_store=cloned_store)
 
 
 def _merge_track_codes(
@@ -2236,6 +2389,8 @@ def build_temporal_runtime_state_aggregate(
             world_state.policy_replacement_score + self_state.policy_replacement_score
         )
         / 2.0,
+        encoder_optimizer_state=world_state.encoder_optimizer_state or self_state.encoder_optimizer_state,
+        decoder_optimizer_state=world_state.decoder_optimizer_state or self_state.decoder_optimizer_state,
         structure_frozen=world_state.structure_frozen and self_state.structure_frozen,
         learning_phase=(
             world_state.learning_phase
@@ -2311,6 +2466,7 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         memory_snapshot = upstream["memory"]
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
+        reflection_value = self._policy.cached_reflection_snapshot()
         if not isinstance(substrate_value, SubstrateSnapshot):
             step = PlaceholderTemporalPolicy().step(
                 substrate_snapshot=SubstrateSnapshot(
@@ -2326,14 +2482,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 ),
                 previous_snapshot=self._previous_snapshot,
                 memory_snapshot=memory_value,
-                reflection_snapshot=None,
+                reflection_snapshot=reflection_value,
             )
         else:
             step = self._policy.step(
                 substrate_snapshot=substrate_value,
                 previous_snapshot=self._previous_snapshot,
                 memory_snapshot=memory_value,
-                reflection_snapshot=None,
+                reflection_snapshot=reflection_value,
             )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
@@ -2351,11 +2507,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         if not isinstance(substrate_snapshot, SubstrateSnapshot):
             raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
         memory_snapshot = kwargs.get("memory_snapshot")
+        reflection_snapshot = kwargs.get("reflection_snapshot")
+        reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else self._policy.cached_reflection_snapshot()
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         step = self._policy.step(
             substrate_snapshot=substrate_snapshot,
             previous_snapshot=self._previous_snapshot,
             memory_snapshot=memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None,
-            reflection_snapshot=None,
+            reflection_snapshot=reflection_value,
         )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
@@ -2431,29 +2590,43 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         runtime_state = self._policy.export_runtime_state()
+        active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
+        learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
+        structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        temporal_parameters = (
+            runtime_state.temporal_parameters
+            if runtime_state is not None
+            else TemporalControllerParameters(
+                residual_weight=0.0,
+                memory_weight=0.0,
+                reflection_weight=0.0,
+                switch_bias=0.0,
+            )
+        )
         return self.publish(
             TemporalConsolidationSnapshot(
                 track=self._track.value,
                 prediction_error_applied=prediction_error_applied,
                 reflection_observed=reflection_value is not None,
-                active_abstract_action=runtime_state.active_label,
+                active_abstract_action=active_label,
                 controller_params_hash=_hash_payload(
                     {
                         "track": self._track.value,
-                        "phase": runtime_state.learning_phase,
-                        "structure_frozen": runtime_state.structure_frozen,
-                        "active_label": runtime_state.active_label,
-                        "temporal_parameters": runtime_state.temporal_parameters,
+                        "phase": learning_phase,
+                        "structure_frozen": structure_frozen,
+                        "active_label": active_label,
+                        "temporal_parameters": temporal_parameters,
                     }
                 ),
-                learning_phase=runtime_state.learning_phase,
-                structure_frozen=runtime_state.structure_frozen,
+                learning_phase=learning_phase,
+                structure_frozen=structure_frozen,
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "
                     f"reflection={'yes' if reflection_value is not None else 'no'} "
-                    f"phase={runtime_state.learning_phase} frozen={runtime_state.structure_frozen}."
+                    f"phase={learning_phase} frozen={structure_frozen}."
                 ),
             )
         )
@@ -2465,34 +2638,48 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
         )
         reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         prediction_error_applied = _apply_track_prediction_error_signal(
             track=self._track,
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
         runtime_state = self._policy.export_runtime_state()
+        active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
+        learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
+        structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        temporal_parameters = (
+            runtime_state.temporal_parameters
+            if runtime_state is not None
+            else TemporalControllerParameters(
+                residual_weight=0.0,
+                memory_weight=0.0,
+                reflection_weight=0.0,
+                switch_bias=0.0,
+            )
+        )
         return self.publish(
             TemporalConsolidationSnapshot(
                 track=self._track.value,
                 prediction_error_applied=prediction_error_applied,
                 reflection_observed=reflection_value is not None,
-                active_abstract_action=runtime_state.active_label,
+                active_abstract_action=active_label,
                 controller_params_hash=_hash_payload(
                     {
                         "track": self._track.value,
-                        "phase": runtime_state.learning_phase,
-                        "structure_frozen": runtime_state.structure_frozen,
-                        "active_label": runtime_state.active_label,
-                        "temporal_parameters": runtime_state.temporal_parameters,
+                        "phase": learning_phase,
+                        "structure_frozen": structure_frozen,
+                        "active_label": active_label,
+                        "temporal_parameters": temporal_parameters,
                     }
                 ),
-                learning_phase=runtime_state.learning_phase,
-                structure_frozen=runtime_state.structure_frozen,
+                learning_phase=learning_phase,
+                structure_frozen=structure_frozen,
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "
                     f"reflection={'yes' if reflection_value is not None else 'no'} "
-                    f"phase={runtime_state.learning_phase} frozen={runtime_state.structure_frozen}."
+                    f"phase={learning_phase} frozen={structure_frozen}."
                 ),
             )
         )

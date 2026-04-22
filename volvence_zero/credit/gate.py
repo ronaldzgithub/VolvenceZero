@@ -43,6 +43,9 @@ class SelfModificationRecord:
     justification: str
     timestamp_ms: int
     is_reversible: bool
+    checkpoint_id: str = ""
+    lineage_hash: str = ""
+    proposal_hash: str = ""
 
 
 @dataclass(frozen=True)

@@ -250,6 +250,20 @@ def test_memory_store_supports_checkpoint_restore_and_cms_core():
     assert restored.entries
 
 
+def test_memory_store_observes_fast_memory_signal_and_publishes_lifecycle_metrics():
+    store = MemoryStore(learned_core=CMSMemoryCore())
+
+    store.observe_fast_memory_signal(
+        signal=(0.4, 0.2, 0.3, 0.1, 0.2, 0.5),
+        timestamp_ms=60,
+    )
+    snapshot = store.snapshot(retrieved_entries=())
+    metrics = dict(snapshot.lifecycle_metrics)
+
+    assert metrics["fast_memory_signal_count"] == 1.0
+    assert metrics["last_fast_memory_signal_norm"] > 0.0
+
+
 def test_persistence_backend_round_trip():
     import tempfile
     from volvence_zero.memory import (

@@ -57,6 +57,7 @@
 | 修改目标 | 门控级别 | 触发条件 | 算法基础 |
 |----------|----------|----------|----------|
 | 检索权重、策略先验 | 在线可改 | 每轮/每 wave | CMS 高频层 |
+| bounded substrate delta | 在线可改 | 上一轮 PE carryover + ONLINE gate allow | substrate self-mod owner + runtime apply surface |
 | 抽象控制器参数、反思启发式 | 后台验证 | 会话后反思 | CMS 中频层 |
 | 记忆提升阈值、基底微调 | 离线重训练 | 定期批量 | CMS 低频层 |
 | 基础模型结构变更 | 人工审核 | 版本发布 | — |
@@ -99,6 +100,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - joint loop 现在会把 metacontroller rollback / drift evidence 写入 owner-side modification audit，供 reflection / writeback 直接消费
 - joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
+- 当前 session runtime 已新增 online-fast substrate self-mod audit：当 `substrate_self_mod` owner 提出 bounded delta proposal 且 `JointLoopSchedule` / `ModificationGate.ONLINE` 允许时，session owner 会通过 substrate runtime apply surface 落地，并把 allow/block 结果写成 `SelfModificationRecord(target=\"substrate.online_fast.delta\")` 进入正式 `credit` snapshot
 - 当前 direct module dependencies 已收敛到 `dual_track + evaluation + prediction_error`；抽象动作 / delayed outcome 证据通过 dual-track、regime ledger 和 prediction-error chain 进入 credit owner，而不是要求 credit 直接持有 temporal owner
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 

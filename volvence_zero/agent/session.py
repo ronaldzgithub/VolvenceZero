@@ -6,8 +6,22 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
-from volvence_zero.credit import ModificationProposal
-from volvence_zero.evaluation import EvaluationBackbone, EvaluationReport, EvaluationSnapshot, EvolutionJudgement
+from volvence_zero.credit import (
+    GateDecision,
+    ModificationGate,
+    ModificationProposal,
+    SelfModificationRecord,
+    extend_credit_snapshot,
+    evaluate_gate,
+)
+from volvence_zero.evaluation import (
+    EvaluationBackbone,
+    EvaluationReport,
+    EvaluationScore,
+    EvaluationSnapshot,
+    EvolutionDecision,
+    EvolutionJudgement,
+)
 from volvence_zero.integration import (
     FinalIntegrationResult,
     FinalRolloutConfig,
@@ -25,6 +39,7 @@ from volvence_zero.joint_loop import (
     RareHeavyImportResult,
     SSLRLTrainingPipeline,
     ScheduledJointLoopResult,
+    OnlineFastImportResult,
 )
 from volvence_zero.memory import MemorySnapshot, MemoryStore, build_default_memory_store
 from volvence_zero.planning import ImaginationResult, imagine
@@ -39,6 +54,7 @@ from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     SubstrateFallbackMode,
     SubstrateAdapter,
+    SubstrateSelfModSnapshot,
     SubstrateSnapshot,
     TrainingTrace,
     TraceStep,
@@ -55,9 +71,11 @@ from volvence_zero.temporal import (
 )
 from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopJob,
+    SessionPostSlowLoopModule,
     SessionPostSlowLoopQueue,
     SessionPostSlowLoopQueueState,
     SessionPostSlowLoopResult,
+    SessionPostSlowLoopSnapshot,
 )
 
 
@@ -113,6 +131,7 @@ class AgentTurnResult:
     session_post_pending_job_count: int = 0
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
+    online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +143,76 @@ class RareHeavyTurnResult:
     substrate_status: str
     substrate_training_mode: str
     description: str
+    import_decision: str = "not-run"
+    reject_reason: str = ""
+    bundle_alignment_ratio: float = 0.0
+    bundle_trace_count: int = 0
+    bundle_substrate_batch_count: int = 0
+    bundle_mean_trace_step_count: float = 0.0
+    bundle_mean_sequence_length: float = 0.0
+    bundle_mean_residual_magnitude: float = 0.0
+    candidate_adapter_parameter_count: int = 0
+    candidate_adapter_training_loss: float = 0.0
+    pre_import_case_count: int = 0
+    pre_import_mean_score_delta: float = 0.0
+    pre_import_worst_score_delta: float = 0.0
+    pre_import_positive_fraction: float = 0.0
+    pre_import_passed: bool = False
+    pre_import_judgement: str = "not-run"
+
+
+@dataclass(frozen=True)
+class RareHeavyTrainingExample:
+    turn_index: int
+    wave_id: str
+    source_text: str
+    trace: TrainingTrace
+    substrate_batch: tuple[SubstrateSnapshot, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class RareHeavyTrainingBundle:
+    examples: tuple[RareHeavyTrainingExample, ...]
+    trace_count: int
+    substrate_batch_count: int
+    aligned_example_count: int
+    alignment_ratio: float
+    mean_trace_step_count: float
+    mean_sequence_length: float
+    mean_residual_magnitude: float
+    description: str
+
+
+@dataclass(frozen=True)
+class RareHeavyPreImportEvaluation:
+    accepted: bool
+    case_count: int
+    baseline_mean_score: float
+    candidate_mean_score: float
+    mean_score_delta: float
+    worst_score_delta: float
+    positive_fraction: float
+    judgement: str
+    reasons: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class OnlineFastSubstrateTurnResult:
+    recommended: bool
+    applied: bool
+    gate_decision: str
+    applied_operations: tuple[str, ...]
+    blocked_operations: tuple[str, ...]
+    parameter_change_rate: float
+    optimizer_state_norm: float
+    checkpoint_id: str
+    fast_state_hash: str
+    source_fast_state_hash: str
+    optimizer_state_description: str
+    description: str
+    fast_memory_signal: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -198,23 +287,28 @@ class AgentSessionRunner:
         rare_heavy_cooldown_turns: int = 3,
         rare_heavy_pipeline_config: PipelineConfig | None = None,
         external_prediction_error_drive: bool = True,
+        prediction_error_readout_only: bool = False,
+        primary_prediction_error_dominance_enabled: bool = True,
     ) -> None:
         self._session_id = session_id
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
         if world_temporal_policy is not None:
             self._world_temporal_policy = world_temporal_policy
-        elif isinstance(temporal_policy, FullLearnedTemporalPolicy):
+        elif temporal_policy is not None:
             self._world_temporal_policy = temporal_policy
         else:
             self._world_temporal_policy = FullLearnedTemporalPolicy()
         if self_temporal_policy is not None:
             self._self_temporal_policy = self_temporal_policy
-        else:
+        elif isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy = clone_full_learned_temporal_policy(self._world_temporal_policy)
+        else:
+            self._self_temporal_policy = self._world_temporal_policy
         self._temporal_policy = self._world_temporal_policy
         self._evaluation_backbone = EvaluationBackbone()
-        default_latent_dim = self._world_temporal_policy.parameter_store.n_z
+        world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
+        default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
@@ -249,7 +343,9 @@ class AgentSessionRunner:
             memory_store=self._memory_store,
             residual_runtime=self._default_residual_runtime,
             evaluation_backbone=self._evaluation_backbone,
+            primary_prediction_error_dominance_enabled=primary_prediction_error_dominance_enabled,
         )
+        self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._rare_heavy_enabled = rare_heavy_enabled
         self._rare_heavy_trace_window = max(1, rare_heavy_trace_window)
@@ -261,6 +357,8 @@ class AgentSessionRunner:
             rl_max_steps=2,
         )
         self._external_prediction_error_drive = external_prediction_error_drive
+        self._prediction_error_readout_only = prediction_error_readout_only
+        self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
@@ -270,12 +368,16 @@ class AgentSessionRunner:
         self._recommended_z: tuple[float, ...] | None = None
         self._recent_training_traces: list[TrainingTrace] = []
         self._recent_substrate_batches: list[tuple[SubstrateSnapshot, ...]] = []
+        self._recent_rare_heavy_examples: list[RareHeavyTrainingExample] = []
         self._last_rare_heavy_turn_index = 0
         self._context_index = 1
         self._completed_session_reports: list[EvaluationReport] = []
         self._session_post_lock = asyncio.Lock()
         self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
+        self._session_post_module = SessionPostSlowLoopModule(wiring_level=WiringLevel.ACTIVE)
+        self._session_post_snapshot: Snapshot[SessionPostSlowLoopSnapshot] | None = None
         self._last_session_post_writeback_request: SessionPostWritebackRequest | None = None
+        self._publish_session_post_snapshot()
 
     @property
     def session_id(self) -> str:
@@ -306,13 +408,19 @@ class AgentSessionRunner:
         return self._session_post_queue.snapshot()
 
     @property
+    def session_post_snapshot(self) -> Snapshot[SessionPostSlowLoopSnapshot] | None:
+        return self._session_post_snapshot
+
+    @property
     def active_context_session_id(self) -> str:
         return f"{self._session_id}:context-{self._context_index}"
 
     async def drain_session_post_slow_loop(self) -> tuple[SessionPostSlowLoopResult, ...]:
         self._session_post_queue.schedule()
         await self._session_post_queue.wait_for_idle()
-        return self._session_post_queue.consume_completed_results()
+        results = self._session_post_queue.consume_completed_results()
+        self._publish_session_post_snapshot(completed_results=results)
+        return results
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
         operations: list[str] = []
@@ -337,10 +445,12 @@ class AgentSessionRunner:
         self._previous_prediction_error = None
         self._recommended_z = None
         self._recent_substrate_batches = []
+        self._recent_rare_heavy_examples = []
         if session_post_job is not None:
             self._session_post_queue.enqueue(session_post_job)
             self._session_post_queue.schedule()
             operations.append(f"session-post-slow-loop:enqueued:{session_post_job.job_id}")
+        self._publish_session_post_snapshot()
         return tuple(operations)
 
     def _maybe_build_current_session_report(self) -> EvaluationReport | None:
@@ -424,8 +534,23 @@ class AgentSessionRunner:
             ),
         )
 
+    def _publish_session_post_snapshot(
+        self,
+        *,
+        completed_results: tuple[SessionPostSlowLoopResult, ...] = (),
+    ) -> Snapshot[SessionPostSlowLoopSnapshot]:
+        self._session_post_snapshot = self._session_post_module.publish_snapshot(
+            queue_state=self.session_post_queue_state,
+            completed_results=completed_results,
+        )
+        return self._session_post_snapshot
+
     def _collect_session_post_writeback_result(self) -> WritebackResult | None:
         completed = self._session_post_queue.consume_completed_results()
+        if completed:
+            self._publish_session_post_snapshot(completed_results=completed)
+        else:
+            self._publish_session_post_snapshot()
         if not completed:
             return None
         applied_operations: tuple[str, ...] = ()
@@ -509,7 +634,19 @@ class AgentSessionRunner:
                     else {}
                 )
             else:
-                self._joint_loop.set_external_learning_signals({})
+                readout_only_signals = {}
+                if (
+                    self._prediction_error_readout_only
+                    and (
+                        abs(self._previous_prediction_reward) > 1e-8
+                        or self._previous_prediction_magnitude > 1e-8
+                    )
+                ):
+                    readout_only_signals = {
+                        "prediction_error_reward_readout": self._previous_prediction_reward,
+                        "prediction_error_magnitude_readout": min(self._previous_prediction_magnitude / 4.0, 1.0),
+                    }
+                self._joint_loop.set_external_learning_signals(readout_only_signals)
             joint_result = await self._joint_loop.run_scheduled_step(
                 turn_index=self._turn_index,
                 trace=trace,
@@ -536,6 +673,9 @@ class AgentSessionRunner:
                 session_id=context_session_id,
                 wave_id=wave_id,
                 apply_slow_writeback=False,
+                substrate_self_mod_pe_magnitude=self._previous_prediction_magnitude,
+                substrate_self_mod_pe_reward=self._previous_prediction_reward,
+                substrate_self_mod_pe_threshold=self._joint_schedule.pe_substrate_online_fast_threshold,
             )
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
             self._upstream_snapshots = {
@@ -545,7 +685,14 @@ class AgentSessionRunner:
             substrate_snap = integration_result.active_snapshots.get("substrate")
             if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
                 self._previous_substrate_snapshot = substrate_snap.value
-                self._record_substrate_batch(self._substrate_batch_from_snapshot(substrate_snap.value))
+                substrate_batch = self._substrate_batch_from_snapshot(substrate_snap.value)
+                self._record_substrate_batch(substrate_batch)
+                self._record_rare_heavy_example(
+                    wave_id=wave_id,
+                    user_input=user_input,
+                    trace=trace,
+                    substrate_batch=substrate_batch,
+                )
             if integration_result.prediction_error_snapshot is not None:
                 self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
                 self._previous_prediction_magnitude = integration_result.prediction_error_snapshot.error.magnitude
@@ -555,7 +702,12 @@ class AgentSessionRunner:
                 self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
             else:
                 self._recommended_z = None
-            rare_heavy_result = self._maybe_apply_rare_heavy(
+            online_fast_substrate_result = self._maybe_apply_online_fast_substrate_self_mod(
+                wave_id=wave_id,
+                joint_result=joint_result,
+                integration_result=integration_result,
+            )
+            rare_heavy_result = await self._maybe_apply_rare_heavy(
                 wave_id=wave_id,
                 joint_result=joint_result,
             )
@@ -566,6 +718,7 @@ class AgentSessionRunner:
             integration_result=integration_result,
             joint_result=joint_result,
             imagination_result=imagination_result,
+            online_fast_substrate_result=online_fast_substrate_result,
             rare_heavy_result=rare_heavy_result,
             deferred_writeback_result=deferred_writeback_result,
             queue_state=self.session_post_queue_state,
@@ -582,6 +735,32 @@ class AgentSessionRunner:
         self._recent_substrate_batches.append(batch)
         if len(self._recent_substrate_batches) > self._rare_heavy_trace_window:
             del self._recent_substrate_batches[:-self._rare_heavy_trace_window]
+
+    def _record_rare_heavy_example(
+        self,
+        *,
+        wave_id: str,
+        user_input: str,
+        trace: TrainingTrace,
+        substrate_batch: tuple[SubstrateSnapshot, ...],
+    ) -> None:
+        if not substrate_batch:
+            return
+        self._recent_rare_heavy_examples.append(
+            RareHeavyTrainingExample(
+                turn_index=self._turn_index,
+                wave_id=wave_id,
+                source_text=user_input,
+                trace=trace,
+                substrate_batch=substrate_batch,
+                description=(
+                    f"Rare-heavy example turn={self._turn_index} wave={wave_id} "
+                    f"trace_steps={len(trace.steps)} substrate_steps={len(substrate_batch)}."
+                ),
+            )
+        )
+        if len(self._recent_rare_heavy_examples) > self._rare_heavy_trace_window:
+            del self._recent_rare_heavy_examples[:-self._rare_heavy_trace_window]
 
     def _substrate_batch_from_snapshot(self, snapshot: SubstrateSnapshot) -> tuple[SubstrateSnapshot, ...]:
         if not snapshot.residual_sequence:
@@ -606,6 +785,67 @@ class AgentSessionRunner:
         if self._rare_heavy_pipeline_config.n_z == policy_n_z:
             return self._rare_heavy_pipeline_config
         return replace(self._rare_heavy_pipeline_config, n_z=policy_n_z)
+
+    def _build_rare_heavy_training_bundle(self) -> RareHeavyTrainingBundle:
+        examples = tuple(self._recent_rare_heavy_examples[-self._rare_heavy_trace_window :])
+        if not examples:
+            return RareHeavyTrainingBundle(
+                examples=(),
+                trace_count=0,
+                substrate_batch_count=0,
+                aligned_example_count=0,
+                alignment_ratio=0.0,
+                mean_trace_step_count=0.0,
+                mean_sequence_length=0.0,
+                mean_residual_magnitude=0.0,
+                description="No aligned rare-heavy training examples are available.",
+            )
+        trace_count = len(examples)
+        substrate_batch_count = sum(1 for example in examples if example.substrate_batch)
+        aligned_example_count = sum(
+            1
+            for example in examples
+            if example.trace.steps and example.substrate_batch
+        )
+        alignment_ratio = aligned_example_count / max(trace_count, 1)
+        mean_trace_step_count = sum(len(example.trace.steps) for example in examples) / trace_count
+        flattened_substrates = tuple(
+            snapshot
+            for example in examples
+            for snapshot in example.substrate_batch
+        )
+        mean_sequence_length = (
+            sum(max(len(snapshot.residual_sequence), 1) for snapshot in flattened_substrates)
+            / max(len(flattened_substrates), 1)
+            if flattened_substrates
+            else 0.0
+        )
+        residual_values = tuple(
+            abs(value)
+            for snapshot in flattened_substrates
+            for activation in snapshot.residual_activations
+            for value in activation.activation
+        )
+        mean_residual_magnitude = (
+            sum(residual_values) / len(residual_values)
+            if residual_values
+            else 0.0
+        )
+        return RareHeavyTrainingBundle(
+            examples=examples,
+            trace_count=trace_count,
+            substrate_batch_count=substrate_batch_count,
+            aligned_example_count=aligned_example_count,
+            alignment_ratio=alignment_ratio,
+            mean_trace_step_count=mean_trace_step_count,
+            mean_sequence_length=mean_sequence_length,
+            mean_residual_magnitude=mean_residual_magnitude,
+            description=(
+                f"Rare-heavy bundle examples={trace_count} aligned={aligned_example_count} "
+                f"alignment={alignment_ratio:.2f} mean_trace_steps={mean_trace_step_count:.2f} "
+                f"mean_sequence_len={mean_sequence_length:.2f}."
+            ),
+        )
 
     def _clone_memory_store_for_rare_heavy(self) -> MemoryStore:
         checkpoint = self._joint_loop.memory_store.export_rare_heavy_state(
@@ -640,7 +880,350 @@ class AgentSessionRunner:
             ),
         )
 
-    def _maybe_apply_rare_heavy(
+    def _build_rare_heavy_replay_runner(
+        self,
+        *,
+        label: str,
+        artifact: RareHeavyArtifact | None = None,
+    ) -> "AgentSessionRunner":
+        runner = AgentSessionRunner(
+            session_id=f"{self._session_id}:rare-heavy-replay:{label}",
+            config=self._config,
+            memory_store=self._clone_memory_store_for_rare_heavy(),
+            reflection_mode=WritebackMode.PROPOSAL_ONLY,
+            world_temporal_policy=clone_full_learned_temporal_policy(self._joint_loop.world_temporal_policy),
+            self_temporal_policy=clone_full_learned_temporal_policy(self._joint_loop.self_temporal_policy),
+            default_residual_runtime=(
+                self.residual_runtime.clone_for_rare_heavy()
+                if self.residual_runtime is not None
+                else self._default_residual_runtime
+            ),
+            joint_schedule=JointLoopSchedule(ssl_interval=0, rl_interval=0),
+            rare_heavy_enabled=False,
+            external_prediction_error_drive=False,
+            prediction_error_readout_only=self._prediction_error_readout_only,
+            primary_prediction_error_dominance_enabled=self._primary_prediction_error_dominance_enabled,
+        )
+        if artifact is not None:
+            runner.apply_rare_heavy_artifact(
+                artifact,
+                checkpoint_id=f"{runner.session_id}:candidate-import",
+            )
+        return runner
+
+    @staticmethod
+    def _rare_heavy_replay_score(result: AgentTurnResult) -> float:
+        evaluation_snapshot = result.active_snapshots.get("evaluation")
+        if evaluation_snapshot is None or not isinstance(evaluation_snapshot.value, EvaluationSnapshot):
+            return 0.0
+        turn_scores = evaluation_snapshot.value.turn_scores
+        if not turn_scores:
+            return 0.0
+        mean_score = sum(score.value for score in turn_scores) / len(turn_scores)
+        alert_penalty = min(len(result.evaluation_alerts) * 0.05, 0.20)
+        acceptance_bonus = 0.05 if result.acceptance_passed else -0.05
+        return max(0.0, min(1.0, mean_score - alert_penalty + acceptance_bonus))
+
+    async def _evaluate_rare_heavy_candidate(
+        self,
+        *,
+        artifact: RareHeavyArtifact,
+        bundle: RareHeavyTrainingBundle,
+    ) -> RareHeavyPreImportEvaluation:
+        replay_examples = bundle.examples[-min(len(bundle.examples), 3) :]
+        if not replay_examples:
+            return RareHeavyPreImportEvaluation(
+                accepted=False,
+                case_count=0,
+                baseline_mean_score=0.0,
+                candidate_mean_score=0.0,
+                mean_score_delta=0.0,
+                worst_score_delta=0.0,
+                positive_fraction=0.0,
+                judgement="not-run",
+                reasons=("no-replay-examples",),
+                description="Rare-heavy pre-import replay skipped because no aligned examples were available.",
+            )
+        try:
+            baseline_runner = self._build_rare_heavy_replay_runner(label="baseline")
+            candidate_runner = self._build_rare_heavy_replay_runner(label="candidate", artifact=artifact)
+        except (TypeError, ValueError, RuntimeError) as exc:
+            return RareHeavyPreImportEvaluation(
+                accepted=False,
+                case_count=len(replay_examples),
+                baseline_mean_score=0.0,
+                candidate_mean_score=0.0,
+                mean_score_delta=0.0,
+                worst_score_delta=0.0,
+                positive_fraction=0.0,
+                judgement="runner-build-failed",
+                reasons=("candidate-runner-build-failed",),
+                description=f"Rare-heavy pre-import replay failed while building candidate runners: {exc}",
+            )
+        baseline_scores: list[float] = []
+        candidate_scores: list[float] = []
+        for example in replay_examples:
+            baseline_result = await baseline_runner.run_turn(example.source_text)
+            candidate_result = await candidate_runner.run_turn(example.source_text)
+            baseline_scores.append(self._rare_heavy_replay_score(baseline_result))
+            candidate_scores.append(self._rare_heavy_replay_score(candidate_result))
+        deltas = tuple(
+            candidate - baseline
+            for baseline, candidate in zip(baseline_scores, candidate_scores, strict=True)
+        )
+        baseline_mean_score = sum(baseline_scores) / len(baseline_scores)
+        candidate_mean_score = sum(candidate_scores) / len(candidate_scores)
+        mean_score_delta = sum(deltas) / len(deltas)
+        worst_score_delta = min(deltas, default=0.0)
+        positive_fraction = (
+            sum(1 for delta in deltas if delta > 0.0) / len(deltas)
+            if deltas
+            else 0.0
+        )
+        session_report = candidate_runner.build_current_session_report()
+        judgement_label = "not-run"
+        reasons: list[str] = []
+        if session_report is not None:
+            replay_suite = candidate_runner.evaluation_backbone.run_default_evolution_benchmark(
+                timestamp_ms=max(candidate_runner.turn_index, 1) + 1,
+            )
+            judgement = candidate_runner.evaluation_backbone.judge_evolution_candidate(
+                replay_suite_result=replay_suite,
+                session_report=session_report,
+            )
+            judgement_label = judgement.decision.value
+            if judgement.decision is EvolutionDecision.ROLLBACK:
+                reasons.append("evolution-judge-rollback")
+        if mean_score_delta <= 0.0:
+            reasons.append("pre-import-mean-score-nonpositive")
+        if worst_score_delta < -0.05:
+            reasons.append("pre-import-worst-case-regressed")
+        if positive_fraction < 0.5:
+            reasons.append("pre-import-positive-fraction-too-low")
+        accepted = not reasons
+        return RareHeavyPreImportEvaluation(
+            accepted=accepted,
+            case_count=len(replay_examples),
+            baseline_mean_score=baseline_mean_score,
+            candidate_mean_score=candidate_mean_score,
+            mean_score_delta=mean_score_delta,
+            worst_score_delta=worst_score_delta,
+            positive_fraction=positive_fraction,
+            judgement=judgement_label,
+            reasons=tuple(reasons),
+            description=(
+                f"Rare-heavy pre-import replay over {len(replay_examples)} cases produced "
+                f"baseline_mean={baseline_mean_score:.3f}, candidate_mean={candidate_mean_score:.3f}, "
+                f"mean_delta={mean_score_delta:.3f}, worst_delta={worst_score_delta:.3f}, "
+                f"positive_fraction={positive_fraction:.3f}, judgement={judgement_label}."
+            ),
+        )
+
+    def _append_online_fast_credit_audit(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+        record: SelfModificationRecord,
+    ) -> None:
+        credit_snapshot = integration_result.active_snapshots.get("credit")
+        if credit_snapshot is None:
+            return
+        extended = extend_credit_snapshot(
+            credit_snapshot=credit_snapshot.value,
+            extra_modifications=(record,),
+        )
+        integration_result.active_snapshots["credit"] = Snapshot(
+            slot_name="credit",
+            owner="CreditModule",
+            version=credit_snapshot.version + 1,
+            timestamp_ms=max(credit_snapshot.timestamp_ms + 1, self._turn_index),
+            value=extended,
+        )
+
+    def _append_online_fast_evaluation_evidence(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+        wave_id: str,
+        result: OnlineFastSubstrateTurnResult,
+    ) -> None:
+        evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
+        if evaluation_snapshot is None or not isinstance(evaluation_snapshot.value, EvaluationSnapshot):
+            return
+        enriched = self._evaluation_backbone.record_external_scores(
+            session_id=self.active_context_session_id,
+            wave_id=wave_id,
+            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+            base_snapshot=evaluation_snapshot.value,
+            scores=(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="substrate_online_fast_proposed",
+                    value=1.0 if result.recommended else 0.0,
+                    confidence=0.8,
+                    evidence=result.description,
+                ),
+                EvaluationScore(
+                    family="learning",
+                    metric_name="substrate_online_fast_applied",
+                    value=1.0 if result.applied else 0.0,
+                    confidence=0.8,
+                    evidence=result.description,
+                ),
+                EvaluationScore(
+                    family="learning",
+                    metric_name="substrate_online_fast_optimizer_norm",
+                    value=result.optimizer_state_norm,
+                    confidence=0.7,
+                    evidence=result.optimizer_state_description,
+                ),
+            ),
+            description_suffix="Session owner appended online-fast substrate apply evidence.",
+        )
+        integration_result.active_snapshots["evaluation"] = Snapshot(
+            slot_name="evaluation",
+            owner="EvaluationModule",
+            version=evaluation_snapshot.version + 1,
+            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+            value=enriched,
+        )
+
+    def _maybe_apply_online_fast_substrate_self_mod(
+        self,
+        *,
+        wave_id: str,
+        joint_result: ScheduledJointLoopResult,
+        integration_result: FinalIntegrationResult,
+    ) -> OnlineFastSubstrateTurnResult | None:
+        snapshot = integration_result.active_snapshots.get("substrate_self_mod") or integration_result.shadow_snapshots.get(
+            "substrate_self_mod"
+        )
+        if snapshot is None or not isinstance(snapshot.value, SubstrateSelfModSnapshot):
+            return None
+        substrate_self_mod = snapshot.value
+        if not substrate_self_mod.recommended or substrate_self_mod.checkpoint is None:
+            return None
+        evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
+        evaluation_value = (
+            evaluation_snapshot.value
+            if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+            else None
+        )
+        gate_decision = GateDecision.BLOCK
+        if evaluation_value is not None:
+            gate_decision = evaluate_gate(
+                proposal=ModificationProposal(
+                    target=substrate_self_mod.target,
+                    desired_gate=ModificationGate.ONLINE,
+                    old_value_hash="substrate.online_fast:pre",
+                    new_value_hash=substrate_self_mod.checkpoint_hash,
+                    justification=substrate_self_mod.description,
+                ),
+                evaluation_snapshot=evaluation_value,
+            )
+        if not joint_result.substrate_online_fast_due:
+            return OnlineFastSubstrateTurnResult(
+                recommended=True,
+                applied=False,
+                gate_decision="schedule-not-due",
+                applied_operations=(),
+                blocked_operations=("online-fast:schedule-not-due",),
+                parameter_change_rate=substrate_self_mod.parameter_change_rate,
+                optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
+                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
+                optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
+                fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                description="Online-fast substrate self-mod proposal was present, but schedule was not due.",
+            )
+        if gate_decision is GateDecision.BLOCK:
+            self._append_online_fast_credit_audit(
+                integration_result=integration_result,
+                record=SelfModificationRecord(
+                    target=substrate_self_mod.target,
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash="substrate.online_fast:pre",
+                    new_value_hash=substrate_self_mod.checkpoint_hash,
+                    justification=substrate_self_mod.description,
+                    timestamp_ms=self._turn_index,
+                    is_reversible=True,
+                    checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                    lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                    proposal_hash=substrate_self_mod.checkpoint_hash,
+                ),
+            )
+            blocked_result = OnlineFastSubstrateTurnResult(
+                recommended=True,
+                applied=False,
+                gate_decision=gate_decision.value,
+                applied_operations=(),
+                blocked_operations=("online-fast:evaluation-gate-block",),
+                parameter_change_rate=substrate_self_mod.parameter_change_rate,
+                optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
+                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
+                optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
+                fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                description="Online-fast substrate self-mod proposal was blocked by the ONLINE evaluation gate.",
+            )
+            self._append_online_fast_evaluation_evidence(
+                integration_result=integration_result,
+                wave_id=wave_id,
+                result=blocked_result,
+            )
+            return blocked_result
+        import_result = self._joint_loop.apply_online_fast_substrate_checkpoint(
+            substrate_self_mod.checkpoint,
+            checkpoint_id=f"{self._session_id}:{wave_id}:online-fast-substrate",
+        )
+        prior_checkpoint = import_result.checkpoint.substrate_checkpoint
+        if substrate_self_mod.checkpoint.fast_memory_signal:
+            self._memory_store.observe_fast_memory_signal(
+                signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                timestamp_ms=max(self._turn_index, 1),
+            )
+        self._append_online_fast_credit_audit(
+            integration_result=integration_result,
+            record=SelfModificationRecord(
+                target=substrate_self_mod.target,
+                gate=ModificationGate.ONLINE,
+                decision=GateDecision.ALLOW,
+                old_value_hash=prior_checkpoint.checkpoint_id if prior_checkpoint is not None else "none",
+                new_value_hash=substrate_self_mod.checkpoint.checkpoint_id,
+                justification=substrate_self_mod.description,
+                timestamp_ms=self._turn_index,
+                is_reversible=True,
+                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                proposal_hash=substrate_self_mod.checkpoint_hash,
+            ),
+        )
+        applied_result = OnlineFastSubstrateTurnResult(
+            recommended=True,
+            applied=True,
+            gate_decision=gate_decision.value,
+            applied_operations=import_result.applied_operations,
+            blocked_operations=(),
+            parameter_change_rate=substrate_self_mod.parameter_change_rate,
+            optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
+            checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+            fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
+            source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
+            optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
+            fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
+            description=import_result.description,
+        )
+        self._append_online_fast_evaluation_evidence(
+            integration_result=integration_result,
+            wave_id=wave_id,
+            result=applied_result,
+        )
+        return applied_result
+
+    async def _maybe_apply_rare_heavy(
         self,
         *,
         wave_id: str,
@@ -657,6 +1240,8 @@ class AgentSessionRunner:
                 substrate_status="skipped",
                 substrate_training_mode="not-run",
                 description="Rare-heavy review was recommended, but session owner has rare-heavy execution disabled.",
+                import_decision="disabled",
+                reject_reason="rare-heavy-disabled",
             )
         turns_since_last_import = self._turn_index - self._last_rare_heavy_turn_index
         if self._last_rare_heavy_turn_index and turns_since_last_import < self._rare_heavy_cooldown_turns:
@@ -671,8 +1256,11 @@ class AgentSessionRunner:
                     f"Rare-heavy review was recommended, but cooldown is active "
                     f"({turns_since_last_import}/{self._rare_heavy_cooldown_turns} turns since last import)."
                 ),
+                import_decision="skipped-cooldown",
+                reject_reason="cooldown-active",
             )
-        if len(self._recent_training_traces) < self._rare_heavy_min_traces:
+        bundle = self._build_rare_heavy_training_bundle()
+        if bundle.aligned_example_count < self._rare_heavy_min_traces:
             return RareHeavyTurnResult(
                 recommended=True,
                 applied=False,
@@ -681,9 +1269,17 @@ class AgentSessionRunner:
                 substrate_status="skipped",
                 substrate_training_mode="not-run",
                 description=(
-                    f"Rare-heavy review was recommended, but only {len(self._recent_training_traces)} traces are available; "
-                    f"need {self._rare_heavy_min_traces}."
+                    f"Rare-heavy review was recommended, but only {bundle.aligned_example_count} aligned examples are available; "
+                    f"need {self._rare_heavy_min_traces}. {bundle.description}"
                 ),
+                import_decision="skipped-insufficient-alignment",
+                reject_reason="insufficient-aligned-examples",
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
             )
         world_pipeline = self._build_rare_heavy_pipeline(
             source_policy=self._joint_loop.world_temporal_policy
@@ -691,8 +1287,8 @@ class AgentSessionRunner:
         self_pipeline = self._build_rare_heavy_pipeline(
             source_policy=self._joint_loop.self_temporal_policy
         )
-        traces = tuple(self._recent_training_traces[-self._rare_heavy_trace_window :])
-        substrate_batches = tuple(self._recent_substrate_batches[-self._rare_heavy_trace_window :])
+        traces = tuple(example.trace for example in bundle.examples)
+        substrate_batches = tuple(example.substrate_batch for example in bundle.examples)
         try:
             world_pipeline_result = world_pipeline.run_pipeline(
                 traces=traces,
@@ -713,6 +1309,14 @@ class AgentSessionRunner:
                 description=(
                     f"Rare-heavy pipeline failed closed during substrate training/import preparation: {exc}"
                 ),
+                import_decision="pipeline-failed-closed",
+                reject_reason="pipeline-failed-closed",
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
             )
         world_artifact = world_pipeline.export_rare_heavy_artifact(
             artifact_id=f"{self._session_id}:{wave_id}:rare-heavy:world"
@@ -741,6 +1345,7 @@ class AgentSessionRunner:
                 f"Dual-track rare-heavy artifact world={world_artifact.artifact_id} "
                 f"self={self_artifact.artifact_id}."
             ),
+            training_evidence=world_artifact.training_evidence,
         )
         combined_rl_steps = (
             world_pipeline_result.rl_steps_completed + self_pipeline_result.rl_steps_completed
@@ -762,6 +1367,65 @@ class AgentSessionRunner:
                     f"Rare-heavy pipeline exported {artifact.artifact_id}, but no offline RL steps completed; "
                     f"skipping import. world={world_pipeline_result.description} self={self_pipeline_result.description}"
                 ),
+                import_decision="skipped-no-offline-rl",
+                reject_reason="no-offline-rl-steps",
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
+                candidate_adapter_parameter_count=(
+                    artifact.substrate_checkpoint.adapter_parameter_count
+                    if artifact.substrate_checkpoint is not None
+                    else 0
+                ),
+                candidate_adapter_training_loss=(
+                    artifact.substrate_checkpoint.adapter_training_loss
+                    if artifact.substrate_checkpoint is not None
+                    else 0.0
+                ),
+            )
+        pre_import_evaluation = await self._evaluate_rare_heavy_candidate(
+            artifact=artifact,
+            bundle=bundle,
+        )
+        if not pre_import_evaluation.accepted:
+            return RareHeavyTurnResult(
+                recommended=True,
+                applied=False,
+                artifact_id=artifact.artifact_id,
+                applied_operations=(),
+                substrate_status="rejected",
+                substrate_training_mode=combined_substrate_mode,
+                description=(
+                    f"{world_pipeline_result.description} {self_pipeline_result.description} "
+                    f"{pre_import_evaluation.description}"
+                ),
+                import_decision="rejected-pre-import",
+                reject_reason=",".join(pre_import_evaluation.reasons),
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
+                candidate_adapter_parameter_count=(
+                    artifact.substrate_checkpoint.adapter_parameter_count
+                    if artifact.substrate_checkpoint is not None
+                    else 0
+                ),
+                candidate_adapter_training_loss=(
+                    artifact.substrate_checkpoint.adapter_training_loss
+                    if artifact.substrate_checkpoint is not None
+                    else 0.0
+                ),
+                pre_import_case_count=pre_import_evaluation.case_count,
+                pre_import_mean_score_delta=pre_import_evaluation.mean_score_delta,
+                pre_import_worst_score_delta=pre_import_evaluation.worst_score_delta,
+                pre_import_positive_fraction=pre_import_evaluation.positive_fraction,
+                pre_import_passed=pre_import_evaluation.accepted,
+                pre_import_judgement=pre_import_evaluation.judgement,
             )
         try:
             import_result = self.apply_rare_heavy_artifact(
@@ -780,6 +1444,30 @@ class AgentSessionRunner:
                     f"{world_pipeline_result.description} {self_pipeline_result.description} "
                     f"Rare-heavy import failed closed: {exc}"
                 ),
+                import_decision="import-failed-closed",
+                reject_reason="import-failed-closed",
+                bundle_alignment_ratio=bundle.alignment_ratio,
+                bundle_trace_count=bundle.trace_count,
+                bundle_substrate_batch_count=bundle.substrate_batch_count,
+                bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+                bundle_mean_sequence_length=bundle.mean_sequence_length,
+                bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
+                candidate_adapter_parameter_count=(
+                    artifact.substrate_checkpoint.adapter_parameter_count
+                    if artifact.substrate_checkpoint is not None
+                    else 0
+                ),
+                candidate_adapter_training_loss=(
+                    artifact.substrate_checkpoint.adapter_training_loss
+                    if artifact.substrate_checkpoint is not None
+                    else 0.0
+                ),
+                pre_import_case_count=pre_import_evaluation.case_count,
+                pre_import_mean_score_delta=pre_import_evaluation.mean_score_delta,
+                pre_import_worst_score_delta=pre_import_evaluation.worst_score_delta,
+                pre_import_positive_fraction=pre_import_evaluation.positive_fraction,
+                pre_import_passed=pre_import_evaluation.accepted,
+                pre_import_judgement=pre_import_evaluation.judgement,
             )
         self._last_rare_heavy_turn_index = self._turn_index
         return RareHeavyTurnResult(
@@ -793,6 +1481,29 @@ class AgentSessionRunner:
                 f"{world_pipeline_result.description} {self_pipeline_result.description} "
                 f"{import_result.description}"
             ),
+            import_decision="imported",
+            bundle_alignment_ratio=bundle.alignment_ratio,
+            bundle_trace_count=bundle.trace_count,
+            bundle_substrate_batch_count=bundle.substrate_batch_count,
+            bundle_mean_trace_step_count=bundle.mean_trace_step_count,
+            bundle_mean_sequence_length=bundle.mean_sequence_length,
+            bundle_mean_residual_magnitude=bundle.mean_residual_magnitude,
+            candidate_adapter_parameter_count=(
+                artifact.substrate_checkpoint.adapter_parameter_count
+                if artifact.substrate_checkpoint is not None
+                else 0
+            ),
+            candidate_adapter_training_loss=(
+                artifact.substrate_checkpoint.adapter_training_loss
+                if artifact.substrate_checkpoint is not None
+                else 0.0
+            ),
+            pre_import_case_count=pre_import_evaluation.case_count,
+            pre_import_mean_score_delta=pre_import_evaluation.mean_score_delta,
+            pre_import_worst_score_delta=pre_import_evaluation.worst_score_delta,
+            pre_import_positive_fraction=pre_import_evaluation.positive_fraction,
+            pre_import_passed=pre_import_evaluation.accepted,
+            pre_import_judgement=pre_import_evaluation.judgement,
         )
 
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:
@@ -839,6 +1550,7 @@ class AgentSessionRunner:
         integration_result: FinalIntegrationResult,
         joint_result: ScheduledJointLoopResult,
         imagination_result: ImaginationResult | None = None,
+        online_fast_substrate_result: OnlineFastSubstrateTurnResult | None = None,
         rare_heavy_result: RareHeavyTurnResult | None = None,
         deferred_writeback_result: WritebackResult | None = None,
         queue_state: SessionPostSlowLoopQueueState | None = None,
@@ -980,12 +1692,15 @@ class AgentSessionRunner:
         )
         effective_writeback_result = deferred_writeback_result or integration_result.writeback_result
         effective_queue_state = queue_state or self.session_post_queue_state
+        session_post_snapshot = self._publish_session_post_snapshot()
+        active_snapshots = dict(integration_result.active_snapshots)
+        active_snapshots["session_post_slow_loop"] = session_post_snapshot
 
         return AgentTurnResult(
             session_id=self.active_context_session_id,
             wave_id=wave_id,
             user_input=user_input,
-            active_snapshots=integration_result.active_snapshots,
+            active_snapshots=active_snapshots,
             shadow_snapshots=integration_result.shadow_snapshots,
             acceptance_passed=integration_result.acceptance_report.passed,
             acceptance_issues=integration_result.acceptance_report.issues,
@@ -1039,6 +1754,7 @@ class AgentSessionRunner:
             session_post_pending_job_count=effective_queue_state.pending_job_count,
             session_post_completed_job_count=effective_queue_state.completed_job_count,
             session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,
+            online_fast_substrate_result=online_fast_substrate_result,
         )
 
     def _run_imagination(self, integration_result: FinalIntegrationResult) -> ImaginationResult | None:

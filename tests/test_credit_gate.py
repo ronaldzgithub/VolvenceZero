@@ -24,8 +24,12 @@ from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
+    OpenWeightResidualStreamSubstrateAdapter,
+    SubstrateSelfModModule,
     SubstrateModule,
+    SyntheticOpenWeightResidualRuntime,
 )
+from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, ActualOutcome, PredictedOutcome
 from volvence_zero.temporal import LearnedLiteTemporalPolicy, MetacontrollerRuntimeState, TemporalModule
 
 
@@ -199,6 +203,88 @@ def test_has_blocking_writeback_detects_blocked_targets():
     ).value
 
     assert has_blocking_writeback(credit_snapshot, target_prefix="memory")
+
+
+def test_substrate_self_mod_preview_is_blocked_by_online_gate_on_high_alert():
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s1",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=evaluation_snapshot.turn_scores,
+        session_scores=evaluation_snapshot.session_scores,
+        alerts=("HIGH: cross-track stability is degraded",),
+        description=evaluation_snapshot.description,
+    )
+    substrate_snapshot = asyncio.run(
+        SubstrateModule(
+            adapter=OpenWeightResidualStreamSubstrateAdapter(
+                runtime=SyntheticOpenWeightResidualRuntime(model_id="substrate-self-mod-model"),
+                default_source_text="repair tension while staying warm",
+            ),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone(source_text="repair tension while staying warm")
+    ).value
+    prediction_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(
+            source_turn_index=0,
+            target_turn_index=1,
+            predicted_task_progress=0.4,
+            predicted_relationship_delta=0.4,
+            predicted_regime_stability=0.4,
+            predicted_action_payoff=0.4,
+            confidence=0.6,
+            description="predicted",
+        ),
+        actual_outcome=ActualOutcome(
+            observed_turn_index=1,
+            task_progress=0.1,
+            relationship_delta=0.1,
+            regime_stability=0.1,
+            action_payoff=0.1,
+            description="actual",
+        ),
+        next_prediction=PredictedOutcome(
+            source_turn_index=1,
+            target_turn_index=2,
+            predicted_task_progress=0.3,
+            predicted_relationship_delta=0.3,
+            predicted_regime_stability=0.3,
+            predicted_action_payoff=0.3,
+            confidence=0.6,
+            description="next",
+        ),
+        error=PredictionError(
+            task_error=0.4,
+            relationship_error=0.3,
+            regime_error=0.2,
+            action_error=0.3,
+            magnitude=0.45,
+            signed_reward=-0.2,
+            description="high alert should block online self-mod",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="prediction error snapshot",
+    )
+
+    snapshot = asyncio.run(
+        SubstrateSelfModModule(
+            session_id="s1",
+            wave_id="w1",
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone(
+            substrate_snapshot=substrate_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            prediction_snapshot=prediction_snapshot,
+        )
+    )
+
+    assert snapshot.value.recommended is True
+    assert snapshot.value.gate_preview == GateDecision.BLOCK.value
 
 
 def test_credit_snapshot_can_be_extended_with_abstract_action_credit():

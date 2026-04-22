@@ -7,6 +7,10 @@ import time
 from functools import partial
 from typing import Callable, TextIO
 
+from volvence_zero.agent.dialogue_benchmark import (
+    OpenDialogueREPLReader,
+    build_deterministic_user_simulator,
+)
 from volvence_zero.agent.response import LLMResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.substrate import SubstrateFallbackMode
@@ -85,18 +89,26 @@ async def run_repl(
     prompt: str = "you> ",
     banner: str = "VolvenceZero REPL. Type 'exit' or 'quit' to stop.",
     render_result: Callable[[AgentTurnResult], str] = render_turn_result,
+    render_input: Callable[[str], str] | None = None,
+    after_result: Callable[[AgentTurnResult], None] | None = None,
     show_timing: bool = True,
 ) -> None:
     writer(banner)
     while True:
-        writer(prompt)
+        if prompt:
+            writer(prompt)
         try:
             user_input = reader().strip()
+        except EOFError:
+            writer("bye")
+            return
         except KeyboardInterrupt:
             writer("bye")
             return
         if not user_input:
             continue
+        if render_input is not None:
+            writer(render_input(user_input))
         if user_input.lower() in {"exit", "quit"}:
             writer("bye")
             return
@@ -107,6 +119,8 @@ async def run_repl(
             writer("bye")
             return
         elapsed = time.perf_counter() - t0
+        if after_result is not None:
+            after_result(result)
         output = render_result(result)
         if show_timing:
             output += f"\n  time: {elapsed:.2f}s"
@@ -210,6 +224,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=0.7,
         help="Sampling temperature for LLM generation.",
     )
+    parser.add_argument(
+        "--open-sim",
+        action="store_true",
+        help="Run an open-environment simulated user episode instead of waiting for stdin.",
+    )
+    parser.add_argument(
+        "--open-scenario-id",
+        default="open_repair",
+        help="Open dialogue scenario id used when --open-sim is enabled.",
+    )
+    parser.add_argument(
+        "--open-max-turns",
+        type=int,
+        default=None,
+        help="Optional max turn override for the open simulated episode.",
+    )
+    parser.add_argument(
+        "--open-seed",
+        type=int,
+        default=0,
+        help="Deterministic seed used by the open simulated user episode.",
+    )
     return parser
 
 
@@ -250,18 +286,40 @@ def main() -> int:
     )
     banner = "VolvenceZero REPL. Type 'exit' or 'quit' to stop."
     render_result = render_turn_result
+    render_input = None
+    after_result = None
+    prompt = "you> "
+    reader = _stdin_reader(__import__("sys").stdin)
     show_timing = True
     if args.chat:
         banner = "VolvenceZero Chat. Type 'exit' or 'quit' to stop."
         render_result = partial(render_chat_turn_result, include_meta=args.show_meta)
         show_timing = False
+    if args.open_sim:
+        simulator = build_deterministic_user_simulator(
+            scenario_id=args.open_scenario_id,
+            seed=args.open_seed,
+            max_turns=args.open_max_turns,
+        )
+        open_reader = OpenDialogueREPLReader(turn_source=simulator)
+        reader = open_reader
+        prompt = ""
+        render_input = lambda text: f"sim> {text}"
+        after_result = open_reader.observe_result
+        banner = (
+            f"VolvenceZero Open Dialogue ({simulator.scenario.scenario_id}). "
+            f"Simulated user episode with max_turns={simulator.scenario.max_turns}."
+        )
     asyncio.run(
         run_repl(
             runner=runner,
-            reader=_stdin_reader(__import__("sys").stdin),
+            reader=reader,
             writer=_stdout_writer(__import__("sys").stdout),
+            prompt=prompt,
             banner=banner,
             render_result=render_result,
+            render_input=render_input,
+            after_result=after_result,
             show_timing=show_timing,
         )
     )

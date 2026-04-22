@@ -100,12 +100,21 @@ class InternalRLEnvironment:
         *,
         control_backend: ResidualInterventionBackend | None = None,
         evaluation_family_signals: dict[str, float] | None = None,
+        primary_prediction_error_enabled: bool = True,
     ) -> None:
         self._control_backend = control_backend or TraceResidualInterventionBackend()
         self._evaluation_family_signals = evaluation_family_signals or {}
+        self._primary_prediction_error_enabled = primary_prediction_error_enabled
 
     def set_evaluation_signals(self, signals: dict[str, float]) -> None:
         self._evaluation_family_signals = dict(signals)
+
+    @property
+    def primary_prediction_error_enabled(self) -> bool:
+        return self._primary_prediction_error_enabled
+
+    def set_primary_prediction_error_enabled(self, enabled: bool) -> None:
+        self._primary_prediction_error_enabled = enabled
 
     def set_control_backend(self, backend: ResidualInterventionBackend) -> None:
         self._control_backend = backend
@@ -135,6 +144,30 @@ class InternalRLEnvironment:
 
     def _family_delta(self, family: str) -> float:
         return self._evaluation_family_signals.get(family, 0.5) - 0.5
+
+    def _primary_prediction_error_signal(self) -> float:
+        if not self._primary_prediction_error_enabled:
+            return 0.0
+        raw_value = _clamp(self._evaluation_family_signals.get("prediction_error_reward", 0.0))
+        if raw_value == 0.0:
+            return 0.0
+        # Evaluation publishes a readout in [0, 1] centered at 0.5, while the
+        # session owner injects the raw signed PE reward in [-1, 1]. Support
+        # both without making evaluation a second owner of PE semantics.
+        if 0.0 <= raw_value <= 1.0 and "predictive_accuracy" in self._evaluation_family_signals:
+            return _clamp((raw_value - 0.5) * 2.0)
+        return raw_value
+
+    def _prediction_error_readout_signal(self) -> float:
+        explicit_readout = self._evaluation_family_signals.get("prediction_error_reward_readout")
+        if explicit_readout is not None:
+            return _clamp(float(explicit_readout))
+        raw_value = _clamp(self._evaluation_family_signals.get("prediction_error_reward", 0.0))
+        if raw_value == 0.0:
+            return 0.0
+        if 0.0 <= raw_value <= 1.0 and "predictive_accuracy" in self._evaluation_family_signals:
+            return _clamp((raw_value - 0.5) * 2.0)
+        return raw_value
 
     def _compress_signature(self, values: tuple[float, ...] | list[float], *, size: int = 3) -> tuple[float, ...]:
         if not values:
@@ -197,21 +230,24 @@ class InternalRLEnvironment:
         control_energy: float,
         policy_replacement_quality: float,
     ) -> tuple[tuple[str, float], ...]:
-        prediction_error_reward = self._evaluation_family_signals.get("prediction_error_reward", 0.0)
+        prediction_error_reward = self._primary_prediction_error_signal()
+        prediction_error_readout = self._prediction_error_readout_signal()
         has_primary_pe = abs(prediction_error_reward) > 1e-8
+        has_readout_pe = abs(prediction_error_readout) > 1e-8
+        primary_weight = min(abs(prediction_error_reward), 1.0)
         components: list[tuple[str, float]] = [
-            ("control_effect", sum(downstream_effect) / len(downstream_effect) * (0.12 if has_primary_pe else 1.0)),
+            ("control_effect", sum(downstream_effect) / len(downstream_effect) * (0.10 if has_primary_pe else 1.0)),
             ("control_energy_bonus", control_energy * (0.01 if has_primary_pe else 0.05)),
-            ("replacement_alignment", policy_replacement_quality * (0.02 if has_primary_pe else 0.08)),
-            ("persistence_bonus", (1.0 - temporal_step.controller_state.switch_gate) * (0.01 if has_primary_pe else 0.04)),
+            ("replacement_alignment", policy_replacement_quality * (0.015 if has_primary_pe else 0.08)),
+            ("persistence_bonus", (1.0 - temporal_step.controller_state.switch_gate) * (0.008 if has_primary_pe else 0.04)),
             (
                 "switch_bonus",
-                (0.01 if has_primary_pe else 0.06) if temporal_step.controller_state.is_switching else 0.0,
+                (0.008 if has_primary_pe else 0.06) if temporal_step.controller_state.is_switching else 0.0,
             ),
-            ("staleness_penalty", -temporal_step.controller_state.steps_since_switch * (0.002 if has_primary_pe else 0.01)),
+            ("staleness_penalty", -temporal_step.controller_state.steps_since_switch * (0.0015 if has_primary_pe else 0.01)),
         ]
         if has_primary_pe:
-            components.append(("primary_prediction_error", prediction_error_reward * 0.70))
+            components.append(("primary_prediction_error", prediction_error_reward * (0.85 + primary_weight * 0.10)))
         if not self._evaluation_family_signals:
             return tuple(components)
         task_delta = self._family_delta("task")
@@ -220,25 +256,33 @@ class InternalRLEnvironment:
         abstraction_delta = self._family_delta("abstraction")
         stability_delta = (self._family_delta("safety") + relationship_delta) / 2.0
         if track is Track.WORLD:
-            task_weight = 0.03 if has_primary_pe else 0.24
-            relationship_weight = 0.01 if has_primary_pe else 0.05
-            stability_weight = 0.01 if has_primary_pe else 0.08
+            task_weight = 0.02 if has_primary_pe else 0.24
+            relationship_weight = 0.008 if has_primary_pe else 0.05
+            stability_weight = 0.008 if has_primary_pe else 0.08
         elif track is Track.SELF:
-            task_weight = 0.01 if has_primary_pe else 0.05
-            relationship_weight = 0.03 if has_primary_pe else 0.24
-            stability_weight = 0.015 if has_primary_pe else 0.10
+            task_weight = 0.008 if has_primary_pe else 0.05
+            relationship_weight = 0.02 if has_primary_pe else 0.24
+            stability_weight = 0.010 if has_primary_pe else 0.10
         else:
-            task_weight = 0.015 if has_primary_pe else 0.14
-            relationship_weight = 0.015 if has_primary_pe else 0.14
-            stability_weight = 0.01 if has_primary_pe else 0.09
+            task_weight = 0.010 if has_primary_pe else 0.14
+            relationship_weight = 0.010 if has_primary_pe else 0.14
+            stability_weight = 0.008 if has_primary_pe else 0.09
         components.extend(
             (
                 ("task_outcome_delta", task_delta * task_weight),
                 ("relationship_outcome_delta", relationship_delta * relationship_weight),
-                ("learning_outcome_delta", learning_delta * (0.01 if has_primary_pe else 0.12)),
-                ("abstraction_outcome_delta", abstraction_delta * (0.01 if has_primary_pe else 0.10)),
+                ("learning_outcome_delta", learning_delta * (0.008 if has_primary_pe else 0.12)),
+                ("abstraction_outcome_delta", abstraction_delta * (0.008 if has_primary_pe else 0.10)),
                 ("stability_outcome_delta", stability_delta * stability_weight),
-                ("prediction_error_reward", prediction_error_reward * (0.05 if has_primary_pe else 0.15)),
+                (
+                    "prediction_error_readout",
+                    prediction_error_readout
+                    * (
+                        0.03
+                        if has_primary_pe
+                        else (0.06 if has_readout_pe else 0.15)
+                    ),
+                ),
             )
         )
         return tuple(components)

@@ -57,6 +57,309 @@ class PredictionErrorSnapshot:
     description: str
 
 
+@dataclass(frozen=True)
+class _OutcomeEvidence:
+    family_signals: dict[str, float]
+    substrate_signals: dict[str, float]
+    previous_substrate_signals: dict[str, float]
+    substrate_delta: dict[str, float]
+    cross_track_tension: float
+    regime_stability: float
+
+
+@dataclass(frozen=True)
+class _OutcomeAxisCalibration:
+    family_weight: float
+    substrate_weight: float
+    delta_weight: float
+    continuity_weight: float = 0.0
+    stability_weight: float = 0.0
+    tension_weight: float = 0.0
+    novelty_weight: float = 0.0
+
+
+class _PredictionErrorHead:
+    """Owner-side mapper from runtime evidence to prediction/outcome axes."""
+
+    def __init__(self) -> None:
+        self._prediction_axes = {
+            "task": _OutcomeAxisCalibration(
+                family_weight=0.40,
+                substrate_weight=0.35,
+                delta_weight=0.10,
+                continuity_weight=0.05,
+                novelty_weight=0.10,
+            ),
+            "relationship": _OutcomeAxisCalibration(
+                family_weight=0.30,
+                substrate_weight=0.28,
+                delta_weight=0.12,
+                continuity_weight=0.12,
+                stability_weight=0.08,
+                tension_weight=0.10,
+            ),
+            "regime": _OutcomeAxisCalibration(
+                family_weight=0.10,
+                substrate_weight=0.08,
+                delta_weight=0.05,
+                stability_weight=0.67,
+                tension_weight=0.10,
+            ),
+            "action": _OutcomeAxisCalibration(
+                family_weight=0.32,
+                substrate_weight=0.28,
+                delta_weight=0.18,
+                continuity_weight=0.10,
+                novelty_weight=0.12,
+            ),
+        }
+        self._actual_axes = {
+            "task": _OutcomeAxisCalibration(
+                family_weight=0.28,
+                substrate_weight=0.30,
+                delta_weight=0.24,
+                continuity_weight=0.04,
+                novelty_weight=0.14,
+            ),
+            "relationship": _OutcomeAxisCalibration(
+                family_weight=0.24,
+                substrate_weight=0.26,
+                delta_weight=0.16,
+                continuity_weight=0.14,
+                stability_weight=0.08,
+                tension_weight=0.12,
+            ),
+            "regime": _OutcomeAxisCalibration(
+                family_weight=0.05,
+                substrate_weight=0.05,
+                delta_weight=0.05,
+                stability_weight=0.75,
+                tension_weight=0.10,
+            ),
+            "action": _OutcomeAxisCalibration(
+                family_weight=0.22,
+                substrate_weight=0.28,
+                delta_weight=0.28,
+                continuity_weight=0.08,
+                novelty_weight=0.14,
+            ),
+        }
+
+    def build_prediction(
+        self,
+        *,
+        source_turn_index: int,
+        evidence: _OutcomeEvidence,
+    ) -> PredictedOutcome:
+        task_progress = self._axis_value("task", evidence=evidence, calibrations=self._prediction_axes)
+        relationship_signal = self._axis_value("relationship", evidence=evidence, calibrations=self._prediction_axes)
+        regime_stability = self._axis_value("regime", evidence=evidence, calibrations=self._prediction_axes)
+        action_payoff = self._axis_value("action", evidence=evidence, calibrations=self._prediction_axes)
+        confidence = self._confidence(evidence=evidence)
+        return PredictedOutcome(
+            source_turn_index=source_turn_index,
+            target_turn_index=source_turn_index + 1,
+            predicted_task_progress=task_progress,
+            predicted_relationship_delta=relationship_signal,
+            predicted_regime_stability=regime_stability,
+            predicted_action_payoff=action_payoff,
+            confidence=confidence,
+            description=(
+                f"Predicted next-turn outcome task={task_progress:.2f} relationship={relationship_signal:.2f} "
+                f"regime={regime_stability:.2f} action={action_payoff:.2f} confidence={confidence:.2f} "
+                f"task_signal={self._task_signal(evidence):.2f} relationship_signal={self._relationship_signal(evidence):.2f}."
+            ),
+        )
+
+    def build_actual_outcome(
+        self,
+        *,
+        observed_turn_index: int,
+        evidence: _OutcomeEvidence,
+    ) -> ActualOutcome:
+        task_progress = self._axis_value("task", evidence=evidence, calibrations=self._actual_axes)
+        relationship_delta = self._axis_value("relationship", evidence=evidence, calibrations=self._actual_axes)
+        regime_stability = self._axis_value("regime", evidence=evidence, calibrations=self._actual_axes)
+        action_payoff = self._axis_value("action", evidence=evidence, calibrations=self._actual_axes)
+        return ActualOutcome(
+            observed_turn_index=observed_turn_index,
+            task_progress=task_progress,
+            relationship_delta=relationship_delta,
+            regime_stability=regime_stability,
+            action_payoff=action_payoff,
+            description=(
+                f"Observed outcome turn={observed_turn_index} task={task_progress:.2f} "
+                f"relationship={relationship_delta:.2f} regime={regime_stability:.2f} action={action_payoff:.2f} "
+                f"task_shift={evidence.substrate_delta['task_shift']:.2f} support_shift={evidence.substrate_delta['support_shift']:.2f} "
+                f"residual_shift={evidence.substrate_delta['residual_shift']:.2f}."
+            ),
+        )
+
+    def compute_error(
+        self,
+        *,
+        predicted: PredictedOutcome,
+        actual_outcome: ActualOutcome,
+    ) -> PredictionError:
+        task_error = _clamp_signed(actual_outcome.task_progress - predicted.predicted_task_progress)
+        relationship_error = _clamp_signed(
+            actual_outcome.relationship_delta - predicted.predicted_relationship_delta
+        )
+        regime_error = _clamp_signed(actual_outcome.regime_stability - predicted.predicted_regime_stability)
+        action_error = _clamp_signed(actual_outcome.action_payoff - predicted.predicted_action_payoff)
+        weighted_axis_errors = self._weighted_axis_errors(
+            predicted=predicted,
+            task_error=task_error,
+            relationship_error=relationship_error,
+            regime_error=regime_error,
+            action_error=action_error,
+        )
+        weighted_abs_error = sum(abs(error) * weight for _, error, weight in weighted_axis_errors)
+        weighted_signed_error = sum(error * weight for _, error, weight in weighted_axis_errors)
+        magnitude = _clamp_unit(weighted_abs_error) * 4.0
+        signed_reward = _clamp_signed(weighted_signed_error)
+        weight_text = ", ".join(
+            f"{axis}={weight:.2f}" for axis, _, weight in weighted_axis_errors
+        )
+        return PredictionError(
+            task_error=task_error,
+            relationship_error=relationship_error,
+            regime_error=regime_error,
+            action_error=action_error,
+            magnitude=round(magnitude, 4),
+            signed_reward=round(signed_reward, 4),
+            description=(
+                f"Prediction error task={task_error:.2f} relationship={relationship_error:.2f} "
+                f"regime={regime_error:.2f} action={action_error:.2f} magnitude={magnitude:.2f} "
+                f"signed_reward={signed_reward:.2f} weighted_axes[{weight_text}]."
+            ),
+        )
+
+    def _axis_value(
+        self,
+        axis_name: str,
+        *,
+        evidence: _OutcomeEvidence,
+        calibrations: dict[str, _OutcomeAxisCalibration],
+    ) -> float:
+        calibration = calibrations[axis_name]
+        base_signal = {
+            "task": self._task_signal(evidence),
+            "relationship": self._relationship_signal(evidence),
+            "regime": evidence.regime_stability,
+            "action": self._action_signal(evidence),
+        }[axis_name]
+        delta_signal = {
+            "task": evidence.substrate_delta["task_shift"],
+            "relationship": evidence.substrate_delta["support_shift"],
+            "regime": 1.0 - evidence.substrate_delta["residual_shift"],
+            "action": evidence.substrate_delta["directive_shift"],
+        }[axis_name]
+        continuity_signal = {
+            "task": evidence.previous_substrate_signals["task_pull"],
+            "relationship": evidence.previous_substrate_signals["support_pull"],
+            "regime": evidence.regime_stability,
+            "action": evidence.previous_substrate_signals["directive_pull"],
+        }[axis_name]
+        novelty_signal = {
+            "task": evidence.substrate_delta["length_delta"],
+            "relationship": evidence.substrate_delta["support_shift"],
+            "regime": evidence.substrate_delta["residual_shift"],
+            "action": evidence.substrate_delta["residual_shift"],
+        }[axis_name]
+        tension_signal = 1.0 - evidence.cross_track_tension
+        total_weight = (
+            calibration.family_weight
+            + calibration.substrate_weight
+            + calibration.delta_weight
+            + calibration.continuity_weight
+            + calibration.stability_weight
+            + calibration.tension_weight
+            + calibration.novelty_weight
+        )
+        if total_weight <= 0.0:
+            return 0.5
+        weighted_sum = (
+            base_signal * (calibration.family_weight + calibration.substrate_weight)
+            + delta_signal * calibration.delta_weight
+            + continuity_signal * calibration.continuity_weight
+            + evidence.regime_stability * calibration.stability_weight
+            + tension_signal * calibration.tension_weight
+            + novelty_signal * calibration.novelty_weight
+        )
+        return _clamp_unit(weighted_sum / total_weight)
+
+    def _task_signal(self, evidence: _OutcomeEvidence) -> float:
+        return _clamp_unit(
+            evidence.family_signals.get("task", 0.5) * 0.52
+            + evidence.substrate_signals["task_pull"] * 0.33
+            + evidence.substrate_signals["directive_pull"] * 0.15
+        )
+
+    def _relationship_signal(self, evidence: _OutcomeEvidence) -> float:
+        return _clamp_unit(
+            evidence.family_signals.get("relationship", 0.5) * 0.35
+            + evidence.substrate_signals["support_pull"] * 0.28
+            + evidence.substrate_signals["repair_pull"] * 0.17
+            + (1.0 - evidence.cross_track_tension) * 0.20
+        )
+
+    def _action_signal(self, evidence: _OutcomeEvidence) -> float:
+        return _clamp_unit(
+            evidence.family_signals.get("abstraction", 0.5) * 0.34
+            + evidence.substrate_signals["directive_pull"] * 0.26
+            + evidence.substrate_signals["exploration_pull"] * 0.18
+            + evidence.substrate_delta["residual_shift"] * 0.22
+        )
+
+    def _confidence(self, *, evidence: _OutcomeEvidence) -> float:
+        learning_signal = evidence.family_signals.get("learning", 0.5)
+        safety_signal = evidence.family_signals.get("safety", 0.5)
+        stability_signal = evidence.regime_stability
+        coherence_signal = 1.0 - min(
+            abs(evidence.substrate_delta["task_shift"] - 0.5)
+            + abs(evidence.substrate_delta["support_shift"] - 0.5)
+            + abs(evidence.substrate_delta["directive_shift"] - 0.5),
+            1.0,
+        )
+        return _clamp_unit(
+            learning_signal * 0.35
+            + safety_signal * 0.35
+            + stability_signal * 0.20
+            + coherence_signal * 0.10
+        )
+
+    def _weighted_axis_errors(
+        self,
+        *,
+        predicted: PredictedOutcome,
+        task_error: float,
+        relationship_error: float,
+        regime_error: float,
+        action_error: float,
+    ) -> tuple[tuple[str, float, float], ...]:
+        axis_predictions = (
+            ("task", predicted.predicted_task_progress, task_error),
+            ("relationship", predicted.predicted_relationship_delta, relationship_error),
+            ("regime", predicted.predicted_regime_stability, regime_error),
+            ("action", predicted.predicted_action_payoff, action_error),
+        )
+        raw_weights = []
+        for axis_name, predicted_value, _ in axis_predictions:
+            expectation_strength = abs(predicted_value - 0.5) * 2.0
+            raw_weight = 0.55 + predicted.confidence * 0.30 + expectation_strength * 0.15
+            raw_weights.append((axis_name, raw_weight))
+        total_weight = sum(weight for _, weight in raw_weights)
+        normalized = {
+            axis_name: weight / total_weight
+            for axis_name, weight in raw_weights
+        }
+        return tuple(
+            (axis_name, axis_error, normalized[axis_name])
+            for axis_name, _, axis_error in axis_predictions
+        )
+
+
 class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     slot_name = "prediction_error"
     owner = "PredictionErrorModule"
@@ -69,54 +372,28 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._previous_prediction: PredictedOutcome | None = None
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
         self._turn_index = 0
+        self._outcome_head = _PredictionErrorHead()
 
     def compute_prediction(
         self,
         *,
         source_turn_index: int,
         substrate_snapshot: SubstrateSnapshot | None,
+        previous_substrate_snapshot: SubstrateSnapshot | None,
         evaluation_snapshot: EvaluationSnapshot,
         dual_track_snapshot: DualTrackSnapshot,
         regime_snapshot: RegimeSnapshot | None,
     ) -> PredictedOutcome:
-        family_signals = _family_signals(evaluation_snapshot)
-        substrate_signals = _substrate_semantic_signals(substrate_snapshot)
-        task_progress = _clamp_unit(
-            family_signals.get("task", 0.5) * 0.55
-            + substrate_signals["task_pull"] * 0.45
+        evidence = _build_outcome_evidence(
+            substrate_snapshot=substrate_snapshot,
+            previous_substrate_snapshot=previous_substrate_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            regime_snapshot=regime_snapshot,
         )
-        relationship_signal = _clamp_unit(
-            family_signals.get("relationship", 0.5) * 0.45
-            + (1.0 - dual_track_snapshot.cross_track_tension) * 0.25
-            + substrate_signals["support_pull"] * 0.30
-        )
-        regime_stability = 0.5
-        if regime_snapshot is not None:
-            trend_map = dict(regime_snapshot.effectiveness_trend)
-            regime_stability = _clamp_unit(
-                trend_map.get(regime_snapshot.active_regime.regime_id, 0.5)
-            )
-        action_payoff = _clamp_unit(
-            family_signals.get("abstraction", 0.5) * 0.5
-            + substrate_signals["directive_pull"] * 0.25
-            + substrate_signals["exploration_pull"] * 0.25
-        )
-        confidence = _clamp_unit(
-            family_signals.get("learning", 0.5) * 0.5 + family_signals.get("safety", 0.5) * 0.5
-        )
-        return PredictedOutcome(
+        return self._outcome_head.build_prediction(
             source_turn_index=source_turn_index,
-            target_turn_index=source_turn_index + 1,
-            predicted_task_progress=task_progress,
-            predicted_relationship_delta=relationship_signal,
-            predicted_regime_stability=regime_stability,
-            predicted_action_payoff=action_payoff,
-            confidence=confidence,
-            description=(
-                f"Predicted next-turn outcome task={task_progress:.2f} relationship={relationship_signal:.2f} "
-                f"regime={regime_stability:.2f} action={action_payoff:.2f} confidence={confidence:.2f} "
-                f"substrate_task={substrate_signals['task_pull']:.2f} substrate_support={substrate_signals['support_pull']:.2f}."
-            ),
+            evidence=evidence,
         )
 
     def compute_prediction_error(
@@ -125,27 +402,9 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         predicted: PredictedOutcome,
         actual_outcome: ActualOutcome,
     ) -> PredictionError:
-        task_error = _clamp_signed(actual_outcome.task_progress - predicted.predicted_task_progress)
-        relationship_error = _clamp_signed(
-            actual_outcome.relationship_delta - predicted.predicted_relationship_delta
-        )
-        regime_error = _clamp_signed(
-            actual_outcome.regime_stability - predicted.predicted_regime_stability
-        )
-        action_error = _clamp_signed(actual_outcome.action_payoff - predicted.predicted_action_payoff)
-        magnitude = abs(task_error) + abs(relationship_error) + abs(regime_error) + abs(action_error)
-        signed_reward = (task_error + relationship_error + regime_error + action_error) / 4.0
-        return PredictionError(
-            task_error=task_error,
-            relationship_error=relationship_error,
-            regime_error=regime_error,
-            action_error=action_error,
-            magnitude=round(magnitude, 4),
-            signed_reward=round(signed_reward, 4),
-            description=(
-                f"Prediction error task={task_error:.2f} relationship={relationship_error:.2f} "
-                f"regime={regime_error:.2f} action={action_error:.2f} magnitude={magnitude:.2f}."
-            ),
+        return self._outcome_head.compute_error(
+            predicted=predicted,
+            actual_outcome=actual_outcome,
         )
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[PredictionErrorSnapshot]:
@@ -216,6 +475,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         next_prediction = self.compute_prediction(
             source_turn_index=turn_index,
             substrate_snapshot=substrate_snapshot,
+            previous_substrate_snapshot=previous_substrate_snapshot,
             evaluation_snapshot=evaluation_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
@@ -269,44 +529,16 @@ def derive_actual_outcome(
     dual_track_snapshot: DualTrackSnapshot,
     regime_snapshot: RegimeSnapshot | None,
 ) -> ActualOutcome:
-    family_signals = _family_signals(evaluation_snapshot)
-    substrate_signals = _substrate_semantic_signals(substrate_snapshot)
-    previous_substrate_signals = _substrate_semantic_signals(previous_substrate_snapshot)
-    substrate_delta = _substrate_delta(substrate_snapshot, previous_substrate_snapshot)
-    regime_stability = 0.5
-    if regime_snapshot is not None:
-        trend_map = dict(regime_snapshot.effectiveness_trend)
-        regime_stability = _clamp_unit(trend_map.get(regime_snapshot.active_regime.regime_id, 0.5))
-    action_payoff = _clamp_unit(
-        family_signals.get("abstraction", 0.5) * 0.45
-        + substrate_signals["directive_pull"] * 0.20
-        + substrate_signals["exploration_pull"] * 0.20
-        + substrate_delta["residual_shift"] * 0.15
+    evidence = _build_outcome_evidence(
+        substrate_snapshot=substrate_snapshot,
+        previous_substrate_snapshot=previous_substrate_snapshot,
+        evaluation_snapshot=evaluation_snapshot,
+        dual_track_snapshot=dual_track_snapshot,
+        regime_snapshot=regime_snapshot,
     )
-    task_progress = _clamp_unit(
-        family_signals.get("task", 0.5) * 0.35
-        + substrate_signals["task_pull"] * 0.35
-        + substrate_delta["task_shift"] * 0.30
-    )
-    relationship_delta = _clamp_unit(
-        family_signals.get("relationship", 0.5) * 0.30
-        + (1.0 - dual_track_snapshot.cross_track_tension) * 0.20
-        + substrate_signals["support_pull"] * 0.25
-        + substrate_signals["repair_pull"] * 0.10
-        + max(0.0, substrate_signals["support_pull"] - previous_substrate_signals["support_pull"]) * 0.15
-    )
-    return ActualOutcome(
+    return _PredictionErrorHead().build_actual_outcome(
         observed_turn_index=observed_turn_index,
-        task_progress=task_progress,
-        relationship_delta=relationship_delta,
-        regime_stability=regime_stability,
-        action_payoff=action_payoff,
-        description=(
-            f"Observed outcome turn={observed_turn_index} task={task_progress:.2f} "
-            f"relationship={relationship_delta:.2f} regime={regime_stability:.2f} action={action_payoff:.2f} "
-            f"substrate_task={substrate_signals['task_pull']:.2f} support={substrate_signals['support_pull']:.2f} "
-            f"task_shift={substrate_delta['task_shift']:.2f} residual_shift={substrate_delta['residual_shift']:.2f}."
-        ),
+        evidence=evidence,
     )
 
 
@@ -341,6 +573,30 @@ def derive_actual_outcome_from_substrate(
             f"Substrate-derived outcome turn={observed_turn_index} task={task_progress:.2f} "
             f"relationship={relationship_delta:.2f} regime={regime_stability:.2f} action={action_payoff:.2f}."
         ),
+    )
+
+
+def _build_outcome_evidence(
+    *,
+    substrate_snapshot: SubstrateSnapshot | None,
+    previous_substrate_snapshot: SubstrateSnapshot | None,
+    evaluation_snapshot: EvaluationSnapshot,
+    dual_track_snapshot: DualTrackSnapshot,
+    regime_snapshot: RegimeSnapshot | None,
+) -> _OutcomeEvidence:
+    regime_stability = 0.5
+    if regime_snapshot is not None:
+        trend_map = dict(regime_snapshot.effectiveness_trend)
+        regime_stability = _clamp_unit(
+            trend_map.get(regime_snapshot.active_regime.regime_id, 0.5)
+        )
+    return _OutcomeEvidence(
+        family_signals=_family_signals(evaluation_snapshot),
+        substrate_signals=_substrate_semantic_signals(substrate_snapshot),
+        previous_substrate_signals=_substrate_semantic_signals(previous_substrate_snapshot),
+        substrate_delta=_substrate_delta(substrate_snapshot, previous_substrate_snapshot),
+        cross_track_tension=_clamp_unit(dual_track_snapshot.cross_track_tension),
+        regime_stability=regime_stability,
     )
 
 

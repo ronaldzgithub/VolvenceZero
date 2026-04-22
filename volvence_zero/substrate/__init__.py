@@ -27,6 +27,7 @@ from volvence_zero.substrate.residual_backend import (
     OpenWeightResidualRuntime,
     OpenWeightRuntimeCapture,
     SubstrateDeltaAdapterLayer,
+    SubstrateOnlineFastCheckpoint,
     SubstrateRareHeavyCheckpoint,
     ResidualControlApplication,
     ResidualInterventionBackend,
@@ -46,6 +47,12 @@ from volvence_zero.substrate.residual_backend import (
     resolve_substrate_fallback_mode,
     resolve_local_runtime_mode,
 )
+from volvence_zero.substrate.self_mod import (
+    SubstrateFastMemoryCell,
+    SubstrateFastMemoryState,
+    SubstrateSelfModModule,
+    SubstrateSelfModSnapshot,
+)
 
 __all__ = [
     "FeatureSignal",
@@ -63,7 +70,12 @@ __all__ = [
     "OpenWeightResidualStreamSubstrateAdapter",
     "OpenWeightRuntimeCapture",
     "SubstrateDeltaAdapterLayer",
+    "SubstrateOnlineFastCheckpoint",
     "SubstrateRareHeavyCheckpoint",
+    "SubstrateFastMemoryCell",
+    "SubstrateFastMemoryState",
+    "SubstrateSelfModModule",
+    "SubstrateSelfModSnapshot",
     "LocalSubstrateRuntimeMode",
     "PlaceholderSubstrateAdapter",
     "ResidualActivation",

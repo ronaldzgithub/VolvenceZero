@@ -404,6 +404,12 @@
 - 确保两轨可共享基础设施（如同一个经验图、同一个记忆存储），但语义上不混淆
 - 支持跨轨道的全量检索（当明确需要时）
 
+当前实现补充：
+
+- 默认 runtime 已从“共享 temporal controller + 双轨投影”推进到“`world_temporal` / `self_temporal` 双 owner + `temporal_abstraction` 聚合面”。
+- 这意味着 world/self 两轨现在不仅分记忆与分信用，也开始分 controller state、reflection writeback target、rare-heavy import surface 和 runtime telemetry。
+- 聚合 slot 仍然保留，目的是在不破坏下游 contract 的前提下平滑迁移 regime / evaluation / benchmark 消费面；它不是第三个 controller owner。
+
 **算法候选**：双轨 Internal RL（z_task / z_rel 独立控制器代码）
 
 ### 5.5 契约式运行时（R8, R11, R15）
@@ -595,7 +601,7 @@
 ### 已实现并优于旧版顶层文档的部分
 
 - `prediction_error` 已作为正式 runtime slot 落地主链，`memory` / `regime` / `credit` / `reflection` / `temporal` 都已直接接入 PE-first 消费面。
-- session owner 已接入 bounded `rare-heavy` review / import，temporal 与 memory 两侧都具备 checkpoint / rollback / import surface。
+- session owner 已接入 bounded、substrate-aware 的 `rare-heavy` review / import；temporal / memory / substrate 三侧都具备 checkpoint / rollback / import surface。
 - 顶层评估已不止是固定 scripted dialogue benchmark；当前还覆盖 perturbation、systematic replay、replay selection artifact、multi-artifact acceptance、以及 staged real comprehensive benchmark。
 - final integration 已把 temporal public evidence、prediction-error evidence、cross-session verdict、evolution judge、以及 reflection -> temporal bounded writeback 收敛到同一条 integration spine。
 
@@ -608,7 +614,7 @@
 ### 仍属目标态、尚未完全实现的部分
 
 - 独立的 session-post async slow reflection worker / queue 还不是默认主路径；当前运行时仍以 turn 级 integration 为主。
-- `rare-heavy` 当前主要是 temporal + memory artifact 的离线路径，还不是基础模型持续预训练/蒸馏。
+- `rare-heavy` 当前已经是 temporal + memory + substrate artifact 的离线路径：它能对 substrate owner 的 adapter-delta 状态做离线训练、导入与回滚，但还不是完整的基础模型持续预训练/蒸馏。
 - 双轨语义已经进入 memory / credit / evaluation / regime，但默认 runtime 还没有两个完全独立的 track-specific metacontroller。
 - 文档中提到的 Titans/DGD 式 online-fast substrate 自修改，目前还没有正式 runtime owner 路径。
 

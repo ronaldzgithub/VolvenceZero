@@ -577,6 +577,33 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
     )
 
 
+def _control_reports_for_gate(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+    exclude_labels: tuple[str, ...] = ("full-internal-rl",),
+) -> tuple[ETAProofProfileReport, ...]:
+    return tuple(
+        report
+        for label, report in report_map.items()
+        if label not in exclude_labels
+    )
+
+
+def _best_control_metric(
+    *,
+    control_reports: tuple[ETAProofProfileReport, ...],
+    metric_name: str,
+) -> tuple[str, float]:
+    best_label = "none"
+    best_value = 0.0
+    for report in control_reports:
+        candidate_value = dict(report.metric_means).get(metric_name, 0.0)
+        if candidate_value > best_value or best_label == "none":
+            best_label = report.profile_label
+            best_value = candidate_value
+    return best_label, best_value
+
+
 def run_eta_internal_rl_proof_benchmark(
     *,
     cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
@@ -728,34 +755,27 @@ def build_eta_internal_rl_assessment(
 ) -> ETAInternalRLAssessmentReport:
     report_map = {report.profile_label: report for report in benchmark_report.profile_reports}
     full_report = report_map["full-internal-rl"]
-    success_control_labels = ("full-no-optimize", "learned-lite-causal")
-    reuse_control_labels = ("full-no-optimize", "learned-lite-causal")
-    success_control_reports = tuple(
-        report_map[label]
-        for label in success_control_labels
-        if label in report_map
-    )
-    reuse_control_reports = tuple(
-        report_map[label]
-        for label in reuse_control_labels
-        if label in report_map
-    )
+    gate_control_reports = _control_reports_for_gate(report_map=report_map)
     full_metrics = dict(full_report.metric_means)
-    best_control_terminal_success = max(
-        (dict(report.metric_means).get("heldout_terminal_success_rate", 0.0) for report in success_control_reports),
-        default=0.0,
+    best_terminal_success_label, best_control_terminal_success = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_terminal_success_rate",
     )
-    best_control_strong_success = max(
-        (dict(report.metric_means).get("heldout_strong_success_rate", 0.0) for report in success_control_reports),
-        default=0.0,
+    best_strong_success_label, best_control_strong_success = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_strong_success_rate",
     )
-    best_control_reuse = max(
-        (dict(report.metric_means).get("heldout_family_reuse_rate", 0.0) for report in reuse_control_reports),
-        default=0.0,
+    best_subgoal_completion_label, best_control_subgoal_completion = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_subgoal_completion_rate",
     )
-    best_control_credit_alignment = max(
-        (dict(report.metric_means).get("heldout_credit_alignment", 0.0) for report in reuse_control_reports),
-        default=0.0,
+    best_reuse_label, best_control_reuse = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_family_reuse_rate",
+    )
+    best_credit_alignment_label, best_control_credit_alignment = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_credit_alignment",
     )
     backend_success_gap = 1.0
     backend_min_success = 0.0
@@ -771,12 +791,15 @@ def build_eta_internal_rl_assessment(
             gate_id="sparse-reward-success",
             passed=(
                 full_metrics.get("heldout_terminal_success_rate", 0.0) >= best_control_terminal_success
+                and full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
                 and full_metrics.get("heldout_strong_success_rate", 0.0) > best_control_strong_success
             ),
             evidence=(
                 ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
+                ("best_control_terminal_success_label", best_terminal_success_label),
                 ("best_control_terminal_success", best_control_terminal_success),
                 ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+                ("best_control_strong_success_label", best_strong_success_label),
                 ("best_control_strong_success", best_control_strong_success),
                 (
                     "success_delta",
@@ -791,11 +814,14 @@ def build_eta_internal_rl_assessment(
                 full_metrics.get("heldout_family_reuse_rate", 0.0) >= 0.50
                 and full_metrics.get("heldout_credit_alignment", 0.0) >= 0.50
                 and full_metrics.get("heldout_family_reuse_rate", 0.0) >= best_control_reuse
+                and full_metrics.get("heldout_credit_alignment", 0.0) >= best_control_credit_alignment
             ),
             evidence=(
                 ("heldout_family_reuse_rate", full_metrics.get("heldout_family_reuse_rate", 0.0)),
+                ("best_control_reuse_label", best_reuse_label),
                 ("best_control_reuse", best_control_reuse),
                 ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+                ("best_control_credit_alignment_label", best_credit_alignment_label),
                 ("best_control_credit_alignment", best_control_credit_alignment),
             ),
             description="Discovered abstract-action families should be reused across cases, not recreated every time.",
@@ -805,10 +831,16 @@ def build_eta_internal_rl_assessment(
             passed=(
                 full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
                 and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= 0.25
+                and full_metrics.get("heldout_strong_success_rate", 0.0) >= best_control_strong_success
+                and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= best_control_subgoal_completion
             ),
             evidence=(
                 ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+                ("best_control_strong_success_label", best_strong_success_label),
+                ("best_control_strong_success", best_control_strong_success),
                 ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+                ("best_control_subgoal_completion_label", best_subgoal_completion_label),
+                ("best_control_subgoal_completion", best_control_subgoal_completion),
                 ("mean_switch_sparsity", full_metrics.get("mean_switch_sparsity", 0.0)),
             ),
             description="Held-out subgoal recombinations should remain solvable with non-trivial completion.",
@@ -821,6 +853,7 @@ def build_eta_internal_rl_assessment(
             ),
             evidence=(
                 ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+                ("best_control_credit_alignment_label", best_credit_alignment_label),
                 ("best_control_credit_alignment", best_control_credit_alignment),
                 ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
                 ("mean_total_reward", full_metrics.get("mean_total_reward", 0.0)),
@@ -893,14 +926,15 @@ def evaluate_eta_internal_rl_acceptance(
         for report in assessment.benchmark_report.profile_reports
         if report.profile_label == "full-internal-rl"
     )
-    control_reports = tuple(
-        report
-        for report in assessment.benchmark_report.profile_reports
-        if report.profile_label in {"full-no-optimize", "learned-lite-causal"}
+    control_reports = _control_reports_for_gate(
+        report_map={
+            report.profile_label: report
+            for report in assessment.benchmark_report.profile_reports
+        }
     )
-    best_control_success = max(
-        (dict(report.metric_means).get("heldout_strong_success_rate", 0.0) for report in control_reports),
-        default=0.0,
+    _, best_control_success = _best_control_metric(
+        control_reports=control_reports,
+        metric_name="heldout_strong_success_rate",
     )
     if full_metrics.get("heldout_terminal_success_rate", 0.0) < active_config.min_terminal_success_rate:
         reasons.append("heldout-success-below-threshold")

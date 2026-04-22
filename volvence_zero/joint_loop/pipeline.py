@@ -81,6 +81,20 @@ class PipelineResult:
     transition_step: int
     substrate_training_mode: str
     substrate_checkpoint_present: bool
+    training_evidence: "RareHeavyTrainingEvidence"
+    description: str
+
+
+@dataclass(frozen=True)
+class RareHeavyTrainingEvidence:
+    trace_count: int
+    provided_substrate_batch_count: int
+    resolved_rl_batch_count: int
+    aligned_batch_count: int
+    alignment_ratio: float
+    mean_trace_step_count: float
+    mean_substrate_sequence_length: float
+    mean_substrate_residual_magnitude: float
     description: str
 
 
@@ -96,6 +110,7 @@ class RareHeavyArtifact:
     final_ssl_loss: float
     final_total_reward: float
     description: str
+    training_evidence: "RareHeavyTrainingEvidence | None" = None
 
 
 def _clamp(v: float) -> float:
@@ -140,6 +155,17 @@ class SSLRLTrainingPipeline:
         self._transition_step = -1
         self._ssl_checkpoint: CausalPolicyCheckpoint | None = None
         self._substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
+        self._training_evidence = RareHeavyTrainingEvidence(
+            trace_count=0,
+            provided_substrate_batch_count=0,
+            resolved_rl_batch_count=0,
+            aligned_batch_count=0,
+            alignment_ratio=0.0,
+            mean_trace_step_count=0.0,
+            mean_substrate_sequence_length=0.0,
+            mean_substrate_residual_magnitude=0.0,
+            description="No rare-heavy training evidence recorded yet.",
+        )
 
     @property
     def phase(self) -> TrainingPhase:
@@ -169,6 +195,11 @@ class SSLRLTrainingPipeline:
         rl_batches = self._resolve_rl_batches(
             traces=traces,
             substrate_steps_per_trace=substrate_steps_per_trace,
+        )
+        self._training_evidence = self._build_training_evidence(
+            traces=traces,
+            substrate_steps_per_trace=substrate_steps_per_trace,
+            rl_batches=rl_batches,
         )
 
         while self._phase == TrainingPhase.SSL and ssl_steps < cfg.ssl_max_steps:
@@ -228,11 +259,13 @@ class SSLRLTrainingPipeline:
             transition_step=self._transition_step,
             substrate_training_mode=substrate_training_mode,
             substrate_checkpoint_present=self._substrate_checkpoint is not None,
+            training_evidence=self._training_evidence,
             description=(
                 f"Pipeline completed: ssl={ssl_steps}, rl={rl_steps}, "
                 f"owner={self.owner_path}, phase={self._phase.value}, "
                 f"ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "
-                f"transition_at={self._transition_step}, substrate={substrate_training_mode}."
+                f"transition_at={self._transition_step}, substrate={substrate_training_mode}, "
+                f"alignment={self._training_evidence.alignment_ratio:.2f}."
             ),
         )
 
@@ -360,6 +393,56 @@ class SSLRLTrainingPipeline:
                 return filtered
         return tuple(self._substrates_from_trace(trace) for trace in traces)
 
+    def _build_training_evidence(
+        self,
+        *,
+        traces: tuple[TrainingTrace, ...],
+        substrate_steps_per_trace: tuple[tuple[SubstrateSnapshot, ...], ...] | None,
+        rl_batches: tuple[tuple[SubstrateSnapshot, ...], ...],
+    ) -> RareHeavyTrainingEvidence:
+        trace_count = len(traces)
+        provided_substrate_batch_count = len(substrate_steps_per_trace or ())
+        resolved_rl_batch_count = len(rl_batches)
+        aligned_batch_count = min(trace_count, resolved_rl_batch_count)
+        alignment_ratio = aligned_batch_count / max(trace_count, 1)
+        mean_trace_step_count = (
+            sum(len(trace.steps) for trace in traces) / max(trace_count, 1)
+            if traces
+            else 0.0
+        )
+        flattened = tuple(snapshot for batch in rl_batches for snapshot in batch)
+        mean_substrate_sequence_length = (
+            sum(max(len(snapshot.residual_sequence), 1) for snapshot in flattened) / max(len(flattened), 1)
+            if flattened
+            else 0.0
+        )
+        residual_values = tuple(
+            abs(value)
+            for snapshot in flattened
+            for activation in snapshot.residual_activations
+            for value in activation.activation
+        )
+        mean_substrate_residual_magnitude = (
+            sum(residual_values) / len(residual_values)
+            if residual_values
+            else 0.0
+        )
+        return RareHeavyTrainingEvidence(
+            trace_count=trace_count,
+            provided_substrate_batch_count=provided_substrate_batch_count,
+            resolved_rl_batch_count=resolved_rl_batch_count,
+            aligned_batch_count=aligned_batch_count,
+            alignment_ratio=alignment_ratio,
+            mean_trace_step_count=mean_trace_step_count,
+            mean_substrate_sequence_length=mean_substrate_sequence_length,
+            mean_substrate_residual_magnitude=mean_substrate_residual_magnitude,
+            description=(
+                f"Rare-heavy training evidence traces={trace_count} provided_batches={provided_substrate_batch_count} "
+                f"resolved_batches={resolved_rl_batch_count} alignment={alignment_ratio:.2f} "
+                f"mean_trace_steps={mean_trace_step_count:.2f}."
+            ),
+        )
+
     def _substrates_from_trace(self, trace: TrainingTrace) -> tuple[SubstrateSnapshot, ...]:
         from volvence_zero.substrate import SurfaceKind
         return tuple(
@@ -412,6 +495,7 @@ class SSLRLTrainingPipeline:
             transition_step=self._transition_step,
             final_ssl_loss=final_ssl,
             final_total_reward=final_reward,
+            training_evidence=self._training_evidence,
             description=(
                 f"Rare-heavy artifact exported from {self.owner_path} with phase={self._phase.value}, "
                 f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "

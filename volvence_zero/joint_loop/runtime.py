@@ -44,6 +44,7 @@ from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringL
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
+    SubstrateOnlineFastCheckpoint,
     SubstrateRareHeavyCheckpoint,
     ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
@@ -67,6 +68,10 @@ from volvence_zero.temporal import (
 )
 from volvence_zero.memory import MemoryModule
 from volvence_zero.substrate import SubstrateModule
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(1.0, value))
 
 
 @dataclass(frozen=True)
@@ -108,7 +113,9 @@ class JointLoopSchedule:
     rl_interval: int = 3
     pe_full_cycle_threshold: float = 0.6
     pe_ssl_threshold: float = 0.18
+    pe_substrate_online_fast_threshold: float = 0.18
     pe_rare_heavy_threshold: float = 1.2
+    latent_continuation_threshold: float = 0.52
 
 
 @dataclass(frozen=True)
@@ -124,6 +131,7 @@ class ScheduledJointLoopResult:
     owner_path: str
     schedule_telemetry: tuple[tuple[str, int], ...]
     description: str
+    substrate_online_fast_due: bool = False
     rare_heavy_review_recommended: bool = False
 
 
@@ -144,6 +152,19 @@ class RareHeavyImportResult:
     description: str
 
 
+@dataclass(frozen=True)
+class OnlineFastImportCheckpoint:
+    checkpoint_id: str
+    substrate_checkpoint: SubstrateOnlineFastCheckpoint | None = None
+
+
+@dataclass(frozen=True)
+class OnlineFastImportResult:
+    applied_operations: tuple[str, ...]
+    checkpoint: OnlineFastImportCheckpoint
+    description: str
+
+
 class ETANLJointLoop:
     """Minimal SSL-RL alternation loop over the stage-two building blocks."""
 
@@ -158,6 +179,7 @@ class ETANLJointLoop:
         memory_store: MemoryStore | None = None,
         residual_runtime: OpenWeightResidualRuntime | None = None,
         evaluation_backbone: EvaluationBackbone | None = None,
+        primary_prediction_error_dominance_enabled: bool = True,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -178,9 +200,66 @@ class ETANLJointLoop:
         self._previous_family_signals: dict[str, float] = {}
         self._previous_credit_snapshot: CreditSnapshot | None = None
         self._external_learning_signals: dict[str, float] = {}
+        self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
+        self._last_schedule_action = "evidence-only"
+        self._last_learning_turn_index = 0
+        self.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
         self._external_learning_signals = dict(signals)
+
+    @property
+    def primary_prediction_error_dominance_enabled(self) -> bool:
+        return self._primary_prediction_error_dominance_enabled
+
+    def set_primary_prediction_error_dominance_enabled(self, enabled: bool) -> None:
+        self._primary_prediction_error_dominance_enabled = enabled
+        self._world_sandbox._env.set_primary_prediction_error_enabled(enabled)
+        self._self_sandbox._env.set_primary_prediction_error_enabled(enabled)
+
+    def _record_schedule_outcome(
+        self,
+        *,
+        turn_index: int,
+        schedule_action: str,
+        metacontroller_state: MetacontrollerRuntimeState | None,
+    ) -> None:
+        self._last_schedule_action = schedule_action
+        if schedule_action != "evidence-only":
+            self._last_learning_turn_index = turn_index
+        if metacontroller_state is not None:
+            self._previous_metacontroller_state = metacontroller_state
+
+    def _latent_continuation_due(
+        self,
+        *,
+        turn_index: int,
+        schedule: JointLoopSchedule,
+    ) -> bool:
+        state = self._previous_metacontroller_state
+        if state is None:
+            return False
+        if self._last_schedule_action == "evidence-only":
+            return False
+        if self._last_learning_turn_index <= 0 or turn_index - self._last_learning_turn_index != 1:
+            return False
+        active_family = state.active_family_summary
+        if active_family is None:
+            return False
+        family_support = _clamp(min(active_family.support / 4.0, 1.0))
+        family_strength = _clamp(
+            active_family.stability * 0.30
+            + state.active_family_competition_score * 0.25
+            + family_support * 0.20
+            + (1.0 - state.action_family_monopoly_pressure) * 0.10
+            + state.switch_sparsity * 0.15
+        )
+        continuation_bias = _clamp(
+            (1.0 if state.latest_switch_gate >= 0.55 else 0.0) * 0.45
+            + min(state.mean_persistence_window / 2.0, 1.0) * 0.35
+            + family_strength * 0.20
+        )
+        return _clamp(family_strength * 0.65 + continuation_bias * 0.35) >= schedule.latent_continuation_threshold
 
     def _apply_temporal_reflection_writeback(
         self,
@@ -751,6 +830,11 @@ class ETANLJointLoop:
         active_schedule = schedule or JointLoopSchedule()
         pe_full_cycle_due = self._pe_full_cycle_due(schedule=active_schedule)
         pe_ssl_due = self._pe_ssl_due(schedule=active_schedule)
+        substrate_online_fast_due = self._pe_substrate_online_fast_due(schedule=active_schedule)
+        latent_continuation_due = self._latent_continuation_due(
+            turn_index=turn_index,
+            schedule=active_schedule,
+        )
         schedule_telemetry = self._schedule_telemetry(
             turn_index=turn_index,
             schedule=active_schedule,
@@ -770,6 +854,11 @@ class ETANLJointLoop:
                 prior_session_reports=prior_session_reports,
                 apply_writeback=apply_writeback,
             )
+            self._record_schedule_outcome(
+                turn_index=turn_index,
+                schedule_action="full-cycle-pe" if pe_full_cycle_due else "full-cycle",
+                metacontroller_state=cycle_report.metacontroller_state,
+            )
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
                 schedule_action="full-cycle-pe" if pe_full_cycle_due else "full-cycle",
@@ -782,9 +871,14 @@ class ETANLJointLoop:
                 owner_path=self.owner_path,
                 schedule_telemetry=schedule_telemetry,
                 description=cycle_report.description,
+                substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
             )
-        if pe_ssl_due or (active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0):
+        if (
+            pe_ssl_due
+            or (active_schedule.ssl_interval > 0 and turn_index % active_schedule.ssl_interval == 0)
+            or latent_continuation_due
+        ):
             self._world_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
             self._self_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
             world_ssl_report = self._ssl_trainer.optimize(policy=self._world_policy, trace=trace)
@@ -792,9 +886,19 @@ class ETANLJointLoop:
             metacontroller_state = self._aggregate_metacontroller_state()
             self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
             self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+            schedule_action = (
+                "ssl-only-pe"
+                if pe_ssl_due and not pe_full_cycle_due
+                else ("ssl-only-continuation" if latent_continuation_due else "ssl-only")
+            )
+            self._record_schedule_outcome(
+                turn_index=turn_index,
+                schedule_action=schedule_action,
+                metacontroller_state=metacontroller_state,
+            )
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
-                schedule_action="ssl-only-pe" if pe_ssl_due and not pe_full_cycle_due else "ssl-only",
+                schedule_action=schedule_action,
                 cycle_report=None,
                 kernel_scores=(),
                 ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss) / 2.0,
@@ -808,9 +912,15 @@ class ETANLJointLoop:
                     f"world_pred={world_ssl_report.prediction_loss:.2f}, self_pred={self_ssl_report.prediction_loss:.2f}, "
                     f"world_kl={world_ssl_report.kl_loss:.2f}, self_kl={self_ssl_report.kl_loss:.2f}."
                 ),
+                substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended,
             )
         metacontroller_state = self._aggregate_metacontroller_state()
+        self._record_schedule_outcome(
+            turn_index=turn_index,
+            schedule_action="evidence-only",
+            metacontroller_state=metacontroller_state,
+        )
         return ScheduledJointLoopResult(
             turn_index=turn_index,
             schedule_action="evidence-only",
@@ -823,6 +933,7 @@ class ETANLJointLoop:
             owner_path=self.owner_path,
             schedule_telemetry=schedule_telemetry,
             description=f"Scheduled joint loop owner={self.owner_path} collected evidence only at turn {turn_index}.",
+            substrate_online_fast_due=substrate_online_fast_due,
             rare_heavy_review_recommended=rare_heavy_review_recommended,
         )
 
@@ -838,7 +949,9 @@ class ETANLJointLoop:
         pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
         pe_full_cycle_due = int(self._pe_full_cycle_due(schedule=schedule))
         pe_ssl_due = int(self._pe_ssl_due(schedule=schedule))
+        pe_substrate_online_fast_due = int(self._pe_substrate_online_fast_due(schedule=schedule))
         pe_rare_heavy_due = int(self._pe_rare_heavy_due(schedule=schedule))
+        latent_continuation_due = int(self._latent_continuation_due(turn_index=turn_index, schedule=schedule))
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
@@ -847,7 +960,9 @@ class ETANLJointLoop:
             ("rl_due", rl_due),
             ("pe_full_cycle_due", pe_full_cycle_due),
             ("pe_ssl_due", pe_ssl_due),
+            ("pe_substrate_online_fast_due", pe_substrate_online_fast_due),
             ("pe_rare_heavy_due", pe_rare_heavy_due),
+            ("latent_continuation_due", latent_continuation_due),
             ("pe_magnitude_x1000", int(pe_magnitude * 1000)),
             ("pe_abs_reward_x1000", int(pe_abs_reward * 1000)),
         )
@@ -868,6 +983,14 @@ class ETANLJointLoop:
     def _pe_rare_heavy_due(self, *, schedule: JointLoopSchedule) -> bool:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
         return pe_magnitude >= schedule.pe_rare_heavy_threshold
+
+    def _pe_substrate_online_fast_due(self, *, schedule: JointLoopSchedule) -> bool:
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        return (
+            pe_magnitude >= schedule.pe_substrate_online_fast_threshold
+            or pe_abs_reward >= schedule.pe_substrate_online_fast_threshold * 0.5
+        )
 
     def apply_rare_heavy_artifact(
         self,
@@ -936,6 +1059,41 @@ class ETANLJointLoop:
         if checkpoint.substrate_checkpoint is not None and self._residual_runtime is not None:
             operations.extend(self._residual_runtime.restore_rare_heavy_state(checkpoint.substrate_checkpoint))
         return tuple(operations)
+
+    def apply_online_fast_substrate_checkpoint(
+        self,
+        checkpoint: SubstrateOnlineFastCheckpoint,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> OnlineFastImportResult:
+        prior_checkpoint = (
+            self._residual_runtime.export_online_fast_state(
+                checkpoint_id=checkpoint_id or f"{checkpoint.checkpoint_id}:prior"
+            )
+            if self._residual_runtime is not None
+            else None
+        )
+        applied_operations = (
+            self._residual_runtime.apply_online_fast_state(checkpoint)
+            if self._residual_runtime is not None
+            else ()
+        )
+        return OnlineFastImportResult(
+            applied_operations=applied_operations,
+            checkpoint=OnlineFastImportCheckpoint(
+                checkpoint_id=checkpoint_id or checkpoint.checkpoint_id,
+                substrate_checkpoint=prior_checkpoint,
+            ),
+            description=(
+                f"Applied online-fast substrate checkpoint {checkpoint.checkpoint_id} "
+                f"with {len(applied_operations)} owner-side operations."
+            ),
+        )
+
+    def rollback_online_fast_substrate_import(self, checkpoint: OnlineFastImportCheckpoint) -> tuple[str, ...]:
+        if checkpoint.substrate_checkpoint is None or self._residual_runtime is None:
+            return ()
+        return self._residual_runtime.restore_online_fast_state(checkpoint.substrate_checkpoint)
 
     def _enrich_credit_snapshot(
         self,

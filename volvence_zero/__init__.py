@@ -1,19 +1,23 @@
 """Volvence Zero runtime package."""
 
-from volvence_zero.agent import (
-    AgentResponse,
-    AgentSessionRunner,
-    AgentTurnResult,
-    ResponseSynthesizer,
-    build_arg_parser,
-    default_active_runner,
-    main,
-    render_turn_result,
-    run_repl,
-)
-from volvence_zero.internal_rl import InternalRLSandbox, derive_abstract_action_credit
-from volvence_zero.joint_loop import ETANLJointLoop, JointCycleReport
-from volvence_zero.memory import CMSMemoryCore
+from importlib import import_module
+
+_EXPORT_MAP = {
+    "AgentResponse": ("volvence_zero.agent", "AgentResponse"),
+    "AgentSessionRunner": ("volvence_zero.agent", "AgentSessionRunner"),
+    "AgentTurnResult": ("volvence_zero.agent", "AgentTurnResult"),
+    "CMSMemoryCore": ("volvence_zero.memory", "CMSMemoryCore"),
+    "ETANLJointLoop": ("volvence_zero.joint_loop", "ETANLJointLoop"),
+    "InternalRLSandbox": ("volvence_zero.internal_rl", "InternalRLSandbox"),
+    "JointCycleReport": ("volvence_zero.joint_loop", "JointCycleReport"),
+    "ResponseSynthesizer": ("volvence_zero.agent", "ResponseSynthesizer"),
+    "build_arg_parser": ("volvence_zero.agent", "build_arg_parser"),
+    "default_active_runner": ("volvence_zero.agent", "default_active_runner"),
+    "derive_abstract_action_credit": ("volvence_zero.internal_rl", "derive_abstract_action_credit"),
+    "main": ("volvence_zero.agent", "main"),
+    "render_turn_result": ("volvence_zero.agent", "render_turn_result"),
+    "run_repl": ("volvence_zero.agent", "run_repl"),
+}
 
 __all__ = [
     "AgentResponse",
@@ -31,3 +35,14 @@ __all__ = [
     "render_turn_result",
     "run_repl",
 ]
+
+
+def __getattr__(name: str):
+    try:
+        module_name, attr_name = _EXPORT_MAP[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
