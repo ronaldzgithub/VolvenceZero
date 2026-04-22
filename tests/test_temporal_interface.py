@@ -344,6 +344,67 @@ def test_discovered_action_family_lifecycle_can_merge_and_prune_topology():
     assert "merge:" in summary or updated_families[0].support >= 11
 
 
+def test_discovered_action_family_respects_fast_prior_continuation_and_competition_bias():
+    families = (
+        DiscoveredActionFamily(
+            family_id="discovered_family_0",
+            latent_centroid=(0.64, 0.26, 0.18),
+            decoder_centroid=(0.62, 0.24, 0.20),
+            support=5,
+            stability=0.82,
+            switch_bias=0.62,
+            reuse_streak=3,
+            stagnation_pressure=0.28,
+            monopoly_pressure=0.38,
+            competition_score=0.44,
+            summary="active-family",
+        ),
+        DiscoveredActionFamily(
+            family_id="discovered_family_1",
+            latent_centroid=(0.60, 0.30, 0.18),
+            decoder_centroid=(0.58, 0.32, 0.20),
+            support=3,
+            stability=0.74,
+            switch_bias=0.58,
+            reuse_streak=0,
+            stagnation_pressure=0.18,
+            monopoly_pressure=0.12,
+            competition_score=0.49,
+            summary="challenger-family",
+        ),
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.61, 0.29, 0.18),
+        decoder_control=(0.59, 0.31, 0.20),
+        switch_gate=0.60,
+        posterior_drift=0.10,
+        persistence_window=0.82,
+    )
+
+    baseline_families, baseline_label, _ = discover_latent_action_family(
+        observation=observation,
+        action_families=families,
+        structure_frozen=False,
+        current_active_family_id="discovered_family_0",
+    )
+    biased_families, biased_label, _ = discover_latent_action_family(
+        observation=observation,
+        action_families=families,
+        structure_frozen=False,
+        current_active_family_id="discovered_family_0",
+        current_family_continuation_bias=0.35,
+        active_family_competition_bias=0.30,
+    )
+
+    baseline_active = next(f for f in baseline_families if f.family_id == "discovered_family_0")
+    biased_active = next(f for f in biased_families if f.family_id == "discovered_family_0")
+
+    assert biased_label == "discovered_family_0"
+    assert baseline_label in {"discovered_family_0", "discovered_family_1"}
+    assert biased_active.competition_score >= baseline_active.competition_score
+    assert biased_active.stagnation_pressure <= baseline_active.stagnation_pressure
+
+
 def test_temporal_owner_can_apply_structural_family_proposals():
     policy = FullLearnedTemporalPolicy()
     policy.parameter_store.action_families = (
@@ -595,7 +656,7 @@ def test_temporal_module_consumes_prediction_error_signal():
 
 
 def test_track_temporal_modules_split_early_and_late_dependencies():
-    assert TrackTemporalModule.dependencies == ("substrate", "memory")
+    assert TrackTemporalModule.dependencies == ("substrate", "memory", "experience_fast_prior")
     assert TrackTemporalConsolidationModule.dependencies == ("reflection", "prediction_error")
     assert TemporalAggregateModule.dependencies == ("world_temporal", "self_temporal")
 

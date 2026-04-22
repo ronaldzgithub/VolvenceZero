@@ -148,6 +148,9 @@ class InternalRLEnvironment:
     def _family_delta(self, family: str) -> float:
         return self._evaluation_family_signals.get(family, 0.5) - 0.5
 
+    def _signal_delta(self, signal_name: str) -> float:
+        return self._evaluation_family_signals.get(signal_name, 0.5) - 0.5
+
     def _primary_prediction_error_signal(self) -> float:
         if not self._primary_prediction_error_enabled:
             return 0.0
@@ -258,18 +261,35 @@ class InternalRLEnvironment:
         learning_delta = self._family_delta("learning")
         abstraction_delta = self._family_delta("abstraction")
         stability_delta = (self._family_delta("safety") + relationship_delta) / 2.0
+        delayed_mix_delta = self._signal_delta("delayed_retrieval_mix_alignment")
+        delayed_regime_delta = self._signal_delta("delayed_regime_alignment")
+        delayed_action_delta = self._signal_delta("delayed_abstract_action_alignment")
+        sequence_payoff_delta = self._signal_delta("regime_sequence_payoff")
+        playbook_task_delta = self._signal_delta("experience_playbook_task_prior")
+        playbook_support_delta = self._signal_delta("experience_playbook_support_prior")
+        case_task_delta = self._signal_delta("experience_case_task_prior")
+        case_support_delta = self._signal_delta("experience_case_support_prior")
+        control_prior_strength = self._evaluation_family_signals.get("experience_control_prior_strength", 0.0)
         if track is Track.WORLD:
             task_weight = 0.02 if has_primary_pe else 0.24
             relationship_weight = 0.008 if has_primary_pe else 0.05
             stability_weight = 0.008 if has_primary_pe else 0.08
+            control_prior_delta = (playbook_task_delta + case_task_delta) / 2.0
         elif track is Track.SELF:
             task_weight = 0.008 if has_primary_pe else 0.05
             relationship_weight = 0.02 if has_primary_pe else 0.24
             stability_weight = 0.010 if has_primary_pe else 0.10
+            control_prior_delta = (playbook_support_delta + case_support_delta) / 2.0
         else:
             task_weight = 0.010 if has_primary_pe else 0.14
             relationship_weight = 0.010 if has_primary_pe else 0.14
             stability_weight = 0.008 if has_primary_pe else 0.09
+            control_prior_delta = (
+                playbook_task_delta
+                + playbook_support_delta
+                + case_task_delta
+                + case_support_delta
+            ) / 4.0
         components.extend(
             (
                 ("task_outcome_delta", task_delta * task_weight),
@@ -277,6 +297,14 @@ class InternalRLEnvironment:
                 ("learning_outcome_delta", learning_delta * (0.008 if has_primary_pe else 0.12)),
                 ("abstraction_outcome_delta", abstraction_delta * (0.008 if has_primary_pe else 0.10)),
                 ("stability_outcome_delta", stability_delta * stability_weight),
+                ("experience_mix_delta", delayed_mix_delta * (0.006 if has_primary_pe else 0.07)),
+                ("experience_regime_delta", delayed_regime_delta * (0.006 if has_primary_pe else 0.07)),
+                ("experience_action_delta", delayed_action_delta * (0.005 if has_primary_pe else 0.06)),
+                ("experience_sequence_delta", sequence_payoff_delta * (0.006 if has_primary_pe else 0.08)),
+                (
+                    "experience_control_prior",
+                    control_prior_delta * ((0.004 if has_primary_pe else 0.05) + control_prior_strength * 0.02),
+                ),
                 (
                     "prediction_error_readout",
                     prediction_error_readout

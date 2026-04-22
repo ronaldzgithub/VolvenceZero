@@ -4,6 +4,8 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.application.runtime import (
+    ApplicationPriorUpdate,
+    ApplicationPriorWritebackReport,
     ApplicationRareHeavyState,
     BoundaryPolicyModule,
     BoundaryPolicySnapshot,
@@ -11,6 +13,10 @@ from volvence_zero.application.runtime import (
     CaseMemorySnapshot,
     DomainKnowledgeModule,
     DomainKnowledgeSnapshot,
+    ExperienceFastPriorModule,
+    ExperienceFastPriorSnapshot,
+    ResponseAssemblyModule,
+    ResponseAssemblySnapshot,
     RetrievalPolicyModule,
     RetrievalPolicySnapshot,
     StrategyPlaybookModule,
@@ -90,7 +96,9 @@ class FinalRolloutConfig:
     domain_knowledge: WiringLevel = WiringLevel.ACTIVE
     case_memory: WiringLevel = WiringLevel.DISABLED
     strategy_playbook: WiringLevel = WiringLevel.DISABLED
+    experience_fast_prior: WiringLevel = WiringLevel.SHADOW
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
+    response_assembly: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
     prediction_error: WiringLevel = WiringLevel.ACTIVE
@@ -113,7 +121,9 @@ class FinalRolloutConfig:
             "domain_knowledge": self.domain_knowledge,
             "case_memory": self.case_memory,
             "strategy_playbook": self.strategy_playbook,
+            "experience_fast_prior": self.experience_fast_prior,
             "boundary_policy": self.boundary_policy,
+            "response_assembly": self.response_assembly,
             "dual_track": self.dual_track,
             "evaluation": self.evaluation,
             "prediction_error": self.prediction_error,
@@ -361,6 +371,255 @@ def _build_session_post_writeback_request(
     )
 
 
+def _apply_application_prior_writeback(
+    *,
+    prior_update: ApplicationPriorUpdate | None,
+    case_memory_store: ApplicationCaseMemoryStore,
+    application_rare_heavy_state: ApplicationRareHeavyState,
+    credit_snapshot: CreditSnapshot | None,
+    timestamp_ms: int,
+    checkpoint_id: str,
+    apply_enabled: bool,
+    blocked_reason: str,
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[SelfModificationRecord, ...],
+    ApplicationPriorWritebackReport | None,
+]:
+    if prior_update is None:
+        return ((), (), (), None)
+    proposed_targets = tuple(
+        update.target
+        for update in (
+            *prior_update.case_memory_updates,
+            *prior_update.strategy_playbook_updates,
+            *prior_update.boundary_policy_updates,
+        )
+    )
+    if not proposed_targets:
+        return (
+            (),
+            (),
+            (),
+            ApplicationPriorWritebackReport(
+                proposed_target_count=0,
+                applied_targets=(),
+                blocked_targets=(),
+                audit_record_count=0,
+                description="Application prior update contained no targets.",
+            ),
+        )
+    applied_operations: list[str] = []
+    blocked_operations: list[str] = []
+    audit_records: list[SelfModificationRecord] = []
+    applied_targets: list[str] = []
+    blocked_targets: list[str] = []
+
+    def current_case_hash() -> str:
+        return stable_value_hash(case_memory_store.records)
+
+    def current_playbook_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.distilled_playbook_rules)
+
+    def current_boundary_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.boundary_prior_hints)
+
+    def should_block_target(target: str) -> bool:
+        return credit_snapshot is not None and has_blocking_writeback(
+            credit_snapshot,
+            target_prefix=target,
+        )
+
+    for update in prior_update.case_memory_updates:
+        before_hash = current_case_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application case-memory prior writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application case-memory prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        case_memory_store.upsert_records((update.record,))
+        case_memory_store.save_to_backend()
+        after_hash = current_case_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:case-memory:{update.record.case_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.strategy_playbook_updates:
+        before_hash = current_playbook_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application playbook prior writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application playbook prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.upsert_distilled_playbook_rules((update.rule,))
+        after_hash = current_playbook_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:playbook:{update.rule.problem_pattern}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.boundary_policy_updates:
+        before_hash = current_boundary_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application boundary prior writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application boundary prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.upsert_boundary_prior_hints((update.hint,))
+        after_hash = current_boundary_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:boundary:{update.hint.hint_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    return (
+        tuple(applied_operations),
+        tuple(blocked_operations),
+        tuple(audit_records),
+        ApplicationPriorWritebackReport(
+            proposed_target_count=len(proposed_targets),
+            applied_targets=tuple(applied_targets),
+            blocked_targets=tuple(blocked_targets),
+            audit_record_count=len(audit_records),
+            description=(
+                f"Application prior writeback proposed={len(proposed_targets)} "
+                f"applied={len(applied_targets)} blocked={len(blocked_targets)}."
+            ),
+        ),
+    )
+
+
 def _prune_disabled_stub_snapshots(snapshots: dict[str, Snapshot[Any]]) -> dict[str, Snapshot[Any]]:
     return {
         slot_name: snapshot
@@ -502,6 +761,9 @@ def build_final_runtime_modules(
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
         ),
+        ExperienceFastPriorModule(
+            wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),
+        ),
         regime_module
         or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
@@ -535,7 +797,11 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("strategy_playbook", WiringLevel.SHADOW),
         ),
         BoundaryPolicyModule(
+            rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
+        ),
+        ResponseAssemblyModule(
+            wiring_level=config.level_for("response_assembly", WiringLevel.ACTIVE),
         ),
         CreditModule(
             pending_proposals=credit_proposals,
@@ -654,6 +920,7 @@ async def run_final_wiring_turn(
     case_memory_snapshot = active_snapshots.get("case_memory")
     strategy_playbook_snapshot = active_snapshots.get("strategy_playbook")
     boundary_policy_snapshot = active_snapshots.get("boundary_policy")
+    response_assembly_snapshot = active_snapshots.get("response_assembly")
     prediction_snapshot_value = (
         active_snapshots.get("prediction_error").value
         if active_snapshots.get("prediction_error") is not None
@@ -747,6 +1014,11 @@ async def run_final_wiring_turn(
             boundary_policy_snapshot=(
                 boundary_policy_snapshot.value
                 if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                else None
+            ),
+            response_assembly_snapshot=(
+                response_assembly_snapshot.value
+                if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
                 else None
             ),
         )
@@ -914,6 +1186,27 @@ async def run_final_wiring_turn(
             world_state=track_state_map["world"],
             self_state=track_state_map["self"],
         )
+    if (
+        evaluation_module is not None
+        and temporal_runtime_state is not None
+        and "evaluation" in active_snapshots
+        and isinstance(active_snapshots["evaluation"].value, EvaluationSnapshot)
+    ):
+        active_snapshots["evaluation"] = evaluation_module.publish(
+            evaluation_module.backbone.record_temporal_public_evidence(
+                session_id=session_id,
+                wave_id=wave_id,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 10,
+                base_snapshot=active_snapshots["evaluation"].value,
+                temporal_snapshot=(
+                    active_snapshots["temporal_abstraction"].value
+                    if "temporal_abstraction" in active_snapshots
+                    and isinstance(active_snapshots["temporal_abstraction"].value, TemporalAbstractionSnapshot)
+                    else None
+                ),
+                metacontroller_state=temporal_runtime_state,
+            )
+        )
     return FinalIntegrationResult(
         active_snapshots=active_snapshots,
         shadow_snapshots=shadow_snapshots,
@@ -955,7 +1248,9 @@ def build_acceptance_report(
                 "domain_knowledge",
                 "case_memory",
                 "strategy_playbook",
+                "experience_fast_prior",
                 "boundary_policy",
+                "response_assembly",
                 "dual_track",
                 "evaluation",
                 "prediction_error",
@@ -979,7 +1274,9 @@ def build_acceptance_report(
         ("domain_knowledge", "domain_knowledge"),
         ("case_memory", "case_memory"),
         ("strategy_playbook", "strategy_playbook"),
+        ("experience_fast_prior", "experience_fast_prior"),
         ("boundary_policy", "boundary_policy"),
+        ("response_assembly", "response_assembly"),
         ("dual_track", "dual_track"),
         ("evaluation", "evaluation"),
         ("prediction_error", "prediction_error"),
@@ -1052,6 +1349,15 @@ def build_acceptance_report(
         issues.append("Strategy playbook is configured ACTIVE but did not publish into the active chain.")
 
     if (
+        resolved_level("experience_fast_prior") is WiringLevel.SHADOW
+        and "experience_fast_prior" not in shadow_slots
+        and "experience_fast_prior" not in active_slots
+    ):
+        issues.append("Experience fast prior wiring configured but no experience_fast_prior snapshot was produced.")
+    if resolved_level("experience_fast_prior") is WiringLevel.ACTIVE and "experience_fast_prior" not in active_slots:
+        issues.append("Experience fast prior is configured ACTIVE but did not publish into the active chain.")
+
+    if (
         resolved_level("boundary_policy") is WiringLevel.SHADOW
         and "boundary_policy" not in shadow_slots
         and "boundary_policy" not in active_slots
@@ -1059,6 +1365,15 @@ def build_acceptance_report(
         issues.append("Boundary policy wiring configured but no boundary_policy snapshot was produced.")
     if resolved_level("boundary_policy") is WiringLevel.ACTIVE and "boundary_policy" not in active_slots:
         issues.append("Boundary policy is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("response_assembly") is WiringLevel.SHADOW
+        and "response_assembly" not in shadow_slots
+        and "response_assembly" not in active_slots
+    ):
+        issues.append("Response assembly wiring configured but no response_assembly snapshot was produced.")
+    if resolved_level("response_assembly") is WiringLevel.ACTIVE and "response_assembly" not in active_slots:
+        issues.append("Response assembly is configured ACTIVE but did not publish into the active chain.")
 
     if resolved_level("temporal") is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
@@ -1085,8 +1400,12 @@ def build_acceptance_report(
         recommendations.append("Keep case_memory as a sibling owner and avoid collapsing it back into memory.")
     if config.is_active("strategy_playbook"):
         recommendations.append("Keep strategy playbook as advisory prior evidence, not a second temporal owner.")
+    if config.is_active("experience_fast_prior"):
+        recommendations.append("Keep experience fast prior compact and advisory so downstream owners remain primary.")
     if config.is_active("boundary_policy"):
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
+    if config.is_active("response_assembly"):
+        recommendations.append("Keep response assembly as the single public expression-control surface, not a second prompt owner.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")
 

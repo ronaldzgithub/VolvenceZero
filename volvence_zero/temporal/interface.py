@@ -151,6 +151,11 @@ class MetacontrollerRuntimeState:
     track_switch_gates: tuple[tuple[str, float], ...] = ()
     encoder_optimizer_state: M3OptimizerState | None = None
     decoder_optimizer_state: M3OptimizerState | None = None
+    fast_prior_strength: float = 0.0
+    fast_prior_action_bias: float = 0.0
+    fast_prior_family_bias: float = 0.0
+    fast_prior_sequence_bias: float = 0.0
+    fast_prior_switch_pressure_delta: float = 0.0
     description: str = ""
 
 
@@ -325,6 +330,11 @@ class MetacontrollerParameterStore:
         self.latest_policy_replacement_score = 0.0
         self.latest_encoder_optimizer_state: M3OptimizerState | None = None
         self.latest_decoder_optimizer_state: M3OptimizerState | None = None
+        self.latest_fast_prior_strength = 0.0
+        self.latest_fast_prior_action_bias = 0.0
+        self.latest_fast_prior_family_bias = 0.0
+        self.latest_fast_prior_sequence_bias = 0.0
+        self.latest_fast_prior_switch_pressure_delta = 0.0
         self.structure_frozen = True
         self.learning_phase = "runtime"
         self._action_family_version = 0
@@ -409,6 +419,11 @@ class MetacontrollerParameterStore:
             policy_replacement_score=self.latest_policy_replacement_score,
             encoder_optimizer_state=self.latest_encoder_optimizer_state,
             decoder_optimizer_state=self.latest_decoder_optimizer_state,
+            fast_prior_strength=self.latest_fast_prior_strength,
+            fast_prior_action_bias=self.latest_fast_prior_action_bias,
+            fast_prior_family_bias=self.latest_fast_prior_family_bias,
+            fast_prior_sequence_bias=self.latest_fast_prior_sequence_bias,
+            fast_prior_switch_pressure_delta=self.latest_fast_prior_switch_pressure_delta,
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
@@ -423,6 +438,8 @@ class MetacontrollerParameterStore:
                 f"beta_binary={self.latest_beta_binary}, seq_len={self.latest_sequence_length}, "
                 f"family_version={self._action_family_version}, family_count={len(action_family_summaries)}, "
                 f"competition={active_family_competition_score:.2f}, monopoly={action_family_monopoly_pressure:.2f}, "
+                f"fast_prior_strength={self.latest_fast_prior_strength:.2f}, "
+                f"fast_prior_switch_delta={self.latest_fast_prior_switch_pressure_delta:.2f}, "
                 f"phase={self.learning_phase}, structure_frozen={self.structure_frozen}, "
                 f"ssl_loss={self.latest_ssl_loss:.3f}."
             ),
@@ -691,6 +708,24 @@ class MetacontrollerParameterStore:
             + (1.0 - average_monopoly) * 0.15
         )
 
+    def record_fast_prior_signals(
+        self,
+        *,
+        strength: float,
+        action_bias: float,
+        family_bias: float,
+        sequence_bias: float,
+        switch_pressure_delta: float,
+    ) -> None:
+        self.latest_fast_prior_strength = _clamp(strength)
+        self.latest_fast_prior_action_bias = max(-1.0, min(1.0, action_bias))
+        self.latest_fast_prior_family_bias = max(-1.0, min(1.0, family_bias))
+        self.latest_fast_prior_sequence_bias = max(-1.0, min(1.0, sequence_bias))
+        self.latest_fast_prior_switch_pressure_delta = max(-0.25, min(0.25, switch_pressure_delta))
+
+    def fast_prior_switch_pressure_delta(self) -> float:
+        return self.latest_fast_prior_switch_pressure_delta
+
     def active_family_continuation_signals(
         self,
         *,
@@ -707,18 +742,27 @@ class MetacontrollerParameterStore:
             + active_family.long_term_payoff * 0.35
             + min(active_family.delayed_credit_sum / 3.0, 1.0) * 0.15
             + self.latest_policy_replacement_score * 0.25
+            + self.latest_fast_prior_strength * 0.06
+            + self.latest_fast_prior_action_bias * 0.10
+            + self.latest_fast_prior_sequence_bias * 0.06
         )
         reuse_strength = _clamp(
             min(active_family.reuse_streak / 4.0, 1.0) * 0.35
             + min(active_family.support / 6.0, 1.0) * 0.25
             + active_family.competition_score * 0.25
             + (1.0 - active_family.monopoly_pressure) * 0.15
+            + self.latest_fast_prior_strength * 0.05
+            + self.latest_fast_prior_action_bias * 0.08
+            + self.latest_fast_prior_family_bias * 0.10
         )
         persistence_strength = _clamp(
             min(active_family.mean_persistence_window / 2.0, 1.0) * 0.40
             + min(self.latest_mean_persistence_window / 2.0, 1.0) * 0.25
             + min(previous_steps_since_switch / 3.0, 1.0) * 0.20
             + active_family.stability * 0.15
+            + self.latest_fast_prior_strength * 0.04
+            + self.latest_fast_prior_family_bias * 0.16
+            + self.latest_fast_prior_sequence_bias * 0.05
         )
         return (outcome_strength, reuse_strength, persistence_strength)
 
@@ -739,10 +783,23 @@ class MetacontrollerParameterStore:
             persistence_window=persistence_window,
         )
         previous_families = self.action_families
+        current_family_continuation_bias = _clamp(
+            self.latest_fast_prior_action_bias * 0.40
+            + self.latest_fast_prior_family_bias * 0.40
+            + self.latest_fast_prior_sequence_bias * 0.20
+        )
+        active_family_competition_bias = _clamp(
+            self.latest_fast_prior_strength * 0.25
+            + self.latest_fast_prior_family_bias * 0.45
+            + self.latest_fast_prior_sequence_bias * 0.30
+        )
         self.action_families, active_label, family_summary = discover_latent_action_family(
             observation=observation,
             action_families=self.action_families,
             structure_frozen=self.structure_frozen,
+            current_active_family_id=self.latest_active_label if self.latest_active_label != "unassigned_action" else None,
+            current_family_continuation_bias=current_family_continuation_bias,
+            active_family_competition_bias=active_family_competition_bias,
             allow_topology_maintenance=self.learning_phase.startswith("ssl") or not self.action_families,
         )
         if self.action_families != previous_families:
@@ -1350,6 +1407,17 @@ class TemporalPolicy(ABC):
     def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
         return None
 
+    def observe_experience_fast_prior(
+        self,
+        *,
+        experience_fast_prior_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        del experience_fast_prior_snapshot
+        del previous_snapshot
+        del track
+
     @property
     def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
         return None
@@ -1707,6 +1775,81 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
         return self._cached_reflection_snapshot
 
+    def observe_experience_fast_prior(
+        self,
+        *,
+        experience_fast_prior_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
+
+        if not isinstance(experience_fast_prior_snapshot, ExperienceFastPriorSnapshot):
+            self._parameter_store.record_fast_prior_signals(
+                strength=0.0,
+                action_bias=0.0,
+                family_bias=0.0,
+                sequence_bias=0.0,
+                switch_pressure_delta=0.0,
+            )
+            return
+        active_abstract_action = (
+            previous_snapshot.active_abstract_action
+            if previous_snapshot is not None
+            else self._parameter_store.latest_active_label
+        )
+        action_family_version = (
+            previous_snapshot.action_family_version
+            if previous_snapshot is not None
+            else self._parameter_store.action_family_version
+        )
+        action_bias = next(
+            (
+                item.bias
+                for item in experience_fast_prior_snapshot.action_biases
+                if item.abstract_action == active_abstract_action
+            ),
+            0.0,
+        )
+        family_bias = next(
+            (
+                item.continuation_bias
+                for item in experience_fast_prior_snapshot.family_biases
+                if item.action_family_version == action_family_version
+            ),
+            0.0,
+        )
+        matching_sequence_biases = tuple(
+            item.payoff_bias
+            for item in experience_fast_prior_snapshot.sequence_biases
+            if item.action_family_version == action_family_version
+        )
+        sequence_bias = (
+            sum(matching_sequence_biases) / len(matching_sequence_biases)
+            if matching_sequence_biases
+            else 0.0
+        )
+        track_scale = 0.85 if track is Track.SHARED else 1.0
+        switch_pressure_delta = max(
+            -0.18,
+            min(
+                0.18,
+                -(
+                    action_bias * 0.38
+                    + family_bias * 0.42
+                    + sequence_bias * 0.20
+                )
+                * track_scale,
+            ),
+        )
+        self._parameter_store.record_fast_prior_signals(
+            strength=experience_fast_prior_snapshot.prior_strength,
+            action_bias=action_bias,
+            family_bias=family_bias,
+            sequence_bias=sequence_bias,
+            switch_pressure_delta=switch_pressure_delta,
+        )
+
     def apply_reflection_prior_update(
         self,
         *,
@@ -1866,6 +2009,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         ) = self._parameter_store.active_family_continuation_signals(
             previous_steps_since_switch=previous_steps,
         )
+        fast_prior_switch_pressure_delta = self._parameter_store.fast_prior_switch_pressure_delta()
         beta_cont, beta_bin, scalar_beta = self._ndim_switch.compute(
             z_tilde=encoded.z_tilde,
             previous_code=previous_code,
@@ -1874,6 +2018,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_family_outcome=active_family_outcome,
             active_family_reuse=active_family_reuse,
             active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=fast_prior_switch_pressure_delta,
             params=self._parameter_store.ndim_switch_parameters,
         )
         if binary_gate_override:
@@ -1933,7 +2078,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             f"Full-learned ndim metacontroller n_z={n_z}, "
             f"scalar_beta={scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
             f"{encoded.summary}, {decoder_control.summary}, "
-            f"replacement_score={policy_replacement_score:.3f}, {decoder_summary}."
+            f"replacement_score={policy_replacement_score:.3f}, "
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, {decoder_summary}."
         )
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
@@ -1988,6 +2134,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         ) = self._parameter_store.active_family_continuation_signals(
             previous_steps_since_switch=previous_steps,
         )
+        fast_prior_switch_pressure_delta = self._parameter_store.fast_prior_switch_pressure_delta()
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,
             z_tilde=encoded.z_tilde,
@@ -1999,6 +2146,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_family_outcome=active_family_outcome,
             active_family_reuse=active_family_reuse,
             active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=fast_prior_switch_pressure_delta,
             previous_binary=self._previous_beta_binary,
             previous_steps_since_switch=previous_steps,
         )
@@ -2062,7 +2210,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             f"Full-learned metacontroller {switch_decision.summary}, "
             f"effective_beta={effective_switch_gate:.3f}, seq_len={encoded.sequence_length}, "
             f"{encoded.summary}, {decoder_control.summary}, replacement_score={policy_replacement_score:.3f}, "
-            f"{decoder_summary}."
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, {decoder_summary}."
         )
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
@@ -2088,7 +2236,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     slot_name = "temporal_abstraction"
     owner = "TemporalModule"
     value_type = TemporalAbstractionSnapshot
-    dependencies = ("substrate", "memory", "reflection", "prediction_error")
+    dependencies = ("substrate", "memory", "reflection", "prediction_error", "experience_fast_prior")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -2116,6 +2264,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         memory_snapshot = upstream["memory"]
         reflection_snapshot = upstream["reflection"]
         prediction_error_snapshot = upstream["prediction_error"]
+        experience_fast_prior_snapshot = upstream["experience_fast_prior"]
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         reflection_value = (
@@ -2127,6 +2276,11 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             else None
         )
         self._apply_prediction_error_signal(prediction_error_value)
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
+        )
         if not isinstance(substrate_value, SubstrateSnapshot):
             step = PlaceholderTemporalPolicy().step(
                 substrate_snapshot=SubstrateSnapshot(
@@ -2170,8 +2324,14 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         memory_snapshot = kwargs.get("memory_snapshot")
         reflection_snapshot = kwargs.get("reflection_snapshot")
         prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
         self._apply_prediction_error_signal(
             prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
+        )
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
         )
         step = self._policy.step(
             substrate_snapshot=substrate_snapshot,
@@ -2391,6 +2551,23 @@ def build_temporal_runtime_state_aggregate(
         / 2.0,
         encoder_optimizer_state=world_state.encoder_optimizer_state or self_state.encoder_optimizer_state,
         decoder_optimizer_state=world_state.decoder_optimizer_state or self_state.decoder_optimizer_state,
+        fast_prior_strength=max(world_state.fast_prior_strength, self_state.fast_prior_strength),
+        fast_prior_action_bias=(
+            world_state.fast_prior_action_bias + self_state.fast_prior_action_bias
+        )
+        / 2.0,
+        fast_prior_family_bias=(
+            world_state.fast_prior_family_bias + self_state.fast_prior_family_bias
+        )
+        / 2.0,
+        fast_prior_sequence_bias=(
+            world_state.fast_prior_sequence_bias + self_state.fast_prior_sequence_bias
+        )
+        / 2.0,
+        fast_prior_switch_pressure_delta=(
+            world_state.fast_prior_switch_pressure_delta + self_state.fast_prior_switch_pressure_delta
+        )
+        / 2.0,
         structure_frozen=world_state.structure_frozen and self_state.structure_frozen,
         learning_phase=(
             world_state.learning_phase
@@ -2423,14 +2600,14 @@ def build_temporal_runtime_state_aggregate(
         ),
         description=(
             f"Dual-track metacontroller aggregate world={world_state.active_label} "
-            f"self={self_state.active_label}."
+            f"self={self_state.active_label} fast_prior={max(world_state.fast_prior_strength, self_state.fast_prior_strength):.2f}."
         ),
     )
 
 
 class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     value_type = TemporalAbstractionSnapshot
-    dependencies = ("substrate", "memory")
+    dependencies = ("substrate", "memory", "experience_fast_prior")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -2464,9 +2641,15 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     ) -> Snapshot[TemporalAbstractionSnapshot]:
         substrate_snapshot = upstream["substrate"]
         memory_snapshot = upstream["memory"]
+        experience_fast_prior_snapshot = upstream["experience_fast_prior"]
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         reflection_value = self._policy.cached_reflection_snapshot()
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
         if not isinstance(substrate_value, SubstrateSnapshot):
             step = PlaceholderTemporalPolicy().step(
                 substrate_snapshot=SubstrateSnapshot(
@@ -2508,8 +2691,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
         memory_snapshot = kwargs.get("memory_snapshot")
         reflection_snapshot = kwargs.get("reflection_snapshot")
+        experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
         reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else self._policy.cached_reflection_snapshot()
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
         step = self._policy.step(
             substrate_snapshot=substrate_snapshot,
             previous_snapshot=self._previous_snapshot,

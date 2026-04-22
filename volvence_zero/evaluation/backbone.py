@@ -7,9 +7,13 @@ from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
 from volvence_zero.application.runtime import (
+    ApplicationOutcomeAttribution,
+    ApplicationSequencePayoff,
     BoundaryPolicySnapshot,
     CaseMemorySnapshot,
     DomainKnowledgeSnapshot,
+    ExperienceFastPriorSnapshot,
+    ResponseAssemblySnapshot,
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.dual_track import DualTrackSnapshot
@@ -555,6 +559,21 @@ def _report_trend(
     return 0.0
 
 
+def _report_metric_mean(
+    report: EvaluationReport,
+    *,
+    family: str,
+    metric_name: str,
+) -> float:
+    for score_family, records in report.scores_by_family:
+        if score_family != family:
+            continue
+        values = [record.value for record in records if record.metric_name == metric_name]
+        if values:
+            return sum(values) / len(values)
+    return 0.0
+
+
 class EvaluationBackbone:
     """Observability readout layer for the cognitive loop.
 
@@ -878,6 +897,31 @@ class EvaluationBackbone:
             family="relationship",
             metric_name="relationship_continuity",
         )
+        delayed_mix_alignment = _report_metric_mean(
+            session_report,
+            family="learning",
+            metric_name="delayed_retrieval_mix_alignment",
+        )
+        delayed_regime_alignment = _report_metric_mean(
+            session_report,
+            family="learning",
+            metric_name="delayed_regime_alignment",
+        )
+        delayed_action_alignment = _report_metric_mean(
+            session_report,
+            family="abstraction",
+            metric_name="delayed_abstract_action_alignment",
+        )
+        regime_sequence_payoff = _report_metric_mean(
+            session_report,
+            family="learning",
+            metric_name="regime_sequence_payoff",
+        )
+        playbook_confidence = _report_metric_mean(
+            session_report,
+            family="learning",
+            metric_name="playbook_confidence_mean",
+        )
         reasons: list[str] = []
         high_alerts = [alert for _, alert in session_report.alerts if alert.startswith("HIGH") or alert.startswith("CRITICAL")]
         has_unsafe = any("collapse" in a.lower() or "safety" in a.lower() for _, a in session_report.alerts)
@@ -889,18 +933,55 @@ class EvaluationBackbone:
             reasons.append("trend-regression")
         if cross_session_report is not None and cross_session_report.verdict == "regressing":
             reasons.append("cross-session-regression")
+        if any(
+            value > 0.0 and value < 0.46
+            for value in (
+                delayed_mix_alignment,
+                delayed_regime_alignment,
+                delayed_action_alignment,
+                regime_sequence_payoff,
+            )
+        ):
+            reasons.append("experience-payoff-weak")
         if reasons:
             decision = EvolutionDecision.ROLLBACK
             if has_unsafe:
                 category = JudgementCategory.UNSAFE_MUTATION
             else:
                 category = JudgementCategory.STYLE_DRIFT
-        elif abstraction_trend > 0.03 and learning_trend > 0.03 and relationship_trend >= -0.02:
+        elif (
+            abstraction_trend > 0.03
+            and learning_trend > 0.03
+            and relationship_trend >= -0.02
+            and (
+                max(
+                    delayed_mix_alignment,
+                    delayed_regime_alignment,
+                    delayed_action_alignment,
+                    regime_sequence_payoff,
+                    playbook_confidence,
+                )
+                == 0.0
+                or min(
+                    value
+                    for value in (
+                        delayed_mix_alignment,
+                        delayed_regime_alignment,
+                        delayed_action_alignment,
+                        regime_sequence_payoff,
+                    )
+                    if value > 0.0
+                )
+                >= 0.52
+            )
+        ):
             decision = EvolutionDecision.PROMOTE
             category = JudgementCategory.REAL_IMPROVEMENT
             if cross_session_report is not None and cross_session_report.verdict == "growing":
                 reasons.append("cross-session-growth-confirmed")
             reasons.append("replay-pass-with-positive-trends")
+            if delayed_mix_alignment > 0.0:
+                reasons.append("experience-payoff-confirmed")
         else:
             decision = EvolutionDecision.HOLD
             category = JudgementCategory.INSUFFICIENT_EVIDENCE
@@ -917,7 +998,11 @@ class EvaluationBackbone:
                 f"Evolution decision={decision.value} category={category.value} "
                 f"replay_passed={replay_suite_result.passed} "
                 f"abstraction_trend={abstraction_trend:.3f} learning_trend={learning_trend:.3f} "
-                f"relationship_trend={relationship_trend:.3f}."
+                f"relationship_trend={relationship_trend:.3f} "
+                f"delayed_mix_alignment={delayed_mix_alignment:.3f} "
+                f"delayed_regime_alignment={delayed_regime_alignment:.3f} "
+                f"delayed_action_alignment={delayed_action_alignment:.3f} "
+                f"regime_sequence_payoff={regime_sequence_payoff:.3f}."
             ),
         )
 
@@ -1021,6 +1106,8 @@ class EvaluationBackbone:
         family_competition_score = _clamp(metacontroller_state.active_family_competition_score)
         family_monopoly_pressure = _clamp(metacontroller_state.action_family_monopoly_pressure)
         family_turnover_health = _clamp(metacontroller_state.action_family_turnover_health)
+        fast_prior_strength = _clamp(metacontroller_state.fast_prior_strength)
+        fast_prior_switch_pressure = _clamp(0.5 + metacontroller_state.fast_prior_switch_pressure_delta)
         family_collapse_risk = _clamp(
             family_monopoly_pressure * 0.50
             + (1.0 - family_turnover_health) * 0.30
@@ -1177,6 +1264,27 @@ class EvaluationBackbone:
                     f"{len(metacontroller_state.action_family_summaries)} families."
                 ),
             ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="temporal_fast_prior_strength",
+                value=fast_prior_strength,
+                confidence=0.62,
+                evidence=(
+                    f"Derived from fast_prior_strength={metacontroller_state.fast_prior_strength:.3f}, "
+                    f"action_bias={metacontroller_state.fast_prior_action_bias:.3f}, "
+                    f"family_bias={metacontroller_state.fast_prior_family_bias:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="temporal_fast_prior_switch_pressure",
+                value=fast_prior_switch_pressure,
+                confidence=0.61,
+                evidence=(
+                    f"Derived from fast_prior_switch_pressure_delta="
+                    f"{metacontroller_state.fast_prior_switch_pressure_delta:.3f}."
+                ),
+            ),
         )
         self._append_records(
             session_id=session_id,
@@ -1203,6 +1311,10 @@ class EvaluationBackbone:
         case_memory_snapshot: CaseMemorySnapshot | None = None,
         strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
+        experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
+        response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
     ) -> EvaluationSnapshot:
         scores = self._learning_evidence_scores(
             memory_snapshot=memory_snapshot,
@@ -1214,6 +1326,10 @@ class EvaluationBackbone:
             case_memory_snapshot=case_memory_snapshot,
             strategy_playbook_snapshot=strategy_playbook_snapshot,
             boundary_policy_snapshot=boundary_policy_snapshot,
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot,
+            response_assembly_snapshot=response_assembly_snapshot,
+            delayed_outcome_ledger=delayed_outcome_ledger,
+            sequence_payoffs=sequence_payoffs,
         )
         if not scores:
             return base_snapshot
@@ -1224,6 +1340,37 @@ class EvaluationBackbone:
             base_snapshot=base_snapshot,
             scores=scores,
             description_suffix=f"Enriched with {len(scores)} learning-evidence scores.",
+        )
+
+    def record_application_delayed_evidence(
+        self,
+        *,
+        session_id: str,
+        wave_id: str,
+        timestamp_ms: int,
+        base_snapshot: EvaluationSnapshot,
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
+    ) -> EvaluationSnapshot:
+        scores = self._learning_evidence_scores(
+            memory_snapshot=None,
+            reflection_snapshot=None,
+            writeback_result=None,
+            joint_loop_result=None,
+            regime_snapshot=None,
+            delayed_outcome_ledger=delayed_outcome_ledger,
+            sequence_payoffs=sequence_payoffs,
+        )
+        if not scores:
+            return base_snapshot
+        return self.record_external_scores(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=timestamp_ms,
+            base_snapshot=base_snapshot,
+            scores=scores,
+            description_suffix=f"Enriched with {len(scores)} application delayed-evidence scores.",
+            timescale="session",
         )
 
     def record_prediction_error_evidence(
@@ -1368,6 +1515,8 @@ class EvaluationBackbone:
         family_count = 0
         active_label = temporal_snapshot.active_abstract_action
         active_family = None
+        fast_prior_strength = 0.0
+        fast_prior_switch_commitment = 0.5
         if metacontroller_state is not None:
             active_label = metacontroller_state.active_label
             active_family = metacontroller_state.active_family_summary
@@ -1382,6 +1531,8 @@ class EvaluationBackbone:
             policy_replacement_quality = _clamp(metacontroller_state.policy_replacement_score)
             family_version = metacontroller_state.action_family_version
             family_count = len(metacontroller_state.action_family_summaries)
+            fast_prior_strength = _clamp(metacontroller_state.fast_prior_strength)
+            fast_prior_switch_commitment = _clamp(0.5 - metacontroller_state.fast_prior_switch_pressure_delta)
         family_signal = _clamp(
             family_support * 0.35
             + family_stability * 0.35
@@ -1395,8 +1546,10 @@ class EvaluationBackbone:
             + switch_sparsity * 0.14
             + family_signal * 0.20
             + policy_replacement_quality * 0.10
+            + fast_prior_strength * 0.05
+            + fast_prior_switch_commitment * 0.03
         )
-        return (
+        scores = [
             EvaluationScore(
                 family="abstraction",
                 metric_name="temporal_action_commitment",
@@ -1406,11 +1559,40 @@ class EvaluationBackbone:
                     f"Derived from active_label={active_label}, "
                     f"switch_gate={controller_state.switch_gate:.2f}, switch_sparsity={switch_sparsity:.2f}, "
                     f"family_version={family_version}, family_count={family_count}, "
+                    f"fast_prior_strength={fast_prior_strength:.2f}, "
+                    f"fast_prior_switch_commitment={fast_prior_switch_commitment:.2f}, "
                     f"active_family={active_family.family_id if active_family is not None else 'none'}, "
                     f"steps_since_switch={controller_state.steps_since_switch}, code_dim={controller_state.code_dim}."
                 ),
             ),
-        )
+        ]
+        if metacontroller_state is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="temporal_fast_prior_strength",
+                        value=fast_prior_strength,
+                        confidence=0.6,
+                        evidence=(
+                            f"Derived from fast_prior_strength={metacontroller_state.fast_prior_strength:.3f}, "
+                            f"action_bias={metacontroller_state.fast_prior_action_bias:.3f}, "
+                            f"family_bias={metacontroller_state.fast_prior_family_bias:.3f}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="temporal_fast_prior_switch_pressure",
+                        value=_clamp(0.5 + metacontroller_state.fast_prior_switch_pressure_delta),
+                        confidence=0.6,
+                        evidence=(
+                            f"Derived from fast_prior_switch_pressure_delta="
+                            f"{metacontroller_state.fast_prior_switch_pressure_delta:.3f}."
+                        ),
+                    ),
+                )
+            )
+        return tuple(scores)
 
     def _build_turn_scores(
         self,
@@ -1652,6 +1834,10 @@ class EvaluationBackbone:
         case_memory_snapshot: CaseMemorySnapshot | None = None,
         strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
+        experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
+        response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
     ) -> tuple[EvaluationScore, ...]:
         """Build readout evidence scores for the learning loop.
 
@@ -1757,6 +1943,33 @@ class EvaluationBackbone:
                         ),
                     )
                 )
+            continuum_band_count = lifecycle_metrics.get("continuum_band_count", 0.0)
+            continuum_reconstruction_edge_count = lifecycle_metrics.get("continuum_reconstruction_edge_count", 0.0)
+            continuum_frequency_span = lifecycle_metrics.get("continuum_frequency_span", 0.0)
+            if continuum_band_count > 0.0:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="continuum_frequency_coverage",
+                            value=_clamp(continuum_band_count / 6.0),
+                            confidence=0.66,
+                            evidence=(
+                                f"Derived from continuum_band_count={continuum_band_count:.0f} "
+                                f"and frequency_span={continuum_frequency_span:.3f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="continuum_reconstruction_capacity",
+                            value=_clamp(continuum_reconstruction_edge_count / 8.0),
+                            confidence=0.64,
+                            evidence=(
+                                f"Derived from reconstruction_edge_count={continuum_reconstruction_edge_count:.0f}."
+                            ),
+                        ),
+                    )
+                )
         if domain_knowledge_snapshot is not None:
             knowledge_hit_count = _clamp(len(domain_knowledge_snapshot.hits) / 3.0)
             scores.append(
@@ -1820,6 +2033,16 @@ class EvaluationBackbone:
                             f"Derived from delayed_signal_count across {len(case_memory_snapshot.hits)} case hits."
                         ),
                     ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="application_continuum_case_coverage",
+                        value=_clamp(len(case_memory_snapshot.active_band_ids) / 4.0),
+                        confidence=0.63,
+                        evidence=(
+                            f"Derived from case continuum bands={len(case_memory_snapshot.active_band_ids)} "
+                            f"mean_position={case_memory_snapshot.mean_continuum_position:.3f}."
+                        ),
+                    ),
                 )
             )
         if strategy_playbook_snapshot is not None:
@@ -1848,6 +2071,158 @@ class EvaluationBackbone:
                             f"{len(strategy_playbook_snapshot.matched_problem_patterns)}."
                         ),
                     ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="application_continuum_playbook_transfer",
+                        value=_clamp(len(strategy_playbook_snapshot.active_band_ids) / 4.0),
+                        confidence=0.61,
+                        evidence=(
+                            f"Derived from playbook continuum bands={len(strategy_playbook_snapshot.active_band_ids)}."
+                        ),
+                    ),
+                )
+            )
+        if experience_fast_prior_snapshot is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_fast_prior_available",
+                        value=1.0
+                        if (
+                            experience_fast_prior_snapshot.source_attribution_ids
+                            or experience_fast_prior_snapshot.source_sequence_ids
+                        )
+                        else 0.0,
+                        confidence=0.72,
+                        evidence=experience_fast_prior_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_regime_bias_applied",
+                        value=_clamp(
+                            sum(abs(item.bias) for item in experience_fast_prior_snapshot.regime_biases)
+                            / max(len(experience_fast_prior_snapshot.regime_biases), 1)
+                        )
+                        if experience_fast_prior_snapshot.regime_biases
+                        else 0.0,
+                        confidence=0.68,
+                        evidence=experience_fast_prior_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_retrieval_mix_bias_applied",
+                        value=_clamp(
+                            (
+                                abs(experience_fast_prior_snapshot.knowledge_weight_bias)
+                                + abs(experience_fast_prior_snapshot.experience_weight_bias)
+                            )
+                            / 2.0
+                        ),
+                        confidence=0.68,
+                        evidence=experience_fast_prior_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="delayed_action_family_bias_applied",
+                        value=_clamp(
+                            sum(abs(item.continuation_bias) for item in experience_fast_prior_snapshot.family_biases)
+                            / max(len(experience_fast_prior_snapshot.family_biases), 1)
+                        )
+                        if experience_fast_prior_snapshot.family_biases
+                        else 0.0,
+                        confidence=0.67,
+                        evidence=experience_fast_prior_snapshot.description,
+                    ),
+                )
+            )
+        if delayed_outcome_ledger:
+            mean_outcome = _clamp(
+                sum(item.outcome_score for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+            )
+            mean_mix_alignment = _clamp(
+                sum(item.retrieval_mix_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+            )
+            mean_regime_alignment = _clamp(
+                sum(item.regime_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+            )
+            mean_action_alignment = _clamp(
+                sum(item.abstract_action_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+            )
+            mean_continuum_alignment = _clamp(
+                sum(item.continuum_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+            )
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_retrieval_mix_alignment",
+                        value=mean_mix_alignment,
+                        confidence=0.7,
+                        evidence=(
+                            f"Derived from delayed ledger count={len(delayed_outcome_ledger)} "
+                            f"mean_outcome={mean_outcome:.3f}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="delayed_regime_alignment",
+                        value=mean_regime_alignment,
+                        confidence=0.7,
+                        evidence=(
+                            f"Derived from delayed ledger count={len(delayed_outcome_ledger)} "
+                            f"mean_outcome={mean_outcome:.3f}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="delayed_abstract_action_alignment",
+                        value=mean_action_alignment,
+                        confidence=0.7,
+                        evidence=(
+                            f"Derived from delayed ledger count={len(delayed_outcome_ledger)} "
+                            f"mean_outcome={mean_outcome:.3f}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="application_continuum_alignment",
+                        value=mean_continuum_alignment,
+                        confidence=0.68,
+                        evidence=(
+                            f"Derived from delayed ledger count={len(delayed_outcome_ledger)} "
+                            f"mean_continuum_alignment={mean_continuum_alignment:.3f}."
+                        ),
+                    ),
+                )
+            )
+        if sequence_payoffs:
+            mean_sequence_payoff = _clamp(
+                sum(item.rolling_payoff for item in sequence_payoffs) / len(sequence_payoffs)
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="regime_sequence_payoff",
+                    value=mean_sequence_payoff,
+                    confidence=0.68,
+                    evidence=(
+                        f"Derived from sequence payoff count={len(sequence_payoffs)} "
+                        f"latest_outcome_mean={mean_sequence_payoff:.3f}."
+                    ),
+                )
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="application_continuum_sequence_payoff",
+                    value=_clamp(
+                        sum(item.mean_continuum_position for item in sequence_payoffs) / len(sequence_payoffs)
+                    ),
+                    confidence=0.63,
+                    evidence=(
+                        f"Derived from sequence payoff count={len(sequence_payoffs)} with continuum positions."
+                    ),
                 )
             )
         if boundary_policy_snapshot is not None:
@@ -1873,6 +2248,49 @@ class EvaluationBackbone:
                         value=1.0 if boundary_policy_snapshot.active_decision.citation_required else 0.0,
                         confidence=0.68,
                         evidence=boundary_policy_snapshot.description,
+                    ),
+                )
+            )
+        if response_assembly_snapshot is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="response_depth_compliance",
+                        value=1.0 if response_assembly_snapshot.answer_depth_limit in {"support-first", "standard", "high-level-only"} else 0.0,
+                        confidence=0.68,
+                        evidence=response_assembly_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="clarification_compliance",
+                        value=1.0 if response_assembly_snapshot.max_questions <= 1 else 0.0,
+                        confidence=0.66,
+                        evidence=response_assembly_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="refer_out_compliance",
+                        value=1.0 if (
+                            not response_assembly_snapshot.refer_out_required
+                            or bool(response_assembly_snapshot.required_disclaimer_phrases)
+                        ) else 0.0,
+                        confidence=0.65,
+                        evidence=response_assembly_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="ordering_plan_alignment",
+                        value=_clamp(len(response_assembly_snapshot.ordering_plan) / 3.0),
+                        confidence=0.63,
+                        evidence=response_assembly_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="prompt_residue_ratio",
+                        value=_clamp(response_assembly_snapshot.prompt_residue_ratio),
+                        confidence=0.64,
+                        evidence=response_assembly_snapshot.prompt_residue_summary,
                     ),
                 )
             )
@@ -1903,6 +2321,10 @@ class EvaluationBackbone:
             scheduler_transition_pressure = _clamp(schedule_telemetry.get("transition_pressure_x1000", 0) / 1000.0)
             scheduler_substrate_pressure = _clamp(schedule_telemetry.get("substrate_pressure_x1000", 0) / 1000.0)
             scheduler_rare_heavy_pressure = _clamp(schedule_telemetry.get("rare_heavy_pressure_x1000", 0) / 1000.0)
+            scheduler_experience_credit = _clamp(schedule_telemetry.get("experience_credit_x1000", 0) / 1000.0)
+            scheduler_control_prior_strength = _clamp(
+                schedule_telemetry.get("control_prior_strength_x1000", 0) / 1000.0
+            )
             batch_target = max(schedule_telemetry.get("rl_batch_target", 1), 1)
             pending_batch_count = max(schedule_telemetry.get("pending_batch_count", 0), 0)
             scheduler_batch_fill_ratio = _clamp(pending_batch_count / batch_target)
@@ -1913,6 +2335,8 @@ class EvaluationBackbone:
                 + (1.0 - scheduler_transition_pressure) * 0.15
                 + (1.0 - scheduler_rare_heavy_pressure) * 0.10
                 + (1.0 - scheduler_substrate_pressure) * 0.05
+                + scheduler_experience_credit * 0.05
+                + scheduler_control_prior_strength * 0.05
                 + scheduler_batch_fill_ratio * 0.10
             )
             scores.extend(
@@ -1958,6 +2382,20 @@ class EvaluationBackbone:
                         value=scheduler_rare_heavy_pressure,
                         confidence=0.6,
                         evidence=f"Derived from schedule_action={schedule_action} and rare-heavy pressure telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_experience_credit",
+                        value=scheduler_experience_credit,
+                        confidence=0.61,
+                        evidence=f"Derived from schedule_action={schedule_action} and delayed experience telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="scheduler_control_prior_strength",
+                        value=scheduler_control_prior_strength,
+                        confidence=0.61,
+                        evidence=f"Derived from schedule_action={schedule_action} and case/playbook prior telemetry.",
                     ),
                     EvaluationScore(
                         family="learning",
@@ -2208,6 +2646,9 @@ class EvaluationBackbone:
                         "nested_context_reuse",
                         "rollback_resilience",
                         "delayed_credit_horizon",
+                        "delayed_retrieval_mix_alignment",
+                        "delayed_regime_alignment",
+                        "regime_sequence_payoff",
                         "regime_sequence_alignment",
                         "scheduler_discipline",
                         "scheduler_risk_managed",
@@ -2238,6 +2679,7 @@ class EvaluationBackbone:
                         "action_family_reuse",
                         "action_family_stability",
                         "action_family_turnover_health",
+                        "delayed_abstract_action_alignment",
                         "scheduler_family_stability",
                         "scheduler_transition_pressure",
                     ),

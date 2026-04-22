@@ -225,6 +225,31 @@ class ETANLJointLoop:
         self._world_sandbox._env.set_primary_prediction_error_enabled(enabled)
         self._self_sandbox._env.set_primary_prediction_error_enabled(enabled)
 
+    def _experience_credit_signal(self) -> float:
+        keys = (
+            "delayed_retrieval_mix_alignment",
+            "delayed_regime_alignment",
+            "delayed_abstract_action_alignment",
+            "regime_sequence_payoff",
+        )
+        values = [self._external_learning_signals[key] for key in keys if key in self._external_learning_signals]
+        if not values:
+            return 0.0
+        return _clamp(sum(values) / len(values))
+
+    def _experience_control_prior_signal(self) -> float:
+        keys = (
+            "experience_case_strength",
+            "experience_playbook_strength",
+            "experience_control_prior_strength",
+            "experience_playbook_knowledge_hint",
+            "experience_playbook_experience_hint",
+        )
+        values = [self._external_learning_signals[key] for key in keys if key in self._external_learning_signals]
+        if not values:
+            return 0.0
+        return _clamp(sum(values) / len(values))
+
     def _record_schedule_outcome(
         self,
         *,
@@ -1092,6 +1117,8 @@ class ETANLJointLoop:
             turn_index=turn_index,
             schedule=schedule,
         )
+        experience_credit = self._experience_credit_signal()
+        control_prior_strength = self._experience_control_prior_signal()
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
@@ -1115,6 +1142,8 @@ class ETANLJointLoop:
             ("transition_pressure_x1000", int(transition_pressure * 1000)),
             ("substrate_pressure_x1000", int(substrate_pressure * 1000)),
             ("rare_heavy_pressure_x1000", int(rare_heavy_pressure * 1000)),
+            ("experience_credit_x1000", int(experience_credit * 1000)),
+            ("control_prior_strength_x1000", int(control_prior_strength * 1000)),
         )
 
     def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:
@@ -1178,27 +1207,32 @@ class ETANLJointLoop:
     ) -> tuple[float, float, float, float, float, float]:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
         pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        experience_credit = self._experience_credit_signal()
+        control_prior_strength = self._experience_control_prior_signal()
         pe_pressure = _clamp(
             max(
                 pe_magnitude / max(schedule.pe_full_cycle_threshold, 1e-6),
                 pe_abs_reward / max(schedule.pe_ssl_threshold, 1e-6),
             )
-            * 0.5
+            * 0.42
+            + (1.0 - experience_credit) * 0.08
         )
         state = self._previous_metacontroller_state
         if state is None:
-            family_stability = 0.5
+            family_stability = _clamp(0.45 + experience_credit * 0.20 + control_prior_strength * 0.10)
         else:
             active_family = state.active_family_summary
             support = min((active_family.support if active_family is not None else 0) / 4.0, 1.0)
             stability = active_family.stability if active_family is not None else 0.5
             competition = active_family.competition_score if active_family is not None else 0.5
             family_stability = _clamp(
-                stability * 0.35
-                + competition * 0.20
-                + support * 0.15
-                + state.switch_sparsity * 0.15
-                + (1.0 - state.action_family_monopoly_pressure) * 0.15
+                stability * 0.30
+                + competition * 0.18
+                + support * 0.12
+                + state.switch_sparsity * 0.14
+                + (1.0 - state.action_family_monopoly_pressure) * 0.14
+                + experience_credit * 0.08
+                + control_prior_strength * 0.04
             )
         family_signals = self._previous_family_signals
         rollback_risk = _clamp(
@@ -1212,11 +1246,12 @@ class ETANLJointLoop:
         )
         transition_pressure = _clamp(
             (
-                (1.0 - family_stability) * 0.35
-                + (state.posterior_drift if state is not None else 0.0) * 0.20
-                + (1.0 - min(state.policy_replacement_score, 1.0) if state is not None else 0.5) * 0.20
-                + (0.0 if state is None else abs(state.latest_switch_gate - 0.5) * 2.0) * 0.10
-                + min((state.active_family_summary.support if state is not None and state.active_family_summary is not None else 0) / 4.0, 1.0) * 0.15
+                (1.0 - family_stability) * 0.30
+                + (state.posterior_drift if state is not None else 0.0) * 0.18
+                + (1.0 - min(state.policy_replacement_score, 1.0) if state is not None else 0.5) * 0.18
+                + (0.0 if state is None else abs(state.latest_switch_gate - 0.5) * 2.0) * 0.08
+                + min((state.active_family_summary.support if state is not None and state.active_family_summary is not None else 0) / 4.0, 1.0) * 0.12
+                + (1.0 - control_prior_strength) * 0.14
             )
         )
         substrate_pressure = _clamp(
@@ -1224,10 +1259,12 @@ class ETANLJointLoop:
                 pe_magnitude / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
                 pe_abs_reward / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
             )
-            * 0.5
+            * 0.44
+            + (1.0 - experience_credit) * 0.04
         )
         rare_heavy_pressure = _clamp(
             pe_magnitude / max(schedule.pe_rare_heavy_threshold, 1e-6)
+            + (1.0 - experience_credit) * 0.10
         )
         return (
             pe_pressure,

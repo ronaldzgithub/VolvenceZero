@@ -66,6 +66,39 @@ VolvenceZero 的应用层不是“一个模型 + 一个 prompt + 一个知识库
 - **经验** 回答“面对这种人和状态，这些知识该怎么用更合适”。
 - **控制器** 回答“当前这轮该偏知识、偏经验、还是怎么混合”。
 
+### 3.5 How Experience Enters ETA
+
+经验**可以进入 ETA**，但不应该以“成为 ETA 第二 owner”的方式进入。
+
+正确做法不是把案例经验直接塞进 `temporal` / metacontroller 的私有状态里，  
+而是让经验沿正式 contract 进入 ETA 的四条闭环：
+
+1. **检索混合入口**
+   - ETA 决定这轮 `knowledge_weight` / `experience_weight`
+   - ETA 决定 `experience_domains`
+   - 经验因此进入 `retrieval_policy`
+
+2. **处理先验入口**
+   - `case_memory` 提供“类似事情过去怎么发生、怎么处理”
+   - `strategy_playbook` 提供“这类问题通常先做什么、后做什么更稳”
+   - ETA 消费这些先验来决定当前处理顺序和节奏
+   - 在 continuum memory 口径下，这些先验还应带有频谱位置与恢复来源，而不是只提供离散案例标签
+
+3. **延迟信用入口**
+   - `experience_consolidation` 不只报告经验 delta
+   - 它还应回看 `(abstract_action, regime, retrieval mix, family version)` 在多轮后的结果
+   - 这让经验进入 ETA 的 delayed credit / slow-shapes-fast 闭环
+
+4. **演化裁决入口**
+   - 经验不只帮助生成建议，还应帮助决定哪些建议可以被系统吸收
+   - replay / benchmark / evolution judge 应裁决经验产物的 `promote / hold / rollback`
+
+因此，设计原则是：
+
+- **经验可以进入 ETA 的控制闭环和学习闭环**
+- **经验不应直接成为 ETA owner 本体的一部分**
+- **ETA 负责选择和调度经验，不负责吞并经验所有权**
+
 ---
 
 ## 4. Layered Architecture
@@ -354,6 +387,15 @@ flowchart TD
 
 > 这次慢反思到底学到了什么，以后会怎样改变处理方式。
 
+在升级后的实现口径下，`experience_consolidation` 不再只是“说明学到了什么”，  
+还要公开：
+
+- typed `ApplicationPriorUpdate`
+- proposal / applied / blocked / audit-ready writeback 摘要
+
+但它**仍不直接成为其他 owner 的第二 owner**。  
+真正的 application prior apply 只能发生在 `session_post_slow_loop` 驱动的 owner-side writeback helper 中。
+
 ---
 
 ## 6. Who Controls Knowledge-Experience Tradeoff
@@ -367,8 +409,71 @@ flowchart TD
 1. `temporal` 判断当前抽象动作与切换强度
 2. `dual_track` 判断 world/self 哪边更主导
 3. `regime` 判断当前互动姿态
-4. `boundary_policy` 收紧或放开允许动作范围
-5. 最终形成一个显式的 `retrieval_policy`
+4. `memory` 发布的 `continuum_profile` 提供当前频谱位置、恢复压力与 readout 结构
+5. `boundary_policy` 收紧或放开允许动作范围
+6. 最终形成一个显式的 `retrieval_policy`
+
+### 6.1 Four Experience Entry Points Into ETA
+
+经验进入 ETA，不只是一句“有 `experience_weight`”就结束。  
+它至少有 4 个正式接入点：
+
+#### 6.1.1 Retrieval mix
+
+ETA 决定：
+
+- 是否需要经验检索
+- 需要哪类经验 domain
+- 知识和经验各占多大权重
+
+这是 experience 进入 ETA 的最前门。
+
+#### 6.1.2 Fast-path priors
+
+ETA 在 turn-time 消费：
+
+- `case_memory` 的 compact case hits
+- `strategy_playbook` 的 ordering / pacing priors
+
+这些 priors 不直接重写 ETA 内部状态，  
+但它们会影响 ETA 如何排序候选处理方式。
+
+在当前实现口径下，这种影响不再只表现为“命中了哪些案例标签”，  
+还表现为：
+
+- 当前 case hit 位于 continuum 的哪一段
+- 它来自 slow-to-fast reuse、meta-init 还是普通 artifact anchor
+- playbook ranking 与 retrieval mixing 是否与当前频谱位置一致
+
+#### 6.1.3 Delayed credit
+
+经验必须进入 ETA 的 delayed credit，而不只停留在“当前轮命中了什么”。
+
+也就是说系统要能回答：
+
+> 某个 `abstract_action` 在某个 `regime` 下，配某种 retrieval mix，几轮之后是否真的更好？
+
+这一步把经验从“材料”提升成“学习信号”。
+
+实现上，这个 delayed credit 不应直接写穿 `regime` / `retrieval_policy` / `temporal` 的私有状态。  
+更合适的做法是引入一个独立公共中继面，例如 `experience_fast_prior`，把慢层 ledger 压缩成：
+
+- regime bias
+- retrieval mix bias
+- abstract-action / action-family continuation bias
+- regime-sequence payoff bias
+
+然后由各 owner 在自己的 fast path 内部决定如何消费这些 bias。
+
+#### 6.1.4 Evolution gating
+
+经验还应进入系统演化裁决：
+
+- 哪些 case delta 可以 promote
+- 哪些 playbook delta 只能 hold
+- 哪些 boundary delta 应该 rollback
+
+只有这样，经验才不只是“被看到”，而是开始“约束 ETA 如何变好”。
 
 ---
 
@@ -418,12 +523,33 @@ ETA 层不直接“自己去搜”，而是：
 3. 控制层输出 `RetrievalPolicy`。
 4. `domain_knowledge` 和 `case_memory` 按 policy 提供候选结果。
 5. `strategy_playbook` 给出推荐处理顺序和节奏。
-6. `boundary_policy` 过滤结果并决定回答边界。
-7. response assembly 把结构状态分成两路：
-   - prompt / chat context 的文本条件
-   - control parameters 的数值控制
-8. substrate 表达层生成回复。
-9. 系统记录 prediction-error 和 delayed evidence。
+6. `experience_fast_prior` 把 delayed credit 压缩成可供 fast path 消费的 compact bias。
+7. `boundary_policy` 过滤结果并决定回答边界。
+8. response assembly 把结构状态分成两路：
+   - `response_assembly` 发布的最小 prompt residue / chat context
+   - `response_assembly` 发布的 generation constraints + control parameters
+9. substrate 表达层生成回复。
+10. 系统记录 prediction-error 和 delayed evidence。
+
+在当前 continuum 口径下，`response_assembly` 也不再只是消费 `playbook_ordering`。  
+它还应直接消费：
+
+- 当前 response mode
+- boundary 是否要求 clarification / refer-out
+- core/application 共同发布的 continuum target position
+
+因此最终回复结构的首步不再由“命中了哪个 playbook step”单独决定，  
+而是由 **continuum target position + boundary state + playbook hints** 共同决定：
+
+- 慢侧目标更高时，优先 `stabilize`
+- clarification 约束更强时，优先 `clarify_goal`
+- 结构化目标更强时，优先 `structure_options`
+
+这里要特别注意：
+
+- `case_memory` / `strategy_playbook` 是 **ETA 的输入面**
+- 它们不是 `temporal` 的第二 owner
+- ETA 通过这些公共 surface 消费经验，而不是直接吞并经验本体
 
 ## 8.2 Session-medium path
 
@@ -433,6 +559,8 @@ ETA 层不直接“自己去搜”，而是：
 - 哪些处理方式让用户更稳定
 - 哪些做法触发了 tension 或 escalation
 - 哪些边界提醒被频繁触发
+- 哪些 retrieval mix 在中程结果上更好
+- 哪些 regime sequence 和 abstract action 组合更稳
 
 ## 8.3 Background-slow path
 
@@ -444,6 +572,27 @@ ETA 层不直接“自己去搜”，而是：
 - 形成 `experience_consolidation`
 - 必要时更新 `strategy_playbook`, `boundary_policy`, `case_memory`
 
+这些更新在升级后的 runtime 口径里应理解为：
+
+- `experience_consolidation` 公开 typed update contract
+- `EvolutionJudgement` 与 credit gate 裁决这些 update 是否可 apply
+- apply 只在 owner-side helper 中执行
+- 结果再回流到 `experience_consolidation` 的 applied / blocked 摘要
+
+更进一步地，`background-slow` 应把经验沉淀成 ETA 可消费的慢层约束：
+
+- 哪类 `abstract_action` 在哪些情境下更有效
+- 哪类 `regime` 序列在长期结果上更好
+- 哪种 knowledge/experience mix 更稳
+- 哪些经验产物经 judge 允许 promotion，哪些必须 hold / rollback
+
+这就是 **experience enters ETA through slow credit and evolution gating**，  
+而不是“experience becomes ETA owner”.
+
+在当前实现口径下，这些慢层约束先收敛为 `experience_consolidation`，  
+再经 `experience_fast_prior` 进入下一轮的 `regime`、`retrieval_policy` 与 temporal/joint scheduling。  
+这样 slow-shapes-fast 成为正式 runtime chain，而不是只停留在 evaluation readout。
+
 ---
 
 ## 9. Response Assembly Model
@@ -454,17 +603,42 @@ ETA 层不直接“自己去搜”，而是：
 
 ### 9.1 Symbolic / textual conditioning
 
-- retrieved memories
-- retrieved domain knowledge summaries
-- playbook hints
-- boundary notices
-- regime and tension description
+- `response_assembly.prompt_residue_summary`
+- 最小的 interaction framing
+- 必要但无法直接参数化的语义残差
+
+这里的关键原则是：
+
+- 文本条件只保留**表达残差**
+- 不再承担主要控制职责
+- 不把 knowledge / case / playbook / boundary 大段重新压回 system prompt
 
 ### 9.2 Numeric control
 
-- temporal controller code
-- control scale
-- future retrieval / boundary latent hints
+- `temporal controller code`
+- `control scale`
+- `response_mode`
+- `answer_depth_limit`
+- `citation_mode`
+- `max_questions`
+- `required_disclaimer_phrases`
+- `ordering_plan`
+
+这些字段应通过正式 `response_assembly` / generation-constraints contract 发布，  
+由 expression layer 和 substrate runtime 显式消费，而不是仅靠 prompt 字符串解释。
+
+### 9.3 ResponseAssembly as a public surface
+
+`response_assembly` 应是 expression layer 的正式公共输入面之一。
+
+它的职责不是生成文本，而是把上游控制状态压成**可执行的表达约束**：
+
+- 当前该走 `support / clarify / structure / refer-out` 哪种回复模式
+- 当前允许的回答深度
+- 当前是否必须澄清、引用或转介
+- 当前建议的处理顺序
+- 当前应施加的 numeric control
+- 当前仅剩下哪些 prompt residue 仍需要自然语言表达
 
 ### Design principle
 

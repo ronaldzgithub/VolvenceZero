@@ -355,6 +355,8 @@ def derive_learning_evidence_credit_records(
         "reflection_usefulness",
         "joint_learning_progress",
         "regime_sequence_payoff",
+        "delayed_retrieval_mix_alignment",
+        "delayed_regime_alignment",
     }
     metacontroller_metrics = {
         "adaptive_stability",
@@ -369,6 +371,12 @@ def derive_learning_evidence_credit_records(
         "action_family_stability",
         "action_family_diversity",
         "delayed_action_alignment",
+        "delayed_abstract_action_alignment",
+    }
+    session_learning_metrics = {
+        "regime_sequence_payoff",
+        "delayed_retrieval_mix_alignment",
+        "delayed_regime_alignment",
     }
     credit_records: list[CreditRecord] = []
     for score in evaluation_snapshot.turn_scores:
@@ -392,6 +400,32 @@ def derive_learning_evidence_credit_records(
                     level="abstract_action",
                     track=Track.SHARED,
                     source_event=f"evaluation:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    for score in evaluation_snapshot.session_scores:
+        if score.family == "learning" and score.metric_name in session_learning_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="session",
+                    track=Track.SHARED,
+                    source_event=f"session:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+            continue
+        if score.metric_name in metacontroller_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"session-evaluation:{score.metric_name}",
                     credit_value=_clamp(score.value),
                     context=score.evidence,
                     timestamp_ms=timestamp_ms,

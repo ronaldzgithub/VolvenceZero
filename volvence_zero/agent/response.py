@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
+
 
 @dataclass(frozen=True)
 class AgentResponse:
@@ -18,7 +20,6 @@ class ResponseContext:
     regime_switched: bool
     abstract_action: str | None
     alert_count: int
-    retrieved_memory_count: int
     temporal_switch_gate: float
     temporal_is_switching: bool
     reflection_lesson_count: int
@@ -28,21 +29,21 @@ class ResponseContext:
     primary_reflection_tension: str | None
     joint_schedule_action: str
     user_input: str = ""
-    retrieved_memories: tuple[str, ...] = ()
-    controller_description: str = ""
-    control_code: tuple[float, ...] = ()
-    knowledge_hit_count: int = 0
-    knowledge_summaries: tuple[str, ...] = ()
-    case_hit_count: int = 0
-    case_patterns: tuple[str, ...] = ()
-    playbook_rule_count: int = 0
-    playbook_ordering_hints: tuple[str, ...] = ()
-    citation_required: bool = False
-    boundary_risk_band: str = "low"
-    boundary_answer_depth_limit: str = "standard"
-    boundary_clarification_required: bool = False
-    boundary_refer_out_required: bool = False
-    boundary_required_disclaimers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GenerationConstraints:
+    response_mode: str
+    answer_depth_limit: str
+    citation_mode: str
+    max_questions: int
+    required_disclaimer_phrases: tuple[str, ...] = ()
+    ordering_bias: tuple[str, ...] = ()
+    prompt_residue_summary: str = ""
+    prompt_residue_ratio: float = 0.0
+    continuum_target_position: float = 0.5
+    ordering_driver: str = "playbook-only"
+    decoding_profile: str = "balanced"
 
 
 class ResponseSynthesizer:
@@ -56,6 +57,7 @@ class ResponseSynthesizer:
         self,
         *,
         context: ResponseContext,
+        assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
         lesson_hint_map = {
             "promote_high_signal_memories": "I want to keep hold of the strongest signals rather than restart from scratch.",
@@ -95,8 +97,8 @@ class ResponseSynthesizer:
             regime_shift_hint = " I am also changing the interaction frame instead of forcing the previous one to fit."
 
         memory_hint = ""
-        if context.retrieved_memory_count:
-            memory_hint = f" I am carrying forward {context.retrieved_memory_count} retrieved memory cues."
+        if assembly is not None and assembly.prompt_residue_summary:
+            memory_hint = " I am carrying forward continuity from the current interaction state."
 
         reflection_hint = ""
         if context.reflection_writeback_applied:
@@ -111,38 +113,38 @@ class ResponseSynthesizer:
             )
 
         knowledge_hint = ""
-        if context.knowledge_hit_count:
+        if assembly is not None and assembly.knowledge_hit_count:
             knowledge_hint = (
-                f" I am grounding this reply with {context.knowledge_hit_count} domain knowledge cue"
-                f"{'' if context.knowledge_hit_count == 1 else 's'}."
+                f" I am grounding this reply with {assembly.knowledge_hit_count} domain knowledge cue"
+                f"{'' if assembly.knowledge_hit_count == 1 else 's'}."
             )
 
         case_hint = ""
-        if context.case_hit_count:
+        if assembly is not None and assembly.case_hit_count:
             case_hint = (
-                f" I am also checking {context.case_hit_count} similar case pattern"
-                f"{'' if context.case_hit_count == 1 else 's'} for pacing rather than copying them literally."
+                f" I am also checking {assembly.case_hit_count} similar case pattern"
+                f"{'' if assembly.case_hit_count == 1 else 's'} for pacing rather than copying them literally."
             )
 
         playbook_hint = ""
-        if context.playbook_rule_count:
+        if assembly is not None and assembly.playbook_rule_count:
             playbook_hint = (
-                f" I also have {context.playbook_rule_count} strategy prior"
-                f"{'' if context.playbook_rule_count == 1 else 's'} shaping the order of the reply."
+                f" I also have {assembly.playbook_rule_count} strategy prior"
+                f"{'' if assembly.playbook_rule_count == 1 else 's'} shaping the order of the reply."
             )
 
         boundary_hint = ""
-        if context.boundary_refer_out_required:
+        if assembly is not None and assembly.refer_out_required:
             boundary_hint = (
                 " I should stay within high-level support and encourage appropriate professional follow-up "
                 "instead of sounding definitive."
             )
-        elif context.boundary_clarification_required:
+        elif assembly is not None and assembly.clarification_required:
             boundary_hint = (
                 " I should keep this bounded and ask for any missing local or contextual detail before acting "
                 "over-certain."
             )
-        elif context.citation_required:
+        elif assembly is not None and assembly.citation_mode == "required":
             boundary_hint = " I should keep any factual guidance sourced, bounded, and clearly non-definitive."
 
         tension_hint = ""
@@ -153,32 +155,46 @@ class ResponseSynthesizer:
         if context.primary_reflection_lesson is not None:
             lesson_hint = f" {lesson_hint_map.get(context.primary_reflection_lesson, 'I am letting the slower reflective layer shape the reply rather than treating it as a no-op.')}"
 
-        if context.regime_id == "repair_and_deescalation":
+        response_mode = assembly.response_mode.value if assembly is not None else None
+        effective_regime_id = assembly.regime_id if assembly is not None else context.regime_id
+        effective_regime_name = assembly.regime_name if assembly is not None else context.regime_name
+        effective_abstract_action = assembly.abstract_action if assembly is not None else context.abstract_action
+        if response_mode == ResponseMode.REFER_OUT.value:
+            text = (
+                "I want to keep this careful and high-level. "
+                "I can help you orient the next step, but I should avoid sounding definitive here."
+            )
+        elif response_mode == ResponseMode.CLARIFY.value:
+            text = (
+                "I can help, but I should keep this bounded until one key detail is clarified. "
+                "That way I do not over-commit too early."
+            )
+        elif effective_regime_id == "repair_and_deescalation":
             text = (
                 "I want to slow this down a little and make sure I respond in a steady, repairing way. "
                 "We can handle the immediate issue, but I want to keep the interaction safe and grounded."
             )
-        elif context.regime_id == "emotional_support":
+        elif effective_regime_id == "emotional_support":
             text = (
                 "I am hearing emotional weight in this, so I want to stay supportive first and not rush past it. "
                 "We can still move toward something useful together."
             )
-        elif context.regime_id == "problem_solving":
+        elif effective_regime_id == "problem_solving":
             text = (
                 "I see a concrete problem-solving path here. "
                 "I can help structure the next steps clearly and keep the solution actionable."
             )
-        elif context.regime_id == "guided_exploration":
+        elif effective_regime_id == "guided_exploration":
             text = (
                 "This feels like a place for guided exploration rather than a rushed answer. "
                 "I can help us narrow the space step by step."
             )
-        elif context.regime_id == "acquaintance_building":
+        elif effective_regime_id == "acquaintance_building":
             text = (
                 "I want to keep this warm and relational rather than treating it like a cold transaction. "
                 "We can build clarity without losing that sense of connection."
             )
-        elif context.regime_id == "casual_social":
+        elif effective_regime_id == "casual_social":
             text = (
                 "I can keep this steady, natural, and continuous rather than over-formalizing it too early. "
                 "That gives us room to stay useful without losing flow."
@@ -201,20 +217,20 @@ class ResponseSynthesizer:
         text += tension_hint
         text += boundary_hint
 
-        rationale_parts = [f"regime={context.regime_id or 'none'}"]
-        if context.abstract_action:
-            rationale_parts.append(f"temporal={context.abstract_action}")
+        rationale_parts = [f"regime={effective_regime_id or 'none'}"]
+        if effective_abstract_action:
+            rationale_parts.append(f"temporal={effective_abstract_action}")
         rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
         rationale_parts.append(f"joint={context.joint_schedule_action}")
         if context.alert_count:
             rationale_parts.append(f"alerts={context.alert_count}")
-        if context.knowledge_hit_count:
-            rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
-        if context.case_hit_count:
-            rationale_parts.append(f"case_hits={context.case_hit_count}")
-        if context.playbook_rule_count:
-            rationale_parts.append(f"playbook_rules={context.playbook_rule_count}")
-        rationale_parts.append(f"risk={context.boundary_risk_band}")
+        if assembly is not None and assembly.knowledge_hit_count:
+            rationale_parts.append(f"knowledge_hits={assembly.knowledge_hit_count}")
+        if assembly is not None and assembly.case_hit_count:
+            rationale_parts.append(f"case_hits={assembly.case_hit_count}")
+        if assembly is not None and assembly.playbook_rule_count:
+            rationale_parts.append(f"playbook_rules={assembly.playbook_rule_count}")
+        rationale_parts.append(f"risk={(assembly.risk_band.value if assembly is not None else 'low')}")
         if context.reflection_lesson_count:
             rationale_parts.append(f"reflection_lessons={context.reflection_lesson_count}")
         if context.primary_reflection_lesson is not None:
@@ -227,9 +243,9 @@ class ResponseSynthesizer:
 
         return AgentResponse(
             text=text,
-            regime_id=context.regime_id,
-            abstract_action=context.abstract_action,
-            rationale=f"Synthesized from {context.regime_name}; {rationale}.",
+            regime_id=effective_regime_id,
+            abstract_action=effective_abstract_action,
+            rationale=f"Synthesized from {effective_regime_name}; {rationale}.",
         )
 
 
@@ -252,30 +268,69 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         self._max_new_tokens = max_new_tokens
         self._temperature = temperature
 
+    @staticmethod
+    def _decoding_profile_for_assembly(assembly: ResponseAssemblySnapshot) -> str:
+        if assembly.ordering_driver in {"continuum-support-first", "continuum-support-clarify"}:
+            return "support-first"
+        if assembly.ordering_driver == "continuum-clarify-first":
+            return "clarify-first"
+        if assembly.ordering_driver == "continuum-structure-first":
+            return "structure-first"
+        if assembly.continuum_target_position >= 0.70:
+            return "support-first"
+        if assembly.continuum_target_position >= 0.52:
+            return "clarify-first"
+        return "structure-first"
+
     def synthesize(
         self,
         *,
         context: ResponseContext,
+        assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
         from volvence_zero.agent.prompts import build_chat_messages, build_system_prompt
 
+        if assembly is None:
+            return super().synthesize(context=context, assembly=assembly)
+
         system_prompt = build_system_prompt(
+            assembly=assembly,
             context=context,
-            retrieved_memories=context.retrieved_memories,
-            controller_description=context.controller_description,
         )
         chat_messages = build_chat_messages(
+            assembly=assembly,
             context=context,
-            retrieved_memories=context.retrieved_memories,
-            controller_description=context.controller_description,
         )
 
         user_input = context.user_input
         if not user_input:
-            return super().synthesize(context=context)
+            return super().synthesize(context=context, assembly=assembly)
 
-        control_params = context.control_code
-        control_scale = context.temporal_switch_gate * 0.15 if control_params else 0.0
+        control_params = assembly.control_code if assembly is not None else ()
+        control_scale = assembly.control_scale if assembly is not None and control_params else (
+            context.temporal_switch_gate * 0.15 if control_params else 0.0
+        )
+        if assembly is not None and control_params:
+            continuum_control_gain = 1.0 + abs(assembly.continuum_target_position - 0.5) * 0.6
+            control_scale = min(0.38, control_scale * continuum_control_gain)
+        decoding_profile = self._decoding_profile_for_assembly(assembly) if assembly is not None else "balanced"
+        constraints = (
+            GenerationConstraints(
+                response_mode=assembly.response_mode.value,
+                answer_depth_limit=assembly.answer_depth_limit,
+                citation_mode=assembly.citation_mode,
+                max_questions=assembly.max_questions,
+                required_disclaimer_phrases=assembly.required_disclaimer_phrases,
+                ordering_bias=assembly.ordering_plan,
+                prompt_residue_summary=assembly.prompt_residue_summary,
+                prompt_residue_ratio=assembly.prompt_residue_ratio,
+                continuum_target_position=assembly.continuum_target_position,
+                ordering_driver=assembly.ordering_driver,
+                decoding_profile=decoding_profile,
+            )
+            if assembly is not None
+            else None
+        )
 
         result = self._runtime.generate(
             prompt=user_input,
@@ -285,31 +340,37 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             temperature=self._temperature,
             control_parameters=control_params,
             control_scale=control_scale,
+            generation_constraints=constraints,
         )
 
         generated_text = result.text.strip()
         if not generated_text:
-            return super().synthesize(context=context)
+            return super().synthesize(context=context, assembly=assembly)
 
         rationale_parts = [
-            f"regime={context.regime_id or 'none'}",
+            f"regime={(assembly.regime_id if assembly is not None else context.regime_id) or 'none'}",
             f"model={self._runtime.model_id}",
             f"tokens={result.token_count}",
         ]
-        if context.abstract_action:
+        if assembly is not None and assembly.abstract_action:
+            rationale_parts.append(f"temporal={assembly.abstract_action}")
+        elif context.abstract_action:
             rationale_parts.append(f"temporal={context.abstract_action}")
         rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
-        if context.knowledge_hit_count:
-            rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
-        if context.case_hit_count:
-            rationale_parts.append(f"case_hits={context.case_hit_count}")
-        if context.playbook_rule_count:
-            rationale_parts.append(f"playbook_rules={context.playbook_rule_count}")
-        rationale_parts.append(f"risk={context.boundary_risk_band}")
+        if assembly is not None and assembly.knowledge_hit_count:
+            rationale_parts.append(f"knowledge_hits={assembly.knowledge_hit_count}")
+        if assembly is not None and assembly.case_hit_count:
+            rationale_parts.append(f"case_hits={assembly.case_hit_count}")
+        if assembly is not None and assembly.playbook_rule_count:
+            rationale_parts.append(f"playbook_rules={assembly.playbook_rule_count}")
+            rationale_parts.append(f"ordering_driver={assembly.ordering_driver}")
+            rationale_parts.append(f"continuum_target={assembly.continuum_target_position:.2f}")
+            rationale_parts.append(f"decoding_profile={decoding_profile}")
+        rationale_parts.append(f"risk={(assembly.risk_band.value if assembly is not None else 'low')}")
 
         return AgentResponse(
             text=generated_text,
-            regime_id=context.regime_id,
-            abstract_action=context.abstract_action,
+            regime_id=assembly.regime_id if assembly is not None else context.regime_id,
+            abstract_action=assembly.abstract_action if assembly is not None else context.abstract_action,
             rationale=f"LLM generated; {', '.join(rationale_parts)}.",
         )

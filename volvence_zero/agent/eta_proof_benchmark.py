@@ -710,6 +710,100 @@ def _credit_alignment_score(rollout: ZRollout) -> float:
     return aligned / max(len(rollout.delayed_credit_assignments), 1)
 
 
+def _apply_temporal_fast_prior_from_rollouts(
+    *,
+    sandbox: InternalRLSandbox,
+    rollouts: tuple[ZRollout, ...],
+) -> None:
+    if not hasattr(sandbox.policy, "parameter_store"):
+        return
+    parameter_store = sandbox.policy.parameter_store
+    if not rollouts:
+        parameter_store.record_fast_prior_signals(
+            strength=0.0,
+            action_bias=0.0,
+            family_bias=0.0,
+            sequence_bias=0.0,
+            switch_pressure_delta=0.0,
+        )
+        return
+    credit_alignment = _mean(tuple(_credit_alignment_score(rollout) for rollout in rollouts))
+    terminal_success_rate = _mean(tuple(float(rollout.terminal_success) for rollout in rollouts))
+    family_assignment_rate = _mean(
+        tuple(
+            sum(1.0 for family_id in rollout.completed_family_ids if family_id != "unassigned")
+            / max(len(rollout.completed_family_ids), 1)
+            if rollout.completed_family_ids
+            else 0.0
+            for rollout in rollouts
+        )
+    )
+    sequence_completion_rate = _mean(
+        tuple(
+            len(rollout.completed_subgoals) / max(len(rollout.delayed_credit_assignments), 1)
+            if rollout.delayed_credit_assignments
+            else float(rollout.terminal_success)
+            for rollout in rollouts
+        )
+    )
+    strength = max(
+        0.0,
+        min(
+            1.0,
+            credit_alignment * 0.40
+            + family_assignment_rate * 0.25
+            + terminal_success_rate * 0.20
+            + sequence_completion_rate * 0.15,
+        ),
+    )
+    action_bias = max(
+        -1.0,
+        min(
+            1.0,
+            (family_assignment_rate - 0.5) * 0.50
+            + (credit_alignment - 0.5) * 0.30
+            + (terminal_success_rate - 0.5) * 0.20,
+        ),
+    )
+    family_bias = max(
+        -1.0,
+        min(
+            1.0,
+            (credit_alignment - 0.5) * 0.45
+            + (sequence_completion_rate - 0.5) * 0.35
+            + (family_assignment_rate - 0.5) * 0.20,
+        ),
+    )
+    sequence_bias = max(
+        -1.0,
+        min(
+            1.0,
+            (sequence_completion_rate - 0.5) * 0.55
+            + (terminal_success_rate - 0.5) * 0.25
+            + (credit_alignment - 0.5) * 0.20,
+        ),
+    )
+    switch_pressure_delta = max(
+        -0.18,
+        min(
+            0.18,
+            -(
+                action_bias * 0.35
+                + family_bias * 0.40
+                + sequence_bias * 0.25
+            )
+            * max(strength, 0.2),
+        ),
+    )
+    parameter_store.record_fast_prior_signals(
+        strength=strength,
+        action_bias=action_bias,
+        family_bias=family_bias,
+        sequence_bias=sequence_bias,
+        switch_pressure_delta=switch_pressure_delta,
+    )
+
+
 def _episode_report(
     *,
     case: ETAProofCase,
@@ -887,6 +981,10 @@ def run_eta_internal_rl_proof_benchmark(
                 parameter_change_norms.append(optimize_report.parameter_change_norm)
                 value_losses.append(optimize_report.value_loss)
                 replacement_effect_deltas.append(optimize_report.replacement_effect_delta)
+            _apply_temporal_fast_prior_from_rollouts(
+                sandbox=sandbox,
+                rollouts=tuple(train_rollouts),
+            )
         episode_reports: list[ETAProofEpisodeReport] = []
         for case in train_cases + eval_cases:
             snapshots = _build_case_snapshots(case)
@@ -914,6 +1012,12 @@ def run_eta_internal_rl_proof_benchmark(
             )
             _update_family_registry(family_registry, rollout)
         metric_means = _profile_metric_means(tuple(episode_reports))
+        metric_means = metric_means + (
+            ("temporal_fast_prior_strength", sandbox.policy.parameter_store.latest_fast_prior_strength),
+            ("temporal_fast_prior_switch_delta", sandbox.policy.parameter_store.latest_fast_prior_switch_pressure_delta),
+            ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
+            ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
+        )
         benchmark_rollout_batch_count += rollout_batch_count
         profile_reports.append(
             ETAProofProfileReport(

@@ -1,4 +1,5 @@
 from volvence_zero.integration.final_wiring import (
+    _apply_application_prior_writeback,
     FinalAcceptanceReport,
     FinalIntegrationResult,
     FinalRolloutConfig,
@@ -11,6 +12,7 @@ from volvence_zero.integration.final_wiring import (
 )
 
 __all__ = [
+    "_apply_application_prior_writeback",
     "FinalAcceptanceReport",
     "FinalIntegrationResult",
     "FinalRolloutConfig",

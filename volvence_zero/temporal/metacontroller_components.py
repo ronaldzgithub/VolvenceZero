@@ -58,6 +58,7 @@ class SwitchGateDecision:
     mean_persistence_window: float
     summary: str
     continuation_bias: float = 0.0
+    external_switch_pressure_delta: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -351,6 +352,7 @@ class SwitchUnit:
         active_family_outcome: float = 0.0,
         active_family_reuse: float = 0.0,
         active_family_persistence: float = 0.0,
+        external_switch_pressure_delta: float = 0.0,
         previous_binary: int = 0,
         previous_steps_since_switch: int = 0,
     ) -> SwitchGateDecision:
@@ -365,6 +367,7 @@ class SwitchUnit:
             + active_family_persistence * 0.45
         )
         raw_gate -= continuation_bias * 0.30
+        raw_gate += external_switch_pressure_delta
         beta_continuous = clamp_unit(raw_gate)
         beta_binary = 1 if beta_continuous >= 0.55 else 0
         binary_switch_rate = (beta_binary + previous_binary) / 2.0
@@ -376,9 +379,11 @@ class SwitchUnit:
             binary_switch_rate=binary_switch_rate,
             mean_persistence_window=mean_persistence_window,
             continuation_bias=continuation_bias,
+            external_switch_pressure_delta=external_switch_pressure_delta,
             summary=(
                 f"beta={beta_continuous:.3f} binary={beta_binary} "
-                f"sparsity={1.0 - beta_continuous:.3f} continuation={continuation_bias:.3f}"
+                f"sparsity={1.0 - beta_continuous:.3f} continuation={continuation_bias:.3f} "
+                f"fast_prior_switch={external_switch_pressure_delta:.3f}"
             ),
         )
 
@@ -395,6 +400,7 @@ class SwitchUnit:
         active_family_outcome: float = 0.0,
         active_family_reuse: float = 0.0,
         active_family_persistence: float = 0.0,
+        external_switch_pressure_delta: float = 0.0,
     ) -> float:
         return self.compute_decision(
             previous_code=previous_code,
@@ -407,6 +413,7 @@ class SwitchUnit:
             active_family_outcome=active_family_outcome,
             active_family_reuse=active_family_reuse,
             active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=external_switch_pressure_delta,
         ).beta_continuous
 
 
@@ -479,6 +486,9 @@ def _dominant_axis(values: tuple[float, ...]) -> str:
 def _family_match_score(
     family: DiscoveredActionFamily,
     observation: ActionFamilyObservation,
+    *,
+    current_active_family_id: str | None = None,
+    current_family_continuation_bias: float = 0.0,
 ) -> float:
     latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
     decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
@@ -494,7 +504,12 @@ def _family_match_score(
         - family.stagnation_pressure * 0.03
     )
     outcome_bonus = family.outcome_driven_score * 0.15 if family.outcome_history else 0.0
-    return base + outcome_bonus
+    active_family_bias = 0.0
+    if current_active_family_id is not None and family.family_id == current_active_family_id:
+        active_family_bias = current_family_continuation_bias * 0.12
+    elif current_family_continuation_bias > 0.0:
+        active_family_bias = -current_family_continuation_bias * 0.03
+    return base + outcome_bonus + active_family_bias
 
 
 def _family_summary(
@@ -707,6 +722,7 @@ def _update_family_competition_state(
     action_families: tuple[DiscoveredActionFamily, ...],
     *,
     active_family_id: str,
+    active_family_competition_bias: float = 0.0,
 ) -> tuple[DiscoveredActionFamily, ...]:
     total_support = max(sum(family.support for family in action_families), 1)
     updated: list[DiscoveredActionFamily] = []
@@ -731,6 +747,17 @@ def _update_family_competition_state(
             if is_active
             else clamp_unit(family.monopoly_pressure * 0.55)
         )
+        if is_active:
+            stagnation_pressure = clamp_unit(
+                stagnation_pressure
+                - max(active_family_competition_bias, 0.0) * 0.18
+                + max(-active_family_competition_bias, 0.0) * 0.12
+            )
+            monopoly_pressure = clamp_unit(
+                monopoly_pressure
+                - max(active_family_competition_bias, 0.0) * 0.08
+                + max(-active_family_competition_bias, 0.0) * 0.10
+            )
         refreshed = DiscoveredActionFamily(
             family_id=family.family_id,
             latent_centroid=family.latent_centroid,
@@ -762,7 +789,10 @@ def _update_family_competition_state(
                     reuse_streak=refreshed.reuse_streak,
                     stagnation_pressure=refreshed.stagnation_pressure,
                     monopoly_pressure=refreshed.monopoly_pressure,
-                    competition_score=_competition_score(refreshed),
+                    competition_score=clamp_unit(
+                        _competition_score(refreshed)
+                        + (active_family_competition_bias * 0.18 if is_active else 0.0)
+                    ),
                     outcome_history=refreshed.outcome_history,
                     outcome_driven_score=refreshed.outcome_driven_score,
                     long_term_payoff=refreshed.long_term_payoff,
@@ -922,12 +952,19 @@ def classify_latent_action(
     *,
     observation: ActionFamilyObservation,
     action_families: tuple[DiscoveredActionFamily, ...],
+    current_active_family_id: str | None = None,
+    current_family_continuation_bias: float = 0.0,
 ) -> tuple[str, str, float]:
     best_label = "unassigned_action"
     best_score = float("-inf")
     best_family: DiscoveredActionFamily | None = None
     for family in action_families:
-        score = _family_match_score(family, observation)
+        score = _family_match_score(
+            family,
+            observation,
+            current_active_family_id=current_active_family_id,
+            current_family_continuation_bias=current_family_continuation_bias,
+        )
         if score > best_score:
             best_label = family.family_id
             best_score = score
@@ -947,6 +984,9 @@ def discover_latent_action_family(
     observation: ActionFamilyObservation,
     action_families: tuple[DiscoveredActionFamily, ...],
     structure_frozen: bool,
+    current_active_family_id: str | None = None,
+    current_family_continuation_bias: float = 0.0,
+    active_family_competition_bias: float = 0.0,
     allow_topology_maintenance: bool = True,
     max_families: int = 6,
     similarity_threshold: float = 0.84,
@@ -966,18 +1006,23 @@ def discover_latent_action_family(
         label, summary, _ = classify_latent_action(
             observation=observation,
             action_families=(family,),
+            current_active_family_id=current_active_family_id,
+            current_family_continuation_bias=current_family_continuation_bias,
         )
         return ((family,), label, summary)
     best_label, _, best_score = classify_latent_action(
         observation=observation,
         action_families=action_families,
+        current_active_family_id=current_active_family_id,
+        current_family_continuation_bias=current_family_continuation_bias,
     )
     updated_families = list(action_families)
     best_index = next(
         index for index, family in enumerate(updated_families) if family.family_id == best_label
     )
     maintenance_events: list[str] = []
-    if not structure_frozen and best_score < similarity_threshold and len(updated_families) < max_families:
+    effective_similarity_threshold = similarity_threshold + max(current_family_continuation_bias, 0.0) * 0.06
+    if not structure_frozen and best_score < effective_similarity_threshold and len(updated_families) < max_families:
         next_id = max(
             (
                 int(family.family_id.rsplit("_", 1)[-1])
@@ -1003,12 +1048,12 @@ def discover_latent_action_family(
             allow_topology_maintenance
             and len(updated_families) < max_families
             and current.support >= split_support_threshold
-            and best_score < split_similarity_threshold + current.monopoly_pressure * 0.05
+            and best_score < split_similarity_threshold + current.monopoly_pressure * 0.05 + max(current_family_continuation_bias, 0.0) * 0.05
             and observation.posterior_drift > max(0.16, current.mean_posterior_drift + 0.05)
             and (
                 observation.persistence_window + 0.25 < max(current.mean_persistence_window, 0.75)
                 or current.reuse_streak >= 4
-                or current.monopoly_pressure > 0.70
+                or current.monopoly_pressure > 0.70 + max(current_family_continuation_bias, 0.0) * 0.08
             )
         )
         if should_split:
@@ -1097,10 +1142,13 @@ def discover_latent_action_family(
     label, summary, _ = classify_latent_action(
         observation=observation,
         action_families=families_tuple,
+        current_active_family_id=current_active_family_id,
+        current_family_continuation_bias=current_family_continuation_bias,
     )
     families_tuple = _update_family_competition_state(
         families_tuple,
         active_family_id=label,
+        active_family_competition_bias=active_family_competition_bias,
     )
     families_tuple, anti_collapse_events = _anti_collapse_topology_maintenance(
         families_tuple,
@@ -1112,10 +1160,13 @@ def discover_latent_action_family(
         label, summary, _ = classify_latent_action(
             observation=observation,
             action_families=families_tuple,
+            current_active_family_id=current_active_family_id,
+            current_family_continuation_bias=current_family_continuation_bias,
         )
         families_tuple = _update_family_competition_state(
             families_tuple,
             active_family_id=label,
+            active_family_competition_bias=active_family_competition_bias,
         )
     if maintenance_events:
         summary = f"{summary} lifecycle={','.join(maintenance_events)}"
@@ -1386,6 +1437,7 @@ class NdimSwitchUnit:
         active_family_outcome: float = 0.0,
         active_family_reuse: float = 0.0,
         active_family_persistence: float = 0.0,
+        external_switch_pressure_delta: float = 0.0,
         params: NdimSwitchParameters | None = None,
     ) -> tuple[Vec, Vec, float]:
         """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
@@ -1404,7 +1456,12 @@ class NdimSwitchUnit:
             + active_family_reuse * 0.33
             + active_family_persistence * 0.45
         )
-        bias = memory_signal * 0.1 + reflection_signal * 0.2 - continuation_bias * 0.30
+        bias = (
+            memory_signal * 0.1
+            + reflection_signal * 0.2
+            - continuation_bias * 0.30
+            + external_switch_pressure_delta
+        )
         beta_continuous = vec_sigmoid(vec_add(raw, tuple(bias for _ in range(self._n_z))))
         threshold = 0.55
         beta_binary = tuple(1.0 if b >= threshold else 0.0 for b in beta_continuous)

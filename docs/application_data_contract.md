@@ -31,6 +31,35 @@ Postgres、pgvector、对象存储或其他实现都属于 owner 的内部实现
 - `session_post_slow_loop` 继续作为 `background-slow` 的正式执行面。
 - evaluation 只能读取这些 surface 形成 evidence，不能越权成为知识或经验 owner。
 
+### 2.1 How Experience Enters ETA
+
+经验可以进入 ETA，但必须通过**公共 contract**进入，而不是直接并入 `temporal` owner 的私有状态。
+
+应用层要求 experience 通过 4 个正式接入点进入 ETA：
+
+1. **retrieval mix**
+   - ETA 通过 `retrieval_policy` 发布 `experience_domains` 与 `experience_weight`
+   - 经验因此进入 ETA 的 turn-time 检索混合控制
+
+2. **fast-path priors**
+   - `case_memory` 与 `strategy_playbook` 作为 ETA 可读的公共经验先验面
+   - 它们影响 ETA 如何排序候选处理方式，但不直接重写 ETA 内部状态
+
+3. **delayed credit**
+   - `experience_consolidation` 必须回看 `(abstract_action, regime, retrieval mix, action_family_version)` 的多轮结果
+   - 这让经验进入 ETA 的慢层信用闭环，而不只停留在“当前轮命中了什么”
+
+4. **evolution gating**
+   - replay / benchmark / evolution judge 应裁决经验产物的 `promote / hold / rollback`
+   - 经验不只被 ETA 读取，还应约束 ETA 及其外围 application prior 如何演化
+
+因此，不变量是：
+
+- ETA 可以消费经验
+- ETA 不拥有经验本体
+- 经验 owner 不得成为 `temporal` 的第二 owner
+- experience -> ETA 的所有影响都应通过 public snapshot 或正式 gate 暴露
+
 ---
 
 ## 3. Slot Map
@@ -41,6 +70,7 @@ Postgres、pgvector、对象存储或其他实现都属于 owner 的内部实现
 | `domain_knowledge` | `DomainKnowledgeModule` | `online-fast` read, `session-medium ~ background-slow` refresh | 公共专业事实与来源证据 |
 | `case_memory` | `CaseMemoryModule` | `session-medium` | 案例经验样本 |
 | `strategy_playbook` | `StrategyPlaybookModule` | `background-slow` produce, `online-fast` consume | 可迁移策略先验 |
+| `experience_fast_prior` | `ExperienceFastPriorModule` | `background-slow` produce, `online-fast` consume | 把 delayed credit 压缩成 regime/retrieval/action-family 可消费的快路径先验 |
 | `boundary_policy` | `BoundaryPolicyModule` | `online-fast` | 风险边界、回答深度、降级/转介 |
 | `experience_consolidation` | `ExperienceConsolidationModule` | `background-slow` | 慢反思后学到什么的公共工件 |
 
@@ -138,6 +168,8 @@ class RetrievalPolicySnapshot:
 - 输出本轮检索策略
 - 不直接执行检索
 - 不拥有知识事实或案例经验本身
+- 默认应优先消费已发布的控制状态与语义状态（如 `abstract_action`, track weights, regime），而不是靠关键词匹配直接路由 domain
+- 作为 experience 进入 ETA 的第一入口：决定是否需要经验检索、需要哪些 `experience_domains`、以及 `experience_weight`
 
 ## 5.4 Direct Dependencies
 
@@ -251,6 +283,7 @@ class CaseEpisodeHit:
     intervention_steps: tuple[CaseInterventionStep, ...]
     outcome: CaseOutcomeSummary
     relevance_score: float
+    continuum_location: ContinuumLocation | None
     description: str
 
 
@@ -260,6 +293,9 @@ class CaseMemorySnapshot:
     hits: tuple[CaseEpisodeHit, ...]
     active_problem_patterns: tuple[str, ...]
     active_risk_markers: tuple[str, ...]
+    continuum_profile_id: str | None
+    active_band_ids: tuple[str, ...]
+    mean_continuum_position: float
     description: str
 ```
 
@@ -270,6 +306,9 @@ class CaseMemorySnapshot:
 - 发布“类似事情过去怎么发生、怎么处理、结果如何”的案例样本
 - 保持案例经验与普通 `memory` 分离
 - 不直接生成策略先验结论
+- 作为 ETA fast-path 可读的经验样本面，而不是直接写入 `temporal`
+- 发布的 `continuum_location` 不只是证据字段，还应用于后续 playbook ranking
+- 共享 core memory 发布的 continuum frequency 语义，但不回收 `memory` owner 身份
 
 ## 7.3 Direct Dependencies
 
@@ -299,6 +338,8 @@ class PlaybookRule:
     experience_weight_hint: float
     applicability_scope: tuple[str, ...]
     confidence: float
+    continuum_band_id: str | None
+    mean_continuum_position: float
     description: str
 
 
@@ -306,6 +347,8 @@ class PlaybookRule:
 class StrategyPlaybookSnapshot:
     matched_problem_patterns: tuple[str, ...]
     matched_rules: tuple[PlaybookRule, ...]
+    continuum_profile_id: str | None
+    active_band_ids: tuple[str, ...]
     description: str
 ```
 
@@ -316,6 +359,8 @@ class StrategyPlaybookSnapshot:
 - 发布从案例经验中沉淀出的可迁移策略先验
 - 不直接重写 `temporal` 或 `regime` 内部状态
 - 作为 ETA 在线控制层的外部经验参考面
+- 作为 experience 进入 ETA 的第二入口：为 ETA 提供 ordering / pacing / avoid-pattern prior
+- 在当前口径下，rule ranking 应消费 case hit 的 continuum 位置、band 角色与恢复来源，而不是只按离散 pattern 先后顺序
 
 ## 8.3 Direct Dependencies
 
@@ -373,6 +418,40 @@ Phase 1 即引入。
 
 ---
 
+## 9.5 Experience Fast Prior Contract
+
+## 9.5.1 Public Shape
+
+```python
+@dataclass(frozen=True)
+class ExperienceFastPriorSnapshot:
+    regime_biases: tuple[ExperienceFastPriorRegimeBias, ...]
+    knowledge_weight_bias: float
+    experience_weight_bias: float
+    action_biases: tuple[ExperienceFastPriorActionBias, ...]
+    family_biases: tuple[ExperienceFastPriorFamilyBias, ...]
+    sequence_biases: tuple[ExperienceFastPriorSequenceBias, ...]
+    prior_strength: float
+    source_attribution_ids: tuple[str, ...]
+    source_sequence_ids: tuple[str, ...]
+    description: str
+```
+
+## 9.5.2 Owner Responsibilities
+
+`ExperienceFastPriorModule` 负责：
+
+- 读取 `experience_consolidation` 的 delayed outcome ledger 与 sequence payoffs
+- 把慢层信用压缩成 compact fast prior，而不是直接修改 `regime` / `retrieval_policy` / `temporal` 私有状态
+- 作为 experience 进入 ETA 的 delayed-credit-to-fast-path 公共中继面
+- 保持 advisory / bias 语义，不回收下游 owner 身份
+
+## 9.5.3 Direct Dependencies
+
+- `experience_consolidation`
+
+---
+
 ## 10. Experience Consolidation Contract
 
 ## 10.1 Public Shape
@@ -386,6 +465,104 @@ class ExperienceDelta:
     summary: str
     confidence: float
     blocked: bool
+    continuum_band_id: str | None
+    continuum_position: float
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationOutcomeAttribution:
+    attribution_id: str
+    source_context_session_id: str
+    source_wave_id: str
+    regime_id: str | None
+    abstract_action: str | None
+    action_family_version: int
+    retrieval_policy_id: str | None
+    knowledge_weight: float
+    experience_weight: float
+    retrieval_mix_alignment: float
+    regime_alignment: float
+    abstract_action_alignment: float
+    outcome_score: float
+    resolved_turn_index: int
+    continuum_profile_id: str | None
+    dominant_band_id: str | None
+    mean_continuum_position: float
+    continuum_alignment: float
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationSequencePayoff:
+    sequence_id: str
+    regime_sequence: tuple[str, ...]
+    action_family_version: int
+    sample_count: int
+    rolling_payoff: float
+    latest_outcome: float
+    continuum_profile_id: str | None
+    dominant_band_id: str | None
+    mean_continuum_position: float
+    description: str
+
+
+@dataclass(frozen=True)
+class BoundaryPriorHint:
+    hint_id: str
+    regime_id: str | None
+    trigger_reasons: tuple[str, ...]
+    answer_depth_limit_hint: str
+    clarification_required: bool
+    refer_out_required: bool
+    blocked_topics: tuple[str, ...]
+    required_disclaimers: tuple[str, ...]
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class CaseMemoryPriorUpdate:
+    update_id: str
+    target: str
+    record: CaseMemoryRecord
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class StrategyPlaybookPriorUpdate:
+    update_id: str
+    target: str
+    rule: PlaybookRule
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class BoundaryPolicyPriorUpdate:
+    update_id: str
+    target: str
+    hint: BoundaryPriorHint
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationPriorUpdate:
+    source_session_post_job_id: str
+    case_memory_updates: tuple[CaseMemoryPriorUpdate, ...]
+    strategy_playbook_updates: tuple[StrategyPlaybookPriorUpdate, ...]
+    boundary_policy_updates: tuple[BoundaryPolicyPriorUpdate, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationPriorWritebackReport:
+    proposed_target_count: int
+    applied_targets: tuple[str, ...]
+    blocked_targets: tuple[str, ...]
+    audit_record_count: int
     description: str
 
 
@@ -396,6 +573,12 @@ class ExperienceConsolidationSnapshot:
     playbook_delta_count: int
     boundary_delta_count: int
     deltas: tuple[ExperienceDelta, ...]
+    delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...]
+    sequence_payoffs: tuple[ApplicationSequencePayoff, ...]
+    latest_prior_update: ApplicationPriorUpdate | None
+    latest_writeback_report: ApplicationPriorWritebackReport | None
+    continuum_profile_id: str | None
+    active_band_ids: tuple[str, ...]
     description: str
 ```
 
@@ -406,12 +589,22 @@ class ExperienceConsolidationSnapshot:
 - 把 session-post slow loop 的学习结果公开出来
 - 说明本轮背景慢反思到底学到什么
 - 不直接取代 `session_post_slow_loop`
-- 不直接越权 apply 到其他 owner 内部状态
+- 发布 typed `ApplicationPriorUpdate` / writeback report，作为 application prior 的正式 slow-path 更新契约
+- 不自己成为 `case_memory` / `strategy_playbook` / `boundary_policy` 的第二 owner
+- 为 application 层公开 delayed outcome attribution：至少覆盖 `regime`, `abstract_action`, retrieval mix, `action_family_version` 与 sequence payoff
+- 作为 experience 进入 ETA 的第三入口：把经验变成 ETA 可读的 delayed credit surface，并在 judge / credit gate 放行时驱动 owner-side prior update
 
 ## 10.3 Direct Dependencies
 
 该 slot 不进入 turn-time propagate 主链。  
-它由 `session_post_slow_loop` 驱动，属于 `background-slow` report surface。
+它由 `session_post_slow_loop` 驱动，属于 `background-slow` owner-side enrichment surface。
+
+apply 语义要求：
+
+- `experience_consolidation` 公开 proposal / applied / blocked / audit-ready 摘要
+- 真正的 apply 只能发生在 session owner 驱动的 owner-side writeback helper 中
+- `EvolutionJudgement` 与 target-specific credit gate 必须先裁决，再允许 application prior update 进入 owner
+- rollback 必须沿 application owner checkpoint / rare-heavy rollback 链回滚，而不是由 `ExperienceConsolidationModule` 直接反写其他 owner
 
 上游来源：
 
@@ -464,12 +657,76 @@ class ApplicationRareHeavyCheckpoint:
 - `retrieval_policy`
 - `domain_knowledge`
 - `boundary_policy`
+- `regime`
+- `temporal_abstraction`
+- `memory`
+- `reflection`
 
 后续扩展输入：
 
 - `case_memory`
 - `strategy_playbook`
-- `experience_consolidation`（只做 reporting / rationale enrichment，不进每轮主生成也可）
+- `experience_consolidation`（主要承担 delayed credit、writeback report 与 updater readout；不要求进每轮主生成）
+
+其中：
+
+- `case_memory` / `strategy_playbook` 对应 ETA 的 fast-path experience priors
+- `experience_fast_prior` 对应 ETA 的 delayed-credit-to-fast-policy bridge
+- `experience_consolidation` 对应 ETA 的 slow-path delayed credit / evolution evidence
+- `response_assembly` 的 ordering plan 不应只复制 `playbook_ordering`
+- 它应显式综合 `boundary_policy` 与 continuum target position，决定首步是 `stabilize`、`clarify_goal` 还是 `structure_options`
+
+### 12.1 ResponseAssemblySnapshot
+
+```python
+@dataclass(frozen=True)
+class ResponseAssemblySnapshot:
+    regime_id: str | None
+    regime_name: str
+    abstract_action: str | None
+    response_mode: str
+    answer_depth_limit: str
+    citation_mode: str
+    clarification_required: bool
+    refer_out_required: bool
+    ordering_plan: tuple[str, ...]
+    knowledge_briefs: tuple[str, ...]
+    case_briefs: tuple[str, ...]
+    playbook_ordering: tuple[str, ...]
+    required_disclaimers: tuple[str, ...]
+    required_disclaimer_phrases: tuple[str, ...]
+    control_code: tuple[float, ...]
+    control_scale: float
+    max_questions: int
+    prompt_residue_summary: str
+    prompt_residue_ratio: float
+    continuum_target_position: float
+    ordering_driver: str
+    description: str
+```
+
+### 12.2 Generation Constraints boundary
+
+表达层和 runtime 应优先消费 `ResponseAssemblySnapshot` 中可直接执行的字段：
+
+- `response_mode`
+- `answer_depth_limit`
+- `citation_mode`
+- `max_questions`
+- `required_disclaimer_phrases`
+- `ordering_plan`
+- `continuum_target_position`
+- `control_code`
+- `control_scale`
+
+只有无法参数化的残余语义才进入 `prompt_residue_summary`。
+
+`ordering_driver` 应说明 ordering 主导来源，例如：
+
+- `continuum-support-first`
+- `continuum-clarify-first`
+- `continuum-structure-first`
+- `continuum-support-clarify`
 
 ---
 
@@ -491,11 +748,26 @@ evaluation 不新增 owner 身份，只追加证据。
    - blocked-topic enforcement
    - answer-depth compliance
 
-3. `experience_transfer`
+3. `response_assembly_control`
+   - response depth compliance
+   - clarification compliance
+   - refer-out compliance
+   - ordering-plan alignment
+   - prompt residue ratio
+
+4. `experience_transfer`
    - case hit usefulness
    - playbook matched
    - playbook retained after slow consolidation
    - experience delta promotion count
+   - delayed fast prior availability
+   - delayed regime bias applied
+   - delayed retrieval mix bias applied
+   - delayed action family bias applied
+   - delayed retrieval mix alignment
+   - delayed regime alignment
+   - delayed abstract-action alignment
+   - regime sequence payoff
    - application rare-heavy import retained in fast path
 
 这些 evidence 属于 final wiring enrichment 或 session-post enrichment，  
@@ -542,6 +814,7 @@ runtime 层只关心：
 
 - `strategy_playbook`
 - `experience_consolidation`
+- `experience_fast_prior`
 
 ### Phase 4 Added
 

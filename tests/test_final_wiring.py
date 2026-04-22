@@ -2,10 +2,38 @@ from __future__ import annotations
 
 import asyncio
 
+from volvence_zero.application import (
+    ApplicationCaseMemoryStore,
+    ApplicationPriorUpdate,
+    ApplicationRareHeavyCheckpoint,
+    ApplicationRareHeavyState,
+    BoundaryDecision,
+    BoundaryPolicySnapshot,
+    CaseMemoryPriorUpdate,
+    CaseMemorySnapshot,
+    CaseMemoryRecord,
+    ExperienceFastPriorActionBias,
+    ExperienceFastPriorFamilyBias,
+    ExperienceFastPriorSnapshot,
+    PlaybookRule,
+    ProfessionalScope,
+    ResponseMode,
+    RiskBand,
+    StrategyPlaybookPriorUpdate,
+)
+from volvence_zero.application.runtime import _response_ordering_plan
+from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationScore
-from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
+from volvence_zero.integration import _apply_application_prior_writeback, FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.joint_loop import ScheduledJointLoopResult
-from volvence_zero.memory import MemoryStore, MemoryStratum, MemoryWriteRequest, Track
+from volvence_zero.memory import (
+    build_default_memory_store,
+    CMSTowerConsolidationUpdate,
+    MemoryStore,
+    MemoryStratum,
+    MemoryWriteRequest,
+    Track,
+)
 from volvence_zero.prediction import PredictionErrorModule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -36,6 +64,7 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "retrieval_policy" in result.active_snapshots
     assert "domain_knowledge" in result.active_snapshots
     assert "boundary_policy" in result.active_snapshots
+    assert "response_assembly" in result.active_snapshots
     assert "dual_track" in result.active_snapshots
     assert "evaluation" in result.active_snapshots
     assert "regime" in result.active_snapshots
@@ -59,6 +88,8 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "memory_tower_depth" in metric_names
     assert "memory_tower_alignment" in metric_names
     assert "tower_consolidation_activity" in metric_names
+    assert "continuum_frequency_coverage" in metric_names
+    assert "continuum_reconstruction_capacity" in metric_names
     assert "substrate_online_fast_change_rate" in metric_names
     assert "substrate_online_fast_gate_preview" in metric_names
     assert "substrate_online_fast_optimizer_norm" in metric_names
@@ -81,12 +112,16 @@ def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state(
     retrieval_policy = result.active_snapshots["retrieval_policy"].value
     domain_knowledge = result.active_snapshots["domain_knowledge"].value
     boundary_policy = result.active_snapshots["boundary_policy"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
 
     assert retrieval_policy.knowledge_domains
     assert domain_knowledge.hits
     assert domain_knowledge.active_domains == retrieval_policy.knowledge_domains
     assert boundary_policy.active_decision.risk_band.value in {"low", "medium", "high", "critical"}
     assert isinstance(boundary_policy.trigger_reasons, tuple)
+    assert response_assembly.answer_depth_limit == boundary_policy.active_decision.answer_depth_limit
+    assert response_assembly.knowledge_hit_count == len(domain_knowledge.hits)
+    assert response_assembly.ordering_plan
 
 
 def test_final_wiring_phase2_case_memory_publishes_sibling_case_hits():
@@ -119,8 +154,11 @@ def test_final_wiring_phase2_case_memory_publishes_sibling_case_hits():
 
     assert case_memory.hits
     assert case_memory.active_problem_patterns
+    assert case_memory.continuum_profile_id is not None
+    assert case_memory.active_band_ids
     assert "case_hit_count" in metric_names
     assert "case_relevance_mean" in metric_names
+    assert "application_continuum_case_coverage" in metric_names
 
 
 def test_final_wiring_phase3_strategy_playbook_publishes_rules_from_case_memory():
@@ -157,8 +195,431 @@ def test_final_wiring_phase3_strategy_playbook_publishes_rules_from_case_memory(
     assert strategy_playbook.matched_rules
     assert strategy_playbook.matched_problem_patterns
     assert strategy_playbook.matched_rules[0].recommended_ordering
+    assert strategy_playbook.continuum_profile_id is not None
+    assert strategy_playbook.active_band_ids
     assert "playbook_match_count" in metric_names
     assert "playbook_confidence_mean" in metric_names
+    assert "application_continuum_playbook_transfer" in metric_names
+
+
+def test_final_wiring_exposes_shadow_experience_fast_prior_contract():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="experience-fast-prior-model",
+                feature_surface=(FeatureSignal(name="experience_fast_prior_context", values=(0.63,), source="adapter"),),
+            ),
+            session_id="experience-fast-prior-session",
+            wave_id="experience-fast-prior-wave",
+        )
+    )
+
+    assert "experience_fast_prior" in result.shadow_snapshots
+    experience_fast_prior = result.shadow_snapshots["experience_fast_prior"].value
+    assert experience_fast_prior.prior_strength == 0.0
+    assert experience_fast_prior.source_attribution_ids == ()
+
+
+def test_final_wiring_temporal_owner_consumes_upstream_experience_fast_prior():
+    upstream_fast_prior = Snapshot(
+        slot_name="experience_fast_prior",
+        owner="ExperienceFastPriorModule",
+        version=1,
+        timestamp_ms=1,
+        value=ExperienceFastPriorSnapshot(
+            regime_biases=(),
+            knowledge_weight_bias=0.0,
+            experience_weight_bias=0.0,
+            action_biases=(
+                ExperienceFastPriorActionBias(
+                    abstract_action="unassigned_action",
+                    bias=0.18,
+                    source_attribution_ids=("attr:1",),
+                    description="Injected action bias for temporal owner test.",
+                ),
+            ),
+            family_biases=(
+                ExperienceFastPriorFamilyBias(
+                    action_family_version=0,
+                    continuation_bias=0.14,
+                    source_attribution_ids=("attr:1",),
+                    description="Injected family continuation bias for temporal owner test.",
+                ),
+            ),
+            sequence_biases=(),
+            prior_strength=0.42,
+            source_attribution_ids=("attr:1",),
+            source_sequence_ids=(),
+            description="Injected experience fast prior for temporal owner-side consumption.",
+        ),
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(kill_switches=frozenset({"experience_fast_prior"})),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="temporal-fast-prior-model",
+                feature_surface=(FeatureSignal(name="temporal_fast_prior_context", values=(0.58,), source="adapter"),),
+            ),
+            upstream_snapshots={"experience_fast_prior": upstream_fast_prior},
+            session_id="temporal-fast-prior-session",
+            wave_id="temporal-fast-prior-wave",
+        )
+    )
+
+    assert result.temporal_runtime_state is not None
+    assert result.temporal_runtime_state.fast_prior_strength > 0.0
+    assert result.temporal_runtime_state.fast_prior_switch_pressure_delta != 0.0
+    metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
+    assert "temporal_fast_prior_strength" in metric_names
+    assert "temporal_fast_prior_switch_pressure" in metric_names
+
+
+def test_final_wiring_phase3_prefers_case_derived_playbook_ordering_before_template():
+    case_store = ApplicationCaseMemoryStore(
+        records=(
+            CaseMemoryRecord(
+                case_id="case:case-derived:1",
+                domain="stabilization_patterns",
+                problem_pattern="family-transition-high-emotion",
+                user_state_pattern="high-emotional-load",
+                risk_markers=("risk-medium", "child-impact"),
+                track_tags=("self",),
+                regime_tags=("emotional_support",),
+                intervention_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                outcome_label="improved",
+                delayed_signal_count=4,
+                escalation_observed=False,
+                repair_observed=True,
+                confidence=0.84,
+                relevance_score=0.9,
+                description="Case-derived ordering should outrank fallback template.",
+            ),
+        )
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                case_memory=WiringLevel.ACTIVE,
+                strategy_playbook=WiringLevel.ACTIVE,
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="phase3-case-derived-playbook",
+                feature_surface=(FeatureSignal(name="phase3_case_context", values=(0.68,), source="adapter"),),
+            ),
+            case_memory_store=case_store,
+            session_id="phase3-case-derived-session",
+            wave_id="phase3-case-derived-wave",
+        )
+    )
+
+    strategy_playbook = result.active_snapshots["strategy_playbook"].value
+    assert strategy_playbook.matched_rules
+    assert strategy_playbook.matched_rules[0].rule_id.startswith("playbook:case-derived:")
+
+
+def test_final_wiring_response_assembly_uses_continuum_target_to_prefers_clarify_first():
+    case_store = ApplicationCaseMemoryStore(
+        records=(
+            CaseMemoryRecord(
+                case_id="case:assembly-structure",
+                domain="stabilization_patterns",
+                problem_pattern="family-transition-high-emotion",
+                user_state_pattern="high-emotional-load",
+                risk_markers=("risk-medium",),
+                track_tags=("self",),
+                regime_tags=("emotional_support",),
+                intervention_ordering=("narrow_scope", "option_compare", "smallest_next_step"),
+                outcome_label="stable",
+                delayed_signal_count=1,
+                escalation_observed=False,
+                repair_observed=False,
+                confidence=0.76,
+                relevance_score=0.86,
+                description="Response assembly should still stabilize first when continuum target is slow.",
+                continuum_profile_id="memory-profile",
+                continuum_band_id="online-fast",
+                continuum_position=0.18,
+                continuum_update_frequency=1.0,
+                reconstruction_source="artifact-anchor",
+            ),
+        )
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                case_memory=WiringLevel.ACTIVE,
+                strategy_playbook=WiringLevel.ACTIVE,
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="response-assembly-slow-target",
+                feature_surface=(FeatureSignal(name="support_weighted_signal", values=(0.86,), source="adapter"),),
+            ),
+            case_memory_store=case_store,
+            session_id="response-assembly-slow-session",
+            wave_id="response-assembly-slow-wave",
+        )
+    )
+
+    response_assembly = result.active_snapshots["response_assembly"].value
+    assert response_assembly.ordering_plan[0] == "clarify_goal"
+    assert response_assembly.ordering_driver == "continuum-clarify-first"
+    assert response_assembly.continuum_target_position < 0.66
+
+
+def test_response_ordering_plan_prefers_stabilize_when_target_is_support_first():
+    ordering_plan, target_position, ordering_driver = _response_ordering_plan(
+        regime_id="emotional_support",
+        response_mode=ResponseMode.SUPPORT,
+        boundary_policy_snapshot=BoundaryPolicySnapshot(
+            active_decision=BoundaryDecision(
+                decision_id="boundary:test",
+                risk_band=RiskBand.MEDIUM,
+                professional_scope=ProfessionalScope.GENERAL_SUPPORT,
+                answer_depth_limit="support-first",
+                citation_required=False,
+                clarification_required=False,
+                refer_out_required=False,
+                blocked_topics=(),
+                required_disclaimers=(),
+                description="test boundary",
+            ),
+            trigger_reasons=(),
+            description="test",
+        ),
+        case_memory_snapshot=CaseMemorySnapshot(
+            retrieval_policy_id="policy:test",
+            hits=(),
+            active_problem_patterns=(),
+            active_risk_markers=(),
+            description="test case memory",
+            continuum_profile_id="memory-profile",
+            active_band_ids=("background-slow",),
+            mean_continuum_position=0.82,
+        ),
+        strategy_playbook_snapshot=None,
+    )
+
+    assert ordering_plan[0] == "stabilize"
+    assert ordering_driver == "continuum-support-first"
+    assert target_position >= 0.66
+
+
+def test_final_wiring_response_assembly_prefers_clarify_when_boundary_requires_it():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="response-assembly-clarify-target",
+                feature_surface=(
+                    FeatureSignal(name="family_transition_signal", values=(0.74,), source="adapter"),
+                    FeatureSignal(name="procedure_signal", values=(0.69,), source="adapter"),
+                ),
+            ),
+            session_id="response-assembly-clarify-session",
+            wave_id="response-assembly-clarify-wave",
+        )
+    )
+
+    response_assembly = result.active_snapshots["response_assembly"].value
+    if response_assembly.clarification_required:
+        assert response_assembly.ordering_plan[0] in {"clarify_goal", "stabilize"}
+        assert response_assembly.ordering_driver in {"continuum-clarify-first", "continuum-support-clarify"}
+
+
+def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():
+    baseline = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="retrieval-mix-baseline",
+                feature_surface=(
+                    FeatureSignal(name="semantic_support_pull", values=(0.78,), source="adapter"),
+                    FeatureSignal(name="semantic_repair_pull", values=(0.56,), source="adapter"),
+                ),
+            ),
+            session_id="retrieval-mix-session",
+            wave_id="baseline-wave",
+        )
+    )
+
+    rare_heavy_state = ApplicationRareHeavyState()
+    rare_heavy_state.import_rare_heavy_state(
+        ApplicationRareHeavyCheckpoint(
+            checkpoint_id="experience-playbook-prior",
+            domain_template_biases=(),
+            case_clusters=(),
+            distilled_playbook_rules=(
+                PlaybookRule(
+                    rule_id="playbook:eta-prior",
+                    problem_pattern="family-transition-high-emotion",
+                    recommended_regime="repair_and_deescalation",
+                    recommended_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                    recommended_pacing="gradual",
+                    avoid_patterns=("procedure-dump-too-early",),
+                    knowledge_weight_hint=0.22,
+                    experience_weight_hint=0.82,
+                    applicability_scope=("repair_and_deescalation",),
+                    confidence=0.86,
+                    description="Distilled playbook prior for support-first retrieval mix.",
+                ),
+            ),
+            description="rare-heavy playbook prior",
+        )
+    )
+    with_prior = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="retrieval-mix-prior",
+                feature_surface=(
+                    FeatureSignal(name="semantic_support_pull", values=(0.78,), source="adapter"),
+                    FeatureSignal(name="semantic_repair_pull", values=(0.56,), source="adapter"),
+                ),
+            ),
+            application_rare_heavy_state=rare_heavy_state,
+            session_id="retrieval-mix-session",
+            wave_id="prior-wave",
+        )
+    )
+
+    baseline_policy = baseline.active_snapshots["retrieval_policy"].value
+    prior_policy = with_prior.active_snapshots["retrieval_policy"].value
+
+    assert prior_policy.knowledge_weight < baseline_policy.knowledge_weight
+    assert prior_policy.experience_weight > baseline_policy.experience_weight
+
+
+def test_final_wiring_retrieval_mix_uses_continuum_profile_as_first_class_input():
+    fast_biased_store = build_default_memory_store(latent_dim=8)
+    slow_biased_store = build_default_memory_store(latent_dim=8)
+    fast_biased_store.learned_core.apply_tower_consolidation(
+        update=CMSTowerConsolidationUpdate(
+            online_signal=tuple(1.0 for _ in range(fast_biased_store.learned_core.dim)),
+            description="bias toward fast continuum bands",
+        ),
+        timestamp_ms=1,
+    )
+    slow_biased_store.learned_core.apply_tower_consolidation(
+        update=CMSTowerConsolidationUpdate(
+            session_signal=tuple(0.8 for _ in range(slow_biased_store.learned_core.dim)),
+            background_signal=tuple(1.0 for _ in range(slow_biased_store.learned_core.dim)),
+            description="bias toward slow continuum bands",
+        ),
+        timestamp_ms=1,
+    )
+
+    fast_biased = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="continuum-fast-model",
+                feature_surface=(
+                    FeatureSignal(name="support_signal", values=(0.72,), source="adapter"),
+                    FeatureSignal(name="decision_signal", values=(0.54,), source="adapter"),
+                ),
+            ),
+            memory_store=fast_biased_store,
+            session_id="continuum-mix-session",
+            wave_id="fast-wave",
+        )
+    )
+    slow_biased = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="continuum-slow-model",
+                feature_surface=(
+                    FeatureSignal(name="support_signal", values=(0.72,), source="adapter"),
+                    FeatureSignal(name="decision_signal", values=(0.54,), source="adapter"),
+                ),
+            ),
+            memory_store=slow_biased_store,
+            session_id="continuum-mix-session",
+            wave_id="slow-wave",
+        )
+    )
+
+    fast_policy = fast_biased.active_snapshots["retrieval_policy"].value
+    slow_policy = slow_biased.active_snapshots["retrieval_policy"].value
+
+    assert slow_policy.experience_weight > fast_policy.experience_weight
+    assert "continuum_position=" in slow_policy.intent_description
+
+
+def test_final_wiring_playbook_ranking_prefers_hits_closer_to_target_continuum_position():
+    case_store = ApplicationCaseMemoryStore(
+        records=(
+            CaseMemoryRecord(
+                case_id="case:continuum-fast",
+                domain="stabilization_patterns",
+                problem_pattern="family-transition-high-emotion",
+                user_state_pattern="high-emotional-load",
+                risk_markers=("risk-medium",),
+                track_tags=("self",),
+                regime_tags=("emotional_support",),
+                intervention_ordering=("jump_to_procedure", "smallest_next_step"),
+                outcome_label="stable",
+                delayed_signal_count=1,
+                escalation_observed=False,
+                repair_observed=False,
+                confidence=0.72,
+                relevance_score=0.86,
+                description="Fast-band case should lose under support-first continuum ranking.",
+                continuum_profile_id="memory-profile",
+                continuum_band_id="online-fast",
+                continuum_position=0.16,
+                continuum_update_frequency=1.0,
+                reconstruction_source="artifact-anchor",
+            ),
+            CaseMemoryRecord(
+                case_id="case:continuum-slow",
+                domain="stabilization_patterns",
+                problem_pattern="family-transition-high-emotion",
+                user_state_pattern="high-emotional-load",
+                risk_markers=("risk-medium", "child-impact"),
+                track_tags=("self",),
+                regime_tags=("emotional_support",),
+                intervention_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                outcome_label="improved",
+                delayed_signal_count=4,
+                escalation_observed=False,
+                repair_observed=True,
+                confidence=0.82,
+                relevance_score=0.82,
+                description="Slow-band case should win because it aligns with support-first continuum target.",
+                continuum_profile_id="memory-profile",
+                continuum_band_id="background-slow",
+                continuum_position=0.84,
+                continuum_update_frequency=0.25,
+                reconstruction_source="slow-to-fast-reuse",
+            ),
+        )
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                case_memory=WiringLevel.ACTIVE,
+                strategy_playbook=WiringLevel.ACTIVE,
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="continuum-playbook-ranking",
+                feature_surface=(FeatureSignal(name="support_first_signal", values=(0.83,), source="adapter"),),
+            ),
+            case_memory_store=case_store,
+            session_id="continuum-playbook-session",
+            wave_id="continuum-playbook-wave",
+        )
+    )
+
+    strategy_playbook = result.active_snapshots["strategy_playbook"].value
+    assert strategy_playbook.matched_rules
+    assert strategy_playbook.matched_rules[0].recommended_ordering == (
+        "stabilize",
+        "split_axes",
+        "smallest_next_step",
+    )
+    assert strategy_playbook.matched_rules[0].continuum_band_id == "background-slow"
 
 
 def test_final_wiring_honors_kill_switches():
@@ -273,6 +734,103 @@ def test_final_wiring_applies_reflection_temporal_prior_update_to_owner_policy()
     assert any(operation.startswith("temporal-prior:") for operation in result.writeback_result.applied_operations)
     modification_targets = {record.target for record in result.active_snapshots["credit"].value.recent_modifications}
     assert any(target.startswith("metacontroller.temporal_prior.") for target in modification_targets)
+
+
+def test_final_wiring_application_prior_helper_supports_partial_credit_block():
+    case_store = ApplicationCaseMemoryStore()
+    rare_heavy_state = ApplicationRareHeavyState()
+    credit_snapshot = CreditSnapshot(
+        recent_credits=(),
+        recent_modifications=(
+            SelfModificationRecord(
+                target="application.strategy_playbook.rules.family-transition-high-emotion",
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.BLOCK,
+                old_value_hash="before",
+                new_value_hash="before",
+                justification="Seeded block for playbook target.",
+                timestamp_ms=1,
+                is_reversible=True,
+            ),
+        ),
+        cumulative_credit_by_level=(),
+        description="Seeded credit snapshot for application prior partial block.",
+    )
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="slow-loop:test",
+        case_memory_updates=(
+            CaseMemoryPriorUpdate(
+                update_id="case-update",
+                target="application.case_memory.records.family-transition-high-emotion",
+                record=CaseMemoryRecord(
+                    case_id="case:slow-loop:test:family-transition-high-emotion",
+                    domain="stabilization_patterns",
+                    problem_pattern="family-transition-high-emotion",
+                    user_state_pattern="slow-loop-promoted",
+                    risk_markers=("risk-medium",),
+                    track_tags=("self",),
+                    regime_tags=("emotional_support",),
+                    intervention_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                    outcome_label="improved",
+                    delayed_signal_count=2,
+                    escalation_observed=False,
+                    repair_observed=False,
+                    confidence=0.78,
+                    relevance_score=0.81,
+                    description="Promoted case prior for helper partial-block test.",
+                ),
+                confidence=0.78,
+                description="Apply case prior.",
+            ),
+        ),
+        strategy_playbook_updates=(
+            StrategyPlaybookPriorUpdate(
+                update_id="playbook-update",
+                target="application.strategy_playbook.rules.family-transition-high-emotion",
+                rule=PlaybookRule(
+                    rule_id="playbook:slow-loop:test",
+                    problem_pattern="family-transition-high-emotion",
+                    recommended_regime="emotional_support",
+                    recommended_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                    recommended_pacing="gradual",
+                    avoid_patterns=("procedure-dump-too-early",),
+                    knowledge_weight_hint=0.35,
+                    experience_weight_hint=0.76,
+                    applicability_scope=("emotional_support",),
+                    confidence=0.8,
+                    description="Promoted playbook prior for helper partial-block test.",
+                ),
+                confidence=0.8,
+                description="Apply playbook prior.",
+            ),
+        ),
+        description="Application prior update for helper partial-block test.",
+    )
+
+    applied_operations, blocked_operations, audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        case_memory_store=case_store,
+        application_rare_heavy_state=rare_heavy_state,
+        credit_snapshot=credit_snapshot,
+        timestamp_ms=2,
+        checkpoint_id="helper-checkpoint",
+        apply_enabled=True,
+        blocked_reason="allow",
+    )
+
+    assert applied_operations == ("application-prior:case-memory:case:slow-loop:test:family-transition-high-emotion",)
+    assert blocked_operations == (
+        "application-prior:block:application.strategy_playbook.rules.family-transition-high-emotion:credit-gate-block",
+    )
+    assert len(case_store.records) == 1
+    assert not rare_heavy_state.distilled_playbook_rules
+    assert report is not None
+    assert report.applied_targets == ("application.case_memory.records.family-transition-high-emotion",)
+    assert report.blocked_targets == ("application.strategy_playbook.rules.family-transition-high-emotion",)
+    assert {audit.target for audit in audits} == {
+        "application.case_memory.records.family-transition-high-emotion",
+        "application.strategy_playbook.rules.family-transition-high-emotion",
+    }
 
 
 def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():

@@ -192,6 +192,39 @@ class CMSTowerProfile:
 
 
 @dataclass(frozen=True)
+class CMSContinuumBand:
+    band_id: str
+    role: str
+    vector: tuple[float, ...]
+    cadence_interval: int
+    update_frequency: float
+    persistence_bias: float
+    retrieval_weight: float
+    pending_signal: tuple[float, ...] = ()
+    source_band_ids: tuple[str, ...] = ()
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CMSContinuumReconstructionEdge:
+    edge_id: str
+    source_band_id: str
+    target_band_id: str
+    transfer_kind: str
+    strength: float
+    description: str
+
+
+@dataclass(frozen=True)
+class CMSContinuumProfile:
+    profile_id: str
+    bands: tuple[CMSContinuumBand, ...]
+    reconstruction_edges: tuple[CMSContinuumReconstructionEdge, ...]
+    readout_band_id: str
+    description: str
+
+
+@dataclass(frozen=True)
 class CMSState:
     online_fast: CMSBandState
     session_medium: CMSBandState
@@ -202,6 +235,7 @@ class CMSState:
     variant: str = "sequential"
     tower_profile: CMSTowerProfile | None = None
     tower_depth: int = 0
+    continuum_profile: CMSContinuumProfile | None = None
 
 
 @dataclass(frozen=True)
@@ -674,6 +708,11 @@ class CMSMemoryCore:
         return self._snapshot_vector()
 
     def _snapshot_vector(self) -> CMSState:
+        tower_profile = self._build_tower_profile(
+            online_vector=self._online_fast,
+            session_vector=self._session_medium,
+            background_vector=self._background_slow,
+        )
         return CMSState(
             online_fast=CMSBandState(
                 name="online-fast",
@@ -715,18 +754,9 @@ class CMSMemoryCore:
                 f"online_lr={self._online_lr}, session_lr={self._session_lr}, "
                 f"bg_lr={self._background_lr}, anti_forgetting={self._anti_forgetting}."
             ),
-            tower_profile=self._build_tower_profile(
-                online_vector=self._online_fast,
-                session_vector=self._session_medium,
-                background_vector=self._background_slow,
-            ),
-            tower_depth=len(
-                self._build_tower_profile(
-                    online_vector=self._online_fast,
-                    session_vector=self._session_medium,
-                    background_vector=self._background_slow,
-                ).levels
-            ),
+            tower_profile=tower_profile,
+            tower_depth=len(tower_profile.levels),
+            continuum_profile=self._build_continuum_profile(tower_profile),
         )
 
     def _snapshot_mlp(self) -> CMSState:
@@ -790,6 +820,7 @@ class CMSMemoryCore:
             variant=self._variant.value,
             tower_profile=tower_profile,
             tower_depth=len(tower_profile.levels),
+            continuum_profile=self._build_continuum_profile(tower_profile),
         )
 
     def apply_tower_consolidation(
@@ -1049,6 +1080,114 @@ class CMSMemoryCore:
             description=(
                 f"Nested memory tower with {len(levels)} levels, "
                 f"mode={self._mode}, variant={self._variant.value}."
+            ),
+        )
+
+    def _build_continuum_profile(self, tower_profile: CMSTowerProfile) -> CMSContinuumProfile:
+        role_defaults = {
+            "fast-band": (0.12, 0.36),
+            "session-band": (0.48, 0.24),
+            "slow-band": (0.88, 0.18),
+            "meta-init": (0.72, 0.12),
+            "readout": (0.58, 0.28),
+        }
+        pending_signals = {
+            "online-fast": tuple(0.0 for _ in range(self._dim)),
+            "session-medium": self._session_pending_signal,
+            "background-slow": self._background_pending_signal,
+            "nested-online-prior": self._nested_online_init_target
+            if self._variant is CMSVariant.NESTED and self._mode == "mlp"
+            else tuple(0.0 for _ in range(self._dim)),
+            "nested-session-prior": self._nested_session_init_target
+            if self._variant is CMSVariant.NESTED and self._mode == "mlp"
+            else tuple(0.0 for _ in range(self._dim)),
+            "tower-readout": tower_profile.readout_vector,
+        }
+        bands: list[CMSContinuumBand] = []
+        edges: list[CMSContinuumReconstructionEdge] = []
+        for level in tower_profile.levels:
+            persistence_bias, retrieval_weight = role_defaults.get(level.role, (0.5, 0.2))
+            update_frequency = 1.0 / max(level.cadence_interval, 1)
+            band = CMSContinuumBand(
+                band_id=level.level_id,
+                role=level.role,
+                vector=level.vector,
+                cadence_interval=level.cadence_interval,
+                update_frequency=update_frequency,
+                persistence_bias=persistence_bias,
+                retrieval_weight=retrieval_weight,
+                pending_signal=pending_signals.get(level.level_id, tuple(0.0 for _ in range(self._dim))),
+                source_band_ids=level.source_level_ids,
+                description=level.description,
+            )
+            bands.append(band)
+            for source_band_id in level.source_level_ids:
+                transfer_kind = "aggregation"
+                strength = 0.45
+                if level.role == "meta-init":
+                    transfer_kind = "reset-prior"
+                    strength = 0.62
+                elif level.role == "readout":
+                    transfer_kind = "associative-readout"
+                    strength = 0.38
+                edges.append(
+                    CMSContinuumReconstructionEdge(
+                        edge_id=f"{source_band_id}->{level.level_id}",
+                        source_band_id=source_band_id,
+                        target_band_id=level.level_id,
+                        transfer_kind=transfer_kind,
+                        strength=strength,
+                        description=(
+                            f"Continuum transfer from {source_band_id} into {level.level_id} "
+                            f"with role={level.role}."
+                        ),
+                    )
+                )
+        if self._variant is CMSVariant.NESTED and self._mode == "mlp":
+            edges.extend(
+                (
+                    CMSContinuumReconstructionEdge(
+                        edge_id="nested-online-prior->online-fast",
+                        source_band_id="nested-online-prior",
+                        target_band_id="online-fast",
+                        transfer_kind="context-reset-reconstruction",
+                        strength=0.74,
+                        description="Meta-learned online prior can reconstruct the fast band on context reset.",
+                    ),
+                    CMSContinuumReconstructionEdge(
+                        edge_id="nested-session-prior->session-medium",
+                        source_band_id="nested-session-prior",
+                        target_band_id="session-medium",
+                        transfer_kind="context-reset-reconstruction",
+                        strength=0.78,
+                        description="Meta-learned session prior can reconstruct the session band on context reset.",
+                    ),
+                    CMSContinuumReconstructionEdge(
+                        edge_id="background-slow->session-medium",
+                        source_band_id="background-slow",
+                        target_band_id="session-medium",
+                        transfer_kind="slow-to-fast-reuse",
+                        strength=_clamp(self._anti_forgetting + 0.32),
+                        description="Slow band re-seeds session memory through anti-forgetting and consolidation.",
+                    ),
+                    CMSContinuumReconstructionEdge(
+                        edge_id="session-medium->online-fast",
+                        source_band_id="session-medium",
+                        target_band_id="online-fast",
+                        transfer_kind="slow-to-fast-reuse",
+                        strength=_clamp(self._anti_forgetting + 0.26),
+                        description="Session band re-seeds fast memory during reset and consolidation.",
+                    ),
+                )
+            )
+        return CMSContinuumProfile(
+            profile_id=f"{tower_profile.profile_id}:continuum",
+            bands=tuple(bands),
+            reconstruction_edges=tuple(edges),
+            readout_band_id="tower-readout",
+            description=(
+                f"Continuum memory profile with {len(bands)} bands and {len(edges)} reconstruction edges "
+                f"for mode={self._mode}, variant={self._variant.value}."
             ),
         )
 

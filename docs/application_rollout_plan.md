@@ -244,6 +244,12 @@ Phase 2 要避免这两种情况。
 
 让应用层第一次具备混合检索能力。
 
+在 continuum memory 口径下，Phase 2 的 `case_memory` 还应开始共享 core memory 发布的频谱语义：
+
+- case hits 可继续是 compact public snapshot
+- 但 snapshot 应开始携带 `continuum_profile_id`、active bands、mean continuum position
+- 这样 application experience 仍保持 sibling owner，同时不再停留在离散案例时间观
+
 ### Step 3: Extend evaluation evidence
 
 新增：
@@ -288,6 +294,7 @@ Phase 2 要避免这两种情况。
 
 - `strategy_playbook`
 - `experience_consolidation`
+- `experience_fast_prior`
 
 ### Existing components touched
 
@@ -297,13 +304,15 @@ Phase 2 要避免这两种情况。
 
 ## 7.3 Implementation Shape
 
-### Step 1: Add experience_consolidation report surface
+### Step 1: Add experience_consolidation public surface
 
 在现有 `session_post_slow_loop` 基础上新增独立 report surface：
 
 - 学到了哪些 case deltas
 - 学到了哪些 playbook deltas
 - 学到了哪些 boundary deltas
+
+同时冻结 typed `ApplicationPriorUpdate` / writeback report contract，保证后续 application prior writeback 不是隐式副作用。
 
 ### Step 2: Add strategy_playbook owner
 
@@ -319,6 +328,36 @@ Phase 2 要避免这两种情况。
 - 排序经验 hits
 - 给 regime/response 提供 ordering prior
 - 给 retrieval weighting 提供 hint
+- 并开始消费 continuum-aware case slices，而不是只消费离散 problem pattern
+
+### Step 3.25: Add judge-gated application prior updater
+
+让 `session_post_slow_loop` 在以下条件满足时执行 owner-side application prior writeback：
+
+- `EvolutionJudgement` 放行结构性写回
+- target-specific credit gate 不阻断该 prior target
+- application delayed evidence 超过最小 promotion 阈值
+
+更新目标仅限：
+
+- `case_memory`
+- `strategy_playbook`
+- `boundary_policy` 的 bounded prior hint surface
+
+要求：
+
+- `experience_consolidation` 公开 proposal / applied / blocked / audit-ready 摘要
+- apply 发生在 owner-side helper，不进入 turn-time direct dependency DAG
+- rollback 沿 application owner / rare-heavy rollback 链处理
+
+### Step 3.5: Add delayed-credit-to-fast bridge
+
+新增 `ExperienceFastPriorModule`：
+
+- 读取 `experience_consolidation`
+- 输出 compact regime / retrieval / action-family / sequence bias
+- 不直接修改 `regime` / `retrieval_policy` / `temporal` 私有状态
+- 由下游 owner 自己消费该 public snapshot
 
 ### Step 4: Extend evaluation evidence
 
@@ -328,6 +367,10 @@ Phase 2 要避免这两种情况。
 - playbook retained
 - experience delta promotion count
 - slow-shapes-fast evidence
+- delayed fast prior availability
+- delayed regime bias applied
+- delayed retrieval mix bias applied
+- delayed action family bias applied
 
 ## 7.4 Files Expected To Change Later
 
@@ -339,15 +382,19 @@ Phase 2 要避免这两种情况。
 ## 7.5 Phase 3 Acceptance Gate
 
 - `experience_consolidation` 成为独立公共 surface
+- `experience_fast_prior` 成为 delayed-credit-to-fast-policy 的独立公共 surface
 - `strategy_playbook` 不重写 `temporal` owner 内部状态
 - slow layer 对 fast layer 的影响可通过公共 evidence 观察
 - `session_post_slow_loop` 仍 bounded / observable / fail-closed
+- judge-gated application prior updater 可区分 proposal / applied / blocked
+- 下一上下文 fast path 能消费已放行的 application prior
 
 ## 7.6 Rollback Point
 
 - 保留 `case_memory`
 - `strategy_playbook` 退回 `SHADOW`
-- `experience_consolidation` 只做 report，不做任何 apply hint
+- `experience_consolidation` 保留公共 surface，但 application prior writeback helper 可通过开关退回 report-only 模式
+- `experience_fast_prior` 退回 `SHADOW` 或 no-op bias
 
 ---
 
@@ -409,6 +456,14 @@ Phase 2 要避免这两种情况。
 - experience delta promoted
 - playbook matched
 - slow loop completion shaping next turn
+- delayed fast prior available
+- delayed regime bias observed
+- delayed retrieval mix bias observed
+- delayed action-family bias observed
+- delayed retrieval mix alignment observed
+- delayed abstract-action alignment observed
+- judge-gated application promotion observed
+- partial credit block leaves audit while preserving allowed targets
 
 ---
 
@@ -433,6 +488,8 @@ Phase 2 要避免这两种情况。
 2. 再实现 `domain_knowledge`
 3. 再实现 `boundary_policy`
 4. 再接 response / evaluation
+   - 先发布正式 `response_assembly`
+   - 再让表达层消费 generation constraints，而不是继续扩大 prompt 注入
 5. 之后才做 `case_memory`
 6. 最后做 `strategy_playbook` 与 `experience_consolidation`
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
-from volvence_zero.agent.response import LLMResponseSynthesizer, ResponseContext
+from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode, RiskBand
+from volvence_zero.agent.response import GenerationConstraints, LLMResponseSynthesizer, ResponseContext
 from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.credit import (
@@ -33,6 +34,7 @@ from volvence_zero.substrate import (
     SubstrateSnapshot,
     SurfaceKind,
     SyntheticOpenWeightResidualRuntime,
+    TransformersOpenWeightResidualRuntime,
 )
 from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
 
@@ -43,6 +45,7 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         self.last_control_scale = 0.0
         self.last_control_parameters: tuple[float, ...] = ()
         self.last_chat_messages: tuple[tuple[str, str], ...] = ()
+        self.last_generation_constraints = None
 
     def generate(
         self,
@@ -54,11 +57,13 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
+        generation_constraints=None,
     ) -> GenerationResult:
         del max_new_tokens, temperature
         self.last_control_scale = control_scale
         self.last_control_parameters = control_parameters
         self.last_chat_messages = chat_messages
+        self.last_generation_constraints = generation_constraints
         capture = self.capture(source_text=f"{system_context} {prompt}".strip())
         return GenerationResult(
             text="generated",
@@ -223,6 +228,34 @@ def test_prediction_error_credit_records():
 def test_llm_response_synthesizer_passes_control_signal():
     runtime = CaptureRuntime()
     synth = LLMResponseSynthesizer(runtime=runtime)
+    assembly = ResponseAssemblySnapshot(
+        regime_id="problem_solving",
+        regime_name="problem solving",
+        abstract_action="repair_controller",
+        response_mode=ResponseMode.STRUCTURE,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=("stabilize", "structure_options"),
+        knowledge_briefs=("Keep guidance high-level and bounded.",),
+        case_briefs=(),
+        playbook_ordering=("stabilize", "structure_options"),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(0.4, 0.5, 0.6),
+        control_scale=0.22,
+        max_questions=0,
+        prompt_residue_summary="Current mode: problem solving. Carry forward continuity from prior context.",
+        prompt_residue_ratio=0.35,
+        knowledge_hit_count=1,
+        case_hit_count=0,
+        playbook_rule_count=1,
+        risk_band=RiskBand.MEDIUM,
+        description="assembly",
+        continuum_target_position=0.78,
+        ordering_driver="continuum-support-first",
+    )
     response = synth.synthesize(
         context=ResponseContext(
             regime_id="problem_solving",
@@ -230,7 +263,6 @@ def test_llm_response_synthesizer_passes_control_signal():
             regime_switched=False,
             abstract_action="repair_controller",
             alert_count=0,
-            retrieved_memory_count=1,
             temporal_switch_gate=0.8,
             temporal_is_switching=True,
             reflection_lesson_count=0,
@@ -240,27 +272,106 @@ def test_llm_response_synthesizer_passes_control_signal():
             primary_reflection_tension=None,
             joint_schedule_action="full-cycle",
             user_input="Help me think through this",
-            retrieved_memories=("You prefer structured plans.",),
-            controller_description="controller active",
-            control_code=(0.4, 0.5, 0.6),
-        )
+        ),
+        assembly=assembly,
     )
     assert response.text == "generated"
     assert runtime.last_control_parameters == (0.4, 0.5, 0.6)
     assert runtime.last_control_scale > 0.0
+    assert runtime.last_generation_constraints is not None
+    assert runtime.last_generation_constraints.ordering_bias == ("stabilize", "structure_options")
+    assert runtime.last_generation_constraints.continuum_target_position == 0.78
+    assert runtime.last_generation_constraints.ordering_driver == "continuum-support-first"
     assert runtime.last_chat_messages[0][0] == "system"
     assert runtime.last_chat_messages[-1] == ("user", "Help me think through this")
 
 
+def test_transformers_runtime_continuum_generation_controls_shape_sampling():
+    runtime = TransformersOpenWeightResidualRuntime.__new__(TransformersOpenWeightResidualRuntime)
+    support_tokens, support_temp = runtime._apply_continuum_generation_controls(
+        max_new_tokens=256,
+        temperature=0.7,
+        constraints=GenerationConstraints(
+            response_mode="support",
+            answer_depth_limit="standard",
+            citation_mode="optional",
+            max_questions=0,
+            continuum_target_position=0.78,
+            ordering_driver="continuum-support-first",
+        ),
+    )
+    structure_tokens, structure_temp = runtime._apply_continuum_generation_controls(
+        max_new_tokens=256,
+        temperature=0.7,
+        constraints=GenerationConstraints(
+            response_mode="structure",
+            answer_depth_limit="standard",
+            citation_mode="optional",
+            max_questions=0,
+            continuum_target_position=0.34,
+            ordering_driver="continuum-structure-first",
+        ),
+    )
+
+    assert support_tokens < structure_tokens
+    assert support_temp > structure_temp
+
+
+def test_transformers_runtime_support_first_trim_shortens_long_opening():
+    runtime = TransformersOpenWeightResidualRuntime.__new__(TransformersOpenWeightResidualRuntime)
+    trimmed = runtime._apply_generation_constraints(
+        text=(
+            "I want to move directly into a long procedural explanation that keeps going without first grounding the "
+            "user or stabilizing the emotional context. Then I would add even more detail about each step."
+        ),
+        constraints=GenerationConstraints(
+            response_mode="support",
+            answer_depth_limit="support-first",
+            citation_mode="optional",
+            max_questions=0,
+            continuum_target_position=0.8,
+            ordering_driver="continuum-support-first",
+        ),
+    )
+
+    assert len(trimmed) < 180
+
+
 def test_system_prompt_explicitly_forbids_dialogue_continuation():
+    assembly = ResponseAssemblySnapshot(
+        regime_id="casual_social",
+        regime_name="casual social",
+        abstract_action=None,
+        response_mode=ResponseMode.SUPPORT,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=(),
+        knowledge_briefs=(),
+        case_briefs=(),
+        playbook_ordering=(),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="Current mode: casual social.",
+        prompt_residue_ratio=0.3,
+        knowledge_hit_count=0,
+        case_hit_count=0,
+        playbook_rule_count=0,
+        risk_band=RiskBand.LOW,
+        description="assembly",
+    )
     prompt = build_system_prompt(
+        assembly=assembly,
         context=ResponseContext(
             regime_id="casual_social",
             regime_name="casual social",
             regime_switched=False,
             abstract_action=None,
             alert_count=0,
-            retrieved_memory_count=0,
             temporal_switch_gate=0.0,
             temporal_is_switching=False,
             reflection_lesson_count=0,
@@ -277,15 +388,40 @@ def test_system_prompt_explicitly_forbids_dialogue_continuation():
     assert "Do not continue the conversation on behalf of the user." in prompt
 
 
-def test_system_prompt_includes_knowledge_and_boundary_context():
+def test_system_prompt_uses_prompt_residue_and_boundary_only():
     prompt = build_system_prompt(
+        assembly=ResponseAssemblySnapshot(
+            regime_id="problem_solving",
+            regime_name="problem solving",
+            abstract_action="structured_planning",
+            response_mode=ResponseMode.CLARIFY,
+            answer_depth_limit="high-level-only",
+            citation_mode="required",
+            clarification_required=True,
+            refer_out_required=False,
+            ordering_plan=("clarify_goal", "smallest_next_step"),
+            knowledge_briefs=("Keep guidance high-level and jurisdiction-aware.",),
+            case_briefs=("family-transition-high-emotion: high-emotional-load",),
+            playbook_ordering=("clarify_goal", "smallest_next_step"),
+            required_disclaimers=("jurisdiction-variance",),
+            required_disclaimer_phrases=("Local rules and procedures can vary by jurisdiction.",),
+            control_code=(0.3, 0.2, 0.1),
+            control_scale=0.18,
+            max_questions=1,
+            prompt_residue_summary="Current mode: problem solving. Carry forward continuity from prior context.",
+            prompt_residue_ratio=0.3,
+            knowledge_hit_count=2,
+            case_hit_count=1,
+            playbook_rule_count=1,
+            risk_band=RiskBand.MEDIUM,
+            description="assembly",
+        ),
         context=ResponseContext(
             regime_id="problem_solving",
             regime_name="problem solving",
             regime_switched=False,
             abstract_action="structured_planning",
             alert_count=0,
-            retrieved_memory_count=0,
             temporal_switch_gate=0.4,
             temporal_is_switching=False,
             reflection_lesson_count=0,
@@ -295,32 +431,51 @@ def test_system_prompt_includes_knowledge_and_boundary_context():
             primary_reflection_tension=None,
             joint_schedule_action="ssl-only",
             user_input="What should I do next?",
-            knowledge_hit_count=2,
-            knowledge_summaries=("Keep guidance high-level and jurisdiction-aware.",),
-            citation_required=True,
-            boundary_risk_band="medium",
-            boundary_answer_depth_limit="high-level-only",
-            boundary_clarification_required=True,
-            boundary_refer_out_required=False,
-            boundary_required_disclaimers=("jurisdiction-variance",),
-        )
+        ),
     )
 
-    assert "Relevant domain guidance" in prompt
+    assert "Carry forward continuity from prior context." in prompt
     assert "sourceable information" in prompt
     assert "missing local or factual detail" in prompt
     assert "jurisdiction-variance" in prompt
+    assert "Relevant domain guidance" not in prompt
 
 
-def test_system_prompt_includes_case_patterns_when_available():
+def test_system_prompt_no_longer_includes_case_patterns_section():
+    assembly = ResponseAssemblySnapshot(
+        regime_id="guided_exploration",
+        regime_name="guided exploration",
+        abstract_action="stabilize_then_structure",
+        response_mode=ResponseMode.STRUCTURE,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=(),
+        knowledge_briefs=(),
+        case_briefs=(),
+        playbook_ordering=(),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="Current mode: guided exploration.",
+        prompt_residue_ratio=0.2,
+        knowledge_hit_count=0,
+        case_hit_count=0,
+        playbook_rule_count=0,
+        risk_band=RiskBand.LOW,
+        description="assembly",
+    )
     prompt = build_system_prompt(
+        assembly=assembly,
         context=ResponseContext(
             regime_id="guided_exploration",
             regime_name="guided exploration",
             regime_switched=False,
             abstract_action="stabilize_then_structure",
             alert_count=0,
-            retrieved_memory_count=0,
             temporal_switch_gate=0.3,
             temporal_is_switching=False,
             reflection_lesson_count=0,
@@ -330,24 +485,47 @@ def test_system_prompt_includes_case_patterns_when_available():
             primary_reflection_tension=None,
             joint_schedule_action="ssl-only",
             user_input="What should I do first?",
-            case_hit_count=2,
-            case_patterns=("family-transition-high-emotion", "needs-structure"),
         )
     )
 
-    assert "Relevant prior case patterns" in prompt
-    assert "family-transition-high-emotion" in prompt
+    assert "Relevant prior case patterns" not in prompt
 
 
-def test_system_prompt_includes_playbook_ordering_hints_when_available():
+def test_system_prompt_no_longer_includes_playbook_ordering_section():
+    assembly = ResponseAssemblySnapshot(
+        regime_id="guided_exploration",
+        regime_name="guided exploration",
+        abstract_action="stabilize_then_structure",
+        response_mode=ResponseMode.STRUCTURE,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=(),
+        knowledge_briefs=(),
+        case_briefs=(),
+        playbook_ordering=(),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="Current mode: guided exploration.",
+        prompt_residue_ratio=0.2,
+        knowledge_hit_count=0,
+        case_hit_count=0,
+        playbook_rule_count=0,
+        risk_band=RiskBand.LOW,
+        description="assembly",
+    )
     prompt = build_system_prompt(
+        assembly=assembly,
         context=ResponseContext(
             regime_id="guided_exploration",
             regime_name="guided exploration",
             regime_switched=False,
             abstract_action="stabilize_then_structure",
             alert_count=0,
-            retrieved_memory_count=0,
             temporal_switch_gate=0.3,
             temporal_is_switching=False,
             reflection_lesson_count=0,
@@ -357,13 +535,10 @@ def test_system_prompt_includes_playbook_ordering_hints_when_available():
             primary_reflection_tension=None,
             joint_schedule_action="ssl-only",
             user_input="What should I do first?",
-            playbook_rule_count=1,
-            playbook_ordering_hints=("stabilize", "split_axes", "smallest_next_step"),
         )
     )
 
-    assert "Suggested response ordering" in prompt
-    assert "stabilize -> split_axes -> smallest_next_step" in prompt
+    assert "Suggested response ordering" not in prompt
 
 
 def test_agent_session_runner_exposes_prediction_error_from_second_turn():

@@ -430,6 +430,56 @@ def test_learning_evidence_credit_records_include_published_metacontroller_metri
     assert abstract_record.level == "abstract_action"
 
 
+def test_learning_evidence_credit_records_include_delayed_application_session_metrics():
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="delayed_retrieval_mix_alignment",
+                value=0.71,
+                confidence=0.7,
+                evidence="delayed mix alignment",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="delayed_regime_alignment",
+                value=0.68,
+                confidence=0.7,
+                evidence="delayed regime alignment",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="regime_sequence_payoff",
+                value=0.73,
+                confidence=0.68,
+                evidence="sequence payoff",
+            ),
+            EvaluationScore(
+                family="abstraction",
+                metric_name="delayed_abstract_action_alignment",
+                value=0.66,
+                confidence=0.7,
+                evidence="delayed action alignment",
+            ),
+        ),
+        alerts=(),
+        description="evaluation snapshot with delayed application metrics",
+    )
+
+    records = derive_learning_evidence_credit_records(
+        evaluation_snapshot=evaluation_snapshot,
+        timestamp_ms=120,
+    )
+
+    assert {record.source_event for record in records} == {
+        "session:delayed_retrieval_mix_alignment",
+        "session:delayed_regime_alignment",
+        "session:regime_sequence_payoff",
+        "session-evaluation:delayed_abstract_action_alignment",
+    }
+
+
 def test_delayed_attribution_credit_records_capture_regime_and_action_history():
     regime_snapshot = RegimeSnapshot(
         active_regime=RegimeIdentity(

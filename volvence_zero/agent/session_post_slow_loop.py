@@ -5,9 +5,16 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 
-from volvence_zero.application.runtime import ExperienceDelta
+from volvence_zero.application.runtime import (
+    ApplicationPriorUpdate,
+    ApplicationPriorWritebackReport,
+    ApplicationOutcomeAttribution,
+    ApplicationSequencePayoff,
+    ExperienceDelta,
+)
 from volvence_zero.evaluation.backbone import EvaluationReport
 from volvence_zero.integration import SessionPostWritebackRequest
+from volvence_zero.credit.gate import SelfModificationRecord
 from volvence_zero.reflection import WritebackResult
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
@@ -28,6 +35,20 @@ class SessionPostSlowLoopJob:
     case_risk_markers: tuple[str, ...] = ()
     knowledge_domains: tuple[str, ...] = ()
     boundary_trigger_reasons: tuple[str, ...] = ()
+    regime_id: str | None = None
+    abstract_action: str | None = None
+    action_family_version: int = 0
+    retrieval_policy_id: str | None = None
+    knowledge_weight: float = 0.0
+    experience_weight: float = 0.0
+    experience_domains: tuple[str, ...] = ()
+    regime_sequence: tuple[str, ...] = ()
+    case_hit_count: int = 0
+    playbook_rule_count: int = 0
+    continuum_profile_id: str | None = None
+    case_band_ids: tuple[str, ...] = ()
+    case_mean_continuum_position: float = 0.0
+    playbook_band_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -40,6 +61,14 @@ class SessionPostSlowLoopResult:
     blocked: bool
     description: str
     experience_deltas: tuple[ExperienceDelta, ...] = ()
+    delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = ()
+    sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = ()
+    application_prior_update: ApplicationPriorUpdate | None = None
+    application_prior_writeback_report: ApplicationPriorWritebackReport | None = None
+    application_prior_audits: tuple[SelfModificationRecord, ...] = ()
+    continuum_profile_id: str | None = None
+    case_band_ids: tuple[str, ...] = ()
+    playbook_band_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

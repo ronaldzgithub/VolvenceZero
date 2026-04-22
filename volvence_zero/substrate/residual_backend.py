@@ -16,6 +16,9 @@ from volvence_zero.substrate.adapter import (
     SubstrateSnapshot,
 )
 
+if False:
+    from volvence_zero.agent.response import GenerationConstraints
+
 
 @dataclass(frozen=True)
 class TraceStep:
@@ -224,6 +227,7 @@ class OpenWeightResidualRuntime(ABC):
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
+        generation_constraints: "GenerationConstraints | None" = None,
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
@@ -231,6 +235,7 @@ class OpenWeightResidualRuntime(ABC):
         autoregressive decoding.  The default implementation returns
         a placeholder so synthetic runtimes remain functional.
         """
+        del generation_constraints
         return GenerationResult(
             text=f"[generation not supported by {self.model_id}]",
             token_count=0,
@@ -1531,7 +1536,22 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
+        generation_constraints: "GenerationConstraints | None" = None,
     ) -> GenerationResult:
+        effective_max_new_tokens = max_new_tokens
+        effective_temperature = temperature
+        if generation_constraints is not None:
+            if generation_constraints.answer_depth_limit == "high-level-only":
+                effective_max_new_tokens = min(effective_max_new_tokens, 96)
+            elif generation_constraints.answer_depth_limit == "support-first":
+                effective_max_new_tokens = min(effective_max_new_tokens, 128)
+            if generation_constraints.response_mode in {"clarify", "refer-out"}:
+                effective_temperature = min(effective_temperature, 0.45)
+            effective_max_new_tokens, effective_temperature = self._apply_continuum_generation_controls(
+                max_new_tokens=effective_max_new_tokens,
+                temperature=effective_temperature,
+                constraints=generation_constraints,
+            )
         effective_prompt, model_inputs = self._build_generation_inputs(
             prompt=prompt,
             system_context=system_context,
@@ -1560,14 +1580,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         try:
             with self._torch.no_grad():
                 generate_kwargs: dict[str, object] = {
-                    "max_new_tokens": max_new_tokens,
-                    "do_sample": temperature > 0,
+                    "max_new_tokens": effective_max_new_tokens,
+                    "do_sample": effective_temperature > 0,
                     "pad_token_id": getattr(self._tokenizer, "eos_token_id", 0) or 0,
                     "eos_token_id": self._generation_eos_token_id(),
                     "repetition_penalty": 1.08,
                 }
-                if temperature > 0:
-                    generate_kwargs["temperature"] = temperature
+                if effective_temperature > 0:
+                    generate_kwargs["temperature"] = effective_temperature
                 output_ids = self._model.generate(**model_inputs, **generate_kwargs)
         finally:
             for hook in hooks:
@@ -1575,6 +1595,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         new_token_ids = output_ids[0, prompt_length:]
         generated_text = self._decode_generated_text(token_ids=new_token_ids)
+        if generation_constraints is not None:
+            generated_text = self._apply_generation_constraints(
+                text=generated_text,
+                constraints=generation_constraints,
+            )
         token_count = int(new_token_ids.shape[0])
 
         capture = None
@@ -1598,10 +1623,78 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             capture=capture,
             description=(
                 f"Generated {token_count} tokens from {self.model_id} "
-                f"device={self._device} temp={temperature} "
+                f"device={self._device} temp={effective_temperature} "
                 f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
+
+    def _apply_generation_constraints(
+        self,
+        *,
+        text: str,
+        constraints: "GenerationConstraints",
+    ) -> str:
+        compact = text.strip()
+        if not compact:
+            return compact
+        if constraints.max_questions <= 0:
+            question_count = 0
+            truncated_chars: list[str] = []
+            for char in compact:
+                if char == "?":
+                    question_count += 1
+                    if question_count > constraints.max_questions:
+                        continue
+                truncated_chars.append(char)
+            compact = "".join(truncated_chars)
+        for phrase in constraints.required_disclaimer_phrases:
+            if phrase and phrase not in compact:
+                compact = f"{compact} {phrase}".strip()
+        if constraints.ordering_driver in {"continuum-support-first", "continuum-support-clarify"}:
+            compact = self._support_first_trim(compact)
+        elif constraints.ordering_driver == "continuum-structure-first":
+            compact = self._structure_first_trim(compact)
+        if constraints.ordering_bias and len(compact.split()) > 80:
+            compact = compact[:320].rstrip()
+        return compact
+
+    def _apply_continuum_generation_controls(
+        self,
+        *,
+        max_new_tokens: int,
+        temperature: float,
+        constraints: "GenerationConstraints",
+    ) -> tuple[int, float]:
+        target = constraints.continuum_target_position
+        effective_max_new_tokens = max_new_tokens
+        effective_temperature = temperature
+        if constraints.ordering_driver in {"continuum-support-first", "continuum-support-clarify"} or target >= 0.66:
+            effective_max_new_tokens = min(effective_max_new_tokens, 112)
+            effective_temperature = min(effective_temperature, 0.42)
+        elif constraints.ordering_driver == "continuum-clarify-first" or 0.52 <= target < 0.66:
+            effective_max_new_tokens = min(effective_max_new_tokens, 88)
+            effective_temperature = min(effective_temperature, 0.38)
+        elif constraints.ordering_driver == "continuum-structure-first" or target < 0.48:
+            effective_max_new_tokens = min(effective_max_new_tokens, 160)
+            effective_temperature = min(effective_temperature, 0.34)
+        return effective_max_new_tokens, effective_temperature
+
+    def _support_first_trim(self, text: str) -> str:
+        sentences = [part.strip() for part in text.replace("\n", " ").split(".") if part.strip()]
+        if not sentences:
+            return text
+        compact = ". ".join(sentences[:2]).strip()
+        if not text.strip().endswith("?") and compact and not compact.endswith("."):
+            compact += "."
+        if len(compact) > 160:
+            compact = compact[:160].rstrip(". ").rstrip()
+        return compact
+
+    def _structure_first_trim(self, text: str) -> str:
+        compact = text.strip()
+        if not compact:
+            return compact
+        return compact[:420].rstrip()
 
     def _build_generation_inputs(
         self,

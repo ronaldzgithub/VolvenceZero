@@ -7,20 +7,34 @@ import os
 from typing import Any
 
 from volvence_zero.application.runtime import (
+    ApplicationPriorUpdate,
+    ApplicationPriorWritebackReport,
+    ApplicationOutcomeAttribution,
+    ApplicationSequencePayoff,
     ApplicationCaseCluster,
     ApplicationRareHeavyCheckpoint,
     ApplicationRareHeavyState,
+    BoundaryPolicyPriorUpdate,
+    BoundaryPriorHint,
     BoundaryPolicySnapshot,
+    CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     DomainKnowledgeSnapshot,
     ExperienceConsolidationModule,
     ExperienceConsolidationSnapshot,
     ExperienceDelta,
+    ExperienceFastPriorModule,
+    ExperienceFastPriorSnapshot,
+    PlaybookRule,
+    ResponseAssemblySnapshot,
+    RetrievalPolicySnapshot,
+    StrategyPlaybookPriorUpdate,
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
+    CaseMemoryRecord,
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
     build_filesystem_persistence_backend,
@@ -43,6 +57,7 @@ from volvence_zero.evaluation.backbone import (
     EvolutionJudgement,
 )
 from volvence_zero.integration import (
+    _apply_application_prior_writeback,
     FinalIntegrationResult,
     FinalRolloutConfig,
     SessionPostWritebackRequest,
@@ -161,6 +176,272 @@ class AgentTurnResult:
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
     online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _application_outcome_score(
+    *,
+    reward: float,
+    magnitude: float,
+    relationship_error: float,
+) -> float:
+    magnitude_term = 1.0 - min(max(magnitude, 0.0) / 4.0, 1.0)
+    relationship_term = 1.0 - min(abs(relationship_error), 1.0)
+    return _clamp(0.45 + reward * 0.30 + magnitude_term * 0.15 + relationship_term * 0.10)
+
+
+def _retrieval_mix_alignment(
+    *,
+    regime_id: str | None,
+    knowledge_weight: float,
+    experience_weight: float,
+) -> float:
+    if regime_id == "problem_solving":
+        return _clamp(0.5 + (knowledge_weight - experience_weight) * 0.5)
+    if regime_id in {"emotional_support", "repair_and_deescalation"}:
+        return _clamp(0.5 + (experience_weight - knowledge_weight) * 0.5)
+    return _clamp(1.0 - abs(knowledge_weight - experience_weight))
+
+
+def _regime_alignment(
+    *,
+    regime_id: str | None,
+    outcome_score: float,
+    relationship_error: float,
+    regime_error: float,
+    magnitude: float,
+) -> float:
+    if regime_id in {"emotional_support", "repair_and_deescalation"}:
+        contextual_fit = 1.0 - min(abs(relationship_error), 1.0)
+    elif regime_id == "problem_solving":
+        contextual_fit = 1.0 - min(abs(regime_error), 1.0)
+    else:
+        contextual_fit = 1.0 - min(max(magnitude, 0.0) / 4.0, 1.0)
+    return _clamp(outcome_score * 0.65 + contextual_fit * 0.35)
+
+
+def _abstract_action_alignment(
+    *,
+    regime_id: str | None,
+    abstract_action: str | None,
+    outcome_score: float,
+) -> float:
+    if abstract_action is None:
+        return outcome_score
+    action_label = abstract_action.lower()
+    if regime_id == "problem_solving":
+        action_bias = 1.0 if "task_controller" in action_label else 0.45
+    elif regime_id == "repair_and_deescalation":
+        action_bias = 1.0 if "repair_controller" in action_label else 0.45
+    elif regime_id == "emotional_support":
+        action_bias = 1.0 if "stabilize_controller" in action_label else 0.45
+    elif regime_id == "guided_exploration":
+        action_bias = 1.0 if "exploration_controller" in action_label else 0.45
+    else:
+        action_bias = 0.65
+    return _clamp(outcome_score * 0.65 + action_bias * 0.35)
+
+
+def _application_ordering_for_pattern(
+    *,
+    problem_pattern: str,
+    regime_id: str | None,
+) -> tuple[str, ...]:
+    if problem_pattern == "family-transition-high-emotion":
+        return ("stabilize", "split_axes", "smallest_next_step")
+    if problem_pattern == "relational-repair" or regime_id == "repair_and_deescalation":
+        return ("acknowledge", "deescalate", "repair-next-step")
+    if problem_pattern == "structured-decision-overwhelm" or regime_id == "problem_solving":
+        return ("narrow_scope", "option_compare", "smallest_next_step")
+    if regime_id == "emotional_support":
+        return ("acknowledge", "stabilize", "smallest_next_step")
+    return ("acknowledge", "smallest_next_step")
+
+
+def _application_pacing_for_regime(regime_id: str | None) -> str:
+    if regime_id in {"emotional_support", "repair_and_deescalation"}:
+        return "gradual"
+    if regime_id == "problem_solving":
+        return "structured"
+    return "balanced"
+
+
+def _build_application_prior_update(
+    *,
+    job: SessionPostSlowLoopJob,
+    mean_experience_quality: float,
+) -> ApplicationPriorUpdate | None:
+    case_updates: list[CaseMemoryPriorUpdate] = []
+    playbook_updates: list[StrategyPlaybookPriorUpdate] = []
+    boundary_updates: list[BoundaryPolicyPriorUpdate] = []
+    primary_domain = next(iter(job.experience_domains), "general_guidance_patterns")
+    outcome_label = "improved" if mean_experience_quality >= 0.6 else "stable"
+    for pattern in job.case_problem_patterns:
+        ordering = _application_ordering_for_pattern(problem_pattern=pattern, regime_id=job.regime_id)
+        case_updates.append(
+            CaseMemoryPriorUpdate(
+                update_id=f"{job.job_id}:case-update:{pattern}",
+                target=f"application.case_memory.records.{pattern}",
+                record=CaseMemoryRecord(
+                    case_id=f"case:slow-loop:{job.job_id}:{pattern}",
+                    domain=primary_domain,
+                    problem_pattern=pattern,
+                    user_state_pattern="slow-loop-promoted",
+                    risk_markers=job.case_risk_markers,
+                    track_tags=("self",)
+                    if job.regime_id in {"emotional_support", "repair_and_deescalation"}
+                    else ("world",),
+                    regime_tags=(job.regime_id,) if job.regime_id is not None else (),
+                    intervention_ordering=ordering,
+                    outcome_label=outcome_label,
+                    delayed_signal_count=max(job.case_hit_count, 1),
+                    escalation_observed="refer-out-required" in job.boundary_trigger_reasons,
+                    repair_observed=job.regime_id == "repair_and_deescalation",
+                    confidence=_clamp(0.52 + mean_experience_quality * 0.36),
+                    relevance_score=_clamp(0.48 + mean_experience_quality * 0.42),
+                    description=(
+                        f"Session-post promoted case prior for pattern={pattern} "
+                        f"quality={mean_experience_quality:.2f}."
+                    ),
+                ),
+                confidence=_clamp(0.52 + mean_experience_quality * 0.36),
+                description=f"Promote case prior for pattern={pattern} from session-post evidence.",
+            )
+        )
+        playbook_updates.append(
+            StrategyPlaybookPriorUpdate(
+                update_id=f"{job.job_id}:playbook-update:{pattern}",
+                target=f"application.strategy_playbook.rules.{pattern}",
+                rule=PlaybookRule(
+                    rule_id=f"playbook:slow-loop:{pattern}:{job.closed_at_turn}",
+                    problem_pattern=pattern,
+                    recommended_regime=job.regime_id,
+                    recommended_ordering=ordering,
+                    recommended_pacing=_application_pacing_for_regime(job.regime_id),
+                    avoid_patterns=("procedure-dump-too-early",)
+                    if "child-impact" in job.case_risk_markers
+                    else ("over-directive-solutioning",),
+                    knowledge_weight_hint=_clamp(job.knowledge_weight + 0.08),
+                    experience_weight_hint=_clamp(job.experience_weight + 0.12),
+                    applicability_scope=((job.regime_id,) if job.regime_id is not None else ())
+                    + job.case_risk_markers[:2],
+                    confidence=_clamp(0.5 + mean_experience_quality * 0.4),
+                    description=(
+                        f"Session-post promoted playbook prior for pattern={pattern} "
+                        f"with regime={job.regime_id}."
+                    ),
+                ),
+                confidence=_clamp(0.5 + mean_experience_quality * 0.4),
+                description=f"Promote playbook prior for pattern={pattern} from session-post evidence.",
+            )
+        )
+    if job.boundary_trigger_reasons:
+        boundary_updates.append(
+            BoundaryPolicyPriorUpdate(
+                update_id=f"{job.job_id}:boundary-update",
+                target=(
+                    f"application.boundary_policy.hints.{job.regime_id or 'shared'}."
+                    f"{len(job.boundary_trigger_reasons)}"
+                ),
+                hint=BoundaryPriorHint(
+                    hint_id=f"boundary-hint:{job.job_id}",
+                    regime_id=job.regime_id,
+                    trigger_reasons=job.boundary_trigger_reasons,
+                    answer_depth_limit_hint=(
+                        "high-level-only"
+                        if "refer-out-required" in job.boundary_trigger_reasons
+                        or "citation-required" in job.boundary_trigger_reasons
+                        else "support-first"
+                    ),
+                    clarification_required="jurisdiction-clarification-required" in job.boundary_trigger_reasons,
+                    refer_out_required="refer-out-required" in job.boundary_trigger_reasons,
+                    blocked_topics=("definitive-domain-conclusion",)
+                    if "citation-required" in job.boundary_trigger_reasons
+                    else (),
+                    required_disclaimers=(
+                        ("professional-handoff",)
+                        if "refer-out-required" in job.boundary_trigger_reasons
+                        else ()
+                    )
+                    + (
+                        ("clarify-before-concluding",)
+                        if "jurisdiction-clarification-required" in job.boundary_trigger_reasons
+                        else ()
+                    ),
+                    confidence=_clamp(0.5 + mean_experience_quality * 0.34),
+                    description=(
+                        f"Session-post boundary prior from triggers={job.boundary_trigger_reasons} "
+                        f"quality={mean_experience_quality:.2f}."
+                    ),
+                ),
+                confidence=_clamp(0.5 + mean_experience_quality * 0.34),
+                description="Promote boundary prior from repeated slow-loop boundary triggers.",
+            )
+        )
+    if not case_updates and not playbook_updates and not boundary_updates:
+        return None
+    return ApplicationPriorUpdate(
+        source_session_post_job_id=job.job_id,
+        case_memory_updates=tuple(case_updates),
+        strategy_playbook_updates=tuple(playbook_updates),
+        boundary_policy_updates=tuple(boundary_updates),
+        description=(
+            f"Application prior update proposed from {job.job_id} with "
+            f"{len(case_updates)} case updates, {len(playbook_updates)} playbook updates, "
+            f"and {len(boundary_updates)} boundary updates."
+        ),
+    )
+
+
+def _experience_deltas_from_prior_update(
+    *,
+    prior_update: ApplicationPriorUpdate | None,
+    blocked_targets: tuple[str, ...],
+) -> tuple[ExperienceDelta, ...]:
+    if prior_update is None:
+        return ()
+    blocked_target_set = set(blocked_targets)
+    deltas: list[ExperienceDelta] = []
+    for update in prior_update.case_memory_updates:
+        deltas.append(
+            ExperienceDelta(
+                delta_id=update.update_id,
+                delta_type="case-promotion",
+                target_slot="case_memory",
+                summary=update.description,
+                confidence=update.confidence,
+                blocked=update.target in blocked_target_set,
+                description=update.record.description,
+            )
+        )
+    for update in prior_update.strategy_playbook_updates:
+        deltas.append(
+            ExperienceDelta(
+                delta_id=update.update_id,
+                delta_type="playbook-delta",
+                target_slot="strategy_playbook",
+                summary=update.description,
+                confidence=update.confidence,
+                blocked=update.target in blocked_target_set,
+                description=update.rule.description,
+            )
+        )
+    for update in prior_update.boundary_policy_updates:
+        deltas.append(
+            ExperienceDelta(
+                delta_id=update.update_id,
+                delta_type="boundary-delta",
+                target_slot="boundary_policy",
+                summary=update.description,
+                confidence=update.confidence,
+                blocked=update.target in blocked_target_set,
+                description=update.hint.description,
+            )
+        )
+    return tuple(deltas)
 
 
 @dataclass(frozen=True)
@@ -432,9 +713,14 @@ class AgentSessionRunner:
             wiring_level=self._config.level_for("experience_consolidation", WiringLevel.SHADOW),
         )
         self._experience_consolidation_snapshot: Snapshot[ExperienceConsolidationSnapshot] | None = None
+        self._experience_fast_prior_module = ExperienceFastPriorModule(
+            wiring_level=self._config.level_for("experience_fast_prior", WiringLevel.SHADOW),
+        )
+        self._experience_fast_prior_snapshot: Snapshot[ExperienceFastPriorSnapshot] | None = None
         self._last_session_post_writeback_request: SessionPostWritebackRequest | None = None
         self._publish_session_post_snapshot()
         self._publish_experience_consolidation_snapshot()
+        self._publish_experience_fast_prior_snapshot()
 
     @property
     def session_id(self) -> str:
@@ -473,15 +759,258 @@ class AgentSessionRunner:
         return self._experience_consolidation_snapshot
 
     @property
+    def experience_fast_prior_snapshot(self) -> Snapshot[ExperienceFastPriorSnapshot] | None:
+        if self._experience_fast_prior_snapshot is not None:
+            return self._experience_fast_prior_snapshot
+        snapshot = self._upstream_snapshots.get("experience_fast_prior")
+        if snapshot is not None and isinstance(snapshot.value, ExperienceFastPriorSnapshot):
+            return snapshot
+        return None
+
+    @property
     def active_context_session_id(self) -> str:
         return f"{self._session_id}:context-{self._context_index}"
+
+    def _record_application_delayed_evidence(
+        self,
+        *,
+        completed_results: tuple[SessionPostSlowLoopResult, ...],
+    ) -> None:
+        for result in completed_results:
+            if (
+                not result.delayed_outcome_ledger
+                and not result.sequence_payoffs
+                and not result.application_prior_audits
+            ):
+                continue
+            if result.delayed_outcome_ledger or result.sequence_payoffs:
+                self._evaluation_backbone.record_application_delayed_evidence(
+                    session_id=result.context_session_id,
+                    wave_id=result.job_id,
+                    timestamp_ms=max(result.closed_at_turn, 1) + 1000,
+                    base_snapshot=EvaluationSnapshot(
+                        turn_scores=(),
+                        session_scores=(),
+                        alerts=(),
+                        description="Application delayed evidence baseline.",
+                    ),
+                    delayed_outcome_ledger=result.delayed_outcome_ledger,
+                    sequence_payoffs=result.sequence_payoffs,
+                )
+            if self._upstream_snapshots.get("credit") is not None:
+                credit_snapshot = self._upstream_snapshots["credit"]
+                if credit_snapshot is not None:
+                    delayed_scores: tuple[EvaluationScore, ...] = ()
+                    if result.delayed_outcome_ledger:
+                        delayed_scores = delayed_scores + (
+                            EvaluationScore(
+                                family="learning",
+                                metric_name="delayed_retrieval_mix_alignment",
+                                value=_clamp(
+                                    sum(item.retrieval_mix_alignment for item in result.delayed_outcome_ledger)
+                                    / len(result.delayed_outcome_ledger)
+                                ),
+                                confidence=0.7,
+                                evidence=result.delayed_outcome_ledger[-1].description,
+                            ),
+                            EvaluationScore(
+                                family="learning",
+                                metric_name="delayed_regime_alignment",
+                                value=_clamp(
+                                    sum(item.regime_alignment for item in result.delayed_outcome_ledger)
+                                    / len(result.delayed_outcome_ledger)
+                                ),
+                                confidence=0.7,
+                                evidence=result.delayed_outcome_ledger[-1].description,
+                            ),
+                            EvaluationScore(
+                                family="abstraction",
+                                metric_name="delayed_abstract_action_alignment",
+                                value=_clamp(
+                                    sum(item.abstract_action_alignment for item in result.delayed_outcome_ledger)
+                                    / len(result.delayed_outcome_ledger)
+                                ),
+                                confidence=0.7,
+                                evidence=result.delayed_outcome_ledger[-1].description,
+                            ),
+                        )
+                    if result.sequence_payoffs:
+                        delayed_scores = delayed_scores + (
+                            EvaluationScore(
+                                family="learning",
+                                metric_name="regime_sequence_payoff",
+                                value=_clamp(
+                                    sum(item.rolling_payoff for item in result.sequence_payoffs)
+                                    / len(result.sequence_payoffs)
+                                ),
+                                confidence=0.68,
+                                evidence=result.sequence_payoffs[-1].description,
+                            ),
+                        )
+                    delayed_credit_records = derive_learning_evidence_credit_records(
+                        evaluation_snapshot=EvaluationSnapshot(
+                            turn_scores=(),
+                            session_scores=delayed_scores,
+                            alerts=(),
+                            description="session delayed credit snapshot",
+                        ),
+                        timestamp_ms=max(result.closed_at_turn, 1) + 1001,
+                    )
+                    if delayed_credit_records or result.application_prior_audits:
+                        extended_credit = extend_credit_snapshot(
+                            credit_snapshot=credit_snapshot.value,
+                            extra_records=delayed_credit_records,
+                            extra_modifications=result.application_prior_audits,
+                        )
+                        self._upstream_snapshots["credit"] = Snapshot(
+                            slot_name="credit",
+                            owner=credit_snapshot.owner,
+                            version=credit_snapshot.version + 1,
+                            timestamp_ms=credit_snapshot.timestamp_ms + 1,
+                            value=extended_credit,
+                        )
+
+    def _experience_eta_signals(self) -> dict[str, float]:
+        signals: dict[str, float] = {}
+        experience_snapshot = self.experience_consolidation_snapshot or self._upstream_snapshots.get("experience_consolidation")
+        if (
+            experience_snapshot is not None
+            and isinstance(experience_snapshot.value, ExperienceConsolidationSnapshot)
+        ):
+            delayed_outcome_ledger = experience_snapshot.value.delayed_outcome_ledger
+            sequence_payoffs = experience_snapshot.value.sequence_payoffs
+            if delayed_outcome_ledger:
+                signals["delayed_retrieval_mix_alignment"] = _clamp(
+                    sum(item.retrieval_mix_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+                )
+                signals["delayed_regime_alignment"] = _clamp(
+                    sum(item.regime_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+                )
+                signals["delayed_abstract_action_alignment"] = _clamp(
+                    sum(item.abstract_action_alignment for item in delayed_outcome_ledger) / len(delayed_outcome_ledger)
+                )
+            if sequence_payoffs:
+                signals["regime_sequence_payoff"] = _clamp(
+                    sum(item.rolling_payoff for item in sequence_payoffs) / len(sequence_payoffs)
+                )
+        fast_prior_snapshot = self.experience_fast_prior_snapshot
+        if fast_prior_snapshot is not None:
+            fast_prior = fast_prior_snapshot.value
+            signals["experience_fast_prior_strength"] = fast_prior.prior_strength
+            signals["delayed_fast_prior_available"] = 1.0 if (
+                fast_prior.source_attribution_ids or fast_prior.source_sequence_ids
+            ) else 0.0
+            retrieval_snapshot = self._upstream_snapshots.get("retrieval_policy")
+            if retrieval_snapshot is not None and isinstance(retrieval_snapshot.value, RetrievalPolicySnapshot):
+                signals["experience_retrieval_mix_bias"] = _clamp(
+                    0.5 + (fast_prior.experience_weight_bias - fast_prior.knowledge_weight_bias)
+                )
+            regime_snapshot = self._upstream_snapshots.get("regime")
+            if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
+                active_regime_id = regime_snapshot.value.active_regime.regime_id
+                matching_regime_bias = next(
+                    (
+                        item.bias
+                        for item in fast_prior.regime_biases
+                        if item.regime_id == active_regime_id
+                    ),
+                    0.0,
+                )
+                signals["experience_regime_bias"] = _clamp(0.5 + matching_regime_bias)
+            temporal_snapshot = self._upstream_snapshots.get("temporal_abstraction")
+            if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
+                active_action = temporal_snapshot.value.active_abstract_action
+                action_bias = next(
+                    (
+                        item.bias
+                        for item in fast_prior.action_biases
+                        if item.abstract_action == active_action
+                    ),
+                    0.0,
+                )
+                signals["experience_action_bias"] = _clamp(0.5 + action_bias)
+                family_version = temporal_snapshot.value.action_family_version
+                family_bias = next(
+                    (
+                        item.continuation_bias
+                        for item in fast_prior.family_biases
+                        if item.action_family_version == family_version
+                    ),
+                    0.0,
+                )
+                signals["experience_action_family_bias"] = _clamp(0.5 + family_bias)
+        case_snapshot = self._upstream_snapshots.get("case_memory")
+        if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
+            if case_snapshot.value.hits:
+                mean_relevance = _clamp(
+                    sum(hit.relevance_score for hit in case_snapshot.value.hits) / len(case_snapshot.value.hits)
+                )
+                self_track_hits = sum(1.0 for hit in case_snapshot.value.hits if "self" in hit.track_tags)
+                world_track_hits = sum(1.0 for hit in case_snapshot.value.hits if "world" in hit.track_tags)
+                total_hits = max(len(case_snapshot.value.hits), 1)
+                signals["experience_case_strength"] = mean_relevance
+                signals["experience_case_support_prior"] = _clamp(self_track_hits / total_hits)
+                signals["experience_case_task_prior"] = _clamp(world_track_hits / total_hits)
+                signals["experience_case_continuum_position"] = _clamp(case_snapshot.value.mean_continuum_position)
+                signals["experience_case_continuum_band_coverage"] = _clamp(
+                    len(case_snapshot.value.active_band_ids) / 4.0
+                )
+        playbook_snapshot = self._upstream_snapshots.get("strategy_playbook")
+        if playbook_snapshot is not None and isinstance(playbook_snapshot.value, StrategyPlaybookSnapshot):
+            if playbook_snapshot.value.matched_rules:
+                matched_rules = playbook_snapshot.value.matched_rules
+                signals["experience_playbook_strength"] = _clamp(
+                    sum(rule.confidence for rule in matched_rules) / len(matched_rules)
+                )
+                signals["experience_playbook_knowledge_hint"] = _clamp(
+                    sum(rule.knowledge_weight_hint for rule in matched_rules) / len(matched_rules)
+                )
+                signals["experience_playbook_experience_hint"] = _clamp(
+                    sum(rule.experience_weight_hint for rule in matched_rules) / len(matched_rules)
+                )
+                support_prior = sum(
+                    1.0
+                    for rule in matched_rules
+                    if rule.recommended_regime in {"emotional_support", "repair_and_deescalation"}
+                ) / len(matched_rules)
+                task_prior = sum(
+                    1.0
+                    for rule in matched_rules
+                    if rule.recommended_regime in {"problem_solving", "guided_exploration"}
+                ) / len(matched_rules)
+                signals["experience_playbook_support_prior"] = _clamp(support_prior)
+                signals["experience_playbook_task_prior"] = _clamp(task_prior)
+                signals["experience_playbook_band_coverage"] = _clamp(
+                    len(playbook_snapshot.value.active_band_ids) / 4.0
+                )
+        prior_strength_values = tuple(
+            signals[key]
+            for key in (
+                "experience_case_strength",
+                "experience_playbook_strength",
+                "delayed_retrieval_mix_alignment",
+                "regime_sequence_payoff",
+                "experience_fast_prior_strength",
+                "experience_action_family_bias",
+            )
+            if key in signals
+        )
+        if prior_strength_values:
+            signals["experience_control_prior_strength"] = _clamp(
+                sum(prior_strength_values) / len(prior_strength_values)
+            )
+        return signals
 
     async def drain_session_post_slow_loop(self) -> tuple[SessionPostSlowLoopResult, ...]:
         self._session_post_queue.schedule()
         await self._session_post_queue.wait_for_idle()
         results = self._session_post_queue.consume_completed_results()
-        self._publish_session_post_snapshot(completed_results=results)
-        self._publish_experience_consolidation_snapshot(completed_results=results)
+        self._record_application_delayed_evidence(completed_results=results)
+        self._upstream_snapshots["session_post_slow_loop"] = self._publish_session_post_snapshot(completed_results=results)
+        self._upstream_snapshots["experience_consolidation"] = self._publish_experience_consolidation_snapshot(
+            completed_results=results
+        )
+        self._upstream_snapshots["experience_fast_prior"] = self._publish_experience_fast_prior_snapshot()
         return results
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
@@ -555,18 +1084,64 @@ class AgentSessionRunner:
             )
         case_problem_patterns: tuple[str, ...] = ()
         case_risk_markers: tuple[str, ...] = ()
+        case_band_ids: tuple[str, ...] = ()
+        case_mean_continuum_position = 0.0
         knowledge_domains: tuple[str, ...] = ()
         boundary_trigger_reasons: tuple[str, ...] = ()
+        regime_id: str | None = None
+        abstract_action: str | None = None
+        action_family_version = 0
+        retrieval_policy_id: str | None = None
+        knowledge_weight = 0.0
+        experience_weight = 0.0
+        experience_domains: tuple[str, ...] = ()
+        regime_sequence: tuple[str, ...] = ()
+        case_hit_count = 0
+        playbook_rule_count = 0
+        playbook_band_ids: tuple[str, ...] = ()
+        continuum_profile_id: str | None = None
         case_snapshot = self._upstream_snapshots.get("case_memory")
         if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
             case_problem_patterns = case_snapshot.value.active_problem_patterns
             case_risk_markers = case_snapshot.value.active_risk_markers
+            case_hit_count = len(case_snapshot.value.hits)
+            case_band_ids = case_snapshot.value.active_band_ids
+            case_mean_continuum_position = case_snapshot.value.mean_continuum_position
+            continuum_profile_id = case_snapshot.value.continuum_profile_id
         knowledge_snapshot = self._upstream_snapshots.get("domain_knowledge")
         if knowledge_snapshot is not None and isinstance(knowledge_snapshot.value, DomainKnowledgeSnapshot):
             knowledge_domains = knowledge_snapshot.value.active_domains
+        retrieval_policy_snapshot = self._upstream_snapshots.get("retrieval_policy")
+        if retrieval_policy_snapshot is not None:
+            retrieval_policy_value = retrieval_policy_snapshot.value
+            retrieval_policy_id = f"policy:{hash(retrieval_policy_value.intent_description) & 0xFFFF:04x}"
+            regime_id = retrieval_policy_value.regime_id
+            abstract_action = retrieval_policy_value.abstract_action
+            knowledge_weight = retrieval_policy_value.knowledge_weight
+            experience_weight = retrieval_policy_value.experience_weight
+            experience_domains = retrieval_policy_value.experience_domains
         boundary_snapshot = self._upstream_snapshots.get("boundary_policy")
         if boundary_snapshot is not None and isinstance(boundary_snapshot.value, BoundaryPolicySnapshot):
             boundary_trigger_reasons = boundary_snapshot.value.trigger_reasons
+        regime_snapshot = self._upstream_snapshots.get("regime")
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
+            regime_id = regime_id or regime_snapshot.value.active_regime.regime_id
+            if regime_snapshot.value.previous_regime is not None:
+                regime_sequence = (
+                    regime_snapshot.value.previous_regime.regime_id,
+                    regime_snapshot.value.active_regime.regime_id,
+                )
+            else:
+                regime_sequence = (regime_snapshot.value.active_regime.regime_id,)
+        temporal_snapshot = self._upstream_snapshots.get("temporal_abstraction")
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
+            abstract_action = abstract_action or temporal_snapshot.value.active_abstract_action
+            action_family_version = temporal_snapshot.value.action_family_version
+        playbook_snapshot = self._upstream_snapshots.get("strategy_playbook")
+        if playbook_snapshot is not None and isinstance(playbook_snapshot.value, StrategyPlaybookSnapshot):
+            playbook_rule_count = len(playbook_snapshot.value.matched_rules)
+            playbook_band_ids = playbook_snapshot.value.active_band_ids
+            continuum_profile_id = continuum_profile_id or playbook_snapshot.value.continuum_profile_id
         job = SessionPostSlowLoopJob(
             job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
             context_session_id=request.context_session_id,
@@ -585,6 +1160,20 @@ class AgentSessionRunner:
             case_risk_markers=case_risk_markers,
             knowledge_domains=knowledge_domains,
             boundary_trigger_reasons=boundary_trigger_reasons,
+            regime_id=regime_id,
+            abstract_action=abstract_action,
+            action_family_version=action_family_version,
+            retrieval_policy_id=retrieval_policy_id,
+            knowledge_weight=knowledge_weight,
+            experience_weight=experience_weight,
+            experience_domains=experience_domains,
+            regime_sequence=regime_sequence,
+            case_hit_count=case_hit_count,
+            playbook_rule_count=playbook_rule_count,
+            continuum_profile_id=continuum_profile_id,
+            case_band_ids=case_band_ids,
+            case_mean_continuum_position=case_mean_continuum_position,
+            playbook_band_ids=playbook_band_ids,
         )
         self._last_session_post_writeback_request = None
         return job
@@ -600,45 +1189,168 @@ class AgentSessionRunner:
                 temporal_policy=self._world_temporal_policy,
                 regime_module=self._regime_module,
             )
-        experience_deltas: list[ExperienceDelta] = []
-        for pattern in job.case_problem_patterns:
-            experience_deltas.append(
-                ExperienceDelta(
-                    delta_id=f"{job.job_id}:case:{pattern}",
-                    delta_type="case-promotion",
-                    target_slot="case_memory",
-                    summary=f"Promote case pattern {pattern} into durable case evidence.",
-                    confidence=0.62,
-                    blocked=False,
-                    description=f"Derived from session-post job {job.job_id} for pattern={pattern}.",
-                )
+        prediction_summary = dict(job.prediction_error_summary)
+        reward = float(prediction_summary.get("signed_reward", 0.0))
+        magnitude = float(prediction_summary.get("magnitude", 0.0))
+        relationship_error = float(prediction_summary.get("relationship_error", 0.0))
+        regime_error = float(prediction_summary.get("regime_error", 0.0))
+        outcome_score = _application_outcome_score(
+            reward=reward,
+            magnitude=magnitude,
+            relationship_error=relationship_error,
+        )
+        retrieval_mix_alignment = _retrieval_mix_alignment(
+            regime_id=job.regime_id,
+            knowledge_weight=job.knowledge_weight,
+            experience_weight=job.experience_weight,
+        )
+        regime_alignment = _regime_alignment(
+            regime_id=job.regime_id,
+            outcome_score=outcome_score,
+            relationship_error=relationship_error,
+            regime_error=regime_error,
+            magnitude=magnitude,
+        )
+        abstract_action_alignment = _abstract_action_alignment(
+            regime_id=job.regime_id,
+            abstract_action=job.abstract_action,
+            outcome_score=outcome_score,
+        )
+        dominant_band_id = (
+            job.case_band_ids[0]
+            if job.case_band_ids
+            else job.playbook_band_ids[0]
+            if job.playbook_band_ids
+            else None
+        )
+        continuum_alignment = _clamp(
+            0.5
+            + (
+                (1.0 - abs(job.case_mean_continuum_position - 0.5))
+                * 0.35
+                + retrieval_mix_alignment * 0.35
+                + abstract_action_alignment * 0.30
             )
-            experience_deltas.append(
-                ExperienceDelta(
-                    delta_id=f"{job.job_id}:playbook:{pattern}",
-                    delta_type="playbook-delta",
-                    target_slot="strategy_playbook",
-                    summary=f"Extract a reusable ordering prior for pattern {pattern}.",
-                    confidence=0.58,
-                    blocked=False,
-                    description=f"Derived from session-post job {job.job_id} for pattern={pattern}.",
-                )
+            / 2.0
+        )
+        delayed_outcome_ledger = (
+            ApplicationOutcomeAttribution(
+                attribution_id=f"{job.job_id}:outcome",
+                source_context_session_id=job.context_session_id,
+                source_wave_id=job.writeback_request.source_wave_id,
+                regime_id=job.regime_id,
+                abstract_action=job.abstract_action,
+                action_family_version=job.action_family_version,
+                retrieval_policy_id=job.retrieval_policy_id,
+                knowledge_weight=job.knowledge_weight,
+                experience_weight=job.experience_weight,
+                retrieval_mix_alignment=retrieval_mix_alignment,
+                regime_alignment=regime_alignment,
+                abstract_action_alignment=abstract_action_alignment,
+                outcome_score=outcome_score,
+                resolved_turn_index=job.closed_at_turn,
+                continuum_profile_id=job.continuum_profile_id,
+                dominant_band_id=dominant_band_id,
+                mean_continuum_position=job.case_mean_continuum_position,
+                continuum_alignment=continuum_alignment,
+                description=(
+                    f"Delayed application outcome for regime={job.regime_id} abstract_action={job.abstract_action} "
+                    f"knowledge_weight={job.knowledge_weight:.2f} experience_weight={job.experience_weight:.2f} "
+                    f"reward={reward:.2f} magnitude={magnitude:.2f}."
+                ),
+            ),
+        )
+        sequence_payoffs = (
+            ApplicationSequencePayoff(
+                sequence_id=f"{job.job_id}:sequence",
+                regime_sequence=job.regime_sequence or ((job.regime_id,) if job.regime_id is not None else ()),
+                action_family_version=job.action_family_version,
+                sample_count=1,
+                rolling_payoff=outcome_score,
+                latest_outcome=outcome_score,
+                continuum_profile_id=job.continuum_profile_id,
+                dominant_band_id=dominant_band_id,
+                mean_continuum_position=job.case_mean_continuum_position,
+                description=(
+                    f"Sequence payoff for regime_sequence={job.regime_sequence or ((job.regime_id,) if job.regime_id is not None else ())} "
+                    f"family_version={job.action_family_version}."
+                ),
+            ),
+        )
+        mean_experience_quality = _clamp(
+            (
+                retrieval_mix_alignment
+                + regime_alignment
+                + abstract_action_alignment
+                + outcome_score
             )
-        if job.boundary_trigger_reasons:
-            experience_deltas.append(
-                ExperienceDelta(
-                    delta_id=f"{job.job_id}:boundary",
-                    delta_type="boundary-delta",
-                    target_slot="boundary_policy",
-                    summary="Preserve repeated boundary triggers as future caution priors.",
-                    confidence=0.57,
-                    blocked=False,
-                    description=(
-                        f"Derived from session-post job {job.job_id} with triggers="
-                        f"{', '.join(job.boundary_trigger_reasons)}."
-                    ),
-                )
+            / 4.0
+        )
+        application_prior_update = _build_application_prior_update(
+            job=job,
+            mean_experience_quality=mean_experience_quality,
+        )
+        application_apply_enabled = (
+            job.writeback_request.reflection_apply_enabled
+            and job.writeback_request.structural_writeback_allowed
+            and mean_experience_quality >= 0.52
+        )
+        if not job.writeback_request.reflection_apply_enabled:
+            application_block_reason = "writeback-mode-not-apply"
+        elif not job.writeback_request.structural_writeback_allowed:
+            application_block_reason = "evolution-judge-block"
+        elif mean_experience_quality < 0.52:
+            application_block_reason = "experience-quality-below-threshold"
+        else:
+            application_block_reason = "allow"
+        async with self._session_post_lock:
+            (
+                application_prior_ops,
+                application_prior_blocks,
+                application_prior_audits,
+                application_prior_writeback_report,
+            ) = _apply_application_prior_writeback(
+                prior_update=application_prior_update,
+                case_memory_store=self._case_memory_store,
+                application_rare_heavy_state=self._application_rare_heavy_state,
+                credit_snapshot=job.writeback_request.credit_snapshot,
+                timestamp_ms=max(job.closed_at_turn, 1) + 2,
+                checkpoint_id=job.writeback_request.checkpoint_id,
+                apply_enabled=application_apply_enabled,
+                blocked_reason=application_block_reason,
             )
+        if application_prior_writeback_report is None:
+            application_prior_writeback_report = ApplicationPriorWritebackReport(
+                proposed_target_count=0,
+                applied_targets=(),
+                blocked_targets=(),
+                audit_record_count=0,
+                description="No application prior update was proposed for this slow-loop result.",
+            )
+        if writeback_result is not None and (application_prior_ops or application_prior_blocks):
+            writeback_result = replace(
+                writeback_result,
+                applied_operations=writeback_result.applied_operations + application_prior_ops,
+                blocked_operations=writeback_result.blocked_operations + application_prior_blocks,
+                description=(
+                    f"{writeback_result.description} application_prior_ops={len(application_prior_ops)} "
+                    f"application_prior_blocks={len(application_prior_blocks)}."
+                ),
+            )
+        elif application_prior_ops or application_prior_blocks:
+            writeback_result = WritebackResult(
+                applied_operations=application_prior_ops,
+                blocked_operations=application_prior_blocks,
+                checkpoint=None,
+                description=(
+                    f"Session-post application prior writeback produced {len(application_prior_ops)} applied ops "
+                    f"and {len(application_prior_blocks)} blocked ops."
+                ),
+            )
+        experience_deltas = _experience_deltas_from_prior_update(
+            prior_update=application_prior_update,
+            blocked_targets=application_prior_writeback_report.blocked_targets,
+        )
         return SessionPostSlowLoopResult(
             job_id=job.job_id,
             context_session_id=job.context_session_id,
@@ -649,9 +1361,19 @@ class AgentSessionRunner:
             description=(
                 f"Session-post slow loop finished for {job.context_session_id} "
                 f"applied={bool(writeback_result is not None and writeback_result.applied_operations)} "
-                f"blocked={bool(writeback_result is not None and writeback_result.blocked_operations)}."
+                f"blocked={bool(writeback_result is not None and writeback_result.blocked_operations)} "
+                f"application_promotion={'allow' if application_apply_enabled else 'blocked'} "
+                f"experience_quality={mean_experience_quality:.2f}."
             ),
-            experience_deltas=tuple(experience_deltas),
+            experience_deltas=experience_deltas,
+            delayed_outcome_ledger=delayed_outcome_ledger,
+            sequence_payoffs=sequence_payoffs,
+            application_prior_update=application_prior_update,
+            application_prior_writeback_report=application_prior_writeback_report,
+            application_prior_audits=application_prior_audits,
+            continuum_profile_id=job.continuum_profile_id,
+            case_band_ids=job.case_band_ids,
+            playbook_band_ids=job.playbook_band_ids,
         )
 
     def _publish_session_post_snapshot(
@@ -670,19 +1392,39 @@ class AgentSessionRunner:
         *,
         completed_results: tuple[SessionPostSlowLoopResult, ...] = (),
     ) -> Snapshot[ExperienceConsolidationSnapshot]:
+        if not completed_results and self._experience_consolidation_snapshot is not None:
+            return self._experience_consolidation_snapshot
         self._experience_consolidation_snapshot = self._experience_consolidation_module.publish_snapshot(
             completed_results=completed_results,
         )
         return self._experience_consolidation_snapshot
 
+    def _publish_experience_fast_prior_snapshot(self) -> Snapshot[ExperienceFastPriorSnapshot]:
+        experience_consolidation = (
+            self._experience_consolidation_snapshot.value
+            if self._experience_consolidation_snapshot is not None
+            else None
+        )
+        self._experience_fast_prior_snapshot = self._experience_fast_prior_module.publish_snapshot(
+            experience_consolidation_snapshot=experience_consolidation,
+        )
+        return self._experience_fast_prior_snapshot
+
     def _collect_session_post_writeback_result(self) -> WritebackResult | None:
         completed = self._session_post_queue.consume_completed_results()
         if completed:
-            self._publish_session_post_snapshot(completed_results=completed)
-            self._publish_experience_consolidation_snapshot(completed_results=completed)
+            self._record_application_delayed_evidence(completed_results=completed)
+            self._upstream_snapshots["session_post_slow_loop"] = self._publish_session_post_snapshot(
+                completed_results=completed
+            )
+            self._upstream_snapshots["experience_consolidation"] = self._publish_experience_consolidation_snapshot(
+                completed_results=completed
+            )
+            self._upstream_snapshots["experience_fast_prior"] = self._publish_experience_fast_prior_snapshot()
         else:
-            self._publish_session_post_snapshot()
-            self._publish_experience_consolidation_snapshot()
+            self._upstream_snapshots["session_post_slow_loop"] = self._publish_session_post_snapshot()
+            self._upstream_snapshots["experience_consolidation"] = self._publish_experience_consolidation_snapshot()
+            self._upstream_snapshots["experience_fast_prior"] = self._publish_experience_fast_prior_snapshot()
         if not completed:
             return None
         applied_operations: tuple[str, ...] = ()
@@ -779,8 +1521,9 @@ class AgentSessionRunner:
             )
             pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
             pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
+            experience_eta_signals = self._experience_eta_signals()
             if self._external_prediction_error_drive:
-                self._joint_loop.set_external_learning_signals(
+                pe_signals = (
                     {
                         "prediction_error_reward": self._previous_prediction_reward,
                         "prediction_error_magnitude": self._previous_prediction_magnitude,
@@ -795,8 +1538,14 @@ class AgentSessionRunner:
                     )
                     else {}
                 )
+                self._joint_loop.set_external_learning_signals(
+                    {
+                        **experience_eta_signals,
+                        **pe_signals,
+                    }
+                )
             else:
-                readout_only_signals = {}
+                readout_only_signals = dict(experience_eta_signals)
                 if (
                     self._prediction_error_readout_only
                     and (
@@ -1976,57 +2725,16 @@ class AgentSessionRunner:
             primary_reflection_lesson = next(iter(reflection_snapshot.value.lessons_extracted), None)
             primary_reflection_tension = next(iter(reflection_snapshot.value.tensions_identified), None)
 
-        retrieved_memories: tuple[str, ...] = ()
-        if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
-            retrieved_memories = tuple(
-                entry.content for entry in memory_snapshot.value.retrieved_entries[:5]
-            )
-        controller_description = ""
-        control_code: tuple[float, ...] = ()
-        if metacontroller_state is not None:
-            controller_description = metacontroller_state.description
-        if temporal_snapshot is not None and isinstance(
-            temporal_snapshot.value, TemporalAbstractionSnapshot
-        ):
-            control_code = temporal_snapshot.value.controller_state.code
-        knowledge_hit_count = 0
-        knowledge_summaries: tuple[str, ...] = ()
-        case_hit_count = 0
-        case_patterns: tuple[str, ...] = ()
-        playbook_rule_count = 0
-        playbook_ordering_hints: tuple[str, ...] = ()
-        citation_required = False
-        boundary_risk_band = "low"
-        boundary_answer_depth_limit = "standard"
-        boundary_clarification_required = False
-        boundary_refer_out_required = False
-        boundary_required_disclaimers: tuple[str, ...] = ()
+        response_assembly_snapshot = integration_result.active_snapshots.get("response_assembly")
+        response_assembly = (
+            response_assembly_snapshot.value
+            if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
+            else None
+        )
         domain_knowledge_snapshot = integration_result.active_snapshots.get("domain_knowledge")
-        if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot):
-            knowledge_hit_count = len(domain_knowledge_snapshot.value.hits)
-            knowledge_summaries = tuple(hit.summary for hit in domain_knowledge_snapshot.value.hits[:3])
-            citation_required = domain_knowledge_snapshot.value.citation_required
         case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
-        if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot):
-            case_hit_count = len(case_memory_snapshot.value.hits)
-            case_patterns = tuple(case.problem_pattern for case in case_memory_snapshot.value.hits[:3])
         strategy_playbook_snapshot = integration_result.active_snapshots.get("strategy_playbook")
-        if strategy_playbook_snapshot is not None and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot):
-            playbook_rule_count = len(strategy_playbook_snapshot.value.matched_rules)
-            playbook_ordering_hints = tuple(
-                step
-                for rule in strategy_playbook_snapshot.value.matched_rules[:2]
-                for step in rule.recommended_ordering[:3]
-            )
         boundary_policy_snapshot = integration_result.active_snapshots.get("boundary_policy")
-        if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot):
-            decision = boundary_policy_snapshot.value.active_decision
-            citation_required = citation_required or decision.citation_required
-            boundary_risk_band = decision.risk_band.value
-            boundary_answer_depth_limit = decision.answer_depth_limit
-            boundary_clarification_required = decision.clarification_required
-            boundary_refer_out_required = decision.refer_out_required
-            boundary_required_disclaimers = decision.required_disclaimers
 
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
@@ -2037,7 +2745,6 @@ class AgentSessionRunner:
                 regime_switched=regime_switched,
                 abstract_action=active_abstract_action,
                 alert_count=len(evaluation_alerts),
-                retrieved_memory_count=memory_retrieval_count,
                 temporal_switch_gate=temporal_switch_gate,
                 temporal_is_switching=temporal_is_switching,
                 reflection_lesson_count=reflection_lesson_count,
@@ -2050,27 +2757,65 @@ class AgentSessionRunner:
                 primary_reflection_tension=primary_reflection_tension,
                 joint_schedule_action=joint_result.schedule_action,
                 user_input=user_input,
-                retrieved_memories=retrieved_memories,
-                controller_description=controller_description,
-                control_code=control_code,
-                knowledge_hit_count=knowledge_hit_count,
-                knowledge_summaries=knowledge_summaries,
-                case_hit_count=case_hit_count,
-                case_patterns=case_patterns,
-                playbook_rule_count=playbook_rule_count,
-                playbook_ordering_hints=playbook_ordering_hints,
-                citation_required=citation_required,
-                boundary_risk_band=boundary_risk_band,
-                boundary_answer_depth_limit=boundary_answer_depth_limit,
-                boundary_clarification_required=boundary_clarification_required,
-                boundary_refer_out_required=boundary_refer_out_required,
-                boundary_required_disclaimers=boundary_required_disclaimers,
-            )
+            ),
+            assembly=response_assembly,
         )
         effective_writeback_result = deferred_writeback_result or integration_result.writeback_result
         effective_queue_state = queue_state or self.session_post_queue_state
         session_post_snapshot = self._publish_session_post_snapshot()
         experience_consolidation_snapshot = self._publish_experience_consolidation_snapshot()
+        experience_fast_prior_snapshot = self._publish_experience_fast_prior_snapshot()
+        evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
+        if (
+            evaluation_snapshot is not None
+            and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+            and (
+                experience_consolidation_snapshot.value.delayed_outcome_ledger
+                or experience_consolidation_snapshot.value.sequence_payoffs
+            )
+        ):
+            enriched_evaluation = self._evaluation_backbone.record_learning_evidence(
+                session_id=self.active_context_session_id,
+                wave_id=wave_id,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 20,
+                base_snapshot=evaluation_snapshot.value,
+                memory_snapshot=memory_snapshot.value if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot) else None,
+                reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
+                writeback_result=integration_result.writeback_result,
+                joint_loop_result=joint_result,
+                regime_snapshot=regime_snapshot.value if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot) else None,
+                domain_knowledge_snapshot=(
+                    domain_knowledge_snapshot.value
+                    if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
+                    else None
+                ),
+                case_memory_snapshot=(
+                    case_memory_snapshot.value
+                    if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot)
+                    else None
+                ),
+                strategy_playbook_snapshot=(
+                    strategy_playbook_snapshot.value
+                    if strategy_playbook_snapshot is not None and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
+                    else None
+                ),
+                boundary_policy_snapshot=(
+                    boundary_policy_snapshot.value
+                    if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                    else None
+                ),
+                experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+                response_assembly_snapshot=response_assembly,
+                delayed_outcome_ledger=experience_consolidation_snapshot.value.delayed_outcome_ledger,
+                sequence_payoffs=experience_consolidation_snapshot.value.sequence_payoffs,
+            )
+            integration_result.active_snapshots["evaluation"] = Snapshot(
+                slot_name=evaluation_snapshot.slot_name,
+                owner=evaluation_snapshot.owner,
+                version=evaluation_snapshot.version + 1,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 20,
+                value=enriched_evaluation,
+            )
         active_snapshots = dict(integration_result.active_snapshots)
         shadow_snapshots = dict(integration_result.shadow_snapshots)
         if self._config.is_active("session_post_slow_loop"):
@@ -2081,6 +2826,10 @@ class AgentSessionRunner:
             active_snapshots["experience_consolidation"] = experience_consolidation_snapshot
         else:
             shadow_snapshots["experience_consolidation"] = experience_consolidation_snapshot
+        if self._config.is_active("experience_fast_prior"):
+            active_snapshots["experience_fast_prior"] = experience_fast_prior_snapshot
+        else:
+            shadow_snapshots["experience_fast_prior"] = experience_fast_prior_snapshot
 
         return AgentTurnResult(
             session_id=self.active_context_session_id,

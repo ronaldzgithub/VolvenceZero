@@ -72,6 +72,7 @@ def test_application_storage_round_trip_restores_domain_and_case_records():
         assert restored_case_store.load_from_backend() is True
         assert restored_domain_store.records[0].title == "Career guidance"
         assert restored_case_store.records[0].problem_pattern == "structured-decision-overwhelm"
+        assert restored_case_store.records[0].continuum_band_id is None
 
 
 def test_final_wiring_prefers_real_application_stores_over_mock_fallbacks():
@@ -140,3 +141,44 @@ def test_final_wiring_prefers_real_application_stores_over_mock_fallbacks():
     assert domain_knowledge.hits[0].citations[0].source_type is KnowledgeSourceType.REVIEWED_ARTICLE
     assert case_memory.hits[0].case_id == "case:real-store:1"
     assert case_memory.hits[0].problem_pattern == "structured-decision-overwhelm"
+    assert case_memory.hits[0].continuum_location is not None
+
+
+def test_final_wiring_uses_semantic_store_matching_without_keyword_overlap():
+    domain_store = ApplicationDomainKnowledgeStore(
+        records=(
+            DomainKnowledgeRecord(
+                record_id="knowledge:semantic-career:1",
+                domain="career_decision",
+                topic_tags=("career", "tradeoff"),
+                jurisdiction_tags=("general",),
+                source_type="reviewed-article",
+                title="Career trade-off framing",
+                locator="semantic-store",
+                summary="Compare role trade-offs and choose the smallest next move.",
+                snippet="Trade-off framing beats vague life-plan advice.",
+                freshness_label="current",
+                confidence=0.82,
+                evidence_strength="high",
+            ),
+        )
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="semantic-store-model",
+                feature_surface=(
+                    FeatureSignal(name="semantic_task_pull", values=(0.78,), source="adapter"),
+                    FeatureSignal(name="semantic_directive_pull", values=(0.61,), source="adapter"),
+                ),
+            ),
+            domain_knowledge_store=domain_store,
+            session_id="semantic-store-session",
+            wave_id="semantic-store-wave",
+        )
+    )
+
+    domain_knowledge = result.active_snapshots["domain_knowledge"].value
+    assert domain_knowledge.hits[0].hit_id == "knowledge:semantic-career:1"

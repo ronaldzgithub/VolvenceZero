@@ -610,12 +610,34 @@ class MemoryStore:
         episodic_entries = self._entries_for(MemoryStratum.EPISODIC)
         durable_entries = self._entries_for(MemoryStratum.DURABLE)
         total_entries = self._artifact_store.total_entries_by_stratum()
+        cms_state = self._learned_core.snapshot() if self._learned_core is not None else None
+        continuum_profile = cms_state.continuum_profile if cms_state is not None else None
+        continuum_band_count = len(continuum_profile.bands) if continuum_profile is not None else 0
+        continuum_reconstruction_edge_count = (
+            len(continuum_profile.reconstruction_edges) if continuum_profile is not None else 0
+        )
+        continuum_frequency_span = (
+            max((band.update_frequency for band in continuum_profile.bands), default=0.0)
+            - min((band.update_frequency for band in continuum_profile.bands), default=0.0)
+            if continuum_profile is not None and continuum_profile.bands
+            else 0.0
+        )
+        continuum_retrieval_mass = (
+            sum(band.retrieval_weight for band in continuum_profile.bands)
+            if continuum_profile is not None
+            else 0.0
+        )
         description = (
             f"Memory store with learned core primary and {self._artifact_store.entry_count()} artifact entries "
             f"across {len(MemoryStratum)} strata; {len(retrieved_entries)} retrieved this turn."
         )
-        if self._learned_core is not None:
-            description += f" {self._learned_core.snapshot().description}"
+        if cms_state is not None:
+            description += f" {cms_state.description}"
+        if continuum_profile is not None:
+            description += (
+                f" continuum_profile={continuum_profile.profile_id} "
+                f"bands={continuum_band_count} reconstruction_edges={continuum_reconstruction_edge_count}."
+            )
         if self._last_context_reset_reason:
             description += (
                 f" last_reset_reason={self._last_context_reset_reason} "
@@ -635,7 +657,7 @@ class MemoryStore:
             total_entries_by_stratum=total_entries,
             pending_promotions=len(self._artifact_store.pending_promotions),
             pending_decays=len(self._artifact_store.pending_decays),
-            cms_state=self._learned_core.snapshot() if self._learned_core is not None else None,
+            cms_state=cms_state,
             lifecycle_metrics=(
                 ("nested_profile_active", float(
                     self._learned_core is not None
@@ -658,6 +680,10 @@ class MemoryStore:
                 ("last_learned_recall_driver_is_core", float(self._last_recall_driver == "learned-core-guided")),
                 ("last_memory_tower_depth", float(self._last_tower_depth)),
                 ("last_memory_tower_alignment", self._last_tower_alignment),
+                ("continuum_band_count", float(continuum_band_count)),
+                ("continuum_reconstruction_edge_count", float(continuum_reconstruction_edge_count)),
+                ("continuum_frequency_span", continuum_frequency_span),
+                ("continuum_retrieval_mass", continuum_retrieval_mass),
                 ("fast_memory_signal_count", float(self._fast_memory_signal_count)),
                 ("last_fast_memory_signal_norm", self._last_fast_memory_signal_norm),
             ),

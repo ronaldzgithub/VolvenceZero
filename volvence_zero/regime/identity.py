@@ -10,6 +10,7 @@ from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:
+    from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
@@ -318,8 +319,10 @@ def score_regimes(
     historical_effectiveness: Mapping[str, float],
     strategy_priors: Mapping[str, float] | None = None,
     selection_weights: Mapping[str, float] | None = None,
+    experience_regime_biases: Mapping[str, float] | None = None,
 ) -> tuple[tuple[str, float], ...]:
     regime_priors = strategy_priors or {}
+    fast_regime_biases = experience_regime_biases or {}
     pe_task_shortfall = max(-prediction_error_snapshot.error.task_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
     pe_relationship_shortfall = max(-prediction_error_snapshot.error.relationship_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
     pe_regime_shortfall = max(-prediction_error_snapshot.error.regime_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
@@ -444,7 +447,7 @@ def score_regimes(
             + regime_priors.get(template.regime_id, 0.0)
         )
         weight = learned_weights.get(template.regime_id, 1.0)
-        blended = _clamp(base_score * weight)
+        blended = _clamp(base_score * weight + fast_regime_biases.get(template.regime_id, 0.0) * 0.45)
         ranked.append((template.regime_id, round(blended, 4)))
     ranked.sort(key=lambda item: item[1], reverse=True)
     return tuple(ranked)
@@ -472,7 +475,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
     slot_name = "regime"
     owner = "RegimeModule"
     value_type = RegimeSnapshot
-    dependencies = ("memory", "dual_track", "evaluation", "prediction_error")
+    dependencies = ("memory", "dual_track", "evaluation", "prediction_error", "experience_fast_prior")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -510,10 +513,13 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         }
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[RegimeSnapshot]:
+        from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
+
         memory_snapshot = upstream["memory"]
         dual_track_snapshot = upstream["dual_track"]
         evaluation_snapshot = upstream["evaluation"]
         prediction_error_snapshot = upstream["prediction_error"]
+        experience_fast_prior_snapshot = upstream["experience_fast_prior"]
 
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
@@ -524,6 +530,16 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             prediction_error_snapshot.value
             if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
             else None
+        )
+        experience_fast_prior = (
+            experience_fast_prior_snapshot.value
+            if isinstance(experience_fast_prior_snapshot.value, ExperienceFastPriorSnapshot)
+            else None
+        )
+        experience_regime_biases = (
+            {item.regime_id: item.bias for item in experience_fast_prior.regime_biases}
+            if experience_fast_prior is not None
+            else {}
         )
 
         self._turn_index += 1
@@ -542,6 +558,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,
+            experience_regime_biases=experience_regime_biases,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
@@ -595,10 +612,13 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         )
 
     async def process_standalone(self, **kwargs: object) -> Snapshot[RegimeSnapshot]:
+        from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
+
         memory_snapshot = kwargs.get("memory_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         evaluation_snapshot = kwargs.get("evaluation_snapshot")
         prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
         if not isinstance(memory_snapshot, MemorySnapshot):
             memory_snapshot = None
         if not isinstance(dual_track_snapshot, DualTrackSnapshot):
@@ -607,6 +627,13 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             evaluation_snapshot = None
         if not isinstance(prediction_error_snapshot, PredictionErrorSnapshot):
             prediction_error_snapshot = None
+        if not isinstance(experience_fast_prior_snapshot, ExperienceFastPriorSnapshot):
+            experience_fast_prior_snapshot = None
+        experience_regime_biases = (
+            {item.regime_id: item.bias for item in experience_fast_prior_snapshot.regime_biases}
+            if experience_fast_prior_snapshot is not None
+            else {}
+        )
 
         self._turn_index += 1
         self._record_turn_score(evaluation_snapshot, prediction_error_snapshot=prediction_error_snapshot)
@@ -624,6 +651,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,
+            experience_regime_biases=experience_regime_biases,
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)

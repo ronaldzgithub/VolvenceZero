@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Iterable
 
 from volvence_zero.memory import (
@@ -33,6 +34,27 @@ def _tokenize(text: str) -> set[str]:
     for index in range(len(compact) - 1):
         tokens.add(compact[index : index + 2])
     return tokens
+
+
+def _semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
+    tokens = tuple(_tokenize(text))
+    if not tokens:
+        return tuple(0.0 for _ in range(dim))
+    vector = [0.0 for _ in range(dim)]
+    for token in tokens:
+        token_scale = max(len(token), 1)
+        for index, char in enumerate(token):
+            vector[(index + len(token)) % dim] += (ord(char) % 37) / 37.0 / token_scale
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm <= 1e-6:
+        return tuple(0.0 for _ in range(dim))
+    return tuple(value / norm for value in vector)
+
+
+def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+    if not left or not right:
+        return 0.0
+    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
 
 
 @dataclass(frozen=True)
@@ -76,6 +98,11 @@ class CaseMemoryRecord:
     confidence: float
     relevance_score: float
     description: str
+    continuum_profile_id: str | None = None
+    continuum_band_id: str | None = None
+    continuum_position: float = 0.0
+    continuum_update_frequency: float = 0.0
+    reconstruction_source: str = "direct"
 
 
 @dataclass(frozen=True)
@@ -134,6 +161,19 @@ def _reconstruct_case_memory_checkpoint(parsed: dict[str, object]) -> CaseMemory
                 confidence=float(record["confidence"]),
                 relevance_score=float(record["relevance_score"]),
                 description=str(record["description"]),
+                continuum_profile_id=(
+                    str(record["continuum_profile_id"])
+                    if record.get("continuum_profile_id") is not None
+                    else None
+                ),
+                continuum_band_id=(
+                    str(record["continuum_band_id"])
+                    if record.get("continuum_band_id") is not None
+                    else None
+                ),
+                continuum_position=float(record.get("continuum_position", 0.0)),
+                continuum_update_frequency=float(record.get("continuum_update_frequency", 0.0)),
+                reconstruction_source=str(record.get("reconstruction_source", "direct")),
             )
             for record in records_raw
         )
@@ -226,15 +266,25 @@ class ApplicationDomainKnowledgeStore:
         jurisdiction_required: bool,
         limit: int = 3,
     ) -> tuple[DomainKnowledgeRecord, ...]:
-        query_tokens = _tokenize(query_text)
+        query_embedding = _semantic_embedding(query_text)
         scored: list[tuple[float, DomainKnowledgeRecord]] = []
         for record in self._records.values():
             if domains and record.domain not in domains:
                 continue
-            summary_tokens = _tokenize(record.summary + " " + record.snippet + " " + " ".join(record.topic_tags))
-            overlap = len(query_tokens & summary_tokens)
+            record_embedding = _semantic_embedding(
+                " ".join(
+                    (
+                        record.title,
+                        record.summary,
+                        record.snippet,
+                        " ".join(record.topic_tags),
+                        " ".join(record.jurisdiction_tags),
+                    )
+                )
+            )
+            semantic_similarity = _clamp((_cosine_similarity(query_embedding, record_embedding) + 1.0) / 2.0)
             jurisdiction_bonus = 0.08 if jurisdiction_required and "local-law-sensitive" in record.jurisdiction_tags else 0.0
-            score = record.confidence + overlap * 0.04 + jurisdiction_bonus
+            score = record.confidence * 0.52 + semantic_similarity * 0.40 + jurisdiction_bonus
             scored.append((score, record))
         scored.sort(key=lambda item: (-item[0], item[1].record_id))
         return tuple(record for _, record in scored[:limit])

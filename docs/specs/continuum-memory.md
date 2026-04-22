@@ -19,6 +19,28 @@
 - `MemoryModule` 必须继续是唯一 memory owner；更强的 NL-style memory 只能作为 owner 内部 tower 演进，不能通过新增第二 owner 获得
 - query / learned core / artifact retrieval 必须走同一条 owner-side memory signal contract，而不是多套语义空间松散拼接
 - public `cms_state` 可以继续保留三层摘要，但 owner 内部允许更深的 nested tower，并通过 machine-readable tower profile 对外发布
+- public `cms_state` 除兼容三带摘要外，还必须发布 machine-readable `continuum_profile`，至少包含 `bands`、`reconstruction_edges` 与 `readout_band_id`
+
+### Continuum frequency contract
+
+当前 runtime contract 明确区分两层：
+
+1. **兼容摘要层**
+   - `online_fast`
+   - `session_medium`
+   - `background_slow`
+
+2. **连续谱层**
+   - `continuum_profile.profile_id`
+   - `continuum_profile.bands[*]`
+   - `continuum_profile.reconstruction_edges[*]`
+   - `continuum_profile.readout_band_id`
+
+其中：
+
+- `bands` 负责表达当前 owner 发布的频率带、更新频率、持久性偏置、检索权重与 pending signal
+- `reconstruction_edges` 负责表达 `slow->fast reset`、`meta-init`、`associative readout` 等跨层恢复/迁移路径
+- consumer 若需要理解“连续谱位置”，应优先读取 `continuum_profile`，而不是自行从三带字段反推
 
 ## 工程挑战
 

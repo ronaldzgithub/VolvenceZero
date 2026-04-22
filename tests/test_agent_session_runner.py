@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import types
+from dataclasses import replace
 
 from volvence_zero.agent import (
     AgentSessionRunner,
@@ -15,9 +16,11 @@ from volvence_zero.application import (
     ApplicationRareHeavyCheckpoint,
     PlaybookRule,
 )
+from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
+from volvence_zero.evaluation.backbone import EvolutionDecision, EvolutionJudgement, JudgementCategory
 from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.agent.session import RareHeavyPreImportEvaluation
@@ -97,7 +100,14 @@ def test_agent_session_runner_exposes_temporal_and_regime_views():
     )
     assert "family_version=" in temporal_commitment_score.evidence
     credit_events = {record.source_event for record in result.active_snapshots["credit"].value.recent_credits}
-    assert "joint_learning_progress" in credit_events
+    assert any(
+        event in credit_events
+        for event in {
+            "joint_learning_progress",
+            "evaluation:temporal_action_commitment",
+            "session-evaluation:temporal_action_commitment",
+        }
+    )
 
 
 def test_agent_session_runner_exposes_staged_temporal_slots():
@@ -197,7 +207,73 @@ def test_agent_session_runner_publishes_experience_consolidation_after_session_p
     experience_snapshot = runner.experience_consolidation_snapshot.value
     assert experience_snapshot.deltas
     assert experience_snapshot.playbook_delta_count >= 1
-    assert experience_snapshot.promoted_case_count >= 1
+    assert any(delta.target_slot == "case_memory" for delta in experience_snapshot.deltas)
+    assert experience_snapshot.delayed_outcome_ledger
+    assert experience_snapshot.sequence_payoffs
+    assert experience_snapshot.latest_prior_update is not None
+    assert experience_snapshot.latest_writeback_report is not None
+    assert experience_snapshot.latest_writeback_report.proposed_target_count >= 1
+    assert experience_snapshot.continuum_profile_id is not None
+    assert experience_snapshot.active_band_ids
+    assert any(
+        record.metric_name == "delayed_retrieval_mix_alignment"
+        for record in runner.evaluation_backbone.records
+    )
+
+
+def test_agent_session_runner_derives_case_and_playbook_eta_signals_between_turns():
+    runner = AgentSessionRunner(
+        session_id="experience-prior-signals",
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need calm support with the smallest next step."))
+    signals = runner._experience_eta_signals()
+
+    assert "experience_case_strength" in signals
+    assert "experience_playbook_strength" in signals
+    assert "experience_case_continuum_position" in signals
+    assert "experience_control_prior_strength" in signals
+
+    second = asyncio.run(runner.run_turn("Keep helping me with the same situation."))
+    turn_scores = {score.metric_name: score.value for score in second.active_snapshots["evaluation"].value.turn_scores}
+
+    assert "scheduler_control_prior_strength" in turn_scores
+    assert "application_continuum_case_coverage" in turn_scores
+
+
+def test_agent_session_runner_feeds_delayed_experience_credit_into_next_turn_schedule():
+    runner = AgentSessionRunner(
+        session_id="experience-credit-schedule",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    runner.begin_new_context(reason="experience-credit-boundary")
+    asyncio.run(runner.drain_session_post_slow_loop())
+
+    result = asyncio.run(runner.run_turn("Start the next context with what you learned."))
+    turn_scores = {score.metric_name: score.value for score in result.active_snapshots["evaluation"].value.turn_scores}
+
+    assert "scheduler_experience_credit" in turn_scores
+    assert "experience_fast_prior" in result.shadow_snapshots
+    experience_fast_prior = result.shadow_snapshots["experience_fast_prior"].value
+    assert experience_fast_prior.source_attribution_ids
+    assert experience_fast_prior.prior_strength > 0.0
+    assert result.metacontroller_state is not None
+    assert result.metacontroller_state.fast_prior_strength > 0.0
+    assert result.metacontroller_state.fast_prior_switch_pressure_delta != 0.0
+    assert "delayed_fast_prior_available" in turn_scores
+    assert "delayed_retrieval_mix_bias_applied" in turn_scores
+    assert "temporal_fast_prior_strength" in turn_scores
+    assert "temporal_fast_prior_switch_pressure" in turn_scores
 
 
 def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fast_path():
@@ -281,6 +357,128 @@ def test_agent_session_runner_session_post_loop_fails_closed_when_apply_disabled
     assert len(slow_loop_results) == 1
     assert slow_loop_results[0].writeback_result is not None
     assert "writeback-mode-not-apply" in slow_loop_results[0].writeback_result.blocked_operations
+
+
+def test_agent_session_runner_blocks_application_promotion_when_judge_holds_or_rolls_back():
+    runner = AgentSessionRunner(
+        session_id="judge-gated-application",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    hold_judgement = EvolutionJudgement(
+        decision=EvolutionDecision.HOLD,
+        category=JudgementCategory.INSUFFICIENT_EVIDENCE,
+        replay_passed=True,
+        abstraction_trend=0.0,
+        learning_trend=0.0,
+        relationship_trend=0.0,
+        reasons=("insufficient-positive-evidence",),
+        description="Hold application widening.",
+    )
+    assert runner._last_session_post_writeback_request is not None
+    runner._last_session_post_writeback_request = replace(
+        runner._last_session_post_writeback_request,
+        evolution_judgement=hold_judgement,
+        structural_writeback_allowed=False,
+    )
+
+    runner.begin_new_context(reason="judge-gated-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    assert slow_loop_results[0].experience_deltas
+    assert all(delta.blocked for delta in slow_loop_results[0].experience_deltas)
+    assert slow_loop_results[0].application_prior_writeback_report is not None
+    assert slow_loop_results[0].application_prior_writeback_report.blocked_targets
+
+
+def test_agent_session_runner_applies_application_prior_to_next_context_fast_path():
+    runner = AgentSessionRunner(
+        session_id="application-prior-fast-path",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    assert runner._last_session_post_writeback_request is not None
+    runner._last_session_post_writeback_request = replace(
+        runner._last_session_post_writeback_request,
+        structural_writeback_allowed=True,
+    )
+    runner.begin_new_context(reason="application-prior-fast-path-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    assert slow_loop_results[0].application_prior_writeback_report is not None
+    assert slow_loop_results[0].application_prior_writeback_report.applied_targets
+    assert any(record.case_id.startswith("case:slow-loop:") for record in runner._case_memory_store.records)
+
+    second = asyncio.run(
+        runner.run_turn("I still feel overwhelmed about divorce and need the next step kept very small.")
+    )
+
+    case_memory = second.active_snapshots["case_memory"].value
+    strategy_playbook = second.active_snapshots["strategy_playbook"].value
+
+    assert any(hit.case_id.startswith("case:slow-loop:") for hit in case_memory.hits)
+    assert any(rule.rule_id.startswith("playbook:slow-loop:") for rule in strategy_playbook.matched_rules)
+
+
+def test_agent_session_runner_partially_blocks_application_prior_by_credit_target():
+    runner = AgentSessionRunner(
+        session_id="application-prior-partial-block",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    assert runner._last_session_post_writeback_request is not None
+    runner._last_session_post_writeback_request = replace(
+        runner._last_session_post_writeback_request,
+        structural_writeback_allowed=True,
+        credit_snapshot=CreditSnapshot(
+            recent_credits=(),
+            recent_modifications=(
+                SelfModificationRecord(
+                    target="application.strategy_playbook.rules.family-transition-high-emotion",
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash="before",
+                    new_value_hash="before",
+                    justification="Seeded block for strategy playbook target.",
+                    timestamp_ms=1,
+                    is_reversible=True,
+                ),
+            ),
+            cumulative_credit_by_level=(),
+            description="Seeded partial block credit snapshot.",
+        ),
+    )
+
+    runner.begin_new_context(reason="application-prior-partial-block-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    report = slow_loop_results[0].application_prior_writeback_report
+    assert report is not None
+    assert any(target.startswith("application.case_memory.records.") for target in report.applied_targets)
+    assert any(target.startswith("application.strategy_playbook.rules.") for target in report.blocked_targets)
+    assert any(record.case_id.startswith("case:slow-loop:") for record in runner._case_memory_store.records)
+    assert not any(
+        rule.rule_id == "playbook:slow-loop:family-transition-high-emotion:1"
+        for rule in runner._application_rare_heavy_state.distilled_playbook_rules
+    )
 
 
 def test_agent_session_runner_accepts_hook_ready_substrate_factory():
@@ -692,8 +890,8 @@ def test_regime_responds_to_task_context():
 
 
 def test_response_context_carries_cognitive_state():
-    """Verify ResponseContext populated with user_input, retrieved_memories,
-    controller_description, and control_code from the cognitive graph."""
+    """Verify the response path still carries user-visible cognitive state
+    after assembly-driven control moved into ResponseAssemblySnapshot."""
     runner = default_active_runner()
 
     asyncio.run(runner.run_turn("First message to seed memory."))

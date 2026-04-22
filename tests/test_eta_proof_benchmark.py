@@ -147,12 +147,25 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert "heldout_strong_success_rate" in metric_names
     assert "heldout_strong_success_std" in metric_names
     assert "heldout_family_reuse_rate" in metric_names
+    assert "temporal_fast_prior_strength" in metric_names
+    assert "temporal_fast_prior_switch_delta" in metric_names
     assert report.profile_reports[0].training_update_count > 0
     assert report.profile_reports[0].rollout_batch_count > 0
     assert report.profile_reports[0].mean_rollouts_per_update >= 1.0
     assert report.profile_reports[0].training_parameter_change_rate > 0.0
     assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
+
+
+def test_eta_proof_benchmark_accumulates_temporal_fast_prior_metrics_after_training():
+    report = run_eta_internal_rl_proof_benchmark(
+        profile_labels=("full-internal-rl",),
+        train_epochs=1,
+    )
+
+    metric_map = dict(report.profile_reports[0].metric_means)
+    assert metric_map["temporal_fast_prior_strength"] > 0.0
+    assert metric_map["temporal_fast_prior_switch_delta"] != 0.0
 
 
 def test_eta_backend_robustness_benchmark_compares_trace_and_synthetic():

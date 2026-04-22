@@ -6,6 +6,7 @@ Per llm-prompt-centralization rule: no inline prompt strings elsewhere.
 
 from __future__ import annotations
 
+from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.agent.response import ResponseContext
 
 ChatMessage = tuple[str, str]
@@ -42,9 +43,8 @@ REGIME_GUIDANCE = {
 
 def build_system_prompt(
     *,
-    context: ResponseContext,
-    retrieved_memories: tuple[str, ...] = (),
-    controller_description: str = "",
+    assembly: ResponseAssemblySnapshot,
+    context: ResponseContext | None = None,
 ) -> str:
     """Assemble system prompt from live cognitive state.
 
@@ -70,61 +70,44 @@ def build_system_prompt(
         "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts."
     )
 
-    regime_id = context.regime_id or "casual_social"
+    regime_id = assembly.regime_id or "casual_social"
+    regime_name = assembly.regime_name
     guidance = REGIME_GUIDANCE.get(regime_id, REGIME_GUIDANCE["casual_social"])
-    sections.append(f"Current mode: {context.regime_name}. {guidance}")
+    sections.append(f"Current mode: {regime_name}. {guidance}")
 
-    if retrieved_memories:
-        memory_text = "; ".join(retrieved_memories[:5])
-        sections.append(f"You remember from previous interactions: {memory_text}")
+    if assembly.prompt_residue_summary:
+        sections.append(assembly.prompt_residue_summary)
 
-    if context.primary_reflection_lesson:
-        sections.append(f"Your recent insight: {context.primary_reflection_lesson}")
-
-    if context.primary_reflection_tension:
-        sections.append(f"Current tension to be mindful of: {context.primary_reflection_tension}")
-
-    if controller_description:
-        sections.append(f"Internal state: {controller_description}")
-
-    if context.knowledge_summaries:
-        knowledge_text = "; ".join(context.knowledge_summaries[:3])
-        sections.append(f"Relevant domain guidance: {knowledge_text}")
-
-    if context.case_patterns:
-        sections.append(
-            "Relevant prior case patterns: " + "; ".join(context.case_patterns[:3])
-        )
-
-    if context.playbook_ordering_hints:
-        sections.append(
-            "Suggested response ordering: " + " -> ".join(context.playbook_ordering_hints[:4])
-        )
-
-    if context.citation_required:
+    if assembly.citation_mode == "required":
         sections.append(
             "When giving factual or procedural guidance, keep it bounded, high-level, and clearly grounded "
             "in sourceable information rather than sounding definitive."
         )
 
-    if context.boundary_clarification_required:
+    if assembly.clarification_required:
         sections.append(
             "Some domain-critical context is still missing. Ask for the missing local or factual detail before "
             "you over-commit."
         )
 
-    if context.boundary_refer_out_required:
+    if assembly.refer_out_required:
         sections.append(
             "The current boundary state requires a cautious response. Stay supportive, avoid definitive domain "
             "conclusions, and encourage appropriate professional follow-up."
         )
 
-    if context.boundary_required_disclaimers:
+    if assembly.required_disclaimers:
         sections.append(
-            "Boundary reminders: " + "; ".join(context.boundary_required_disclaimers[:3])
+            "Boundary reminders: " + "; ".join(assembly.required_disclaimers[:3])
         )
 
-    if context.regime_switched:
+    if assembly.ordering_driver != "playbook-only":
+        sections.append(
+            f"Response ordering should follow {assembly.ordering_driver} with continuum target "
+            f"{assembly.continuum_target_position:.2f}."
+        )
+
+    if context is not None and context.regime_switched:
         sections.append(
             "You have just shifted your interaction frame. "
             "Acknowledge the shift naturally without being mechanical about it."
@@ -135,18 +118,17 @@ def build_system_prompt(
 
 def build_chat_messages(
     *,
-    context: ResponseContext,
-    retrieved_memories: tuple[str, ...] = (),
-    controller_description: str = "",
+    assembly: ResponseAssemblySnapshot,
+    context: ResponseContext | None = None,
 ) -> tuple[ChatMessage, ...]:
     system_prompt = build_system_prompt(
+        assembly=assembly,
         context=context,
-        retrieved_memories=retrieved_memories,
-        controller_description=controller_description,
     )
-    if not context.user_input:
+    user_input = context.user_input if context is not None else ""
+    if not user_input:
         return (("system", system_prompt),)
     return (
         ("system", system_prompt),
-        ("user", context.user_input),
+        ("user", user_input),
     )

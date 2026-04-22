@@ -6,6 +6,7 @@ from volvence_zero.dual_track import DualTrackModule
 from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
+    EvaluationRecord,
     EvaluationModule,
     EvaluationReplayCase,
     EvaluationReport,
@@ -395,7 +396,7 @@ def test_evaluation_backbone_records_metacontroller_evidence():
     )
     report = backbone.build_session_report(session_id="s1", timestamp_ms=31)
 
-    assert len(scores) == 15
+    assert len(scores) >= 15
     assert any(record.metric_name == "adaptive_stability" for record in backbone.records)
     assert any(record.metric_name == "posterior_stability" for record in backbone.records)
     assert any(record.metric_name == "policy_replacement_quality" for record in backbone.records)
@@ -621,6 +622,103 @@ def test_cross_session_regression_triggers_judge_rollback():
     )
     assert judgement.decision == EvolutionDecision.ROLLBACK
     assert "cross-session-regression" in judgement.reasons
+
+
+def test_weak_delayed_experience_metrics_trigger_judge_rollback_reason():
+    from uuid import uuid4
+
+    backbone = EvaluationBackbone()
+    benchmark = backbone.run_default_evolution_benchmark(timestamp_ms=100)
+    report = EvaluationReport(
+        report_id=str(uuid4()),
+        report_type="session",
+        timestamp_ms=300,
+        session_ids=("judge-experience",),
+        scores_by_family=(
+            (
+                "learning",
+                (
+                    EvaluationRecord(
+                        record_id=str(uuid4()),
+                        session_id="judge-experience",
+                        wave_id="wave-1",
+                        timestamp_ms=1,
+                        timescale="session",
+                        family="learning",
+                        metric_name="delayed_retrieval_mix_alignment",
+                        value=0.32,
+                        confidence=0.7,
+                        track="cross",
+                        evidence="weak delayed retrieval mix alignment",
+                        signal_sources=(),
+                    ),
+                    EvaluationRecord(
+                        record_id=str(uuid4()),
+                        session_id="judge-experience",
+                        wave_id="wave-1",
+                        timestamp_ms=1,
+                        timescale="session",
+                        family="learning",
+                        metric_name="delayed_regime_alignment",
+                        value=0.34,
+                        confidence=0.7,
+                        track="cross",
+                        evidence="weak delayed regime alignment",
+                        signal_sources=(),
+                    ),
+                    EvaluationRecord(
+                        record_id=str(uuid4()),
+                        session_id="judge-experience",
+                        wave_id="wave-1",
+                        timestamp_ms=1,
+                        timescale="session",
+                        family="learning",
+                        metric_name="regime_sequence_payoff",
+                        value=0.30,
+                        confidence=0.68,
+                        track="cross",
+                        evidence="weak sequence payoff",
+                        signal_sources=(),
+                    ),
+                ),
+            ),
+            (
+                "abstraction",
+                (
+                    EvaluationRecord(
+                        record_id=str(uuid4()),
+                        session_id="judge-experience",
+                        wave_id="wave-1",
+                        timestamp_ms=1,
+                        timescale="session",
+                        family="abstraction",
+                        metric_name="delayed_abstract_action_alignment",
+                        value=0.33,
+                        confidence=0.7,
+                        track="cross",
+                        evidence="weak delayed abstract action alignment",
+                        signal_sources=(),
+                    ),
+                ),
+            ),
+        ),
+        alerts=(),
+        trends=(
+            ("learning", "learning_quality", 0.05),
+            ("abstraction", "abstraction_reuse", 0.04),
+            ("relationship", "relationship_continuity", 0.02),
+        ),
+        recommendations=(),
+        description="experience-weak report",
+    )
+
+    judgement = backbone.judge_evolution_candidate(
+        replay_suite_result=benchmark,
+        session_report=report,
+    )
+
+    assert judgement.decision == EvolutionDecision.ROLLBACK
+    assert "experience-payoff-weak" in judgement.reasons
 
 
 def test_longitudinal_report_from_session_sequence():
