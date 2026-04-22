@@ -107,6 +107,9 @@ rare-heavy (定期离线):
 - 当前 offline pipeline 已把 `TRANSITION` 从占位状态收紧为真实 takeover phase：进入 RL 前会先跑 causal takeover 检查，显式发布 `transition_agreement`、`switch_sparsity_retention`、`family_reuse_retention` 与 `takeover_ready`
 - 当前 RL step 也已不再默认单 batch 更新：pipeline 会按 `rl_rollouts_per_step` 组合多个 rollout batch，再执行 grouped dual-track optimize
 - 当前 online-fast joint loop 已支持可配置的 rollout accumulation：允许先累积多轮 dual-track rollout，再一次性触发 RL 更新，避免把每一轮都当成独立充分统计样本
+- 当前 schedule owner 还把这条 batch policy 公开化了：当 `rl_batch_accumulation_size > 1` 时，scheduled path 会显式区分 `full-cycle-collect`、`full-cycle-batch` 与 `full-cycle-batch-forced`，并通过 schedule telemetry 发布 `rl_batch_target`、`pending_batch_count`、`rl_batch_ready_due` 与 `rl_batch_wait_due`
+- 当前 scheduled joint loop 还进一步进入联合调度阶段：batch collect/flush 不再只看 interval 与 wait-limit，还会联合考虑 `prediction-error` 强度、`family_stability`、`rollback_risk`、`transition_pressure`、`substrate_pressure` 与 `rare_heavy_pressure`，并在高风险场景下显式走 `ssl-only-rare-heavy-hold`、`ssl-only-risk-hold` 或 `evidence-only-risk-hold`
+- 当前这些 scheduler pressure 也已不再停留在 telemetry：final wiring / evaluation enrichment 会把它们写成 turn-level evaluation records（如 `scheduler_pe_pressure`、`scheduler_family_stability`、`scheduler_rollback_risk`、`scheduler_transition_pressure`、`scheduler_substrate_pressure`、`scheduler_rare_heavy_pressure`、`scheduler_discipline`），因此它们会进入 session report、cross-session growth 和 longitudinal analysis
 
 ## 当前 proof surface
 

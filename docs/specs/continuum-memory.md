@@ -105,8 +105,10 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
    - background-slow writeback 不再只把 lesson count 打到 learned core，而是把 promoted entries、durable entries、belief updates 与 lesson-derived pressure 显式融合成 tower consolidation update，并留下 checkpoint / rollback 可验证证据
 5. `tower evidence escapes the owner`
    - `evaluation` 与 `dialogue_benchmark` 已开始直接读取 `last_memory_tower_depth`、`last_memory_tower_alignment`、`tower_consolidation_count` 等 telemetry，使 tower 证据不再局限于 memory owner 私有诊断面
+6. `tower evidence reaches rollout artifacts`
+   - tower telemetry 现已进入 emergence dashboard、paper-suite summary 与 strengthened NL-essence gate，说明 memory tower 不只是 owner/internal instrumentation，而开始成为 rollout / review / acceptance 的正式证据面
 
-这里的 proof surface 依赖 owner 发布的 lifecycle telemetry 与 machine-readable tower profile，而不是仅凭文本输出推断。当前 benchmark 能证明“慢层影响快层的证据面已存在，而且 recall / consolidation 已经开始围绕统一 tower 组织”；evaluation 与 dialogue benchmark 也已开始直接消费 tower depth/alignment/consolidation 读数，但还不能把它表述成论文级 distributed memory / self-modifying learner 的完整复现。
+这里的 proof surface 依赖 owner 发布的 lifecycle telemetry 与 machine-readable tower profile，而不是仅凭文本输出推断。当前 benchmark 能证明“慢层影响快层的证据面已存在，而且 recall / consolidation 已经开始围绕统一 tower 组织”；evaluation、dialogue benchmark、emergence dashboard 与 paper-suite summary 也已开始直接消费 tower depth/alignment/consolidation 读数，但还不能把它表述成论文级 distributed memory / self-modifying learner 的完整复现。
 
 ### NL 关键洞察
 

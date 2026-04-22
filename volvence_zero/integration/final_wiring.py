@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.application.runtime import (
+    ApplicationRareHeavyState,
     BoundaryPolicyModule,
     BoundaryPolicySnapshot,
     CaseMemoryModule,
@@ -12,6 +13,8 @@ from volvence_zero.application.runtime import (
     DomainKnowledgeSnapshot,
     RetrievalPolicyModule,
     RetrievalPolicySnapshot,
+    StrategyPlaybookModule,
+    StrategyPlaybookSnapshot,
 )
 from volvence_zero.credit.gate import (
     CreditSnapshot,
@@ -78,6 +81,7 @@ class FinalRolloutConfig:
     retrieval_policy: WiringLevel = WiringLevel.ACTIVE
     domain_knowledge: WiringLevel = WiringLevel.ACTIVE
     case_memory: WiringLevel = WiringLevel.ACTIVE
+    strategy_playbook: WiringLevel = WiringLevel.ACTIVE
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     evaluation: WiringLevel = WiringLevel.ACTIVE
@@ -98,6 +102,7 @@ class FinalRolloutConfig:
             "retrieval_policy": self.retrieval_policy,
             "domain_knowledge": self.domain_knowledge,
             "case_memory": self.case_memory,
+            "strategy_playbook": self.strategy_playbook,
             "boundary_policy": self.boundary_policy,
             "dual_track": self.dual_track,
             "evaluation": self.evaluation,
@@ -413,6 +418,7 @@ def build_final_runtime_modules(
     *,
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
+    application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
@@ -473,9 +479,11 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
         ),
         RetrievalPolicyModule(
+            rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("retrieval_policy", WiringLevel.ACTIVE),
         ),
         DomainKnowledgeModule(
+            rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("domain_knowledge", WiringLevel.ACTIVE),
         ),
         EvaluationModule(
@@ -489,7 +497,12 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
         ),
         CaseMemoryModule(
+            rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("case_memory", WiringLevel.ACTIVE),
+        ),
+        StrategyPlaybookModule(
+            rare_heavy_state=application_rare_heavy_state,
+            wiring_level=config.level_for("strategy_playbook", WiringLevel.ACTIVE),
         ),
         BoundaryPolicyModule(
             wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
@@ -519,6 +532,7 @@ async def run_final_wiring_turn(
     *,
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
+    application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
@@ -541,6 +555,7 @@ async def run_final_wiring_turn(
     modules = build_final_runtime_modules(
         config=config,
         substrate_adapter=substrate_adapter,
+        application_rare_heavy_state=application_rare_heavy_state,
         memory_store=memory_store,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
@@ -603,6 +618,7 @@ async def run_final_wiring_turn(
     retrieval_policy_snapshot = active_snapshots.get("retrieval_policy")
     domain_knowledge_snapshot = active_snapshots.get("domain_knowledge")
     case_memory_snapshot = active_snapshots.get("case_memory")
+    strategy_playbook_snapshot = active_snapshots.get("strategy_playbook")
     boundary_policy_snapshot = active_snapshots.get("boundary_policy")
     prediction_snapshot_value = (
         active_snapshots.get("prediction_error").value
@@ -686,6 +702,12 @@ async def run_final_wiring_turn(
             case_memory_snapshot=(
                 case_memory_snapshot.value
                 if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot)
+                else None
+            ),
+            strategy_playbook_snapshot=(
+                strategy_playbook_snapshot.value
+                if strategy_playbook_snapshot is not None
+                and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
                 else None
             ),
             boundary_policy_snapshot=(
@@ -894,6 +916,7 @@ def build_acceptance_report(
                 "retrieval_policy",
                 "domain_knowledge",
                 "case_memory",
+                "strategy_playbook",
                 "boundary_policy",
                 "dual_track",
                 "evaluation",
@@ -916,6 +939,7 @@ def build_acceptance_report(
         "retrieval_policy",
         "domain_knowledge",
         "case_memory",
+        "strategy_playbook",
         "dual_track",
         "evaluation",
         "prediction_error",
@@ -979,6 +1003,15 @@ def build_acceptance_report(
         issues.append("Case memory is configured ACTIVE but did not publish into the active chain.")
 
     if (
+        config.strategy_playbook is WiringLevel.SHADOW
+        and "strategy_playbook" not in shadow_slots
+        and "strategy_playbook" not in active_slots
+    ):
+        issues.append("Strategy playbook wiring configured but no strategy_playbook snapshot was produced.")
+    if config.strategy_playbook is WiringLevel.ACTIVE and "strategy_playbook" not in active_slots:
+        issues.append("Strategy playbook is configured ACTIVE but did not publish into the active chain.")
+
+    if (
         config.boundary_policy is WiringLevel.SHADOW
         and "boundary_policy" not in shadow_slots
         and "boundary_policy" not in active_slots
@@ -1010,6 +1043,8 @@ def build_acceptance_report(
         recommendations.append("Keep domain knowledge evidence compact and citation-bounded before widening scope.")
     if config.case_memory is WiringLevel.ACTIVE:
         recommendations.append("Keep case_memory as a sibling owner and avoid collapsing it back into memory.")
+    if config.strategy_playbook is WiringLevel.ACTIVE:
+        recommendations.append("Keep strategy playbook as advisory prior evidence, not a second temporal owner.")
     if config.boundary_policy is WiringLevel.ACTIVE:
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if not recommendations:

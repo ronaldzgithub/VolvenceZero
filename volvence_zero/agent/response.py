@@ -35,6 +35,8 @@ class ResponseContext:
     knowledge_summaries: tuple[str, ...] = ()
     case_hit_count: int = 0
     case_patterns: tuple[str, ...] = ()
+    playbook_rule_count: int = 0
+    playbook_ordering_hints: tuple[str, ...] = ()
     citation_required: bool = False
     boundary_risk_band: str = "low"
     boundary_answer_depth_limit: str = "standard"
@@ -122,6 +124,13 @@ class ResponseSynthesizer:
                 f"{'' if context.case_hit_count == 1 else 's'} for pacing rather than copying them literally."
             )
 
+        playbook_hint = ""
+        if context.playbook_rule_count:
+            playbook_hint = (
+                f" I also have {context.playbook_rule_count} strategy prior"
+                f"{'' if context.playbook_rule_count == 1 else 's'} shaping the order of the reply."
+            )
+
         boundary_hint = ""
         if context.boundary_refer_out_required:
             boundary_hint = (
@@ -187,6 +196,7 @@ class ResponseSynthesizer:
         text += reflection_hint
         text += knowledge_hint
         text += case_hint
+        text += playbook_hint
         text += lesson_hint
         text += tension_hint
         text += boundary_hint
@@ -202,6 +212,8 @@ class ResponseSynthesizer:
             rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
         if context.case_hit_count:
             rationale_parts.append(f"case_hits={context.case_hit_count}")
+        if context.playbook_rule_count:
+            rationale_parts.append(f"playbook_rules={context.playbook_rule_count}")
         rationale_parts.append(f"risk={context.boundary_risk_band}")
         if context.reflection_lesson_count:
             rationale_parts.append(f"reflection_lessons={context.reflection_lesson_count}")
@@ -291,6 +303,8 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             rationale_parts.append(f"knowledge_hits={context.knowledge_hit_count}")
         if context.case_hit_count:
             rationale_parts.append(f"case_hits={context.case_hit_count}")
+        if context.playbook_rule_count:
+            rationale_parts.append(f"playbook_rules={context.playbook_rule_count}")
         rationale_parts.append(f"risk={context.boundary_risk_band}")
 
         return AgentResponse(

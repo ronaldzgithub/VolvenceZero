@@ -1,0 +1,164 @@
+{
+  "completed_stages": [
+    "canonical_ablation",
+    "longitudinal",
+    "essence",
+    "perturbation",
+    "open_environment",
+    "systematic_replay",
+    "selection_artifact",
+    "artifact_comparison",
+    "final_report"
+  ],
+  "config": {
+    "acceptance_profile_label": "pe-eta",
+    "baseline_label": "pe-eta",
+    "candidate_config_limit": 2,
+    "candidate_configs": [
+      [
+        "balanced",
+        {
+          "binary_gate_rl": true,
+          "n_z": 16,
+          "rl_convergence_threshold": 0.05,
+          "rl_max_steps": 2,
+          "rl_rollouts_per_step": 2,
+          "ssl_convergence_threshold": 0.15,
+          "ssl_max_steps": 3,
+          "ssl_min_steps": 2,
+          "transition_agreement_threshold": 0.35,
+          "transition_family_retention_threshold": 0.2,
+          "transition_kl_threshold": 1.0,
+          "transition_max_steps": 2
+        }
+      ],
+      [
+        "more-rl",
+        {
+          "binary_gate_rl": true,
+          "n_z": 16,
+          "rl_convergence_threshold": 0.05,
+          "rl_max_steps": 4,
+          "rl_rollouts_per_step": 2,
+          "ssl_convergence_threshold": 0.15,
+          "ssl_max_steps": 3,
+          "ssl_min_steps": 2,
+          "transition_agreement_threshold": 0.35,
+          "transition_family_retention_threshold": 0.2,
+          "transition_kl_threshold": 1.0,
+          "transition_max_steps": 2
+        }
+      ]
+    ],
+    "canonical_case_limit": 3,
+    "device": "auto",
+    "fallback_mode": null,
+    "fallback_to_builtin": null,
+    "include_fixed_variants_in_replay": false,
+    "local_files_only": false,
+    "model_id": "distilgpt2",
+    "model_source": null,
+    "open_profile_labels": [
+      "pe-eta",
+      "pe-drive-off",
+      "eta-off"
+    ],
+    "open_scenario_limit": 2,
+    "perturbation_variant_limit": 4,
+    "profile_labels": [
+      "pe-eta",
+      "pe-eta-online-only",
+      "pe-eta-no-writeback",
+      "pe-eta-no-rare-heavy",
+      "pe-drive-off",
+      "eta-off",
+      "timescale-off"
+    ],
+    "proof_min_canonical_cases": 2,
+    "replay_family_limit": 2,
+    "replay_seeds": [
+      1
+    ],
+    "runtime_mode": "builtin-only",
+    "selection_top_k": 4
+  },
+  "stage_order": [
+    "canonical_ablation",
+    "longitudinal",
+    "essence",
+    "perturbation",
+    "open_environment",
+    "systematic_replay",
+    "selection_artifact",
+    "artifact_comparison",
+    "final_report"
+  ],
+  "summary": {
+    "artifact_acceptance": {
+      "accepted": false,
+      "candidate_label": "balanced",
+      "mean_score_delta": 0.0,
+      "override_mode": "none",
+      "passed_case_delta": 0,
+      "positive_case_fraction": 0.0,
+      "pre_import_evidence": {
+        "max_candidate_adapter_parameter_count": 0.0,
+        "mean_candidate_alignment": 0.0,
+        "mean_pre_import_score_delta": 0.0,
+        "pre_import_pass_fraction": 0.0
+      },
+      "reasons": [
+        "mean-score-delta-below-threshold",
+        "passed-case-delta-below-threshold",
+        "positive-case-fraction-below-threshold",
+        "substrate-import-success-fraction-below-threshold"
+      ],
+      "rollback_applied": true,
+      "worst_case_delta": 0.0
+    },
+    "artifact_candidate_count": 2,
+    "emergence_dashboard": {
+      "baseline_label": "pe-eta",
+      "canonical_case_count": 3,
+      "canonical_max_tower_consolidation_count": 0.0,
+      "canonical_mean_memory_tower_alignment": 0.0036,
+      "canonical_mean_memory_tower_depth": 6.0,
+      "canonical_pass_rate": 1.0,
+      "canonical_tower_profile_turn_count": 6.0,
+      "interpretation": "open-evidence-present:eta-off",
+      "open_max_tower_consolidation_count": 0.0,
+      "open_mean_memory_tower_alignment": 0.0027,
+      "open_mean_memory_tower_depth": 6.0,
+      "open_panel_count": 2,
+      "open_pass_rate": 0.0,
+      "open_scenario_count": 2,
+      "strong_proof_panel_count": 6,
+      "strongest_open_path_label": "eta-off",
+      "strongest_open_retention_score": -0.083,
+      "strongest_scaffold_path_label": "timescale-off",
+      "strongest_scaffold_retention_score": 0.0001,
+      "tower_memory_gate_passed": false,
+      "tower_memory_gate_strength": 1.5
+    },
+    "essence_accepted": false,
+    "essence_blocked_gate_ids": [
+      "rare-heavy-net-benefit",
+      "slow-shapes-fast"
+    ],
+    "open_profile_count": 3,
+    "open_scenario_count": 2,
+    "rare_heavy_gate": {
+      "applied_delta_vs_no_rare_heavy": 0.0,
+      "delayed_improvement_delta_vs_no_rare_heavy": 0.0,
+      "failure_mode": "no-net-benefit",
+      "mean_prediction_error_delta_vs_no_rare_heavy": 0.0,
+      "passed": false,
+      "passed_delta_vs_no_rare_heavy": 0.0,
+      "present": true,
+      "recommended_delta_vs_no_rare_heavy": 0.0,
+      "stability_delta_vs_no_rare_heavy": 0.0
+    },
+    "stage": "final_report"
+  },
+  "version": 1
+}

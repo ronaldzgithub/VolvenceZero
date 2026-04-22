@@ -1211,6 +1211,18 @@ def build_dialogue_paper_suite_manifest(
             direction="higher-is-better",
             description="Best retained strong-proof score reported by the emergence dashboard.",
         ),
+        PaperMetricSpec(
+            metric_name="canonical_mean_memory_tower_depth",
+            role="primary",
+            direction="higher-is-better",
+            description="Average memory tower depth on the canonical PE-ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_mean_memory_tower_alignment",
+            role="primary",
+            direction="higher-is-better",
+            description="Average tower alignment on the canonical PE-ETA path.",
+        ),
     )
     secondary_metrics = (
         PaperMetricSpec(
@@ -1230,6 +1242,18 @@ def build_dialogue_paper_suite_manifest(
             role="secondary",
             direction="higher-is-better",
             description="Whether the rare-heavy net-benefit gate passed in the essence report.",
+        ),
+        PaperMetricSpec(
+            metric_name="tower_memory_gate_pass",
+            role="secondary",
+            direction="higher-is-better",
+            description="Whether the tower-memory mechanism-strength gate passed in the essence report.",
+        ),
+        PaperMetricSpec(
+            metric_name="tower_memory_gate_strength",
+            role="secondary",
+            direction="higher-is-better",
+            description="Composite tower-memory strength score surfaced by the emergence dashboard.",
         ),
     )
     return PaperSuiteManifest(
@@ -3259,6 +3283,9 @@ def _dashboard_panel_from_metric_deltas(
     delayed_improvement_delta = metric_deltas.get("delayed_improvement_observed", 0.0)
     stability_delta = metric_deltas.get(stability_metric, 0.0)
     mean_prediction_error_delta = metric_deltas.get("mean_prediction_error", 0.0)
+    memory_tower_depth_delta = metric_deltas.get("mean_memory_tower_depth", 0.0)
+    memory_tower_alignment_delta = metric_deltas.get("mean_memory_tower_alignment", 0.0)
+    tower_consolidation_delta = metric_deltas.get("max_tower_consolidation_count", 0.0)
     retention_score = round(
         passed_delta
         + 0.25 * pe_triggered_delta
@@ -3267,6 +3294,13 @@ def _dashboard_panel_from_metric_deltas(
         + 0.25 * max(0.0, -mean_prediction_error_delta),
         4,
     )
+    tower_retention_bonus = round(
+        max(0.0, memory_tower_depth_delta) * 0.08
+        + max(0.0, memory_tower_alignment_delta) * 0.18
+        + max(0.0, tower_consolidation_delta) * 0.05,
+        4,
+    )
+    retention_score = round(retention_score + tower_retention_bonus, 4)
     return DialogueEmergenceDashboardPanel(
         path_label=path_label,
         passed_delta=passed_delta,
@@ -3274,11 +3308,17 @@ def _dashboard_panel_from_metric_deltas(
         delayed_improvement_delta=delayed_improvement_delta,
         stability_delta=stability_delta,
         mean_prediction_error_delta=mean_prediction_error_delta,
+        memory_tower_depth_delta=memory_tower_depth_delta,
+        memory_tower_alignment_delta=memory_tower_alignment_delta,
+        tower_consolidation_delta=tower_consolidation_delta,
         retention_score=retention_score,
         description=(
             f"Dashboard panel {path_label} passed_delta={passed_delta:.3f} "
             f"pe_delta={pe_triggered_delta:.3f} delayed_delta={delayed_improvement_delta:.3f} "
             f"stability_delta={stability_delta:.3f} mean_pe_delta={mean_prediction_error_delta:.3f} "
+            f"tower_depth_delta={memory_tower_depth_delta:.3f} "
+            f"tower_alignment_delta={memory_tower_alignment_delta:.3f} "
+            f"tower_consolidation_delta={tower_consolidation_delta:.3f} "
             f"retention_score={retention_score:.3f}."
         ),
     )
@@ -3298,6 +3338,7 @@ def build_dialogue_emergence_dashboard(
     if baseline_path is None:
         raise ValueError("Comprehensive report is missing the canonical baseline path.")
     canonical_report = baseline_path.benchmark_report
+    canonical_metric_means = dict(canonical_report.metric_means)
     canonical_pass_rate = (
         canonical_report.passed_case_count / canonical_report.total_case_count
         if canonical_report.total_case_count > 0
@@ -3307,18 +3348,25 @@ def build_dialogue_emergence_dashboard(
     open_panels: tuple[DialogueEmergenceDashboardPanel, ...] = ()
     open_pass_rate = 0.0
     open_case_count = 0
+    open_mean_memory_tower_depth = 0.0
+    open_mean_memory_tower_alignment = 0.0
+    open_max_tower_consolidation_count = 0.0
     if open_report is not None:
         open_baseline_path = next(
             (path for path in open_report.path_reports if path.path_label == open_report.baseline_label),
             None,
         )
         if open_baseline_path is not None:
+            open_metric_means = dict(open_baseline_path.benchmark_report.metric_means)
             open_case_count = open_baseline_path.benchmark_report.total_case_count
             if open_baseline_path.benchmark_report.total_case_count > 0:
                 open_pass_rate = (
                     open_baseline_path.benchmark_report.passed_case_count
                     / open_baseline_path.benchmark_report.total_case_count
                 )
+            open_mean_memory_tower_depth = open_metric_means.get("mean_memory_tower_depth", 0.0)
+            open_mean_memory_tower_alignment = open_metric_means.get("mean_memory_tower_alignment", 0.0)
+            open_max_tower_consolidation_count = open_metric_means.get("max_tower_consolidation_count", 0.0)
         open_panels = tuple(
             _dashboard_panel_from_metric_deltas(
                 path_label=path_label,
@@ -3344,6 +3392,10 @@ def build_dialogue_emergence_dashboard(
     )
     pe_dominance_report = None
     pe_case_diagnosis_report = None
+    tower_memory_gate = next(
+        (gate for gate in comprehensive_report.essence_report.gates if gate.gate_id == "tower-memory-surface"),
+        None,
+    )
     available_path_labels = {
         path.path_label for path in comprehensive_report.canonical_ablation_report.path_reports
     }
@@ -3375,16 +3427,38 @@ def build_dialogue_emergence_dashboard(
         interpretation = f"open-evidence-present:{strongest_open_panel.path_label}"
     else:
         interpretation = "summary-only"
+    tower_memory_gate_strength = 0.0
+    if tower_memory_gate is not None:
+        tower_evidence = dict(tower_memory_gate.evidence)
+        tower_memory_gate_strength = round(
+            min(
+                1.5,
+                tower_evidence.get("mean_memory_tower_depth", 0.0) / 6.0
+                + max(0.0, tower_evidence.get("mean_memory_tower_alignment", 0.0)) * 1.2
+                + tower_evidence.get("max_tower_consolidation_count", 0.0) * 0.15
+                + max(0.0, tower_evidence.get("tower_strength_gap_vs_best_control", 0.0)) * 0.6,
+            ),
+            4,
+        )
     return DialogueEmergenceDashboardArtifact(
         baseline_label=comprehensive_report.canonical_ablation_report.baseline_label,
         canonical_case_count=canonical_report.total_case_count,
         canonical_pass_rate=round(canonical_pass_rate, 4),
+        canonical_mean_memory_tower_depth=canonical_metric_means.get("mean_memory_tower_depth", 0.0),
+        canonical_mean_memory_tower_alignment=canonical_metric_means.get("mean_memory_tower_alignment", 0.0),
+        canonical_max_tower_consolidation_count=canonical_metric_means.get("max_tower_consolidation_count", 0.0),
+        canonical_tower_profile_turn_count=canonical_metric_means.get("memory_tower_profile_turn_count", 0.0),
         open_scenario_count=open_case_count,
         open_pass_rate=round(open_pass_rate, 4),
+        open_mean_memory_tower_depth=open_mean_memory_tower_depth,
+        open_mean_memory_tower_alignment=open_mean_memory_tower_alignment,
+        open_max_tower_consolidation_count=open_max_tower_consolidation_count,
         strong_proof_panels=strong_proof_panels,
         open_environment_panels=open_panels,
         pe_dominance_report=pe_dominance_report,
         pe_case_diagnosis_report=pe_case_diagnosis_report,
+        tower_memory_gate_passed=tower_memory_gate.passed if tower_memory_gate is not None else False,
+        tower_memory_gate_strength=tower_memory_gate_strength,
         strongest_scaffold_path_label=(
             strongest_scaffold_panel.path_label if strongest_scaffold_panel is not None else None
         ),
@@ -3401,6 +3475,9 @@ def build_dialogue_emergence_dashboard(
         description=(
             f"Emergence dashboard baseline={comprehensive_report.canonical_ablation_report.baseline_label} "
             f"canonical_pass_rate={canonical_pass_rate:.3f} open_pass_rate={open_pass_rate:.3f} "
+            f"tower_depth={canonical_metric_means.get('mean_memory_tower_depth', 0.0):.2f} "
+            f"tower_alignment={canonical_metric_means.get('mean_memory_tower_alignment', 0.0):.2f} "
+            f"tower_gate_strength={tower_memory_gate_strength:.2f} "
             f"strong_proof_panels={len(strong_proof_panels)} open_panels={len(open_panels)} "
             f"interpretation={interpretation}."
         ),
@@ -3412,12 +3489,21 @@ def _empty_emergence_dashboard(*, baseline_label: str) -> DialogueEmergenceDashb
         baseline_label=baseline_label,
         canonical_case_count=0,
         canonical_pass_rate=0.0,
+        canonical_mean_memory_tower_depth=0.0,
+        canonical_mean_memory_tower_alignment=0.0,
+        canonical_max_tower_consolidation_count=0.0,
+        canonical_tower_profile_turn_count=0.0,
         open_scenario_count=0,
         open_pass_rate=0.0,
+        open_mean_memory_tower_depth=0.0,
+        open_mean_memory_tower_alignment=0.0,
+        open_max_tower_consolidation_count=0.0,
         strong_proof_panels=(),
         open_environment_panels=(),
         pe_dominance_report=None,
         pe_case_diagnosis_report=None,
+        tower_memory_gate_passed=False,
+        tower_memory_gate_strength=0.0,
         strongest_scaffold_path_label=None,
         strongest_scaffold_retention_score=0.0,
         strongest_open_path_label=None,
@@ -3546,11 +3632,53 @@ def build_dialogue_nl_essence_assessment(
     memory_tower_alignment = evidence_metric_means.get("mean_memory_tower_alignment", 0.0)
     tower_consolidation_count = evidence_metric_means.get("max_tower_consolidation_count", 0.0)
     tower_profile_turn_count = evidence_metric_means.get("memory_tower_profile_turn_count", 0.0)
+    comparison_metric_deltas = (
+        {
+            candidate_label: dict(metric_items)
+            for candidate_label, metric_items in comparison_report.metric_deltas_from_baseline
+        }
+        if comparison_report is not None
+        else {}
+    )
+    tower_depth_gap_vs_best_control = max(
+        (
+            -metric_map.get("mean_memory_tower_depth", float("inf"))
+            for candidate_label, metric_map in comparison_metric_deltas.items()
+            if candidate_label != path_label
+        ),
+        default=float("-inf"),
+    )
+    tower_alignment_gap_vs_best_control = max(
+        (
+            -metric_map.get("mean_memory_tower_alignment", float("inf"))
+            for candidate_label, metric_map in comparison_metric_deltas.items()
+            if candidate_label != path_label
+        ),
+        default=float("-inf"),
+    )
+    tower_consolidation_gap_vs_best_control = max(
+        (
+            -metric_map.get("max_tower_consolidation_count", float("inf"))
+            for candidate_label, metric_map in comparison_metric_deltas.items()
+            if candidate_label != path_label
+        ),
+        default=float("-inf"),
+    )
+    best_control_tower_gap = max(
+        value
+        for value in (
+            tower_depth_gap_vs_best_control,
+            tower_alignment_gap_vs_best_control,
+            tower_consolidation_gap_vs_best_control,
+        )
+        if value != float("-inf")
+    ) if comparison_metric_deltas else 0.0
     tower_memory_surface_passed = (
         tower_profile_turn_count > 0.0
         and memory_tower_depth >= 4.0
-        and memory_tower_alignment >= 0.0
+        and memory_tower_alignment >= 0.15
         and tower_consolidation_count > 0.0
+        and (not comparison_metric_deltas or best_control_tower_gap > 0.0)
     )
     judge_gated_passed = (
         evidence_metric_means.get("evolution_judge_turn_count", 0.0) > 0.0
@@ -3618,6 +3746,9 @@ def build_dialogue_nl_essence_assessment(
                 ("memory_tower_profile_turn_count", tower_profile_turn_count),
                 ("mean_memory_tower_depth", memory_tower_depth),
                 ("mean_memory_tower_alignment", memory_tower_alignment),
+                ("tower_depth_gap_vs_best_control", tower_depth_gap_vs_best_control if comparison_metric_deltas else 0.0),
+                ("tower_alignment_gap_vs_best_control", tower_alignment_gap_vs_best_control if comparison_metric_deltas else 0.0),
+                ("tower_consolidation_gap_vs_best_control", tower_consolidation_gap_vs_best_control if comparison_metric_deltas else 0.0),
             ),
             description="Default path should activate online, background, and nested-memory learning surfaces together.",
         ),
@@ -3692,8 +3823,9 @@ def build_dialogue_nl_essence_assessment(
                 ("mean_memory_tower_depth", memory_tower_depth),
                 ("mean_memory_tower_alignment", memory_tower_alignment),
                 ("max_tower_consolidation_count", tower_consolidation_count),
+                ("tower_strength_gap_vs_best_control", best_control_tower_gap),
             ),
-            description="Memory tower telemetry should be observable on the benchmark path, not only legacy reset and recall counters.",
+            description="Memory tower should not only be visible on the benchmark path, but also show stronger depth/alignment/consolidation evidence than matched controls.",
         ),
         DialogueNLEssenceGate(
             gate_id="judge-gated-evolution",
@@ -3904,10 +4036,19 @@ def _emergence_dashboard_snapshot(
         "baseline_label": dashboard.baseline_label,
         "canonical_case_count": dashboard.canonical_case_count,
         "canonical_pass_rate": dashboard.canonical_pass_rate,
+        "canonical_mean_memory_tower_depth": dashboard.canonical_mean_memory_tower_depth,
+        "canonical_mean_memory_tower_alignment": dashboard.canonical_mean_memory_tower_alignment,
+        "canonical_max_tower_consolidation_count": dashboard.canonical_max_tower_consolidation_count,
+        "canonical_tower_profile_turn_count": dashboard.canonical_tower_profile_turn_count,
         "open_scenario_count": dashboard.open_scenario_count,
         "open_pass_rate": dashboard.open_pass_rate,
+        "open_mean_memory_tower_depth": dashboard.open_mean_memory_tower_depth,
+        "open_mean_memory_tower_alignment": dashboard.open_mean_memory_tower_alignment,
+        "open_max_tower_consolidation_count": dashboard.open_max_tower_consolidation_count,
         "strong_proof_panel_count": len(dashboard.strong_proof_panels),
         "open_panel_count": len(dashboard.open_environment_panels),
+        "tower_memory_gate_passed": dashboard.tower_memory_gate_passed,
+        "tower_memory_gate_strength": dashboard.tower_memory_gate_strength,
         "strongest_scaffold_path_label": dashboard.strongest_scaffold_path_label,
         "strongest_scaffold_retention_score": dashboard.strongest_scaffold_retention_score,
         "strongest_open_path_label": dashboard.strongest_open_path_label,
@@ -3927,6 +4068,10 @@ def build_dialogue_emergence_dashboard_payload(
         "canonical": {
             "case_count": dashboard.canonical_case_count,
             "pass_rate": dashboard.canonical_pass_rate,
+            "mean_memory_tower_depth": dashboard.canonical_mean_memory_tower_depth,
+            "mean_memory_tower_alignment": dashboard.canonical_mean_memory_tower_alignment,
+            "max_tower_consolidation_count": dashboard.canonical_max_tower_consolidation_count,
+            "tower_profile_turn_count": dashboard.canonical_tower_profile_turn_count,
             "passed_case_count": comprehensive_report.canonical_ablation_report.path_reports[0].benchmark_report.passed_case_count
             if comprehensive_report.canonical_ablation_report.path_reports
             else 0,
@@ -3934,6 +4079,9 @@ def build_dialogue_emergence_dashboard_payload(
         "open_environment": {
             "scenario_count": dashboard.open_scenario_count,
             "pass_rate": dashboard.open_pass_rate,
+            "mean_memory_tower_depth": dashboard.open_mean_memory_tower_depth,
+            "mean_memory_tower_alignment": dashboard.open_mean_memory_tower_alignment,
+            "max_tower_consolidation_count": dashboard.open_max_tower_consolidation_count,
             "present": comprehensive_report.open_ablation_report is not None,
         },
         "strongest_paths": {
@@ -3957,6 +4105,10 @@ def build_dialogue_emergence_dashboard_payload(
             "total_gate_count": comprehensive_report.essence_report.total_gate_count,
         },
         "rare_heavy_gate": _rare_heavy_gate_snapshot(comprehensive_report.essence_report),
+        "tower_memory_gate": {
+            "passed": dashboard.tower_memory_gate_passed,
+            "strength": dashboard.tower_memory_gate_strength,
+        },
         "description": dashboard.description,
     }
 
@@ -4010,7 +4162,7 @@ def _dialogue_paper_suite_metric_values(
     canonical_pe_eta = _dialogue_path_report_by_label(report.canonical_ablation_report, "pe-eta")
     canonical_pe_drive_off = _dialogue_path_report_by_label(report.canonical_ablation_report, "pe-drive-off")
     canonical_eta_off = _dialogue_path_report_by_label(report.canonical_ablation_report, "eta-off")
-    perturbation_pe_eta = _dialogue_path_report_by_label(report.perturbation_report.comparison_report, "pe-eta")
+    perturbation_pe_eta = _dialogue_path_report_by_label(report.perturbation_report.ablation_report, "pe-eta")
     open_pe_eta = _open_dialogue_path_report_by_label(report.open_ablation_report, "pe-eta")
     open_pe_drive_off = _open_dialogue_path_report_by_label(report.open_ablation_report, "pe-drive-off")
     chosen_candidate = next(
@@ -4023,6 +4175,10 @@ def _dialogue_paper_suite_metric_values(
     )
     rare_heavy_gate = next(
         (gate for gate in report.essence_report.gates if gate.gate_id == "rare-heavy-net-benefit"),
+        None,
+    )
+    tower_memory_gate = next(
+        (gate for gate in report.essence_report.gates if gate.gate_id == "tower-memory-surface"),
         None,
     )
     canonical_pass_rate_pe_eta = _benchmark_pass_rate(
@@ -4067,6 +4223,14 @@ def _dialogue_paper_suite_metric_values(
             report.emergence_dashboard.strongest_scaffold_retention_score,
         ),
         (
+            "canonical_mean_memory_tower_depth",
+            report.emergence_dashboard.canonical_mean_memory_tower_depth,
+        ),
+        (
+            "canonical_mean_memory_tower_alignment",
+            report.emergence_dashboard.canonical_mean_memory_tower_alignment,
+        ),
+        (
             "strongest_open_retention_score",
             report.emergence_dashboard.strongest_open_retention_score,
         ),
@@ -4075,6 +4239,8 @@ def _dialogue_paper_suite_metric_values(
             chosen_candidate.acceptance_report.mean_score_delta if chosen_candidate is not None else 0.0,
         ),
         ("rare_heavy_gate_pass", float(rare_heavy_gate.passed) if rare_heavy_gate is not None else 0.0),
+        ("tower_memory_gate_pass", float(tower_memory_gate.passed) if tower_memory_gate is not None else 0.0),
+        ("tower_memory_gate_strength", report.emergence_dashboard.tower_memory_gate_strength),
     )
 
 
@@ -5376,10 +5542,16 @@ async def run_replay_selection_artifact_acceptance_benchmark(
             allow_interval_carryover_credit=allow_interval_carryover_credit,
         )
         adapted_runner = factory(variant)
-        import_result = adapted_runner.apply_rare_heavy_artifact(
-            artifact,
-            checkpoint_id=f"{selection_artifact.artifact_id}:{variant.case.case_id}:acceptance",
-        )
+        if adapted_runner.residual_runtime.supports_live_substrate_mutation:
+            import_result = adapted_runner.apply_rare_heavy_artifact(
+                artifact,
+                checkpoint_id=f"{selection_artifact.artifact_id}:{variant.case.case_id}:acceptance",
+            )
+        else:
+            import_result = adapted_runner.review_rare_heavy_artifact(
+                artifact,
+                checkpoint_id=f"{selection_artifact.artifact_id}:{variant.case.case_id}:acceptance-review",
+            )
         adapted_report = await run_dialogue_pe_eta_case(
             case=variant.case,
             runner=adapted_runner,
@@ -5482,7 +5654,7 @@ async def run_replay_selection_artifact_acceptance_benchmark(
     case_reports: list[DialogueArtifactAcceptanceCaseReport] = []
     for variant, baseline_report, adapted_report, score_delta, import_result, adapted_runner in raw_case_results:
         rollback_operations = ()
-        if decision.rollback_applied:
+        if decision.rollback_applied and import_result.applied_operations:
             rollback_operations = adapted_runner.rollback_rare_heavy_import(import_result.checkpoint)
         case_reports.append(
             DialogueArtifactAcceptanceCaseReport(

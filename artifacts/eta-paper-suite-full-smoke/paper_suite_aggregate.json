@@ -1,0 +1,201 @@
+{
+  "description": "ETA proof paper suite eta-proof-paper-suite-full aggregated 3 repeated runs.",
+  "interpretation_summary": {
+    "confidence": 0.7857,
+    "cross_run_gap_mean": -0.1086,
+    "cross_run_gap_std": 0.0007,
+    "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=strong_success_gap_vs_best_control failure_mode=heldout-composition-fragile competitor=full-no-replacement gap=-0.109 cross_run_gap=-0.109+/-0.001 confidence=0.79.",
+    "dominant_failure_mode": "heldout-composition-fragile",
+    "interpretation": "eta-proof-strongest=training_transition_count; failure_mode=heldout-composition-fragile; weakest_metric=strong_success_gap_vs_best_control",
+    "review_summary": "Primary weakness is heldout-composition-fragile; strongest competing control is full-no-replacement; cross-run held-out strong-success gap is -0.109 +/- 0.001.",
+    "strongest_competing_control": "full-no-replacement",
+    "strongest_control_gap": -0.109,
+    "strongest_metric": "training_transition_count",
+    "weakest_metric": "strong_success_gap_vs_best_control"
+  },
+  "primary_metric_summaries": [
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "heldout_terminal_success_rate summarized over 3 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "heldout_terminal_success_rate",
+      "min_value": 1.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.7124999999999999,
+      "ci_low": 0.7124999999999999,
+      "description": "heldout_strong_success_rate summarized over 3 samples with mean=0.712, std=0.000, ci=[0.712, 0.712].",
+      "max_value": 0.7124999999999999,
+      "mean": 0.7124999999999999,
+      "metric_name": "heldout_strong_success_rate",
+      "min_value": 0.7124999999999999,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "heldout_family_reuse_rate summarized over 3 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "heldout_family_reuse_rate",
+      "min_value": 1.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "heldout_credit_alignment summarized over 3 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "heldout_credit_alignment",
+      "min_value": 1.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": -0.10769809545038314,
+      "ci_low": -0.10906845433801193,
+      "description": "strong_success_gap_vs_best_control summarized over 3 samples with mean=-0.109, std=0.001, ci=[-0.109, -0.108].",
+      "max_value": -0.1076295255920584,
+      "mean": -0.10856748566075969,
+      "metric_name": "strong_success_gap_vs_best_control",
+      "min_value": -0.10907200863166766,
+      "sample_count": 3,
+      "std": 0.0008130744850244067,
+      "stderr": 0.0004694287728000576
+    },
+    {
+      "ci_high": 0.03750000000000009,
+      "ci_low": 0.03750000000000009,
+      "description": "backend_success_gap summarized over 3 samples with mean=0.038, std=0.000, ci=[0.038, 0.038].",
+      "max_value": 0.03750000000000009,
+      "mean": 0.03750000000000009,
+      "metric_name": "backend_success_gap",
+      "min_value": 0.03750000000000009,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "secondary_metric_summaries": [
+    {
+      "ci_high": 0.7142857142857143,
+      "ci_low": 0.7142857142857143,
+      "description": "assessment_pass_fraction summarized over 3 samples with mean=0.714, std=0.000, ci=[0.714, 0.714].",
+      "max_value": 0.7142857142857143,
+      "mean": 0.7142857142857143,
+      "metric_name": "assessment_pass_fraction",
+      "min_value": 0.7142857142857143,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "policy_update_rate summarized over 3 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "policy_update_rate",
+      "min_value": 1.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "heldout_subgoal_completion_rate summarized over 3 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "heldout_subgoal_completion_rate",
+      "min_value": 1.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_strong_success_std summarized over 3 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_strong_success_std",
+      "min_value": 0.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 3.0,
+      "ci_low": 3.0,
+      "description": "mean_rollouts_per_update summarized over 3 samples with mean=3.000, std=0.000, ci=[3.000, 3.000].",
+      "max_value": 3,
+      "mean": 3.0,
+      "metric_name": "mean_rollouts_per_update",
+      "min_value": 3,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.747085374845786,
+      "ci_low": 0.7470853748457859,
+      "description": "mean_parameter_change_norm summarized over 3 samples with mean=0.747, std=0.000, ci=[0.747, 0.747].",
+      "max_value": 0.747085374845786,
+      "mean": 0.7470853748457859,
+      "metric_name": "mean_parameter_change_norm",
+      "min_value": 0.7470853748457859,
+      "sample_count": 3,
+      "std": 1.1102230246251565e-16,
+      "stderr": 6.409875621278547e-17
+    },
+    {
+      "ci_high": 0.09201885719179562,
+      "ci_low": 0.08949930999954309,
+      "description": "mean_replacement_effect_delta summarized over 3 samples with mean=0.090, std=0.002, ci=[0.089, 0.092].",
+      "max_value": 0.09215146493875628,
+      "mean": 0.09038336164594747,
+      "metric_name": "mean_replacement_effect_delta",
+      "min_value": 0.08949930999954309,
+      "sample_count": 3,
+      "std": 0.001531222368087335,
+      "stderr": 0.0008840516464043991
+    },
+    {
+      "ci_high": 1.3392442983820807,
+      "ci_low": 1.3392442983820807,
+      "description": "mean_value_loss summarized over 3 samples with mean=1.339, std=0.000, ci=[1.339, 1.339].",
+      "max_value": 1.3392442983820807,
+      "mean": 1.3392442983820807,
+      "metric_name": "mean_value_loss",
+      "min_value": 1.3392442983820807,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 46.0,
+      "ci_low": 46.0,
+      "description": "training_transition_count summarized over 3 samples with mean=46.000, std=0.000, ci=[46.000, 46.000].",
+      "max_value": 46.0,
+      "mean": 46.0,
+      "metric_name": "training_transition_count",
+      "min_value": 46.0,
+      "sample_count": 3,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "suite_id": "eta-proof-paper-suite-full"
+}

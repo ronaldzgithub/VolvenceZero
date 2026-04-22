@@ -27,7 +27,12 @@ from volvence_zero.substrate import (
     SurfaceKind,
     build_training_trace,
 )
-from volvence_zero.temporal import ActionFamilyPublicSummary, FullLearnedTemporalPolicy
+from volvence_zero.temporal import (
+    ActionFamilyPublicSummary,
+    FullLearnedTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalControllerParameters,
+)
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -236,6 +241,127 @@ def test_eta_nl_joint_loop_schedule_can_force_batch_flush_after_wait():
     assert first.schedule_action == "full-cycle-collect"
     assert forced.schedule_action == "full-cycle-batch-forced"
     assert forced.cycle_report is not None
+
+
+def test_eta_nl_joint_loop_schedule_can_hold_batch_on_high_rollback_risk():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    loop._previous_family_signals = {
+        "safety": 0.15,
+        "relationship": 0.20,
+        "learning": 0.18,
+        "abstraction": 0.22,
+    }
+    trace = build_training_trace(trace_id="risk-hold-trace", source_text="steady support then deepen planning")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=3),
+        )
+    )
+
+    assert result.schedule_action in {"ssl-only-risk-hold", "evidence-only-risk-hold"}
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["rollback_risk_x1000"] > 500
+
+
+def test_eta_nl_joint_loop_schedule_can_hold_batch_for_rare_heavy_review():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    loop._previous_family_signals = {
+        "safety": 0.10,
+        "relationship": 0.18,
+        "learning": 0.22,
+        "abstraction": 0.25,
+    }
+    loop.set_external_learning_signals(
+        {
+            "prediction_error_magnitude": 1.35,
+            "prediction_error_reward": -0.15,
+        }
+    )
+    trace = build_training_trace(trace_id="rare-heavy-hold-trace", source_text="persistent mismatch pattern")
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=3),
+        )
+    )
+
+    assert result.schedule_action == "ssl-only-rare-heavy-hold"
+    assert result.rare_heavy_review_recommended is True
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["rare_heavy_pressure_x1000"] >= 1000
+
+
+def test_eta_nl_joint_loop_schedule_can_collect_for_transition_pressure():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    trace = build_training_trace(trace_id="transition-collect-trace", source_text="repair then continue carefully")
+    loop._previous_metacontroller_state = MetacontrollerRuntimeState(
+        mode="full-learned",
+        temporal_parameters=TemporalControllerParameters(
+            residual_weight=0.5,
+            memory_weight=0.3,
+            reflection_weight=0.2,
+            switch_bias=0.2,
+        ),
+        track_parameters=(("world", (0.7, 0.2, 0.1)), ("self", (0.2, 0.7, 0.1)), ("shared", (0.4, 0.4, 0.2))),
+        encoder_weights=((0.0, 0.0, 0.0),),
+        switch_weights=(0.1, 0.1, 0.1),
+        decoder_matrix=((0.0, 0.0, 0.0),),
+        persistence=0.5,
+        learning_rate=0.08,
+        clip_epsilon=0.2,
+        update_steps=(("world", 1), ("self", 1), ("shared", 1)),
+        latent_mean=(0.1, 0.2, 0.3),
+        latent_scale=(0.2, 0.2, 0.2),
+        decoder_control=(0.1, 0.1, 0.1),
+        latest_switch_gate=0.52,
+        sequence_length=4,
+        latest_ssl_loss=0.2,
+        latest_ssl_kl_loss=0.1,
+        active_label="discovered_family_1",
+        posterior_mean=(0.2, 0.2, 0.2),
+        posterior_std=(0.1, 0.1, 0.1),
+        posterior_sample_noise=(0.0, 0.0, 0.0),
+        z_tilde=(0.2, 0.2, 0.2),
+        posterior_hidden_state=(0.2, 0.2, 0.2),
+        posterior_drift=0.95,
+        beta_binary=0,
+        switch_sparsity=0.15,
+        binary_switch_rate=0.2,
+        mean_persistence_window=0.2,
+        decoder_applied_control=(0.1, 0.1, 0.1),
+        policy_replacement_score=0.05,
+        action_family_summaries=(),
+        active_family_summary=None,
+        active_family_competition_score=0.15,
+        action_family_monopoly_pressure=0.8,
+        action_family_turnover_health=0.2,
+        track_active_labels=(("world", "discovered_family_1"),),
+        track_switch_gates=(("world", 0.52),),
+        description="synthetic transition pressure state",
+    )
+    loop._previous_family_signals = {
+        "safety": 0.8,
+        "relationship": 0.7,
+        "learning": 0.7,
+        "abstraction": 0.7,
+    }
+
+    result = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=JointLoopSchedule(ssl_interval=99, rl_interval=1, rl_batch_max_wait_turns=3),
+        )
+    )
+
+    assert result.schedule_action == "full-cycle-collect-transition"
+    telemetry = dict(result.schedule_telemetry)
+    assert telemetry["transition_pressure_x1000"] >= 500
 
 
 def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():

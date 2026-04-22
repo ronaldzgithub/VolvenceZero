@@ -1,0 +1,67 @@
+{
+  "description": "ETA proof paper suite run 1 summarized 5 profiles for seed=0.",
+  "metric_values": [
+    [
+      "heldout_terminal_success_rate",
+      1.0
+    ],
+    [
+      "heldout_strong_success_rate",
+      0.7124999999999999
+    ],
+    [
+      "heldout_family_reuse_rate",
+      1.0
+    ],
+    [
+      "heldout_credit_alignment",
+      1.0
+    ],
+    [
+      "heldout_strong_success_std",
+      0.0
+    ],
+    [
+      "strong_success_gap_vs_best_control",
+      -0.10844995351325282
+    ],
+    [
+      "backend_success_gap",
+      0.03750000000000009
+    ],
+    [
+      "assessment_pass_fraction",
+      0.7142857142857143
+    ],
+    [
+      "policy_update_rate",
+      1.0
+    ],
+    [
+      "mean_rollouts_per_update",
+      3
+    ],
+    [
+      "mean_parameter_change_norm",
+      0.24633400160076935
+    ],
+    [
+      "mean_replacement_effect_delta",
+      0.0944333797777982
+    ],
+    [
+      "mean_value_loss",
+      1.0670015295142672
+    ],
+    [
+      "training_transition_count",
+      23.0
+    ],
+    [
+      "heldout_subgoal_completion_rate",
+      1.0
+    ]
+  ],
+  "run_id": "eta-proof-paper-suite-small:run-01",
+  "run_seed": 0
+}

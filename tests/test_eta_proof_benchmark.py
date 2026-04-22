@@ -307,6 +307,17 @@ def test_run_eta_internal_rl_paper_suite_emits_interval_summaries(tmp_path):
     assert report.run_summaries
     assert report.primary_metric_summaries
     assert any(summary.metric_name == "mean_rollouts_per_update" for summary in report.secondary_metric_summaries)
+    assert report.interpretation_summary is not None
+    assert report.interpretation_summary.interpretation
+    assert report.interpretation_summary.review_summary
+    assert report.interpretation_summary.dominant_failure_mode
+    assert report.interpretation_summary.strongest_competing_control
+    assert report.interpretation_summary.strongest_competing_control in {
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    }
     assert report.provenance.manifest_hash
     assert report.reference_assessment is not None
 
@@ -324,3 +335,4 @@ def test_eta_paper_suite_artifact_bundle_exports_reference_reports(tmp_path):
     assert (tmp_path / "paper_suite_manifest.json").exists()
     assert (tmp_path / "reference_benchmark_report.json").exists()
     assert (tmp_path / "reference_assessment.json").exists()
+    assert (tmp_path / "paper_suite_interpretation_summary.json").exists()

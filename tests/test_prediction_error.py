@@ -339,6 +339,33 @@ def test_system_prompt_includes_case_patterns_when_available():
     assert "family-transition-high-emotion" in prompt
 
 
+def test_system_prompt_includes_playbook_ordering_hints_when_available():
+    prompt = build_system_prompt(
+        context=ResponseContext(
+            regime_id="guided_exploration",
+            regime_name="guided exploration",
+            regime_switched=False,
+            abstract_action="stabilize_then_structure",
+            alert_count=0,
+            retrieved_memory_count=0,
+            temporal_switch_gate=0.3,
+            temporal_is_switching=False,
+            reflection_lesson_count=0,
+            reflection_tension_count=0,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson=None,
+            primary_reflection_tension=None,
+            joint_schedule_action="ssl-only",
+            user_input="What should I do first?",
+            playbook_rule_count=1,
+            playbook_ordering_hints=("stabilize", "split_axes", "smallest_next_step"),
+        )
+    )
+
+    assert "Suggested response ordering" in prompt
+    assert "stabilize -> split_axes -> smallest_next_step" in prompt
+
+
 def test_agent_session_runner_exposes_prediction_error_from_second_turn():
     runner = AgentSessionRunner(session_id="pe-session")
     first = asyncio.run(runner.run_turn("First turn for bootstrap."))

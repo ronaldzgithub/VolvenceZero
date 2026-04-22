@@ -1,0 +1,188 @@
+{
+  "description": "Dialogue paper suite dialogue-paper-suite-small aggregated 2 repeated runs.",
+  "primary_metric_summaries": [
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_pe_eta summarized over 2 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_pe_eta",
+      "min_value": 1.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_gap_vs_pe_drive_off summarized over 2 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_gap_vs_pe_drive_off",
+      "min_value": 1.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_gap_vs_eta_off summarized over 2 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_gap_vs_eta_off",
+      "min_value": 1.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.5,
+      "ci_low": 0.5,
+      "description": "perturbation_pass_rate_pe_eta summarized over 2 samples with mean=0.500, std=0.000, ci=[0.500, 0.500].",
+      "max_value": 0.5,
+      "mean": 0.5,
+      "metric_name": "perturbation_pass_rate_pe_eta",
+      "min_value": 0.5,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "open_pass_rate_pe_eta summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "open_pass_rate_pe_eta",
+      "min_value": 0.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "open_pass_rate_gap_vs_pe_drive_off summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "open_pass_rate_gap_vs_pe_drive_off",
+      "min_value": 0.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.5,
+      "ci_low": 0.5,
+      "description": "essence_gate_pass_fraction summarized over 2 samples with mean=0.500, std=0.000, ci=[0.500, 0.500].",
+      "max_value": 0.5,
+      "mean": 0.5,
+      "metric_name": "essence_gate_pass_fraction",
+      "min_value": 0.5,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0001,
+      "ci_low": 0.0001,
+      "description": "strongest_scaffold_retention_score summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0001,
+      "mean": 0.0001,
+      "metric_name": "strongest_scaffold_retention_score",
+      "min_value": 0.0001,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 6.0,
+      "ci_low": 6.0,
+      "description": "canonical_mean_memory_tower_depth summarized over 2 samples with mean=6.000, std=0.000, ci=[6.000, 6.000].",
+      "max_value": 6.0,
+      "mean": 6.0,
+      "metric_name": "canonical_mean_memory_tower_depth",
+      "min_value": 6.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0036,
+      "ci_low": 0.0036,
+      "description": "canonical_mean_memory_tower_alignment summarized over 2 samples with mean=0.004, std=0.000, ci=[0.004, 0.004].",
+      "max_value": 0.0036,
+      "mean": 0.0036,
+      "metric_name": "canonical_mean_memory_tower_alignment",
+      "min_value": 0.0036,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "secondary_metric_summaries": [
+    {
+      "ci_high": -0.083,
+      "ci_low": -0.083,
+      "description": "strongest_open_retention_score summarized over 2 samples with mean=-0.083, std=0.000, ci=[-0.083, -0.083].",
+      "max_value": -0.083,
+      "mean": -0.083,
+      "metric_name": "strongest_open_retention_score",
+      "min_value": -0.083,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "artifact_candidate_mean_score_delta summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "artifact_candidate_mean_score_delta",
+      "min_value": 0.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "rare_heavy_gate_pass summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "rare_heavy_gate_pass",
+      "min_value": 0.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "tower_memory_gate_pass summarized over 2 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "tower_memory_gate_pass",
+      "min_value": 0.0,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.5,
+      "ci_low": 1.5,
+      "description": "tower_memory_gate_strength summarized over 2 samples with mean=1.500, std=0.000, ci=[1.500, 1.500].",
+      "max_value": 1.5,
+      "mean": 1.5,
+      "metric_name": "tower_memory_gate_strength",
+      "min_value": 1.5,
+      "sample_count": 2,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "suite_id": "dialogue-paper-suite-small"
+}

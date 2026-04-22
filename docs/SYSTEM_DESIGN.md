@@ -102,6 +102,8 @@
   - session-post slow loop 现已从 runner telemetry 提升为正式 `session_post_slow_loop` 公共 slot：queue state 与 recent completion summaries 通过独立 snapshot 发布，外部 benchmark / report surface 可直接消费，不需要读取 session owner 私有队列。
   - 应用层第一阶段已新增正式 `retrieval_policy` / `domain_knowledge` / `boundary_policy` surface：ETA 在线控制层先发布检索策略，知识 owner 再发布 compact 专业事实证据，边界 owner 发布 citation / clarification / refer-out 等限制，response/evaluation 只读取公共快照。
   - 应用层第二阶段已新增正式 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers，使主链第一次具备知识 hits 与案例 hits 的 retrieval mix，同时保持 `memory` 不退化成“大一统经验仓库”。
+  - 应用层第三阶段已新增正式 `strategy_playbook` 与 `experience_consolidation` surface：前者把案例经验压成 turn-time 可消费的 ordering prior，后者把 session-post slow loop 学到的 case/playbook/boundary delta 作为独立公共工件发布，使“慢层塑造快层”第一次具有单独可观察面。
+  - 应用层第四阶段已复用 rare-heavy artifact/import/rollback 主路径：session owner 现在可随 artifact 一起导入 application rare-heavy checkpoint，把离线 domain bias、case cluster 与 distilled playbook 注入 fast path 对应 owner，而不引入新的 second owner 或并行重训练链。
 
 - **已落地但仍受 gate 约束的部分**
   - reflection writeback 不是无条件常开；仍受 `writeback_mode`、credit gate、evolution judge 共同约束。

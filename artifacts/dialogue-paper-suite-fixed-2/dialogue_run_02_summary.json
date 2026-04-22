@@ -1,0 +1,67 @@
+{
+  "description": "Dialogue paper suite run 2 summarized 15 metrics for seed=1.",
+  "metric_values": [
+    [
+      "canonical_pass_rate_pe_eta",
+      1.0
+    ],
+    [
+      "canonical_pass_rate_gap_vs_pe_drive_off",
+      1.0
+    ],
+    [
+      "canonical_pass_rate_gap_vs_eta_off",
+      1.0
+    ],
+    [
+      "perturbation_pass_rate_pe_eta",
+      0.5
+    ],
+    [
+      "open_pass_rate_pe_eta",
+      0.0
+    ],
+    [
+      "open_pass_rate_gap_vs_pe_drive_off",
+      0.0
+    ],
+    [
+      "essence_gate_pass_fraction",
+      0.5
+    ],
+    [
+      "strongest_scaffold_retention_score",
+      0.0001
+    ],
+    [
+      "canonical_mean_memory_tower_depth",
+      6.0
+    ],
+    [
+      "canonical_mean_memory_tower_alignment",
+      0.0036
+    ],
+    [
+      "strongest_open_retention_score",
+      -0.083
+    ],
+    [
+      "artifact_candidate_mean_score_delta",
+      0.0
+    ],
+    [
+      "rare_heavy_gate_pass",
+      0.0
+    ],
+    [
+      "tower_memory_gate_pass",
+      0.0
+    ],
+    [
+      "tower_memory_gate_strength",
+      1.5
+    ]
+  ],
+  "run_id": "dialogue-paper-suite-small:run-02",
+  "run_seed": 1
+}

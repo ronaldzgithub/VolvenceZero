@@ -422,7 +422,40 @@ class ExperienceConsolidationSnapshot:
 
 ---
 
-## 11. Response Assembly Inputs
+## 11. Application Rare-Heavy Contract
+
+Phase 4 不直接引入新的 turn-time slot，而是为应用层增加一个 **rare-heavy checkpoint/state contract**，让知识域偏置、case clusters 和 distilled playbook 沿现有 artifact/import/rollback 链进入系统。
+
+```python
+@dataclass(frozen=True)
+class ApplicationCaseCluster:
+    cluster_id: str
+    problem_pattern: str
+    exemplar_count: int
+    mean_relevance: float
+    risk_markers: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationRareHeavyCheckpoint:
+    checkpoint_id: str
+    domain_template_biases: tuple[tuple[str, float], ...]
+    case_clusters: tuple[ApplicationCaseCluster, ...]
+    distilled_playbook_rules: tuple[PlaybookRule, ...]
+    description: str
+```
+
+**不变量**：
+- checkpoint 属于 session owner 管辖的 application rare-heavy state
+- `retrieval_policy` 只能读取 domain bias 的公共效果，不能直接接管 checkpoint 本体
+- `case_memory` 只能读取 cluster fallback / enrichment，不得因此回收 `memory` owner 身份
+- `strategy_playbook` 只能消费 distilled rules 作为 prior，不得反向成为 `temporal` 的第二 owner
+- rollback 必须沿 rare-heavy rollback 链回滚 application state
+
+---
+
+## 12. Response Assembly Inputs
 
 应用层 response assembly 只消费公共快照，不消费 owner 私有存储。
 
@@ -440,7 +473,7 @@ class ExperienceConsolidationSnapshot:
 
 ---
 
-## 12. Evaluation Evidence Contract
+## 13. Evaluation Evidence Contract
 
 evaluation 不新增 owner 身份，只追加证据。
 
@@ -463,13 +496,14 @@ evaluation 不新增 owner 身份，只追加证据。
    - playbook matched
    - playbook retained after slow consolidation
    - experience delta promotion count
+   - application rare-heavy import retained in fast path
 
 这些 evidence 属于 final wiring enrichment 或 session-post enrichment，  
 不改变 `evaluation` slot 的基础公共 shape。
 
 ---
 
-## 13. Storage-Abstraction Boundary
+## 14. Storage-Abstraction Boundary
 
 本契约刻意不定义：
 
@@ -490,7 +524,7 @@ runtime 层只关心：
 
 ---
 
-## 14. Phase Mapping
+## 15. Phase Mapping
 
 ### Phase 1 Required
 
@@ -507,9 +541,14 @@ runtime 层只关心：
 - `strategy_playbook`
 - `experience_consolidation`
 
+### Phase 4 Added
+
+- `ApplicationRareHeavyCheckpoint`
+- application rare-heavy import / rollback path
+
 ---
 
-## 15. Acceptance Checklist
+## 16. Acceptance Checklist
 
 引入这些应用层 contract 时，必须满足：
 
@@ -520,4 +559,5 @@ runtime 层只关心：
 - `session_post_slow_loop` 继续 bounded、observable、fail-closed
 - response 层只读公共快照
 - evaluation 只做 readout / evidence，不抢 owner 身份
+- application rare-heavy refresh 只通过 session owner import / rollback，不创建新的 second owner
 

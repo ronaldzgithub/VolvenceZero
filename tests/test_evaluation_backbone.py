@@ -649,6 +649,59 @@ def test_longitudinal_report_from_session_sequence():
     assert longitudinal.description
 
 
+def test_session_report_carries_scheduler_health_trend():
+    backbone = EvaluationBackbone()
+    backbone._append_records(
+        session_id="scheduler-session",
+        wave_id="w1",
+        timestamp_ms=1,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="scheduler_discipline",
+                value=0.7,
+                confidence=0.6,
+                evidence="scheduler discipline turn 1",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="scheduler_risk_managed",
+                value=0.8,
+                confidence=0.6,
+                evidence="scheduler risk turn 1",
+            ),
+        ),
+    )
+    backbone._append_records(
+        session_id="scheduler-session",
+        wave_id="w2",
+        timestamp_ms=2,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="scheduler_discipline",
+                value=0.75,
+                confidence=0.6,
+                evidence="scheduler discipline turn 2",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="scheduler_risk_managed",
+                value=0.82,
+                confidence=0.6,
+                evidence="scheduler risk turn 2",
+            ),
+        ),
+    )
+
+    report = backbone.build_session_report(session_id="scheduler-session", timestamp_ms=10)
+
+    trend_names = {metric_name for _, metric_name, _ in report.trends}
+    assert "scheduler_health" in trend_names
+
+
 def test_evaluation_backbone_emits_substrate_signal_quality():
     backbone = EvaluationBackbone()
     substrate_snapshot = SubstrateSnapshot(

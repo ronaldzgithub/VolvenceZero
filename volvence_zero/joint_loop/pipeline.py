@@ -15,6 +15,7 @@ from enum import Enum
 import time
 from uuid import uuid4
 
+from volvence_zero.application.runtime import ApplicationRareHeavyCheckpoint
 from volvence_zero.internal_rl.sandbox import (
     CausalPolicyCheckpoint,
     DualTrackRollout,
@@ -121,6 +122,7 @@ class RareHeavyArtifact:
     final_total_reward: float
     description: str
     training_evidence: "RareHeavyTrainingEvidence | None" = None
+    application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
 
 
 def _clamp(v: float) -> float:

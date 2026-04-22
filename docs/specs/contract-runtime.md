@@ -104,6 +104,8 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前 session-post slow loop 也已升级为正式运行时 surface：`session_post_slow_loop` 由独立 owner 发布 queue state 与 recent completion summaries；`AgentSessionRunner` 负责驱动该 owner 刷新，但消费者只读取公共 slot，不读取 runner 私有队列
 - 当前应用层第一阶段也已新增正式 surface：`retrieval_policy`、`domain_knowledge`、`boundary_policy` 作为独立 owner 发布在线检索控制、专业事实证据与边界判断；response/evaluation 只能消费这些公共快照，不允许反向读取 owner 私有知识存储
 - 当前应用层第二阶段已新增 `case_memory` surface：它作为 `memory` 的 sibling owner 发布 compact case hits、problem patterns 与 risk markers；该 surface 只服务 retrieval mix 和 evaluation evidence，不允许把案例经验重新折叠回 `memory` 主快照
+- 当前应用层第三阶段已新增 `strategy_playbook` 与 `experience_consolidation`：前者作为 turn-time 公共 slot 发布 problem-pattern-level strategy priors，后者作为 session-post report surface 发布 machine-readable experience deltas。两者都不得越权成为 `temporal` / `regime` / `session_post_slow_loop` 的第二 owner
+- 当前应用层第四阶段已新增 application rare-heavy checkpoint/state：它不作为 turn-time slot 发布，而是沿现有 rare-heavy artifact/import/rollback 链由 session owner 管理，并把离线 domain bias、case cluster 与 distilled playbook 通过 `retrieval_policy` / `case_memory` / `strategy_playbook` 的公共快照间接体现在 fast path 中
 
 ### 直接依赖 vs enrichment
 

@@ -6,7 +6,12 @@ import math
 from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
-from volvence_zero.application.runtime import BoundaryPolicySnapshot, CaseMemorySnapshot, DomainKnowledgeSnapshot
+from volvence_zero.application.runtime import (
+    BoundaryPolicySnapshot,
+    CaseMemorySnapshot,
+    DomainKnowledgeSnapshot,
+    StrategyPlaybookSnapshot,
+)
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -721,7 +726,7 @@ class EvaluationBackbone:
                 verdict="insufficient-data",
                 description="No session reports to compare.",
             )
-        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse")
+        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse", "scheduler_health")
         window_trends: list[tuple[int, tuple[tuple[str, float], ...]]] = []
         for window in suite.comparison_windows:
             if len(reports) < window + 1:
@@ -797,7 +802,7 @@ class EvaluationBackbone:
         """Build a rich longitudinal report on top of the cross-session benchmark."""
         cross_session = self.run_cross_session_benchmark(suite=suite)
         reports = suite.session_reports
-        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse")
+        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse", "scheduler_health")
         dimension_trends: list[tuple[str, float, float]] = []
         for metric in metric_keys:
             values = [v for r in reports for _, m, v in r.trends if m == metric]
@@ -1196,6 +1201,7 @@ class EvaluationBackbone:
         regime_snapshot: "RegimeSnapshot | None" = None,
         domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
         case_memory_snapshot: CaseMemorySnapshot | None = None,
+        strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
     ) -> EvaluationSnapshot:
         scores = self._learning_evidence_scores(
@@ -1206,6 +1212,7 @@ class EvaluationBackbone:
             regime_snapshot=regime_snapshot,
             domain_knowledge_snapshot=domain_knowledge_snapshot,
             case_memory_snapshot=case_memory_snapshot,
+            strategy_playbook_snapshot=strategy_playbook_snapshot,
             boundary_policy_snapshot=boundary_policy_snapshot,
         )
         if not scores:
@@ -1643,6 +1650,7 @@ class EvaluationBackbone:
         regime_snapshot: "RegimeSnapshot | None",
         domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
         case_memory_snapshot: CaseMemorySnapshot | None = None,
+        strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
     ) -> tuple[EvaluationScore, ...]:
         """Build readout evidence scores for the learning loop.
@@ -1814,6 +1822,34 @@ class EvaluationBackbone:
                     ),
                 )
             )
+        if strategy_playbook_snapshot is not None:
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="playbook_match_count",
+                        value=_clamp(len(strategy_playbook_snapshot.matched_rules) / 3.0),
+                        confidence=0.66,
+                        evidence=(
+                            f"Derived from strategy_playbook matched_rules="
+                            f"{len(strategy_playbook_snapshot.matched_rules)}."
+                        ),
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="playbook_confidence_mean",
+                        value=_clamp(
+                            sum(rule.confidence for rule in strategy_playbook_snapshot.matched_rules)
+                            / max(len(strategy_playbook_snapshot.matched_rules), 1)
+                        ),
+                        confidence=0.61,
+                        evidence=(
+                            f"Derived from matched_problem_patterns="
+                            f"{len(strategy_playbook_snapshot.matched_problem_patterns)}."
+                        ),
+                    ),
+                )
+            )
         if boundary_policy_snapshot is not None:
             scores.extend(
                 (
@@ -1860,6 +1896,92 @@ class EvaluationBackbone:
         if joint_loop_result is not None and isinstance(joint_loop_result, ScheduledJointLoopResult):
             schedule_action = joint_loop_result.schedule_action
             cycle_report = joint_loop_result.cycle_report
+            schedule_telemetry = dict(joint_loop_result.schedule_telemetry)
+            scheduler_pe_pressure = _clamp(schedule_telemetry.get("pe_pressure_x1000", 0) / 1000.0)
+            scheduler_family_stability = _clamp(schedule_telemetry.get("family_stability_x1000", 0) / 1000.0)
+            scheduler_rollback_risk = _clamp(schedule_telemetry.get("rollback_risk_x1000", 0) / 1000.0)
+            scheduler_transition_pressure = _clamp(schedule_telemetry.get("transition_pressure_x1000", 0) / 1000.0)
+            scheduler_substrate_pressure = _clamp(schedule_telemetry.get("substrate_pressure_x1000", 0) / 1000.0)
+            scheduler_rare_heavy_pressure = _clamp(schedule_telemetry.get("rare_heavy_pressure_x1000", 0) / 1000.0)
+            batch_target = max(schedule_telemetry.get("rl_batch_target", 1), 1)
+            pending_batch_count = max(schedule_telemetry.get("pending_batch_count", 0), 0)
+            scheduler_batch_fill_ratio = _clamp(pending_batch_count / batch_target)
+            scheduler_risk_managed = _clamp(1.0 - scheduler_rollback_risk)
+            scheduler_discipline = _clamp(
+                scheduler_family_stability * 0.30
+                + scheduler_risk_managed * 0.30
+                + (1.0 - scheduler_transition_pressure) * 0.15
+                + (1.0 - scheduler_rare_heavy_pressure) * 0.10
+                + (1.0 - scheduler_substrate_pressure) * 0.05
+                + scheduler_batch_fill_ratio * 0.10
+            )
+            scores.extend(
+                (
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_pe_pressure",
+                        value=scheduler_pe_pressure,
+                        confidence=0.62,
+                        evidence=f"Derived from schedule_action={schedule_action} and joint schedule telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="scheduler_family_stability",
+                        value=scheduler_family_stability,
+                        confidence=0.63,
+                        evidence=f"Derived from schedule_action={schedule_action} and active family telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="scheduler_rollback_risk",
+                        value=scheduler_rollback_risk,
+                        confidence=0.66,
+                        evidence=f"Derived from schedule_action={schedule_action} and rollback-oriented telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="scheduler_transition_pressure",
+                        value=scheduler_transition_pressure,
+                        confidence=0.61,
+                        evidence=f"Derived from schedule_action={schedule_action} and takeover pressure telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_substrate_pressure",
+                        value=scheduler_substrate_pressure,
+                        confidence=0.58,
+                        evidence=f"Derived from schedule_action={schedule_action} and substrate pressure telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_rare_heavy_pressure",
+                        value=scheduler_rare_heavy_pressure,
+                        confidence=0.6,
+                        evidence=f"Derived from schedule_action={schedule_action} and rare-heavy pressure telemetry.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_batch_fill_ratio",
+                        value=scheduler_batch_fill_ratio,
+                        confidence=0.59,
+                        evidence=f"Derived from pending_batch_count={pending_batch_count} and rl_batch_target={batch_target}.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_risk_managed",
+                        value=scheduler_risk_managed,
+                        confidence=0.63,
+                        evidence=f"Derived from scheduler_rollback_risk={scheduler_rollback_risk:.3f}.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="scheduler_discipline",
+                        value=scheduler_discipline,
+                        confidence=0.64,
+                        evidence=f"Derived from schedule_action={schedule_action} and scheduler pressure balance.",
+                    ),
+                )
+            )
             if cycle_report is not None:
                 joint_progress = _clamp(
                     0.5
@@ -2053,6 +2175,12 @@ class EvaluationBackbone:
                 alerts.append("MEDIUM: substrate fallback is active")
             if score.metric_name == "rollback_resilience" and score.value < 0.6:
                 alerts.append("MEDIUM: rollback pressure is elevated")
+            if score.metric_name == "scheduler_rollback_risk" and score.value > 0.7:
+                alerts.append("HIGH: scheduler rollback risk is elevated")
+            if score.metric_name == "scheduler_transition_pressure" and score.value > 0.75:
+                alerts.append("MEDIUM: scheduler transition pressure is elevated")
+            if score.metric_name == "scheduler_rare_heavy_pressure" and score.value > 0.8:
+                alerts.append("MEDIUM: scheduler rare-heavy pressure is elevated")
             if score.metric_name == "action_family_monopoly_pressure" and score.value > 0.72:
                 alerts.append("MEDIUM: action-family monopoly pressure is elevated")
             if score.metric_name == "action_family_collapse_risk" and score.value > 0.68:
@@ -2081,6 +2209,19 @@ class EvaluationBackbone:
                         "rollback_resilience",
                         "delayed_credit_horizon",
                         "regime_sequence_alignment",
+                        "scheduler_discipline",
+                        "scheduler_risk_managed",
+                    ),
+                ),
+            ),
+            (
+                "learning",
+                "scheduler_health",
+                self._trend_for_metrics(
+                    records,
+                    (
+                        "scheduler_discipline",
+                        "scheduler_risk_managed",
                     ),
                 ),
             ),
@@ -2097,6 +2238,8 @@ class EvaluationBackbone:
                         "action_family_reuse",
                         "action_family_stability",
                         "action_family_turnover_health",
+                        "scheduler_family_stability",
+                        "scheduler_transition_pressure",
                     ),
                 ),
             ),
@@ -2205,6 +2348,18 @@ class EvaluationBackbone:
             return ("substrate.feature_surface.fallback_active",)
         if metric_name == "rollback_resilience":
             return ("joint_loop.rollback_reasons", "joint_loop.schedule_action")
+        if metric_name in {
+            "scheduler_pe_pressure",
+            "scheduler_family_stability",
+            "scheduler_rollback_risk",
+            "scheduler_transition_pressure",
+            "scheduler_substrate_pressure",
+            "scheduler_rare_heavy_pressure",
+            "scheduler_batch_fill_ratio",
+            "scheduler_risk_managed",
+            "scheduler_discipline",
+        }:
+            return ("joint_loop.schedule_action", "joint_loop.schedule_telemetry")
         if metric_name == "residual_env_fidelity":
             return ("joint_loop.backend_name", "joint_loop.backend_fidelity")
         if metric_name == "delayed_regime_alignment":

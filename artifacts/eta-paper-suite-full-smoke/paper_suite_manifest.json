@@ -1,0 +1,169 @@
+{
+  "artifact_expectations": [
+    "per-run eta proof benchmark json",
+    "per-run backend robustness json",
+    "per-run assessment json",
+    "aggregate summary json",
+    "provenance json"
+  ],
+  "baseline_label": "full-internal-rl",
+  "case_groups": [
+    [
+      "route_ids",
+      [
+        "train-corridor-alpha-beta-delta",
+        "train-zigzag-beta-gamma-alpha",
+        "train-loop-delta-beta-epsilon",
+        "eval-alpha-delta-epsilon",
+        "eval-gamma-beta-delta",
+        "heldout-delta-alpha-gamma-epsilon",
+        "heldout-epsilon-beta-alpha-delta"
+      ]
+    ],
+    [
+      "backend_labels",
+      [
+        "trace",
+        "synthetic-open-weight"
+      ]
+    ],
+    [
+      "train_epochs",
+      [
+        "2"
+      ]
+    ]
+  ],
+  "description": "Frozen ETA proof paper suite paper-suite-full with 3 repeated runs and backends=('trace', 'synthetic-open-weight').",
+  "primary_metrics": [
+    {
+      "description": "Held-out terminal success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_terminal_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong sparse-reward success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_strong_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out abstract-action reuse rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_family_reuse_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out delayed-credit alignment for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_credit_alignment",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong success gap between the full profile and the strongest matched control.",
+      "direction": "higher-is-better",
+      "metric_name": "strong_success_gap_vs_best_control",
+      "role": "primary"
+    },
+    {
+      "description": "Gap in held-out strong success across backends for the full profile.",
+      "direction": "lower-is-better",
+      "metric_name": "backend_success_gap",
+      "role": "primary"
+    }
+  ],
+  "profiles": [
+    {
+      "description": "ETA proof profile full-internal-rl.",
+      "profile_label": "full-internal-rl",
+      "role": "baseline"
+    },
+    {
+      "description": "ETA proof profile full-no-optimize.",
+      "profile_label": "full-no-optimize",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile full-no-replacement.",
+      "profile_label": "full-no-replacement",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile learned-lite-causal.",
+      "profile_label": "learned-lite-causal",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile noop-backend.",
+      "profile_label": "noop-backend",
+      "role": "matched-control"
+    }
+  ],
+  "repeat_count": 3,
+  "secondary_metrics": [
+    {
+      "description": "Fraction of ETA acceptance gates passed in the assessment report.",
+      "direction": "higher-is-better",
+      "metric_name": "assessment_pass_fraction",
+      "role": "secondary"
+    },
+    {
+      "description": "Observed policy parameter update rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "policy_update_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out subgoal completion rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_subgoal_completion_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out strong success variability across held-out cases.",
+      "direction": "lower-is-better",
+      "metric_name": "heldout_strong_success_std",
+      "role": "secondary"
+    },
+    {
+      "description": "Average rollout count consumed by each full-profile update.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_rollouts_per_update",
+      "role": "secondary"
+    },
+    {
+      "description": "Average parameter-change norm for full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_parameter_change_norm",
+      "role": "secondary"
+    },
+    {
+      "description": "Average replacement-effect delta observed during full-profile updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_replacement_effect_delta",
+      "role": "secondary"
+    },
+    {
+      "description": "Average critic/value loss for the full internal-RL profile.",
+      "direction": "lower-is-better",
+      "metric_name": "mean_value_loss",
+      "role": "secondary"
+    },
+    {
+      "description": "Total training transitions consumed by full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "training_transition_count",
+      "role": "secondary"
+    }
+  ],
+  "seed_schedule": [
+    0,
+    1,
+    2
+  ],
+  "suite_id": "eta-proof-paper-suite-full",
+  "suite_kind": "eta-internal-rl-proof",
+  "suite_tier": "paper-suite-full",
+  "version": 1
+}

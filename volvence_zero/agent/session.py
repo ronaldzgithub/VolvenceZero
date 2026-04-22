@@ -6,9 +6,16 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from volvence_zero.application.runtime import (
+    ApplicationCaseCluster,
+    ApplicationRareHeavyCheckpoint,
+    ApplicationRareHeavyState,
     BoundaryPolicySnapshot,
     CaseMemorySnapshot,
     DomainKnowledgeSnapshot,
+    ExperienceConsolidationModule,
+    ExperienceConsolidationSnapshot,
+    ExperienceDelta,
+    StrategyPlaybookSnapshot,
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.credit.gate import (
@@ -322,6 +329,7 @@ class AgentSessionRunner:
             self._self_temporal_policy = self._world_temporal_policy
         self._temporal_policy = self._world_temporal_policy
         self._evaluation_backbone = EvaluationBackbone()
+        self._application_rare_heavy_state = ApplicationRareHeavyState()
         world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
         default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
@@ -392,8 +400,11 @@ class AgentSessionRunner:
         self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
         self._session_post_module = SessionPostSlowLoopModule(wiring_level=WiringLevel.ACTIVE)
         self._session_post_snapshot: Snapshot[SessionPostSlowLoopSnapshot] | None = None
+        self._experience_consolidation_module = ExperienceConsolidationModule(wiring_level=WiringLevel.ACTIVE)
+        self._experience_consolidation_snapshot: Snapshot[ExperienceConsolidationSnapshot] | None = None
         self._last_session_post_writeback_request: SessionPostWritebackRequest | None = None
         self._publish_session_post_snapshot()
+        self._publish_experience_consolidation_snapshot()
 
     @property
     def session_id(self) -> str:
@@ -428,6 +439,10 @@ class AgentSessionRunner:
         return self._session_post_snapshot
 
     @property
+    def experience_consolidation_snapshot(self) -> Snapshot[ExperienceConsolidationSnapshot] | None:
+        return self._experience_consolidation_snapshot
+
+    @property
     def active_context_session_id(self) -> str:
         return f"{self._session_id}:context-{self._context_index}"
 
@@ -436,6 +451,7 @@ class AgentSessionRunner:
         await self._session_post_queue.wait_for_idle()
         results = self._session_post_queue.consume_completed_results()
         self._publish_session_post_snapshot(completed_results=results)
+        self._publish_experience_consolidation_snapshot(completed_results=results)
         return results
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
@@ -507,6 +523,20 @@ class AgentSessionRunner:
                 ("magnitude", self._previous_prediction_error.magnitude),
                 ("signed_reward", self._previous_prediction_error.signed_reward),
             )
+        case_problem_patterns: tuple[str, ...] = ()
+        case_risk_markers: tuple[str, ...] = ()
+        knowledge_domains: tuple[str, ...] = ()
+        boundary_trigger_reasons: tuple[str, ...] = ()
+        case_snapshot = self._upstream_snapshots.get("case_memory")
+        if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
+            case_problem_patterns = case_snapshot.value.active_problem_patterns
+            case_risk_markers = case_snapshot.value.active_risk_markers
+        knowledge_snapshot = self._upstream_snapshots.get("domain_knowledge")
+        if knowledge_snapshot is not None and isinstance(knowledge_snapshot.value, DomainKnowledgeSnapshot):
+            knowledge_domains = knowledge_snapshot.value.active_domains
+        boundary_snapshot = self._upstream_snapshots.get("boundary_policy")
+        if boundary_snapshot is not None and isinstance(boundary_snapshot.value, BoundaryPolicySnapshot):
+            boundary_trigger_reasons = boundary_snapshot.value.trigger_reasons
         job = SessionPostSlowLoopJob(
             job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
             context_session_id=request.context_session_id,
@@ -521,6 +551,10 @@ class AgentSessionRunner:
                 f"Session-post slow loop job for {request.context_session_id} with "
                 f"{len(self._recent_training_traces)} traces and {len(self._recent_substrate_batches)} substrate batches."
             ),
+            case_problem_patterns=case_problem_patterns,
+            case_risk_markers=case_risk_markers,
+            knowledge_domains=knowledge_domains,
+            boundary_trigger_reasons=boundary_trigger_reasons,
         )
         self._last_session_post_writeback_request = None
         return job
@@ -536,6 +570,45 @@ class AgentSessionRunner:
                 temporal_policy=self._world_temporal_policy,
                 regime_module=self._regime_module,
             )
+        experience_deltas: list[ExperienceDelta] = []
+        for pattern in job.case_problem_patterns:
+            experience_deltas.append(
+                ExperienceDelta(
+                    delta_id=f"{job.job_id}:case:{pattern}",
+                    delta_type="case-promotion",
+                    target_slot="case_memory",
+                    summary=f"Promote case pattern {pattern} into durable case evidence.",
+                    confidence=0.62,
+                    blocked=False,
+                    description=f"Derived from session-post job {job.job_id} for pattern={pattern}.",
+                )
+            )
+            experience_deltas.append(
+                ExperienceDelta(
+                    delta_id=f"{job.job_id}:playbook:{pattern}",
+                    delta_type="playbook-delta",
+                    target_slot="strategy_playbook",
+                    summary=f"Extract a reusable ordering prior for pattern {pattern}.",
+                    confidence=0.58,
+                    blocked=False,
+                    description=f"Derived from session-post job {job.job_id} for pattern={pattern}.",
+                )
+            )
+        if job.boundary_trigger_reasons:
+            experience_deltas.append(
+                ExperienceDelta(
+                    delta_id=f"{job.job_id}:boundary",
+                    delta_type="boundary-delta",
+                    target_slot="boundary_policy",
+                    summary="Preserve repeated boundary triggers as future caution priors.",
+                    confidence=0.57,
+                    blocked=False,
+                    description=(
+                        f"Derived from session-post job {job.job_id} with triggers="
+                        f"{', '.join(job.boundary_trigger_reasons)}."
+                    ),
+                )
+            )
         return SessionPostSlowLoopResult(
             job_id=job.job_id,
             context_session_id=job.context_session_id,
@@ -548,6 +621,7 @@ class AgentSessionRunner:
                 f"applied={bool(writeback_result is not None and writeback_result.applied_operations)} "
                 f"blocked={bool(writeback_result is not None and writeback_result.blocked_operations)}."
             ),
+            experience_deltas=tuple(experience_deltas),
         )
 
     def _publish_session_post_snapshot(
@@ -561,12 +635,24 @@ class AgentSessionRunner:
         )
         return self._session_post_snapshot
 
+    def _publish_experience_consolidation_snapshot(
+        self,
+        *,
+        completed_results: tuple[SessionPostSlowLoopResult, ...] = (),
+    ) -> Snapshot[ExperienceConsolidationSnapshot]:
+        self._experience_consolidation_snapshot = self._experience_consolidation_module.publish_snapshot(
+            completed_results=completed_results,
+        )
+        return self._experience_consolidation_snapshot
+
     def _collect_session_post_writeback_result(self) -> WritebackResult | None:
         completed = self._session_post_queue.consume_completed_results()
         if completed:
             self._publish_session_post_snapshot(completed_results=completed)
+            self._publish_experience_consolidation_snapshot(completed_results=completed)
         else:
             self._publish_session_post_snapshot()
+            self._publish_experience_consolidation_snapshot()
         if not completed:
             return None
         applied_operations: tuple[str, ...] = ()
@@ -595,27 +681,57 @@ class AgentSessionRunner:
         *,
         checkpoint_id: str | None = None,
     ) -> RareHeavyImportResult:
+        application_checkpoint = self._application_rare_heavy_state.export_rare_heavy_state(
+            checkpoint_id=f"{checkpoint_id or artifact.artifact_id}:application-preimport"
+        )
         result = self._joint_loop.apply_rare_heavy_artifact(
             artifact,
             checkpoint_id=checkpoint_id,
         )
+        application_operations: tuple[str, ...] = ()
+        if artifact.application_checkpoint is not None:
+            application_operations = self._application_rare_heavy_state.import_rare_heavy_state(
+                artifact.application_checkpoint
+            )
         reset_operations = self._memory_store.reset_nested_context(
             reason="rare-heavy-import",
             timestamp_ms=max(self._turn_index, 1),
         )
-        if not reset_operations:
+        result = replace(
+            result,
+            checkpoint=replace(result.checkpoint, application_checkpoint=application_checkpoint),
+        )
+        if not reset_operations and not application_operations:
             return result
         return replace(
             result,
-            applied_operations=result.applied_operations + reset_operations,
-            description=f"{result.description} Nested context reset applied after import.",
+            applied_operations=result.applied_operations + application_operations + reset_operations,
+            description=(
+                f"{result.description} "
+                f"{'Application rare-heavy state imported. ' if application_operations else ''}"
+                f"{'Nested context reset applied after import.' if reset_operations else ''}"
+            ).strip(),
+        )
+
+    def review_rare_heavy_artifact(
+        self,
+        artifact: RareHeavyArtifact,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> RareHeavyImportResult:
+        return self._joint_loop.review_rare_heavy_artifact(
+            artifact,
+            checkpoint_id=checkpoint_id,
         )
 
     def rollback_rare_heavy_import(
         self,
         checkpoint: RareHeavyImportCheckpoint,
     ) -> tuple[str, ...]:
-        return self._joint_loop.rollback_rare_heavy_import(checkpoint)
+        operations = list(self._joint_loop.rollback_rare_heavy_import(checkpoint))
+        if checkpoint.application_checkpoint is not None:
+            operations.extend(self._application_rare_heavy_state.restore_rare_heavy_state(checkpoint.application_checkpoint))
+        return tuple(operations)
 
     async def run_turn(self, user_input: str) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
@@ -675,6 +791,7 @@ class AgentSessionRunner:
             integration_result = await run_final_wiring_turn(
                 config=self._config,
                 substrate_adapter=substrate_adapter,
+                application_rare_heavy_state=self._application_rare_heavy_state,
                 memory_store=self._memory_store,
                 evaluation_backbone=self._evaluation_backbone,
                 prior_session_reports=self.completed_session_reports,
@@ -920,12 +1037,67 @@ class AgentSessionRunner:
             prediction_error_readout_only=self._prediction_error_readout_only,
             primary_prediction_error_dominance_enabled=self._primary_prediction_error_dominance_enabled,
         )
+        runner._application_rare_heavy_state.import_rare_heavy_state(
+            self._application_rare_heavy_state.export_rare_heavy_state(
+                checkpoint_id=f"{runner.session_id}:application-seed"
+            )
+        )
         if artifact is not None:
             runner.apply_rare_heavy_artifact(
                 artifact,
                 checkpoint_id=f"{runner.session_id}:candidate-import",
             )
         return runner
+
+    def _build_application_rare_heavy_checkpoint(
+        self,
+        *,
+        artifact_id: str,
+    ) -> ApplicationRareHeavyCheckpoint:
+        domain_snapshot = self._upstream_snapshots.get("domain_knowledge")
+        case_snapshot = self._upstream_snapshots.get("case_memory")
+        playbook_snapshot = self._upstream_snapshots.get("strategy_playbook")
+        domain_biases: list[tuple[str, float]] = []
+        if domain_snapshot is not None and isinstance(domain_snapshot.value, DomainKnowledgeSnapshot):
+            for domain in domain_snapshot.value.active_domains:
+                domain_biases.append((domain, 0.72))
+        case_clusters: list[ApplicationCaseCluster] = []
+        if case_snapshot is not None and isinstance(case_snapshot.value, CaseMemorySnapshot):
+            for index, pattern in enumerate(case_snapshot.value.active_problem_patterns[:3], start=1):
+                matched_hits = tuple(hit for hit in case_snapshot.value.hits if hit.problem_pattern == pattern)
+                mean_relevance = (
+                    sum(hit.relevance_score for hit in matched_hits) / max(len(matched_hits), 1)
+                    if matched_hits
+                    else 0.5
+                )
+                risk_markers = matched_hits[0].risk_markers if matched_hits else ()
+                case_clusters.append(
+                    ApplicationCaseCluster(
+                        cluster_id=f"{artifact_id}:cluster:{index}",
+                        problem_pattern=pattern,
+                        exemplar_count=max(len(matched_hits), 1),
+                        mean_relevance=mean_relevance,
+                        risk_markers=risk_markers,
+                        description=f"Rare-heavy distilled cluster for pattern={pattern}.",
+                    )
+                )
+        distilled_playbook_rules = ()
+        if playbook_snapshot is not None and isinstance(playbook_snapshot.value, StrategyPlaybookSnapshot):
+            distilled_playbook_rules = playbook_snapshot.value.matched_rules
+        if not domain_biases and not case_clusters and not distilled_playbook_rules:
+            return self._application_rare_heavy_state.export_rare_heavy_state(
+                checkpoint_id=f"{artifact_id}:application"
+            )
+        return ApplicationRareHeavyCheckpoint(
+            checkpoint_id=f"{artifact_id}:application",
+            domain_template_biases=tuple(domain_biases),
+            case_clusters=tuple(case_clusters),
+            distilled_playbook_rules=tuple(distilled_playbook_rules),
+            description=(
+                f"Application rare-heavy checkpoint distilled {len(domain_biases)} domain biases, "
+                f"{len(case_clusters)} case clusters, and {len(distilled_playbook_rules)} playbook rules."
+            ),
+        )
 
     @staticmethod
     def _rare_heavy_replay_score(result: AgentTurnResult) -> float:
@@ -1406,6 +1578,9 @@ class AgentSessionRunner:
                 f"self={self_artifact.artifact_id}."
             ),
             training_evidence=world_artifact.training_evidence,
+            application_checkpoint=self._build_application_rare_heavy_checkpoint(
+                artifact_id=f"{self._session_id}:{wave_id}:rare-heavy"
+            ),
         )
         combined_rl_steps = (
             world_pipeline_result.rl_steps_completed + self_pipeline_result.rl_steps_completed
@@ -1774,6 +1949,8 @@ class AgentSessionRunner:
         knowledge_summaries: tuple[str, ...] = ()
         case_hit_count = 0
         case_patterns: tuple[str, ...] = ()
+        playbook_rule_count = 0
+        playbook_ordering_hints: tuple[str, ...] = ()
         citation_required = False
         boundary_risk_band = "low"
         boundary_answer_depth_limit = "standard"
@@ -1789,6 +1966,14 @@ class AgentSessionRunner:
         if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot):
             case_hit_count = len(case_memory_snapshot.value.hits)
             case_patterns = tuple(case.problem_pattern for case in case_memory_snapshot.value.hits[:3])
+        strategy_playbook_snapshot = integration_result.active_snapshots.get("strategy_playbook")
+        if strategy_playbook_snapshot is not None and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot):
+            playbook_rule_count = len(strategy_playbook_snapshot.value.matched_rules)
+            playbook_ordering_hints = tuple(
+                step
+                for rule in strategy_playbook_snapshot.value.matched_rules[:2]
+                for step in rule.recommended_ordering[:3]
+            )
         boundary_policy_snapshot = integration_result.active_snapshots.get("boundary_policy")
         if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot):
             decision = boundary_policy_snapshot.value.active_decision
@@ -1828,6 +2013,8 @@ class AgentSessionRunner:
                 knowledge_summaries=knowledge_summaries,
                 case_hit_count=case_hit_count,
                 case_patterns=case_patterns,
+                playbook_rule_count=playbook_rule_count,
+                playbook_ordering_hints=playbook_ordering_hints,
                 citation_required=citation_required,
                 boundary_risk_band=boundary_risk_band,
                 boundary_answer_depth_limit=boundary_answer_depth_limit,
@@ -1839,8 +2026,10 @@ class AgentSessionRunner:
         effective_writeback_result = deferred_writeback_result or integration_result.writeback_result
         effective_queue_state = queue_state or self.session_post_queue_state
         session_post_snapshot = self._publish_session_post_snapshot()
+        experience_consolidation_snapshot = self._publish_experience_consolidation_snapshot()
         active_snapshots = dict(integration_result.active_snapshots)
         active_snapshots["session_post_slow_loop"] = session_post_snapshot
+        active_snapshots["experience_consolidation"] = experience_consolidation_snapshot
 
         return AgentTurnResult(
             session_id=self.active_context_session_id,

@@ -135,6 +135,23 @@ class ETAProofPaperSuiteRunSummary:
     run_seed: int
     metric_values: tuple[tuple[str, float], ...]
     description: str
+    strongest_competing_control: str = "none"
+    strongest_control_gap: float = 0.0
+
+
+@dataclass(frozen=True)
+class ETAProofPaperSuiteInterpretationSummary:
+    interpretation: str
+    review_summary: str
+    dominant_failure_mode: str
+    strongest_metric: str
+    weakest_metric: str
+    strongest_competing_control: str
+    strongest_control_gap: float
+    cross_run_gap_mean: float
+    cross_run_gap_std: float
+    confidence: float
+    description: str
 
 
 @dataclass(frozen=True)
@@ -147,6 +164,7 @@ class ETAProofPaperSuiteAggregateReport:
     reference_assessment: ETAInternalRLAssessmentReport | None
     primary_metric_summaries: tuple[MetricIntervalSummary, ...]
     secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    interpretation_summary: ETAProofPaperSuiteInterpretationSummary | None
     description: str
 
 
@@ -1318,6 +1336,144 @@ def _eta_metric_samples(
     }
 
 
+def _eta_failure_mode_from_assessment(assessment: ETAInternalRLAssessmentReport | None) -> str:
+    if assessment is None:
+        return "no-assessment"
+    blocked_gate_ids = tuple(
+        gate.gate_id
+        for gate in assessment.gates
+        if not gate.passed
+    )
+    if "statistical-batch-evidence" in blocked_gate_ids:
+        return "weak-statistical-evidence"
+    if "policy-update-evidence" in blocked_gate_ids:
+        return "weak-policy-update"
+    if "credit-alignment" in blocked_gate_ids:
+        return "credit-misalignment"
+    if "heldout-composition" in blocked_gate_ids:
+        return "heldout-composition-fragile"
+    if "abstract-action-reuse" in blocked_gate_ids:
+        return "family-reuse-fragile"
+    if "backend-robustness" in blocked_gate_ids:
+        return "backend-fragility"
+    if "sparse-reward-success" in blocked_gate_ids:
+        return "sparse-reward-weakness"
+    if not blocked_gate_ids:
+        return "no-dominant-failure-mode"
+    return blocked_gate_ids[0]
+
+
+def _build_eta_paper_suite_interpretation_summary(
+    *,
+    reference_assessment: ETAInternalRLAssessmentReport | None,
+    reference_benchmark_report: ETAProofBenchmarkReport | None,
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+    primary_metric_summaries: tuple[MetricIntervalSummary, ...],
+    secondary_metric_summaries: tuple[MetricIntervalSummary, ...],
+) -> ETAProofPaperSuiteInterpretationSummary | None:
+    if reference_assessment is None:
+        return None
+    all_summaries = primary_metric_summaries + secondary_metric_summaries
+    if not all_summaries:
+        return ETAProofPaperSuiteInterpretationSummary(
+            interpretation="eta-proof-summary-unavailable",
+            review_summary="ETA proof paper suite did not produce summary metrics.",
+            dominant_failure_mode=_eta_failure_mode_from_assessment(reference_assessment),
+            strongest_metric="none",
+            weakest_metric="none",
+            strongest_competing_control="none",
+            strongest_control_gap=0.0,
+            cross_run_gap_mean=0.0,
+            cross_run_gap_std=0.0,
+            confidence=0.0,
+            description="ETA proof paper suite did not produce any metric summaries.",
+        )
+    strengths = {summary.metric_name: summary.mean for summary in all_summaries}
+    strongest_metric = max(strengths.items(), key=lambda item: item[1])[0]
+    weakest_metric = min(strengths.items(), key=lambda item: item[1])[0]
+    dominant_failure_mode = _eta_failure_mode_from_assessment(reference_assessment)
+    strongest_competing_control = "none"
+    strongest_control_gap = 0.0
+    cross_run_gap_mean = 0.0
+    cross_run_gap_std = 0.0
+    if reference_benchmark_report is not None:
+        report_map = {
+            profile_report.profile_label: profile_report
+            for profile_report in reference_benchmark_report.profile_reports
+        }
+        control_reports = _control_reports_for_gate(report_map=report_map)
+        strongest_competing_control, best_control_strong_success = _best_control_metric(
+            control_reports=control_reports,
+            metric_name="heldout_strong_success_rate",
+        )
+        full_report = report_map.get("full-internal-rl")
+        full_metrics = dict(full_report.metric_means) if full_report is not None else {}
+        strongest_control_gap = round(
+            full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+            4,
+        )
+    if run_summaries:
+        control_counts: dict[str, int] = {}
+        control_gaps: list[float] = []
+        for summary in run_summaries:
+            control_counts[summary.strongest_competing_control] = (
+                control_counts.get(summary.strongest_competing_control, 0) + 1
+            )
+            control_gaps.append(summary.strongest_control_gap)
+        strongest_competing_control = max(
+            control_counts.items(),
+            key=lambda item: item[1],
+        )[0]
+        cross_run_gap_mean = round(sum(control_gaps) / len(control_gaps), 4)
+        cross_run_gap_std = round(_std(tuple(control_gaps)), 4)
+    pass_fraction = (
+        reference_assessment.passed_gate_count / reference_assessment.total_gate_count
+        if reference_assessment.total_gate_count > 0
+        else 0.0
+    )
+    confidence = round(max(0.0, min(1.0, pass_fraction * 0.75 + 0.25)), 4)
+    if dominant_failure_mode == "no-dominant-failure-mode":
+        interpretation = (
+            f"eta-proof-strongest={strongest_metric}; no dominant failure mode; "
+            f"weakest_metric={weakest_metric}"
+        )
+    else:
+        interpretation = (
+            f"eta-proof-strongest={strongest_metric}; failure_mode={dominant_failure_mode}; "
+            f"weakest_metric={weakest_metric}"
+        )
+    if dominant_failure_mode == "no-dominant-failure-mode":
+        review_summary = (
+            f"Full internal RL remains ahead of {strongest_competing_control} by "
+            f"{cross_run_gap_mean:.3f} +/- {cross_run_gap_std:.3f} on held-out strong success across runs; "
+            f"no dominant failure mode surfaced."
+        )
+    else:
+        review_summary = (
+            f"Primary weakness is {dominant_failure_mode}; strongest competing control is "
+            f"{strongest_competing_control}; cross-run held-out strong-success gap is "
+            f"{cross_run_gap_mean:.3f} +/- {cross_run_gap_std:.3f}."
+        )
+    return ETAProofPaperSuiteInterpretationSummary(
+        interpretation=interpretation,
+        review_summary=review_summary,
+        dominant_failure_mode=dominant_failure_mode,
+        strongest_metric=strongest_metric,
+        weakest_metric=weakest_metric,
+        strongest_competing_control=strongest_competing_control,
+        strongest_control_gap=strongest_control_gap,
+        cross_run_gap_mean=cross_run_gap_mean,
+        cross_run_gap_std=cross_run_gap_std,
+        confidence=confidence,
+        description=(
+            f"ETA paper-suite interpretation strongest={strongest_metric} weakest={weakest_metric} "
+            f"failure_mode={dominant_failure_mode} competitor={strongest_competing_control} "
+            f"gap={strongest_control_gap:.3f} cross_run_gap={cross_run_gap_mean:.3f}+/-{cross_run_gap_std:.3f} "
+            f"confidence={confidence:.2f}."
+        ),
+    )
+
+
 def _repo_root_from_eta_module() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -1368,6 +1524,17 @@ def run_eta_internal_rl_paper_suite(
         reference_benchmark_report = reference_benchmark_report or benchmark_report
         reference_backend_report = reference_backend_report or backend_report
         reference_assessment = reference_assessment or assessment
+        report_map = {
+            profile_report.profile_label: profile_report
+            for profile_report in benchmark_report.profile_reports
+        }
+        control_reports = _control_reports_for_gate(report_map=report_map)
+        strongest_competing_control, best_control_strong_success = _best_control_metric(
+            control_reports=control_reports,
+            metric_name="heldout_strong_success_rate",
+        )
+        full_report = report_map.get("full-internal-rl")
+        full_metrics = dict(full_report.metric_means) if full_report is not None else {}
         run_summary = ETAProofPaperSuiteRunSummary(
             run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
             run_seed=run_seed,
@@ -1375,6 +1542,11 @@ def run_eta_internal_rl_paper_suite(
                 benchmark_report=benchmark_report,
                 backend_report=backend_report,
                 assessment=assessment,
+            ),
+            strongest_competing_control=strongest_competing_control,
+            strongest_control_gap=round(
+                full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+                4,
             ),
             description=(
                 f"ETA proof paper suite run {run_index} summarized "
@@ -1422,6 +1594,13 @@ def run_eta_internal_rl_paper_suite(
             "backend_mode": "trace+synthetic-open-weight",
         },
     )
+    interpretation_summary = _build_eta_paper_suite_interpretation_summary(
+        reference_assessment=reference_assessment,
+        reference_benchmark_report=reference_benchmark_report,
+        run_summaries=tuple(run_summaries),
+        primary_metric_summaries=primary_metric_summaries,
+        secondary_metric_summaries=secondary_metric_summaries,
+    )
     aggregate_report = ETAProofPaperSuiteAggregateReport(
         manifest=active_manifest,
         provenance=provenance,
@@ -1431,6 +1610,7 @@ def run_eta_internal_rl_paper_suite(
         reference_assessment=reference_assessment,
         primary_metric_summaries=primary_metric_summaries,
         secondary_metric_summaries=secondary_metric_summaries,
+        interpretation_summary=interpretation_summary,
         description=(
             f"ETA proof paper suite {active_manifest.suite_id} aggregated "
             f"{len(run_summaries)} repeated runs."
@@ -1469,6 +1649,7 @@ def export_eta_internal_rl_paper_suite_artifact_bundle(
                 "suite_id": aggregate_report.manifest.suite_id,
                 "primary_metric_summaries": aggregate_report.primary_metric_summaries,
                 "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "interpretation_summary": aggregate_report.interpretation_summary,
                 "description": aggregate_report.description,
             },
             output_path=target_dir / "paper_suite_aggregate.json",
@@ -1493,6 +1674,13 @@ def export_eta_internal_rl_paper_suite_artifact_bundle(
             export_json_artifact(
                 payload=aggregate_report.reference_assessment,
                 output_path=target_dir / "reference_assessment.json",
+            )
+        )
+    if aggregate_report.interpretation_summary is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.interpretation_summary,
+                output_path=target_dir / "paper_suite_interpretation_summary.json",
             )
         )
     return tuple(written_paths)

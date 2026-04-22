@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.application.runtime import ApplicationRareHeavyCheckpoint
 from volvence_zero.credit.gate import (
     CreditModule,
     CreditSnapshot,
@@ -144,6 +145,7 @@ class RareHeavyImportCheckpoint:
     self_policy_checkpoint: CausalPolicyCheckpoint
     memory_checkpoint: MemoryStoreCheckpoint
     substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
+    application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
 
 
 @dataclass(frozen=True)
@@ -890,16 +892,28 @@ class ETANLJointLoop:
             else "No CMS core attached."
         )
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=active_schedule)
-        should_run_cycle = pe_full_cycle_due or rl_due or rl_batch_ready_due or rl_batch_wait_due
+        batch_schedule_action = self._batch_schedule_action(
+            turn_index=turn_index,
+            schedule=active_schedule,
+            pe_full_cycle_due=pe_full_cycle_due,
+            pe_ssl_due=pe_ssl_due,
+            rl_due=rl_due,
+            rl_batch_ready_due=rl_batch_ready_due,
+            rl_batch_wait_due=rl_batch_wait_due,
+            substrate_online_fast_due=substrate_online_fast_due,
+            rare_heavy_review_recommended=rare_heavy_review_recommended,
+        )
+        should_run_cycle = (
+            batch_schedule_action is not None and batch_schedule_action.startswith("full-cycle")
+        ) or (
+            self._effective_rl_batch_target() <= 1
+            and (pe_full_cycle_due or rl_due or rl_batch_ready_due or rl_batch_wait_due)
+        )
         if should_run_cycle:
-            if pe_full_cycle_due:
+            if batch_schedule_action is not None:
+                schedule_action = batch_schedule_action
+            elif pe_full_cycle_due:
                 schedule_action = "full-cycle-pe"
-            elif rl_batch_wait_due:
-                schedule_action = "full-cycle-batch-forced"
-            elif rl_batch_ready_due and self._effective_rl_batch_target() > 1:
-                schedule_action = "full-cycle-batch"
-            elif rl_due and self._effective_rl_batch_target() > 1:
-                schedule_action = "full-cycle-collect"
             else:
                 schedule_action = "full-cycle"
             cycle_report = await self.run_cycle(
@@ -929,6 +943,61 @@ class ETANLJointLoop:
                 description=cycle_report.description,
                 substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
+            )
+        if batch_schedule_action in {
+            "ssl-only-risk-hold",
+            "evidence-only-risk-hold",
+            "ssl-only-rare-heavy-hold",
+        }:
+            metacontroller_state = self._aggregate_metacontroller_state()
+            self._record_schedule_outcome(
+                turn_index=turn_index,
+                schedule_action=batch_schedule_action,
+                metacontroller_state=metacontroller_state,
+            )
+            if batch_schedule_action in {"ssl-only-risk-hold", "ssl-only-rare-heavy-hold"}:
+                self._world_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+                self._self_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
+                world_ssl_report = self._ssl_trainer.optimize(policy=self._world_policy, trace=trace)
+                self_ssl_report = self._ssl_trainer.optimize(policy=self._self_policy, trace=trace)
+                metacontroller_state = self._aggregate_metacontroller_state()
+                self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+                self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+                return ScheduledJointLoopResult(
+                    turn_index=turn_index,
+                    schedule_action=batch_schedule_action,
+                    cycle_report=None,
+                    kernel_scores=(),
+                    ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss) / 2.0,
+                    ssl_kl_loss=(world_ssl_report.kl_loss + self_ssl_report.kl_loss) / 2.0,
+                    metacontroller_state=metacontroller_state,
+                    cms_description=cms_description,
+                    owner_path=self.owner_path,
+                    schedule_telemetry=schedule_telemetry,
+                    description=(
+                        f"Scheduled joint loop owner={self.owner_path} held RL batch and ran ssl-only "
+                        f"joint-risk control at turn {turn_index}."
+                    ),
+                    substrate_online_fast_due=substrate_online_fast_due,
+                    rare_heavy_review_recommended=rare_heavy_review_recommended,
+                )
+            return ScheduledJointLoopResult(
+                turn_index=turn_index,
+                schedule_action=batch_schedule_action,
+                cycle_report=None,
+                kernel_scores=(),
+                ssl_prediction_loss=0.0,
+                ssl_kl_loss=0.0,
+                metacontroller_state=metacontroller_state,
+                cms_description=cms_description,
+                owner_path=self.owner_path,
+                schedule_telemetry=schedule_telemetry,
+                description=(
+                    f"Scheduled joint loop owner={self.owner_path} held RL batch and collected evidence only "
+                    f"at turn {turn_index}."
+                ),
+                substrate_online_fast_due=substrate_online_fast_due,
+                rare_heavy_review_recommended=rare_heavy_review_recommended,
             )
         if (
             pe_ssl_due
@@ -1012,6 +1081,17 @@ class ETANLJointLoop:
         pending_batch_count = self._pending_rl_batch_count()
         rl_batch_ready_due = int(self._rl_batch_ready_due())
         rl_batch_wait_due = int(self._rl_batch_wait_due(turn_index=turn_index, schedule=schedule))
+        (
+            pe_pressure,
+            family_stability,
+            rollback_risk,
+            transition_pressure,
+            substrate_pressure,
+            rare_heavy_pressure,
+        ) = self._joint_schedule_inputs(
+            turn_index=turn_index,
+            schedule=schedule,
+        )
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
@@ -1029,6 +1109,12 @@ class ETANLJointLoop:
             ("latent_continuation_due", latent_continuation_due),
             ("pe_magnitude_x1000", int(pe_magnitude * 1000)),
             ("pe_abs_reward_x1000", int(pe_abs_reward * 1000)),
+            ("pe_pressure_x1000", int(pe_pressure * 1000)),
+            ("family_stability_x1000", int(family_stability * 1000)),
+            ("rollback_risk_x1000", int(rollback_risk * 1000)),
+            ("transition_pressure_x1000", int(transition_pressure * 1000)),
+            ("substrate_pressure_x1000", int(substrate_pressure * 1000)),
+            ("rare_heavy_pressure_x1000", int(rare_heavy_pressure * 1000)),
         )
 
     def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:
@@ -1064,6 +1150,8 @@ class ETANLJointLoop:
 
     def _rl_batch_ready_due(self) -> bool:
         target = self._effective_rl_batch_target()
+        if target <= 1:
+            return False
         return self._pending_rl_batch_count() + 1 >= target
 
     def _rl_batch_wait_due(
@@ -1072,6 +1160,8 @@ class ETANLJointLoop:
         turn_index: int,
         schedule: JointLoopSchedule,
     ) -> bool:
+        if self._effective_rl_batch_target() <= 1:
+            return False
         if self._pending_rl_batch_count() <= 0:
             return False
         if schedule.rl_batch_max_wait_turns <= 0:
@@ -1079,6 +1169,129 @@ class ETANLJointLoop:
         if self._last_learning_turn_index <= 0:
             return False
         return turn_index - self._last_learning_turn_index >= schedule.rl_batch_max_wait_turns
+
+    def _joint_schedule_inputs(
+        self,
+        *,
+        turn_index: int,
+        schedule: JointLoopSchedule,
+    ) -> tuple[float, float, float, float, float, float]:
+        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        pe_pressure = _clamp(
+            max(
+                pe_magnitude / max(schedule.pe_full_cycle_threshold, 1e-6),
+                pe_abs_reward / max(schedule.pe_ssl_threshold, 1e-6),
+            )
+            * 0.5
+        )
+        state = self._previous_metacontroller_state
+        if state is None:
+            family_stability = 0.5
+        else:
+            active_family = state.active_family_summary
+            support = min((active_family.support if active_family is not None else 0) / 4.0, 1.0)
+            stability = active_family.stability if active_family is not None else 0.5
+            competition = active_family.competition_score if active_family is not None else 0.5
+            family_stability = _clamp(
+                stability * 0.35
+                + competition * 0.20
+                + support * 0.15
+                + state.switch_sparsity * 0.15
+                + (1.0 - state.action_family_monopoly_pressure) * 0.15
+            )
+        family_signals = self._previous_family_signals
+        rollback_risk = _clamp(
+            max(
+                1.0 - family_signals.get("safety", 1.0),
+                max(0.0, 0.55 - family_signals.get("relationship", 0.55)),
+                max(0.0, 0.55 - family_signals.get("learning", 0.55)),
+                max(0.0, 0.50 - family_signals.get("abstraction", 0.50)),
+                (state.action_family_monopoly_pressure if state is not None else 0.0) * 0.8,
+            )
+        )
+        transition_pressure = _clamp(
+            (
+                (1.0 - family_stability) * 0.35
+                + (state.posterior_drift if state is not None else 0.0) * 0.20
+                + (1.0 - min(state.policy_replacement_score, 1.0) if state is not None else 0.5) * 0.20
+                + (0.0 if state is None else abs(state.latest_switch_gate - 0.5) * 2.0) * 0.10
+                + min((state.active_family_summary.support if state is not None and state.active_family_summary is not None else 0) / 4.0, 1.0) * 0.15
+            )
+        )
+        substrate_pressure = _clamp(
+            max(
+                pe_magnitude / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
+                pe_abs_reward / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
+            )
+            * 0.5
+        )
+        rare_heavy_pressure = _clamp(
+            pe_magnitude / max(schedule.pe_rare_heavy_threshold, 1e-6)
+        )
+        return (
+            pe_pressure,
+            family_stability,
+            rollback_risk,
+            transition_pressure,
+            substrate_pressure,
+            rare_heavy_pressure,
+        )
+
+    def _batch_schedule_action(
+        self,
+        *,
+        turn_index: int,
+        schedule: JointLoopSchedule,
+        pe_full_cycle_due: bool,
+        pe_ssl_due: bool,
+        rl_due: bool,
+        rl_batch_ready_due: bool,
+        rl_batch_wait_due: bool,
+        substrate_online_fast_due: bool,
+        rare_heavy_review_recommended: bool,
+    ) -> str | None:
+        if self._effective_rl_batch_target() <= 1:
+            return None
+        (
+            pe_pressure,
+            family_stability,
+            rollback_risk,
+            transition_pressure,
+            substrate_pressure,
+            rare_heavy_pressure,
+        ) = self._joint_schedule_inputs(
+            turn_index=turn_index,
+            schedule=schedule,
+        )
+        if rare_heavy_review_recommended and rollback_risk >= 0.70 and rare_heavy_pressure >= 0.75:
+            return "ssl-only-rare-heavy-hold"
+        if pe_full_cycle_due:
+            return "full-cycle-pe"
+        if rl_batch_wait_due:
+            if transition_pressure >= 0.55 or substrate_pressure >= 0.55:
+                return "full-cycle-batch-forced"
+            if pe_pressure >= 0.55 or family_stability >= 0.55 or rollback_risk <= 0.35:
+                return "full-cycle-batch-forced"
+            return "ssl-only-risk-hold" if pe_ssl_due or family_stability >= 0.35 else "evidence-only-risk-hold"
+        if rl_batch_ready_due:
+            if rare_heavy_review_recommended and rollback_risk >= 0.75 and transition_pressure < 0.55:
+                return "ssl-only-rare-heavy-hold"
+            if rollback_risk >= 0.75 and pe_pressure < 0.55:
+                return "ssl-only-risk-hold"
+            if transition_pressure >= 0.55:
+                return "full-cycle-batch-transition"
+            return "full-cycle-batch"
+        if rl_due:
+            if substrate_online_fast_due and substrate_pressure >= 0.50 and rollback_risk < 0.75:
+                return "full-cycle-collect-substrate"
+            if transition_pressure >= 0.60 and family_stability < 0.55 and rollback_risk < 0.75:
+                return "full-cycle-collect-transition"
+            if rollback_risk >= 0.70 and pe_pressure < 0.45:
+                return "ssl-only-risk-hold" if family_stability >= 0.30 else "evidence-only-risk-hold"
+            if pe_pressure >= 0.40 or family_stability >= 0.45:
+                return "full-cycle-collect"
+        return None
 
     def _require_live_substrate_mutation_enabled(self, *, operation: str) -> None:
         if self._residual_runtime is None:
@@ -1138,6 +1351,37 @@ class ETANLJointLoop:
             description=(
                 f"Applied rare-heavy artifact {artifact.artifact_id} from {artifact.owner_path} "
                 f"with {len(applied_operations)} owner-side imports."
+            ),
+        )
+
+    def review_rare_heavy_artifact(
+        self,
+        artifact: RareHeavyArtifact,
+        *,
+        checkpoint_id: str | None = None,
+    ) -> RareHeavyImportResult:
+        checkpoint_label = checkpoint_id or f"rare-heavy-review:{artifact.artifact_id}"
+        checkpoint = RareHeavyImportCheckpoint(
+            artifact_id=artifact.artifact_id,
+            world_policy_checkpoint=self._world_sandbox.create_checkpoint(
+                checkpoint_id=f"{checkpoint_label}:world-policy"
+            ),
+            self_policy_checkpoint=self._self_sandbox.create_checkpoint(
+                checkpoint_id=f"{checkpoint_label}:self-policy"
+            ),
+            memory_checkpoint=self._memory_store.export_rare_heavy_state(
+                checkpoint_id=f"{checkpoint_label}:memory"
+            ),
+            substrate_checkpoint=None,
+        )
+        return RareHeavyImportResult(
+            artifact_id=artifact.artifact_id,
+            applied_operations=(),
+            checkpoint=checkpoint,
+            description=(
+                f"Reviewed rare-heavy artifact {artifact.artifact_id} in review-only mode; "
+                "no owner-side imports were applied because the runtime is staying under the "
+                "frozen-substrate doctrine."
             ),
         )
 

@@ -96,6 +96,11 @@ def build_system_prompt(
             "Relevant prior case patterns: " + "; ".join(context.case_patterns[:3])
         )
 
+    if context.playbook_ordering_hints:
+        sections.append(
+            "Suggested response ordering: " + " -> ".join(context.playbook_ordering_hints[:4])
+        )
+
     if context.citation_required:
         sections.append(
             "When giving factual or procedural guidance, keep it bounded, high-level, and clearly grounded "

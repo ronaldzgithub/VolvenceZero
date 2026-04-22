@@ -1,0 +1,96 @@
+{
+  "completed_stages": [
+    "canonical_ablation",
+    "longitudinal",
+    "essence",
+    "perturbation",
+    "open_environment",
+    "systematic_replay",
+    "selection_artifact"
+  ],
+  "config": {
+    "acceptance_profile_label": "pe-eta",
+    "baseline_label": "pe-eta",
+    "candidate_config_limit": 2,
+    "candidate_configs": [
+      [
+        "balanced",
+        {
+          "binary_gate_rl": true,
+          "n_z": 16,
+          "rl_convergence_threshold": 0.05,
+          "rl_max_steps": 2,
+          "rl_rollouts_per_step": 2,
+          "ssl_convergence_threshold": 0.15,
+          "ssl_max_steps": 3,
+          "ssl_min_steps": 2,
+          "transition_agreement_threshold": 0.35,
+          "transition_family_retention_threshold": 0.2,
+          "transition_kl_threshold": 1.0,
+          "transition_max_steps": 2
+        }
+      ],
+      [
+        "more-rl",
+        {
+          "binary_gate_rl": true,
+          "n_z": 16,
+          "rl_convergence_threshold": 0.05,
+          "rl_max_steps": 4,
+          "rl_rollouts_per_step": 2,
+          "ssl_convergence_threshold": 0.15,
+          "ssl_max_steps": 3,
+          "ssl_min_steps": 2,
+          "transition_agreement_threshold": 0.35,
+          "transition_family_retention_threshold": 0.2,
+          "transition_kl_threshold": 1.0,
+          "transition_max_steps": 2
+        }
+      ]
+    ],
+    "canonical_case_limit": 3,
+    "device": "auto",
+    "fallback_mode": null,
+    "fallback_to_builtin": null,
+    "include_fixed_variants_in_replay": false,
+    "local_files_only": false,
+    "model_id": "distilgpt2",
+    "model_source": null,
+    "open_profile_labels": [
+      "pe-eta",
+      "pe-drive-off",
+      "eta-off"
+    ],
+    "open_scenario_limit": 2,
+    "perturbation_variant_limit": 4,
+    "profile_labels": [
+      "pe-eta",
+      "pe-eta-online-only",
+      "pe-eta-no-writeback",
+      "pe-eta-no-rare-heavy",
+      "pe-drive-off",
+      "eta-off",
+      "timescale-off"
+    ],
+    "proof_min_canonical_cases": 2,
+    "replay_family_limit": 2,
+    "replay_seeds": [
+      0
+    ],
+    "runtime_mode": "builtin-only",
+    "selection_top_k": 4
+  },
+  "stage_order": [
+    "canonical_ablation",
+    "longitudinal",
+    "essence",
+    "perturbation",
+    "open_environment",
+    "systematic_replay",
+    "selection_artifact",
+    "artifact_comparison",
+    "final_report"
+  ],
+  "summary": null,
+  "version": 1
+}

@@ -5,6 +5,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 
+from volvence_zero.application.runtime import ExperienceDelta
 from volvence_zero.evaluation.backbone import EvaluationReport
 from volvence_zero.integration import SessionPostWritebackRequest
 from volvence_zero.reflection import WritebackResult
@@ -23,6 +24,10 @@ class SessionPostSlowLoopJob:
     prediction_error_summary: tuple[tuple[str, float], ...]
     writeback_request: SessionPostWritebackRequest
     description: str
+    case_problem_patterns: tuple[str, ...] = ()
+    case_risk_markers: tuple[str, ...] = ()
+    knowledge_domains: tuple[str, ...] = ()
+    boundary_trigger_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,7 @@ class SessionPostSlowLoopResult:
     applied: bool
     blocked: bool
     description: str
+    experience_deltas: tuple[ExperienceDelta, ...] = ()
 
 
 @dataclass(frozen=True)

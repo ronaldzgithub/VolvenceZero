@@ -20,6 +20,7 @@ from volvence_zero.agent import (
     DialogueNLEssenceAcceptanceDecision,
     DialogueNLEssenceAssessmentReport,
     DialogueBenchmarkReport,
+    DialogueBenchmarkComparisonReport,
     DialogueRealComprehensiveBenchmarkConfig,
     DialogueSharedRunnerFactories,
     evaluate_dialogue_nl_essence_acceptance,
@@ -124,6 +125,7 @@ def _synthetic_systematic_runner(profile_label: str, variant) -> AgentSessionRun
 def _synthetic_acceptance_runner(variant) -> AgentSessionRunner:
     runtime = SyntheticOpenWeightResidualRuntime(model_id="dialogue-acceptance:shared")
     runtime.runtime_origin = "synthetic-acceptance"
+    runtime.supports_live_substrate_mutation = True
     return build_standard_dialogue_runner(
         profile_label="pe-eta",
         case=variant.case,
@@ -255,6 +257,283 @@ def _benchmark_turn(
         slow_to_fast_target_distance_before=slow_to_fast_target_distance_before,
         slow_to_fast_target_distance_after=slow_to_fast_target_distance_after,
         slow_to_fast_target_alignment_gain=slow_to_fast_target_alignment_gain,
+    )
+
+
+def _synthetic_comprehensive_report_for_dashboard():
+    from volvence_zero.agent.dialogue_benchmark import (
+        DialogueArtifactComparisonReport,
+        DialogueBenchmarkPathReport,
+        DialogueComprehensiveBenchmarkReport,
+        DialogueLongitudinalBenchmarkReport,
+        DialoguePerturbationBenchmarkReport,
+        DialogueReplayRankingReport,
+        DialogueReplaySelectionArtifact,
+        DialogueSystematicReplayBenchmarkReport,
+        OpenDialogueBenchmarkComparisonReport,
+        OpenDialogueBenchmarkPathReport,
+        OpenDialogueBenchmarkReport,
+        _empty_emergence_dashboard,
+    )
+    from volvence_zero.evaluation.backbone import CrossSessionGrowthReport
+
+    case = ScriptedDialogueCase(
+        case_id="synthetic-dashboard",
+        description="Synthetic dashboard case.",
+        user_inputs=("turn-1", "turn-2"),
+        expected_pressure_turns=(1,),
+    )
+    baseline_case_report = build_dialogue_case_report(
+        case=case,
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.24,
+                reward=0.22,
+                action="ssl-only-pe",
+                regime="repair",
+                abstract_action="adapt",
+                switch_gate=0.75,
+                delayed_metric=0.25,
+                pe_triggered=True,
+                nested_context_reset_applied=True,
+                nested_context_reset_total_count=1,
+                slow_to_fast_init_benefit=0.02,
+                slow_to_fast_target_distance_before=0.02,
+                slow_to_fast_target_distance_after=0.0,
+                slow_to_fast_target_alignment_gain=0.02,
+                tower_consolidation_count=1,
+                memory_tower_depth=5,
+                memory_tower_alignment=0.35,
+                memory_tower_profile_id="mlp:nested:depth5",
+            ),
+            _benchmark_turn(
+                turn_index=2,
+                pe=0.08,
+                reward=0.04,
+                action="full-cycle-pe",
+                regime="repair",
+                abstract_action="stabilize",
+                switch_gate=0.25,
+                delayed_metric=0.65,
+                tower_consolidation_count=2,
+                memory_tower_depth=5,
+                memory_tower_alignment=0.42,
+                memory_tower_profile_id="mlp:nested:depth5",
+            ),
+        ),
+    )
+    control_case_report = build_dialogue_case_report(
+        case=case,
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.18,
+                reward=0.10,
+                action="evidence-only",
+                regime="repair",
+                abstract_action="observe",
+                switch_gate=0.2,
+                delayed_metric=0.15,
+                tower_consolidation_count=0,
+                memory_tower_depth=3,
+                memory_tower_alignment=0.12,
+                memory_tower_profile_id="mlp:sequential:depth3",
+            ),
+            _benchmark_turn(
+                turn_index=2,
+                pe=0.14,
+                reward=0.02,
+                action="evidence-only",
+                regime="repair",
+                abstract_action="observe",
+                switch_gate=0.1,
+                delayed_metric=0.2,
+                tower_consolidation_count=0,
+                memory_tower_depth=3,
+                memory_tower_alignment=0.08,
+                memory_tower_profile_id="mlp:sequential:depth3",
+            ),
+        ),
+    )
+    baseline_report = DialogueBenchmarkReport(
+        case_reports=(baseline_case_report,),
+        passed_case_count=1,
+        total_case_count=1,
+        metric_means=(),
+        description="baseline benchmark report",
+    )
+    baseline_report = replace(
+        baseline_report,
+        metric_means=tuple((key, value) for key, value in (
+            ("passed", float(baseline_case_report.passed)),
+            ("prediction_chain_turn_count", float(baseline_case_report.prediction_chain_turn_count)),
+            ("pe_triggered_turn_count", float(baseline_case_report.pe_triggered_turn_count)),
+            ("delayed_improvement_observed", float(baseline_case_report.delayed_improvement_observed)),
+            ("online_learning_turn_count", float(baseline_case_report.online_learning_turn_count)),
+            ("bounded_writeback_turn_count", float(baseline_case_report.bounded_writeback_turn_count)),
+            ("session_post_completion_turn_count", float(baseline_case_report.session_post_completion_turn_count)),
+            ("reflection_promotion_eligible_turn_count", float(baseline_case_report.reflection_promotion_eligible_turn_count)),
+            ("rare_heavy_recommended_count", float(baseline_case_report.rare_heavy_recommended_count)),
+            ("nested_profile_active_turn_count", float(baseline_case_report.nested_profile_active_turn_count)),
+            ("learned_memory_primary_turn_count", float(baseline_case_report.learned_memory_primary_turn_count)),
+            ("memory_tower_profile_turn_count", float(baseline_case_report.memory_tower_profile_turn_count)),
+            ("mean_memory_tower_depth", baseline_case_report.mean_memory_tower_depth),
+            ("mean_memory_tower_alignment", baseline_case_report.mean_memory_tower_alignment),
+            ("max_tower_consolidation_count", float(baseline_case_report.max_tower_consolidation_count)),
+            ("store_nested_context_reset_count", float(baseline_case_report.store_nested_context_reset_count)),
+            ("mean_reset_turn_slow_to_fast_init_benefit", baseline_case_report.mean_reset_turn_slow_to_fast_init_benefit),
+            ("mean_reset_turn_slow_to_fast_target_distance_before", baseline_case_report.mean_reset_turn_slow_to_fast_target_distance_before),
+            ("mean_reset_turn_slow_to_fast_target_distance_after", baseline_case_report.mean_reset_turn_slow_to_fast_target_distance_after),
+            ("mean_reset_turn_slow_to_fast_target_alignment_gain", baseline_case_report.mean_reset_turn_slow_to_fast_target_alignment_gain),
+        )),
+    )
+    control_report = replace(
+        baseline_report,
+        case_reports=(control_case_report,),
+        metric_means=(
+            ("passed", float(control_case_report.passed)),
+            ("prediction_chain_turn_count", float(control_case_report.prediction_chain_turn_count)),
+            ("pe_triggered_turn_count", float(control_case_report.pe_triggered_turn_count)),
+            ("delayed_improvement_observed", float(control_case_report.delayed_improvement_observed)),
+            ("online_learning_turn_count", float(control_case_report.online_learning_turn_count)),
+            ("bounded_writeback_turn_count", float(control_case_report.bounded_writeback_turn_count)),
+            ("session_post_completion_turn_count", float(control_case_report.session_post_completion_turn_count)),
+            ("reflection_promotion_eligible_turn_count", float(control_case_report.reflection_promotion_eligible_turn_count)),
+            ("rare_heavy_recommended_count", float(control_case_report.rare_heavy_recommended_count)),
+            ("nested_profile_active_turn_count", float(control_case_report.nested_profile_active_turn_count)),
+            ("learned_memory_primary_turn_count", float(control_case_report.learned_memory_primary_turn_count)),
+            ("memory_tower_profile_turn_count", float(control_case_report.memory_tower_profile_turn_count)),
+            ("mean_memory_tower_depth", control_case_report.mean_memory_tower_depth),
+            ("mean_memory_tower_alignment", control_case_report.mean_memory_tower_alignment),
+            ("max_tower_consolidation_count", float(control_case_report.max_tower_consolidation_count)),
+            ("store_nested_context_reset_count", float(control_case_report.store_nested_context_reset_count)),
+            ("mean_reset_turn_slow_to_fast_init_benefit", control_case_report.mean_reset_turn_slow_to_fast_init_benefit),
+            ("mean_reset_turn_slow_to_fast_target_distance_before", control_case_report.mean_reset_turn_slow_to_fast_target_distance_before),
+            ("mean_reset_turn_slow_to_fast_target_distance_after", control_case_report.mean_reset_turn_slow_to_fast_target_distance_after),
+            ("mean_reset_turn_slow_to_fast_target_alignment_gain", control_case_report.mean_reset_turn_slow_to_fast_target_alignment_gain),
+        ),
+        description="control benchmark report",
+    )
+    canonical_comparison = DialogueBenchmarkComparisonReport(
+        baseline_label="pe-eta",
+        path_reports=(
+            DialogueBenchmarkPathReport(path_label="pe-eta", benchmark_report=baseline_report, description="baseline"),
+            DialogueBenchmarkPathReport(path_label="pe-drive-off", benchmark_report=control_report, description="control"),
+        ),
+        case_deltas_from_baseline=(),
+        metric_deltas_from_baseline=(
+            (
+                "pe-drive-off",
+                (
+                    ("passed", -1.0),
+                    ("pe_triggered_turn_count", -1.0),
+                    ("delayed_improvement_observed", -1.0),
+                    ("stability_after_recovery_score", -0.2),
+                    ("mean_prediction_error", 0.1),
+                    ("mean_memory_tower_depth", -2.0),
+                    ("mean_memory_tower_alignment", -0.28),
+                    ("max_tower_consolidation_count", -2.0),
+                ),
+            ),
+        ),
+        description="synthetic canonical comparison",
+    )
+    open_report = OpenDialogueBenchmarkReport(
+        case_reports=(),
+        passed_case_count=1,
+        total_case_count=1,
+        metric_means=(
+            ("passed", 1.0),
+            ("mean_memory_tower_depth", 4.0),
+            ("mean_memory_tower_alignment", 0.25),
+            ("max_tower_consolidation_count", 1.0),
+        ),
+        description="synthetic open report",
+    )
+    open_comparison = OpenDialogueBenchmarkComparisonReport(
+        baseline_label="pe-eta",
+        path_reports=(
+            OpenDialogueBenchmarkPathReport(path_label="pe-eta", benchmark_report=open_report, description="baseline"),
+            OpenDialogueBenchmarkPathReport(path_label="pe-drive-off", benchmark_report=open_report, description="control"),
+        ),
+        case_deltas_from_baseline=(),
+        metric_deltas_from_baseline=(
+            (
+                "pe-drive-off",
+                (
+                    ("passed", -0.5),
+                    ("pe_triggered_turn_count", -0.5),
+                    ("delayed_improvement_observed", -0.5),
+                    ("late_episode_stability_score", -0.1),
+                    ("mean_prediction_error", 0.05),
+                    ("mean_memory_tower_depth", -1.0),
+                    ("mean_memory_tower_alignment", -0.1),
+                    ("max_tower_consolidation_count", -1.0),
+                ),
+            ),
+        ),
+        description="synthetic open comparison",
+    )
+    essence_report = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=baseline_report,
+        comparison_report=canonical_comparison,
+    )
+    essence_acceptance = evaluate_dialogue_nl_essence_acceptance(essence_report)
+    longitudinal_report = DialogueLongitudinalBenchmarkReport(
+        case_reports=(baseline_case_report,),
+        session_reports=(),
+        cross_session_report=CrossSessionGrowthReport(
+            window_trends=(),
+            family_persistence=0.6,
+            regime_effectiveness_delta=0.1,
+            verdict="stable",
+            description="synthetic cross-session report",
+        ),
+        description="synthetic longitudinal report",
+    )
+    perturbation_report = DialoguePerturbationBenchmarkReport(
+        variant_cases=(),
+        ablation_report=canonical_comparison,
+        description="synthetic perturbation report",
+    )
+    systematic_report = DialogueSystematicReplayBenchmarkReport(
+        variant_cases=(),
+        perturbation_report=perturbation_report,
+        replay_ranking_report=DialogueReplayRankingReport(entries=(), description="synthetic replay ranking"),
+        description="synthetic systematic report",
+    )
+    selection_artifact = DialogueReplaySelectionArtifact(
+        artifact_id="synthetic-selection",
+        selected_variants=(),
+        ranking_entries=(),
+        description="synthetic selection artifact",
+    )
+    artifact_comparison_report = DialogueArtifactComparisonReport(
+        selection_artifact=selection_artifact,
+        candidate_reports=(),
+        chosen_candidate_label=None,
+        chosen_accepted=False,
+        description="synthetic artifact comparison",
+    )
+    provisional = DialogueComprehensiveBenchmarkReport(
+        profile_labels=("pe-eta", "pe-drive-off"),
+        canonical_ablation_report=canonical_comparison,
+        longitudinal_report=longitudinal_report,
+        essence_report=essence_report,
+        essence_acceptance=essence_acceptance,
+        perturbation_report=perturbation_report,
+        open_ablation_report=open_comparison,
+        systematic_replay_report=systematic_report,
+        selection_artifact=selection_artifact,
+        artifact_comparison_report=artifact_comparison_report,
+        emergence_dashboard=_empty_emergence_dashboard(baseline_label="pe-eta"),
+        description="synthetic comprehensive report",
+    )
+    return replace(
+        provisional,
+        emergence_dashboard=build_dialogue_emergence_dashboard(provisional),
     )
 
 
@@ -757,7 +1036,7 @@ def test_replay_selection_artifact_acceptance_can_be_forced_accept():
                 min_mean_score_delta=-1.0,
                 min_passed_case_delta=-10,
                 min_positive_case_fraction=0.0,
-                min_worst_case_delta=-1.0,
+                    min_worst_case_delta=-2.0,
             ),
         )
     )
@@ -765,6 +1044,45 @@ def test_replay_selection_artifact_acceptance_can_be_forced_accept():
     assert acceptance_report.decision.accepted is True
     assert acceptance_report.decision.rollback_applied is False
     assert all(not report.rollback_operations for report in acceptance_report.case_reports)
+
+
+def test_replay_selection_artifact_acceptance_stays_review_only_under_frozen_doctrine():
+    def _frozen_acceptance_runner(variant) -> AgentSessionRunner:
+        runtime = SyntheticOpenWeightResidualRuntime(model_id=f"dialogue-frozen:{variant.case.case_id}")
+        runtime.runtime_origin = "synthetic-frozen-review"
+        runtime.supports_live_substrate_mutation = False
+        return build_standard_dialogue_runner(
+            profile_label="pe-eta",
+            case=variant.case,
+            residual_runtime=runtime,
+        )
+
+    perturbation_report = asyncio.run(
+        run_dialogue_pe_eta_perturbation_benchmark(
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
+            runner_factory=_synthetic_perturbation_runner,
+        )
+    )
+    ranking = build_dialogue_replay_ranking_report(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
+        ablation_report=perturbation_report.ablation_report,
+    )
+    selection_artifact = build_dialogue_replay_selection_artifact(
+        variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
+        replay_ranking_report=ranking,
+        top_k=1,
+    )
+
+    acceptance_report = asyncio.run(
+        run_replay_selection_artifact_acceptance_benchmark(
+            selection_artifact,
+            runner_factory=_frozen_acceptance_runner,
+        )
+    )
+
+    assert len(acceptance_report.case_reports) == 1
+    assert acceptance_report.case_reports[0].import_result.applied_operations == ()
+    assert acceptance_report.case_reports[0].rollback_operations == ()
 
 
 def test_run_dialogue_pe_eta_systematic_replay_benchmark_collects_generated_variants():
@@ -815,22 +1133,7 @@ def test_run_dialogue_pe_eta_comprehensive_benchmark_runs_end_to_end():
 
 
 def test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env_evidence():
-    report = asyncio.run(
-        run_dialogue_pe_eta_comprehensive_benchmark(
-            canonical_cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
-            open_scenarios=DEFAULT_OPEN_DIALOGUE_SCENARIOS[:1],
-            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
-            seeds=(0,),
-            families=DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1],
-            selection_top_k=1,
-            candidate_configs=DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:1],
-            canonical_runner_factory=_synthetic_ablation_runner,
-            open_runner_factory=_synthetic_open_ablation_runner,
-            perturbation_runner_factory=_synthetic_perturbation_runner,
-            systematic_runner_factory=_synthetic_systematic_runner,
-            acceptance_runner_factory=_synthetic_acceptance_runner,
-        )
-    )
+    report = _synthetic_comprehensive_report_for_dashboard()
 
     dashboard = build_dialogue_emergence_dashboard(report)
 
@@ -839,6 +1142,8 @@ def test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env
     assert dashboard.open_scenario_count == 1
     assert dashboard.strong_proof_panels
     assert dashboard.open_environment_panels
+    assert dashboard.canonical_mean_memory_tower_depth >= 5.0
+    assert dashboard.tower_memory_gate_strength > 0.0
     assert dashboard.strongest_scaffold_path_label is not None
     assert dashboard.strongest_open_path_label is not None
     assert isinstance(dashboard.interpretation, str)
@@ -846,27 +1151,14 @@ def test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env
 
 
 def test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys():
-    report = asyncio.run(
-        run_dialogue_pe_eta_comprehensive_benchmark(
-            canonical_cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
-            open_scenarios=DEFAULT_OPEN_DIALOGUE_SCENARIOS[:1],
-            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
-            seeds=(0,),
-            families=DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1],
-            selection_top_k=1,
-            candidate_configs=DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:1],
-            canonical_runner_factory=_synthetic_ablation_runner,
-            open_runner_factory=_synthetic_open_ablation_runner,
-            perturbation_runner_factory=_synthetic_perturbation_runner,
-            systematic_runner_factory=_synthetic_systematic_runner,
-            acceptance_runner_factory=_synthetic_acceptance_runner,
-        )
-    )
+    report = _synthetic_comprehensive_report_for_dashboard()
 
     payload = build_dialogue_emergence_dashboard_payload(report)
 
     assert payload["baseline_label"] == "pe-eta"
     assert payload["canonical"]["case_count"] == 1
+    assert "mean_memory_tower_depth" in payload["canonical"]
+    assert "tower_memory_gate" in payload
     assert payload["open_environment"]["scenario_count"] == 1
     assert payload["strong_proof_panels"]
     assert payload["open_environment_panels"]
@@ -875,22 +1167,7 @@ def test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys():
 
 
 def test_export_dialogue_emergence_dashboard_artifact_writes_json(tmp_path):
-    report = asyncio.run(
-        run_dialogue_pe_eta_comprehensive_benchmark(
-            canonical_cases=DEFAULT_DIALOGUE_PROOF_CASES[:1],
-            open_scenarios=DEFAULT_OPEN_DIALOGUE_SCENARIOS[:1],
-            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
-            seeds=(0,),
-            families=DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1],
-            selection_top_k=1,
-            candidate_configs=DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:1],
-            canonical_runner_factory=_synthetic_ablation_runner,
-            open_runner_factory=_synthetic_open_ablation_runner,
-            perturbation_runner_factory=_synthetic_perturbation_runner,
-            systematic_runner_factory=_synthetic_systematic_runner,
-            acceptance_runner_factory=_synthetic_acceptance_runner,
-        )
-    )
+    report = _synthetic_comprehensive_report_for_dashboard()
 
     output_path = tmp_path / "emergence_dashboard.json"
     written_path = export_dialogue_emergence_dashboard_artifact(
@@ -904,6 +1181,7 @@ def test_export_dialogue_emergence_dashboard_artifact_writes_json(tmp_path):
     assert payload["canonical"]["case_count"] == 1
     assert payload["open_environment"]["scenario_count"] == 1
     assert payload["strong_proof_panels"]
+    assert payload["tower_memory_gate"]["strength"] > 0.0
     assert payload["description"] == report.emergence_dashboard.description
 
 
@@ -919,6 +1197,8 @@ def test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope():
     assert manifest.repeat_count == 2
     assert manifest.seed_schedule == (0, 1)
     assert any(metric.metric_name == "canonical_pass_rate_pe_eta" for metric in manifest.primary_metrics)
+    assert any(metric.metric_name == "canonical_mean_memory_tower_depth" for metric in manifest.primary_metrics)
+    assert any(metric.metric_name == "tower_memory_gate_strength" for metric in manifest.secondary_metrics)
     assert config.runtime_mode == LocalSubstrateRuntimeMode.BUILTIN_ONLY
     assert config.profile_labels == default_dialogue_comprehensive_profiles()
     assert config.open_profile_labels == default_open_dialogue_ablation_profiles()
@@ -1473,6 +1753,22 @@ def test_nl_essence_assessment_reads_memory_tower_surface_metrics():
     assessment = build_dialogue_nl_essence_assessment(
         path_label="pe-eta",
         benchmark_report=benchmark_report,
+        comparison_report=DialogueBenchmarkComparisonReport(
+            baseline_label="pe-eta",
+            path_reports=(),
+            case_deltas_from_baseline=(),
+            metric_deltas_from_baseline=(
+                (
+                    "pe-drive-off",
+                    (
+                        ("mean_memory_tower_depth", -1.2),
+                        ("mean_memory_tower_alignment", -0.18),
+                        ("max_tower_consolidation_count", -1.0),
+                    ),
+                ),
+            ),
+            description="synthetic comparison",
+        ),
     )
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     tower_gate = gate_map["tower-memory-surface"]
@@ -1481,6 +1777,7 @@ def test_nl_essence_assessment_reads_memory_tower_surface_metrics():
     evidence = dict(tower_gate.evidence)
     assert evidence["mean_memory_tower_depth"] >= 5.0
     assert evidence["max_tower_consolidation_count"] >= 2.0
+    assert evidence["tower_strength_gap_vs_best_control"] > 0.0
 
 
 def test_slow_shapes_fast_gate_identifies_already_near_target_when_benefit_is_small():

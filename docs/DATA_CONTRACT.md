@@ -250,6 +250,77 @@ class CaseMemorySnapshot:
 - response/evaluation 只能消费公共 snapshot，不得直连 case store
 - `case_memory` 当前只提供 retrieval mix 和 evidence，不直接生成策略先验
 
+### 2.10 Application Playbook / Experience Consolidation（应用层策略先验与经验沉淀）
+
+应用层第三阶段新增两个正式 surface：`strategy_playbook` 与 `experience_consolidation`。
+
+```python
+@dataclass(frozen=True)
+class PlaybookRule:
+    rule_id: str
+    problem_pattern: str
+    recommended_regime: str | None
+    recommended_ordering: tuple[str, ...]
+    recommended_pacing: str
+    avoid_patterns: tuple[str, ...]
+    knowledge_weight_hint: float
+    experience_weight_hint: float
+    applicability_scope: tuple[str, ...]
+    confidence: float
+    description: str
+
+@dataclass(frozen=True)
+class StrategyPlaybookSnapshot:
+    matched_problem_patterns: tuple[str, ...]
+    matched_rules: tuple[PlaybookRule, ...]
+    description: str
+
+@dataclass(frozen=True)
+class ExperienceDelta:
+    delta_id: str
+    delta_type: str
+    target_slot: str
+    summary: str
+    confidence: float
+    blocked: bool
+    description: str
+
+@dataclass(frozen=True)
+class ExperienceConsolidationSnapshot:
+    source_session_post_job_id: str
+    promoted_case_count: int
+    playbook_delta_count: int
+    boundary_delta_count: int
+    deltas: tuple[ExperienceDelta, ...]
+    description: str
+```
+
+**不变量**：
+- `strategy_playbook` 只发布经验先验，不直接重写 `temporal` / `regime` owner 内部状态
+- `experience_consolidation` 是 `background-slow` report surface，由 `session_post_slow_loop` 驱动，而不是新的 apply owner
+- `experience_deltas` 必须 machine-readable，可审计，不得退回“只写自然语言总结”
+- fast path 可消费 `strategy_playbook` 的 ordering prior，但不得把它提升为第二个控制器 owner
+
+### 2.11 Application Rare-Heavy Checkpoint（应用层离线刷新工件）
+
+应用层第四阶段复用现有 rare-heavy artifact/import/rollback 链，新增一个 application rare-heavy checkpoint：
+
+```python
+@dataclass(frozen=True)
+class ApplicationRareHeavyCheckpoint:
+    checkpoint_id: str
+    domain_template_biases: tuple[tuple[str, float], ...]
+    case_clusters: tuple[ApplicationCaseCluster, ...]
+    distilled_playbook_rules: tuple[PlaybookRule, ...]
+    description: str
+```
+
+**不变量**：
+- checkpoint 本体由 session owner 管理，不成为新的 runtime slot
+- 其影响只能通过 `retrieval_policy` / `case_memory` / `strategy_playbook` 的公共快照向外显现
+- import / rollback 必须与现有 rare-heavy import / rollback 同步执行
+- application rare-heavy refresh 不得直接重写 `memory` / `temporal` / `regime` owner 内部状态
+
 ### 2.6 RuntimePlaceholderValue（缺失与禁用占位）
 
 用于统一表示缺失 upstream 和禁用模块发布的 stub 快照。

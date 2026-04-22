@@ -36,6 +36,7 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "retrieval_policy" in result.active_snapshots
     assert "domain_knowledge" in result.active_snapshots
     assert "case_memory" in result.active_snapshots
+    assert "strategy_playbook" in result.active_snapshots
     assert "boundary_policy" in result.active_snapshots
     assert "dual_track" in result.active_snapshots
     assert "evaluation" in result.active_snapshots
@@ -50,6 +51,7 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "retrieval_quality" in metric_names
     assert "knowledge_hit_count" in metric_names
     assert "case_hit_count" in metric_names
+    assert "playbook_match_count" in metric_names
     assert "boundary_clarification_triggered" in metric_names
     assert "reflection_usefulness" in metric_names
     assert "fallback_reliance" in metric_names
@@ -119,6 +121,41 @@ def test_final_wiring_phase2_case_memory_publishes_sibling_case_hits():
     assert case_memory.active_problem_patterns
     assert "case_hit_count" in metric_names
     assert "case_relevance_mean" in metric_names
+
+
+def test_final_wiring_phase3_strategy_playbook_publishes_rules_from_case_memory():
+    memory_store = MemoryStore()
+    memory_store.write(
+        request=MemoryWriteRequest(
+            content="I feel overwhelmed about divorce and need the smallest next step with calm support.",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.85,
+            tags=("divorce", "support"),
+        ),
+        timestamp_ms=1,
+    )
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="phase3-playbook-model",
+                feature_surface=(FeatureSignal(name="phase3_context", values=(0.64,), source="adapter"),),
+            ),
+            memory_store=memory_store,
+            session_id="phase3-session",
+            wave_id="phase3-wave",
+        )
+    )
+
+    strategy_playbook = result.active_snapshots["strategy_playbook"].value
+    metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
+
+    assert strategy_playbook.matched_rules
+    assert strategy_playbook.matched_problem_patterns
+    assert strategy_playbook.matched_rules[0].recommended_ordering
+    assert "playbook_match_count" in metric_names
+    assert "playbook_confidence_mean" in metric_names
 
 
 def test_final_wiring_honors_kill_switches():
@@ -282,7 +319,18 @@ def test_final_wiring_merges_joint_kernel_scores_into_published_evaluation():
                 metacontroller_state=None,
                 cms_description="test cms",
                 owner_path="test-joint-loop",
-                schedule_telemetry=(("ssl_interval", 1), ("rl_interval", 1)),
+                schedule_telemetry=(
+                    ("ssl_interval", 1),
+                    ("rl_interval", 1),
+                    ("pe_pressure_x1000", 620),
+                    ("family_stability_x1000", 710),
+                    ("rollback_risk_x1000", 180),
+                    ("transition_pressure_x1000", 330),
+                    ("substrate_pressure_x1000", 410),
+                    ("rare_heavy_pressure_x1000", 520),
+                    ("rl_batch_target", 2),
+                    ("pending_batch_count", 1),
+                ),
                 description="scheduled result for final wiring test",
             ),
             session_id="s-kernel",
@@ -292,6 +340,8 @@ def test_final_wiring_merges_joint_kernel_scores_into_published_evaluation():
 
     turn_scores = {score.metric_name: score for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "abstract_action_usefulness" in turn_scores
+    assert "scheduler_pe_pressure" in turn_scores
+    assert "scheduler_discipline" in turn_scores
     assert turn_scores["abstract_action_usefulness"].value == 0.74
     credit_events = {record.source_event for record in result.active_snapshots["credit"].value.recent_credits}
     assert "evaluation:abstract_action_usefulness" in credit_events

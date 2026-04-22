@@ -10,6 +10,12 @@ from volvence_zero.agent import (
     run_multi_path_benchmark,
     run_substrate_path_benchmark,
 )
+from volvence_zero.application import (
+    ApplicationCaseCluster,
+    ApplicationRareHeavyCheckpoint,
+    PlaybookRule,
+)
+from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
 from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
@@ -168,6 +174,88 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
 
     assert second.session_post_completed_job_count >= 1
     assert second.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
+
+
+def test_agent_session_runner_publishes_experience_consolidation_after_session_post_completion():
+    runner = AgentSessionRunner(session_id="experience-consolidation-session", reflection_mode=WritebackMode.APPLY)
+
+    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    runner.begin_new_context(reason="experience-consolidation-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    assert runner.experience_consolidation_snapshot is not None
+    experience_snapshot = runner.experience_consolidation_snapshot.value
+    assert experience_snapshot.deltas
+    assert experience_snapshot.playbook_delta_count >= 1
+    assert experience_snapshot.promoted_case_count >= 1
+
+
+def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fast_path():
+    runtime = SyntheticOpenWeightResidualRuntime(
+        model_id="phase4-application-runtime",
+        allow_live_substrate_mutation=True,
+    )
+    runner = AgentSessionRunner(
+        session_id="phase4-application-import",
+        default_residual_runtime=runtime,
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99),
+        rare_heavy_enabled=False,
+    )
+    artifact = RareHeavyArtifact(
+        artifact_id="phase4-artifact",
+        owner_path="offline-sslrl-pipeline",
+        created_at_ms=1,
+        temporal_snapshot=runner._joint_loop.world_temporal_policy.export_rare_heavy_snapshot(),
+        memory_checkpoint=runner._joint_loop.memory_store.export_rare_heavy_state(checkpoint_id="phase4-memory"),
+        substrate_checkpoint=None,
+        transition_step=0,
+        final_ssl_loss=0.1,
+        final_total_reward=0.2,
+        description="Phase 4 application artifact.",
+        application_checkpoint=ApplicationRareHeavyCheckpoint(
+            checkpoint_id="phase4-application",
+            domain_template_biases=(("career_decision", 0.9),),
+            case_clusters=(
+                ApplicationCaseCluster(
+                    cluster_id="cluster-1",
+                    problem_pattern="family-transition-high-emotion",
+                    exemplar_count=3,
+                    mean_relevance=0.78,
+                    risk_markers=("risk-medium", "child-impact"),
+                    description="Clustered family-transition experience.",
+                ),
+            ),
+            distilled_playbook_rules=(
+                PlaybookRule(
+                    rule_id="playbook-1",
+                    problem_pattern="family-transition-high-emotion",
+                    recommended_regime="emotional_support",
+                    recommended_ordering=("stabilize", "split_axes", "smallest_next_step"),
+                    recommended_pacing="gradual",
+                    avoid_patterns=("procedure-dump-too-early",),
+                    knowledge_weight_hint=0.35,
+                    experience_weight_hint=0.75,
+                    applicability_scope=("emotional_support",),
+                    confidence=0.81,
+                    description="Distilled playbook from application rare-heavy refresh.",
+                ),
+            ),
+            description="Application rare-heavy checkpoint for phase4 test.",
+        ),
+    )
+
+    import_result = runner.apply_rare_heavy_artifact(artifact, checkpoint_id="phase4-import")
+    result = asyncio.run(runner.run_turn("I need help thinking through this life decision."))
+
+    retrieval_policy = result.active_snapshots["retrieval_policy"].value
+    case_memory = result.active_snapshots["case_memory"].value
+    strategy_playbook = result.active_snapshots["strategy_playbook"].value
+
+    assert "rare-heavy:application-domain-refresh" in import_result.applied_operations
+    assert "career_decision" in retrieval_policy.knowledge_domains
+    assert "family-transition-high-emotion" in case_memory.active_problem_patterns
+    assert any(rule.problem_pattern == "family-transition-high-emotion" for rule in strategy_playbook.matched_rules)
 
 
 def test_agent_session_runner_session_post_loop_fails_closed_when_apply_disabled():

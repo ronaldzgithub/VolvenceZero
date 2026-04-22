@@ -158,6 +158,68 @@ class CaseMemorySnapshot:
 
 
 @dataclass(frozen=True)
+class PlaybookRule:
+    rule_id: str
+    problem_pattern: str
+    recommended_regime: str | None
+    recommended_ordering: tuple[str, ...]
+    recommended_pacing: str
+    avoid_patterns: tuple[str, ...]
+    knowledge_weight_hint: float
+    experience_weight_hint: float
+    applicability_scope: tuple[str, ...]
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class StrategyPlaybookSnapshot:
+    matched_problem_patterns: tuple[str, ...]
+    matched_rules: tuple[PlaybookRule, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ExperienceDelta:
+    delta_id: str
+    delta_type: str
+    target_slot: str
+    summary: str
+    confidence: float
+    blocked: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class ExperienceConsolidationSnapshot:
+    source_session_post_job_id: str
+    promoted_case_count: int
+    playbook_delta_count: int
+    boundary_delta_count: int
+    deltas: tuple[ExperienceDelta, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationCaseCluster:
+    cluster_id: str
+    problem_pattern: str
+    exemplar_count: int
+    mean_relevance: float
+    risk_markers: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ApplicationRareHeavyCheckpoint:
+    checkpoint_id: str
+    domain_template_biases: tuple[tuple[str, float], ...]
+    case_clusters: tuple[ApplicationCaseCluster, ...]
+    distilled_playbook_rules: tuple[PlaybookRule, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class BoundaryDecision:
     decision_id: str
     risk_band: RiskBand
@@ -509,12 +571,110 @@ def _case_entries(memory_snapshot: MemorySnapshot | None, *, retrieval_policy: R
     return tuple(ranked[:3])
 
 
+def _playbook_template(
+    *,
+    problem_pattern: str,
+    regime_id: str | None,
+    world_weight: float,
+    self_weight: float,
+) -> tuple[tuple[str, ...], str, tuple[str, ...]]:
+    if problem_pattern == "family-transition-high-emotion":
+        return (
+            ("stabilize", "split_axes", "smallest_next_step"),
+            "gradual",
+            ("procedure-dump-too-early", "definitive-legal-conclusion"),
+        )
+    if problem_pattern == "structured-decision-overwhelm":
+        return (
+            ("narrow_scope", "option_compare", "smallest_next_step"),
+            "structured",
+            ("multi-branch-overload",),
+        )
+    if problem_pattern == "relational-repair":
+        return (
+            ("acknowledge", "deescalate", "bounded_next_step"),
+            "slow",
+            ("defensive-argumentation",),
+        )
+    if regime_id == "problem_solving" or world_weight >= self_weight:
+        return (
+            ("clarify_goal", "structure_options", "commit_next_step"),
+            "structured",
+            ("premature-emotional-bypass",),
+        )
+    return (
+        ("acknowledge", "stabilize", "smallest_next_step"),
+        "support-first",
+        ("over-directive-solutioning",),
+    )
+
+
+class ApplicationRareHeavyState:
+    def __init__(self) -> None:
+        self._domain_template_biases: dict[str, float] = {}
+        self._case_clusters: tuple[ApplicationCaseCluster, ...] = ()
+        self._distilled_playbook_rules: tuple[PlaybookRule, ...] = ()
+
+    @property
+    def domain_template_biases(self) -> tuple[tuple[str, float], ...]:
+        return tuple(sorted(self._domain_template_biases.items()))
+
+    @property
+    def case_clusters(self) -> tuple[ApplicationCaseCluster, ...]:
+        return self._case_clusters
+
+    @property
+    def distilled_playbook_rules(self) -> tuple[PlaybookRule, ...]:
+        return self._distilled_playbook_rules
+
+    def export_rare_heavy_state(self, *, checkpoint_id: str) -> ApplicationRareHeavyCheckpoint:
+        return ApplicationRareHeavyCheckpoint(
+            checkpoint_id=checkpoint_id,
+            domain_template_biases=self.domain_template_biases,
+            case_clusters=self._case_clusters,
+            distilled_playbook_rules=self._distilled_playbook_rules,
+            description=(
+                f"Application rare-heavy checkpoint with {len(self._domain_template_biases)} domain biases, "
+                f"{len(self._case_clusters)} case clusters, and {len(self._distilled_playbook_rules)} playbook rules."
+            ),
+        )
+
+    def import_rare_heavy_state(self, checkpoint: ApplicationRareHeavyCheckpoint) -> tuple[str, ...]:
+        self._domain_template_biases = dict(checkpoint.domain_template_biases)
+        self._case_clusters = checkpoint.case_clusters
+        self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
+        return (
+            "rare-heavy:application-domain-refresh",
+            "rare-heavy:application-case-clusters-import",
+            "rare-heavy:application-playbook-import",
+        )
+
+    def restore_rare_heavy_state(self, checkpoint: ApplicationRareHeavyCheckpoint) -> tuple[str, ...]:
+        self._domain_template_biases = dict(checkpoint.domain_template_biases)
+        self._case_clusters = checkpoint.case_clusters
+        self._distilled_playbook_rules = checkpoint.distilled_playbook_rules
+        return (
+            "rare-heavy:application-domain-rollback",
+            "rare-heavy:application-case-clusters-rollback",
+            "rare-heavy:application-playbook-rollback",
+        )
+
+
 class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
     slot_name = "retrieval_policy"
     owner = "RetrievalPolicyModule"
     value_type = RetrievalPolicySnapshot
     dependencies = ("world_temporal", "self_temporal", "dual_track", "regime")
     default_wiring_level = WiringLevel.ACTIVE
+
+    def __init__(
+        self,
+        *,
+        rare_heavy_state: ApplicationRareHeavyState | None = None,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._rare_heavy_state = rare_heavy_state
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[RetrievalPolicySnapshot]:
         from volvence_zero.regime import RegimeSnapshot
@@ -571,6 +731,14 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
             self_weight=self_weight,
             world_weight=world_weight,
         )
+        if self._rare_heavy_state is not None and self._rare_heavy_state.domain_template_biases:
+            boosted = sorted(
+                self._rare_heavy_state.domain_template_biases,
+                key=lambda item: -item[1],
+            )
+            for domain, weight in boosted[:2]:
+                if weight >= 0.55 and domain not in knowledge_domains:
+                    knowledge_domains = knowledge_domains + (domain,)
         knowledge_weight = _knowledge_weight(
             regime_id=regime_id,
             world_weight=world_weight,
@@ -632,6 +800,15 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
     dependencies = ("retrieval_policy", "memory", "dual_track", "regime")
     default_wiring_level = WiringLevel.ACTIVE
 
+    def __init__(
+        self,
+        *,
+        rare_heavy_state: ApplicationRareHeavyState | None = None,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._rare_heavy_state = rare_heavy_state
+
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[DomainKnowledgeSnapshot]:
         from volvence_zero.regime import RegimeSnapshot
 
@@ -651,9 +828,15 @@ class DomainKnowledgeModule(RuntimeModule[DomainKnowledgeSnapshot]):
         if retrieval_policy.jurisdiction_required and not _has_jurisdiction_context(memory_text):
             unresolved_conflicts.append("jurisdiction-unspecified")
         hits: list[KnowledgeHit] = []
+        domain_biases = dict(self._rare_heavy_state.domain_template_biases) if self._rare_heavy_state is not None else {}
         for index, domain in enumerate(retrieval_policy.knowledge_domains[:3], start=1):
             source_type = _domain_source_type(domain)
-            confidence = _clamp(0.48 + retrieval_policy.knowledge_weight * 0.35 + (0.05 if memory_text else 0.0))
+            confidence = _clamp(
+                0.48
+                + retrieval_policy.knowledge_weight * 0.35
+                + (0.05 if memory_text else 0.0)
+                + domain_biases.get(domain, 0.0) * 0.08
+            )
             hit = KnowledgeHit(
                 hit_id=f"{domain}:{index}",
                 domain=domain,
@@ -715,6 +898,15 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
     value_type = CaseMemorySnapshot
     dependencies = ("retrieval_policy", "memory", "dual_track", "prediction_error")
     default_wiring_level = WiringLevel.ACTIVE
+
+    def __init__(
+        self,
+        *,
+        rare_heavy_state: ApplicationRareHeavyState | None = None,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._rare_heavy_state = rare_heavy_state
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[CaseMemorySnapshot]:
         from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -780,6 +972,46 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                     ),
                 )
             )
+        if self._rare_heavy_state is not None and self._rare_heavy_state.case_clusters:
+            existing_patterns = set(active_problem_patterns)
+            for index, cluster in enumerate(self._rare_heavy_state.case_clusters[:2], start=1):
+                if cluster.problem_pattern in existing_patterns:
+                    active_risk_markers.extend(cluster.risk_markers)
+                    continue
+                hits.append(
+                    CaseEpisodeHit(
+                        case_id=f"cluster:{cluster.cluster_id}:{index}",
+                        domain=next(iter(retrieval_policy.experience_domains), "general_guidance_patterns"),
+                        problem_pattern=cluster.problem_pattern,
+                        user_state_pattern="cluster-derived",
+                        risk_markers=cluster.risk_markers,
+                        track_tags=("shared",),
+                        regime_tags=(retrieval_policy.regime_id,) if retrieval_policy.regime_id is not None else (),
+                        intervention_steps=(
+                            CaseInterventionStep(
+                                step_id=f"{cluster.cluster_id}:1",
+                                step_order=1,
+                                regime_id=retrieval_policy.regime_id,
+                                abstract_action=retrieval_policy.abstract_action,
+                                action_label="cluster-guided-ordering",
+                                description=cluster.description,
+                            ),
+                        ),
+                        outcome=CaseOutcomeSummary(
+                            outcome_label=ExperienceOutcomeLabel.STABLE,
+                            delayed_signal_count=max(cluster.exemplar_count, 1),
+                            escalation_observed=False,
+                            repair_observed=False,
+                            confidence=_clamp(0.5 + cluster.mean_relevance * 0.3),
+                            description=f"Derived from case cluster {cluster.cluster_id}.",
+                        ),
+                        relevance_score=cluster.mean_relevance,
+                        description=f"Cluster-derived case memory hit for pattern={cluster.problem_pattern}.",
+                    )
+                )
+                active_problem_patterns.append(cluster.problem_pattern)
+                active_risk_markers.extend(cluster.risk_markers)
+                existing_patterns.add(cluster.problem_pattern)
         return self.publish(
             CaseMemorySnapshot(
                 retrieval_policy_id=retrieval_policy_id,
@@ -795,6 +1027,80 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
 
     async def process_standalone(self, **kwargs: Any) -> Snapshot[CaseMemorySnapshot]:
         raise NotImplementedError("CaseMemoryModule should be driven by RetrievalPolicySnapshot.")
+
+
+class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
+    slot_name = "strategy_playbook"
+    owner = "StrategyPlaybookModule"
+    value_type = StrategyPlaybookSnapshot
+    dependencies = ("case_memory", "regime", "dual_track")
+    default_wiring_level = WiringLevel.ACTIVE
+
+    def __init__(
+        self,
+        *,
+        rare_heavy_state: ApplicationRareHeavyState | None = None,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._rare_heavy_state = rare_heavy_state
+
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[StrategyPlaybookSnapshot]:
+        from volvence_zero.regime import RegimeSnapshot
+
+        case_memory_snapshot = upstream["case_memory"].value
+        regime_snapshot = upstream["regime"].value
+        dual_track_snapshot = upstream["dual_track"].value
+        if not isinstance(case_memory_snapshot, CaseMemorySnapshot):
+            raise TypeError("case_memory must publish CaseMemorySnapshot.")
+        if not isinstance(regime_snapshot, RegimeSnapshot):
+            raise TypeError("regime must publish RegimeSnapshot.")
+        if not isinstance(dual_track_snapshot, DualTrackSnapshot):
+            raise TypeError("dual_track must publish DualTrackSnapshot.")
+        world_weight, self_weight = _infer_track_weights(dual_track_snapshot)
+        rules: list[PlaybookRule] = []
+        for index, pattern in enumerate(case_memory_snapshot.active_problem_patterns, start=1):
+            ordering, pacing, avoid_patterns = _playbook_template(
+                problem_pattern=pattern,
+                regime_id=regime_snapshot.active_regime.regime_id,
+                world_weight=world_weight,
+                self_weight=self_weight,
+            )
+            rules.append(
+                PlaybookRule(
+                    rule_id=f"playbook:{pattern}:{index}",
+                    problem_pattern=pattern,
+                    recommended_regime=regime_snapshot.active_regime.regime_id,
+                    recommended_ordering=ordering,
+                    recommended_pacing=pacing,
+                    avoid_patterns=avoid_patterns,
+                    knowledge_weight_hint=_clamp(0.45 + world_weight * 0.30),
+                    experience_weight_hint=_clamp(0.45 + self_weight * 0.30),
+                    applicability_scope=(regime_snapshot.active_regime.regime_id, *case_memory_snapshot.active_risk_markers[:2]),
+                    confidence=_clamp(0.55 + len(case_memory_snapshot.hits) * 0.08),
+                    description=(
+                        f"Playbook rule for pattern={pattern} aligned to regime={regime_snapshot.active_regime.regime_id} "
+                        f"and cross_track_tension={dual_track_snapshot.cross_track_tension:.2f}."
+                    ),
+                )
+            )
+        if self._rare_heavy_state is not None and self._rare_heavy_state.distilled_playbook_rules:
+            for distilled_rule in self._rare_heavy_state.distilled_playbook_rules:
+                if distilled_rule.problem_pattern in case_memory_snapshot.active_problem_patterns:
+                    rules.append(distilled_rule)
+        return self.publish(
+            StrategyPlaybookSnapshot(
+                matched_problem_patterns=case_memory_snapshot.active_problem_patterns,
+                matched_rules=tuple(rules),
+                description=(
+                    f"Strategy playbook produced {len(rules)} matched rules from "
+                    f"{len(case_memory_snapshot.hits)} case hits."
+                ),
+            )
+        )
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[StrategyPlaybookSnapshot]:
+        raise NotImplementedError("StrategyPlaybookModule should be driven by CaseMemorySnapshot.")
 
 
 class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
@@ -887,3 +1193,52 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
 
     async def process_standalone(self, **kwargs: Any) -> Snapshot[BoundaryPolicySnapshot]:
         raise NotImplementedError("BoundaryPolicyModule should be driven by runtime upstream state.")
+
+
+class ExperienceConsolidationModule(RuntimeModule[ExperienceConsolidationSnapshot]):
+    slot_name = "experience_consolidation"
+    owner = "ExperienceConsolidationModule"
+    value_type = ExperienceConsolidationSnapshot
+    dependencies = ()
+    default_wiring_level = WiringLevel.ACTIVE
+
+    def publish_snapshot(
+        self,
+        *,
+        completed_results: tuple[Any, ...] = (),
+    ) -> Snapshot[ExperienceConsolidationSnapshot]:
+        deltas: list[ExperienceDelta] = []
+        source_job_id = "experience-consolidation:none"
+        for result in completed_results[-4:]:
+            result_deltas = getattr(result, "experience_deltas", ())
+            if getattr(result, "job_id", None) is not None:
+                source_job_id = result.job_id
+            deltas.extend(result_deltas)
+        promoted_case_count = sum(1 for delta in deltas if delta.target_slot == "case_memory" and not delta.blocked)
+        playbook_delta_count = sum(1 for delta in deltas if delta.target_slot == "strategy_playbook")
+        boundary_delta_count = sum(1 for delta in deltas if delta.target_slot == "boundary_policy")
+        return self.publish(
+            ExperienceConsolidationSnapshot(
+                source_session_post_job_id=source_job_id,
+                promoted_case_count=promoted_case_count,
+                playbook_delta_count=playbook_delta_count,
+                boundary_delta_count=boundary_delta_count,
+                deltas=tuple(deltas[-6:]),
+                description=(
+                    f"Experience consolidation published {len(deltas[-6:])} recent deltas from "
+                    f"{len(completed_results)} completed slow-loop result(s)."
+                ),
+            )
+        )
+
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ExperienceConsolidationSnapshot]:
+        raise NotImplementedError("ExperienceConsolidationModule is published via process_standalone().")
+
+    async def process_standalone(
+        self,
+        *,
+        completed_results: tuple[Any, ...] = (),
+        **kwargs: Any,
+    ) -> Snapshot[ExperienceConsolidationSnapshot]:
+        del kwargs
+        return self.publish_snapshot(completed_results=completed_results)

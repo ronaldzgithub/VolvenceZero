@@ -1,0 +1,702 @@
+{
+  "description": "Backend robustness comparison for full-internal-rl across trace and synthetic-open-weight backends.",
+  "metric_deltas": [
+    [
+      "mean_total_reward",
+      0.0
+    ],
+    [
+      "mean_raw_total_reward",
+      0.0
+    ],
+    [
+      "terminal_success_rate",
+      0.0
+    ],
+    [
+      "eval_terminal_success_rate",
+      0.0
+    ],
+    [
+      "heldout_terminal_success_rate",
+      0.0
+    ],
+    [
+      "mean_subgoal_completion_rate",
+      0.0
+    ],
+    [
+      "eval_subgoal_completion_rate",
+      0.0
+    ],
+    [
+      "heldout_subgoal_completion_rate",
+      0.0
+    ],
+    [
+      "mean_family_reuse_rate",
+      0.0
+    ],
+    [
+      "eval_family_reuse_rate",
+      0.0
+    ],
+    [
+      "heldout_family_reuse_rate",
+      0.0
+    ],
+    [
+      "mean_switch_sparsity",
+      0.0
+    ],
+    [
+      "mean_credit_alignment",
+      0.0
+    ],
+    [
+      "eval_credit_alignment",
+      0.0
+    ],
+    [
+      "heldout_credit_alignment",
+      0.0
+    ],
+    [
+      "mean_strong_success_rate",
+      0.0375000000000002
+    ],
+    [
+      "eval_strong_success_rate",
+      0.03750000000000009
+    ],
+    [
+      "heldout_strong_success_rate",
+      0.03750000000000009
+    ],
+    [
+      "heldout_strong_success_std",
+      0.0
+    ],
+    [
+      "mean_backend_fidelity",
+      0.55
+    ]
+  ],
+  "profile_label": "full-internal-rl",
+  "profile_reports": [
+    {
+      "backend_label": "trace",
+      "description": "full-internal-rl produced 7 ETA proof episode reports on backend=trace with batch_updates=2.",
+      "episode_reports": [
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.45,
+          "backend_label": "trace",
+          "case_id": "train-loop-delta-beta-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "delta",
+            "beta",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-loop-delta-beta-epsilon (trace) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 0.86,
+          "split": "train",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.466666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.45,
+          "backend_label": "trace",
+          "case_id": "train-zigzag-beta-gamma-alpha",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "beta",
+            "gamma",
+            "alpha"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-zigzag-beta-gamma-alpha (trace) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "train",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.6066666666666665
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.45,
+          "backend_label": "trace",
+          "case_id": "train-corridor-alpha-beta-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "alpha",
+            "beta",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-corridor-alpha-beta-delta (trace) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 0.86,
+          "split": "train",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.466666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.45,
+          "backend_label": "trace",
+          "case_id": "eval-alpha-delta-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "alpha",
+            "delta",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on eval-alpha-delta-epsilon (trace) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "eval",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.6066666666666665
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.44999999999999996,
+          "backend_label": "trace",
+          "case_id": "heldout-epsilon-beta-alpha-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "epsilon",
+            "beta",
+            "alpha",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on heldout-epsilon-beta-alpha-delta (trace) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 5.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0405941171276245,
+          "split": "heldout",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.927260783794291
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.44999999999999996,
+          "backend_label": "trace",
+          "case_id": "heldout-delta-alpha-gamma-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "delta",
+            "alpha",
+            "gamma",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on heldout-delta-alpha-gamma-epsilon (trace) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 5.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "heldout",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.8866666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 0.45,
+          "backend_label": "trace",
+          "case_id": "eval-gamma-beta-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "beta",
+            "gamma",
+            "beta",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on eval-gamma-beta-delta (trace) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.1400000000000001,
+          "split": "eval",
+          "strong_success_score": 0.7124999999999999,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 3.026666666666667
+        }
+      ],
+      "mean_parameter_change_norm": 0.747085374845786,
+      "mean_replacement_effect_delta": 0.08949930999954309,
+      "mean_rollouts_per_update": 3,
+      "mean_value_loss": 1.3392442983820807,
+      "metric_means": [
+        [
+          "mean_total_reward",
+          2.7124658262563273
+        ],
+        [
+          "mean_raw_total_reward",
+          0.9857991595896607
+        ],
+        [
+          "terminal_success_rate",
+          1.0
+        ],
+        [
+          "eval_terminal_success_rate",
+          1.0
+        ],
+        [
+          "heldout_terminal_success_rate",
+          1.0
+        ],
+        [
+          "mean_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "eval_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "heldout_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "mean_family_reuse_rate",
+          1.0
+        ],
+        [
+          "eval_family_reuse_rate",
+          1.0
+        ],
+        [
+          "heldout_family_reuse_rate",
+          1.0
+        ],
+        [
+          "mean_switch_sparsity",
+          1.0
+        ],
+        [
+          "mean_credit_alignment",
+          1.0
+        ],
+        [
+          "eval_credit_alignment",
+          1.0
+        ],
+        [
+          "heldout_credit_alignment",
+          1.0
+        ],
+        [
+          "mean_strong_success_rate",
+          0.7124999999999998
+        ],
+        [
+          "eval_strong_success_rate",
+          0.7124999999999999
+        ],
+        [
+          "heldout_strong_success_rate",
+          0.7124999999999999
+        ],
+        [
+          "heldout_strong_success_std",
+          0.0
+        ],
+        [
+          "mean_backend_fidelity",
+          0.45
+        ]
+      ],
+      "profile_label": "full-internal-rl",
+      "rollout_batch_count": 2,
+      "training_parameter_change_count": 2,
+      "training_parameter_change_rate": 1.0,
+      "training_transition_count": 46,
+      "training_update_count": 2
+    },
+    {
+      "backend_label": "synthetic-open-weight",
+      "description": "full-internal-rl produced 7 ETA proof episode reports on backend=synthetic-open-weight with batch_updates=2.",
+      "episode_reports": [
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "train-loop-delta-beta-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "delta",
+            "beta",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-loop-delta-beta-epsilon (synthetic-open-weight) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 0.86,
+          "split": "train",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.466666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "train-zigzag-beta-gamma-alpha",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "beta",
+            "gamma",
+            "alpha"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-zigzag-beta-gamma-alpha (synthetic-open-weight) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "train",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.6066666666666665
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "train-corridor-alpha-beta-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "alpha",
+            "beta",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on train-corridor-alpha-beta-delta (synthetic-open-weight) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 0.86,
+          "split": "train",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.466666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "eval-alpha-delta-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "alpha",
+            "delta",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 4,
+          "description": "full-internal-rl on eval-alpha-delta-epsilon (synthetic-open-weight) success=True completed=3/3.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "eval",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.6066666666666665
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "heldout-epsilon-beta-alpha-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "epsilon",
+            "beta",
+            "alpha",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on heldout-epsilon-beta-alpha-delta (synthetic-open-weight) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 5.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0405941171276245,
+          "split": "heldout",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.927260783794291
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "heldout-delta-alpha-gamma-epsilon",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "delta",
+            "alpha",
+            "gamma",
+            "epsilon"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on heldout-delta-alpha-gamma-epsilon (synthetic-open-weight) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 5.0,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.0,
+          "split": "heldout",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 2.8866666666666667
+        },
+        {
+          "action_family_count": 1,
+          "backend_fidelity": 1.0,
+          "backend_label": "synthetic-open-weight",
+          "case_id": "eval-gamma-beta-delta",
+          "completed_family_ids": [
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1",
+            "discovered_family_1"
+          ],
+          "completed_subgoals": [
+            "beta",
+            "gamma",
+            "beta",
+            "delta"
+          ],
+          "credit_alignment": 1.0,
+          "delayed_credit_assignment_count": 5,
+          "description": "full-internal-rl on eval-gamma-beta-delta (synthetic-open-weight) success=True completed=4/4.",
+          "family_reuse_rate": 1.0,
+          "mean_persistence": 4.5,
+          "profile_label": "full-internal-rl",
+          "raw_total_reward": 1.1400000000000001,
+          "split": "eval",
+          "strong_success_score": 0.75,
+          "subgoal_completion_rate": 1.0,
+          "switch_sparsity": 1.0,
+          "terminal_success": true,
+          "total_reward": 3.026666666666667
+        }
+      ],
+      "mean_parameter_change_norm": 0.747085374845786,
+      "mean_replacement_effect_delta": 0.08949930999954309,
+      "mean_rollouts_per_update": 3,
+      "mean_value_loss": 1.3392442983820807,
+      "metric_means": [
+        [
+          "mean_total_reward",
+          2.7124658262563273
+        ],
+        [
+          "mean_raw_total_reward",
+          0.9857991595896607
+        ],
+        [
+          "terminal_success_rate",
+          1.0
+        ],
+        [
+          "eval_terminal_success_rate",
+          1.0
+        ],
+        [
+          "heldout_terminal_success_rate",
+          1.0
+        ],
+        [
+          "mean_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "eval_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "heldout_subgoal_completion_rate",
+          1.0
+        ],
+        [
+          "mean_family_reuse_rate",
+          1.0
+        ],
+        [
+          "eval_family_reuse_rate",
+          1.0
+        ],
+        [
+          "heldout_family_reuse_rate",
+          1.0
+        ],
+        [
+          "mean_switch_sparsity",
+          1.0
+        ],
+        [
+          "mean_credit_alignment",
+          1.0
+        ],
+        [
+          "eval_credit_alignment",
+          1.0
+        ],
+        [
+          "heldout_credit_alignment",
+          1.0
+        ],
+        [
+          "mean_strong_success_rate",
+          0.75
+        ],
+        [
+          "eval_strong_success_rate",
+          0.75
+        ],
+        [
+          "heldout_strong_success_rate",
+          0.75
+        ],
+        [
+          "heldout_strong_success_std",
+          0.0
+        ],
+        [
+          "mean_backend_fidelity",
+          1.0
+        ]
+      ],
+      "profile_label": "full-internal-rl",
+      "rollout_batch_count": 2,
+      "training_parameter_change_count": 2,
+      "training_parameter_change_rate": 1.0,
+      "training_transition_count": 46,
+      "training_update_count": 2
+    }
+  ]
+}
