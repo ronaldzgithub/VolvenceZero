@@ -252,6 +252,93 @@ class DomainKnowledgeSnapshot:
 - `memory` 只提供个体上下文和 query facets
 - `dual_track` / `regime` 提供这轮检索排序 prior
 
+## 6.4 External Knowledge Ingest Contract
+
+关键外部知识**不应**在 turn-time 由 `DomainKnowledgeModule` 直接联网抓取、解析并写入 store。  
+它必须走独立的 import / review / owner-side writeback 路径，再由 `domain_knowledge` 在后续轮次中作为稳定事实层查询。
+
+最小新增契约：
+
+```python
+@dataclass(frozen=True)
+class ExternalKnowledgeCandidate:
+    candidate_id: str
+    source_type: KnowledgeSourceType
+    title: str
+    locator: str
+    snippet: str
+    url: str | None
+    domain: str
+    topic_tags: tuple[str, ...]
+    jurisdiction_tags: tuple[str, ...]
+    freshness_label: str
+    evidence_strength: EvidenceStrength
+    extracted_at_turn: int | None
+    checksum: str
+    description: str
+
+
+@dataclass(frozen=True)
+class KnowledgeOutcomeAttribution:
+    attribution_id: str
+    source_context_session_id: str
+    source_wave_id: str
+    retrieval_policy_id: str | None
+    knowledge_hit_ids: tuple[str, ...]
+    citation_ids: tuple[str, ...]
+    domains: tuple[str, ...]
+    citation_required: bool
+    jurisdiction_required: bool
+    factual_support_score: float
+    boundary_alignment: float
+    outcome_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class DomainKnowledgePriorUpdate:
+    update_id: str
+    target: str
+    operation: str  # add | revise | deprecate | supersede
+    record: DomainKnowledgeRecord
+    supersedes_record_id: str | None
+    source_candidate_ids: tuple[str, ...]
+    source_outcome_attribution_ids: tuple[str, ...]
+    confidence: float
+    review_required: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class DomainKnowledgeWritebackReport:
+    proposed_target_count: int
+    applied_targets: tuple[str, ...]
+    blocked_targets: tuple[str, ...]
+    review_pending_targets: tuple[str, ...]
+    audit_record_count: int
+    description: str
+```
+
+## 6.5 Apply Semantics
+
+- 外部知识源只能产出 `ExternalKnowledgeCandidate`，**不能直接写** `ApplicationDomainKnowledgeStore`
+- `DomainKnowledgeModule.process()` 继续只负责 query + publish，不承担 ingest / review / writeback
+- 候选外部知识必须先经过 review / dedupe / freshness / jurisdiction 标注，再转换成 `DomainKnowledgePriorUpdate`
+- `KnowledgeOutcomeAttribution` 是知识侧 delayed-credit 证据面，用来回答“哪些知识 hit 真的帮助了 factual support / boundary correctness”
+- 真正的 apply 必须由 session owner 驱动的 owner-side helper 完成，例如 `domain_knowledge_store.apply_prior_update(...)`
+- `add` / `revise` / `supersede` 默认可逆，并要求生成 checkpoint / import batch；`deprecate` 不得在 turn-time 直接删除历史记录
+- 高风险、强地域性或需要 citation compliance 的知识更新默认 `review_required=True`
+
+## 6.6 Minimal External Flow
+
+最小外部知识流转应为：
+
+1. 外部来源（文件、人工录入、reviewed import、离线管线）产生 `ExternalKnowledgeCandidate`
+2. review/gate 层做去重、冲突检测、freshness 标注、jurisdiction 标注
+3. session-owned helper 将候选知识与 `KnowledgeOutcomeAttribution` 证据汇总为 `DomainKnowledgePriorUpdate`
+4. owner-side writeback helper 在 gate 放行后写入 `ApplicationDomainKnowledgeStore`
+5. 后续轮次由 `DomainKnowledgeModule` 正常 query 并发布 `DomainKnowledgeSnapshot`
+
 ---
 
 ## 7. Case Memory Contract
@@ -452,6 +539,7 @@ class ExperienceFastPriorSnapshot:
 `ExperienceFastPriorModule` 负责：
 
 - 读取 `experience_consolidation` 的 delayed outcome ledger 与 sequence payoffs
+- 读取 `experience_consolidation.delayed_credit_summary`，把应用层慢信用先收敛成统一摘要后再压入 fast prior
 - 把慢层信用压缩成 compact fast prior，而不是直接修改 `regime` / `retrieval_policy` / `temporal` 私有状态
 - 作为 experience 进入 ETA 的 delayed-credit-to-fast-path 公共中继面
 - 保持 advisory / bias 语义，不回收下游 owner 身份
@@ -519,6 +607,32 @@ class ApplicationSequencePayoff:
 
 
 @dataclass(frozen=True)
+class DelayedCreditSummary:
+    summary_id: str
+    regime_id: str | None
+    abstract_action: str | None
+    action_family_version: int
+    retrieval_policy_id: str | None
+    knowledge_weight: float
+    experience_weight: float
+    retrieval_mix_alignment: float
+    regime_alignment: float
+    abstract_action_alignment: float
+    outcome_score: float
+    sequence_payoff: float
+    continuum_alignment: float
+    attribution_count: int
+    sequence_count: int
+    continuum_profile_id: str | None
+    dominant_band_id: str | None
+    mean_continuum_position: float
+    description: str
+
+
+# `DomainKnowledgePriorUpdate`: 见 §6.4 External Knowledge Ingest Contract
+
+
+@dataclass(frozen=True)
 class BoundaryPriorHint:
     hint_id: str
     regime_id: str | None
@@ -571,6 +685,7 @@ class RetrievalReadoutPriorUpdate:
 @dataclass(frozen=True)
 class ApplicationPriorUpdate:
     source_session_post_job_id: str
+    domain_knowledge_updates: tuple[DomainKnowledgePriorUpdate, ...]
     case_memory_updates: tuple[CaseMemoryPriorUpdate, ...]
     strategy_playbook_updates: tuple[StrategyPlaybookPriorUpdate, ...]
     boundary_policy_updates: tuple[BoundaryPolicyPriorUpdate, ...]
@@ -596,6 +711,8 @@ class ExperienceConsolidationSnapshot:
     deltas: tuple[ExperienceDelta, ...]
     delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...]
     sequence_payoffs: tuple[ApplicationSequencePayoff, ...]
+    delayed_credit_summary: DelayedCreditSummary | None
+    knowledge_outcome_attributions: tuple[KnowledgeOutcomeAttribution, ...]
     latest_prior_update: ApplicationPriorUpdate | None
     latest_writeback_report: ApplicationPriorWritebackReport | None
     continuum_profile_id: str | None
@@ -611,8 +728,10 @@ class ExperienceConsolidationSnapshot:
 - 说明本轮背景慢反思到底学到什么
 - 不直接取代 `session_post_slow_loop`
 - 发布 typed `ApplicationPriorUpdate` / writeback report，作为 application prior 的正式 slow-path 更新契约
-- 不自己成为 `case_memory` / `strategy_playbook` / `boundary_policy` 的第二 owner
+- 不自己成为 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` 的第二 owner
 - 为 application 层公开 delayed outcome attribution：至少覆盖 `regime`, `abstract_action`, retrieval mix, `action_family_version` 与 sequence payoff
+- 把这些 application delayed credit 再压成一个共享 `DelayedCreditSummary`，供 `experience_fast_prior` 与 shared control readout 消费，避免 fast path 从多个局部统计各自重拼第二套信用语义
+- 若慢层对外部知识进行了 review/import，它也应公开 `KnowledgeOutcomeAttribution`，说明哪些知识 hit 真正贡献了 factual support / boundary correctness
 - 作为 experience 进入 ETA 的第三入口：把经验变成 ETA 可读的 delayed credit surface，并在 judge / credit gate 放行时驱动 owner-side prior update
 - retrieval readout 参数若需慢层更新，也应作为 typed prior update 暴露，并继续遵守 session-owned / owner-side apply 语义
 
@@ -626,12 +745,14 @@ apply 语义要求：
 - `experience_consolidation` 公开 proposal / applied / blocked / audit-ready 摘要
 - 真正的 apply 只能发生在 session owner 驱动的 owner-side writeback helper 中
 - `EvolutionJudgement` 与 target-specific credit gate 必须先裁决，再允许 application prior update 进入 owner
+- `domain_knowledge` 的 external ingest / revise / deprecate / supersede 也必须沿同一条 session-owned apply 路径执行，不能让 import pipeline 或 `DomainKnowledgeModule` 直接写 store
 - rollback 必须沿 application owner checkpoint / rare-heavy rollback 链回滚，而不是由 `ExperienceConsolidationModule` 直接反写其他 owner
 - retrieval readout 参数不得在 turn-time 直接按 fast prior 改写；若发生参数更新，必须走 `RetrievalReadoutPriorUpdate -> gated checkpoint apply`
 
 上游来源：
 
 - `reflection`
+- `domain_knowledge`
 - `case_memory`
 - `prediction_error`
 - delayed outcome evidence
@@ -854,6 +975,7 @@ runtime 层只关心：
 
 - `ApplicationRareHeavyCheckpoint`
 - application rare-heavy import / rollback path
+- external `domain_knowledge` import / review / writeback path
 
 ---
 
@@ -869,4 +991,5 @@ runtime 层只关心：
 - response 层只读公共快照
 - evaluation 只做 readout / evidence，不抢 owner 身份
 - application rare-heavy refresh 只通过 session owner import / rollback，不创建新的 second owner
+- external `domain_knowledge` ingest 只通过 reviewed candidate -> typed prior update -> owner-side writeback 路径进入系统
 

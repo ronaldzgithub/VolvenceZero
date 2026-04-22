@@ -109,8 +109,11 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前应用层第四阶段已新增 application rare-heavy checkpoint/state：它不作为 turn-time slot 发布，而是沿现有 rare-heavy artifact/review/import/rollback 链由 session owner 管理，并把离线 domain bias、case cluster 与 distilled playbook 通过 `retrieval_policy` / `case_memory` / `strategy_playbook` 的公共快照间接体现在 fast path 中。底层 pipeline / joint-loop 不回收 application owner 身份
 - 当前表达层已新增正式 `response_assembly` surface：它读取 `regime`、`temporal_abstraction`、`memory`、`reflection`、`domain_knowledge`、`case_memory`、`strategy_playbook`、`boundary_policy`，发布 compact prompt residue、generation constraints 与 numeric control。`session` / `response` / runtime 只能消费该公共 surface，不应继续在下游重建 knowledge/case/playbook/boundary 的表达语义
 - 当前 `retrieval_policy` 还应被理解为 **compact retrieval control surface**：`ETA` / temporal 只通过该 surface 对 knowledge/experience owners 施加影响，而不吸收知识库/经验库本体。应用层后续若引入 learned readout，也应替换在 readout seam 内，而不是让 `RetrievalPolicyModule` 或 `temporal` owner 直接回收知识/经验所有权
+- 当前 `retrieval_policy` 已进一步扩展为 **shared control advisories surface**：除 `knowledge/experience` mix 外，还可发布 `response_mode_hint`、`continuum_target_position_hint`、`ordering_bias`、`ordering_driver_hint`、`clarification_bias`、`refer_out_bias`、`answer_depth_bias` 等 machine-readable advisory；`BoundaryPolicyModule` 与 `ResponseAssemblyModule` 应优先消费这些公共 hint，并把本地规则降为 fallback，而不是在下游重新拼第二套 ETA/application 决策链
 - 当前 session-post 侧的 application prior proposal 也应保持为 **owner-side helper**：慢层经验可以生成 `ApplicationPriorUpdate` 提案，但它只能沿 `experience_consolidation -> experience_fast_prior -> owner-side apply` 的公共链回流，不能形成新的 `session -> temporal` 或 `evaluation -> temporal` 旁路
 - 若 `retrieval_policy` 引入 owner-side 参数化 readout，则参数更新也必须走 **session-owned proposal / credit gate / rare-heavy checkpoint** 路径；`RetrievalPolicyModule` 继续是唯一 turn-time owner，禁止新增专门“替它改参数”的第二 owner
+- 当前 application slow loop 已补充 `DelayedCreditSummary`：它把 `regime`、`abstract_action`、`action_family_version`、retrieval mix、sequence payoff 与 continuum alignment 压成 session-owned 公共摘要，再经 `experience_consolidation -> experience_fast_prior` 进入下一轮 `retrieval_policy` 与 temporal owner 的 fast path；该摘要仍不得绕过 credit gate 直接写穿下游 owner
+- 当前外部 `domain_knowledge` ingest 也应遵守同一 owner-side 纪律：外部来源只能产出 reviewed candidate / typed prior update，由 session owner 驱动 gate + writeback helper 写入知识 owner；`DomainKnowledgeModule.process()` 继续只读查询，不直接联网抓取或反写 store
 
 ### 直接依赖 vs enrichment
 
@@ -152,6 +155,8 @@ P00 运行时内核固定以下最小守卫和视图：
 
 ## 变更日志
 
+- 2026-04-22: 应用层 shared control advisories + delayed credit summary 口径：`retrieval_policy` 可发布 retrieval/response/boundary 共用 advisory hint；session-post 新增 `DelayedCreditSummary`，沿 `experience_consolidation -> experience_fast_prior` 公共链回流到 retrieval/temporal fast path
+- 2026-04-22: 补充 external `domain_knowledge` ingest contract 口径，明确 reviewed candidate / typed prior update / owner-side writeback 路径，禁止 `DomainKnowledgeModule` 在 turn-time 直接抓取并写回外部知识
 - 2026-04-20: 新增“direct dependency vs enrichment”边界说明，明确 `evaluation` 对 `prediction_error` 的 final-wiring evidence append 属于 post-processing，而非模块 direct dependency
 - 2026-04-06: P18 Propagation Topo-Sort + Guard Closure: propagate() now auto-sorts modules by declared dependencies (topo_sort_modules). Cycle detection via detect_dependency_cycle; cycles fall back gracefully to input order. Post-propagation guard closure verifies immutability of all published snapshots. CyclicDependencyError added to runtime contract errors.
 - 2026-04-08: 默认主链切到真实 transformers substrate；`reflection` / `temporal` 默认 ACTIVE；slow reflection 新增 typed `TemporalPriorUpdate` 写回 temporal owner，并带 target-specific gate / audit

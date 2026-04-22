@@ -7,6 +7,8 @@ from volvence_zero.application.runtime import (
     BoundaryPolicyPriorUpdate,
     BoundaryPriorHint,
     CaseMemoryPriorUpdate,
+    DomainKnowledgePriorUpdate,
+    KnowledgeHit,
     PlaybookRule,
     RetrievalReadoutPriorUpdate,
     StrategyPlaybookPriorUpdate,
@@ -15,7 +17,7 @@ from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutParameters,
     RetrievalReadoutCheckpoint,
 )
-from volvence_zero.application.storage import CaseMemoryRecord
+from volvence_zero.application.storage import CaseMemoryRecord, DomainKnowledgeRecord
 
 
 def _clamp(value: float) -> float:
@@ -27,6 +29,7 @@ class ApplicationPriorProposalInputs:
     job_id: str
     closed_at_turn: int
     regime_id: str | None
+    knowledge_domains: tuple[str, ...]
     experience_domains: tuple[str, ...]
     case_problem_patterns: tuple[str, ...]
     case_risk_markers: tuple[str, ...]
@@ -35,6 +38,7 @@ class ApplicationPriorProposalInputs:
     experience_weight: float
     case_hit_count: int
     mean_experience_quality: float
+    knowledge_hits: tuple[KnowledgeHit, ...] = ()
     retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
     retrieval_fast_prior_strength: float = 0.0
     retrieval_fast_prior_attribution_count: int = 0
@@ -59,6 +63,7 @@ class ApplicationPriorProposalBuilder:
         case_updates: list[CaseMemoryPriorUpdate] = []
         playbook_updates: list[StrategyPlaybookPriorUpdate] = []
         boundary_updates: list[BoundaryPolicyPriorUpdate] = []
+        knowledge_updates: list[DomainKnowledgePriorUpdate] = []
         retrieval_updates: list[RetrievalReadoutPriorUpdate] = []
         primary_domain = next(iter(inputs.experience_domains), "general_guidance_patterns")
         outcome_label = "improved" if inputs.mean_experience_quality >= 0.6 else "stable"
@@ -164,6 +169,40 @@ class ApplicationPriorProposalBuilder:
                     description="Promote boundary prior from repeated slow-loop boundary triggers.",
                 )
             )
+        for index, hit in enumerate(inputs.knowledge_hits, start=1):
+            citation = hit.citations[0] if hit.citations else None
+            title = citation.title if citation is not None else f"{hit.domain.replace('_', ' ')} guidance"
+            locator = citation.locator if citation is not None else f"promoted:{hit.hit_id}"
+            snippet = citation.snippet if citation is not None else hit.summary
+            source_type = citation.source_type.value if citation is not None else "internal-guide"
+            stable_id = hit.hit_id.replace(":", "-")
+            knowledge_updates.append(
+                DomainKnowledgePriorUpdate(
+                    update_id=f"{inputs.job_id}:knowledge-update:{stable_id}:{index}",
+                    target=f"application.domain_knowledge.records.{hit.domain}.{stable_id}",
+                    record=DomainKnowledgeRecord(
+                        record_id=f"knowledge:slow-loop:{inputs.job_id}:{stable_id}:{index}",
+                        domain=hit.domain,
+                        topic_tags=hit.topic_tags,
+                        jurisdiction_tags=hit.jurisdiction_tags,
+                        source_type=source_type,
+                        title=title,
+                        locator=locator,
+                        summary=hit.summary,
+                        snippet=snippet,
+                        freshness_label="session-post-promoted",
+                        confidence=_clamp(hit.confidence * 0.55 + inputs.mean_experience_quality * 0.35 + 0.10),
+                        evidence_strength=hit.evidence_strength.value,
+                        conflict_markers=hit.conflict_markers,
+                        url=citation.url if citation is not None else None,
+                    ),
+                    confidence=_clamp(hit.confidence * 0.45 + inputs.mean_experience_quality * 0.40 + 0.10),
+                    description=(
+                        f"Promote knowledge prior for domain={hit.domain} from session-post evidence "
+                        f"using hit={hit.hit_id}."
+                    ),
+                )
+            )
         retrieval_checkpoint = self._build_retrieval_readout_checkpoint(inputs=inputs)
         if retrieval_checkpoint is not None:
             retrieval_updates.append(
@@ -175,18 +214,20 @@ class ApplicationPriorProposalBuilder:
                     description="Promote retrieval readout checkpoint from delayed experience evidence.",
                 )
             )
-        if not case_updates and not playbook_updates and not boundary_updates and not retrieval_updates:
+        if not case_updates and not playbook_updates and not boundary_updates and not knowledge_updates and not retrieval_updates:
             return None
         return ApplicationPriorUpdate(
             source_session_post_job_id=inputs.job_id,
             case_memory_updates=tuple(case_updates),
             strategy_playbook_updates=tuple(playbook_updates),
             boundary_policy_updates=tuple(boundary_updates),
+            domain_knowledge_updates=tuple(knowledge_updates),
             retrieval_readout_updates=tuple(retrieval_updates),
             description=(
                 f"Application prior update proposed from {inputs.job_id} with "
                 f"{len(case_updates)} case updates, {len(playbook_updates)} playbook updates, "
-                f"{len(boundary_updates)} boundary updates, and {len(retrieval_updates)} retrieval readout updates."
+                f"{len(boundary_updates)} boundary updates, {len(knowledge_updates)} knowledge updates, "
+                f"and {len(retrieval_updates)} retrieval readout updates."
             ),
         )
 

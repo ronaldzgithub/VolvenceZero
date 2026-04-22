@@ -258,6 +258,12 @@ class ApplicationDomainKnowledgeStore:
     def records(self) -> tuple[DomainKnowledgeRecord, ...]:
         return tuple(self._records.values())
 
+    def upsert_records(self, records: Iterable[DomainKnowledgeRecord]) -> None:
+        for record in records:
+            existing = self._records.get(record.record_id)
+            if existing is None or record.confidence >= existing.confidence:
+                self._records[record.record_id] = record
+
     def query(
         self,
         *,

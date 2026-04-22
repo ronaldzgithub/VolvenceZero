@@ -12,6 +12,7 @@ from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
     CaseMemoryRecord,
+    DomainKnowledgeRecord,
 )
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutInputs,
@@ -274,6 +275,15 @@ class BoundaryPolicyPriorUpdate:
 
 
 @dataclass(frozen=True)
+class DomainKnowledgePriorUpdate:
+    update_id: str
+    target: str
+    record: DomainKnowledgeRecord
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
 class RetrievalReadoutPriorUpdate:
     update_id: str
     target: str
@@ -288,6 +298,7 @@ class ApplicationPriorUpdate:
     case_memory_updates: tuple[CaseMemoryPriorUpdate, ...] = ()
     strategy_playbook_updates: tuple[StrategyPlaybookPriorUpdate, ...] = ()
     boundary_policy_updates: tuple[BoundaryPolicyPriorUpdate, ...] = ()
+    domain_knowledge_updates: tuple[DomainKnowledgePriorUpdate, ...] = ()
     retrieval_readout_updates: tuple[RetrievalReadoutPriorUpdate, ...] = ()
     description: str = ""
 
@@ -1495,26 +1506,14 @@ def _response_ordering_plan(
     playbook_support_first = bool(playbook_ordering) and playbook_ordering[0] in {"stabilize", "acknowledge", "deescalate"}
     if response_mode is ResponseMode.REFER_OUT:
         prefix = ("stabilize", "bounded_handoff")
-        driver = (
-            retrieval_policy_snapshot.ordering_driver_hint
-            if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
-            else "continuum-refer-out"
-        )
+        driver = "continuum-refer-out"
     elif response_mode is ResponseMode.CLARIFY:
         if playbook_support_first or target_position >= 0.66:
             prefix = ("stabilize", "clarify_goal")
-            driver = (
-                retrieval_policy_snapshot.ordering_driver_hint
-                if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
-                else "continuum-support-clarify"
-            )
+            driver = "continuum-support-clarify"
         else:
             prefix = ("clarify_goal",)
-            driver = (
-                retrieval_policy_snapshot.ordering_driver_hint
-                if retrieval_policy_snapshot is not None and retrieval_policy_snapshot.ordering_driver_hint != "retrieval-fallback"
-                else "continuum-clarify-first"
-            )
+            driver = "continuum-clarify-first"
     elif target_position >= 0.66:
         prefix = ("stabilize", "acknowledge")
         driver = (

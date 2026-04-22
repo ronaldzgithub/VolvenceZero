@@ -375,6 +375,7 @@ def _build_session_post_writeback_request(
 def _apply_application_prior_writeback(
     *,
     prior_update: ApplicationPriorUpdate | None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore,
     case_memory_store: ApplicationCaseMemoryStore,
     application_rare_heavy_state: ApplicationRareHeavyState,
     credit_snapshot: CreditSnapshot | None,
@@ -398,6 +399,7 @@ def _apply_application_prior_writeback(
             *prior_update.case_memory_updates,
             *prior_update.strategy_playbook_updates,
             *prior_update.boundary_policy_updates,
+            *prior_update.domain_knowledge_updates,
             *prior_update.retrieval_readout_updates,
         )
     )
@@ -422,6 +424,9 @@ def _apply_application_prior_writeback(
 
     def current_case_hash() -> str:
         return stable_value_hash(case_memory_store.records)
+
+    def current_domain_knowledge_hash() -> str:
+        return stable_value_hash(domain_knowledge_store.records)
 
     def current_playbook_hash() -> str:
         return stable_value_hash(application_rare_heavy_state.distilled_playbook_rules)
@@ -482,6 +487,64 @@ def _apply_application_prior_writeback(
         after_hash = current_case_hash()
         applied_targets.append(update.target)
         applied_operations.append(f"application-prior:case-memory:{update.record.case_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.domain_knowledge_updates:
+        before_hash = current_domain_knowledge_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application domain-knowledge prior writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application domain-knowledge prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        domain_knowledge_store.upsert_records((update.record,))
+        domain_knowledge_store.save_to_backend()
+        after_hash = current_domain_knowledge_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:domain-knowledge:{update.record.record_id}")
         audit_records.append(
             SelfModificationRecord(
                 target=update.target,

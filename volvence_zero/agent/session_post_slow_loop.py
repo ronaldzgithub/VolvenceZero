@@ -12,6 +12,7 @@ from volvence_zero.application.runtime import (
     ApplicationSequencePayoff,
     DelayedCreditSummary,
     ExperienceDelta,
+    KnowledgeHit,
 )
 from volvence_zero.evaluation.backbone import EvaluationReport
 from volvence_zero.integration import SessionPostWritebackRequest
@@ -35,6 +36,7 @@ class SessionPostSlowLoopJob:
     case_problem_patterns: tuple[str, ...] = ()
     case_risk_markers: tuple[str, ...] = ()
     knowledge_domains: tuple[str, ...] = ()
+    knowledge_hits: tuple[KnowledgeHit, ...] = ()
     boundary_trigger_reasons: tuple[str, ...] = ()
     regime_id: str | None = None
     abstract_action: str | None = None

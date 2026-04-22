@@ -256,6 +256,46 @@ def test_agent_session_runner_uses_gated_retrieval_readout_checkpoint_next_turn(
     assert "checkpoint=present" in retrieval_policy.description
 
 
+def test_agent_session_runner_promotes_domain_knowledge_for_next_turn():
+    runner = AgentSessionRunner(
+        session_id="domain-knowledge-learning-session",
+        reflection_mode=WritebackMode.APPLY,
+        config=FinalRolloutConfig(
+            case_memory=WiringLevel.ACTIVE,
+            strategy_playbook=WiringLevel.ACTIVE,
+        ),
+    )
+
+    first = asyncio.run(
+        runner.run_turn("I need calm, high-level help thinking through a family transition without jumping to conclusions.")
+    )
+    initial_record_ids = {record.record_id for record in runner._domain_knowledge_store.records}
+
+    assert "domain_knowledge" in first.active_snapshots
+    assert first.active_snapshots["domain_knowledge"].value.hits
+
+    runner.begin_new_context(reason="domain-knowledge-learning-boundary")
+    slow_loop_results = asyncio.run(runner.drain_session_post_slow_loop())
+
+    assert slow_loop_results
+    latest_prior = slow_loop_results[0].application_prior_update
+    assert latest_prior is not None
+    assert latest_prior.domain_knowledge_updates
+    assert any(
+        delta.target_slot == "domain_knowledge" for delta in slow_loop_results[0].experience_deltas
+    )
+
+    learned_record_ids = {record.record_id for record in runner._domain_knowledge_store.records}
+    assert learned_record_ids > initial_record_ids
+    assert any(record_id.startswith("knowledge:slow-loop:") for record_id in learned_record_ids)
+
+    next_result = asyncio.run(runner.run_turn("Continue helping me with the same family transition context."))
+    next_hits = next_result.active_snapshots["domain_knowledge"].value.hits
+
+    assert next_hits
+    assert any(hit.hit_id.startswith("knowledge:slow-loop:") for hit in next_hits)
+
+
 def test_agent_session_runner_derives_case_and_playbook_eta_signals_between_turns():
     runner = AgentSessionRunner(
         session_id="experience-prior-signals",
@@ -309,6 +349,10 @@ def test_agent_session_runner_feeds_delayed_experience_credit_into_next_turn_sch
     assert "delayed_retrieval_mix_bias_applied" in turn_scores
     assert "temporal_fast_prior_strength" in turn_scores
     assert "temporal_fast_prior_switch_pressure" in turn_scores
+    experience_consolidation = result.active_snapshots["experience_consolidation"].value
+    assert experience_consolidation.delayed_credit_summary is not None
+    assert experience_consolidation.delayed_credit_summary.action_family_version >= 0
+    assert experience_consolidation.delayed_credit_summary.sequence_count >= 1
 
 
 def test_agent_session_runner_imports_application_rare_heavy_checkpoint_into_fast_path():

@@ -4,6 +4,7 @@ import asyncio
 
 from volvence_zero.application import (
     ApplicationCaseMemoryStore,
+    ApplicationDomainKnowledgeStore,
     ApplicationPriorUpdate,
     ApplicationRareHeavyCheckpoint,
     ApplicationRareHeavyState,
@@ -12,10 +13,15 @@ from volvence_zero.application import (
     CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     CaseMemoryRecord,
+    DomainKnowledgePriorUpdate,
+    DomainKnowledgeRecord,
     ExperienceConsolidationSnapshot,
     ExperienceFastPriorActionBias,
     ExperienceFastPriorFamilyBias,
     ExperienceFastPriorSnapshot,
+    KnowledgeCitation,
+    KnowledgeHit,
+    KnowledgeSourceType,
     PlaybookRule,
     ProfessionalScope,
     ResponseMode,
@@ -116,6 +122,7 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
             job_id="job-1",
             closed_at_turn=3,
             regime_id="emotional_support",
+            knowledge_domains=("family_transition",),
             experience_domains=("stabilization_patterns",),
             case_problem_patterns=("family-transition-high-emotion",),
             case_risk_markers=("risk-medium", "child-impact"),
@@ -124,6 +131,30 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
             experience_weight=0.68,
             case_hit_count=2,
             mean_experience_quality=0.74,
+            knowledge_hits=(
+                KnowledgeHit(
+                    hit_id="knowledge:family-transition:1",
+                    domain="family_transition",
+                    topic_tags=("family", "transition"),
+                    jurisdiction_tags=("local-law-sensitive",),
+                    freshness_label="seed-current",
+                    confidence=0.72,
+                    evidence_strength=EvidenceStrength.MEDIUM,
+                    summary="High-level family transition guidance.",
+                    conflict_markers=(),
+                    citations=(
+                        KnowledgeCitation(
+                            citation_id="knowledge:family-transition:1:primary",
+                            source_type=KnowledgeSourceType.OFFICIAL_GUIDE,
+                            title="Family transition basics",
+                            locator="phase1-seed",
+                            snippet="Confirm local specifics before conclusions.",
+                            url=None,
+                        ),
+                    ),
+                    description="Seed knowledge hit for owner-side proposal test.",
+                ),
+            ),
         )
     )
 
@@ -131,6 +162,7 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
     assert proposal.case_memory_updates
     assert proposal.strategy_playbook_updates
     assert proposal.boundary_policy_updates
+    assert proposal.domain_knowledge_updates
     assert proposal.case_memory_updates[0].target.startswith("application.case_memory.records.")
     assert proposal.strategy_playbook_updates[0].rule.recommended_ordering
     assert proposal.boundary_policy_updates[0].hint.trigger_reasons
@@ -175,6 +207,7 @@ def test_application_prior_writeback_applies_retrieval_readout_checkpoint_owner_
 
     operations, blocks, audits, report = _apply_application_prior_writeback(
         prior_update=prior_update,
+        domain_knowledge_store=ApplicationDomainKnowledgeStore(),
         case_memory_store=ApplicationCaseMemoryStore(),
         application_rare_heavy_state=rare_heavy_state,
         credit_snapshot=None,
@@ -454,6 +487,32 @@ def test_final_wiring_temporal_owner_consumes_upstream_experience_fast_prior():
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
     assert "temporal_fast_prior_strength" in metric_names
     assert "temporal_fast_prior_switch_pressure" in metric_names
+
+
+def test_final_wiring_retrieval_policy_surfaces_shared_control_advisories():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="shared-readout-model",
+                feature_surface=(
+                    FeatureSignal(name="support_weighted_signal", values=(0.79,), source="adapter"),
+                    FeatureSignal(name="repair_context_signal", values=(0.62,), source="adapter"),
+                ),
+            ),
+            session_id="shared-readout-session",
+            wave_id="shared-readout-wave",
+        )
+    )
+
+    retrieval_policy = result.active_snapshots["retrieval_policy"].value
+    assert retrieval_policy.response_mode_hint in {"support", "clarify", "structure", "refer-out"}
+    assert 0.0 <= retrieval_policy.clarification_bias <= 1.0
+    assert 0.0 <= retrieval_policy.refer_out_bias <= 1.0
+    assert 0.0 <= retrieval_policy.answer_depth_bias <= 1.0
+    assert 0.0 <= retrieval_policy.continuum_target_position_hint <= 1.0
+    assert retrieval_policy.ordering_driver_hint
+    assert retrieval_policy.ordering_bias
 
 
 def test_final_wiring_phase3_prefers_case_derived_playbook_ordering_before_template():
@@ -990,6 +1049,7 @@ def test_final_wiring_application_prior_helper_supports_partial_credit_block():
 
     applied_operations, blocked_operations, audits, report = _apply_application_prior_writeback(
         prior_update=prior_update,
+        domain_knowledge_store=ApplicationDomainKnowledgeStore(),
         case_memory_store=case_store,
         application_rare_heavy_state=rare_heavy_state,
         credit_snapshot=credit_snapshot,
@@ -1012,6 +1072,54 @@ def test_final_wiring_application_prior_helper_supports_partial_credit_block():
         "application.case_memory.records.family-transition-high-emotion",
         "application.strategy_playbook.rules.family-transition-high-emotion",
     }
+
+
+def test_application_prior_writeback_applies_domain_knowledge_owner_side():
+    domain_store = ApplicationDomainKnowledgeStore()
+    prior_update = ApplicationPriorUpdate(
+        source_session_post_job_id="job:domain-knowledge",
+        domain_knowledge_updates=(
+            DomainKnowledgePriorUpdate(
+                update_id="update:domain-knowledge",
+                target="application.domain_knowledge.records.family_transition.knowledge-family-transition-1",
+                record=DomainKnowledgeRecord(
+                    record_id="knowledge:slow-loop:job:knowledge-family-transition-1:1",
+                    domain="family_transition",
+                    topic_tags=("family", "transition"),
+                    jurisdiction_tags=("local-law-sensitive",),
+                    source_type="official-guide",
+                    title="Family transition promoted knowledge",
+                    locator="phase1-seed",
+                    summary="Promoted family transition knowledge from delayed evidence.",
+                    snippet="Keep local specifics explicit before conclusions.",
+                    freshness_label="session-post-promoted",
+                    confidence=0.83,
+                    evidence_strength="medium",
+                ),
+                confidence=0.81,
+                description="Promote domain knowledge from delayed evidence.",
+            ),
+        ),
+        description="Application prior update with domain knowledge.",
+    )
+
+    operations, blocks, audits, report = _apply_application_prior_writeback(
+        prior_update=prior_update,
+        domain_knowledge_store=domain_store,
+        case_memory_store=ApplicationCaseMemoryStore(),
+        application_rare_heavy_state=ApplicationRareHeavyState(),
+        credit_snapshot=None,
+        timestamp_ms=11,
+        checkpoint_id="checkpoint:knowledge",
+        apply_enabled=True,
+        blocked_reason="allow",
+    )
+
+    assert report is not None
+    assert not blocks
+    assert any(op.startswith("application-prior:domain-knowledge:") for op in operations)
+    assert any(record.record_id == "knowledge:slow-loop:job:knowledge-family-transition-1:1" for record in domain_store.records)
+    assert audits
 
 
 def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():

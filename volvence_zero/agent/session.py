@@ -23,6 +23,7 @@ from volvence_zero.application.runtime import (
     ExperienceDelta,
     ExperienceFastPriorModule,
     ExperienceFastPriorSnapshot,
+    KnowledgeHit,
     ResponseAssemblySnapshot,
     RetrievalPolicySnapshot,
     StrategyPlaybookSnapshot,
@@ -295,6 +296,18 @@ def _experience_deltas_from_prior_update(
                 confidence=update.confidence,
                 blocked=update.target in blocked_target_set,
                 description=update.hint.description,
+            )
+        )
+    for update in prior_update.domain_knowledge_updates:
+        deltas.append(
+            ExperienceDelta(
+                delta_id=update.update_id,
+                delta_type="knowledge-promotion",
+                target_slot="domain_knowledge",
+                summary=update.description,
+                confidence=update.confidence,
+                blocked=update.target in blocked_target_set,
+                description=update.record.summary,
             )
         )
     for update in prior_update.retrieval_readout_updates:
@@ -946,6 +959,7 @@ class AgentSessionRunner:
         case_band_ids: tuple[str, ...] = ()
         case_mean_continuum_position = 0.0
         knowledge_domains: tuple[str, ...] = ()
+        knowledge_hits: tuple[KnowledgeHit, ...] = ()
         boundary_trigger_reasons: tuple[str, ...] = ()
         regime_id: str | None = None
         abstract_action: str | None = None
@@ -978,6 +992,7 @@ class AgentSessionRunner:
         knowledge_snapshot = self._upstream_snapshots.get("domain_knowledge")
         if knowledge_snapshot is not None and isinstance(knowledge_snapshot.value, DomainKnowledgeSnapshot):
             knowledge_domains = knowledge_snapshot.value.active_domains
+            knowledge_hits = knowledge_snapshot.value.hits
         retrieval_policy_snapshot = self._upstream_snapshots.get("retrieval_policy")
         if retrieval_policy_snapshot is not None:
             retrieval_policy_value = retrieval_policy_snapshot.value
@@ -1053,6 +1068,7 @@ class AgentSessionRunner:
             case_problem_patterns=case_problem_patterns,
             case_risk_markers=case_risk_markers,
             knowledge_domains=knowledge_domains,
+            knowledge_hits=knowledge_hits,
             boundary_trigger_reasons=boundary_trigger_reasons,
             regime_id=regime_id,
             abstract_action=abstract_action,
@@ -1219,6 +1235,7 @@ class AgentSessionRunner:
                 job_id=job.job_id,
                 closed_at_turn=job.closed_at_turn,
                 regime_id=job.regime_id,
+                knowledge_domains=job.knowledge_domains,
                 experience_domains=job.experience_domains,
                 case_problem_patterns=job.case_problem_patterns,
                 case_risk_markers=job.case_risk_markers,
@@ -1227,6 +1244,7 @@ class AgentSessionRunner:
                 experience_weight=job.experience_weight,
                 case_hit_count=job.case_hit_count,
                 mean_experience_quality=mean_experience_quality,
+                knowledge_hits=job.knowledge_hits,
                 retrieval_readout_checkpoint=self._application_rare_heavy_state.retrieval_readout_checkpoint,
                 retrieval_fast_prior_strength=max(job.retrieval_fast_prior_strength, mean_experience_quality),
                 retrieval_fast_prior_attribution_count=max(job.retrieval_fast_prior_attribution_count, 1),
@@ -1281,6 +1299,7 @@ class AgentSessionRunner:
                 application_prior_writeback_report,
             ) = _apply_application_prior_writeback(
                 prior_update=application_prior_update,
+                domain_knowledge_store=self._domain_knowledge_store,
                 case_memory_store=self._case_memory_store,
                 application_rare_heavy_state=self._application_rare_heavy_state,
                 credit_snapshot=job.writeback_request.credit_snapshot,
