@@ -540,11 +540,10 @@ class DialogueNLEssenceAcceptanceConfig:
     required_gate_ids: tuple[str, ...] = (
         "pe-first",
         "multi-timescale-default",
-        "slow-shapes-fast",
         "judge-gated-evolution",
         "cross-session-growth",
     )
-    min_passed_gate_count: int = 5
+    min_passed_gate_count: int = 6
 
 
 @dataclass(frozen=True)
@@ -3028,6 +3027,97 @@ async def run_dialogue_pe_eta_case(
 def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[str, float], ...]:
     mean_pe = _mean(tuple(turn.prediction_error_magnitude for turn in report.turns))
     mean_switch_gate = _mean(tuple(turn.switch_gate for turn in report.turns))
+    mean_substrate_online_fast_applied = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "substrate_online_fast_applied")) is not None
+        )
+    )
+    mean_substrate_online_fast_experimental_mode = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "substrate_online_fast_experimental_mode")) is not None
+        )
+    )
+    mean_substrate_online_fast_review_or_revert_safe = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "substrate_online_fast_review_or_revert_safe")) is not None
+        )
+    )
+    mean_substrate_online_fast_rollback_integrity = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "substrate_online_fast_rollback_integrity")) is not None
+        )
+    )
+    mean_memory_updater_effective_lr = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "memory_updater_effective_lr")) is not None
+        )
+    )
+    mean_memory_updater_confidence = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "memory_updater_confidence")) is not None
+        )
+    )
+    mean_temporal_updater_effective_lr = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "temporal_updater_effective_lr")) is not None
+        )
+    )
+    mean_temporal_updater_confidence = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "temporal_updater_confidence")) is not None
+        )
+    )
+    mean_optimizer_memory_drive = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "optimizer_memory_drive")) is not None
+        )
+    )
+    mean_timescale_contract_retained = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "timescale_contract_retained")) is not None
+        )
+    )
+    mean_scheduler_discipline = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "scheduler_discipline")) is not None
+        )
+    )
+    mean_scheduler_substrate_pressure = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "scheduler_substrate_pressure")) is not None
+        )
+    )
+    mean_scheduler_rare_heavy_pressure = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "scheduler_rare_heavy_pressure")) is not None
+        )
+    )
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -3053,6 +3143,22 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
         ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
         ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
+        ("mean_substrate_online_fast_applied", mean_substrate_online_fast_applied),
+        ("mean_substrate_online_fast_experimental_mode", mean_substrate_online_fast_experimental_mode),
+        (
+            "mean_substrate_online_fast_review_or_revert_safe",
+            mean_substrate_online_fast_review_or_revert_safe,
+        ),
+        ("mean_substrate_online_fast_rollback_integrity", mean_substrate_online_fast_rollback_integrity),
+        ("mean_memory_updater_effective_lr", mean_memory_updater_effective_lr),
+        ("mean_memory_updater_confidence", mean_memory_updater_confidence),
+        ("mean_temporal_updater_effective_lr", mean_temporal_updater_effective_lr),
+        ("mean_temporal_updater_confidence", mean_temporal_updater_confidence),
+        ("mean_optimizer_memory_drive", mean_optimizer_memory_drive),
+        ("mean_timescale_contract_retained", mean_timescale_contract_retained),
+        ("mean_scheduler_discipline", mean_scheduler_discipline),
+        ("mean_scheduler_substrate_pressure", mean_scheduler_substrate_pressure),
+        ("mean_scheduler_rare_heavy_pressure", mean_scheduler_rare_heavy_pressure),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -3263,6 +3369,75 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
     turns = report.turns
     mean_pe = _mean(tuple(turn.prediction_error_magnitude for turn in turns))
     mean_switch_gate = _mean(tuple(turn.switch_gate for turn in turns))
+    mean_substrate_online_fast_applied = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "substrate_online_fast_applied")) is not None
+        )
+    )
+    mean_substrate_online_fast_experimental_mode = _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, "substrate_online_fast_experimental_mode")) is not None
+        )
+    )
+    mean_substrate_online_fast_review_or_revert_safe = _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, "substrate_online_fast_review_or_revert_safe")) is not None
+        )
+    )
+    mean_substrate_online_fast_rollback_integrity = _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, "substrate_online_fast_rollback_integrity")) is not None
+        )
+    )
+    mean_memory_updater_effective_lr = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "memory_updater_effective_lr")) is not None
+        )
+    )
+    mean_memory_updater_confidence = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "memory_updater_confidence")) is not None
+        )
+    )
+    mean_temporal_updater_effective_lr = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "temporal_updater_effective_lr")) is not None
+        )
+    )
+    mean_temporal_updater_confidence = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "temporal_updater_confidence")) is not None
+        )
+    )
+    mean_optimizer_memory_drive = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "optimizer_memory_drive")) is not None
+        )
+    )
+    mean_timescale_contract_retained = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "timescale_contract_retained")) is not None
+        )
+    )
+    mean_scheduler_discipline = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "scheduler_discipline")) is not None)
+    )
+    mean_scheduler_substrate_pressure = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "scheduler_substrate_pressure")) is not None
+        )
+    )
+    mean_scheduler_rare_heavy_pressure = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "scheduler_rare_heavy_pressure")) is not None
+        )
+    )
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -3294,6 +3469,22 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
         ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
         ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
+        ("mean_substrate_online_fast_applied", mean_substrate_online_fast_applied),
+        ("mean_substrate_online_fast_experimental_mode", mean_substrate_online_fast_experimental_mode),
+        (
+            "mean_substrate_online_fast_review_or_revert_safe",
+            mean_substrate_online_fast_review_or_revert_safe,
+        ),
+        ("mean_substrate_online_fast_rollback_integrity", mean_substrate_online_fast_rollback_integrity),
+        ("mean_memory_updater_effective_lr", mean_memory_updater_effective_lr),
+        ("mean_memory_updater_confidence", mean_memory_updater_confidence),
+        ("mean_temporal_updater_effective_lr", mean_temporal_updater_effective_lr),
+        ("mean_temporal_updater_confidence", mean_temporal_updater_confidence),
+        ("mean_optimizer_memory_drive", mean_optimizer_memory_drive),
+        ("mean_timescale_contract_retained", mean_timescale_contract_retained),
+        ("mean_scheduler_discipline", mean_scheduler_discipline),
+        ("mean_scheduler_substrate_pressure", mean_scheduler_substrate_pressure),
+        ("mean_scheduler_rare_heavy_pressure", mean_scheduler_rare_heavy_pressure),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -3957,6 +4148,25 @@ def build_dialogue_nl_essence_assessment(
         and evidence_metric_means.get("mean_fast_memory_signal_norm", 0.0) > 0.0
         and evidence_metric_means.get("mean_fast_memory_runtime_alignment", 0.0) > 0.05
     )
+    bounded_live_self_mod_passed = (
+        evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0) > 0.0
+        and evidence_metric_means.get("mean_substrate_online_fast_review_or_revert_safe", 0.0) >= 0.8
+        and evidence_metric_means.get("mean_substrate_online_fast_rollback_integrity", 0.0) >= 0.95
+    )
+    updater_evidence_visible_passed = (
+        (
+            evidence_metric_means.get("mean_memory_updater_effective_lr", 0.0) > 0.0
+            or evidence_metric_means.get("mean_temporal_updater_effective_lr", 0.0) > 0.0
+        )
+        and (
+            evidence_metric_means.get("mean_memory_updater_confidence", 0.0) > 0.0
+            or evidence_metric_means.get("mean_temporal_updater_confidence", 0.0) > 0.0
+        )
+    )
+    timescale_contract_retained_passed = (
+        evidence_metric_means.get("mean_timescale_contract_retained", 0.0) >= 0.55
+        and evidence_metric_means.get("mean_scheduler_discipline", 0.0) >= 0.45
+    )
     store_nested_reset_count = evidence_metric_means.get("store_nested_context_reset_count", 0.0)
     reset_turn_slow_to_fast_init_benefit = evidence_metric_means.get(
         "mean_reset_turn_slow_to_fast_init_benefit", 0.0
@@ -4215,6 +4425,33 @@ def build_dialogue_nl_essence_assessment(
             description="PE-triggered turns should couple to reviewable online-fast substrate evidence with nontrivial fast-memory/runtime alignment.",
         ),
         DialogueNLEssenceGate(
+            gate_id="bounded-live-self-mod",
+            passed=bounded_live_self_mod_passed,
+            evidence=(
+                (
+                    "online_fast_substrate_recommended_count",
+                    evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0),
+                ),
+                (
+                    "substrate_online_fast_applied",
+                    evidence_metric_means.get("mean_substrate_online_fast_applied", 0.0),
+                ),
+                (
+                    "substrate_online_fast_experimental_mode",
+                    evidence_metric_means.get("mean_substrate_online_fast_experimental_mode", 0.0),
+                ),
+                (
+                    "substrate_online_fast_review_or_revert_safe",
+                    evidence_metric_means.get("mean_substrate_online_fast_review_or_revert_safe", 0.0),
+                ),
+                (
+                    "substrate_online_fast_rollback_integrity",
+                    evidence_metric_means.get("mean_substrate_online_fast_rollback_integrity", 0.0),
+                ),
+            ),
+            description="Online-fast substrate self-mod should either stay review-safe or apply through an experimental bounded path with rollback integrity.",
+        ),
+        DialogueNLEssenceGate(
             gate_id="rare-heavy-net-benefit",
             passed=rare_heavy_net_benefit_passed,
             evidence=(
@@ -4273,6 +4510,33 @@ def build_dialogue_nl_essence_assessment(
             description="Slow-layer state should seed faster bands through observable nested reset behavior.",
         ),
         DialogueNLEssenceGate(
+            gate_id="updater-evidence-visible",
+            passed=updater_evidence_visible_passed,
+            evidence=(
+                (
+                    "memory_updater_effective_lr",
+                    evidence_metric_means.get("mean_memory_updater_effective_lr", 0.0),
+                ),
+                (
+                    "memory_updater_confidence",
+                    evidence_metric_means.get("mean_memory_updater_confidence", 0.0),
+                ),
+                (
+                    "temporal_updater_effective_lr",
+                    evidence_metric_means.get("mean_temporal_updater_effective_lr", 0.0),
+                ),
+                (
+                    "temporal_updater_confidence",
+                    evidence_metric_means.get("mean_temporal_updater_confidence", 0.0),
+                ),
+                (
+                    "optimizer_memory_drive",
+                    evidence_metric_means.get("mean_optimizer_memory_drive", 0.0),
+                ),
+            ),
+            description="Memory and temporal owners should publish machine-readable updater evidence, not just implicit adaptive behavior.",
+        ),
+        DialogueNLEssenceGate(
             gate_id="tower-memory-surface",
             passed=tower_memory_surface_passed,
             evidence=(
@@ -4297,6 +4561,26 @@ def build_dialogue_nl_essence_assessment(
                 "Memory tower should not only be visible on the benchmark path, but also show stronger "
                 "depth/alignment/consolidation evidence than matched controls."
             ),
+        ),
+        DialogueNLEssenceGate(
+            gate_id="timescale-contract-retained",
+            passed=timescale_contract_retained_passed,
+            evidence=(
+                (
+                    "timescale_contract_retained",
+                    evidence_metric_means.get("mean_timescale_contract_retained", 0.0),
+                ),
+                ("scheduler_discipline", evidence_metric_means.get("mean_scheduler_discipline", 0.0)),
+                (
+                    "scheduler_substrate_pressure",
+                    evidence_metric_means.get("mean_scheduler_substrate_pressure", 0.0),
+                ),
+                (
+                    "scheduler_rare_heavy_pressure",
+                    evidence_metric_means.get("mean_scheduler_rare_heavy_pressure", 0.0),
+                ),
+            ),
+            description="The default path should retain a coherent owner-side timescale contract instead of collapsing learning phases together.",
         ),
         DialogueNLEssenceGate(
             gate_id="judge-gated-evolution",

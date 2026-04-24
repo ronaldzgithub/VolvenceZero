@@ -814,22 +814,32 @@ def apply_session_post_writeback_request(
     temporal_policy: TemporalPolicy | None,
     regime_module: RegimeModule | None,
 ) -> tuple[WritebackResult | None, tuple[SelfModificationRecord, ...]]:
-    apply_enabled = request.reflection_apply_enabled and request.structural_writeback_allowed
-    if apply_enabled:
+    structural_apply_enabled = (
+        request.reflection_apply_enabled and request.structural_writeback_allowed
+    )
+    if request.reflection_apply_enabled:
         writeback_result = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
             memory_store=memory_store,
             reflection_snapshot=request.reflection_snapshot,
             credit_snapshot=request.credit_snapshot,
-            regime_module=regime_module,
+            regime_module=regime_module if structural_apply_enabled else None,
             checkpoint_id=request.checkpoint_id,
         )
-    elif request.reflection_apply_enabled:
-        writeback_result = WritebackResult(
-            applied_operations=(),
-            blocked_operations=("evolution-judge-block",),
-            checkpoint=None,
-            description="Session-post reflection writeback was blocked by the evolution judge.",
-        )
+        if (
+            not structural_apply_enabled
+            and writeback_result is not None
+            and not writeback_result.blocked_operations
+        ):
+            writeback_result = replace(
+                writeback_result,
+                blocked_operations=writeback_result.blocked_operations
+                + ("evolution-judge-block:structural-only",),
+                description=(
+                    f"{writeback_result.description} "
+                    "Structural writeback was gated by the evolution judge; "
+                    "memory-owner bounded consolidation still applied."
+                ),
+            )
     else:
         writeback_result = WritebackResult(
             applied_operations=(),
@@ -850,7 +860,7 @@ def apply_session_post_writeback_request(
         reflection_snapshot=reflection_snapshot,
         credit_snapshot=request.credit_snapshot,
         timestamp_ms=request.session_report.timestamp_ms + 1,
-        apply_enabled=apply_enabled,
+        apply_enabled=structural_apply_enabled,
     )
     if (temporal_writeback_operations or temporal_writeback_blocks) and writeback_result is not None:
         writeback_result = replace(

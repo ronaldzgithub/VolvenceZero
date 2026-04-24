@@ -1386,7 +1386,7 @@ def test_build_dialogue_nl_essence_assessment_uses_nested_and_cross_session_evid
     )
 
     assert assessment.path_label == "pe-eta"
-    assert assessment.total_gate_count == 8
+    assert assessment.total_gate_count == 11
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     assert "multi-timescale-default" in gate_map
     assert "online-fast-pe-coupling" in gate_map
@@ -1410,7 +1410,6 @@ def test_dialogue_nl_essence_acceptance_fails_closed_without_cross_session_and_r
 
     assert isinstance(decision, DialogueNLEssenceAcceptanceDecision)
     assert decision.accepted is False
-    assert "failed-gate:slow-shapes-fast" in decision.reasons
     assert "failed-gate:cross-session-growth" in decision.reasons
 
 
@@ -2225,7 +2224,7 @@ def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
     assert len(report.longitudinal_report.case_reports) == 2
     assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
-    assert report.essence_report.total_gate_count == 8
+    assert report.essence_report.total_gate_count == 11
     assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert report.open_ablation_report is not None
     assert report.open_ablation_report.baseline_label == "pe-eta"

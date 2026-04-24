@@ -1345,6 +1345,94 @@ def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
     assert result.writeback_source == "shadow"
 
 
+def test_session_post_writeback_keeps_memory_consolidation_when_structure_is_judge_blocked():
+    from volvence_zero.evaluation.backbone import EvaluationReport
+    from volvence_zero.integration import SessionPostWritebackRequest, apply_session_post_writeback_request
+    from volvence_zero.reflection import (
+        ConsolidationScore,
+        MemoryConsolidation,
+        PolicyConsolidation,
+        ReflectionSnapshot,
+    )
+
+    memory_store = build_default_memory_store(latent_dim=4)
+    promoted = memory_store.write(
+        MemoryWriteRequest(
+            content="repair this durable lesson",
+            track=Track.SELF,
+            stratum=MemoryStratum.EPISODIC,
+            tags=("repair",),
+            strength=0.9,
+        ),
+        timestamp_ms=5,
+    )
+    request = SessionPostWritebackRequest(
+        context_session_id="judge-blocked-memory-session",
+        source_wave_id="wave-4",
+        session_report=EvaluationReport(
+            report_id="report-1",
+            report_type="session",
+            timestamp_ms=10,
+            session_ids=("judge-blocked-memory-session",),
+            scores_by_family=(),
+            alerts=(),
+            trends=(),
+            recommendations=(),
+            description="minimal session report",
+        ),
+        reflection_snapshot=ReflectionSnapshot(
+            memory_consolidation=MemoryConsolidation(
+                new_durable_entries=(),
+                promoted_entries=(promoted.entry_id,),
+                decayed_entries=(),
+                beliefs_updated=("reinforce:self:repair",),
+            ),
+            policy_consolidation=PolicyConsolidation(
+                controller_updates=(),
+                strategy_priors_updated=(),
+                regime_effectiveness_updated=(),
+            ),
+            consolidation_score=ConsolidationScore(
+                promotion_score=0.7,
+                decay_score=0.2,
+                threshold_delta=0.0,
+                strategy_gain=0.2,
+                regime_effectiveness_gain=0.1,
+                confidence=0.8,
+                description="judge-blocked structure but safe memory apply",
+            ),
+            interaction_trace_summary="trace",
+            tensions_identified=("support-tension",),
+            lessons_extracted=("repair lesson",),
+            writeback_mode=WritebackMode.APPLY.value,
+            review_required=False,
+            description="reflection snapshot",
+        ),
+        credit_snapshot=None,
+        evolution_judgement=None,
+        cross_session_verdict="hold",
+        writeback_source="shadow",
+        reflection_apply_enabled=True,
+        structural_writeback_allowed=False,
+        checkpoint_id="judge-blocked-memory-checkpoint",
+        description="judge-blocked memory request",
+    )
+
+    writeback_result, temporal_audits = apply_session_post_writeback_request(
+        request=request,
+        memory_store=memory_store,
+        temporal_policy=FullLearnedTemporalPolicy(),
+        regime_module=None,
+    )
+
+    assert writeback_result is not None
+    assert any(operation.startswith("tower-consolidation:") for operation in writeback_result.applied_operations)
+    assert "evolution-judge-block:structural-only" in writeback_result.blocked_operations
+    assert temporal_audits == ()
+    metrics = dict(memory_store.snapshot(retrieved_entries=()).lifecycle_metrics)
+    assert metrics["tower_consolidation_count"] >= 1.0
+
+
 def test_final_wiring_merges_joint_kernel_scores_into_published_evaluation():
     result = asyncio.run(
         run_final_wiring_turn(
