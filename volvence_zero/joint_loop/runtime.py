@@ -1557,7 +1557,7 @@ class ETANLJointLoop:
             reasons.append("metacontroller-drift")
         if self._previous_total_reward is None:
             return tuple(reasons)
-        if total_reward + 0.25 < self._previous_total_reward:
+        if total_reward + 0.30 < self._previous_total_reward:
             reasons.append("reward-regression")
             if surrogate_total > 0.1:
                 reasons.append("surrogate-positive-outcome-negative")

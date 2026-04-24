@@ -93,7 +93,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前 `TransformersOpenWeightResidualRuntime` 已实现 Hugging Face causal LM 的中层 block forward hook capture / intervention；runtime owner 负责 hook 层选择、冻结边界和控制投影、模型家族 block 解析，以及稳定 feature summary 的发布，消费者继续只读取公共快照
 - 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
-- 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认 frozen-substrate doctrine 下，该 owner 只发布 proposal / evidence，不触发 live substrate mutation
+- 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认主路径下，该 owner 会在通过 schedule + gate 后触发 bounded live substrate mutation；显式 frozen runner 则只发布 proposal / evidence
 - `FinalRolloutConfig` 当前默认采用 widened application rollout：`case_memory`、`strategy_playbook`、`experience_fast_prior`、`experience_consolidation` 默认随主链开启；其中 `experience_consolidation` 继续是 session-owned post surface，而不是 final wiring DAG 中的第二 owner
 - slow reflection 现通过 typed `TemporalPriorUpdate` 提案写回 temporal owner；编排层只负责 target-specific gate + audit + 调用 owner 的 apply surface，不重建 metacontroller 内部状态
 - agent session 现允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 substrate adapter；表达层响应生成只消费 richer distilled context，不再持有完整 runtime snapshot dict，减少跨 event loop 的隐式耦合
@@ -133,7 +133,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - `evaluation` 的 direct dependency 仍是其模块声明的 upstream slots
 - 但 final wiring 会在 propagation 之后额外读取 `prediction_error`、joint-loop result、writeback result，为 `evaluation` 追加 evidence
 - 这属于 **evaluation enrichment**，不是 `EvaluationModule.process()` 的 direct dependency
-- 同理，`substrate_self_mod` 的 direct dependency 是 `substrate + evaluation + prediction_error`；而 online-fast substrate checkpoint 的真正应用、回滚和 credit audit 属于 session/joint-loop 在 propagation 之后执行的 owner-side apply/enrichment，不意味着 `SubstrateModule.process()` 或 `EvaluationModule.process()` 直接持有 substrate runtime 写权限。在默认 doctrine 下，这些 apply path 还必须额外通过 frozen-substrate guard
+- 同理，`substrate_self_mod` 的 direct dependency 是 `substrate + evaluation + prediction_error`；而 online-fast substrate checkpoint 的真正应用、回滚和 credit audit 属于 session/joint-loop 在 propagation 之后执行的 owner-side apply/enrichment，不意味着 `SubstrateModule.process()` 或 `EvaluationModule.process()` 直接持有 substrate runtime 写权限。默认主路径下，这些 apply path 仍必须通过 schedule、evaluation gate 与 owner-side checkpoint/rollback；显式 frozen runner 额外保留 frozen-substrate guard
 
 ### 内部状态发布（R11）
 

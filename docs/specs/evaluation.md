@@ -94,7 +94,7 @@
 - 当前 `tower-memory-surface` gate 已从单纯可见性检查提升为更接近机制强度 gate：除 tower depth、alignment、consolidation 与 matched-control gap 外，还要求 runtime backbone evidence 与 fast-memory/runtime alignment 一起成立
 - 当前 `emergence dashboard` 与 dialogue paper-suite 也已开始直接暴露 runtime summary：canonical/open runtime evidence rate、runtime quality、fast-memory alignment 已进入高层 artifact；tower summary 退到辅证位
 - 当前 dialogue proof harness 默认已从弱 A/B baseline 切到更接近论文风格的正交 profile matrix（`pe-eta` / `pe-drive-off` / `eta-off` / `timescale-off`），并继续保留 `pe-eta-no-rare-heavy` 作为 rare-heavy 对照面
-- 当前 NL essence 默认 acceptance 已进一步对齐默认 doctrine：默认必需 gate 聚焦 `pe-first / multi-timescale-default / slow-shapes-fast / judge-gated-evolution / cross-session-growth`，而 `rare-heavy-net-benefit` 保留为附加强证据面，因为 rare-heavy 在默认主路径下仍是 review-first、非必经收益路径
+- 当前 NL essence 默认 acceptance 已进一步对齐默认 doctrine：默认必需 gate 聚焦 `pe-first / multi-timescale-default / slow-shapes-fast / judge-gated-evolution / cross-session-growth`，而 `rare-heavy-net-benefit` 保留为附加强证据面，因为 rare-heavy 虽已进入默认可导入主路径，但仍受 pre-import replay、evolution gate 与回滚约束，不是每个 case 都必须体现净收益
 - 当前 stronger proof config 还会把 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`、`pe-eta-pe-readout-only` 纳入同一张 proof matrix，用于把 scaffold removal 与 PE readout-only 变成 first-class comparison，而不是只在单独 debug run 里观察
 - 当前 `eta-off` baseline 的口径已进一步收紧为“保留最小 temporal controller capacity，但关闭 ETA-style learned/full temporal path、joint learning 与 PE drive”，不再把“没有 ETA”直接等同于 placeholder/no-temporal-control
 - 当前 benchmark 还支持显式 scaffold-ablation controls（如 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）：它们不改变默认 profile matrix，而是用于单独回答“latent family / PE schedule 是否在去掉一层 heuristic scaffold 后仍能站住”
