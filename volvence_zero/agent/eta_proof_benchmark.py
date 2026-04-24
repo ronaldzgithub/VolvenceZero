@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from random import Random
 from typing import Any
 
 from volvence_zero.agent.paper_suite import (
+    ClaimVerdict,
+    EvidenceBundle,
     PaperMetricSpec,
     PaperProfileSpec,
     PaperSuiteManifest,
@@ -15,6 +17,8 @@ from volvence_zero.agent.paper_suite import (
 )
 from volvence_zero.evaluation.backbone import (
     MetricIntervalSummary,
+    PairwiseMetricEffect,
+    build_pairwise_metric_effect,
     build_metric_interval_summaries,
 )
 
@@ -173,6 +177,8 @@ class ETAProofPaperSuiteAggregateReport:
     secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
     interpretation_summary: ETAProofPaperSuiteInterpretationSummary | None
     description: str
+    pairwise_effects: tuple[PairwiseMetricEffect, ...] = ()
+    claim_verdicts: tuple[ClaimVerdict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -480,14 +486,14 @@ def build_eta_proof_paper_suite_manifest(
         train_epochs = 1
         backend_labels = ("trace",)
     elif suite_tier == "paper-suite-full":
-        repeat_count = 3
-        seed_schedule = (0, 1, 2)
+        repeat_count = 20
+        seed_schedule = tuple(range(repeat_count))
         route_ids = tuple(route.case_id for route in default_eta_proof_routes())
         train_epochs = 2
         backend_labels = ("trace", "synthetic-open-weight")
     elif suite_tier == "paper-suite-small":
-        repeat_count = 2
-        seed_schedule = (0, 1)
+        repeat_count = 5
+        seed_schedule = tuple(range(repeat_count))
         route_ids = tuple(route.case_id for route in default_eta_proof_routes())
         train_epochs = 1
         backend_labels = ("trace", "synthetic-open-weight")
@@ -614,6 +620,7 @@ def build_eta_proof_paper_suite_manifest(
             "per-run assessment json",
             "aggregate summary json",
             "provenance json",
+            "evidence bundle json",
         ),
         description=(
             f"Frozen ETA proof paper suite {suite_tier} with {repeat_count} repeated runs "
@@ -1803,6 +1810,7 @@ def run_eta_internal_rl_paper_suite(
         primary_metric_summaries=primary_metric_summaries,
         secondary_metric_summaries=secondary_metric_summaries,
     )
+    pairwise_effects = _build_eta_paper_suite_pairwise_effects(tuple(run_summaries))
     aggregate_report = ETAProofPaperSuiteAggregateReport(
         manifest=active_manifest,
         provenance=provenance,
@@ -1817,6 +1825,12 @@ def run_eta_internal_rl_paper_suite(
             f"ETA proof paper suite {active_manifest.suite_id} aggregated "
             f"{len(run_summaries)} repeated runs."
         ),
+        pairwise_effects=pairwise_effects,
+        claim_verdicts=(),
+    )
+    aggregate_report = replace(
+        aggregate_report,
+        claim_verdicts=_build_eta_claim_verdicts(aggregate_report),
     )
     if output_dir is not None:
         export_eta_internal_rl_paper_suite_artifact_bundle(
@@ -1824,6 +1838,118 @@ def run_eta_internal_rl_paper_suite(
             output_dir=output_dir,
         )
     return aggregate_report
+
+
+def _eta_run_metric_map(summary: ETAProofPaperSuiteRunSummary) -> dict[str, float]:
+    return dict(summary.metric_values)
+
+
+def _build_eta_paper_suite_pairwise_effects(
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+) -> tuple[PairwiseMetricEffect, ...]:
+    if not run_summaries:
+        return ()
+    full_values = tuple(
+        _eta_run_metric_map(summary).get("heldout_strong_success_rate", 0.0)
+        for summary in run_summaries
+    )
+    strongest_control_values = tuple(
+        _eta_run_metric_map(summary).get("heldout_strong_success_rate", 0.0)
+        - _eta_run_metric_map(summary).get("strong_success_gap_vs_best_control", 0.0)
+        for summary in run_summaries
+    )
+    return (
+        build_pairwise_metric_effect(
+            metric_name="heldout_strong_success_rate",
+            candidate_label="full-internal-rl",
+            control_label="strongest-control",
+            candidate_values=full_values,
+            control_values=strongest_control_values,
+        ),
+    )
+
+
+def _eta_claim_status(*, retain_checks: tuple[bool, ...], weak_checks: tuple[bool, ...] = ()) -> str:
+    if retain_checks and all(retain_checks):
+        return "retain"
+    if weak_checks and all(weak_checks):
+        return "weak"
+    if retain_checks and any(retain_checks):
+        return "weak"
+    return "fail"
+
+
+def _build_eta_claim_verdicts(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+) -> tuple[ClaimVerdict, ...]:
+    assessment = aggregate_report.reference_assessment
+    blocked_gate_ids = set(assessment.gates[i].gate_id for i in range(len(assessment.gates)) if not assessment.gates[i].passed) if assessment is not None else set()
+    strongest_control_effect = next(iter(aggregate_report.pairwise_effects), None)
+    statistical_gate_passed = "statistical-batch-evidence" not in blocked_gate_ids
+    claim_internal_rl = _eta_claim_status(
+        retain_checks=(
+            assessment is not None and assessment.passed_gate_count >= assessment.total_gate_count,
+            strongest_control_effect is not None and strongest_control_effect.ci_low > 0.0,
+            statistical_gate_passed,
+        ),
+        weak_checks=(
+            assessment is not None and assessment.passed_gate_count >= max(1, assessment.total_gate_count - 1),
+            strongest_control_effect is not None and strongest_control_effect.mean_delta > 0.0,
+        ),
+    )
+    return (
+        ClaimVerdict(
+            claim_id="claim_eta_internal_rl_advantage",
+            status=claim_internal_rl,
+            required_gate_ids=(
+                "sparse-reward-success",
+                "abstract-action-reuse",
+                "heldout-composition",
+                "credit-alignment",
+                "policy-update-evidence",
+                "statistical-batch-evidence",
+                "backend-robustness",
+            ),
+            supporting_artifacts=("paper_suite_aggregate", "reference_assessment"),
+            evidence=(
+                ("passed_gate_count", float(assessment.passed_gate_count) if assessment is not None else 0.0),
+                ("total_gate_count", float(assessment.total_gate_count) if assessment is not None else 0.0),
+                ("strong_success_gap_ci_low", strongest_control_effect.ci_low if strongest_control_effect is not None else 0.0),
+                ("strong_success_gap_mean_delta", strongest_control_effect.mean_delta if strongest_control_effect is not None else 0.0),
+                ("statistical_batch_evidence_passed", float(statistical_gate_passed)),
+            ),
+            summary="ETA internal-RL strong-proof claim verdict.",
+            description="Checks whether full internal RL stays ahead of the strongest control with retained acceptance gates and statistical evidence.",
+        ),
+    )
+
+
+def build_eta_paper_suite_evidence_bundle(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+) -> EvidenceBundle:
+    reference_artifacts: list[tuple[str, Any]] = []
+    if aggregate_report.reference_benchmark_report is not None:
+        reference_artifacts.append(("reference_benchmark_report", aggregate_report.reference_benchmark_report))
+    if aggregate_report.reference_backend_report is not None:
+        reference_artifacts.append(("reference_backend_report", aggregate_report.reference_backend_report))
+    if aggregate_report.reference_assessment is not None:
+        reference_artifacts.append(("reference_assessment", aggregate_report.reference_assessment))
+    return EvidenceBundle(
+        bundle_id=f"{aggregate_report.manifest.suite_id}:evidence-bundle",
+        suite_kind=aggregate_report.manifest.suite_kind,
+        manifest=aggregate_report.manifest,
+        provenance=aggregate_report.provenance,
+        run_summaries=aggregate_report.run_summaries,
+        aggregate_metrics={
+            "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+            "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+            "interpretation_summary": aggregate_report.interpretation_summary,
+        },
+        pairwise_effects=aggregate_report.pairwise_effects,
+        reference_artifacts=tuple(reference_artifacts),
+        claim_verdicts=aggregate_report.claim_verdicts,
+        description=f"Unified ETA evidence bundle for {aggregate_report.manifest.suite_id}.",
+    )
 
 
 def export_eta_internal_rl_paper_suite_artifact_bundle(
@@ -1851,6 +1977,8 @@ def export_eta_internal_rl_paper_suite_artifact_bundle(
                 "suite_id": aggregate_report.manifest.suite_id,
                 "primary_metric_summaries": aggregate_report.primary_metric_summaries,
                 "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "pairwise_effects": aggregate_report.pairwise_effects,
+                "claim_verdicts": aggregate_report.claim_verdicts,
                 "interpretation_summary": aggregate_report.interpretation_summary,
                 "description": aggregate_report.description,
             },
@@ -1885,4 +2013,10 @@ def export_eta_internal_rl_paper_suite_artifact_bundle(
                 output_path=target_dir / "paper_suite_interpretation_summary.json",
             )
         )
+    written_paths.append(
+        export_json_artifact(
+            payload=build_eta_paper_suite_evidence_bundle(aggregate_report),
+            output_path=target_dir / "evidence_bundle.json",
+        )
+    )
     return tuple(written_paths)

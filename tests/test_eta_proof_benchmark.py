@@ -365,8 +365,8 @@ def test_eta_proof_paper_suite_manifest_freezes_primary_metrics():
 
     assert manifest.suite_kind == "eta-internal-rl-proof"
     assert manifest.baseline_label == "full-internal-rl"
-    assert manifest.repeat_count == 2
-    assert manifest.seed_schedule == (0, 1)
+    assert manifest.repeat_count == 5
+    assert manifest.seed_schedule == (0, 1, 2, 3, 4)
     assert any(metric.metric_name == "heldout_strong_success_rate" for metric in manifest.primary_metrics)
     assert any(metric.metric_name == "mean_rollouts_per_update" for metric in manifest.secondary_metrics)
 
@@ -383,6 +383,8 @@ def test_run_eta_internal_rl_paper_suite_emits_interval_summaries(tmp_path):
     assert report.run_summaries
     assert report.primary_metric_summaries
     assert any(summary.metric_name == "mean_rollouts_per_update" for summary in report.secondary_metric_summaries)
+    assert report.pairwise_effects
+    assert report.claim_verdicts
     assert report.interpretation_summary is not None
     assert report.interpretation_summary.interpretation
     assert report.interpretation_summary.review_summary
@@ -413,3 +415,4 @@ def test_eta_paper_suite_artifact_bundle_exports_reference_reports(tmp_path):
     assert (tmp_path / "reference_benchmark_report.json").exists()
     assert (tmp_path / "reference_assessment.json").exists()
     assert (tmp_path / "paper_suite_interpretation_summary.json").exists()
+    assert (tmp_path / "evidence_bundle.json").exists()

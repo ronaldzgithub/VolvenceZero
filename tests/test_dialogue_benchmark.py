@@ -28,6 +28,7 @@ from volvence_zero.agent import (
     build_dialogue_nl_essence_assessment,
     build_dialogue_emergence_dashboard,
     build_dialogue_emergence_dashboard_payload,
+    build_dialogue_expert_review_internal_key,
     build_dialogue_expert_review_packet,
     build_dialogue_paper_suite_manifest,
     build_pe_dominance_case_diagnosis_report,
@@ -71,7 +72,6 @@ from volvence_zero.agent import (
     run_multi_artifact_acceptance_benchmark,
     train_rare_heavy_artifact_from_replay_selection,
     export_dialogue_emergence_dashboard_artifact,
-    export_dialogue_expert_review_packet,
     export_dialogue_paper_suite_artifact_bundle,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
@@ -636,12 +636,13 @@ def test_dialogue_benchmark_exposes_default_open_dialogue_scenarios():
     scenarios = open_dialogue_scenarios()
 
     assert scenarios == DEFAULT_OPEN_DIALOGUE_SCENARIOS
-    assert tuple(scenario.scenario_id for scenario in scenarios) == (
+    assert tuple(scenario.scenario_id for scenario in scenarios[:4]) == (
         "open_repair",
+        "open_repair_family",
+        "open_repair_heldout",
         "open_clarification",
-        "open_failure_loop",
-        "open_goal_shift",
     )
+    assert any(scenario.split == "open_heldout" for scenario in scenarios)
 
 
 def test_dialogue_benchmark_exposes_default_open_ablation_profiles():
@@ -676,6 +677,8 @@ def test_build_deterministic_user_simulator_is_reproducible_for_same_seed():
 def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     scenario = OpenDialogueScenario(
         scenario_id="open-proof",
+        family_id="synthetic",
+        split="open_core",
         description="Synthetic open scenario for report coverage.",
         opening_turns=("start",),
         escalation_turns=("push",),
@@ -1265,12 +1268,13 @@ def test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope():
 
     assert manifest.suite_kind == "dialogue-comprehensive"
     assert manifest.baseline_label == "pe-eta"
-    assert manifest.repeat_count == 2
-    assert manifest.seed_schedule == (0, 1)
+    assert manifest.repeat_count == 5
+    assert manifest.seed_schedule == (0, 1, 2, 3, 4)
     assert any(metric.metric_name == "canonical_pass_rate_pe_eta" for metric in manifest.primary_metrics)
     assert any(metric.metric_name == "canonical_runtime_backbone_evidence_rate" for metric in manifest.primary_metrics)
     assert any(metric.metric_name == "canonical_mean_memory_tower_depth" for metric in manifest.secondary_metrics)
     assert any(metric.metric_name == "tower_memory_gate_strength" for metric in manifest.secondary_metrics)
+    assert all("heldout" not in scenario_id for scenario_id in manifest.case_groups[1][1])
     assert config.runtime_mode == LocalSubstrateRuntimeMode.BUILTIN_ONLY
     assert config.profile_labels == default_dialogue_comprehensive_profiles()
     assert config.open_profile_labels == default_open_dialogue_ablation_profiles()
@@ -1290,6 +1294,8 @@ def test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries(tm
     assert report.manifest.suite_id == "dialogue-ci-smoke"
     assert report.run_summaries
     assert report.primary_metric_summaries
+    assert report.pairwise_effects
+    assert report.claim_verdicts
     assert report.provenance.manifest_hash
     assert report.reference_run_report is not None
 
@@ -1307,14 +1313,26 @@ def test_dialogue_paper_suite_artifact_bundle_exports_expert_review_packet(tmp_p
         report,
         output_dir=tmp_path,
     )
-    review_packet_path = tmp_path / "expert_review_packet.json"
+    review_packet_path = tmp_path / "expert_review_packet_blinded.json"
+    review_key_path = tmp_path / "expert_review_key_internal.json"
+    evidence_bundle_path = tmp_path / "evidence_bundle.json"
 
     assert written_paths
     assert review_packet_path.exists()
+    assert review_key_path.exists()
+    assert evidence_bundle_path.exists()
     payload = json.loads(review_packet_path.read_text(encoding="utf-8"))
-    assert payload["baseline_label"] == "pe-eta"
     assert payload["items"]
     assert payload["review_dimensions"]
+    assert "source_profile_label" not in review_packet_path.read_text(encoding="utf-8")
+
+    key_payload = json.loads(review_key_path.read_text(encoding="utf-8"))
+    assert key_payload["baseline_label"] == "pe-eta"
+    assert key_payload["entries"]
+
+    bundle_payload = json.loads(evidence_bundle_path.read_text(encoding="utf-8"))
+    assert bundle_payload["pairwise_effects"]
+    assert bundle_payload["claim_verdicts"]
 
 
 def test_build_dialogue_expert_review_packet_blinds_profile_labels():
@@ -1336,12 +1354,16 @@ def test_build_dialogue_expert_review_packet_blinds_profile_labels():
     )
 
     packet = build_dialogue_expert_review_packet(report)
+    internal_key = build_dialogue_expert_review_internal_key(report)
 
     assert packet.items
     first_item = packet.items[0]
     assert first_item.samples
     assert all(sample.blinded_label.startswith("sample_") for sample in first_item.samples)
     assert all(sample.transcript for sample in first_item.samples)
+    assert first_item.prompt_context
+    assert internal_key.entries
+    assert all(entry.source_profile_label in {"pe-eta", "pe-drive-off", "eta-off"} for entry in internal_key.entries)
 
 
 def test_run_dialogue_pe_eta_longitudinal_benchmark_emits_cross_session_report():

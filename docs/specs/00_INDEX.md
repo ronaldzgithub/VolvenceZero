@@ -138,7 +138,22 @@
 
 ---
 
-### 9. 认知 Regime
+### 9. 证据计划
+
+**对应需求**：R12（评估覆盖"存在"而非仅任务成功）、R15（迁移可解释性和可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
+
+**核心不变量**：
+- 对外主张必须映射到 required gates、artifact 与 verdict
+- 盲评外发包不得泄漏 profile 条件
+- 证据结论必须可回溯到 manifest / provenance / 原始 artifact
+
+---
+
+### 10. 认知 Regime
 
 **对应需求**：R14（社交与认知 Regime 的持久身份）
 

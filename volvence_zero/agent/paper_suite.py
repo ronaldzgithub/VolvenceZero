@@ -57,6 +57,33 @@ class PaperSuiteProvenance:
     description: str
 
 
+@dataclass(frozen=True)
+class ClaimVerdict:
+    claim_id: str
+    status: str
+    required_gate_ids: tuple[str, ...]
+    supporting_artifacts: tuple[str, ...]
+    evidence: tuple[tuple[str, float | str], ...]
+    summary: str
+    description: str
+
+
+@dataclass(frozen=True)
+class EvidenceBundle:
+    bundle_id: str
+    suite_kind: str
+    manifest: Any
+    provenance: PaperSuiteProvenance
+    run_summaries: Any
+    aggregate_metrics: Any
+    pairwise_effects: tuple[Any, ...] = ()
+    reference_artifacts: tuple[tuple[str, Any], ...] = ()
+    blind_review_packet: Any | None = None
+    human_ratings_aggregate: Any | None = None
+    claim_verdicts: tuple[ClaimVerdict, ...] = ()
+    description: str = ""
+
+
 def _json_normalize(value: Any) -> Any:
     if is_dataclass(value):
         return {key: _json_normalize(inner) for key, inner in asdict(value).items()}

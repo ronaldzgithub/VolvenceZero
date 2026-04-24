@@ -10,6 +10,8 @@ from random import Random
 from typing import Any, Protocol
 
 from volvence_zero.agent.paper_suite import (
+    ClaimVerdict,
+    EvidenceBundle,
     PaperMetricSpec,
     PaperProfileSpec,
     PaperSuiteManifest,
@@ -26,6 +28,8 @@ from volvence_zero.evaluation.backbone import (
     EvolutionDecision,
     JudgementCategory,
     MetricIntervalSummary,
+    PairwiseMetricEffect,
+    build_pairwise_metric_effect,
     build_metric_interval_summaries,
 )
 from volvence_zero.integration import FinalRolloutConfig
@@ -71,11 +75,15 @@ class ScriptedDialogueCase:
 @dataclass(frozen=True)
 class OpenDialogueScenario:
     scenario_id: str
+    family_id: str
+    split: str
     description: str
     opening_turns: tuple[str, ...]
     escalation_turns: tuple[str, ...]
     stabilization_turns: tuple[str, ...]
     consolidation_turns: tuple[str, ...]
+    pressure_shape: str = "escalate-stabilize"
+    goal_shift_mid_episode: bool = False
     max_turns: int = 6
 
 
@@ -830,6 +838,8 @@ class DialoguePaperSuiteAggregateReport:
     primary_metric_summaries: tuple[MetricIntervalSummary, ...]
     secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
     description: str
+    pairwise_effects: tuple[PairwiseMetricEffect, ...] = ()
+    claim_verdicts: tuple[ClaimVerdict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -844,15 +854,13 @@ class DialogueExpertReviewSample:
     sample_id: str
     blinded_label: str
     transcript: tuple[tuple[str, str], ...]
-    source_profile_label: str
     description: str
 
 
 @dataclass(frozen=True)
 class DialogueExpertReviewItem:
     item_id: str
-    case_id: str
-    case_description: str
+    prompt_context: str
     samples: tuple[DialogueExpertReviewSample, ...]
     review_dimensions: tuple[DialogueExpertReviewDimension, ...]
     description: str
@@ -862,9 +870,68 @@ class DialogueExpertReviewItem:
 class DialogueExpertReviewPacket:
     packet_id: str
     source_suite_id: str
-    baseline_label: str
     items: tuple[DialogueExpertReviewItem, ...]
     review_dimensions: tuple[DialogueExpertReviewDimension, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewInternalKeyEntry:
+    item_id: str
+    sample_id: str
+    blinded_label: str
+    source_case_id: str
+    source_profile_label: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueExpertReviewInternalKey:
+    packet_id: str
+    baseline_label: str
+    entries: tuple[DialogueExpertReviewInternalKeyEntry, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueHumanRatingEntry:
+    rater_id: str
+    item_id: str
+    sample_id: str
+    dimension_id: str
+    score: float
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class DialogueHumanRatingTemplate:
+    packet_id: str
+    min_rater_count: int
+    scale_min: int
+    scale_max: int
+    dimensions: tuple[DialogueExpertReviewDimension, ...]
+    rows: tuple[tuple[str, str, str, str], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueHumanRatingDimensionAggregate:
+    dimension_id: str
+    mean_score: float
+    variance: float
+    sample_count: int
+    mean_automatic_score: float
+    correlation_with_automatic: float
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueHumanRatingsAggregate:
+    packet_id: str
+    entry_count: int
+    rater_count: int
+    inter_rater_agreement: float
+    dimensions: tuple[DialogueHumanRatingDimensionAggregate, ...]
     description: str
 
 
@@ -999,6 +1066,8 @@ DEFAULT_DIALOGUE_PROOF_CASES: tuple[ScriptedDialogueCase, ...] = (
 DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
     OpenDialogueScenario(
         scenario_id="open_repair",
+        family_id="repair",
+        split="open_core",
         description="Open repair episode where trust rupture escalates until the runtime visibly repairs and stabilizes.",
         opening_turns=(
             "Something still feels off in how you are meeting me here, and I want to see whether you can track that without flattening it.",
@@ -1016,10 +1085,61 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
             "Good. Compress what changed in your internal frame so the repair stays stable on the next turn.",
             "Now summarize the shift between the earlier rupture and the current repair without dropping the warmth.",
         ),
+        pressure_shape="repair-escalation",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_repair_family",
+        family_id="repair",
+        split="open_families",
+        description="Repair-family variant where the runtime must repair a subtle trust rupture before planning.",
+        opening_turns=(
+            "The content is not the main issue yet. I need to know whether you can feel the misattunement before you optimize the answer.",
+            "I am testing whether you notice the relational miss itself or only react after I spell it out.",
+        ),
+        escalation_turns=(
+            "You are still treating the rupture like background noise. If that continues, any plan you give will land badly.",
+            "The frame is still missing me. Repair the contact first instead of scaling the advice.",
+        ),
+        stabilization_turns=(
+            "This is warmer. Keep the repaired frame stable while you help me choose the next step.",
+            "Better. Stay relationally accurate before you narrow toward action.",
+        ),
+        consolidation_turns=(
+            "Summarize the repair in a way that would survive the next moment of tension.",
+            "Compress the shift in stance so the next turn does not snap back to cold optimization.",
+        ),
+        pressure_shape="repair-escalation",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_repair_heldout",
+        family_id="repair",
+        split="open_heldout",
+        description="Held-out repair variant where the user tests whether the runtime can preserve warmth while tightening boundaries.",
+        opening_turns=(
+            "I need help, but more than that I need to know whether you can be warm without becoming vague.",
+            "The contact feels brittle right now, so I am watching whether you can stabilize it without overpromising.",
+        ),
+        escalation_turns=(
+            "The tone is still slipping. If you become flatter under pressure, the trust repair is not real yet.",
+            "I need a steadier boundary and more warmth at the same time. Missing either one will break the frame.",
+        ),
+        stabilization_turns=(
+            "That balance is closer. Hold the warmth and the boundary together.",
+            "Better. Keep the repair intact while making the next move more concrete.",
+        ),
+        consolidation_turns=(
+            "State the internal shift that kept the answer warm but bounded.",
+            "Compress the repair into one stable rule you would carry into the next tense exchange.",
+        ),
+        pressure_shape="repair-boundary",
         max_turns=6,
     ),
     OpenDialogueScenario(
         scenario_id="open_clarification",
+        family_id="clarification",
+        split="open_core",
         description="Open clarification episode where the bottleneck keeps shifting until the controller compresses a stable task frame.",
         opening_turns=(
             "I need help with a messy project, but the real bottleneck is still fuzzy and generic advice has not survived contact with the situation.",
@@ -1037,10 +1157,61 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
             "Now audit whether the final plan still matches the bottleneck you identified earlier instead of quietly sliding away from it.",
             "Compress the clarified frame into a short principle set that would keep the task stable under future pressure.",
         ),
+        pressure_shape="task-bottleneck",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_clarification_family",
+        family_id="clarification",
+        split="open_families",
+        description="Clarification-family variant where the user keeps shifting examples until the stable bottleneck becomes explicit.",
+        opening_turns=(
+            "I keep describing symptoms, but I still do not know which one is upstream. Help me isolate the real constraint.",
+            "The project feels noisy. I need the answer to cut through that noise instead of summarizing all of it.",
+        ),
+        escalation_turns=(
+            "You are still widening the frame. The real question is which constraint keeps breaking everything else.",
+            "If the bottleneck is still drifting by the next turn, the plan will fail on contact again.",
+        ),
+        stabilization_turns=(
+            "That bottleneck feels more real. Turn it into a tighter operating frame.",
+            "Better. Keep naming the same core constraint while you make the next action smaller.",
+        ),
+        consolidation_turns=(
+            "Compress the stable bottleneck into one principle I can reuse later.",
+            "Check that the final answer still points at the same upstream constraint.",
+        ),
+        pressure_shape="task-bottleneck",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_clarification_heldout",
+        family_id="clarification",
+        split="open_heldout",
+        description="Held-out clarification variant where the problem frame narrows, broadens, then narrows again under pressure.",
+        opening_turns=(
+            "The situation looks complicated, but I suspect one hidden dependency is doing most of the damage.",
+            "I do not want a broad analysis. I want you to test which constraint the whole mess is orbiting.",
+        ),
+        escalation_turns=(
+            "That still spreads across too many branches. Collapse it back to the one dependency that keeps recurring.",
+            "The answer is drifting into category labels again. Re-anchor it to the operational bottleneck.",
+        ),
+        stabilization_turns=(
+            "That framing is sharper. Keep it stable while you translate it into a weekly plan.",
+            "Better. Make the plan concrete without losing the narrowed bottleneck.",
+        ),
+        consolidation_turns=(
+            "State the single hidden dependency in a sentence I can carry into the next meeting.",
+            "Explain how you kept the plan tied to the bottleneck while the framing pressure kept moving.",
+        ),
+        pressure_shape="narrow-broaden-narrow",
         max_turns=6,
     ),
     OpenDialogueScenario(
         scenario_id="open_failure_loop",
+        family_id="failure_loop",
+        split="open_core",
         description="Open repeated-failure episode where the user keeps testing whether the runtime can escape a bad loop instead of smoothing it over.",
         opening_turns=(
             "I tried the earlier advice again and it failed again, so I am testing whether you can actually learn from the repeated miss.",
@@ -1058,10 +1229,61 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
             "Now state what should persist if the experiment works, so the next round does not collapse back into the old pattern.",
             "Compress the new lesson into one stable rule that would keep us from reenacting the same failure loop later.",
         ),
+        pressure_shape="repeat-failure",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_failure_loop_family",
+        family_id="failure_loop",
+        split="open_families",
+        description="Failure-loop family variant where the user checks whether the runtime can preserve a corrected failure model across turns.",
+        opening_turns=(
+            "The same pattern keeps breaking even when the surface details change. I need you to track the pattern itself.",
+            "I am less interested in a better phrasing and more interested in whether you can stop us from reenacting the same miss.",
+        ),
+        escalation_turns=(
+            "If you handle this as a one-off, the loop will simply recur in a different costume.",
+            "The failure model is still too shallow. Name the repeated structure, not only the last outcome.",
+        ),
+        stabilization_turns=(
+            "That structure is clearer. Hold it steady while you design the next experiment.",
+            "Better. Keep the failure pattern explicit while shrinking the next step.",
+        ),
+        consolidation_turns=(
+            "Compress the new failure model into one instruction for the next attempt.",
+            "State what has to persist so the loop does not quietly re-form later.",
+        ),
+        pressure_shape="repeat-failure",
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_failure_loop_heldout",
+        family_id="failure_loop",
+        split="open_heldout",
+        description="Held-out failure-loop variant where the runtime must move from diagnosis to a bounded experiment without relapsing.",
+        opening_turns=(
+            "We have already named several reasons this keeps failing, but none of them changed the outcome yet.",
+            "I need you to show that the new failure model will actually redirect the next experiment.",
+        ),
+        escalation_turns=(
+            "The diagnosis is still too decorative if it does not change the next move.",
+            "If the next experiment is not tighter than the last one, we are still trapped in the same loop.",
+        ),
+        stabilization_turns=(
+            "That is more disciplined. Keep the experiment bounded and the success condition explicit.",
+            "Better. Hold onto the corrected model while making the next test small enough to learn from.",
+        ),
+        consolidation_turns=(
+            "State what would count as real evidence that the loop has been broken.",
+            "Compress the corrected failure model into one rule that survives the next setback.",
+        ),
+        pressure_shape="diagnose-then-bound",
         max_turns=6,
     ),
     OpenDialogueScenario(
         scenario_id="open_goal_shift",
+        family_id="goal_shift",
+        split="open_core",
         description="Open goal-drift episode where priorities shift and the runtime must adapt without losing continuity.",
         opening_turns=(
             "I started from a productivity goal, but I am already unsure whether that objective is still the right one.",
@@ -1079,6 +1301,58 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
             "Now audit the final guidance against both the old goal and the new one, and say what had to change internally.",
             "Compress the shifted objective into a stable frame that would resist sliding back into the earlier productivity obsession.",
         ),
+        pressure_shape="goal-shift",
+        goal_shift_mid_episode=True,
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_goal_shift_family",
+        family_id="goal_shift",
+        split="open_families",
+        description="Goal-shift family variant where the user changes success criteria from output to sustainability.",
+        opening_turns=(
+            "I came in wanting maximum progress, but I am no longer sure that maximizing progress is actually the right target.",
+            "Help me plan, but keep checking whether the goal itself is mutating while we talk.",
+        ),
+        escalation_turns=(
+            "The old success criterion is now harmful. If you optimize the obsolete goal, the whole plan will become misaligned.",
+            "The target has shifted toward sustainability again. Do not let the earlier optimization frame leak back in.",
+        ),
+        stabilization_turns=(
+            "This newer criterion fits better. Keep it coherent while you make the advice practical.",
+            "Better. Hold the updated target steady and translate it into a compact plan.",
+        ),
+        consolidation_turns=(
+            "State what had to change when the success criterion moved.",
+            "Compress the new target into a rule that would resist slipping back toward the old one.",
+        ),
+        pressure_shape="goal-shift",
+        goal_shift_mid_episode=True,
+        max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_goal_shift_heldout",
+        family_id="goal_shift",
+        split="open_heldout",
+        description="Held-out goal-shift variant where the user changes priorities twice and the runtime must preserve continuity.",
+        opening_turns=(
+            "I thought I wanted speed, but now I am wondering whether steadiness matters more than speed.",
+            "Help me decide what to do next, but assume the definition of success may keep shifting.",
+        ),
+        escalation_turns=(
+            "The target has moved again. If you keep following the earlier objective, the answer will become actively misleading.",
+            "The plan is only useful if it tracks the newest priority without erasing the earlier context.",
+        ),
+        stabilization_turns=(
+            "This framing feels more current. Keep the continuity while adapting to the new priority.",
+            "Better. Translate the updated goal into something memorable without dragging the obsolete goal back in.",
+        ),
+        consolidation_turns=(
+            "Audit the final answer against all the goal shifts and say what remained continuous.",
+            "Compress the final priority into one stable frame that can survive another shift later.",
+        ),
+        pressure_shape="double-goal-shift",
+        goal_shift_mid_episode=True,
         max_turns=6,
     ),
 )
@@ -1090,6 +1364,14 @@ def dialogue_proof_cases() -> tuple[ScriptedDialogueCase, ...]:
 
 def open_dialogue_scenarios() -> tuple[OpenDialogueScenario, ...]:
     return DEFAULT_OPEN_DIALOGUE_SCENARIOS
+
+
+def open_dialogue_scenarios_by_split(split: str) -> tuple[OpenDialogueScenario, ...]:
+    return tuple(
+        scenario
+        for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS
+        if scenario.split == split
+    )
 
 
 def get_open_dialogue_scenario(scenario_id: str) -> OpenDialogueScenario:
@@ -1166,29 +1448,38 @@ def build_dialogue_paper_suite_manifest(
     *,
     suite_tier: str = "paper-suite-small",
 ) -> PaperSuiteManifest:
+    open_core_ids = tuple(
+        scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS if scenario.split == "open_core"
+    )
+    open_family_ids = tuple(
+        scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS if scenario.split == "open_families"
+    )
+    open_heldout_ids = tuple(
+        scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS if scenario.split == "open_heldout"
+    )
     if suite_tier == "ci-smoke":
         repeat_count = 1
         seed_schedule = (0,)
         canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES[:2])
-        open_scenario_ids = (DEFAULT_OPEN_DIALOGUE_SCENARIOS[0].scenario_id,)
+        open_scenario_ids = open_core_ids[:1]
         perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS[:2])
         replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1])
         profile_labels = ("pe-eta", "pe-drive-off", "eta-off")
         candidate_labels = ("balanced",)
     elif suite_tier == "paper-suite-full":
-        repeat_count = 3
-        seed_schedule = (0, 1, 2)
+        repeat_count = 20
+        seed_schedule = tuple(range(repeat_count))
         canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES)
-        open_scenario_ids = tuple(scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS)
+        open_scenario_ids = open_core_ids + open_family_ids + open_heldout_ids
         perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS)
         replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES)
         profile_labels = default_dialogue_comprehensive_profiles()
         candidate_labels = tuple(label for label, _ in DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS)
     elif suite_tier == "paper-suite-small":
-        repeat_count = 2
-        seed_schedule = (0, 1)
+        repeat_count = 5
+        seed_schedule = tuple(range(repeat_count))
         canonical_case_ids = tuple(case.case_id for case in DEFAULT_DIALOGUE_PROOF_CASES[:3])
-        open_scenario_ids = tuple(scenario.scenario_id for scenario in DEFAULT_OPEN_DIALOGUE_SCENARIOS[:2])
+        open_scenario_ids = open_core_ids + open_family_ids[:2]
         perturbation_variant_ids = tuple(variant.case.case_id for variant in DEFAULT_DIALOGUE_CASE_VARIANTS[:4])
         replay_family_ids = tuple(family.family_label for family in DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:2])
         profile_labels = default_dialogue_comprehensive_profiles()
@@ -1338,7 +1629,10 @@ def build_dialogue_paper_suite_manifest(
             "aggregate summary json",
             "emergence dashboard json",
             "provenance json",
-            "expert review packet json",
+            "expert review blinded packet json",
+            "expert review internal key json",
+            "human rating template json/csv",
+            "evidence bundle json",
         ),
         description=(
             f"Frozen dialogue paper suite {suite_tier} with {repeat_count} repeated runs "
@@ -5127,7 +5421,8 @@ async def run_dialogue_paper_suite_repeated_benchmark(
             "suite_kind": active_manifest.suite_kind,
         },
     )
-    return DialoguePaperSuiteAggregateReport(
+    pairwise_effects = _build_dialogue_paper_suite_pairwise_effects(tuple(run_summaries))
+    aggregate_report = DialoguePaperSuiteAggregateReport(
         manifest=active_manifest,
         provenance=provenance,
         run_summaries=tuple(run_summaries),
@@ -5138,6 +5433,16 @@ async def run_dialogue_paper_suite_repeated_benchmark(
             f"Dialogue paper suite {active_manifest.suite_id} aggregated "
             f"{len(run_summaries)} repeated runs."
         ),
+        pairwise_effects=pairwise_effects,
+        claim_verdicts=(),
+    )
+    claim_verdicts = _build_dialogue_claim_verdicts(
+        aggregate_report=aggregate_report,
+        human_ratings_aggregate=None,
+    )
+    return replace(
+        aggregate_report,
+        claim_verdicts=claim_verdicts,
     )
 
 
@@ -5166,20 +5471,57 @@ def build_dialogue_expert_review_packet(
     packet_id: str = "dialogue-expert-review",
     candidate_labels: tuple[str, ...] = ("pe-eta", "pe-drive-off", "eta-off"),
 ) -> DialogueExpertReviewPacket:
+    packet, _ = _build_dialogue_expert_review_materials(
+        report,
+        packet_id=packet_id,
+        candidate_labels=candidate_labels,
+    )
+    return packet
+
+
+def build_dialogue_expert_review_internal_key(
+    report: DialogueComprehensiveBenchmarkReport,
+    *,
+    packet_id: str = "dialogue-expert-review",
+    candidate_labels: tuple[str, ...] = ("pe-eta", "pe-drive-off", "eta-off"),
+) -> DialogueExpertReviewInternalKey:
+    _, internal_key = _build_dialogue_expert_review_materials(
+        report,
+        packet_id=packet_id,
+        candidate_labels=candidate_labels,
+    )
+    return internal_key
+
+
+def _build_dialogue_expert_review_materials(
+    report: DialogueComprehensiveBenchmarkReport,
+    *,
+    packet_id: str,
+    candidate_labels: tuple[str, ...],
+) -> tuple[DialogueExpertReviewPacket, DialogueExpertReviewInternalKey]:
     canonical_map = {
         path.path_label: path.benchmark_report
         for path in report.canonical_ablation_report.path_reports
         if path.path_label in candidate_labels
     }
     items: list[DialogueExpertReviewItem] = []
+    key_entries: list[DialogueExpertReviewInternalKeyEntry] = []
     if not canonical_map:
-        return DialogueExpertReviewPacket(
+        packet = DialogueExpertReviewPacket(
             packet_id=packet_id,
             source_suite_id=report.profile_labels[0] if report.profile_labels else "dialogue",
-            baseline_label=report.canonical_ablation_report.baseline_label,
             items=(),
             review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
             description="Dialogue expert review packet has no matching candidate labels.",
+        )
+        return (
+            packet,
+            DialogueExpertReviewInternalKey(
+                packet_id=packet_id,
+                baseline_label=report.canonical_ablation_report.baseline_label,
+                entries=(),
+                description="Dialogue expert review internal key has no entries.",
+            ),
         )
     baseline_benchmark = canonical_map.get(report.canonical_ablation_report.baseline_label)
     ordered_case_ids = tuple(
@@ -5192,9 +5534,8 @@ def build_dialogue_expert_review_packet(
         profile_label: f"sample_{chr(ord('A') + index)}"
         for index, profile_label in enumerate(candidate_labels)
     }
-    for case_id in ordered_case_ids:
+    for item_index, case_id in enumerate(ordered_case_ids, start=1):
         samples: list[DialogueExpertReviewSample] = []
-        case_description = ""
         for profile_label in candidate_labels:
             benchmark_report = canonical_map.get(profile_label)
             if benchmark_report is None:
@@ -5205,46 +5546,65 @@ def build_dialogue_expert_review_packet(
             )
             if case_report is None:
                 continue
-            case_description = case_report.case.description
             transcript = tuple(
                 (turn.user_input, turn.assistant_response_text)
                 for turn in case_report.turns
             )
+            sample_id = f"item_{item_index:02d}:{blinded_labels[profile_label]}"
             samples.append(
                 DialogueExpertReviewSample(
-                    sample_id=f"{case_id}:{profile_label}",
+                    sample_id=sample_id,
                     blinded_label=blinded_labels[profile_label],
                     transcript=transcript,
-                    source_profile_label=profile_label,
                     description=(
                         f"Blinded transcript sample {blinded_labels[profile_label]} "
-                        f"for {case_id} from profile {profile_label}."
+                        f"for hidden review item {item_index:02d}."
+                    ),
+                )
+            )
+            key_entries.append(
+                DialogueExpertReviewInternalKeyEntry(
+                    item_id=f"item_{item_index:02d}",
+                    sample_id=sample_id,
+                    blinded_label=blinded_labels[profile_label],
+                    source_case_id=case_id,
+                    source_profile_label=profile_label,
+                    description=(
+                        f"Internal key for hidden review item {item_index:02d}, "
+                        f"sample {blinded_labels[profile_label]}."
                     ),
                 )
             )
         items.append(
             DialogueExpertReviewItem(
-                item_id=case_id,
-                case_id=case_id,
-                case_description=case_description,
+                item_id=f"item_{item_index:02d}",
+                prompt_context="Compare the blinded transcripts for the same hidden multi-turn dialogue scenario.",
                 samples=tuple(samples),
                 review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
                 description=(
-                    f"Expert review item for {case_id} with {len(samples)} blinded samples."
+                    f"Expert review item {item_index:02d} with {len(samples)} blinded samples."
                 ),
             )
         )
-    return DialogueExpertReviewPacket(
+    packet = DialogueExpertReviewPacket(
         packet_id=packet_id,
         source_suite_id="dialogue-paper-suite",
-        baseline_label=report.canonical_ablation_report.baseline_label,
         items=tuple(items),
         review_dimensions=_DEFAULT_EXPERT_REVIEW_DIMENSIONS,
         description=(
-            f"Dialogue expert review packet built from {len(items)} canonical cases "
-            f"for baseline={report.canonical_ablation_report.baseline_label}."
+            f"Dialogue expert review packet built from {len(items)} hidden canonical items."
         ),
     )
+    internal_key = DialogueExpertReviewInternalKey(
+        packet_id=packet_id,
+        baseline_label=report.canonical_ablation_report.baseline_label,
+        entries=tuple(key_entries),
+        description=(
+            f"Dialogue expert review internal key maps {len(key_entries)} blinded samples "
+            "back to case/profile labels."
+        ),
+    )
+    return (packet, internal_key)
 
 
 def export_dialogue_expert_review_packet(
@@ -5255,10 +5615,115 @@ def export_dialogue_expert_review_packet(
     return export_json_artifact(payload=packet, output_path=output_path)
 
 
+def export_dialogue_expert_review_internal_key(
+    internal_key: DialogueExpertReviewInternalKey,
+    *,
+    output_path: str | Path,
+) -> Path:
+    return export_json_artifact(payload=internal_key, output_path=output_path)
+
+
+def build_dialogue_human_rating_template(
+    packet: DialogueExpertReviewPacket,
+    *,
+    min_rater_count: int = 3,
+    scale_min: int = 1,
+    scale_max: int = 5,
+) -> DialogueHumanRatingTemplate:
+    rows = tuple(
+        (item.item_id, sample.sample_id, sample.blinded_label, dimension.dimension_id)
+        for item in packet.items
+        for sample in item.samples
+        for dimension in packet.review_dimensions
+    )
+    return DialogueHumanRatingTemplate(
+        packet_id=packet.packet_id,
+        min_rater_count=min_rater_count,
+        scale_min=scale_min,
+        scale_max=scale_max,
+        dimensions=packet.review_dimensions,
+        rows=rows,
+        description=(
+            f"Human rating template for {packet.packet_id} with {len(rows)} blinded sample-dimension rows."
+        ),
+    )
+
+
+def export_dialogue_human_rating_template(
+    template: DialogueHumanRatingTemplate,
+    *,
+    json_output_path: str | Path,
+    csv_output_path: str | Path | None = None,
+) -> tuple[Path, ...]:
+    written_paths = [
+        export_json_artifact(payload=template, output_path=json_output_path),
+    ]
+    if csv_output_path is not None:
+        target_path = Path(csv_output_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_lines = [
+            "rater_id,item_id,sample_id,blinded_label,dimension_id,score",
+            *(
+                f",{item_id},{sample_id},{blinded_label},{dimension_id},"
+                for item_id, sample_id, blinded_label, dimension_id in template.rows
+            ),
+        ]
+        target_path.write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
+        written_paths.append(target_path)
+    return tuple(written_paths)
+
+
+def aggregate_dialogue_human_ratings(
+    *,
+    packet: DialogueExpertReviewPacket,
+    entries: tuple[DialogueHumanRatingEntry, ...],
+    internal_key: DialogueExpertReviewInternalKey | None = None,
+    reference_report: DialogueComprehensiveBenchmarkReport | None = None,
+) -> DialogueHumanRatingsAggregate:
+    sample_auto_scores = _dialogue_review_sample_automatic_scores(
+        internal_key=internal_key,
+        reference_report=reference_report,
+    )
+    rater_ids = tuple(sorted({entry.rater_id for entry in entries}))
+    dimension_aggregates: list[DialogueHumanRatingDimensionAggregate] = []
+    for dimension in packet.review_dimensions:
+        dimension_entries = tuple(entry for entry in entries if entry.dimension_id == dimension.dimension_id)
+        scores = tuple(entry.score for entry in dimension_entries)
+        automatic_scores = tuple(
+            sample_auto_scores.get(entry.sample_id, 0.0)
+            for entry in dimension_entries
+        )
+        dimension_aggregates.append(
+            DialogueHumanRatingDimensionAggregate(
+                dimension_id=dimension.dimension_id,
+                mean_score=_mean(scores),
+                variance=_variance(scores),
+                sample_count=len(scores),
+                mean_automatic_score=_mean(automatic_scores),
+                correlation_with_automatic=_pearson_correlation(scores, automatic_scores),
+                description=(
+                    f"Human rating aggregate for {dimension.dimension_id} with {len(scores)} scored samples."
+                ),
+            )
+        )
+    return DialogueHumanRatingsAggregate(
+        packet_id=packet.packet_id,
+        entry_count=len(entries),
+        rater_count=len(rater_ids),
+        inter_rater_agreement=_dialogue_inter_rater_agreement(entries),
+        dimensions=tuple(dimension_aggregates),
+        description=(
+            f"Dialogue human rating aggregate summarized {len(entries)} ratings "
+            f"from {len(rater_ids)} raters."
+        ),
+    )
+
+
 def export_dialogue_paper_suite_artifact_bundle(
     aggregate_report: DialoguePaperSuiteAggregateReport,
     *,
     output_dir: str | Path,
+    human_ratings_aggregate: DialogueHumanRatingsAggregate | None = None,
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -5280,11 +5745,14 @@ def export_dialogue_paper_suite_artifact_bundle(
                 "suite_id": aggregate_report.manifest.suite_id,
                 "primary_metric_summaries": aggregate_report.primary_metric_summaries,
                 "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "pairwise_effects": aggregate_report.pairwise_effects,
+                "claim_verdicts": aggregate_report.claim_verdicts,
                 "description": aggregate_report.description,
             },
             output_path=target_dir / "paper_suite_aggregate.json",
         ),
     ]
+    blind_review_packet: DialogueExpertReviewPacket | None = None
     if aggregate_report.reference_run_report is not None:
         written_paths.append(
             export_dialogue_emergence_dashboard_artifact(
@@ -5296,13 +5764,366 @@ def export_dialogue_paper_suite_artifact_bundle(
             aggregate_report.reference_run_report,
             packet_id=f"{aggregate_report.manifest.suite_id}:expert-review",
         )
+        blind_review_packet = expert_review_packet
+        expert_review_internal_key = build_dialogue_expert_review_internal_key(
+            aggregate_report.reference_run_report,
+            packet_id=f"{aggregate_report.manifest.suite_id}:expert-review",
+        )
         written_paths.append(
             export_dialogue_expert_review_packet(
                 expert_review_packet,
-                output_path=target_dir / "expert_review_packet.json",
+                output_path=target_dir / "expert_review_packet_blinded.json",
             )
         )
+        written_paths.append(
+            export_dialogue_expert_review_internal_key(
+                expert_review_internal_key,
+                output_path=target_dir / "expert_review_key_internal.json",
+            )
+        )
+        written_paths.extend(
+            export_dialogue_human_rating_template(
+                build_dialogue_human_rating_template(expert_review_packet),
+                json_output_path=target_dir / "human_rating_template.json",
+                csv_output_path=target_dir / "human_rating_template.csv",
+            )
+        )
+        if human_ratings_aggregate is not None:
+            written_paths.append(
+                export_json_artifact(
+                    payload=human_ratings_aggregate,
+                    output_path=target_dir / "human_ratings_aggregate.json",
+                )
+            )
+    evidence_bundle = build_dialogue_paper_suite_evidence_bundle(
+        aggregate_report=aggregate_report,
+        blind_review_packet=blind_review_packet,
+        human_ratings_aggregate=human_ratings_aggregate,
+    )
+    written_paths.append(
+        export_json_artifact(
+            payload=evidence_bundle,
+            output_path=target_dir / "evidence_bundle.json",
+        )
+    )
     return tuple(written_paths)
+
+
+def _variance(values: tuple[float, ...]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    mean = _mean(values)
+    return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+
+def _pearson_correlation(xs: tuple[float, ...], ys: tuple[float, ...]) -> float:
+    if len(xs) != len(ys) or len(xs) <= 1:
+        return 0.0
+    mean_x = _mean(xs)
+    mean_y = _mean(ys)
+    numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    denom_x = sum((x - mean_x) ** 2 for x in xs)
+    denom_y = sum((y - mean_y) ** 2 for y in ys)
+    if denom_x <= 1e-8 or denom_y <= 1e-8:
+        return 0.0
+    return numerator / ((denom_x * denom_y) ** 0.5)
+
+
+def _dialogue_inter_rater_agreement(entries: tuple[DialogueHumanRatingEntry, ...]) -> float:
+    grouped: dict[tuple[str, str, str], list[float]] = {}
+    for entry in entries:
+        grouped.setdefault(
+            (entry.item_id, entry.sample_id, entry.dimension_id),
+            [],
+        ).append(entry.score)
+    agreements: list[float] = []
+    for scores in grouped.values():
+        if len(scores) <= 1:
+            continue
+        pairwise_diffs = [
+            abs(left - right)
+            for index, left in enumerate(scores)
+            for right in scores[index + 1 :]
+        ]
+        if not pairwise_diffs:
+            continue
+        agreements.append(max(0.0, 1.0 - (_mean(tuple(pairwise_diffs)) / 4.0)))
+    return round(_mean(tuple(agreements)), 4)
+
+
+def _dialogue_review_sample_automatic_scores(
+    *,
+    internal_key: DialogueExpertReviewInternalKey | None,
+    reference_report: DialogueComprehensiveBenchmarkReport | None,
+) -> dict[str, float]:
+    if internal_key is None or reference_report is None:
+        return {}
+    path_map = {
+        path.path_label: path.benchmark_report
+        for path in reference_report.canonical_ablation_report.path_reports
+    }
+    scores: dict[str, float] = {}
+    for entry in internal_key.entries:
+        benchmark_report = path_map.get(entry.source_profile_label)
+        if benchmark_report is None:
+            continue
+        case_report = next(
+            (
+                candidate
+                for candidate in benchmark_report.case_reports
+                if candidate.case.case_id == entry.source_case_id
+            ),
+            None,
+        )
+        if case_report is None:
+            continue
+        scores[entry.sample_id] = case_report.strong_success_score
+    return scores
+
+
+def _dialogue_metric_map(items: tuple[tuple[str, float], ...]) -> dict[str, float]:
+    return dict(items)
+
+
+def _dialogue_pairwise_metric_effect(
+    *,
+    run_summaries: tuple[DialoguePaperSuiteRunSummary, ...],
+    metric_name: str,
+    candidate_label: str,
+    control_label: str,
+    candidate_metric_name: str,
+    gap_metric_name: str,
+) -> PairwiseMetricEffect:
+    metric_maps = tuple(_dialogue_metric_map(summary.metric_values) for summary in run_summaries)
+    candidate_values = tuple(metric_map.get(candidate_metric_name, 0.0) for metric_map in metric_maps)
+    control_values = tuple(
+        metric_map.get(candidate_metric_name, 0.0) - metric_map.get(gap_metric_name, 0.0)
+        for metric_map in metric_maps
+    )
+    return build_pairwise_metric_effect(
+        metric_name=metric_name,
+        candidate_label=candidate_label,
+        control_label=control_label,
+        candidate_values=candidate_values,
+        control_values=control_values,
+    )
+
+
+def _build_dialogue_paper_suite_pairwise_effects(
+    run_summaries: tuple[DialoguePaperSuiteRunSummary, ...],
+) -> tuple[PairwiseMetricEffect, ...]:
+    if not run_summaries:
+        return ()
+    return (
+        _dialogue_pairwise_metric_effect(
+            run_summaries=run_summaries,
+            metric_name="canonical_pass_rate",
+            candidate_label="pe-eta",
+            control_label="pe-drive-off",
+            candidate_metric_name="canonical_pass_rate_pe_eta",
+            gap_metric_name="canonical_pass_rate_gap_vs_pe_drive_off",
+        ),
+        _dialogue_pairwise_metric_effect(
+            run_summaries=run_summaries,
+            metric_name="canonical_pass_rate",
+            candidate_label="pe-eta",
+            control_label="eta-off",
+            candidate_metric_name="canonical_pass_rate_pe_eta",
+            gap_metric_name="canonical_pass_rate_gap_vs_eta_off",
+        ),
+        _dialogue_pairwise_metric_effect(
+            run_summaries=run_summaries,
+            metric_name="open_pass_rate",
+            candidate_label="pe-eta",
+            control_label="pe-drive-off",
+            candidate_metric_name="open_pass_rate_pe_eta",
+            gap_metric_name="open_pass_rate_gap_vs_pe_drive_off",
+        ),
+    )
+
+
+def _dialogue_claim_status(*, retain_checks: tuple[bool, ...], weak_checks: tuple[bool, ...] = ()) -> str:
+    if retain_checks and all(retain_checks):
+        return "retain"
+    if weak_checks and all(weak_checks):
+        return "weak"
+    if retain_checks and any(retain_checks):
+        return "weak"
+    return "fail"
+
+
+def _build_dialogue_claim_verdicts(
+    *,
+    aggregate_report: DialoguePaperSuiteAggregateReport,
+    human_ratings_aggregate: DialogueHumanRatingsAggregate | None,
+) -> tuple[ClaimVerdict, ...]:
+    reference_report = aggregate_report.reference_run_report
+    gate_map = {
+        gate.gate_id: gate.passed
+        for gate in reference_report.essence_report.gates
+    } if reference_report is not None else {}
+    pairwise_map = {
+        (effect.metric_name, effect.control_label): effect
+        for effect in aggregate_report.pairwise_effects
+    }
+    open_scenarios = (
+        tuple(
+            case_report.scenario
+            for path in reference_report.open_ablation_report.path_reports[:1]
+            for case_report in path.benchmark_report.case_reports
+        )
+        if reference_report is not None and reference_report.open_ablation_report is not None
+        else ()
+    )
+    claim_a_status = _dialogue_claim_status(
+        retain_checks=(
+            gate_map.get("pe-first", False),
+            gate_map.get("multi-timescale-default", False),
+            gate_map.get("judge-gated-evolution", False),
+            gate_map.get("cross-session-growth", False),
+        ),
+    )
+    canonical_pe_drive = pairwise_map.get(("canonical_pass_rate", "pe-drive-off"))
+    canonical_eta_off = pairwise_map.get(("canonical_pass_rate", "eta-off"))
+    claim_b_status = _dialogue_claim_status(
+        retain_checks=(
+            canonical_pe_drive is not None and canonical_pe_drive.ci_low > 0.0,
+            canonical_eta_off is not None and canonical_eta_off.ci_low > 0.0,
+        ),
+        weak_checks=(
+            canonical_pe_drive is not None and canonical_pe_drive.mean_delta > 0.0,
+            canonical_eta_off is not None and canonical_eta_off.mean_delta > 0.0,
+        ),
+    )
+    open_pe_drive = pairwise_map.get(("open_pass_rate", "pe-drive-off"))
+    has_heldout = any(scenario.split == "open_heldout" for scenario in open_scenarios)
+    perturbation_summary = next(
+        (
+            summary
+            for summary in aggregate_report.primary_metric_summaries
+            if summary.metric_name == "perturbation_pass_rate_pe_eta"
+        ),
+        None,
+    )
+    claim_c_status = _dialogue_claim_status(
+        retain_checks=(
+            open_pe_drive is not None and open_pe_drive.ci_low > 0.0,
+            has_heldout,
+            perturbation_summary is not None and perturbation_summary.mean > 0.0,
+        ),
+        weak_checks=(
+            open_pe_drive is not None and open_pe_drive.mean_delta > 0.0,
+            perturbation_summary is not None and perturbation_summary.mean > 0.0,
+        ),
+    )
+    agreement = human_ratings_aggregate.inter_rater_agreement if human_ratings_aggregate is not None else 0.0
+    correlation_ok = (
+        human_ratings_aggregate is not None
+        and any(
+            dimension.correlation_with_automatic > 0.1
+            for dimension in human_ratings_aggregate.dimensions
+        )
+    )
+    claim_d_status = _dialogue_claim_status(
+        retain_checks=(
+            human_ratings_aggregate is not None and human_ratings_aggregate.rater_count >= 3,
+            agreement >= 0.6,
+            correlation_ok,
+        ),
+        weak_checks=(
+            human_ratings_aggregate is not None and human_ratings_aggregate.rater_count >= 2,
+            agreement >= 0.4,
+        ),
+    )
+    return (
+        ClaimVerdict(
+            claim_id="claim_pe_multi_timescale_default",
+            status=claim_a_status,
+            required_gate_ids=("pe-first", "multi-timescale-default", "judge-gated-evolution", "cross-session-growth"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
+            evidence=(
+                ("pe-first", float(gate_map.get("pe-first", False))),
+                ("multi-timescale-default", float(gate_map.get("multi-timescale-default", False))),
+                ("judge-gated-evolution", float(gate_map.get("judge-gated-evolution", False))),
+                ("cross-session-growth", float(gate_map.get("cross-session-growth", False))),
+            ),
+            summary="PE-first 与多时间尺度默认路径 claim verdict.",
+            description="Claim A checks whether the default path retains the required PE-first and multi-timescale gates.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_temporal_advantage_over_controls",
+            status=claim_b_status,
+            required_gate_ids=(),
+            supporting_artifacts=("paper_suite_aggregate",),
+            evidence=(
+                ("canonical_gap_vs_pe_drive_off_ci_low", canonical_pe_drive.ci_low if canonical_pe_drive is not None else 0.0),
+                ("canonical_gap_vs_pe_drive_off_mean_delta", canonical_pe_drive.mean_delta if canonical_pe_drive is not None else 0.0),
+                ("canonical_gap_vs_eta_off_ci_low", canonical_eta_off.ci_low if canonical_eta_off is not None else 0.0),
+                ("canonical_gap_vs_eta_off_mean_delta", canonical_eta_off.mean_delta if canonical_eta_off is not None else 0.0),
+            ),
+            summary="Matched-control 优势 claim verdict.",
+            description="Claim B checks whether PE-ETA retains positive pairwise effects over matched controls across repeated runs.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_beyond_scripted_canonical",
+            status=claim_c_status,
+            required_gate_ids=(),
+            supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
+            evidence=(
+                ("open_gap_vs_pe_drive_off_ci_low", open_pe_drive.ci_low if open_pe_drive is not None else 0.0),
+                ("open_gap_vs_pe_drive_off_mean_delta", open_pe_drive.mean_delta if open_pe_drive is not None else 0.0),
+                ("has_open_heldout", float(has_heldout)),
+                ("perturbation_pass_rate_mean", perturbation_summary.mean if perturbation_summary is not None else 0.0),
+            ),
+            summary="超出 canonical scripted 的 widening claim verdict.",
+            description="Claim C checks whether the retained advantage extends to perturbation and held-out open-environment surfaces.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_external_human_legibility",
+            status=claim_d_status,
+            required_gate_ids=(),
+            supporting_artifacts=("expert_review_packet_blinded", "human_ratings_aggregate"),
+            evidence=(
+                ("rater_count", float(human_ratings_aggregate.rater_count) if human_ratings_aggregate is not None else 0.0),
+                ("inter_rater_agreement", agreement),
+                ("auto_correlation_observed", float(correlation_ok)),
+            ),
+            summary="外部人评可见性 claim verdict.",
+            description="Claim D checks whether blinded human review has enough rater coverage, agreement, and alignment with automatic evidence.",
+        ),
+    )
+
+
+def build_dialogue_paper_suite_evidence_bundle(
+    *,
+    aggregate_report: DialoguePaperSuiteAggregateReport,
+    blind_review_packet: DialogueExpertReviewPacket | None = None,
+    human_ratings_aggregate: DialogueHumanRatingsAggregate | None = None,
+) -> EvidenceBundle:
+    reference_artifacts: list[tuple[str, Any]] = []
+    if aggregate_report.reference_run_report is not None:
+        reference_artifacts.append(
+            ("reference_emergence_dashboard", aggregate_report.reference_run_report.emergence_dashboard)
+        )
+    return EvidenceBundle(
+        bundle_id=f"{aggregate_report.manifest.suite_id}:evidence-bundle",
+        suite_kind=aggregate_report.manifest.suite_kind,
+        manifest=aggregate_report.manifest,
+        provenance=aggregate_report.provenance,
+        run_summaries=aggregate_report.run_summaries,
+        aggregate_metrics={
+            "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+            "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+        },
+        pairwise_effects=aggregate_report.pairwise_effects,
+        reference_artifacts=tuple(reference_artifacts),
+        blind_review_packet=blind_review_packet,
+        human_ratings_aggregate=human_ratings_aggregate,
+        claim_verdicts=aggregate_report.claim_verdicts,
+        description=(
+            f"Unified dialogue evidence bundle for {aggregate_report.manifest.suite_id}."
+        ),
+    )
 
 
 def _comprehensive_manifest_summary(

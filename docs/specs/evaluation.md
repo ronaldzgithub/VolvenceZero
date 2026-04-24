@@ -120,6 +120,7 @@
 - 当前 ETA proof paper-suite aggregate 还会直接输出一层浓缩的 review-style interpretation summary：除了 `interpretation` / `dominant_failure_mode`，还会显式给出 `strongest_competing_control`、`strongest_control_gap` 与一条更接近审稿结论的 `review_summary`
 - 当前这条 review-style summary 还不再只看 reference assessment：它会综合 repeated-run 的 strongest-control 排名和 cross-run gap variance，形成更稳定的跨 run verdict
 - 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
+- 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 
 ### Dialogue Proof Harness 边界
