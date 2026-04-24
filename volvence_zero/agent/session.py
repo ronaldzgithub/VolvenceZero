@@ -72,6 +72,7 @@ from volvence_zero.joint_loop import (
     ETANLJointLoop,
     JointCycleReport,
     JointLoopSchedule,
+    OnlineFastImportCheckpoint,
     PipelineConfig,
     RareHeavyArtifact,
     RareHeavyImportCheckpoint,
@@ -80,7 +81,7 @@ from volvence_zero.joint_loop import (
     ScheduledJointLoopResult,
     OnlineFastImportResult,
 )
-from volvence_zero.memory import MemorySnapshot, MemoryStore, build_default_memory_store
+from volvence_zero.memory import MemorySnapshot, MemoryStore, Track, build_default_memory_store
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction.error import (
     ActualOutcome,
@@ -107,11 +108,13 @@ from volvence_zero.substrate import (
 from volvence_zero.temporal import (
     DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
+    MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalPolicy,
     clone_full_learned_temporal_policy,
+    resolve_temporal_bootstrap_snapshot,
 )
 from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopJob,
@@ -176,6 +179,13 @@ class AgentTurnResult:
     memory_tower_depth: int = 0
     memory_tower_alignment: float = 0.0
     memory_tower_profile_id: str = ""
+    runtime_backbone_evidence_active: bool = False
+    runtime_backbone_signal_norm: float = 0.0
+    runtime_backbone_signal_quality: float = 0.0
+    runtime_backbone_signal_strength: float = 0.0
+    runtime_backbone_hook_coverage: float = 0.0
+    fast_memory_signal_norm: float = 0.0
+    fast_memory_runtime_alignment: float = 0.0
     session_post_pending_job_count: int = 0
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
@@ -400,6 +410,7 @@ class OnlineFastSubstrateTurnResult:
     gate_decision: str
     applied_operations: tuple[str, ...]
     blocked_operations: tuple[str, ...]
+    rollback_operations: tuple[str, ...]
     parameter_change_rate: float
     optimizer_state_norm: float
     checkpoint_id: str
@@ -408,6 +419,9 @@ class OnlineFastSubstrateTurnResult:
     optimizer_state_description: str
     description: str
     fast_memory_signal: tuple[float, ...] = ()
+    experimental_live_mutation: bool = False
+    rollback_applied: bool = False
+    rollback_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -477,9 +491,10 @@ class AgentSessionRunner:
         substrate_fallback_to_builtin: bool | None = None,
         substrate_fallback_mode: SubstrateFallbackMode | str | None = None,
         substrate_runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
-        allow_live_substrate_mutation: bool = False,
+        allow_live_substrate_mutation: bool = True,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
+        temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
         rare_heavy_enabled: bool = True,
         rare_heavy_trace_window: int = 5,
         rare_heavy_min_traces: int = 4,
@@ -492,14 +507,30 @@ class AgentSessionRunner:
         self._session_id = session_id
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
+        world_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
+            temporal_bootstrap,
+            track=Track.WORLD,
+        )
+        self_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
+            temporal_bootstrap,
+            track=Track.SELF,
+        )
         if world_temporal_policy is not None:
             self._world_temporal_policy = world_temporal_policy
         elif temporal_policy is not None:
             self._world_temporal_policy = temporal_policy
+        elif world_bootstrap_snapshot is not None:
+            self._world_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+                world_bootstrap_snapshot
+            )
         else:
             self._world_temporal_policy = FullLearnedTemporalPolicy()
         if self_temporal_policy is not None:
             self._self_temporal_policy = self_temporal_policy
+        elif self_bootstrap_snapshot is not None:
+            self._self_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+                self_bootstrap_snapshot
+            )
         elif isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy = clone_full_learned_temporal_policy(self._world_temporal_policy)
         else:
@@ -586,6 +617,8 @@ class AgentSessionRunner:
         self._recent_substrate_batches: list[tuple[SubstrateSnapshot, ...]] = []
         self._recent_rare_heavy_examples: list[RareHeavyTrainingExample] = []
         self._last_rare_heavy_turn_index = 0
+        self._last_online_fast_import_checkpoint: OnlineFastImportCheckpoint | None = None
+        self._last_rare_heavy_import_checkpoint: RareHeavyImportCheckpoint | None = None
         self._context_index = 1
         self._completed_session_reports: list[EvaluationReport] = []
         self._session_post_lock = asyncio.Lock()
@@ -626,6 +659,10 @@ class AgentSessionRunner:
     @property
     def evaluation_backbone(self) -> EvaluationBackbone:
         return self._evaluation_backbone
+
+    @property
+    def memory_store(self) -> MemoryStore:
+        return self._memory_store
 
     @property
     def completed_session_reports(self) -> tuple[EvaluationReport, ...]:
@@ -1560,6 +1597,8 @@ class AgentSessionRunner:
             self._turn_index += 1
             wave_id = f"wave-{self._turn_index}"
             context_session_id = self.active_context_session_id
+            pre_turn_world_temporal_snapshot = self._joint_loop.world_temporal_policy.export_rare_heavy_snapshot()
+            pre_turn_self_temporal_snapshot = self._joint_loop.self_temporal_policy.export_rare_heavy_snapshot()
             substrate_adapter = self._build_substrate_adapter(user_input=user_input)
             trace = self._build_training_trace_from_substrate(user_input=user_input)
             self._record_training_trace(trace)
@@ -1618,6 +1657,7 @@ class AgentSessionRunner:
             integration_result = await run_final_wiring_turn(
                 config=self._config,
                 substrate_adapter=substrate_adapter,
+                user_input=user_input,
                 application_rare_heavy_state=self._application_rare_heavy_state,
                 domain_knowledge_store=self._domain_knowledge_store,
                 case_memory_store=self._case_memory_store,
@@ -1684,6 +1724,11 @@ class AgentSessionRunner:
             rare_heavy_result = await self._maybe_apply_rare_heavy(
                 wave_id=wave_id,
                 joint_result=joint_result,
+                pre_turn_world_temporal_snapshot=pre_turn_world_temporal_snapshot,
+                pre_turn_self_temporal_snapshot=pre_turn_self_temporal_snapshot,
+            )
+            self._maybe_apply_delayed_substrate_rollback(
+                integration_result=integration_result,
             )
         self._session_post_queue.schedule()
         return self._to_turn_result(
@@ -2106,6 +2151,41 @@ class AgentSessionRunner:
                     confidence=0.7,
                     evidence=result.optimizer_state_description,
                 ),
+                EvaluationScore(
+                    family="learning",
+                    metric_name="substrate_online_fast_experimental_mode",
+                    value=1.0 if result.experimental_live_mutation else 0.0,
+                    confidence=0.82,
+                    evidence=(
+                        "Derived from session/runtime capability for experimental bounded live mutation."
+                    ),
+                ),
+                EvaluationScore(
+                    family="safety",
+                    metric_name="substrate_online_fast_rollback_integrity",
+                    value=1.0
+                    if (not result.rollback_reason or result.rollback_applied)
+                    else 0.0,
+                    confidence=0.78,
+                    evidence=(
+                        result.description
+                        if not result.rollback_reason
+                        else (
+                            f"rollback_reason={result.rollback_reason}, "
+                            f"rollback_ops={len(result.rollback_operations)}."
+                        )
+                    ),
+                ),
+                EvaluationScore(
+                    family="safety",
+                    metric_name="substrate_online_fast_review_or_revert_safe",
+                    value=1.0 if (not result.applied or result.rollback_applied or result.experimental_live_mutation) else 0.8,
+                    confidence=0.72,
+                    evidence=(
+                        f"gate_decision={result.gate_decision}, experimental={result.experimental_live_mutation}, "
+                        f"rollback={result.rollback_applied}."
+                    ),
+                ),
             ),
             description_suffix="Session owner appended online-fast substrate apply evidence.",
         )
@@ -2116,6 +2196,98 @@ class AgentSessionRunner:
             timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
             value=enriched,
         )
+
+    def _refresh_memory_snapshot_after_online_fast_evidence(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+    ) -> None:
+        memory_snapshot = integration_result.active_snapshots.get("memory")
+        if memory_snapshot is None or not isinstance(memory_snapshot.value, MemorySnapshot):
+            return
+        integration_result.active_snapshots["memory"] = Snapshot(
+            slot_name=memory_snapshot.slot_name,
+            owner=memory_snapshot.owner,
+            version=memory_snapshot.version + 1,
+            timestamp_ms=max(memory_snapshot.timestamp_ms + 1, self._turn_index),
+            value=self._memory_store.snapshot(
+                retrieved_entries=memory_snapshot.value.retrieved_entries,
+            ),
+        )
+
+    def _delayed_substrate_rollback_reasons(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+    ) -> tuple[str, ...]:
+        del integration_result
+        return ()
+
+    def _append_delayed_rollback_evaluation_evidence(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+        reasons: tuple[str, ...],
+        operations: tuple[str, ...],
+    ) -> None:
+        evaluation_snapshot = integration_result.active_snapshots.get("evaluation")
+        if evaluation_snapshot is None or not isinstance(evaluation_snapshot.value, EvaluationSnapshot):
+            return
+        enriched = self._evaluation_backbone.record_external_scores(
+            session_id=self.active_context_session_id,
+            wave_id=f"wave-{self._turn_index}",
+            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+            base_snapshot=evaluation_snapshot.value,
+            scores=(
+                EvaluationScore(
+                    family="safety",
+                    metric_name="substrate_delayed_rollback_applied",
+                    value=1.0 if operations else 0.0,
+                    confidence=0.82,
+                    evidence=(
+                        f"Derived from delayed rollback reasons={reasons} "
+                        f"and operation_count={len(operations)}."
+                    ),
+                ),
+            ),
+            description_suffix="Session owner appended delayed substrate rollback evidence.",
+        )
+        integration_result.active_snapshots["evaluation"] = Snapshot(
+            slot_name="evaluation",
+            owner="EvaluationModule",
+            version=evaluation_snapshot.version + 1,
+            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+            value=enriched,
+        )
+
+    def _maybe_apply_delayed_substrate_rollback(
+        self,
+        *,
+        integration_result: FinalIntegrationResult,
+    ) -> tuple[str, ...]:
+        reasons = tuple(self._delayed_substrate_rollback_reasons(integration_result=integration_result))
+        if not reasons:
+            return ()
+        operations: list[str] = []
+        if self._last_online_fast_import_checkpoint is not None:
+            operations.extend(
+                self._joint_loop.rollback_online_fast_substrate_import(
+                    self._last_online_fast_import_checkpoint
+                )
+            )
+            self._last_online_fast_import_checkpoint = None
+        if self._last_rare_heavy_import_checkpoint is not None:
+            operations.extend(
+                self.rollback_rare_heavy_import(self._last_rare_heavy_import_checkpoint)
+            )
+            self._last_rare_heavy_import_checkpoint = None
+        applied = tuple(operations)
+        self._append_delayed_rollback_evaluation_evidence(
+            integration_result=integration_result,
+            reasons=reasons,
+            operations=applied,
+        )
+        return applied
 
     def _maybe_apply_online_fast_substrate_self_mod(
         self,
@@ -2157,6 +2329,7 @@ class AgentSessionRunner:
                 gate_decision="schedule-not-due",
                 applied_operations=(),
                 blocked_operations=("online-fast:schedule-not-due",),
+                rollback_operations=(),
                 parameter_change_rate=substrate_self_mod.parameter_change_rate,
                 optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
                 checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
@@ -2165,6 +2338,7 @@ class AgentSessionRunner:
                 optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
                 fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
                 description="Online-fast substrate self-mod proposal was present, but schedule was not due.",
+                experimental_live_mutation=self.residual_runtime.supports_live_substrate_mutation,
             )
         if gate_decision is GateDecision.BLOCK:
             self._append_online_fast_credit_audit(
@@ -2189,6 +2363,7 @@ class AgentSessionRunner:
                 gate_decision=gate_decision.value,
                 applied_operations=(),
                 blocked_operations=("online-fast:evaluation-gate-block",),
+                rollback_operations=(),
                 parameter_change_rate=substrate_self_mod.parameter_change_rate,
                 optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
                 checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
@@ -2197,12 +2372,21 @@ class AgentSessionRunner:
                 optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
                 fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
                 description="Online-fast substrate self-mod proposal was blocked by the ONLINE evaluation gate.",
+                experimental_live_mutation=self.residual_runtime.supports_live_substrate_mutation,
             )
             self._append_online_fast_evaluation_evidence(
                 integration_result=integration_result,
                 wave_id=wave_id,
                 result=blocked_result,
             )
+            if substrate_self_mod.checkpoint.fast_memory_signal:
+                self._memory_store.observe_fast_memory_signal(
+                    signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                    timestamp_ms=max(self._turn_index, 1),
+                )
+                self._refresh_memory_snapshot_after_online_fast_evidence(
+                    integration_result=integration_result,
+                )
             return blocked_result
         if not self.residual_runtime.supports_live_substrate_mutation:
             self._append_online_fast_credit_audit(
@@ -2230,6 +2414,7 @@ class AgentSessionRunner:
                 gate_decision="frozen-substrate-doctrine",
                 applied_operations=(),
                 blocked_operations=("online-fast:frozen-substrate-doctrine",),
+                rollback_operations=(),
                 parameter_change_rate=substrate_self_mod.parameter_change_rate,
                 optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
                 checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
@@ -2241,22 +2426,35 @@ class AgentSessionRunner:
                     "Online-fast substrate self-mod proposal stayed review-only because the live runtime "
                     "is operating under the frozen-substrate doctrine."
                 ),
+                experimental_live_mutation=False,
             )
             self._append_online_fast_evaluation_evidence(
                 integration_result=integration_result,
                 wave_id=wave_id,
                 result=blocked_result,
             )
+            if substrate_self_mod.checkpoint.fast_memory_signal:
+                self._memory_store.observe_fast_memory_signal(
+                    signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                    timestamp_ms=max(self._turn_index, 1),
+                )
+                self._refresh_memory_snapshot_after_online_fast_evidence(
+                    integration_result=integration_result,
+                )
             return blocked_result
         import_result = self._joint_loop.apply_online_fast_substrate_checkpoint(
             substrate_self_mod.checkpoint,
             checkpoint_id=f"{self._session_id}:{wave_id}:online-fast-substrate",
         )
+        self._last_online_fast_import_checkpoint = import_result.checkpoint
         prior_checkpoint = import_result.checkpoint.substrate_checkpoint
         if substrate_self_mod.checkpoint.fast_memory_signal:
             self._memory_store.observe_fast_memory_signal(
                 signal=substrate_self_mod.checkpoint.fast_memory_signal,
                 timestamp_ms=max(self._turn_index, 1),
+            )
+            self._refresh_memory_snapshot_after_online_fast_evidence(
+                integration_result=integration_result,
             )
         self._append_online_fast_credit_audit(
             integration_result=integration_result,
@@ -2274,12 +2472,47 @@ class AgentSessionRunner:
                 proposal_hash=substrate_self_mod.checkpoint_hash,
             ),
         )
+        rollback_reason = ""
+        rollback_operations: tuple[str, ...] = ()
+        if (
+            substrate_self_mod.parameter_change_rate > 0.85
+            and substrate_self_mod.optimizer_state_norm > 0.85
+        ):
+            rollback_reason = "online-fast-integrity-guard"
+            rollback_operations = self._joint_loop.rollback_online_fast_substrate_import(
+                import_result.checkpoint
+            )
+            self._last_online_fast_import_checkpoint = None
+            self._append_online_fast_credit_audit(
+                integration_result=integration_result,
+                record=SelfModificationRecord(
+                    target=substrate_self_mod.target,
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=substrate_self_mod.checkpoint.checkpoint_id,
+                    new_value_hash=prior_checkpoint.checkpoint_id if prior_checkpoint is not None else "none",
+                    justification=(
+                        "Online-fast substrate self-mod proposal was rolled back by the session integrity guard. "
+                        f"{substrate_self_mod.description}"
+                    ),
+                    timestamp_ms=self._turn_index,
+                    is_reversible=True,
+                    checkpoint_id=(
+                        prior_checkpoint.checkpoint_id if prior_checkpoint is not None else substrate_self_mod.checkpoint.checkpoint_id
+                    ),
+                    lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                    proposal_hash=substrate_self_mod.checkpoint_hash,
+                ),
+            )
         applied_result = OnlineFastSubstrateTurnResult(
             recommended=True,
-            applied=True,
-            gate_decision=gate_decision.value,
+            applied=not bool(rollback_operations),
+            gate_decision=(
+                "allowed-then-rolled-back" if rollback_operations else gate_decision.value
+            ),
             applied_operations=import_result.applied_operations,
             blocked_operations=(),
+            rollback_operations=rollback_operations,
             parameter_change_rate=substrate_self_mod.parameter_change_rate,
             optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
             checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
@@ -2287,7 +2520,17 @@ class AgentSessionRunner:
             source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
             optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
             fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
-            description=import_result.description,
+            description=(
+                import_result.description
+                if not rollback_operations
+                else (
+                    f"{import_result.description} Session integrity guard rolled the substrate back "
+                    f"via {len(rollback_operations)} owner-side operations."
+                )
+            ),
+            experimental_live_mutation=True,
+            rollback_applied=bool(rollback_operations),
+            rollback_reason=rollback_reason,
         )
         self._append_online_fast_evaluation_evidence(
             integration_result=integration_result,
@@ -2301,6 +2544,8 @@ class AgentSessionRunner:
         *,
         wave_id: str,
         joint_result: ScheduledJointLoopResult,
+        pre_turn_world_temporal_snapshot: object,
+        pre_turn_self_temporal_snapshot: object,
     ) -> RareHeavyTurnResult | None:
         if not joint_result.rare_heavy_review_recommended:
             return None
@@ -2583,6 +2828,11 @@ class AgentSessionRunner:
                 pre_import_passed=pre_import_evaluation.accepted,
                 pre_import_judgement=pre_import_evaluation.judgement,
             )
+        self._last_rare_heavy_import_checkpoint = replace(
+            import_result.checkpoint,
+            world_temporal_snapshot=pre_turn_world_temporal_snapshot,
+            self_temporal_snapshot=pre_turn_self_temporal_snapshot,
+        )
         self._last_rare_heavy_turn_index = self._turn_index
         return RareHeavyTurnResult(
             recommended=True,
@@ -2727,6 +2977,13 @@ class AgentSessionRunner:
         memory_tower_depth = 0
         memory_tower_alignment = 0.0
         memory_tower_profile_id = ""
+        runtime_backbone_evidence_active = False
+        runtime_backbone_signal_norm = 0.0
+        runtime_backbone_signal_quality = 0.0
+        runtime_backbone_signal_strength = 0.0
+        runtime_backbone_hook_coverage = 0.0
+        fast_memory_signal_norm = 0.0
+        fast_memory_runtime_alignment = 0.0
         memory_snapshot = integration_result.active_snapshots.get("memory")
         if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot):
             memory_retrieval_count = len(memory_snapshot.value.retrieved_entries)
@@ -2746,6 +3003,16 @@ class AgentSessionRunner:
             learned_recall_core_guided = lifecycle_metrics.get("last_learned_recall_driver_is_core", 0.0) > 0.0
             memory_tower_depth = int(lifecycle_metrics.get("last_memory_tower_depth", 0.0))
             memory_tower_alignment = lifecycle_metrics.get("last_memory_tower_alignment", 0.0)
+            runtime_backbone_signal_norm = lifecycle_metrics.get("last_runtime_backbone_signal_norm", 0.0)
+            runtime_backbone_signal_quality = lifecycle_metrics.get("last_runtime_backbone_signal_quality", 0.0)
+            runtime_backbone_signal_strength = lifecycle_metrics.get("last_runtime_backbone_signal_strength", 0.0)
+            runtime_backbone_hook_coverage = lifecycle_metrics.get("last_runtime_backbone_hook_coverage", 0.0)
+            runtime_backbone_evidence_active = (
+                lifecycle_metrics.get("last_runtime_backbone_residual_stream_active", 0.0) > 0.0
+                and runtime_backbone_signal_quality > 0.0
+            )
+            fast_memory_signal_norm = lifecycle_metrics.get("last_fast_memory_signal_norm", 0.0)
+            fast_memory_runtime_alignment = lifecycle_metrics.get("last_fast_memory_runtime_alignment", 0.0)
             cms_state = memory_snapshot.value.cms_state
             if cms_state is not None and cms_state.tower_profile is not None:
                 memory_tower_profile_id = cms_state.tower_profile.profile_id
@@ -2938,6 +3205,13 @@ class AgentSessionRunner:
             memory_tower_depth=memory_tower_depth,
             memory_tower_alignment=memory_tower_alignment,
             memory_tower_profile_id=memory_tower_profile_id,
+            runtime_backbone_evidence_active=runtime_backbone_evidence_active,
+            runtime_backbone_signal_norm=runtime_backbone_signal_norm,
+            runtime_backbone_signal_quality=runtime_backbone_signal_quality,
+            runtime_backbone_signal_strength=runtime_backbone_signal_strength,
+            runtime_backbone_hook_coverage=runtime_backbone_hook_coverage,
+            fast_memory_signal_norm=fast_memory_signal_norm,
+            fast_memory_runtime_alignment=fast_memory_runtime_alignment,
             session_post_pending_job_count=effective_queue_state.pending_job_count,
             session_post_completed_job_count=effective_queue_state.completed_job_count,
             session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,

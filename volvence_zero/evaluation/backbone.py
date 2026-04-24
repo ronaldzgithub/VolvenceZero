@@ -1109,6 +1109,27 @@ class EvaluationBackbone:
         family_turnover_health = _clamp(metacontroller_state.action_family_turnover_health)
         fast_prior_strength = _clamp(metacontroller_state.fast_prior_strength)
         fast_prior_switch_pressure = _clamp(0.5 + metacontroller_state.fast_prior_switch_pressure_delta)
+        encoder_slow_norm = (
+            metacontroller_state.encoder_optimizer_state.mean_slow_norm
+            if metacontroller_state.encoder_optimizer_state is not None
+            else 0.0
+        )
+        decoder_slow_norm = (
+            metacontroller_state.decoder_optimizer_state.mean_slow_norm
+            if metacontroller_state.decoder_optimizer_state is not None
+            else 0.0
+        )
+        optimizer_memory_drive = _clamp((encoder_slow_norm + decoder_slow_norm) / 2.0)
+        updater_effective_lr = (
+            _clamp(metacontroller_state.learned_update_rule_state.last_effective_learning_rate)
+            if metacontroller_state.learned_update_rule_state is not None
+            else 0.0
+        )
+        updater_confidence = (
+            _clamp(metacontroller_state.learned_update_rule_state.last_confidence)
+            if metacontroller_state.learned_update_rule_state is not None
+            else 0.0
+        )
         family_collapse_risk = _clamp(
             family_monopoly_pressure * 0.50
             + (1.0 - family_turnover_health) * 0.30
@@ -1284,6 +1305,38 @@ class EvaluationBackbone:
                 evidence=(
                     f"Derived from fast_prior_switch_pressure_delta="
                     f"{metacontroller_state.fast_prior_switch_pressure_delta:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="optimizer_memory_drive",
+                value=optimizer_memory_drive,
+                confidence=0.65,
+                evidence=(
+                    f"Derived from encoder_slow_norm={encoder_slow_norm:.3f} "
+                    f"and decoder_slow_norm={decoder_slow_norm:.3f}."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="temporal_updater_effective_lr",
+                value=updater_effective_lr,
+                confidence=0.66,
+                evidence=(
+                    metacontroller_state.learned_update_rule_state.description
+                    if metacontroller_state.learned_update_rule_state is not None
+                    else "No temporal updater state was published."
+                ),
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="temporal_updater_confidence",
+                value=updater_confidence,
+                confidence=0.64,
+                evidence=(
+                    metacontroller_state.learned_update_rule_state.description
+                    if metacontroller_state.learned_update_rule_state is not None
+                    else "No temporal updater state was published."
                 ),
             ),
         )
@@ -1910,6 +1963,101 @@ class EvaluationBackbone:
             tower_depth = lifecycle_metrics.get("last_memory_tower_depth", 0.0)
             tower_alignment = lifecycle_metrics.get("last_memory_tower_alignment", 0.0)
             tower_consolidation_count = lifecycle_metrics.get("tower_consolidation_count", 0.0)
+            runtime_backbone_observation_count = lifecycle_metrics.get(
+                "runtime_backbone_observation_count", 0.0
+            )
+            runtime_backbone_signal_quality = lifecycle_metrics.get(
+                "last_runtime_backbone_signal_quality", 0.0
+            )
+            runtime_backbone_signal_strength = lifecycle_metrics.get(
+                "last_runtime_backbone_signal_strength", 0.0
+            )
+            runtime_backbone_hook_coverage = lifecycle_metrics.get(
+                "last_runtime_backbone_hook_coverage", 0.0
+            )
+            fast_memory_signal_count = lifecycle_metrics.get("fast_memory_signal_count", 0.0)
+            fast_memory_signal_norm = lifecycle_metrics.get("last_fast_memory_signal_norm", 0.0)
+            fast_memory_runtime_alignment = lifecycle_metrics.get(
+                "last_fast_memory_runtime_alignment", 0.0
+            )
+            if runtime_backbone_observation_count > 0.0:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="runtime_backbone_signal_quality",
+                            value=_clamp(runtime_backbone_signal_quality),
+                            confidence=0.7,
+                            evidence=(
+                                f"Derived from runtime_backbone_observation_count="
+                                f"{runtime_backbone_observation_count:.0f}, "
+                                f"signal_quality={runtime_backbone_signal_quality:.3f}, "
+                                f"hook_coverage={runtime_backbone_hook_coverage:.3f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="runtime_backbone_signal_strength",
+                            value=_clamp(runtime_backbone_signal_strength),
+                            confidence=0.68,
+                            evidence=(
+                                f"Derived from runtime_backbone_strength={runtime_backbone_signal_strength:.3f} "
+                                f"and hook_coverage={runtime_backbone_hook_coverage:.3f}."
+                            ),
+                        ),
+                    )
+                )
+            if fast_memory_signal_count > 0.0:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="fast_memory_signal_norm",
+                            value=_clamp(fast_memory_signal_norm),
+                            confidence=0.67,
+                            evidence=(
+                                f"Derived from fast_memory_signal_count={fast_memory_signal_count:.0f} "
+                                f"and signal_norm={fast_memory_signal_norm:.3f}."
+                            ),
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="fast_memory_runtime_alignment",
+                            value=_clamp(max(fast_memory_runtime_alignment, 0.0)),
+                            confidence=0.66,
+                            evidence=(
+                                f"Derived from fast_memory_runtime_alignment="
+                                f"{fast_memory_runtime_alignment:.3f}."
+                            ),
+                        ),
+                    )
+                )
+            if updater_state := memory_snapshot.cms_state.update_rule_state if memory_snapshot.cms_state is not None else None:
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="memory_updater_effective_lr",
+                            value=_clamp(updater_state.last_effective_learning_rate),
+                            confidence=0.7,
+                            evidence=updater_state.description,
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="memory_updater_write_gate",
+                            value=_clamp(updater_state.last_write_gate),
+                            confidence=0.68,
+                            evidence=updater_state.description,
+                        ),
+                        EvaluationScore(
+                            family="learning",
+                            metric_name="memory_updater_confidence",
+                            value=_clamp(updater_state.last_confidence),
+                            confidence=0.67,
+                            evidence=updater_state.description,
+                        ),
+                    )
+                )
             if tower_depth > 0.0:
                 scores.extend(
                     (
@@ -2330,6 +2478,14 @@ class EvaluationBackbone:
             pending_batch_count = max(schedule_telemetry.get("pending_batch_count", 0), 0)
             scheduler_batch_fill_ratio = _clamp(pending_batch_count / batch_target)
             scheduler_risk_managed = _clamp(1.0 - scheduler_rollback_risk)
+            timescale_contract_retained = _clamp(
+                0.35
+                + scheduler_risk_managed * 0.20
+                + (1.0 - scheduler_transition_pressure) * 0.15
+                + (1.0 - scheduler_substrate_pressure) * 0.10
+                + (1.0 - scheduler_rare_heavy_pressure) * 0.10
+                + float(joint_loop_result.substrate_online_fast_due or joint_loop_result.rare_heavy_review_recommended) * 0.10
+            )
             scheduler_discipline = _clamp(
                 scheduler_family_stability * 0.30
                 + scheduler_risk_managed * 0.30
@@ -2418,6 +2574,17 @@ class EvaluationBackbone:
                         value=scheduler_discipline,
                         confidence=0.64,
                         evidence=f"Derived from schedule_action={schedule_action} and scheduler pressure balance.",
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="timescale_contract_retained",
+                        value=timescale_contract_retained,
+                        confidence=0.67,
+                        evidence=(
+                            f"Derived from schedule_action={schedule_action}, "
+                            f"substrate_due={int(joint_loop_result.substrate_online_fast_due)}, "
+                            f"rare_heavy_due={int(joint_loop_result.rare_heavy_review_recommended)}."
+                        ),
                     ),
                 )
             )

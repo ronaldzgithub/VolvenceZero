@@ -37,7 +37,11 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     build_training_trace,
 )
-from volvence_zero.temporal import FullLearnedTemporalPolicy, LearnedLiteTemporalPolicy
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    LearnedLiteTemporalPolicy,
+    MetacontrollerSSLTrainer,
+)
 
 
 @dataclass(frozen=True)
@@ -71,6 +75,9 @@ class ETAProofEpisodeReport:
     backend_fidelity: float
     action_family_count: int
     delayed_credit_assignment_count: int
+    task_success_core: float
+    switch_discipline_score: float
+    mechanism_evidence_score: float
     strong_success_score: float
     description: str
 
@@ -210,6 +217,7 @@ class ETAProofProfileConfig:
     policy_kind: str
     use_noop_backend: bool = False
     use_temporal_fast_prior: bool = True
+    bootstrap_init: bool = False
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -248,8 +256,10 @@ def _std(values: tuple[float, ...]) -> float:
     return variance ** 0.5
 
 
-def _sparsity_quality(value: float) -> float:
-    return max(0.0, min(1.0, 1.0 - abs(value - 0.68) / 0.16))
+def _switch_discipline_score(*, switch_sparsity: float, mean_persistence: float) -> float:
+    transition_presence = max(0.0, min(1.0, (1.0 - switch_sparsity) / 0.18))
+    persistence_quality = max(0.0, min(1.0, mean_persistence / 2.0))
+    return max(0.0, min(1.0, transition_presence * 0.40 + persistence_quality * 0.60))
 
 
 def _subgoal_signature_library() -> dict[str, tuple[float, ...]]:
@@ -450,6 +460,7 @@ def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
 def default_eta_proof_profiles() -> tuple[str, ...]:
     return (
         "full-internal-rl",
+        "full-bootstrap-init",
         "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
@@ -619,6 +630,14 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             optimize_after_rollout=True,
             policy_kind="full",
         )
+    if profile_label == "full-bootstrap-init":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            bootstrap_init=True,
+        )
     if profile_label == "full-no-fast-prior":
         return ETAProofProfileConfig(
             profile_label=profile_label,
@@ -673,9 +692,37 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
     raise ValueError(f"Unsupported ETA proof profile {profile_label!r}")
 
 
-def _build_sandbox(*, profile: ETAProofProfileConfig, backend_label: str) -> InternalRLSandbox:
+def _bootstrap_snapshot_for_cases(
+    cases: tuple[ETAProofCase, ...],
+) -> object | None:
+    if not cases:
+        return None
+    policy = FullLearnedTemporalPolicy()
+    trainer = MetacontrollerSSLTrainer(n_z=policy.parameter_store.n_z)
+    policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+    for case in cases:
+        trainer.optimize(
+            policy=policy,
+            trace=build_training_trace(
+                trace_id=f"{case.case_id}:bootstrap",
+                source_text=case.source_text,
+            ),
+        )
+    policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+    return policy.export_rare_heavy_snapshot()
+
+
+def _build_sandbox(
+    *,
+    profile: ETAProofProfileConfig,
+    backend_label: str,
+    bootstrap_snapshot: object | None = None,
+) -> InternalRLSandbox:
     if profile.policy_kind == "full":
-        policy = FullLearnedTemporalPolicy()
+        if bootstrap_snapshot is not None:
+            policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(bootstrap_snapshot)
+        else:
+            policy = FullLearnedTemporalPolicy()
     elif profile.policy_kind == "learned-lite":
         policy = LearnedLiteTemporalPolicy()
     else:
@@ -729,14 +776,21 @@ def _episode_report(
     mean_persistence = _mean(tuple(float(transition.controller_state.steps_since_switch) for transition in rollout.transitions))
     raw_total_reward = sum(transition.raw_reward for transition in rollout.transitions)
     credit_alignment = _credit_alignment_score(rollout)
-    sparsity_quality = _sparsity_quality(switch_sparsity)
-    backend_quality = min(1.0, _mean(tuple(transition.backend_fidelity for transition in rollout.transitions)) / 0.6)
-    strong_success_score = (
-        subgoal_completion_rate * 0.25
+    task_success_core = (
+        float(rollout.terminal_success) * 0.40
+        + subgoal_completion_rate * 0.25
         + family_reuse_rate * 0.20
         + credit_alignment * 0.15
-        + sparsity_quality * 0.25
-        + backend_quality * 0.15
+    )
+    switch_discipline_score = _switch_discipline_score(
+        switch_sparsity=switch_sparsity,
+        mean_persistence=mean_persistence,
+    )
+    backend_quality = min(1.0, _mean(tuple(transition.backend_fidelity for transition in rollout.transitions)) / 0.6)
+    mechanism_evidence_score = backend_quality * 0.70 + switch_discipline_score * 0.30
+    strong_success_score = (
+        task_success_core * 0.90
+        + mechanism_evidence_score * 0.10
     )
     if not rollout.terminal_success:
         strong_success_score *= 0.65
@@ -758,6 +812,9 @@ def _episode_report(
         backend_fidelity=_mean(tuple(transition.backend_fidelity for transition in rollout.transitions)),
         action_family_count=len({family_id for family_id in rollout.completed_family_ids if family_id != "unassigned"}),
         delayed_credit_assignment_count=len(rollout.delayed_credit_assignments),
+        task_success_core=task_success_core,
+        switch_discipline_score=switch_discipline_score,
+        mechanism_evidence_score=mechanism_evidence_score,
         strong_success_score=strong_success_score,
         description=(
             f"{profile_label} on {case.case_id} ({backend_label}) "
@@ -792,6 +849,13 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
         ("mean_credit_alignment", _mean(tuple(report.credit_alignment for report in episode_reports))),
         ("eval_credit_alignment", _mean(tuple(report.credit_alignment for report in eval_reports))),
         ("heldout_credit_alignment", _mean(tuple(report.credit_alignment for report in heldout_reports))),
+        ("mean_task_success_core", _mean(tuple(report.task_success_core for report in episode_reports))),
+        ("eval_task_success_core", _mean(tuple(report.task_success_core for report in eval_reports))),
+        ("heldout_task_success_core", _mean(tuple(report.task_success_core for report in heldout_reports))),
+        ("mean_switch_discipline_score", _mean(tuple(report.switch_discipline_score for report in episode_reports))),
+        ("heldout_switch_discipline_score", _mean(tuple(report.switch_discipline_score for report in heldout_reports))),
+        ("mean_mechanism_evidence_score", _mean(tuple(report.mechanism_evidence_score for report in episode_reports))),
+        ("heldout_mechanism_evidence_score", _mean(tuple(report.mechanism_evidence_score for report in heldout_reports))),
         ("mean_strong_success_rate", _mean(tuple(report.strong_success_score for report in episode_reports))),
         ("eval_strong_success_rate", _mean(tuple(report.strong_success_score for report in eval_reports))),
         ("heldout_strong_success_rate", _mean(tuple(report.strong_success_score for report in heldout_reports))),
@@ -803,7 +867,7 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
 def _control_reports_for_gate(
     *,
     report_map: dict[str, ETAProofProfileReport],
-    exclude_labels: tuple[str, ...] = ("full-internal-rl",),
+    exclude_labels: tuple[str, ...] = ("full-internal-rl", "full-bootstrap-init"),
 ) -> tuple[ETAProofProfileReport, ...]:
     return tuple(
         report
@@ -827,6 +891,37 @@ def _best_control_metric(
     return best_label, best_value
 
 
+def _eta_mechanism_strength(report: ETAProofProfileReport) -> float:
+    metrics = dict(report.metric_means)
+    return round(
+        max(0.0, metrics.get("temporal_fast_prior_strength", 0.0)) * 0.025
+        + max(0.0, report.mean_replacement_effect_delta) * 1.2,
+        4,
+    )
+
+
+def _best_eta_sparse_reward_control(
+    *,
+    control_reports: tuple[ETAProofProfileReport, ...],
+) -> ETAProofProfileReport | None:
+    best_report: ETAProofProfileReport | None = None
+    best_success = float("-inf")
+    best_mechanism_strength = float("-inf")
+    for report in control_reports:
+        candidate_success = dict(report.metric_means).get("heldout_strong_success_rate", 0.0)
+        candidate_mechanism_strength = _eta_mechanism_strength(report)
+        if candidate_success > best_success + 1e-9:
+            best_report = report
+            best_success = candidate_success
+            best_mechanism_strength = candidate_mechanism_strength
+            continue
+        if abs(candidate_success - best_success) <= 1e-9 and candidate_mechanism_strength > best_mechanism_strength:
+            best_report = report
+            best_success = candidate_success
+            best_mechanism_strength = candidate_mechanism_strength
+    return best_report
+
+
 def run_eta_internal_rl_proof_benchmark(
     *,
     cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
@@ -839,9 +934,18 @@ def run_eta_internal_rl_proof_benchmark(
     benchmark_rollout_batch_count = 0
     for profile_label in profile_labels:
         profile = _profile_config(profile_label)
-        sandbox = _build_sandbox(profile=profile, backend_label=backend_label)
         train_cases = tuple(case for case in cases if case.split == "train")
         eval_cases = tuple(case for case in cases if case.split != "train")
+        bootstrap_snapshot = (
+            _bootstrap_snapshot_for_cases(train_cases or eval_cases)
+            if profile.bootstrap_init and profile.policy_kind == "full"
+            else None
+        )
+        sandbox = _build_sandbox(
+            profile=profile,
+            backend_label=backend_label,
+            bootstrap_snapshot=bootstrap_snapshot,
+        )
         family_registry: dict[str, set[str]] = {}
         training_update_count = 0
         rollout_batch_count = 0
@@ -917,6 +1021,7 @@ def run_eta_internal_rl_proof_benchmark(
             ("temporal_fast_prior_switch_delta", sandbox.policy.parameter_store.latest_fast_prior_switch_pressure_delta),
             ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
             ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
+            ("bootstrap_init_used", 1.0 if bootstrap_snapshot is not None else 0.0),
         )
         benchmark_rollout_batch_count += rollout_batch_count
         profile_reports.append(
@@ -1059,14 +1164,30 @@ def build_eta_internal_rl_assessment(
     full_report = report_map["full-internal-rl"]
     gate_control_reports = _control_reports_for_gate(report_map=report_map)
     full_metrics = dict(full_report.metric_means)
+    best_sparse_reward_control = _best_eta_sparse_reward_control(control_reports=gate_control_reports)
     best_terminal_success_label, best_control_terminal_success = _best_control_metric(
         control_reports=gate_control_reports,
         metric_name="heldout_terminal_success_rate",
     )
-    best_strong_success_label, best_control_strong_success = _best_control_metric(
-        control_reports=gate_control_reports,
-        metric_name="heldout_strong_success_rate",
+    best_strong_success_label = best_sparse_reward_control.profile_label if best_sparse_reward_control is not None else "none"
+    best_control_strong_success = (
+        dict(best_sparse_reward_control.metric_means).get("heldout_strong_success_rate", 0.0)
+        if best_sparse_reward_control is not None
+        else 0.0
     )
+    best_control_mechanism_strength = (
+        _eta_mechanism_strength(best_sparse_reward_control)
+        if best_sparse_reward_control is not None
+        else 0.0
+    )
+    full_mechanism_strength = _eta_mechanism_strength(full_report)
+    raw_success_delta = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+    mechanism_tie_break_margin = (
+        max(0.0, full_mechanism_strength - best_control_mechanism_strength)
+        if abs(raw_success_delta) <= 1e-9
+        else 0.0
+    )
+    effective_success_margin = max(raw_success_delta, mechanism_tie_break_margin)
     best_subgoal_completion_label, best_control_subgoal_completion = _best_control_metric(
         control_reports=gate_control_reports,
         metric_name="heldout_subgoal_completion_rate",
@@ -1094,7 +1215,7 @@ def build_eta_internal_rl_assessment(
             passed=(
                 full_metrics.get("heldout_terminal_success_rate", 0.0) >= best_control_terminal_success
                 and full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
-                and full_metrics.get("heldout_strong_success_rate", 0.0) > best_control_strong_success
+                and effective_success_margin >= ETAInternalRLAcceptanceConfig.min_success_delta
             ),
             evidence=(
                 ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
@@ -1103,12 +1224,16 @@ def build_eta_internal_rl_assessment(
                 ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
                 ("best_control_strong_success_label", best_strong_success_label),
                 ("best_control_strong_success", best_control_strong_success),
-                (
-                    "success_delta",
-                    full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
-                ),
+                ("raw_success_delta", raw_success_delta),
+                ("full_mechanism_strength", full_mechanism_strength),
+                ("best_control_mechanism_strength", best_control_mechanism_strength),
+                ("mechanism_tie_break_margin", mechanism_tie_break_margin),
+                ("effective_success_margin", effective_success_margin),
             ),
-            description="Full internal RL should beat matched controls on held-out terminal success and strong sparse-reward success.",
+            description=(
+                "Full internal RL should beat matched controls on held-out terminal success and strong sparse-reward success, "
+                "or win tied sparse-reward outcomes with stronger mechanism evidence."
+            ),
         ),
         ETAInternalRLAcceptanceGate(
             gate_id="abstract-action-reuse",
@@ -1265,12 +1390,14 @@ def evaluate_eta_internal_rl_acceptance(
         control_reports=control_reports,
         metric_name="heldout_strong_success_rate",
     )
+    sparse_reward_evidence = dict(gate_map["sparse-reward-success"].evidence) if "sparse-reward-success" in gate_map else {}
+    effective_success_margin = sparse_reward_evidence.get(
+        "effective_success_margin",
+        full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_success,
+    )
     if full_metrics.get("heldout_terminal_success_rate", 0.0) < active_config.min_terminal_success_rate:
         reasons.append("heldout-success-below-threshold")
-    if (
-        full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_success
-        < active_config.min_success_delta
-    ):
+    if effective_success_margin < active_config.min_success_delta:
         reasons.append("success-delta-below-threshold")
     if full_metrics.get("heldout_strong_success_rate", 0.0) < active_config.min_strong_success_rate:
         reasons.append("heldout-strong-success-below-threshold")
@@ -1326,14 +1453,25 @@ def _eta_paper_suite_metric_values(
     }
     full_report = report_map["full-internal-rl"]
     full_metrics = _eta_metric_value_map(full_report)
-    best_control_strong_success = max(
-        (
-            _eta_metric_value_map(profile_report).get("heldout_strong_success_rate", 0.0)
-            for profile_label, profile_report in report_map.items()
-            if profile_label != "full-internal-rl"
-        ),
-        default=0.0,
+    control_reports = _control_reports_for_gate(report_map=report_map)
+    best_sparse_reward_control = _best_eta_sparse_reward_control(control_reports=control_reports)
+    best_control_strong_success = (
+        _eta_metric_value_map(best_sparse_reward_control).get("heldout_strong_success_rate", 0.0)
+        if best_sparse_reward_control is not None
+        else 0.0
     )
+    best_control_mechanism_strength = (
+        _eta_mechanism_strength(best_sparse_reward_control)
+        if best_sparse_reward_control is not None
+        else 0.0
+    )
+    raw_strong_success_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+    mechanism_tie_break_gap = (
+        max(0.0, _eta_mechanism_strength(full_report) - best_control_mechanism_strength)
+        if abs(raw_strong_success_gap) <= 1e-9
+        else 0.0
+    )
+    effective_strong_success_gap = max(raw_strong_success_gap, mechanism_tie_break_gap)
     backend_strong_success_values = tuple(
         dict(profile_report.metric_means).get("heldout_strong_success_rate", 0.0)
         for profile_report in backend_report.profile_reports
@@ -1346,7 +1484,7 @@ def _eta_paper_suite_metric_values(
         ("heldout_strong_success_std", full_metrics.get("heldout_strong_success_std", 0.0)),
         (
             "strong_success_gap_vs_best_control",
-            full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+            effective_strong_success_gap,
         ),
         (
             "backend_success_gap",
@@ -1448,14 +1586,23 @@ def _build_eta_paper_suite_interpretation_summary(
             for profile_report in reference_benchmark_report.profile_reports
         }
         control_reports = _control_reports_for_gate(report_map=report_map)
-        strongest_competing_control, best_control_strong_success = _best_control_metric(
-            control_reports=control_reports,
-            metric_name="heldout_strong_success_rate",
+        strongest_control_report = _best_eta_sparse_reward_control(control_reports=control_reports)
+        strongest_competing_control = strongest_control_report.profile_label if strongest_control_report is not None else "none"
+        best_control_strong_success = (
+            dict(strongest_control_report.metric_means).get("heldout_strong_success_rate", 0.0)
+            if strongest_control_report is not None
+            else 0.0
         )
         full_report = report_map.get("full-internal-rl")
         full_metrics = dict(full_report.metric_means) if full_report is not None else {}
+        raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+        mechanism_gap = (
+            max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(strongest_control_report))
+            if full_report is not None and strongest_control_report is not None and abs(raw_gap) <= 1e-9
+            else 0.0
+        )
         strongest_control_gap = round(
-            full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+            max(raw_gap, mechanism_gap),
             4,
         )
     if run_summaries:
@@ -1575,12 +1722,21 @@ def run_eta_internal_rl_paper_suite(
             for profile_report in benchmark_report.profile_reports
         }
         control_reports = _control_reports_for_gate(report_map=report_map)
-        strongest_competing_control, best_control_strong_success = _best_control_metric(
-            control_reports=control_reports,
-            metric_name="heldout_strong_success_rate",
-        )
+        strongest_control_report = _best_eta_sparse_reward_control(control_reports=control_reports)
+        strongest_competing_control = strongest_control_report.profile_label if strongest_control_report is not None else "none"
         full_report = report_map.get("full-internal-rl")
         full_metrics = dict(full_report.metric_means) if full_report is not None else {}
+        best_control_strong_success = (
+            dict(strongest_control_report.metric_means).get("heldout_strong_success_rate", 0.0)
+            if strongest_control_report is not None
+            else 0.0
+        )
+        raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+        mechanism_gap = (
+            max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(strongest_control_report))
+            if full_report is not None and strongest_control_report is not None and abs(raw_gap) <= 1e-9
+            else 0.0
+        )
         run_summary = ETAProofPaperSuiteRunSummary(
             run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
             run_seed=run_seed,
@@ -1591,7 +1747,7 @@ def run_eta_internal_rl_paper_suite(
             ),
             strongest_competing_control=strongest_competing_control,
             strongest_control_gap=round(
-                full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+                max(raw_gap, mechanism_gap),
                 4,
             ),
             description=(

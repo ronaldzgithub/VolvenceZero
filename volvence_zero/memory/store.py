@@ -6,6 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
+from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRuleState
 from volvence_zero.memory.cms import (
     CMSCheckpointState,
     CMSMemoryCore,
@@ -17,6 +18,10 @@ from volvence_zero.memory.persistence import (
     PersistenceBackend,
     deserialize_checkpoint,
     serialize_checkpoint,
+)
+from volvence_zero.memory.runtime_evidence import (
+    build_runtime_backbone_evidence,
+    cosine_alignment,
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
@@ -123,6 +128,55 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
         cms_raw = parsed.get("cms_state")
         cms_state: CMSCheckpointState | None = None
         if cms_raw is not None and isinstance(cms_raw, dict):
+            update_rule_raw = cms_raw.get("update_rule_state")
+            update_rule_state = None
+            if isinstance(update_rule_raw, dict):
+                update_rule_state = LearnedUpdateRuleState(
+                    rule_id=str(update_rule_raw["rule_id"]),
+                    feature_dim=int(update_rule_raw["feature_dim"]),
+                    hidden_dim=int(update_rule_raw["hidden_dim"]),
+                    update_count=int(update_rule_raw["update_count"]),
+                    last_feature_norm=float(update_rule_raw["last_feature_norm"]),
+                    last_improvement=float(update_rule_raw["last_improvement"]),
+                    last_guard_reason=str(update_rule_raw.get("last_guard_reason", "")),
+                    input_projection=tuple(
+                        tuple(float(v) for v in row) for row in update_rule_raw.get("input_projection", ())
+                    ),
+                    hidden_bias=tuple(float(v) for v in update_rule_raw.get("hidden_bias", ())),
+                    output_projection=tuple(
+                        tuple(float(v) for v in row) for row in update_rule_raw.get("output_projection", ())
+                    ),
+                    output_bias=tuple(float(v) for v in update_rule_raw.get("output_bias", ())),
+                    last_decisions=tuple(
+                        LearnedUpdateDecision(
+                            target_id=str(item["target_id"]),
+                            write_gate=float(item["write_gate"]),
+                            step_scale=float(item["step_scale"]),
+                            momentum_gate=float(item["momentum_gate"]),
+                            slow_mix=float(item["slow_mix"]),
+                            reset_mix=float(item["reset_mix"]),
+                            bias_delta=float(item["bias_delta"]),
+                            confidence=float(item["confidence"]),
+                            guard_applied=bool(item.get("guard_applied", False)),
+                            guard_reason=str(item.get("guard_reason", "")),
+                            description=str(item.get("description", "")),
+                        )
+                        for item in update_rule_raw.get("last_decisions", ())
+                    ),
+                    base_learning_rate=float(update_rule_raw.get("base_learning_rate", 0.0)),
+                    last_effective_learning_rate=float(
+                        update_rule_raw.get("last_effective_learning_rate", 0.0)
+                    ),
+                    last_reward=float(update_rule_raw.get("last_reward", 0.0)),
+                    last_stability=float(update_rule_raw.get("last_stability", 0.0)),
+                    last_write_gate=float(update_rule_raw.get("last_write_gate", 0.0)),
+                    last_step_scale=float(update_rule_raw.get("last_step_scale", 0.0)),
+                    last_momentum_gate=float(update_rule_raw.get("last_momentum_gate", 0.0)),
+                    last_slow_mix=float(update_rule_raw.get("last_slow_mix", 0.0)),
+                    last_reset_mix=float(update_rule_raw.get("last_reset_mix", 0.0)),
+                    last_confidence=float(update_rule_raw.get("last_confidence", 0.0)),
+                    description=str(update_rule_raw.get("description", "")),
+                )
             cms_state = CMSCheckpointState(
                 online_fast=tuple(float(v) for v in cms_raw["online_fast"]),
                 session_medium=tuple(float(v) for v in cms_raw["session_medium"]),
@@ -149,6 +203,7 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                     (str(level[0]), tuple(float(v) for v in level[1]))
                     for level in cms_raw.get("tower_meta_levels", ())
                 ),
+                update_rule_state=update_rule_state,
             )
         semantic_raw = parsed.get("semantic_index", [])
         semantic_index = tuple(
@@ -264,6 +319,9 @@ class LearnedMemoryRecall:
     tower_depth: int
     retrieval_confidence: float
     tower_alignment: float
+    query_only_alignment: float
+    composite_alignment: float
+    transfer_alignment: float
     artifact_weight: float
     learned_weight: float
     description: str
@@ -472,7 +530,19 @@ class MemoryStore:
         self._last_recall_confidence = 0.0
         self._last_recall_driver = "artifact-only"
         self._fast_memory_signal_count = 0
+        self._last_fast_memory_signal: tuple[float, ...] = ()
         self._last_fast_memory_signal_norm = 0.0
+        self._last_fast_memory_runtime_alignment = 0.0
+        self._runtime_backbone_observation_count = 0
+        self._last_runtime_backbone_signal: tuple[float, ...] = ()
+        self._last_runtime_backbone_signal_norm = 0.0
+        self._last_runtime_backbone_signal_quality = 0.0
+        self._last_runtime_backbone_strength = 0.0
+        self._last_runtime_backbone_hook_coverage = 0.0
+        self._last_runtime_backbone_fallback_active = 0.0
+        self._last_runtime_backbone_residual_stream_active = 0.0
+        self._last_runtime_backbone_sequence_density = 0.0
+        self._last_runtime_backbone_activation_density = 0.0
         self._tower_consolidation_count = 0
         self._last_tower_depth = 0
         self._last_tower_alignment = 0.0
@@ -611,6 +681,7 @@ class MemoryStore:
         durable_entries = self._entries_for(MemoryStratum.DURABLE)
         total_entries = self._artifact_store.total_entries_by_stratum()
         cms_state = self._learned_core.snapshot() if self._learned_core is not None else None
+        updater_state = cms_state.update_rule_state if cms_state is not None else None
         continuum_profile = cms_state.continuum_profile if cms_state is not None else None
         continuum_band_count = len(continuum_profile.bands) if continuum_profile is not None else 0
         continuum_reconstruction_edge_count = (
@@ -642,6 +713,40 @@ class MemoryStore:
             description += (
                 f" last_reset_reason={self._last_context_reset_reason} "
                 f"applied={self._last_context_reset_applied} count={self._context_reset_count}."
+            )
+        touched_bands = ()
+        touched_param_count = 0.0
+        total_band_param_count = 0.0
+        if cms_state is not None:
+            touched_bands = tuple(
+                band.name
+                for band in (
+                    cms_state.online_fast,
+                    cms_state.session_medium,
+                    cms_state.background_slow,
+                )
+                if band.update_gate > 0.05 or band.effective_learning_rate > 0.0
+            )
+            touched_param_count = float(
+                sum(
+                    band.mlp_param_count
+                    for band in (
+                        cms_state.online_fast,
+                        cms_state.session_medium,
+                        cms_state.background_slow,
+                    )
+                    if band.update_gate > 0.05 or band.effective_learning_rate > 0.0
+                )
+            )
+            total_band_param_count = float(
+                sum(
+                    band.mlp_param_count
+                    for band in (
+                        cms_state.online_fast,
+                        cms_state.session_medium,
+                        cms_state.background_slow,
+                    )
+                )
             )
         return MemorySnapshot(
             transient_summary=summarize_entries(
@@ -684,13 +789,66 @@ class MemoryStore:
                 ("continuum_reconstruction_edge_count", float(continuum_reconstruction_edge_count)),
                 ("continuum_frequency_span", continuum_frequency_span),
                 ("continuum_retrieval_mass", continuum_retrieval_mass),
+                ("runtime_backbone_observation_count", float(self._runtime_backbone_observation_count)),
+                ("last_runtime_backbone_signal_norm", self._last_runtime_backbone_signal_norm),
+                ("last_runtime_backbone_signal_quality", self._last_runtime_backbone_signal_quality),
+                ("last_runtime_backbone_signal_strength", self._last_runtime_backbone_strength),
+                ("last_runtime_backbone_hook_coverage", self._last_runtime_backbone_hook_coverage),
+                ("last_runtime_backbone_fallback_active", self._last_runtime_backbone_fallback_active),
+                (
+                    "last_runtime_backbone_residual_stream_active",
+                    self._last_runtime_backbone_residual_stream_active,
+                ),
+                ("last_runtime_backbone_sequence_density", self._last_runtime_backbone_sequence_density),
+                ("last_runtime_backbone_activation_density", self._last_runtime_backbone_activation_density),
                 ("fast_memory_signal_count", float(self._fast_memory_signal_count)),
                 ("last_fast_memory_signal_norm", self._last_fast_memory_signal_norm),
+                ("last_fast_memory_runtime_alignment", self._last_fast_memory_runtime_alignment),
+                (
+                    "memory_updater_effective_lr",
+                    updater_state.last_effective_learning_rate if updater_state is not None else 0.0,
+                ),
+                ("memory_updater_reward", updater_state.last_reward if updater_state is not None else 0.0),
+                (
+                    "memory_updater_write_gate",
+                    updater_state.last_write_gate if updater_state is not None else 0.0,
+                ),
+                (
+                    "memory_updater_slow_mix",
+                    updater_state.last_slow_mix if updater_state is not None else 0.0,
+                ),
+                (
+                    "memory_updater_confidence",
+                    updater_state.last_confidence if updater_state is not None else 0.0,
+                ),
+                (
+                    "memory_updater_decision_count",
+                    float(len(updater_state.last_decisions)) if updater_state is not None else 0.0,
+                ),
+                ("memory_updater_active_band_count", float(len(touched_bands))),
+                (
+                    "memory_updater_touched_param_ratio",
+                    touched_param_count / total_band_param_count if total_band_param_count > 0.0 else 0.0,
+                ),
             ),
             description=description,
         )
 
     def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
+        evidence = build_runtime_backbone_evidence(
+            substrate_snapshot=substrate_snapshot,
+            dim=self._learned_signal_dim(),
+        )
+        self._runtime_backbone_observation_count += 1
+        self._last_runtime_backbone_signal = evidence.signal
+        self._last_runtime_backbone_signal_norm = evidence.signal_norm
+        self._last_runtime_backbone_signal_quality = evidence.signal_quality
+        self._last_runtime_backbone_strength = evidence.runtime_strength
+        self._last_runtime_backbone_hook_coverage = evidence.hook_coverage
+        self._last_runtime_backbone_fallback_active = evidence.fallback_active
+        self._last_runtime_backbone_residual_stream_active = evidence.residual_stream_active
+        self._last_runtime_backbone_sequence_density = evidence.sequence_density
+        self._last_runtime_backbone_activation_density = evidence.activation_density
         if self._learned_core is not None:
             self._learned_core.observe_substrate(
                 substrate_snapshot=substrate_snapshot,
@@ -724,7 +882,12 @@ class MemoryStore:
         timestamp_ms: int,
     ) -> None:
         self._fast_memory_signal_count += 1
+        self._last_fast_memory_signal = _align_signal(signal, dim=self._learned_signal_dim())
         self._last_fast_memory_signal_norm = _mean_abs(signal)
+        self._last_fast_memory_runtime_alignment = cosine_alignment(
+            self._last_fast_memory_signal,
+            self._last_runtime_backbone_signal,
+        )
         if self._learned_core is not None:
             self._learned_core.observe_fast_memory_signal(
                 signal=signal,
@@ -844,13 +1007,13 @@ class MemoryStore:
                 promotion_boost=promotion_boost,
                 decay_scale=decay_scale,
             )
-            applied = list(applied) + list(
-                self._learned_core.apply_tower_consolidation(
-                    update=tower_update,
-                    timestamp_ms=timestamp_ms,
-                )
+            tower_operations = self._learned_core.apply_tower_consolidation(
+                update=tower_update,
+                timestamp_ms=timestamp_ms,
             )
-            self._tower_consolidation_count += 1
+            applied = list(applied) + list(tower_operations)
+            if any(operation.startswith("tower-consolidation:") for operation in tower_operations):
+                self._tower_consolidation_count += 1
         return tuple(applied)
 
     def apply_promotion_threshold_update(self, *, delta: float) -> str:
@@ -1054,6 +1217,82 @@ class MemoryStore:
             return tuple(0.0 for _ in range(self._learned_signal_dim()))
         return tower_profile.readout_vector
 
+    def _tower_level_signal(
+        self,
+        *,
+        tower_profile: CMSTowerProfile | None,
+        level_ids: tuple[str, ...],
+    ) -> tuple[float, ...]:
+        dim = self._learned_signal_dim()
+        if tower_profile is None:
+            return tuple(0.0 for _ in range(dim))
+        matched_levels = tuple(
+            level.vector
+            for level in tower_profile.levels
+            if level.level_id in level_ids
+        )
+        if not matched_levels:
+            return tuple(0.0 for _ in range(dim))
+        return _blend_signals(
+            dim=dim,
+            weighted_signals=tuple((vector, 1.0) for vector in matched_levels),
+        )
+
+    def _recent_fast_memory_signal(self) -> tuple[float, ...]:
+        return _align_signal(self._last_fast_memory_signal, dim=self._learned_signal_dim())
+
+    def _transfer_alignment_signal(self, *, tower_profile: CMSTowerProfile | None) -> tuple[float, ...]:
+        dim = self._learned_signal_dim()
+        nested_prior_signal = self._tower_level_signal(
+            tower_profile=tower_profile,
+            level_ids=("nested-online-prior", "nested-session-prior"),
+        )
+        if not any(nested_prior_signal):
+            return tuple(0.0 for _ in range(dim))
+        transfer_pressure = _clamp_strength(
+            self._last_context_reset_transfer_strength
+            + max(self._last_context_reset_target_alignment_gain, 0.0) * 2.0
+            + self._last_context_reset_online_seed_strength * 0.15
+            + self._last_context_reset_session_seed_strength * 0.10
+        )
+        if transfer_pressure <= 1e-6:
+            return tuple(0.0 for _ in range(dim))
+        seeded_signal = _blend_signals(
+            dim=dim,
+            weighted_signals=(
+                (nested_prior_signal, 0.68),
+                (self._tower_signal(), 0.32),
+            ),
+        )
+        return tuple(_clamp_strength(value * transfer_pressure) for value in seeded_signal)
+
+    def _tower_context_signal(
+        self,
+        *,
+        tower_profile: CMSTowerProfile | None,
+        core_signal: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        dim = len(core_signal)
+        if tower_profile is None:
+            return tuple(0.0 for _ in range(dim))
+        online_signal = self._tower_level_signal(tower_profile=tower_profile, level_ids=("online-fast",))
+        session_signal = self._tower_level_signal(tower_profile=tower_profile, level_ids=("session-medium",))
+        background_signal = self._tower_level_signal(tower_profile=tower_profile, level_ids=("background-slow",))
+        nested_prior_signal = self._tower_level_signal(
+            tower_profile=tower_profile,
+            level_ids=("nested-online-prior", "nested-session-prior"),
+        )
+        return _blend_signals(
+            dim=dim,
+            weighted_signals=(
+                (core_signal, 0.30),
+                (background_signal, 0.24 if any(background_signal) else 0.0),
+                (session_signal, 0.20 if any(session_signal) else 0.0),
+                (online_signal, 0.12 if any(online_signal) else 0.0),
+                (nested_prior_signal, 0.14 if any(nested_prior_signal) else 0.0),
+            ),
+        )
+
     def _average_signal(self, signals: tuple[tuple[float, ...], ...]) -> tuple[float, ...]:
         if not signals:
             return tuple(0.0 for _ in range(self._learned_signal_dim()))
@@ -1072,6 +1311,7 @@ class MemoryStore:
         promotion_boost: float,
         decay_scale: float,
     ) -> CMSTowerConsolidationUpdate:
+        tower_profile = self._tower_profile()
         promoted_signals = tuple(
             self._entry_signal(entry)
             for entry_id in promoted_entries
@@ -1092,6 +1332,8 @@ class MemoryStore:
             _clamp_strength(lesson_count / (index + 3))
             for index in range(self._learned_signal_dim())
         )
+        recent_fast_signal = self._recent_fast_memory_signal()
+        transfer_signal = self._transfer_alignment_signal(tower_profile=tower_profile)
         session_signal = _blend_signals(
             dim=self._learned_signal_dim(),
             weighted_signals=(
@@ -1099,24 +1341,30 @@ class MemoryStore:
                 (self._average_signal(promoted_signals), 0.25 if promoted_signals else 0.0),
                 (self._average_signal(durable_signals), 0.25 if durable_signals else 0.0),
                 (self._average_signal(belief_signals), 0.2 if belief_signals else 0.0),
+                (recent_fast_signal, 0.16 if any(recent_fast_signal) else 0.0),
+                (transfer_signal, 0.12 if any(transfer_signal) else 0.0),
             ),
         )
         background_signal = _blend_signals(
             dim=self._learned_signal_dim(),
             weighted_signals=(
                 (lesson_signal, 0.2 if lesson_count else 0.0),
-                (self._average_signal(durable_signals), 0.4 if durable_signals else 0.0),
+                (self._average_signal(durable_signals), 0.32 if durable_signals else 0.0),
                 (self._average_signal(belief_signals), 0.25 if belief_signals else 0.0),
                 (self._tower_signal(), 0.15 if self._learned_core is not None else 0.0),
+                (session_signal, 0.12 if any(session_signal) else 0.0),
+                (transfer_signal, 0.16 if any(transfer_signal) else 0.0),
             ),
         )
         online_signal = _blend_signals(
             dim=self._learned_signal_dim(),
             weighted_signals=(
-                (self._average_signal(promoted_signals), 0.35 if promoted_signals else 0.0),
+                (self._average_signal(promoted_signals), 0.28 if promoted_signals else 0.0),
                 (self._average_signal(belief_signals), 0.2 if belief_signals else 0.0),
                 (lesson_signal, 0.15 if lesson_count else 0.0),
                 (session_signal, 0.3 if any(session_signal) else 0.0),
+                (recent_fast_signal, 0.18 if any(recent_fast_signal) else 0.0),
+                (transfer_signal, 0.12 if any(transfer_signal) else 0.0),
             ),
         )
         return CMSTowerConsolidationUpdate(
@@ -1154,6 +1402,9 @@ class MemoryStore:
                 tower_depth=0,
                 retrieval_confidence=0.0,
                 tower_alignment=0.0,
+                query_only_alignment=0.0,
+                composite_alignment=0.0,
+                transfer_alignment=0.0,
                 artifact_weight=2.6,
                 learned_weight=0.0,
                 description="Artifact-only retrieval because no learned core is active.",
@@ -1161,18 +1412,69 @@ class MemoryStore:
         cms_state = self._learned_core.snapshot()
         tower_profile = cms_state.tower_profile
         core_signal = tower_profile.readout_vector if tower_profile is not None else self._tower_signal()
+        tower_context_signal = self._tower_context_signal(
+            tower_profile=tower_profile,
+            core_signal=core_signal,
+        )
+        fast_memory_signal = self._recent_fast_memory_signal()
+        transfer_signal = self._transfer_alignment_signal(tower_profile=tower_profile)
+        composite_anchor = _blend_signals(
+            dim=len(core_signal),
+            weighted_signals=(
+                (projected_query, 0.18),
+                (core_signal, 0.28),
+                (tower_context_signal, 0.24 if any(tower_context_signal) else 0.0),
+                (fast_memory_signal, 0.16 if any(fast_memory_signal) else 0.0),
+                (transfer_signal, 0.14 if any(transfer_signal) else 0.0),
+            ),
+        )
         query_signal = _blend_signals(
             dim=len(core_signal),
             weighted_signals=(
-                (projected_query, 0.58),
-                (core_signal, 0.42),
+                (projected_query, 0.42),
+                (composite_anchor, 0.58),
             ),
         )
-        confidence = _cosine_similarity(query_signal, core_signal)
-        alignment = _cosine_similarity(projected_query, core_signal)
+        query_only_alignment = _cosine_similarity(projected_query, core_signal)
+        composite_alignment = _blend_signals(
+            dim=1,
+            weighted_signals=(
+                (( _cosine_similarity(query_signal, core_signal),), 0.45),
+                (( _cosine_similarity(query_signal, composite_anchor),), 0.35),
+                (( _cosine_similarity(query_signal, tower_context_signal),), 0.20 if any(tower_context_signal) else 0.0),
+            ),
+        )[0]
+        transfer_alignment = (
+            _blend_signals(
+                dim=1,
+                weighted_signals=(
+                    ((_cosine_similarity(query_signal, transfer_signal),), 0.7),
+                    ((max(self._last_context_reset_target_alignment_gain, 0.0),), 0.3),
+                ),
+            )[0]
+            if any(transfer_signal)
+            else 0.0
+        )
+        alignment = _blend_signals(
+            dim=1,
+            weighted_signals=(
+                ((query_only_alignment,), 0.34),
+                ((composite_alignment,), 0.46),
+                ((transfer_alignment,), 0.20 if transfer_alignment > 0.0 else 0.0),
+            ),
+        )[0]
+        confidence = _blend_signals(
+            dim=1,
+            weighted_signals=(
+                ((_cosine_similarity(query_signal, core_signal),), 0.45),
+                ((alignment,), 0.35),
+                ((composite_alignment,), 0.20),
+            ),
+        )[0]
         depth_bonus = max(float(cms_state.tower_depth) - 3.0, 0.0) * 0.2
-        learned_weight = 3.8 + max(confidence, 0.0) * 1.8 + depth_bonus
-        artifact_weight = 1.2 + max(0.0, 1.0 - confidence) * 0.7
+        consolidation_bonus = min(self._tower_consolidation_count / 4.0, 1.0) * 0.4
+        learned_weight = 3.6 + max(confidence, 0.0) * 1.8 + depth_bonus + consolidation_bonus
+        artifact_weight = 1.15 + max(0.0, 1.0 - alignment) * 0.75
         return LearnedMemoryRecall(
             query_base_signal=projected_query,
             query_signal=query_signal,
@@ -1181,13 +1483,18 @@ class MemoryStore:
             tower_depth=cms_state.tower_depth,
             retrieval_confidence=confidence,
             tower_alignment=alignment,
+            query_only_alignment=query_only_alignment,
+            composite_alignment=composite_alignment,
+            transfer_alignment=transfer_alignment,
             artifact_weight=artifact_weight,
             learned_weight=learned_weight,
             description=(
                 f"Learned recall blends owner query with memory tower profile="
                 f"{tower_profile.profile_id if tower_profile is not None else 'cms-flat'} "
                 f"depth={cms_state.tower_depth} confidence={confidence:.2f} "
-                f"alignment={alignment:.2f}; learned_weight={learned_weight:.2f} "
+                f"alignment={alignment:.2f} query_only={query_only_alignment:.2f} "
+                f"composite={composite_alignment:.2f} transfer={transfer_alignment:.2f}; "
+                f"learned_weight={learned_weight:.2f} "
                 f"artifact_weight={artifact_weight:.2f}."
             ),
         )
@@ -1295,10 +1602,12 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         store: MemoryStore | None = None,
         wiring_level: WiringLevel | None = None,
         memory_feedback_signal: tuple[float, ...] | None = None,
+        user_text: str | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._store = store or MemoryStore()
         self._memory_feedback_signal = memory_feedback_signal
+        self._user_text = user_text
 
     @property
     def store(self) -> MemoryStore:
@@ -1338,7 +1647,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         )
         for request in build_memory_write_requests(
             substrate_snapshot=substrate_value,
-            user_text=None,
+            user_text=self._user_text,
             track=Track.SHARED,
         ):
             self._store.write(request, timestamp_ms=substrate_snapshot.timestamp_ms)
@@ -1346,7 +1655,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         retrieval = self._store.retrieve(
             build_retrieval_query(
                 substrate_snapshot=substrate_value,
-                user_text=None,
+                user_text=self._user_text,
                 track=None,
                 query_facets=self._runtime_query_facets(
                     substrate_snapshot=substrate_value,

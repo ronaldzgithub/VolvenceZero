@@ -57,6 +57,7 @@ from volvence_zero.substrate import (
 from volvence_zero.temporal import (
     DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
+    MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
     MetacontrollerSSLTrainer,
     MetacontrollerRuntimeState,
@@ -143,6 +144,8 @@ class RareHeavyImportCheckpoint:
     artifact_id: str
     world_policy_checkpoint: CausalPolicyCheckpoint
     self_policy_checkpoint: CausalPolicyCheckpoint
+    world_temporal_snapshot: MetacontrollerParameterSnapshot
+    self_temporal_snapshot: MetacontrollerParameterSnapshot
     memory_checkpoint: MemoryStoreCheckpoint
     substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
     application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
@@ -192,11 +195,17 @@ class ETANLJointLoop:
         )
         if self_policy is None:
             self._self_policy = clone_full_learned_temporal_policy(self._world_policy)
+        world_latent_dim = self._world_policy.parameter_store.n_z
+        self_latent_dim = self._self_policy.parameter_store.n_z
+        if self_latent_dim != world_latent_dim:
+            raise ValueError(
+                f"ETANLJointLoop requires aligned world/self latent dims, got {world_latent_dim} and {self_latent_dim}."
+            )
         self._world_sandbox = InternalRLSandbox(policy=self._world_policy, residual_runtime=residual_runtime)
         self._self_sandbox = InternalRLSandbox(policy=self._self_policy, residual_runtime=residual_runtime)
         self._residual_runtime = residual_runtime
-        self._ssl_trainer = MetacontrollerSSLTrainer()
-        default_latent_dim = self._world_policy.parameter_store.n_z
+        self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim)
+        default_latent_dim = world_latent_dim
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._evaluation_backbone = evaluation_backbone or EvaluationBackbone()
         self._regime_module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
@@ -1161,7 +1170,11 @@ class ETANLJointLoop:
 
     def _pe_rare_heavy_due(self, *, schedule: JointLoopSchedule) -> bool:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        return pe_magnitude >= schedule.pe_rare_heavy_threshold
+        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
+        return (
+            pe_magnitude >= schedule.pe_rare_heavy_threshold
+            or pe_abs_reward >= schedule.pe_rare_heavy_threshold * 0.35
+        )
 
     def _pe_substrate_online_fast_due(self, *, schedule: JointLoopSchedule) -> bool:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
@@ -1349,6 +1362,8 @@ class ETANLJointLoop:
         self_policy_checkpoint = self._self_sandbox.create_checkpoint(
             checkpoint_id=f"{checkpoint_label}:self-policy"
         )
+        world_temporal_snapshot = self._world_policy.export_rare_heavy_snapshot()
+        self_temporal_snapshot = self._self_policy.export_rare_heavy_snapshot()
         memory_checkpoint = self._memory_store.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:memory")
         substrate_checkpoint = (
             self._residual_runtime.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:substrate")
@@ -1378,6 +1393,8 @@ class ETANLJointLoop:
             artifact_id=artifact.artifact_id,
             world_policy_checkpoint=world_policy_checkpoint,
             self_policy_checkpoint=self_policy_checkpoint,
+            world_temporal_snapshot=world_temporal_snapshot,
+            self_temporal_snapshot=self_temporal_snapshot,
             memory_checkpoint=memory_checkpoint,
             substrate_checkpoint=substrate_checkpoint,
         )
@@ -1406,6 +1423,8 @@ class ETANLJointLoop:
             self_policy_checkpoint=self._self_sandbox.create_checkpoint(
                 checkpoint_id=f"{checkpoint_label}:self-policy"
             ),
+            world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
+            self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
             memory_checkpoint=self._memory_store.export_rare_heavy_state(
                 checkpoint_id=f"{checkpoint_label}:memory"
             ),
@@ -1425,6 +1444,8 @@ class ETANLJointLoop:
     def rollback_rare_heavy_import(self, checkpoint: RareHeavyImportCheckpoint) -> tuple[str, ...]:
         self._world_sandbox.restore_checkpoint(checkpoint.world_policy_checkpoint)
         self._self_sandbox.restore_checkpoint(checkpoint.self_policy_checkpoint)
+        self._world_policy.apply_rare_heavy_snapshot(checkpoint.world_temporal_snapshot)
+        self._self_policy.apply_rare_heavy_snapshot(checkpoint.self_temporal_snapshot)
         self._memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
         operations = [
             "rare-heavy:world-temporal-rollback",

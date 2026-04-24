@@ -879,6 +879,7 @@ def build_final_runtime_modules(
     *,
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
+    user_input: str | None = None,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
@@ -920,6 +921,7 @@ def build_final_runtime_modules(
         MemoryModule(
             store=memory_store or build_default_memory_store(),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
+            user_text=user_input,
         ),
         TrackTemporalModule(
             track=Track.WORLD,
@@ -1004,6 +1006,7 @@ async def run_final_wiring_turn(
     *,
     config: FinalRolloutConfig,
     substrate_adapter: SubstrateAdapter,
+    user_input: str | None = None,
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
@@ -1029,6 +1032,7 @@ async def run_final_wiring_turn(
     modules = build_final_runtime_modules(
         config=config,
         substrate_adapter=substrate_adapter,
+        user_input=user_input,
         application_rare_heavy_state=application_rare_heavy_state,
         domain_knowledge_store=domain_knowledge_store,
         case_memory_store=case_memory_store,
@@ -1256,6 +1260,20 @@ async def run_final_wiring_turn(
                         metric_name="substrate_online_fast_recommended",
                         value=1.0 if substrate_self_mod_value.recommended else 0.0,
                         confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_runtime_evidence_strength",
+                        value=substrate_self_mod_value.runtime_evidence_strength,
+                        confidence=0.72,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_proposal_readiness",
+                        value=substrate_self_mod_value.proposal_readiness,
+                        confidence=0.72,
                         evidence=substrate_self_mod_value.description,
                     ),
                 ),

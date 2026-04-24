@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
+from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRule, LearnedUpdateRuleState
+from volvence_zero.memory.runtime_evidence import build_runtime_backbone_evidence
 from volvence_zero.substrate import SubstrateSnapshot
 
 
@@ -71,12 +73,18 @@ class CMSBandMLP:
     def representation_vector(self) -> tuple[float, ...]:
         return self.forward(self._state)
 
-    def update(self, *, target: tuple[float, ...]) -> None:
+    def update(
+        self,
+        *,
+        target: tuple[float, ...],
+        lr_scale: float = 1.0,
+        momentum_gate: float = 1.0,
+    ) -> None:
         x = self._state
         d_in = self._d_in
         d_hidden = self._d_hidden
-        beta = self._momentum_beta
-        lr = self._lr
+        beta = _clamp(self._momentum_beta * max(0.0, momentum_gate))
+        lr = self._lr * max(0.0, lr_scale)
 
         h = _matvec(self._w2, x, d_hidden, d_in)
         a = [math.tanh(v) for v in h]
@@ -142,14 +150,15 @@ class CMSBandMLP:
         return self._d_in + self._d_hidden * self._d_in + self._d_in * self._d_hidden
 
     def mix_from(self, other: CMSBandMLP, *, strength: float, factor: float) -> None:
+        rate = _clamp(strength * factor)
         for i in range(self._d_in):
             self._state[i] = _clamp(
-                self._state[i] + strength * (other._state[i] - self._state[i]) * factor
+                self._state[i] + rate * (other._state[i] - self._state[i])
             )
         for i in range(len(self._w1)):
-            self._w1[i] += strength * (other._w1[i] - self._w1[i]) * factor
+            self._w1[i] += rate * (other._w1[i] - self._w1[i])
         for i in range(len(self._w2)):
-            self._w2[i] += strength * (other._w2[i] - self._w2[i]) * factor
+            self._w2[i] += rate * (other._w2[i] - self._w2[i])
 
 
 class CMSVariant(str, Enum):
@@ -167,8 +176,14 @@ class CMSBandState:
     observations_since_update: int
     pending_signal: tuple[float, ...]
     learning_rate: float = 0.0
+    effective_learning_rate: float = 0.0
     momentum: tuple[float, ...] = ()
     anti_forgetting_strength: float = 0.0
+    update_gate: float = 0.0
+    slow_mix: float = 0.0
+    reset_mix: float = 0.0
+    confidence: float = 0.0
+    update_summary: str = ""
     mode: str = "vector"
     mlp_param_count: int = 0
 
@@ -236,6 +251,7 @@ class CMSState:
     tower_profile: CMSTowerProfile | None = None
     tower_depth: int = 0
     continuum_profile: CMSContinuumProfile | None = None
+    update_rule_state: LearnedUpdateRuleState | None = None
 
 
 @dataclass(frozen=True)
@@ -255,6 +271,7 @@ class CMSCheckpointState:
     nested_session_init_target: tuple[float, ...] = ()
     nested_online_init_target: tuple[float, ...] = ()
     tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
+    update_rule_state: LearnedUpdateRuleState | None = None
 
 
 @dataclass(frozen=True)
@@ -305,6 +322,13 @@ class CMSMemoryCore:
         self._background_lr = background_lr
         self._momentum_beta = momentum_beta
         self._anti_forgetting = anti_forgetting
+        self._update_rule = LearnedUpdateRule(
+            rule_id="cms-update",
+            feature_dim=max(12, d_in if mode == "mlp" else dim),
+            hidden_dim=max(8, (d_hidden // 2) if mode == "mlp" else dim + 2),
+        )
+        self._latest_update_rule_state: LearnedUpdateRuleState = self._update_rule.export_state()
+        self._latest_band_decisions: dict[str, LearnedUpdateDecision] = {}
         self._total_observations = 0
         self._total_reflections = 0
         self._last_update_ms = 0
@@ -371,6 +395,95 @@ class CMSMemoryCore:
             anti_forgetting=self._anti_forgetting,
         )
 
+    def _mean_distance(self, left: tuple[float, ...], right: tuple[float, ...]) -> float:
+        if not left or not right:
+            return 0.0
+        n = min(len(left), len(right))
+        return sum(abs(left[index] - right[index]) for index in range(n)) / max(n, 1)
+
+    def _decision_features(
+        self,
+        *,
+        current: tuple[float, ...],
+        target: tuple[float, ...],
+        pending_signal: tuple[float, ...],
+        observations_since_update: int,
+        cadence_interval: int,
+        source_signal: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        current = self._align_signal_dim(current)
+        target = self._align_signal_dim(target)
+        pending_signal = self._align_signal_dim(pending_signal)
+        source_signal = self._align_signal_dim(source_signal)
+        current_norm = self._mean_distance(current, tuple(0.0 for _ in range(self._dim)))
+        target_norm = self._mean_distance(target, tuple(0.0 for _ in range(self._dim)))
+        delta_norm = self._mean_distance(current, target)
+        pending_norm = self._mean_distance(pending_signal, tuple(0.0 for _ in range(self._dim)))
+        source_norm = self._mean_distance(source_signal, tuple(0.0 for _ in range(self._dim)))
+        cadence_pressure = observations_since_update / max(cadence_interval, 1)
+        return (
+            current_norm,
+            target_norm,
+            delta_norm,
+            pending_norm,
+            source_norm,
+            _clamp(cadence_pressure),
+            _clamp(self._anti_forgetting),
+            _clamp(self._online_lr),
+            _clamp(self._session_lr),
+            _clamp(self._background_lr),
+            _clamp(self._momentum_beta),
+            1.0 if self._variant is CMSVariant.NESTED else 0.0,
+        )
+
+    def _decide_band_update(
+        self,
+        *,
+        band_id: str,
+        current: tuple[float, ...],
+        target: tuple[float, ...],
+        pending_signal: tuple[float, ...],
+        observations_since_update: int,
+        cadence_interval: int,
+        source_signal: tuple[float, ...],
+    ) -> tuple[LearnedUpdateDecision, tuple[float, ...]]:
+        features = self._decision_features(
+            current=current,
+            target=target,
+            pending_signal=pending_signal,
+            observations_since_update=observations_since_update,
+            cadence_interval=cadence_interval,
+            source_signal=source_signal,
+        )
+        decision = self._update_rule.decide(target_id=band_id, features=features)
+        self._latest_band_decisions[band_id] = decision
+        self._latest_update_rule_state = self._update_rule.export_state()
+        return decision, features
+
+    def _learn_from_band_update(
+        self,
+        *,
+        decision: LearnedUpdateDecision,
+        features: tuple[float, ...],
+        before: tuple[float, ...],
+        after: tuple[float, ...],
+        target: tuple[float, ...],
+    ) -> None:
+        before_error = self._mean_distance(before, target)
+        after_error = self._mean_distance(after, target)
+        improvement = before_error - after_error
+        stability = _clamp(1.0 - self._mean_distance(before, after))
+        self._update_rule.learn(
+            features=features,
+            decision=decision,
+            improvement=improvement,
+            stability=stability,
+        )
+        self._latest_update_rule_state = self._update_rule.export_state()
+
+    def _decision_for(self, band_id: str) -> LearnedUpdateDecision | None:
+        return self._latest_band_decisions.get(band_id)
+
     # ------------------------------------------------------------------
     # observe_substrate
     # ------------------------------------------------------------------
@@ -380,7 +493,29 @@ class CMSMemoryCore:
         self._total_observations += 1
 
         if self._mode == "mlp":
-            self._online_mlp.update(target=signal)
+            online_before = self._online_mlp.representation_vector()
+            online_decision, online_features = self._decide_band_update(
+                band_id="online-fast",
+                current=online_before,
+                target=signal,
+                pending_signal=tuple(0.0 for _ in range(self._dim)),
+                observations_since_update=0,
+                cadence_interval=1,
+                source_signal=signal,
+            )
+            online_target = self._blend_signal(online_before, signal, rate=online_decision.write_gate)
+            self._online_mlp.update(
+                target=online_target,
+                lr_scale=max(0.05, online_decision.step_scale),
+                momentum_gate=online_decision.momentum_gate,
+            )
+            self._learn_from_band_update(
+                decision=online_decision,
+                features=online_features,
+                before=online_before,
+                after=self._online_mlp.representation_vector(),
+                target=online_target,
+            )
             online_signal = self._online_mlp.representation_vector()
             if self._variant is CMSVariant.INDEPENDENT:
                 session_signal = signal
@@ -395,7 +530,9 @@ class CMSMemoryCore:
 
             self._session_pending_signal, self._session_observations_since_update = (
                 self._integrate_signal_mlp(
+                    band_id="session-medium",
                     mlp=self._session_mlp,
+                    current_vector=self._session_mlp.representation_vector(),
                     pending_signal=self._session_pending_signal,
                     observations_since_update=self._session_observations_since_update,
                     signal=session_signal,
@@ -404,7 +541,9 @@ class CMSMemoryCore:
             )
             self._background_pending_signal, self._background_observations_since_update = (
                 self._integrate_signal_mlp(
+                    band_id="background-slow",
                     mlp=self._background_mlp,
+                    current_vector=self._background_mlp.representation_vector(),
                     pending_signal=self._background_pending_signal,
                     observations_since_update=self._background_observations_since_update,
                     signal=background_signal,
@@ -419,10 +558,15 @@ class CMSMemoryCore:
                 self._apply_anti_forgetting_mlp()
         else:
             self._online_fast, self._online_momentum = self._gradient_update(
+                band_id="online-fast",
                 current=self._online_fast,
                 target=signal,
                 momentum=self._online_momentum,
                 lr=self._online_lr,
+                pending_signal=tuple(0.0 for _ in range(self._dim)),
+                observations_since_update=0,
+                cadence_interval=1,
+                source_signal=signal,
             )
             (
                 self._session_medium,
@@ -430,6 +574,7 @@ class CMSMemoryCore:
                 self._session_observations_since_update,
                 self._session_momentum,
             ) = self._integrate_signal_gradient(
+                band_id="session-medium",
                 current_vector=self._session_medium,
                 pending_signal=self._session_pending_signal,
                 observations_since_update=self._session_observations_since_update,
@@ -444,6 +589,7 @@ class CMSMemoryCore:
                 self._background_observations_since_update,
                 self._background_momentum,
             ) = self._integrate_signal_gradient(
+                band_id="background-slow",
                 current_vector=self._background_slow,
                 pending_signal=self._background_pending_signal,
                 observations_since_update=self._background_observations_since_update,
@@ -493,7 +639,29 @@ class CMSMemoryCore:
             projected = encoder_signal
 
         if self._mode == "mlp":
-            self._online_mlp.update(target=projected)
+            online_before = self._online_mlp.representation_vector()
+            online_decision, online_features = self._decide_band_update(
+                band_id="online-fast",
+                current=online_before,
+                target=projected,
+                pending_signal=tuple(0.0 for _ in range(self._dim)),
+                observations_since_update=0,
+                cadence_interval=1,
+                source_signal=projected,
+            )
+            online_target = self._blend_signal(online_before, projected, rate=online_decision.write_gate)
+            self._online_mlp.update(
+                target=online_target,
+                lr_scale=max(0.05, online_decision.step_scale),
+                momentum_gate=online_decision.momentum_gate,
+            )
+            self._learn_from_band_update(
+                decision=online_decision,
+                features=online_features,
+                before=online_before,
+                after=self._online_mlp.representation_vector(),
+                target=online_target,
+            )
             session_signal = (
                 projected
                 if self._variant is CMSVariant.INDEPENDENT
@@ -501,7 +669,9 @@ class CMSMemoryCore:
             )
             self._session_pending_signal, self._session_observations_since_update = (
                 self._integrate_signal_mlp(
+                    band_id="session-medium",
                     mlp=self._session_mlp,
+                    current_vector=self._session_mlp.representation_vector(),
                     pending_signal=self._session_pending_signal,
                     observations_since_update=self._session_observations_since_update,
                     signal=session_signal,
@@ -510,10 +680,15 @@ class CMSMemoryCore:
             )
         else:
             self._online_fast, self._online_momentum = self._gradient_update(
+                band_id="online-fast",
                 current=self._online_fast,
                 target=projected,
                 momentum=self._online_momentum,
                 lr=self._online_lr * 0.3,
+                pending_signal=tuple(0.0 for _ in range(self._dim)),
+                observations_since_update=0,
+                cadence_interval=1,
+                source_signal=projected,
             )
             (
                 self._session_medium,
@@ -521,6 +696,7 @@ class CMSMemoryCore:
                 self._session_observations_since_update,
                 self._session_momentum,
             ) = self._integrate_signal_gradient(
+                band_id="session-medium",
                 current_vector=self._session_medium,
                 pending_signal=self._session_pending_signal,
                 observations_since_update=self._session_observations_since_update,
@@ -568,7 +744,9 @@ class CMSMemoryCore:
         weighted = tuple(_clamp(projected[i] * _clamp(family_stability)) for i in range(self._dim))
         self._session_pending_signal, self._session_observations_since_update = (
             self._integrate_signal_mlp(
+                band_id="session-medium",
                 mlp=self._session_mlp,
+                current_vector=self._session_mlp.representation_vector(),
                 pending_signal=self._session_pending_signal,
                 observations_since_update=self._session_observations_since_update,
                 signal=weighted,
@@ -594,8 +772,38 @@ class CMSMemoryCore:
         """
         if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
             return
-        self._session_mlp.load_representation(self._nested_session_init_target)
-        self._online_mlp.load_representation(self._nested_online_init_target)
+        session_decision, _ = self._decide_band_update(
+            band_id="nested-session-reset",
+            current=self._session_mlp.representation_vector(),
+            target=self._nested_session_init_target,
+            pending_signal=self._session_pending_signal,
+            observations_since_update=self._session_observations_since_update,
+            cadence_interval=self._session_cadence,
+            source_signal=self._nested_session_init_target,
+        )
+        online_decision, _ = self._decide_band_update(
+            band_id="nested-online-reset",
+            current=self._online_mlp.representation_vector(),
+            target=self._nested_online_init_target,
+            pending_signal=tuple(0.0 for _ in range(self._dim)),
+            observations_since_update=0,
+            cadence_interval=1,
+            source_signal=self._nested_online_init_target,
+        )
+        self._session_mlp.load_representation(
+            self._blend_signal(
+                self._session_mlp.representation_vector(),
+                self._nested_session_init_target,
+                rate=session_decision.reset_mix,
+            )
+        )
+        self._online_mlp.load_representation(
+            self._blend_signal(
+                self._online_mlp.representation_vector(),
+                self._nested_online_init_target,
+                rate=online_decision.reset_mix,
+            )
+        )
         self._session_observations_since_update = 0
         self._session_pending_signal = tuple(0.0 for _ in range(self._dim))
         self._nested_context_steps = 0
@@ -615,22 +823,59 @@ class CMSMemoryCore:
         This implements NL Appendix A.5's nested CMS: the i-th layer
         meta-learns the initial state for layer i+1.
         """
-        meta_lr = self._background_lr * 0.5
         session_converged = self._session_mlp.representation_vector()
+        session_decision, session_features = self._decide_band_update(
+            band_id="nested-session-target",
+            current=self._nested_session_init_target,
+            target=session_converged,
+            pending_signal=self._session_pending_signal,
+            observations_since_update=self._session_observations_since_update,
+            cadence_interval=self._session_cadence,
+            source_signal=session_converged,
+        )
+        session_before = self._nested_session_init_target
         self._nested_session_init_target = tuple(
             _clamp(
                 self._nested_session_init_target[i]
-                + meta_lr * (session_converged[i] - self._nested_session_init_target[i])
+                + session_decision.step_scale
+                * session_decision.write_gate
+                * (session_converged[i] - self._nested_session_init_target[i])
             )
             for i in range(self._dim)
         )
         online_converged = self._online_mlp.representation_vector()
+        online_decision, online_features = self._decide_band_update(
+            band_id="nested-online-target",
+            current=self._nested_online_init_target,
+            target=online_converged,
+            pending_signal=tuple(0.0 for _ in range(self._dim)),
+            observations_since_update=0,
+            cadence_interval=1,
+            source_signal=online_converged,
+        )
+        online_before = self._nested_online_init_target
         self._nested_online_init_target = tuple(
             _clamp(
                 self._nested_online_init_target[i]
-                + meta_lr * (online_converged[i] - self._nested_online_init_target[i])
+                + online_decision.step_scale
+                * online_decision.write_gate
+                * (online_converged[i] - self._nested_online_init_target[i])
             )
             for i in range(self._dim)
+        )
+        self._learn_from_band_update(
+            decision=session_decision,
+            features=session_features,
+            before=session_before,
+            after=self._nested_session_init_target,
+            target=session_converged,
+        )
+        self._learn_from_band_update(
+            decision=online_decision,
+            features=online_features,
+            before=online_before,
+            after=self._nested_online_init_target,
+            target=online_converged,
         )
 
     # ------------------------------------------------------------------
@@ -659,6 +904,7 @@ class CMSMemoryCore:
                     self._session_mlp.export_params(),
                     self._background_mlp.export_params(),
                 ),
+                update_rule_state=self._latest_update_rule_state,
             )
         return CMSCheckpointState(
             online_fast=self._online_fast,
@@ -672,6 +918,7 @@ class CMSMemoryCore:
             session_pending_signal=self._session_pending_signal,
             background_pending_signal=self._background_pending_signal,
             tower_meta_levels=self._export_tower_meta_levels(),
+            update_rule_state=self._latest_update_rule_state,
         )
 
     def restore_state(self, state: CMSCheckpointState) -> None:
@@ -682,6 +929,9 @@ class CMSMemoryCore:
         self._background_observations_since_update = state.background_observations_since_update
         self._session_pending_signal = state.session_pending_signal
         self._background_pending_signal = state.background_pending_signal
+        if state.update_rule_state is not None:
+            self._update_rule.restore_state(state.update_rule_state)
+            self._latest_update_rule_state = state.update_rule_state
 
         if self._mode == "mlp":
             if state.mode == "mlp" and state.mlp_params:
@@ -722,8 +972,15 @@ class CMSMemoryCore:
                 observations_since_update=0,
                 pending_signal=tuple(0.0 for _ in range(self._dim)),
                 learning_rate=self._online_lr,
+                effective_learning_rate=self._online_lr
+                * (self._decision_for("online-fast").step_scale if self._decision_for("online-fast") else 0.0),
                 momentum=self._online_momentum,
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("online-fast").write_gate if self._decision_for("online-fast") else 0.0,
+                slow_mix=self._decision_for("online-fast").slow_mix if self._decision_for("online-fast") else 0.0,
+                reset_mix=self._decision_for("online-fast").reset_mix if self._decision_for("online-fast") else 0.0,
+                confidence=self._decision_for("online-fast").confidence if self._decision_for("online-fast") else 0.0,
+                update_summary=self._decision_for("online-fast").description if self._decision_for("online-fast") else "",
             ),
             session_medium=CMSBandState(
                 name="session-medium",
@@ -733,8 +990,15 @@ class CMSMemoryCore:
                 observations_since_update=self._session_observations_since_update,
                 pending_signal=self._session_pending_signal,
                 learning_rate=self._session_lr,
+                effective_learning_rate=self._session_lr
+                * (self._decision_for("session-medium").step_scale if self._decision_for("session-medium") else 0.0),
                 momentum=self._session_momentum,
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("session-medium").write_gate if self._decision_for("session-medium") else 0.0,
+                slow_mix=self._decision_for("session-medium").slow_mix if self._decision_for("session-medium") else 0.0,
+                reset_mix=self._decision_for("session-medium").reset_mix if self._decision_for("session-medium") else 0.0,
+                confidence=self._decision_for("session-medium").confidence if self._decision_for("session-medium") else 0.0,
+                update_summary=self._decision_for("session-medium").description if self._decision_for("session-medium") else "",
             ),
             background_slow=CMSBandState(
                 name="background-slow",
@@ -744,8 +1008,15 @@ class CMSMemoryCore:
                 observations_since_update=self._background_observations_since_update,
                 pending_signal=self._background_pending_signal,
                 learning_rate=self._background_lr,
+                effective_learning_rate=self._background_lr
+                * (self._decision_for("background-slow").step_scale if self._decision_for("background-slow") else 0.0),
                 momentum=self._background_momentum,
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("background-slow").write_gate if self._decision_for("background-slow") else 0.0,
+                slow_mix=self._decision_for("background-slow").slow_mix if self._decision_for("background-slow") else 0.0,
+                reset_mix=self._decision_for("background-slow").reset_mix if self._decision_for("background-slow") else 0.0,
+                confidence=self._decision_for("background-slow").confidence if self._decision_for("background-slow") else 0.0,
+                update_summary=self._decision_for("background-slow").description if self._decision_for("background-slow") else "",
             ),
             total_observations=self._total_observations,
             total_reflections=self._total_reflections,
@@ -757,6 +1028,7 @@ class CMSMemoryCore:
             tower_profile=tower_profile,
             tower_depth=len(tower_profile.levels),
             continuum_profile=self._build_continuum_profile(tower_profile),
+            update_rule_state=self._latest_update_rule_state,
         )
 
     def _snapshot_mlp(self) -> CMSState:
@@ -778,8 +1050,15 @@ class CMSMemoryCore:
                 observations_since_update=0,
                 pending_signal=tuple(0.0 for _ in range(self._dim)),
                 learning_rate=self._online_lr,
+                effective_learning_rate=self._online_lr
+                * (self._decision_for("online-fast").step_scale if self._decision_for("online-fast") else 0.0),
                 momentum=tuple(self._online_mlp._state_momentum),
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("online-fast").write_gate if self._decision_for("online-fast") else 0.0,
+                slow_mix=self._decision_for("online-fast").slow_mix if self._decision_for("online-fast") else 0.0,
+                reset_mix=self._decision_for("online-fast").reset_mix if self._decision_for("online-fast") else 0.0,
+                confidence=self._decision_for("online-fast").confidence if self._decision_for("online-fast") else 0.0,
+                update_summary=self._decision_for("online-fast").description if self._decision_for("online-fast") else "",
                 mode="mlp",
                 mlp_param_count=pc,
             ),
@@ -791,8 +1070,15 @@ class CMSMemoryCore:
                 observations_since_update=self._session_observations_since_update,
                 pending_signal=self._session_pending_signal,
                 learning_rate=self._session_lr,
+                effective_learning_rate=self._session_lr
+                * (self._decision_for("session-medium").step_scale if self._decision_for("session-medium") else 0.0),
                 momentum=tuple(self._session_mlp._state_momentum),
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("session-medium").write_gate if self._decision_for("session-medium") else 0.0,
+                slow_mix=self._decision_for("session-medium").slow_mix if self._decision_for("session-medium") else 0.0,
+                reset_mix=self._decision_for("session-medium").reset_mix if self._decision_for("session-medium") else 0.0,
+                confidence=self._decision_for("session-medium").confidence if self._decision_for("session-medium") else 0.0,
+                update_summary=self._decision_for("session-medium").description if self._decision_for("session-medium") else "",
                 mode="mlp",
                 mlp_param_count=pc,
             ),
@@ -804,8 +1090,15 @@ class CMSMemoryCore:
                 observations_since_update=self._background_observations_since_update,
                 pending_signal=self._background_pending_signal,
                 learning_rate=self._background_lr,
+                effective_learning_rate=self._background_lr
+                * (self._decision_for("background-slow").step_scale if self._decision_for("background-slow") else 0.0),
                 momentum=tuple(self._background_mlp._state_momentum),
                 anti_forgetting_strength=self._anti_forgetting,
+                update_gate=self._decision_for("background-slow").write_gate if self._decision_for("background-slow") else 0.0,
+                slow_mix=self._decision_for("background-slow").slow_mix if self._decision_for("background-slow") else 0.0,
+                reset_mix=self._decision_for("background-slow").reset_mix if self._decision_for("background-slow") else 0.0,
+                confidence=self._decision_for("background-slow").confidence if self._decision_for("background-slow") else 0.0,
+                update_summary=self._decision_for("background-slow").description if self._decision_for("background-slow") else "",
                 mode="mlp",
                 mlp_param_count=pc,
             ),
@@ -821,6 +1114,7 @@ class CMSMemoryCore:
             tower_profile=tower_profile,
             tower_depth=len(tower_profile.levels),
             continuum_profile=self._build_continuum_profile(tower_profile),
+            update_rule_state=self._latest_update_rule_state,
         )
 
     def apply_tower_consolidation(
@@ -834,33 +1128,124 @@ class CMSMemoryCore:
         online_signal = self._align_signal_dim(update.online_signal)
         session_signal = self._align_signal_dim(update.session_signal)
         background_signal = self._align_signal_dim(update.background_signal)
+        nested_transfer_pressure = max(
+            self._mean_distance(background_signal, online_signal),
+            self._mean_distance(session_signal, online_signal),
+        )
 
         if self._mode == "mlp":
             if any(value > 0.0 for value in online_signal):
-                self._online_mlp.update(
-                    target=self._blend_signal(
-                        self._online_mlp.representation_vector(),
-                        online_signal,
-                        rate=0.55,
+                online_before = self._online_mlp.representation_vector()
+                online_decision, online_features = self._decide_band_update(
+                    band_id="tower-online",
+                    current=online_before,
+                    target=online_signal,
+                    pending_signal=tuple(0.0 for _ in range(self._dim)),
+                    observations_since_update=0,
+                    cadence_interval=1,
+                    source_signal=online_signal,
+                )
+                online_guidance = self._blend_signal(
+                    online_signal,
+                    self._session_mlp.representation_vector(),
+                    rate=0.16 + online_decision.slow_mix * 0.24,
+                )
+                if self._variant is CMSVariant.NESTED:
+                    online_guidance = self._blend_signal(
+                        online_guidance,
+                        self._nested_online_init_target,
+                        rate=0.08 + online_decision.reset_mix * 0.20,
                     )
+                online_target = self._blend_signal(
+                    online_before,
+                    online_guidance,
+                    rate=max(0.05, online_decision.write_gate),
+                )
+                self._online_mlp.update(
+                    target=online_target,
+                    lr_scale=max(0.05, online_decision.step_scale),
+                    momentum_gate=online_decision.momentum_gate,
+                )
+                self._learn_from_band_update(
+                    decision=online_decision,
+                    features=online_features,
+                    before=online_before,
+                    after=self._online_mlp.representation_vector(),
+                    target=online_target,
                 )
                 applied.append("tower-consolidation:online")
             if any(value > 0.0 for value in session_signal):
-                self._session_mlp.update(
-                    target=self._blend_signal(
-                        self._session_mlp.representation_vector(),
-                        session_signal,
-                        rate=0.62,
+                session_before = self._session_mlp.representation_vector()
+                session_decision, session_features = self._decide_band_update(
+                    band_id="tower-session",
+                    current=session_before,
+                    target=session_signal,
+                    pending_signal=self._session_pending_signal,
+                    observations_since_update=self._session_observations_since_update,
+                    cadence_interval=self._session_cadence,
+                    source_signal=session_signal,
+                )
+                session_guidance = self._blend_signal(
+                    session_signal,
+                    self._background_mlp.representation_vector(),
+                    rate=0.18 + session_decision.slow_mix * 0.26,
+                )
+                if self._variant is CMSVariant.NESTED:
+                    session_guidance = self._blend_signal(
+                        session_guidance,
+                        self._nested_session_init_target,
+                        rate=0.10 + session_decision.reset_mix * 0.22,
                     )
+                session_target = self._blend_signal(
+                    session_before,
+                    session_guidance,
+                    rate=max(0.05, session_decision.write_gate),
+                )
+                self._session_mlp.update(
+                    target=session_target,
+                    lr_scale=max(0.05, session_decision.step_scale),
+                    momentum_gate=session_decision.momentum_gate,
+                )
+                self._learn_from_band_update(
+                    decision=session_decision,
+                    features=session_features,
+                    before=session_before,
+                    after=self._session_mlp.representation_vector(),
+                    target=session_target,
                 )
                 applied.append("tower-consolidation:session")
             if any(value > 0.0 for value in background_signal):
+                background_before = self._background_mlp.representation_vector()
+                background_decision, background_features = self._decide_band_update(
+                    band_id="tower-background",
+                    current=background_before,
+                    target=background_signal,
+                    pending_signal=self._background_pending_signal,
+                    observations_since_update=self._background_observations_since_update,
+                    cadence_interval=self._background_cadence,
+                    source_signal=background_signal,
+                )
+                background_guidance = self._blend_signal(
+                    background_signal,
+                    self._session_mlp.representation_vector(),
+                    rate=0.14 + background_decision.slow_mix * 0.18,
+                )
+                background_target = self._blend_signal(
+                    background_before,
+                    background_guidance,
+                    rate=max(0.05, background_decision.write_gate),
+                )
                 self._background_mlp.update(
-                    target=self._blend_signal(
-                        self._background_mlp.representation_vector(),
-                        background_signal,
-                        rate=0.7,
-                    )
+                    target=background_target,
+                    lr_scale=max(0.05, background_decision.step_scale),
+                    momentum_gate=background_decision.momentum_gate,
+                )
+                self._learn_from_band_update(
+                    decision=background_decision,
+                    features=background_features,
+                    before=background_before,
+                    after=self._background_mlp.representation_vector(),
+                    target=background_target,
                 )
                 applied.append("tower-consolidation:background")
             if update.decay_pressure > 0.0:
@@ -870,14 +1255,18 @@ class CMSMemoryCore:
                     target=self._blend_signal(
                         self._session_mlp.representation_vector(),
                         background_rep,
-                        rate=pressure * 0.35,
+                        rate=pressure * max(0.05, self._decision_for("anti-forgetting-session").slow_mix)
+                        if self._decision_for("anti-forgetting-session")
+                        else pressure * 0.32,
                     )
                 )
                 self._online_mlp.update(
                     target=self._blend_signal(
                         self._online_mlp.representation_vector(),
                         self._session_mlp.representation_vector(),
-                        rate=pressure * 0.2,
+                        rate=pressure * max(0.05, self._decision_for("anti-forgetting-online").slow_mix)
+                        if self._decision_for("anti-forgetting-online")
+                        else pressure * 0.24,
                     )
                 )
                 applied.append("tower-consolidation:decay-pressure")
@@ -887,26 +1276,82 @@ class CMSMemoryCore:
         else:
             if any(value > 0.0 for value in online_signal):
                 self._online_fast, self._online_momentum = self._gradient_update(
+                    band_id="tower-online",
                     current=self._online_fast,
-                    target=self._blend_signal(self._online_fast, online_signal, rate=0.55),
+                    target=self._blend_signal(
+                        self._online_fast,
+                        self._blend_signal(
+                            online_signal,
+                            self._session_medium,
+                            rate=0.16
+                            + (self._decision_for("tower-online").slow_mix if self._decision_for("tower-online") else 0.0)
+                            * 0.24,
+                        ),
+                        rate=max(
+                            0.05,
+                            self._decision_for("tower-online").write_gate if self._decision_for("tower-online") else 0.55,
+                        ),
+                    ),
                     momentum=self._online_momentum,
-                    lr=self._online_lr * 0.5,
+                    lr=self._online_lr,
+                    pending_signal=tuple(0.0 for _ in range(self._dim)),
+                    observations_since_update=0,
+                    cadence_interval=1,
+                    source_signal=online_signal,
                 )
                 applied.append("tower-consolidation:online")
             if any(value > 0.0 for value in session_signal):
                 self._session_medium, self._session_momentum = self._gradient_update(
+                    band_id="tower-session",
                     current=self._session_medium,
-                    target=self._blend_signal(self._session_medium, session_signal, rate=0.62),
+                    target=self._blend_signal(
+                        self._session_medium,
+                        self._blend_signal(
+                            session_signal,
+                            self._background_slow,
+                            rate=0.18
+                            + (self._decision_for("tower-session").slow_mix if self._decision_for("tower-session") else 0.0)
+                            * 0.26,
+                        ),
+                        rate=max(
+                            0.05,
+                            self._decision_for("tower-session").write_gate if self._decision_for("tower-session") else 0.62,
+                        ),
+                    ),
                     momentum=self._session_momentum,
                     lr=self._session_lr,
+                    pending_signal=self._session_pending_signal,
+                    observations_since_update=self._session_observations_since_update,
+                    cadence_interval=self._session_cadence,
+                    source_signal=session_signal,
                 )
                 applied.append("tower-consolidation:session")
             if any(value > 0.0 for value in background_signal):
                 self._background_slow, self._background_momentum = self._gradient_update(
+                    band_id="tower-background",
                     current=self._background_slow,
-                    target=self._blend_signal(self._background_slow, background_signal, rate=0.7),
+                    target=self._blend_signal(
+                        self._background_slow,
+                        self._blend_signal(
+                            background_signal,
+                            self._session_medium,
+                            rate=0.14
+                            + (self._decision_for("tower-background").slow_mix if self._decision_for("tower-background") else 0.0)
+                            * 0.18,
+                        ),
+                        rate=max(
+                            0.05,
+                            self._decision_for("tower-background").write_gate
+                            if self._decision_for("tower-background")
+                            else 0.7,
+                        ),
+                    ),
                     momentum=self._background_momentum,
-                    lr=self._background_lr * 1.5,
+                    lr=self._background_lr,
+                    pending_signal=self._background_pending_signal,
+                    observations_since_update=self._background_observations_since_update,
+                    cadence_interval=self._background_cadence,
+                    source_signal=background_signal,
                 )
                 applied.append("tower-consolidation:background")
             if update.decay_pressure > 0.0:
@@ -914,16 +1359,20 @@ class CMSMemoryCore:
                 self._session_medium = self._blend_signal(
                     self._session_medium,
                     self._background_slow,
-                    rate=pressure * 0.25,
+                    rate=pressure * 0.32,
                 )
                 self._online_fast = self._blend_signal(
                     self._online_fast,
                     self._session_medium,
-                    rate=pressure * 0.15,
+                    rate=pressure * 0.22,
                 )
                 applied.append("tower-consolidation:decay-pressure")
 
-        if update.reset_fast_context and self._variant is CMSVariant.NESTED and self._mode == "mlp":
+        if (
+            self._mode == "mlp"
+            and self._variant is CMSVariant.NESTED
+            and (update.reset_fast_context or nested_transfer_pressure > 0.10)
+        ):
             self.reset_context()
             applied.append("tower-consolidation:nested-reset")
         self._last_update_ms = timestamp_ms
@@ -934,24 +1383,10 @@ class CMSMemoryCore:
     # ------------------------------------------------------------------
 
     def _signal_from_substrate(self, substrate_snapshot: SubstrateSnapshot | None) -> tuple[float, ...]:
-        if substrate_snapshot is None:
-            return tuple(0.0 for _ in range(self._dim))
-        if substrate_snapshot.residual_activations:
-            values = [
-                sum(activation.activation) / len(activation.activation)
-                for activation in substrate_snapshot.residual_activations
-                if activation.activation
-            ]
-        else:
-            values = [
-                sum(feature.values) / len(feature.values)
-                for feature in substrate_snapshot.feature_surface
-                if feature.values
-            ]
-        if not values:
-            return tuple(0.0 for _ in range(self._dim))
-        base = tuple(values[index % len(values)] for index in range(self._dim))
-        return tuple(_clamp(value) for value in base)
+        return build_runtime_backbone_evidence(
+            substrate_snapshot=substrate_snapshot,
+            dim=self._dim,
+        ).signal
 
     def _align_signal_dim(self, signal: tuple[float, ...]) -> tuple[float, ...]:
         if len(signal) == self._dim:
@@ -1210,37 +1645,84 @@ class CMSMemoryCore:
     def _gradient_update(
         self,
         *,
+        band_id: str,
         current: tuple[float, ...],
         target: tuple[float, ...],
         momentum: tuple[float, ...],
         lr: float,
+        pending_signal: tuple[float, ...],
+        observations_since_update: int,
+        cadence_interval: int,
+        source_signal: tuple[float, ...],
     ) -> tuple[tuple[float, ...], tuple[float, ...]]:
         """Gradient-style update: compute error -> update momentum -> apply."""
+        decision, features = self._decide_band_update(
+            band_id=band_id,
+            current=current,
+            target=target,
+            pending_signal=pending_signal,
+            observations_since_update=observations_since_update,
+            cadence_interval=cadence_interval,
+            source_signal=source_signal,
+        )
         error = tuple(target[i] - current[i] for i in range(self._dim))
         new_momentum = tuple(
-            self._momentum_beta * momentum[i] + (1.0 - self._momentum_beta) * error[i]
+            (_clamp(self._momentum_beta * decision.momentum_gate)) * momentum[i]
+            + (1.0 - _clamp(self._momentum_beta * decision.momentum_gate)) * error[i]
             for i in range(self._dim)
         )
+        effective_lr = lr * max(0.05, decision.step_scale) * max(0.05, decision.write_gate)
         updated = tuple(
-            _clamp(current[i] + lr * new_momentum[i])
+            _clamp(current[i] + effective_lr * new_momentum[i] + decision.bias_delta * 0.02)
             for i in range(self._dim)
+        )
+        self._learn_from_band_update(
+            decision=decision,
+            features=features,
+            before=current,
+            after=updated,
+            target=target,
         )
         return updated, new_momentum
 
     def _apply_anti_forgetting(self) -> None:
         """Backflow from slow to fast (vector mode)."""
+        online_decision, _ = self._decide_band_update(
+            band_id="anti-forgetting-online",
+            current=self._online_fast,
+            target=self._background_slow,
+            pending_signal=tuple(0.0 for _ in range(self._dim)),
+            observations_since_update=0,
+            cadence_interval=1,
+            source_signal=self._background_slow,
+        )
+        session_decision, _ = self._decide_band_update(
+            band_id="anti-forgetting-session",
+            current=self._session_medium,
+            target=self._background_slow,
+            pending_signal=self._session_pending_signal,
+            observations_since_update=self._session_observations_since_update,
+            cadence_interval=self._session_cadence,
+            source_signal=self._background_slow,
+        )
         strength = self._anti_forgetting
         self._online_fast = tuple(
             _clamp(
                 self._online_fast[i]
-                + strength * (self._background_slow[i] - self._online_fast[i]) * 0.1
+                + strength
+                * online_decision.slow_mix
+                * (self._background_slow[i] - self._online_fast[i])
+                * 0.12
             )
             for i in range(self._dim)
         )
         self._session_medium = tuple(
             _clamp(
                 self._session_medium[i]
-                + strength * (self._background_slow[i] - self._session_medium[i]) * 0.05
+                + strength
+                * session_decision.slow_mix
+                * (self._background_slow[i] - self._session_medium[i])
+                * 0.08
             )
             for i in range(self._dim)
         )
@@ -1248,6 +1730,7 @@ class CMSMemoryCore:
     def _integrate_signal_gradient(
         self,
         *,
+        band_id: str,
         current_vector: tuple[float, ...],
         pending_signal: tuple[float, ...],
         observations_since_update: int,
@@ -1267,10 +1750,15 @@ class CMSMemoryCore:
         if next_count < cadence_interval:
             return (current_vector, next_pending, next_count, momentum)
         updated, new_momentum = self._gradient_update(
+            band_id=band_id,
             current=current_vector,
             target=next_pending,
             momentum=momentum,
             lr=lr,
+            pending_signal=pending_signal,
+            observations_since_update=observations_since_update,
+            cadence_interval=cadence_interval,
+            source_signal=signal,
         )
         return (updated, tuple(0.0 for _ in range(self._dim)), 0, new_momentum)
 
@@ -1281,7 +1769,9 @@ class CMSMemoryCore:
     def _integrate_signal_mlp(
         self,
         *,
+        band_id: str,
         mlp: CMSBandMLP,
+        current_vector: tuple[float, ...],
         pending_signal: tuple[float, ...],
         observations_since_update: int,
         signal: tuple[float, ...],
@@ -1297,10 +1787,57 @@ class CMSMemoryCore:
         )
         if next_count < cadence_interval:
             return (next_pending, next_count)
-        mlp.update(target=next_pending)
+        decision, features = self._decide_band_update(
+            band_id=band_id,
+            current=current_vector,
+            target=next_pending,
+            pending_signal=pending_signal,
+            observations_since_update=observations_since_update,
+            cadence_interval=cadence_interval,
+            source_signal=signal,
+        )
+        target = self._blend_signal(current_vector, next_pending, rate=decision.write_gate)
+        mlp.update(
+            target=target,
+            lr_scale=max(0.05, decision.step_scale),
+            momentum_gate=decision.momentum_gate,
+        )
+        self._learn_from_band_update(
+            decision=decision,
+            features=features,
+            before=current_vector,
+            after=mlp.representation_vector(),
+            target=target,
+        )
         return (tuple(0.0 for _ in range(self._dim)), 0)
 
     def _apply_anti_forgetting_mlp(self) -> None:
         """Backflow from slow to fast (MLP mode)."""
-        self._online_mlp.mix_from(self._background_mlp, strength=self._anti_forgetting, factor=0.1)
-        self._session_mlp.mix_from(self._background_mlp, strength=self._anti_forgetting, factor=0.05)
+        online_decision, _ = self._decide_band_update(
+            band_id="anti-forgetting-online",
+            current=self._online_mlp.representation_vector(),
+            target=self._background_mlp.representation_vector(),
+            pending_signal=tuple(0.0 for _ in range(self._dim)),
+            observations_since_update=0,
+            cadence_interval=1,
+            source_signal=self._background_mlp.representation_vector(),
+        )
+        session_decision, _ = self._decide_band_update(
+            band_id="anti-forgetting-session",
+            current=self._session_mlp.representation_vector(),
+            target=self._background_mlp.representation_vector(),
+            pending_signal=self._session_pending_signal,
+            observations_since_update=self._session_observations_since_update,
+            cadence_interval=self._session_cadence,
+            source_signal=self._background_mlp.representation_vector(),
+        )
+        self._online_mlp.mix_from(
+            self._background_mlp,
+            strength=self._anti_forgetting,
+            factor=max(0.01, online_decision.slow_mix * 0.12),
+        )
+        self._session_mlp.mix_from(
+            self._background_mlp,
+            strength=self._anti_forgetting,
+            factor=max(0.01, session_decision.slow_mix * 0.08),
+        )

@@ -7,6 +7,8 @@ from enum import Enum
 from hashlib import sha256
 from typing import Any, Mapping
 
+from volvence_zero.credit.gate import CreditSnapshot
+from volvence_zero.learned_update import LearnedUpdateRule, LearnedUpdateRuleState
 from volvence_zero.memory import MemorySnapshot, Track
 from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
@@ -38,6 +40,7 @@ from volvence_zero.temporal.metacontroller_components import (
     residual_sequence_from_snapshot,
     summarize_feature_surface,
     summarize_residual_activations,
+    update_family_outcome_history,
 )
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 
@@ -84,11 +87,15 @@ class TemporalConsolidationSnapshot:
     track: str
     prediction_error_applied: bool
     reflection_observed: bool
+    family_outcome_applied: bool
     active_abstract_action: str
     controller_params_hash: str
     learning_phase: str
     structure_frozen: bool
-    description: str
+    active_family_long_term_payoff: float = 0.0
+    active_family_delayed_credit_sum: float = 0.0
+    active_family_outcome_score: float = 0.0
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -156,6 +163,7 @@ class MetacontrollerRuntimeState:
     fast_prior_family_bias: float = 0.0
     fast_prior_sequence_bias: float = 0.0
     fast_prior_switch_pressure_delta: float = 0.0
+    learned_update_rule_state: LearnedUpdateRuleState | None = None
     description: str = ""
 
 
@@ -174,7 +182,19 @@ class ActionFamilyPublicSummary:
     competition_score: float
     outcome_history: tuple[float, ...] = ()
     outcome_driven_score: float = 0.0
+    long_term_payoff: float = 0.5
+    delayed_credit_sum: float = 0.0
     summary: str = ""
+
+
+@dataclass(frozen=True)
+class FamilyOutcomeFeedback:
+    family_id: str
+    outcome_value: float
+    delayed_credit_delta: float = 0.0
+    session_payoff_delta: float = 0.0
+    credit_record_count: int = 0
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -222,6 +242,7 @@ class MetacontrollerParameterSnapshot:
     structure_frozen: bool = False
     learning_phase: str = "runtime"
     action_family_version: int = 0
+    learned_update_rule_state: LearnedUpdateRuleState | None = None
 
 
 @dataclass(frozen=True)
@@ -229,6 +250,38 @@ class DualTrackRareHeavySnapshot:
     world_snapshot: MetacontrollerParameterSnapshot
     self_snapshot: MetacontrollerParameterSnapshot
     description: str
+
+
+def _bootstrap_snapshot_n_z(snapshot: MetacontrollerParameterSnapshot) -> int:
+    candidate_lengths = (
+        len(snapshot.latent_mean),
+        len(snapshot.latent_scale),
+        len(snapshot.encoder_weights),
+        len(snapshot.decoder_matrix),
+    )
+    return max((length for length in candidate_lengths if length > 0), default=3)
+
+
+def resolve_temporal_bootstrap_snapshot(
+    bootstrap_source: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None,
+    *,
+    track: Track,
+) -> MetacontrollerParameterSnapshot | None:
+    if isinstance(bootstrap_source, MetacontrollerParameterSnapshot):
+        return bootstrap_source
+    if isinstance(bootstrap_source, DualTrackRareHeavySnapshot):
+        if track is Track.SELF:
+            return bootstrap_source.self_snapshot
+        return bootstrap_source.world_snapshot
+    return None
+
+
+def build_bootstrapped_parameter_store(
+    snapshot: MetacontrollerParameterSnapshot,
+) -> MetacontrollerParameterStore:
+    store = MetacontrollerParameterStore(n_z=_bootstrap_snapshot_n_z(snapshot))
+    store.restore_parameter_snapshot(snapshot)
+    return store
 
 
 class MetacontrollerParameterStore:
@@ -335,6 +388,14 @@ class MetacontrollerParameterStore:
         self.latest_fast_prior_family_bias = 0.0
         self.latest_fast_prior_sequence_bias = 0.0
         self.latest_fast_prior_switch_pressure_delta = 0.0
+        self.learned_update_rule = LearnedUpdateRule(
+            rule_id="metacontroller-update",
+            feature_dim=max(12, n_z * 5),
+            hidden_dim=max(8, n_z * 2),
+        )
+        self.latest_learned_update_rule_state: LearnedUpdateRuleState | None = (
+            self.learned_update_rule.export_state()
+        )
         self.structure_frozen = True
         self.learning_phase = "runtime"
         self._action_family_version = 0
@@ -424,6 +485,7 @@ class MetacontrollerParameterStore:
             fast_prior_family_bias=self.latest_fast_prior_family_bias,
             fast_prior_sequence_bias=self.latest_fast_prior_sequence_bias,
             fast_prior_switch_pressure_delta=self.latest_fast_prior_switch_pressure_delta,
+            learned_update_rule_state=self.latest_learned_update_rule_state,
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
@@ -496,6 +558,7 @@ class MetacontrollerParameterStore:
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
+            learned_update_rule_state=self.latest_learned_update_rule_state,
         )
 
     def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
@@ -551,6 +614,9 @@ class MetacontrollerParameterStore:
         self.structure_frozen = snapshot.structure_frozen
         self.learning_phase = snapshot.learning_phase
         self._action_family_version = snapshot.action_family_version
+        if snapshot.learned_update_rule_state is not None:
+            self.learned_update_rule.restore_state(snapshot.learned_update_rule_state)
+            self.latest_learned_update_rule_state = snapshot.learned_update_rule_state
 
     def record_runtime_observation(
         self,
@@ -611,6 +677,9 @@ class MetacontrollerParameterStore:
     ) -> None:
         self.latest_encoder_optimizer_state = encoder_state
         self.latest_decoder_optimizer_state = decoder_state
+
+    def record_learned_update_rule_state(self, *, state: LearnedUpdateRuleState) -> None:
+        self.latest_learned_update_rule_state = state
 
     def record_ssl_metrics(self, *, total_loss: float, kl_loss: float) -> None:
         self.latest_ssl_loss = total_loss
@@ -680,6 +749,8 @@ class MetacontrollerParameterStore:
                 competition_score=family.competition_score,
                 outcome_history=family.outcome_history,
                 outcome_driven_score=family.outcome_driven_score,
+                long_term_payoff=family.long_term_payoff,
+                delayed_credit_sum=family.delayed_credit_sum,
                 summary=family.summary,
             )
             for family in self.action_families
@@ -707,6 +778,19 @@ class MetacontrollerParameterStore:
             + (1.0 - average_stagnation) * 0.20
             + (1.0 - average_monopoly) * 0.15
         )
+
+    def observe_family_outcome_feedback(self, *, feedback: FamilyOutcomeFeedback) -> bool:
+        updated_families = update_family_outcome_history(
+            self.action_families,
+            family_id=feedback.family_id,
+            outcome_value=feedback.outcome_value,
+            delayed_credit_delta=feedback.delayed_credit_delta,
+            session_payoff_delta=feedback.session_payoff_delta,
+        )
+        if updated_families == self.action_families:
+            return False
+        self.action_families = updated_families
+        return True
 
     def record_fast_prior_signals(
         self,
@@ -1378,6 +1462,24 @@ def _cms_band(memory_snapshot: MemorySnapshot | None, band_name: str) -> tuple[f
     return band.vector
 
 
+def _should_take_binary_override(
+    *,
+    previous_code: tuple[float, ...],
+    latent_override: tuple[float, ...] | None,
+    policy_replacement_score: float,
+    learned_binary_switch: bool,
+) -> bool:
+    if learned_binary_switch:
+        return True
+    if latent_override is None:
+        return False
+    override_delta = sum(
+        abs(current - previous)
+        for current, previous in zip(latent_override, previous_code, strict=True)
+    ) / max(len(latent_override), 1)
+    return override_delta >= 0.08 and policy_replacement_score >= 0.55
+
+
 class TemporalPolicy(ABC):
     """Common interface for placeholder, heuristic, and future learned policies."""
 
@@ -1417,6 +1519,18 @@ class TemporalPolicy(ABC):
         del experience_fast_prior_snapshot
         del previous_snapshot
         del track
+
+    def observe_family_outcome_feedback(
+        self,
+        *,
+        track: Track,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> bool:
+        del track
+        del prediction_error_snapshot
+        del credit_snapshot
+        return False
 
     @property
     def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
@@ -1710,8 +1824,18 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
 class FullLearnedTemporalPolicy(TemporalPolicy):
     mode = TemporalImplementationMode.FULL_LEARNED
 
-    def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
-        self._parameter_store = parameter_store or MetacontrollerParameterStore()
+    def __init__(
+        self,
+        *,
+        parameter_store: MetacontrollerParameterStore | None = None,
+        bootstrap_snapshot: MetacontrollerParameterSnapshot | None = None,
+    ) -> None:
+        if parameter_store is not None and bootstrap_snapshot is not None:
+            raise ValueError("Pass either parameter_store or bootstrap_snapshot, not both.")
+        if bootstrap_snapshot is not None:
+            self._parameter_store = build_bootstrapped_parameter_store(bootstrap_snapshot)
+        else:
+            self._parameter_store = parameter_store or MetacontrollerParameterStore()
         n_z = self._parameter_store.n_z
         self._encoder = SequenceEncoder()
         self._switch_unit = SwitchUnit()
@@ -1733,6 +1857,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_beta_binary = 0
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+
+    @classmethod
+    def from_bootstrap_snapshot(
+        cls,
+        snapshot: MetacontrollerParameterSnapshot,
+    ) -> "FullLearnedTemporalPolicy":
+        return cls(bootstrap_snapshot=snapshot)
 
     @property
     def parameter_store(self) -> MetacontrollerParameterStore:
@@ -1847,6 +1978,23 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             sequence_bias=sequence_bias * (1.0 + prior_strength * 0.12),
             switch_pressure_delta=switch_pressure_delta,
         )
+
+    def observe_family_outcome_feedback(
+        self,
+        *,
+        track: Track,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> bool:
+        feedback = _build_family_outcome_feedback(
+            track=track,
+            active_family_id=self._parameter_store.latest_active_label,
+            prediction_error_snapshot=prediction_error_snapshot,
+            credit_snapshot=credit_snapshot,
+        )
+        if feedback is None:
+            return False
+        return self._parameter_store.observe_family_outcome_feedback(feedback=feedback)
 
     def apply_reflection_prior_update(
         self,
@@ -2019,11 +2167,22 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             external_switch_pressure_delta=fast_prior_switch_pressure_delta,
             params=self._parameter_store.ndim_switch_parameters,
         )
+        z_candidate = latent_override or encoded.z_tilde
         if binary_gate_override:
-            effective_gate = beta_bin
+            is_switching_scalar = _should_take_binary_override(
+                previous_code=previous_code,
+                latent_override=z_candidate,
+                policy_replacement_score=policy_replacement_score,
+                learned_binary_switch=any(value >= 0.5 for value in beta_bin),
+            )
+            effective_scalar_beta = 1.0 if is_switching_scalar else 0.0
+            effective_gate = tuple(effective_scalar_beta for _ in range(n_z))
+            persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         else:
             effective_gate = beta_cont
-        z_candidate = latent_override or encoded.z_tilde
+            effective_scalar_beta = scalar_beta
+            is_switching_scalar = scalar_beta >= 0.55
+            persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         latent_code = tuple(
             _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
             for i in range(n_z)
@@ -2032,13 +2191,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             latent_code=latent_code,
             params=self._parameter_store.ndim_decoder_parameters,
         )
-        is_switching_scalar = scalar_beta >= 0.55
         active_label, decoder_summary = self._parameter_store.discover_action_family(
             latent_code=latent_code,
             decoder_control=decoder_control.applied_control,
-            switch_gate=scalar_beta,
+            switch_gate=effective_scalar_beta,
             posterior_drift=encoded.posterior.posterior_drift,
-            persistence_window=0.0 if is_switching_scalar else float(previous_steps + 1),
+            persistence_window=persistence_window,
         )
         beta_binary_int = 1 if is_switching_scalar else 0
         steps_since_switch = 0 if is_switching_scalar else previous_steps + 1
@@ -2046,7 +2204,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             latent_mean=encoded.latent_mean,
             latent_scale=encoded.latent_scale,
             decoder_control=decoder_control.decoder_output,
-            switch_gate=scalar_beta,
+            switch_gate=effective_scalar_beta,
             sequence_length=encoded.sequence_length,
             active_label=active_label,
             prior_mean=encoded.posterior.prior_mean,
@@ -2058,9 +2216,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             posterior_hidden_state=encoded.posterior.hidden_state,
             posterior_drift=encoded.posterior.posterior_drift,
             beta_binary=beta_binary_int,
-            switch_sparsity=1.0 - scalar_beta,
+            switch_sparsity=1.0 - effective_scalar_beta,
             binary_switch_rate=float(beta_binary_int),
-            mean_persistence_window=0.0 if is_switching_scalar else float(previous_steps + 1),
+            mean_persistence_window=persistence_window,
             decoder_applied_control=decoder_control.applied_control,
             policy_replacement_score=policy_replacement_score,
         )
@@ -2074,7 +2232,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         })
         description = (
             f"Full-learned ndim metacontroller n_z={n_z}, "
-            f"scalar_beta={scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
+            f"effective_beta={effective_scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
             f"{encoded.summary}, {decoder_control.summary}, "
             f"replacement_score={policy_replacement_score:.3f}, "
             f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, {decoder_summary}."
@@ -2087,7 +2245,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             controller_state=ControllerState(
                 code=latent_code,
                 code_dim=len(latent_code),
-                switch_gate=scalar_beta,
+                switch_gate=effective_scalar_beta,
                 is_switching=is_switching_scalar,
                 steps_since_switch=steps_since_switch,
                 track_codes=track_codes,
@@ -2148,10 +2306,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             previous_binary=self._previous_beta_binary,
             previous_steps_since_switch=previous_steps,
         )
-        effective_switch_gate = (
-            float(switch_decision.beta_binary) if binary_gate_override else switch_decision.beta_continuous
-        )
         z_candidate = latent_override or encoded.z_tilde
+        if binary_gate_override:
+            is_switching = _should_take_binary_override(
+                previous_code=previous_code,
+                latent_override=z_candidate,
+                policy_replacement_score=policy_replacement_score,
+                learned_binary_switch=bool(switch_decision.beta_binary),
+            )
+            effective_switch_gate = 1.0 if is_switching else 0.0
+            mean_persistence_window = 0.0 if is_switching else float(previous_steps + 1)
+            binary_switch_rate = float(int(is_switching))
+            switch_sparsity = 1.0 - effective_switch_gate
+        else:
+            effective_switch_gate = switch_decision.beta_continuous
+            is_switching = bool(switch_decision.beta_binary)
+            mean_persistence_window = switch_decision.mean_persistence_window
+            binary_switch_rate = switch_decision.binary_switch_rate
+            switch_sparsity = switch_decision.sparsity
         latent_code = tuple(
             _clamp(effective_switch_gate * current + (1.0 - effective_switch_gate) * previous)
             for current, previous in zip(z_candidate, previous_code, strict=True)
@@ -2166,9 +2338,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             decoder_control=decoder_control.applied_control,
             switch_gate=effective_switch_gate,
             posterior_drift=encoded.posterior.posterior_drift,
-            persistence_window=switch_decision.mean_persistence_window,
+            persistence_window=mean_persistence_window,
         )
-        is_switching = bool(switch_decision.beta_binary)
         steps_since_switch = 0 if is_switching else previous_steps + 1
         self._parameter_store.record_runtime_observation(
             latent_mean=encoded.latent_mean,
@@ -2185,10 +2356,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             z_tilde=z_candidate,
             posterior_hidden_state=encoded.posterior.hidden_state,
             posterior_drift=encoded.posterior.posterior_drift,
-            beta_binary=switch_decision.beta_binary,
-            switch_sparsity=switch_decision.sparsity,
-            binary_switch_rate=switch_decision.binary_switch_rate,
-            mean_persistence_window=switch_decision.mean_persistence_window,
+            beta_binary=int(is_switching),
+            switch_sparsity=switch_sparsity,
+            binary_switch_rate=binary_switch_rate,
+            mean_persistence_window=mean_persistence_window,
             decoder_applied_control=decoder_control.applied_control,
             policy_replacement_score=policy_replacement_score,
         )
@@ -2212,7 +2383,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
-        self._previous_beta_binary = switch_decision.beta_binary
+        self._previous_beta_binary = int(is_switching)
         track_codes = self._compute_track_codes(latent_code)
         return TemporalStep(
             controller_state=ControllerState(
@@ -2369,9 +2540,9 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
 
 
 def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
-    cloned_store = MetacontrollerParameterStore(n_z=source_policy.parameter_store.n_z)
-    cloned_store.restore_parameter_snapshot(source_policy.export_rare_heavy_snapshot())
-    return FullLearnedTemporalPolicy(parameter_store=cloned_store)
+    return FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+        source_policy.export_rare_heavy_snapshot()
+    )
 
 
 def _merge_track_codes(
@@ -2566,6 +2737,9 @@ def build_temporal_runtime_state_aggregate(
             world_state.fast_prior_switch_pressure_delta + self_state.fast_prior_switch_pressure_delta
         )
         / 2.0,
+        learned_update_rule_state=(
+            world_state.learned_update_rule_state or self_state.learned_update_rule_state
+        ),
         structure_frozen=world_state.structure_frozen and self_state.structure_frozen,
         learning_phase=(
             world_state.learning_phase
@@ -2740,9 +2914,109 @@ def _apply_track_prediction_error_signal(
     return True
 
 
+def _track_credit_matches(track: Track, record_track: Track) -> bool:
+    if track is Track.SHARED:
+        return record_track is Track.SHARED
+    return record_track in {track, Track.SHARED}
+
+
+def _track_session_credit_delta(
+    *,
+    track: Track,
+    credit_snapshot: CreditSnapshot | None,
+) -> float:
+    if credit_snapshot is None:
+        return 0.0
+    weighted = 0.0
+    for session_key, value in credit_snapshot.session_level_credits:
+        level, separator, track_name = session_key.partition(":")
+        if separator != ":" or level not in {"abstract_action", "prediction_error", "session"}:
+            continue
+        if track is Track.SHARED:
+            if track_name != Track.SHARED.value:
+                continue
+        elif track_name not in {track.value, Track.SHARED.value}:
+            continue
+        weight = {
+            "abstract_action": 0.45,
+            "prediction_error": 0.35,
+            "session": 0.20,
+        }[level]
+        weighted += _clamp(value) * weight
+    return _clamp(weighted)
+
+
+def _prediction_error_outcome_value(
+    *,
+    track: Track,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> float:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return 0.0
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        penalty = abs(pe.task_error) * 0.30 + abs(pe.action_error) * 0.12 + abs(pe.regime_error) * 0.08
+    elif track is Track.SELF:
+        penalty = abs(pe.relationship_error) * 0.30 + abs(pe.regime_error) * 0.12 + abs(pe.action_error) * 0.08
+    else:
+        penalty = (
+            abs(pe.task_error) + abs(pe.relationship_error) + abs(pe.regime_error) + abs(pe.action_error)
+        ) * 0.11
+    return _clamp(pe.signed_reward - penalty)
+
+
+def _build_family_outcome_feedback(
+    *,
+    track: Track,
+    active_family_id: str,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    credit_snapshot: CreditSnapshot | None,
+) -> FamilyOutcomeFeedback | None:
+    if not active_family_id or active_family_id == "unassigned_action":
+        return None
+    matching_credits = tuple(
+        record
+        for record in (() if credit_snapshot is None else credit_snapshot.recent_credits)
+        if record.level == "abstract_action"
+        and record.source_event == active_family_id
+        and _track_credit_matches(track, record.track)
+    )
+    delayed_credit_delta = (
+        _clamp(sum(record.credit_value for record in matching_credits) / len(matching_credits))
+        if matching_credits
+        else 0.0
+    )
+    outcome_value = _prediction_error_outcome_value(
+        track=track,
+        prediction_error_snapshot=prediction_error_snapshot,
+    )
+    session_payoff_delta = _track_session_credit_delta(
+        track=track,
+        credit_snapshot=credit_snapshot,
+    )
+    if (
+        abs(outcome_value) <= 1e-8
+        and abs(delayed_credit_delta) <= 1e-8
+        and abs(session_payoff_delta) <= 1e-8
+    ):
+        return None
+    return FamilyOutcomeFeedback(
+        family_id=active_family_id,
+        outcome_value=outcome_value,
+        delayed_credit_delta=delayed_credit_delta,
+        session_payoff_delta=session_payoff_delta,
+        credit_record_count=len(matching_credits),
+        description=(
+            f"track={track.value} family={active_family_id} "
+            f"pe={outcome_value:.3f} credit={delayed_credit_delta:.3f} "
+            f"session={session_payoff_delta:.3f} matches={len(matching_credits)}"
+        ),
+    )
+
+
 class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapshot]):
     value_type = TemporalConsolidationSnapshot
-    dependencies = ("reflection", "prediction_error")
+    dependencies = ("reflection", "prediction_error", "credit")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -2764,6 +3038,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
     ) -> Snapshot[TemporalConsolidationSnapshot]:
         reflection_snapshot = upstream["reflection"]
         prediction_error_snapshot = upstream["prediction_error"]
+        credit_snapshot = upstream["credit"]
         reflection_value = (
             reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
         )
@@ -2772,16 +3047,23 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
             else None
         )
+        credit_value = credit_snapshot.value if isinstance(credit_snapshot.value, CreditSnapshot) else None
         prediction_error_applied = _apply_track_prediction_error_signal(
             track=self._track,
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
+        family_outcome_applied = self._policy.observe_family_outcome_feedback(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+            credit_snapshot=credit_value,
+        )
         runtime_state = self._policy.export_runtime_state()
         active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
         learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
         structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        active_family_summary = runtime_state.active_family_summary if runtime_state is not None else None
         temporal_parameters = (
             runtime_state.temporal_parameters
             if runtime_state is not None
@@ -2797,6 +3079,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 track=self._track.value,
                 prediction_error_applied=prediction_error_applied,
                 reflection_observed=reflection_value is not None,
+                family_outcome_applied=family_outcome_applied,
                 active_abstract_action=active_label,
                 controller_params_hash=_hash_payload(
                     {
@@ -2809,10 +3092,20 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 ),
                 learning_phase=learning_phase,
                 structure_frozen=structure_frozen,
+                active_family_long_term_payoff=(
+                    active_family_summary.long_term_payoff if active_family_summary is not None else 0.0
+                ),
+                active_family_delayed_credit_sum=(
+                    active_family_summary.delayed_credit_sum if active_family_summary is not None else 0.0
+                ),
+                active_family_outcome_score=(
+                    active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
+                ),
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "
                     f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"family_outcome={'yes' if family_outcome_applied else 'no'} "
                     f"phase={learning_phase} frozen={structure_frozen}."
                 ),
             )
@@ -2821,20 +3114,28 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
     async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalConsolidationSnapshot]:
         prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
         reflection_snapshot = kwargs.get("reflection_snapshot")
+        credit_snapshot = kwargs.get("credit_snapshot")
         prediction_error_value = (
             prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
         )
         reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None
+        credit_value = credit_snapshot if isinstance(credit_snapshot, CreditSnapshot) else None
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         prediction_error_applied = _apply_track_prediction_error_signal(
             track=self._track,
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
+        family_outcome_applied = self._policy.observe_family_outcome_feedback(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+            credit_snapshot=credit_value,
+        )
         runtime_state = self._policy.export_runtime_state()
         active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
         learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
         structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        active_family_summary = runtime_state.active_family_summary if runtime_state is not None else None
         temporal_parameters = (
             runtime_state.temporal_parameters
             if runtime_state is not None
@@ -2850,6 +3151,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 track=self._track.value,
                 prediction_error_applied=prediction_error_applied,
                 reflection_observed=reflection_value is not None,
+                family_outcome_applied=family_outcome_applied,
                 active_abstract_action=active_label,
                 controller_params_hash=_hash_payload(
                     {
@@ -2862,10 +3164,20 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 ),
                 learning_phase=learning_phase,
                 structure_frozen=structure_frozen,
+                active_family_long_term_payoff=(
+                    active_family_summary.long_term_payoff if active_family_summary is not None else 0.0
+                ),
+                active_family_delayed_credit_sum=(
+                    active_family_summary.delayed_credit_sum if active_family_summary is not None else 0.0
+                ),
+                active_family_outcome_score=(
+                    active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
+                ),
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "
                     f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"family_outcome={'yes' if family_outcome_applied else 'no'} "
                     f"phase={learning_phase} frozen={structure_frozen}."
                 ),
             )

@@ -16,6 +16,7 @@ from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
 from volvence_zero.temporal import (
     ControllerState,
+    FamilyOutcomeFeedback,
     FullLearnedTemporalPolicy,
     LearnedLiteTemporalPolicy,
     MetacontrollerParameterSnapshot,
@@ -970,6 +971,7 @@ class InternalRLSandbox:
                 switch_pressure_delta=0.0,
             )
             return (0.0, 0.0, 0.0, 0.0, 0.0)
+        self._apply_family_outcome_feedbacks(normalized_rollouts)
         credit_alignment = self._delayed_credit_alignment(normalized_rollouts)
         terminal_success_rate = sum(float(rollout.terminal_success) for rollout in normalized_rollouts) / len(normalized_rollouts)
         family_assignment_rate = sum(
@@ -1046,6 +1048,87 @@ class InternalRLSandbox:
             switch_pressure_delta=switch_pressure_delta,
         )
         return (strength, action_bias, family_bias, sequence_bias, switch_pressure_delta)
+
+    def _apply_family_outcome_feedbacks(
+        self,
+        rollouts: tuple[ZRollout, ...],
+    ) -> tuple[FamilyOutcomeFeedback, ...]:
+        feedbacks = self._family_outcome_feedbacks_from_rollouts(rollouts)
+        for feedback in feedbacks:
+            self._policy.parameter_store.observe_family_outcome_feedback(feedback=feedback)
+        return feedbacks
+
+    def _family_outcome_feedbacks_from_rollouts(
+        self,
+        rollouts: tuple[ZRollout, ...],
+    ) -> tuple[FamilyOutcomeFeedback, ...]:
+        family_rewards: dict[str, list[float]] = {}
+        family_session_payoffs: dict[str, list[float]] = {}
+        family_delayed_credits: dict[str, list[float]] = {}
+        for rollout in rollouts:
+            valid_transitions = tuple(
+                transition
+                for transition in rollout.transitions
+                if transition.active_family_id not in {None, "unassigned"}
+            )
+            if not valid_transitions:
+                continue
+            rollout_family_ids = tuple(dict.fromkeys(
+                transition.active_family_id for transition in valid_transitions if transition.active_family_id is not None
+            ))
+            session_payoff_share = _clamp(rollout.total_reward / max(len(rollout_family_ids), 1))
+            for family_id in rollout_family_ids:
+                family_session_payoffs.setdefault(family_id, []).append(session_payoff_share)
+            for transition in valid_transitions:
+                family_rewards.setdefault(transition.active_family_id or "unassigned", []).append(
+                    _clamp(transition.reward)
+                )
+            for assignment in rollout.delayed_credit_assignments:
+                start = max(0, assignment.start_step)
+                end = min(len(rollout.transitions) - 1, assignment.end_step)
+                if end < start:
+                    continue
+                window_family_ids = tuple(dict.fromkeys(
+                    transition.active_family_id
+                    for transition in rollout.transitions[start : end + 1]
+                    if transition.active_family_id not in {None, "unassigned"}
+                ))
+                if not window_family_ids:
+                    continue
+                distributed_credit = _clamp(assignment.reward / len(window_family_ids))
+                for family_id in window_family_ids:
+                    family_delayed_credits.setdefault(family_id, []).append(distributed_credit)
+        feedbacks: list[FamilyOutcomeFeedback] = []
+        for family_id in sorted(set(family_rewards) | set(family_session_payoffs) | set(family_delayed_credits)):
+            rewards = family_rewards.get(family_id, [])
+            session_payoffs = family_session_payoffs.get(family_id, [])
+            delayed_credits = family_delayed_credits.get(family_id, [])
+            outcome_value = _clamp(sum(rewards) / len(rewards)) if rewards else 0.0
+            delayed_credit_delta = _clamp(sum(delayed_credits) / len(delayed_credits)) if delayed_credits else 0.0
+            session_payoff_delta = (
+                _clamp(sum(session_payoffs) / len(session_payoffs)) if session_payoffs else 0.0
+            )
+            if (
+                abs(outcome_value) <= 1e-8
+                and abs(delayed_credit_delta) <= 1e-8
+                and abs(session_payoff_delta) <= 1e-8
+            ):
+                continue
+            feedbacks.append(
+                FamilyOutcomeFeedback(
+                    family_id=family_id,
+                    outcome_value=outcome_value,
+                    delayed_credit_delta=delayed_credit_delta,
+                    session_payoff_delta=session_payoff_delta,
+                    credit_record_count=len(delayed_credits),
+                    description=(
+                        f"proof rollouts={len(rollouts)} family={family_id} "
+                        f"reward={outcome_value:.3f} delayed={delayed_credit_delta:.3f} "
+                        f"session={session_payoff_delta:.3f}"
+                    ),
+                )
+            )
+        return tuple(feedbacks)
 
     def _delayed_credit_alignment(self, rollouts: tuple[ZRollout, ...]) -> float:
         if not rollouts:

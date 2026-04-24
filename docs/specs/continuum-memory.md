@@ -105,7 +105,9 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
 - runtime query facets 当前可组合 `user_text + substrate + 上一轮 temporal_abstraction + 上一轮 dual_track` 的已发布快照上下文，不引入同轮循环依赖
 - 当前 reflection 已可消费 regime owner 发布的 `delayed_outcomes + identity_hints`，并在 credit gate 允许时把 typed identity proposal 沉淀为 durable identity entries；memory owner 仍是唯一持久写入 owner
 - 当前 `MemoryModule` 已直接消费 `prediction_error` slot：owner 会把 PE 写成 `prediction_error:*` 记忆事件、调节 `promotion_threshold`，并把主导误差维度纳入 retrieval facets
+- 当前 turn-time memory ingest 不再只依赖 substrate 序列重建；orchestrator 会把当前 `user_text` 作为 owner-side turn input 直接交给 `MemoryModule`，使用户原话本身进入 transient write / retrieval query
 - 当前默认 memory owner 已携带 nested MLP CMS profile；context boundary 与 rare-heavy import 后会通过 owner-side `reset_nested_context()` 触发 slow->fast 初始化，并把 `nested_context_reset_count` / `last_nested_reset_applied` / `slow_to_fast_init_benefit` 发布到 lifecycle telemetry
+- 当前 CMS 的 fast / session / slow / nested 更新律已开始通过 owner-side `learned_update_rule` 统一发布：`CMSState` / checkpoint 现可携带 updater state、effective learning rate、update gate、slow-mix 与 update summary，使 memory 不再只是“learned core + hand-tuned write rule”的混合体
 - 当前默认慢反思已改为 session-post queued orchestration：turn-time wiring 只生成 deferred consolidation request，真正的 durable promotion / decay / belief writeback / temporal-prior apply 在 context boundary 后由 session-post slow loop 执行；memory owner 仍是唯一 durable 写入 owner
 - 当前 session-post slow loop 还会通过独立 `session_post_slow_loop` slot 发布 queue state 与 recent completion summaries，使 memory/cadence 证明面不再依赖 runner 私有 telemetry
 - 当前 temporal->memory 的 CMS feedback 已收敛到正式 owner 路径：final wiring 不再直接 side-effect `memory_store.observe_encoder_feedback(...)`，而是由 temporal owner 通过已发布快照携带 feedback signal，memory owner 在自己的 processing path 中消费
@@ -125,12 +127,14 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
    - retrieval 不再主要证明“artifact store 能被搜到”，而是证明 recall 先由 learned core 驱动，再落到 durable artifacts 作为解释性 readout；owner lifecycle telemetry 会发布 recall confidence / core-guided recall evidence
 4. `tower-native consolidation`
    - background-slow writeback 不再只把 lesson count 打到 learned core，而是把 promoted entries、durable entries、belief updates 与 lesson-derived pressure 显式融合成 tower consolidation update，并留下 checkpoint / rollback 可验证证据
-5. `tower evidence escapes the owner`
-   - `evaluation` 与 `dialogue_benchmark` 已开始直接读取 `last_memory_tower_depth`、`last_memory_tower_alignment`、`tower_consolidation_count` 等 telemetry，使 tower 证据不再局限于 memory owner 私有诊断面
-6. `tower evidence reaches rollout artifacts`
-   - tower telemetry 现已进入 emergence dashboard、paper-suite summary 与 strengthened NL-essence gate，说明 memory tower 不只是 owner/internal instrumentation，而开始成为 rollout / review / acceptance 的正式证据面
+5. `runtime evidence escapes the owner`
+   - `MemoryStore` 现在会把 `SubstrateSnapshot` 统一压缩成 runtime-grounded lifecycle telemetry：例如 `last_runtime_backbone_signal_quality`、`last_runtime_backbone_signal_strength`、`last_runtime_backbone_hook_coverage` 与 `last_fast_memory_runtime_alignment`；`evaluation` 与 `dialogue_benchmark` 默认优先读取这组读数，而不是把 tower telemetry 当作唯一 headline
+6. `review-only fast memory still leaves evidence`
+   - frozen / review-only doctrine 不再等同于“没有 online-fast 证据”；只要 runtime 产出了合法 `fast_memory_signal`，session owner 也会正式写入 `MemoryStore`，并把它与最近一次 runtime backbone signal 对齐
+7. `tower evidence reaches rollout artifacts`
+   - tower telemetry 仍会进入 emergence dashboard、paper-suite summary 与 NL-essence gate，但它现在被降级为从属证据面，需要和 runtime-grounded evidence 一起成立，而不是单独代表默认主证据面
 
-这里的 proof surface 依赖 owner 发布的 lifecycle telemetry 与 machine-readable tower profile，而不是仅凭文本输出推断。当前 benchmark 能证明“慢层影响快层的证据面已存在，而且 recall / consolidation 已经开始围绕统一 tower 组织”；evaluation、dialogue benchmark、emergence dashboard 与 paper-suite summary 也已开始直接消费 tower depth/alignment/consolidation 读数，但还不能把它表述成论文级 distributed memory / self-modifying learner 的完整复现。
+这里的 proof surface 依赖 owner 发布的 lifecycle telemetry 与 machine-readable tower profile，而不是仅凭文本输出推断。当前 benchmark 能证明“慢层影响快层的证据面已存在，而且 recall / consolidation 已经开始围绕统一 tower 组织”；同时，默认主证据已开始转向 runtime/backbone readout 与 fast-memory alignment，tower depth/alignment/consolidation 则退到辅助约束位。它仍不能被表述成论文级 distributed memory / self-modifying learner 的完整复现。
 
 ### NL 关键洞察
 

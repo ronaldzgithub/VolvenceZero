@@ -84,6 +84,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - `memory` 快照：相关记忆上下文
 - `reflection` 快照：策略沉淀（控制器参数更新）
 - `prediction_error` 快照：上一轮 outcome mismatch 的 carryover learning signal，用于 owner-side controller 调节与 schedule 触发
+- `credit` 快照：抽象动作级与 session-level delayed credit 的聚合信号；当前主要由 consolidation 路径消费，用于 owner-side action-family payoff / competition 更新
 - `experience_fast_prior` 快照：由 application slow loop 压缩出的 delayed-credit fast bias，用于 owner-side action-family continuation / switch pressure 调节
 
 **产出的输出**：
@@ -124,6 +125,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 internal RL sandbox 已支持 `baseline / causal / causal-binary` 三条 rollout 路径；`causal-binary` 会在 replacement 路径上对 `beta_t` 做 Heaviside-like 二值化，更接近 ETA B.5
 - 当前 `TemporalModule` 已直接消费 `prediction_error` slot；高 PE 不再只经 evaluation 旁路感知，而是直接进入 owner-side update / scheduling surface
 - 当前默认主链已拆成 staged temporal surfaces：`TrackTemporalModule` 先以 `substrate + memory` 产出 same-wave early control；`TrackTemporalConsolidationModule` 再以 `reflection + prediction_error` 做 owner-side late consolidation；公共 `temporal_abstraction` 由 `TemporalAggregateModule` 聚合 `world_temporal` / `self_temporal` 后发布，避免靠共享可变状态偷渡 same-wave 顺序
+- 当前 `TrackTemporalConsolidationModule` 已开始直接消费 `credit` 快照中的 abstract-action / session-level evidence，把 delayed credit 写回 action-family 的 `outcome_driven_score`、`long_term_payoff`、`delayed_credit_sum`；这条路径不引入新的 owner，而是在 temporal owner 内完成 family competition 的结果驱动更新
 - 当前 live dual-track path 已进一步收敛：track policy 会缓存 consolidation 阶段观察到的 `reflection` 证据，并在后续 early-control `step()` 中作为 owner-side context 参与切换/编码；这让 public dual-track path 不再系统性丢失 reflection
 - 当前 heuristic / learned-lite fallback 的公开 action label 已降级为更中性的 latent-family 风格标签，避免 benchmark 仅靠手工语义名就显得“像 ETA”
 - 当前 proof harness 允许把这两层 scaffold 分别关掉：`pe-eta-no-semantic-label` 保留 latent/full path 但剥离语义标签扶手；`pe-eta-no-reflection-cache` 保留 latent/full path 但禁用 cached reflection bridge，用于检查 family 与 PE schedule 的稳健性

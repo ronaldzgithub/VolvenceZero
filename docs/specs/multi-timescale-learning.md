@@ -92,6 +92,7 @@ rare-heavy (定期离线):
 - 当前 session-medium rollout 已支持 `baseline / causal / causal-binary` 三条实验路径，可直接比较连续 gate 与二值 gate replacement 的差异
 - 当前 `AgentSessionRunner` 默认已直接消费真实 transformers substrate，并把 `reflection` / `temporal` 放入 ACTIVE 主链；response layer 只读取 distilled kernel context，但默认行为已受 active temporal/reflection 状态驱动
 - 当前 `AgentSessionRunner` 默认 memory owner 已携带 learned CMS core（默认 nested MLP profile），不再停留在“无 learned core”的空壳路径；context boundary / rare-heavy import 后会触发 owner-controlled nested reset，并通过 memory lifecycle telemetry 发布 `slow_to_fast_init_benefit`
+- 当前 online-fast SSL 的参数更新律已从散落的固定系数收敛到 owner-side `learned_update_rule`：metacontroller 会发布 machine-readable updater state，并让 encoder / decoder / switch 的有效更新强度由 prediction loss、KL、posterior drift 与 non-causal 证据共同驱动，而不是只靠手写比例常量
 - 当前 `background-slow` 已从 turn-synchronous bounded apply 切到 session-post slow loop：`run_final_wiring_turn()` 默认产出 machine-readable deferred slow-writeback request，`AgentSessionRunner.begin_new_context()` 会在 context boundary 把该 request 连同 session report / trace statistics / PE summary 打包进 slow-loop queue，并在后台执行 owner-side memory / regime / temporal consolidation，不阻塞用户 turn latency
 - 当前 background-slow 反思已不再停留在 memory / regime：`ReflectionSnapshot.policy_consolidation.temporal_prior_update` 会通过 bounded bridge 写回 temporal owner 的 controller priors，并已扩展为 group-level selective writeback（如 `encoder` / `decoder` / `track-*` / `action-families` / `beta-threshold`），受 target-specific credit gate 约束
 - 当前 background-slow 反思还可基于 delayed attribution 生成 bounded structural temporal proposal（`merge` / `split` / `prune`），并沿同一条 gate / audit / rollback 链路进入 temporal owner
@@ -118,11 +119,13 @@ rare-heavy (定期离线):
 1. `PE-schedule coupling`
    - `prediction_error` 已直接驱动 `JointLoopSchedule` 的 `ssl-only[-pe] / full-cycle[-pe] / online-fast substrate due / rare-heavy review`
 2. `multi-timescale default path`
-   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` controller/memory learning、online-fast substrate proposal evidence、session-post `background-slow` completion、以及 nested CMS lifecycle signals；当前 benchmark 不再把 substrate apply 当作默认正向证据，而是接受 `reflection_promotion_eligible`、`online_fast_substrate_recommended_count`、`rare_heavy_recommended` 与 session-post completion telemetry
+   - 默认 `pe-eta` 路径中，可同时观测 `online-fast` controller/memory learning、online-fast substrate proposal evidence、session-post `background-slow` completion、以及 nested CMS lifecycle signals；当前 benchmark 不再把 substrate apply 当作默认正向证据，而是接受 `reflection_promotion_eligible`、`online_fast_substrate_recommended_count`、`rare_heavy_recommended` 与 session-post completion telemetry，并要求 runtime backbone evidence 与 fast-memory/runtime alignment 一起出现
 3. `internal-depth-with-contract-stability`
    - memory owner 内部可以增加 nested tower depth，但对外的 owner / snapshot graph 不增加新的跨模块依赖；下游继续只消费 `memory` slot，而不会直接触碰 tower internals
+4. `review-only evidence retention`
+   - frozen / review-only doctrine 只阻止 live mutation，不阻止证据沉淀；只要 runtime 产出合法 `fast_memory_signal`，session owner 也要把它写入 `MemoryStore`，供默认 benchmark 和 evaluation 消费
 
-这些 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习，并开始允许 owner 内部 tower 深化”，不是“论文级最优性或完整因果隔离已经成立”。
+这些 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习，并开始允许 owner 内部 tower 深化，而且 runtime/backbone evidence 已经进入默认 acceptance surface”，不是“论文级最优性或完整因果隔离已经成立”。
 
 ## 与其他能力域的关系
 

@@ -7,6 +7,8 @@ from volvence_zero.credit import CreditRecord, CreditSnapshot, GateDecision, Mod
 from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import (
     DualTrackOptimizationReport,
+    InternalRLProofEpisode,
+    InternalRLProofSubgoal,
     InternalRLEnvironment,
     InternalRLSandbox,
     OptimizationReport,
@@ -30,8 +32,10 @@ from volvence_zero.substrate import (
 from volvence_zero.temporal import (
     ActionFamilyPublicSummary,
     FullLearnedTemporalPolicy,
+    MetacontrollerParameterStore,
     MetacontrollerRuntimeState,
     TemporalControllerParameters,
+    clone_full_learned_temporal_policy,
 )
 
 
@@ -91,6 +95,85 @@ def test_internal_rl_sandbox_runs_dual_track_rollout():
     assert dual_rollout.task_rollout.transitions[0].policy_replacement_quality >= -1.0
     assert dual_rollout.task_rollout.transitions[0].backend_name == "trace-residual-backend"
     assert dual_rollout.task_rollout.transitions[0].controller_state.switch_gate in {0.0, 1.0}
+
+
+def test_internal_rl_sandbox_ingest_temporal_fast_prior_updates_family_outcomes_for_proof_rollouts():
+    trace = build_training_trace(trace_id="proof-fast-prior", source_text="repair then continue carefully")
+    sandbox = InternalRLSandbox()
+    proof_episode = InternalRLProofEpisode(
+        episode_id="proof-fast-prior",
+        subgoals=(
+            InternalRLProofSubgoal(
+                subgoal_id="alpha",
+                target_signature=(0.0, 0.0, 0.0),
+                completion_threshold=-1.0,
+                min_persistence=1,
+                credit_horizon=2,
+            ),
+            InternalRLProofSubgoal(
+                subgoal_id="beta",
+                target_signature=(0.0, 0.0, 0.0),
+                completion_threshold=-1.0,
+                min_persistence=1,
+                credit_horizon=2,
+            ),
+        ),
+        terminal_reward=1.0,
+        subgoal_reward=0.35,
+    )
+    rollout = sandbox.rollout(
+        rollout_id="proof-fast-prior-rollout",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+        track=Track.SHARED,
+        replacement_mode="causal-binary",
+        proof_episode=proof_episode,
+    )
+
+    families_before = sandbox.policy.parameter_store.action_families
+    applied = sandbox.ingest_temporal_fast_prior((rollout,), enabled=True)
+    families_after = sandbox.policy.parameter_store.action_families
+
+    assert rollout.delayed_credit_assignments
+    assert families_before != families_after
+    assert applied[0] > 0.0
+    assert any(
+        family.delayed_credit_sum != 0.0 or family.long_term_payoff != 0.5
+        for family in families_after
+    )
+
+
+def test_internal_rl_sandbox_ingest_temporal_fast_prior_preserves_ablation_when_disabled():
+    trace = build_training_trace(trace_id="proof-no-fast-prior", source_text="stay steady and finish route")
+    sandbox = InternalRLSandbox()
+    proof_episode = InternalRLProofEpisode(
+        episode_id="proof-no-fast-prior",
+        subgoals=(
+            InternalRLProofSubgoal(
+                subgoal_id="alpha",
+                target_signature=(0.0, 0.0, 0.0),
+                completion_threshold=-1.0,
+                min_persistence=1,
+                credit_horizon=2,
+            ),
+        ),
+        terminal_reward=1.0,
+        subgoal_reward=0.35,
+    )
+    rollout = sandbox.rollout(
+        rollout_id="proof-no-fast-prior-rollout",
+        substrate_steps=tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps),
+        track=Track.SHARED,
+        replacement_mode="causal-binary",
+        proof_episode=proof_episode,
+    )
+
+    families_before = sandbox.policy.parameter_store.action_families
+    applied = sandbox.ingest_temporal_fast_prior((rollout,), enabled=False)
+    families_after = sandbox.policy.parameter_store.action_families
+
+    assert rollout.delayed_credit_assignments
+    assert applied == (0.0, 0.0, 0.0, 0.0, 0.0)
+    assert families_after == families_before
 
 
 def test_internal_rl_sandbox_supports_checkpoint_and_optimization_report():
@@ -173,7 +256,54 @@ def test_eta_nl_joint_loop_runs_minimal_cycle():
     assert report.metacontroller_state.learning_phase == "rl-online"
     assert report.metacontroller_state.encoder_optimizer_state is not None
     assert report.metacontroller_state.decoder_optimizer_state is not None
+    assert report.metacontroller_state.learned_update_rule_state is not None
+    assert report.metacontroller_state.learned_update_rule_state.update_count > 0
     assert any(operation.startswith("temporal-prior:") for operation in report.applied_operations)
+
+
+def test_eta_nl_joint_loop_aligns_ssl_trainer_with_bootstrapped_latent_dim() -> None:
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    self_policy = clone_full_learned_temporal_policy(world_policy)
+    loop = ETANLJointLoop(world_policy=world_policy, self_policy=self_policy)
+    trace = build_training_trace(
+        trace_id="joint-bootstrap-nz",
+        source_text="repair tension then continue with stable multi-step support",
+    )
+
+    report = asyncio.run(loop.run_cycle(cycle_index=1, trace=trace))
+
+    assert loop.temporal_policy.parameter_store.n_z == 8
+    assert report.metacontroller_state is not None
+    assert len(report.metacontroller_state.latent_mean) == 8
+    assert len(report.metacontroller_state.posterior_mean) == 8
+
+
+def test_eta_nl_joint_loop_preserves_learned_update_continuity_across_cycles() -> None:
+    loop = ETANLJointLoop()
+    first_trace = build_training_trace(
+        trace_id="joint-attribution-1",
+        source_text="repair tension then continue helpfully",
+    )
+    second_trace = build_training_trace(
+        trace_id="joint-attribution-2",
+        source_text="plan carefully, then stabilize, then continue with warmth",
+    )
+
+    first_report = asyncio.run(loop.run_cycle(cycle_index=1, trace=first_trace))
+    second_report = asyncio.run(loop.run_cycle(cycle_index=2, trace=second_trace))
+
+    first_state = first_report.metacontroller_state.learned_update_rule_state
+    second_state = second_report.metacontroller_state.learned_update_rule_state
+    assert first_state is not None
+    assert second_state is not None
+    assert second_state.update_count > first_state.update_count
+    assert {decision.target_id for decision in second_state.last_decisions} >= {
+        "temporal-encoder",
+        "temporal-decoder",
+        "temporal-switch",
+    }
 
 
 def test_eta_nl_joint_loop_supports_rl_batch_accumulation():
@@ -214,7 +344,7 @@ def test_eta_nl_joint_loop_schedule_exposes_batch_collect_and_flush_actions():
     assert collect.cycle_report.policy_update_applied is False
     assert dict(collect.schedule_telemetry)["rl_batch_target"] == 2
     assert dict(collect.schedule_telemetry)["rl_due"] == 1
-    assert flush.schedule_action == "full-cycle-batch"
+    assert flush.schedule_action in {"full-cycle-batch", "full-cycle-batch-transition"}
     assert flush.cycle_report is not None
     assert flush.cycle_report.rl_batch_rollout_count == 2
 
@@ -680,6 +810,7 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact_in_experim
     assert artifact.training_evidence is not None
     assert artifact.training_evidence.trace_count == len(traces)
     assert artifact.training_evidence.alignment_ratio > 0.0
+    assert artifact.temporal_snapshot.learned_update_rule_state is not None
 
     loop = ETANLJointLoop(
         residual_runtime=SyntheticOpenWeightResidualRuntime(
@@ -690,11 +821,17 @@ def test_eta_nl_joint_loop_can_apply_and_rollback_rare_heavy_artifact_in_experim
     before = loop.temporal_policy.export_parameters()
     result = loop.apply_rare_heavy_artifact(artifact)
     after = loop.temporal_policy.export_parameters()
+    after_snapshot = loop.temporal_policy.export_rare_heavy_snapshot()
 
     assert result.artifact_id == "offline-artifact"
     assert "rare-heavy:temporal-import" in result.applied_operations
     assert "rare-heavy:substrate-import" in result.applied_operations
     assert after != before
+    assert after_snapshot.learned_update_rule_state is not None
+    assert (
+        after_snapshot.learned_update_rule_state.update_count
+        == artifact.temporal_snapshot.learned_update_rule_state.update_count
+    )
     assert artifact.substrate_checkpoint is not None
     assert artifact.substrate_checkpoint.training_mode == "adapter-delta-v2"
     assert artifact.substrate_checkpoint.adapter_parameter_count > 0

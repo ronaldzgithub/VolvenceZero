@@ -207,6 +207,40 @@ def test_memory_module_consumes_substrate_and_publishes_shadow_snapshot():
     assert memory_snapshot.value.retrieved_entries
 
 
+def test_memory_module_process_can_ingest_runtime_user_text_into_owner_memory():
+    substrate = SubstrateModule(
+        adapter=FeatureSurfaceSubstrateAdapter(
+            model_id="runtime-user-text-model",
+            feature_surface=(
+                FeatureSignal(name="trust_signal", values=(0.8,), source="adapter"),
+            ),
+        ),
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    memory = MemoryModule(
+        store=MemoryStore(),
+        user_text="remember this exact runtime phrasing",
+    )
+    shadow_snapshots: dict[str, object] = {}
+
+    asyncio.run(
+        propagate(
+            [substrate, memory],
+            session_id="s-runtime-user-text",
+            wave_id="w-runtime-user-text",
+            shadow_snapshots=shadow_snapshots,
+        )
+    )
+
+    memory_snapshot = shadow_snapshots["memory"]
+    contents = tuple(entry.content for entry in memory.store._entries.values())
+    assert any(content == "remember this exact runtime phrasing" for content in contents)
+    assert any(
+        entry.content == "remember this exact runtime phrasing"
+        for entry in memory_snapshot.value.retrieved_entries
+    )
+
+
 def test_memory_store_supports_checkpoint_restore_and_cms_core():
     store = MemoryStore(learned_core=CMSMemoryCore())
     substrate_snapshot = asyncio.run(
@@ -311,6 +345,55 @@ def test_memory_store_tower_guided_retrieval_publishes_tower_metrics():
     assert snapshot.cms_state.tower_profile.profile_id != "artifact-only"
 
 
+def test_memory_store_composite_tower_alignment_improves_after_fast_signal_and_nested_reset():
+    store = build_default_memory_store(latent_dim=6, nested_profile=True)
+    store.write(
+        MemoryWriteRequest(
+            content="steady reflective repair planning with warmth",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("repair", "planning", "warmth"),
+            strength=0.9,
+        ),
+        timestamp_ms=10,
+    )
+    query = RetrievalQuery(
+        text="warm supportive repair planning",
+        track=Track.SELF,
+        strata=(MemoryStratum.DURABLE,),
+        limit=2,
+        facets=("repair", "planning"),
+    )
+
+    baseline = store.retrieve(query, timestamp_ms=20)
+    baseline_alignment = dict(store.snapshot(retrieved_entries=baseline.entries).lifecycle_metrics)["last_memory_tower_alignment"]
+
+    signal = store._query_base_signal(query)
+    for timestamp in range(21, 25):
+        store.observe_fast_memory_signal(signal=signal, timestamp_ms=timestamp)
+    store.reset_nested_context(reason="alignment-test", timestamp_ms=25)
+
+    improved = store.retrieve(query, timestamp_ms=26)
+    improved_snapshot = store.snapshot(retrieved_entries=improved.entries)
+    improved_metrics = dict(improved_snapshot.lifecycle_metrics)
+
+    assert improved.entries
+    assert improved_metrics["fast_memory_signal_count"] >= 4.0
+    assert improved_metrics["last_nested_reset_applied"] == 1.0
+    assert improved_metrics["last_memory_tower_alignment"] > baseline_alignment
+    assert improved_snapshot.cms_state is not None
+    assert improved_snapshot.cms_state.update_rule_state is not None
+    reset_decisions = {
+        decision.target_id: decision
+        for decision in improved_snapshot.cms_state.update_rule_state.last_decisions
+        if "reset" in decision.target_id
+    }
+    assert "nested-online-reset" in reset_decisions
+    assert "nested-session-reset" in reset_decisions
+    assert reset_decisions["nested-online-reset"].reset_mix > 0.0
+    assert reset_decisions["nested-session-reset"].slow_mix > 0.0
+
+
 def test_memory_store_reflection_consolidation_updates_tower_and_restores_checkpoint():
     store = MemoryStore(
         learned_core=CMSMemoryCore(
@@ -353,6 +436,8 @@ def test_memory_store_reflection_consolidation_updates_tower_and_restores_checkp
     assert before.tower_profile is not None
     assert after.tower_profile is not None
     assert before.tower_profile.readout_vector != after.tower_profile.readout_vector
+    metrics = dict(store.snapshot(retrieved_entries=()).lifecycle_metrics)
+    assert metrics["tower_consolidation_count"] == 1.0
 
     store.restore_checkpoint(checkpoint)
     restored = store.learned_core.snapshot()
@@ -529,6 +614,13 @@ def test_phase4_persistence_with_cms_mlp_roundtrip():
         snap2 = cms2.snapshot()
         assert snap1.online_fast.vector == snap2.online_fast.vector, (
             "CMS online band should match after persistence roundtrip"
+        )
+        assert snap2.update_rule_state is not None
+        assert snap1.update_rule_state is not None
+        assert snap2.update_rule_state.rule_id == snap1.update_rule_state.rule_id
+        assert snap2.update_rule_state.update_count == snap1.update_rule_state.update_count
+        assert tuple(decision.target_id for decision in snap2.update_rule_state.last_decisions) == tuple(
+            decision.target_id for decision in snap1.update_rule_state.last_decisions
         )
 
 

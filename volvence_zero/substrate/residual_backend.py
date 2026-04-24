@@ -251,6 +251,14 @@ class OpenWeightResidualRuntime(ABC):
     def capture_source(self) -> str:
         return "real" if not self.fallback_active else "fallback"
 
+    @property
+    def experimental_live_mutation_enabled(self) -> bool:
+        return self.supports_live_substrate_mutation
+
+    @property
+    def live_mutation_mode(self) -> str:
+        return "experimental-live" if self.experimental_live_mutation_enabled else "frozen-review-only"
+
     def require_live_substrate_mutation(self, *, operation: str) -> None:
         if not self.supports_live_substrate_mutation:
             raise RuntimeError(
@@ -969,6 +977,11 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 values=(_clamp_unit(self._online_fast_parameter_change_rate),),
                 source="synthetic-open-weight-semantic",
             ),
+            FeatureSignal(
+                name="substrate_online_fast_experimental_mode",
+                values=(1.0 if self.experimental_live_mutation_enabled else 0.0,),
+                source="synthetic-open-weight-semantic",
+            ),
         )
         residual_sequence = tuple(
             ResidualSequenceStep(
@@ -993,7 +1006,8 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"rare_heavy_updates={self._rare_heavy_update_count} "
                 f"adapter_params={_adapter_parameter_count(self._export_adapter_layers())} "
                 f"online_fast_updates={self._online_fast_update_count} "
-                f"online_fast_params={_adapter_parameter_count(self._export_online_fast_layers())}."
+                f"online_fast_params={_adapter_parameter_count(self._export_online_fast_layers())} "
+                f"live_mode={self.live_mutation_mode}."
             ),
         )
 
@@ -2105,6 +2119,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 values=(_clamp_unit(self._online_fast_parameter_change_rate),),
                 source="transformers-open-weight-semantic",
             ),
+            FeatureSignal(
+                name="substrate_online_fast_experimental_mode",
+                values=(1.0 if self.experimental_live_mutation_enabled else 0.0,),
+                source="transformers-open-weight-semantic",
+            ),
         )
 
     def _capture_with_hooks(
@@ -2804,7 +2823,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"Transformers open-weight capture model={self.model_id} device={self._device} "
                 f"family={self._model_family} origin={self._runtime_origin} "
-                f"tokens={len(tokens)} layers={self._layer_indices} source_len={len(source_text)}."
+                f"tokens={len(tokens)} layers={self._layer_indices} source_len={len(source_text)} "
+                f"live_mode={self.live_mutation_mode}."
             ),
         )
 

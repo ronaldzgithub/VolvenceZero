@@ -1,0 +1,220 @@
+{
+  "artifact_expectations": [
+    "per-run staged checkpoint directories",
+    "aggregate summary json",
+    "emergence dashboard json",
+    "provenance json",
+    "expert review packet json"
+  ],
+  "baseline_label": "pe-eta",
+  "case_groups": [
+    [
+      "canonical_case_ids",
+      [
+        "repair",
+        "task_clarification",
+        "repeated_failure",
+        "goal_drift"
+      ]
+    ],
+    [
+      "open_scenario_ids",
+      [
+        "open_repair",
+        "open_clarification",
+        "open_failure_loop",
+        "open_goal_shift"
+      ]
+    ],
+    [
+      "perturbation_variant_ids",
+      [
+        "repair__wording_shift",
+        "repair__pressure_shift_late",
+        "task_clarification__wording_shift",
+        "task_clarification__pressure_shift_late",
+        "repeated_failure__wording_shift",
+        "repeated_failure__pressure_shift_late",
+        "goal_drift__wording_shift",
+        "goal_drift__pressure_shift_late"
+      ]
+    ],
+    [
+      "replay_family_ids",
+      [
+        "repair_family",
+        "clarification_family",
+        "failure_family",
+        "goal_drift_family"
+      ]
+    ],
+    [
+      "candidate_labels",
+      [
+        "balanced",
+        "more-rl",
+        "more-ssl"
+      ]
+    ]
+  ],
+  "description": "Frozen dialogue paper suite paper-suite-full with 3 repeated runs and baseline=pe-eta.",
+  "primary_metrics": [
+    {
+      "description": "Canonical scripted pass rate for the full PE+ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_pass_rate_pe_eta",
+      "role": "primary"
+    },
+    {
+      "description": "Gap between the full path and PE-drive-off on canonical cases.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_pass_rate_gap_vs_pe_drive_off",
+      "role": "primary"
+    },
+    {
+      "description": "Gap between the full path and ETA-off on canonical cases.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_pass_rate_gap_vs_eta_off",
+      "role": "primary"
+    },
+    {
+      "description": "Perturbation pass rate for the full PE+ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "perturbation_pass_rate_pe_eta",
+      "role": "primary"
+    },
+    {
+      "description": "Open-environment pass rate for the full PE+ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "open_pass_rate_pe_eta",
+      "role": "primary"
+    },
+    {
+      "description": "Open-environment gap between the full path and PE-drive-off.",
+      "direction": "higher-is-better",
+      "metric_name": "open_pass_rate_gap_vs_pe_drive_off",
+      "role": "primary"
+    },
+    {
+      "description": "Fraction of NL essence gates passed in the comprehensive run.",
+      "direction": "higher-is-better",
+      "metric_name": "essence_gate_pass_fraction",
+      "role": "primary"
+    },
+    {
+      "description": "Fraction of canonical turns that expose runtime-grounded backbone evidence on the PE-ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_runtime_backbone_evidence_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Average runtime-grounded backbone evidence quality on the canonical PE-ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_mean_runtime_backbone_signal_quality",
+      "role": "primary"
+    },
+    {
+      "description": "Average alignment between fast-memory evidence and recent runtime backbone evidence.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_mean_fast_memory_runtime_alignment",
+      "role": "primary"
+    }
+  ],
+  "profiles": [
+    {
+      "description": "Dialogue paper-suite profile pe-eta.",
+      "profile_label": "pe-eta",
+      "role": "baseline"
+    },
+    {
+      "description": "Dialogue paper-suite profile pe-eta-online-only.",
+      "profile_label": "pe-eta-online-only",
+      "role": "matched-control"
+    },
+    {
+      "description": "Dialogue paper-suite profile pe-eta-no-writeback.",
+      "profile_label": "pe-eta-no-writeback",
+      "role": "matched-control"
+    },
+    {
+      "description": "Dialogue paper-suite profile pe-eta-no-rare-heavy.",
+      "profile_label": "pe-eta-no-rare-heavy",
+      "role": "matched-control"
+    },
+    {
+      "description": "Dialogue paper-suite profile pe-drive-off.",
+      "profile_label": "pe-drive-off",
+      "role": "matched-control"
+    },
+    {
+      "description": "Dialogue paper-suite profile eta-off.",
+      "profile_label": "eta-off",
+      "role": "matched-control"
+    },
+    {
+      "description": "Dialogue paper-suite profile timescale-off.",
+      "profile_label": "timescale-off",
+      "role": "matched-control"
+    }
+  ],
+  "repeat_count": 3,
+  "secondary_metrics": [
+    {
+      "description": "Best retained open-environment score reported by the emergence dashboard.",
+      "direction": "higher-is-better",
+      "metric_name": "strongest_open_retention_score",
+      "role": "secondary"
+    },
+    {
+      "description": "Best retained strong-proof score reported by the emergence dashboard.",
+      "direction": "higher-is-better",
+      "metric_name": "strongest_scaffold_retention_score",
+      "role": "secondary"
+    },
+    {
+      "description": "Average memory tower depth on the canonical PE-ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_mean_memory_tower_depth",
+      "role": "secondary"
+    },
+    {
+      "description": "Average tower alignment on the canonical PE-ETA path.",
+      "direction": "higher-is-better",
+      "metric_name": "canonical_mean_memory_tower_alignment",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean score delta of the chosen rare-heavy candidate.",
+      "direction": "higher-is-better",
+      "metric_name": "artifact_candidate_mean_score_delta",
+      "role": "secondary"
+    },
+    {
+      "description": "Whether the rare-heavy net-benefit gate passed in the essence report.",
+      "direction": "higher-is-better",
+      "metric_name": "rare_heavy_gate_pass",
+      "role": "secondary"
+    },
+    {
+      "description": "Whether the tower-memory mechanism-strength gate passed in the essence report.",
+      "direction": "higher-is-better",
+      "metric_name": "tower_memory_gate_pass",
+      "role": "secondary"
+    },
+    {
+      "description": "Composite tower-memory strength score surfaced by the emergence dashboard.",
+      "direction": "higher-is-better",
+      "metric_name": "tower_memory_gate_strength",
+      "role": "secondary"
+    }
+  ],
+  "seed_schedule": [
+    0,
+    1,
+    2
+  ],
+  "suite_id": "dialogue-paper-suite-full",
+  "suite_kind": "dialogue-comprehensive",
+  "suite_tier": "paper-suite-full",
+  "version": 1
+}

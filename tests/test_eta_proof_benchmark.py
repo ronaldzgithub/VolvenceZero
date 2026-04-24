@@ -92,6 +92,7 @@ def test_eta_proof_benchmark_exposes_default_cases_and_profiles():
     assert any(case.branch_depth >= 4 for case in cases if case.split == "heldout")
     assert default_eta_proof_profiles() == (
         "full-internal-rl",
+        "full-bootstrap-init",
         "full-no-fast-prior",
         "full-no-optimize",
         "full-no-replacement",
@@ -136,26 +137,42 @@ def test_default_eta_proof_environment_supports_reset_and_step():
 
 def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     report = run_eta_internal_rl_proof_benchmark(
-        profile_labels=("full-internal-rl", "full-no-fast-prior"),
+        profile_labels=("full-internal-rl", "full-bootstrap-init", "full-no-fast-prior"),
         train_epochs=1,
     )
 
     assert report.baseline_label == "full-internal-rl"
     assert report.backend_label == "trace"
     assert report.rollout_batch_count >= 1
-    assert len(report.profile_reports) == 2
+    assert len(report.profile_reports) == 3
     metric_names = {name for name, _ in report.profile_reports[0].metric_means}
     assert "heldout_strong_success_rate" in metric_names
     assert "heldout_strong_success_std" in metric_names
     assert "heldout_family_reuse_rate" in metric_names
     assert "temporal_fast_prior_strength" in metric_names
     assert "temporal_fast_prior_switch_delta" in metric_names
+    assert "bootstrap_init_used" in metric_names
     assert report.profile_reports[0].training_update_count > 0
     assert report.profile_reports[0].rollout_batch_count > 0
     assert report.profile_reports[0].mean_rollouts_per_update >= 1.0
     assert report.profile_reports[0].training_parameter_change_rate > 0.0
     assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
+
+
+def test_eta_proof_benchmark_exposes_bootstrap_init_profile() -> None:
+    report = run_eta_internal_rl_proof_benchmark(
+        profile_labels=("full-internal-rl", "full-bootstrap-init"),
+        train_epochs=1,
+    )
+
+    metric_map = {
+        profile.profile_label: dict(profile.metric_means)
+        for profile in report.profile_reports
+    }
+
+    assert metric_map["full-internal-rl"]["bootstrap_init_used"] == 0.0
+    assert metric_map["full-bootstrap-init"]["bootstrap_init_used"] == 1.0
 
 
 def test_eta_proof_benchmark_exposes_no_fast_prior_ablation_gaps():
@@ -274,7 +291,27 @@ def test_eta_internal_rl_assessment_exposes_gate_specific_best_control_evidence(
     }
 
 
-def test_eta_internal_rl_default_acceptance_now_fail_closes_under_harder_mechanism_gates():
+def test_eta_proof_benchmark_strong_success_tracks_task_core_more_than_switch_shape():
+    benchmark_report = run_eta_internal_rl_proof_benchmark()
+    report_map = {
+        profile.profile_label: dict(profile.metric_means)
+        for profile in benchmark_report.profile_reports
+    }
+
+    full_metrics = report_map["full-internal-rl"]
+    no_replacement_metrics = report_map["full-no-replacement"]
+    noop_metrics = report_map["noop-backend"]
+
+    assert full_metrics["heldout_task_success_core"] == 1.0
+    assert no_replacement_metrics["heldout_task_success_core"] == 1.0
+    assert abs(
+        full_metrics["heldout_strong_success_rate"] - no_replacement_metrics["heldout_strong_success_rate"]
+    ) <= 0.02
+    assert full_metrics["heldout_mechanism_evidence_score"] > noop_metrics["heldout_mechanism_evidence_score"]
+    assert full_metrics["heldout_strong_success_rate"] > noop_metrics["heldout_strong_success_rate"]
+
+
+def test_eta_internal_rl_default_acceptance_now_passes_with_mechanism_tie_break():
     benchmark_report = run_eta_internal_rl_proof_benchmark()
     backend_report = run_eta_internal_rl_backend_robustness_benchmark()
     assessment = build_eta_internal_rl_assessment(
@@ -282,10 +319,14 @@ def test_eta_internal_rl_default_acceptance_now_fail_closes_under_harder_mechani
         backend_report=backend_report,
     )
     decision = evaluate_eta_internal_rl_acceptance(assessment)
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    sparse_reward_evidence = dict(gate_map["sparse-reward-success"].evidence)
 
-    assert decision.accepted is False
-    assert decision.reasons
-    assert any(reason.startswith("failed-gate:") for reason in decision.reasons)
+    assert decision.accepted is True
+    assert not decision.reasons
+    assert gate_map["sparse-reward-success"].passed is True
+    assert sparse_reward_evidence["mechanism_tie_break_margin"] >= 0.02
+    assert sparse_reward_evidence["effective_success_margin"] >= 0.02
 
 
 def test_eta_internal_rl_acceptance_passes_with_relaxed_thresholds():

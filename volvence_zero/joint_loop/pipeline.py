@@ -10,7 +10,7 @@ criteria and maintains phase-aware checkpointing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import time
 from uuid import uuid4
@@ -148,6 +148,8 @@ class SSLRLTrainingPipeline:
         residual_runtime: OpenWeightResidualRuntime | None = None,
     ) -> None:
         self._config = config or PipelineConfig()
+        if policy is not None and policy.parameter_store.n_z != self._config.n_z:
+            self._config = replace(self._config, n_z=policy.parameter_store.n_z)
         n_z = self._config.n_z
         if policy is not None:
             self._policy = policy

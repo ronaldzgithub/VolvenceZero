@@ -82,6 +82,8 @@ class SubstrateSelfModSnapshot:
     checkpoint_hash: str
     checkpoint: SubstrateOnlineFastCheckpoint | None
     pe_magnitude: float
+    runtime_evidence_strength: float
+    proposal_readiness: float
     optimizer_state_norm: float
     parameter_change_rate: float
     layer_count: int
@@ -153,6 +155,8 @@ class SubstrateSelfModModule(RuntimeModule[SubstrateSelfModSnapshot]):
                 checkpoint_hash="none",
                 checkpoint=None,
                 pe_magnitude=0.0,
+                runtime_evidence_strength=0.0,
+                proposal_readiness=0.0,
                 optimizer_state_norm=0.0,
                 parameter_change_rate=0.0,
                 layer_count=0,
@@ -163,7 +167,17 @@ class SubstrateSelfModModule(RuntimeModule[SubstrateSelfModSnapshot]):
         prediction_error = getattr(prediction_snapshot, "error", None) if prediction_snapshot is not None else None
         pe_magnitude = prediction_error.magnitude if prediction_error is not None else 0.0
         pe_magnitude = max(pe_magnitude, self._external_pe_magnitude)
-        recommended = pe_magnitude >= self._pe_threshold
+        residual_layer_count = len(substrate_snapshot.residual_activations)
+        residual_sequence_length = len(substrate_snapshot.residual_sequence)
+        runtime_evidence_strength = _clamp_unit(
+            min(residual_layer_count / 6.0, 1.0) * 0.55
+            + min(residual_sequence_length / 4.0, 1.0) * 0.45
+        )
+        proposal_readiness = _clamp_unit(
+            min(pe_magnitude / max(self._pe_threshold, 1e-6), 2.0) * 0.55
+            + runtime_evidence_strength * 0.45
+        )
+        recommended = pe_magnitude >= self._pe_threshold and proposal_readiness >= 0.6
         checkpoint = None
         optimizer_state_norm = 0.0
         parameter_change_rate = 0.0
@@ -233,6 +247,8 @@ class SubstrateSelfModModule(RuntimeModule[SubstrateSelfModSnapshot]):
             checkpoint_hash=_checkpoint_hash(checkpoint),
             checkpoint=checkpoint,
             pe_magnitude=pe_magnitude,
+            runtime_evidence_strength=runtime_evidence_strength,
+            proposal_readiness=proposal_readiness,
             optimizer_state_norm=optimizer_state_norm,
             parameter_change_rate=parameter_change_rate,
             layer_count=layer_count,
@@ -241,6 +257,7 @@ class SubstrateSelfModModule(RuntimeModule[SubstrateSelfModSnapshot]):
             description=(
                 f"Substrate self-mod proposal recommended={recommended} "
                 f"gate_preview={gate_preview.value} pe={pe_magnitude:.3f} "
+                f"readiness={proposal_readiness:.3f} runtime_evidence={runtime_evidence_strength:.3f} "
                 f"external_reward={self._external_pe_reward:.3f} "
                 f"layers={layer_count} change_rate={parameter_change_rate:.3f}."
             ),

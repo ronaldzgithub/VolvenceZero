@@ -26,6 +26,8 @@ from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
+    ResidualActivation,
+    ResidualSequenceStep,
     SubstrateModule,
     SubstrateSnapshot,
     SurfaceKind,
@@ -568,6 +570,62 @@ def test_evaluation_backbone_judge_handles_playbook_confidence_without_delayed_p
 
     assert judgement.decision in {EvolutionDecision.PROMOTE, EvolutionDecision.HOLD}
     assert judgement.category is not None
+
+
+def test_evaluation_backbone_reads_runtime_backbone_learning_evidence():
+    backbone = EvaluationBackbone()
+    store = MemoryStore()
+    substrate_snapshot = SubstrateSnapshot(
+        model_id="runtime-learning-evidence",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(0.6, 0.3),
+        feature_surface=(
+            FeatureSignal(name="semantic_task_pull", values=(0.7,), source="test"),
+            FeatureSignal(name="semantic_support_pull", values=(0.5,), source="test"),
+            FeatureSignal(name="semantic_repair_pull", values=(0.4,), source="test"),
+            FeatureSignal(name="hook_layer_coverage", values=(0.8,), source="test"),
+            FeatureSignal(name="fallback_active", values=(0.0,), source="test"),
+            FeatureSignal(name="semantic_residual_weight", values=(0.7,), source="test"),
+            FeatureSignal(name="top_logit_margin", values=(0.5,), source="test"),
+        ),
+        residual_activations=(
+            ResidualActivation(layer_index=4, activation=(0.6, 0.4, 0.5), step=1),
+        ),
+        residual_sequence=(
+            ResidualSequenceStep(
+                step=1,
+                token="alpha",
+                feature_surface=(),
+                residual_activations=(
+                    ResidualActivation(layer_index=4, activation=(0.6, 0.4, 0.5), step=1),
+                ),
+                description="runtime evidence step",
+            ),
+        ),
+        unavailable_fields=(),
+        description="runtime learning evidence snapshot",
+    )
+    store.observe_substrate(substrate_snapshot=substrate_snapshot, timestamp_ms=10)
+    store.observe_fast_memory_signal(signal=(0.6, 0.5, 0.4, 0.3, 0.7, 0.8), timestamp_ms=11)
+
+    enriched = backbone.record_learning_evidence(
+        session_id="runtime-learning",
+        wave_id="wave-runtime-learning",
+        timestamp_ms=12,
+        base_snapshot=EvaluationSnapshot(turn_scores=(), session_scores=(), alerts=(), description="base"),
+        memory_snapshot=store.snapshot(retrieved_entries=()),
+        reflection_snapshot=None,
+        writeback_result=None,
+        joint_loop_result=None,
+        regime_snapshot=None,
+    )
+
+    metrics = {score.metric_name: score.value for score in enriched.turn_scores}
+    assert metrics["runtime_backbone_signal_quality"] > 0.0
+    assert metrics["runtime_backbone_signal_strength"] > 0.0
+    assert metrics["fast_memory_signal_norm"] > 0.0
+    assert metrics["fast_memory_runtime_alignment"] >= 0.0
 
 
 def test_cross_session_benchmark_computes_growth_verdict():

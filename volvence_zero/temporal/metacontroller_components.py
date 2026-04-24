@@ -493,17 +493,20 @@ def _family_match_score(
     latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
     decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
     switch_alignment = 1.0 - abs(observation.switch_gate - family.switch_bias)
+    delayed_credit_bonus = clamp_signed(family.delayed_credit_sum / 3.0) * 0.14
     base = (
-        latent_similarity * 0.52
-        + decoder_similarity * 0.28
-        + family.stability * 0.10
-        + clamp_unit(switch_alignment) * 0.06
-        + clamp_unit(1.0 - abs(observation.posterior_drift - family.mean_posterior_drift)) * 0.04
-        + family.competition_score * 0.04
+        latent_similarity * 0.48
+        + decoder_similarity * 0.24
+        + family.stability * 0.08
+        + clamp_unit(switch_alignment) * 0.05
+        + clamp_unit(1.0 - abs(observation.posterior_drift - family.mean_posterior_drift)) * 0.03
+        + family.competition_score * 0.08
+        + family.long_term_payoff * 0.08
+        + delayed_credit_bonus
         - family.monopoly_pressure * 0.05
         - family.stagnation_pressure * 0.03
     )
-    outcome_bonus = family.outcome_driven_score * 0.15 if family.outcome_history else 0.0
+    outcome_bonus = family.outcome_driven_score * 0.18 if family.outcome_history else 0.0
     active_family_bias = 0.0
     if current_active_family_id is not None and family.family_id == current_active_family_id:
         active_family_bias = current_family_continuation_bias * 0.12
@@ -649,11 +652,27 @@ def build_family_competition_state(
     total_support = max(sum(f.support for f in action_families), 1)
     ranked = sorted(
         action_families,
-        key=lambda f: f.long_term_payoff * 0.4 + f.competition_score * 0.3 + f.stability * 0.3,
+        key=lambda f: (
+            f.long_term_payoff * 0.35
+            + f.outcome_driven_score * 0.15
+            + clamp_signed(f.delayed_credit_sum / 3.0) * 0.10
+            + f.competition_score * 0.25
+            + f.stability * 0.15
+        ),
         reverse=True,
     )
     ranked_tuples = tuple(
-        (f.family_id, round(f.long_term_payoff * 0.4 + f.competition_score * 0.3 + f.stability * 0.3, 4))
+        (
+            f.family_id,
+            round(
+                f.long_term_payoff * 0.35
+                + f.outcome_driven_score * 0.15
+                + clamp_signed(f.delayed_credit_sum / 3.0) * 0.10
+                + f.competition_score * 0.25
+                + f.stability * 0.15,
+                4,
+            ),
+        )
         for f in ranked
     )
     top1_share = ranked[0].support / total_support if ranked else 0.0
@@ -672,6 +691,8 @@ def update_family_outcome_history(
     *,
     family_id: str,
     outcome_value: float,
+    delayed_credit_delta: float = 0.0,
+    session_payoff_delta: float = 0.0,
     max_history: int = 12,
 ) -> tuple[DiscoveredActionFamily, ...]:
     result: list[DiscoveredActionFamily] = []
@@ -680,6 +701,13 @@ def update_family_outcome_history(
             result.append(family)
             continue
         new_history = (family.outcome_history + (outcome_value,))[-max_history:]
+        new_delayed_credit_sum = max(-3.0, min(3.0, family.delayed_credit_sum * 0.75 + delayed_credit_delta))
+        new_long_term_payoff = clamp_unit(
+            family.long_term_payoff
+            + outcome_value * 0.08
+            + clamp_signed(delayed_credit_delta) * 0.05
+            + clamp_signed(session_payoff_delta) * 0.03
+        )
         result.append(
             _refresh_family_summary(
                 DiscoveredActionFamily(
@@ -697,8 +725,8 @@ def update_family_outcome_history(
                     competition_score=family.competition_score,
                     outcome_history=new_history,
                     outcome_driven_score=_outcome_driven_score(new_history),
-                    long_term_payoff=family.long_term_payoff,
-                    delayed_credit_sum=family.delayed_credit_sum,
+                    long_term_payoff=new_long_term_payoff,
+                    delayed_credit_sum=new_delayed_credit_sum,
                 ),
                 prefix="outcome-updated",
             )
@@ -709,12 +737,16 @@ def update_family_outcome_history(
 def _competition_score(family: DiscoveredActionFamily) -> float:
     support_signal = min(family.support / 4.0, 1.0)
     reuse_penalty = min(family.reuse_streak / 6.0, 1.0)
+    delayed_signal = clamp_signed(family.delayed_credit_sum / 3.0)
     return clamp_unit(
-        family.stability * 0.28
-        + (1.0 - family.monopoly_pressure) * 0.32
-        + (1.0 - family.stagnation_pressure) * 0.18
-        + support_signal * 0.10
-        + (1.0 - reuse_penalty) * 0.12
+        family.stability * 0.24
+        + (1.0 - family.monopoly_pressure) * 0.26
+        + (1.0 - family.stagnation_pressure) * 0.14
+        + support_signal * 0.09
+        + (1.0 - reuse_penalty) * 0.10
+        + family.long_term_payoff * 0.11
+        + family.outcome_driven_score * 0.08
+        + delayed_signal * 0.08
     )
 
 

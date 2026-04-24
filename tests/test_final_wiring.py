@@ -294,6 +294,8 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "substrate_online_fast_gate_preview" in metric_names
     assert "substrate_online_fast_optimizer_norm" in metric_names
     assert "substrate_online_fast_recommended" in metric_names
+    assert "substrate_online_fast_runtime_evidence_strength" in metric_names
+    assert "substrate_online_fast_proposal_readiness" in metric_names
 
 
 def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():

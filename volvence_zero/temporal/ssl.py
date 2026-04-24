@@ -33,6 +33,12 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _mean_abs(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
 @dataclass(frozen=True)
 class SSLTrainingReport:
     trace_id: str
@@ -235,6 +241,8 @@ class MetacontrollerSSLTrainer:
                 decoder_control=decoder_control,
                 prediction_loss=prediction_loss,
                 kl_loss=kl_loss,
+                noncausal_kl_tightening=enrichment.kl_tightening,
+                noncausal_information_content=noncausal_embedding.information_content,
             )
             latest_mean = enriched_encoded.posterior.posterior_mean
             latest_scale = enriched_encoded.posterior.posterior_std
@@ -377,22 +385,66 @@ class MetacontrollerSSLTrainer:
         decoder_control: DecoderControl,
         prediction_loss: float,
         kl_loss: float,
+        noncausal_kl_tightening: float,
+        noncausal_information_content: float,
     ) -> None:
         store = policy.parameter_store
         learning_rate = store.learning_rate * 0.10
+        target_delta = tuple(
+            target_action[index] - decoder_control.decoder_output[index]
+            for index in range(len(target_action))
+        )
+        posterior_delta = tuple(
+            target_action[index] - encoded.posterior.posterior_mean[index]
+            for index in range(len(target_action))
+        )
+        update_features = (
+            _clamp(prediction_loss),
+            _clamp(kl_loss),
+            _clamp(noncausal_kl_tightening),
+            _clamp(noncausal_information_content),
+            _clamp(encoded.posterior.posterior_drift),
+            _clamp(_mean_abs(posterior_delta)),
+            _clamp(_mean_abs(target_delta)),
+            _clamp(_mean_abs(encoded.posterior.hidden_state)),
+            _clamp(_mean_abs(encoded.posterior.posterior_std)),
+            _clamp(_mean_abs(encoded.posterior.prior_std)),
+            _clamp(_mean_abs(encoded.z_tilde)),
+            _clamp(1.0 - abs(prediction_loss - 0.35)),
+        )
+        encoder_decision = store.learned_update_rule.decide(
+            target_id="temporal-encoder",
+            features=update_features + (1.0, 0.0, 0.0),
+        )
+        decoder_decision = store.learned_update_rule.decide(
+            target_id="temporal-decoder",
+            features=update_features + (0.0, 1.0, 0.0),
+        )
+        switch_decision = store.learned_update_rule.decide(
+            target_id="temporal-switch",
+            features=update_features + (0.0, 0.0, 1.0),
+        )
+        encoder_gain = 0.10 + encoder_decision.step_scale * 0.18
+        decoder_gain = 0.10 + decoder_decision.step_scale * 0.18
+        switch_gain = 0.08 + switch_decision.step_scale * 0.14
+        encoder_write = 0.12 + encoder_decision.write_gate * 0.20
+        decoder_write = 0.12 + decoder_decision.write_gate * 0.20
+        switch_write = 0.10 + switch_decision.write_gate * 0.16
+        improvement = max(-1.0, min(1.0, (0.35 - prediction_loss) * 1.5 + noncausal_kl_tightening * 0.2 - kl_loss * 0.1))
+        stability = _clamp(1.0 - encoded.posterior.posterior_drift)
         if (
             store.n_z > 3
             and store.ndim_encoder_parameters is not None
             and store.ndim_switch_parameters is not None
             and store.ndim_decoder_parameters is not None
         ):
-            target_delta = tuple(
-                target_action[index] - decoder_control.decoder_output[index]
-                for index in range(len(target_action))
-            )
-            posterior_delta = tuple(
-                target_action[index] - encoded.posterior.posterior_mean[index]
-                for index in range(len(target_action))
+            encoder_lr = learning_rate * encoder_gain * encoder_write
+            decoder_lr = learning_rate * decoder_gain * decoder_write
+            switch_delta = (
+                switch_decision.bias_delta * 0.02
+                + (0.35 - prediction_loss) * switch_gain * switch_write * 0.04
+                + noncausal_kl_tightening * 0.01
+                + noncausal_information_content * 0.005
             )
             store.ndim_encoder_parameters = type(store.ndim_encoder_parameters)(
                 n_input=store.ndim_encoder_parameters.n_input,
@@ -401,7 +453,9 @@ class MetacontrollerSSLTrainer:
                     U_z=store.ndim_encoder_parameters.gru.U_z,
                     b_z=tuple(
                         _clamp(
-                            bias + posterior_delta[index] * learning_rate * 0.05
+                            bias
+                            + posterior_delta[index] * encoder_lr * 0.10
+                            + encoder_decision.bias_delta * 0.01
                         )
                         for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_z)
                     ),
@@ -409,7 +463,9 @@ class MetacontrollerSSLTrainer:
                     U_r=store.ndim_encoder_parameters.gru.U_r,
                     b_r=tuple(
                         _clamp(
-                            bias + posterior_delta[index] * learning_rate * 0.03
+                            bias
+                            + posterior_delta[index] * encoder_lr * 0.06
+                            + encoder_decision.bias_delta * 0.008
                         )
                         for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_r)
                     ),
@@ -417,7 +473,9 @@ class MetacontrollerSSLTrainer:
                     U_h=store.ndim_encoder_parameters.gru.U_h,
                     b_h=tuple(
                         _clamp(
-                            bias + posterior_delta[index] * learning_rate * 0.04
+                            bias
+                            + posterior_delta[index] * encoder_lr * 0.08
+                            + encoder_decision.bias_delta * 0.01
                         )
                         for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_h)
                     ),
@@ -430,7 +488,7 @@ class MetacontrollerSSLTrainer:
                         )
                         for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_proj)
                     ),
-                    learning_rate=learning_rate,
+                    learning_rate=encoder_lr,
                     parameters=store.ndim_encoder_parameters.posterior_proj,
                 ),
                 posterior_std_proj=self._m3_encoder.update(
@@ -441,7 +499,7 @@ class MetacontrollerSSLTrainer:
                         )
                         for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_std_proj)
                     ),
-                    learning_rate=learning_rate * 0.75,
+                    learning_rate=encoder_lr * (0.15 + encoder_decision.momentum_gate * 0.20),
                     parameters=store.ndim_encoder_parameters.posterior_std_proj,
                 ),
             )
@@ -455,12 +513,12 @@ class MetacontrollerSSLTrainer:
                             )
                             for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W1)
                         ),
-                        learning_rate=learning_rate,
+                        learning_rate=decoder_lr,
                         parameters=store.ndim_decoder_parameters.decoder_ffn.W1,
                     ),
                     b1=tuple(
                         _clamp(
-                            bias + target_delta[index] * learning_rate * 0.05
+                            bias + target_delta[index] * decoder_lr * 0.10 + decoder_decision.bias_delta * 0.01
                         )
                         for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b1)
                     ),
@@ -472,27 +530,45 @@ class MetacontrollerSSLTrainer:
                             )
                             for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W2)
                         ),
-                        learning_rate=learning_rate,
+                        learning_rate=decoder_lr,
                         parameters=store.ndim_decoder_parameters.decoder_ffn.W2,
                     ),
                     b2=tuple(
                         _clamp(
-                            bias + target_delta[index] * learning_rate * 0.05
+                            bias + target_delta[index] * decoder_lr * 0.10 + decoder_decision.bias_delta * 0.01
                         )
                         for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b2)
                     ),
                 )
             )
-            gate_delta = (0.35 - prediction_loss) * learning_rate * 0.25 + kl_loss * 0.01
             store.ndim_switch_parameters = type(store.ndim_switch_parameters)(
                 gate_ffn=type(store.ndim_switch_parameters.gate_ffn)(
                     W1=store.ndim_switch_parameters.gate_ffn.W1,
-                    b1=tuple(_clamp(bias + gate_delta) for bias in store.ndim_switch_parameters.gate_ffn.b1),
+                    b1=tuple(_clamp(bias + switch_delta) for bias in store.ndim_switch_parameters.gate_ffn.b1),
                     W2=store.ndim_switch_parameters.gate_ffn.W2,
-                    b2=tuple(_clamp(bias + gate_delta) for bias in store.ndim_switch_parameters.gate_ffn.b2),
+                    b2=tuple(_clamp(bias + switch_delta) for bias in store.ndim_switch_parameters.gate_ffn.b2),
                 )
             )
-            store.switch_bias = _clamp(store.switch_bias + (0.35 - prediction_loss) * 0.05)
+            store.switch_bias = _clamp(store.switch_bias + switch_delta)
+            store.learned_update_rule.learn(
+                features=update_features + (1.0, 0.0, 0.0),
+                decision=encoder_decision,
+                improvement=improvement,
+                stability=stability,
+            )
+            store.learned_update_rule.learn(
+                features=update_features + (0.0, 1.0, 0.0),
+                decision=decoder_decision,
+                improvement=improvement,
+                stability=stability,
+            )
+            store.learned_update_rule.learn(
+                features=update_features + (0.0, 0.0, 1.0),
+                decision=switch_decision,
+                improvement=improvement,
+                stability=stability,
+            )
+            store.record_learned_update_rule_state(state=store.learned_update_rule.export_state())
             return
         encoder_gradients: list[tuple[float, ...]] = []
         decoder_gradients: list[tuple[float, ...]] = []
@@ -500,7 +576,12 @@ class MetacontrollerSSLTrainer:
             delta = target_action[row_index] - encoded.posterior.posterior_mean[row_index]
             encoder_gradients.append(
                 tuple(
-                    delta * (0.35 + encoded.posterior.posterior_std[row_index] * 0.15)
+                    delta
+                    * (
+                        0.08
+                        + encoder_gain * 0.22
+                        + encoded.posterior.posterior_std[row_index] * (0.05 + encoder_decision.confidence * 0.10)
+                    )
                     for _ in row
                 )
             )
@@ -511,12 +592,12 @@ class MetacontrollerSSLTrainer:
             )
         store.encoder_weights = self._m3_encoder.update(
             gradients=tuple(encoder_gradients),
-            learning_rate=learning_rate,
+            learning_rate=learning_rate * encoder_gain * encoder_write,
             parameters=store.encoder_weights,
         )
         store.decoder_matrix = self._m3_decoder.update(
             gradients=tuple(decoder_gradients),
-            learning_rate=learning_rate,
+            learning_rate=learning_rate * decoder_gain * decoder_write,
             parameters=store.decoder_matrix,
         )
         recurrence_rows: list[tuple[float, ...]] = []
@@ -529,18 +610,48 @@ class MetacontrollerSSLTrainer:
                             encoded.posterior.posterior_mean[row_index]
                             - encoded.posterior.prior_mean[row_index]
                         )
-                        * 0.05
+                        * (0.01 + (0.10 + encoder_decision.momentum_gate * 0.08))
                         * learning_rate
+                        + encoder_decision.bias_delta * 0.008
                     )
                     for weight in row
                 )
             )
         store.encoder_recurrence = tuple(recurrence_rows)
         store.switch_weights = tuple(
-            _clamp(weight + (0.5 - prediction_loss) * 0.05 * learning_rate + kl_loss * 0.01)
+            _clamp(
+                weight
+                + (0.5 - prediction_loss) * switch_gain * switch_write * 0.05 * learning_rate
+                + noncausal_kl_tightening * 0.01
+                + noncausal_information_content * 0.004
+                + switch_decision.bias_delta * 0.012
+            )
             for weight in store.switch_weights
         )
-        store.switch_bias = _clamp(store.switch_bias + (0.35 - prediction_loss) * 0.05)
+        store.switch_bias = _clamp(
+            store.switch_bias
+            + (0.35 - prediction_loss) * switch_write * 0.05
+            + switch_decision.bias_delta * 0.015
+        )
+        store.learned_update_rule.learn(
+            features=update_features + (1.0, 0.0, 0.0),
+            decision=encoder_decision,
+            improvement=improvement,
+            stability=stability,
+        )
+        store.learned_update_rule.learn(
+            features=update_features + (0.0, 1.0, 0.0),
+            decision=decoder_decision,
+            improvement=improvement,
+            stability=stability,
+        )
+        store.learned_update_rule.learn(
+            features=update_features + (0.0, 0.0, 1.0),
+            decision=switch_decision,
+            improvement=improvement,
+            stability=stability,
+        )
+        store.record_learned_update_rule_state(state=store.learned_update_rule.export_state())
 
     def _action_prediction_loss(
         self,

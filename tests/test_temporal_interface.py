@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from volvence_zero.credit import CreditRecord, CreditSnapshot
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.reflection import (
     ConsolidationScore,
@@ -25,6 +26,7 @@ from volvence_zero.temporal import (
     LearnedLiteTemporalPolicy,
     MetacontrollerSSLTrainer,
     PlaceholderTemporalPolicy,
+    TemporalAbstractionSnapshot,
     TemporalAggregateModule,
     TrackTemporalConsolidationModule,
     TrackTemporalModule,
@@ -228,6 +230,28 @@ def test_full_learned_policy_uses_residual_sequence_and_exports_decoder_state():
     assert runtime_state.binary_switch_rate >= 0.0
 
 
+def test_full_learned_policy_can_bootstrap_from_trained_snapshot() -> None:
+    trace = build_training_trace(trace_id="bootstrap-policy", source_text="repair then focus then stabilize")
+    source_policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(source_policy)
+    trainer = MetacontrollerSSLTrainer()
+    trainer.optimize(policy=source_policy, trace=trace)
+    source_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+    bootstrap_snapshot = source_policy.export_rare_heavy_snapshot()
+
+    restored_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(bootstrap_snapshot)
+    restored_snapshot = restored_policy.export_rare_heavy_snapshot()
+
+    assert restored_snapshot == bootstrap_snapshot
+    assert restored_policy.parameter_store.learning_phase == "runtime"
+    assert restored_policy.parameter_store.structure_frozen is True
+    assert restored_policy.parameter_store.learned_update_rule.export_state().update_count == (
+        bootstrap_snapshot.learned_update_rule_state.update_count
+        if bootstrap_snapshot.learned_update_rule_state is not None
+        else 0
+    )
+
+
 def test_ssl_trainer_updates_full_learned_policy_metrics():
     trace = build_training_trace(trace_id="ssl-trace", source_text="steady repair and guided exploration")
     policy = FullLearnedTemporalPolicy()
@@ -285,7 +309,7 @@ def test_discovered_action_family_lifecycle_can_split_topology():
 
     assert len(updated_families) >= 2
     assert active_label.startswith("discovered_family_")
-    assert "split:" in summary or "anti-collapse-create:" in summary
+    assert any(marker in summary for marker in ("split:", "anti-collapse-create:", "create:"))
 
 
 def test_discovered_action_family_lifecycle_can_merge_and_prune_topology():
@@ -403,6 +427,59 @@ def test_discovered_action_family_respects_fast_prior_continuation_and_competiti
     assert baseline_label in {"discovered_family_0", "discovered_family_1"}
     assert biased_active.competition_score >= baseline_active.competition_score
     assert biased_active.stagnation_pressure <= baseline_active.stagnation_pressure
+
+
+def test_discovered_action_family_prefers_payoff_weighted_family_when_similarity_is_close():
+    families = (
+        DiscoveredActionFamily(
+            family_id="discovered_family_0",
+            latent_centroid=(0.61, 0.29, 0.18),
+            decoder_centroid=(0.60, 0.30, 0.18),
+            support=5,
+            stability=0.76,
+            switch_bias=0.60,
+            competition_score=0.42,
+            outcome_history=(0.82, 0.76),
+            outcome_driven_score=0.79,
+            long_term_payoff=0.88,
+            delayed_credit_sum=1.8,
+            summary="high-payoff-family",
+        ),
+        DiscoveredActionFamily(
+            family_id="discovered_family_1",
+            latent_centroid=(0.62, 0.28, 0.18),
+            decoder_centroid=(0.61, 0.29, 0.18),
+            support=5,
+            stability=0.77,
+            switch_bias=0.60,
+            competition_score=0.46,
+            outcome_history=(0.18, 0.22),
+            outcome_driven_score=0.20,
+            long_term_payoff=0.22,
+            delayed_credit_sum=0.1,
+            summary="low-payoff-family",
+        ),
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.615, 0.285, 0.18),
+        decoder_control=(0.605, 0.295, 0.18),
+        switch_gate=0.60,
+        posterior_drift=0.08,
+        persistence_window=0.85,
+    )
+
+    updated_families, active_label, _ = discover_latent_action_family(
+        observation=observation,
+        action_families=families,
+        structure_frozen=True,
+        allow_topology_maintenance=False,
+    )
+
+    assert active_label == "discovered_family_0"
+    selected_family = next(family for family in updated_families if family.family_id == active_label)
+    rejected_family = next(family for family in updated_families if family.family_id != active_label)
+    assert selected_family.long_term_payoff > rejected_family.long_term_payoff
+    assert selected_family.delayed_credit_sum > rejected_family.delayed_credit_sum
 
 
 def test_temporal_owner_can_apply_structural_family_proposals():
@@ -578,7 +655,7 @@ def test_family_long_term_payoff_accumulation():
         (family,), family_id="test_family_0", outcome_value=0.8,
     )
     assert updated[0].outcome_driven_score > 0.0
-    assert updated[0].long_term_payoff == 0.5
+    assert updated[0].long_term_payoff > 0.5
     assert updated[0].delayed_credit_sum == 0.0
 
 
@@ -657,7 +734,7 @@ def test_temporal_module_consumes_prediction_error_signal():
 
 def test_track_temporal_modules_split_early_and_late_dependencies():
     assert TrackTemporalModule.dependencies == ("substrate", "memory", "experience_fast_prior")
-    assert TrackTemporalConsolidationModule.dependencies == ("reflection", "prediction_error")
+    assert TrackTemporalConsolidationModule.dependencies == ("reflection", "prediction_error", "credit")
     assert TemporalAggregateModule.dependencies == ("world_temporal", "self_temporal")
 
 
@@ -697,9 +774,102 @@ def test_track_temporal_consolidation_applies_prediction_error_after_early_contr
     assert snapshot.value.track == "world"
     assert snapshot.value.prediction_error_applied is True
     assert snapshot.value.reflection_observed is False
+    assert snapshot.value.family_outcome_applied is False
     assert snapshot.value.learning_phase == "runtime"
     assert snapshot.value.structure_frozen is True
     assert after != before
+
+
+def test_track_temporal_consolidation_applies_family_outcome_feedback_from_credit_and_pe():
+    policy = FullLearnedTemporalPolicy()
+    policy.parameter_store.action_families = (
+        DiscoveredActionFamily(
+            family_id="discovered_family_0",
+            latent_centroid=(0.6, 0.2, 0.2),
+            decoder_centroid=(0.6, 0.2, 0.2),
+            support=3,
+            stability=0.7,
+            switch_bias=0.45,
+            long_term_payoff=0.4,
+            delayed_credit_sum=0.0,
+            competition_score=0.3,
+        ),
+    )
+    policy.parameter_store.latest_active_label = "discovered_family_0"
+    baseline_continuation = policy.parameter_store.active_family_continuation_signals(
+        previous_steps_since_switch=1,
+    )
+    baseline_family = next(
+        family
+        for family in policy.parameter_store.action_families
+        if family.family_id == "discovered_family_0"
+    )
+    consolidation = TrackTemporalConsolidationModule(
+        track=Track.WORLD,
+        policy=policy,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, 0.2, 0.1, 0.4, 0.3, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=0.1,
+            relationship_error=-0.1,
+            regime_error=0.05,
+            action_error=0.1,
+            magnitude=0.2,
+            signed_reward=0.35,
+            description="positive family payoff",
+        ),
+        turn_index=2,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+    credit_snapshot = CreditSnapshot(
+        recent_credits=(
+            CreditRecord(
+                record_id="family-credit",
+                level="abstract_action",
+                track=Track.WORLD,
+                source_event="discovered_family_0",
+                credit_value=0.7,
+                context="family improved under delayed reward",
+                timestamp_ms=123,
+            ),
+        ),
+        recent_modifications=(),
+        cumulative_credit_by_level=(("abstract_action", 0.7),),
+        session_level_credits=(
+            ("abstract_action:world", 0.6),
+            ("prediction_error:shared", 0.2),
+        ),
+        description="credit snapshot",
+    )
+
+    snapshot = asyncio.run(
+        consolidation.process_standalone(
+            prediction_error_snapshot=pe_snapshot,
+            credit_snapshot=credit_snapshot,
+        )
+    )
+    updated_family = next(
+        family
+        for family in policy.parameter_store.action_families
+        if family.family_id == "discovered_family_0"
+    )
+    updated_continuation = policy.parameter_store.active_family_continuation_signals(
+        previous_steps_since_switch=1,
+    )
+
+    assert snapshot.value.family_outcome_applied is True
+    assert updated_family.outcome_history
+    assert updated_family.long_term_payoff > baseline_family.long_term_payoff
+    assert updated_family.delayed_credit_sum > baseline_family.delayed_credit_sum
+    assert updated_continuation[0] > baseline_continuation[0]
+    assert snapshot.value.active_family_long_term_payoff == updated_family.long_term_payoff
+    assert snapshot.value.active_family_delayed_credit_sum == updated_family.delayed_credit_sum
+    assert snapshot.value.active_family_outcome_score == updated_family.outcome_driven_score
 
 
 def test_track_temporal_module_uses_cached_reflection_context_from_consolidation():
@@ -809,6 +979,9 @@ def test_noncausal_embedder_tightens_posterior():
     assert report.noncausal_information_content > 0.0, (
         "Noncausal embedding should have positive information content"
     )
+    learned_update_state = policy.parameter_store.export_parameter_snapshot().learned_update_rule_state
+    assert learned_update_state is not None
+    assert learned_update_state.update_count > 0
 
     embedder = NonCausalSequenceEmbedder(n_z=3)
     from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, FeatureSignal, ResidualActivation
@@ -848,6 +1021,57 @@ def test_noncausal_embedder_tightens_posterior():
         f"Enriched variance ({enriched_var:.4f}) should be <= causal variance ({causal_var:.4f})"
     )
     assert enrichment.kl_tightening >= 0.0
+
+
+def test_noncausal_information_changes_learned_update_decisions_and_temporal_parameters():
+    trainer = MetacontrollerSSLTrainer(alpha=0.1)
+    low_trace = build_training_trace(
+        trace_id="noncausal-low",
+        source_text="steady steady steady steady",
+    )
+    high_trace = build_training_trace(
+        trace_id="noncausal-high",
+        source_text="repair tension then continue helpfully and plan carefully for growth",
+    )
+    low_policy = FullLearnedTemporalPolicy()
+    high_policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(low_policy)
+    _set_ssl_phase(high_policy)
+
+    low_before = low_policy.parameter_store.export_parameter_snapshot()
+    high_before = high_policy.parameter_store.export_parameter_snapshot()
+    low_report = trainer.optimize(policy=low_policy, trace=low_trace)
+    high_report = trainer.optimize(policy=high_policy, trace=high_trace)
+    low_after = low_policy.parameter_store.export_parameter_snapshot()
+    high_after = high_policy.parameter_store.export_parameter_snapshot()
+
+    low_state = low_after.learned_update_rule_state
+    high_state = high_after.learned_update_rule_state
+    assert low_state is not None
+    assert high_state is not None
+    assert high_report.noncausal_information_content >= low_report.noncausal_information_content
+    low_decisions = {decision.target_id: decision for decision in low_state.last_decisions}
+    high_decisions = {decision.target_id: decision for decision in high_state.last_decisions}
+    assert {"temporal-encoder", "temporal-decoder", "temporal-switch"} <= set(low_decisions)
+    assert {"temporal-encoder", "temporal-decoder", "temporal-switch"} <= set(high_decisions)
+    assert (
+        high_decisions["temporal-switch"].step_scale != low_decisions["temporal-switch"].step_scale
+        or high_decisions["temporal-switch"].bias_delta != low_decisions["temporal-switch"].bias_delta
+    )
+
+    low_encoder_change = sum(
+        abs(after - before)
+        for before_row, after_row in zip(low_before.encoder_weights, low_after.encoder_weights, strict=True)
+        for before, after in zip(before_row, after_row, strict=True)
+    )
+    high_encoder_change = sum(
+        abs(after - before)
+        for before_row, after_row in zip(high_before.encoder_weights, high_after.encoder_weights, strict=True)
+        for before, after in zip(before_row, after_row, strict=True)
+    )
+    assert low_encoder_change > 0.0
+    assert high_encoder_change > 0.0
+    assert high_encoder_change != low_encoder_change
 
 
 def test_noncausal_embedder_bidirectional_ordering_matters():
@@ -892,6 +1116,44 @@ def test_noncausal_embedder_bidirectional_ordering_matters():
     assert embed_fwd.summary_vector != embed_rev.summary_vector, (
         "Different token orders should produce different embeddings"
     )
+
+
+def test_causal_binary_override_applies_binary_takeover_semantics():
+    trace = build_training_trace(
+        trace_id="binary-override",
+        source_text="repair tension then continue helpfully and plan carefully",
+    )
+    substrate_snapshot = asyncio.run(SimulatedResidualSubstrateAdapter(trace=trace).capture())
+    policy = FullLearnedTemporalPolicy()
+
+    switched = policy.step_with_causal_override(
+        substrate_snapshot=substrate_snapshot,
+        previous_snapshot=None,
+        latent_override=(0.95, 0.10, 0.20),
+        policy_replacement_score=0.9,
+        binary_gate_override=True,
+    )
+    previous_snapshot = TemporalAbstractionSnapshot(
+        controller_state=switched.controller_state,
+        active_abstract_action=switched.active_abstract_action,
+        controller_params_hash=switched.controller_params_hash,
+        description=switched.description,
+        action_family_version=switched.action_family_version,
+    )
+    continued = policy.step_with_causal_override(
+        substrate_snapshot=substrate_snapshot,
+        previous_snapshot=previous_snapshot,
+        latent_override=switched.controller_state.code,
+        policy_replacement_score=0.1,
+        binary_gate_override=True,
+    )
+
+    assert switched.controller_state.switch_gate == 1.0
+    assert switched.controller_state.is_switching is True
+    assert switched.controller_state.steps_since_switch == 0
+    assert continued.controller_state.switch_gate == 0.0
+    assert continued.controller_state.is_switching is False
+    assert continued.controller_state.steps_since_switch == 1
 
 
 def test_phase3_multi_alpha_beta_distribution():

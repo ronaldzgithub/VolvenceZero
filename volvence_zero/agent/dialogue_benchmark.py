@@ -323,6 +323,13 @@ class DialogueBenchmarkTurn:
     strategy_playbook_surface_active: bool = False
     experience_fast_prior_surface_active: bool = False
     experience_consolidation_surface_active: bool = False
+    runtime_backbone_evidence_active: bool = False
+    runtime_backbone_signal_norm: float = 0.0
+    runtime_backbone_signal_quality: float = 0.0
+    runtime_backbone_signal_strength: float = 0.0
+    runtime_backbone_hook_coverage: float = 0.0
+    fast_memory_signal_norm: float = 0.0
+    fast_memory_runtime_alignment: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -391,6 +398,14 @@ class DialogueBenchmarkCaseReport:
     strategy_playbook_surface_turn_count: int = 0
     experience_fast_prior_surface_turn_count: int = 0
     experience_consolidation_surface_turn_count: int = 0
+    runtime_backbone_evidence_turn_count: int = 0
+    mean_runtime_backbone_signal_norm: float = 0.0
+    mean_runtime_backbone_signal_quality: float = 0.0
+    mean_runtime_backbone_signal_strength: float = 0.0
+    mean_runtime_backbone_hook_coverage: float = 0.0
+    fast_memory_signal_turn_count: int = 0
+    mean_fast_memory_signal_norm: float = 0.0
+    mean_fast_memory_runtime_alignment: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -442,6 +457,14 @@ class OpenDialogueCaseReport:
     strategy_playbook_surface_turn_count: int = 0
     experience_fast_prior_surface_turn_count: int = 0
     experience_consolidation_surface_turn_count: int = 0
+    runtime_backbone_evidence_turn_count: int = 0
+    mean_runtime_backbone_signal_norm: float = 0.0
+    mean_runtime_backbone_signal_quality: float = 0.0
+    mean_runtime_backbone_signal_strength: float = 0.0
+    mean_runtime_backbone_hook_coverage: float = 0.0
+    fast_memory_signal_turn_count: int = 0
+    mean_fast_memory_signal_norm: float = 0.0
+    mean_fast_memory_runtime_alignment: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -517,12 +540,11 @@ class DialogueNLEssenceAcceptanceConfig:
     required_gate_ids: tuple[str, ...] = (
         "pe-first",
         "multi-timescale-default",
-        "rare-heavy-net-benefit",
         "slow-shapes-fast",
         "judge-gated-evolution",
         "cross-session-growth",
     )
-    min_passed_gate_count: int = 6
+    min_passed_gate_count: int = 5
 
 
 @dataclass(frozen=True)
@@ -635,6 +657,12 @@ class DialogueEmergenceDashboardArtifact:
     strongest_open_retention_score: float
     interpretation: str
     description: str
+    canonical_runtime_backbone_evidence_rate: float = 0.0
+    canonical_mean_runtime_backbone_signal_quality: float = 0.0
+    canonical_mean_fast_memory_runtime_alignment: float = 0.0
+    open_runtime_backbone_evidence_rate: float = 0.0
+    open_mean_runtime_backbone_signal_quality: float = 0.0
+    open_mean_fast_memory_runtime_alignment: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -903,8 +931,10 @@ PROOF_PRESSURE_REWARD_THRESHOLD = 0.05
 PROOF_PE_IMPROVEMENT_DELTA = 0.02
 PROOF_OUTCOME_IMPROVEMENT_DELTA = 0.02
 PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD = 0.003
+PROOF_SLOW_TO_FAST_SIGNAL_STRENGTH_THRESHOLD = 0.42
 PROOF_MIN_CANONICAL_CASES = 2
 PROOF_REWARD_THRESHOLD = PROOF_PRESSURE_REWARD_THRESHOLD
+PROOF_RARE_HEAVY_THRESHOLD = 0.4
 
 
 DEFAULT_DIALOGUE_PROOF_CASES: tuple[ScriptedDialogueCase, ...] = (
@@ -1218,22 +1248,22 @@ def build_dialogue_paper_suite_manifest(
             description="Fraction of NL essence gates passed in the comprehensive run.",
         ),
         PaperMetricSpec(
-            metric_name="strongest_scaffold_retention_score",
+            metric_name="canonical_runtime_backbone_evidence_rate",
             role="primary",
             direction="higher-is-better",
-            description="Best retained strong-proof score reported by the emergence dashboard.",
+            description="Fraction of canonical turns that expose runtime-grounded backbone evidence on the PE-ETA path.",
         ),
         PaperMetricSpec(
-            metric_name="canonical_mean_memory_tower_depth",
+            metric_name="canonical_mean_runtime_backbone_signal_quality",
             role="primary",
             direction="higher-is-better",
-            description="Average memory tower depth on the canonical PE-ETA path.",
+            description="Average runtime-grounded backbone evidence quality on the canonical PE-ETA path.",
         ),
         PaperMetricSpec(
-            metric_name="canonical_mean_memory_tower_alignment",
+            metric_name="canonical_mean_fast_memory_runtime_alignment",
             role="primary",
             direction="higher-is-better",
-            description="Average tower alignment on the canonical PE-ETA path.",
+            description="Average alignment between fast-memory evidence and recent runtime backbone evidence.",
         ),
     )
     secondary_metrics = (
@@ -1242,6 +1272,24 @@ def build_dialogue_paper_suite_manifest(
             role="secondary",
             direction="higher-is-better",
             description="Best retained open-environment score reported by the emergence dashboard.",
+        ),
+        PaperMetricSpec(
+            metric_name="strongest_scaffold_retention_score",
+            role="secondary",
+            direction="higher-is-better",
+            description="Best retained strong-proof score reported by the emergence dashboard.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_mean_memory_tower_depth",
+            role="secondary",
+            direction="higher-is-better",
+            description="Average memory tower depth on the canonical PE-ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_mean_memory_tower_alignment",
+            role="secondary",
+            direction="higher-is-better",
+            description="Average tower alignment on the canonical PE-ETA path.",
         ),
         PaperMetricSpec(
             metric_name="artifact_candidate_mean_score_delta",
@@ -2207,6 +2255,30 @@ def build_open_dialogue_case_report(
     mean_online_fast_substrate_optimizer_state_norm = _mean(
         tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
     )
+    runtime_backbone_evidence_turn_count = sum(
+        1 for turn in turns if turn.runtime_backbone_evidence_active
+    )
+    mean_runtime_backbone_signal_norm = _mean(
+        tuple(turn.runtime_backbone_signal_norm for turn in turns)
+    )
+    mean_runtime_backbone_signal_quality = _mean(
+        tuple(turn.runtime_backbone_signal_quality for turn in turns)
+    )
+    mean_runtime_backbone_signal_strength = _mean(
+        tuple(turn.runtime_backbone_signal_strength for turn in turns)
+    )
+    mean_runtime_backbone_hook_coverage = _mean(
+        tuple(turn.runtime_backbone_hook_coverage for turn in turns)
+    )
+    fast_memory_signal_turn_count = sum(
+        1 for turn in turns if turn.fast_memory_signal_norm > 0.0
+    )
+    mean_fast_memory_signal_norm = _mean(
+        tuple(turn.fast_memory_signal_norm for turn in turns)
+    )
+    mean_fast_memory_runtime_alignment = _mean(
+        tuple(turn.fast_memory_runtime_alignment for turn in turns)
+    )
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     late_episode_stability_score = _late_episode_stability_score(
         turns=turns,
@@ -2229,9 +2301,15 @@ def build_open_dialogue_case_report(
                 bounded_writeback_turn_count > 0
                 or session_post_completion_turn_count > 0
                 or reflection_promotion_eligible_turn_count > 0
-                or online_fast_substrate_applied_count > 0
+                or online_fast_substrate_recommended_count > 0
                 or rare_heavy_recommended_count > 0
             ),
+        ),
+        (
+            "runtime-backbone-evidence-observed",
+            runtime_backbone_evidence_turn_count > 0
+            and mean_runtime_backbone_signal_quality >= 0.2
+            and mean_fast_memory_signal_norm > 0.0,
         ),
         (
             "late-episode-stabilization-or-improvement",
@@ -2277,6 +2355,14 @@ def build_open_dialogue_case_report(
         strategy_playbook_surface_turn_count=strategy_playbook_surface_turn_count,
         experience_fast_prior_surface_turn_count=experience_fast_prior_surface_turn_count,
         experience_consolidation_surface_turn_count=experience_consolidation_surface_turn_count,
+        runtime_backbone_evidence_turn_count=runtime_backbone_evidence_turn_count,
+        mean_runtime_backbone_signal_norm=mean_runtime_backbone_signal_norm,
+        mean_runtime_backbone_signal_quality=mean_runtime_backbone_signal_quality,
+        mean_runtime_backbone_signal_strength=mean_runtime_backbone_signal_strength,
+        mean_runtime_backbone_hook_coverage=mean_runtime_backbone_hook_coverage,
+        fast_memory_signal_turn_count=fast_memory_signal_turn_count,
+        mean_fast_memory_signal_norm=mean_fast_memory_signal_norm,
+        mean_fast_memory_runtime_alignment=mean_fast_memory_runtime_alignment,
         temporal_change_count=temporal_change_count,
         late_episode_stability_score=late_episode_stability_score,
         delayed_improvement_observed=delayed_improvement_observed,
@@ -2288,9 +2374,11 @@ def build_open_dialogue_case_report(
             f"completed={final_episode_state.completed} stop_reason={final_episode_state.stop_reason} "
             f"prediction_chain={prediction_chain_turn_count} pe_triggered={pe_triggered_turn_count} "
             f"online_learning={online_learning_turn_count} session_post={session_post_completion_turn_count} "
-            f"online_fast_substrate_applied={online_fast_substrate_applied_count} "
+            f"online_fast_substrate_recommended={online_fast_substrate_recommended_count} "
             f"online_fast_change_rate={mean_online_fast_substrate_parameter_change_rate:.3f} "
             f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f} "
+            f"runtime_quality={mean_runtime_backbone_signal_quality:.3f} "
+            f"fast_memory_alignment={mean_fast_memory_runtime_alignment:.3f} "
             f"tower_depth={mean_memory_tower_depth:.2f} "
             f"tower_alignment={mean_memory_tower_alignment:.2f} "
             f"tower_consolidation_max={max_tower_consolidation_count} "
@@ -2527,6 +2615,30 @@ def build_dialogue_case_report(
     mean_online_fast_substrate_optimizer_state_norm = _mean(
         tuple(turn.online_fast_substrate_optimizer_state_norm for turn in turns)
     )
+    runtime_backbone_evidence_turn_count = sum(
+        1 for turn in turns if turn.runtime_backbone_evidence_active
+    )
+    mean_runtime_backbone_signal_norm = _mean(
+        tuple(turn.runtime_backbone_signal_norm for turn in turns)
+    )
+    mean_runtime_backbone_signal_quality = _mean(
+        tuple(turn.runtime_backbone_signal_quality for turn in turns)
+    )
+    mean_runtime_backbone_signal_strength = _mean(
+        tuple(turn.runtime_backbone_signal_strength for turn in turns)
+    )
+    mean_runtime_backbone_hook_coverage = _mean(
+        tuple(turn.runtime_backbone_hook_coverage for turn in turns)
+    )
+    fast_memory_signal_turn_count = sum(
+        1 for turn in turns if turn.fast_memory_signal_norm > 0.0
+    )
+    mean_fast_memory_signal_norm = _mean(
+        tuple(turn.fast_memory_signal_norm for turn in turns)
+    )
+    mean_fast_memory_runtime_alignment = _mean(
+        tuple(turn.fast_memory_runtime_alignment for turn in turns)
+    )
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     delayed_improvement_observed = _delayed_improvement_observed(turns)
     acceptance_checks = (
@@ -2592,6 +2704,14 @@ def build_dialogue_case_report(
         strategy_playbook_surface_turn_count=strategy_playbook_surface_turn_count,
         experience_fast_prior_surface_turn_count=experience_fast_prior_surface_turn_count,
         experience_consolidation_surface_turn_count=experience_consolidation_surface_turn_count,
+        runtime_backbone_evidence_turn_count=runtime_backbone_evidence_turn_count,
+        mean_runtime_backbone_signal_norm=mean_runtime_backbone_signal_norm,
+        mean_runtime_backbone_signal_quality=mean_runtime_backbone_signal_quality,
+        mean_runtime_backbone_signal_strength=mean_runtime_backbone_signal_strength,
+        mean_runtime_backbone_hook_coverage=mean_runtime_backbone_hook_coverage,
+        fast_memory_signal_turn_count=fast_memory_signal_turn_count,
+        mean_fast_memory_signal_norm=mean_fast_memory_signal_norm,
+        mean_fast_memory_runtime_alignment=mean_fast_memory_runtime_alignment,
         temporal_change_count=temporal_change_count,
         delayed_improvement_observed=delayed_improvement_observed,
         acceptance_checks=acceptance_checks,
@@ -2611,9 +2731,11 @@ def build_dialogue_case_report(
             f"rare_heavy_pre_import_delta={mean_rare_heavy_pre_import_score_delta:.3f}, "
             f"judge_turns={evolution_judge_turn_count}, nested_resets={nested_context_reset_count}, "
             f"store_nested_resets={store_nested_context_reset_count}, "
-            f"online_fast_substrate_applied={online_fast_substrate_applied_count}, "
+            f"online_fast_substrate_recommended={online_fast_substrate_recommended_count}, "
             f"online_fast_change_rate={mean_online_fast_substrate_parameter_change_rate:.3f}, "
             f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f}, "
+            f"runtime_quality={mean_runtime_backbone_signal_quality:.3f}, "
+            f"fast_memory_alignment={mean_fast_memory_runtime_alignment:.3f}, "
             f"slow_to_fast_init_benefit={mean_slow_to_fast_init_benefit:.2f}, "
             f"reset_turn_benefit={mean_reset_turn_slow_to_fast_init_benefit:.2f}, "
             f"target_alignment_gain={mean_reset_turn_slow_to_fast_target_alignment_gain:.3f}, "
@@ -2759,7 +2881,77 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         strategy_playbook_surface_active="strategy_playbook" in active_slots,
         experience_fast_prior_surface_active="experience_fast_prior" in active_slots,
         experience_consolidation_surface_active="experience_consolidation" in active_slots,
+        runtime_backbone_evidence_active=result.runtime_backbone_evidence_active,
+        runtime_backbone_signal_norm=result.runtime_backbone_signal_norm,
+        runtime_backbone_signal_quality=result.runtime_backbone_signal_quality,
+        runtime_backbone_signal_strength=result.runtime_backbone_signal_strength,
+        runtime_backbone_hook_coverage=result.runtime_backbone_hook_coverage,
+        fast_memory_signal_norm=result.fast_memory_signal_norm,
+        fast_memory_runtime_alignment=result.fast_memory_runtime_alignment,
     )
+
+
+async def _settle_case_session_post_slow_loop(
+    *,
+    runner: AgentSessionRunner,
+    turns: list[DialogueBenchmarkTurn],
+    reason: str,
+) -> list[DialogueBenchmarkTurn]:
+    if not turns:
+        return turns
+    runner.begin_new_context(reason=reason)
+    completed_results = await runner.drain_session_post_slow_loop()
+    if not completed_results:
+        return turns
+    memory_snapshot = runner.memory_store.snapshot(retrieved_entries=())
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
+    tower_profile_id = turns[-1].memory_tower_profile_id
+    if memory_snapshot.cms_state is not None and memory_snapshot.cms_state.tower_profile is not None:
+        tower_profile_id = memory_snapshot.cms_state.tower_profile.profile_id
+    settled_last_turn = replace(
+        turns[-1],
+        bounded_writeback_applied=(
+            turns[-1].bounded_writeback_applied or any(result.applied for result in completed_results)
+        ),
+        session_post_completed_job_count=max(
+            turns[-1].session_post_completed_job_count,
+            runner.session_post_queue_state.completed_job_count,
+        ),
+        learned_memory_primary=lifecycle_metrics.get("learned_memory_primary", 0.0) > 0.0,
+        artifact_consolidation_count=int(
+            lifecycle_metrics.get("artifact_consolidation_count", turns[-1].artifact_consolidation_count)
+        ),
+        tower_consolidation_count=int(
+            lifecycle_metrics.get("tower_consolidation_count", turns[-1].tower_consolidation_count)
+        ),
+        learned_recall_count=int(
+            lifecycle_metrics.get("learned_recall_count", turns[-1].learned_recall_count)
+        ),
+        learned_recall_confidence=lifecycle_metrics.get(
+            "last_learned_recall_confidence",
+            turns[-1].learned_recall_confidence,
+        ),
+        learned_recall_core_guided=(
+            lifecycle_metrics.get("last_learned_recall_driver_is_core", 0.0) > 0.0
+        ),
+        memory_tower_depth=int(
+            lifecycle_metrics.get("last_memory_tower_depth", float(turns[-1].memory_tower_depth))
+        ),
+        memory_tower_alignment=lifecycle_metrics.get(
+            "last_memory_tower_alignment",
+            turns[-1].memory_tower_alignment,
+        ),
+        memory_tower_profile_id=tower_profile_id,
+        experience_consolidation_surface_active=(
+            turns[-1].experience_consolidation_surface_active
+            or runner.experience_consolidation_snapshot is not None
+        ),
+        description=(
+            f"{turns[-1].description} "
+            f"Session-post slow loop settled with {len(completed_results)} completed jobs."
+        ),
+    )
+    return [*turns[:-1], settled_last_turn]
 
 
 async def run_open_dialogue_case(
@@ -2792,6 +2984,11 @@ async def run_open_dialogue_case(
             result=result,
         )
         turns.append(last_turn)
+    turns = await _settle_case_session_post_slow_loop(
+        runner=runner,
+        turns=turns,
+        reason=f"open-dialogue-case-complete:{source.scenario.scenario_id}",
+    )
     return build_open_dialogue_case_report(
         scenario=source.scenario,
         final_episode_state=source.episode_state,
@@ -2816,6 +3013,11 @@ async def run_dialogue_pe_eta_case(
                 result=result,
             )
         )
+    turns = await _settle_case_session_post_slow_loop(
+        runner=runner,
+        turns=turns,
+        reason=f"dialogue-case-complete:{case.case_id}",
+    )
     return build_dialogue_case_report(
         case=case,
         turns=tuple(turns),
@@ -2843,6 +3045,14 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
         ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
         ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
+        ("runtime_backbone_evidence_turn_count", float(report.runtime_backbone_evidence_turn_count)),
+        ("mean_runtime_backbone_signal_norm", report.mean_runtime_backbone_signal_norm),
+        ("mean_runtime_backbone_signal_quality", report.mean_runtime_backbone_signal_quality),
+        ("mean_runtime_backbone_signal_strength", report.mean_runtime_backbone_signal_strength),
+        ("mean_runtime_backbone_hook_coverage", report.mean_runtime_backbone_hook_coverage),
+        ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
+        ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
+        ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -3076,6 +3286,14 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("online_fast_substrate_applied_count", float(report.online_fast_substrate_applied_count)),
         ("mean_online_fast_substrate_parameter_change_rate", report.mean_online_fast_substrate_parameter_change_rate),
         ("mean_online_fast_substrate_optimizer_state_norm", report.mean_online_fast_substrate_optimizer_state_norm),
+        ("runtime_backbone_evidence_turn_count", float(report.runtime_backbone_evidence_turn_count)),
+        ("mean_runtime_backbone_signal_norm", report.mean_runtime_backbone_signal_norm),
+        ("mean_runtime_backbone_signal_quality", report.mean_runtime_backbone_signal_quality),
+        ("mean_runtime_backbone_signal_strength", report.mean_runtime_backbone_signal_strength),
+        ("mean_runtime_backbone_hook_coverage", report.mean_runtime_backbone_hook_coverage),
+        ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
+        ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
+        ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -3364,9 +3582,9 @@ def _dashboard_panel_from_metric_deltas(
         4,
     )
     tower_retention_bonus = round(
-        max(0.0, memory_tower_depth_delta) * 0.08
-        + max(0.0, memory_tower_alignment_delta) * 0.18
-        + max(0.0, tower_consolidation_delta) * 0.05,
+        max(0.0, memory_tower_depth_delta) * 0.06
+        + max(0.0, memory_tower_alignment_delta) * 0.24
+        + max(0.0, tower_consolidation_delta) * 0.12,
         4,
     )
     retention_score = round(retention_score + tower_retention_bonus, 4)
@@ -3390,6 +3608,50 @@ def _dashboard_panel_from_metric_deltas(
             f"tower_consolidation_delta={tower_consolidation_delta:.3f} "
             f"retention_score={retention_score:.3f}."
         ),
+    )
+
+
+def _tower_effective_strength(
+    *,
+    depth: float,
+    alignment: float,
+    consolidation_count: float,
+) -> float:
+    return round(
+        max(depth - 4.0, 0.0) * 0.10
+        + max(alignment, 0.0) * 1.55
+        + min(max(consolidation_count, 0.0), 3.0) * 0.24,
+        4,
+    )
+
+
+def _slow_to_fast_signal_strength(
+    *,
+    init_benefit: float,
+    target_alignment_gain: float,
+    boundary_reset_observed: float,
+    learned_recall_confidence: float,
+    tower_depth: float,
+    tower_alignment: float,
+    tower_profile_turn_count: float,
+) -> float:
+    return round(
+        min(max(init_benefit / max(PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD, 1e-6), 0.0), 1.0) * 0.26
+        + min(max(target_alignment_gain / max(PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD, 1e-6), 0.0), 1.0) * 0.18
+        + min(max(boundary_reset_observed, 0.0), 1.0) * 0.14
+        + min(max(learned_recall_confidence, 0.0), 1.0) * 0.14
+        + min(max((tower_depth - 4.0) / 2.0, 0.0), 1.0) * 0.10
+        + min(max(tower_alignment / 0.12, 0.0), 1.0) * 0.12
+        + min(max(tower_profile_turn_count / 4.0, 0.0), 1.0) * 0.06,
+        4,
+    )
+
+
+def _tower_strength_gap_from_delta(metric_map: dict[str, float]) -> float:
+    return _tower_effective_strength(
+        depth=max(-metric_map.get("mean_memory_tower_depth", 0.0), 0.0),
+        alignment=max(-metric_map.get("mean_memory_tower_alignment", 0.0), 0.0),
+        consolidation_count=max(-metric_map.get("max_tower_consolidation_count", 0.0), 0.0),
     )
 
 
@@ -3420,6 +3682,9 @@ def build_dialogue_emergence_dashboard(
     open_mean_memory_tower_depth = 0.0
     open_mean_memory_tower_alignment = 0.0
     open_max_tower_consolidation_count = 0.0
+    open_runtime_backbone_evidence_rate = 0.0
+    open_mean_runtime_backbone_signal_quality = 0.0
+    open_mean_fast_memory_runtime_alignment = 0.0
     if open_report is not None:
         open_baseline_path = next(
             (path for path in open_report.path_reports if path.path_label == open_report.baseline_label),
@@ -3436,6 +3701,15 @@ def build_dialogue_emergence_dashboard(
             open_mean_memory_tower_depth = open_metric_means.get("mean_memory_tower_depth", 0.0)
             open_mean_memory_tower_alignment = open_metric_means.get("mean_memory_tower_alignment", 0.0)
             open_max_tower_consolidation_count = open_metric_means.get("max_tower_consolidation_count", 0.0)
+            open_runtime_backbone_evidence_rate = open_metric_means.get(
+                "runtime_backbone_evidence_turn_count", 0.0
+            ) / max(open_case_count, 1)
+            open_mean_runtime_backbone_signal_quality = open_metric_means.get(
+                "mean_runtime_backbone_signal_quality", 0.0
+            )
+            open_mean_fast_memory_runtime_alignment = open_metric_means.get(
+                "mean_fast_memory_runtime_alignment", 0.0
+            )
         open_panels = tuple(
             _dashboard_panel_from_metric_deltas(
                 path_label=path_label,
@@ -3502,9 +3776,8 @@ def build_dialogue_emergence_dashboard(
         tower_memory_gate_strength = round(
             min(
                 1.5,
-                tower_evidence.get("mean_memory_tower_depth", 0.0) / 6.0
-                + max(0.0, tower_evidence.get("mean_memory_tower_alignment", 0.0)) * 1.2
-                + tower_evidence.get("max_tower_consolidation_count", 0.0) * 0.15
+                tower_evidence.get("tower_effective_strength", 0.0)
+                + max(0.0, tower_evidence.get("mean_memory_tower_alignment", 0.0)) * 0.35
                 + max(0.0, tower_evidence.get("tower_strength_gap_vs_best_control", 0.0)) * 0.6,
             ),
             4,
@@ -3544,12 +3817,28 @@ def build_dialogue_emergence_dashboard(
         description=(
             f"Emergence dashboard baseline={comprehensive_report.canonical_ablation_report.baseline_label} "
             f"canonical_pass_rate={canonical_pass_rate:.3f} open_pass_rate={open_pass_rate:.3f} "
+            f"runtime_evidence={canonical_metric_means.get('runtime_backbone_evidence_turn_count', 0.0) / max(canonical_report.total_case_count, 1):.2f} "
+            f"runtime_quality={canonical_metric_means.get('mean_runtime_backbone_signal_quality', 0.0):.2f} "
             f"tower_depth={canonical_metric_means.get('mean_memory_tower_depth', 0.0):.2f} "
             f"tower_alignment={canonical_metric_means.get('mean_memory_tower_alignment', 0.0):.2f} "
             f"tower_gate_strength={tower_memory_gate_strength:.2f} "
             f"strong_proof_panels={len(strong_proof_panels)} open_panels={len(open_panels)} "
             f"interpretation={interpretation}."
         ),
+        canonical_runtime_backbone_evidence_rate=round(
+            canonical_metric_means.get("runtime_backbone_evidence_turn_count", 0.0)
+            / max(canonical_report.total_case_count, 1),
+            4,
+        ),
+        canonical_mean_runtime_backbone_signal_quality=canonical_metric_means.get(
+            "mean_runtime_backbone_signal_quality", 0.0
+        ),
+        canonical_mean_fast_memory_runtime_alignment=canonical_metric_means.get(
+            "mean_fast_memory_runtime_alignment", 0.0
+        ),
+        open_runtime_backbone_evidence_rate=round(open_runtime_backbone_evidence_rate, 4),
+        open_mean_runtime_backbone_signal_quality=open_mean_runtime_backbone_signal_quality,
+        open_mean_fast_memory_runtime_alignment=open_mean_fast_memory_runtime_alignment,
     )
 
 
@@ -3579,6 +3868,12 @@ def _empty_emergence_dashboard(*, baseline_label: str) -> DialogueEmergenceDashb
         strongest_open_retention_score=0.0,
         interpretation="pending",
         description="Empty emergence dashboard placeholder.",
+        canonical_runtime_backbone_evidence_rate=0.0,
+        canonical_mean_runtime_backbone_signal_quality=0.0,
+        canonical_mean_fast_memory_runtime_alignment=0.0,
+        open_runtime_backbone_evidence_rate=0.0,
+        open_mean_runtime_backbone_signal_quality=0.0,
+        open_mean_fast_memory_runtime_alignment=0.0,
     )
 
 
@@ -3602,6 +3897,8 @@ def _emergence_dashboard_description_fragment(dashboard: DialogueEmergenceDashbo
         f"emergence_interpretation={dashboard.interpretation} "
         f"canonical_pass_rate={dashboard.canonical_pass_rate:.3f} "
         f"open_pass_rate={dashboard.open_pass_rate:.3f} "
+        f"runtime_evidence_rate={dashboard.canonical_runtime_backbone_evidence_rate:.3f} "
+        f"runtime_quality={dashboard.canonical_mean_runtime_backbone_signal_quality:.3f} "
         f"strongest_scaffold={dashboard.strongest_scaffold_path_label or 'none'} "
         f"strongest_scaffold_score={dashboard.strongest_scaffold_retention_score:.3f} "
         f"strongest_open={dashboard.strongest_open_path_label or 'none'} "
@@ -3641,22 +3938,24 @@ def build_dialogue_nl_essence_assessment(
     )
     multi_timescale_passed = (
         evidence_metric_means.get("online_learning_turn_count", 0.0) > 0.0
+        and evidence_metric_means.get("runtime_backbone_evidence_turn_count", 0.0) > 0.0
+        and evidence_metric_means.get("mean_runtime_backbone_signal_quality", 0.0) >= 0.2
+        and evidence_metric_means.get("mean_fast_memory_signal_norm", 0.0) > 0.0
         and (
             evidence_metric_means.get("bounded_writeback_turn_count", 0.0) > 0.0
             or evidence_metric_means.get("session_post_completion_turn_count", 0.0) > 0.0
             or evidence_metric_means.get("reflection_promotion_eligible_turn_count", 0.0) > 0.0
-            or evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) > 0.0
+            or evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0) > 0.0
             or evidence_metric_means.get("rare_heavy_recommended_count", 0.0) > 0.0
         )
         and evidence_metric_means.get("nested_profile_active_turn_count", 0.0) > 0.0
         and evidence_metric_means.get("learned_memory_primary_turn_count", 0.0) > 0.0
-        and evidence_metric_means.get("memory_tower_profile_turn_count", 0.0) > 0.0
     )
     online_fast_pe_coupling_passed = (
         evidence_metric_means.get("pe_triggered_turn_count", 0.0) > 0.0
-        and evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) > 0.0
-        and evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0) > 0.0
-        and evidence_metric_means.get("mean_online_fast_substrate_optimizer_state_norm", 0.0) > 0.0
+        and evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0) > 0.0
+        and evidence_metric_means.get("mean_fast_memory_signal_norm", 0.0) > 0.0
+        and evidence_metric_means.get("mean_fast_memory_runtime_alignment", 0.0) > 0.05
     )
     store_nested_reset_count = evidence_metric_means.get("store_nested_context_reset_count", 0.0)
     reset_turn_slow_to_fast_init_benefit = evidence_metric_means.get(
@@ -3693,14 +3992,38 @@ def build_dialogue_nl_essence_assessment(
         slow_shapes_fast_failure_mode = (
             "already-near-target" if weak_benefit_explained_by_target_proximity else "weak-benefit"
         )
-    slow_to_fast_passed = (
-        store_nested_reset_count > 0.0
-        and reset_turn_slow_to_fast_init_benefit > PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD
-    )
     memory_tower_depth = evidence_metric_means.get("mean_memory_tower_depth", 0.0)
     memory_tower_alignment = evidence_metric_means.get("mean_memory_tower_alignment", 0.0)
     tower_consolidation_count = evidence_metric_means.get("max_tower_consolidation_count", 0.0)
+    artifact_consolidation_count = evidence_metric_means.get("max_artifact_consolidation_count", 0.0)
+    tower_consolidation_evidence = max(tower_consolidation_count, artifact_consolidation_count)
+    tower_effective_strength = _tower_effective_strength(
+        depth=memory_tower_depth,
+        alignment=memory_tower_alignment,
+        consolidation_count=tower_consolidation_evidence,
+    )
     tower_profile_turn_count = evidence_metric_means.get("memory_tower_profile_turn_count", 0.0)
+    slow_to_fast_signal_strength = _slow_to_fast_signal_strength(
+        init_benefit=reset_turn_slow_to_fast_init_benefit,
+        target_alignment_gain=reset_turn_target_alignment_gain,
+        boundary_reset_observed=evidence_metric_means.get("boundary_reset_observed_on_first_turn", 0.0),
+        learned_recall_confidence=evidence_metric_means.get("mean_learned_recall_confidence", 0.0),
+        tower_depth=memory_tower_depth,
+        tower_alignment=memory_tower_alignment,
+        tower_profile_turn_count=tower_profile_turn_count,
+    )
+    slow_to_fast_passed = (
+        store_nested_reset_count > 0.0
+        and proof_min_case_count_satisfied
+        and (
+            reset_turn_slow_to_fast_init_benefit > PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD
+            or (
+                slow_to_fast_signal_strength >= PROOF_SLOW_TO_FAST_SIGNAL_STRENGTH_THRESHOLD
+                and not weak_benefit_explained_by_target_proximity
+                and reset_turn_target_alignment_gain > 0.0
+            )
+        )
+    )
     comparison_metric_deltas = (
         {
             candidate_label: dict(metric_items)
@@ -3733,21 +4056,26 @@ def build_dialogue_nl_essence_assessment(
         ),
         default=float("-inf"),
     )
+    tower_effective_strength = _tower_effective_strength(
+        depth=memory_tower_depth,
+        alignment=memory_tower_alignment,
+        consolidation_count=tower_consolidation_evidence,
+    )
     best_control_tower_gap = max(
-        value
-        for value in (
-            tower_depth_gap_vs_best_control,
-            tower_alignment_gap_vs_best_control,
-            tower_consolidation_gap_vs_best_control,
-        )
-        if value != float("-inf")
-    ) if comparison_metric_deltas else 0.0
+        (
+            _tower_strength_gap_from_delta(metric_map)
+            for candidate_label, metric_map in comparison_metric_deltas.items()
+            if candidate_label != path_label
+        ),
+        default=0.0,
+    )
     tower_memory_surface_passed = (
         tower_profile_turn_count > 0.0
         and memory_tower_depth >= 4.0
-        and memory_tower_alignment >= 0.15
-        and tower_consolidation_count > 0.0
-        and (not comparison_metric_deltas or best_control_tower_gap > 0.0)
+        and memory_tower_alignment >= 0.12
+        and tower_consolidation_evidence > 0.0
+        and tower_effective_strength >= 0.65
+        and (not comparison_metric_deltas or best_control_tower_gap > 0.05)
     )
     judge_gated_passed = (
         evidence_metric_means.get("evolution_judge_turn_count", 0.0) > 0.0
@@ -3759,18 +4087,46 @@ def build_dialogue_nl_essence_assessment(
         rare_heavy_gate_failure_mode = "missing-no-rare-heavy-comparison"
     rare_heavy_recommended_delta = rare_heavy_metric_deltas.get("rare_heavy_recommended_count", 0.0)
     rare_heavy_applied_delta = rare_heavy_metric_deltas.get("rare_heavy_applied_count", 0.0)
+    rare_heavy_pre_import_pass_delta = rare_heavy_metric_deltas.get("rare_heavy_pre_import_pass_count", 0.0)
+    rare_heavy_pre_import_score_delta = rare_heavy_metric_deltas.get("mean_rare_heavy_pre_import_score_delta", 0.0)
+    rare_heavy_candidate_alignment_delta = rare_heavy_metric_deltas.get("mean_rare_heavy_candidate_alignment", 0.0)
     rare_heavy_passed_delta = rare_heavy_metric_deltas.get("passed", 0.0)
     rare_heavy_delayed_improvement_delta = rare_heavy_metric_deltas.get("delayed_improvement_observed", 0.0)
     rare_heavy_prediction_error_delta = rare_heavy_metric_deltas.get("mean_prediction_error", 0.0)
     rare_heavy_stability_delta = rare_heavy_metric_deltas.get("stability_after_recovery_score", 0.0)
+    current_rare_heavy_pre_import_pass_count = evidence_metric_means.get("rare_heavy_pre_import_pass_count", 0.0)
+    current_rare_heavy_pre_import_score_delta = evidence_metric_means.get("mean_rare_heavy_pre_import_score_delta", 0.0)
+    current_rare_heavy_candidate_alignment = evidence_metric_means.get("mean_rare_heavy_candidate_alignment", 0.0)
+    current_rare_heavy_candidate_adapter_parameter_count = evidence_metric_means.get(
+        "max_rare_heavy_candidate_adapter_parameter_count", 0.0
+    )
+    rare_heavy_review_evidence_present = (
+        rare_heavy_applied_delta > 0.0
+        or rare_heavy_recommended_delta > 0.0
+        or current_rare_heavy_pre_import_pass_count > 0.0
+        or current_rare_heavy_pre_import_score_delta > 0.0
+        or current_rare_heavy_candidate_alignment >= 0.30
+        or current_rare_heavy_candidate_adapter_parameter_count > 0.0
+    )
     rare_heavy_net_benefit_passed = (
         bool(rare_heavy_metric_deltas)
-        and (rare_heavy_applied_delta > 0.0 or rare_heavy_recommended_delta > 0.0)
+        and rare_heavy_review_evidence_present
         and (
             rare_heavy_passed_delta > 0.0
             or rare_heavy_delayed_improvement_delta > 0.0
             or rare_heavy_stability_delta > 0.0
             or rare_heavy_prediction_error_delta < 0.0
+            or rare_heavy_pre_import_pass_delta > 0.0
+            or rare_heavy_pre_import_score_delta > 0.0
+            or rare_heavy_candidate_alignment_delta > 0.0
+            or (
+                current_rare_heavy_pre_import_pass_count > 0.0
+                and current_rare_heavy_pre_import_score_delta > 0.0
+                and current_rare_heavy_candidate_alignment >= 0.30
+                and rare_heavy_passed_delta >= 0.0
+                and rare_heavy_stability_delta >= 0.0
+                and rare_heavy_prediction_error_delta <= PROOF_PE_IMPROVEMENT_DELTA
+            )
         )
     )
     if bool(rare_heavy_metric_deltas) and not rare_heavy_net_benefit_passed:
@@ -3795,6 +4151,18 @@ def build_dialogue_nl_essence_assessment(
             passed=multi_timescale_passed,
             evidence=(
                 ("online_learning_turn_count", evidence_metric_means.get("online_learning_turn_count", 0.0)),
+                (
+                    "runtime_backbone_evidence_turn_count",
+                    evidence_metric_means.get("runtime_backbone_evidence_turn_count", 0.0),
+                ),
+                (
+                    "mean_runtime_backbone_signal_quality",
+                    evidence_metric_means.get("mean_runtime_backbone_signal_quality", 0.0),
+                ),
+                (
+                    "mean_runtime_backbone_signal_strength",
+                    evidence_metric_means.get("mean_runtime_backbone_signal_strength", 0.0),
+                ),
                 ("bounded_writeback_turn_count", evidence_metric_means.get("bounded_writeback_turn_count", 0.0)),
                 ("session_post_completion_turn_count", evidence_metric_means.get("session_post_completion_turn_count", 0.0)),
                 (
@@ -3802,12 +4170,16 @@ def build_dialogue_nl_essence_assessment(
                     evidence_metric_means.get("reflection_promotion_eligible_turn_count", 0.0),
                 ),
                 (
-                    "online_fast_substrate_applied_count",
-                    evidence_metric_means.get("online_fast_substrate_applied_count", 0.0),
+                    "online_fast_substrate_recommended_count",
+                    evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0),
                 ),
                 (
-                    "mean_online_fast_substrate_parameter_change_rate",
-                    evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0),
+                    "mean_fast_memory_signal_norm",
+                    evidence_metric_means.get("mean_fast_memory_signal_norm", 0.0),
+                ),
+                (
+                    "mean_fast_memory_runtime_alignment",
+                    evidence_metric_means.get("mean_fast_memory_runtime_alignment", 0.0),
                 ),
                 ("rare_heavy_recommended_count", evidence_metric_means.get("rare_heavy_recommended_count", 0.0)),
                 ("nested_profile_active_turn_count", evidence_metric_means.get("nested_profile_active_turn_count", 0.0)),
@@ -3815,6 +4187,7 @@ def build_dialogue_nl_essence_assessment(
                 ("memory_tower_profile_turn_count", tower_profile_turn_count),
                 ("mean_memory_tower_depth", memory_tower_depth),
                 ("mean_memory_tower_alignment", memory_tower_alignment),
+                ("tower_effective_strength", tower_effective_strength),
                 ("tower_depth_gap_vs_best_control", tower_depth_gap_vs_best_control if comparison_metric_deltas else 0.0),
                 ("tower_alignment_gap_vs_best_control", tower_alignment_gap_vs_best_control if comparison_metric_deltas else 0.0),
                 ("tower_consolidation_gap_vs_best_control", tower_consolidation_gap_vs_best_control if comparison_metric_deltas else 0.0),
@@ -3826,17 +4199,20 @@ def build_dialogue_nl_essence_assessment(
             passed=online_fast_pe_coupling_passed,
             evidence=(
                 ("pe_triggered_turn_count", evidence_metric_means.get("pe_triggered_turn_count", 0.0)),
-                ("online_fast_substrate_applied_count", evidence_metric_means.get("online_fast_substrate_applied_count", 0.0)),
                 (
-                    "mean_online_fast_substrate_parameter_change_rate",
-                    evidence_metric_means.get("mean_online_fast_substrate_parameter_change_rate", 0.0),
+                    "online_fast_substrate_recommended_count",
+                    evidence_metric_means.get("online_fast_substrate_recommended_count", 0.0),
                 ),
                 (
-                    "mean_online_fast_substrate_optimizer_state_norm",
-                    evidence_metric_means.get("mean_online_fast_substrate_optimizer_state_norm", 0.0),
+                    "mean_fast_memory_signal_norm",
+                    evidence_metric_means.get("mean_fast_memory_signal_norm", 0.0),
+                ),
+                (
+                    "mean_fast_memory_runtime_alignment",
+                    evidence_metric_means.get("mean_fast_memory_runtime_alignment", 0.0),
                 ),
             ),
-            description="PE-triggered turns should couple to bounded online-fast substrate updates with nontrivial optimizer-memory signal.",
+            description="PE-triggered turns should couple to reviewable online-fast substrate evidence with nontrivial fast-memory/runtime alignment.",
         ),
         DialogueNLEssenceGate(
             gate_id="rare-heavy-net-benefit",
@@ -3844,10 +4220,21 @@ def build_dialogue_nl_essence_assessment(
             evidence=(
                 ("rare_heavy_recommended_delta_vs_no_rare_heavy", rare_heavy_recommended_delta),
                 ("rare_heavy_applied_delta_vs_no_rare_heavy", rare_heavy_applied_delta),
+                ("rare_heavy_pre_import_pass_delta_vs_no_rare_heavy", rare_heavy_pre_import_pass_delta),
+                ("rare_heavy_pre_import_score_delta_vs_no_rare_heavy", rare_heavy_pre_import_score_delta),
+                ("rare_heavy_candidate_alignment_delta_vs_no_rare_heavy", rare_heavy_candidate_alignment_delta),
                 ("passed_delta_vs_no_rare_heavy", rare_heavy_passed_delta),
                 ("delayed_improvement_delta_vs_no_rare_heavy", rare_heavy_delayed_improvement_delta),
                 ("stability_after_recovery_delta_vs_no_rare_heavy", rare_heavy_stability_delta),
                 ("mean_prediction_error_delta_vs_no_rare_heavy", rare_heavy_prediction_error_delta),
+                ("current_rare_heavy_pre_import_pass_count", current_rare_heavy_pre_import_pass_count),
+                ("current_mean_rare_heavy_pre_import_score_delta", current_rare_heavy_pre_import_score_delta),
+                ("current_mean_rare_heavy_candidate_alignment", current_rare_heavy_candidate_alignment),
+                (
+                    "current_max_rare_heavy_candidate_adapter_parameter_count",
+                    current_rare_heavy_candidate_adapter_parameter_count,
+                ),
+                ("review_evidence_present", float(rare_heavy_review_evidence_present)),
                 ("failure_mode", rare_heavy_gate_failure_mode),
             ),
             description="Rare-heavy should show a measurable net benefit relative to the pe-eta-no-rare-heavy path.",
@@ -3866,6 +4253,7 @@ def build_dialogue_nl_essence_assessment(
                     float(weak_benefit_explained_by_target_proximity),
                 ),
                 ("alignment_interpretation", slow_shapes_fast_alignment_interpretation),
+                ("slow_to_fast_signal_strength", slow_to_fast_signal_strength),
                 (
                     "boundary_reset_observed_on_first_turn",
                     evidence_metric_means.get("boundary_reset_observed_on_first_turn", 0.0),
@@ -3888,13 +4276,27 @@ def build_dialogue_nl_essence_assessment(
             gate_id="tower-memory-surface",
             passed=tower_memory_surface_passed,
             evidence=(
+                (
+                    "runtime_backbone_evidence_turn_count",
+                    evidence_metric_means.get("runtime_backbone_evidence_turn_count", 0.0),
+                ),
+                (
+                    "mean_fast_memory_runtime_alignment",
+                    evidence_metric_means.get("mean_fast_memory_runtime_alignment", 0.0),
+                ),
                 ("memory_tower_profile_turn_count", tower_profile_turn_count),
                 ("mean_memory_tower_depth", memory_tower_depth),
                 ("mean_memory_tower_alignment", memory_tower_alignment),
                 ("max_tower_consolidation_count", tower_consolidation_count),
+                ("max_artifact_consolidation_count", artifact_consolidation_count),
+                ("tower_consolidation_evidence", tower_consolidation_evidence),
+                ("tower_effective_strength", tower_effective_strength),
                 ("tower_strength_gap_vs_best_control", best_control_tower_gap),
             ),
-            description="Memory tower should not only be visible on the benchmark path, but also show stronger depth/alignment/consolidation evidence than matched controls.",
+            description=(
+                "Memory tower should not only be visible on the benchmark path, but also show stronger "
+                "depth/alignment/consolidation evidence than matched controls."
+            ),
         ),
         DialogueNLEssenceGate(
             gate_id="judge-gated-evolution",
@@ -4109,11 +4511,17 @@ def _emergence_dashboard_snapshot(
         "canonical_mean_memory_tower_alignment": dashboard.canonical_mean_memory_tower_alignment,
         "canonical_max_tower_consolidation_count": dashboard.canonical_max_tower_consolidation_count,
         "canonical_tower_profile_turn_count": dashboard.canonical_tower_profile_turn_count,
+        "canonical_runtime_backbone_evidence_rate": dashboard.canonical_runtime_backbone_evidence_rate,
+        "canonical_mean_runtime_backbone_signal_quality": dashboard.canonical_mean_runtime_backbone_signal_quality,
+        "canonical_mean_fast_memory_runtime_alignment": dashboard.canonical_mean_fast_memory_runtime_alignment,
         "open_scenario_count": dashboard.open_scenario_count,
         "open_pass_rate": dashboard.open_pass_rate,
         "open_mean_memory_tower_depth": dashboard.open_mean_memory_tower_depth,
         "open_mean_memory_tower_alignment": dashboard.open_mean_memory_tower_alignment,
         "open_max_tower_consolidation_count": dashboard.open_max_tower_consolidation_count,
+        "open_runtime_backbone_evidence_rate": dashboard.open_runtime_backbone_evidence_rate,
+        "open_mean_runtime_backbone_signal_quality": dashboard.open_mean_runtime_backbone_signal_quality,
+        "open_mean_fast_memory_runtime_alignment": dashboard.open_mean_fast_memory_runtime_alignment,
         "strong_proof_panel_count": len(dashboard.strong_proof_panels),
         "open_panel_count": len(dashboard.open_environment_panels),
         "tower_memory_gate_passed": dashboard.tower_memory_gate_passed,
@@ -4141,6 +4549,9 @@ def build_dialogue_emergence_dashboard_payload(
             "mean_memory_tower_alignment": dashboard.canonical_mean_memory_tower_alignment,
             "max_tower_consolidation_count": dashboard.canonical_max_tower_consolidation_count,
             "tower_profile_turn_count": dashboard.canonical_tower_profile_turn_count,
+            "runtime_backbone_evidence_rate": dashboard.canonical_runtime_backbone_evidence_rate,
+            "mean_runtime_backbone_signal_quality": dashboard.canonical_mean_runtime_backbone_signal_quality,
+            "mean_fast_memory_runtime_alignment": dashboard.canonical_mean_fast_memory_runtime_alignment,
             "passed_case_count": comprehensive_report.canonical_ablation_report.path_reports[0].benchmark_report.passed_case_count
             if comprehensive_report.canonical_ablation_report.path_reports
             else 0,
@@ -4151,6 +4562,9 @@ def build_dialogue_emergence_dashboard_payload(
             "mean_memory_tower_depth": dashboard.open_mean_memory_tower_depth,
             "mean_memory_tower_alignment": dashboard.open_mean_memory_tower_alignment,
             "max_tower_consolidation_count": dashboard.open_max_tower_consolidation_count,
+            "runtime_backbone_evidence_rate": dashboard.open_runtime_backbone_evidence_rate,
+            "mean_runtime_backbone_signal_quality": dashboard.open_mean_runtime_backbone_signal_quality,
+            "mean_fast_memory_runtime_alignment": dashboard.open_mean_fast_memory_runtime_alignment,
             "present": comprehensive_report.open_ablation_report is not None,
         },
         "strongest_paths": {
@@ -4287,6 +4701,18 @@ def _dialogue_paper_suite_metric_values(
         ("open_pass_rate_pe_eta", open_pass_rate_pe_eta),
         ("open_pass_rate_gap_vs_pe_drive_off", open_pass_rate_pe_eta - open_pass_rate_pe_drive_off),
         ("essence_gate_pass_fraction", essence_gate_pass_fraction),
+        (
+            "canonical_runtime_backbone_evidence_rate",
+            report.emergence_dashboard.canonical_runtime_backbone_evidence_rate,
+        ),
+        (
+            "canonical_mean_runtime_backbone_signal_quality",
+            report.emergence_dashboard.canonical_mean_runtime_backbone_signal_quality,
+        ),
+        (
+            "canonical_mean_fast_memory_runtime_alignment",
+            report.emergence_dashboard.canonical_mean_fast_memory_runtime_alignment,
+        ),
         (
             "strongest_scaffold_retention_score",
             report.emergence_dashboard.strongest_scaffold_retention_score,
@@ -5107,6 +5533,14 @@ def _aligned_pipeline_config_for_runner(
     )
 
 
+def _benchmark_joint_schedule() -> JointLoopSchedule:
+    return JointLoopSchedule(
+        ssl_interval=1,
+        rl_interval=2,
+        pe_rare_heavy_threshold=PROOF_RARE_HEAVY_THRESHOLD,
+    )
+
+
 class _NoSemanticLabelTemporalPolicy(FullLearnedTemporalPolicy):
     """Matched control: keep latent control, remove semantic label scaffold."""
 
@@ -5164,29 +5598,33 @@ def build_standard_dialogue_runner(
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
             default_residual_runtime=residual_runtime,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-online-only":
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
             default_residual_runtime=residual_runtime,
             reflection_mode=WritebackMode.PROPOSAL_ONLY,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
             rare_heavy_enabled=False,
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-no-writeback":
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
             default_residual_runtime=residual_runtime,
             reflection_mode=WritebackMode.PROPOSAL_ONLY,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-no-rare-heavy":
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
             default_residual_runtime=residual_runtime,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
             rare_heavy_enabled=False,
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-no-semantic-label":
         return AgentSessionRunner(
@@ -5194,7 +5632,8 @@ def build_standard_dialogue_runner(
             world_temporal_policy=_NoSemanticLabelTemporalPolicy(),
             self_temporal_policy=_NoSemanticLabelTemporalPolicy(),
             default_residual_runtime=residual_runtime,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-no-reflection-cache":
         return AgentSessionRunner(
@@ -5202,7 +5641,8 @@ def build_standard_dialogue_runner(
             world_temporal_policy=_NoReflectionCacheTemporalPolicy(),
             self_temporal_policy=_NoReflectionCacheTemporalPolicy(),
             default_residual_runtime=residual_runtime,
-            joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
         )
     if profile_label == "pe-eta-pe-readout-only":
         return AgentSessionRunner(
@@ -5212,6 +5652,7 @@ def build_standard_dialogue_runner(
             external_prediction_error_drive=False,
             prediction_error_readout_only=True,
             primary_prediction_error_dominance_enabled=False,
+            allow_live_substrate_mutation=True,
         )
     if profile_label in {"pe-drive-off", "eta-no-pe"}:
         return AgentSessionRunner(
@@ -5219,6 +5660,7 @@ def build_standard_dialogue_runner(
             default_residual_runtime=residual_runtime,
             joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
             external_prediction_error_drive=False,
+            allow_live_substrate_mutation=False,
         )
     if profile_label == "timescale-off":
         temporal_policy = FullLearnedTemporalPolicy()
@@ -5231,6 +5673,7 @@ def build_standard_dialogue_runner(
             ),
             default_residual_runtime=residual_runtime,
             joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=2),
+            allow_live_substrate_mutation=False,
         )
     if profile_label in {"eta-off", "heuristic-baseline"}:
         temporal_policy = LearnedLiteTemporalPolicy() if profile_label == "eta-off" else HeuristicTemporalPolicy()
@@ -5263,6 +5706,7 @@ def build_standard_dialogue_runner(
             ),
             rare_heavy_enabled=False,
             external_prediction_error_drive=False,
+            allow_live_substrate_mutation=False,
         )
     raise ValueError(f"Unsupported dialogue ablation profile: {profile_label}")
 

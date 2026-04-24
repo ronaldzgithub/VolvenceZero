@@ -36,6 +36,9 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     TransformersOpenWeightResidualRuntime,
 )
+from volvence_zero.temporal import DualTrackRareHeavySnapshot, FullLearnedTemporalPolicy
+from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
+from volvence_zero.substrate import build_training_trace
 
 
 def test_agent_session_runner_executes_single_turn():
@@ -145,6 +148,69 @@ def test_agent_session_runner_defaults_self_temporal_to_cloned_discovered_lineag
     assert world_snapshot == self_snapshot
     assert runner._world_temporal_policy is not runner._self_temporal_policy
     assert runner._world_temporal_policy.parameter_store is not runner._self_temporal_policy.parameter_store
+
+
+def test_agent_session_runner_prefers_bootstrap_snapshot_over_seed_default() -> None:
+    trainer = MetacontrollerSSLTrainer()
+    source_policy = FullLearnedTemporalPolicy()
+    source_policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+    trainer.optimize(
+        policy=source_policy,
+        trace=build_training_trace(
+            trace_id="runner-bootstrap",
+            source_text="repair the tension and continue with steady support",
+        ),
+    )
+    source_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+    bootstrap_snapshot = source_policy.export_rare_heavy_snapshot()
+
+    runner = AgentSessionRunner(
+        session_id="bootstrap-default-temporal",
+        temporal_bootstrap=bootstrap_snapshot,
+    )
+
+    assert runner._world_temporal_policy.export_rare_heavy_snapshot() == bootstrap_snapshot
+    assert runner._self_temporal_policy.export_rare_heavy_snapshot() == bootstrap_snapshot
+    assert runner._world_temporal_policy.parameter_store.learning_phase == "runtime"
+    assert runner._world_temporal_policy.parameter_store.structure_frozen is True
+
+
+def test_agent_session_runner_accepts_dual_track_bootstrap_snapshot() -> None:
+    trainer = MetacontrollerSSLTrainer()
+    world_policy = FullLearnedTemporalPolicy()
+    self_policy = FullLearnedTemporalPolicy()
+    for policy, trace_id, source_text in (
+        (
+            world_policy,
+            "runner-bootstrap-world",
+            "repair the planning pressure and stabilize the route",
+        ),
+        (
+            self_policy,
+            "runner-bootstrap-self",
+            "stay warm, relational, and repair the interaction carefully",
+        ),
+    ):
+        policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+        trainer.optimize(
+            policy=policy,
+            trace=build_training_trace(trace_id=trace_id, source_text=source_text),
+        )
+        policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+    dual_bootstrap = DualTrackRareHeavySnapshot(
+        world_snapshot=world_policy.export_rare_heavy_snapshot(),
+        self_snapshot=self_policy.export_rare_heavy_snapshot(),
+        description="dual bootstrap for session runner",
+    )
+
+    runner = AgentSessionRunner(
+        session_id="dual-bootstrap-default-temporal",
+        temporal_bootstrap=dual_bootstrap,
+    )
+
+    assert runner._world_temporal_policy.export_rare_heavy_snapshot() == dual_bootstrap.world_snapshot
+    assert runner._self_temporal_policy.export_rare_heavy_snapshot() == dual_bootstrap.self_snapshot
+    assert runner._world_temporal_policy.export_rare_heavy_snapshot() != runner._self_temporal_policy.export_rare_heavy_snapshot()
 
 
 def test_agent_session_runner_returns_user_visible_response():
@@ -886,7 +952,7 @@ def test_multi_turn_rl_loop_produces_policy_changes():
     )
 
 
-def test_agent_session_runner_keeps_rare_heavy_review_only_when_high_pe_persists():
+def test_agent_session_runner_imports_rare_heavy_by_default_when_high_pe_persists():
     runner = AgentSessionRunner(
         session_id="rare-heavy-session",
         joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
@@ -934,13 +1000,13 @@ def test_agent_session_runner_keeps_rare_heavy_review_only_when_high_pe_persists
 
     assert result.rare_heavy_result is not None
     assert result.rare_heavy_result.recommended is True
-    assert result.rare_heavy_result.applied is False
+    assert result.rare_heavy_result.applied is True
     assert result.rare_heavy_result.artifact_id is not None
-    assert result.rare_heavy_result.applied_operations == ()
-    assert result.rare_heavy_result.substrate_status == "review-only"
+    assert "rare-heavy:substrate-import" in result.rare_heavy_result.applied_operations
+    assert result.rare_heavy_result.substrate_status == "imported"
     assert result.rare_heavy_result.substrate_training_mode == "adapter-delta-v2"
-    assert result.rare_heavy_result.import_decision == "blocked-by-doctrine"
-    assert result.rare_heavy_result.reject_reason == "frozen-substrate-doctrine"
+    assert result.rare_heavy_result.import_decision == "imported"
+    assert result.rare_heavy_result.reject_reason == ""
     assert result.rare_heavy_result.pre_import_passed is True
     assert result.rare_heavy_result.pre_import_case_count >= 1
     assert result.rare_heavy_result.bundle_trace_count >= 2
@@ -1006,7 +1072,7 @@ def test_agent_session_runner_rejects_rare_heavy_candidate_when_preimport_replay
     assert result.rare_heavy_result.pre_import_mean_score_delta < 0.0
 
 
-def test_agent_session_runner_keeps_online_fast_substrate_self_mod_review_only_by_default():
+def test_agent_session_runner_applies_online_fast_substrate_self_mod_by_default():
     runner = AgentSessionRunner(
         session_id="online-fast-session",
         joint_schedule=JointLoopSchedule(
@@ -1035,21 +1101,25 @@ def test_agent_session_runner_keeps_online_fast_substrate_self_mod_review_only_b
 
     assert result.online_fast_substrate_result is not None
     assert result.online_fast_substrate_result.recommended is True
-    assert result.online_fast_substrate_result.applied is False
-    assert result.online_fast_substrate_result.applied_operations == ()
-    assert result.online_fast_substrate_result.blocked_operations == ("online-fast:frozen-substrate-doctrine",)
-    assert result.online_fast_substrate_result.gate_decision == "frozen-substrate-doctrine"
+    assert result.online_fast_substrate_result.applied is True
+    assert "online-fast:substrate-import" in result.online_fast_substrate_result.applied_operations
+    assert result.online_fast_substrate_result.blocked_operations == ()
+    assert result.online_fast_substrate_result.gate_decision == "allow"
     assert result.online_fast_substrate_result.checkpoint_id
     assert result.online_fast_substrate_result.fast_state_hash
     assert result.online_fast_substrate_result.fast_memory_signal
+    memory_metrics = dict(result.active_snapshots["memory"].value.lifecycle_metrics)
+    assert memory_metrics["fast_memory_signal_count"] >= 1.0
+    assert memory_metrics["last_fast_memory_signal_norm"] > 0.0
+    assert memory_metrics["last_fast_memory_runtime_alignment"] >= 0.0
     assert "substrate_self_mod" in result.active_snapshots
     modification_targets = {record.target for record in result.active_snapshots["credit"].value.recent_modifications}
     assert "substrate.online_fast.delta" in modification_targets
 
 
-def test_agent_session_runner_can_opt_into_experimental_live_substrate_mutation():
+def test_agent_session_runner_keeps_online_fast_substrate_self_mod_review_only_when_explicitly_frozen():
     runner = AgentSessionRunner(
-        session_id="online-fast-session-experimental",
+        session_id="online-fast-session-frozen",
         joint_schedule=JointLoopSchedule(
             ssl_interval=99,
             rl_interval=99,
@@ -1057,13 +1127,10 @@ def test_agent_session_runner_can_opt_into_experimental_live_substrate_mutation(
             pe_substrate_online_fast_threshold=0.18,
         ),
         rare_heavy_enabled=False,
-        default_residual_runtime=SyntheticOpenWeightResidualRuntime(
-            model_id="online-fast-session-experimental-runtime",
-            allow_live_substrate_mutation=True,
-        ),
+        allow_live_substrate_mutation=False,
     )
 
-    asyncio.run(runner.run_turn("Seed substrate for experimental online-fast self-mod."))
+    asyncio.run(runner.run_turn("Seed substrate for explicitly frozen online-fast self-mod."))
     runner._previous_prediction_reward = -0.25
     runner._previous_prediction_magnitude = 0.45
     runner._previous_prediction_error = PredictionError(
@@ -1073,15 +1140,200 @@ def test_agent_session_runner_can_opt_into_experimental_live_substrate_mutation(
         action_error=0.3,
         magnitude=0.45,
         signed_reward=-0.25,
-        description="Moderate prediction error should trigger experimental online-fast substrate self-mod.",
+        description="Moderate prediction error should trigger online-fast substrate self-mod.",
     )
 
-    result = asyncio.run(runner.run_turn("Continue after the moderate-error turn in experimental mode."))
+    result = asyncio.run(runner.run_turn("Continue after the moderate-error turn with frozen doctrine."))
 
     assert result.online_fast_substrate_result is not None
     assert result.online_fast_substrate_result.recommended is True
-    assert result.online_fast_substrate_result.applied is True
-    assert "online-fast:substrate-import" in result.online_fast_substrate_result.applied_operations
+    assert result.online_fast_substrate_result.applied is False
+    assert result.online_fast_substrate_result.applied_operations == ()
+    assert result.online_fast_substrate_result.blocked_operations == ("online-fast:frozen-substrate-doctrine",)
+    assert result.online_fast_substrate_result.gate_decision == "frozen-substrate-doctrine"
+
+
+def test_agent_session_runner_keeps_rare_heavy_review_only_when_explicitly_frozen():
+    runner = AgentSessionRunner(
+        session_id="rare-heavy-session-frozen",
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+        rare_heavy_trace_window=2,
+        rare_heavy_min_traces=2,
+        rare_heavy_cooldown_turns=0,
+        rare_heavy_pipeline_config=PipelineConfig(
+            n_z=3,
+            ssl_min_steps=1,
+            ssl_max_steps=1,
+            rl_max_steps=1,
+        ),
+        allow_live_substrate_mutation=False,
+    )
+
+    asyncio.run(runner.run_turn("Seed the first trace for frozen rare-heavy review."))
+
+    async def _accept_candidate(self, *, artifact, bundle):
+        del artifact, bundle
+        return RareHeavyPreImportEvaluation(
+            accepted=True,
+            case_count=2,
+            baseline_mean_score=0.55,
+            candidate_mean_score=0.60,
+            mean_score_delta=0.05,
+            worst_score_delta=0.01,
+            positive_fraction=1.0,
+            judgement="promote",
+            reasons=(),
+            description="Forced pre-import acceptance so explicit frozen mode remains the deciding gate.",
+        )
+
+    runner._evaluate_rare_heavy_candidate = types.MethodType(_accept_candidate, runner)
+    runner._previous_prediction_reward = -0.7
+    runner._previous_prediction_magnitude = 1.35
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.9,
+        relationship_error=0.6,
+        regime_error=0.4,
+        action_error=0.8,
+        magnitude=1.35,
+        signed_reward=-0.7,
+        description="Persistent high prediction error should trigger rare-heavy import.",
+    )
+
+    result = asyncio.run(runner.run_turn("Continue after the high-error turn under explicit frozen mode."))
+
+    assert result.rare_heavy_result is not None
+    assert result.rare_heavy_result.recommended is True
+    assert result.rare_heavy_result.applied is False
+    assert result.rare_heavy_result.artifact_id is not None
+    assert result.rare_heavy_result.applied_operations == ()
+    assert result.rare_heavy_result.substrate_status == "review-only"
+    assert result.rare_heavy_result.import_decision == "blocked-by-doctrine"
+    assert result.rare_heavy_result.reject_reason == "frozen-substrate-doctrine"
+
+
+def test_agent_session_runner_rolls_back_online_fast_substrate_after_delayed_alert():
+    runner = AgentSessionRunner(
+        session_id="online-fast-delayed-rollback",
+        joint_schedule=JointLoopSchedule(
+            ssl_interval=99,
+            rl_interval=99,
+            pe_full_cycle_threshold=0.6,
+            pe_substrate_online_fast_threshold=0.18,
+        ),
+        rare_heavy_enabled=False,
+    )
+
+    asyncio.run(runner.run_turn("Seed substrate for delayed online-fast rollback."))
+    runtime = runner.residual_runtime
+    before = runtime.capture(source_text="stabilize then continue carefully")
+    runner._previous_prediction_reward = -0.25
+    runner._previous_prediction_magnitude = 0.45
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.35,
+        relationship_error=0.2,
+        regime_error=0.15,
+        action_error=0.3,
+        magnitude=0.45,
+        signed_reward=-0.25,
+        description="Moderate prediction error should trigger online-fast substrate self-mod.",
+    )
+
+    apply_result = asyncio.run(runner.run_turn("Apply online-fast substrate self-mod before delayed rollback."))
+    after_apply = runtime.capture(source_text="stabilize then continue carefully")
+
+    assert apply_result.online_fast_substrate_result is not None
+    assert apply_result.online_fast_substrate_result.applied is True
+    assert after_apply.residual_activations != before.residual_activations
+
+    def _force_rollback(self, *, integration_result):
+        del integration_result
+        return ("HIGH: forced delayed online-fast rollback",)
+
+    runner._delayed_substrate_rollback_reasons = types.MethodType(_force_rollback, runner)
+    runner._previous_prediction_reward = 0.0
+    runner._previous_prediction_magnitude = 0.0
+    runner._previous_prediction_error = None
+    rollback_turn = asyncio.run(runner.run_turn("Force the delayed online-fast rollback on the following turn."))
+    after_rollback = runtime.capture(source_text="stabilize then continue carefully")
+
+    assert after_rollback.residual_activations == before.residual_activations
+    eval_metrics = {score.metric_name: score.value for score in rollback_turn.active_snapshots["evaluation"].value.turn_scores}
+    assert eval_metrics["substrate_delayed_rollback_applied"] == 1.0
+
+
+def test_agent_session_runner_rolls_back_rare_heavy_import_after_delayed_alert():
+    runner = AgentSessionRunner(
+        session_id="rare-heavy-delayed-rollback",
+        joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
+        rare_heavy_trace_window=2,
+        rare_heavy_min_traces=2,
+        rare_heavy_cooldown_turns=0,
+        rare_heavy_pipeline_config=PipelineConfig(
+            n_z=3,
+            ssl_min_steps=1,
+            ssl_max_steps=1,
+            rl_max_steps=1,
+        ),
+    )
+
+    asyncio.run(runner.run_turn("Seed the first trace for delayed rare-heavy rollback."))
+
+    async def _accept_candidate(self, *, artifact, bundle):
+        del artifact, bundle
+        return RareHeavyPreImportEvaluation(
+            accepted=True,
+            case_count=2,
+            baseline_mean_score=0.55,
+            candidate_mean_score=0.60,
+            mean_score_delta=0.05,
+            worst_score_delta=0.01,
+            positive_fraction=1.0,
+            judgement="promote",
+            reasons=(),
+            description="Forced pre-import acceptance for delayed rollback coverage.",
+        )
+
+    runner._evaluate_rare_heavy_candidate = types.MethodType(_accept_candidate, runner)
+    runtime = runner.residual_runtime
+    before = runtime.capture(source_text="repair then continue steadily")
+    before_temporal = runner._joint_loop.temporal_policy.export_parameters()
+    runner._previous_prediction_reward = -0.7
+    runner._previous_prediction_magnitude = 1.35
+    runner._previous_prediction_error = PredictionError(
+        task_error=0.9,
+        relationship_error=0.6,
+        regime_error=0.4,
+        action_error=0.8,
+        magnitude=1.35,
+        signed_reward=-0.7,
+        description="Persistent high prediction error should trigger rare-heavy import.",
+    )
+
+    import_result = asyncio.run(runner.run_turn("Import rare-heavy artifact before delayed rollback."))
+    after_import = runtime.capture(source_text="repair then continue steadily")
+    after_temporal = runner._joint_loop.temporal_policy.export_parameters()
+
+    assert import_result.rare_heavy_result is not None
+    assert import_result.rare_heavy_result.applied is True
+    assert after_import.residual_activations != before.residual_activations
+    assert after_temporal != before_temporal
+
+    def _force_rollback(self, *, integration_result):
+        del integration_result
+        return ("CRITICAL: forced delayed rare-heavy rollback",)
+
+    runner._delayed_substrate_rollback_reasons = types.MethodType(_force_rollback, runner)
+    runner._previous_prediction_reward = 0.0
+    runner._previous_prediction_magnitude = 0.0
+    runner._previous_prediction_error = None
+    rollback_turn = asyncio.run(runner.run_turn("Force the delayed rare-heavy rollback on the following turn."))
+    after_rollback = runtime.capture(source_text="repair then continue steadily")
+    restored_temporal = runner._joint_loop.temporal_policy.export_parameters()
+
+    assert after_rollback.residual_activations == before.residual_activations
+    assert restored_temporal == before_temporal
+    eval_metrics = {score.metric_name: score.value for score in rollback_turn.active_snapshots["evaluation"].value.turn_scores}
+    assert eval_metrics["substrate_delayed_rollback_applied"] == 1.0
 
 
 def test_substrate_snapshot_used_for_next_turn_trace():
