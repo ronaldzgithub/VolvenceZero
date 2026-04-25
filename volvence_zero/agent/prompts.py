@@ -79,8 +79,38 @@ def build_system_prompt(
     guidance = REGIME_GUIDANCE.get(regime_id, REGIME_GUIDANCE["casual_social"])
     sections.append(f"Current mode: {regime_name}. {guidance}")
 
-    if assembly.prompt_residue_summary:
+    if assembly.prompt_residue_summary and assembly.expression_intent != "judgment-process":
         sections.append(assembly.prompt_residue_summary)
+
+    if assembly.expression_intent == "judgment-process":
+        focus = "; ".join(assembly.judgment_focus[:4])
+        focus_clause = f" Focus on: {focus}." if focus else ""
+        speech_plan = assembly.speech_plan
+        plan_clause = ""
+        if speech_plan is not None:
+            plan_clause = (
+                f" Use this speech plan as user-facing content: cue={speech_plan.cue}; "
+                f"inferred_need={speech_plan.inferred_need}; "
+                f"response_adjustment={speech_plan.response_adjustment}; "
+                f"question_budget={speech_plan.question_budget}."
+            )
+        sections.append(
+            "Expression intent: answer from the current judgment process in 2-3 compact natural sentences. "
+            "Do not use headings, labels, bullet points, or phrases like cue/inferred need/response adjustment. "
+            "Do not mention internal signals, reflections, modules, control paths, background cues, strategy cues, "
+            "telemetry, counts, or system bookkeeping. "
+            "Do not default to broad reassurance, generic therapy language, or asking for a new topic unless "
+            "a real missing detail blocks the answer."
+            + plan_clause
+            + focus_clause
+        )
+    elif assembly.speech_plan is not None:
+        speech_plan = assembly.speech_plan
+        sections.append(
+            f"Speech plan: cue={speech_plan.cue}; inferred_need={speech_plan.inferred_need}; "
+            f"response_adjustment={speech_plan.response_adjustment}; "
+            f"question_budget={speech_plan.question_budget}."
+        )
 
     if assembly.citation_mode == "required":
         sections.append(

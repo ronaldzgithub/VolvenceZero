@@ -730,6 +730,35 @@ def test_response_assembly_does_not_surface_low_relevance_boundary_residue():
     assert response_assembly.required_disclaimer_phrases == ()
 
 
+def test_response_assembly_marks_guided_exploration_for_judgment_process_expression():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="judgment-expression-substrate",
+                feature_surface=(FeatureSignal(name="exploration_signal", values=(0.82,), source="adapter"),),
+            ),
+            session_id="test-judgment-expression",
+            user_input=(
+                "I want to see whether you really have a thinking brain. "
+                "Tell me how you are judging what I need right now."
+            ),
+        )
+    )
+
+    response_assembly = result.active_snapshots["response_assembly"].value
+
+    assert response_assembly.regime_id == "guided_exploration"
+    assert response_assembly.expression_intent == "judgment-process"
+    assert response_assembly.judgment_focus
+    assert response_assembly.speech_plan is not None
+    assert response_assembly.speech_plan.cue
+    assert response_assembly.speech_plan.inferred_need
+    assert response_assembly.speech_plan.response_adjustment
+    assert response_assembly.speech_plan.question_budget == response_assembly.max_questions
+    assert "Expression focus" in response_assembly.prompt_residue_summary
+
+
 def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():
     baseline = asyncio.run(
         run_final_wiring_turn(

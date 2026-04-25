@@ -583,6 +583,16 @@ class ResponseMode(str, Enum):
 
 
 @dataclass(frozen=True)
+class ResponseSpeechPlan:
+    cue: str
+    inferred_need: str
+    response_adjustment: str
+    question_budget: int
+    required_steps: tuple[str, ...] = ()
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class ResponseAssemblySnapshot:
     regime_id: str | None
     regime_name: str
@@ -613,6 +623,9 @@ class ResponseAssemblySnapshot:
     semantic_record_counts: tuple[tuple[str, int], ...] = ()
     semantic_control_signal: float = 0.0
     semantic_residue_summary: str = ""
+    expression_intent: str = "direct-answer"
+    judgment_focus: tuple[str, ...] = ()
+    speech_plan: ResponseSpeechPlan | None = None
 
 
 def _dedupe(items: tuple[str, ...]) -> tuple[str, ...]:
@@ -1726,6 +1739,71 @@ def _prompt_residue_summary(
     prompt_signal_count = len(residue_parts)
     explicit_signal_count = 5
     return summary, _clamp(prompt_signal_count / max(prompt_signal_count + explicit_signal_count, 1))
+
+
+def _response_expression_intent(
+    *,
+    regime_id: str,
+    response_mode: ResponseMode,
+    temporal_snapshot: "TemporalAbstractionSnapshot | None",
+    semantic_control_signal: float,
+) -> tuple[str, tuple[str, ...]]:
+    focus: list[str] = []
+    if regime_id == "guided_exploration":
+        focus.extend(
+            [
+                "what cue in the user's message is driving the reply",
+                "what need the system is inferring right now",
+                "how the next sentence should adjust",
+            ]
+        )
+    if temporal_snapshot is not None and temporal_snapshot.active_abstract_action:
+        focus.append("how the active control frame changes the response")
+    if semantic_control_signal >= 0.18:
+        focus.append("which public semantic state should shape the answer")
+    if response_mode is ResponseMode.SUPPORT and focus:
+        focus.append("support only after the judgment basis is stated")
+    if not focus:
+        return "direct-answer", ()
+    return "judgment-process", _dedupe(tuple(focus))
+
+
+def _response_speech_plan(
+    *,
+    expression_intent: str,
+    response_mode: ResponseMode,
+    regime_name: str,
+    judgment_focus: tuple[str, ...],
+    clarification_required: bool,
+) -> ResponseSpeechPlan:
+    question_budget = 1 if clarification_required else 0
+    if expression_intent == "judgment-process":
+        return ResponseSpeechPlan(
+            cue="You are asking to see the judgment behind the reply, not just receive comfort.",
+            inferred_need=(
+                "You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance."
+            ),
+            response_adjustment=(
+                "I should name that cue, state the need I infer, and answer from that basis in a compact way."
+            ),
+            question_budget=question_budget,
+            required_steps=(
+                "state_visible_cue",
+                "state_inferred_need",
+                "state_response_adjustment",
+            ),
+            description=(
+                f"Speech plan for {regime_name}: judgment-process with {len(judgment_focus)} focus cues."
+            ),
+        )
+    return ResponseSpeechPlan(
+        cue=f"Current response mode is {response_mode.value}.",
+        inferred_need="Answer the latest user message directly within the current regime.",
+        response_adjustment="Keep the reply compact and aligned with the response ordering plan.",
+        question_budget=question_budget,
+        required_steps=("answer_directly",),
+        description=f"Speech plan for {regime_name}: direct answer.",
+    )
 
 
 class ApplicationRareHeavyState:
@@ -3228,6 +3306,28 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             if case_memory_snapshot is not None
             else ()
         )
+        expression_intent, judgment_focus = _response_expression_intent(
+            regime_id=regime_id,
+            response_mode=response_mode,
+            temporal_snapshot=temporal_snapshot,
+            semantic_control_signal=semantic_control,
+        )
+        clarification_required = (
+            boundary_expression_relevant
+            and boundary_policy_value.active_decision.clarification_required
+        )
+        speech_plan = _response_speech_plan(
+            expression_intent=expression_intent,
+            response_mode=response_mode,
+            regime_name=regime_value.active_regime.name,
+            judgment_focus=judgment_focus,
+            clarification_required=clarification_required,
+        )
+        if expression_intent == "judgment-process":
+            prompt_residue_summary = (
+                f"{prompt_residue_summary} Expression focus: show the current judgment basis before reassurance."
+            )
+            prompt_residue_ratio = _clamp(prompt_residue_ratio + 0.08)
         playbook_ordering = tuple(ordering_plan[:4])
         return self.publish(
             ResponseAssemblySnapshot(
@@ -3245,10 +3345,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                     if boundary_expression_relevant and boundary_policy_value.active_decision.citation_required
                     else "optional"
                 ),
-                clarification_required=(
-                    boundary_expression_relevant
-                    and boundary_policy_value.active_decision.clarification_required
-                ),
+                clarification_required=clarification_required,
                 refer_out_required=(
                     boundary_expression_relevant
                     and boundary_policy_value.active_decision.refer_out_required
@@ -3261,12 +3358,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 required_disclaimer_phrases=required_disclaimer_phrases,
                 control_code=control_code,
                 control_scale=control_scale,
-                max_questions=(
-                    1
-                    if boundary_expression_relevant
-                    and boundary_policy_value.active_decision.clarification_required
-                    else 0
-                ),
+                max_questions=speech_plan.question_budget,
                 prompt_residue_summary=prompt_residue_summary,
                 prompt_residue_ratio=prompt_residue_ratio,
                 knowledge_hit_count=len(domain_knowledge_snapshot.hits) if domain_knowledge_snapshot is not None else 0,
@@ -3282,13 +3374,17 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 semantic_record_counts=semantic_counts,
                 semantic_control_signal=semantic_control,
                 semantic_residue_summary=semantic_residue_summary,
+                expression_intent=expression_intent,
+                judgment_focus=judgment_focus,
+                speech_plan=speech_plan,
                 description=(
                     f"Response assembly published mode={response_mode.value} depth="
                     f"{boundary_policy_value.active_decision.answer_depth_limit} "
                     f"knowledge={len(knowledge_briefs)} case={len(case_briefs)} "
                     f"ordering={len(ordering_plan)} control_scale={control_scale:.2f} "
                     f"continuum_target={continuum_target_position:.2f} driver={ordering_driver} "
-                    f"semantic_control={semantic_control:.2f}."
+                    f"semantic_control={semantic_control:.2f} expression={expression_intent} "
+                    f"questions={speech_plan.question_budget}."
                 ),
             )
         )

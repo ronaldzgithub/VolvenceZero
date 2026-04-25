@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
-from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode, RiskBand
-from volvence_zero.agent.response import GenerationConstraints, LLMResponseSynthesizer, ResponseContext
+from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode, ResponseSpeechPlan, RiskBand
+from volvence_zero.agent.response import GenerationConstraints, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.credit import (
@@ -362,6 +362,87 @@ def test_transformers_runtime_support_first_trim_shortens_long_opening():
     assert len(trimmed) < 180
 
 
+def test_transformers_runtime_question_budget_zero_removes_question_tail():
+    runtime = TransformersOpenWeightResidualRuntime.__new__(TransformersOpenWeightResidualRuntime)
+    trimmed = runtime._apply_generation_constraints(
+        text="我看到你是在测试内部判断，所以我先说判断依据。要不要我再展开？",
+        constraints=GenerationConstraints(
+            response_mode="support",
+            answer_depth_limit="standard",
+            citation_mode="optional",
+            max_questions=0,
+            question_budget=0,
+        ),
+    )
+
+    assert trimmed == "我看到你是在测试内部判断，所以我先说判断依据。"
+
+
+def test_response_synthesizer_renders_judgment_speech_plan_without_telemetry():
+    synth = ResponseSynthesizer()
+    assembly = ResponseAssemblySnapshot(
+        regime_id="guided_exploration",
+        regime_name="guided exploration",
+        abstract_action="discovered_family_0",
+        response_mode=ResponseMode.SUPPORT,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=("state_judgment_basis", "state_next_adjustment"),
+        knowledge_briefs=("Relevant background",),
+        case_briefs=("similar case",),
+        playbook_ordering=("state_judgment_basis", "state_next_adjustment"),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="Current mode: guided exploration. Expression focus: show the current judgment basis.",
+        prompt_residue_ratio=0.42,
+        knowledge_hit_count=3,
+        case_hit_count=2,
+        playbook_rule_count=2,
+        risk_band=RiskBand.LOW,
+        description="assembly",
+        expression_intent="judgment-process",
+        judgment_focus=("what cue in the user's message is driving the reply",),
+        speech_plan=ResponseSpeechPlan(
+            cue="You are asking to see the judgment behind the reply, not just receive comfort.",
+            inferred_need="You need evidence that this answer is being shaped by the current conversation.",
+            response_adjustment="I should name that basis before I offer support.",
+            question_budget=0,
+        ),
+    )
+
+    response = synth.synthesize(
+        context=ResponseContext(
+            regime_id="guided_exploration",
+            regime_name="guided exploration",
+            regime_switched=True,
+            abstract_action="discovered_family_0",
+            alert_count=2,
+            temporal_switch_gate=0.8,
+            temporal_is_switching=True,
+            reflection_lesson_count=4,
+            reflection_tension_count=1,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson="promote_high_signal_memories",
+            primary_reflection_tension="cross_track_tension_high",
+            joint_schedule_action="ssl-only",
+            user_input="Show me how you judge what I need.",
+        ),
+        assembly=assembly,
+    )
+
+    assert "judgment behind the reply" in response.text
+    assert "current conversation" in response.text
+    assert "internal caution signals" not in response.text
+    assert "slower reflection" not in response.text
+    assert "background cue" not in response.text
+    assert "control path" not in response.text
+
+
 def test_system_prompt_explicitly_forbids_dialogue_continuation():
     assembly = ResponseAssemblySnapshot(
         regime_id="casual_social",
@@ -412,6 +493,76 @@ def test_system_prompt_explicitly_forbids_dialogue_continuation():
     assert "Reply as the assistant to the latest user message only." in prompt
     assert "Do not continue the conversation on behalf of the user." in prompt
     assert "Do not expose internal module names" in prompt
+
+
+def test_system_prompt_surfaces_judgment_process_expression_intent():
+    assembly = ResponseAssemblySnapshot(
+        regime_id="guided_exploration",
+        regime_name="guided exploration",
+        abstract_action="discovered_family_0",
+        response_mode=ResponseMode.SUPPORT,
+        answer_depth_limit="standard",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=("state_judgment_basis", "state_next_adjustment"),
+        knowledge_briefs=(),
+        case_briefs=(),
+        playbook_ordering=("state_judgment_basis", "state_next_adjustment"),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="Current mode: guided exploration. Expression focus: show the current judgment basis.",
+        prompt_residue_ratio=0.42,
+        knowledge_hit_count=0,
+        case_hit_count=0,
+        playbook_rule_count=0,
+        risk_band=RiskBand.LOW,
+        description="assembly",
+        expression_intent="judgment-process",
+        judgment_focus=(
+            "what cue in the user's message is driving the reply",
+            "what need the system is inferring right now",
+            "how the next sentence should adjust",
+        ),
+        speech_plan=ResponseSpeechPlan(
+            cue="The user asks to see the current judgment basis.",
+            inferred_need="They need proof the reply is state-guided.",
+            response_adjustment="State cue, need, and next-sentence adjustment before reassurance.",
+            question_budget=0,
+            required_steps=("state_visible_cue", "state_inferred_need", "state_response_adjustment"),
+            description="judgment-process speech plan",
+        ),
+    )
+    prompt = build_system_prompt(
+        assembly=assembly,
+        context=ResponseContext(
+            regime_id="guided_exploration",
+            regime_name="guided exploration",
+            regime_switched=False,
+            abstract_action="discovered_family_0",
+            alert_count=0,
+            temporal_switch_gate=0.4,
+            temporal_is_switching=False,
+            reflection_lesson_count=0,
+            reflection_tension_count=0,
+            reflection_writeback_applied=False,
+            primary_reflection_lesson=None,
+            primary_reflection_tension=None,
+            joint_schedule_action="ssl-only",
+            user_input="Show me how you judge what I need.",
+        ),
+    )
+
+    assert "answer from the current judgment process" in prompt
+    assert "2-3 compact natural sentences" in prompt
+    assert "Do not mention internal signals" in prompt
+    assert "Use this speech plan as user-facing content: cue=The user asks to see the current judgment basis." in prompt
+    assert "question_budget=0" in prompt
+    assert "Do not default to broad reassurance" in prompt
+    assert "module names" in prompt
 
 
 def test_system_prompt_uses_prompt_residue_and_boundary_only():

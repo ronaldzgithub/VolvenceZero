@@ -44,6 +44,7 @@ class GenerationConstraints:
     continuum_target_position: float = 0.5
     ordering_driver: str = "playbook-only"
     decoding_profile: str = "balanced"
+    question_budget: int | None = None
 
 
 class ResponseSynthesizer:
@@ -52,6 +53,25 @@ class ResponseSynthesizer:
     Base class uses fixed templates. Subclass ``LLMResponseSynthesizer``
     replaces templates with real LLM generation.
     """
+
+    def _render_judgment_process_response(
+        self,
+        *,
+        assembly: ResponseAssemblySnapshot,
+    ) -> str:
+        speech_plan = assembly.speech_plan
+        if speech_plan is None:
+            return (
+                "I am responding to your request to see the basis for my answer. "
+                "I infer that you need a reply that shows how the current conversation is shaping the next move. "
+                "So I will state the cue, the need I infer, and the adjustment before offering support."
+            )
+        text = (
+            f"{speech_plan.cue} "
+            f"{speech_plan.inferred_need} "
+            f"{speech_plan.response_adjustment}"
+        )
+        return text.strip()
 
     def synthesize(
         self,
@@ -159,6 +179,20 @@ class ResponseSynthesizer:
         effective_regime_id = assembly.regime_id if assembly is not None else context.regime_id
         effective_regime_name = assembly.regime_name if assembly is not None else context.regime_name
         effective_abstract_action = assembly.abstract_action if assembly is not None else context.abstract_action
+        if assembly is not None and assembly.expression_intent == "judgment-process":
+            text = self._render_judgment_process_response(assembly=assembly)
+            rationale_parts = [f"regime={effective_regime_id or 'none'}", "expression=judgment-process"]
+            if effective_abstract_action:
+                rationale_parts.append(f"temporal={effective_abstract_action}")
+            rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
+            rationale_parts.append(f"question_budget={assembly.max_questions}")
+            rationale = ", ".join(rationale_parts)
+            return AgentResponse(
+                text=text,
+                regime_id=effective_regime_id,
+                abstract_action=effective_abstract_action,
+                rationale=f"Synthesized from {effective_regime_name}; {rationale}.",
+            )
         if response_mode == ResponseMode.REFER_OUT.value:
             text = (
                 "I want to keep this careful and high-level. "
@@ -327,6 +361,11 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 continuum_target_position=assembly.continuum_target_position,
                 ordering_driver=assembly.ordering_driver,
                 decoding_profile=decoding_profile,
+                question_budget=(
+                    assembly.speech_plan.question_budget
+                    if assembly.speech_plan is not None
+                    else assembly.max_questions
+                ),
             )
             if assembly is not None
             else None

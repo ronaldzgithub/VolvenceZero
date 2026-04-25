@@ -6,6 +6,7 @@ from enum import Enum
 import hashlib
 import importlib
 import math
+import re
 from typing import Callable, Iterable, Sequence
 
 from volvence_zero.substrate.adapter import (
@@ -1665,16 +1666,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         compact = text.strip()
         if not compact:
             return compact
-        if constraints.max_questions <= 0:
-            question_count = 0
-            truncated_chars: list[str] = []
-            for char in compact:
-                if char == "?":
-                    question_count += 1
-                    if question_count > constraints.max_questions:
-                        continue
-                truncated_chars.append(char)
-            compact = "".join(truncated_chars)
+        question_budget = (
+            constraints.question_budget
+            if constraints.question_budget is not None
+            else constraints.max_questions
+        )
+        question_budget = min(constraints.max_questions, question_budget)
+        if question_budget <= 0:
+            compact = self._remove_question_tail(compact)
+        elif question_budget < constraints.max_questions:
+            compact = self._limit_questions(compact, max_questions=question_budget)
         for phrase in constraints.required_disclaimer_phrases:
             if phrase and phrase not in compact:
                 compact = f"{compact} {phrase}".strip()
@@ -1685,6 +1686,33 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         if constraints.ordering_bias and len(compact.split()) > 80:
             compact = compact[:320].rstrip()
         return compact
+
+    def _remove_question_tail(self, text: str) -> str:
+        compact = text.strip()
+        if not compact:
+            return compact
+        question_match = re.search(r"[?？]", compact)
+        if question_match is None:
+            return compact
+        question_sentence_start = max(
+            compact.rfind(mark, 0, question_match.start()) for mark in ".。!！\n"
+        )
+        trim_at = question_sentence_start + 1 if question_sentence_start >= 0 else question_match.start()
+        trimmed = compact[:trim_at].rstrip(" ，,;；:：")
+        if trimmed:
+            return trimmed.rstrip()
+        return compact.replace("?", "").replace("？", "").strip()
+
+    def _limit_questions(self, text: str, *, max_questions: int) -> str:
+        question_count = 0
+        truncated_chars: list[str] = []
+        for char in text:
+            if char in {"?", "？"}:
+                question_count += 1
+                if question_count > max_questions:
+                    continue
+            truncated_chars.append(char)
+        return "".join(truncated_chars).strip()
 
     def _apply_continuum_generation_controls(
         self,
