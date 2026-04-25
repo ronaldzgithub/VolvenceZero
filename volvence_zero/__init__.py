@@ -3,6 +3,9 @@
 from importlib import import_module
 
 _EXPORT_MAP = {
+    "Brain": ("volvence_zero.brain", "Brain"),
+    "BrainConfig": ("volvence_zero.brain", "BrainConfig"),
+    "BrainSession": ("volvence_zero.brain", "BrainSession"),
     "AgentResponse": ("volvence_zero.agent", "AgentResponse"),
     "AgentSessionRunner": ("volvence_zero.agent", "AgentSessionRunner"),
     "AgentTurnResult": ("volvence_zero.agent", "AgentTurnResult"),
@@ -20,6 +23,9 @@ _EXPORT_MAP = {
 }
 
 __all__ = [
+    "Brain",
+    "BrainConfig",
+    "BrainSession",
     "AgentResponse",
     "AgentSessionRunner",
     "AgentTurnResult",

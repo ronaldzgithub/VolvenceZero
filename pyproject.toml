@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "volvence-zero"
+version = "0.1.0"
+description = "Package-first Volvence Zero brain kernel."
+requires-python = ">=3.11"
+authors = [
+    { name = "Volvence Zero Contributors" },
+]
+dependencies = []
+
+[project.optional-dependencies]
+hf = [
+    "torch",
+    "transformers",
+]
+cli = []
+bench = [
+    "torch",
+    "transformers",
+]
+dev = [
+    "pytest",
+    "torch",
+    "transformers",
+]
+
+[project.scripts]
+volvence-zero = "volvence_zero.agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["volvence_zero*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "hf: tests that require optional Hugging Face / torch substrate dependencies",
+]

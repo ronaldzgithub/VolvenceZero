@@ -35,6 +35,10 @@ from volvence_zero.application.storage import (
     build_default_domain_knowledge_store,
     build_filesystem_persistence_backend,
 )
+from volvence_zero.application.domain_experience import (
+    DomainExperiencePackage,
+    apply_domain_experience_packages,
+)
 from volvence_zero.application.experience_layers import (
     ApplicationPriorProposalBuilder,
     ApplicationPriorProposalInputs,
@@ -481,6 +485,7 @@ class AgentSessionRunner:
         self_temporal_policy: FullLearnedTemporalPolicy | None = None,
         domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
         case_memory_store: ApplicationCaseMemoryStore | None = None,
+        domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
         application_persistence_dir: str | None = None,
         credit_proposals: tuple[ModificationProposal, ...] = (),
         response_synthesizer: ResponseSynthesizer | None = None,
@@ -555,6 +560,15 @@ class AgentSessionRunner:
         self._case_memory_store = case_memory_store or build_default_case_memory_store(
             persistence_backend=case_backend
         )
+        self._domain_experience_application_report = None
+        if domain_experience_packages:
+            self._domain_experience_application_report = apply_domain_experience_packages(
+                packages=domain_experience_packages,
+                domain_knowledge_store=self._domain_knowledge_store,
+                case_memory_store=self._case_memory_store,
+                application_rare_heavy_state=self._application_rare_heavy_state,
+                persist=application_persistence_dir is not None,
+            )
         world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
         default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)

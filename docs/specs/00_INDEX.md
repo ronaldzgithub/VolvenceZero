@@ -166,6 +166,38 @@
 
 ---
 
+### 11. Domain Experience Layer
+
+**对应需求**：R5（连续记忆）、R6（反思与沉淀）、R7（双轨学习）、R8（契约优先）、R12（评估）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [domain-experience-layer.md](./domain-experience-layer.md) | 可复用垂直经验包 schema、编译到现有 application owners 的契约、加载与评测边界 |
+
+**核心不变量**：
+- Domain Experience Package 不是新的运行时 owner
+- 垂直经验编译到现有 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / rare-heavy application state
+- 包内容是冷启动 scaffold 和评测锚点，不等同于真实长期经验成熟
+- 不通过人口学关键词硬编码行为
+
+---
+
+### 12. Core Package Boundary
+
+**对应需求**：R2（稳定基底 + 自适应控制器）、R8（契约优先）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [core-package-boundary.md](./core-package-boundary.md) | Python core package 边界、稳定 Brain API、optional HF/model runtime、服务与产品数据外置 |
+
+**核心不变量**：
+- `volvence-zero` core package 不包含模型权重、产品数据、用户记忆或部署 secrets
+- `volvence_zero.brain` 是稳定 package-facing API
+- Qwen / Hugging Face runtime 必须显式配置并通过 optional extra 进入
+- 第一阶段只做 local editable package，不做 PyPI upload / deploy / public service
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |
@@ -176,6 +208,7 @@
 | `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、变更协议 | 理解模块间数据交换格式和约束 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、调试工作流 | 理解如何调试和监控系统运行 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、评估信号回馈机制、基线测试集 | 理解如何评估系统表现和驱动学习 |
+| `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |
 
 ### 文档依赖图
 

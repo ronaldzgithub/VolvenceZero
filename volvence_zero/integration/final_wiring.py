@@ -26,10 +26,16 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookSnapshot,
     RetrievalReadoutPriorUpdate,
 )
+from volvence_zero.application.domain_experience import (
+    DomainExperiencePackage,
+    apply_domain_experience_packages,
+)
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
     DomainKnowledgeCheckpoint,
+    build_default_case_memory_store,
+    build_default_domain_knowledge_store,
 )
 from volvence_zero.credit.gate import (
     CreditSnapshot,
@@ -895,6 +901,7 @@ def build_final_runtime_modules(
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
@@ -910,6 +917,16 @@ def build_final_runtime_modules(
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
 ) -> list[Any]:
+    if domain_experience_packages:
+        application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
+        domain_knowledge_store = domain_knowledge_store or build_default_domain_knowledge_store()
+        case_memory_store = case_memory_store or build_default_case_memory_store()
+        apply_domain_experience_packages(
+            packages=domain_experience_packages,
+            domain_knowledge_store=domain_knowledge_store,
+            case_memory_store=case_memory_store,
+            application_rare_heavy_state=application_rare_heavy_state,
+        )
     resolved_world_temporal_policy = world_temporal_policy or temporal_policy or FullLearnedTemporalPolicy()
     if self_temporal_policy is not None:
         resolved_self_temporal_policy = self_temporal_policy
@@ -1022,6 +1039,7 @@ async def run_final_wiring_turn(
     application_rare_heavy_state: ApplicationRareHeavyState | None = None,
     domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
     case_memory_store: ApplicationCaseMemoryStore | None = None,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
     memory_store: MemoryStore | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
@@ -1048,6 +1066,7 @@ async def run_final_wiring_turn(
         application_rare_heavy_state=application_rare_heavy_state,
         domain_knowledge_store=domain_knowledge_store,
         case_memory_store=case_memory_store,
+        domain_experience_packages=domain_experience_packages,
         memory_store=memory_store,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
