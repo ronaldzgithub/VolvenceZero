@@ -1,7 +1,7 @@
 # 认知 Regime Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-25
 > 对应需求: R14
 
 ## 要解决的问题
@@ -60,6 +60,7 @@ class RegimeIdentity:
 - `dual_track` 快照：两轨状态（regime 选择需考虑两轨）
 - `evaluation` 快照：regime 效果评估分数
 - `prediction_error` 快照：上一轮 delayed / per-dimension mismatch，用于更新 historical effectiveness 和当前选择偏置
+- `experience_fast_prior` 快照：session-post slow loop 压缩出的 delayed-credit fast bias，用于选择偏置和 sequence payoff 的轻量调节
 
 **产出的输出**：
 - `regime` 快照：`RegimeSnapshot`
@@ -77,6 +78,8 @@ class RegimeIdentity:
 - 当前 `RegimeModule` 已新增 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` 发布
 - 当前 `RegimeModule` 已直接消费 `prediction_error` slot：`score_regimes()`、historical effectiveness 更新和 turn score 记录都会把 PE 维度偏差纳入 regime 选择与训练
 - 当前 `RegimeSnapshot.identity_hints` 作为 typed identity proposal 暴露给 reflection/memory owner；durable identity 写入仍由 reflection/memory owner 决定，Regime owner 不直接越权写 memory
+- 当前 `RegimeSnapshot` 还发布 `delayed_attribution_ledger`、`delayed_payoffs`、`sequence_payoffs`、`effectiveness_trend`、`regime_changed` 与 `selection_weights`，供 credit / evaluation / reflection 读取 owner-side delayed outcome 与选择权重证据
+- 当前 `RegimeModule.default_wiring_level = SHADOW`；默认类级接线保持 evidence / audit surface，final wiring 可按 rollout 需要显式激活
 - 后续可由 temporal / learned selector 替换，但不改变 `regime` snapshot 契约
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节
@@ -94,6 +97,7 @@ class RegimeIdentity:
 
 ## 变更日志
 
+- 2026-04-25: 同步当前 `RegimeSnapshot` delayed payoff / sequence payoff / selection weight 字段，并补充 `experience_fast_prior` 输入与默认 `SHADOW` 接线
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + dual_track + evaluation + prediction_error`；当前实现口径明确 regime owner 已直接用 PE 更新 selection bias 与 historical effectiveness
 - 2026-04-09: next_gen_emogpt v2: regimes positioned as prediction spaces within the dual-track framework; regime selection weight updates driven by prediction error from delayed outcomes; repo default term: `abstract action` (paper synonym: `subgoal`)
 - 2026-04-09: U03 Regime A/B verification: RegimeSelectionWeights confirmed to diverge from uniform (1.0) after delayed outcomes accumulate via process_standalone loop. Learned weights stay within [0.3, 2.0] range. effectiveness_trend published in RegimeSnapshot and verified non-empty after 4 turns.

@@ -755,6 +755,11 @@ class RegimeIdentity:
     historical_effectiveness: float     # 历史效果评分 ∈ [0, 1]
 
 @dataclass(frozen=True)
+class RegimeSelectionWeights:
+    weights: tuple[tuple[str, float], ...]
+    learning_rate: float = 0.02
+
+@dataclass(frozen=True)
 class DelayedOutcomeAttribution:
     regime_id: str
     outcome_score: float
@@ -775,6 +780,15 @@ class DelayedOutcomePayoff:
     last_source_wave_id: str
 
 @dataclass(frozen=True)
+class RegimeSequencePayoff:
+    regime_sequence: tuple[str, ...]
+    family_version: int
+    sample_count: int
+    rolling_payoff: float
+    latest_outcome: float
+    last_source_wave_id: str
+
+@dataclass(frozen=True)
 class RegimeSnapshot:
     active_regime: RegimeIdentity
     previous_regime: RegimeIdentity | None
@@ -786,7 +800,11 @@ class RegimeSnapshot:
     delayed_attributions: tuple[DelayedOutcomeAttribution, ...] = ()
     delayed_attribution_ledger: tuple[DelayedOutcomeAttribution, ...] = ()
     delayed_payoffs: tuple[DelayedOutcomePayoff, ...] = ()
+    sequence_payoffs: tuple[RegimeSequencePayoff, ...] = ()
     identity_hints: tuple[str, ...]                   # typed identity proposals for reflection/memory
+    effectiveness_trend: tuple[tuple[str, float], ...] = ()
+    regime_changed: bool = False
+    selection_weights: RegimeSelectionWeights | None = None
 ```
 
 **当前实现口径**：
@@ -797,6 +815,7 @@ class RegimeSnapshot:
 - 当前 `RegimeModule` 已补充 owner-side delayed attribution queue：上一轮 regime 选择会在后续 turn 的 evaluation 上结算，并通过 `delayed_outcomes` + `delayed_attributions` 发布结果；后者会携带 `source_wave_id`、`source_turn_index`、`abstract_action`、`action_family_version`
 - 当前 regime owner 还会发布 `delayed_attribution_ledger` 与 `delayed_payoffs`：前者保留最近若干条 resolved attribution，后者按 `(regime, abstract_action, action_family_version)` 聚合 rolling payoff，供 credit / evaluation / reflection 直接消费
 - 当前 `identity_hints` 由 regime owner 从 memory snapshot 中投影为 typed identity proposal，供 reflection/memory owner 决定是否沉淀为 durable identity entries
+- 当前 regime owner 还会发布 `sequence_payoffs`、`effectiveness_trend`、`regime_changed` 与 `selection_weights`，使 delayed sequence outcome 与 learned selection bias 可被下游审计；consumer 不应从私有 ledger 重建这些读数
 - 该评分基线是过渡实现；后续可由更强的 temporal / learned policy 替换
 
 **消费者**：编排器、时间抽象层、记忆系统、评估体系
@@ -1077,30 +1096,40 @@ async def propagate(
 ## 5. 快照依赖图
 
 ```
-substrate ───────────────┬────────→ memory ───────────────┬────────→ dual_track
-                         │                                │
-                         ├────────→ evaluation            ├────────→ regime
-                         │                                │             │
-                         └────────→ temporal_abstraction  │             │
-                                                          │             │
-dual_track ──────────────┬────────────────────────────────┘             │
-evaluation ──────────────┼──────────────────────────────────────────────┤
-regime ──────────────────┘                                              │
-                                                                         ▼
-                                                           prediction_error
-                                                             ├──→ memory
-                                                             ├──→ temporal_abstraction
-                                                             ├──→ regime
-                                                             ├──→ credit
-                                                             └──→ reflection (async)
+substrate ───────────────┬────────→ world_temporal / self_temporal ──→ temporal_abstraction
+                         ├────────→ memory ─────────────────────────→ dual_track
+                         ├────────→ evaluation
+                         └────────→ prediction_error
 
-reflection ───────────────────────────────────────────────→ memory / credit / temporal writeback
+memory ──────────────────┬────────→ dual_track ──────────┬────────→ evaluation
+                         ├────────→ regime               ├────────→ credit
+                         ├────────→ reflection           └────────→ prediction_error
+                         └────────→ retrieval_policy
+
+evaluation ──────────────┬────────→ regime ──────────────┬────────→ prediction_error
+                         ├────────→ credit               ├────────→ retrieval_policy
+                         └────────→ reflection           └────────→ response_assembly
+
+prediction_error ────────┬────────→ memory / temporal / regime / credit / reflection
+                         ├────────→ case_memory / boundary_policy
+                         └────────→ substrate_self_mod
+
+session_post_slow_loop ──→ experience_consolidation ─────→ experience_fast_prior
+experience_fast_prior ───┬────────→ temporal owners
+                         ├────────→ regime
+                         └────────→ retrieval_policy
+
+retrieval_policy ────────┬────────→ domain_knowledge ────┬────────→ boundary_policy
+                         ├────────→ case_memory ─────────┼────────→ strategy_playbook
+                         └────────→ response_assembly    └────────→ response_assembly
+
+reflection ──────────────→ owner-side writeback: memory / regime / temporal / credit audit
 ```
 
 **依赖规则**：
 - 每个模块只读取上游快照，不反向依赖
-- `reflection` 是唯一的异步模块，会话后运行
-- `reflection` 的产物通过正式 API 写回 `memory` 和 `credit`
+- `reflection` 与 `session_post_slow_loop` 都属于 background/session-post 路径；它们只发布公共 report / proposal surface，真正 apply 仍调用目标 owner 的正式 API
+- `reflection` 的产物通过正式 API 写回 `memory`、`regime`、`temporal`，并通过 `credit` 保留审计证据
 - `prediction_error` 是显式学习证据层；部分 live runtime 路径把它当作跨 turn carryover signal，而不是同 turn 自举输入
 
 **关于直接消费与间接消费**：上图展示的是**直接快照依赖**。Slot 注册表（第 6 节）中列出的消费者是**声明的直接消费者**——即模块在 `process()` 中从 upstream dict 读取的 slot。模块不通过中间模块间接获取数据，而是直接声明并读取所需的上游快照。
@@ -1111,19 +1140,31 @@ reflection ───────────────────────
 
 | Slot Name | Owner 模块 | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-----------|----------|----------|--------|
-| `substrate` | SubstrateModule | SubstrateSnapshot | ACTIVE | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
-| `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | temporal_abstraction, dual_track |
-| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | temporal_abstraction, dual_track |
-| `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | ACTIVE | 每 turn | final wiring / audit only |
-| `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | ACTIVE | 每 turn | final wiring / audit only |
-| `temporal_abstraction` | TemporalAggregateModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | memory, dual_track |
+| `substrate` | SubstrateModule | SubstrateSnapshot | SHADOW | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
+| `substrate_self_mod` | SubstrateSelfModModule | SubstrateSelfModSnapshot | SHADOW | 每 turn / schedule | session / credit audit / rare-heavy review |
+| `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
+| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
+| `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | SHADOW | 每 turn | final wiring / audit only |
+| `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | SHADOW | 每 turn | final wiring / audit only |
+| `temporal_abstraction` | TemporalAggregateModule / TemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | memory, dual_track |
 | `memory` | MemoryModule | MemorySnapshot | SHADOW | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
-| `dual_track` | DualTrackModule | DualTrackSnapshot | ACTIVE | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
+| `dual_track` | DualTrackModule | DualTrackSnapshot | SHADOW | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
 | `evaluation` | EvaluationModule | EvaluationSnapshot | ACTIVE | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
-| `regime` | RegimeModule | RegimeSnapshot | ACTIVE | 每 turn | prediction_error, reflection |
+| `regime` | RegimeModule | RegimeSnapshot | SHADOW | 每 turn | prediction_error, reflection, retrieval_policy |
 | `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | ACTIVE | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
 | `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection |
-| `reflection` | ReflectionModule | ReflectionSnapshot | ACTIVE / session-post | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
+| `reflection` | ReflectionModule | ReflectionSnapshot | SHADOW / session-post | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
+| `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
+| `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
+| `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
+| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation |
+| `strategy_playbook` | StrategyPlaybookModule | StrategyPlaybookSnapshot | ACTIVE | 每 turn | response_assembly, experience_consolidation |
+| `boundary_policy` | BoundaryPolicyModule | BoundaryPolicySnapshot | ACTIVE | 每 turn | response_assembly |
+| `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation |
+| `experience_consolidation` | ExperienceConsolidationModule | ExperienceConsolidationSnapshot | ACTIVE | session-post | experience_fast_prior, reports |
+| `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
+
+这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
 ---
 

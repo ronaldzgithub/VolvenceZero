@@ -1,0 +1,13 @@
+{
+  "confidence": 1.0,
+  "cross_run_gap_mean": 0.0241,
+  "cross_run_gap_std": 0.0,
+  "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=reward_shaping_leakage failure_mode=no-dominant-failure-mode competitor=full-no-fast-prior gap=0.024 cross_run_gap=0.024+/-0.000 confidence=1.00.",
+  "dominant_failure_mode": "no-dominant-failure-mode",
+  "interpretation": "eta-proof-strongest=training_transition_count; no dominant failure mode; weakest_metric=reward_shaping_leakage",
+  "review_summary": "Full internal RL remains ahead of full-no-fast-prior by 0.024 +/- 0.000 on held-out strong success across runs; no dominant failure mode surfaced.",
+  "strongest_competing_control": "full-no-fast-prior",
+  "strongest_control_gap": 0.024,
+  "strongest_metric": "training_transition_count",
+  "weakest_metric": "reward_shaping_leakage"
+}

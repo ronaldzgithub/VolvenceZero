@@ -1,0 +1,281 @@
+{
+  "artifact_expectations": [
+    "per-run eta proof benchmark json",
+    "per-run backend robustness json",
+    "per-run assessment json",
+    "aggregate summary json",
+    "provenance json",
+    "evidence bundle json",
+    "real open-weight residual capture/control evidence"
+  ],
+  "baseline_label": "full-internal-rl",
+  "case_groups": [
+    [
+      "route_ids",
+      [
+        "train-corridor-alpha-beta-delta",
+        "train-zigzag-beta-gamma-alpha",
+        "train-loop-delta-beta-epsilon",
+        "eval-alpha-delta-epsilon",
+        "eval-gamma-beta-delta",
+        "heldout-delta-alpha-gamma-epsilon",
+        "heldout-epsilon-beta-alpha-delta"
+      ]
+    ],
+    [
+      "backend_labels",
+      [
+        "transformers-open-weight",
+        "trace"
+      ]
+    ],
+    [
+      "train_epochs",
+      [
+        "2"
+      ]
+    ]
+  ],
+  "description": "Open-weight ETA paper suite ci-smoke using real transformer residual capture/control as the primary backend and trace as the matched fallback control.",
+  "primary_metrics": [
+    {
+      "description": "Held-out terminal success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_terminal_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong sparse-reward success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_strong_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out abstract-action reuse rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_family_reuse_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out delayed-credit alignment for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_credit_alignment",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong success gap between the full profile and the strongest matched control.",
+      "direction": "higher-is-better",
+      "metric_name": "strong_success_gap_vs_best_control",
+      "role": "primary"
+    },
+    {
+      "description": "Gap in held-out strong success across backends for the full profile.",
+      "direction": "lower-is-better",
+      "metric_name": "backend_success_gap",
+      "role": "primary"
+    },
+    {
+      "description": "Composite real-residual policy/control advantage over same-backend matched controls, excluding backend-ablation noops.",
+      "direction": "higher-is-better",
+      "metric_name": "real_residual_policy_gap_vs_control",
+      "role": "primary"
+    }
+  ],
+  "profiles": [
+    {
+      "description": "ETA proof profile full-internal-rl.",
+      "profile_label": "full-internal-rl",
+      "role": "baseline"
+    },
+    {
+      "description": "ETA proof profile full-bootstrap-init.",
+      "profile_label": "full-bootstrap-init",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile full-no-fast-prior.",
+      "profile_label": "full-no-fast-prior",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile full-no-optimize.",
+      "profile_label": "full-no-optimize",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile full-no-replacement.",
+      "profile_label": "full-no-replacement",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile learned-lite-causal.",
+      "profile_label": "learned-lite-causal",
+      "role": "matched-control"
+    },
+    {
+      "description": "ETA proof profile noop-backend.",
+      "profile_label": "noop-backend",
+      "role": "matched-control"
+    }
+  ],
+  "repeat_count": 1,
+  "secondary_metrics": [
+    {
+      "description": "Fraction of ETA acceptance gates passed in the assessment report.",
+      "direction": "higher-is-better",
+      "metric_name": "assessment_pass_fraction",
+      "role": "secondary"
+    },
+    {
+      "description": "Observed policy parameter update rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "policy_update_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out subgoal completion rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_subgoal_completion_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out strong success variability across held-out cases.",
+      "direction": "lower-is-better",
+      "metric_name": "heldout_strong_success_std",
+      "role": "secondary"
+    },
+    {
+      "description": "Average rollout count consumed by each full-profile update.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_rollouts_per_update",
+      "role": "secondary"
+    },
+    {
+      "description": "Average parameter-change norm for full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_parameter_change_norm",
+      "role": "secondary"
+    },
+    {
+      "description": "Average replacement-effect delta observed during full-profile updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_replacement_effect_delta",
+      "role": "secondary"
+    },
+    {
+      "description": "Average critic/value loss for the full internal-RL profile.",
+      "direction": "lower-is-better",
+      "metric_name": "mean_value_loss",
+      "role": "secondary"
+    },
+    {
+      "description": "Total training transitions consumed by full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "training_transition_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean rollout steps controlled by one abstract action before switching.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_steps_per_abstract_action",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of abstract-action windows persisting for at least two rollout steps.",
+      "direction": "higher-is-better",
+      "metric_name": "persistence_window_success_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Residual-control signal quality combining downstream effect and backend fidelity.",
+      "direction": "higher-is-better",
+      "metric_name": "residual_signal_quality",
+      "role": "secondary"
+    },
+    {
+      "description": "Number of temporal families receiving long-horizon delayed-credit writes.",
+      "direction": "higher-is-better",
+      "metric_name": "credit_to_family_write_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of temporal families with payoff or delayed-credit evidence.",
+      "direction": "higher-is-better",
+      "metric_name": "long_horizon_payoff_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fast-prior benefit retained over the no-fast-prior control.",
+      "direction": "higher-is-better",
+      "metric_name": "slow_to_fast_init_benefit",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of reward signal not attributable to shaping leakage.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_reward_sparsity",
+      "role": "secondary"
+    },
+    {
+      "description": "Share of optimizer-visible reward coming from shaping components.",
+      "direction": "lower-is-better",
+      "metric_name": "reward_shaping_leakage",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out family reuse retained over the no-fast-prior scaffold ablation.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_family_reuse_gap_vs_no_fast_prior",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out delayed-credit assignments whose abstract-action window lacks an assigned family.",
+      "direction": "lower-is-better",
+      "metric_name": "heldout_credit_window_miss_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out terminal successes backed by terminal delayed-credit assignments.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_terminal_credit_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of ETA substrate steps captured from a real open-weight runtime.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_capture_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean hook-layer coverage observed during real open-weight ETA capture.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_hook_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of real ETA capture served by a builtin fallback runtime.",
+      "direction": "lower-is-better",
+      "metric_name": "real_open_weight_fallback_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean residual intervention application count in ETA open-weight proof rollouts.",
+      "direction": "higher-is-better",
+      "metric_name": "intervention_application_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean per-episode replacement-effect delta for real residual-control rollouts.",
+      "direction": "higher-is-better",
+      "metric_name": "episode_replacement_effect_delta",
+      "role": "secondary"
+    }
+  ],
+  "seed_schedule": [
+    0
+  ],
+  "suite_id": "eta-open-weight-ci-smoke",
+  "suite_kind": "eta-open-weight-residual-proof",
+  "suite_tier": "ci-smoke",
+  "version": 2
+}

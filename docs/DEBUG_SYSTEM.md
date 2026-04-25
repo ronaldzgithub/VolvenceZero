@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 调试与可观测性体系
 
 > Status: draft
-> Version: 0.2
-> Last updated: 2026-04-20
+> Version: 0.3
+> Last updated: 2026-04-25
 > 对应需求: R8（快照优先、契约优先）、R11（可学习的内部状态表示）、R15（迁移可解释性和可回滚）
 
 ---
@@ -91,6 +91,7 @@ class DebugEvent:
 
 - prediction chain 当前主要通过 `prediction_error` slot 的 `snapshot.published` / `snapshot.consumed` 事件被追踪，而不是依赖单独的专用事件类型
 - 也就是说，调试主问题已经从“有没有日志写出来”转为“主链有没有正式发布并被下游消费”
+- paper-suite / proof harness 级证据不要求新增 runtime event type；它们应通过 manifest、provenance、artifact bundle、pairwise effect 和 claim verdict 与 runtime event / snapshot 链关联
 
 ### 3.2 因果链
 
@@ -171,6 +172,8 @@ class DependencyGuard:
 **检查点**：
 - 模块从 upstream dict 读取快照时：验证 slot_name 在声明的依赖列表中
 - 检测到未声明的依赖：立即抛出异常
+- `propagate(auto_sort=True)` 默认按 `RuntimeModule.dependencies` 拓扑排序；若图成环，排序函数回退到调用方顺序，诊断工具应调用 `detect_dependency_cycle()` 显式标出 cycle 成员
+- `SHADOW` 模块仍应产生 `snapshot.published` / guard 事件；调试面板必须区分“执行但未进入 active upstream”和“DISABLED stub”
 
 ### 4.4 Schema 守卫
 

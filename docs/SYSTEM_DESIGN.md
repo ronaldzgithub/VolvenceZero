@@ -1,7 +1,7 @@
 # EmoGPT Next-Gen — 系统设计文档
 
 > Status: draft
-> Version: 0.2
+> Version: 0.3
 > Last updated: 2026-04-25
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）、`docs/prd.md`（产品需求）
 
@@ -132,7 +132,7 @@
 **约束**：
 - 编排器可调用快照传播/读取，但不直接调用模块的处理方法
 - 编排器不持有模块的内部状态
-- 当前 `memory` 与 `credit` 默认以 `SHADOW` 接线进入 contract runtime；final wiring / session owner 可在更高层显式决定何时把对应 owner-side learning surface 提升为 active 证据或写回路径
+- 当前多数 adaptive owner（如 `substrate`、`temporal`、`memory`、`dual_track`、`regime`、`credit`、`reflection`、`experience_fast_prior`）的类级默认接线是 `SHADOW`；final wiring / session owner 可在更高层显式决定何时把某个 owner-side surface 提升为 active 证据或写回路径
 
 ### 3.2 稳定基底层 (Stable Substrate)
 

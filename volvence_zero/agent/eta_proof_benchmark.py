@@ -65,7 +65,7 @@ class ETAProofCase:
     route_signature: tuple[str, ...] = ()
     branch_depth: int = 0
     split_detail: str = "unspecified"
-    reward_profile: str = "proof-sparse-legacy-shaping"
+    reward_profile: str = "proof-sparse-terminal-delayed"
     reward_taxonomy: tuple[InternalRLRewardSource, ...] = ()
     route_length: int = 0
     distractor_count: int = 0
@@ -110,6 +110,10 @@ class ETAProofEpisodeReport:
     intervention_application_count: int
     mean_replacement_effect_delta: float
     residual_signal_quality: float
+    first_missed_subgoal: str
+    family_miss_rate: float
+    credit_window_miss_rate: float
+    terminal_credit_coverage: float
     description: str
 
 
@@ -259,11 +263,12 @@ class ETAOpenWeightRuntimeConfig:
     model_source: str | None = None
     device: str = "auto"
     layer_indices: tuple[int, ...] | None = None
-    local_files_only: bool = False
-    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.BUILTIN_ONLY
-    fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.ALLOW_BUILTIN
+    local_files_only: bool = True
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.STRICT_LOCAL
+    fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.DENY
     builtin_model_id: str = "eta-builtin-transformers-runtime"
     max_prefix_steps: int = 6
+    require_real_backend: bool = True
     description: str = "ETA open-weight runtime config for real residual capture/control."
 
 
@@ -326,6 +331,22 @@ def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = N
         builtin_model_id=active_config.builtin_model_id,
         allow_live_substrate_mutation=False,
     )
+
+
+def _validate_eta_open_weight_runtime(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    config: ETAOpenWeightRuntimeConfig | None = None,
+) -> None:
+    active_config = config or ETAOpenWeightRuntimeConfig()
+    if not active_config.require_real_backend:
+        return
+    if runtime.fallback_active:
+        raise RuntimeError(
+            f"ETA real residual lane requires a non-fallback transformers backend, got "
+            f"model_id={runtime.model_id!r} runtime_origin={runtime.runtime_origin!r}. "
+            "Use a locally available transformers model or set require_real_backend=False for explicit smoke tests."
+        )
 
 
 def _runtime_capture_snapshot(
@@ -456,6 +477,66 @@ def _abstract_action_window_lengths(rollout: ZRollout) -> tuple[int, ...]:
     if current_length > 0:
         lengths.append(current_length)
     return tuple(lengths)
+
+
+def _abstract_action_windows(rollout: ZRollout) -> tuple[tuple[int, int], ...]:
+    if not rollout.transitions:
+        return ()
+    windows: list[tuple[int, int]] = []
+    start = 0
+    for index, transition in enumerate(rollout.transitions):
+        if index > 0 and transition.controller_state.switch_gate >= 0.5:
+            windows.append((start, index - 1))
+            start = index
+    windows.append((start, len(rollout.transitions) - 1))
+    return tuple(windows)
+
+
+def _assignment_window_bounds(
+    *,
+    rollout: ZRollout,
+    start_step: int,
+    end_step: int,
+) -> tuple[int, int]:
+    if not rollout.transitions:
+        return (0, -1)
+    assignment_start = max(0, start_step)
+    assignment_end = min(len(rollout.transitions) - 1, end_step)
+    if assignment_end < assignment_start:
+        return (0, -1)
+    overlapping = tuple(
+        (start, end)
+        for start, end in _abstract_action_windows(rollout)
+        if end >= assignment_start and start <= assignment_end
+    )
+    if not overlapping:
+        return (assignment_start, assignment_end)
+    return (
+        min(start for start, _ in overlapping),
+        max(end for _, end in overlapping),
+    )
+
+
+def _credit_window_miss_rate(rollout: ZRollout) -> float:
+    if not rollout.delayed_credit_assignments:
+        return 1.0 if rollout.completed_subgoals else 0.0
+    misses = 0
+    for assignment in rollout.delayed_credit_assignments:
+        start, end = _assignment_window_bounds(
+            rollout=rollout,
+            start_step=assignment.start_step,
+            end_step=assignment.end_step,
+        )
+        if end < start:
+            misses += 1
+            continue
+        has_family = any(
+            transition.active_family_id not in {None, "unassigned"}
+            for transition in rollout.transitions[start : end + 1]
+        )
+        if not has_family:
+            misses += 1
+    return misses / len(rollout.delayed_credit_assignments)
 
 
 def _persistence_metrics(rollout: ZRollout) -> tuple[float, float, float, float, float, float]:
@@ -733,8 +814,8 @@ def build_eta_proof_paper_suite_manifest(
     if suite_tier == "ci-smoke":
         repeat_count = 1
         seed_schedule = (0,)
-        route_ids = tuple(route.case_id for route in default_eta_proof_routes()[:4])
-        train_epochs = 1
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 2
         backend_labels = ("trace",)
     elif suite_tier == "paper-suite-full":
         repeat_count = 20
@@ -913,6 +994,18 @@ def build_eta_proof_paper_suite_manifest(
                 direction="higher-is-better",
                 description="Held-out family reuse retained over the no-fast-prior scaffold ablation.",
             ),
+            PaperMetricSpec(
+                metric_name="heldout_credit_window_miss_rate",
+                role="secondary",
+                direction="lower-is-better",
+                description="Held-out delayed-credit assignments whose abstract-action window lacks an assigned family.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_terminal_credit_coverage",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out terminal successes backed by terminal delayed-credit assignments.",
+            ),
         ),
         case_groups=(
             ("route_ids", route_ids),
@@ -982,6 +1075,17 @@ def build_eta_open_weight_paper_suite_manifest(
         suite_id=f"eta-open-weight-{suite_tier}",
         suite_kind="eta-open-weight-residual-proof",
         version=base_manifest.version + 1,
+        primary_metrics=base_manifest.primary_metrics + (
+            PaperMetricSpec(
+                metric_name="real_residual_policy_gap_vs_control",
+                role="primary",
+                direction="higher-is-better",
+                description=(
+                    "Composite real-residual policy/control advantage over same-backend matched controls, "
+                    "excluding backend-ablation noops."
+                ),
+            ),
+        ),
         case_groups=case_groups,
         secondary_metrics=secondary_metrics,
         artifact_expectations=base_manifest.artifact_expectations + (
@@ -1126,9 +1230,13 @@ def _build_case_snapshots(
 ) -> tuple[SubstrateSnapshot, ...]:
     if open_weight_runtime is not None:
         active_config = open_weight_config or ETAOpenWeightRuntimeConfig()
+        required_prefix_steps = max(
+            active_config.max_prefix_steps,
+            sum(max(subgoal.min_persistence, 1) for subgoal in case.proof_episode.subgoals),
+        )
         prefixes = _eta_real_residual_prefixes(
             case.source_text,
-            max_prefix_steps=active_config.max_prefix_steps,
+            max_prefix_steps=required_prefix_steps,
         )
         return tuple(
             _runtime_capture_snapshot(
@@ -1183,6 +1291,22 @@ def _episode_report(
     family_registry: dict[str, set[str]],
 ) -> ETAProofEpisodeReport:
     completed_pairs = tuple(zip(rollout.completed_subgoals, rollout.completed_family_ids, strict=True))
+    expected_subgoal_ids = tuple(subgoal.subgoal_id for subgoal in case.proof_episode.subgoals)
+    first_missed_subgoal = next(
+        (subgoal_id for subgoal_id in expected_subgoal_ids if subgoal_id not in rollout.completed_subgoals),
+        "none",
+    )
+    family_miss_rate = (
+        sum(1.0 for family_id in rollout.completed_family_ids if family_id == "unassigned")
+        / len(rollout.completed_family_ids)
+        if rollout.completed_family_ids
+        else (1.0 if rollout.completed_subgoals else 0.0)
+    )
+    credit_window_miss_rate = _credit_window_miss_rate(rollout)
+    terminal_credit_coverage = float(
+        rollout.terminal_success
+        and any(assignment.reason == "terminal-success" for assignment in rollout.delayed_credit_assignments)
+    )
     reusable_pairs = tuple(
         (subgoal_id, family_id)
         for subgoal_id, family_id in completed_pairs
@@ -1285,6 +1409,10 @@ def _episode_report(
         intervention_application_count=intervention_application_count,
         mean_replacement_effect_delta=mean_replacement_effect_delta,
         residual_signal_quality=residual_signal_quality,
+        first_missed_subgoal=first_missed_subgoal,
+        family_miss_rate=family_miss_rate,
+        credit_window_miss_rate=credit_window_miss_rate,
+        terminal_credit_coverage=terminal_credit_coverage,
         description=(
             f"{profile_label} on {case.case_id} ({backend_label}) "
             f"success={rollout.terminal_success} completed={len(rollout.completed_subgoals)}/{len(case.proof_episode.subgoals)}."
@@ -1345,6 +1473,12 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
             _mean(tuple(report.mean_replacement_effect_delta for report in episode_reports)),
         ),
         ("residual_signal_quality", _mean(tuple(report.residual_signal_quality for report in episode_reports))),
+        ("family_miss_rate", _mean(tuple(report.family_miss_rate for report in episode_reports))),
+        ("heldout_family_miss_rate", _mean(tuple(report.family_miss_rate for report in heldout_reports))),
+        ("credit_window_miss_rate", _mean(tuple(report.credit_window_miss_rate for report in episode_reports))),
+        ("heldout_credit_window_miss_rate", _mean(tuple(report.credit_window_miss_rate for report in heldout_reports))),
+        ("terminal_credit_coverage", _mean(tuple(report.terminal_credit_coverage for report in episode_reports))),
+        ("heldout_terminal_credit_coverage", _mean(tuple(report.terminal_credit_coverage for report in heldout_reports))),
         ("mean_credit_alignment", _mean(tuple(report.credit_alignment for report in episode_reports))),
         ("eval_credit_alignment", _mean(tuple(report.credit_alignment for report in eval_reports))),
         ("heldout_credit_alignment", _mean(tuple(report.credit_alignment for report in heldout_reports))),
@@ -1421,6 +1555,49 @@ def _best_eta_sparse_reward_control(
     return best_report
 
 
+def _real_residual_control_score(report: ETAProofProfileReport) -> float:
+    metrics = dict(report.metric_means)
+    causal_replacement = 0.0 if report.profile_label == "full-no-replacement" else 1.0
+    real_backend_evidence = min(metrics.get("real_open_weight_capture_rate", 0.0), 1.0) * (
+        1.0 - min(metrics.get("real_open_weight_fallback_rate", 1.0), 1.0)
+    )
+    return round(
+        metrics.get("heldout_strong_success_rate", 0.0)
+        + max(0.0, report.mean_replacement_effect_delta) * 0.25
+        + min(report.training_parameter_change_rate, 1.0) * 0.025
+        + causal_replacement * 0.025
+        + real_backend_evidence * 0.025,
+        4,
+    )
+
+
+def _real_residual_policy_control_reports(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+) -> tuple[ETAProofProfileReport, ...]:
+    excluded_labels = {"full-internal-rl", "full-bootstrap-init", "noop-backend"}
+    return tuple(
+        report
+        for label, report in report_map.items()
+        if label not in excluded_labels
+    )
+
+
+def _best_real_residual_policy_control(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+) -> ETAProofProfileReport | None:
+    controls = _real_residual_policy_control_reports(report_map=report_map)
+    best_report: ETAProofProfileReport | None = None
+    best_score = float("-inf")
+    for report in controls:
+        candidate_score = _real_residual_control_score(report)
+        if candidate_score > best_score:
+            best_report = report
+            best_score = candidate_score
+    return best_report
+
+
 def run_eta_internal_rl_proof_benchmark(
     *,
     cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
@@ -1437,6 +1614,11 @@ def run_eta_internal_rl_proof_benchmark(
     active_open_weight_runtime = open_weight_runtime
     if backend_label == "transformers-open-weight" and active_open_weight_runtime is None:
         active_open_weight_runtime = _build_eta_open_weight_runtime(open_weight_config)
+    if backend_label == "transformers-open-weight" and active_open_weight_runtime is not None:
+        _validate_eta_open_weight_runtime(
+            runtime=active_open_weight_runtime,
+            config=open_weight_config,
+        )
     real_steps_enabled = (
         backend_label == "transformers-open-weight"
         if use_real_substrate_steps is None
@@ -2044,6 +2226,17 @@ def _eta_paper_suite_metric_values(
         dict(profile_report.metric_means).get("heldout_strong_success_rate", 0.0)
         for profile_report in backend_report.profile_reports
     )
+    best_real_residual_control = _best_real_residual_policy_control(report_map=report_map)
+    real_residual_policy_control_score = _real_residual_control_score(full_report)
+    best_real_residual_control_score = (
+        _real_residual_control_score(best_real_residual_control)
+        if best_real_residual_control is not None
+        else 0.0
+    )
+    real_residual_policy_gap = max(
+        0.0,
+        real_residual_policy_control_score - best_real_residual_control_score,
+    )
     return (
         ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
         ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
@@ -2060,6 +2253,8 @@ def _eta_paper_suite_metric_values(
             if backend_strong_success_values
             else 0.0,
         ),
+        ("real_residual_policy_control_score", real_residual_policy_control_score),
+        ("real_residual_policy_gap_vs_control", real_residual_policy_gap),
         (
             "assessment_pass_fraction",
             assessment.passed_gate_count / assessment.total_gate_count
@@ -2099,6 +2294,9 @@ def _eta_paper_suite_metric_values(
         ("slow_to_fast_init_benefit", full_metrics.get("slow_to_fast_init_benefit", 0.0)),
         ("family_reuse_after_reset", full_metrics.get("family_reuse_after_reset", 0.0)),
         ("heldout_gain_after_consolidation", full_metrics.get("heldout_gain_after_consolidation", 0.0)),
+        ("heldout_family_miss_rate", full_metrics.get("heldout_family_miss_rate", 0.0)),
+        ("heldout_credit_window_miss_rate", full_metrics.get("heldout_credit_window_miss_rate", 0.0)),
+        ("heldout_terminal_credit_coverage", full_metrics.get("heldout_terminal_credit_coverage", 0.0)),
         ("real_open_weight_step_count", full_metrics.get("real_open_weight_step_count", 0.0)),
         ("real_open_weight_capture_rate", full_metrics.get("real_open_weight_capture_rate", 0.0)),
         ("real_open_weight_hook_coverage", full_metrics.get("real_open_weight_hook_coverage", 0.0)),
@@ -2349,6 +2547,16 @@ def run_eta_internal_rl_paper_suite(
             if full_report is not None and strongest_control_report is not None and abs(raw_gap) <= 1e-9
             else 0.0
         )
+        real_residual_control_report = _best_real_residual_policy_control(report_map=report_map)
+        real_residual_gap = (
+            max(
+                0.0,
+                _real_residual_control_score(full_report)
+                - _real_residual_control_score(real_residual_control_report),
+            )
+            if full_report is not None and real_residual_control_report is not None
+            else 0.0
+        )
         run_summary = ETAProofPaperSuiteRunSummary(
             run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
             run_seed=run_seed,
@@ -2359,7 +2567,9 @@ def run_eta_internal_rl_paper_suite(
             ),
             strongest_competing_control=strongest_competing_control,
             strongest_control_gap=round(
-                max(raw_gap, mechanism_gap),
+                real_residual_gap
+                if active_manifest.suite_kind == "eta-open-weight-residual-proof"
+                else max(raw_gap, mechanism_gap),
                 4,
             ),
             description=(
@@ -2464,6 +2674,15 @@ def _build_eta_paper_suite_pairwise_effects(
         - _eta_run_metric_map(summary).get("strong_success_gap_vs_best_control", 0.0)
         for summary in run_summaries
     )
+    real_residual_policy_values = tuple(
+        _eta_run_metric_map(summary).get("real_residual_policy_control_score", 0.0)
+        for summary in run_summaries
+    )
+    real_residual_control_values = tuple(
+        _eta_run_metric_map(summary).get("real_residual_policy_control_score", 0.0)
+        - _eta_run_metric_map(summary).get("real_residual_policy_gap_vs_control", 0.0)
+        for summary in run_summaries
+    )
     return (
         build_pairwise_metric_effect(
             metric_name="heldout_strong_success_rate",
@@ -2471,6 +2690,13 @@ def _build_eta_paper_suite_pairwise_effects(
             control_label="strongest-control",
             candidate_values=full_values,
             control_values=strongest_control_values,
+        ),
+        build_pairwise_metric_effect(
+            metric_name="real_residual_policy_control_score",
+            candidate_label="full-internal-rl",
+            control_label="same-backend-real-residual-control",
+            candidate_values=real_residual_policy_values,
+            control_values=real_residual_control_values,
         ),
     )
 
@@ -2491,6 +2717,14 @@ def _build_eta_claim_verdicts(
     assessment = aggregate_report.reference_assessment
     blocked_gate_ids = set(assessment.gates[i].gate_id for i in range(len(assessment.gates)) if not assessment.gates[i].passed) if assessment is not None else set()
     strongest_control_effect = next(iter(aggregate_report.pairwise_effects), None)
+    real_residual_policy_effect = next(
+        (
+            effect
+            for effect in aggregate_report.pairwise_effects
+            if effect.metric_name == "real_residual_policy_control_score"
+        ),
+        None,
+    )
     statistical_gate_passed = "statistical-batch-evidence" not in blocked_gate_ids
     summary_map = {
         summary.metric_name: summary
@@ -2501,6 +2735,7 @@ def _build_eta_claim_verdicts(
     real_fallback_rate = summary_map.get("real_open_weight_fallback_rate")
     residual_signal_quality = summary_map.get("residual_signal_quality")
     episode_replacement_effect_delta = summary_map.get("episode_replacement_effect_delta")
+    real_residual_policy_gap = summary_map.get("real_residual_policy_gap_vs_control")
     reward_sparsity = summary_map.get("mean_reward_sparsity")
     reward_shaping_leakage = summary_map.get("reward_shaping_leakage")
     family_reuse_gap = summary_map.get("heldout_family_reuse_gap_vs_no_fast_prior")
@@ -2623,20 +2858,26 @@ def _build_eta_claim_verdicts(
         ),
     ]
     if aggregate_report.manifest.suite_kind == "eta-open-weight-residual-proof":
-        real_claim_status = _eta_claim_status(
-            retain_checks=(
-                real_capture_rate is not None and real_capture_rate.mean >= 1.0,
-                real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
-                real_fallback_rate is not None and real_fallback_rate.mean <= 0.10,
-                residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
-                episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
-            ),
-            weak_checks=(
-                real_capture_rate is not None and real_capture_rate.mean >= 1.0,
-                real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
-                residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
-            ),
-        )
+        fallback_rate = real_fallback_rate.mean if real_fallback_rate is not None else 1.0
+        if fallback_rate > 0.10:
+            real_claim_status = "fail"
+        else:
+            real_claim_status = _eta_claim_status(
+                retain_checks=(
+                    real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                    real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                    residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
+                    episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
+                    real_residual_policy_effect is not None and real_residual_policy_effect.ci_low > 0.0,
+                ),
+                weak_checks=(
+                    real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                    real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                    residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
+                    episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
+                    real_residual_policy_effect is not None and real_residual_policy_effect.mean_delta > 0.0,
+                ),
+            )
         verdicts.append(
             ClaimVerdict(
                 claim_id="claim_eta_real_open_weight_residual_control",
@@ -2651,6 +2892,22 @@ def _build_eta_claim_verdicts(
                     (
                         "episode_replacement_effect_delta",
                         episode_replacement_effect_delta.mean if episode_replacement_effect_delta is not None else 0.0,
+                    ),
+                    (
+                        "strong_success_gap_ci_low",
+                        strongest_control_effect.ci_low if strongest_control_effect is not None else 0.0,
+                    ),
+                    (
+                        "strong_success_gap_mean_delta",
+                        strongest_control_effect.mean_delta if strongest_control_effect is not None else 0.0,
+                    ),
+                    (
+                        "real_residual_policy_gap_vs_control",
+                        real_residual_policy_gap.mean if real_residual_policy_gap is not None else 0.0,
+                    ),
+                    (
+                        "real_residual_policy_gap_ci_low",
+                        real_residual_policy_effect.ci_low if real_residual_policy_effect is not None else 0.0,
                     ),
                 ),
                 summary="ETA real open-weight residual-control claim verdict.",

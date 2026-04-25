@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from volvence_zero.internal_rl.environment import InternalRLProofEpisode, InternalRLProofSubgoal
+from volvence_zero.internal_rl.environment import InternalRLProofEpisode, InternalRLProofSubgoal, sparse_proof_reward_taxonomy
 
 
 @dataclass(frozen=True)
@@ -328,7 +328,9 @@ class MiniHierarchicalEnvironment:
             terminal_reward=1.15,
             distractor_penalty=0.14 if self.route_branch_depth(route.waypoints) >= 3 else 0.10,
             failure_penalty=0.32 if len(subgoals) >= 3 else 0.26,
+            reward_profile="proof-sparse-terminal-delayed",
             split_detail=route.split_detail or route.split,
+            reward_taxonomy=sparse_proof_reward_taxonomy(),
             description=(
                 route.description
                 or f"Mini hierarchical episode in {self.env_id} over route {route.waypoints} with {len(distractors)} distractors."

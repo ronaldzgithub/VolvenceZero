@@ -1,0 +1,13 @@
+{
+  "confidence": 0.4643,
+  "cross_run_gap_mean": 0.0,
+  "cross_run_gap_std": 0.0,
+  "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=heldout_terminal_success_rate failure_mode=credit-misalignment competitor=noop-backend gap=0.000 cross_run_gap=0.000+/-0.000 confidence=0.46.",
+  "dominant_failure_mode": "credit-misalignment",
+  "interpretation": "eta-proof-strongest=training_transition_count; failure_mode=credit-misalignment; weakest_metric=heldout_terminal_success_rate",
+  "review_summary": "Primary weakness is credit-misalignment; strongest competing control is noop-backend; cross-run held-out strong-success gap is 0.000 +/- 0.000.",
+  "strongest_competing_control": "noop-backend",
+  "strongest_control_gap": 0.0,
+  "strongest_metric": "training_transition_count",
+  "weakest_metric": "heldout_terminal_success_rate"
+}

@@ -84,6 +84,8 @@ def test_internal_rl_proof_rollout_emits_delayed_credit_assignments():
     assert rollout.delayed_credit_assignments
     assert rollout.transitions[0].reward_mode == "proof-sparse"
     assert rollout.transitions[0].raw_reward != rollout.transitions[0].reward or rollout.total_reward != 0.0
+    assert any(transition.reward != transition.raw_reward for transition in rollout.transitions)
+    assert any(transition.reward > 0.0 for transition in rollout.transitions[:-1])
 
 
 def test_eta_proof_benchmark_exposes_default_cases_and_profiles():
@@ -128,7 +130,9 @@ def test_default_eta_proof_environment_builds_cases_from_routes():
     reward_kinds = {source.component_name: source.kind for source in case.proof_episode.reward_taxonomy}
     assert reward_kinds["proof_terminal_success"] == "terminal"
     assert reward_kinds["proof_subgoal_complete"] == "delayed"
-    assert reward_kinds["proof_subgoal_progress"] == "shaping"
+    assert reward_kinds["proof_subgoal_progress"] == "diagnostic"
+    assert case.proof_episode.reward_profile == "proof-sparse-terminal-delayed"
+    assert case.proof_episode.reward_optimizer_visible("proof_subgoal_progress") is False
 
 
 def test_default_eta_proof_environment_supports_reset_and_step():
@@ -178,6 +182,9 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert "intervention_application_count" in metric_names
     assert "episode_replacement_effect_delta" in metric_names
     assert "residual_signal_quality" in metric_names
+    assert "heldout_family_miss_rate" in metric_names
+    assert "heldout_credit_window_miss_rate" in metric_names
+    assert "heldout_terminal_credit_coverage" in metric_names
     assert "temporal_fast_prior_strength" in metric_names
     assert "temporal_fast_prior_switch_delta" in metric_names
     assert "credit_to_family_write_count" in metric_names
@@ -191,10 +198,10 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
     first_episode = report.profile_reports[0].episode_reports[0]
-    assert first_episode.reward_profile == "proof-sparse-legacy-shaping"
+    assert first_episode.reward_profile == "proof-sparse-terminal-delayed"
     assert first_episode.reward_source_mix
-    assert 0.0 <= first_episode.reward_shaping_leakage <= 1.0
-    assert 0.0 <= first_episode.reward_sparsity <= 1.0
+    assert first_episode.reward_shaping_leakage == 0.0
+    assert first_episode.reward_sparsity == 1.0
     assert first_episode.mean_steps_per_abstract_action >= 1.0
     assert first_episode.median_steps_per_abstract_action >= 1.0
     assert 0.0 <= first_episode.persistence_window_success_rate <= 1.0
@@ -204,6 +211,10 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert first_episode.intervention_application_count >= 0
     assert first_episode.mean_replacement_effect_delta >= -1.0
     assert 0.0 <= first_episode.residual_signal_quality <= 1.0
+    assert first_episode.first_missed_subgoal
+    assert 0.0 <= first_episode.family_miss_rate <= 1.0
+    assert 0.0 <= first_episode.credit_window_miss_rate <= 1.0
+    assert 0.0 <= first_episode.terminal_credit_coverage <= 1.0
 
 
 def test_eta_proof_matched_controls_share_case_reward_specs():
@@ -288,7 +299,13 @@ def test_eta_backend_robustness_benchmark_compares_trace_and_synthetic():
 
 
 def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
-    config = ETAOpenWeightRuntimeConfig(max_prefix_steps=2)
+    config = ETAOpenWeightRuntimeConfig(
+        max_prefix_steps=2,
+        runtime_mode="builtin-only",
+        fallback_mode="allow-builtin",
+        local_files_only=False,
+        require_real_backend=False,
+    )
 
     report = run_eta_open_weight_residual_benchmark(
         cases=default_eta_proof_cases()[:2],
@@ -312,10 +329,18 @@ def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
 
 def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_backend():
     manifest = build_eta_open_weight_paper_suite_manifest(suite_tier="ci-smoke")
+    primary_metric_names = {metric.metric_name for metric in manifest.primary_metrics}
+    assert "real_residual_policy_gap_vs_control" in primary_metric_names
 
     report = run_eta_internal_rl_paper_suite(
         manifest=manifest,
-        open_weight_config=ETAOpenWeightRuntimeConfig(max_prefix_steps=2),
+        open_weight_config=ETAOpenWeightRuntimeConfig(
+            max_prefix_steps=2,
+            runtime_mode="builtin-only",
+            fallback_mode="allow-builtin",
+            local_files_only=False,
+            require_real_backend=False,
+        ),
     )
 
     assert report.manifest.suite_kind == "eta-open-weight-residual-proof"
@@ -328,10 +353,44 @@ def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_ba
     assert report.pairwise_effects
     assert report.claim_verdicts
     claim_map = {claim.claim_id: claim for claim in report.claim_verdicts}
-    assert claim_map["claim_eta_real_open_weight_residual_control"].status in {"weak", "retain"}
     real_claim_evidence = dict(claim_map["claim_eta_real_open_weight_residual_control"].evidence)
     assert "residual_signal_quality" in real_claim_evidence
     assert "episode_replacement_effect_delta" in real_claim_evidence
+    assert "real_residual_policy_gap_vs_control" in real_claim_evidence
+    assert claim_map["claim_eta_real_open_weight_residual_control"].status == "fail"
+
+
+def test_eta_open_weight_real_backend_defaults_fail_closed_without_local_model():
+    try:
+        run_eta_open_weight_residual_benchmark(
+            cases=default_eta_proof_cases()[:1],
+            profile_labels=("full-internal-rl",),
+            runtime_config=ETAOpenWeightRuntimeConfig(model_id="missing-local-model", max_prefix_steps=1),
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        assert "fallback" in str(exc).lower() or type(exc).__name__ in {"OSError", "ValueError"}
+    else:
+        raise AssertionError("Expected strict real residual config to fail closed without a local transformers model.")
+
+
+def test_eta_open_weight_real_snapshots_cover_proof_subgoal_budget():
+    config = ETAOpenWeightRuntimeConfig(
+        max_prefix_steps=1,
+        runtime_mode="builtin-only",
+        fallback_mode="allow-builtin",
+        local_files_only=False,
+        require_real_backend=False,
+    )
+
+    report = run_eta_open_weight_residual_benchmark(
+        cases=default_eta_proof_cases()[-1:],
+        profile_labels=("full-internal-rl",),
+        runtime_config=config,
+    )
+
+    min_steps = sum(max(subgoal.min_persistence, 1) for subgoal in default_eta_proof_cases()[-1].proof_episode.subgoals)
+    metrics = dict(report.profile_reports[0].metric_means)
+    assert metrics["intervention_application_count"] >= min_steps
 
 
 def test_final_rollout_config_exposes_eta_open_weight_runtime_gate():

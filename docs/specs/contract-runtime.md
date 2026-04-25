@@ -101,7 +101,7 @@ P00 运行时内核固定以下最小守卫和视图：
 - 当前主链已新增正式 `prediction_error` owner/slot，公共交换固定为 `evaluated_prediction -> actual_outcome -> next_prediction -> error`
 - 当前 runtime kernel 的公共基类是 `RuntimeModule`，不是旧文档里的抽象 `Module`；模块通过 class-level `slot_name / owner / value_type / dependencies / default_wiring_level` 声明 contract，并由 `publish()` 统一递增 version
 - `propagate()` 默认启用 `auto_sort=True`。`topo_sort_modules()` 在依赖图无环时按声明依赖排序；遇到环会回退到调用方给定顺序，显式 cycle 诊断由 `detect_dependency_cycle()` 提供
-- 当前 `MemoryModule` 与 `CreditModule` 的默认接线为 `SHADOW`；它们仍执行 schema / ownership / immutability guard，但输出不会自动进入 active upstream，除非更高层 final wiring / session owner 显式接入相应 surface
+- 当前多数 adaptive owner（如 `SubstrateModule`、`TemporalModule` / track temporal modules、`MemoryModule`、`DualTrackModule`、`RegimeModule`、`CreditModule`、`ReflectionModule`、`ExperienceFastPriorModule`）的类级默认接线为 `SHADOW`；它们仍执行 schema / ownership / immutability guard，但输出不会自动进入 active upstream，除非更高层 final wiring / session owner 显式覆盖接线级别
 - `memory` / `regime` / `credit` / `reflection` / `temporal` 已直接消费 `prediction_error`；`evaluation` 只在 final wiring 中追加 prediction-error evidence，保持 readout 定位
 - 当前 temporal 区域已从单 owner 扩展为 staged multi-owner contract：`world_temporal`、`self_temporal`、`world_temporal_consolidation`、`self_temporal_consolidation` 各自拥有独立 slot；`temporal_abstraction` 由 `TemporalAggregateModule` 作为公共聚合 owner 对下游发布兼容快照
 - 这类 aggregate slot 只允许发布 compact public state；不得反向成为底层 track owner 的第二所有者
@@ -160,7 +160,7 @@ P00 运行时内核固定以下最小守卫和视图：
 
 ## 变更日志
 
-- 2026-04-25: 同步当前 runtime kernel 口径：模块基类为 `RuntimeModule`，`propagate(auto_sort=True)` 默认拓扑排序且 cycle 时回退输入顺序；补充 `memory` / `credit` 默认 `SHADOW` 接线
+- 2026-04-25: 同步当前 runtime kernel 口径：模块基类为 `RuntimeModule`，`propagate(auto_sort=True)` 默认拓扑排序且 cycle 时回退输入顺序；补充 adaptive owners 默认 `SHADOW` 接线
 - 2026-04-22: 应用层 shared control advisories + delayed credit summary 口径：`retrieval_policy` 可发布 retrieval/response/boundary 共用 advisory hint；session-post 新增 `DelayedCreditSummary`，沿 `experience_consolidation -> experience_fast_prior` 公共链回流到 retrieval/temporal fast path
 - 2026-04-22: 补充 external `domain_knowledge` ingest contract 口径，明确 reviewed candidate / typed prior update / owner-side writeback 路径，禁止 `DomainKnowledgeModule` 在 turn-time 直接抓取并写回外部知识
 - 2026-04-22: 双知识通道落地：session-post 产出 `ConversationKnowledgeCandidate`；`ApplicationRareHeavyCheckpoint` 携带 `ReviewedKnowledgeCandidate`；`_apply_application_prior_writeback` 统一 gate（含 fallback/citation/review）与可选 `DomainKnowledgeCheckpoint` 预捕获

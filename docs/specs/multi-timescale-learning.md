@@ -1,7 +1,7 @@
 # 多时间尺度学习框架 Spec
 
 > Status: draft
-> Last updated: 2026-04-21
+> Last updated: 2026-04-25
 > 对应需求: R1, R2, R13
 
 ## 要解决的问题
@@ -75,7 +75,7 @@ rare-heavy (定期离线):
 
 **产出的输出**：
 - 各时间尺度的参数更新（通过各自所有者模块发布快照）
-- 学习循环的状态信息（用于调试和评估）
+- 学习循环的状态信息（用于调试和评估），当前主要通过 `JointCycleReport`、`ScheduledJointLoopResult`、`SSLRLTrainingPipeline` / `PipelineResult`、`RareHeavyArtifact` 与 paper-suite artifact bundle 暴露
 
 当前实现口径：
 
@@ -140,6 +140,7 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-04-25: 补充当前 joint-loop / pipeline / paper-suite 的具体输出类型，避免把“学习循环状态”误读成无 schema 的自然语言报告
 - 2026-04-20: 接口契约补充 `prediction_error` 作为 PE-scheduled joint loop 与 rare-heavy review 的直接触发信号
 - 2026-04-09: next_gen_emogpt v2: design thesis recentered on prediction error / LSS as primitive learning signal (NL §3.1); NL appendix compressed to design implications; CMS / M3 / Hope positioned as design patterns, not mandatory implementations; R-PE added as new requirement upstream of R9 credit
 - 2026-04-09: U02 Nested CMS meta-learning: `CMSVariant.NESTED` added. In nested mode, background band meta-learns ideal initialization targets for session band (`_nested_session_init_target`), session band meta-learns targets for online band (`_nested_online_init_target`). `_update_nested_meta_targets()` runs each step, tracking convergence of faster bands and adjusting init targets with `meta_lr = background_lr * 0.5`. `reset_context()` re-initializes fast bands from these meta-learned targets (not simple state copy). `CMSCheckpointState` extended with `nested_session_init_target` / `nested_online_init_target`. Verified: init error decreases across repeated context resets (meta-learning converges).

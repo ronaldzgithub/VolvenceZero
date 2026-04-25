@@ -115,6 +115,41 @@ def default_proof_reward_taxonomy() -> tuple[InternalRLRewardSource, ...]:
     )
 
 
+def sparse_proof_reward_taxonomy() -> tuple[InternalRLRewardSource, ...]:
+    return (
+        InternalRLRewardSource(
+            component_name="proof_subgoal_complete",
+            kind="delayed",
+            optimizer_visible=True,
+            description="Delayed sparse reward assigned when an abstract-action window completes a subgoal.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_terminal_success",
+            kind="terminal",
+            optimizer_visible=True,
+            description="Terminal sparse reward assigned when all proof subgoals are complete.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_terminal_failure",
+            kind="terminal",
+            optimizer_visible=True,
+            description="Terminal sparse penalty assigned when the route ends before completing required subgoals.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_distractor_penalty",
+            kind="delayed",
+            optimizer_visible=True,
+            description="Delayed sparse penalty for entering a distractor signature.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_subgoal_progress",
+            kind="diagnostic",
+            optimizer_visible=False,
+            description="Progress diagnostic excluded from the primary sparse optimizer path.",
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class InternalRLProofEpisode:
     episode_id: str
@@ -129,11 +164,21 @@ class InternalRLProofEpisode:
     split_detail: str = "unspecified"
     reward_taxonomy: tuple[InternalRLRewardSource, ...] = field(default_factory=default_proof_reward_taxonomy)
 
-    def reward_kind_for(self, component_name: str) -> str:
+    @property
+    def sparse_only_rewards(self) -> bool:
+        return self.reward_profile == "proof-sparse-terminal-delayed"
+
+    def reward_source_for(self, component_name: str) -> InternalRLRewardSource:
         for source in self.reward_taxonomy:
             if source.component_name == component_name:
-                return source.kind
+                return source
         raise ValueError(f"Unknown proof reward component {component_name!r} in episode {self.episode_id!r}.")
+
+    def reward_kind_for(self, component_name: str) -> str:
+        return self.reward_source_for(component_name).kind
+
+    def reward_optimizer_visible(self, component_name: str) -> bool:
+        return self.reward_source_for(component_name).optimizer_visible
 
 
 @dataclass(frozen=True)
@@ -440,7 +485,7 @@ class InternalRLEnvironment:
                 completed_subgoals = completed_subgoals + (subgoal.subgoal_id,)
                 completed_family_ids = completed_family_ids + ((active_family_id or "unassigned"),)
                 current_subgoal_index += 1
-            else:
+            elif not proof_episode.sparse_only_rewards:
                 components.append(("proof_subgoal_progress", subgoal_score * 0.05))
         else:
             proof_signature = self._proof_signature(

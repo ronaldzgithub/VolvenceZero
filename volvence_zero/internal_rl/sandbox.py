@@ -307,12 +307,33 @@ class CausalZPolicy:
             previous_action=state.previous_action,
             weights=weights,
         )
+        update_pressure = 0.0
+        if observation_mode == "proof":
+            update_pressure = min(self._parameter_store.update_steps[state.track] / 2.0, 1.0)
+            if update_pressure > 0.0:
+                exploitation_mean = tuple(
+                    _clamp(
+                        weights[index] * 0.48
+                        + surface[index] * 0.34
+                        + hidden_state[index] * 0.18
+                    )
+                    for index in range(n)
+                )
+                policy_mean = tuple(
+                    _clamp(
+                        policy_mean[index] * (1.0 - 0.45 * update_pressure)
+                        + exploitation_mean[index] * 0.45 * update_pressure
+                    )
+                    for index in range(n)
+                )
         policy_std = self._policy_std(
             hidden_state=hidden_state,
             surface=surface,
             previous_action=state.previous_action,
             policy_mean=policy_mean,
         )
+        if update_pressure > 0.0:
+            policy_std = tuple(max(0.04, value * (1.0 - 0.35 * update_pressure)) for value in policy_std)
         policy_noise = self._policy_noise(
             hidden_state=hidden_state,
             surface=surface,
@@ -1084,8 +1105,10 @@ class InternalRLSandbox:
                     _clamp(transition.reward)
                 )
             for assignment in rollout.delayed_credit_assignments:
-                start = max(0, assignment.start_step)
-                end = min(len(rollout.transitions) - 1, assignment.end_step)
+                start, end = self._credit_assignment_window_bounds(
+                    transitions=rollout.transitions,
+                    assignment=assignment,
+                )
                 if end < start:
                     continue
                 window_family_ids = tuple(dict.fromkeys(
@@ -1140,8 +1163,10 @@ class InternalRLSandbox:
                 continue
             aligned = 0.0
             for assignment in rollout.delayed_credit_assignments:
-                start = max(0, assignment.start_step)
-                end = min(len(rollout.transitions) - 1, assignment.end_step)
+                start, end = self._credit_assignment_window_bounds(
+                    transitions=rollout.transitions,
+                    assignment=assignment,
+                )
                 if end < start:
                     continue
                 if assignment.reason == "terminal-success":
@@ -1160,6 +1185,50 @@ class InternalRLSandbox:
             aligned_scores.append(aligned / max(len(rollout.delayed_credit_assignments), 1))
         return sum(aligned_scores) / len(aligned_scores)
 
+    def _abstract_action_windows(self, transitions: tuple[ZTransition, ...]) -> tuple[tuple[int, int], ...]:
+        if not transitions:
+            return ()
+        windows: list[tuple[int, int]] = []
+        start = 0
+        for index, transition in enumerate(transitions):
+            if index > 0 and transition.controller_state.switch_gate >= 0.5:
+                windows.append((start, index - 1))
+                start = index
+        windows.append((start, len(transitions) - 1))
+        return tuple(windows)
+
+    def _credit_assignment_window_bounds(
+        self,
+        *,
+        transitions: tuple[ZTransition, ...],
+        assignment: InternalRLDelayedCreditAssignment,
+    ) -> tuple[int, int]:
+        if not transitions:
+            return (0, -1)
+        assignment_start = max(0, assignment.start_step)
+        assignment_end = min(len(transitions) - 1, assignment.end_step)
+        if assignment_end < assignment_start:
+            return (0, -1)
+        overlapping_windows = tuple(
+            (start, end)
+            for start, end in self._abstract_action_windows(transitions)
+            if end >= assignment_start and start <= assignment_end
+        )
+        if not overlapping_windows:
+            return (assignment_start, assignment_end)
+        return (
+            min(start for start, _ in overlapping_windows),
+            max(end for _, end in overlapping_windows),
+        )
+
+    def _proof_optimizer_visible_reward(self, transition: ZTransition) -> float:
+        excluded_components = {"proof_subgoal_complete", "proof_terminal_success"}
+        return sum(
+            value
+            for component_name, value in transition.reward_components
+            if component_name not in excluded_components
+        )
+
     def _apply_delayed_credit_assignments(
         self,
         *,
@@ -1168,10 +1237,17 @@ class InternalRLSandbox:
     ) -> tuple[ZTransition, ...]:
         if not transitions or not assignments:
             return transitions
-        adjusted_rewards = [transition.raw_reward for transition in transitions]
+        adjusted_rewards = [
+            self._proof_optimizer_visible_reward(transition)
+            if transition.reward_mode.startswith("proof")
+            else transition.raw_reward
+            for transition in transitions
+        ]
         for assignment in assignments:
-            start = max(0, assignment.start_step)
-            end = min(len(transitions) - 1, assignment.end_step)
+            start, end = self._credit_assignment_window_bounds(
+                transitions=transitions,
+                assignment=assignment,
+            )
             if end < start:
                 continue
             span = end - start + 1

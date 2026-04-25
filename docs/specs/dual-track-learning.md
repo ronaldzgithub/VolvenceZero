@@ -1,7 +1,7 @@
 # 双轨学习 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-25
 > 对应需求: R7
 
 ## 要解决的问题
@@ -72,6 +72,7 @@
 - `abstract_action_hint`、`action_family_version_hint` 和 `controller_source` 由 dual-track owner 对外发布，用于说明当前 track state 是否带有 temporal 证据，以及该证据来自哪一代 family bank
 - 默认 final wiring 下，dual-track 现优先消费 same-wave 的 `world_temporal` / `self_temporal` owner 快照，再保留 `temporal_abstraction` 作为 aggregate bridge，避免让 consumer 侧重建 track-specific controller state
 - `credit` / `evaluation` 当前是 dual-track 的下游消费者，而不是 direct module dependencies；dual-track owner 先发布稳定 track state，再由下游按需聚合
+- 当前 `DualTrackModule.default_wiring_level = SHADOW`；默认类级接线只提供校验与 evidence surface，final wiring / session runner 可按 rollout 需要显式提升
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节
 
@@ -88,6 +89,7 @@
 
 ## 变更日志
 
+- 2026-04-25: 补充 `DualTrackModule` 类级默认 `SHADOW` 接线，区分模块 contract 默认值与 final wiring 的显式激活
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + temporal_abstraction + substrate`；`credit` / `evaluation` 明确为 dual-track 的下游消费者而非 direct dependencies
 - 2026-04-06: P11 dual-track z-space separation: ControllerState.track_codes carries per-track projected latent codes; DualTrackModule now reads track-specific z_task/z_rel via temporal-track-projected path; CausalZPolicy uses amplified track projection
 - 2026-04-08: dual-track 新增 substrate semantic feature ingest，用公开 `semantic_*` feature signals 区分 world/self drive，并在 sparse-memory turn 上发布更稳定的 track state
