@@ -69,6 +69,7 @@ from volvence_zero.integration import (
     run_final_wiring_turn,
 )
 from volvence_zero.joint_loop import (
+    DefaultContinualLearningSurface,
     ETANLJointLoop,
     JointCycleReport,
     JointLoopSchedule,
@@ -150,6 +151,7 @@ class AgentTurnResult:
     joint_schedule_action: str
     joint_learning_summary: str
     joint_cycle_report: JointCycleReport | None
+    default_continual_learning_surface: DefaultContinualLearningSurface | None
     response: AgentResponse
     event_count: int
     substrate_model_id: str | None = None
@@ -491,7 +493,7 @@ class AgentSessionRunner:
         substrate_fallback_to_builtin: bool | None = None,
         substrate_fallback_mode: SubstrateFallbackMode | str | None = None,
         substrate_runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
-        allow_live_substrate_mutation: bool = True,
+        allow_live_substrate_mutation: bool = False,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
@@ -3176,6 +3178,7 @@ class AgentSessionRunner:
             joint_schedule_action=joint_result.schedule_action,
             joint_learning_summary=joint_result.description,
             joint_cycle_report=joint_result.cycle_report,
+            default_continual_learning_surface=joint_result.default_continual_learning_surface,
             response=response,
             event_count=integration_result.event_count,
             substrate_model_id=substrate_model_id,

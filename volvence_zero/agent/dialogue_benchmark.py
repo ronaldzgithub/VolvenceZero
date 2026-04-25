@@ -548,6 +548,7 @@ class DialogueNLEssenceAcceptanceConfig:
     required_gate_ids: tuple[str, ...] = (
         "pe-first",
         "multi-timescale-default",
+        "default-continual-learner",
         "judge-gated-evolution",
         "cross-session-growth",
     )
@@ -1555,6 +1556,24 @@ def build_dialogue_paper_suite_manifest(
             direction="higher-is-better",
             description="Average alignment between fast-memory evidence and recent runtime backbone evidence.",
         ),
+        PaperMetricSpec(
+            metric_name="default_continual_learning_active_rate",
+            role="primary",
+            direction="higher-is-better",
+            description="Runtime-native evidence that the default PE-ETA path activated owner-side continual learning.",
+        ),
+        PaperMetricSpec(
+            metric_name="default_owner_writeback_retention",
+            role="primary",
+            direction="higher-is-better",
+            description="Retention of bounded memory/temporal/regime/reflection writeback on the default path.",
+        ),
+        PaperMetricSpec(
+            metric_name="default_substrate_mutation_suppression",
+            role="primary",
+            direction="higher-is-better",
+            description="Evidence that live substrate mutation stays suppressed in the conservative default path.",
+        ),
     )
     secondary_metrics = (
         PaperMetricSpec(
@@ -2020,7 +2039,7 @@ def _metric_pairs(result: AgentTurnResult) -> tuple[tuple[str, float], ...]:
     return tuple(
         (f"{score.family}:{score.metric_name}", score.value)
         for score in evaluation_snapshot.value.turn_scores
-        if score.family in {"learning", "relationship", "abstraction"}
+        if score.family in {"learning", "relationship", "abstraction", "safety"}
     )
 
 
@@ -3412,6 +3431,34 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
             if (value := _metric_value(turn, "scheduler_rare_heavy_pressure")) is not None
         )
     )
+    mean_default_continual_learning_active = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "default_continual_learning_active")) is not None
+        )
+    )
+    mean_default_owner_writeback_retained = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "default_owner_writeback_retained")) is not None
+        )
+    )
+    mean_default_substrate_live_mutation_suppressed = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "default_substrate_live_mutation_suppressed")) is not None
+        )
+    )
+    mean_default_continual_rollback_clean = _mean(
+        tuple(
+            value
+            for turn in report.turns
+            if (value := _metric_value(turn, "default_continual_rollback_clean")) is not None
+        )
+    )
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -3453,6 +3500,13 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("mean_scheduler_discipline", mean_scheduler_discipline),
         ("mean_scheduler_substrate_pressure", mean_scheduler_substrate_pressure),
         ("mean_scheduler_rare_heavy_pressure", mean_scheduler_rare_heavy_pressure),
+        ("mean_default_continual_learning_active", mean_default_continual_learning_active),
+        ("mean_default_owner_writeback_retained", mean_default_owner_writeback_retained),
+        (
+            "mean_default_substrate_live_mutation_suppressed",
+            mean_default_substrate_live_mutation_suppressed,
+        ),
+        ("mean_default_continual_rollback_clean", mean_default_continual_rollback_clean),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -3732,6 +3786,28 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
             value for turn in turns if (value := _metric_value(turn, "scheduler_rare_heavy_pressure")) is not None
         )
     )
+    mean_default_continual_learning_active = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "default_continual_learning_active")) is not None
+        )
+    )
+    mean_default_owner_writeback_retained = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "default_owner_writeback_retained")) is not None
+        )
+    )
+    mean_default_substrate_live_mutation_suppressed = _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, "default_substrate_live_mutation_suppressed")) is not None
+        )
+    )
+    mean_default_continual_rollback_clean = _mean(
+        tuple(
+            value for turn in turns if (value := _metric_value(turn, "default_continual_rollback_clean")) is not None
+        )
+    )
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -3779,6 +3855,13 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("mean_scheduler_discipline", mean_scheduler_discipline),
         ("mean_scheduler_substrate_pressure", mean_scheduler_substrate_pressure),
         ("mean_scheduler_rare_heavy_pressure", mean_scheduler_rare_heavy_pressure),
+        ("mean_default_continual_learning_active", mean_default_continual_learning_active),
+        ("mean_default_owner_writeback_retained", mean_default_owner_writeback_retained),
+        (
+            "mean_default_substrate_live_mutation_suppressed",
+            mean_default_substrate_live_mutation_suppressed,
+        ),
+        ("mean_default_continual_rollback_clean", mean_default_continual_rollback_clean),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -4461,6 +4544,13 @@ def build_dialogue_nl_essence_assessment(
         evidence_metric_means.get("mean_timescale_contract_retained", 0.0) >= 0.55
         and evidence_metric_means.get("mean_scheduler_discipline", 0.0) >= 0.45
     )
+    default_continual_learner_passed = (
+        evidence_metric_means.get("mean_default_continual_learning_active", 0.0) > 0.0
+        and evidence_metric_means.get("mean_default_owner_writeback_retained", 0.0) >= 0.5
+        and evidence_metric_means.get("mean_default_substrate_live_mutation_suppressed", 0.0) >= 0.95
+        and evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) <= 0.0
+        and evidence_metric_means.get("mean_default_continual_rollback_clean", 0.0) >= 0.5
+    )
     store_nested_reset_count = evidence_metric_means.get("store_nested_context_reset_count", 0.0)
     reset_turn_slow_to_fast_init_benefit = evidence_metric_means.get(
         "mean_reset_turn_slow_to_fast_init_benefit", 0.0
@@ -4717,6 +4807,36 @@ def build_dialogue_nl_essence_assessment(
                 ),
             ),
             description="PE-triggered turns should couple to reviewable online-fast substrate evidence with nontrivial fast-memory/runtime alignment.",
+        ),
+        DialogueNLEssenceGate(
+            gate_id="default-continual-learner",
+            passed=default_continual_learner_passed,
+            evidence=(
+                (
+                    "mean_default_continual_learning_active",
+                    evidence_metric_means.get("mean_default_continual_learning_active", 0.0),
+                ),
+                (
+                    "mean_default_owner_writeback_retained",
+                    evidence_metric_means.get("mean_default_owner_writeback_retained", 0.0),
+                ),
+                (
+                    "mean_default_substrate_live_mutation_suppressed",
+                    evidence_metric_means.get("mean_default_substrate_live_mutation_suppressed", 0.0),
+                ),
+                (
+                    "online_fast_substrate_applied_count",
+                    evidence_metric_means.get("online_fast_substrate_applied_count", 0.0),
+                ),
+                (
+                    "mean_default_continual_rollback_clean",
+                    evidence_metric_means.get("mean_default_continual_rollback_clean", 0.0),
+                ),
+            ),
+            description=(
+                "Default continual learner should retain owner-side bounded writeback while keeping live "
+                "substrate mutation suppressed by default."
+            ),
         ),
         DialogueNLEssenceGate(
             gate_id="bounded-live-self-mod",
@@ -5242,6 +5362,10 @@ def _dialogue_paper_suite_metric_values(
         (gate for gate in report.essence_report.gates if gate.gate_id == "tower-memory-surface"),
         None,
     )
+    default_continual_gate = next(
+        (gate for gate in report.essence_report.gates if gate.gate_id == "default-continual-learner"),
+        None,
+    )
     canonical_pass_rate_pe_eta = _benchmark_pass_rate(
         canonical_pe_eta.benchmark_report.passed_case_count,
         canonical_pe_eta.benchmark_report.total_case_count,
@@ -5292,6 +5416,36 @@ def _dialogue_paper_suite_metric_values(
             report.emergence_dashboard.canonical_mean_fast_memory_runtime_alignment,
         ),
         (
+            "default_continual_learning_active_rate",
+            canonical_pe_eta.benchmark_report.metric_means
+            and dict(canonical_pe_eta.benchmark_report.metric_means).get(
+                "mean_default_continual_learning_active",
+                0.0,
+            )
+            if canonical_pe_eta is not None
+            else 0.0,
+        ),
+        (
+            "default_owner_writeback_retention",
+            canonical_pe_eta.benchmark_report.metric_means
+            and dict(canonical_pe_eta.benchmark_report.metric_means).get(
+                "mean_default_owner_writeback_retained",
+                0.0,
+            )
+            if canonical_pe_eta is not None
+            else 0.0,
+        ),
+        (
+            "default_substrate_mutation_suppression",
+            canonical_pe_eta.benchmark_report.metric_means
+            and dict(canonical_pe_eta.benchmark_report.metric_means).get(
+                "mean_default_substrate_live_mutation_suppressed",
+                0.0,
+            )
+            if canonical_pe_eta is not None
+            else 0.0,
+        ),
+        (
             "strongest_scaffold_retention_score",
             report.emergence_dashboard.strongest_scaffold_retention_score,
         ),
@@ -5313,6 +5467,7 @@ def _dialogue_paper_suite_metric_values(
         ),
         ("rare_heavy_gate_pass", float(rare_heavy_gate.passed) if rare_heavy_gate is not None else 0.0),
         ("tower_memory_gate_pass", float(tower_memory_gate.passed) if tower_memory_gate is not None else 0.0),
+        ("default_continual_learner_gate_pass", float(default_continual_gate.passed) if default_continual_gate is not None else 0.0),
         ("tower_memory_gate_strength", report.emergence_dashboard.tower_memory_gate_strength),
     )
 
@@ -5979,8 +6134,46 @@ def _build_dialogue_claim_verdicts(
         retain_checks=(
             gate_map.get("pe-first", False),
             gate_map.get("multi-timescale-default", False),
+            gate_map.get("default-continual-learner", False),
             gate_map.get("judge-gated-evolution", False),
             gate_map.get("cross-session-growth", False),
+        ),
+    )
+    default_continual_summary = next(
+        (
+            summary
+            for summary in aggregate_report.primary_metric_summaries
+            if summary.metric_name == "default_continual_learning_active_rate"
+        ),
+        None,
+    )
+    owner_writeback_summary = next(
+        (
+            summary
+            for summary in aggregate_report.primary_metric_summaries
+            if summary.metric_name == "default_owner_writeback_retention"
+        ),
+        None,
+    )
+    substrate_suppression_summary = next(
+        (
+            summary
+            for summary in aggregate_report.primary_metric_summaries
+            if summary.metric_name == "default_substrate_mutation_suppression"
+        ),
+        None,
+    )
+    claim_default_continual_status = _dialogue_claim_status(
+        retain_checks=(
+            gate_map.get("default-continual-learner", False),
+            default_continual_summary is not None and default_continual_summary.mean > 0.0,
+            owner_writeback_summary is not None and owner_writeback_summary.mean >= 0.5,
+            substrate_suppression_summary is not None and substrate_suppression_summary.mean >= 0.95,
+        ),
+        weak_checks=(
+            gate_map.get("multi-timescale-default", False),
+            default_continual_summary is not None and default_continual_summary.mean > 0.0,
+            substrate_suppression_summary is not None and substrate_suppression_summary.mean >= 0.8,
         ),
     )
     canonical_pe_drive = pairwise_map.get(("canonical_pass_rate", "pe-drive-off"))
@@ -6039,16 +6232,48 @@ def _build_dialogue_claim_verdicts(
         ClaimVerdict(
             claim_id="claim_pe_multi_timescale_default",
             status=claim_a_status,
-            required_gate_ids=("pe-first", "multi-timescale-default", "judge-gated-evolution", "cross-session-growth"),
+            required_gate_ids=(
+                "pe-first",
+                "multi-timescale-default",
+                "default-continual-learner",
+                "judge-gated-evolution",
+                "cross-session-growth",
+            ),
             supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
             evidence=(
                 ("pe-first", float(gate_map.get("pe-first", False))),
                 ("multi-timescale-default", float(gate_map.get("multi-timescale-default", False))),
+                ("default-continual-learner", float(gate_map.get("default-continual-learner", False))),
                 ("judge-gated-evolution", float(gate_map.get("judge-gated-evolution", False))),
                 ("cross-session-growth", float(gate_map.get("cross-session-growth", False))),
             ),
             summary="PE-first 与多时间尺度默认路径 claim verdict.",
             description="Claim A checks whether the default path retains the required PE-first and multi-timescale gates.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_default_continual_learner_without_live_substrate_mutation",
+            status=claim_default_continual_status,
+            required_gate_ids=("default-continual-learner",),
+            supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
+            evidence=(
+                (
+                    "default_continual_learning_active_rate",
+                    default_continual_summary.mean if default_continual_summary is not None else 0.0,
+                ),
+                (
+                    "default_owner_writeback_retention",
+                    owner_writeback_summary.mean if owner_writeback_summary is not None else 0.0,
+                ),
+                (
+                    "default_substrate_mutation_suppression",
+                    substrate_suppression_summary.mean if substrate_suppression_summary is not None else 0.0,
+                ),
+            ),
+            summary="默认 continual learner 在无 live substrate mutation 下保留的 claim verdict.",
+            description=(
+                "Claim Default-CL checks that owner-side memory/temporal/regime/reflection learning is retained "
+                "while live substrate mutation remains suppressed by default."
+            ),
         ),
         ClaimVerdict(
             claim_id="claim_temporal_advantage_over_controls",

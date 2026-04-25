@@ -76,6 +76,7 @@ def imagine(
         base_prediction = pe_module.compute_prediction(
             source_turn_index=0,
             substrate_snapshot=current_substrate,
+            previous_substrate_snapshot=None,
             evaluation_snapshot=current_evaluation,
             dual_track_snapshot=current_dual_track,
             regime_snapshot=current_regime,

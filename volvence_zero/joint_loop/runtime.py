@@ -77,6 +77,25 @@ def _clamp(value: float) -> float:
 
 
 @dataclass(frozen=True)
+class DefaultContinualLearningSurface:
+    surface_id: str
+    active: bool
+    owner_path: str
+    memory_regime_writeback_applied: bool
+    temporal_writeback_applied: bool
+    regime_evidence_applied: bool
+    substrate_live_mutation_applied: bool
+    substrate_review_only: bool
+    rare_heavy_review_recommended: bool
+    applied_operations: tuple[str, ...]
+    blocked_operations: tuple[str, ...]
+    rollback_applied: bool
+    evolution_decision: str
+    evolution_category: str
+    description: str
+
+
+@dataclass(frozen=True)
 class JointCycleReport:
     cycle_index: int
     acceptance_passed: bool
@@ -108,6 +127,7 @@ class JointCycleReport:
     policy_epochs_executed: int = 0
     rare_heavy_review_recommended: bool = False
     rl_batch_rollout_count: int = 1
+    default_continual_learning_surface: DefaultContinualLearningSurface | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +157,7 @@ class ScheduledJointLoopResult:
     description: str
     substrate_online_fast_due: bool = False
     rare_heavy_review_recommended: bool = False
+    default_continual_learning_surface: DefaultContinualLearningSurface | None = None
 
 
 @dataclass(frozen=True)
@@ -618,7 +639,7 @@ class ETANLJointLoop:
             self._regime_module,
             CreditModule(wiring_level=WiringLevel.ACTIVE),
             ReflectionModule(
-                engine=ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY),
+                engine=ReflectionEngine(writeback_mode=WritebackMode.APPLY),
                 wiring_level=WiringLevel.ACTIVE,
             ),
             TrackTemporalConsolidationModule(
@@ -784,6 +805,13 @@ class ETANLJointLoop:
                 and evolution_judgement.category is not JudgementCategory.UNSAFE_MUTATION
             )
         )
+        owner_writeback_enabled = (
+            apply_writeback
+            and judge_allows_structural
+            and not rollback_required
+            and not policy_rollback_applied
+            and not ssl_rollback_applied
+        )
         reflection_snapshot = ReflectionEngine(writeback_mode=WritebackMode.APPLY).reflect(
             timestamp_ms=active_snapshots["reflection"].timestamp_ms + 1,
             memory_snapshot=active_snapshots["memory"].value,
@@ -797,14 +825,14 @@ class ETANLJointLoop:
             reflection_snapshot=reflection_snapshot,
             credit_snapshot=enriched_credit_snapshot,
             timestamp_ms=active_snapshots["credit"].timestamp_ms + 175,
-            apply_enabled=apply_writeback and judge_allows_structural,
+            apply_enabled=owner_writeback_enabled,
         )
         self_track_temporal_writeback_operations, self_track_temporal_writeback_audits = self._apply_temporal_reflection_writeback(
             temporal_module=self_temporal_module,
             reflection_snapshot=reflection_snapshot,
             credit_snapshot=enriched_credit_snapshot,
             timestamp_ms=active_snapshots["credit"].timestamp_ms + 176,
-            apply_enabled=apply_writeback and judge_allows_structural,
+            apply_enabled=owner_writeback_enabled,
         )
         if temporal_writeback_audits:
             enriched_credit_snapshot = extend_credit_snapshot(
@@ -817,14 +845,25 @@ class ETANLJointLoop:
                 extra_modifications=self_track_temporal_writeback_audits,
             )
         applied_operations: tuple[str, ...] = regime_operations
-        if apply_writeback:
-            applied_operations = applied_operations + ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
+        blocked_writeback_operations: tuple[str, ...] = ()
+        memory_regime_writeback_applied = False
+        if owner_writeback_enabled:
+            reflection_writeback_result = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
                 memory_store=self._memory_store,
                 reflection_snapshot=reflection_snapshot,
                 credit_snapshot=enriched_credit_snapshot,
                 regime_module=self._regime_module,
                 checkpoint_id=f"{session_id}:{wave_id}",
-            ).applied_operations
+            )
+            applied_operations = applied_operations + reflection_writeback_result.applied_operations
+            blocked_writeback_operations = reflection_writeback_result.blocked_operations
+            memory_regime_writeback_applied = bool(reflection_writeback_result.applied_operations)
+        elif not apply_writeback:
+            blocked_writeback_operations = ("owner-writeback:disabled",)
+        elif not judge_allows_structural:
+            blocked_writeback_operations = ("owner-writeback:evolution-judge-block",)
+        elif rollback_required or policy_rollback_applied or ssl_rollback_applied:
+            blocked_writeback_operations = ("owner-writeback:rollback-protection",)
         applied_operations = (
             applied_operations
             + temporal_writeback_operations
@@ -839,6 +878,31 @@ class ETANLJointLoop:
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
         self._previous_credit_snapshot = enriched_credit_snapshot
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=JointLoopSchedule())
+        temporal_writeback_applied = bool(
+            temporal_writeback_operations or self_track_temporal_writeback_operations
+        )
+        default_continual_learning_surface = DefaultContinualLearningSurface(
+            surface_id=f"{self.owner_path}:cycle-{cycle_index}:default-continual",
+            active=bool(memory_regime_writeback_applied or temporal_writeback_applied or regime_operations),
+            owner_path=self.owner_path,
+            memory_regime_writeback_applied=memory_regime_writeback_applied,
+            temporal_writeback_applied=temporal_writeback_applied,
+            regime_evidence_applied=bool(regime_operations),
+            substrate_live_mutation_applied=False,
+            substrate_review_only=True,
+            rare_heavy_review_recommended=rare_heavy_review_recommended,
+            applied_operations=applied_operations,
+            blocked_operations=blocked_writeback_operations,
+            rollback_applied=bool(policy_rollback_applied or ssl_rollback_applied),
+            evolution_decision=evolution_judgement.decision.value,
+            evolution_category=evolution_judgement.category.value,
+            description=(
+                "Default continual learner surface retained owner-side memory/temporal/regime/reflection "
+                f"writeback={int(memory_regime_writeback_applied or temporal_writeback_applied)} "
+                f"regime_evidence={int(bool(regime_operations))} "
+                f"substrate_live_mutation=0 rare_heavy_review={int(rare_heavy_review_recommended)}."
+            ),
+        )
         return JointCycleReport(
             cycle_index=cycle_index,
             acceptance_passed="reflection" in active_snapshots and bool(recorder.events),
@@ -890,6 +954,7 @@ class ETANLJointLoop:
             policy_epochs_executed=optimization_result.total_epochs_executed,
             rare_heavy_review_recommended=rare_heavy_review_recommended,
             rl_batch_rollout_count=rl_batch_rollout_count,
+            default_continual_learning_surface=default_continual_learning_surface,
         )
 
     async def run_scheduled_step(
@@ -977,6 +1042,7 @@ class ETANLJointLoop:
                 description=cycle_report.description,
                 substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
+                default_continual_learning_surface=cycle_report.default_continual_learning_surface,
             )
         if batch_schedule_action in {
             "ssl-only-risk-hold",

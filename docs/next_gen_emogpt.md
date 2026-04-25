@@ -304,20 +304,21 @@ This section records the current implementation delta without relaxing the targe
 ### Already landed in runtime or evidence paths
 
 - `prediction_error` is already a first-class ACTIVE runtime object; `memory`, `temporal`, `regime`, `credit`, and `reflection` directly consume it in the live stack.
+- The default continual learner path is deliberately conservative: bounded writeback is default for memory, temporal priors, regime priors, reflection outputs, and session-post slow-loop consolidation, while live substrate mutation remains outside the default path.
 - The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review. Offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
 - The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
 
 ### Partially landed or still gated
 
-- Slow reflection can already write back bounded changes to memory, regime, and temporal priors, but application is still gated by writeback mode, credit gating, and evolution judgement rather than being an always-on unconstrained path.
+- Slow reflection can already write back bounded changes to memory, regime, and temporal priors. This is now the default continual-learning surface, but application remains gated by credit evidence and evolution judgement rather than being an unconstrained path.
 - CMS has landed as a machine-readable owner state with nested MLP profiles and slow-to-fast initialization telemetry, but this is one concrete engineering realization of the memory/timescale thesis rather than the full design space.
 - The new session-post slow loop is now the default `background-slow` owner path: turn-time final wiring emits a deferred writeback request, and session/context boundaries enqueue bounded post-session consolidation jobs that apply through owner-side memory/regime/temporal surfaces. The path is asynchronous with respect to user-facing turn latency, but still remains gated by writeback mode, credit evidence, and evolution judgement.
 
 ### Still target-state, not fully implemented
 
-- `rare-heavy` is no longer only a temporal/memory artifact path: the current runtime can clone substrate state into an offline owner, train a bounded adapter-delta-style substrate update, export it through the same rare-heavy artifact path, and verify it through replay-selection and acceptance gates. In the default frozen-substrate doctrine, live sessions keep those artifacts in review-only mode unless an explicit experimental live-mutation path is enabled. What is still missing is a fuller stable-substrate continual pretraining/distillation pipeline beyond this bounded substrate-aware adapter path.
+- `rare-heavy` is no longer only a temporal/memory artifact path: the current runtime can clone substrate state into an offline owner, train a bounded adapter-delta-style substrate update, export it through the same rare-heavy artifact path, and verify it through replay-selection and acceptance gates. In the default frozen-substrate doctrine, live sessions treat substrate mutation as review / rare-heavy / experimental evidence, not as the default continual-learning surface. What is still missing is a fuller stable-substrate continual pretraining/distillation pipeline beyond this bounded substrate-aware adapter path.
 - Dual-track control is no longer only semantic: the default runtime now runs separate `world` / `self` temporal owners and updates them independently. What remains unfinished is the final paper-complete endpoint: stronger per-track causal isolation in all downstream evidence paths and a less aggregate-dependent public surface for consumers such as evaluation and benchmarks.
-- Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is still not part of the default runtime doctrine. The repo may carry bounded substrate-delta proposal machinery for evidence or experimental mode, but the live default path keeps substrate mutation disabled.
+- Online-fast Titans/DGD-style substrate self-modification described in the NL/ETA mapping is still not part of the default runtime doctrine. The repo may carry bounded substrate-delta proposal machinery for evidence or experimental mode, but the default continual learner is retained through memory / temporal / regime / reflection writeback with substrate mutation disabled by default.
 
 ---
 

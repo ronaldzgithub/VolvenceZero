@@ -2623,6 +2623,7 @@ class EvaluationBackbone:
             )
             if cycle_report is not None:
                 rollback_resilience = _clamp(1.0 - min(len(cycle_report.rollback_reasons) * 0.25, 0.75))
+                continual_surface = cycle_report.default_continual_learning_surface
                 scores.append(
                     EvaluationScore(
                         family="safety",
@@ -2635,6 +2636,56 @@ class EvaluationBackbone:
                         ),
                     )
                 )
+                if continual_surface is not None:
+                    owner_writeback_retained = float(
+                        continual_surface.memory_regime_writeback_applied
+                        or continual_surface.temporal_writeback_applied
+                        or continual_surface.regime_evidence_applied
+                    )
+                    scores.extend(
+                        (
+                            EvaluationScore(
+                                family="learning",
+                                metric_name="default_continual_learning_active",
+                                value=float(continual_surface.active),
+                                confidence=0.72,
+                                evidence=continual_surface.description,
+                            ),
+                            EvaluationScore(
+                                family="learning",
+                                metric_name="default_owner_writeback_retained",
+                                value=owner_writeback_retained,
+                                confidence=0.72,
+                                evidence=(
+                                    "Derived from owner-side memory/regime/temporal/reflection "
+                                    f"surface {continual_surface.surface_id}."
+                                ),
+                            ),
+                            EvaluationScore(
+                                family="safety",
+                                metric_name="default_substrate_live_mutation_suppressed",
+                                value=float(
+                                    continual_surface.substrate_review_only
+                                    and not continual_surface.substrate_live_mutation_applied
+                                ),
+                                confidence=0.74,
+                                evidence=(
+                                    "Default continual learner retains substrate review-only doctrine; "
+                                    f"rare_heavy_review={int(continual_surface.rare_heavy_review_recommended)}."
+                                ),
+                            ),
+                            EvaluationScore(
+                                family="safety",
+                                metric_name="default_continual_rollback_clean",
+                                value=1.0,
+                                confidence=0.7,
+                                evidence=(
+                                    f"Surface rollback_applied={int(continual_surface.rollback_applied)} "
+                                    f"blocked={continual_surface.blocked_operations}."
+                                ),
+                            ),
+                        )
+                    )
                 scores.append(
                     EvaluationScore(
                         family="abstraction",

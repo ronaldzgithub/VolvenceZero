@@ -57,12 +57,12 @@
 | 修改目标 | 门控级别 | 触发条件 | 算法基础 |
 |----------|----------|----------|----------|
 | 检索权重、策略先验 | 在线可改 | 每轮/每 wave | CMS 高频层 |
-| bounded substrate delta proposal | 在线可改（有界） | 上一轮 PE carryover + schedule due + ONLINE gate allow | substrate self-mod owner + runtime apply surface |
+| bounded substrate delta proposal | 默认审阅 / 实验可改（有界） | 上一轮 PE carryover + schedule due + ONLINE gate allow | substrate self-mod owner + runtime apply surface |
 | 抽象控制器参数、反思启发式 | 后台验证 | 会话后反思 | CMS 中频层 |
 | 记忆提升阈值、基底微调 | 离线重训练 | 定期批量 | CMS 低频层 |
 | 基础模型结构变更 | 人工审核 | 版本发布 | — |
 
-CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习率 `η^(i)` 控制每层的适应幅度。Hope 的自修改 Titans（附录 A.7）实现有界自修改——修改范围限于记忆模块的参数，基础模型保持冻结。对当前 repo 而言，substrate delta proposal 既承担 evidence / audit 角色，也可在默认主路径下经 owner-side gate 后落地 bounded live mutation；显式 frozen runner 保留 review-only 控制线。
+CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习率 `η^(i)` 控制每层的适应幅度。Hope 的自修改 Titans（附录 A.7）实现有界自修改——修改范围限于记忆模块的参数，基础模型保持冻结。对当前 repo 而言，默认 continual learner 的正向写回目标是 memory / temporal / regime / reflection owner；substrate delta proposal 承担 evidence / audit / rare-heavy upgrade candidate 角色，只有显式 experimental live-mutation path 才可经 owner-side gate 后落地 bounded live mutation；显式 frozen runner 保留 review-only 控制线。
 
 ## 接口契约
 

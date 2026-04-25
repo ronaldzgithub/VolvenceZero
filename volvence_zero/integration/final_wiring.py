@@ -114,6 +114,7 @@ class FinalRolloutConfig:
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
+    eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
     session_post_slow_loop: WiringLevel = WiringLevel.SHADOW
     experience_consolidation: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
@@ -139,6 +140,7 @@ class FinalRolloutConfig:
             "credit": self.credit,
             "reflection": self.reflection,
             "temporal": self.temporal,
+            "eta_open_weight_runtime": self.eta_open_weight_runtime,
             "session_post_slow_loop": self.session_post_slow_loop,
             "experience_consolidation": self.experience_consolidation,
         }.get(module_name, default)

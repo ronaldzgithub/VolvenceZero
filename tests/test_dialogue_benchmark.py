@@ -264,6 +264,10 @@ def _benchmark_turn(
         outcome_metrics=(
             ("learning:joint_learning_progress", delayed_metric),
             ("relationship:cross_track_stability", delayed_metric),
+            ("learning:default_continual_learning_active", 1.0),
+            ("learning:default_owner_writeback_retained", 1.0 if bounded_writeback_applied or session_post_completed_job_count else 0.8),
+            ("safety:default_substrate_live_mutation_suppressed", 1.0),
+            ("safety:default_continual_rollback_clean", 1.0),
         ),
         description="synthetic benchmark turn",
         tower_consolidation_count=tower_consolidation_count,
@@ -1408,9 +1412,10 @@ def test_build_dialogue_nl_essence_assessment_uses_nested_and_cross_session_evid
     )
 
     assert assessment.path_label == "pe-eta"
-    assert assessment.total_gate_count == 11
+    assert assessment.total_gate_count == 12
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     assert "multi-timescale-default" in gate_map
+    assert "default-continual-learner" in gate_map
     assert "online-fast-pe-coupling" in gate_map
     assert "cross-session-growth" in gate_map
     assert "rare-heavy-net-benefit" in gate_map
@@ -1504,6 +1509,45 @@ def test_dialogue_nl_essence_acceptance_default_now_passes_with_longitudinal_nes
 
     assert decision.accepted is True
     assert not decision.blocked_gate_ids
+
+
+def test_default_continual_learner_gate_retains_frozen_substrate_doctrine():
+    ablation_report = asyncio.run(
+        run_dialogue_pe_eta_ablation_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            profile_labels=("pe-eta", "pe-eta-no-rare-heavy", "pe-drive-off", "eta-off", "timescale-off"),
+            runner_factory=_synthetic_ablation_runner,
+        )
+    )
+    benchmark_report = next(
+        path.benchmark_report
+        for path in ablation_report.path_reports
+        if path.path_label == "pe-eta"
+    )
+    longitudinal_report = asyncio.run(
+        run_dialogue_pe_eta_longitudinal_benchmark(
+            cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            runner_factory=lambda: _synthetic_runner(DEFAULT_DIALOGUE_PROOF_CASES[0]),
+        )
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+        comparison_report=ablation_report,
+        cross_session_report=longitudinal_report.cross_session_report,
+        longitudinal_report=longitudinal_report,
+    )
+
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    gate = gate_map["default-continual-learner"]
+    evidence = dict(gate.evidence)
+
+    assert gate.passed is True
+    assert evidence["mean_default_continual_learning_active"] > 0.0
+    assert evidence["mean_default_owner_writeback_retained"] >= 0.5
+    assert evidence["mean_default_substrate_live_mutation_suppressed"] >= 0.95
+    assert evidence["online_fast_substrate_applied_count"] == 0.0
 
 
 def test_rare_heavy_net_benefit_gate_fails_closed_without_no_rare_heavy_comparison():
@@ -2246,7 +2290,7 @@ def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
     assert len(report.longitudinal_report.case_reports) == 2
     assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
-    assert report.essence_report.total_gate_count == 11
+    assert report.essence_report.total_gate_count == 12
     assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert report.open_ablation_report is not None
     assert report.open_ablation_report.baseline_label == "pe-eta"

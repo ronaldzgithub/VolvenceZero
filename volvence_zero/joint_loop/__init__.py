@@ -7,6 +7,7 @@ from volvence_zero.joint_loop.pipeline import (
     TrainingPhase,
 )
 from volvence_zero.joint_loop.runtime import (
+    DefaultContinualLearningSurface,
     ETANLJointLoop,
     JointCycleReport,
     JointLoopSchedule,
@@ -19,6 +20,7 @@ from volvence_zero.joint_loop.runtime import (
 
 __all__ = [
     "ETANLJointLoop",
+    "DefaultContinualLearningSurface",
     "JointCycleReport",
     "JointLoopSchedule",
     "OnlineFastImportCheckpoint",

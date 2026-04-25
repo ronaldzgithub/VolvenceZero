@@ -171,6 +171,36 @@ class SessionPostSlowLoopSnapshot:
 - turn latency 不等待 slow loop 完成
 - `session_post_slow_loop` 是独立公共 slot；queue state / 最近完成结果必须通过快照发布，而不是要求消费者读取 `AgentSessionRunner` 私有状态
 
+### 2.7.1 Default Continual Learner Surface（默认持续学习面）
+
+`JointCycleReport` 现在携带一个 runtime-native surface，用于把默认 continual learner 的 owner-side 写回状态作为机器可读证据发布，而不是让 benchmark 从零散操作名里重建语义：
+
+```python
+@dataclass(frozen=True)
+class DefaultContinualLearningSurface:
+    surface_id: str
+    active: bool
+    owner_path: str
+    memory_regime_writeback_applied: bool
+    temporal_writeback_applied: bool
+    regime_evidence_applied: bool
+    substrate_live_mutation_applied: bool
+    substrate_review_only: bool
+    rare_heavy_review_recommended: bool
+    applied_operations: tuple[str, ...]
+    blocked_operations: tuple[str, ...]
+    rollback_applied: bool
+    evolution_decision: str
+    evolution_category: str
+    description: str
+```
+
+**不变量**：
+- 默认 continual learner 的正向学习面是 memory / temporal / regime / reflection owner writeback
+- `substrate_live_mutation_applied` 在默认路径必须保持 `False`；substrate 更新只能出现在 rare-heavy / experimental lane
+- `active` 不代表无约束突变，只代表 owner-side bounded writeback 或 regime evidence 已进入默认学习闭环
+- 所有 blocked / rollback 信息必须保留为 public evidence，不能被 benchmark 用缺省值吞掉
+
 ### 2.8 Application Retrieval / Knowledge / Boundary（应用层检索与边界）
 
 应用层第一阶段新增三类正式 slot，用于把“ETA 在线控制 -> 专业知识证据 -> 边界约束”提升为公共运行时 surface：

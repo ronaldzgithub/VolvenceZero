@@ -1,7 +1,7 @@
 # 评估体系 Spec
 
 > Status: draft
-> Last updated: 2026-04-22
+> Last updated: 2026-04-25
 > 对应需求: R12
 
 ## 要解决的问题
@@ -119,6 +119,8 @@
 - 当前 ETA proof paper-suite 的 repeated-run aggregate 也已接到这批 stronger metrics：例如 `heldout_strong_success_std`、`mean_rollouts_per_update`、`mean_parameter_change_norm`、`mean_replacement_effect_delta`、`mean_value_loss` 与 `training_transition_count`
 - 当前 ETA proof paper-suite aggregate 还会直接输出一层浓缩的 review-style interpretation summary：除了 `interpretation` / `dominant_failure_mode`，还会显式给出 `strongest_competing_control`、`strongest_control_gap` 与一条更接近审稿结论的 `review_summary`
 - 当前这条 review-style summary 还不再只看 reference assessment：它会综合 repeated-run 的 strongest-control 排名和 cross-run gap variance，形成更稳定的跨 run verdict
+- 当前 ETA paper-suite 已新增 open-weight residual evidence 口径：`eta-open-weight-*` manifest 会把 `transformers-open-weight` 作为 primary backend、`trace` 作为 matched fallback control，并把 `real_open_weight_capture_rate`、`real_open_weight_hook_coverage`、`real_open_weight_fallback_rate` 纳入 secondary summaries
+- 当前 ETA claim verdict 已新增 `claim_eta_real_open_weight_residual_control`：它把 real residual capture/control 是否成立从 `claim_eta_internal_rl_advantage` 中拆出来，避免把 synthetic proof harness 的 success 误写成真实 open-weight residual-control success
 - 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
@@ -161,6 +163,7 @@
 
 ## 变更日志
 
+- 2026-04-25: ETA paper-suite 新增 open-weight residual evidence summaries 与 `claim_eta_real_open_weight_residual_control`，把真实 residual-control 证据从 synthetic proof success 中拆分
 - 2026-04-22: 补充 case-level PE dominance diagnosis report，用于定位哪一个 case 在去掉 PE 主导后最先塌以及塌在哪一层
 - 2026-04-22: 补充 PE-dominance comparison report，用于集中比较 `pe-eta` / `pe-drive-off` / `pe-eta-pe-readout-only` 三条路径的机制保留度
 - 2026-04-22: 补充 `pe-eta-pe-readout-only` profile，明确区分“PE 可见”与“PE 主导”两层 benchmark 命题

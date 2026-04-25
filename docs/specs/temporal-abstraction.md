@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-04-22
+> Last updated: 2026-04-25
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -133,6 +133,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 `AgentSessionRunner`、`ETANLJointLoop` 和 final wiring 的默认 self-track controller 不再从独立随机 policy 起步；若用户未显式传入 self-track policy，则默认从 world-track discovered metacontroller snapshot 克隆，保证默认 runtime 的双轨 temporal owner 共享同一条 discovered lineage，同时仍保留两个独立 owner/store
 - 当前 `internal_rl` 已新增 paper-like proof mode：`InternalRLProofEpisode / InternalRLProofSubgoal / InternalRLDelayedCreditAssignment` 允许用结构化分层 sparse-reward episode 驱动 rollout，而不改变 live session 默认 dense reward 语义
 - 当前 `InternalRLSandbox` 在 proof mode 下已支持 sequence-aware causal observation（优先读 `residual_sequence` 摘要）与 delayed-return optimization；这条路径用于验证 internal RL 是否真的在抽象动作层解决延迟奖励，而不是只在 turn 级 dense shaping 下工作
+- 当前 ETA proof harness 已新增 real open-weight evidence lane：`transformers-open-weight` backend 通过 `OpenWeightResidualRuntime.capture/apply_control` 生成真实 residual `SubstrateSnapshot` 序列；time step 暂定为 source prefix steps，快照内显式发布 `eta_real_runtime_step_index`、`eta_real_runtime_capture_present`、`eta_real_runtime_fallback_active` 与 runtime hook evidence。`trace` / `synthetic-open-weight` 仍保留为 matched fallback/control，不再承担真实 residual-control claim 的唯一证据面
+- 当前 `run_eta_open_weight_residual_benchmark()` 与 `build_eta_open_weight_paper_suite_manifest()` 提供从 proof harness 向 open-weight runtime 过渡的研究原型入口：它不改变 live session 默认 dense reward 语义，也不打开 live substrate mutation；默认仍遵守 frozen substrate doctrine
 - 当前 ETA strong-proof benchmark 默认不再只比较混合 baseline，而是使用 matched controls（`full-no-optimize` / `full-no-replacement` / `learned-lite-causal` / `noop-backend`）分别隔离 RL 更新、latent replacement、controller capacity 与 backend intervention effect
 - 当前 `InternalRLSandbox.optimize()` 已补充 parameter-change evidence：proof benchmark 会记录 training-time `parameters_changed` / `training_parameter_change_rate`，避免把“最终 success 更高”误写成“internal RL 确实发生了 policy adaptation”
 - 当前 ETA strong-proof benchmark 已从 dialogue PE harness 中显式分离：新的 proof harness 关注 hierarchical sparse-reward、abstract-action family reuse、held-out composition 与 delayed credit alignment，而不把这些结论混写进普通 `temporal_abstraction` runtime slot
@@ -158,6 +160,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-04-25: ETA proof harness 新增 `transformers-open-weight` real residual evidence lane、prefix-step real snapshot contract、open-weight paper-suite manifest 与 runtime gating 口径；真实 residual-control claim 不再只依赖 synthetic proof harness
 - 2026-04-22: 补充 scaffold-ablation matched controls（`pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）的当前 proof 口径，用于测试去掉 heuristic scaffold 后的 latent family / PE schedule 稳健性
 - 2026-04-22: 当前实现口径补充 dual-track cached-reflection bridge 与 latent-family style fallback labels，进一步把 live path 从 heuristic semantics 收紧到 family/state evidence
 - 2026-04-20: 接口契约补充 `prediction_error` 直接输入；当前实现口径明确 `TemporalModule` 已直接消费 `prediction_error` slot，而不再只经 evaluation 旁路感知高 PE

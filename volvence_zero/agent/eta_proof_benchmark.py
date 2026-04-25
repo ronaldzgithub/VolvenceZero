@@ -34,11 +34,16 @@ from volvence_zero.internal_rl import (
 )
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
+    FeatureSignal,
+    LocalSubstrateRuntimeMode,
     NoOpResidualInterventionBackend,
+    OpenWeightResidualRuntime,
     ResidualSequenceStep,
     SubstrateSnapshot,
+    SubstrateFallbackMode,
     SurfaceKind,
     SyntheticOpenWeightResidualRuntime,
+    build_transformers_runtime_with_fallback,
     build_training_trace,
 )
 from volvence_zero.temporal import (
@@ -226,6 +231,20 @@ class ETAProofProfileConfig:
     bootstrap_init: bool = False
 
 
+@dataclass(frozen=True)
+class ETAOpenWeightRuntimeConfig:
+    model_id: str = "distilgpt2"
+    model_source: str | None = None
+    device: str = "auto"
+    layer_indices: tuple[int, ...] | None = None
+    local_files_only: bool = False
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.BUILTIN_ONLY
+    fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.ALLOW_BUILTIN
+    builtin_model_id: str = "eta-builtin-transformers-runtime"
+    max_prefix_steps: int = 6
+    description: str = "ETA open-weight runtime config for real residual capture/control."
+
+
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
     return SubstrateSnapshot(
         model_id=trace_id,
@@ -260,6 +279,129 @@ def _std(values: tuple[float, ...]) -> float:
     mean_value = _mean(values)
     variance = sum((value - mean_value) ** 2 for value in values) / len(values)
     return variance ** 0.5
+
+
+def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = None) -> OpenWeightResidualRuntime:
+    active_config = config or ETAOpenWeightRuntimeConfig()
+    return build_transformers_runtime_with_fallback(
+        model_id=active_config.model_id,
+        model_source=active_config.model_source,
+        device=active_config.device,
+        layer_indices=active_config.layer_indices,
+        local_files_only=active_config.local_files_only,
+        fallback_mode=active_config.fallback_mode,
+        runtime_mode=active_config.runtime_mode,
+        builtin_model_id=active_config.builtin_model_id,
+        allow_live_substrate_mutation=False,
+    )
+
+
+def _runtime_capture_snapshot(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    case: ETAProofCase,
+    source_text: str,
+    step_index: int,
+    total_steps: int,
+) -> SubstrateSnapshot:
+    capture = runtime.capture(source_text=source_text)
+    runtime_origin = getattr(runtime, "runtime_origin", "unknown")
+    fallback_active = 1.0 if getattr(runtime, "fallback_active", False) else 0.0
+    feature_surface = capture.feature_surface + (
+        FeatureSignal(
+            name="eta_real_runtime_step_index",
+            values=(step_index / max(total_steps - 1, 1),),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_prefix_fraction",
+            values=(len(source_text.split()) / max(len(case.source_text.split()), 1),),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_capture_present",
+            values=(1.0,),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_fallback_active",
+            values=(fallback_active,),
+            source="eta-open-weight-step-contract",
+        ),
+    )
+    return SubstrateSnapshot(
+        model_id=runtime.model_id,
+        is_frozen=runtime.is_frozen,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=capture.token_logits,
+        feature_surface=feature_surface,
+        residual_activations=capture.residual_activations,
+        residual_sequence=capture.residual_sequence,
+        unavailable_fields=(),
+        description=(
+            f"{capture.description} ETA real residual step {step_index + 1}/{total_steps} "
+            f"case={case.case_id} runtime_origin={runtime_origin} fallback_active={int(fallback_active)}."
+        ),
+    )
+
+
+def _eta_real_residual_prefixes(
+    source_text: str,
+    *,
+    max_prefix_steps: int,
+) -> tuple[str, ...]:
+    tokens = tuple(part for part in source_text.split() if part.strip())
+    if not tokens:
+        return (source_text or "<empty>",)
+    max_steps = max(1, min(max_prefix_steps, len(tokens)))
+    if max_steps == len(tokens):
+        return tuple(" ".join(tokens[: index + 1]) for index in range(len(tokens)))
+    positions = tuple(
+        min(len(tokens), max(1, round((index + 1) * len(tokens) / max_steps)))
+        for index in range(max_steps)
+    )
+    deduped_positions = tuple(dict.fromkeys(positions))
+    return tuple(" ".join(tokens[:position]) for position in deduped_positions)
+
+
+def _feature_mean(
+    snapshots: tuple[SubstrateSnapshot, ...],
+    *,
+    feature_name: str,
+) -> float:
+    values = tuple(
+        float(value)
+        for snapshot in snapshots
+        for feature in snapshot.feature_surface
+        if feature.name == feature_name
+        for value in feature.values
+    )
+    return _mean(values)
+
+
+def _real_snapshot_metric_values(snapshots: tuple[SubstrateSnapshot, ...]) -> tuple[tuple[str, float], ...]:
+    if not snapshots:
+        return (
+            ("real_open_weight_step_count", 0.0),
+            ("real_open_weight_capture_rate", 0.0),
+            ("real_open_weight_hook_coverage", 0.0),
+            ("real_open_weight_fallback_rate", 0.0),
+        )
+    return (
+        ("real_open_weight_step_count", float(len(snapshots))),
+        (
+            "real_open_weight_capture_rate",
+            _feature_mean(snapshots, feature_name="eta_real_runtime_capture_present"),
+        ),
+        (
+            "real_open_weight_hook_coverage",
+            _feature_mean(snapshots, feature_name="hook_layer_coverage"),
+        ),
+        (
+            "real_open_weight_fallback_rate",
+            _feature_mean(snapshots, feature_name="eta_real_runtime_fallback_active"),
+        ),
+    )
 
 
 def _switch_discipline_score(*, switch_sparsity: float, mean_persistence: float) -> float:
@@ -629,6 +771,54 @@ def build_eta_proof_paper_suite_manifest(
     )
 
 
+def build_eta_open_weight_paper_suite_manifest(
+    *,
+    suite_tier: str = "ci-smoke",
+) -> PaperSuiteManifest:
+    base_manifest = build_eta_proof_paper_suite_manifest(suite_tier=suite_tier)
+    case_groups = tuple(
+        ("backend_labels", ("transformers-open-weight", "trace"))
+        if name == "backend_labels"
+        else (name, values)
+        for name, values in base_manifest.case_groups
+    )
+    secondary_metrics = base_manifest.secondary_metrics + (
+        PaperMetricSpec(
+            metric_name="real_open_weight_capture_rate",
+            role="secondary",
+            direction="higher-is-better",
+            description="Fraction of ETA substrate steps captured from a real open-weight runtime.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_hook_coverage",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean hook-layer coverage observed during real open-weight ETA capture.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_fallback_rate",
+            role="secondary",
+            direction="lower-is-better",
+            description="Fraction of real ETA capture served by a builtin fallback runtime.",
+        ),
+    )
+    return replace(
+        base_manifest,
+        suite_id=f"eta-open-weight-{suite_tier}",
+        suite_kind="eta-open-weight-residual-proof",
+        version=base_manifest.version + 1,
+        case_groups=case_groups,
+        secondary_metrics=secondary_metrics,
+        artifact_expectations=base_manifest.artifact_expectations + (
+            "real open-weight residual capture/control evidence",
+        ),
+        description=(
+            f"Open-weight ETA paper suite {suite_tier} using real transformer residual capture/control "
+            "as the primary backend and trace as the matched fallback control."
+        ),
+    )
+
+
 def _profile_config(profile_label: str) -> ETAProofProfileConfig:
     if profile_label == "full-internal-rl":
         return ETAProofProfileConfig(
@@ -724,6 +914,7 @@ def _build_sandbox(
     profile: ETAProofProfileConfig,
     backend_label: str,
     bootstrap_snapshot: object | None = None,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
 ) -> InternalRLSandbox:
     if profile.policy_kind == "full":
         if bootstrap_snapshot is not None:
@@ -739,8 +930,12 @@ def _build_sandbox(
         if profile.use_noop_backend
         else InternalRLEnvironment()
     )
-    if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
+    if profile.use_noop_backend:
+        runtime = None
+    elif backend_label == "synthetic-open-weight":
         runtime = SyntheticOpenWeightResidualRuntime(model_id=f"eta-proof:{profile.profile_label}")
+    elif backend_label == "transformers-open-weight":
+        runtime = open_weight_runtime or _build_eta_open_weight_runtime()
     elif backend_label == "trace":
         runtime = None
     else:
@@ -748,7 +943,28 @@ def _build_sandbox(
     return InternalRLSandbox(policy=policy, env=env, residual_runtime=runtime)
 
 
-def _build_case_snapshots(case: ETAProofCase) -> tuple[SubstrateSnapshot, ...]:
+def _build_case_snapshots(
+    case: ETAProofCase,
+    *,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> tuple[SubstrateSnapshot, ...]:
+    if open_weight_runtime is not None:
+        active_config = open_weight_config or ETAOpenWeightRuntimeConfig()
+        prefixes = _eta_real_residual_prefixes(
+            case.source_text,
+            max_prefix_steps=active_config.max_prefix_steps,
+        )
+        return tuple(
+            _runtime_capture_snapshot(
+                runtime=open_weight_runtime,
+                case=case,
+                source_text=prefix,
+                step_index=step_index,
+                total_steps=len(prefixes),
+            )
+            for step_index, prefix in enumerate(prefixes)
+        )
     trace = build_training_trace(trace_id=case.case_id, source_text=case.source_text)
     return tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
 
@@ -936,9 +1152,20 @@ def run_eta_internal_rl_proof_benchmark(
     baseline_label: str = "full-internal-rl",
     backend_label: str = "trace",
     train_epochs: int = 2,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+    use_real_substrate_steps: bool | None = None,
 ) -> ETAProofBenchmarkReport:
     profile_reports: list[ETAProofProfileReport] = []
     benchmark_rollout_batch_count = 0
+    active_open_weight_runtime = open_weight_runtime
+    if backend_label == "transformers-open-weight" and active_open_weight_runtime is None:
+        active_open_weight_runtime = _build_eta_open_weight_runtime(open_weight_config)
+    real_steps_enabled = (
+        backend_label == "transformers-open-weight"
+        if use_real_substrate_steps is None
+        else use_real_substrate_steps
+    )
     for profile_label in profile_labels:
         profile = _profile_config(profile_label)
         train_cases = tuple(case for case in cases if case.split == "train")
@@ -952,6 +1179,7 @@ def run_eta_internal_rl_proof_benchmark(
             profile=profile,
             backend_label=backend_label,
             bootstrap_snapshot=bootstrap_snapshot,
+            open_weight_runtime=active_open_weight_runtime,
         )
         family_registry: dict[str, set[str]] = {}
         training_update_count = 0
@@ -961,11 +1189,18 @@ def run_eta_internal_rl_proof_benchmark(
         parameter_change_norms: list[float] = []
         value_losses: list[float] = []
         replacement_effect_deltas: list[float] = []
+        real_substrate_snapshots: list[SubstrateSnapshot] = []
         for epoch in range(train_epochs):
             train_rollouts: list[ZRollout] = []
             for case in train_cases:
-                snapshots = _build_case_snapshots(case)
-                if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
+                snapshots = _build_case_snapshots(
+                    case,
+                    open_weight_runtime=active_open_weight_runtime if real_steps_enabled and not profile.use_noop_backend else None,
+                    open_weight_config=open_weight_config,
+                )
+                if real_steps_enabled and not profile.use_noop_backend:
+                    real_substrate_snapshots.extend(snapshots)
+                if backend_label in {"synthetic-open-weight", "transformers-open-weight"} and not profile.use_noop_backend:
                     sandbox.configure_runtime_backend(source_text=case.source_text)
                 if profile.replacement_mode in {"causal", "causal-binary"} or profile.optimize_after_rollout:
                     sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
@@ -998,8 +1233,14 @@ def run_eta_internal_rl_proof_benchmark(
             )
         episode_reports: list[ETAProofEpisodeReport] = []
         for case in train_cases + eval_cases:
-            snapshots = _build_case_snapshots(case)
-            if backend_label == "synthetic-open-weight" and not profile.use_noop_backend:
+            snapshots = _build_case_snapshots(
+                case,
+                open_weight_runtime=active_open_weight_runtime if real_steps_enabled and not profile.use_noop_backend else None,
+                open_weight_config=open_weight_config,
+            )
+            if real_steps_enabled and not profile.use_noop_backend:
+                real_substrate_snapshots.extend(snapshots)
+            if backend_label in {"synthetic-open-weight", "transformers-open-weight"} and not profile.use_noop_backend:
                 sandbox.configure_runtime_backend(source_text=case.source_text)
             if profile.replacement_mode in {"causal", "causal-binary"}:
                 sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
@@ -1029,6 +1270,7 @@ def run_eta_internal_rl_proof_benchmark(
             ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
             ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
             ("bootstrap_init_used", 1.0 if bootstrap_snapshot is not None else 0.0),
+            *_real_snapshot_metric_values(tuple(real_substrate_snapshots)),
         )
         benchmark_rollout_batch_count += rollout_batch_count
         profile_reports.append(
@@ -1130,34 +1372,62 @@ def run_eta_internal_rl_proof_benchmark(
     )
 
 
+def run_eta_open_weight_residual_benchmark(
+    *,
+    cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
+    profile_labels: tuple[str, ...] = ("full-internal-rl", "full-no-optimize", "noop-backend"),
+    baseline_label: str = "full-internal-rl",
+    train_epochs: int = 1,
+    runtime_config: ETAOpenWeightRuntimeConfig | None = None,
+    runtime: OpenWeightResidualRuntime | None = None,
+) -> ETAProofBenchmarkReport:
+    active_runtime = runtime or _build_eta_open_weight_runtime(runtime_config)
+    return run_eta_internal_rl_proof_benchmark(
+        cases=cases,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        backend_label="transformers-open-weight",
+        train_epochs=train_epochs,
+        open_weight_runtime=active_runtime,
+        open_weight_config=runtime_config,
+        use_real_substrate_steps=True,
+    )
+
+
 def run_eta_internal_rl_backend_robustness_benchmark(
     *,
     cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
     profile_label: str = "full-internal-rl",
+    backend_labels: tuple[str, ...] = ("trace", "synthetic-open-weight"),
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
 ) -> ETAProofBackendComparisonReport:
-    trace_report = run_eta_internal_rl_proof_benchmark(
-        cases=cases,
-        profile_labels=(profile_label,),
-        baseline_label=profile_label,
-        backend_label="trace",
-    ).profile_reports[0]
-    synthetic_report = run_eta_internal_rl_proof_benchmark(
-        cases=cases,
-        profile_labels=(profile_label,),
-        baseline_label=profile_label,
-        backend_label="synthetic-open-weight",
-    ).profile_reports[0]
-    trace_metrics = dict(trace_report.metric_means)
-    synthetic_metrics = dict(synthetic_report.metric_means)
+    profile_reports = tuple(
+        run_eta_internal_rl_proof_benchmark(
+            cases=cases,
+            profile_labels=(profile_label,),
+            baseline_label=profile_label,
+            backend_label=backend_label,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
+        ).profile_reports[0]
+        for backend_label in backend_labels
+    )
+    if not profile_reports:
+        raise ValueError("ETA backend robustness requires at least one backend label.")
+    reference_report = profile_reports[0]
+    reference_metrics = dict(reference_report.metric_means)
+    comparison_report = profile_reports[-1]
+    comparison_metrics = dict(comparison_report.metric_means)
     return ETAProofBackendComparisonReport(
         profile_label=profile_label,
-        profile_reports=(trace_report, synthetic_report),
+        profile_reports=profile_reports,
         metric_deltas=tuple(
-            (metric_name, synthetic_metrics.get(metric_name, 0.0) - trace_metrics.get(metric_name, 0.0))
-            for metric_name, _ in trace_report.metric_means
+            (metric_name, comparison_metrics.get(metric_name, 0.0) - reference_metrics.get(metric_name, 0.0))
+            for metric_name, _ in reference_report.metric_means
         ),
         description=(
-            f"Backend robustness comparison for {profile_label} across trace and synthetic-open-weight backends."
+            f"Backend robustness comparison for {profile_label} across backends={backend_labels}."
         ),
     )
 
@@ -1512,6 +1782,10 @@ def _eta_paper_suite_metric_values(
         ("mean_value_loss", full_report.mean_value_loss),
         ("training_transition_count", float(full_report.training_transition_count)),
         ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+        ("real_open_weight_step_count", full_metrics.get("real_open_weight_step_count", 0.0)),
+        ("real_open_weight_capture_rate", full_metrics.get("real_open_weight_capture_rate", 0.0)),
+        ("real_open_weight_hook_coverage", full_metrics.get("real_open_weight_hook_coverage", 0.0)),
+        ("real_open_weight_fallback_rate", full_metrics.get("real_open_weight_fallback_rate", 0.0)),
     )
 
 
@@ -1682,6 +1956,8 @@ def run_eta_internal_rl_paper_suite(
     *,
     manifest: PaperSuiteManifest | None = None,
     output_dir: str | Path | None = None,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
 ) -> ETAProofPaperSuiteAggregateReport:
     active_manifest = manifest or build_eta_proof_paper_suite_manifest()
     route_ids = {
@@ -1693,6 +1969,13 @@ def run_eta_internal_rl_paper_suite(
     train_epochs = int(
         next(values[0] for name, values in active_manifest.case_groups if name == "train_epochs")
     )
+    backend_labels = tuple(
+        backend_label
+        for name, values in active_manifest.case_groups
+        if name == "backend_labels"
+        for backend_label in values
+    ) or ("trace", "synthetic-open-weight")
+    primary_backend_label = backend_labels[0]
     cases = tuple(case for case in default_eta_proof_cases() if case.case_id in route_ids)
     run_summaries: list[ETAProofPaperSuiteRunSummary] = []
     reference_benchmark_report: ETAProofBenchmarkReport | None = None
@@ -1710,12 +1993,17 @@ def run_eta_internal_rl_paper_suite(
             cases=ordered_cases,
             profile_labels=tuple(profile.profile_label for profile in active_manifest.profiles),
             baseline_label=active_manifest.baseline_label,
-            backend_label="trace",
+            backend_label=primary_backend_label,
             train_epochs=train_epochs,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
         )
         backend_report = run_eta_internal_rl_backend_robustness_benchmark(
             cases=ordered_cases,
             profile_label=active_manifest.baseline_label,
+            backend_labels=backend_labels,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
         )
         assessment = build_eta_internal_rl_assessment(
             benchmark_report=benchmark_report,
@@ -1800,7 +2088,8 @@ def run_eta_internal_rl_paper_suite(
         runtime_descriptor={
             "suite_kind": active_manifest.suite_kind,
             "train_epochs": str(train_epochs),
-            "backend_mode": "trace+synthetic-open-weight",
+            "backend_mode": "+".join(backend_labels),
+            "primary_backend": primary_backend_label,
         },
     )
     interpretation_summary = _build_eta_paper_suite_interpretation_summary(
@@ -1886,6 +2175,13 @@ def _build_eta_claim_verdicts(
     blocked_gate_ids = set(assessment.gates[i].gate_id for i in range(len(assessment.gates)) if not assessment.gates[i].passed) if assessment is not None else set()
     strongest_control_effect = next(iter(aggregate_report.pairwise_effects), None)
     statistical_gate_passed = "statistical-batch-evidence" not in blocked_gate_ids
+    summary_map = {
+        summary.metric_name: summary
+        for summary in aggregate_report.primary_metric_summaries + aggregate_report.secondary_metric_summaries
+    }
+    real_capture_rate = summary_map.get("real_open_weight_capture_rate")
+    real_hook_coverage = summary_map.get("real_open_weight_hook_coverage")
+    real_fallback_rate = summary_map.get("real_open_weight_fallback_rate")
     claim_internal_rl = _eta_claim_status(
         retain_checks=(
             assessment is not None and assessment.passed_gate_count >= assessment.total_gate_count,
@@ -1897,7 +2193,7 @@ def _build_eta_claim_verdicts(
             strongest_control_effect is not None and strongest_control_effect.mean_delta > 0.0,
         ),
     )
-    return (
+    verdicts = [
         ClaimVerdict(
             claim_id="claim_eta_internal_rl_advantage",
             status=claim_internal_rl,
@@ -1921,7 +2217,38 @@ def _build_eta_claim_verdicts(
             summary="ETA internal-RL strong-proof claim verdict.",
             description="Checks whether full internal RL stays ahead of the strongest control with retained acceptance gates and statistical evidence.",
         ),
-    )
+    ]
+    if aggregate_report.manifest.suite_kind == "eta-open-weight-residual-proof":
+        real_claim_status = _eta_claim_status(
+            retain_checks=(
+                real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                real_fallback_rate is not None and real_fallback_rate.mean <= 0.10,
+            ),
+            weak_checks=(
+                real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+            ),
+        )
+        verdicts.append(
+            ClaimVerdict(
+                claim_id="claim_eta_real_open_weight_residual_control",
+                status=real_claim_status,
+                required_gate_ids=("backend-robustness",),
+                supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+                evidence=(
+                    ("real_open_weight_capture_rate", real_capture_rate.mean if real_capture_rate is not None else 0.0),
+                    ("real_open_weight_hook_coverage", real_hook_coverage.mean if real_hook_coverage is not None else 0.0),
+                    ("real_open_weight_fallback_rate", real_fallback_rate.mean if real_fallback_rate is not None else 0.0),
+                ),
+                summary="ETA real open-weight residual-control claim verdict.",
+                description=(
+                    "Checks whether ETA evidence uses real open-weight residual capture/control rather than "
+                    "only synthetic trace proof harness evidence."
+                ),
+            )
+        )
+    return tuple(verdicts)
 
 
 def build_eta_paper_suite_evidence_bundle(

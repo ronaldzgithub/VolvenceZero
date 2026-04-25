@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAInternalRLAcceptanceConfig,
+    ETAOpenWeightRuntimeConfig,
+    build_eta_open_weight_paper_suite_manifest,
     build_eta_proof_paper_suite_manifest,
     build_default_eta_proof_environment,
     build_eta_internal_rl_assessment,
@@ -10,10 +12,13 @@ from volvence_zero.agent.eta_proof_benchmark import (
     default_eta_proof_routes,
     evaluate_eta_internal_rl_acceptance,
     export_eta_internal_rl_paper_suite_artifact_bundle,
+    run_eta_open_weight_residual_benchmark,
     run_eta_internal_rl_backend_robustness_benchmark,
     run_eta_internal_rl_paper_suite,
     run_eta_internal_rl_proof_benchmark,
 )
+from volvence_zero.integration.final_wiring import FinalRolloutConfig
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.internal_rl import InternalRLProofEpisode, InternalRLProofSubgoal, InternalRLSandbox
 from volvence_zero.memory import Track
 from volvence_zero.substrate import ResidualSequenceStep, SubstrateSnapshot, SurfaceKind, build_training_trace
@@ -211,6 +216,55 @@ def test_eta_backend_robustness_benchmark_compares_trace_and_synthetic():
     assert backend_labels == {"trace", "synthetic-open-weight"}
     delta_names = {name for name, _ in report.metric_deltas}
     assert "heldout_terminal_success_rate" in delta_names
+
+
+def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
+    config = ETAOpenWeightRuntimeConfig(max_prefix_steps=2)
+
+    report = run_eta_open_weight_residual_benchmark(
+        cases=default_eta_proof_cases()[:2],
+        profile_labels=("full-internal-rl", "noop-backend"),
+        runtime_config=config,
+    )
+
+    assert report.backend_label == "transformers-open-weight"
+    full_metrics = dict(
+        next(profile.metric_means for profile in report.profile_reports if profile.profile_label == "full-internal-rl")
+    )
+    assert full_metrics["real_open_weight_step_count"] > 0.0
+    assert full_metrics["real_open_weight_capture_rate"] == 1.0
+    assert full_metrics["real_open_weight_hook_coverage"] >= 0.0
+
+
+def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_backend():
+    manifest = build_eta_open_weight_paper_suite_manifest(suite_tier="ci-smoke")
+
+    report = run_eta_internal_rl_paper_suite(
+        manifest=manifest,
+        open_weight_config=ETAOpenWeightRuntimeConfig(max_prefix_steps=2),
+    )
+
+    assert report.manifest.suite_kind == "eta-open-weight-residual-proof"
+    assert report.reference_benchmark_report is not None
+    assert report.reference_benchmark_report.backend_label == "transformers-open-weight"
+    assert report.reference_backend_report is not None
+    backend_labels = {profile_report.backend_label for profile_report in report.reference_backend_report.profile_reports}
+    assert "transformers-open-weight" in backend_labels
+    assert "trace" in backend_labels
+    assert report.pairwise_effects
+    assert report.claim_verdicts
+    claim_map = {claim.claim_id: claim for claim in report.claim_verdicts}
+    assert claim_map["claim_eta_real_open_weight_residual_control"].status in {"weak", "retain"}
+
+
+def test_final_rollout_config_exposes_eta_open_weight_runtime_gate():
+    config = FinalRolloutConfig()
+
+    assert config.level_for("eta_open_weight_runtime", WiringLevel.DISABLED) is WiringLevel.SHADOW
+    assert config.is_active("eta_open_weight_runtime") is False
+
+    promoted = FinalRolloutConfig(eta_open_weight_runtime=WiringLevel.ACTIVE)
+    assert promoted.is_active("eta_open_weight_runtime") is True
 
 
 def test_eta_internal_rl_acceptance_fails_closed_without_backend_report():
