@@ -1,0 +1,15 @@
+
+[bench]
+torch
+transformers
+
+[cli]
+
+[dev]
+pytest
+torch
+transformers
+
+[hf]
+torch
+transformers

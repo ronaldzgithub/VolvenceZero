@@ -1,0 +1,2 @@
+[console_scripts]
+volvence-zero = volvence_zero.agent.cli:main
