@@ -1428,6 +1428,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         top_k_logits: int = 8,
         activation_width: int = 8,
         layer_indices: tuple[int, ...] | None = None,
+        hook_layer_selection: str = "middle",
         control_scale: float = 0.12,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
@@ -1461,6 +1462,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._layer_indices = self._normalize_layer_indices(
             requested=layer_indices,
             block_count=len(self._block_modules),
+            hook_layer_selection=hook_layer_selection,
         )
         self._hidden_size = self._resolve_hidden_size()
         self._model_family = self._resolve_model_family()
@@ -1896,6 +1898,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         requested: tuple[int, ...] | None,
         block_count: int,
+        hook_layer_selection: str = "middle",
     ) -> tuple[int, ...]:
         if block_count <= 0:
             raise ValueError(f"Transformers runtime '{self.model_id}' has no hookable transformer blocks.")
@@ -1904,6 +1907,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if not normalized:
                 raise ValueError(f"Transformers runtime '{self.model_id}' received no valid hook layer indices.")
             return normalized
+        if hook_layer_selection == "all":
+            return tuple(range(block_count))
+        if hook_layer_selection != "middle":
+            raise ValueError(
+                f"Unsupported hook_layer_selection {hook_layer_selection!r}; expected 'middle' or 'all'."
+            )
         if block_count <= 3:
             return tuple(range(block_count))
         middle = block_count // 2
@@ -2839,6 +2848,7 @@ def build_builtin_transformers_runtime(
     device: str = "cpu",
     tokenizer: object | None = None,
     layer_indices: tuple[int, ...] | None = None,
+    hook_layer_selection: str = "middle",
     allow_live_substrate_mutation: bool = False,
 ) -> TransformersOpenWeightResidualRuntime:
     transformers = importlib.import_module("transformers")
@@ -2861,7 +2871,8 @@ def build_builtin_transformers_runtime(
         model=model,
         tokenizer=tokenizer or HashingWhitespaceTokenizer(vocab_size=256),
         device=device,
-        layer_indices=layer_indices or (1, 2),
+        layer_indices=layer_indices,
+        hook_layer_selection=hook_layer_selection,
         activation_width=8,
         top_k_logits=8,
         runtime_origin="builtin-fallback",
@@ -2875,6 +2886,7 @@ def build_transformers_runtime_with_fallback(
     model_source: str | None = None,
     device: str = "auto",
     layer_indices: tuple[int, ...] | None = None,
+    hook_layer_selection: str = "middle",
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
     fallback_mode: SubstrateFallbackMode | str | None = None,
@@ -2892,6 +2904,8 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
+            layer_indices=layer_indices,
+            hook_layer_selection=hook_layer_selection,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
     resolved_mode = resolve_substrate_fallback_mode(
@@ -2914,6 +2928,7 @@ def build_transformers_runtime_with_fallback(
             pretrained_source=model_source or model_id,
             device=device,
             layer_indices=layer_indices,
+            hook_layer_selection=hook_layer_selection,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
@@ -2924,6 +2939,8 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
+            layer_indices=layer_indices,
+            hook_layer_selection=hook_layer_selection,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
 

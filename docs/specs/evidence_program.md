@@ -55,7 +55,7 @@
 - dialogue / ETA paper-suite aggregate 会额外发布 pairwise effects 与 claim verdicts
 - dialogue paper-suite export 会同时导出 blinded packet、internal key、rating template、rating aggregate 与 unified evidence bundle
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
-- ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / hook coverage / fallback rate 证据，不能由 trace 或 synthetic backend 单独支撑
+- ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / hook coverage / fallback rate 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、hook coverage 至少 `0.75`；显式 fallback smoke run 必须保持 fail/quarantine 语义
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 
 ## 与其他能力域的关系

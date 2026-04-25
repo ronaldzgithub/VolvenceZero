@@ -3,6 +3,7 @@ from __future__ import annotations
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAInternalRLAcceptanceConfig,
     ETAOpenWeightRuntimeConfig,
+    ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE,
     build_eta_open_weight_paper_suite_manifest,
     build_eta_proof_paper_suite_manifest,
     build_default_eta_proof_environment,
@@ -319,7 +320,8 @@ def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
     )
     assert full_metrics["real_open_weight_step_count"] > 0.0
     assert full_metrics["real_open_weight_capture_rate"] == 1.0
-    assert full_metrics["real_open_weight_hook_coverage"] >= 0.0
+    assert full_metrics["real_open_weight_hook_coverage"] >= ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE
+    assert full_metrics["real_open_weight_fallback_rate"] == 1.0
     assert full_metrics["intervention_application_count"] > 0.0
     assert full_metrics["episode_replacement_effect_delta"] >= -1.0
     assert full_metrics["residual_signal_quality"] > 0.0
@@ -357,6 +359,9 @@ def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_ba
     assert "residual_signal_quality" in real_claim_evidence
     assert "episode_replacement_effect_delta" in real_claim_evidence
     assert "real_residual_policy_gap_vs_control" in real_claim_evidence
+    assert real_claim_evidence["required_min_hook_coverage"] == ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE
+    assert real_claim_evidence["real_open_weight_hook_coverage"] >= ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE
+    assert real_claim_evidence["real_open_weight_fallback_rate"] == 1.0
     assert claim_map["claim_eta_real_open_weight_residual_control"].status == "fail"
 
 

@@ -66,6 +66,12 @@ A real residual-control claim fails closed if:
 - replacement effect delta is not positive against controls
 - the benchmark silently substitutes trace/synthetic backend for the primary real lane
 
+Current implementation tightening:
+
+- `ETAOpenWeightRuntimeConfig` now defaults to full hook-layer selection for the ETA open-weight lane, so a valid real run should report high hook coverage instead of the previous middle-layer-only `0.5` style evidence.
+- `claim_eta_real_open_weight_residual_control` is fail-closed unless fallback rate is `0.0` and hook coverage is at least `0.75`.
+- Fallback-enabled `builtin-only` runs remain allowed only as explicit smoke/quarantine evidence; they must not retain the real residual-control claim.
+
 ## Matched Controls
 
 Minimum profiles:

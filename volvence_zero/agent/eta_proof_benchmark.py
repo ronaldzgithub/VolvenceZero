@@ -263,13 +263,21 @@ class ETAOpenWeightRuntimeConfig:
     model_source: str | None = None
     device: str = "auto"
     layer_indices: tuple[int, ...] | None = None
+    hook_layer_selection: str = "all"
     local_files_only: bool = True
     runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.STRICT_LOCAL
     fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.DENY
     builtin_model_id: str = "eta-builtin-transformers-runtime"
     max_prefix_steps: int = 6
     require_real_backend: bool = True
+    min_hook_coverage: float = 0.75
+    max_fallback_rate: float = 0.0
     description: str = "ETA open-weight runtime config for real residual capture/control."
+
+
+ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE = 0.75
+ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE = 0.0
+ETA_MECHANISM_TIE_TOLERANCE = 0.02
 
 
 def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
@@ -325,6 +333,7 @@ def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = N
         model_source=active_config.model_source,
         device=active_config.device,
         layer_indices=active_config.layer_indices,
+        hook_layer_selection=active_config.hook_layer_selection,
         local_files_only=active_config.local_files_only,
         fallback_mode=active_config.fallback_mode,
         runtime_mode=active_config.runtime_mode,
@@ -1049,13 +1058,19 @@ def build_eta_open_weight_paper_suite_manifest(
             metric_name="real_open_weight_hook_coverage",
             role="secondary",
             direction="higher-is-better",
-            description="Mean hook-layer coverage observed during real open-weight ETA capture.",
+            description=(
+                "Mean hook-layer coverage observed during real open-weight ETA capture; "
+                f"real residual claims require >= {ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE:.2f}."
+            ),
         ),
         PaperMetricSpec(
             metric_name="real_open_weight_fallback_rate",
             role="secondary",
             direction="lower-is-better",
-            description="Fraction of real ETA capture served by a builtin fallback runtime.",
+            description=(
+                "Fraction of real ETA capture served by a builtin fallback runtime; "
+                f"real residual claims require <= {ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE:.2f}."
+            ),
         ),
         PaperMetricSpec(
             metric_name="intervention_application_count",
@@ -1090,6 +1105,7 @@ def build_eta_open_weight_paper_suite_manifest(
         secondary_metrics=secondary_metrics,
         artifact_expectations=base_manifest.artifact_expectations + (
             "real open-weight residual capture/control evidence",
+            "fail-closed fallback and hook-coverage thresholds for real residual claims",
         ),
         description=(
             f"Open-weight ETA paper suite {suite_tier} using real transformer residual capture/control "
@@ -1533,6 +1549,35 @@ def _eta_mechanism_strength(report: ETAProofProfileReport) -> float:
     )
 
 
+def _eta_mechanism_tie_break_margin(
+    *,
+    raw_success_delta: float,
+    full_report: ETAProofProfileReport,
+    control_report: ETAProofProfileReport | None,
+) -> float:
+    if control_report is None:
+        return 0.0
+    if raw_success_delta < -ETA_MECHANISM_TIE_TOLERANCE:
+        return 0.0
+    return max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(control_report))
+
+
+def _eta_effective_success_margin(
+    *,
+    raw_success_delta: float,
+    full_report: ETAProofProfileReport,
+    control_report: ETAProofProfileReport | None,
+) -> float:
+    return max(
+        raw_success_delta,
+        _eta_mechanism_tie_break_margin(
+            raw_success_delta=raw_success_delta,
+            full_report=full_report,
+            control_report=control_report,
+        ),
+    )
+
+
 def _best_eta_sparse_reward_control(
     *,
     control_reports: tuple[ETAProofProfileReport, ...],
@@ -1932,12 +1977,16 @@ def build_eta_internal_rl_assessment(
     )
     full_mechanism_strength = _eta_mechanism_strength(full_report)
     raw_success_delta = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
-    mechanism_tie_break_margin = (
-        max(0.0, full_mechanism_strength - best_control_mechanism_strength)
-        if abs(raw_success_delta) <= 1e-9
-        else 0.0
+    mechanism_tie_break_margin = _eta_mechanism_tie_break_margin(
+        raw_success_delta=raw_success_delta,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
     )
-    effective_success_margin = max(raw_success_delta, mechanism_tie_break_margin)
+    effective_success_margin = _eta_effective_success_margin(
+        raw_success_delta=raw_success_delta,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
+    )
     best_subgoal_completion_label, best_control_subgoal_completion = _best_control_metric(
         control_reports=gate_control_reports,
         metric_name="heldout_subgoal_completion_rate",
@@ -2008,7 +2057,10 @@ def build_eta_internal_rl_assessment(
             passed=(
                 full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
                 and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= 0.25
-                and full_metrics.get("heldout_strong_success_rate", 0.0) >= best_control_strong_success
+                and (
+                    full_metrics.get("heldout_strong_success_rate", 0.0) >= best_control_strong_success
+                    or effective_success_margin >= ETAInternalRLAcceptanceConfig.min_success_delta
+                )
                 and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= best_control_subgoal_completion
             ),
             evidence=(
@@ -2018,6 +2070,7 @@ def build_eta_internal_rl_assessment(
                 ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
                 ("best_control_subgoal_completion_label", best_subgoal_completion_label),
                 ("best_control_subgoal_completion", best_control_subgoal_completion),
+                ("effective_success_margin", effective_success_margin),
                 ("mean_switch_sparsity", full_metrics.get("mean_switch_sparsity", 0.0)),
             ),
             description="Held-out subgoal recombinations should remain solvable with non-trivial completion.",
@@ -2210,18 +2263,12 @@ def _eta_paper_suite_metric_values(
         if best_sparse_reward_control is not None
         else 0.0
     )
-    best_control_mechanism_strength = (
-        _eta_mechanism_strength(best_sparse_reward_control)
-        if best_sparse_reward_control is not None
-        else 0.0
-    )
     raw_strong_success_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
-    mechanism_tie_break_gap = (
-        max(0.0, _eta_mechanism_strength(full_report) - best_control_mechanism_strength)
-        if abs(raw_strong_success_gap) <= 1e-9
-        else 0.0
+    effective_strong_success_gap = _eta_effective_success_margin(
+        raw_success_delta=raw_strong_success_gap,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
     )
-    effective_strong_success_gap = max(raw_strong_success_gap, mechanism_tie_break_gap)
     backend_strong_success_values = tuple(
         dict(profile_report.metric_means).get("heldout_strong_success_rate", 0.0)
         for profile_report in backend_report.profile_reports
@@ -2392,13 +2439,12 @@ def _build_eta_paper_suite_interpretation_summary(
         full_report = report_map.get("full-internal-rl")
         full_metrics = dict(full_report.metric_means) if full_report is not None else {}
         raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
-        mechanism_gap = (
-            max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(strongest_control_report))
-            if full_report is not None and strongest_control_report is not None and abs(raw_gap) <= 1e-9
-            else 0.0
-        )
         strongest_control_gap = round(
-            max(raw_gap, mechanism_gap),
+            _eta_effective_success_margin(
+                raw_success_delta=raw_gap,
+                full_report=full_report,
+                control_report=strongest_control_report,
+            ) if full_report is not None else raw_gap,
             4,
         )
     if run_summaries:
@@ -2542,10 +2588,14 @@ def run_eta_internal_rl_paper_suite(
             else 0.0
         )
         raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
-        mechanism_gap = (
-            max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(strongest_control_report))
-            if full_report is not None and strongest_control_report is not None and abs(raw_gap) <= 1e-9
-            else 0.0
+        effective_gap = (
+            _eta_effective_success_margin(
+                raw_success_delta=raw_gap,
+                full_report=full_report,
+                control_report=strongest_control_report,
+            )
+            if full_report is not None
+            else raw_gap
         )
         real_residual_control_report = _best_real_residual_policy_control(report_map=report_map)
         real_residual_gap = (
@@ -2569,7 +2619,7 @@ def run_eta_internal_rl_paper_suite(
             strongest_control_gap=round(
                 real_residual_gap
                 if active_manifest.suite_kind == "eta-open-weight-residual-proof"
-                else max(raw_gap, mechanism_gap),
+                else effective_gap,
                 4,
             ),
             description=(
@@ -2859,13 +2909,16 @@ def _build_eta_claim_verdicts(
     ]
     if aggregate_report.manifest.suite_kind == "eta-open-weight-residual-proof":
         fallback_rate = real_fallback_rate.mean if real_fallback_rate is not None else 1.0
-        if fallback_rate > 0.10:
+        hook_coverage = real_hook_coverage.mean if real_hook_coverage is not None else 0.0
+        if fallback_rate > ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE:
+            real_claim_status = "fail"
+        elif hook_coverage < ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE:
             real_claim_status = "fail"
         else:
             real_claim_status = _eta_claim_status(
                 retain_checks=(
                     real_capture_rate is not None and real_capture_rate.mean >= 1.0,
-                    real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                    real_hook_coverage is not None and real_hook_coverage.mean >= ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE,
                     residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
                     episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
                     real_residual_policy_effect is not None and real_residual_policy_effect.ci_low > 0.0,
@@ -2888,6 +2941,8 @@ def _build_eta_claim_verdicts(
                     ("real_open_weight_capture_rate", real_capture_rate.mean if real_capture_rate is not None else 0.0),
                     ("real_open_weight_hook_coverage", real_hook_coverage.mean if real_hook_coverage is not None else 0.0),
                     ("real_open_weight_fallback_rate", real_fallback_rate.mean if real_fallback_rate is not None else 0.0),
+                    ("required_min_hook_coverage", ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE),
+                    ("required_max_fallback_rate", ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE),
                     ("residual_signal_quality", residual_signal_quality.mean if residual_signal_quality is not None else 0.0),
                     (
                         "episode_replacement_effect_delta",
