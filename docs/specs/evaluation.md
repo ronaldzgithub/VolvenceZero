@@ -120,7 +120,7 @@
 - 当前 ETA proof paper-suite aggregate 还会直接输出一层浓缩的 review-style interpretation summary：除了 `interpretation` / `dominant_failure_mode`，还会显式给出 `strongest_competing_control`、`strongest_control_gap` 与一条更接近审稿结论的 `review_summary`
 - 当前这条 review-style summary 还不再只看 reference assessment：它会综合 repeated-run 的 strongest-control 排名和 cross-run gap variance，形成更稳定的跨 run verdict
 - 当前 ETA sparse-reward / heldout-composition gate 支持 near-tie 机制判定：当 full internal RL 的 held-out strong success 与最强 control 的差距在 tolerance 内时，可用 policy-update / replacement 机制强度作为 tie-break；这避免让未优化 control 仅凭切换形态微分数压过真正发生 Internal RL 更新的路径
-- 当前 ETA paper-suite 已新增 open-weight residual evidence 口径：`eta-open-weight-*` manifest 会把 `transformers-open-weight` 作为 primary backend、`trace` 作为 matched fallback control，并把 `real_open_weight_capture_rate`、`real_open_weight_hook_coverage`、`real_open_weight_fallback_rate` 纳入 secondary summaries；真实 residual-control claim 现在 fail-closed 要求 fallback rate 为 `0.0` 且 hook coverage 至少 `0.75`，fallback smoke 只能作为隔离证据
+- 当前 ETA paper-suite 已新增 open-weight residual evidence 口径：`eta-open-weight-*` manifest 会把 `transformers-open-weight` 作为 primary backend、`trace` 作为 matched fallback control，并把 `real_open_weight_capture_rate`、`real_open_weight_hook_coverage`（actual hook fire rate）、`real_open_weight_planned_layer_fraction`、`real_open_weight_token_step_coverage`、`real_open_weight_intervention_protocol_valid`、`real_open_weight_fallback_rate` 纳入 secondary summaries；真实 residual-control claim 现在 fail-closed 要求 fallback rate 为 `0.0` 且 actual hook fire rate 至少 `0.75`，fallback smoke 只能作为隔离证据，`ci-smoke` 不承载 retain 级统计结论
 - 当前 ETA claim verdict 已新增 `claim_eta_real_open_weight_residual_control`：它把 real residual capture/control 是否成立从 `claim_eta_internal_rl_advantage` 中拆出来，避免把 synthetic proof harness 的 success 误写成真实 open-weight residual-control success
 - 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
@@ -165,6 +165,7 @@
 ## 变更日志
 
 - 2026-04-25: ETA paper-suite 新增 open-weight residual evidence summaries 与 `claim_eta_real_open_weight_residual_control`，把真实 residual-control 证据从 synthetic proof success 中拆分
+- 2026-04-26: open-weight evidence summaries 区分 actual hook fire rate 与 planned layer fraction，并明确 smoke tier 只用于连线/诊断
 - 2026-04-22: 补充 case-level PE dominance diagnosis report，用于定位哪一个 case 在去掉 PE 主导后最先塌以及塌在哪一层
 - 2026-04-22: 补充 PE-dominance comparison report，用于集中比较 `pe-eta` / `pe-drive-off` / `pe-eta-pe-readout-only` 三条路径的机制保留度
 - 2026-04-22: 补充 `pe-eta-pe-readout-only` profile，明确区分“PE 可见”与“PE 主导”两层 benchmark 命题

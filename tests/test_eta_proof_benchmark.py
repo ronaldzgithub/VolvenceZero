@@ -8,6 +8,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
     build_eta_proof_paper_suite_manifest,
     build_default_eta_proof_environment,
     build_eta_internal_rl_assessment,
+    _calibrate_case_for_real_snapshots,
     default_eta_proof_cases,
     default_eta_proof_profiles,
     default_eta_proof_routes,
@@ -22,7 +23,13 @@ from volvence_zero.integration.final_wiring import FinalRolloutConfig
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.internal_rl import InternalRLProofEpisode, InternalRLProofSubgoal, InternalRLSandbox
 from volvence_zero.memory import Track
-from volvence_zero.substrate import ResidualSequenceStep, SubstrateSnapshot, SurfaceKind, build_training_trace
+from volvence_zero.substrate import (
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SurfaceKind,
+    SyntheticOpenWeightResidualRuntime,
+    build_training_trace,
+)
 from volvence_zero.temporal.metacontroller_components import summarize_residual_activations
 
 
@@ -46,6 +53,21 @@ def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
         unavailable_fields=(),
         description=f"proof trace step {step.step}",
     )
+
+
+class _RecordingOpenWeightRuntime(SyntheticOpenWeightResidualRuntime):
+    def __init__(self) -> None:
+        super().__init__(model_id="recording-open-weight-runtime")
+        self.applied_source_texts: list[str] = []
+
+    def apply_control(self, *, source_text, substrate_snapshot, applied_control, track_scale=(1.0, 1.0, 1.0)):
+        self.applied_source_texts.append(source_text)
+        return super().apply_control(
+            source_text=source_text,
+            substrate_snapshot=substrate_snapshot,
+            applied_control=applied_control,
+            track_scale=track_scale,
+        )
 
 
 def test_internal_rl_proof_rollout_emits_delayed_credit_assignments():
@@ -116,6 +138,22 @@ def test_eta_proof_benchmark_exposes_default_cases_and_profiles():
     )
 
 
+def test_eta_real_residual_calibration_rewrites_subgoal_signatures_owner_side():
+    case = default_eta_proof_cases()[0]
+    trace = build_training_trace(trace_id="calibration-trace", source_text=case.source_text)
+    snapshots = tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps)
+
+    calibrated = _calibrate_case_for_real_snapshots(case, snapshots=snapshots, enabled=True)
+
+    assert calibrated.case_id == case.case_id
+    assert tuple(subgoal.subgoal_id for subgoal in calibrated.proof_episode.subgoals) == tuple(
+        subgoal.subgoal_id for subgoal in case.proof_episode.subgoals
+    )
+    assert calibrated.proof_episode.subgoals[0].target_signature != case.proof_episode.subgoals[0].target_signature
+    assert calibrated.proof_episode.subgoals[0].observation_weight >= case.proof_episode.subgoals[0].observation_weight
+    assert "Calibrated against frozen real residual prefixes" in calibrated.proof_episode.description
+
+
 def test_default_eta_proof_environment_builds_cases_from_routes():
     environment = build_default_eta_proof_environment()
     route = next(route for route in default_eta_proof_routes() if route.case_id == "heldout-epsilon-beta-alpha-delta")
@@ -132,8 +170,12 @@ def test_default_eta_proof_environment_builds_cases_from_routes():
     assert reward_kinds["proof_terminal_success"] == "terminal"
     assert reward_kinds["proof_subgoal_complete"] == "delayed"
     assert reward_kinds["proof_subgoal_progress"] == "diagnostic"
+    assert reward_kinds["proof_observation_alignment"] == "diagnostic"
+    assert reward_kinds["proof_intervention_effect"] == "diagnostic"
     assert case.proof_episode.reward_profile == "proof-sparse-terminal-delayed"
     assert case.proof_episode.reward_optimizer_visible("proof_subgoal_progress") is False
+    assert case.proof_episode.reward_optimizer_visible("proof_observation_alignment") is False
+    assert case.proof_episode.reward_optimizer_visible("proof_intervention_effect") is False
 
 
 def test_default_eta_proof_environment_supports_reset_and_step():
@@ -201,6 +243,9 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     first_episode = report.profile_reports[0].episode_reports[0]
     assert first_episode.reward_profile == "proof-sparse-terminal-delayed"
     assert first_episode.reward_source_mix
+    reward_components = {component_name for component_name, _, _ in first_episode.reward_source_mix}
+    assert "proof_observation_alignment" in reward_components
+    assert "proof_intervention_effect" in reward_components
     assert first_episode.reward_shaping_leakage == 0.0
     assert first_episode.reward_sparsity == 1.0
     assert first_episode.mean_steps_per_abstract_action >= 1.0
@@ -327,6 +372,28 @@ def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
     assert full_metrics["residual_signal_quality"] > 0.0
     assert full_metrics["mean_steps_per_abstract_action"] >= 1.0
     assert 0.0 <= full_metrics["persistence_window_success_rate"] <= 1.0
+
+
+def test_eta_open_weight_intervention_uses_prefix_aligned_source_texts():
+    case = next(case for case in default_eta_proof_cases() if len(case.source_text.split()) >= 5)
+    runtime = _RecordingOpenWeightRuntime()
+
+    report = run_eta_open_weight_residual_benchmark(
+        cases=(case,),
+        profile_labels=("full-internal-rl",),
+        runtime=runtime,
+        runtime_config=ETAOpenWeightRuntimeConfig(
+            max_prefix_steps=2,
+            require_real_backend=False,
+            calibrate_proof_signatures=False,
+        ),
+        train_epochs=1,
+    )
+
+    metrics = dict(report.profile_reports[0].metric_means)
+    assert runtime.applied_source_texts
+    assert any(source_text != case.source_text for source_text in runtime.applied_source_texts)
+    assert metrics["real_open_weight_intervention_protocol_valid"] == 1.0
 
 
 def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_backend():

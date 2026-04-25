@@ -1222,7 +1222,13 @@ class InternalRLSandbox:
         )
 
     def _proof_optimizer_visible_reward(self, transition: ZTransition) -> float:
-        excluded_components = {"proof_subgoal_complete", "proof_terminal_success"}
+        excluded_components = {
+            "proof_subgoal_complete",
+            "proof_terminal_success",
+            "proof_observation_alignment",
+            "proof_intervention_effect",
+            "proof_subgoal_progress",
+        }
         return sum(
             value
             for component_name, value in transition.reward_components
@@ -1267,6 +1273,7 @@ class InternalRLSandbox:
         track: Track = Track.SHARED,
         replacement_mode: str = "causal",
         proof_episode: InternalRLProofEpisode | None = None,
+        source_text_by_step: tuple[str, ...] = (),
     ) -> ZRollout:
         if replacement_mode in {"causal", "causal-binary"}:
             self._policy.parameter_store.require_causal_takeover_phase(
@@ -1277,6 +1284,8 @@ class InternalRLSandbox:
         policy_state = self._causal_policy.initial_state(track=track)
         proof_progress: InternalRLProofProgress | None = None
         for step_index, substrate_snapshot in enumerate(substrate_steps):
+            if source_text_by_step and step_index < len(source_text_by_step):
+                self.configure_runtime_backend(source_text=source_text_by_step[step_index])
             (
                 policy_state,
                 observation_signature,

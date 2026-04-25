@@ -112,6 +112,18 @@ def default_proof_reward_taxonomy() -> tuple[InternalRLRewardSource, ...]:
             optimizer_visible=True,
             description="Intermediate progress shaping retained for legacy proof profiles and reported as leakage.",
         ),
+        InternalRLRewardSource(
+            component_name="proof_observation_alignment",
+            kind="diagnostic",
+            optimizer_visible=False,
+            description="Diagnostic readout of observation-to-subgoal alignment, excluded from optimizer-visible reward.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_intervention_effect",
+            kind="diagnostic",
+            optimizer_visible=False,
+            description="Diagnostic readout of actual residual intervention effect, excluded from optimizer-visible reward.",
+        ),
     )
 
 
@@ -146,6 +158,18 @@ def sparse_proof_reward_taxonomy() -> tuple[InternalRLRewardSource, ...]:
             kind="diagnostic",
             optimizer_visible=False,
             description="Progress diagnostic excluded from the primary sparse optimizer path.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_observation_alignment",
+            kind="diagnostic",
+            optimizer_visible=False,
+            description="Observation/subgoal alignment diagnostic excluded from the primary sparse optimizer path.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_intervention_effect",
+            kind="diagnostic",
+            optimizer_visible=False,
+            description="Residual intervention-effect diagnostic excluded from the primary sparse optimizer path.",
         ),
     )
 
@@ -465,6 +489,13 @@ class InternalRLEnvironment:
                 proof_signature,
                 self._compress_signature(subgoal.target_signature, size=3),
             )
+            observation_alignment = self._alignment_score(
+                observation_signature,
+                self._compress_signature(subgoal.target_signature, size=3),
+            )
+            intervention_effect = sum(abs(value) for value in downstream_effect) / max(len(downstream_effect), 1)
+            components.append(("proof_observation_alignment", observation_alignment * 0.01))
+            components.append(("proof_intervention_effect", intervention_effect * 0.01))
             if subgoal_score >= subgoal.completion_threshold and temporal_step.controller_state.steps_since_switch >= (
                 subgoal.min_persistence - 1
             ):

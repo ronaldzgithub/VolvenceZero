@@ -1927,10 +1927,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     def _resolve_transformer_blocks(self) -> tuple[object, ...]:
         candidate_paths = (
             ("model", "layers"),
+            ("base_model", "model", "layers"),
+            ("base_model", "layers"),
             ("language_model", "model", "layers"),
+            ("language_model", "base_model", "model", "layers"),
             ("model", "decoder", "layers"),
             ("decoder", "layers"),
             ("transformer", "h"),
+            ("base_model", "transformer", "h"),
             ("gpt_neox", "layers"),
             ("transformer", "blocks"),
             ("backbone", "layers"),
@@ -2772,16 +2776,32 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         top_margin = _clamp_unit(token_logits[0] - token_logits[1]) if len(token_logits) > 1 else _clamp_unit(
             token_logits[0] if token_logits else 0.0
         )
-        hook_coverage = _clamp_unit(len(self._layer_indices) / max(len(self._block_modules), 1))
+        captured_layer_indices = tuple(
+            layer_index for layer_index in self._layer_indices if layer_index in captured_layers
+        )
+        if not captured_layer_indices:
+            raise RuntimeError(f"Transformers runtime '{self.model_id}' did not record any requested hooked activations.")
+        planned_layer_fraction = _clamp_unit(len(self._layer_indices) / max(len(self._block_modules), 1))
+        hook_fire_rate = _clamp_unit(len(captured_layer_indices) / max(len(self._layer_indices), 1))
+        available_step_count = min(
+            step_count,
+            *(
+                int(captured_layers[layer_index].shape[1])
+                for layer_index in captured_layer_indices
+            ),
+        )
+        if available_step_count <= 0:
+            raise RuntimeError(f"Transformers runtime '{self.model_id}' captured no token-level residual activations.")
+        token_step_coverage = _clamp_unit(available_step_count / max(step_count, 1))
         residual_sequence: list[ResidualSequenceStep] = []
-        for step_index, token in enumerate(tokens):
+        for step_index, token in enumerate(tokens[:available_step_count]):
             step_residuals = tuple(
                 ResidualActivation(
                     layer_index=layer_index,
                     activation=self._tensor_to_activation_tuple(captured_layers[layer_index][0, step_index, :]),
                     step=step_index,
                 )
-                for layer_index in self._layer_indices
+                for layer_index in captured_layer_indices
             )
             step_summary = _summarize_real_activations(step_residuals)
             step_features = (
@@ -2804,7 +2824,42 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 ),
                 FeatureSignal(
                     name="hook_layer_coverage",
-                    values=(hook_coverage,),
+                    values=(hook_fire_rate,),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="planned_layer_fraction",
+                    values=(planned_layer_fraction,),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="hook_fire_rate",
+                    values=(hook_fire_rate,),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="captured_hook_layer_count",
+                    values=(float(len(captured_layer_indices)),),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="requested_hook_layer_count",
+                    values=(float(len(self._layer_indices)),),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="total_hook_block_count",
+                    values=(float(len(self._block_modules)),),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="token_step_coverage",
+                    values=(token_step_coverage,),
+                    source="transformers-open-weight",
+                ),
+                FeatureSignal(
+                    name="residual_sequence_present",
+                    values=(1.0,),
                     source="transformers-open-weight",
                 ),
             )
@@ -2815,7 +2870,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     feature_surface=step_features,
                     residual_activations=step_residuals,
                     description=(
-                        f"Transformers hook capture for token '{token}' on layers {self._layer_indices}"
+                        f"Transformers hook capture for token '{token}' on layers {captured_layer_indices}"
                         f"{' with control' if control_applied else ''}."
                     ),
                 )
@@ -2858,7 +2913,42 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ),
             FeatureSignal(
                 name="hook_layer_coverage",
-                values=(hook_coverage,),
+                values=(hook_fire_rate,),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="planned_layer_fraction",
+                values=(planned_layer_fraction,),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="hook_fire_rate",
+                values=(hook_fire_rate,),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="captured_hook_layer_count",
+                values=(float(len(captured_layer_indices)),),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="requested_hook_layer_count",
+                values=(float(len(self._layer_indices)),),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="total_hook_block_count",
+                values=(float(len(self._block_modules)),),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="token_step_coverage",
+                values=(token_step_coverage,),
+                source="transformers-open-weight",
+            ),
+            FeatureSignal(
+                name="residual_sequence_present",
+                values=(1.0,),
                 source="transformers-open-weight",
             ),
             FeatureSignal(
@@ -2883,14 +2973,25 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"Transformers open-weight capture model={self.model_id} device={self._device} "
                 f"family={self._model_family} origin={self._runtime_origin} "
-                f"tokens={len(tokens)} layers={self._layer_indices} source_len={len(source_text)} "
+                f"tokens={len(tokens)} captured_tokens={available_step_count} layers={captured_layer_indices} "
+                f"planned_layers={self._layer_indices} source_len={len(source_text)} "
+                f"hook_fire_rate={hook_fire_rate:.3f} planned_layer_fraction={planned_layer_fraction:.3f} "
                 f"live_mode={self.live_mutation_mode}."
             ),
         )
 
     def _tensor_to_activation_tuple(self, tensor) -> tuple[float, ...]:
         values = tensor.detach().cpu().tolist()
-        return tuple(float(value) for value in values[: self._activation_width])
+        if len(values) <= self._activation_width:
+            return tuple(float(value) for value in values)
+        chunk_size = max(len(values) // self._activation_width, 1)
+        projected: list[float] = []
+        for index in range(self._activation_width):
+            start = index * chunk_size
+            end = len(values) if index == self._activation_width - 1 else min((index + 1) * chunk_size, len(values))
+            window = values[start:end]
+            projected.append(sum(float(value) for value in window) / max(len(window), 1))
+        return tuple(projected)
 
 
 def build_builtin_transformers_runtime(

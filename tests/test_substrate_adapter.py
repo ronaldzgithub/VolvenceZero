@@ -70,11 +70,34 @@ class _BackboneContainer(nn.Module):
         self.layers = layers
 
 
+class _ModelContainer(nn.Module):
+    def __init__(self, *, layers: nn.ModuleList) -> None:
+        super().__init__()
+        self.layers = layers
+
+
+class _BaseModelContainer(nn.Module):
+    def __init__(self, *, layers: nn.ModuleList) -> None:
+        super().__init__()
+        self.model = _ModelContainer(layers=layers)
+
+
 class _BackboneWrappedCausalLM(nn.Module):
     def __init__(self, base: GPT2LMHeadModel) -> None:
         super().__init__()
         self._base = base
         self.backbone = _BackboneContainer(layers=base.transformer.h)
+        self.config = base.config
+
+    def forward(self, *args, **kwargs):
+        return self._base(*args, **kwargs)
+
+
+class _QwenLikeWrappedCausalLM(nn.Module):
+    def __init__(self, base: GPT2LMHeadModel) -> None:
+        super().__init__()
+        self._base = base
+        self.base_model = _BaseModelContainer(layers=base.transformer.h)
         self.config = base.config
 
     def forward(self, *args, **kwargs):
@@ -156,6 +179,28 @@ def _build_backbone_wrapped_runtime() -> TransformersOpenWeightResidualRuntime:
     return TransformersOpenWeightResidualRuntime(
         model_id="backbone-wrapped-runtime",
         model=_BackboneWrappedCausalLM(base),
+        tokenizer=_TinyWhitespaceTokenizer(),
+        device="cpu",
+        layer_indices=(1, 2),
+        activation_width=6,
+        top_k_logits=4,
+    )
+
+
+def _build_qwen_like_wrapped_runtime() -> TransformersOpenWeightResidualRuntime:
+    base = GPT2LMHeadModel(
+        GPT2Config(
+            vocab_size=64,
+            n_positions=32,
+            n_ctx=32,
+            n_embd=24,
+            n_layer=4,
+            n_head=4,
+        )
+    )
+    return TransformersOpenWeightResidualRuntime(
+        model_id="qwen-like-wrapped-runtime",
+        model=_QwenLikeWrappedCausalLM(base),
         tokenizer=_TinyWhitespaceTokenizer(),
         device="cpu",
         layer_indices=(1, 2),
@@ -347,9 +392,19 @@ def test_transformers_open_weight_runtime_captures_real_middle_layer_hooks():
     assert "fallback_active" in feature_names
     assert "top_logit_entropy" in feature_names
     assert "hook_layer_coverage" in feature_names
+    assert "planned_layer_fraction" in feature_names
+    assert "hook_fire_rate" in feature_names
+    assert "token_step_coverage" in feature_names
+    assert "residual_sequence_present" in feature_names
     assert "semantic_task_pull" in feature_names
     assert "semantic_support_pull" in feature_names
     assert "semantic_directive_pull" in feature_names
+    feature_map = {signal.name: signal.values[0] for signal in capture.feature_surface if signal.values}
+    assert feature_map["hook_layer_coverage"] == 1.0
+    assert feature_map["hook_fire_rate"] == 1.0
+    assert feature_map["planned_layer_fraction"] == 0.5
+    assert feature_map["token_step_coverage"] == 1.0
+    assert feature_map["residual_sequence_present"] == 1.0
     assert "layers=(1, 2)" in capture.description
 
 
@@ -547,6 +602,17 @@ def test_transformers_runtime_resolves_backbone_layers_path():
 
     assert capture.residual_sequence
     assert "family=gpt2" in capture.description
+
+
+def test_transformers_runtime_resolves_qwen_like_base_model_layers_path():
+    runtime = _build_qwen_like_wrapped_runtime()
+
+    capture = runtime.capture(source_text="steady guided planning")
+
+    feature_map = {signal.name: signal.values[0] for signal in capture.feature_surface if signal.values}
+    assert capture.residual_sequence
+    assert feature_map["hook_fire_rate"] == 1.0
+    assert feature_map["planned_layer_fraction"] == 0.5
 
 
 def test_transformers_runtime_auto_device_prefers_cuda_then_apple_mps_then_cpu():

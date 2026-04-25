@@ -101,7 +101,7 @@ No release note, external writeup, or spec should call the system paper-grade un
 
 - `docs/implementation/11_eta_internal_rl_strong_proof_harness.md`
 - `docs/implementation/10_pe_eta_dialogue_benchmark_harness.md`
-- `docs/implementation/04_uplift_master_plan.md`
+- `docs/SYSTEM_DESIGN.md`
 - `docs/specs/temporal-abstraction.md`
 - `docs/specs/multi-timescale-learning.md`
 - `docs/specs/continuum-memory.md`
