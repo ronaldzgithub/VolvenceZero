@@ -9,6 +9,7 @@ from uuid import uuid4
 from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRuleState
 from volvence_zero.memory.cms import (
     CMSCheckpointState,
+    CMSHopeSelfModificationState,
     CMSMemoryCore,
     CMSState,
     CMSTowerConsolidationUpdate,
@@ -177,6 +178,23 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                     last_confidence=float(update_rule_raw.get("last_confidence", 0.0)),
                     description=str(update_rule_raw.get("description", "")),
                 )
+            hope_raw = cms_raw.get("hope_self_modification_state")
+            hope_state = None
+            if isinstance(hope_raw, dict):
+                hope_state = CMSHopeSelfModificationState(
+                    enabled=bool(hope_raw.get("enabled", True)),
+                    update_count=int(hope_raw.get("update_count", 0)),
+                    last_target_id=str(hope_raw.get("last_target_id", "")),
+                    generated_learning_rate=float(hope_raw.get("generated_learning_rate", 0.0)),
+                    generated_decay_rate=float(hope_raw.get("generated_decay_rate", 0.0)),
+                    generated_reset_rate=float(hope_raw.get("generated_reset_rate", 0.0)),
+                    last_improvement=float(hope_raw.get("last_improvement", 0.0)),
+                    last_stability=float(hope_raw.get("last_stability", 0.0)),
+                    last_reward=float(hope_raw.get("last_reward", 0.0)),
+                    guarded=bool(hope_raw.get("guarded", False)),
+                    guard_reason=str(hope_raw.get("guard_reason", "")),
+                    description=str(hope_raw.get("description", "")),
+                )
             cms_state = CMSCheckpointState(
                 online_fast=tuple(float(v) for v in cms_raw["online_fast"]),
                 session_medium=tuple(float(v) for v in cms_raw["session_medium"]),
@@ -204,6 +222,7 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                     for level in cms_raw.get("tower_meta_levels", ())
                 ),
                 update_rule_state=update_rule_state,
+                hope_self_modification_state=hope_state,
             )
         semantic_raw = parsed.get("semantic_index", [])
         semantic_index = tuple(
@@ -682,6 +701,7 @@ class MemoryStore:
         total_entries = self._artifact_store.total_entries_by_stratum()
         cms_state = self._learned_core.snapshot() if self._learned_core is not None else None
         updater_state = cms_state.update_rule_state if cms_state is not None else None
+        hope_state = cms_state.hope_self_modification_state if cms_state is not None else None
         continuum_profile = cms_state.continuum_profile if cms_state is not None else None
         continuum_band_count = len(continuum_profile.bands) if continuum_profile is not None else 0
         continuum_reconstruction_edge_count = (
@@ -704,6 +724,8 @@ class MemoryStore:
         )
         if cms_state is not None:
             description += f" {cms_state.description}"
+        if hope_state is not None and hope_state.update_count > 0:
+            description += f" {hope_state.description}"
         if continuum_profile is not None:
             description += (
                 f" continuum_profile={continuum_profile.profile_id} "
@@ -830,6 +852,20 @@ class MemoryStore:
                     "memory_updater_touched_param_ratio",
                     touched_param_count / total_band_param_count if total_band_param_count > 0.0 else 0.0,
                 ),
+                ("hope_self_mod_update_count", float(hope_state.update_count) if hope_state is not None else 0.0),
+                (
+                    "hope_generated_learning_rate",
+                    hope_state.generated_learning_rate if hope_state is not None else 0.0,
+                ),
+                (
+                    "hope_generated_decay_rate",
+                    hope_state.generated_decay_rate if hope_state is not None else 0.0,
+                ),
+                (
+                    "hope_generated_reset_rate",
+                    hope_state.generated_reset_rate if hope_state is not None else 0.0,
+                ),
+                ("hope_self_mod_guarded", float(hope_state.guarded) if hope_state is not None else 0.0),
             ),
             description=description,
         )

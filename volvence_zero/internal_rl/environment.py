@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
@@ -73,6 +73,49 @@ class InternalRLProofSubgoal:
 
 
 @dataclass(frozen=True)
+class InternalRLRewardSource:
+    component_name: str
+    kind: str
+    optimizer_visible: bool
+    description: str = ""
+
+
+def default_proof_reward_taxonomy() -> tuple[InternalRLRewardSource, ...]:
+    return (
+        InternalRLRewardSource(
+            component_name="proof_subgoal_complete",
+            kind="delayed",
+            optimizer_visible=True,
+            description="Delayed reward assigned when an abstract-action window completes a subgoal.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_terminal_success",
+            kind="terminal",
+            optimizer_visible=True,
+            description="Terminal sparse reward assigned when all proof subgoals are complete.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_terminal_failure",
+            kind="terminal",
+            optimizer_visible=True,
+            description="Terminal penalty assigned when the episode ends before completing required subgoals.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_distractor_penalty",
+            kind="delayed",
+            optimizer_visible=True,
+            description="Delayed penalty for aligning with distractor signatures.",
+        ),
+        InternalRLRewardSource(
+            component_name="proof_subgoal_progress",
+            kind="shaping",
+            optimizer_visible=True,
+            description="Intermediate progress shaping retained for legacy proof profiles and reported as leakage.",
+        ),
+    )
+
+
+@dataclass(frozen=True)
 class InternalRLProofEpisode:
     episode_id: str
     subgoals: tuple[InternalRLProofSubgoal, ...]
@@ -82,6 +125,15 @@ class InternalRLProofEpisode:
     distractor_penalty: float = 0.12
     failure_penalty: float = 0.25
     description: str = ""
+    reward_profile: str = "proof-sparse-legacy-shaping"
+    split_detail: str = "unspecified"
+    reward_taxonomy: tuple[InternalRLRewardSource, ...] = field(default_factory=default_proof_reward_taxonomy)
+
+    def reward_kind_for(self, component_name: str) -> str:
+        for source in self.reward_taxonomy:
+            if source.component_name == component_name:
+                return source.kind
+        raise ValueError(f"Unknown proof reward component {component_name!r} in episode {self.episode_id!r}.")
 
 
 @dataclass(frozen=True)

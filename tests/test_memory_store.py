@@ -394,6 +394,47 @@ def test_memory_store_composite_tower_alignment_improves_after_fast_signal_and_n
     assert reset_decisions["nested-session-reset"].slow_mix > 0.0
 
 
+def test_memory_store_publishes_tiny_hope_self_modification_state_and_rolls_back():
+    store = MemoryStore(
+        learned_core=CMSMemoryCore(
+            mode="mlp",
+            d_in=4,
+            d_hidden=8,
+            variant="nested",
+            session_cadence=1,
+            background_cadence=1,
+        )
+    )
+    core = store.learned_core
+    assert core is not None
+
+    core.observe_fast_memory_signal(signal=(0.8, 0.2, 0.6, 0.4), timestamp_ms=10)
+    before_checkpoint = store.create_checkpoint(checkpoint_id="hope-before")
+    before_state = core.snapshot().hope_self_modification_state
+    assert before_state is not None
+    assert before_state.update_count > 0
+    assert before_state.generated_learning_rate > 0.0
+    assert before_state.generated_decay_rate > 0.0
+
+    for timestamp in range(11, 15):
+        core.observe_fast_memory_signal(signal=(0.2, 0.7, 0.4, 0.9), timestamp_ms=timestamp)
+    changed_state = core.snapshot().hope_self_modification_state
+    assert changed_state is not None
+    assert changed_state.update_count > before_state.update_count
+    assert changed_state.description.startswith("Tiny Hope owner-side self-modification state")
+
+    metrics = dict(store.snapshot(retrieved_entries=()).lifecycle_metrics)
+    assert metrics["hope_self_mod_update_count"] == float(changed_state.update_count)
+    assert metrics["hope_generated_learning_rate"] == changed_state.generated_learning_rate
+
+    store.restore_checkpoint(before_checkpoint)
+    restored_state = core.snapshot().hope_self_modification_state
+    assert restored_state is not None
+    assert restored_state.update_count == before_state.update_count
+    assert restored_state.last_target_id == before_state.last_target_id
+    assert restored_state.generated_learning_rate == before_state.generated_learning_rate
+
+
 def test_memory_store_reflection_consolidation_updates_tower_and_restores_checkpoint():
     store = MemoryStore(
         learned_core=CMSMemoryCore(
@@ -621,6 +662,13 @@ def test_phase4_persistence_with_cms_mlp_roundtrip():
         assert snap2.update_rule_state.update_count == snap1.update_rule_state.update_count
         assert tuple(decision.target_id for decision in snap2.update_rule_state.last_decisions) == tuple(
             decision.target_id for decision in snap1.update_rule_state.last_decisions
+        )
+        assert snap2.hope_self_modification_state is not None
+        assert snap1.hope_self_modification_state is not None
+        assert snap2.hope_self_modification_state.update_count == snap1.hope_self_modification_state.update_count
+        assert (
+            snap2.hope_self_modification_state.generated_learning_rate
+            == snap1.hope_self_modification_state.generated_learning_rate
         )
 
 

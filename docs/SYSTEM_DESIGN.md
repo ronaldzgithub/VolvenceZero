@@ -2,7 +2,7 @@
 
 > Status: draft
 > Version: 0.2
-> Last updated: 2026-04-21
+> Last updated: 2026-04-25
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）、`docs/prd.md`（产品需求）
 
 ---
@@ -123,13 +123,16 @@
 
 **关键机制**：
 - **Wave 级调度**：协调一轮交互中各模块的执行顺序
-- **快照传播**：收集各模块发布的不可变快照，构建 upstream dict 传递给下游模块
+- **快照传播**：通过 `RuntimeModule` / `propagate(...)` 收集各模块发布的不可变快照，构建 guarded upstream view 传递给下游模块
+- **依赖排序**：默认 `auto_sort=True`，按模块声明的 `dependencies` 做拓扑排序；依赖成环时运行时回退到调用方给定顺序，并可通过 `detect_dependency_cycle()` 显式检查
+- **接线级别**：`ACTIVE` 输出进入正式 upstream；`SHADOW` 只执行和校验、输出留在 shadow snapshots；`DISABLED` 发布 runtime placeholder stub
 - **事件分发**：场景状态变化等事件的异步通知
 - **后台任务管理**：触发和监控慢反思等异步任务
 
 **约束**：
 - 编排器可调用快照传播/读取，但不直接调用模块的处理方法
 - 编排器不持有模块的内部状态
+- 当前 `memory` 与 `credit` 默认以 `SHADOW` 接线进入 contract runtime；final wiring / session owner 可在更高层显式决定何时把对应 owner-side learning surface 提升为 active 证据或写回路径
 
 ### 3.2 稳定基底层 (Stable Substrate)
 

@@ -1,0 +1,55 @@
+{
+  "baseline_label": "pe-eta",
+  "description": "Dialogue expert review internal key maps 6 blinded samples back to case/profile labels.",
+  "entries": [
+    {
+      "blinded_label": "sample_A",
+      "description": "Internal key for hidden review item 01, sample sample_A.",
+      "item_id": "item_01",
+      "sample_id": "item_01:sample_A",
+      "source_case_id": "repair",
+      "source_profile_label": "pe-eta"
+    },
+    {
+      "blinded_label": "sample_B",
+      "description": "Internal key for hidden review item 01, sample sample_B.",
+      "item_id": "item_01",
+      "sample_id": "item_01:sample_B",
+      "source_case_id": "repair",
+      "source_profile_label": "pe-drive-off"
+    },
+    {
+      "blinded_label": "sample_C",
+      "description": "Internal key for hidden review item 01, sample sample_C.",
+      "item_id": "item_01",
+      "sample_id": "item_01:sample_C",
+      "source_case_id": "repair",
+      "source_profile_label": "eta-off"
+    },
+    {
+      "blinded_label": "sample_A",
+      "description": "Internal key for hidden review item 02, sample sample_A.",
+      "item_id": "item_02",
+      "sample_id": "item_02:sample_A",
+      "source_case_id": "task_clarification",
+      "source_profile_label": "pe-eta"
+    },
+    {
+      "blinded_label": "sample_B",
+      "description": "Internal key for hidden review item 02, sample sample_B.",
+      "item_id": "item_02",
+      "sample_id": "item_02:sample_B",
+      "source_case_id": "task_clarification",
+      "source_profile_label": "pe-drive-off"
+    },
+    {
+      "blinded_label": "sample_C",
+      "description": "Internal key for hidden review item 02, sample sample_C.",
+      "item_id": "item_02",
+      "sample_id": "item_02:sample_C",
+      "source_case_id": "task_clarification",
+      "source_profile_label": "eta-off"
+    }
+  ],
+  "packet_id": "dialogue-ci-smoke:expert-review"
+}

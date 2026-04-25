@@ -4,6 +4,7 @@ from volvence_zero.joint_loop.pipeline import (
     PhaseReport,
     RareHeavyArtifact,
     SSLRLTrainingPipeline,
+    TakeoverGateReport,
     TrainingPhase,
 )
 from volvence_zero.joint_loop.runtime import (
@@ -33,5 +34,6 @@ __all__ = [
     "RareHeavyImportResult",
     "SSLRLTrainingPipeline",
     "ScheduledJointLoopResult",
+    "TakeoverGateReport",
     "TrainingPhase",
 ]

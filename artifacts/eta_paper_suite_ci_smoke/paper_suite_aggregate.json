@@ -1,0 +1,453 @@
+{
+  "claim_verdicts": [
+    {
+      "claim_id": "claim_eta_internal_rl_advantage",
+      "description": "Checks whether full internal RL stays ahead of the strongest control with retained acceptance gates and statistical evidence.",
+      "evidence": [
+        [
+          "passed_gate_count",
+          2.0
+        ],
+        [
+          "total_gate_count",
+          7.0
+        ],
+        [
+          "strong_success_gap_ci_low",
+          0.012799999999999992
+        ],
+        [
+          "strong_success_gap_mean_delta",
+          0.012799999999999992
+        ],
+        [
+          "statistical_batch_evidence_passed",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "sparse-reward-success",
+        "abstract-action-reuse",
+        "heldout-composition",
+        "credit-alignment",
+        "policy-update-evidence",
+        "statistical-batch-evidence",
+        "backend-robustness"
+      ],
+      "status": "weak",
+      "summary": "ETA internal-RL strong-proof claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_assessment"
+      ]
+    },
+    {
+      "claim_id": "claim_eta_internal_rl_sparse_reward_advantage",
+      "description": "Checks whether the internal-RL advantage is backed by sparse or delayed reward evidence rather than shaping leakage.",
+      "evidence": [
+        [
+          "internal_rl_advantage_status",
+          "weak"
+        ],
+        [
+          "mean_reward_sparsity",
+          0.98295
+        ],
+        [
+          "reward_shaping_leakage",
+          0.01705
+        ]
+      ],
+      "required_gate_ids": [
+        "sparse-reward-success",
+        "abstract-action-reuse",
+        "credit-alignment"
+      ],
+      "status": "weak",
+      "summary": "ETA sparse-reward internal-RL claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_benchmark_report",
+        "reference_assessment"
+      ]
+    },
+    {
+      "claim_id": "claim_eta_scaffold_free_temporal_abstraction",
+      "description": "Checks whether temporal-abstraction evidence survives matched scaffold ablations instead of relying on a fast-prior shortcut.",
+      "evidence": [
+        [
+          "heldout_family_reuse_gap_vs_no_fast_prior",
+          0.0
+        ],
+        [
+          "heldout_credit_alignment_gap_vs_no_fast_prior",
+          0.0
+        ],
+        [
+          "statistical_batch_evidence_passed",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "scaffold-ablation-retention",
+        "statistical-batch-evidence"
+      ],
+      "status": "weak",
+      "summary": "ETA scaffold-ablation temporal-abstraction claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_benchmark_report"
+      ]
+    },
+    {
+      "claim_id": "claim_nl_slow_loop_improves_eta_fast_path",
+      "description": "Checks whether delayed and long-horizon NL signals reach temporal families and fast-prior evidence.",
+      "evidence": [
+        [
+          "slow_to_fast_init_benefit",
+          0.9625000000000001
+        ],
+        [
+          "credit_to_family_write_count",
+          1.0
+        ],
+        [
+          "long_horizon_payoff_coverage",
+          0.5
+        ]
+      ],
+      "required_gate_ids": [
+        "nl-slow-shapes-fast",
+        "credit-alignment"
+      ],
+      "status": "retain",
+      "summary": "NL slow-loop support for ETA fast path claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_benchmark_report"
+      ]
+    }
+  ],
+  "description": "ETA proof paper suite eta-proof-ci-smoke aggregated 1 repeated runs.",
+  "interpretation_summary": {
+    "confidence": 0.4643,
+    "cross_run_gap_mean": 0.0128,
+    "cross_run_gap_std": 0.0,
+    "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=heldout_terminal_success_rate failure_mode=credit-misalignment competitor=noop-backend gap=0.013 cross_run_gap=0.013+/-0.000 confidence=0.46.",
+    "dominant_failure_mode": "credit-misalignment",
+    "interpretation": "eta-proof-strongest=training_transition_count; failure_mode=credit-misalignment; weakest_metric=heldout_terminal_success_rate",
+    "review_summary": "Primary weakness is credit-misalignment; strongest competing control is noop-backend; cross-run held-out strong-success gap is 0.013 +/- 0.000.",
+    "strongest_competing_control": "noop-backend",
+    "strongest_control_gap": 0.0128,
+    "strongest_metric": "training_transition_count",
+    "weakest_metric": "heldout_terminal_success_rate"
+  },
+  "pairwise_effects": [
+    {
+      "candidate_label": "full-internal-rl",
+      "ci_high": 0.012799999999999992,
+      "ci_low": 0.012799999999999992,
+      "control_label": "strongest-control",
+      "description": "full-internal-rl vs strongest-control on heldout_strong_success_rate has mean_delta=0.013 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 0.012799999999999992,
+      "metric_name": "heldout_strong_success_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    }
+  ],
+  "primary_metric_summaries": [
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_terminal_success_rate summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_terminal_success_rate",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_strong_success_rate summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_strong_success_rate",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_family_reuse_rate summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_family_reuse_rate",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_credit_alignment summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_credit_alignment",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.012799999999999992,
+      "ci_low": 0.012799999999999992,
+      "description": "strong_success_gap_vs_best_control summarized over 1 samples with mean=0.013, std=0.000, ci=[0.013, 0.013].",
+      "max_value": 0.012799999999999992,
+      "mean": 0.012799999999999992,
+      "metric_name": "strong_success_gap_vs_best_control",
+      "min_value": 0.012799999999999992,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "backend_success_gap summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "backend_success_gap",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "secondary_metric_summaries": [
+    {
+      "ci_high": 0.2857142857142857,
+      "ci_low": 0.2857142857142857,
+      "description": "assessment_pass_fraction summarized over 1 samples with mean=0.286, std=0.000, ci=[0.286, 0.286].",
+      "max_value": 0.2857142857142857,
+      "mean": 0.2857142857142857,
+      "metric_name": "assessment_pass_fraction",
+      "min_value": 0.2857142857142857,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "policy_update_rate summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "policy_update_rate",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_subgoal_completion_rate summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_subgoal_completion_rate",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_strong_success_std summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_strong_success_std",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 3,
+      "ci_low": 3,
+      "description": "mean_rollouts_per_update summarized over 1 samples with mean=3.000, std=0.000, ci=[3.000, 3.000].",
+      "max_value": 3,
+      "mean": 3.0,
+      "metric_name": "mean_rollouts_per_update",
+      "min_value": 3,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.3373120287054885,
+      "ci_low": 1.3373120287054885,
+      "description": "mean_parameter_change_norm summarized over 1 samples with mean=1.337, std=0.000, ci=[1.337, 1.337].",
+      "max_value": 1.3373120287054885,
+      "mean": 1.3373120287054885,
+      "metric_name": "mean_parameter_change_norm",
+      "min_value": 1.3373120287054885,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.08959978633648395,
+      "ci_low": 0.08959978633648395,
+      "description": "mean_replacement_effect_delta summarized over 1 samples with mean=0.090, std=0.000, ci=[0.090, 0.090].",
+      "max_value": 0.08959978633648395,
+      "mean": 0.08959978633648395,
+      "metric_name": "mean_replacement_effect_delta",
+      "min_value": 0.08959978633648395,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.812377096024445,
+      "ci_low": 1.812377096024445,
+      "description": "mean_value_loss summarized over 1 samples with mean=1.812, std=0.000, ci=[1.812, 1.812].",
+      "max_value": 1.812377096024445,
+      "mean": 1.812377096024445,
+      "metric_name": "mean_value_loss",
+      "min_value": 1.812377096024445,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 23.0,
+      "ci_low": 23.0,
+      "description": "training_transition_count summarized over 1 samples with mean=23.000, std=0.000, ci=[23.000, 23.000].",
+      "max_value": 23.0,
+      "mean": 23.0,
+      "metric_name": "training_transition_count",
+      "min_value": 23.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 2.5,
+      "ci_low": 2.5,
+      "description": "mean_steps_per_abstract_action summarized over 1 samples with mean=2.500, std=0.000, ci=[2.500, 2.500].",
+      "max_value": 2.5,
+      "mean": 2.5,
+      "metric_name": "mean_steps_per_abstract_action",
+      "min_value": 2.5,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.9166666666666666,
+      "ci_low": 0.9166666666666666,
+      "description": "persistence_window_success_rate summarized over 1 samples with mean=0.917, std=0.000, ci=[0.917, 0.917].",
+      "max_value": 0.9166666666666666,
+      "mean": 0.9166666666666666,
+      "metric_name": "persistence_window_success_rate",
+      "min_value": 0.9166666666666666,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.48872663070234523,
+      "ci_low": 0.48872663070234523,
+      "description": "residual_signal_quality summarized over 1 samples with mean=0.489, std=0.000, ci=[0.489, 0.489].",
+      "max_value": 0.48872663070234523,
+      "mean": 0.48872663070234523,
+      "metric_name": "residual_signal_quality",
+      "min_value": 0.48872663070234523,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "credit_to_family_write_count summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "credit_to_family_write_count",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.5,
+      "ci_low": 0.5,
+      "description": "long_horizon_payoff_coverage summarized over 1 samples with mean=0.500, std=0.000, ci=[0.500, 0.500].",
+      "max_value": 0.5,
+      "mean": 0.5,
+      "metric_name": "long_horizon_payoff_coverage",
+      "min_value": 0.5,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.9625000000000001,
+      "ci_low": 0.9625000000000001,
+      "description": "slow_to_fast_init_benefit summarized over 1 samples with mean=0.963, std=0.000, ci=[0.963, 0.963].",
+      "max_value": 0.9625000000000001,
+      "mean": 0.9625000000000001,
+      "metric_name": "slow_to_fast_init_benefit",
+      "min_value": 0.9625000000000001,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.98295,
+      "ci_low": 0.98295,
+      "description": "mean_reward_sparsity summarized over 1 samples with mean=0.983, std=0.000, ci=[0.983, 0.983].",
+      "max_value": 0.98295,
+      "mean": 0.98295,
+      "metric_name": "mean_reward_sparsity",
+      "min_value": 0.98295,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.01705,
+      "ci_low": 0.01705,
+      "description": "reward_shaping_leakage summarized over 1 samples with mean=0.017, std=0.000, ci=[0.017, 0.017].",
+      "max_value": 0.01705,
+      "mean": 0.01705,
+      "metric_name": "reward_shaping_leakage",
+      "min_value": 0.01705,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "heldout_family_reuse_gap_vs_no_fast_prior summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "heldout_family_reuse_gap_vs_no_fast_prior",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "suite_id": "eta-proof-ci-smoke"
+}

@@ -1,0 +1,134 @@
+{
+  "description": "Human rating template for dialogue-ci-smoke:expert-review with 18 blinded sample-dimension rows.",
+  "dimensions": [
+    {
+      "description": "External review dimension for relational continuity.",
+      "dimension_id": "relationship_continuity",
+      "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+    },
+    {
+      "description": "External review dimension for delayed stabilization.",
+      "dimension_id": "delayed_stabilization",
+      "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+    },
+    {
+      "description": "External review dimension for boundary correctness.",
+      "dimension_id": "boundary_correctness",
+      "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+    }
+  ],
+  "min_rater_count": 3,
+  "packet_id": "dialogue-ci-smoke:expert-review",
+  "rows": [
+    [
+      "item_01",
+      "item_01:sample_A",
+      "sample_A",
+      "relationship_continuity"
+    ],
+    [
+      "item_01",
+      "item_01:sample_A",
+      "sample_A",
+      "delayed_stabilization"
+    ],
+    [
+      "item_01",
+      "item_01:sample_A",
+      "sample_A",
+      "boundary_correctness"
+    ],
+    [
+      "item_01",
+      "item_01:sample_B",
+      "sample_B",
+      "relationship_continuity"
+    ],
+    [
+      "item_01",
+      "item_01:sample_B",
+      "sample_B",
+      "delayed_stabilization"
+    ],
+    [
+      "item_01",
+      "item_01:sample_B",
+      "sample_B",
+      "boundary_correctness"
+    ],
+    [
+      "item_01",
+      "item_01:sample_C",
+      "sample_C",
+      "relationship_continuity"
+    ],
+    [
+      "item_01",
+      "item_01:sample_C",
+      "sample_C",
+      "delayed_stabilization"
+    ],
+    [
+      "item_01",
+      "item_01:sample_C",
+      "sample_C",
+      "boundary_correctness"
+    ],
+    [
+      "item_02",
+      "item_02:sample_A",
+      "sample_A",
+      "relationship_continuity"
+    ],
+    [
+      "item_02",
+      "item_02:sample_A",
+      "sample_A",
+      "delayed_stabilization"
+    ],
+    [
+      "item_02",
+      "item_02:sample_A",
+      "sample_A",
+      "boundary_correctness"
+    ],
+    [
+      "item_02",
+      "item_02:sample_B",
+      "sample_B",
+      "relationship_continuity"
+    ],
+    [
+      "item_02",
+      "item_02:sample_B",
+      "sample_B",
+      "delayed_stabilization"
+    ],
+    [
+      "item_02",
+      "item_02:sample_B",
+      "sample_B",
+      "boundary_correctness"
+    ],
+    [
+      "item_02",
+      "item_02:sample_C",
+      "sample_C",
+      "relationship_continuity"
+    ],
+    [
+      "item_02",
+      "item_02:sample_C",
+      "sample_C",
+      "delayed_stabilization"
+    ],
+    [
+      "item_02",
+      "item_02:sample_C",
+      "sample_C",
+      "boundary_correctness"
+    ]
+  ],
+  "scale_max": 5,
+  "scale_min": 1
+}

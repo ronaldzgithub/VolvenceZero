@@ -766,6 +766,50 @@ class TestP17SSLRLPipeline:
                 assert report.total_reward != 0.0 or report.policy_objective != 0.0
                 assert report.rollout_batch_count >= 1
 
+    def test_pipeline_exports_passing_takeover_gate_report(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig, TakeoverGateReport
+
+        cfg = PipelineConfig(n_z=8, ssl_min_steps=2, ssl_max_steps=3, rl_max_steps=1)
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+
+        assert isinstance(result.takeover_gate_report, TakeoverGateReport)
+        assert result.takeover_gate_report.passed is True
+        assert result.rl_steps_completed >= 1
+        assert result.takeover_gate_report.transition_count >= cfg.transition_min_rollout_transitions
+        assert result.takeover_gate_report.posterior_agreement >= result.takeover_gate_report.posterior_agreement_threshold
+        assert (
+            result.takeover_gate_report.family_reuse_retention
+            >= result.takeover_gate_report.family_reuse_retention_threshold
+        )
+        assert result.takeover_gate_report.failed_reasons == ()
+
+    def test_pipeline_takeover_gate_fails_closed_and_blocks_rl(self) -> None:
+        from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
+
+        cfg = PipelineConfig(
+            n_z=8,
+            ssl_min_steps=2,
+            ssl_max_steps=3,
+            transition_agreement_threshold=1.01,
+            transition_family_retention_threshold=1.01,
+            transition_switch_sparsity_retention_threshold=1.01,
+            transition_decoder_effect_retention_threshold=1.01,
+            transition_prefix_stability_threshold=1.01,
+            rl_max_steps=2,
+        )
+        pipeline = SSLRLTrainingPipeline(config=cfg)
+        traces = self._make_traces(6)
+        result = pipeline.run_pipeline(traces=traces)
+
+        assert result.takeover_gate_report is not None
+        assert result.takeover_gate_report.passed is False
+        assert result.takeover_gate_report.failed_reasons
+        assert result.rl_steps_completed == 0
+        assert result.final_phase == "complete"
+        assert all(report.phase != "rl" for report in result.phase_reports)
+
     def test_pipeline_rollback_to_ssl(self) -> None:
         from volvence_zero.joint_loop.pipeline import SSLRLTrainingPipeline, PipelineConfig
 

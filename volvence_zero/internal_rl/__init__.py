@@ -5,6 +5,7 @@ from volvence_zero.internal_rl.environment import (
     InternalRLProofEpisode,
     InternalRLProofProgress,
     InternalRLProofSubgoal,
+    InternalRLRewardSource,
 )
 from volvence_zero.internal_rl.proof_environment import (
     HierarchicalEpisodeState,
@@ -50,6 +51,7 @@ __all__ = [
     "InternalRLProofEpisode",
     "InternalRLProofProgress",
     "InternalRLProofSubgoal",
+    "InternalRLRewardSource",
     "InternalRLSandbox",
     "MiniHierarchicalCase",
     "MiniHierarchicalEnvironment",

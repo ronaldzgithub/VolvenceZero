@@ -50,6 +50,10 @@ class PipelineConfig:
     transition_max_steps: int = 2
     transition_agreement_threshold: float = 0.35
     transition_family_retention_threshold: float = 0.20
+    transition_switch_sparsity_retention_threshold: float = 0.05
+    transition_decoder_effect_retention_threshold: float = 0.01
+    transition_prefix_stability_threshold: float = 0.20
+    transition_min_rollout_transitions: int = 1
     rl_max_steps: int = 10
     rl_convergence_threshold: float = 0.05
     transition_kl_threshold: float = 1.0
@@ -80,6 +84,27 @@ class PhaseReport:
 
 
 @dataclass(frozen=True)
+class TakeoverGateReport:
+    gate_id: str
+    passed: bool
+    posterior_agreement: float
+    posterior_agreement_threshold: float
+    switch_sparsity_retention: float
+    switch_sparsity_retention_threshold: float
+    family_reuse_retention: float
+    family_reuse_retention_threshold: float
+    decoder_effect_retention: float
+    decoder_effect_retention_threshold: float
+    heldout_prefix_stability: float
+    heldout_prefix_stability_threshold: float
+    takeover_rollout_readiness: float
+    takeover_rollout_readiness_threshold: float
+    transition_count: int
+    failed_reasons: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class PipelineResult:
     config: PipelineConfig
     owner_path: str
@@ -93,6 +118,7 @@ class PipelineResult:
     substrate_training_mode: str
     substrate_checkpoint_present: bool
     training_evidence: "RareHeavyTrainingEvidence"
+    takeover_gate_report: TakeoverGateReport | None
     description: str
 
 
@@ -169,6 +195,7 @@ class SSLRLTrainingPipeline:
         self._transition_step = -1
         self._ssl_checkpoint: CausalPolicyCheckpoint | None = None
         self._substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
+        self._takeover_gate_report: TakeoverGateReport | None = None
         self._training_evidence = RareHeavyTrainingEvidence(
             trace_count=0,
             provided_substrate_batch_count=0,
@@ -248,6 +275,8 @@ class SSLRLTrainingPipeline:
                 self._phase = TrainingPhase.RL
                 break
         if self._phase == TrainingPhase.TRANSITION:
+            if self._ssl_checkpoint is not None:
+                self._sandbox.restore_checkpoint(self._ssl_checkpoint)
             self._phase = TrainingPhase.COMPLETE
 
         while self._phase == TrainingPhase.RL and rl_steps < cfg.rl_max_steps:
@@ -295,6 +324,7 @@ class SSLRLTrainingPipeline:
             substrate_training_mode=substrate_training_mode,
             substrate_checkpoint_present=self._substrate_checkpoint is not None,
             training_evidence=self._training_evidence,
+            takeover_gate_report=self._takeover_gate_report,
             description=(
                 f"Pipeline completed: ssl={ssl_steps}, rl={rl_steps}, "
                 f"owner={self.owner_path}, phase={self._phase.value}, "
@@ -385,14 +415,36 @@ class SSLRLTrainingPipeline:
                 float(transition.active_family_id not in {None, "unassigned"})
                 for transition in transitions
             ) / len(transitions)
+            decoder_effect_retention = sum(
+                min(sum(abs(value) for value in transition.downstream_effect) / max(len(transition.downstream_effect), 1), 1.0)
+                for transition in transitions
+            ) / len(transitions)
+            heldout_prefix_stability = sum(
+                max(0.0, 1.0 - transition.controller_state.switch_gate)
+                * max(0.0, min(transition.policy_replacement_quality, 1.0))
+                for transition in transitions
+            ) / len(transitions)
         else:
             transition_agreement = 0.0
             switch_sparsity_retention = 0.0
             family_reuse_retention = 0.0
-        takeover_ready = (
-            transition_agreement >= self._config.transition_agreement_threshold
-            and family_reuse_retention >= self._config.transition_family_retention_threshold
+            decoder_effect_retention = 0.0
+            heldout_prefix_stability = 0.0
+        takeover_rollout_readiness = min(
+            len(transitions) / max(self._config.transition_min_rollout_transitions, 1),
+            1.0,
         )
+        takeover_report = self._build_takeover_gate_report(
+            transition_agreement=transition_agreement,
+            switch_sparsity_retention=switch_sparsity_retention,
+            family_reuse_retention=family_reuse_retention,
+            decoder_effect_retention=decoder_effect_retention,
+            heldout_prefix_stability=heldout_prefix_stability,
+            takeover_rollout_readiness=takeover_rollout_readiness,
+            transition_count=len(transitions),
+        )
+        self._takeover_gate_report = takeover_report
+        takeover_ready = takeover_report.passed
         return PhaseReport(
             owner_path=self.owner_path,
             phase="transition",
@@ -418,7 +470,59 @@ class SSLRLTrainingPipeline:
                 f"Transition step {step_index}: agreement={transition_agreement:.3f}, "
                 f"sparsity_retention={switch_sparsity_retention:.3f}, "
                 f"family_retention={family_reuse_retention:.3f}, "
+                f"decoder_effect={decoder_effect_retention:.3f}, "
+                f"prefix_stability={heldout_prefix_stability:.3f}, "
                 f"ready={takeover_ready}."
+            ),
+        )
+
+    def _build_takeover_gate_report(
+        self,
+        *,
+        transition_agreement: float,
+        switch_sparsity_retention: float,
+        family_reuse_retention: float,
+        decoder_effect_retention: float,
+        heldout_prefix_stability: float,
+        takeover_rollout_readiness: float,
+        transition_count: int,
+    ) -> TakeoverGateReport:
+        cfg = self._config
+        failed_reasons: list[str] = []
+        if transition_agreement < cfg.transition_agreement_threshold:
+            failed_reasons.append("posterior-agreement-below-threshold")
+        if switch_sparsity_retention < cfg.transition_switch_sparsity_retention_threshold:
+            failed_reasons.append("switch-sparsity-retention-below-threshold")
+        if family_reuse_retention < cfg.transition_family_retention_threshold:
+            failed_reasons.append("family-reuse-retention-below-threshold")
+        if decoder_effect_retention < cfg.transition_decoder_effect_retention_threshold:
+            failed_reasons.append("decoder-effect-retention-below-threshold")
+        if heldout_prefix_stability < cfg.transition_prefix_stability_threshold:
+            failed_reasons.append("heldout-prefix-stability-below-threshold")
+        if takeover_rollout_readiness < 1.0:
+            failed_reasons.append("takeover-rollout-readiness-below-threshold")
+        passed = not failed_reasons
+        return TakeoverGateReport(
+            gate_id="hard-causal-takeover",
+            passed=passed,
+            posterior_agreement=transition_agreement,
+            posterior_agreement_threshold=cfg.transition_agreement_threshold,
+            switch_sparsity_retention=switch_sparsity_retention,
+            switch_sparsity_retention_threshold=cfg.transition_switch_sparsity_retention_threshold,
+            family_reuse_retention=family_reuse_retention,
+            family_reuse_retention_threshold=cfg.transition_family_retention_threshold,
+            decoder_effect_retention=decoder_effect_retention,
+            decoder_effect_retention_threshold=cfg.transition_decoder_effect_retention_threshold,
+            heldout_prefix_stability=heldout_prefix_stability,
+            heldout_prefix_stability_threshold=cfg.transition_prefix_stability_threshold,
+            takeover_rollout_readiness=takeover_rollout_readiness,
+            takeover_rollout_readiness_threshold=1.0,
+            transition_count=transition_count,
+            failed_reasons=tuple(failed_reasons),
+            description=(
+                f"Hard causal takeover {'passed' if passed else 'failed'} with "
+                f"agreement={transition_agreement:.3f}, family_retention={family_reuse_retention:.3f}, "
+                f"decoder_effect={decoder_effect_retention:.3f}, readiness={takeover_rollout_readiness:.3f}."
             ),
         )
 

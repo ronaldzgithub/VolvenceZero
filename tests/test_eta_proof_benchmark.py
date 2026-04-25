@@ -95,6 +95,13 @@ def test_eta_proof_benchmark_exposes_default_cases_and_profiles():
     assert sum(1 for case in cases if case.split == "train") == 3
     assert sum(1 for case in cases if case.split == "heldout") == 2
     assert any(case.branch_depth >= 4 for case in cases if case.split == "heldout")
+    assert {case.split_detail for case in cases if case.split == "heldout"} == {
+        "heldout-composition",
+        "heldout-long-loop",
+    }
+    assert all(case.reward_taxonomy for case in cases)
+    assert all(case.route_length == len(case.route_signature) for case in cases)
+    assert all(case.distractor_count == len(case.proof_episode.distractor_signatures) for case in cases)
     assert default_eta_proof_profiles() == (
         "full-internal-rl",
         "full-bootstrap-init",
@@ -117,6 +124,11 @@ def test_default_eta_proof_environment_builds_cases_from_routes():
     assert case.branch_depth >= 4
     assert len(case.proof_episode.subgoals) == 4
     assert case.proof_episode.distractor_signatures
+    assert case.split_detail == "heldout-long-loop"
+    reward_kinds = {source.component_name: source.kind for source in case.proof_episode.reward_taxonomy}
+    assert reward_kinds["proof_terminal_success"] == "terminal"
+    assert reward_kinds["proof_subgoal_complete"] == "delayed"
+    assert reward_kinds["proof_subgoal_progress"] == "shaping"
 
 
 def test_default_eta_proof_environment_supports_reset_and_step():
@@ -154,8 +166,23 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert "heldout_strong_success_rate" in metric_names
     assert "heldout_strong_success_std" in metric_names
     assert "heldout_family_reuse_rate" in metric_names
+    assert "mean_reward_sparsity" in metric_names
+    assert "reward_shaping_leakage" in metric_names
+    assert "mean_route_length" in metric_names
+    assert "mean_distractor_count" in metric_names
+    assert "mean_steps_per_abstract_action" in metric_names
+    assert "persistence_window_success_rate" in metric_names
+    assert "premature_switch_rate" in metric_names
+    assert "always_switch_rate" in metric_names
+    assert "never_switch_rate" in metric_names
+    assert "intervention_application_count" in metric_names
+    assert "episode_replacement_effect_delta" in metric_names
+    assert "residual_signal_quality" in metric_names
     assert "temporal_fast_prior_strength" in metric_names
     assert "temporal_fast_prior_switch_delta" in metric_names
+    assert "credit_to_family_write_count" in metric_names
+    assert "long_horizon_payoff_coverage" in metric_names
+    assert "family_competition_mean" in metric_names
     assert "bootstrap_init_used" in metric_names
     assert report.profile_reports[0].training_update_count > 0
     assert report.profile_reports[0].rollout_batch_count > 0
@@ -163,6 +190,42 @@ def test_run_eta_internal_rl_proof_benchmark_emits_profile_reports():
     assert report.profile_reports[0].training_parameter_change_rate > 0.0
     assert report.profile_reports[0].mean_parameter_change_norm >= 0.0
     assert report.profile_reports[0].episode_reports
+    first_episode = report.profile_reports[0].episode_reports[0]
+    assert first_episode.reward_profile == "proof-sparse-legacy-shaping"
+    assert first_episode.reward_source_mix
+    assert 0.0 <= first_episode.reward_shaping_leakage <= 1.0
+    assert 0.0 <= first_episode.reward_sparsity <= 1.0
+    assert first_episode.mean_steps_per_abstract_action >= 1.0
+    assert first_episode.median_steps_per_abstract_action >= 1.0
+    assert 0.0 <= first_episode.persistence_window_success_rate <= 1.0
+    assert 0.0 <= first_episode.premature_switch_rate <= 1.0
+    assert 0.0 <= first_episode.always_switch_rate <= 1.0
+    assert 0.0 <= first_episode.never_switch_rate <= 1.0
+    assert first_episode.intervention_application_count >= 0
+    assert first_episode.mean_replacement_effect_delta >= -1.0
+    assert 0.0 <= first_episode.residual_signal_quality <= 1.0
+
+
+def test_eta_proof_matched_controls_share_case_reward_specs():
+    report = run_eta_internal_rl_proof_benchmark(
+        profile_labels=("full-internal-rl", "full-no-optimize", "learned-lite-causal"),
+        train_epochs=1,
+    )
+
+    specs_by_case: dict[str, set[tuple[str, str, int, int]]] = {}
+    for profile_report in report.profile_reports:
+        for episode_report in profile_report.episode_reports:
+            specs_by_case.setdefault(episode_report.case_id, set()).add(
+                (
+                    episode_report.split_detail,
+                    episode_report.reward_profile,
+                    episode_report.route_length,
+                    episode_report.distractor_count,
+                )
+            )
+
+    assert specs_by_case
+    assert all(len(specs) == 1 for specs in specs_by_case.values())
 
 
 def test_eta_proof_benchmark_exposes_bootstrap_init_profile() -> None:
@@ -190,6 +253,9 @@ def test_eta_proof_benchmark_exposes_no_fast_prior_ablation_gaps():
     assert "heldout_family_reuse_gap_vs_no_fast_prior" in baseline_metrics
     assert "heldout_credit_alignment_gap_vs_no_fast_prior" in baseline_metrics
     assert "heldout_strong_success_gap_vs_no_fast_prior" in baseline_metrics
+    assert "slow_to_fast_init_benefit" in baseline_metrics
+    assert "family_reuse_after_reset" in baseline_metrics
+    assert "heldout_gain_after_consolidation" in baseline_metrics
     ablation_deltas = dict(next(values for label, values in report.metric_deltas_from_baseline if label == "full-no-fast-prior"))
     assert "heldout_family_reuse_rate" in ablation_deltas
     assert "heldout_credit_alignment" in ablation_deltas
@@ -205,6 +271,9 @@ def test_eta_proof_benchmark_accumulates_temporal_fast_prior_metrics_after_train
     metric_map = dict(report.profile_reports[0].metric_means)
     assert metric_map["temporal_fast_prior_strength"] > 0.0
     assert metric_map["temporal_fast_prior_switch_delta"] != 0.0
+    assert metric_map["credit_to_family_write_count"] > 0.0
+    assert metric_map["long_horizon_payoff_coverage"] > 0.0
+    assert metric_map["family_competition_mean"] >= 0.0
 
 
 def test_eta_backend_robustness_benchmark_compares_trace_and_synthetic():
@@ -234,6 +303,11 @@ def test_eta_open_weight_residual_benchmark_uses_real_runtime_snapshots():
     assert full_metrics["real_open_weight_step_count"] > 0.0
     assert full_metrics["real_open_weight_capture_rate"] == 1.0
     assert full_metrics["real_open_weight_hook_coverage"] >= 0.0
+    assert full_metrics["intervention_application_count"] > 0.0
+    assert full_metrics["episode_replacement_effect_delta"] >= -1.0
+    assert full_metrics["residual_signal_quality"] > 0.0
+    assert full_metrics["mean_steps_per_abstract_action"] >= 1.0
+    assert 0.0 <= full_metrics["persistence_window_success_rate"] <= 1.0
 
 
 def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_backend():
@@ -255,6 +329,9 @@ def test_eta_open_weight_paper_suite_manifest_and_backend_report_include_real_ba
     assert report.claim_verdicts
     claim_map = {claim.claim_id: claim for claim in report.claim_verdicts}
     assert claim_map["claim_eta_real_open_weight_residual_control"].status in {"weak", "retain"}
+    real_claim_evidence = dict(claim_map["claim_eta_real_open_weight_residual_control"].evidence)
+    assert "residual_signal_quality" in real_claim_evidence
+    assert "episode_replacement_effect_delta" in real_claim_evidence
 
 
 def test_final_rollout_config_exposes_eta_open_weight_runtime_gate():
@@ -439,6 +516,14 @@ def test_run_eta_internal_rl_paper_suite_emits_interval_summaries(tmp_path):
     assert any(summary.metric_name == "mean_rollouts_per_update" for summary in report.secondary_metric_summaries)
     assert report.pairwise_effects
     assert report.claim_verdicts
+    claim_ids = {claim.claim_id for claim in report.claim_verdicts}
+    assert "claim_eta_internal_rl_sparse_reward_advantage" in claim_ids
+    assert "claim_eta_scaffold_free_temporal_abstraction" in claim_ids
+    assert "claim_nl_slow_loop_improves_eta_fast_path" in claim_ids
+    nl_claim = next(claim for claim in report.claim_verdicts if claim.claim_id == "claim_nl_slow_loop_improves_eta_fast_path")
+    nl_evidence = dict(nl_claim.evidence)
+    assert "credit_to_family_write_count" in nl_evidence
+    assert "long_horizon_payoff_coverage" in nl_evidence
     assert report.interpretation_summary is not None
     assert report.interpretation_summary.interpretation
     assert report.interpretation_summary.review_summary

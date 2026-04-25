@@ -633,6 +633,42 @@ def test_switch_gate_stats_published_in_ssl_report():
     assert report.switch_gate_stats.mean_persistence_steps >= 0.0
 
 
+def test_ssl_batch_report_publishes_emergence_metrics():
+    from volvence_zero.temporal import MetacontrollerSSLTrainer, SSLBatchTrainingReport
+    traces = (
+        build_training_trace(trace_id="batch-a", source_text="repair tension then plan carefully"),
+        build_training_trace(trace_id="batch-b", source_text="guide exploration and stabilize support"),
+        build_training_trace(trace_id="batch-c", source_text="reflect memory then finish task"),
+    )
+    trainer = MetacontrollerSSLTrainer(alpha=0.1)
+    policy = FullLearnedTemporalPolicy()
+    _set_ssl_phase(policy)
+
+    report = trainer.optimize_batch(
+        policy=policy,
+        traces=traces,
+        batch_id="emergence-batch",
+        semantic_labels_enabled=False,
+    )
+
+    assert isinstance(report, SSLBatchTrainingReport)
+    assert report.batch_id == "emergence-batch"
+    assert report.trajectory_count == 3
+    assert report.trained_step_count == sum(trace_report.trained_steps for trace_report in report.trace_reports)
+    assert report.prediction_loss_mean >= 0.0
+    assert report.kl_loss_mean >= 0.0
+    assert report.total_loss_mean >= 0.0
+    assert 0.0 <= report.switch_sparsity_mean <= 1.0
+    assert 0.0 <= report.switch_entropy <= 1.0
+    assert report.posterior_drift_mean >= 0.0
+    assert report.noncausal_information_content >= 0.0
+    assert 0.0 <= report.cluster_stability <= 1.0
+    assert report.family_birth_count >= 1
+    assert 0.0 <= report.scaffold_ablation_retention <= 1.0
+    assert report.alpha_schedule == (0.1,)
+    assert policy.parameter_store.action_families
+
+
 def test_family_long_term_payoff_accumulation():
     from volvence_zero.temporal.metacontroller_components import (
         DiscoveredActionFamily,

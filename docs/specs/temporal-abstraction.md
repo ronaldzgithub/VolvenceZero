@@ -96,7 +96,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 **当前实现口径**：
 
 - P08 先固定接口和状态 contract，不承诺完整 ETA 训练闭环
-- 当前实现已支持 `placeholder` / `heuristic` / `learned-lite` 三类 temporal policy
+- 当前实现已支持 `placeholder` / `heuristic` / `learned-lite` / `full-learned` 四类 temporal policy；`full-learned` 是默认 runtime owner，`learned-lite` 保留为 fallback / rollback baseline
 - `learned-lite` 当前仍是最小可训练控制器，不等同于 full ETA metacontroller 或因果 `π(z_t | e_{1:t})`
 - 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前其 online owner 由 `ETANLJointLoop` 承担，offline/batch owner 由 `SSLRLTrainingPipeline` 承担
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新

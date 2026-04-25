@@ -1,0 +1,258 @@
+{
+  "description": "Dialogue expert review packet built from 2 hidden canonical items.",
+  "items": [
+    {
+      "description": "Expert review item 01 with 3 blinded samples.",
+      "item_id": "item_01",
+      "prompt_context": "Compare the blinded transcripts for the same hidden multi-turn dialogue scenario.",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for hidden review item 01.",
+          "sample_id": "item_01:sample_A",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for hidden review item 01.",
+          "sample_id": "item_01:sample_B",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for hidden review item 01.",
+          "sample_id": "item_01:sample_C",
+          "transcript": [
+            [
+              "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Expert review item 02 with 3 blinded samples.",
+      "item_id": "item_02",
+      "prompt_context": "Compare the blinded transcripts for the same hidden multi-turn dialogue scenario.",
+      "review_dimensions": [
+        {
+          "description": "External review dimension for relational continuity.",
+          "dimension_id": "relationship_continuity",
+          "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+        },
+        {
+          "description": "External review dimension for delayed stabilization.",
+          "dimension_id": "delayed_stabilization",
+          "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+        },
+        {
+          "description": "External review dimension for boundary correctness.",
+          "dimension_id": "boundary_correctness",
+          "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+        }
+      ],
+      "samples": [
+        {
+          "blinded_label": "sample_A",
+          "description": "Blinded transcript sample sample_A for hidden review item 02.",
+          "sample_id": "item_02:sample_A",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_B",
+          "description": "Blinded transcript sample sample_B for hidden review item 02.",
+          "sample_id": "item_02:sample_B",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        },
+        {
+          "blinded_label": "sample_C",
+          "description": "Blinded transcript sample sample_C for hidden review item 02.",
+          "sample_id": "item_02:sample_C",
+          "transcript": [
+            [
+              "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ],
+            [
+              "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+              "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "packet_id": "dialogue-ci-smoke:expert-review",
+  "review_dimensions": [
+    {
+      "description": "External review dimension for relational continuity.",
+      "dimension_id": "relationship_continuity",
+      "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+    },
+    {
+      "description": "External review dimension for delayed stabilization.",
+      "dimension_id": "delayed_stabilization",
+      "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+    },
+    {
+      "description": "External review dimension for boundary correctness.",
+      "dimension_id": "boundary_correctness",
+      "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+    }
+  ],
+  "source_suite_id": "dialogue-paper-suite"
+}

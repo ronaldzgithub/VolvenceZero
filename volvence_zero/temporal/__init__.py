@@ -41,7 +41,7 @@ from volvence_zero.temporal.noncausal_embedder import (
     NonCausalSequenceEmbedder,
     PosteriorEnrichment,
 )
-from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer, SSLTrainingReport
+from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer, SSLBatchTrainingReport, SSLTrainingReport
 from volvence_zero.temporal.tensor_ops import (
     Vec,
     Mat,
@@ -88,6 +88,7 @@ __all__ = [
     "PlaceholderTemporalPolicy",
     "PosteriorEnrichment",
     "SSLTrainingReport",
+    "SSLBatchTrainingReport",
     "TemporalAbstractionSnapshot",
     "TemporalConsolidationSnapshot",
     "TemporalAggregateModule",

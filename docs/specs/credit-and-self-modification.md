@@ -1,7 +1,7 @@
 # 信用分配与自修改 Spec
 
 > Status: draft
-> Last updated: 2026-04-20
+> Last updated: 2026-04-25
 > 对应需求: R-PE, R9, R10
 
 ## 要解决的问题
@@ -77,6 +77,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
   - 近期自修改记录（含 allow / block decision）
   - 各级别累计信用
   - 可被 owner 内部扩展为 abstract-action 级信用，而不改变公共 snapshot shape
+- 当前 `CreditModule.default_wiring_level = SHADOW`：credit owner 会执行和发布可校验输出，但默认不自动成为 active upstream 的写穿路径；真正修改仍必须通过目标 owner 的 apply surface
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.5 节
 
@@ -105,9 +106,11 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 - 当前 internal RL delayed credit 也已补充 batch-friendly bookkeeping：proof path 的 delayed assignment 现在会显式携带 `alignment_score`、`window_length` 与 `reward_mode`，便于同一套 credit 结构同时服务训练和 proof report
 - 当前 abstract-action RL 更新已不再只吃单 rollout credit；batch rollout 的 `return_estimate` / `advantage_estimate` 也成为可检查的 owner-side training evidence
+- 当前 PE-first credit 派生以 `derive_credit_records_from_prediction_error_first(...)` 为主路径；evaluation 只提供 gate context / readout，不重新成为原始学习源
 
 ## 变更日志
 
+- 2026-04-25: 补充 `CreditModule` 默认 `SHADOW` 接线与 PE-first 派生路径说明，避免把 credit owner 误读为直接在线自修改执行者
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `dual_track + evaluation + prediction_error`；temporal / delayed outcome 证据通过上游 owner 发布的结构化状态间接进入 credit owner
 - 2026-04-09: next_gen_emogpt v2: R-PE (prediction error as primitive learning signal) added; credit repositioned as aggregation layer downstream of prediction error, not the source of learning itself
 - 2026-04-09: U04 N-step attribution and rolling payoff verification: CreditLedger N-step ledger (`record_nstep_outcome`, `compute_nstep_return`, `rolling_payoff_by_family`/`_by_regime`) verified end-to-end. Horizon depth controls outcome window. FIFO eviction at max_ledger_entries. Rolling payoff differentiates good/bad families after 20 cycles. Credit reward shaping (`extract_abstract_action_credit_bonus`) confirmed to affect RL environment reward via joint loop integration.

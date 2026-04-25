@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 数据契约文档
 
 > Status: draft
-> Version: 0.2
-> Last updated: 2026-04-20
+> Version: 0.3
+> Last updated: 2026-04-25
 > Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`
 
 ---
@@ -351,7 +351,7 @@ class ApplicationRareHeavyCheckpoint:
 - import / rollback 必须与现有 rare-heavy import / rollback 同步执行
 - application rare-heavy refresh 不得直接重写 `memory` / `temporal` / `regime` owner 内部状态
 
-### 2.6 RuntimePlaceholderValue（缺失与禁用占位）
+### 2.12 RuntimePlaceholderValue（缺失与禁用占位）
 
 用于统一表示缺失 upstream 和禁用模块发布的 stub 快照。
 
@@ -501,7 +501,7 @@ class MemoryEntry:
 class MemoryWriteRequest:
     content: str
     track: Track
-    stratum: str
+    stratum: MemoryStratum
     tags: tuple[str, ...] = ()
     strength: float = 0.5
 
@@ -514,10 +514,77 @@ class CMSBandState:
     observations_since_update: int
     pending_signal: tuple[float, ...]
     learning_rate: float = 0.0
+    effective_learning_rate: float = 0.0
     momentum: tuple[float, ...] = ()
     anti_forgetting_strength: float = 0.0
+    update_gate: float = 0.0
+    slow_mix: float = 0.0
+    reset_mix: float = 0.0
+    confidence: float = 0.0
+    update_summary: str = ""
     mode: str = "vector"              # "vector" | "mlp"
     mlp_param_count: int = 0          # 0 for vector mode
+
+@dataclass(frozen=True)
+class CMSTowerLevelState:
+    level_id: str
+    role: str
+    vector: tuple[float, ...]
+    cadence_interval: int
+    source_level_ids: tuple[str, ...] = ()
+    description: str = ""
+
+@dataclass(frozen=True)
+class CMSTowerProfile:
+    profile_id: str
+    levels: tuple[CMSTowerLevelState, ...]
+    readout_vector: tuple[float, ...]
+    description: str
+
+@dataclass(frozen=True)
+class CMSContinuumBand:
+    band_id: str
+    role: str
+    vector: tuple[float, ...]
+    cadence_interval: int
+    update_frequency: float
+    persistence_bias: float
+    retrieval_weight: float
+    pending_signal: tuple[float, ...] = ()
+    source_band_ids: tuple[str, ...] = ()
+    description: str = ""
+
+@dataclass(frozen=True)
+class CMSContinuumReconstructionEdge:
+    edge_id: str
+    source_band_id: str
+    target_band_id: str
+    transfer_kind: str
+    strength: float
+    description: str
+
+@dataclass(frozen=True)
+class CMSContinuumProfile:
+    profile_id: str
+    bands: tuple[CMSContinuumBand, ...]
+    reconstruction_edges: tuple[CMSContinuumReconstructionEdge, ...]
+    readout_band_id: str
+    description: str
+
+@dataclass(frozen=True)
+class CMSHopeSelfModificationState:
+    enabled: bool
+    update_count: int
+    last_target_id: str
+    generated_learning_rate: float
+    generated_decay_rate: float
+    generated_reset_rate: float
+    last_improvement: float
+    last_stability: float
+    last_reward: float
+    guarded: bool
+    guard_reason: str = ""
+    description: str = ""
 
 @dataclass(frozen=True)
 class CMSState:
@@ -528,6 +595,11 @@ class CMSState:
     total_reflections: int
     description: str
     variant: str = "sequential"       # "sequential" | "independent" | "nested"
+    tower_profile: CMSTowerProfile | None = None
+    tower_depth: int = 0
+    continuum_profile: CMSContinuumProfile | None = None
+    update_rule_state: LearnedUpdateRuleState | None = None
+    hope_self_modification_state: CMSHopeSelfModificationState | None = None
 
 @dataclass(frozen=True)
 class CMSCheckpointState:
@@ -545,6 +617,9 @@ class CMSCheckpointState:
     mlp_params: tuple[tuple[tuple[float, ...], ...], ...] = ()
     nested_session_init_target: tuple[float, ...] = ()   # nested 变体: session band 元学习的初始化目标
     nested_online_init_target: tuple[float, ...] = ()    # nested 变体: online band 元学习的初始化目标
+    tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
+    update_rule_state: LearnedUpdateRuleState | None = None
+    hope_self_modification_state: CMSHopeSelfModificationState | None = None
 
 @dataclass(frozen=True)
 class MemorySnapshot:
@@ -572,7 +647,11 @@ class MemorySnapshot:
 - 消费者不得直接持有或修改 memory 内部存储结构
 - 提升、衰减、部分重建的 pending 状态由 Memory owner 自身发布
 - `cms_state` 是 Memory owner 对外发布的唯一 CMS 可读状态；消费者不得自行拼装 band cadence
+- `cms_state.continuum_profile` 是连续谱频率 contract 的机器可读入口；消费者需要理解 bands / reconstruction edges / readout band 时读取该字段，不从三带摘要反推
+- `cms_state.tower_profile` / `tower_depth` 只发布 nested tower 的 compact readout 与层级身份，不暴露 owner 内部全量参数
+- `cms_state.update_rule_state` 与 `hope_self_modification_state` 只作为 owner-side learned update / bounded self-modification 证据，不授权外部消费者写入 CMS 参数
 - `lifecycle_metrics` 只发布 owner 自身负责的 nested lifecycle telemetry；消费者不得自行推断 reset、slow-to-fast transfer、或 learned-core-guided recall 是否发生
+- `hope_self_modification_state` 是 Memory owner 内部 tiny Hope 机制的只读证据面；它描述 owner 生成的有界 update 系数和 guard 状态，不授权消费者改写 CMS 参数
 - 显式 `MemoryEntry` 属于 artifact / explanation layer；主记忆基底由 owner 内部 learned core 承担
 - semantic retrieval index 属于 Memory owner 内部 derived index，不通过独立 slot 暴露
 - runtime retrieval facets 可消费上一轮已经发布的 `temporal_abstraction` / `dual_track` 快照；不得通过同轮直接调用形成第二 owner 或循环依赖
@@ -651,11 +730,12 @@ class CreditSnapshot:
 
 **当前实现口径**：
 
-- P06 先落地结构化信用记录和 gate audit，不执行真正的在线自修改
+- P06 当前落地结构化信用记录、gate audit 与 bounded self-modification proposal；默认 `CreditModule` 以 `SHADOW` 接线运行，真实写入仍必须通过对应 owner 的 apply surface 和 gate，而不是由 credit owner 直接突变外部模块
 - `recent_modifications` 当前记录 allow / block decision，作为审计轨迹和后续 reflection 输入
 - `cumulative_credit_by_level` 先提供最小聚合，后续再扩展到更细粒度的长期统计
 - 第二阶段允许在 owner 内部基于 temporal / rollout 结果扩展出 `abstract_action` 级 credit，而不改变 `CreditSnapshot` shape
 - metacontroller credit 当前会消费 posterior drift、binary gate ratio、policy replacement score 等 ETA kernel evidence，并将其压入 `CreditRecord.context`
+- `derive_credit_records_from_prediction_error_first(...)` 是当前 PE-first credit 派生路径；evaluation 只提供 readout / gate context，不重新成为原始学习源
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
@@ -900,33 +980,35 @@ UpstreamDict = dict[str, Snapshot]
 
 ```python
 from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Generic, Mapping, TypeVar
 
-class Module(ABC):
-    @property
-    @abstractmethod
-    def slot_name(self) -> str:
-        """快照 slot 标识，全局唯一"""
+ValueT = TypeVar("ValueT")
 
-    @property
-    @abstractmethod
-    def owner(self) -> str:
-        """模块唯一所有者标识"""
+class RuntimeModule(ABC, Generic[ValueT]):
+    """Base module contract for all runtime owners."""
 
-    @property
-    @abstractmethod
-    def value_type(self) -> type[Any]:
-        """该 slot 对外发布的 value 类型"""
+    slot_name: ClassVar[str]
+    owner: ClassVar[str]
+    value_type: ClassVar[type[Any]]
+    dependencies: ClassVar[tuple[str, ...]] = ()
+    default_wiring_level: ClassVar[WiringLevel] = WiringLevel.ACTIVE
 
-    @property
-    def dependencies(self) -> tuple[str, ...]:
-        """声明的直接上游依赖 slot"""
+    def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
+        self._wiring_level = wiring_level or self.default_wiring_level
+        self._version = 0
 
     @property
     def wiring_level(self) -> WiringLevel:
-        """运行时接线级别"""
+        return self._wiring_level
+
+    def seed_version(self, version: int) -> None:
+        """Seed local publication version from previously published snapshots."""
+
+    def publish(self, value: ValueT) -> Snapshot[ValueT]:
+        """Increment version and wrap a frozen value in a Snapshot."""
 
     @abstractmethod
-    async def process(self, upstream: UpstreamDict) -> Snapshot:
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ValueT]:
         """
         接收上游快照，执行处理，返回自身快照。
 
@@ -936,7 +1018,7 @@ class Module(ABC):
         - 模块内部状态的描述由自身生成并打包到快照中
         """
 
-    async def process_standalone(self, **kwargs) -> Snapshot:
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[ValueT]:
         """
         独立调用模式（预训练/测试场景）。
         不依赖 upstream，直接接收必要参数。
@@ -948,7 +1030,7 @@ class Module(ABC):
 
 ```python
 async def propagate(
-    modules: list[Module],
+    modules: list[RuntimeModule[Any]],
     *,
     upstream: UpstreamDict | None = None,
     registry: SlotRegistry | None = None,
@@ -956,9 +1038,15 @@ async def propagate(
     shadow_snapshots: MutableMapping[str, Snapshot] | None = None,
     session_id: str = "runtime",
     wave_id: str = "wave-0",
+    auto_sort: bool = True,
 ) -> UpstreamDict:
     """
-    按顺序执行模块，收集快照。
+    按依赖顺序执行模块，收集快照。
+
+    默认语义:
+    - `auto_sort=True` 时按模块声明的 `dependencies` 做拓扑排序
+    - 依赖图成环时 `topo_sort_modules()` 回退到调用方给定顺序；需要显式检查时调用 `detect_dependency_cycle()`
+    - `auto_sort=False` 时保留调用方给定顺序，仍执行同样的 ownership / dependency / schema / immutability guard
 
     运行时语义:
     - ACTIVE: 执行并将输出写入 active upstream
@@ -1021,21 +1109,21 @@ reflection ───────────────────────
 
 ## 6. 快照 Slot 注册表
 
-| Slot Name | Owner 模块 | Value 类型 | 发布频率 | 消费者 |
-|-----------|-----------|-----------|----------|--------|
-| `substrate` | SubstrateModule | SubstrateSnapshot | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
-| `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | 每 turn | temporal_abstraction, dual_track |
-| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | 每 turn | temporal_abstraction, dual_track |
-| `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | 每 turn | final wiring / audit only |
-| `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | 每 turn | final wiring / audit only |
-| `temporal_abstraction` | TemporalAggregateModule | TemporalAbstractionSnapshot | 每 turn | memory, dual_track |
-| `memory` | MemoryModule | MemorySnapshot | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
-| `dual_track` | DualTrackModule | DualTrackSnapshot | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
-| `evaluation` | EvaluationModule | EvaluationSnapshot | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
-| `regime` | RegimeModule | RegimeSnapshot | 每 turn | prediction_error, reflection |
-| `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
-| `credit` | CreditModule | CreditSnapshot | 每 turn ~ 每会话 | reflection |
-| `reflection` | ReflectionModule | ReflectionSnapshot | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
+| Slot Name | Owner 模块 | Value 类型 | 默认接线 | 发布频率 | 消费者 |
+|-----------|-----------|-----------|----------|----------|--------|
+| `substrate` | SubstrateModule | SubstrateSnapshot | ACTIVE | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
+| `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | temporal_abstraction, dual_track |
+| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | temporal_abstraction, dual_track |
+| `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | ACTIVE | 每 turn | final wiring / audit only |
+| `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | ACTIVE | 每 turn | final wiring / audit only |
+| `temporal_abstraction` | TemporalAggregateModule | TemporalAbstractionSnapshot | ACTIVE | 每 turn | memory, dual_track |
+| `memory` | MemoryModule | MemorySnapshot | SHADOW | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
+| `dual_track` | DualTrackModule | DualTrackSnapshot | ACTIVE | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
+| `evaluation` | EvaluationModule | EvaluationSnapshot | ACTIVE | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
+| `regime` | RegimeModule | RegimeSnapshot | ACTIVE | 每 turn | prediction_error, reflection |
+| `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | ACTIVE | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
+| `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection |
+| `reflection` | ReflectionModule | ReflectionSnapshot | ACTIVE / session-post | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
 
 ---
 

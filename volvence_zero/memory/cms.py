@@ -240,6 +240,22 @@ class CMSContinuumProfile:
 
 
 @dataclass(frozen=True)
+class CMSHopeSelfModificationState:
+    enabled: bool
+    update_count: int
+    last_target_id: str
+    generated_learning_rate: float
+    generated_decay_rate: float
+    generated_reset_rate: float
+    last_improvement: float
+    last_stability: float
+    last_reward: float
+    guarded: bool
+    guard_reason: str = ""
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class CMSState:
     online_fast: CMSBandState
     session_medium: CMSBandState
@@ -252,6 +268,7 @@ class CMSState:
     tower_depth: int = 0
     continuum_profile: CMSContinuumProfile | None = None
     update_rule_state: LearnedUpdateRuleState | None = None
+    hope_self_modification_state: CMSHopeSelfModificationState | None = None
 
 
 @dataclass(frozen=True)
@@ -272,6 +289,7 @@ class CMSCheckpointState:
     nested_online_init_target: tuple[float, ...] = ()
     tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
     update_rule_state: LearnedUpdateRuleState | None = None
+    hope_self_modification_state: CMSHopeSelfModificationState | None = None
 
 
 @dataclass(frozen=True)
@@ -329,6 +347,16 @@ class CMSMemoryCore:
         )
         self._latest_update_rule_state: LearnedUpdateRuleState = self._update_rule.export_state()
         self._latest_band_decisions: dict[str, LearnedUpdateDecision] = {}
+        self._hope_update_count = 0
+        self._hope_last_target_id = ""
+        self._hope_generated_learning_rate = 0.0
+        self._hope_generated_decay_rate = 0.0
+        self._hope_generated_reset_rate = 0.0
+        self._hope_last_improvement = 0.0
+        self._hope_last_stability = 0.0
+        self._hope_last_reward = 0.0
+        self._hope_guarded = False
+        self._hope_guard_reason = ""
         self._total_observations = 0
         self._total_reflections = 0
         self._last_update_ms = 0
@@ -480,6 +508,42 @@ class CMSMemoryCore:
             stability=stability,
         )
         self._latest_update_rule_state = self._update_rule.export_state()
+        self._record_hope_self_modification(
+            decision=decision,
+            improvement=improvement,
+            stability=stability,
+        )
+
+    def _record_hope_self_modification(
+        self,
+        *,
+        decision: LearnedUpdateDecision,
+        improvement: float,
+        stability: float,
+    ) -> None:
+        updater_state = self._latest_update_rule_state
+        reward = updater_state.last_reward
+        self._hope_update_count += 1
+        self._hope_last_target_id = decision.target_id
+        self._hope_generated_learning_rate = _clamp(
+            updater_state.base_learning_rate
+            * max(decision.step_scale, 0.05)
+            * max(decision.write_gate, 0.05)
+        )
+        self._hope_generated_decay_rate = _clamp(
+            self._anti_forgetting
+            * (0.35 + decision.slow_mix * 0.45)
+            * (1.0 + max(-reward, 0.0) * 0.25)
+        )
+        self._hope_generated_reset_rate = _clamp(
+            decision.reset_mix
+            * (0.45 + max(0.0, 1.0 - stability) * 0.35)
+        )
+        self._hope_last_improvement = improvement
+        self._hope_last_stability = _clamp(stability)
+        self._hope_last_reward = reward
+        self._hope_guarded = decision.guard_applied
+        self._hope_guard_reason = decision.guard_reason
 
     def _decision_for(self, band_id: str) -> LearnedUpdateDecision | None:
         return self._latest_band_decisions.get(band_id)
@@ -905,6 +969,7 @@ class CMSMemoryCore:
                     self._background_mlp.export_params(),
                 ),
                 update_rule_state=self._latest_update_rule_state,
+                hope_self_modification_state=self._hope_state(),
             )
         return CMSCheckpointState(
             online_fast=self._online_fast,
@@ -919,6 +984,7 @@ class CMSMemoryCore:
             background_pending_signal=self._background_pending_signal,
             tower_meta_levels=self._export_tower_meta_levels(),
             update_rule_state=self._latest_update_rule_state,
+            hope_self_modification_state=self._hope_state(),
         )
 
     def restore_state(self, state: CMSCheckpointState) -> None:
@@ -932,6 +998,23 @@ class CMSMemoryCore:
         if state.update_rule_state is not None:
             self._update_rule.restore_state(state.update_rule_state)
             self._latest_update_rule_state = state.update_rule_state
+        if state.hope_self_modification_state is not None:
+            self._restore_hope_state(state.hope_self_modification_state)
+        else:
+            self._restore_hope_state(
+                CMSHopeSelfModificationState(
+                    enabled=True,
+                    update_count=0,
+                    last_target_id="",
+                    generated_learning_rate=0.0,
+                    generated_decay_rate=0.0,
+                    generated_reset_rate=0.0,
+                    last_improvement=0.0,
+                    last_stability=0.0,
+                    last_reward=0.0,
+                    guarded=False,
+                )
+            )
 
         if self._mode == "mlp":
             if state.mode == "mlp" and state.mlp_params:
@@ -1029,6 +1112,7 @@ class CMSMemoryCore:
             tower_depth=len(tower_profile.levels),
             continuum_profile=self._build_continuum_profile(tower_profile),
             update_rule_state=self._latest_update_rule_state,
+            hope_self_modification_state=self._hope_state(),
         )
 
     def _snapshot_mlp(self) -> CMSState:
@@ -1115,7 +1199,45 @@ class CMSMemoryCore:
             tower_depth=len(tower_profile.levels),
             continuum_profile=self._build_continuum_profile(tower_profile),
             update_rule_state=self._latest_update_rule_state,
+            hope_self_modification_state=self._hope_state(),
         )
+
+    def _hope_state(self) -> CMSHopeSelfModificationState:
+        return CMSHopeSelfModificationState(
+            enabled=True,
+            update_count=self._hope_update_count,
+            last_target_id=self._hope_last_target_id,
+            generated_learning_rate=self._hope_generated_learning_rate,
+            generated_decay_rate=self._hope_generated_decay_rate,
+            generated_reset_rate=self._hope_generated_reset_rate,
+            last_improvement=self._hope_last_improvement,
+            last_stability=self._hope_last_stability,
+            last_reward=self._hope_last_reward,
+            guarded=self._hope_guarded,
+            guard_reason=self._hope_guard_reason,
+            description=(
+                "Tiny Hope owner-side self-modification state: "
+                f"target={self._hope_last_target_id or 'none'} "
+                f"updates={self._hope_update_count} "
+                f"generated_lr={self._hope_generated_learning_rate:.4f} "
+                f"decay={self._hope_generated_decay_rate:.4f} "
+                f"reset={self._hope_generated_reset_rate:.4f} "
+                f"reward={self._hope_last_reward:.3f} "
+                f"guard={self._hope_guard_reason or 'clear'}."
+            ),
+        )
+
+    def _restore_hope_state(self, state: CMSHopeSelfModificationState) -> None:
+        self._hope_update_count = state.update_count
+        self._hope_last_target_id = state.last_target_id
+        self._hope_generated_learning_rate = state.generated_learning_rate
+        self._hope_generated_decay_rate = state.generated_decay_rate
+        self._hope_generated_reset_rate = state.generated_reset_rate
+        self._hope_last_improvement = state.last_improvement
+        self._hope_last_stability = state.last_stability
+        self._hope_last_reward = state.last_reward
+        self._hope_guarded = state.guarded
+        self._hope_guard_reason = state.guard_reason
 
     def apply_tower_consolidation(
         self,

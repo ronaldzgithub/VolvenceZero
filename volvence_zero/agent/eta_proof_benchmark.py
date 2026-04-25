@@ -28,6 +28,7 @@ from volvence_zero.internal_rl import (
     HierarchicalTransition,
     InternalRLEnvironment,
     InternalRLProofEpisode,
+    InternalRLRewardSource,
     InternalRLSandbox,
     MiniHierarchicalEnvironment,
     ZRollout,
@@ -63,6 +64,11 @@ class ETAProofCase:
     environment_id: str = "proof-grid"
     route_signature: tuple[str, ...] = ()
     branch_depth: int = 0
+    split_detail: str = "unspecified"
+    reward_profile: str = "proof-sparse-legacy-shaping"
+    reward_taxonomy: tuple[InternalRLRewardSource, ...] = ()
+    route_length: int = 0
+    distractor_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -88,6 +94,22 @@ class ETAProofEpisodeReport:
     switch_discipline_score: float
     mechanism_evidence_score: float
     strong_success_score: float
+    split_detail: str
+    reward_profile: str
+    reward_source_mix: tuple[tuple[str, str, float], ...]
+    reward_shaping_leakage: float
+    reward_sparsity: float
+    route_length: int
+    distractor_count: int
+    mean_steps_per_abstract_action: float
+    median_steps_per_abstract_action: float
+    persistence_window_success_rate: float
+    premature_switch_rate: float
+    always_switch_rate: float
+    never_switch_rate: float
+    intervention_application_count: int
+    mean_replacement_effect_delta: float
+    residual_signal_quality: float
     description: str
 
 
@@ -281,6 +303,16 @@ def _std(values: tuple[float, ...]) -> float:
     return variance ** 0.5
 
 
+def _median(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    sorted_values = tuple(sorted(values))
+    midpoint = len(sorted_values) // 2
+    if len(sorted_values) % 2 == 1:
+        return sorted_values[midpoint]
+    return (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2.0
+
+
 def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = None) -> OpenWeightResidualRuntime:
     active_config = config or ETAOpenWeightRuntimeConfig()
     return build_transformers_runtime_with_fallback(
@@ -410,6 +442,71 @@ def _switch_discipline_score(*, switch_sparsity: float, mean_persistence: float)
     return max(0.0, min(1.0, transition_presence * 0.40 + persistence_quality * 0.60))
 
 
+def _abstract_action_window_lengths(rollout: ZRollout) -> tuple[int, ...]:
+    if not rollout.transitions:
+        return ()
+    lengths: list[int] = []
+    current_length = 0
+    for index, transition in enumerate(rollout.transitions):
+        is_new_window = index == 0 or transition.controller_state.switch_gate >= 0.5
+        if is_new_window and current_length > 0:
+            lengths.append(current_length)
+            current_length = 0
+        current_length += 1
+    if current_length > 0:
+        lengths.append(current_length)
+    return tuple(lengths)
+
+
+def _persistence_metrics(rollout: ZRollout) -> tuple[float, float, float, float, float, float]:
+    window_lengths = _abstract_action_window_lengths(rollout)
+    if not window_lengths:
+        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    transition_count = len(rollout.transitions)
+    mean_steps = _mean(tuple(float(length) for length in window_lengths))
+    median_steps = _median(tuple(float(length) for length in window_lengths))
+    persistent_windows = sum(1 for length in window_lengths if length >= 2)
+    one_step_windows = sum(1 for length in window_lengths if length <= 1)
+    switch_count = max(len(window_lengths) - 1, 0)
+    return (
+        mean_steps,
+        median_steps,
+        persistent_windows / len(window_lengths),
+        one_step_windows / len(window_lengths),
+        1.0 if switch_count >= max(transition_count - 1, 0) and transition_count > 1 else 0.0,
+        1.0 if switch_count == 0 and transition_count > 1 else 0.0,
+    )
+
+
+def _mean_control_magnitude(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _temporal_family_slow_loop_metrics(policy: FullLearnedTemporalPolicy) -> tuple[tuple[str, float], ...]:
+    families = policy.parameter_store.action_families
+    if not families:
+        return (
+            ("credit_to_family_write_count", 0.0),
+            ("long_horizon_payoff_coverage", 0.0),
+            ("family_competition_mean", 0.0),
+            ("family_payoff_mean", 0.0),
+        )
+    credit_write_count = sum(1 for family in families if abs(family.delayed_credit_sum) > 1e-8)
+    payoff_covered_count = sum(
+        1
+        for family in families
+        if abs(family.long_term_payoff - 0.5) > 1e-8 or abs(family.delayed_credit_sum) > 1e-8
+    )
+    return (
+        ("credit_to_family_write_count", float(credit_write_count)),
+        ("long_horizon_payoff_coverage", payoff_covered_count / len(families)),
+        ("family_competition_mean", _mean(tuple(family.competition_score for family in families))),
+        ("family_payoff_mean", _mean(tuple(family.long_term_payoff for family in families))),
+    )
+
+
 def _subgoal_signature_library() -> dict[str, tuple[float, ...]]:
     return {
         "alpha": (0.92, 0.18, 0.36),
@@ -535,6 +632,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="steady guidance alignment planning support corridor branch anchor",
             waypoints=("entry", "alpha", "beta", "delta"),
             distractor_ids=("gamma", "epsilon"),
+            split_detail="train-core",
             description="Canonical branching corridor task with alpha -> beta -> delta.",
         ),
         HierarchicalRouteSpec(
@@ -543,6 +641,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="careful repair planning warmth continuity zigzag support",
             waypoints=("entry", "beta", "gamma", "alpha"),
             distractor_ids=("delta",),
+            split_detail="train-order-pressure",
             description="Zigzag training task that revisits familiar signatures under order pressure.",
         ),
         HierarchicalRouteSpec(
@@ -551,6 +650,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="reflective planning support loop memory return and repair",
             waypoints=("entry", "delta", "hub", "beta", "epsilon"),
             distractor_ids=("gamma",),
+            split_detail="train-loop",
             description="Looped training task that pushes persistence before the final subgoal.",
         ),
         HierarchicalRouteSpec(
@@ -559,6 +659,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="steady continuity planning support reflection branch return",
             waypoints=("entry", "alpha", "delta", "epsilon"),
             distractor_ids=("beta", "gamma"),
+            split_detail="eval-composition",
             description="Evaluation task that mixes known branch nodes with a new terminal demand.",
         ),
         HierarchicalRouteSpec(
@@ -567,6 +668,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="careful guidance through dense branch with repair continuity",
             waypoints=("entry", "beta", "gamma", "beta", "delta"),
             distractor_ids=("alpha", "epsilon"),
+            split_detail="eval-distractor",
             description="Evaluation task that reuses beta/delta under a denser distractor field.",
         ),
         HierarchicalRouteSpec(
@@ -575,6 +677,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="reflective planning support with careful guidance through heldout branch",
             waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
             distractor_ids=("beta",),
+            split_detail="heldout-composition",
             description="Held-out compositional route with four-stage reordering and a hard terminal node.",
         ),
         HierarchicalRouteSpec(
@@ -583,6 +686,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
             source_text="careful branching return support and reflection in heldout loop",
             waypoints=("entry", "hub", "epsilon", "beta", "alpha", "delta"),
             distractor_ids=("gamma",),
+            split_detail="heldout-long-loop",
             description="Held-out loop route requiring long-horizon reuse before the final branch exit.",
         ),
     )
@@ -600,6 +704,11 @@ def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
             environment_id=case.environment_id,
             route_signature=case.route_signature,
             branch_depth=case.branch_depth,
+            split_detail=case.split_detail,
+            reward_profile=case.proof_episode.reward_profile,
+            reward_taxonomy=case.proof_episode.reward_taxonomy,
+            route_length=len(case.route_signature),
+            distractor_count=len(case.proof_episode.distractor_signatures),
         )
         for case in (environment.build_case(route) for route in default_eta_proof_routes())
     )
@@ -750,6 +859,60 @@ def build_eta_proof_paper_suite_manifest(
                 direction="higher-is-better",
                 description="Total training transitions consumed by full-profile internal RL updates.",
             ),
+            PaperMetricSpec(
+                metric_name="mean_steps_per_abstract_action",
+                role="secondary",
+                direction="higher-is-better",
+                description="Mean rollout steps controlled by one abstract action before switching.",
+            ),
+            PaperMetricSpec(
+                metric_name="persistence_window_success_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of abstract-action windows persisting for at least two rollout steps.",
+            ),
+            PaperMetricSpec(
+                metric_name="residual_signal_quality",
+                role="secondary",
+                direction="higher-is-better",
+                description="Residual-control signal quality combining downstream effect and backend fidelity.",
+            ),
+            PaperMetricSpec(
+                metric_name="credit_to_family_write_count",
+                role="secondary",
+                direction="higher-is-better",
+                description="Number of temporal families receiving long-horizon delayed-credit writes.",
+            ),
+            PaperMetricSpec(
+                metric_name="long_horizon_payoff_coverage",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of temporal families with payoff or delayed-credit evidence.",
+            ),
+            PaperMetricSpec(
+                metric_name="slow_to_fast_init_benefit",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fast-prior benefit retained over the no-fast-prior control.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_reward_sparsity",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of reward signal not attributable to shaping leakage.",
+            ),
+            PaperMetricSpec(
+                metric_name="reward_shaping_leakage",
+                role="secondary",
+                direction="lower-is-better",
+                description="Share of optimizer-visible reward coming from shaping components.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_family_reuse_gap_vs_no_fast_prior",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out family reuse retained over the no-fast-prior scaffold ablation.",
+            ),
         ),
         case_groups=(
             ("route_ids", route_ids),
@@ -800,6 +963,18 @@ def build_eta_open_weight_paper_suite_manifest(
             role="secondary",
             direction="lower-is-better",
             description="Fraction of real ETA capture served by a builtin fallback runtime.",
+        ),
+        PaperMetricSpec(
+            metric_name="intervention_application_count",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean residual intervention application count in ETA open-weight proof rollouts.",
+        ),
+        PaperMetricSpec(
+            metric_name="episode_replacement_effect_delta",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean per-episode replacement-effect delta for real residual-control rollouts.",
         ),
     )
     return replace(
@@ -974,6 +1149,31 @@ def _credit_alignment_score(rollout: ZRollout) -> float:
     return sandbox._delayed_credit_alignment((rollout,))
 
 
+def _reward_source_mix(
+    *,
+    proof_episode: InternalRLProofEpisode,
+    rollout: ZRollout,
+) -> tuple[tuple[str, str, float], ...]:
+    totals: dict[tuple[str, str], float] = {}
+    for transition in rollout.transitions:
+        for component_name, value in transition.reward_components:
+            kind = proof_episode.reward_kind_for(component_name)
+            key = (component_name, kind)
+            totals[key] = totals.get(key, 0.0) + abs(value)
+    return tuple(
+        (component_name, kind, round(total, 4))
+        for (component_name, kind), total in sorted(totals.items())
+    )
+
+
+def _reward_shaping_leakage(reward_source_mix: tuple[tuple[str, str, float], ...]) -> float:
+    total = sum(value for _, _, value in reward_source_mix)
+    if total <= 1e-8:
+        return 0.0
+    shaping = sum(value for _, kind, value in reward_source_mix if kind == "shaping")
+    return round(shaping / total, 4)
+
+
 def _episode_report(
     *,
     case: ETAProofCase,
@@ -998,6 +1198,36 @@ def _episode_report(
     switch_sparsity = _mean(tuple(1.0 - transition.controller_state.switch_gate for transition in rollout.transitions))
     mean_persistence = _mean(tuple(float(transition.controller_state.steps_since_switch) for transition in rollout.transitions))
     raw_total_reward = sum(transition.raw_reward for transition in rollout.transitions)
+    reward_source_mix = _reward_source_mix(
+        proof_episode=case.proof_episode,
+        rollout=rollout,
+    )
+    reward_shaping_leakage = _reward_shaping_leakage(reward_source_mix)
+    reward_sparsity = round(1.0 - reward_shaping_leakage, 4)
+    (
+        mean_steps_per_abstract_action,
+        median_steps_per_abstract_action,
+        persistence_window_success_rate,
+        premature_switch_rate,
+        always_switch_rate,
+        never_switch_rate,
+    ) = _persistence_metrics(rollout)
+    intervention_application_count = sum(
+        1
+        for transition in rollout.transitions
+        if transition.backend_name != "noop-residual-backend"
+    )
+    mean_replacement_effect_delta = _mean(tuple(transition.replacement_effect_delta for transition in rollout.transitions))
+    residual_signal_quality = _mean(
+        tuple(
+            min(
+                _mean_control_magnitude(transition.downstream_effect) * 2.0
+                + transition.backend_fidelity * 0.50,
+                1.0,
+            )
+            for transition in rollout.transitions
+        )
+    )
     credit_alignment = _credit_alignment_score(rollout)
     task_success_core = (
         float(rollout.terminal_success) * 0.40
@@ -1039,6 +1269,22 @@ def _episode_report(
         switch_discipline_score=switch_discipline_score,
         mechanism_evidence_score=mechanism_evidence_score,
         strong_success_score=strong_success_score,
+        split_detail=case.split_detail,
+        reward_profile=case.reward_profile,
+        reward_source_mix=reward_source_mix,
+        reward_shaping_leakage=reward_shaping_leakage,
+        reward_sparsity=reward_sparsity,
+        route_length=case.route_length,
+        distractor_count=case.distractor_count,
+        mean_steps_per_abstract_action=mean_steps_per_abstract_action,
+        median_steps_per_abstract_action=median_steps_per_abstract_action,
+        persistence_window_success_rate=persistence_window_success_rate,
+        premature_switch_rate=premature_switch_rate,
+        always_switch_rate=always_switch_rate,
+        never_switch_rate=never_switch_rate,
+        intervention_application_count=intervention_application_count,
+        mean_replacement_effect_delta=mean_replacement_effect_delta,
+        residual_signal_quality=residual_signal_quality,
         description=(
             f"{profile_label} on {case.case_id} ({backend_label}) "
             f"success={rollout.terminal_success} completed={len(rollout.completed_subgoals)}/{len(case.proof_episode.subgoals)}."
@@ -1069,6 +1315,36 @@ def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) ->
         ("eval_family_reuse_rate", _mean(tuple(report.family_reuse_rate for report in eval_reports))),
         ("heldout_family_reuse_rate", _mean(tuple(report.family_reuse_rate for report in heldout_reports))),
         ("mean_switch_sparsity", _mean(tuple(report.switch_sparsity for report in episode_reports))),
+        ("mean_reward_sparsity", _mean(tuple(report.reward_sparsity for report in episode_reports))),
+        ("heldout_reward_sparsity", _mean(tuple(report.reward_sparsity for report in heldout_reports))),
+        ("reward_shaping_leakage", _mean(tuple(report.reward_shaping_leakage for report in episode_reports))),
+        ("heldout_reward_shaping_leakage", _mean(tuple(report.reward_shaping_leakage for report in heldout_reports))),
+        ("mean_route_length", _mean(tuple(float(report.route_length) for report in episode_reports))),
+        ("mean_distractor_count", _mean(tuple(float(report.distractor_count) for report in episode_reports))),
+        (
+            "mean_steps_per_abstract_action",
+            _mean(tuple(report.mean_steps_per_abstract_action for report in episode_reports)),
+        ),
+        (
+            "median_steps_per_abstract_action",
+            _median(tuple(report.median_steps_per_abstract_action for report in episode_reports)),
+        ),
+        (
+            "persistence_window_success_rate",
+            _mean(tuple(report.persistence_window_success_rate for report in episode_reports)),
+        ),
+        ("premature_switch_rate", _mean(tuple(report.premature_switch_rate for report in episode_reports))),
+        ("always_switch_rate", _mean(tuple(report.always_switch_rate for report in episode_reports))),
+        ("never_switch_rate", _mean(tuple(report.never_switch_rate for report in episode_reports))),
+        (
+            "intervention_application_count",
+            _mean(tuple(float(report.intervention_application_count) for report in episode_reports)),
+        ),
+        (
+            "episode_replacement_effect_delta",
+            _mean(tuple(report.mean_replacement_effect_delta for report in episode_reports)),
+        ),
+        ("residual_signal_quality", _mean(tuple(report.residual_signal_quality for report in episode_reports))),
         ("mean_credit_alignment", _mean(tuple(report.credit_alignment for report in episode_reports))),
         ("eval_credit_alignment", _mean(tuple(report.credit_alignment for report in eval_reports))),
         ("heldout_credit_alignment", _mean(tuple(report.credit_alignment for report in heldout_reports))),
@@ -1270,6 +1546,7 @@ def run_eta_internal_rl_proof_benchmark(
             ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
             ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
             ("bootstrap_init_used", 1.0 if bootstrap_snapshot is not None else 0.0),
+            *_temporal_family_slow_loop_metrics(sandbox.policy),
             *_real_snapshot_metric_values(tuple(real_substrate_snapshots)),
         )
         benchmark_rollout_batch_count += rollout_batch_count
@@ -1336,6 +1613,20 @@ def run_eta_internal_rl_proof_benchmark(
             ),
             (
                 "heldout_strong_success_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_strong_success_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_strong_success_rate", 0.0),
+            ),
+            (
+                "slow_to_fast_init_benefit",
+                baseline_metrics.get("temporal_fast_prior_strength", 0.0)
+                - no_fast_prior_metrics.get("temporal_fast_prior_strength", 0.0),
+            ),
+            (
+                "family_reuse_after_reset",
+                baseline_metrics.get("heldout_family_reuse_rate", 0.0),
+            ),
+            (
+                "heldout_gain_after_consolidation",
                 baseline_metrics.get("heldout_strong_success_rate", 0.0)
                 - no_fast_prior_metrics.get("heldout_strong_success_rate", 0.0),
             ),
@@ -1782,6 +2073,32 @@ def _eta_paper_suite_metric_values(
         ("mean_value_loss", full_report.mean_value_loss),
         ("training_transition_count", float(full_report.training_transition_count)),
         ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+        ("mean_reward_sparsity", full_metrics.get("mean_reward_sparsity", 0.0)),
+        ("reward_shaping_leakage", full_metrics.get("reward_shaping_leakage", 0.0)),
+        (
+            "heldout_family_reuse_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_family_reuse_gap_vs_no_fast_prior", 0.0),
+        ),
+        (
+            "heldout_credit_alignment_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_credit_alignment_gap_vs_no_fast_prior", 0.0),
+        ),
+        (
+            "heldout_strong_success_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_strong_success_gap_vs_no_fast_prior", 0.0),
+        ),
+        ("mean_steps_per_abstract_action", full_metrics.get("mean_steps_per_abstract_action", 0.0)),
+        ("persistence_window_success_rate", full_metrics.get("persistence_window_success_rate", 0.0)),
+        ("premature_switch_rate", full_metrics.get("premature_switch_rate", 0.0)),
+        ("intervention_application_count", full_metrics.get("intervention_application_count", 0.0)),
+        ("episode_replacement_effect_delta", full_metrics.get("episode_replacement_effect_delta", 0.0)),
+        ("residual_signal_quality", full_metrics.get("residual_signal_quality", 0.0)),
+        ("credit_to_family_write_count", full_metrics.get("credit_to_family_write_count", 0.0)),
+        ("long_horizon_payoff_coverage", full_metrics.get("long_horizon_payoff_coverage", 0.0)),
+        ("family_competition_mean", full_metrics.get("family_competition_mean", 0.0)),
+        ("slow_to_fast_init_benefit", full_metrics.get("slow_to_fast_init_benefit", 0.0)),
+        ("family_reuse_after_reset", full_metrics.get("family_reuse_after_reset", 0.0)),
+        ("heldout_gain_after_consolidation", full_metrics.get("heldout_gain_after_consolidation", 0.0)),
         ("real_open_weight_step_count", full_metrics.get("real_open_weight_step_count", 0.0)),
         ("real_open_weight_capture_rate", full_metrics.get("real_open_weight_capture_rate", 0.0)),
         ("real_open_weight_hook_coverage", full_metrics.get("real_open_weight_hook_coverage", 0.0)),
@@ -2182,6 +2499,15 @@ def _build_eta_claim_verdicts(
     real_capture_rate = summary_map.get("real_open_weight_capture_rate")
     real_hook_coverage = summary_map.get("real_open_weight_hook_coverage")
     real_fallback_rate = summary_map.get("real_open_weight_fallback_rate")
+    residual_signal_quality = summary_map.get("residual_signal_quality")
+    episode_replacement_effect_delta = summary_map.get("episode_replacement_effect_delta")
+    reward_sparsity = summary_map.get("mean_reward_sparsity")
+    reward_shaping_leakage = summary_map.get("reward_shaping_leakage")
+    family_reuse_gap = summary_map.get("heldout_family_reuse_gap_vs_no_fast_prior")
+    credit_alignment_gap = summary_map.get("heldout_credit_alignment_gap_vs_no_fast_prior")
+    slow_to_fast_benefit = summary_map.get("slow_to_fast_init_benefit")
+    credit_to_family_write_count = summary_map.get("credit_to_family_write_count")
+    long_horizon_payoff_coverage = summary_map.get("long_horizon_payoff_coverage")
     claim_internal_rl = _eta_claim_status(
         retain_checks=(
             assessment is not None and assessment.passed_gate_count >= assessment.total_gate_count,
@@ -2217,6 +2543,84 @@ def _build_eta_claim_verdicts(
             summary="ETA internal-RL strong-proof claim verdict.",
             description="Checks whether full internal RL stays ahead of the strongest control with retained acceptance gates and statistical evidence.",
         ),
+        ClaimVerdict(
+            claim_id="claim_eta_internal_rl_sparse_reward_advantage",
+            status=_eta_claim_status(
+                retain_checks=(
+                    claim_internal_rl == "retain",
+                    reward_sparsity is not None and reward_sparsity.mean >= 0.75,
+                    reward_shaping_leakage is not None and reward_shaping_leakage.mean <= 0.25,
+                ),
+                weak_checks=(
+                    claim_internal_rl in {"weak", "retain"},
+                    reward_sparsity is not None and reward_sparsity.mean > 0.0,
+                ),
+            ),
+            required_gate_ids=("sparse-reward-success", "abstract-action-reuse", "credit-alignment"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report", "reference_assessment"),
+            evidence=(
+                ("internal_rl_advantage_status", claim_internal_rl),
+                ("mean_reward_sparsity", reward_sparsity.mean if reward_sparsity is not None else 0.0),
+                ("reward_shaping_leakage", reward_shaping_leakage.mean if reward_shaping_leakage is not None else 1.0),
+            ),
+            summary="ETA sparse-reward internal-RL claim verdict.",
+            description="Checks whether the internal-RL advantage is backed by sparse or delayed reward evidence rather than shaping leakage.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_eta_scaffold_free_temporal_abstraction",
+            status=_eta_claim_status(
+                retain_checks=(
+                    family_reuse_gap is not None and family_reuse_gap.mean >= 0.0,
+                    credit_alignment_gap is not None and credit_alignment_gap.mean >= 0.0,
+                    statistical_gate_passed,
+                ),
+                weak_checks=(
+                    family_reuse_gap is not None,
+                    credit_alignment_gap is not None,
+                ),
+            ),
+            required_gate_ids=("scaffold-ablation-retention", "statistical-batch-evidence"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+            evidence=(
+                ("heldout_family_reuse_gap_vs_no_fast_prior", family_reuse_gap.mean if family_reuse_gap is not None else 0.0),
+                (
+                    "heldout_credit_alignment_gap_vs_no_fast_prior",
+                    credit_alignment_gap.mean if credit_alignment_gap is not None else 0.0,
+                ),
+                ("statistical_batch_evidence_passed", float(statistical_gate_passed)),
+            ),
+            summary="ETA scaffold-ablation temporal-abstraction claim verdict.",
+            description="Checks whether temporal-abstraction evidence survives matched scaffold ablations instead of relying on a fast-prior shortcut.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_nl_slow_loop_improves_eta_fast_path",
+            status=_eta_claim_status(
+                retain_checks=(
+                    slow_to_fast_benefit is not None and slow_to_fast_benefit.mean >= 0.0,
+                    credit_to_family_write_count is not None and credit_to_family_write_count.mean > 0.0,
+                    long_horizon_payoff_coverage is not None and long_horizon_payoff_coverage.mean > 0.0,
+                ),
+                weak_checks=(
+                    credit_to_family_write_count is not None and credit_to_family_write_count.mean > 0.0,
+                    long_horizon_payoff_coverage is not None and long_horizon_payoff_coverage.mean > 0.0,
+                ),
+            ),
+            required_gate_ids=("nl-slow-shapes-fast", "credit-alignment"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+            evidence=(
+                ("slow_to_fast_init_benefit", slow_to_fast_benefit.mean if slow_to_fast_benefit is not None else 0.0),
+                (
+                    "credit_to_family_write_count",
+                    credit_to_family_write_count.mean if credit_to_family_write_count is not None else 0.0,
+                ),
+                (
+                    "long_horizon_payoff_coverage",
+                    long_horizon_payoff_coverage.mean if long_horizon_payoff_coverage is not None else 0.0,
+                ),
+            ),
+            summary="NL slow-loop support for ETA fast path claim verdict.",
+            description="Checks whether delayed and long-horizon NL signals reach temporal families and fast-prior evidence.",
+        ),
     ]
     if aggregate_report.manifest.suite_kind == "eta-open-weight-residual-proof":
         real_claim_status = _eta_claim_status(
@@ -2224,10 +2628,13 @@ def _build_eta_claim_verdicts(
                 real_capture_rate is not None and real_capture_rate.mean >= 1.0,
                 real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
                 real_fallback_rate is not None and real_fallback_rate.mean <= 0.10,
+                residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
+                episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
             ),
             weak_checks=(
                 real_capture_rate is not None and real_capture_rate.mean >= 1.0,
                 real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
             ),
         )
         verdicts.append(
@@ -2240,6 +2647,11 @@ def _build_eta_claim_verdicts(
                     ("real_open_weight_capture_rate", real_capture_rate.mean if real_capture_rate is not None else 0.0),
                     ("real_open_weight_hook_coverage", real_hook_coverage.mean if real_hook_coverage is not None else 0.0),
                     ("real_open_weight_fallback_rate", real_fallback_rate.mean if real_fallback_rate is not None else 0.0),
+                    ("residual_signal_quality", residual_signal_quality.mean if residual_signal_quality is not None else 0.0),
+                    (
+                        "episode_replacement_effect_delta",
+                        episode_replacement_effect_delta.mean if episode_replacement_effect_delta is not None else 0.0,
+                    ),
                 ),
                 summary="ETA real open-weight residual-control claim verdict.",
                 description=(

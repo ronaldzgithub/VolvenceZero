@@ -56,6 +56,29 @@ class SSLTrainingReport:
     description: str = ""
 
 
+@dataclass(frozen=True)
+class SSLBatchTrainingReport:
+    batch_id: str
+    batch_count: int
+    trajectory_count: int
+    trained_step_count: int
+    prediction_loss_mean: float
+    kl_loss_mean: float
+    total_loss_mean: float
+    switch_sparsity_mean: float
+    switch_entropy: float
+    posterior_drift_mean: float
+    noncausal_information_content: float
+    cluster_stability: float
+    family_birth_count: int
+    family_merge_count: int
+    family_prune_count: int
+    scaffold_ablation_retention: float
+    alpha_schedule: tuple[float, ...]
+    trace_reports: tuple[SSLTrainingReport, ...]
+    description: str = ""
+
+
 class MetacontrollerSSLTrainer:
     """Small Eq.3-style training loop over residual traces."""
 
@@ -343,6 +366,103 @@ class MetacontrollerSSLTrainer:
                 f"m3_slow_signal={tuple(round(v, 3) for v in slow_signal)}."
             ),
         )
+
+    def optimize_batch(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy,
+        traces: tuple[TrainingTrace, ...],
+        batch_id: str = "ssl-batch",
+        semantic_labels_enabled: bool = False,
+    ) -> SSLBatchTrainingReport:
+        if not traces:
+            raise ValueError("MetacontrollerSSLTrainer.optimize_batch requires at least one trace.")
+        family_count_before = len(policy.parameter_store.action_families)
+        trace_reports: list[SSLTrainingReport] = []
+        for trace in traces:
+            trace_reports.append(self.optimize(policy=policy, trace=trace))
+        reports = tuple(trace_reports)
+        family_count_after = len(policy.parameter_store.action_families)
+        trained_step_count = sum(report.trained_steps for report in reports)
+        switch_sparsity_values = tuple(
+            1.0 - report.switch_gate_stats.switch_frequency
+            for report in reports
+            if report.switch_gate_stats is not None
+        )
+        switch_entropy = self._switch_entropy(reports)
+        cluster_stability = self._cluster_stability(policy=policy)
+        scaffold_ablation_retention = cluster_stability if not semantic_labels_enabled else 1.0
+        return SSLBatchTrainingReport(
+            batch_id=batch_id,
+            batch_count=1,
+            trajectory_count=len(traces),
+            trained_step_count=trained_step_count,
+            prediction_loss_mean=self._mean(tuple(report.prediction_loss for report in reports)),
+            kl_loss_mean=self._mean(tuple(report.kl_loss for report in reports)),
+            total_loss_mean=self._mean(tuple(report.total_loss for report in reports)),
+            switch_sparsity_mean=self._mean(switch_sparsity_values),
+            switch_entropy=switch_entropy,
+            posterior_drift_mean=self._mean(tuple(report.posterior_drift for report in reports)),
+            noncausal_information_content=self._mean(
+                tuple(report.noncausal_information_content for report in reports)
+            ),
+            cluster_stability=cluster_stability,
+            family_birth_count=max(family_count_after - family_count_before, 0),
+            family_merge_count=0,
+            family_prune_count=0,
+            scaffold_ablation_retention=round(scaffold_ablation_retention, 4),
+            alpha_schedule=(self._alpha,),
+            trace_reports=reports,
+            description=(
+                f"SSL batch {batch_id} optimized {len(traces)} residual trajectories "
+                f"over {trained_step_count} trained steps; switch_entropy={switch_entropy:.3f}, "
+                f"cluster_stability={cluster_stability:.3f}."
+            ),
+        )
+
+    def _mean(self, values: tuple[float, ...]) -> float:
+        if not values:
+            return 0.0
+        return sum(values) / len(values)
+
+    def _switch_entropy(self, reports: tuple[SSLTrainingReport, ...]) -> float:
+        histogram = [0] * 10
+        total = 0
+        for report in reports:
+            if report.switch_gate_stats is None:
+                continue
+            for index, count in enumerate(report.switch_gate_stats.beta_histogram):
+                histogram[index] += count
+                total += count
+        if total == 0:
+            return 0.0
+        entropy = 0.0
+        for count in histogram:
+            if count == 0:
+                continue
+            probability = count / total
+            entropy -= probability * math.log(probability, 2)
+        max_entropy = math.log(len(histogram), 2)
+        return round(entropy / max_entropy, 4) if max_entropy > 0.0 else 0.0
+
+    def _cluster_stability(self, *, policy: FullLearnedTemporalPolicy) -> float:
+        families = policy.parameter_store.action_families
+        if not families:
+            return 0.0
+        support_total = sum(max(family.support, 0) for family in families)
+        if support_total <= 0:
+            return 0.0
+        weighted = sum(
+            max(family.support, 0)
+            * _clamp(
+                family.stability * 0.45
+                + family.competition_score * 0.25
+                + family.long_term_payoff * 0.20
+                + min(family.mean_persistence_window / 3.0, 1.0) * 0.10
+            )
+            for family in families
+        )
+        return round(weighted / support_total, 4)
 
     def _snapshot_from_prefix(
         self,

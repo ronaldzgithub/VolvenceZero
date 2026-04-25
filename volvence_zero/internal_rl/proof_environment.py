@@ -38,6 +38,7 @@ class HierarchicalRouteSpec:
     source_text: str
     waypoints: tuple[str, ...]
     distractor_ids: tuple[str, ...] = ()
+    split_detail: str = ""
     description: str = ""
 
 
@@ -45,6 +46,7 @@ class HierarchicalRouteSpec:
 class MiniHierarchicalCase:
     case_id: str
     split: str
+    split_detail: str
     source_text: str
     environment_id: str
     route_signature: tuple[str, ...]
@@ -208,6 +210,7 @@ class MiniHierarchicalEnvironment:
                     source_text=state.source_text,
                     waypoints=state.route_waypoints,
                     distractor_ids=state.distractor_ids,
+                    split_detail=state.split,
                 )
             )
         )
@@ -325,6 +328,7 @@ class MiniHierarchicalEnvironment:
             terminal_reward=1.15,
             distractor_penalty=0.14 if self.route_branch_depth(route.waypoints) >= 3 else 0.10,
             failure_penalty=0.32 if len(subgoals) >= 3 else 0.26,
+            split_detail=route.split_detail or route.split,
             description=(
                 route.description
                 or f"Mini hierarchical episode in {self.env_id} over route {route.waypoints} with {len(distractors)} distractors."
@@ -339,6 +343,7 @@ class MiniHierarchicalEnvironment:
         return MiniHierarchicalCase(
             case_id=route.case_id,
             split=route.split,
+            split_detail=route.split_detail or route.split,
             source_text=route.source_text,
             environment_id=self.env_id,
             route_signature=state.visited_locations,

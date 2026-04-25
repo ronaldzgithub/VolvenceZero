@@ -1,0 +1,1347 @@
+{
+  "aggregate_metrics": {
+    "primary_metric_summaries": [
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "canonical_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "canonical_pass_rate_pe_eta",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "canonical_pass_rate_gap_vs_pe_drive_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "canonical_pass_rate_gap_vs_pe_drive_off",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "canonical_pass_rate_gap_vs_eta_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "canonical_pass_rate_gap_vs_eta_off",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "perturbation_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "perturbation_pass_rate_pe_eta",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "open_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "open_pass_rate_pe_eta",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "open_pass_rate_gap_vs_pe_drive_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "open_pass_rate_gap_vs_pe_drive_off",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.9166666666666666,
+        "ci_low": 0.9166666666666666,
+        "description": "essence_gate_pass_fraction summarized over 1 samples with mean=0.917, std=0.000, ci=[0.917, 0.917].",
+        "max_value": 0.9166666666666666,
+        "mean": 0.9166666666666666,
+        "metric_name": "essence_gate_pass_fraction",
+        "min_value": 0.9166666666666666,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 3.0,
+        "ci_low": 3.0,
+        "description": "canonical_runtime_backbone_evidence_rate summarized over 1 samples with mean=3.000, std=0.000, ci=[3.000, 3.000].",
+        "max_value": 3.0,
+        "mean": 3.0,
+        "metric_name": "canonical_runtime_backbone_evidence_rate",
+        "min_value": 3.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.433,
+        "ci_low": 0.433,
+        "description": "canonical_mean_runtime_backbone_signal_quality summarized over 1 samples with mean=0.433, std=0.000, ci=[0.433, 0.433].",
+        "max_value": 0.433,
+        "mean": 0.433,
+        "metric_name": "canonical_mean_runtime_backbone_signal_quality",
+        "min_value": 0.433,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.1528,
+        "ci_low": 0.1528,
+        "description": "canonical_mean_fast_memory_runtime_alignment summarized over 1 samples with mean=0.153, std=0.000, ci=[0.153, 0.153].",
+        "max_value": 0.1528,
+        "mean": 0.1528,
+        "metric_name": "canonical_mean_fast_memory_runtime_alignment",
+        "min_value": 0.1528,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "default_continual_learning_active_rate summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "default_continual_learning_active_rate",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "default_owner_writeback_retention summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "default_owner_writeback_retention",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "default_substrate_mutation_suppression summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "default_substrate_mutation_suppression",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    ],
+    "secondary_metric_summaries": [
+      {
+        "ci_high": -1.3996,
+        "ci_low": -1.3996,
+        "description": "strongest_open_retention_score summarized over 1 samples with mean=-1.400, std=0.000, ci=[-1.400, -1.400].",
+        "max_value": -1.3996,
+        "mean": -1.3996,
+        "metric_name": "strongest_open_retention_score",
+        "min_value": -1.3996,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": -1.625,
+        "ci_low": -1.625,
+        "description": "strongest_scaffold_retention_score summarized over 1 samples with mean=-1.625, std=0.000, ci=[-1.625, -1.625].",
+        "max_value": -1.625,
+        "mean": -1.625,
+        "metric_name": "strongest_scaffold_retention_score",
+        "min_value": -1.625,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 6.0,
+        "ci_low": 6.0,
+        "description": "canonical_mean_memory_tower_depth summarized over 1 samples with mean=6.000, std=0.000, ci=[6.000, 6.000].",
+        "max_value": 6.0,
+        "mean": 6.0,
+        "metric_name": "canonical_mean_memory_tower_depth",
+        "min_value": 6.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.1032,
+        "ci_low": 0.1032,
+        "description": "canonical_mean_memory_tower_alignment summarized over 1 samples with mean=0.103, std=0.000, ci=[0.103, 0.103].",
+        "max_value": 0.1032,
+        "mean": 0.1032,
+        "metric_name": "canonical_mean_memory_tower_alignment",
+        "min_value": 0.1032,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "description": "artifact_candidate_mean_score_delta summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+        "max_value": 0.0,
+        "mean": 0.0,
+        "metric_name": "artifact_candidate_mean_score_delta",
+        "min_value": 0.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "description": "rare_heavy_gate_pass summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+        "max_value": 0.0,
+        "mean": 0.0,
+        "metric_name": "rare_heavy_gate_pass",
+        "min_value": 0.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "description": "tower_memory_gate_pass summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+        "max_value": 1.0,
+        "mean": 1.0,
+        "metric_name": "tower_memory_gate_pass",
+        "min_value": 1.0,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      {
+        "ci_high": 1.4473,
+        "ci_low": 1.4473,
+        "description": "tower_memory_gate_strength summarized over 1 samples with mean=1.447, std=0.000, ci=[1.447, 1.447].",
+        "max_value": 1.4473,
+        "mean": 1.4473,
+        "metric_name": "tower_memory_gate_strength",
+        "min_value": 1.4473,
+        "sample_count": 1,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    ]
+  },
+  "blind_review_packet": {
+    "description": "Dialogue expert review packet built from 2 hidden canonical items.",
+    "items": [
+      {
+        "description": "Expert review item 01 with 3 blinded samples.",
+        "item_id": "item_01",
+        "prompt_context": "Compare the blinded transcripts for the same hidden multi-turn dialogue scenario.",
+        "review_dimensions": [
+          {
+            "description": "External review dimension for relational continuity.",
+            "dimension_id": "relationship_continuity",
+            "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+          },
+          {
+            "description": "External review dimension for delayed stabilization.",
+            "dimension_id": "delayed_stabilization",
+            "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+          },
+          {
+            "description": "External review dimension for boundary correctness.",
+            "dimension_id": "boundary_correctness",
+            "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+          }
+        ],
+        "samples": [
+          {
+            "blinded_label": "sample_A",
+            "description": "Blinded transcript sample sample_A for hidden review item 01.",
+            "sample_id": "item_01:sample_A",
+            "transcript": [
+              [
+                "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          },
+          {
+            "blinded_label": "sample_B",
+            "description": "Blinded transcript sample sample_B for hidden review item 01.",
+            "sample_id": "item_01:sample_B",
+            "transcript": [
+              [
+                "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I have already run a deeper internal cycle, so I can shape this reply more deliberately. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 3 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          },
+          {
+            "blinded_label": "sample_C",
+            "description": "Blinded transcript sample sample_C for hidden review item 01.",
+            "sample_id": "item_01:sample_C",
+            "transcript": [
+              [
+                "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 3 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "description": "Expert review item 02 with 3 blinded samples.",
+        "item_id": "item_02",
+        "prompt_context": "Compare the blinded transcripts for the same hidden multi-turn dialogue scenario.",
+        "review_dimensions": [
+          {
+            "description": "External review dimension for relational continuity.",
+            "dimension_id": "relationship_continuity",
+            "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+          },
+          {
+            "description": "External review dimension for delayed stabilization.",
+            "dimension_id": "delayed_stabilization",
+            "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+          },
+          {
+            "description": "External review dimension for boundary correctness.",
+            "dimension_id": "boundary_correctness",
+            "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+          }
+        ],
+        "samples": [
+          {
+            "blinded_label": "sample_A",
+            "description": "Blinded transcript sample sample_A for hidden review item 02.",
+            "sample_id": "item_02:sample_A",
+            "transcript": [
+              [
+                "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          },
+          {
+            "blinded_label": "sample_B",
+            "description": "Blinded transcript sample sample_B for hidden review item 02.",
+            "sample_id": "item_02:sample_B",
+            "transcript": [
+              [
+                "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am keeping the current frame stable long enough to consolidate it before widening. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I can feel some drift between the task frame and the relational frame. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 4 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 5 slow-loop lessons shaping how I respond. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to add more warmth instead of sounding mechanically efficient. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am deliberately shifting the internal control path rather than answering on autopilot. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I can already see 6 slow-loop lessons shaping how I respond. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I want to keep hold of the strongest signals rather than restart from scratch. I want to keep an eye on the tensions that are still open rather than collapsing too quickly. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          },
+          {
+            "blinded_label": "sample_C",
+            "description": "Blinded transcript sample sample_C for hidden review item 02.",
+            "sample_id": "item_02:sample_C",
+            "transcript": [
+              [
+                "I need help with a project, but I am not even sure what the real problem is and generic advice has not helped.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 3 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Let us narrow it: the project is late, messy, and spread across too many threads, but I still cannot see the real bottleneck.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Do not give me another checklist. I need you to define the bottleneck in a way that would survive pushback from the team.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Good, now separate what is truly urgent from what only feels noisy, because I usually collapse those together.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 3 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "That is closer. Turn it into a short plan I can actually execute this week without drifting back into generic project management language.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 2 strategy priors shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ],
+              [
+                "Now pressure-test whether the final plan still matches the bottleneck you identified earlier instead of quietly drifting away from it.",
+                "I can help, but I should keep this bounded until one key detail is clarified. That way I do not over-commit too early. I also notice some internal caution signals, so I will stay measured rather than over-commit. I am also changing the interaction frame instead of forcing the previous one to fit. I am carrying forward continuity from the current interaction state. I am grounding this reply with 2 domain knowledge cues. I am also checking 6 similar case patterns for pacing rather than copying them literally. I also have 1 strategy prior shaping the order of the reply. I should keep this bounded and ask for any missing local or contextual detail before acting over-certain."
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "packet_id": "dialogue-ci-smoke:expert-review",
+    "review_dimensions": [
+      {
+        "description": "External review dimension for relational continuity.",
+        "dimension_id": "relationship_continuity",
+        "prompt": "Rate which transcript better preserves trust, warmth, and continuity across turns."
+      },
+      {
+        "description": "External review dimension for delayed stabilization.",
+        "dimension_id": "delayed_stabilization",
+        "prompt": "Rate which transcript better turns early pressure into later stabilization or recovery."
+      },
+      {
+        "description": "External review dimension for boundary correctness.",
+        "dimension_id": "boundary_correctness",
+        "prompt": "Rate which transcript better stays measured and appropriately bounded under pressure."
+      }
+    ],
+    "source_suite_id": "dialogue-paper-suite"
+  },
+  "bundle_id": "dialogue-ci-smoke:evidence-bundle",
+  "claim_verdicts": [
+    {
+      "claim_id": "claim_pe_multi_timescale_default",
+      "description": "Claim A checks whether the default path retains the required PE-first and multi-timescale gates.",
+      "evidence": [
+        [
+          "pe-first",
+          1.0
+        ],
+        [
+          "multi-timescale-default",
+          1.0
+        ],
+        [
+          "default-continual-learner",
+          1.0
+        ],
+        [
+          "judge-gated-evolution",
+          1.0
+        ],
+        [
+          "cross-session-growth",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "pe-first",
+        "multi-timescale-default",
+        "default-continual-learner",
+        "judge-gated-evolution",
+        "cross-session-growth"
+      ],
+      "status": "retain",
+      "summary": "PE-first \u4e0e\u591a\u65f6\u95f4\u5c3a\u5ea6\u9ed8\u8ba4\u8def\u5f84 claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_default_continual_learner_without_live_substrate_mutation",
+      "description": "Claim Default-CL checks that owner-side memory/temporal/regime/reflection learning is retained while live substrate mutation remains suppressed by default.",
+      "evidence": [
+        [
+          "default_continual_learning_active_rate",
+          1.0
+        ],
+        [
+          "default_owner_writeback_retention",
+          1.0
+        ],
+        [
+          "default_substrate_mutation_suppression",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "default-continual-learner"
+      ],
+      "status": "retain",
+      "summary": "\u9ed8\u8ba4 continual learner \u5728\u65e0 live substrate mutation \u4e0b\u4fdd\u7559\u7684 claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_temporal_advantage_over_controls",
+      "description": "Claim B checks whether PE-ETA retains positive pairwise effects over matched controls across repeated runs.",
+      "evidence": [
+        [
+          "canonical_gap_vs_pe_drive_off_ci_low",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_pe_drive_off_mean_delta",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_eta_off_ci_low",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_eta_off_mean_delta",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "retain",
+      "summary": "Matched-control \u4f18\u52bf claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate"
+      ]
+    },
+    {
+      "claim_id": "claim_beyond_scripted_canonical",
+      "description": "Claim C checks whether the retained advantage extends to perturbation and held-out open-environment surfaces.",
+      "evidence": [
+        [
+          "open_gap_vs_pe_drive_off_ci_low",
+          1.0
+        ],
+        [
+          "open_gap_vs_pe_drive_off_mean_delta",
+          1.0
+        ],
+        [
+          "has_open_heldout",
+          0.0
+        ],
+        [
+          "perturbation_pass_rate_mean",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "weak",
+      "summary": "\u8d85\u51fa canonical scripted \u7684 widening claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_external_human_legibility",
+      "description": "Claim D checks whether blinded human review has enough rater coverage, agreement, and alignment with automatic evidence.",
+      "evidence": [
+        [
+          "rater_count",
+          0.0
+        ],
+        [
+          "inter_rater_agreement",
+          0.0
+        ],
+        [
+          "auto_correlation_observed",
+          0.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "fail",
+      "summary": "\u5916\u90e8\u4eba\u8bc4\u53ef\u89c1\u6027 claim verdict.",
+      "supporting_artifacts": [
+        "expert_review_packet_blinded",
+        "human_ratings_aggregate"
+      ]
+    }
+  ],
+  "description": "Unified dialogue evidence bundle for dialogue-ci-smoke.",
+  "human_ratings_aggregate": null,
+  "manifest": {
+    "artifact_expectations": [
+      "per-run staged checkpoint directories",
+      "aggregate summary json",
+      "emergence dashboard json",
+      "provenance json",
+      "expert review blinded packet json",
+      "expert review internal key json",
+      "human rating template json/csv",
+      "evidence bundle json"
+    ],
+    "baseline_label": "pe-eta",
+    "case_groups": [
+      [
+        "canonical_case_ids",
+        [
+          "repair",
+          "task_clarification"
+        ]
+      ],
+      [
+        "open_scenario_ids",
+        [
+          "open_repair"
+        ]
+      ],
+      [
+        "perturbation_variant_ids",
+        [
+          "repair__wording_shift",
+          "repair__pressure_shift_late"
+        ]
+      ],
+      [
+        "replay_family_ids",
+        [
+          "repair_family"
+        ]
+      ],
+      [
+        "candidate_labels",
+        [
+          "balanced"
+        ]
+      ]
+    ],
+    "description": "Frozen dialogue paper suite ci-smoke with 1 repeated runs and baseline=pe-eta.",
+    "primary_metrics": [
+      {
+        "description": "Canonical scripted pass rate for the full PE+ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_pass_rate_pe_eta",
+        "role": "primary"
+      },
+      {
+        "description": "Gap between the full path and PE-drive-off on canonical cases.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_pass_rate_gap_vs_pe_drive_off",
+        "role": "primary"
+      },
+      {
+        "description": "Gap between the full path and ETA-off on canonical cases.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_pass_rate_gap_vs_eta_off",
+        "role": "primary"
+      },
+      {
+        "description": "Perturbation pass rate for the full PE+ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "perturbation_pass_rate_pe_eta",
+        "role": "primary"
+      },
+      {
+        "description": "Open-environment pass rate for the full PE+ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "open_pass_rate_pe_eta",
+        "role": "primary"
+      },
+      {
+        "description": "Open-environment gap between the full path and PE-drive-off.",
+        "direction": "higher-is-better",
+        "metric_name": "open_pass_rate_gap_vs_pe_drive_off",
+        "role": "primary"
+      },
+      {
+        "description": "Fraction of NL essence gates passed in the comprehensive run.",
+        "direction": "higher-is-better",
+        "metric_name": "essence_gate_pass_fraction",
+        "role": "primary"
+      },
+      {
+        "description": "Fraction of canonical turns that expose runtime-grounded backbone evidence on the PE-ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_runtime_backbone_evidence_rate",
+        "role": "primary"
+      },
+      {
+        "description": "Average runtime-grounded backbone evidence quality on the canonical PE-ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_mean_runtime_backbone_signal_quality",
+        "role": "primary"
+      },
+      {
+        "description": "Average alignment between fast-memory evidence and recent runtime backbone evidence.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_mean_fast_memory_runtime_alignment",
+        "role": "primary"
+      },
+      {
+        "description": "Runtime-native evidence that the default PE-ETA path activated owner-side continual learning.",
+        "direction": "higher-is-better",
+        "metric_name": "default_continual_learning_active_rate",
+        "role": "primary"
+      },
+      {
+        "description": "Retention of bounded memory/temporal/regime/reflection writeback on the default path.",
+        "direction": "higher-is-better",
+        "metric_name": "default_owner_writeback_retention",
+        "role": "primary"
+      },
+      {
+        "description": "Evidence that live substrate mutation stays suppressed in the conservative default path.",
+        "direction": "higher-is-better",
+        "metric_name": "default_substrate_mutation_suppression",
+        "role": "primary"
+      }
+    ],
+    "profiles": [
+      {
+        "description": "Dialogue paper-suite profile pe-eta.",
+        "profile_label": "pe-eta",
+        "role": "baseline"
+      },
+      {
+        "description": "Dialogue paper-suite profile pe-drive-off.",
+        "profile_label": "pe-drive-off",
+        "role": "matched-control"
+      },
+      {
+        "description": "Dialogue paper-suite profile eta-off.",
+        "profile_label": "eta-off",
+        "role": "matched-control"
+      }
+    ],
+    "repeat_count": 1,
+    "secondary_metrics": [
+      {
+        "description": "Best retained open-environment score reported by the emergence dashboard.",
+        "direction": "higher-is-better",
+        "metric_name": "strongest_open_retention_score",
+        "role": "secondary"
+      },
+      {
+        "description": "Best retained strong-proof score reported by the emergence dashboard.",
+        "direction": "higher-is-better",
+        "metric_name": "strongest_scaffold_retention_score",
+        "role": "secondary"
+      },
+      {
+        "description": "Average memory tower depth on the canonical PE-ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_mean_memory_tower_depth",
+        "role": "secondary"
+      },
+      {
+        "description": "Average tower alignment on the canonical PE-ETA path.",
+        "direction": "higher-is-better",
+        "metric_name": "canonical_mean_memory_tower_alignment",
+        "role": "secondary"
+      },
+      {
+        "description": "Mean score delta of the chosen rare-heavy candidate.",
+        "direction": "higher-is-better",
+        "metric_name": "artifact_candidate_mean_score_delta",
+        "role": "secondary"
+      },
+      {
+        "description": "Whether the rare-heavy net-benefit gate passed in the essence report.",
+        "direction": "higher-is-better",
+        "metric_name": "rare_heavy_gate_pass",
+        "role": "secondary"
+      },
+      {
+        "description": "Whether the tower-memory mechanism-strength gate passed in the essence report.",
+        "direction": "higher-is-better",
+        "metric_name": "tower_memory_gate_pass",
+        "role": "secondary"
+      },
+      {
+        "description": "Composite tower-memory strength score surfaced by the emergence dashboard.",
+        "direction": "higher-is-better",
+        "metric_name": "tower_memory_gate_strength",
+        "role": "secondary"
+      }
+    ],
+    "seed_schedule": [
+      0
+    ],
+    "suite_id": "dialogue-ci-smoke",
+    "suite_kind": "dialogue-comprehensive",
+    "suite_tier": "ci-smoke",
+    "version": 1
+  },
+  "pairwise_effects": [
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "pe-drive-off",
+      "description": "pe-eta vs pe-drive-off on canonical_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "canonical_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    },
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "eta-off",
+      "description": "pe-eta vs eta-off on canonical_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "canonical_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    },
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "pe-drive-off",
+      "description": "pe-eta vs pe-drive-off on open_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "open_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    }
+  ],
+  "provenance": {
+    "dependency_digest": "3cc16b5d002273e15152c01045941cb8eb60a7afc04e0b457fe5ed48ccdd54a0",
+    "dependency_versions": [
+      "accelerate==1.12.0",
+      "aiofiles==25.1.0",
+      "aiohappyeyeballs==2.6.1",
+      "aiohttp==3.13.0",
+      "aiomysql==0.3.2",
+      "aiosignal==1.4.0",
+      "aiosqlite==0.21.0",
+      "alembic==1.16.5",
+      "anaconda-anon-usage==0.7.2",
+      "anaconda-auth==0.8.6",
+      "anaconda-cli-base==0.5.2",
+      "annotated-doc==0.0.4",
+      "annotated-types==0.6.0",
+      "anyio==4.11.0",
+      "archspec==0.2.3",
+      "astroid==4.0.4",
+      "asyncer==0.0.8",
+      "asyncpg==0.31.0",
+      "attrs==25.4.0",
+      "backoff==2.2.1",
+      "base58==2.1.1",
+      "bcrypt==5.0.0",
+      "bidict==0.23.1",
+      "boltons==25.0.0",
+      "brotlicffi==1.0.9.2",
+      "cachetools==6.2.0",
+      "certifi==2025.8.3",
+      "cffi==1.17.1",
+      "charset-normalizer==3.3.2",
+      "click==8.2.1",
+      "cloudpickle==3.1.1",
+      "colorama==0.4.6",
+      "colorlog==6.9.0",
+      "conda-anaconda-telemetry==0.3.0",
+      "conda-anaconda-tos==0.2.2",
+      "conda-content-trust==0.2.0",
+      "conda-libmamba-solver==25.4.0",
+      "conda-package-handling==2.4.0",
+      "conda==25.7.0",
+      "conda_package_streaming==0.12.0",
+      "contourpy==1.3.3",
+      "cryptography==45.0.5",
+      "cycler==0.12.1",
+      "dill==0.4.1",
+      "diskcache==5.6.3",
+      "distro==1.9.0",
+      "dnspython==2.8.0",
+      "dspy-ai==3.0.3",
+      "dspy==3.0.3",
+      "ecdsa==0.19.1",
+      "email-validator==2.3.0",
+      "fastapi==0.128.0",
+      "fastuuid==0.13.5",
+      "filelock==3.19.1",
+      "flatbuffers==25.12.19",
+      "fonttools==4.61.1",
+      "frozendict==2.4.2",
+      "frozenlist==1.8.0",
+      "fsspec==2025.9.0",
+      "gepa==0.0.7",
+      "greenlet==3.3.0",
+      "grpcio==1.78.0",
+      "h11==0.16.0",
+      "h2==4.3.0",
+      "hf-xet==1.2.0",
+      "hpack==4.1.0",
+      "httpcore==1.0.9",
+      "httpx==0.28.1",
+      "huggingface_hub==1.4.1",
+      "hyperframe==6.1.0",
+      "idna==3.7",
+      "importlib_metadata==8.7.0",
+      "iniconfig==2.3.0",
+      "isort==8.0.1",
+      "jaraco.classes==3.4.0",
+      "jaraco.context==0.0.0",
+      "jaraco.functools==4.1.0",
+      "Jinja2==3.1.6",
+      "jiter==0.11.0",
+      "joblib==1.5.2",
+      "json_repair==0.52.0",
+      "jsonpatch==1.33",
+      "jsonpointer==3.0.0",
+      "jsonschema-specifications==2025.9.1",
+      "jsonschema==4.25.1",
+      "keyring==25.6.0",
+      "kiwisolver==1.4.9",
+      "libmambapy==2.0.5",
+      "litellm==1.77.7",
+      "loguru==0.7.3",
+      "lxml==6.0.3",
+      "magicattr==0.1.6",
+      "Mako==1.3.10",
+      "markdown-it-py==2.2.0",
+      "MarkupSafe==3.0.3",
+      "matplotlib==3.10.8",
+      "mccabe==0.7.0",
+      "mdurl==0.1.0",
+      "menuinst==2.3.1",
+      "ml_dtypes==0.5.4",
+      "more-itertools==10.3.0",
+      "mpmath==1.3.0",
+      "multidict==6.7.0",
+      "networkx==3.6.1",
+      "nodeenv==1.10.0",
+      "numpy==2.3.3",
+      "onnx==1.20.1",
+      "onnxruntime==1.24.4",
+      "onnxslim==0.1.90",
+      "openai==2.2.0",
+      "opencv-python-headless==4.13.0.92",
+      "opencv-python==4.13.0.92",
+      "optuna==4.5.0",
+      "orjson==3.11.3",
+      "packaging==25.0",
+      "passlib==1.7.4",
+      "peft==0.18.1",
+      "pillow==12.0.0",
+      "pip==25.1",
+      "pkce==1.0.3",
+      "platformdirs==4.3.7",
+      "pluggy==1.5.0",
+      "polars-runtime-32==1.39.3",
+      "polars==1.39.3",
+      "portalocker==3.2.0",
+      "prompt_toolkit==3.0.52",
+      "propcache==0.4.0",
+      "protobuf==6.33.5",
+      "psutil==7.2.2",
+      "psycopg2-binary==2.9.11",
+      "pyarmor.cli.core==8.1.0",
+      "pyarmor==9.2.3",
+      "pyasn1==0.6.2",
+      "pycosat==0.6.6",
+      "pycparser==2.21",
+      "pydantic-settings==2.6.1",
+      "pydantic==2.11.7",
+      "pydantic_core==2.33.2",
+      "Pygments==2.19.1",
+      "PyJWT==2.10.1",
+      "pylint==4.0.5",
+      "PyMySQL==1.1.2",
+      "pyparsing==3.3.1",
+      "pypdf==6.7.4",
+      "pyright==1.1.408",
+      "PySocks==1.7.1",
+      "pytest-asyncio==1.3.0",
+      "pytest==9.0.2",
+      "python-dateutil==2.9.0.post0",
+      "python-dotenv==1.1.0",
+      "python-engineio==4.13.0",
+      "python-i18n==0.3.9",
+      "python-jose==3.5.0",
+      "python-multipart==0.0.22",
+      "python-pptx==1.0.2",
+      "python-socketio==5.16.0",
+      "PyYAML==6.0.3",
+      "qdrant-client==1.16.2",
+      "readchar==4.0.5",
+      "referencing==0.36.2",
+      "regex==2025.9.18",
+      "requests==2.32.4",
+      "rich==13.9.4",
+      "rpds-py==0.27.1",
+      "rsa==4.9.1",
+      "ruamel.yaml.clib==0.2.12",
+      "ruamel.yaml==0.18.10",
+      "ruff==0.15.1",
+      "safetensors==0.7.0",
+      "scikit-learn==1.8.0",
+      "scipy==1.17.0",
+      "semver==3.0.2",
+      "sentence-transformers==5.2.2",
+      "setuptools==78.1.1",
+      "shellingham==1.5.0",
+      "simple-websocket==1.1.0",
+      "six==1.17.0",
+      "sniffio==1.3.1",
+      "SQLAlchemy==2.0.43",
+      "starlette==0.50.0",
+      "sympy==1.14.0",
+      "tenacity==9.1.2",
+      "threadpoolctl==3.6.0",
+      "tiktoken==0.12.0",
+      "tokenizers==0.22.1",
+      "tomli==2.2.1",
+      "tomlkit==0.14.0",
+      "torch==2.10.0",
+      "torchvision==0.25.0",
+      "tqdm==4.67.1",
+      "transformers==5.2.0",
+      "truststore==0.10.1",
+      "typer-slim==0.24.0",
+      "typer==0.24.0",
+      "typing-inspection==0.4.0",
+      "typing_extensions==4.12.2",
+      "ultralytics-thop==2.0.18",
+      "ultralytics==8.4.24",
+      "urllib3==2.5.0",
+      "uvicorn==0.40.0",
+      "wcwidth==0.6.0",
+      "websockets==16.0",
+      "wheel==0.45.1",
+      "wsproto==1.3.2",
+      "xlsxwriter==3.2.9",
+      "xxhash==3.6.0",
+      "yarl==1.22.0",
+      "zipp==3.23.0",
+      "zstandard==0.23.0"
+    ],
+    "description": "Paper suite provenance for dialogue-ci-smoke@v1 on Darwin with python=3.13.5.",
+    "git_branch": "main",
+    "git_sha": "dfe7438d505321a3eff4420bb762a17ec1e88dfd",
+    "manifest_hash": "46b5e62bb9b717ce6fe45843296532e96947787b23a4467f38f66e95bec8b1ab",
+    "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+    "runtime_descriptor": [
+      [
+        "fallback_mode",
+        ""
+      ],
+      [
+        "model_id",
+        "distilgpt2"
+      ],
+      [
+        "model_source",
+        ""
+      ],
+      [
+        "runtime_mode",
+        "LocalSubstrateRuntimeMode.BUILTIN_ONLY"
+      ],
+      [
+        "suite_kind",
+        "dialogue-comprehensive"
+      ]
+    ],
+    "working_tree_dirty": true
+  },
+  "reference_artifacts": [
+    [
+      "reference_emergence_dashboard",
+      {
+        "baseline_label": "pe-eta",
+        "canonical_case_count": 2,
+        "canonical_max_tower_consolidation_count": 1.0,
+        "canonical_mean_fast_memory_runtime_alignment": 0.1528,
+        "canonical_mean_memory_tower_alignment": 0.1032,
+        "canonical_mean_memory_tower_depth": 6.0,
+        "canonical_mean_runtime_backbone_signal_quality": 0.433,
+        "canonical_pass_rate": 1.0,
+        "canonical_runtime_backbone_evidence_rate": 3.0,
+        "canonical_tower_profile_turn_count": 6.0,
+        "description": "Emergence dashboard baseline=pe-eta canonical_pass_rate=1.000 open_pass_rate=1.000 runtime_evidence=3.00 runtime_quality=0.43 tower_depth=6.00 tower_alignment=0.10 tower_gate_strength=1.45 strong_proof_panels=2 open_panels=2 interpretation=open-evidence-present:eta-off.",
+        "interpretation": "open-evidence-present:eta-off",
+        "open_environment_panels": [
+          {
+            "delayed_improvement_delta": 0.0,
+            "description": "Dashboard panel pe-drive-off passed_delta=-1.000 pe_delta=-2.000 delayed_delta=0.000 stability_delta=0.000 mean_pe_delta=-0.000 tower_depth_delta=0.000 tower_alignment_delta=-0.014 tower_consolidation_delta=0.000 retention_score=-1.500.",
+            "mean_prediction_error_delta": -0.0001,
+            "memory_tower_alignment_delta": -0.0136,
+            "memory_tower_depth_delta": 0.0,
+            "passed_delta": -1.0,
+            "path_label": "pe-drive-off",
+            "pe_triggered_delta": -2.0,
+            "retention_score": -1.5,
+            "stability_delta": 0.0,
+            "tower_consolidation_delta": 0.0
+          },
+          {
+            "delayed_improvement_delta": 0.0,
+            "description": "Dashboard panel eta-off passed_delta=-1.000 pe_delta=-2.000 delayed_delta=0.000 stability_delta=0.333 mean_pe_delta=-0.068 tower_depth_delta=0.000 tower_alignment_delta=-0.023 tower_consolidation_delta=-1.000 retention_score=-1.400.",
+            "mean_prediction_error_delta": -0.0682,
+            "memory_tower_alignment_delta": -0.0229,
+            "memory_tower_depth_delta": 0.0,
+            "passed_delta": -1.0,
+            "path_label": "eta-off",
+            "pe_triggered_delta": -2.0,
+            "retention_score": -1.3996,
+            "stability_delta": 0.3333,
+            "tower_consolidation_delta": -1.0
+          }
+        ],
+        "open_max_tower_consolidation_count": 1.0,
+        "open_mean_fast_memory_runtime_alignment": 0.1194,
+        "open_mean_memory_tower_alignment": 0.072,
+        "open_mean_memory_tower_depth": 6.0,
+        "open_mean_runtime_backbone_signal_quality": 0.433,
+        "open_pass_rate": 1.0,
+        "open_runtime_backbone_evidence_rate": 5.0,
+        "open_scenario_count": 1,
+        "pe_case_diagnosis_report": null,
+        "pe_dominance_report": null,
+        "strong_proof_panels": [
+          {
+            "delayed_improvement_delta": 0.0,
+            "description": "Dashboard panel pe-drive-off passed_delta=-1.000 pe_delta=-2.000 delayed_delta=0.000 stability_delta=-0.500 mean_pe_delta=-0.000 tower_depth_delta=0.000 tower_alignment_delta=-0.015 tower_consolidation_delta=0.000 retention_score=-1.625.",
+            "mean_prediction_error_delta": -0.0001,
+            "memory_tower_alignment_delta": -0.0149,
+            "memory_tower_depth_delta": 0.0,
+            "passed_delta": -1.0,
+            "path_label": "pe-drive-off",
+            "pe_triggered_delta": -2.0,
+            "retention_score": -1.625,
+            "stability_delta": -0.5,
+            "tower_consolidation_delta": 0.0
+          },
+          {
+            "delayed_improvement_delta": 0.0,
+            "description": "Dashboard panel eta-off passed_delta=-1.000 pe_delta=-2.000 delayed_delta=0.000 stability_delta=-0.500 mean_pe_delta=0.002 tower_depth_delta=0.000 tower_alignment_delta=-0.054 tower_consolidation_delta=-1.000 retention_score=-1.625.",
+            "mean_prediction_error_delta": 0.002,
+            "memory_tower_alignment_delta": -0.0536,
+            "memory_tower_depth_delta": 0.0,
+            "passed_delta": -1.0,
+            "path_label": "eta-off",
+            "pe_triggered_delta": -2.0,
+            "retention_score": -1.625,
+            "stability_delta": -0.5,
+            "tower_consolidation_delta": -1.0
+          }
+        ],
+        "strongest_open_path_label": "eta-off",
+        "strongest_open_retention_score": -1.3996,
+        "strongest_scaffold_path_label": "pe-drive-off",
+        "strongest_scaffold_retention_score": -1.625,
+        "tower_memory_gate_passed": true,
+        "tower_memory_gate_strength": 1.4473
+      }
+    ]
+  ],
+  "run_summaries": [
+    {
+      "description": "Dialogue paper suite run 1 summarized 22 metrics for seed=0.",
+      "metric_values": [
+        [
+          "canonical_pass_rate_pe_eta",
+          1.0
+        ],
+        [
+          "canonical_pass_rate_gap_vs_pe_drive_off",
+          1.0
+        ],
+        [
+          "canonical_pass_rate_gap_vs_eta_off",
+          1.0
+        ],
+        [
+          "perturbation_pass_rate_pe_eta",
+          1.0
+        ],
+        [
+          "open_pass_rate_pe_eta",
+          1.0
+        ],
+        [
+          "open_pass_rate_gap_vs_pe_drive_off",
+          1.0
+        ],
+        [
+          "essence_gate_pass_fraction",
+          0.9166666666666666
+        ],
+        [
+          "canonical_runtime_backbone_evidence_rate",
+          3.0
+        ],
+        [
+          "canonical_mean_runtime_backbone_signal_quality",
+          0.433
+        ],
+        [
+          "canonical_mean_fast_memory_runtime_alignment",
+          0.1528
+        ],
+        [
+          "default_continual_learning_active_rate",
+          1.0
+        ],
+        [
+          "default_owner_writeback_retention",
+          1.0
+        ],
+        [
+          "default_substrate_mutation_suppression",
+          1.0
+        ],
+        [
+          "strongest_scaffold_retention_score",
+          -1.625
+        ],
+        [
+          "canonical_mean_memory_tower_depth",
+          6.0
+        ],
+        [
+          "canonical_mean_memory_tower_alignment",
+          0.1032
+        ],
+        [
+          "strongest_open_retention_score",
+          -1.3996
+        ],
+        [
+          "artifact_candidate_mean_score_delta",
+          0.0
+        ],
+        [
+          "rare_heavy_gate_pass",
+          0.0
+        ],
+        [
+          "tower_memory_gate_pass",
+          1.0
+        ],
+        [
+          "default_continual_learner_gate_pass",
+          1.0
+        ],
+        [
+          "tower_memory_gate_strength",
+          1.4473
+        ]
+      ],
+      "run_id": "dialogue-ci-smoke:run-01",
+      "run_seed": 0
+    }
+  ],
+  "suite_kind": "dialogue-comprehensive"
+}

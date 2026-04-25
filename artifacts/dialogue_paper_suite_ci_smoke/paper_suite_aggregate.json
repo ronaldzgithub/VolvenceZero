@@ -1,0 +1,451 @@
+{
+  "claim_verdicts": [
+    {
+      "claim_id": "claim_pe_multi_timescale_default",
+      "description": "Claim A checks whether the default path retains the required PE-first and multi-timescale gates.",
+      "evidence": [
+        [
+          "pe-first",
+          1.0
+        ],
+        [
+          "multi-timescale-default",
+          1.0
+        ],
+        [
+          "default-continual-learner",
+          1.0
+        ],
+        [
+          "judge-gated-evolution",
+          1.0
+        ],
+        [
+          "cross-session-growth",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "pe-first",
+        "multi-timescale-default",
+        "default-continual-learner",
+        "judge-gated-evolution",
+        "cross-session-growth"
+      ],
+      "status": "retain",
+      "summary": "PE-first \u4e0e\u591a\u65f6\u95f4\u5c3a\u5ea6\u9ed8\u8ba4\u8def\u5f84 claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_default_continual_learner_without_live_substrate_mutation",
+      "description": "Claim Default-CL checks that owner-side memory/temporal/regime/reflection learning is retained while live substrate mutation remains suppressed by default.",
+      "evidence": [
+        [
+          "default_continual_learning_active_rate",
+          1.0
+        ],
+        [
+          "default_owner_writeback_retention",
+          1.0
+        ],
+        [
+          "default_substrate_mutation_suppression",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [
+        "default-continual-learner"
+      ],
+      "status": "retain",
+      "summary": "\u9ed8\u8ba4 continual learner \u5728\u65e0 live substrate mutation \u4e0b\u4fdd\u7559\u7684 claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_temporal_advantage_over_controls",
+      "description": "Claim B checks whether PE-ETA retains positive pairwise effects over matched controls across repeated runs.",
+      "evidence": [
+        [
+          "canonical_gap_vs_pe_drive_off_ci_low",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_pe_drive_off_mean_delta",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_eta_off_ci_low",
+          1.0
+        ],
+        [
+          "canonical_gap_vs_eta_off_mean_delta",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "retain",
+      "summary": "Matched-control \u4f18\u52bf claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate"
+      ]
+    },
+    {
+      "claim_id": "claim_beyond_scripted_canonical",
+      "description": "Claim C checks whether the retained advantage extends to perturbation and held-out open-environment surfaces.",
+      "evidence": [
+        [
+          "open_gap_vs_pe_drive_off_ci_low",
+          1.0
+        ],
+        [
+          "open_gap_vs_pe_drive_off_mean_delta",
+          1.0
+        ],
+        [
+          "has_open_heldout",
+          0.0
+        ],
+        [
+          "perturbation_pass_rate_mean",
+          1.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "weak",
+      "summary": "\u8d85\u51fa canonical scripted \u7684 widening claim verdict.",
+      "supporting_artifacts": [
+        "paper_suite_aggregate",
+        "reference_emergence_dashboard"
+      ]
+    },
+    {
+      "claim_id": "claim_external_human_legibility",
+      "description": "Claim D checks whether blinded human review has enough rater coverage, agreement, and alignment with automatic evidence.",
+      "evidence": [
+        [
+          "rater_count",
+          0.0
+        ],
+        [
+          "inter_rater_agreement",
+          0.0
+        ],
+        [
+          "auto_correlation_observed",
+          0.0
+        ]
+      ],
+      "required_gate_ids": [],
+      "status": "fail",
+      "summary": "\u5916\u90e8\u4eba\u8bc4\u53ef\u89c1\u6027 claim verdict.",
+      "supporting_artifacts": [
+        "expert_review_packet_blinded",
+        "human_ratings_aggregate"
+      ]
+    }
+  ],
+  "description": "Dialogue paper suite dialogue-ci-smoke aggregated 1 repeated runs.",
+  "pairwise_effects": [
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "pe-drive-off",
+      "description": "pe-eta vs pe-drive-off on canonical_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "canonical_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    },
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "eta-off",
+      "description": "pe-eta vs eta-off on canonical_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "canonical_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    },
+    {
+      "candidate_label": "pe-eta",
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "control_label": "pe-drive-off",
+      "description": "pe-eta vs pe-drive-off on open_pass_rate has mean_delta=1.000 and effect_size=0.000.",
+      "effect_size": 0.0,
+      "mean_delta": 1.0,
+      "metric_name": "open_pass_rate",
+      "sample_count": 1,
+      "std_delta": 0.0,
+      "stderr_delta": 0.0
+    }
+  ],
+  "primary_metric_summaries": [
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_pe_eta",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_gap_vs_pe_drive_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_gap_vs_pe_drive_off",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "canonical_pass_rate_gap_vs_eta_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "canonical_pass_rate_gap_vs_eta_off",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "perturbation_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "perturbation_pass_rate_pe_eta",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "open_pass_rate_pe_eta summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "open_pass_rate_pe_eta",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "open_pass_rate_gap_vs_pe_drive_off summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "open_pass_rate_gap_vs_pe_drive_off",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.9166666666666666,
+      "ci_low": 0.9166666666666666,
+      "description": "essence_gate_pass_fraction summarized over 1 samples with mean=0.917, std=0.000, ci=[0.917, 0.917].",
+      "max_value": 0.9166666666666666,
+      "mean": 0.9166666666666666,
+      "metric_name": "essence_gate_pass_fraction",
+      "min_value": 0.9166666666666666,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 3.0,
+      "ci_low": 3.0,
+      "description": "canonical_runtime_backbone_evidence_rate summarized over 1 samples with mean=3.000, std=0.000, ci=[3.000, 3.000].",
+      "max_value": 3.0,
+      "mean": 3.0,
+      "metric_name": "canonical_runtime_backbone_evidence_rate",
+      "min_value": 3.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.433,
+      "ci_low": 0.433,
+      "description": "canonical_mean_runtime_backbone_signal_quality summarized over 1 samples with mean=0.433, std=0.000, ci=[0.433, 0.433].",
+      "max_value": 0.433,
+      "mean": 0.433,
+      "metric_name": "canonical_mean_runtime_backbone_signal_quality",
+      "min_value": 0.433,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.1528,
+      "ci_low": 0.1528,
+      "description": "canonical_mean_fast_memory_runtime_alignment summarized over 1 samples with mean=0.153, std=0.000, ci=[0.153, 0.153].",
+      "max_value": 0.1528,
+      "mean": 0.1528,
+      "metric_name": "canonical_mean_fast_memory_runtime_alignment",
+      "min_value": 0.1528,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "default_continual_learning_active_rate summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "default_continual_learning_active_rate",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "default_owner_writeback_retention summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "default_owner_writeback_retention",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "default_substrate_mutation_suppression summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "default_substrate_mutation_suppression",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "secondary_metric_summaries": [
+    {
+      "ci_high": -1.3996,
+      "ci_low": -1.3996,
+      "description": "strongest_open_retention_score summarized over 1 samples with mean=-1.400, std=0.000, ci=[-1.400, -1.400].",
+      "max_value": -1.3996,
+      "mean": -1.3996,
+      "metric_name": "strongest_open_retention_score",
+      "min_value": -1.3996,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": -1.625,
+      "ci_low": -1.625,
+      "description": "strongest_scaffold_retention_score summarized over 1 samples with mean=-1.625, std=0.000, ci=[-1.625, -1.625].",
+      "max_value": -1.625,
+      "mean": -1.625,
+      "metric_name": "strongest_scaffold_retention_score",
+      "min_value": -1.625,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 6.0,
+      "ci_low": 6.0,
+      "description": "canonical_mean_memory_tower_depth summarized over 1 samples with mean=6.000, std=0.000, ci=[6.000, 6.000].",
+      "max_value": 6.0,
+      "mean": 6.0,
+      "metric_name": "canonical_mean_memory_tower_depth",
+      "min_value": 6.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.1032,
+      "ci_low": 0.1032,
+      "description": "canonical_mean_memory_tower_alignment summarized over 1 samples with mean=0.103, std=0.000, ci=[0.103, 0.103].",
+      "max_value": 0.1032,
+      "mean": 0.1032,
+      "metric_name": "canonical_mean_memory_tower_alignment",
+      "min_value": 0.1032,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "artifact_candidate_mean_score_delta summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "artifact_candidate_mean_score_delta",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "description": "rare_heavy_gate_pass summarized over 1 samples with mean=0.000, std=0.000, ci=[0.000, 0.000].",
+      "max_value": 0.0,
+      "mean": 0.0,
+      "metric_name": "rare_heavy_gate_pass",
+      "min_value": 0.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "description": "tower_memory_gate_pass summarized over 1 samples with mean=1.000, std=0.000, ci=[1.000, 1.000].",
+      "max_value": 1.0,
+      "mean": 1.0,
+      "metric_name": "tower_memory_gate_pass",
+      "min_value": 1.0,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    },
+    {
+      "ci_high": 1.4473,
+      "ci_low": 1.4473,
+      "description": "tower_memory_gate_strength summarized over 1 samples with mean=1.447, std=0.000, ci=[1.447, 1.447].",
+      "max_value": 1.4473,
+      "mean": 1.4473,
+      "metric_name": "tower_memory_gate_strength",
+      "min_value": 1.4473,
+      "sample_count": 1,
+      "std": 0.0,
+      "stderr": 0.0
+    }
+  ],
+  "suite_id": "dialogue-ci-smoke"
+}
