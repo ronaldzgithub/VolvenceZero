@@ -29,6 +29,7 @@
 
 - 稳定 session facade：`Brain`、`BrainConfig`、`BrainSession`
 - 契约运行时：snapshot、module、wiring、guard
+- 语义状态 owner contracts、typed proposal runtime 接口，以及随包分发的 proposal prompt / JSON schema 资源
 - 记忆、经验、domain experience package schema 与编译器
 - application stores 与轻量 file persistence 接口
 - substrate adapter 协议与 synthetic / trace 风格运行时
@@ -55,6 +56,9 @@
   - `BrainConfig(substrate_mode="injected")` 要求调用方注入 runtime
 - HF runtime 的 `device="auto"` 在可用时选择 CUDA，其次选择 Apple MPS，最后回退 CPU；MPS 加载路径使用 `float16` 以适配本机 7B 级模型实验。
 - `Brain.create_session()` 将 domain experience packages 注入 `AgentSessionRunner`，但仍沿现有 application stores 和 rare-heavy state 生效。
+- `Brain(..., semantic_proposal_runtime=...)` 允许产品注入 typed semantic proposal runtime；默认 synthetic path 使用 no-op runtime，仍不需要模型依赖。
+- `volvence_zero.semantic_state` 的 `prompts/*.md` 与 `schemas/*.json` 作为 package data 随本地安装分发，供外部 structured runtime 读取。
+- `BrainSession` 暴露 external semantic event helpers（tool result / profile / task / reviewed knowledge），这些 helper 只入队 typed events，不在 core package 内持久化产品数据，也不绕过 semantic owner。
 - `volvence_zero.__init__` 懒导出 `Brain` / `BrainConfig` / `BrainSession`，保持 root import 轻量。
 - 面向其他项目的本机接入说明见 `docs/package_usage.md`。
 
@@ -71,3 +75,4 @@
 
 - 2026-04-25: 初始版本，建立 package-first core 边界、optional HF extra、stable Brain facade 和不发布外网原则。
 - 2026-04-25: HF optional runtime 的 auto device 增加 Apple MPS 支持，用于本机 7B 交互实验。
+- 2026-04-25: 将语义状态 proposal runtime contracts 与 prompt/schema 资源纳入本地安装包边界。

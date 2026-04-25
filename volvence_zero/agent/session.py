@@ -98,6 +98,9 @@ from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, Writebac
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
+    AdapterSemanticProposalRuntime,
+    ExternalSemanticEvent,
+    ExternalSemanticEventBatch,
     NoOpSemanticProposalRuntime,
     SemanticProposalRuntime,
     SemanticStateStore,
@@ -580,6 +583,7 @@ class AgentSessionRunner:
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._semantic_state_store = SemanticStateStore()
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+        self._pending_semantic_events: list[ExternalSemanticEvent] = []
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -691,6 +695,21 @@ class AgentSessionRunner:
     @property
     def completed_session_reports(self) -> tuple[EvaluationReport, ...]:
         return tuple(self._completed_session_reports)
+
+    def enqueue_semantic_events(
+        self,
+        events: ExternalSemanticEventBatch | tuple[ExternalSemanticEvent, ...],
+    ) -> tuple[str, ...]:
+        event_tuple = events.events if isinstance(events, ExternalSemanticEventBatch) else events
+        self._pending_semantic_events.extend(event_tuple)
+        if len(self._pending_semantic_events) > 64:
+            del self._pending_semantic_events[:-64]
+        return tuple(event.event_id for event in event_tuple)
+
+    def _drain_pending_semantic_events(self) -> tuple[ExternalSemanticEvent, ...]:
+        events = tuple(self._pending_semantic_events)
+        self._pending_semantic_events.clear()
+        return events
 
     @property
     def session_post_queue_state(self) -> SessionPostSlowLoopQueueState:
@@ -1681,6 +1700,15 @@ class AgentSessionRunner:
                 schedule=self._joint_schedule,
                 apply_writeback=False,
             )
+            pending_semantic_events = self._drain_pending_semantic_events()
+            active_semantic_runtime: SemanticProposalRuntime = (
+                AdapterSemanticProposalRuntime(
+                    base_runtime=self._semantic_proposal_runtime,
+                    external_events=pending_semantic_events,
+                )
+                if pending_semantic_events
+                else self._semantic_proposal_runtime
+            )
             integration_result = await run_final_wiring_turn(
                 config=self._config,
                 substrate_adapter=substrate_adapter,
@@ -1690,15 +1718,15 @@ class AgentSessionRunner:
                 case_memory_store=self._case_memory_store,
                 memory_store=self._memory_store,
                 semantic_state_store=self._semantic_state_store,
-                semantic_proposal_runtime=self._semantic_proposal_runtime,
+                semantic_proposal_runtime=active_semantic_runtime,
                 evaluation_backbone=self._evaluation_backbone,
                 prior_session_reports=self.completed_session_reports,
                 upstream_snapshots=self._upstream_snapshots,
                 joint_loop_result=joint_result,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
-            world_temporal_policy=self._world_temporal_policy,
-            self_temporal_policy=self._self_temporal_policy,
+                world_temporal_policy=self._world_temporal_policy,
+                self_temporal_policy=self._self_temporal_policy,
                 prediction_module=self._prediction_module,
                 regime_module=self._regime_module,
                 session_id=context_session_id,

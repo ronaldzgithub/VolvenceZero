@@ -43,6 +43,18 @@ substrate + memory + user_input
 → temporal / boundary / response / evaluation consumers
 ```
 
+External adapter flow:
+
+```text
+tool/profile/task/reviewed-knowledge event
+→ SemanticEventAdapter
+→ AdapterSemanticProposalRuntime
+→ SemanticProposalBatch
+→ owner-side merge in SemanticStateStore
+```
+
+Adapters are structured-field mappers. They may map `status`, `consent_grants`, `consent_denials`, task state, or reviewed evidence fields to typed operations, but they must not inspect arbitrary text with keyword rules to decide behavior.
+
 ## ETA / NL 集成
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
@@ -50,6 +62,8 @@ substrate + memory + user_input
 - `BoundaryPolicyModule` 消费 `boundary_consent`，缺失授权或拒绝边界会提升澄清/边界约束。
 - `EvaluationBackbone` 记录 semantic readout metrics，但不把 evaluation 变成学习源头。
 - session-post request 携带 semantic state descriptions，供 background-slow 层沉淀与审计。
+- `AgentSessionRunner` exposes a bounded pending external-event queue. Each turn drains the queue into `AdapterSemanticProposalRuntime`, so external events are consumed exactly once unless resubmitted.
+- `BrainSession` exposes package-facing helper methods for tool result, profile/settings, task/calendar, and reviewed-knowledge events. These helpers enqueue structured events only; they do not mutate owner stores.
 
 ## 回滚
 
@@ -58,3 +72,4 @@ substrate + memory + user_input
 ## 变更日志
 
 - 2026-04-25: 初始版本，建立九个 semantic owner、typed proposal path、ETA/NL/response/evaluation/session-post 集成边界。
+- 2026-04-25: 新增 external semantic adapters：tool result、profile/settings、task/calendar 与 reviewed knowledge 事件经 adapter runtime 转为 typed proposals 后进入 semantic owners。

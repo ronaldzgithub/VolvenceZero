@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import volvence_zero
@@ -12,6 +14,11 @@ from volvence_zero.application import (
     PlaybookRule,
 )
 from volvence_zero.brain import Brain, BrainConfig
+from volvence_zero.semantic_state import (
+    SEMANTIC_OWNER_SLOTS,
+    load_semantic_json_schema,
+    load_semantic_prompt_template,
+)
 
 
 def _package() -> DomainExperiencePackage:
@@ -98,6 +105,26 @@ def test_core_import_exposes_narrow_brain_api_without_model_weights() -> None:
     assert volvence_zero.BrainConfig is BrainConfig
 
 
+def test_core_package_includes_semantic_state_runtime_resources() -> None:
+    prompt = load_semantic_prompt_template()
+    schema = json.loads(load_semantic_json_schema())
+
+    assert "typed semantic-state proposals" in prompt
+    assert schema["required"] == ["proposals", "runtime_id", "schema_version", "description"]
+    assert schema["properties"]["proposals"]["items"]["properties"]["target_slot"]["type"] == "string"
+    assert SEMANTIC_OWNER_SLOTS == (
+        "plan_intent",
+        "commitment",
+        "open_loop",
+        "user_model",
+        "execution_result",
+        "belief_assumption",
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
+    )
+
+
 def test_brain_default_uses_synthetic_substrate_and_runs_turn() -> None:
     brain = Brain(BrainConfig(rare_heavy_enabled=False))
     session = brain.create_session(session_id="core-package-session")
@@ -107,6 +134,27 @@ def test_brain_default_uses_synthetic_substrate_and_runs_turn() -> None:
     assert result.response.text
     assert result.active_snapshots["substrate"].value.description
     assert session.runner._default_residual_runtime.runtime_origin == "synthetic-open-weight"
+
+
+def test_brain_session_accepts_external_semantic_events() -> None:
+    brain = Brain(BrainConfig(rare_heavy_enabled=False))
+    session = brain.create_session(session_id="core-package-semantic-adapter")
+
+    queued = session.submit_tool_result(
+        event_id="tool:core:1",
+        tool_name="local-tool",
+        action_id="action:core",
+        status="succeeded",
+        summary="Local tool completed",
+        detail="The local tool produced an artifact.",
+        artifact_refs=("artifact:core",),
+        plan_ref="core-package-plan",
+    )
+    result = session.run_turn("Continue from the external tool result.")
+
+    assert queued == ("tool:core:1",)
+    assert result.active_snapshots["execution_result"].value.completed_actions
+    assert result.active_snapshots["plan_intent"].value.plan_revision_count >= 1
 
 
 def test_brain_loads_domain_experience_package_through_stable_api() -> None:

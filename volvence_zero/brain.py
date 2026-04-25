@@ -9,7 +9,14 @@ from volvence_zero.agent.response import ResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.semantic_state import SemanticProposalRuntime
+from volvence_zero.semantic_state import (
+    ExternalSemanticEventBatch,
+    SemanticProposalRuntime,
+    semantic_events_from_profile,
+    semantic_events_from_reviewed_knowledge,
+    semantic_events_from_task_event,
+    semantic_events_from_tool_result,
+)
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     SubstrateAdapter,
@@ -55,6 +62,111 @@ class BrainSession:
     @property
     def session_id(self) -> str:
         return self._runner.session_id
+
+    def submit_semantic_events(self, events: ExternalSemanticEventBatch) -> tuple[str, ...]:
+        return self._runner.enqueue_semantic_events(events)
+
+    def submit_tool_result(
+        self,
+        *,
+        event_id: str,
+        tool_name: str,
+        action_id: str,
+        status: str,
+        summary: str,
+        detail: str,
+        confidence: float = 0.8,
+        artifact_refs: tuple[str, ...] = (),
+        plan_ref: str | None = None,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_tool_result(
+                event_id=event_id,
+                tool_name=tool_name,
+                action_id=action_id,
+                status=status,
+                summary=summary,
+                detail=detail,
+                confidence=confidence,
+                artifact_refs=artifact_refs,
+                plan_ref=plan_ref,
+            )
+        )
+
+    def submit_profile_event(
+        self,
+        *,
+        event_id: str,
+        source: str,
+        preferences: tuple[str, ...] = (),
+        goals: tuple[str, ...] = (),
+        consent_grants: tuple[str, ...] = (),
+        consent_denials: tuple[str, ...] = (),
+        relationship_note: str = "",
+        confidence: float = 0.75,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_profile(
+                event_id=event_id,
+                source=source,
+                preferences=preferences,
+                goals=goals,
+                consent_grants=consent_grants,
+                consent_denials=consent_denials,
+                relationship_note=relationship_note,
+                confidence=confidence,
+            )
+        )
+
+    def submit_task_event(
+        self,
+        *,
+        event_id: str,
+        task_id: str,
+        status: str,
+        summary: str,
+        detail: str,
+        due_hint: str | None = None,
+        commitment_ref: str | None = None,
+        confidence: float = 0.75,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_task_event(
+                event_id=event_id,
+                task_id=task_id,
+                status=status,
+                summary=summary,
+                detail=detail,
+                due_hint=due_hint,
+                commitment_ref=commitment_ref,
+                confidence=confidence,
+            )
+        )
+
+    def submit_reviewed_knowledge_event(
+        self,
+        *,
+        event_id: str,
+        knowledge_id: str,
+        summary: str,
+        detail: str,
+        source_label: str,
+        confidence: float,
+        relevance_hint: str = "",
+        needs_followup: bool = False,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_reviewed_knowledge(
+                event_id=event_id,
+                knowledge_id=knowledge_id,
+                summary=summary,
+                detail=detail,
+                source_label=source_label,
+                confidence=confidence,
+                relevance_hint=relevance_hint,
+                needs_followup=needs_followup,
+            )
+        )
 
     async def run_turn_async(self, user_input: str) -> AgentTurnResult:
         return await self._runner.run_turn(user_input)

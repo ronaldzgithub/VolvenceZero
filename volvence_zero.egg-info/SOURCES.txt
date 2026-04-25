@@ -19,6 +19,7 @@ tests/test_prediction_error.py
 tests/test_reflection_writeback.py
 tests/test_regime_identity.py
 tests/test_runtime_kernel.py
+tests/test_semantic_state_owners.py
 tests/test_substrate_adapter.py
 tests/test_temporal_interface.py
 volvence_zero/__init__.py
@@ -77,6 +78,9 @@ volvence_zero/regime/__init__.py
 volvence_zero/regime/identity.py
 volvence_zero/runtime/__init__.py
 volvence_zero/runtime/kernel.py
+volvence_zero/semantic_state/__init__.py
+volvence_zero/semantic_state/prompts/extraction.md
+volvence_zero/semantic_state/schemas/proposal.schema.json
 volvence_zero/substrate/__init__.py
 volvence_zero/substrate/adapter.py
 volvence_zero/substrate/residual_backend.py

@@ -8,6 +8,7 @@ import pytest
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.semantic_state import (
     SEMANTIC_OWNER_SLOTS,
+    AdapterSemanticProposalRuntime,
     NoOpSemanticProposalRuntime,
     PlanIntentSnapshot,
     SemanticProposal,
@@ -15,6 +16,10 @@ from volvence_zero.semantic_state import (
     SemanticProposalOperation,
     SemanticProposalRuntime,
     SemanticStateStore,
+    semantic_events_from_profile,
+    semantic_events_from_reviewed_knowledge,
+    semantic_events_from_task_event,
+    semantic_events_from_tool_result,
 )
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter
 
@@ -240,3 +245,133 @@ def test_boundary_consent_owner_tightens_boundary_policy() -> None:
     assert boundary_consent.denied_boundaries
     assert "consent-boundary-denied" in boundary_policy.trigger_reasons
     assert boundary_policy.active_decision.refer_out_required is True
+
+
+def test_tool_result_adapter_updates_execution_and_open_loop() -> None:
+    store = SemanticStateStore()
+    events = semantic_events_from_tool_result(
+        event_id="tool:event:1",
+        tool_name="deploy",
+        action_id="deploy:123",
+        status="failed",
+        summary="Deployment failed",
+        detail="The deployment command returned a non-zero exit.",
+        plan_ref="launch-plan",
+    )
+    runtime = AdapterSemanticProposalRuntime(
+        base_runtime=NoOpSemanticProposalRuntime(),
+        external_events=events.events,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            user_input="Continue the launch work.",
+            semantic_state_store=store,
+            semantic_proposal_runtime=runtime,
+            session_id="semantic-tool",
+            wave_id="wave-tool",
+            turn_index=1,
+        )
+    )
+
+    execution_result = result.active_snapshots["execution_result"].value
+    open_loop = result.active_snapshots["open_loop"].value
+    plan_intent = result.active_snapshots["plan_intent"].value
+
+    assert execution_result.failed_actions
+    assert open_loop.unresolved_loops
+    assert plan_intent.plan_revision_count == 1
+
+
+def test_profile_adapter_updates_user_model_goal_and_consent() -> None:
+    events = semantic_events_from_profile(
+        event_id="profile:event:1",
+        source="product-profile",
+        preferences=("prefers concise plans",),
+        goals=("ship safely",),
+        consent_grants=("remember planning preference",),
+        consent_denials=("external action without confirmation",),
+        relationship_note="prefers calm collaboration",
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=SemanticStateStore(),
+            semantic_proposal_runtime=AdapterSemanticProposalRuntime(external_events=events.events),
+            session_id="semantic-profile",
+            wave_id="wave-profile",
+            turn_index=1,
+        )
+    )
+
+    assert result.active_snapshots["user_model"].value.stable_preferences
+    assert result.active_snapshots["goal_value"].value.explicit_goals
+    assert result.active_snapshots["relationship_state"].value.rapport_signals
+    assert result.active_snapshots["boundary_consent"].value.denied_boundaries
+
+
+def test_task_event_adapter_updates_plan_commitment_and_execution() -> None:
+    events = semantic_events_from_task_event(
+        event_id="task:event:1",
+        task_id="task:launch",
+        status="completed",
+        summary="Launch checklist completed",
+        detail="All launch checklist items were marked done.",
+        due_hint="today",
+        commitment_ref="finish launch checklist",
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=SemanticStateStore(),
+            semantic_proposal_runtime=AdapterSemanticProposalRuntime(external_events=events.events),
+            session_id="semantic-task",
+            wave_id="wave-task",
+            turn_index=1,
+        )
+    )
+
+    assert result.active_snapshots["plan_intent"].value.completed_plan_refs
+    assert result.active_snapshots["commitment"].value.honored_commitment_refs
+    assert result.active_snapshots["execution_result"].value.completed_actions
+
+
+def test_reviewed_knowledge_adapter_updates_belief_without_domain_write() -> None:
+    events = semantic_events_from_reviewed_knowledge(
+        event_id="knowledge:event:1",
+        knowledge_id="knowledge:external:1",
+        summary="Reviewed rollout guidance",
+        detail="The reviewed source recommends staged rollout.",
+        source_label="reviewed-doc",
+        confidence=0.88,
+        relevance_hint="rollout safety",
+        needs_followup=True,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=SemanticStateStore(),
+            semantic_proposal_runtime=AdapterSemanticProposalRuntime(external_events=events.events),
+            session_id="semantic-knowledge",
+            wave_id="wave-knowledge",
+            turn_index=1,
+        )
+    )
+
+    belief = result.active_snapshots["belief_assumption"].value
+    goal_value = result.active_snapshots["goal_value"].value
+    open_loop = result.active_snapshots["open_loop"].value
+    domain_knowledge = result.active_snapshots["domain_knowledge"].value
+
+    assert any(record.summary == "Reviewed rollout guidance" for record in belief.beliefs)
+    assert goal_value.explicit_goals
+    assert open_loop.unresolved_loops
+    assert not any(hit.hit_id == "knowledge:external:1" for hit in domain_knowledge.hits)

@@ -112,6 +112,54 @@ session = brain.create_session(session_id="domain-session")
 
 Packages are compiled into existing application owners: domain knowledge, case memory, strategy playbook, boundary hints, and rare-heavy application state.
 
+## Inject Semantic State Proposals
+
+The core package includes the semantic-state owner contracts and the prompt/schema resources needed by an external structured runtime:
+
+```python
+from volvence_zero.brain import Brain, BrainConfig
+from volvence_zero.semantic_state import (
+    SemanticProposalRuntime,
+    load_semantic_json_schema,
+    load_semantic_prompt_template,
+)
+
+prompt = load_semantic_prompt_template()
+schema = load_semantic_json_schema()
+
+brain = Brain(
+    BrainConfig(),
+    semantic_proposal_runtime=my_runtime,  # implements SemanticProposalRuntime
+)
+```
+
+The default synthetic path uses `NoOpSemanticProposalRuntime`, so local installs still run without a model-backed semantic extractor. Product runtimes can inject a structured proposal runtime without becoming a second owner of the semantic state; each owner still publishes its own immutable snapshot.
+
+## Submit External Semantic Events
+
+External information does not need to arrive through dialogue. Submit structured events before the next turn; the session will drain them into semantic owner proposals exactly once:
+
+```python
+from volvence_zero.brain import Brain, BrainConfig
+
+session = Brain(BrainConfig()).create_session(session_id="product-session")
+
+session.submit_tool_result(
+    event_id="tool:deploy:1",
+    tool_name="deploy",
+    action_id="deploy:1",
+    status="succeeded",
+    summary="Deploy finished",
+    detail="The deploy tool produced artifact deploy-log-1.",
+    artifact_refs=("deploy-log-1",),
+    plan_ref="launch-plan",
+)
+
+result = session.run_turn("Continue from the deployment result.")
+```
+
+The package also exposes `submit_profile_event()`, `submit_task_event()`, and `submit_reviewed_knowledge_event()`. These helpers enqueue typed external events only; semantic owners still merge and publish their own immutable snapshots.
+
 ## Persistence
 
 Persistence paths are outside the package:
@@ -136,6 +184,7 @@ Stable package-facing API:
 - `volvence_zero.brain.BrainConfig`
 - `volvence_zero.brain.BrainSession`
 - `volvence_zero.application.domain_experience` package schema and compiler
+- `volvence_zero.semantic_state` proposal runtime contracts and bundled schema/prompt resources
 
 Internal or research-heavy surfaces:
 
