@@ -35,6 +35,7 @@ from volvence_zero.temporal import (
 )
 from volvence_zero.substrate import TrainingTraceDataset
 from volvence_zero.memory import Track
+from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS
 from volvence_zero.temporal.metacontroller_components import (
     ActionFamilyObservation,
     DiscoveredActionFamily,
@@ -769,7 +770,12 @@ def test_temporal_module_consumes_prediction_error_signal():
 
 
 def test_track_temporal_modules_split_early_and_late_dependencies():
-    assert TrackTemporalModule.dependencies == ("substrate", "memory", "experience_fast_prior")
+    assert TrackTemporalModule.dependencies == (
+        "substrate",
+        "memory",
+        "experience_fast_prior",
+        *SEMANTIC_OWNER_SLOTS,
+    )
     assert TrackTemporalConsolidationModule.dependencies == ("reflection", "prediction_error", "credit")
     assert TemporalAggregateModule.dependencies == ("world_temporal", "self_temporal")
 

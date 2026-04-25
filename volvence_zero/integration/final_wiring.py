@@ -80,6 +80,22 @@ from volvence_zero.runtime import (
     propagate,
 )
 from volvence_zero.runtime.kernel import stable_value_hash
+from volvence_zero.semantic_state import (
+    SEMANTIC_OWNER_SLOTS,
+    BeliefAssumptionSnapshot,
+    BoundaryConsentSnapshot,
+    CommitmentSnapshot,
+    ExecutionResultSnapshot,
+    GoalValueSnapshot,
+    NoOpSemanticProposalRuntime,
+    OpenLoopSnapshot,
+    PlanIntentSnapshot,
+    RelationshipStateSnapshot,
+    SemanticProposalRuntime,
+    SemanticStateStore,
+    UserModelSnapshot,
+    build_semantic_modules,
+)
 from volvence_zero.substrate import (
     SubstrateAdapter,
     SubstrateModule,
@@ -123,6 +139,15 @@ class FinalRolloutConfig:
     eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
     session_post_slow_loop: WiringLevel = WiringLevel.SHADOW
     experience_consolidation: WiringLevel = WiringLevel.ACTIVE
+    plan_intent: WiringLevel = WiringLevel.ACTIVE
+    commitment: WiringLevel = WiringLevel.ACTIVE
+    open_loop: WiringLevel = WiringLevel.ACTIVE
+    user_model: WiringLevel = WiringLevel.ACTIVE
+    execution_result: WiringLevel = WiringLevel.ACTIVE
+    belief_assumption: WiringLevel = WiringLevel.ACTIVE
+    relationship_state: WiringLevel = WiringLevel.ACTIVE
+    goal_value: WiringLevel = WiringLevel.ACTIVE
+    boundary_consent: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -149,6 +174,15 @@ class FinalRolloutConfig:
             "eta_open_weight_runtime": self.eta_open_weight_runtime,
             "session_post_slow_loop": self.session_post_slow_loop,
             "experience_consolidation": self.experience_consolidation,
+            "plan_intent": self.plan_intent,
+            "commitment": self.commitment,
+            "open_loop": self.open_loop,
+            "user_model": self.user_model,
+            "execution_result": self.execution_result,
+            "belief_assumption": self.belief_assumption,
+            "relationship_state": self.relationship_state,
+            "goal_value": self.goal_value,
+            "boundary_consent": self.boundary_consent,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -226,6 +260,7 @@ class SessionPostWritebackRequest:
     structural_writeback_allowed: bool
     checkpoint_id: str
     description: str
+    semantic_state_descriptions: tuple[str, ...] = ()
 
 
 def _judge_allows_structural_writeback(evolution_judgement: EvolutionJudgement | None) -> bool:
@@ -355,6 +390,7 @@ def _build_session_post_writeback_request(
     writeback_source: str | None,
     reflection_mode: WritebackMode,
     structural_writeback_allowed: bool,
+    semantic_state_values: tuple[object, ...] = (),
 ) -> SessionPostWritebackRequest | None:
     if (
         session_report is None
@@ -383,6 +419,12 @@ def _build_session_post_writeback_request(
             f"Deferred session-post slow loop request for {context_session_id} from {source_wave_id}; "
             f"apply={'on' if reflection_mode is WritebackMode.APPLY else 'off'} "
             f"structural={'allow' if structural_writeback_allowed else 'block'}."
+        ),
+        semantic_state_descriptions=tuple(
+            description
+            for value in semantic_state_values
+            for description in (getattr(value, "description", ""),)
+            if isinstance(description, str) and description
         ),
     )
 
@@ -903,6 +945,8 @@ def build_final_runtime_modules(
     case_memory_store: ApplicationCaseMemoryStore | None = None,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
     memory_store: MemoryStore | None = None,
+    semantic_state_store: SemanticStateStore | None = None,
+    semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
@@ -913,6 +957,7 @@ def build_final_runtime_modules(
     regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
+    turn_index: int = 0,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
@@ -934,6 +979,8 @@ def build_final_runtime_modules(
         resolved_self_temporal_policy = clone_full_learned_temporal_policy(resolved_world_temporal_policy)
     else:
         resolved_self_temporal_policy = resolved_world_temporal_policy
+    semantic_store = semantic_state_store or SemanticStateStore()
+    semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
     return [
         SubstrateModule(
             adapter=substrate_adapter,
@@ -951,6 +998,13 @@ def build_final_runtime_modules(
             store=memory_store or build_default_memory_store(),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
+        ),
+        *build_semantic_modules(
+            store=semantic_store,
+            proposal_runtime=semantic_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            level_for=config.level_for,
         ),
         TrackTemporalModule(
             track=Track.WORLD,
@@ -1041,6 +1095,8 @@ async def run_final_wiring_turn(
     case_memory_store: ApplicationCaseMemoryStore | None = None,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
     memory_store: MemoryStore | None = None,
+    semantic_state_store: SemanticStateStore | None = None,
+    semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
     upstream_snapshots: dict[str, Snapshot[Any]] | None = None,
@@ -1054,6 +1110,7 @@ async def run_final_wiring_turn(
     regime_module: RegimeModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
+    turn_index: int = 0,
     apply_slow_writeback: bool = True,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
@@ -1068,6 +1125,8 @@ async def run_final_wiring_turn(
         case_memory_store=case_memory_store,
         domain_experience_packages=domain_experience_packages,
         memory_store=memory_store,
+        semantic_state_store=semantic_state_store,
+        semantic_proposal_runtime=semantic_proposal_runtime,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
         reflection_mode=reflection_mode,
@@ -1078,6 +1137,7 @@ async def run_final_wiring_turn(
         regime_module=regime_module,
         session_id=session_id,
         wave_id=wave_id,
+        turn_index=turn_index,
         substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
         substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
@@ -1144,6 +1204,26 @@ async def run_final_wiring_turn(
     experience_fast_prior_snapshot = active_snapshots.get("experience_fast_prior")
     boundary_policy_snapshot = active_snapshots.get("boundary_policy")
     response_assembly_snapshot = active_snapshots.get("response_assembly")
+    semantic_state_values = tuple(
+        snapshot.value
+        for slot in SEMANTIC_OWNER_SLOTS
+        for snapshot in (active_snapshots.get(slot),)
+        if snapshot is not None
+        and isinstance(
+            snapshot.value,
+            (
+                PlanIntentSnapshot,
+                CommitmentSnapshot,
+                OpenLoopSnapshot,
+                UserModelSnapshot,
+                ExecutionResultSnapshot,
+                BeliefAssumptionSnapshot,
+                RelationshipStateSnapshot,
+                GoalValueSnapshot,
+                BoundaryConsentSnapshot,
+            ),
+        )
+    )
     prediction_snapshot_value = (
         active_snapshots.get("prediction_error").value
         if active_snapshots.get("prediction_error") is not None
@@ -1250,6 +1330,7 @@ async def run_final_wiring_turn(
                 if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
                 else None
             ),
+            semantic_state_snapshots=semantic_state_values,
         )
         substrate_self_mod_snapshot = active_snapshots.get("substrate_self_mod")
         substrate_self_mod_value = (
@@ -1383,6 +1464,7 @@ async def run_final_wiring_turn(
         writeback_source=writeback_source,
         reflection_mode=reflection_mode,
         structural_writeback_allowed=judge_allows_structural_writeback,
+        semantic_state_values=semantic_state_values,
     )
     if (
         apply_slow_writeback
@@ -1501,6 +1583,7 @@ def build_acceptance_report(
                 "credit",
                 "reflection",
                 "temporal",
+                *SEMANTIC_OWNER_SLOTS,
             )
             if resolved_level(name) is WiringLevel.DISABLED
         )
@@ -1526,6 +1609,7 @@ def build_acceptance_report(
         ("regime", "regime"),
         ("credit", "credit"),
         ("reflection", "reflection"),
+        *tuple((slot, slot) for slot in SEMANTIC_OWNER_SLOTS),
     ):
         if config.is_active(module_name):
             expected_active.add(slot_name)

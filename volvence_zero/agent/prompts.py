@@ -69,6 +69,10 @@ def build_system_prompt(
         "Use at most one clarifying question when genuinely needed. "
         "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts."
     )
+    sections.append(
+        "Do not expose internal module names, control codes, rule residue, legal or jurisdiction reminders, "
+        "or other system bookkeeping unless the current boundary state below explicitly requires it."
+    )
 
     regime_id = assembly.regime_id or "casual_social"
     regime_name = assembly.regime_name

@@ -81,6 +81,42 @@ class _BackboneWrappedCausalLM(nn.Module):
         return self._base(*args, **kwargs)
 
 
+@dataclass(frozen=True)
+class _FakeCudaBackend:
+    available: bool
+
+    def is_available(self) -> bool:
+        return self.available
+
+
+@dataclass(frozen=True)
+class _FakeMPSBackend:
+    available: bool
+
+    def is_available(self) -> bool:
+        return self.available
+
+
+@dataclass(frozen=True)
+class _FakeTorchBackends:
+    mps: _FakeMPSBackend
+
+
+@dataclass(frozen=True)
+class _FakeTorch:
+    cuda: _FakeCudaBackend
+    backends: _FakeTorchBackends
+
+
+def _build_device_resolution_runtime(*, cuda_available: bool, mps_available: bool):
+    runtime = TransformersOpenWeightResidualRuntime.__new__(TransformersOpenWeightResidualRuntime)
+    runtime._torch = _FakeTorch(
+        cuda=_FakeCudaBackend(available=cuda_available),
+        backends=_FakeTorchBackends(mps=_FakeMPSBackend(available=mps_available)),
+    )
+    return runtime
+
+
 def _build_tiny_transformers_runtime(
     *, allow_live_substrate_mutation: bool = False
 ) -> TransformersOpenWeightResidualRuntime:
@@ -511,6 +547,17 @@ def test_transformers_runtime_resolves_backbone_layers_path():
 
     assert capture.residual_sequence
     assert "family=gpt2" in capture.description
+
+
+def test_transformers_runtime_auto_device_prefers_cuda_then_apple_mps_then_cpu():
+    cuda_runtime = _build_device_resolution_runtime(cuda_available=True, mps_available=True)
+    apple_runtime = _build_device_resolution_runtime(cuda_available=False, mps_available=True)
+    cpu_runtime = _build_device_resolution_runtime(cuda_available=False, mps_available=False)
+
+    assert cuda_runtime._resolve_device(device="auto") == "cuda"
+    assert apple_runtime._resolve_device(device="auto") == "mps"
+    assert cpu_runtime._resolve_device(device="auto") == "cpu"
+    assert apple_runtime._resolve_device(device="cpu") == "cpu"
 
 
 def test_build_transformers_runtime_with_fallback_honors_deny_mode():

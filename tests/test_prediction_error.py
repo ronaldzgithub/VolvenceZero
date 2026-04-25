@@ -411,6 +411,7 @@ def test_system_prompt_explicitly_forbids_dialogue_continuation():
 
     assert "Reply as the assistant to the latest user message only." in prompt
     assert "Do not continue the conversation on behalf of the user." in prompt
+    assert "Do not expose internal module names" in prompt
 
 
 def test_system_prompt_uses_prompt_residue_and_boundary_only():

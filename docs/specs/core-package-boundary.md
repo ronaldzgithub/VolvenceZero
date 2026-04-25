@@ -53,6 +53,7 @@
   - `BrainConfig(substrate_mode="synthetic")` 默认不拉取外部模型
   - `BrainConfig(substrate_mode="hf")` 才显式构建 HF substrate
   - `BrainConfig(substrate_mode="injected")` 要求调用方注入 runtime
+- HF runtime 的 `device="auto"` 在可用时选择 CUDA，其次选择 Apple MPS，最后回退 CPU；MPS 加载路径使用 `float16` 以适配本机 7B 级模型实验。
 - `Brain.create_session()` 将 domain experience packages 注入 `AgentSessionRunner`，但仍沿现有 application stores 和 rare-heavy state 生效。
 - `volvence_zero.__init__` 懒导出 `Brain` / `BrainConfig` / `BrainSession`，保持 root import 轻量。
 - 面向其他项目的本机接入说明见 `docs/package_usage.md`。
@@ -69,3 +70,4 @@
 ## 变更日志
 
 - 2026-04-25: 初始版本，建立 package-first core 边界、optional HF extra、stable Brain facade 和不发布外网原则。
+- 2026-04-25: HF optional runtime 的 auto device 增加 Apple MPS 支持，用于本机 7B 交互实验。

@@ -62,6 +62,7 @@ class SessionPostSlowLoopJob:
     retrieval_family_bias: float = 0.0
     retrieval_knowledge_weight_bias: float = 0.0
     retrieval_experience_weight_bias: float = 0.0
+    semantic_state_descriptions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class SessionPostSlowLoopResult:
     continuum_profile_id: str | None = None
     case_band_ids: tuple[str, ...] = ()
     playbook_band_ids: tuple[str, ...] = ()
+    semantic_state_descriptions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

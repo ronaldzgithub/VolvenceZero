@@ -108,6 +108,21 @@
 
 ---
 
+### 6A. 语义状态一等 Owner
+
+**对应需求**：R1（多时间尺度学习）、R8（快照优先）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [semantic-state-owners.md](./semantic-state-owners.md) | Plan/Intent、Commitment、Open Loop、User Model、Execution Result、Belief/Assumption、Relationship State、Goal/Value、Boundary/Consent 九个语义 owner |
+
+**核心不变量**：
+- 语义细节由对应 owner 保存并发布，不存入 ETA / NL 本体
+- ETA 消费 compact semantic advisories，不成为语义状态第二 owner
+- 语义更新通过 typed proposal path，默认路径不使用关键词规则伪装理解
+
+---
+
 ### 7. 信用分配与自修改
 
 **对应需求**：R-PE（prediction error 为原始学习信号）、R9（层级信用分配）、R10（有门控的分层自修改）

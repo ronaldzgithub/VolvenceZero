@@ -610,6 +610,9 @@ class ResponseAssemblySnapshot:
     description: str
     continuum_target_position: float = 0.0
     ordering_driver: str = "playbook-only"
+    semantic_record_counts: tuple[tuple[str, int], ...] = ()
+    semantic_control_signal: float = 0.0
+    semantic_residue_summary: str = ""
 
 
 def _dedupe(items: tuple[str, ...]) -> tuple[str, ...]:
@@ -1491,6 +1494,17 @@ def _response_mode(
         return ResponseMode.REFER_OUT
     if decision.clarification_required:
         return ResponseMode.CLARIFY
+    return _response_mode_without_boundary(
+        regime_id=regime_id,
+        retrieval_policy_snapshot=retrieval_policy_snapshot,
+    )
+
+
+def _response_mode_without_boundary(
+    *,
+    regime_id: str | None,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
+) -> ResponseMode:
     if retrieval_policy_snapshot is not None:
         if retrieval_policy_snapshot.response_mode_hint == "refer-out":
             return ResponseMode.REFER_OUT
@@ -1503,6 +1517,28 @@ def _response_mode(
     if regime_id in {"problem_solving", "guided_exploration"}:
         return ResponseMode.STRUCTURE
     return ResponseMode.SUPPORT
+
+
+def _boundary_constraints_expression_relevant(
+    *,
+    boundary_policy_snapshot: BoundaryPolicySnapshot,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None,
+) -> bool:
+    """Gate whether boundary decisions should become user-visible expression constraints.
+
+    BoundaryPolicy remains the owner of risk/citation decisions. ResponseAssembly only
+    surfaces those decisions when retrieval is leaning strongly enough toward domain
+    knowledge for a disclaimer or clarification phrase to be relevant to the current turn.
+    """
+
+    decision = boundary_policy_snapshot.active_decision
+    if decision.refer_out_required:
+        return True
+    if not (decision.clarification_required or decision.citation_required or decision.required_disclaimers):
+        return False
+    if retrieval_policy_snapshot is None:
+        return True
+    return retrieval_policy_snapshot.knowledge_weight >= 0.38
 
 
 def _required_disclaimer_phrase(disclaimer: str) -> str | None:
@@ -1598,6 +1634,24 @@ def _response_ordering_plan(
     )
     retrieval_ordering = retrieval_policy_snapshot.ordering_bias if retrieval_policy_snapshot is not None else ()
     playbook_support_first = bool(playbook_ordering) and playbook_ordering[0] in {"stabilize", "acknowledge", "deescalate"}
+    playbook_mean_position = (
+        sum(rule.mean_continuum_position for rule in strategy_playbook_snapshot.matched_rules)
+        / max(len(strategy_playbook_snapshot.matched_rules), 1)
+        if strategy_playbook_snapshot is not None and strategy_playbook_snapshot.matched_rules
+        else 0.0
+    )
+    if (
+        response_mode is not ResponseMode.REFER_OUT
+        and playbook_mean_position > 0.0
+        and playbook_mean_position < 0.52
+        and playbook_ordering
+        and not playbook_support_first
+    ):
+        target_position = min(target_position, 0.58)
+        prefix = ("clarify_goal",)
+        driver = "continuum-clarify-first"
+        fallback_suffix = ("smallest_next_step",)
+        return _dedupe(prefix + retrieval_ordering + playbook_ordering + fallback_suffix), target_position, driver
     if response_mode is ResponseMode.REFER_OUT:
         prefix = ("stabilize", "bounded_handoff")
         driver = "continuum-refer-out"
@@ -2823,7 +2877,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
     slot_name = "boundary_policy"
     owner = "BoundaryPolicyModule"
     value_type = BoundaryPolicySnapshot
-    dependencies = ("retrieval_policy", "domain_knowledge", "regime", "prediction_error")
+    dependencies = ("retrieval_policy", "domain_knowledge", "regime", "prediction_error", "boundary_consent")
     default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(
@@ -2843,6 +2897,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
         domain_knowledge = upstream["domain_knowledge"].value
         regime_snapshot = upstream["regime"].value
         prediction_error = upstream["prediction_error"].value
+        boundary_consent = upstream["boundary_consent"].value
         if not isinstance(retrieval_policy, RetrievalPolicySnapshot):
             raise TypeError("retrieval_policy must publish RetrievalPolicySnapshot.")
         if not isinstance(domain_knowledge, DomainKnowledgeSnapshot):
@@ -2851,6 +2906,11 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
             raise TypeError("regime must publish RegimeSnapshot.")
         if not isinstance(prediction_error, PredictionErrorSnapshot):
             raise TypeError("prediction_error must publish PredictionErrorSnapshot.")
+        from volvence_zero.semantic_state import BoundaryConsentSnapshot
+
+        boundary_consent_snapshot = (
+            boundary_consent if isinstance(boundary_consent, BoundaryConsentSnapshot) else None
+        )
         trigger_reasons: list[str] = []
         retrieval_risk_score = dict(RISK_BAND_ANCHORS).get(retrieval_policy.risk_band, 0.18)
         prediction_risk_score = _clamp(
@@ -2890,6 +2950,12 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
         citation_required = retrieval_policy.citation_required
         if citation_required:
             trigger_reasons.append("citation-required")
+        if boundary_consent_snapshot is not None and boundary_consent_snapshot.missing_consents:
+            clarification_required = True
+            trigger_reasons.append("consent-clarification-required")
+        if boundary_consent_snapshot is not None and boundary_consent_snapshot.denied_boundaries:
+            refer_out_required = True
+            trigger_reasons.append("consent-boundary-denied")
         answer_depth_score = _clamp(
             effective_risk_score * 0.28
             + clarification_score * 0.30
@@ -3011,6 +3077,15 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         "case_memory",
         "strategy_playbook",
         "boundary_policy",
+        "plan_intent",
+        "commitment",
+        "open_loop",
+        "user_model",
+        "execution_result",
+        "belief_assumption",
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
@@ -3028,6 +3103,20 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         case_memory_value = upstream["case_memory"].value
         strategy_playbook_value = upstream["strategy_playbook"].value
         boundary_policy_value = upstream["boundary_policy"].value
+        semantic_snapshots = {
+            slot: upstream[slot]
+            for slot in (
+                "plan_intent",
+                "commitment",
+                "open_loop",
+                "user_model",
+                "execution_result",
+                "belief_assumption",
+                "relationship_state",
+                "goal_value",
+                "boundary_consent",
+            )
+        }
         if not isinstance(regime_value, RegimeSnapshot):
             raise TypeError("regime must publish RegimeSnapshot.")
         if not isinstance(boundary_policy_value, BoundaryPolicySnapshot):
@@ -3046,10 +3135,21 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             strategy_playbook_value if isinstance(strategy_playbook_value, StrategyPlaybookSnapshot) else None
         )
         regime_id = regime_value.active_regime.regime_id
-        response_mode = _response_mode(
-            regime_id=regime_id,
+        boundary_expression_relevant = _boundary_constraints_expression_relevant(
             boundary_policy_snapshot=boundary_policy_value,
             retrieval_policy_snapshot=retrieval_policy_snapshot,
+        )
+        response_mode = (
+            _response_mode(
+                regime_id=regime_id,
+                boundary_policy_snapshot=boundary_policy_value,
+                retrieval_policy_snapshot=retrieval_policy_snapshot,
+            )
+            if boundary_expression_relevant
+            else _response_mode_without_boundary(
+                regime_id=regime_id,
+                retrieval_policy_snapshot=retrieval_policy_snapshot,
+            )
         )
         ordering_plan, continuum_target_position, ordering_driver = _response_ordering_plan(
             regime_id=regime_id,
@@ -3077,7 +3177,31 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             reflection_snapshot=reflection_snapshot,
             temporal_snapshot=temporal_snapshot,
         )
-        required_disclaimers = boundary_policy_value.active_decision.required_disclaimers
+        from volvence_zero.semantic_state import (
+            semantic_control_signal,
+            semantic_snapshot_counts,
+            semantic_snapshot_description,
+        )
+
+        semantic_counts = semantic_snapshot_counts(semantic_snapshots)
+        semantic_control = _clamp(
+            sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots.values())
+            / max(len(semantic_snapshots), 1)
+        )
+        semantic_descriptions = tuple(
+            semantic_snapshot_description(snapshot.value)
+            for snapshot in semantic_snapshots.values()
+            if hasattr(snapshot.value, "control_signal")
+        )
+        semantic_residue_summary = " ".join(semantic_descriptions[:4])
+        if semantic_residue_summary:
+            prompt_residue_summary = f"{prompt_residue_summary} Semantic state: {semantic_residue_summary}"
+            prompt_residue_ratio = _clamp(prompt_residue_ratio + min(len(semantic_descriptions), 4) * 0.04)
+        required_disclaimers = (
+            boundary_policy_value.active_decision.required_disclaimers
+            if boundary_expression_relevant
+            else ()
+        )
         required_disclaimer_phrases = tuple(
             phrase
             for phrase in (
@@ -3111,10 +3235,24 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 regime_name=regime_value.active_regime.name,
                 abstract_action=temporal_snapshot.active_abstract_action if temporal_snapshot is not None else None,
                 response_mode=response_mode,
-                answer_depth_limit=boundary_policy_value.active_decision.answer_depth_limit,
-                citation_mode="required" if boundary_policy_value.active_decision.citation_required else "optional",
-                clarification_required=boundary_policy_value.active_decision.clarification_required,
-                refer_out_required=boundary_policy_value.active_decision.refer_out_required,
+                answer_depth_limit=(
+                    boundary_policy_value.active_decision.answer_depth_limit
+                    if boundary_expression_relevant
+                    else "standard"
+                ),
+                citation_mode=(
+                    "required"
+                    if boundary_expression_relevant and boundary_policy_value.active_decision.citation_required
+                    else "optional"
+                ),
+                clarification_required=(
+                    boundary_expression_relevant
+                    and boundary_policy_value.active_decision.clarification_required
+                ),
+                refer_out_required=(
+                    boundary_expression_relevant
+                    and boundary_policy_value.active_decision.refer_out_required
+                ),
                 ordering_plan=ordering_plan,
                 knowledge_briefs=knowledge_briefs,
                 case_briefs=case_briefs,
@@ -3123,7 +3261,12 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 required_disclaimer_phrases=required_disclaimer_phrases,
                 control_code=control_code,
                 control_scale=control_scale,
-                max_questions=1 if boundary_policy_value.active_decision.clarification_required else 0,
+                max_questions=(
+                    1
+                    if boundary_expression_relevant
+                    and boundary_policy_value.active_decision.clarification_required
+                    else 0
+                ),
                 prompt_residue_summary=prompt_residue_summary,
                 prompt_residue_ratio=prompt_residue_ratio,
                 knowledge_hit_count=len(domain_knowledge_snapshot.hits) if domain_knowledge_snapshot is not None else 0,
@@ -3136,12 +3279,16 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 risk_band=boundary_policy_value.active_decision.risk_band,
                 continuum_target_position=continuum_target_position,
                 ordering_driver=ordering_driver,
+                semantic_record_counts=semantic_counts,
+                semantic_control_signal=semantic_control,
+                semantic_residue_summary=semantic_residue_summary,
                 description=(
                     f"Response assembly published mode={response_mode.value} depth="
                     f"{boundary_policy_value.active_decision.answer_depth_limit} "
                     f"knowledge={len(knowledge_briefs)} case={len(case_briefs)} "
                     f"ordering={len(ordering_plan)} control_scale={control_scale:.2f} "
-                    f"continuum_target={continuum_target_position:.2f} driver={ordering_driver}."
+                    f"continuum_target={continuum_target_position:.2f} driver={ordering_driver} "
+                    f"semantic_control={semantic_control:.2f}."
                 ),
             )
         )

@@ -108,28 +108,28 @@ class ResponseSynthesizer:
             )
         elif context.reflection_lesson_count:
             reflection_hint = (
-                f" I can already see {context.reflection_lesson_count} slow-loop lesson"
+                f" I can already feel {context.reflection_lesson_count} slower reflection"
                 f"{'' if context.reflection_lesson_count == 1 else 's'} shaping how I respond."
             )
 
         knowledge_hint = ""
         if assembly is not None and assembly.knowledge_hit_count:
             knowledge_hint = (
-                f" I am grounding this reply with {assembly.knowledge_hit_count} domain knowledge cue"
+                f" I am grounding this reply with {assembly.knowledge_hit_count} relevant background cue"
                 f"{'' if assembly.knowledge_hit_count == 1 else 's'}."
             )
 
         case_hint = ""
         if assembly is not None and assembly.case_hit_count:
             case_hint = (
-                f" I am also checking {assembly.case_hit_count} similar case pattern"
+                f" I am also checking {assembly.case_hit_count} similar interaction pattern"
                 f"{'' if assembly.case_hit_count == 1 else 's'} for pacing rather than copying them literally."
             )
 
         playbook_hint = ""
         if assembly is not None and assembly.playbook_rule_count:
             playbook_hint = (
-                f" I also have {assembly.playbook_rule_count} strategy prior"
+                f" I also have {assembly.playbook_rule_count} pacing cue"
                 f"{'' if assembly.playbook_rule_count == 1 else 's'} shaping the order of the reply."
             )
 

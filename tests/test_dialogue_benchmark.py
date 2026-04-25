@@ -647,6 +647,7 @@ def test_dialogue_benchmark_exposes_default_open_dialogue_scenarios():
         "open_clarification",
     )
     assert any(scenario.split == "open_heldout" for scenario in scenarios)
+    assert get_open_dialogue_scenario("intelligence_demo").family_id == "introspective_chat"
 
 
 def test_dialogue_benchmark_exposes_default_open_ablation_profiles():

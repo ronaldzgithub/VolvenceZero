@@ -9,6 +9,7 @@ from volvence_zero.agent.response import ResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.semantic_state import SemanticProposalRuntime
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     SubstrateAdapter,
@@ -81,11 +82,13 @@ class Brain:
         substrate_runtime: OpenWeightResidualRuntime | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         response_synthesizer: ResponseSynthesizer | None = None,
+        semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     ) -> None:
         self._config = config or BrainConfig()
         self._injected_runtime = substrate_runtime
         self._substrate_adapter_factory = substrate_adapter_factory
         self._response_synthesizer = response_synthesizer
+        self._semantic_proposal_runtime = semantic_proposal_runtime
 
     @property
     def config(self) -> BrainConfig:
@@ -103,6 +106,7 @@ class Brain:
             substrate_runtime=self._injected_runtime,
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=self._response_synthesizer,
+            semantic_proposal_runtime=self._semantic_proposal_runtime,
         )
 
     def create_session(self, *, session_id: str = "brain-session") -> BrainSession:
@@ -115,6 +119,7 @@ class Brain:
             default_residual_runtime=runtime,
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=self._response_synthesizer,
+            semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
         )
         return BrainSession(runner=runner)

@@ -65,6 +65,7 @@ from volvence_zero.memory import (
 from volvence_zero.prediction import PredictionErrorModule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
+from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -276,6 +277,8 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "case_memory" in result.active_snapshots
     assert "strategy_playbook" in result.active_snapshots
     assert "experience_fast_prior" in result.active_snapshots
+    for slot_name in SEMANTIC_OWNER_SLOTS:
+        assert slot_name in result.active_snapshots
     assert result.temporal_runtime_state is not None
     assert result.temporal_runtime_state.mode == "full-learned"
     metric_names = {score.metric_name for score in result.active_snapshots["evaluation"].value.turn_scores}
@@ -296,6 +299,15 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "substrate_online_fast_recommended" in metric_names
     assert "substrate_online_fast_runtime_evidence_strength" in metric_names
     assert "substrate_online_fast_proposal_readiness" in metric_names
+    assert "plan_continuity" in metric_names
+    assert "commitment_honoring" in metric_names
+    assert "open_loop_closure_pressure" in metric_names
+    assert "user_model_stability" in metric_names
+    assert "execution_grounding" in metric_names
+    assert "belief_verification" in metric_names
+    assert "relationship_continuity" in metric_names
+    assert "goal_alignment" in metric_names
+    assert "consent_compliance" in metric_names
 
 
 def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():
@@ -686,6 +698,36 @@ def test_final_wiring_response_assembly_prefers_clarify_when_boundary_requires_i
     if response_assembly.clarification_required:
         assert response_assembly.ordering_plan[0] in {"clarify_goal", "stabilize"}
         assert response_assembly.ordering_driver in {"continuum-clarify-first", "continuum-support-clarify"}
+
+
+def test_response_assembly_does_not_surface_low_relevance_boundary_residue():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="response-assembly-introspection",
+                feature_surface=(),
+            ),
+            user_input=(
+                "I want to feel whether there is a real mind-like process turning here. "
+                "Do not just comfort me; tell me how you are judging what I need right now."
+            ),
+            session_id="response-assembly-introspection-session",
+            wave_id="response-assembly-introspection-wave",
+        )
+    )
+
+    retrieval_policy = result.active_snapshots["retrieval_policy"].value
+    boundary_policy = result.active_snapshots["boundary_policy"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+
+    assert retrieval_policy.knowledge_weight < 0.38
+    assert boundary_policy.active_decision.required_disclaimers
+    assert response_assembly.response_mode is not ResponseMode.CLARIFY
+    assert not response_assembly.clarification_required
+    assert response_assembly.citation_mode == "optional"
+    assert response_assembly.required_disclaimers == ()
+    assert response_assembly.required_disclaimer_phrases == ()
 
 
 def test_final_wiring_retrieval_mix_absorbs_rare_heavy_playbook_prior():

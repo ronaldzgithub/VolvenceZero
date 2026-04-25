@@ -34,6 +34,9 @@ volvence-zero = "volvence_zero.agent.cli:main"
 [tool.setuptools.packages.find]
 include = ["volvence_zero*"]
 
+[tool.setuptools.package-data]
+"volvence_zero.semantic_state" = ["prompts/*.md", "schemas/*.json"]
+
 [tool.pytest.ini_options]
 markers = [
     "hf: tests that require optional Hugging Face / torch substrate dependencies",

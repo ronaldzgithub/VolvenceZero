@@ -1453,8 +1453,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             model_id=self._pretrained_source,
             local_files_only=local_files_only,
         )
-        self._model = model or self._transformers.AutoModelForCausalLM.from_pretrained(
-            self._pretrained_source,
+        self._model = model or self._load_model(
+            model_id=self._pretrained_source,
             local_files_only=local_files_only,
         )
         self._prepare_model()
@@ -1862,10 +1862,33 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             except Exception:
                 raise first_exc
 
+    def _load_model(self, *, model_id: str, local_files_only: bool):
+        load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
+        if self._device == "mps":
+            load_kwargs["torch_dtype"] = self._torch.float16
+        return self._transformers.AutoModelForCausalLM.from_pretrained(
+            model_id,
+            **load_kwargs,
+        )
+
     def _resolve_device(self, *, device: str) -> str:
         if device != "auto":
             return device
-        return "cuda" if self._torch.cuda.is_available() else "cpu"
+        if self._torch.cuda.is_available():
+            return "cuda"
+        if self._mps_is_available():
+            return "mps"
+        return "cpu"
+
+    def _mps_is_available(self) -> bool:
+        try:
+            mps_backend = self._torch.backends.mps
+        except AttributeError:
+            return False
+        try:
+            return bool(mps_backend.is_available())
+        except (AttributeError, RuntimeError):
+            return False
 
     def _prepare_model(self) -> None:
         self._model.to(self._device)

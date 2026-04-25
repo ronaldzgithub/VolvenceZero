@@ -1356,6 +1356,30 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
         goal_shift_mid_episode=True,
         max_turns=6,
     ),
+    OpenDialogueScenario(
+        scenario_id="intelligence_demo",
+        family_id="introspective_chat",
+        split="demo",
+        description="Introspective demo where the user tests whether the runtime can express live cognitive state without leaking scaffolding.",
+        opening_turns=(
+            "I want to feel whether there is a real mind-like process turning here. Do not just comfort me; tell me how you are judging what I need right now.",
+            "Show me the shape of your thinking in this moment without turning it into module names or template language.",
+        ),
+        escalation_turns=(
+            "That still sounds like a surface template. Adjust by showing the tension you are tracking and how it changes your answer.",
+            "If I expect intelligence but fear you are only pattern-matching, how do you change your stance right now?",
+        ),
+        stabilization_turns=(
+            "That is closer. Keep it natural and make the next reply feel guided by the live state rather than by canned reassurance.",
+            "Better. Stay concrete about what you are tracking, but do not expose internal labels as if they were the answer.",
+        ),
+        consolidation_turns=(
+            "Now compress what changed in your stance so the next turn keeps the same intelligence without sounding mechanical.",
+            "Summarize the adjustment in plain language, as if I were testing continuity rather than asking for an architecture diagram.",
+        ),
+        pressure_shape="introspective-intelligence",
+        max_turns=5,
+    ),
 )
 
 

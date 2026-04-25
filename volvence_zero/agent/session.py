@@ -97,6 +97,11 @@ from volvence_zero.prediction.error import (
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
+from volvence_zero.semantic_state import (
+    NoOpSemanticProposalRuntime,
+    SemanticProposalRuntime,
+    SemanticStateStore,
+)
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
     LocalSubstrateRuntimeMode,
@@ -489,6 +494,7 @@ class AgentSessionRunner:
         application_persistence_dir: str | None = None,
         credit_proposals: tuple[ModificationProposal, ...] = (),
         response_synthesizer: ResponseSynthesizer | None = None,
+        semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         default_residual_runtime: OpenWeightResidualRuntime | None = None,
         substrate_model_id: str = "distilgpt2",
@@ -572,6 +578,8 @@ class AgentSessionRunner:
         world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
         default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
+        self._semantic_state_store = SemanticStateStore()
+        self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -1157,6 +1165,7 @@ class AgentSessionRunner:
             retrieval_family_bias=retrieval_family_bias,
             retrieval_knowledge_weight_bias=retrieval_knowledge_weight_bias,
             retrieval_experience_weight_bias=retrieval_experience_weight_bias,
+            semantic_state_descriptions=request.semantic_state_descriptions,
         )
         self._last_session_post_writeback_request = None
         return job
@@ -1419,7 +1428,8 @@ class AgentSessionRunner:
                 f"applied={bool(writeback_result is not None and writeback_result.applied_operations)} "
                 f"blocked={bool(writeback_result is not None and writeback_result.blocked_operations)} "
                 f"application_promotion={'allow' if application_apply_enabled else 'blocked'} "
-                f"experience_quality={mean_experience_quality:.2f}."
+                f"experience_quality={mean_experience_quality:.2f} "
+                f"semantic_state={len(job.semantic_state_descriptions)}."
             ),
             experience_deltas=experience_deltas,
             delayed_outcome_ledger=delayed_outcome_ledger,
@@ -1432,6 +1442,7 @@ class AgentSessionRunner:
             continuum_profile_id=job.continuum_profile_id,
             case_band_ids=job.case_band_ids,
             playbook_band_ids=job.playbook_band_ids,
+            semantic_state_descriptions=job.semantic_state_descriptions,
         )
 
     def _publish_session_post_snapshot(
@@ -1678,6 +1689,8 @@ class AgentSessionRunner:
                 domain_knowledge_store=self._domain_knowledge_store,
                 case_memory_store=self._case_memory_store,
                 memory_store=self._memory_store,
+                semantic_state_store=self._semantic_state_store,
+                semantic_proposal_runtime=self._semantic_proposal_runtime,
                 evaluation_backbone=self._evaluation_backbone,
                 prior_session_reports=self.completed_session_reports,
                 upstream_snapshots=self._upstream_snapshots,
@@ -1690,6 +1703,7 @@ class AgentSessionRunner:
                 regime_module=self._regime_module,
                 session_id=context_session_id,
                 wave_id=wave_id,
+                turn_index=self._turn_index,
                 apply_slow_writeback=False,
                 substrate_self_mod_pe_magnitude=self._previous_prediction_magnitude,
                 substrate_self_mod_pe_reward=self._previous_prediction_reward,

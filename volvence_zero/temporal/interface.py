@@ -13,6 +13,7 @@ from volvence_zero.memory import MemorySnapshot, Track
 from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS, semantic_control_signal
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 from volvence_zero.temporal.metacontroller_components import (
     ActionFamilyObservation,
@@ -2779,7 +2780,7 @@ def build_temporal_runtime_state_aggregate(
 
 class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     value_type = TemporalAbstractionSnapshot
-    dependencies = ("substrate", "memory", "experience_fast_prior")
+    dependencies = ("substrate", "memory", "experience_fast_prior", *SEMANTIC_OWNER_SLOTS)
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -2814,6 +2815,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         substrate_snapshot = upstream["substrate"]
         memory_snapshot = upstream["memory"]
         experience_fast_prior_snapshot = upstream["experience_fast_prior"]
+        semantic_snapshots = tuple(upstream[slot] for slot in SEMANTIC_OWNER_SLOTS)
+        semantic_pressure = _clamp(
+            sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots)
+            / max(len(semantic_snapshots), 1)
+        )
         substrate_value = substrate_snapshot.value
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         reflection_value = self._policy.cached_reflection_snapshot()
@@ -2850,9 +2856,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             controller_state=step.controller_state,
             active_abstract_action=step.active_abstract_action,
             controller_params_hash=step.controller_params_hash,
-            description=f"{self._track.value}-track {step.description}",
+            description=(
+                f"{self._track.value}-track {step.description} "
+                f"Semantic owner advisories consumed with pressure={semantic_pressure:.2f}."
+            ),
             action_family_version=step.action_family_version,
-            memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            memory_feedback_signal=(
+                self._policy.latest_encoder_output_for_cms or ()
+            ) + ((semantic_pressure,) if semantic_pressure > 0.0 else ()),
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)

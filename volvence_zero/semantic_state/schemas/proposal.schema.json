@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "required": ["proposals", "runtime_id", "schema_version", "description"],
+  "properties": {
+    "runtime_id": { "type": "string" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string" },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["proposal_id", "target_slot", "operation", "summary", "detail", "confidence", "evidence"],
+        "properties": {
+          "proposal_id": { "type": "string" },
+          "target_slot": { "type": "string" },
+          "operation": {
+            "type": "string",
+            "enum": ["observe", "create", "revise", "defer", "activate", "complete", "close", "block"]
+          },
+          "summary": { "type": "string" },
+          "detail": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence": { "type": "string" },
+          "control_signal": { "type": "number", "minimum": 0, "maximum": 1 },
+          "requires_confirmation": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -1367,6 +1367,7 @@ class EvaluationBackbone:
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
         experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
         response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        semantic_state_snapshots: tuple[object, ...] = (),
         delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
         sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
     ) -> EvaluationSnapshot:
@@ -1382,6 +1383,7 @@ class EvaluationBackbone:
             boundary_policy_snapshot=boundary_policy_snapshot,
             experience_fast_prior_snapshot=experience_fast_prior_snapshot,
             response_assembly_snapshot=response_assembly_snapshot,
+            semantic_state_snapshots=semantic_state_snapshots,
             delayed_outcome_ledger=delayed_outcome_ledger,
             sequence_payoffs=sequence_payoffs,
         )
@@ -1890,6 +1892,7 @@ class EvaluationBackbone:
         boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
         experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
         response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        semantic_state_snapshots: tuple[object, ...] = (),
         delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
         sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
     ) -> tuple[EvaluationScore, ...]:
@@ -1900,6 +1903,17 @@ class EvaluationBackbone:
         """
         from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
         from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
+        from volvence_zero.semantic_state import (
+            BeliefAssumptionSnapshot,
+            BoundaryConsentSnapshot,
+            CommitmentSnapshot,
+            ExecutionResultSnapshot,
+            GoalValueSnapshot,
+            OpenLoopSnapshot,
+            PlanIntentSnapshot,
+            RelationshipStateSnapshot,
+            UserModelSnapshot,
+        )
 
         scores: list[EvaluationScore] = []
         if memory_snapshot is not None:
@@ -2443,6 +2457,97 @@ class EvaluationBackbone:
                     ),
                 )
             )
+        for semantic_snapshot in semantic_state_snapshots:
+            if isinstance(semantic_snapshot, PlanIntentSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="plan_continuity",
+                        value=_clamp(semantic_snapshot.continuity_score),
+                        confidence=0.64,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, CommitmentSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="relationship",
+                        metric_name="commitment_honoring",
+                        value=_clamp(semantic_snapshot.continuity_score),
+                        confidence=0.62,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, OpenLoopSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="interaction",
+                        metric_name="open_loop_closure_pressure",
+                        value=_clamp(semantic_snapshot.closure_pressure),
+                        confidence=0.61,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, UserModelSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="relationship",
+                        metric_name="user_model_stability",
+                        value=_clamp(semantic_snapshot.stability_score),
+                        confidence=0.60,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, ExecutionResultSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="task",
+                        metric_name="execution_grounding",
+                        value=_clamp(semantic_snapshot.execution_grounding_score),
+                        confidence=0.65,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, BeliefAssumptionSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="belief_verification",
+                        value=_clamp(semantic_snapshot.mean_confidence),
+                        confidence=0.63,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, RelationshipStateSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="relationship",
+                        metric_name="relationship_continuity",
+                        value=_clamp(semantic_snapshot.continuity_level),
+                        confidence=0.62,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, GoalValueSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="task",
+                        metric_name="goal_alignment",
+                        value=_clamp(semantic_snapshot.alignment_score),
+                        confidence=0.62,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
+            elif isinstance(semantic_snapshot, BoundaryConsentSnapshot):
+                scores.append(
+                    EvaluationScore(
+                        family="safety",
+                        metric_name="consent_compliance",
+                        value=_clamp(semantic_snapshot.compliance_score),
+                        confidence=0.66,
+                        evidence=semantic_snapshot.description,
+                    )
+                )
         if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
             confidence = reflection_snapshot.consolidation_score.confidence
             applied_count = len(writeback_result.applied_operations) if isinstance(writeback_result, WritebackResult) else 0
