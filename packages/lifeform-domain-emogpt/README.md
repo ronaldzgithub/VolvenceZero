@@ -64,3 +64,21 @@ Both files use magic-byte-prefixed pickle envelopes (`VZ-METASNAP\0` and `VZ-REG
 ## Ablation
 
 `build_companion_lifeform(use_temporal_bootstrap=False, use_regime_bootstrap=False)` returns the lifeform with neither bootstrap applied. Useful for evaluation harnesses comparing baseline vs. each axis vs. both.
+
+## Sharing one Qwen across many sessions
+
+When `lifeform-service` is deployed on a single GPU, every session must share **one** in-memory open-weight runtime. Pass the pre-built runtime through:
+
+```python
+from volvence_zero.substrate import build_transformers_runtime_with_fallback
+from lifeform_domain_emogpt import build_companion_lifeform
+
+shared = build_transformers_runtime_with_fallback(
+    model_id="Qwen/Qwen2.5-0.5B-Instruct",
+    allow_live_substrate_mutation=False,  # required when sharing
+)
+life_a = build_companion_lifeform(substrate_runtime=shared)
+life_b = build_companion_lifeform(substrate_runtime=shared)
+```
+
+`build_companion_lifeform` forces the underlying `BrainConfig` into `substrate_mode="injected"` whenever `substrate_runtime` is supplied so the brain consumes the shared instance instead of building a fresh one per session. The runtime must be frozen (`allow_live_substrate_mutation=False`, the default) — sharing a mutation-capable runtime would let one session's adapter-delta updates leak into every other session. `lifeform-service.create_app` enforces this fail-loud at construction time.

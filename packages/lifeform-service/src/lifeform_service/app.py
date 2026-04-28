@@ -17,15 +17,27 @@ JSON contract:
     * 404 Not Found \u2014 unknown ``session_id``
     * 409 Conflict \u2014 ``session_id`` collision on explicit create
     * 500 Internal Server Error \u2014 kernel exception (logged, not leaked)
+
+Substrate sharing: ``create_app(substrate_runtime=...)`` accepts a
+single pre-built runtime that is shared across every session this
+service hosts. The runtime is checked at construction time for the
+"frozen substrate" invariant (R2): if its
+``supports_live_substrate_mutation`` flag is True, ``create_app``
+raises rather than silently letting one session's adapter-delta updates
+corrupt every other session's weights. Sharing is the default deployment
+mode for one-GPU, multi-tenant servers.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
+
+if TYPE_CHECKING:
+    from volvence_zero.substrate import OpenWeightResidualRuntime
 
 from lifeform_service.dto import (
     CreateSessionResponse,
@@ -57,16 +69,36 @@ def create_app(
     vertical: VerticalSpec,
     max_sessions: int = 256,
     idle_eviction_seconds: float | None = 60 * 30,
+    substrate_runtime: "OpenWeightResidualRuntime | None" = None,
 ) -> web.Application:
+    """Build the aiohttp Application that fronts a single vertical.
+
+    Args:
+        vertical: which vertical (and its factory) this service hosts.
+        max_sessions: cap on concurrently live sessions before LRU
+            eviction.
+        idle_eviction_seconds: auto-close sessions idle longer than this;
+            ``None`` disables idle eviction.
+        substrate_runtime: pre-built runtime shared across every session.
+            If ``None`` the vertical's factory builds a fresh runtime per
+            session (synthetic mode \u2014 fine for tests, wasteful for HF).
+            When supplied, the runtime MUST be frozen
+            (``supports_live_substrate_mutation == False``) \u2014 otherwise
+            this constructor raises ``ValueError``.
+    """
+    if substrate_runtime is not None:
+        _enforce_frozen_for_sharing(substrate_runtime)
     manager = SessionManager(
         lifeform_factory=vertical.factory,
         vertical_name=vertical.name,
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
+        substrate_runtime=substrate_runtime,
     )
     app = web.Application(middlewares=[_error_middleware])
     app["session_manager"] = manager
     app["vertical_spec"] = vertical
+    app["substrate_runtime"] = substrate_runtime
     app.router.add_get("/v1/health", _handle_health)
     app.router.add_get("/v1/info", _handle_info)
     app.router.add_post("/v1/sessions", _handle_create_session)
@@ -75,6 +107,24 @@ def create_app(
     app.router.add_post("/v1/sessions/{session_id}/turns", _handle_turn)
     app.router.add_post("/v1/sessions/{session_id}/end-scene", _handle_end_scene)
     return app
+
+
+def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
+    """R2 invariant: a shared runtime must NOT permit live mutation.
+
+    Per-session adapter deltas would corrupt every other session's
+    weights when the underlying ``_model`` is the same Python object.
+    If a deployment legitimately needs per-session adapters, the path
+    is to refactor that mutable state out of the runtime and into the
+    per-session ``SubstrateAdapter`` \u2014 not to flip this flag.
+    """
+    if getattr(runtime, "supports_live_substrate_mutation", False):
+        raise ValueError(
+            "Cannot share a runtime that has supports_live_substrate_mutation=True "
+            "across sessions: per-session adapter-delta updates would corrupt other "
+            "sessions' weights. Build the runtime with "
+            "allow_live_substrate_mutation=False (the default) when sharing."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -129,12 +179,16 @@ async def _handle_health(request: web.Request) -> web.Response:
 
 async def _handle_info(request: web.Request) -> web.Response:
     spec: VerticalSpec = request.app["vertical_spec"]
+    runtime = request.app.get("substrate_runtime")
     body = ServiceInfoResponse(
         vertical=spec.name,
         has_temporal_bootstrap=spec.has_temporal_bootstrap,
         has_regime_bootstrap=spec.has_regime_bootstrap,
         bootstraps_dir=spec.bootstraps_dir,
         scenarios_dir=spec.scenarios_dir,
+        substrate_shared=runtime is not None,
+        substrate_model_id=getattr(runtime, "model_id", None),
+        substrate_runtime_origin=getattr(runtime, "runtime_origin", None),
     )
     return _json_ok(body.to_json())
 

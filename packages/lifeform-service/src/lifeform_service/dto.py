@@ -138,6 +138,9 @@ class ServiceInfoResponse:
     has_regime_bootstrap: bool
     bootstraps_dir: str | None
     scenarios_dir: str | None
+    substrate_shared: bool
+    substrate_model_id: str | None
+    substrate_runtime_origin: str | None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -146,6 +149,9 @@ class ServiceInfoResponse:
             "has_regime_bootstrap": self.has_regime_bootstrap,
             "bootstraps_dir": self.bootstraps_dir,
             "scenarios_dir": self.scenarios_dir,
+            "substrate_shared": self.substrate_shared,
+            "substrate_model_id": self.substrate_model_id,
+            "substrate_runtime_origin": self.substrate_runtime_origin,
         }
 
 

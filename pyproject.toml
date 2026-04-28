@@ -69,6 +69,10 @@ testpaths = ["tests"]
 markers = [
     "hf: tests that require optional Hugging Face / torch substrate dependencies",
 ]
+# pytest-asyncio in auto mode lets ``async def test_...`` functions and
+# ``async`` fixtures (e.g. lifeform-service's aiohttp test client) work
+# without per-test ``@pytest.mark.asyncio`` boilerplate.
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 120

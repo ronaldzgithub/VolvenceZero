@@ -9,9 +9,11 @@ are added (``lifeform-domain-coding``, ``lifeform-domain-customer-service``,
 A vertical entry is a small dataclass with:
 
 * ``name`` \u2014 stable string identifier shipped in API responses.
-* ``factory`` \u2014 zero-arg callable returning a ``Lifeform``. Both axes'
-  bootstraps are pre-wired through the vertical's own factory; the
-  service does not assemble bootstraps itself.
+* ``factory`` \u2014 callable that takes an optional shared
+  ``OpenWeightResidualRuntime`` and returns a ``Lifeform``. The service
+  builds the runtime exactly once at startup and passes the same instance
+  to every ``factory()`` call so all sessions share one model on one GPU.
+  Pass ``None`` for the synthetic / per-session-runtime fallback.
 * ``has_temporal_bootstrap`` / ``has_regime_bootstrap`` \u2014 advertised
   capability flags so ``GET /v1/info`` can tell the client whether the
   vertical ships pre-trained calibration.
@@ -29,14 +31,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform
+
+if TYPE_CHECKING:
+    from volvence_zero.substrate import OpenWeightResidualRuntime
+
+
+VerticalFactory = Callable[["OpenWeightResidualRuntime | None"], Lifeform]
 
 
 @dataclass(frozen=True)
 class VerticalSpec:
     name: str
-    factory: Callable[[], Lifeform]
+    factory: VerticalFactory
     has_temporal_bootstrap: bool
     has_regime_bootstrap: bool
     bootstraps_dir: str | None = None
@@ -56,7 +65,7 @@ def _try_companion() -> VerticalSpec | None:
     sdir = scenarios_dir()
     return VerticalSpec(
         name="companion",
-        factory=build_companion_lifeform,
+        factory=lambda runtime: build_companion_lifeform(substrate_runtime=runtime),
         has_temporal_bootstrap=(bdir / "companion-temporal.snap").is_file(),
         has_regime_bootstrap=(bdir / "companion-regime.bs").is_file(),
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
@@ -76,8 +85,10 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         return None
     return VerticalSpec(
         name="companion-cold",
-        factory=lambda: build_companion_lifeform(
-            use_temporal_bootstrap=False, use_regime_bootstrap=False
+        factory=lambda runtime: build_companion_lifeform(
+            use_temporal_bootstrap=False,
+            use_regime_bootstrap=False,
+            substrate_runtime=runtime,
         ),
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,

@@ -5,6 +5,13 @@ Hard rule: each ``session_id`` maps to exactly one in-process
 single-owner contract requires this), so a single-process service can
 host as many concurrent users as memory allows.
 
+Substrate sharing: the manager is given a ``substrate_runtime`` (or
+``None`` for synthetic / per-session-runtime mode) and passes that same
+instance to every ``lifeform_factory(runtime)`` call. So one
+``TransformersOpenWeightResidualRuntime`` in memory backs every
+session's Brain. This is the "one Qwen on one GPU, many concurrent
+chats" deployment model.
+
 Eviction:
 
 * ``max_sessions`` caps the total live session count. When a new
@@ -14,9 +21,11 @@ Eviction:
   session that has been idle longer than the threshold is closed.
 
 Thread / async safety: all methods are ``async`` and hold an internal
-``asyncio.Lock`` while mutating ``_sessions``. No process-level locking
-\u2014 deploy multi-process via uvicorn workers / supervisord, NOT via
-inside-process threads sharing this manager.
+``asyncio.Lock`` while mutating ``_sessions``. The substrate runtime
+itself is consumed under the asyncio event loop's single-thread
+guarantee \u2014 ``runtime.generate(...)`` is sync and blocks the loop, so
+concurrent sessions naturally serialise. Do NOT run ``run_in_executor``
+on the runtime without re-introducing a ``threading.Lock`` here.
 """
 
 from __future__ import annotations
@@ -26,8 +35,12 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform, LifeformSession
+
+if TYPE_CHECKING:
+    from volvence_zero.substrate import OpenWeightResidualRuntime
 
 
 @dataclass
@@ -42,19 +55,25 @@ class SessionManager:
     def __init__(
         self,
         *,
-        lifeform_factory: Callable[[], Lifeform],
+        lifeform_factory: Callable[["OpenWeightResidualRuntime | None"], Lifeform],
         vertical_name: str,
         max_sessions: int = 256,
         idle_eviction_seconds: float | None = 60 * 30,
         clock: Callable[[], float] = time.monotonic,
+        substrate_runtime: "OpenWeightResidualRuntime | None" = None,
     ) -> None:
         self._factory = lifeform_factory
         self._vertical_name = vertical_name
         self._max_sessions = max_sessions
         self._idle_eviction_seconds = idle_eviction_seconds
         self._clock = clock
+        self._substrate_runtime = substrate_runtime
         self._sessions: dict[str, _SessionEntry] = {}
         self._lock = asyncio.Lock()
+
+    @property
+    def substrate_runtime(self) -> "OpenWeightResidualRuntime | None":
+        return self._substrate_runtime
 
     @property
     def vertical_name(self) -> str:
@@ -79,7 +98,7 @@ class SessionManager:
             sid = session_id or self._fresh_session_id()
             if sid in self._sessions:
                 raise SessionAlreadyExistsError(sid)
-            life = self._factory()
+            life = self._factory(self._substrate_runtime)
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,

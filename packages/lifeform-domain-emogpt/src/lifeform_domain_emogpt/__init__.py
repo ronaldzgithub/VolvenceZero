@@ -139,13 +139,18 @@ def build_companion_lifeform(
     config: object | None = None,
     use_temporal_bootstrap: bool = True,
     use_regime_bootstrap: bool = True,
+    substrate_runtime: Any = None,
 ) -> Any:
     """Build a Lifeform with the companion vertical fully wired in.
 
     Steps:
 
     1. Construct a ``LifeformConfig`` (default if not provided) with
-       rare-heavy disabled for deterministic behaviour.
+       rare-heavy disabled for deterministic behaviour. If
+       ``substrate_runtime`` is supplied the brain config is forced into
+       ``substrate_mode="injected"`` so the brain consumes the supplied
+       runtime rather than building a fresh one per session \u2014 this is
+       the multi-session-shares-one-Qwen path.
     2. Apply this vertical's ``DomainExperiencePackage`` so the kernel
        ships with companion knowledge / cases / playbook / boundary
        priors.
@@ -157,19 +162,36 @@ def build_companion_lifeform(
     Returns a ``lifeform_core.Lifeform`` instance ready for
     ``create_session``.
 
-    The flags exist so a product can opt into bootstrap-free behaviour
-    (for ablation runs / clean baselines / when scenarios drift from
-    what the bootstraps were trained on).
+    Args:
+        config: optional ``LifeformConfig`` override.
+        use_temporal_bootstrap: load the vertical's pre-trained
+            metacontroller snapshot. Set False for ablation runs.
+        use_regime_bootstrap: load the vertical's pre-trained regime
+            selection-weights bootstrap. Set False for ablation runs.
+        substrate_runtime: optional pre-built ``OpenWeightResidualRuntime``.
+            When supplied, the resulting ``Lifeform``'s sessions all share
+            this one runtime instance. Required for multi-tenant services
+            on a single GPU \u2014 otherwise every session would load Qwen
+            weights independently. The runtime MUST have
+            ``allow_live_substrate_mutation=False`` (the default) so
+            sharing does not corrupt one session's weights from another's
+            updates; this is enforced fail-loud at the service layer.
     """
     from dataclasses import replace as _replace
     from lifeform_core import Lifeform, LifeformConfig
 
     base_config = config if isinstance(config, LifeformConfig) else LifeformConfig()
+    brain_overrides: dict[str, Any] = {"rare_heavy_enabled": False}
+    if substrate_runtime is not None:
+        # Force the brain config into ``injected`` mode so the supplied
+        # runtime is used as-is rather than being treated as a synthetic
+        # fallback (in synthetic mode the injected runtime is used too,
+        # but injected mode makes the intent explicit and would also
+        # raise loudly if substrate_runtime is somehow None elsewhere).
+        brain_overrides["substrate_mode"] = "injected"
     base_config = _replace(
         base_config,
-        brain_config=_replace(
-            base_config.brain_config, rare_heavy_enabled=False
-        ),
+        brain_config=_replace(base_config.brain_config, **brain_overrides),
     )
     base_config = base_config.with_domain_experience(
         (build_companion_package(),)
@@ -186,6 +208,7 @@ def build_companion_lifeform(
         base_config,
         temporal_bootstrap=temporal_bootstrap,
         regime_bootstrap=regime_bootstrap,
+        substrate_runtime=substrate_runtime,
     )
 
 
