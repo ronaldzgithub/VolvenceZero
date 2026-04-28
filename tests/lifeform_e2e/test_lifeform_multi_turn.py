@@ -253,6 +253,63 @@ def test_prompt_planner_picks_support_first_for_emotional_support_regime():
     assert SectionId.NEXT_STEP in plan.sections
 
 
+def test_prompt_planner_acknowledges_vitals_pressure_in_continuity_note_and_tags():
+    """When the lifeform's slow-scale PE is high (drives out-of-band) the
+    planner adds a ``CONTINUITY_NOTE`` section and a ``vitals_pressure`` tag
+    so the response can acknowledge the elapsed silence rather than acting
+    as if no time has passed.
+    """
+    from lifeform_core import DriveLevel, VitalsSnapshot
+    from volvence_zero.agent.response import ResponseContext
+
+    planner = PromptPlanner()
+    context = ResponseContext(
+        regime_id="problem_solving",
+        regime_name="problem_solving",
+        regime_switched=False,
+        abstract_action=None,
+        alert_count=0,
+        temporal_switch_gate=0.5,
+        temporal_is_switching=False,
+        reflection_lesson_count=0,
+        reflection_tension_count=0,
+        reflection_writeback_applied=False,
+        primary_reflection_lesson=None,
+        primary_reflection_tension=None,
+        joint_schedule_action="ssl-only",
+        user_input="quick question",
+    )
+    vitals = VitalsSnapshot(
+        tick_index=120,
+        drive_levels=(
+            DriveLevel(
+                name="user_engagement",
+                level=0.05,
+                target=0.7,
+                deviation=0.65,
+                out_of_band=True,
+                pe_contribution=0.65,
+            ),
+        ),
+        total_pe=0.65,
+        above_proactive_threshold=True,
+        last_proactive_at_tick=100,
+    )
+    plan = planner.plan(context=context, assembly=None, vitals=vitals)
+    assert SectionId.CONTINUITY_NOTE in plan.sections
+    assert any(tag.startswith("vitals_pressure=user_engagement") for tag in plan.rationale_tags)
+
+    # In-band vitals must NOT inject a continuity note.
+    quiet_vitals = VitalsSnapshot(
+        tick_index=10,
+        drive_levels=(),
+        total_pe=0.0,
+        above_proactive_threshold=False,
+    )
+    quiet_plan = planner.plan(context=context, assembly=None, vitals=quiet_vitals)
+    assert all(not tag.startswith("vitals_pressure=") for tag in quiet_plan.rationale_tags)
+
+
 # ---------------------------------------------------------------------------
 # EtiquetteWatchdog speaks/waits/silences as documented
 # ---------------------------------------------------------------------------

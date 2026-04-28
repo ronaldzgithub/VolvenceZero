@@ -25,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 
@@ -144,16 +145,19 @@ class PromptPlanner:
         *,
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None,
+        vitals: VitalsSnapshot | None = None,
     ) -> PromptPlan:
         intent = self._pick_intent(context=context, assembly=assembly)
-        sections = self._pick_sections(context=context, assembly=assembly, intent=intent)
+        sections = self._pick_sections(
+            context=context, assembly=assembly, intent=intent, vitals=vitals
+        )
         budget = self._build_section_budget(sections=sections, intent=intent)
         question_budget = self._pick_question_budget(intent=intent, assembly=assembly)
         disclaimers = (
             tuple(assembly.required_disclaimer_phrases) if assembly is not None else ()
         )
         rationale_tags = self._build_rationale_tags(
-            context=context, assembly=assembly, intent=intent
+            context=context, assembly=assembly, intent=intent, vitals=vitals
         )
         return PromptPlan(
             intent=intent,
@@ -225,6 +229,7 @@ class PromptPlanner:
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None,
         intent: TurnIntent,
+        vitals: VitalsSnapshot | None = None,
     ) -> list[SectionId]:
         if intent is TurnIntent.JUDGMENT_PROCESS:
             return [
@@ -280,6 +285,15 @@ class PromptPlanner:
             if SectionId.BOUNDARY_DISCLAIMER not in base:
                 base.append(SectionId.BOUNDARY_DISCLAIMER)
 
+        # Vitals: when slow-scale PE has crossed the proactive threshold the
+        # lifeform has been "missing" the user. Surface a continuity note so
+        # the response acknowledges that gap rather than acting as if no
+        # time has elapsed. We do not override the kernel's intent — only
+        # add a section, never replace one.
+        if vitals is not None and vitals.above_proactive_threshold:
+            if SectionId.CONTINUITY_NOTE not in base:
+                base.append(SectionId.CONTINUITY_NOTE)
+
         return base
 
     def _build_section_budget(
@@ -320,6 +334,7 @@ class PromptPlanner:
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None,
         intent: TurnIntent,
+        vitals: VitalsSnapshot | None = None,
     ) -> tuple[str, ...]:
         tags: list[str] = [f"intent={intent.value}"]
         regime_id = (
@@ -338,4 +353,9 @@ class PromptPlanner:
             tags.append(f"case_hits={assembly.case_hit_count}")
         if assembly is not None and assembly.playbook_rule_count:
             tags.append(f"playbook_rules={assembly.playbook_rule_count}")
+        if vitals is not None and vitals.above_proactive_threshold:
+            out_of_band = ",".join(
+                d.name for d in vitals.drive_levels if d.out_of_band
+            )
+            tags.append(f"vitals_pressure={out_of_band}")
         return tuple(tags)

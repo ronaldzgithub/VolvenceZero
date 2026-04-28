@@ -18,8 +18,17 @@ from lifeform_core.types import (
     TickKind,
     TurnSummary,
 )
+from lifeform_core.vitals import (
+    DriveLevel,
+    DriveSpec,
+    VitalsBootstrap,
+    VitalsModule,
+    VitalsSnapshot,
+)
 
 __all__ = (
+    "DriveLevel",
+    "DriveSpec",
     "FollowupItem",
     "FollowupManager",
     "Lifeform",
@@ -33,4 +42,7 @@ __all__ = (
     "TickEvent",
     "TickKind",
     "TurnSummary",
+    "VitalsBootstrap",
+    "VitalsModule",
+    "VitalsSnapshot",
 )

@@ -31,6 +31,7 @@ from lifeform_core.followup_manager import FollowupManager
 from lifeform_core.scene_manager import SceneManager
 from lifeform_core.tick_engine import TickEngine, TickEngineConfig
 from lifeform_core.types import FollowupItem, Scene, TickEvent, TurnSummary
+from lifeform_core.vitals import VitalsBootstrap, VitalsModule, VitalsSnapshot
 
 from volvence_zero.agent.response import ResponseSynthesizer
 from volvence_zero.application.domain_experience import DomainExperiencePackage
@@ -58,6 +59,7 @@ class LifeformConfig:
     idle_close_after_system_ticks: int | None = 60
     followup_default_due_delay_ticks: int = 90
     followup_max_pending: int = 32
+    vitals_bootstrap: VitalsBootstrap | None = None
 
     def with_domain_experience(
         self,
@@ -71,6 +73,10 @@ class LifeformConfig:
                 domain_experience_packages=self.brain_config.domain_experience_packages + packages,
             ),
         )
+
+    def with_vitals(self, bootstrap: VitalsBootstrap | None) -> "LifeformConfig":
+        from dataclasses import replace as _replace
+        return _replace(self, vitals_bootstrap=bootstrap)
 
 
 class Lifeform:
@@ -159,6 +165,11 @@ class Lifeform:
 
     def create_session(self, *, session_id: str = "lifeform-session") -> "LifeformSession":
         brain_session = self._brain.create_session(session_id=session_id)
+        vitals = (
+            VitalsModule(self._config.vitals_bootstrap)
+            if self._config.vitals_bootstrap is not None
+            else None
+        )
         return LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
@@ -167,6 +178,7 @@ class Lifeform:
                 default_due_delay_ticks=self._config.followup_default_due_delay_ticks,
                 max_pending=self._config.followup_max_pending,
             ),
+            vitals=vitals,
         )
 
 
@@ -183,11 +195,13 @@ class LifeformSession:
         tick: TickEngine,
         scene: SceneManager,
         followups: FollowupManager,
+        vitals: VitalsModule | None = None,
     ) -> None:
         self._brain_session = brain_session
         self._tick = tick
         self._scene = scene
         self._followups = followups
+        self._vitals = vitals
         self._turn_summaries: list[TurnSummary] = []
         # Re-publish snapshot fields after every turn so consumers can see
         # the cross-cutting lifeform state without poking at internals.
@@ -217,6 +231,14 @@ class LifeformSession:
     @property
     def followup_manager(self) -> FollowupManager:
         return self._followups
+
+    @property
+    def vitals_module(self) -> VitalsModule | None:
+        return self._vitals
+
+    @property
+    def vitals_snapshot(self) -> VitalsSnapshot | None:
+        return self._vitals.current_snapshot() if self._vitals is not None else None
 
     @property
     def open_scene(self) -> Scene | None:
@@ -334,6 +356,15 @@ class LifeformSession:
                 elapsed_at_tick=self._tick.tick_index,
             )
         )
+
+        # Vitals: this turn recharges drives based on the active regime;
+        # because a real user spoke, ``user_input_present=True`` so the
+        # per-turn baseline applies in addition to any regime-keyed bonus.
+        if self._vitals is not None:
+            self._vitals.on_turn(
+                regime=result.active_regime, user_input_present=True
+            )
+
         return result
 
     async def end_scene(
@@ -381,11 +412,35 @@ class LifeformSession:
     async def advance_tick(self, system_ticks: int = 1, *, reason: str = "") -> tuple[TickEvent, ...]:
         """Advance the metabolic clock.
 
-        After tick advancement the SceneManager is consulted for idle-close
-        eligibility; if eligible AND there is an open scene, the scene is
-        closed automatically (which fires ``end_scene``).
+        After tick advancement:
+
+        1. The ``VitalsModule`` (if any) decays drive levels on every
+           ``SYSTEM`` tick. When the resulting slow-scale PE crosses the
+           configured threshold AND we are outside the cooldown, a
+           proactive ``FollowupItem`` is surfaced via ``FollowupManager``
+           \u2014 the lifeform layer's "I am alive between turns" signal.
+        2. The ``SceneManager`` is consulted for idle-close eligibility;
+           if eligible AND there is an open scene, the scene is closed
+           automatically (which fires ``end_scene``).
         """
         events = await self._tick.advance(system_ticks, reason=reason)
+
+        if self._vitals is not None:
+            for ev in events:
+                self._vitals.on_tick(ev)
+            if self._vitals.consider_proactive_followup(
+                current_tick=self._tick.tick_index
+            ):
+                snap = self._vitals.current_snapshot()
+                self._followups.ingest_proactive_drive_pressure(
+                    total_pe=snap.total_pe,
+                    out_of_band_drive_names=tuple(
+                        d.name for d in snap.drive_levels if d.out_of_band
+                    ),
+                    current_tick=self._tick.tick_index,
+                    priority=self._vitals.bootstrap.proactive_followup_priority,
+                )
+
         if any(self._scene.on_tick(ev) for ev in events):
             await self.end_scene(reason="idle-timeout", drain_slow_loop=False)
         return events

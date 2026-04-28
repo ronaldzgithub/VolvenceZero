@@ -100,6 +100,50 @@ class FollowupManager:
         self._enforce_capacity()
         return tuple(new_items)
 
+    def ingest_proactive_drive_pressure(
+        self,
+        *,
+        total_pe: float,
+        out_of_band_drive_names: tuple[str, ...],
+        current_tick: int,
+        priority: float = 0.55,
+        followup_id: str | None = None,
+    ) -> FollowupItem:
+        """Surface a vitals-driven proactive followup.
+
+        Produced by ``VitalsModule.consider_proactive_followup`` when the
+        slow-scale PE crosses the configured threshold. The lifeform layer
+        does NOT auto-execute the follow-up \u2014 it goes into the same pending
+        queue as open-loop / commitment items, leaving "actually re-engage
+        the user" as a UX decision in the surrounding product.
+
+        Each call produces a fresh item; deduping uses the followup_id (or a
+        time-bucketed default) so repeated crossings within the same
+        cooldown produce one entry, not a flood. The cooldown is enforced
+        upstream by ``VitalsModule``; this method just records what arrives.
+        """
+        self._counter += 1
+        fid = followup_id or f"vitals-{current_tick}-{self._counter:05d}"
+        descriptor = (
+            ", ".join(out_of_band_drive_names)
+            if out_of_band_drive_names
+            else "drive deviation"
+        )
+        item = FollowupItem(
+            followup_id=fid,
+            source="vitals",
+            description=f"Proactive check-in: {descriptor} pressure rising",
+            due_at_tick=current_tick,
+            priority=priority,
+            metadata={
+                "total_pe": f"{total_pe:.4f}",
+                "drives_out_of_band": ",".join(out_of_band_drive_names),
+            },
+        )
+        self._pending.append(item)
+        self._enforce_capacity()
+        return item
+
     def ingest_scene_close(
         self,
         *,

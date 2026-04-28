@@ -35,6 +35,7 @@ from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
 from lifeform_domain_emogpt.companion_pack import build_companion_package
+from lifeform_domain_emogpt.companion_vitals import build_companion_vitals_bootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +140,7 @@ def build_companion_lifeform(
     config: object | None = None,
     use_temporal_bootstrap: bool = True,
     use_regime_bootstrap: bool = True,
+    use_vitals_bootstrap: bool = True,
     substrate_runtime: Any = None,
 ) -> Any:
     """Build a Lifeform with the companion vertical fully wired in.
@@ -197,6 +199,9 @@ def build_companion_lifeform(
         (build_companion_package(),)
     )
 
+    if use_vitals_bootstrap:
+        base_config = base_config.with_vitals(build_companion_vitals_bootstrap())
+
     temporal_bootstrap = (
         load_companion_temporal_bootstrap() if use_temporal_bootstrap else None
     )
@@ -216,6 +221,7 @@ __all__ = (
     "bootstraps_dir",
     "build_companion_lifeform",
     "build_companion_package",
+    "build_companion_vitals_bootstrap",
     "load_companion_regime_bootstrap",
     "load_companion_temporal_bootstrap",
     "scenarios_dir",
