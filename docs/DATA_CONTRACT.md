@@ -1264,6 +1264,50 @@ reflection ──────────────→ owner-side writeback: m
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
+### 6.1 Lifeform-side Slots（不进入 kernel slot 注册表）
+
+下表 slot 由 lifeform 层 wheel 拥有；它们**不**进入 kernel propagate 顺序，也**不**作为 kernel owner 单写者校验目标。它们是 lifeform 与 host / service 之间的契约面，由 `lifeform-*` 包发布，供 `lifeform-expression` / `lifeform-service` / 操作员 dashboard 消费。
+
+| Slot Name | Owner 模块 | Wheel | Value 类型 | 默认接线 | 发布频率 | 消费者 |
+|-----------|-----------|-------|-----------|----------|----------|--------|
+| `vitals` | VitalsModule | `lifeform-core` | VitalsSnapshot | per-vertical | SYSTEM tick + per-turn | lifeform-expression, followup_manager, prompt_planner |
+| `affordance` | AffordanceModule | `lifeform-affordance`（**新建中，Phase 2**） | AffordanceSnapshot | DISABLED（v0）→ SHADOW → ACTIVE | 每 turn | prompt_planner, response_synthesizer, AffordanceInvoker |
+| `thinking_loop` | ThinkingScheduler | `lifeform-thinking`（**新建中，Phase 1**） | ThinkingLoopSnapshot | DISABLED（v0）→ SHADOW → ACTIVE | scene 内异步 | family_report metrics, debug dashboard |
+
+**lifeform-side slot 不变量**：
+
+- 不可被任何 `vz-*` wheel 反向 import（CI 由 `tests/contracts/test_import_boundaries.py` 强制）
+- 不可作为 kernel owner 间 propagate 的输入；只能被 lifeform 层（含 expression / service）消费
+- 副作用如果要进入 kernel，**必须**走已有公共入口（`BrainSession.submit_*` / `LifeformSession.run_turn`），不可旁路
+
+### 6.2 Owner 字段扩展（已批准 propose，待实施）
+
+下列字段是已经在 spec 中冻结、待 Phase 1+ 实施的 owner 字段扩展。它们**不**新增 slot，只在现有 owner 的 `value` dataclass 上加字段。
+
+| 现有 Slot | 新增字段 | 来源 spec | 实施 Phase |
+|---|---|---|---|
+| `commitment` | `advocacy_state: AdvocacyState`、`alignment_state: AlignmentState`、`followup_policy: FollowupPolicy`、`last_outcome: CommitmentOutcomeKind \| None`、`last_outcome_evidence: str`、`last_outcome_at_turn: int` | `docs/specs/aac-lifecycle.md` | Phase 1 (P0) |
+| `case_memory` | `lifecycle: CaseLifecycle`、`ttl_seconds: int \| None`、`expires_at_tick: int \| None`、`provisional_origin: str` | `docs/specs/thinking-loop.md` | Phase 1 (P0) |
+| `regime` | `participation_hint: ParticipationHint`、`depth_hint: CognitiveDepthHint` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 8 | Phase 3 (P2) |
+| `user_model` | `interlocutor_readout: InterlocutorReadout`（首版 6 维 / 终版 12 维）、`readout_confidence: float`、`readout_extraction_method: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 9 | Phase 4 (P3) |
+| `plan_intent` / `execution_result` | `outcome_kind: PlanIntentOutcome \| ExecutionResultOutcome`、`outcome_evidence: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | Phase 3 (P2) |
+
+**字段扩展不变量**：
+
+- 所有新增字段必须有默认值，向后兼容现有持久化数据
+- 字段添加 PR 必须同步更新本注册表
+- 字段必须可以被 reflection writeback 通过 `SemanticProposal` typed path 写入；**禁止** owner 私有 setter 直接赋值
+
+### 6.3 新增 vz-contracts 类型（已批准 propose，待实施）
+
+下列类型属于跨 wheel 共享的不可变契约，应当落到 `vz-contracts`：
+
+| 类型 | 来源 spec | 实施 Phase |
+|---|---|---|
+| `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` | `docs/specs/thinking-loop.md` | Phase 1 |
+| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` | `docs/specs/affordance.md` | Phase 2 |
+| `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | Phase 2 |
+
 ---
 
 ## 7. 变更协议

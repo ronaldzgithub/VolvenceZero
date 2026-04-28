@@ -229,6 +229,78 @@
 
 ---
 
+### 13. 中频思考循环（Phase 0 design freeze, 实施待 Phase 1）
+
+**对应需求**：R1（多时间尺度）、R6（反思与沉淀）、R8（快照优先）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [thinking-loop.md](./thinking-loop.md) | 中频 ThinkingScheduler、mid-reflection / active exploration / provisional case 三类 read-only worker、fingerprint guard 与 case_memory lifecycle |
+
+**核心不变量**：
+- worker 永远只读 owner 快照，artifact apply 由 owner 自己决定
+- fingerprint mismatch 一律 STALE，不允许"再 apply 一次试试"
+- ProvisionalLesson 不创新 owner，进 `case_memory` 加 lifecycle 字段
+- mid-reflection 的 self/world 双 lane 复用既有双 owner
+
+来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 4。
+
+---
+
+### 14. AAC Commitment Lifecycle（Phase 0 design freeze, 实施待 Phase 1）
+
+**对应需求**：R-PE（PE 主链）、R8（快照优先）、R11（内部状态可发布）、R14（regime 持久身份）
+
+| Spec | 内容 |
+|------|------|
+| [aac-lifecycle.md](./aac-lifecycle.md) | `commitment` owner 增加 advocacy / alignment / followup_policy / outcome_kind 状态机；alignment 跳变进入 R-PE |
+
+**核心不变量**：
+- 不新建 owner；commitment 仍是单写者
+- 状态迁移**只**通过 `SemanticProposal` typed path
+- alignment 判定**只**来自 LLM structured output 或 embedding similarity，禁止关键词
+- alignment AGREE→REJECT 是高 PE 信号源，进入 prediction_error 主链
+
+来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 7。
+
+---
+
+### 15. Affordance 体系（Phase 0 design freeze, 实施待 Phase 2）
+
+**对应需求**：R3（时间抽象）、R4（内部控制）、R8（契约优先）、R10（有界自修改）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [affordance.md](./affordance.md) | 4 Kind 描述符（Tool/Action/Organ/Shell）、`AffordanceRegistry`、4 渲染器、metacontroller learned 选择 |
+
+**核心不变量**：
+- 描述符 schema 在 `vz-contracts`；注册表与 invoker 在新 wheel `lifeform-affordance`
+- 选择由 metacontroller 在 z_t 空间学，**禁止**硬编码路由
+- safety_model + ModificationGate 共同守门；调用结果通过 `BrainSession.submit_tool_result` 回流
+- 跨 vertical affordance 隔离
+
+来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 1。
+
+---
+
+### 16. Runtime Ingestion + Apprenticeship Trigger（Phase 0 design freeze, 实施待 Phase 2）
+
+**对应需求**：R6（反思与沉淀）、R8（契约优先）、R10（有界自修改）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [runtime-ingestion.md](./runtime-ingestion.md) | `lifeform-ingestion` adapter wheel + `trigger_kind` 标签 + apprenticeship vitals override；book / web / task_result 三类 source |
+
+**核心不变量**：
+- 所有 ingestion 内容只通过 `LifeformSession.run_turn(..., trigger_kind="ingestion")` 进入 kernel
+- ingestion adapter **不**直接戳任何 owner store
+- durable 化只走 R6 session-post slow loop，无特殊学习路径
+- apprenticeship override 是有界（仅当前 turn）；leak-free 由 unit test 强制
+
+来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 2 + Gap 3。
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |

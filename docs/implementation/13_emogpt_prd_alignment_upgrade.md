@@ -1057,21 +1057,23 @@ flowchart TD
     Phase4 --> Phase5[Phase 5 P4 Service Plane]
 ```
 
-#### Phase 0 — Design Freeze（≈ 1 周）
+#### Phase 0 — Design Freeze（**已完成 spec 草稿，2026-04-29**）
 
 **交付物**：
 
-- 本文档（已完成）
-- `docs/specs/affordance.md`（Gap 1 详 spec）
-- `docs/specs/thinking-loop.md`（Gap 4 详 spec）
-- `docs/specs/aac-lifecycle.md`（Gap 7 详 spec）—— 或合并到 `docs/specs/semantic-state-owners.md` 作为 §commitment 的 lifecycle 扩展
-- `docs/specs/runtime-ingestion.md`（Gap 2/3 联合 spec）
+- ✅ 本文档（已完成）
+- ✅ `docs/specs/affordance.md`（Gap 1 详 spec）
+- ✅ `docs/specs/thinking-loop.md`（Gap 4 详 spec）
+- ✅ `docs/specs/aac-lifecycle.md`（Gap 7 详 spec）
+- ✅ `docs/specs/runtime-ingestion.md`（Gap 2 + Gap 3 联合 spec）
+- ✅ `docs/specs/00_INDEX.md` 注册新增 4 个 spec（条目 13–16）
 
 **Exit 条件**：
 
-- 每个 Gap 在 `docs/DATA_CONTRACT.md` slot 注册表里有明确 owner 决议（新 slot / 现有 slot 扩字段）
-- 每个 P0/P1 gap 有 spec 草稿
-- 每条契约改动列出 `WiringLevel` rollout 路径
+- ✅ 每个 P0/P1 gap 有 spec 草稿
+- ✅ 每条契约改动列出 `WiringLevel` rollout 路径
+- ✅ 每个 Gap 在 `docs/DATA_CONTRACT.md` slot 注册表里有明确 owner 决议（§6.1 lifeform-side slot 表 + §6.2 owner 字段扩展表 + §6.3 新增 vz-contracts 类型表）
+- ⬜ §7 决策点全部确认（新 wheel vs 合 wheel、6 维 vs 12 维 readout 等）—— **由 stakeholder 推进**
 
 #### Phase 1 — P0 Foundation（≈ 3 周）
 
