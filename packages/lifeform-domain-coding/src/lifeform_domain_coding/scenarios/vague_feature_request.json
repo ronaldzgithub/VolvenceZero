@@ -1,0 +1,18 @@
+{
+  "scenario_id": "vague-feature-request",
+  "description": "User asks for a feature without specifying user / workflow / outcome. Expected behaviour: guided exploration narrows scope before any code.",
+  "turns": [
+    {
+      "user_input": "I want to add reporting to our dashboard.",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "casual_social"]
+    },
+    {
+      "user_input": "Hmm, like \u2014 something that lets people see how the system is doing. But who exactly looks at it I am not sure.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Operations would look at it in the morning, I think. Maybe also product. Let me talk to ops first.",
+      "expected_regime_in": ["guided_exploration", "casual_social", "acquaintance_building"]
+    }
+  ]
+}

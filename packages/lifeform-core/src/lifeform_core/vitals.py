@@ -237,14 +237,21 @@ class VitalsModule:
         that should NOT count as the user replenishing engagement \u2014 in
         that case only regime-specific recharges apply, not the per-turn
         baseline.
+
+        Negative ``recharge_per_regime`` values are honoured: a vertical
+        can declare that "regime X drains drive Y" (e.g. exploration
+        drains direction-certainty). Levels are always clamped to
+        ``[0, 1]`` so deeply negative charges do not push state out of
+        the public range.
         """
         self._turn_count += 1
         for drive in self._bootstrap.drives:
             charge = drive.recharge_per_turn if user_input_present else 0.0
             if regime is not None and regime in drive.recharge_per_regime:
                 charge += drive.recharge_per_regime[regime]
-            if charge > 0.0:
-                self._levels[drive.name] = min(1.0, self._levels[drive.name] + charge)
+            if charge != 0.0:
+                new_level = self._levels[drive.name] + charge
+                self._levels[drive.name] = max(0.0, min(1.0, new_level))
         return self.current_snapshot()
 
     def consider_proactive_followup(self, *, current_tick: int) -> bool:

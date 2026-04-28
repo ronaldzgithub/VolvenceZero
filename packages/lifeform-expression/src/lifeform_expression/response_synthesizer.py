@@ -23,9 +23,10 @@ Design notes:
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Optional
 
+from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import (
     AgentResponse,
     ResponseContext,
@@ -41,15 +42,53 @@ from lifeform_expression.prompt_planner import (
 )
 
 
-class GroundedResponseSynthesizer(ResponseSynthesizer):
-    """ResponseSynthesizer driven by a structured PromptPlan."""
+VitalsSnapshotProvider = Callable[[], VitalsSnapshot | None]
 
-    def __init__(self, *, planner: PromptPlanner | None = None) -> None:
+
+class GroundedResponseSynthesizer(ResponseSynthesizer):
+    """ResponseSynthesizer driven by a structured PromptPlan.
+
+    Optional ``vitals_snapshot_provider`` is a zero-arg callable returning
+    the current ``VitalsSnapshot`` (or ``None``) for the calling session.
+    The lifeform layer wires a per-session provider via closure so that
+    drives produced by ``VitalsModule`` reach the planner \u2014 which adds a
+    ``CONTINUITY_NOTE`` section and a ``vitals_pressure=...`` rationale
+    tag whenever the slow-scale PE is above threshold. Without a provider
+    the synthesizer behaves exactly as before, so this is fully
+    backwards-compatible.
+    """
+
+    def __init__(
+        self,
+        *,
+        planner: PromptPlanner | None = None,
+        vitals_snapshot_provider: VitalsSnapshotProvider | None = None,
+    ) -> None:
         self._planner = planner or PromptPlanner()
+        self._vitals_snapshot_provider = vitals_snapshot_provider
 
     @property
     def planner(self) -> PromptPlanner:
         return self._planner
+
+    @property
+    def vitals_snapshot_provider(self) -> VitalsSnapshotProvider | None:
+        return self._vitals_snapshot_provider
+
+    def with_vitals_provider(
+        self, provider: VitalsSnapshotProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Return a clone of this synthesizer bound to the given provider.
+
+        The lifeform layer calls this once per ``LifeformSession`` so each
+        session has its own synthesizer instance reading its own
+        ``VitalsModule``. The original synthesizer (and its planner) are
+        kept intact so the Brain-level default does not get mutated.
+        """
+        return GroundedResponseSynthesizer(
+            planner=self._planner,
+            vitals_snapshot_provider=provider,
+        )
 
     # Intents we delegate to the base kernel renderer because the base
     # already produces strong, regime-faithful text for them (and tests pin
@@ -66,13 +105,16 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
-        plan = self._planner.plan(context=context, assembly=assembly)
+        vitals = self._read_vitals_snapshot()
+        plan = self._planner.plan(context=context, assembly=assembly, vitals=vitals)
 
         if plan.intent in self._DELEGATE_TO_BASE or assembly is None:
             base = super().synthesize(context=context, assembly=assembly)
             return _attach_plan_rationale(base, plan)
 
-        text = self._render(context=context, assembly=assembly, plan=plan)
+        text = self._render(
+            context=context, assembly=assembly, plan=plan, vitals=vitals
+        )
         if not text.strip():
             base = super().synthesize(context=context, assembly=assembly)
             return _attach_plan_rationale(base, plan)
@@ -87,6 +129,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             context=context,
             assembly=assembly,
             plan=plan,
+            vitals=vitals,
         )
         return AgentResponse(
             text=text,
@@ -94,6 +137,12 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             abstract_action=abstract_action,
             rationale=rationale,
         )
+
+    def _read_vitals_snapshot(self) -> VitalsSnapshot | None:
+        """Pull the current vitals snapshot (None when no provider bound)."""
+        if self._vitals_snapshot_provider is None:
+            return None
+        return self._vitals_snapshot_provider()
 
     # ------------------------------------------------------------------
     # Rendering hooks — subclass to swap in an LLM
@@ -105,11 +154,16 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot,
         plan: PromptPlan,
+        vitals: VitalsSnapshot | None = None,
     ) -> str:
         sentences: list[str] = []
         for section in plan.sections:
             rendered = self._render_section(
-                section=section, context=context, assembly=assembly, plan=plan
+                section=section,
+                context=context,
+                assembly=assembly,
+                plan=plan,
+                vitals=vitals,
             )
             if rendered:
                 sentences.append(rendered)
@@ -122,6 +176,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot,
         plan: PromptPlan,
+        vitals: VitalsSnapshot | None = None,
     ) -> str:
         if section is SectionId.ACKNOWLEDGE_PRESSURE:
             return self._render_acknowledge(context=context, assembly=assembly)
@@ -138,7 +193,9 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         if section is SectionId.REFLECTION_HOOK:
             return self._render_reflection(context=context)
         if section is SectionId.CONTINUITY_NOTE:
-            return self._render_continuity(context=context, assembly=assembly)
+            return self._render_continuity(
+                context=context, assembly=assembly, vitals=vitals
+            )
         return ""
 
     # ------------------------------------------------------------------
@@ -244,8 +301,26 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
 
     @staticmethod
     def _render_continuity(
-        *, context: ResponseContext, assembly: ResponseAssemblySnapshot
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot,
+        vitals: VitalsSnapshot | None = None,
     ) -> str:
+        # When the always-on drive layer is signalling pressure, the
+        # continuity note acknowledges the elapsed silence directly rather
+        # than the generic "carrying continuity" line. We name the most
+        # affected drive so reflection / evaluation can audit which drive
+        # actually drove the response shape.
+        if vitals is not None and vitals.above_proactive_threshold:
+            out_of_band = [d for d in vitals.drive_levels if d.out_of_band]
+            if out_of_band:
+                worst = max(out_of_band, key=lambda d: d.pe_contribution)
+                return (
+                    f"I want to acknowledge that some time has passed; my "
+                    f"{worst.name.replace('_', ' ')} level dropped while we "
+                    f"were quiet, and I am noticing it now rather than acting "
+                    f"as if no gap occurred."
+                )
         if assembly.prompt_residue_summary:
             return "I am also carrying continuity from our recent thread."
         return "I am keeping continuity in view across our turns."
@@ -274,15 +349,33 @@ def _dedupe_sentences(sentences: Iterable[str]) -> list[str]:
 
 
 def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentResponse:
+    """Append the plan summary to a response rendered by the base kernel renderer.
+
+    Used on the ``DELEGATE_TO_BASE`` path (refer-out / judgment-process /
+    direct-answer) so even those responses carry the planner's rationale
+    tags forward \u2014 most importantly ``vitals_pressure=...`` and any
+    explicit cross-cutting tags the planner emitted. Without this, vitals
+    state would only reach reflection / evaluation when the renderer is
+    NOT the kernel's base, which makes the "always-on drive" signal
+    silently disappear in roughly half of common turns.
+    """
     rationale = response.rationale
     if rationale and not rationale.endswith("."):
         rationale += "."
-    plan_tag = f" Plan: intent={plan.intent.value}; sections={','.join(s.value for s in plan.sections)}; q={plan.question_budget}."
+    plan_tag = (
+        f" Plan: intent={plan.intent.value}; "
+        f"sections={','.join(s.value for s in plan.sections)}; "
+        f"q={plan.question_budget}."
+    )
+    extra_tags = [
+        tag for tag in plan.rationale_tags if tag.startswith("vitals_pressure=")
+    ]
+    extra = (" " + " ".join(extra_tags) + ".") if extra_tags else ""
     return AgentResponse(
         text=response.text,
         regime_id=response.regime_id,
         abstract_action=response.abstract_action,
-        rationale=(rationale + plan_tag).strip(),
+        rationale=(rationale + plan_tag + extra).strip(),
     )
 
 
@@ -294,6 +387,7 @@ def _build_rationale(
     context: ResponseContext,
     assembly: ResponseAssemblySnapshot,
     plan: PromptPlan,
+    vitals: VitalsSnapshot | None = None,
 ) -> str:
     parts: list[str] = [f"regime={regime_id or 'none'}"]
     if abstract_action:
@@ -309,4 +403,11 @@ def _build_rationale(
     if assembly.playbook_rule_count:
         parts.append(f"playbook_rules={assembly.playbook_rule_count}")
     parts.append(f"risk={assembly.risk_band.value}")
+    if vitals is not None and vitals.above_proactive_threshold:
+        out_of_band = ",".join(
+            d.name for d in vitals.drive_levels if d.out_of_band
+        )
+        if out_of_band:
+            parts.append(f"vitals_pressure={out_of_band}")
+            parts.append(f"vitals_total_pe={vitals.total_pe:.2f}")
     return f"GroundedResponseSynthesizer from {regime_name}; " + ", ".join(parts) + "."

@@ -14,6 +14,11 @@ from lifeform_evolution.benchmark import (
     run_benchmark,
     trust_rupture_repair_scenario,
 )
+from lifeform_evolution.family_report import (
+    compute_family_report,
+    family_report_to_dict,
+    format_family_report,
+)
 from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_evolution.learning_loop import (
     format_learning_loop_report,
@@ -114,6 +119,32 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to a saved regime calibration artifact to inject into the Lifeform.",
     )
+    parser.add_argument(
+        "--family-report",
+        action="store_true",
+        help=(
+            "After the flat benchmark output, also print the R12 six-family "
+            "evaluation grouping (task / interaction / relationship / "
+            "learning / abstraction / safety)."
+        ),
+    )
+    parser.add_argument(
+        "--family-report-json",
+        default=None,
+        help=(
+            "Optional path to write the family report(s) as a JSON artifact. "
+            "Implies --family-report. The artifact contains a list of "
+            "scenario reports keyed by ``scenario_id``."
+        ),
+    )
+    parser.add_argument(
+        "--require-family-pass",
+        action="store_true",
+        help=(
+            "Exit non-zero if any family on any scenario fails. Implies "
+            "--family-report."
+        ),
+    )
     return parser
 
 
@@ -145,7 +176,14 @@ def main(argv: list[str] | None = None) -> int:
             )
         scenarios = (_SCENARIOS[args.scenario](),)
 
+    want_family_report = (
+        args.family_report
+        or args.family_report_json is not None
+        or args.require_family_pass
+    )
     ok = True
+    family_pass = True
+    family_artifacts: list[dict[str, object]] = []
     for scenario in scenarios:
         report = run_benchmark(
             scenario=scenario,
@@ -153,9 +191,30 @@ def main(argv: list[str] | None = None) -> int:
             regime_bootstrap=regime_bootstrap,
         )
         print(format_report(report))
+        if want_family_report:
+            family = compute_family_report(bench=report)
+            print(format_family_report(family))
+            family_artifacts.append(family_report_to_dict(family))
+            if not family.overall_passed:
+                family_pass = False
         if len(scenarios) > 1:
             print()
         ok = ok and report.passed(min_regime_match_rate=args.min_regime_match_rate)
+
+    if args.family_report_json:
+        import json
+        import pathlib
+
+        path = pathlib.Path(args.family_report_json).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"scenarios": family_artifacts}, indent=2),
+            encoding="utf-8",
+        )
+        print(f"[bench] wrote family report artifact to {path}")
+
+    if args.require_family_pass and not family_pass:
+        return 1
     return 0 if ok else 1
 
 
@@ -411,6 +470,15 @@ def _build_multi_loop_parser() -> argparse.ArgumentParser:
         help="Exit non-zero if any per-round trajectory verdict failed.",
     )
     parser.add_argument(
+        "--require-improvement-vs-baseline",
+        action="store_true",
+        help=(
+            "Exit non-zero unless at least one trained round shows "
+            "improvement-vs-baseline AND coincides with sparse switching "
+            "and surface drift (R12 acceptance #12)."
+        ),
+    )
+    parser.add_argument(
         "--save-best",
         default=None,
         help=(
@@ -457,6 +525,10 @@ def main_multi_loop(argv: list[str] | None = None) -> int:
             f"[multi-loop] saved best round {best.round_index}'s snapshot to {path}"
         )
     if args.require_trajectory_passes and not report.trajectory_passes():
+        return 1
+    if args.require_improvement_vs_baseline and not report.verdicts.get(
+        "found_pe_aligned_improvement_round", False
+    ):
         return 1
     return 0
 

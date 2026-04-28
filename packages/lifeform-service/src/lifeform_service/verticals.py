@@ -95,7 +95,30 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
     )
 
 
-_BUILDERS = (_try_companion, _try_uncalibrated_companion)
+def _try_coding() -> VerticalSpec | None:
+    """Pair-programmer engineering-partner vertical.
+
+    No pre-trained bootstraps yet \u2014 those would come from running
+    ``lifeform-super-loop`` over the vertical's own scenarios. The
+    factory still produces a fully-functional Lifeform with the coding
+    ``DomainExperiencePackage`` and drive set wired in.
+    """
+    try:
+        from lifeform_domain_coding import build_coding_lifeform, scenarios_dir
+    except ImportError:
+        return None
+    sdir = scenarios_dir()
+    return VerticalSpec(
+        name="coding",
+        factory=lambda runtime: build_coding_lifeform(substrate_runtime=runtime),
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        bootstraps_dir=None,
+        scenarios_dir=str(sdir) if sdir.is_dir() else None,
+    )
+
+
+_BUILDERS = (_try_companion, _try_uncalibrated_companion, _try_coding)
 
 
 def discover_verticals() -> dict[str, VerticalSpec]:

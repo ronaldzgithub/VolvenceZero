@@ -24,6 +24,7 @@ $Packages = @(
     "packages\lifeform-core",
     "packages\lifeform-expression",
     "packages\lifeform-domain-emogpt",
+    "packages\lifeform-domain-coding",
     "packages\lifeform-service",
     "packages\lifeform-evolution"
 )

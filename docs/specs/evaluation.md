@@ -164,6 +164,9 @@
 
 ## 变更日志
 
+- 2026-04-28: lifeform 层新增两条 R12 证据接口：
+  - `lifeform_evolution.family_report` 把 `BenchmarkReport` 的原始指标按六族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`lifeform-bench --family-report` / `--family-report-json` 让 CI 与人工审阅都能直接读到分组化的 pass/fail；不改变内核 `evaluation` snapshot 公共结构
+  - `lifeform_evolution.multi_round_loop` 增加 `RoundQualityMetrics` + `RoundDeltaVsBaseline`：每轮发布 mean_regime_match_rate / pe_recovery / mean_switch_gate 等聚合，并对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance#12 verdict，与原有结构性 verdict（trajectory_passes）解耦；CLI 增加 `--require-improvement-vs-baseline` 把 acceptance#12 转为 fail-closed gate
 - 2026-04-25: ETA paper-suite 新增 open-weight residual evidence summaries 与 `claim_eta_real_open_weight_residual_control`，把真实 residual-control 证据从 synthetic proof success 中拆分
 - 2026-04-26: open-weight evidence summaries 区分 actual hook fire rate 与 planned layer fraction，并明确 smoke tier 只用于连线/诊断
 - 2026-04-22: 补充 case-level PE dominance diagnosis report，用于定位哪一个 case 在去掉 PE 主导后最先塌以及塌在哪一层

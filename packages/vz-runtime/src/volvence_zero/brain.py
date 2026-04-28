@@ -276,8 +276,27 @@ class Brain:
         kwargs["regime_bootstrap"] = bootstrap
         return Brain(self._config, **kwargs)
 
-    def create_session(self, *, session_id: str = "brain-session") -> BrainSession:
+    def create_session(
+        self,
+        *,
+        session_id: str = "brain-session",
+        response_synthesizer: ResponseSynthesizer | None = None,
+    ) -> BrainSession:
+        """Create a new BrainSession.
+
+        Args:
+            session_id: Stable identifier for the session.
+            response_synthesizer: Optional per-session synthesizer override.
+                When supplied, this synthesizer is used in place of the
+                Brain-level default for THIS session only \u2014 the Brain's own
+                synthesizer is unchanged. Used by the lifeform layer to
+                clone a synthesizer per ``LifeformSession`` so that
+                per-session state (e.g. a ``VitalsModule`` reference) can
+                be bound by closure without sharing mutable state across
+                sessions of the same Brain.
+        """
         runtime = self._resolve_substrate_runtime()
+        synthesizer = response_synthesizer or self._response_synthesizer
         runner_kwargs: dict[str, object] = dict(
             session_id=session_id,
             config=self._config.final_rollout_config or FinalRolloutConfig(),
@@ -285,7 +304,7 @@ class Brain:
             domain_experience_packages=self._config.domain_experience_packages,
             default_residual_runtime=runtime,
             substrate_adapter_factory=self._substrate_adapter_factory,
-            response_synthesizer=self._response_synthesizer,
+            response_synthesizer=synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,

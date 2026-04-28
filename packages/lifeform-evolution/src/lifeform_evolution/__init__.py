@@ -26,6 +26,15 @@ from lifeform_evolution.benchmark import (
     run_benchmark_async,
     trust_rupture_repair_scenario,
 )
+from lifeform_evolution.family_report import (
+    FamilyEvaluation,
+    FamilyId,
+    FamilyMetric,
+    FamilyReport,
+    compute_family_report,
+    family_report_to_dict,
+    format_family_report,
+)
 from lifeform_evolution.dataset_adapter import (
     trace_record_to_training_trace,
     trace_records_from_ndjson,
@@ -40,6 +49,8 @@ from lifeform_evolution.learning_loop import (
 )
 from lifeform_evolution.multi_round_loop import (
     MultiRoundLearningLoopReport,
+    RoundDeltaVsBaseline,
+    RoundQualityMetrics,
     RoundReport,
     format_multi_round_report,
     run_multi_round_loop,
@@ -94,11 +105,17 @@ from lifeform_evolution.trace_collector import (
 __all__ = (
     "BenchmarkReport",
     "DistributionSnapshot",
+    "FamilyEvaluation",
+    "FamilyId",
+    "FamilyMetric",
+    "FamilyReport",
     "LearningLoopReport",
     "MultiRoundLearningLoopReport",
     "RegimeBootstrapArtifact",
     "RegimeCalibrationReport",
     "RegimeCalibrationRoundReport",
+    "RoundDeltaVsBaseline",
+    "RoundQualityMetrics",
     "RoundReport",
     "ScenarioPackError",
     "ScriptedScenario",
@@ -113,8 +130,11 @@ __all__ = (
     "TurnReport",
     "all_built_in_scenarios",
     "casual_social_checkin_scenario",
+    "compute_family_report",
     "dump_scenario_pack",
     "dump_scenario_packs",
+    "family_report_to_dict",
+    "format_family_report",
     "format_learning_loop_report",
     "format_multi_round_report",
     "format_regime_calibration_report",

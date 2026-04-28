@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
@@ -62,6 +63,55 @@ from lifeform_evolution.trace_collector import TraceCollector
 
 
 @dataclass(frozen=True)
+class RoundQualityMetrics:
+    """Per-round behavioural quality, aggregated across all scripted scenarios.
+
+    These let the multi-round loop answer R12 acceptance question #12 \u2014
+    "does high PE trigger controller change AND later improvement vs weak
+    baseline?" \u2014 directly, instead of leaving it implicit in the Hellinger
+    distance between distributions. Round 0's metrics are the canonical
+    weak baseline; later rounds publish their delta vs round 0.
+    """
+
+    mean_regime_match_rate: float
+    mean_pe_threshold_match_rate: float
+    mean_pe: float
+    early_half_pe_mean: float
+    late_half_pe_mean: float
+    pe_recovery_delta: float
+    mean_switch_gate: float
+
+
+@dataclass(frozen=True)
+class RoundDeltaVsBaseline:
+    """Per-metric delta of this round versus round 0.
+
+    Positive ``regime_match_delta`` and ``pe_recovery_delta_delta`` are
+    improvements; negative ``mean_switch_gate_delta`` means the trained
+    policy is switching less often (sparser \u03b2_t \u2192 more committed
+    abstract actions \u2192 R3 healthy).
+    """
+
+    regime_match_delta: float
+    pe_threshold_delta: float
+    pe_recovery_delta_delta: float
+    mean_pe_delta: float
+    mean_switch_gate_delta: float
+
+    @property
+    def regime_match_improved(self) -> bool:
+        return self.regime_match_delta > 0.0
+
+    @property
+    def pe_recovery_improved(self) -> bool:
+        return self.pe_recovery_delta_delta > 0.0
+
+    @property
+    def switching_sparser(self) -> bool:
+        return self.mean_switch_gate_delta < 0.0
+
+
+@dataclass(frozen=True)
 class RoundReport:
     """One round (compress + reinforce + observe) of the multi-round loop."""
 
@@ -71,6 +121,8 @@ class RoundReport:
     snapshot: MetacontrollerParameterSnapshot
     distance_to_baseline: float
     distance_to_previous: float
+    quality: RoundQualityMetrics | None = None
+    delta_from_baseline: RoundDeltaVsBaseline | None = None
 
 
 @dataclass(frozen=True)
@@ -102,8 +154,50 @@ class MultiRoundLearningLoopReport:
     def final(self) -> RoundReport:
         return self.rounds[-1]
 
+    # The verdict dict is split into two semantic groups:
+    #
+    # * **Trajectory-shape verdicts** (the original gate set) describe
+    #   whether the loop is wired and producing structurally meaningful
+    #   policy evolution. They are deterministic on the built-in scenarios
+    #   and SHOULD pass on every healthy run.
+    # * **Acceptance#12 verdicts** describe whether a trained round
+    #   actually improved on the weak baseline (round 0). These can
+    #   legitimately fail on small scenario sets / over-trained final
+    #   rounds, and consumers gate on them via
+    #   ``improvement_vs_baseline_passes`` or the ``--require-improvement-vs-
+    #   baseline`` CLI flag, NOT via ``trajectory_passes``.
+    _TRAJECTORY_VERDICT_KEYS: ClassVar[tuple[str, ...]] = (
+        "sufficient_rounds",
+        "all_trained",
+        "policy_state_evolved",
+        "max_distance_meaningful",
+        "found_sparse_drifted_regime",
+    )
+    _ACCEPTANCE_12_VERDICT_KEYS: ClassVar[tuple[str, ...]] = (
+        "improved_regime_match_vs_baseline",
+        "improved_pe_recovery_vs_baseline",
+        "found_pe_aligned_improvement_round",
+    )
+
     def trajectory_passes(self) -> bool:
-        return all(self.verdicts.values())
+        """Original gate: did the loop wire end-to-end and evolve the policy?
+
+        Excludes the R12 acceptance#12 improvement verdicts, which gate
+        a stricter claim and can legitimately fail when training overshoots.
+        """
+        for key in self._TRAJECTORY_VERDICT_KEYS:
+            if key in self.verdicts and not self.verdicts[key]:
+                return False
+        return True
+
+    def improvement_vs_baseline_passes(self) -> bool:
+        """R12 acceptance#12 gate: did some trained round beat round 0?
+
+        True iff at least one round shows improvement-vs-baseline AND that
+        round also has sparse switching plus surface drift (the strict
+        reading of "high PE \u2192 controller change \u2192 later improvement").
+        """
+        return self.verdicts.get("found_pe_aligned_improvement_round", False)
 
     def best_round(self) -> RoundReport:
         """Return the round that combines maximal drift with sparse \u03b2_t.
@@ -256,6 +350,18 @@ async def run_multi_round_loop_async(
             distance_to_baseline = 0.0
             distance_to_previous = 0.0
 
+        # Per-round quality aggregates and baseline delta. Round 0 publishes
+        # its own quality but no delta (it IS the baseline); later rounds
+        # publish both. Quality is always present so consumers do not have
+        # to special-case round 0.
+        quality = _compute_round_quality(tuple(bench_reports))
+        if round_reports:
+            delta = _compute_delta_vs_baseline(
+                round_reports[0].quality, quality
+            )
+        else:
+            delta = None
+
         round_reports.append(
             RoundReport(
                 round_index=round_index,
@@ -264,6 +370,8 @@ async def run_multi_round_loop_async(
                 snapshot=snapshot,
                 distance_to_baseline=distance_to_baseline,
                 distance_to_previous=distance_to_previous,
+                quality=quality,
+                delta_from_baseline=delta,
             )
         )
 
@@ -307,6 +415,80 @@ def run_multi_round_loop(
 # ---------------------------------------------------------------------------
 
 
+def _compute_round_quality(reports: tuple[BenchmarkReport, ...]) -> RoundQualityMetrics:
+    """Aggregate ``BenchmarkReport``s into one round-level quality summary.
+
+    Round-level quality is the per-scenario mean: each scenario contributes
+    equally regardless of turn count. PE recovery is computed at the
+    PER-SCENARIO level (early half vs late half) and then averaged \u2014
+    averaging globally over all turns can hide per-scenario recovery when
+    one scenario starts hot and another ends hot.
+    """
+    if not reports:
+        return RoundQualityMetrics(
+            mean_regime_match_rate=0.0,
+            mean_pe_threshold_match_rate=0.0,
+            mean_pe=0.0,
+            early_half_pe_mean=0.0,
+            late_half_pe_mean=0.0,
+            pe_recovery_delta=0.0,
+            mean_switch_gate=0.0,
+        )
+
+    n = len(reports)
+    regime_match = sum(r.regime_match_rate for r in reports) / n
+    pe_threshold = sum(r.pe_threshold_match_rate for r in reports) / n
+
+    pe_values: list[float] = []
+    early_means: list[float] = []
+    late_means: list[float] = []
+    switch_gates: list[float] = []
+    for report in reports:
+        turn_pes = [t.pe_magnitude for t in report.turn_reports]
+        pe_values.extend(turn_pes)
+        switch_gates.extend(t.temporal_switch_gate for t in report.turn_reports)
+        if len(turn_pes) >= 2:
+            half = len(turn_pes) // 2
+            early = sum(turn_pes[:half]) / half if half else 0.0
+            late_count = len(turn_pes) - half
+            late = sum(turn_pes[half:]) / late_count if late_count else 0.0
+            early_means.append(early)
+            late_means.append(late)
+
+    mean_pe = sum(pe_values) / len(pe_values) if pe_values else 0.0
+    early_half = sum(early_means) / len(early_means) if early_means else 0.0
+    late_half = sum(late_means) / len(late_means) if late_means else 0.0
+    mean_switch_gate = (
+        sum(switch_gates) / len(switch_gates) if switch_gates else 0.0
+    )
+    return RoundQualityMetrics(
+        mean_regime_match_rate=regime_match,
+        mean_pe_threshold_match_rate=pe_threshold,
+        mean_pe=mean_pe,
+        early_half_pe_mean=early_half,
+        late_half_pe_mean=late_half,
+        pe_recovery_delta=early_half - late_half,
+        mean_switch_gate=mean_switch_gate,
+    )
+
+
+def _compute_delta_vs_baseline(
+    baseline: RoundQualityMetrics | None,
+    current: RoundQualityMetrics,
+) -> RoundDeltaVsBaseline | None:
+    if baseline is None:
+        return None
+    return RoundDeltaVsBaseline(
+        regime_match_delta=current.mean_regime_match_rate
+        - baseline.mean_regime_match_rate,
+        pe_threshold_delta=current.mean_pe_threshold_match_rate
+        - baseline.mean_pe_threshold_match_rate,
+        pe_recovery_delta_delta=current.pe_recovery_delta - baseline.pe_recovery_delta,
+        mean_pe_delta=current.mean_pe - baseline.mean_pe,
+        mean_switch_gate_delta=current.mean_switch_gate - baseline.mean_switch_gate,
+    )
+
+
 def _build_multi_round_verdicts(rounds: list[RoundReport]) -> dict[str, bool]:
     """Verdicts for the multi-round trajectory.
 
@@ -316,14 +498,25 @@ def _build_multi_round_verdicts(rounds: list[RoundReport]) -> dict[str, bool]:
     \u03b2_t back toward random switching \u2014 the harness sees this in practice
     around round 3 with the built-in scenario set.
 
-    We therefore frame the verdicts as **trajectory-shape** properties rather
-    than endpoint comparisons:
+    We therefore frame the verdicts as **trajectory-shape** properties:
 
     * Did SSL run at every round?
     * Did the policy state actually evolve (snapshots differ)?
     * Did at least one round produce meaningful surface drift?
     * Did at least one round combine sparse \u03b2_t with meaningful drift?
       (the "found a healthy regime" claim)
+
+    R12 acceptance question #12 adds three more:
+
+    * ``improved_regime_match_vs_baseline`` \u2014 some trained round had a
+      higher mean regime-match rate than round 0.
+    * ``improved_pe_recovery_vs_baseline`` \u2014 some trained round had a
+      larger PE recovery delta than round 0 (early-half PE \u2192 late-half PE
+      decline was steeper). This is the "later improvement" leg of #12.
+    * ``found_pe_aligned_improvement_round`` \u2014 there exists a round where
+      sparse switching, surface drift, and improvement-vs-baseline all
+      coincide. That is the strict reading of "high PE triggers temporally
+      aligned controller changes AND later improvement vs weak baseline".
     """
     if len(rounds) < 2:
         return {"sufficient_rounds": False}
@@ -334,11 +527,28 @@ def _build_multi_round_verdicts(rounds: list[RoundReport]) -> dict[str, bool]:
     max_distance = max(r.distance_to_baseline for r in rounds)
     max_distance_meaningful = max_distance > 0.0
 
-    # Was there ever a round whose post-SSL switch frequency stayed sparse
-    # AND whose evaluation drift from baseline was meaningful? That is the
-    # "found a healthy abstraction regime" criterion.
     sparse_and_drifted = any(
         r.distance_to_baseline > 0.0
+        and r.ssl.switch_frequency_last is not None
+        and r.ssl.switch_frequency_last <= 0.20
+        for r in rounds[1:]
+    )
+
+    improved_regime = any(
+        r.delta_from_baseline is not None and r.delta_from_baseline.regime_match_improved
+        for r in rounds[1:]
+    )
+    improved_recovery = any(
+        r.delta_from_baseline is not None and r.delta_from_baseline.pe_recovery_improved
+        for r in rounds[1:]
+    )
+    pe_aligned_improvement = any(
+        r.delta_from_baseline is not None
+        and (
+            r.delta_from_baseline.regime_match_improved
+            or r.delta_from_baseline.pe_recovery_improved
+        )
+        and r.distance_to_baseline > 0.0
         and r.ssl.switch_frequency_last is not None
         and r.ssl.switch_frequency_last <= 0.20
         for r in rounds[1:]
@@ -350,6 +560,9 @@ def _build_multi_round_verdicts(rounds: list[RoundReport]) -> dict[str, bool]:
         "policy_state_evolved": policy_state_evolved,
         "max_distance_meaningful": max_distance_meaningful,
         "found_sparse_drifted_regime": sparse_and_drifted,
+        "improved_regime_match_vs_baseline": improved_regime,
+        "improved_pe_recovery_vs_baseline": improved_recovery,
+        "found_pe_aligned_improvement_round": pe_aligned_improvement,
     }
 
 
@@ -384,6 +597,26 @@ def format_multi_round_report(report: MultiRoundLearningLoopReport) -> str:
             f"      distance: to baseline={r.distance_to_baseline:.3f}  "
             f"to previous={r.distance_to_previous:.3f}"
         )
+        if r.quality is not None:
+            lines.append(
+                f"      quality:  regime_match={r.quality.mean_regime_match_rate:.2f}  "
+                f"pe_recovery={r.quality.pe_recovery_delta:+.3f}  "
+                f"early_pe={r.quality.early_half_pe_mean:.3f} \u2192 "
+                f"late_pe={r.quality.late_half_pe_mean:.3f}  "
+                f"switch_gate_avg={r.quality.mean_switch_gate:.3f}"
+            )
+        if r.delta_from_baseline is not None:
+            d = r.delta_from_baseline
+            lines.append(
+                f"      vs baseline: regime_match \u0394={d.regime_match_delta:+.2f}  "
+                f"pe_recovery \u0394={d.pe_recovery_delta_delta:+.3f}  "
+                f"switch_gate \u0394={d.mean_switch_gate_delta:+.3f}  "
+                + (
+                    "[improved_regime]" if d.regime_match_improved else ""
+                )
+                + (" [improved_recovery]" if d.pe_recovery_improved else "")
+                + (" [sparser]" if d.switching_sparser else "")
+            )
         lines.append("")
     lines.append("   verdicts:")
     for key, value in sorted(report.verdicts.items()):

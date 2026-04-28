@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-domain-coding"
+version = "0.1.0"
+description = "Lifeform vertical: pair-programmer assistant — drives, domain packages, scenarios."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
+    "vz-runtime==0.1.*",
+    "lifeform-core==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_domain_coding*"]
+
+[tool.setuptools.package-data]
+"lifeform_domain_coding" = [
+    "scenarios/*.json",
+]

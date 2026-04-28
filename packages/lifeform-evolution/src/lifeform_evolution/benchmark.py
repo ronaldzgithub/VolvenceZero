@@ -49,6 +49,14 @@ class TurnReport:
     open_loop_count: int
     regime_match: bool
     pe_threshold_met: bool
+    # Optional extras populated by ``run_benchmark_async`` for downstream
+    # family-grouped evaluation. Defaults preserve backward compat: callers
+    # that constructed ``TurnReport(...)`` before these fields existed still
+    # work and just see flat zero-state.
+    temporal_switch_gate: float = 0.0
+    continuum_target_position: float | None = None
+    refer_out_required: bool = False
+    response_length: int = 0
 
 
 @dataclass(frozen=True)
@@ -59,6 +67,13 @@ class BenchmarkReport:
     pe_threshold_match_rate: float
     response_non_empty_rate: float
     closed_scene_count: int
+    # End-of-scenario lifeform state used by family-grouped evaluators.
+    # Defaults preserve backward compat for callers building reports
+    # synthetically (e.g. older tests).
+    final_vitals_total_pe: float = 0.0
+    final_vitals_drive_levels: tuple[tuple[str, float], ...] = ()
+    pending_followup_count: int = 0
+    proactive_followup_count: int = 0
 
     def passed(self, *, min_regime_match_rate: float = 0.5, min_response_non_empty: float = 1.0) -> bool:
         return (
@@ -203,6 +218,7 @@ def run_benchmark(
     config: LifeformConfig | None = None,
     temporal_bootstrap: object | None = None,
     regime_bootstrap: object | None = None,
+    lifeform: Lifeform | None = None,
 ) -> BenchmarkReport:
     """Run one scenario synchronously. Wraps ``run_benchmark_async``."""
     return asyncio.run(
@@ -211,6 +227,7 @@ def run_benchmark(
             config=config,
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
+            lifeform=lifeform,
         )
     )
 
@@ -221,16 +238,27 @@ async def run_benchmark_async(
     config: LifeformConfig | None = None,
     temporal_bootstrap: object | None = None,
     regime_bootstrap: object | None = None,
+    lifeform: Lifeform | None = None,
 ) -> BenchmarkReport:
-    chosen = scenario or low_mood_disclosure_scenario()
-    base_config = config or LifeformConfig()
-    base_config = base_config.with_domain_experience((build_companion_package(),))
+    """Run one scripted scenario through a Lifeform.
 
-    lifeform = Lifeform(
-        base_config,
-        temporal_bootstrap=temporal_bootstrap,
-        regime_bootstrap=regime_bootstrap,
-    )
+    If ``lifeform`` is supplied, the runner uses it as-is (allowing the
+    caller to pre-configure vitals, custom synthesizers, etc. via e.g.
+    ``build_companion_lifeform()``). Otherwise it builds a minimal default
+    Lifeform from ``config`` plus the companion ``DomainExperiencePackage``.
+    The default path stays vertical-agnostic and does NOT wire vitals
+    or pre-trained bootstraps \u2014 callers wanting those should supply
+    ``lifeform`` directly.
+    """
+    chosen = scenario or low_mood_disclosure_scenario()
+    if lifeform is None:
+        base_config = config or LifeformConfig()
+        base_config = base_config.with_domain_experience((build_companion_package(),))
+        lifeform = Lifeform(
+            base_config,
+            temporal_bootstrap=temporal_bootstrap,
+            regime_bootstrap=regime_bootstrap,
+        )
     session = lifeform.create_session(session_id=f"benchmark-{chosen.scenario_id}")
 
     turn_reports: list[TurnReport] = []
@@ -260,9 +288,24 @@ async def run_benchmark_async(
             )
 
         expression_intent: str | None = None
+        continuum_position: float | None = None
+        refer_out_required = False
         assembly_snapshot = result.active_snapshots.get("response_assembly")
         if assembly_snapshot is not None:
             expression_intent = getattr(assembly_snapshot.value, "expression_intent", None)
+            cp = getattr(assembly_snapshot.value, "continuum_target_position", None)
+            if cp is not None:
+                continuum_position = float(cp)
+            refer_out_required = bool(
+                getattr(assembly_snapshot.value, "refer_out_required", False)
+            )
+
+        switch_gate = 0.0
+        temporal_snapshot = result.active_snapshots.get("temporal_abstraction")
+        if temporal_snapshot is not None:
+            sg = getattr(temporal_snapshot.value, "switch_gate", None)
+            if sg is not None:
+                switch_gate = float(sg)
 
         turn_reports.append(
             TurnReport(
@@ -276,8 +319,28 @@ async def run_benchmark_async(
                 open_loop_count=open_loop_count,
                 regime_match=regime_match,
                 pe_threshold_met=pe_threshold_met,
+                temporal_switch_gate=switch_gate,
+                continuum_target_position=continuum_position,
+                refer_out_required=refer_out_required,
+                response_length=len(result.response.text),
             )
         )
+
+    # Pull lifeform-side end-of-run state for family-grouped evaluation
+    # BEFORE we close the scene \u2014 closing fires slow-loop drain which can
+    # mutate snapshots, and we want the state as seen by the caller.
+    final_vitals_total_pe = 0.0
+    final_vitals_drive_levels: tuple[tuple[str, float], ...] = ()
+    if session.vitals_snapshot is not None:
+        final_vitals_total_pe = session.vitals_snapshot.total_pe
+        final_vitals_drive_levels = tuple(
+            (d.name, d.level) for d in session.vitals_snapshot.drive_levels
+        )
+    pending = session.followup_manager.pending
+    pending_followup_count = len(pending)
+    proactive_followup_count = sum(
+        1 for item in pending if item.source == "vitals"
+    )
 
     closed = await session.end_scene(reason="benchmark-end", drain_slow_loop=True)
 
@@ -289,6 +352,10 @@ async def run_benchmark_async(
         pe_threshold_match_rate=sum(1 for r in turn_reports if r.pe_threshold_met) / n,
         response_non_empty_rate=sum(1 for r in turn_reports if r.response_text.strip()) / n,
         closed_scene_count=1 if closed is not None else 0,
+        final_vitals_total_pe=final_vitals_total_pe,
+        final_vitals_drive_levels=final_vitals_drive_levels,
+        pending_followup_count=pending_followup_count,
+        proactive_followup_count=proactive_followup_count,
     )
 
 

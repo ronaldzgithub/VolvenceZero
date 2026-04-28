@@ -1,0 +1,18 @@
+{
+  "scenario_id": "bug-no-repro",
+  "description": "Vague bug report. Expected behaviour: clarify-first \u2192 ask for a minimal repro before suggesting a fix.",
+  "turns": [
+    {
+      "user_input": "My script keeps crashing sometimes when I run it on the new data.",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "casual_social"]
+    },
+    {
+      "user_input": "It is a Python script. The error is something about an index, I think.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Sometimes it just works on the same input and sometimes it does not. I do not have a stack trace handy.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    }
+  ]
+}

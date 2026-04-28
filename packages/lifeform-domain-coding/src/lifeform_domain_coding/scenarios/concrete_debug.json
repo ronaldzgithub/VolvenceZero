@@ -1,0 +1,22 @@
+{
+  "scenario_id": "concrete-debug",
+  "description": "Concrete failing test plus shared code. Expected behaviour: structure-first problem-solving regime; minimal-fix proposal.",
+  "turns": [
+    {
+      "user_input": "I have a function `parse_users(rows)` that returns the wrong count. Test fails: expected 3, got 2 on a 3-row input.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "The function strips empty rows with a `filter`, then maps each row to a dict, then returns `list(...)`. The 3 rows look fine to me.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Yes I am sure none of them are empty. The duplicate-id check happens after the dict-mapping.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Right, the duplicate-id collapse \u2014 that explains it. So we lose row 3 because row 1 had the same id.",
+      "expected_regime_in": ["problem_solving", "guided_exploration", "casual_social"]
+    }
+  ]
+}

@@ -33,7 +33,9 @@ from lifeform_core.tick_engine import TickEngine, TickEngineConfig
 from lifeform_core.types import FollowupItem, Scene, TickEvent, TurnSummary
 from lifeform_core.vitals import VitalsBootstrap, VitalsModule, VitalsSnapshot
 
-from volvence_zero.agent.response import ResponseSynthesizer
+from volvence_zero.agent.response import (
+    ResponseSynthesizer,
+)
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
 from volvence_zero.semantic_state import (
@@ -164,11 +166,22 @@ class Lifeform:
         return Lifeform(self._config, **new_kwargs)
 
     def create_session(self, *, session_id: str = "lifeform-session") -> "LifeformSession":
-        brain_session = self._brain.create_session(session_id=session_id)
         vitals = (
             VitalsModule(self._config.vitals_bootstrap)
             if self._config.vitals_bootstrap is not None
             else None
+        )
+
+        # Per-session synthesizer when vitals are wired AND the brain-level
+        # synthesizer can be cloned with a vitals provider. We deliberately
+        # NEVER mutate the Brain's own synthesizer \u2014 we only construct a
+        # session-local clone whose closure captures THIS session's vitals.
+        # That preserves single-ownership for the brain default while still
+        # letting drives reach the planner / continuity-note renderer.
+        session_synthesizer = self._maybe_clone_synthesizer_with_vitals(vitals)
+        brain_session = self._brain.create_session(
+            session_id=session_id,
+            response_synthesizer=session_synthesizer,
         )
         return LifeformSession(
             brain_session=brain_session,
@@ -180,6 +193,39 @@ class Lifeform:
             ),
             vitals=vitals,
         )
+
+    def _maybe_clone_synthesizer_with_vitals(
+        self, vitals: VitalsModule | None
+    ) -> ResponseSynthesizer | None:
+        """Return a per-session synthesizer clone bound to this session's vitals.
+
+        Returns ``None`` (i.e. fall back to the Brain's default) when:
+        * the lifeform has no vitals configured, or
+        * the brain-level synthesizer is not a ``GroundedResponseSynthesizer``
+          (the only synthesizer shape that knows how to consume a vitals
+          provider). Plain ``ResponseSynthesizer`` and custom subclasses
+          are passed through unchanged \u2014 not silently downgraded \u2014 so
+          callers see the synthesizer they constructed.
+        """
+        if vitals is None:
+            return None
+        synth = self._init_kwargs.get("response_synthesizer")
+        if synth is None:
+            return None
+        # Lazy import to keep ``lifeform-core`` from depending on
+        # ``lifeform-expression`` at module import time. The dependency is
+        # already implicit (the user supplied a Grounded synthesizer
+        # constructed from lifeform-expression), so the import only
+        # actually runs when the user opted into that synthesizer.
+        try:
+            from lifeform_expression.response_synthesizer import (
+                GroundedResponseSynthesizer,
+            )
+        except ImportError:
+            return None
+        if not isinstance(synth, GroundedResponseSynthesizer):
+            return None
+        return synth.with_vitals_provider(vitals.current_snapshot)
 
 
 class LifeformSession:
