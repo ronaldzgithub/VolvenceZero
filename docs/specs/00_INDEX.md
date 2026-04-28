@@ -197,6 +197,22 @@
 
 ---
 
+### 11A. Lifeform Vitals (Always-On Drive Layer)
+
+**对应需求**：R-PE（prediction error 为原始学习信号）、R1（多时间尺度）、R8（契约优先）、R11（内部状态可发布）、R14（regime 持久身份）
+
+| Spec | 内容 |
+|------|------|
+| [lifeform-vitals.md](./lifeform-vitals.md) | DriveSpec / VitalsBootstrap / VitalsSnapshot；介于 turn-driven assistant 与 always-on organism 的边界层；vertical 通过 drive 集合编码"这只生命体在乎什么" |
+
+**核心不变量**：
+- 漂出 homeostatic band 的 drive deviation 即慢尺度 prediction error；in-band 时贡献为 0（homeostasis 静默）
+- 衰减只发生在 SYSTEM tick；ENERGY/CONTEXT tick 仅推进 tick_index
+- VitalsModule 是 drive level 的唯一 owner；消费者只读 VitalsSnapshot
+- 跨 proactive_pe_threshold 触发的 followup 由 owner 内部 cooldown 控制，永不洪泛
+
+---
+
 ### 12. Core Package Boundary
 
 **对应需求**：R2（稳定基底 + 自适应控制器）、R8（契约优先）、R11（内部状态可发布）、R15（可回滚演进）

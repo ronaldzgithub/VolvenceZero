@@ -307,6 +307,7 @@ This section records the current implementation delta without relaxing the targe
 - The default continual learner path is deliberately conservative: bounded writeback is default for memory, temporal priors, regime priors, reflection outputs, and session-post slow-loop consolidation, while live substrate mutation remains outside the default path.
 - The session owner already runs a bounded PE-scheduled joint loop and can trigger substrate-aware `rare-heavy` review. Offline artifacts now carry temporal, memory, and substrate checkpoints, and owner-side checkpoint/rollback surfaces exist across all three.
 - The dialogue evidence plane already exceeds the original fixed scripted benchmark requirement: besides canonical cases, the repo now has perturbation, systematic replay, replay-selection artifacts, multi-artifact acceptance, and NL-essence gates.
+- The lifeform layer (`lifeform-core.vitals`) now ships an always-on drive layer producing slow-scale PE between turns. This closes the "turn-driven assistant" gap: idle ticks accumulate drive deviation and can surface proactive follow-ups when crossing a configured threshold, without violating the snapshot-first contract (R8) or the frozen-substrate doctrine (R2). See `docs/specs/lifeform-vitals.md`.
 
 ### Partially landed or still gated
 
