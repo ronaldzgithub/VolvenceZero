@@ -98,22 +98,29 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
 def _try_coding() -> VerticalSpec | None:
     """Pair-programmer engineering-partner vertical.
 
-    No pre-trained bootstraps yet \u2014 those would come from running
-    ``lifeform-super-loop`` over the vertical's own scenarios. The
-    factory still produces a fully-functional Lifeform with the coding
-    ``DomainExperiencePackage`` and drive set wired in.
+    Pre-trained bootstraps may or may not ship: the factory checks at
+    construction time and only loads them when present. Verticals
+    without artifacts still produce a fully-functional Lifeform with
+    the kernel's flat regime priors as the fallback.
     """
     try:
-        from lifeform_domain_coding import build_coding_lifeform, scenarios_dir
+        from lifeform_domain_coding import (
+            bootstraps_dir,
+            build_coding_lifeform,
+            has_coding_regime_bootstrap,
+            has_coding_temporal_bootstrap,
+            scenarios_dir,
+        )
     except ImportError:
         return None
+    bdir = bootstraps_dir()
     sdir = scenarios_dir()
     return VerticalSpec(
         name="coding",
         factory=lambda runtime: build_coding_lifeform(substrate_runtime=runtime),
-        has_temporal_bootstrap=False,
-        has_regime_bootstrap=False,
-        bootstraps_dir=None,
+        has_temporal_bootstrap=has_coding_temporal_bootstrap(),
+        has_regime_bootstrap=has_coding_regime_bootstrap(),
+        bootstraps_dir=str(bdir) if bdir.is_dir() else None,
         scenarios_dir=str(sdir) if sdir.is_dir() else None,
     )
 

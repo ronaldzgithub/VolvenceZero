@@ -1,10 +1,24 @@
 # Repository Split Charter
 
 > Status: active charter
-> Last updated: 2026-04-28
+> Last updated: 2026-04-29
 
 ## Recent changelog
 
+- 2026-04-29: **Trigger \u2461 met + same training pipeline confirmed across verticals.**
+  A second product consumer (`lifeform-domain-coding`, pair-programmer
+  engineering partner) lives alongside `lifeform-domain-emogpt` in the
+  workspace, and now also ships its own pre-trained
+  `coding-temporal.snap` + `coding-regime.bs` artefacts produced by
+  `lifeform-super-loop --vertical coding`. The same evolution loops
+  (super-loop, multi-round-loop, learning-loop, regime-calibrator) drive
+  both verticals via a `domain_experience_packages` parameter; the CLIs
+  expose `--vertical {companion,coding}` resolving to the right
+  scenarios + DomainExperiencePackage. Two verticals coexist in one
+  Python process with disjoint drive sets, distinct DomainExperiencePackages,
+  independent scenario packs, AND parallel bootstrap pipelines. The
+  "kernel is vertical-agnostic" claim is no longer aspirational. See
+  `tests/lifeform_e2e/test_coding_vertical.py` for the proof artefacts.
 - 2026-04-28: M0 wheel-split debt resolved. ``vz-application`` is now its own
   wheel under ``packages/vz-application``. The cycle (``vz-cognition.evaluation``
   importing application owner snapshot types) was broken by extracting the
@@ -44,14 +58,19 @@ is in `archetecture.md` §Repository decision.
 
 Split into two repositories when **at least two** of the following are true:
 
-| ID | Trigger | Verifiable how |
-|---|---|---|
-| ① | Contract surface stable | `docs/DATA_CONTRACT.md` has no breaking change for ≥4 consecutive weeks |
-| ② | Second product consumer | A second `lifeform-domain-*` is in active use beyond `lifeform-domain-emogpt` |
-| ③ | Governance pressure | Independent versioning / release cadence / contributor policy is required for the kernel |
-| ④ | External distribution | Kernel needs to ship to a private artifactory or PyPI as a stand-alone product |
-| ⑤ | Compliance | Lifeform repo must enforce stricter access control around tenant data |
-| ⑥ | Scale | Repo > ~200k LoC or PR throughput is bottlenecked on CI |
+| ID | Trigger | Status | Verifiable how |
+|---|---|---|---|
+| ① | Contract surface stable | pending | `docs/DATA_CONTRACT.md` has no breaking change for ≥4 consecutive weeks |
+| ② | Second product consumer | **MET (2026-04-29)** | `lifeform-domain-coding` joined `lifeform-domain-emogpt`; both auto-discovered by the service registry; both pass the boundary linter |
+| ③ | Governance pressure | pending | Independent versioning / release cadence / contributor policy is required for the kernel |
+| ④ | External distribution | pending | Kernel needs to ship to a private artifactory or PyPI as a stand-alone product |
+| ⑤ | Compliance | pending | Lifeform repo must enforce stricter access control around tenant data |
+| ⑥ | Scale | pending | Repo > ~200k LoC or PR throughput is bottlenecked on CI |
+
+Phase 2 fires when **two** triggers are met. With ② met, the next trigger to
+watch is ① (contract stability). M3 evidence runs and metric reports under
+`docs/specs/evaluation.md` are the source of truth for whether ① has
+stabilised.
 
 Predicted earliest fire date: **after M4** (`vz-temporal` lands and Internal
 RL evidence stabilises). That is roughly the 6–9 month window from 2026-04.
@@ -68,6 +87,7 @@ git filter-repo \
   --path packages/lifeform-core \
   --path packages/lifeform-expression \
   --path packages/lifeform-domain-emogpt \
+  --path packages/lifeform-domain-coding \
   --path packages/lifeform-service \
   --path packages/lifeform-evolution \
   --path docs/lifeform_specs \

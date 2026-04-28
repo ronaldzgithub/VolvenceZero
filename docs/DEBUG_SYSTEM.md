@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 调试与可观测性体系
 
 > Status: draft
-> Version: 0.3
-> Last updated: 2026-04-25
+> Version: 0.4
+> Last updated: 2026-04-29
 > 对应需求: R8（快照优先、契约优先）、R11（可学习的内部状态表示）、R15（迁移可解释性和可回滚）
 
 ---
@@ -728,7 +728,26 @@ SnapshotSizeReport (per turn):
 
 ---
 
-## 14. 参考文档
+## 14. 调试体系跨 wheel 边界（2026-04-29）
+
+调试体系自身遵守 wheel 边界：
+
+| 层 | wheel | 调试责任 |
+|----|-------|----------|
+| 内核可观测性 | `vz-runtime` / `vz-cognition` | Layer 1 事件日志、Layer 2 契约守卫、Layer 3 turn 检查、checkpoint / rollback |
+| 生命体可观测性 | `lifeform-core` | Tick 时间索引、Scene 生命周期、Followup 队列、`VitalsSnapshot.tick_index` / `total_pe` / `above_proactive_threshold` 等 always-on 指标 |
+| 跨 wheel 工具 | `lifeform-evolution` | scripted benchmark 的 trace collector、family report、multi-round delta-vs-baseline、super-loop verdict 等聚合层调试入口 |
+| 跨 wheel 工具 | `lifeform-service` | aiohttp 请求日志、session manager 的 LRU 状态、vertical registry 内容（`GET /v1/info`） |
+
+**关键不变量**：
+
+- 内核调试事件不知道 lifeform-side vitals 状态；`VitalsSnapshot.tick_index` / `total_pe` 通过 lifeform 层日志或 benchmark 报告独立观察
+- `lifeform-evolution.trace_collector` 输出的 NDJSON trace 可通过 `lifeform_evolution.dataset_adapter` 转换成内核 SSL 训练 dataset，调试侧不允许跨过 owner 直接重建生产者状态
+- service 层的事件日志不得绕过 `BrainSession` facade 直接读内核私有状态；统一通过公共 snapshot
+
+---
+
+## 15. 参考文档
 
 | 文档 | 用途 |
 |------|------|
@@ -736,4 +755,6 @@ SnapshotSizeReport (per turn):
 | `docs/SYSTEM_DESIGN.md` | 系统架构：模块职责、数据流 |
 | `docs/DATA_CONTRACT.md` | 快照 schema、Slot 注册表 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：调试数据如何回馈评估 |
+| `docs/specs/lifeform-vitals.md` | vitals layer 的 lifecycle invariants（owner 唯一性、cooldown、tick 频率） |
+| `SPLIT.md` | 仓库边界 charter：调试工具同样不得跨越 wheel 边界 |
 | `.cursor/rules/no-swallow-errors-no-hasattr-abuse.mdc` | 契约违反必须 fail loudly |

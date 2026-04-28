@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import ClassVar
 
+from volvence_zero.application import DomainExperiencePackage
 from volvence_zero.regime import REGIME_TEMPLATES, RegimeBootstrap
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
@@ -58,7 +60,12 @@ from lifeform_evolution.learning_loop import (
     _run_scenario_with_lifeform,
     _summarise_reports,
 )
-from lifeform_evolution.regime_calibrator import _apply_updates_in_place, _tally_matches
+from lifeform_evolution.regime_calibrator import (
+    _apply_diversity_penalty,
+    _apply_updates_in_place,
+    _tally_matches,
+    _tally_predicted_regimes,
+)
 from lifeform_evolution.ssl_demo import SSLDemoReport, run_ssl_demo
 from lifeform_evolution.trace_collector import TraceCollector
 
@@ -81,6 +88,16 @@ class SuperLoopRoundReport:
     temporal_snapshot: MetacontrollerParameterSnapshot
     regime_bootstrap: RegimeBootstrap
     distance_to_baseline: float
+    predicted_regime_counts: tuple[tuple[str, int], ...] = ()
+
+    @property
+    def predicted_regime_share(self) -> float:
+        if not self.predicted_regime_counts:
+            return 0.0
+        total = sum(count for _, count in self.predicted_regime_counts)
+        if total <= 0:
+            return 0.0
+        return self.predicted_regime_counts[0][1] / total
 
 
 @dataclass(frozen=True)
@@ -103,20 +120,96 @@ class SuperLoopReport:
     def trajectory_passes(self) -> bool:
         return all(self.verdicts.values())
 
-    def best_round(self) -> SuperLoopRoundReport:
-        """Round combining sparse \u03b2_t with the highest regime match rate.
+    # Above this share, a round is treated as a regime-collapsed run \u2014
+    # technically high regime_match but the lifeform's responses become
+    # indistinguishable across scenarios. Diversity is the higher-priority
+    # gate when picking the best round.
+    _DIVERSITY_MAX_TOP_SHARE: ClassVar[float] = 0.70
+    # Below this gate is "sparse \u03b2_t" \u2014 healthy ETA temporal abstraction.
+    _SPARSE_BETA_THRESHOLD: ClassVar[float] = 0.20
 
-        Sparse threshold: ``switch_frequency_last <= 0.20``. Among such
-        rounds the one with the highest regime match rate wins. Falls back
-        to highest regime match rate if no round qualifies as sparse.
+    def best_round(self) -> SuperLoopRoundReport:
+        """Round that best evidences the design intent.
+
+        Two independent gates: **diverse** (multi-regime predicted
+        distribution) and **sparse** (\u03b2_t fires occasionally rather
+        than every step). Selection priority:
+
+        1. **diverse \u2229 sparse** \u2014 ideal: temporal abstraction is healthy
+           AND multiple regimes are exercised.
+        2. **diverse only** \u2014 we keep regime variety even at the cost of
+           saturated \u03b2_t. A monoculture round defeats the point of
+           having a regime axis at all.
+        3. **sparse only** \u2014 fall back to ETA-healthy rounds when no
+           round managed multi-regime predictions.
+        4. Any trained round, by highest regime_match_rate.
+
+        Within each pool, ties broken by ``regime_match_rate``.
         """
+        trained = list(self.rounds[1:]) or list(self.rounds)
+
+        def _is_sparse(r: SuperLoopRoundReport) -> bool:
+            sf = r.ssl.switch_frequency_last
+            return sf is not None and sf <= self._SPARSE_BETA_THRESHOLD
+
+        def _is_diverse(r: SuperLoopRoundReport) -> bool:
+            return r.predicted_regime_share <= self._DIVERSITY_MAX_TOP_SHARE
+
+        for predicate in (
+            lambda r: _is_diverse(r) and _is_sparse(r),
+            _is_diverse,
+            _is_sparse,
+        ):
+            pool = [r for r in trained if predicate(r)]
+            if pool:
+                return max(pool, key=lambda r: r.regime_match_rate)
+        return max(trained, key=lambda r: r.regime_match_rate)
+
+    def best_temporal_round(self) -> SuperLoopRoundReport:
+        """Best round for the temporal (\u03b2_t / z_t) axis.
+
+        Picks the sparse-\u03b2_t round with the highest regime_match_rate
+        (regime quality is a useful tie-break among healthy temporal
+        rounds). Falls back to whichever round has the closest-to-target
+        switch frequency when no round qualifies as sparse \u2014 measured by
+        absolute distance to ``_SPARSE_BETA_THRESHOLD``.
+
+        Used by ``lifeform-super-loop --save-temporal`` so the saved
+        temporal artifact reflects the cleanest \u03b2_t state, even when
+        regime calibration kept improving in later (over-trained)
+        rounds.
+        """
+        trained = list(self.rounds[1:]) or list(self.rounds)
         sparse = [
-            r for r in self.rounds[1:]
+            r for r in trained
             if r.ssl.switch_frequency_last is not None
-            and r.ssl.switch_frequency_last <= 0.20
+            and r.ssl.switch_frequency_last <= self._SPARSE_BETA_THRESHOLD
         ]
-        candidates = sparse or list(self.rounds[1:])
-        return max(candidates, key=lambda r: r.regime_match_rate)
+        if sparse:
+            return max(sparse, key=lambda r: r.regime_match_rate)
+        return min(
+            trained,
+            key=lambda r: abs(
+                (r.ssl.switch_frequency_last or 1.0) - self._SPARSE_BETA_THRESHOLD
+            ),
+        )
+
+    def best_regime_round(self) -> SuperLoopRoundReport:
+        """Best round for the regime axis.
+
+        Picks the most diverse round (predicted top-share \u2264 threshold)
+        with the highest regime_match_rate. When all rounds are mono\u00ad
+        cultures, falls back to the lowest-top-share round. Used by
+        ``lifeform-super-loop --save-regime``.
+        """
+        trained = list(self.rounds[1:]) or list(self.rounds)
+        diverse = [
+            r for r in trained
+            if r.predicted_regime_share <= self._DIVERSITY_MAX_TOP_SHARE
+        ]
+        if diverse:
+            return max(diverse, key=lambda r: r.regime_match_rate)
+        return min(trained, key=lambda r: r.predicted_regime_share)
 
 
 # ---------------------------------------------------------------------------
@@ -165,15 +258,35 @@ async def run_super_loop_async(
     n_z: int = 3,
     alpha: float = 0.1,
     regime_learning_rate: float = 0.18,
+    diversity_threshold: float = 0.50,
+    diversity_lr: float = 0.30,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> SuperLoopReport:
+    """Jointly train (\u03b2_t / z_t) and regime axes over a vertical's scenarios.
+
+    Args:
+        rounds: total number of rounds, including round 0 baseline.
+        scenarios: scenario set to drive the loop. Defaults to the
+            built-in companion scenarios.
+        n_z, alpha: SSL hyperparams.
+        regime_learning_rate: regime calibrator step size.
+        domain_experience_packages: vertical-specific
+            ``DomainExperiencePackage`` set baked into every Lifeform
+            constructed by the loop. Defaults to the companion package
+            so existing call sites do not need to change. A different
+            vertical (e.g. ``lifeform-domain-coding``) passes its own
+            ``(build_coding_package(),)`` in.
+    """
     if rounds < 2:
         raise ValueError(
             "Super loop needs at least 2 rounds (round 0 baseline + at least 1 trained)."
         )
     chosen = scenarios or all_built_in_scenarios()
+    if domain_experience_packages is None:
+        domain_experience_packages = (build_companion_package(),)
 
     base_config = LifeformConfig().with_domain_experience(
-        (build_companion_package(),)
+        domain_experience_packages
     )
     from dataclasses import replace as _replace
     base_config = _replace(
@@ -214,6 +327,9 @@ async def run_super_loop_async(
             tuple(chosen), bench_reports
         )
         regime_match_rate = match_count / max(total_labelled, 1)
+        predicted_counts, predicted_total = _tally_predicted_regimes(
+            bench_reports
+        )
 
         # 2) Trace pass: collect SSL training data with the SAME bootstraps,
         #    so the next metacontroller update reflects the post-calibration
@@ -238,10 +354,19 @@ async def run_super_loop_async(
         new_temporal_snapshot = temporal_policy.export_rare_heavy_snapshot()
 
         # 4) Regime calibration: nudge weights AFTER eval pass so the next
-        #    round sees the update.
+        #    round sees the update. Includes the diversity penalty so a
+        #    small scenario pack does not collapse the calibrator into
+        #    "always predict the regime that's in every label set".
         if round_index < rounds - 1:
             _apply_updates_in_place(
                 regime_weights, misses, lr=regime_learning_rate
+            )
+            _apply_diversity_penalty(
+                regime_weights,
+                predicted_counts,
+                predicted_total,
+                threshold=diversity_threshold,
+                lr=diversity_lr,
             )
         new_regime_bootstrap = _build_regime_bootstrap(regime_weights)
 
@@ -263,6 +388,12 @@ async def run_super_loop_async(
                 temporal_snapshot=new_temporal_snapshot,
                 regime_bootstrap=new_regime_bootstrap,
                 distance_to_baseline=distance_to_baseline,
+                predicted_regime_counts=tuple(
+                    sorted(
+                        predicted_counts.items(),
+                        key=lambda kv: (-kv[1], kv[0]),
+                    )
+                ),
             )
         )
 
@@ -301,6 +432,9 @@ def run_super_loop(
     n_z: int = 3,
     alpha: float = 0.1,
     regime_learning_rate: float = 0.18,
+    diversity_threshold: float = 0.50,
+    diversity_lr: float = 0.30,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> SuperLoopReport:
     import asyncio
 
@@ -311,6 +445,9 @@ def run_super_loop(
             n_z=n_z,
             alpha=alpha,
             regime_learning_rate=regime_learning_rate,
+            diversity_threshold=diversity_threshold,
+            diversity_lr=diversity_lr,
+            domain_experience_packages=domain_experience_packages,
         )
     )
 
@@ -368,8 +505,17 @@ def format_super_loop_report(report: SuperLoopReport) -> str:
         lines.append(_format_distribution(r))
         lines.append(
             f"      regime:  match={r.regime_match_rate:.0%}  "
-            f"misclassified={r.misclassified_turn_count}"
+            f"misclassified={r.misclassified_turn_count}  "
+            f"top-share={r.predicted_regime_share:.0%}"
         )
+        if r.predicted_regime_counts:
+            lines.append(
+                "      predicted: "
+                + ", ".join(
+                    f"{regime}={count}"
+                    for regime, count in r.predicted_regime_counts
+                )
+            )
         lines.append(
             f"      ssl:     switch_freq "
             f"{r.ssl.switch_frequency_first or 0.0:.3f} -> "

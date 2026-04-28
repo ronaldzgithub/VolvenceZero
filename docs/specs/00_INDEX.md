@@ -235,10 +235,12 @@
 |------|------|--------|
 | `docs/next_gen_emogpt.md` | **唯一设计源头**：系统需求 R-PE + R1-R15 + NL/ETA 算法详设（附录 A/B/C） | 理解需求根源和算法基础 |
 | `docs/prd.md` | 产品需求文档：愿景、工程分解、必要脚手架、里程碑 | 理解工程规划和交付计划 |
-| `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、多时间尺度学习循环、迁移策略 | 理解系统整体结构和模块关系 |
-| `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、变更协议 | 理解模块间数据交换格式和约束 |
-| `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、调试工作流 | 理解如何调试和监控系统运行 |
-| `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、评估信号回馈机制、基线测试集 | 理解如何评估系统表现和驱动学习 |
+| `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 | 理解仓库与 wheel 切分思路 |
+| `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 | 理解仓库分裂时机与机械流程 |
+| `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、多时间尺度学习循环、wheel 边界、迁移策略 | 理解系统整体结构和模块关系 |
+| `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、wheel 边界、变更协议 | 理解模块间数据交换格式和约束 |
+| `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
+| `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、信号回馈、lifeform-bench family report | 理解如何评估系统表现和驱动学习 |
 | `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |
 
 ### 文档依赖图
@@ -246,21 +248,25 @@
 ```
 docs/next_gen_emogpt.md  ← 唯一设计源头（R-PE + R1-R15 + NL/ETA 算法）
     │
-    ├──→ docs/prd.md  ← 产品需求（愿景、能力域分解、里程碑）
+    ├──→ docs/prd.md  ← 产品需求（愿景、能力域分解、里程碑、wheel 边界）
+    │       │
+    │       ├──→ archetecture.md  ← 8 wheel 切分轴
+    │       │       │
+    │       │       └──→ SPLIT.md  ← 仓库边界 charter
     │       │
     │       └──→ docs/specs/00_INDEX.md  ← 分层知识入口（本文件）
     │               │
     │               └──→ docs/specs/*.md  ← 各能力域 Spec
     │
-    ├──→ docs/SYSTEM_DESIGN.md  ← 系统架构（模块职责、数据流）
+    ├──→ docs/SYSTEM_DESIGN.md  ← 系统架构（模块职责、数据流、wheel 边界）
     │       │
-    │       ├──→ docs/DATA_CONTRACT.md  ← 数据契约（快照 schema、接口）
+    │       ├──→ docs/DATA_CONTRACT.md  ← 数据契约（快照 schema、接口、wheel 边界）
     │       │
-    │       ├──→ docs/DEBUG_SYSTEM.md  ← 调试体系（可观测性、契约守卫）
+    │       ├──→ docs/DEBUG_SYSTEM.md  ← 调试体系（可观测性、契约守卫、跨 wheel 边界）
     │       │       │
     │       │       └──→ docs/EVALUATION_SYSTEM.md  ← 评估体系（调试数据是评估输入）
     │       │
-    │       └──→ docs/EVALUATION_SYSTEM.md  ← 评估体系（6 族框架）
+    │       └──→ docs/EVALUATION_SYSTEM.md  ← 评估体系（6 族框架 + lifeform-bench）
     │
     └──→ .cursor/rules/*.mdc  ← 编码规则（从 R1-R15 推导）
 ```

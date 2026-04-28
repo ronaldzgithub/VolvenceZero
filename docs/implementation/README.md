@@ -26,6 +26,7 @@ Implementation notes are not the architectural source of truth. They explain con
 - `10_pe_eta_dialogue_benchmark_harness.md` - dialogue proof harness for PE, ETA, multi-timescale, and slow-loop evidence.
 - `11_eta_internal_rl_strong_proof_harness.md` - repo-native ETA internal-RL proof harness and matched controls.
 - `12_eta_paper_grade_uplift_plan.md` - current staged path from engineering proof to paper-grade evidence discipline.
+- `13_emogpt_prd_alignment_upgrade.md` - 12-gap upgrade plan that maps EmoGPT v4.0 product PRD requirements onto VolvenceZero's NL+ETA owner contracts; identifies what to borrow, what to refuse, and the phased rollout that preserves SSOT.
 
 ## Current Paper-Grade Uplift Stages
 

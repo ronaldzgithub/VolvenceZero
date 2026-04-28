@@ -23,4 +23,6 @@ include = ["lifeform_domain_coding*"]
 [tool.setuptools.package-data]
 "lifeform_domain_coding" = [
     "scenarios/*.json",
+    "bootstraps/*.snap",
+    "bootstraps/*.bs",
 ]

@@ -164,6 +164,13 @@
 
 ## 变更日志
 
+- 2026-04-29: regime calibrator 增加 anti-monoculture 多样性约束：
+  - 新增 `_apply_diversity_penalty(weights, predicted_counts, total, *, threshold, lr)`：当某一 regime 在预测分布中占比超过 `threshold` 时，按 `factor = 1 - lr * (predicted_share - threshold)` 倍率拉回该 regime 的 selection_weight；预测分布本来就多样时无效（factor=1）
+  - `RegimeCalibrationRoundReport` / `SuperLoopRoundReport` 新增 `predicted_regime_counts` + `predicted_regime_share` 字段，让每轮的多样性证据进入快照
+  - `SuperLoopReport.best_temporal_round()` / `best_regime_round()` 拆开两个轴的最佳轮选择：temporal 沿用 sparse β_t 健康标准，regime 走 diversity-first；CLI `--save-temporal` / `--save-regime` 各取一个
+  - `RegimeCalibrationReport.best_round()` 排除 round 0（baseline 不算 best）并优先选择 diverse 轮
+  - `lifeform-super-loop` / `lifeform-calibrate` 增加 `--diversity-threshold` / `--diversity-lr` flag；`--diversity-lr 0.0` 退化到旧行为做 ablation
+  - 修掉了之前 `coding` vertical 训练塌陷成"100% guided_exploration"的退化解；shipped bootstrap 现在两个 regime 同时活跃
 - 2026-04-28: lifeform 层新增两条 R12 证据接口：
   - `lifeform_evolution.family_report` 把 `BenchmarkReport` 的原始指标按六族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`lifeform-bench --family-report` / `--family-report-json` 让 CI 与人工审阅都能直接读到分组化的 pass/fail；不改变内核 `evaluation` snapshot 公共结构
   - `lifeform_evolution.multi_round_loop` 增加 `RoundQualityMetrics` + `RoundDeltaVsBaseline`：每轮发布 mean_regime_match_rate / pe_recovery / mean_switch_gate 等聚合，并对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance#12 verdict，与原有结构性 verdict（trajectory_passes）解耦；CLI 增加 `--require-improvement-vs-baseline` 把 acceptance#12 转为 fail-closed gate

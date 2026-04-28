@@ -61,6 +61,94 @@ _SCENARIOS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Vertical resolution \u2014 a vertical name maps to (scenarios_dir, domain_pack)
+#
+# We deliberately resolve verticals by importing their public package
+# functions rather than going through ``lifeform_service.verticals``: the
+# evolution layer must run without lifeform-service installed (it can be
+# installed independently in a training-only environment).
+# ---------------------------------------------------------------------------
+
+
+_KNOWN_VERTICALS: tuple[str, ...] = ("companion", "coding")
+
+
+def _resolve_vertical(name: str | None) -> tuple[
+    tuple[ScriptedScenario, ...] | None,
+    tuple[object, ...] | None,
+]:
+    """Resolve ``--vertical NAME`` into ``(scenarios, domain_packages)``.
+
+    Returns ``(None, None)`` when ``name`` is None/empty so the caller can
+    fall back to its own default. Both elements are populated when the
+    vertical resolves successfully.
+
+    Raises ``SystemExit`` (via argparse-shaped error) when ``name`` is
+    set but does not resolve \u2014 better to fail loudly than silently use
+    the wrong vertical's scenarios with the wrong vertical's package.
+    """
+    if not name:
+        return (None, None)
+    if name == "companion":
+        from lifeform_domain_emogpt import (
+            build_companion_package,
+            scenarios_dir,
+        )
+
+        return (load_scenarios(scenarios_dir()), (build_companion_package(),))
+    if name == "coding":
+        try:
+            from lifeform_domain_coding import (
+                build_coding_package,
+                scenarios_dir as coding_scenarios_dir,
+            )
+        except ImportError as exc:
+            raise SystemExit(
+                f"--vertical coding requires lifeform-domain-coding to be installed: {exc}"
+            ) from exc
+        return (
+            load_scenarios(coding_scenarios_dir()),
+            (build_coding_package(),),
+        )
+    raise SystemExit(
+        f"Unknown vertical {name!r}. Available: {_KNOWN_VERTICALS!r}."
+    )
+
+
+def _build_vertical_lifeform(name: str | None) -> object | None:
+    """Construct a fully-wired Lifeform for the named vertical.
+
+    Used by ``lifeform-bench --vertical NAME`` so the vertical's shipped
+    bootstraps are picked up automatically. Returns ``None`` for an
+    empty name; callers fall back to their default Lifeform.
+    """
+    if not name:
+        return None
+    if name == "companion":
+        from lifeform_domain_emogpt import build_companion_lifeform
+
+        return build_companion_lifeform()
+    if name == "coding":
+        from lifeform_domain_coding import build_coding_lifeform
+
+        return build_coding_lifeform()
+    raise SystemExit(f"Unknown vertical {name!r}.")
+
+
+def _run_with_lifeform(
+    *, scenario: ScriptedScenario, lifeform: object
+) -> object:
+    """Run one scenario against a pre-built Lifeform synchronously."""
+    import asyncio
+
+    from lifeform_evolution.benchmark import run_benchmark_async
+
+    return asyncio.run(
+        run_benchmark_async(scenario=scenario, lifeform=lifeform)
+    )
+
+
 def _resolve_scenarios_flag(path: str | None) -> tuple[ScriptedScenario, ...] | None:
     """Return the scenarios named by ``--scenarios PATH``, or None if unset.
 
@@ -80,10 +168,23 @@ def _build_bench_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lifeform-bench",
         description=(
-            "Run a scripted multi-turn benchmark on a Lifeform built from "
-            "VolvenceZero + the EmoGPT-style companion vertical. Custom "
-            "verticals may pass --scenarios PATH (a JSON file or directory "
-            "of JSON files) to define their own benchmark set."
+            "Run a scripted multi-turn benchmark on a Lifeform. Default is "
+            "the companion vertical with built-in scenarios. Pass "
+            "--vertical coding to benchmark the pair-programmer vertical "
+            "end-to-end (its scenarios + its DomainExperiencePackage + its "
+            "shipped bootstraps), or --scenarios PATH to point at any custom "
+            "JSON scenario set."
+        ),
+    )
+    parser.add_argument(
+        "--vertical",
+        choices=_KNOWN_VERTICALS,
+        default=None,
+        help=(
+            "Resolve scenarios + DomainExperiencePackage + shipped bootstraps "
+            "from a known vertical. Default: companion when neither --vertical "
+            "nor --scenarios is given. When set, the matching ``build_*_lifeform`` "
+            "is used (so e.g. shipped coding bootstraps load automatically)."
         ),
     )
     parser.add_argument(
@@ -92,7 +193,7 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         help=(
             'Built-in scenario name (or "all"). Choices: '
             + ", ".join(tuple(_SCENARIOS.keys()) + ("all",))
-            + ". Ignored when --scenarios is given."
+            + ". Ignored when --scenarios or --vertical is given."
         ),
     )
     parser.add_argument(
@@ -100,7 +201,8 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Path to a JSON scenario file or a directory of them. When set, "
-            "overrides --scenario and --SCENARIOS in --scenario all sense."
+            "overrides --scenario; combines with --vertical to use that "
+            "vertical's domain pack but a different scenario set."
         ),
     )
     parser.add_argument(
@@ -162,10 +264,14 @@ def main(argv: list[str] | None = None) -> int:
     if regime_bootstrap is not None:
         print(f"[bench] using regime bootstrap: {args.regime_bootstrap}")
 
+    vertical_scenarios, _ = _resolve_vertical(args.vertical)
     custom = _resolve_scenarios_flag(args.scenarios)
     if custom is not None:
         scenarios: tuple[ScriptedScenario, ...] = custom
         print(f"[bench] using {len(scenarios)} scenarios from {args.scenarios}")
+    elif vertical_scenarios is not None:
+        scenarios = vertical_scenarios
+        print(f"[bench] using {len(scenarios)} scenarios from --vertical {args.vertical}")
     elif args.scenario == "all":
         scenarios = all_built_in_scenarios()
     else:
@@ -176,6 +282,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         scenarios = (_SCENARIOS[args.scenario](),)
 
+    # When --vertical is set, build a fully-configured Lifeform via that
+    # vertical's factory (so its drives + shipped bootstraps load
+    # automatically). When unset, ``run_benchmark`` falls back to its
+    # vanilla companion-pack lifeform \u2014 the historic behaviour.
+    vertical_lifeform = _build_vertical_lifeform(args.vertical) if args.vertical else None
+
     want_family_report = (
         args.family_report
         or args.family_report_json is not None
@@ -185,11 +297,19 @@ def main(argv: list[str] | None = None) -> int:
     family_pass = True
     family_artifacts: list[dict[str, object]] = []
     for scenario in scenarios:
-        report = run_benchmark(
-            scenario=scenario,
-            temporal_bootstrap=bootstrap,
-            regime_bootstrap=regime_bootstrap,
-        )
+        if vertical_lifeform is not None:
+            # Per-scenario fresh session via the vertical lifeform; the
+            # same Lifeform instance is reused across scenarios so its
+            # Brain (and any pre-loaded bootstraps) is built once.
+            report = _run_with_lifeform(
+                scenario=scenario, lifeform=vertical_lifeform
+            )
+        else:
+            report = run_benchmark(
+                scenario=scenario,
+                temporal_bootstrap=bootstrap,
+                regime_bootstrap=regime_bootstrap,
+            )
         print(format_report(report))
         if want_family_report:
             family = compute_family_report(bench=report)
@@ -557,9 +677,34 @@ def _build_calibrate_parser() -> argparse.ArgumentParser:
         help="Multiplicative update rate for matched regimes (default 0.18).",
     )
     parser.add_argument(
+        "--diversity-threshold", type=float, default=0.50,
+        help=(
+            "Anti-monoculture threshold (default 0.50). When predicted "
+            "share of one regime exceeds this, the diversity penalty pulls "
+            "its weight back. Set 0.99 to effectively disable."
+        ),
+    )
+    parser.add_argument(
+        "--diversity-lr", type=float, default=0.30,
+        help=(
+            "Diversity penalty strength (default 0.30). Set 0.0 to recover "
+            "pre-2026-04-29 behaviour."
+        ),
+    )
+    parser.add_argument(
+        "--vertical",
+        choices=_KNOWN_VERTICALS,
+        default=None,
+        help=(
+            "Resolve scenarios + DomainExperiencePackage from a known "
+            "vertical name (default: companion when neither --vertical nor "
+            "--scenarios is given)."
+        ),
+    )
+    parser.add_argument(
         "--scenarios",
         default=None,
-        help="Path to a JSON scenario file or directory; overrides built-ins.",
+        help="Path to a JSON scenario file or directory; overrides --vertical's scenarios.",
     )
     parser.add_argument(
         "--save-best",
@@ -583,11 +728,15 @@ def _build_calibrate_parser() -> argparse.ArgumentParser:
 def main_calibrate(argv: list[str] | None = None) -> int:
     parser = _build_calibrate_parser()
     args = parser.parse_args(argv)
-    custom = _resolve_scenarios_flag(args.scenarios)
+    vertical_scenarios, vertical_packages = _resolve_vertical(args.vertical)
+    custom = _resolve_scenarios_flag(args.scenarios) or vertical_scenarios
     report = run_regime_calibrator(
         rounds=args.rounds,
         scenarios=custom,
         learning_rate=args.learning_rate,
+        diversity_threshold=args.diversity_threshold,
+        diversity_lr=args.diversity_lr,
+        domain_experience_packages=vertical_packages,
     )
     print(format_regime_calibration_report(report))
     if args.save_best:
@@ -644,9 +793,41 @@ def _build_super_loop_parser() -> argparse.ArgumentParser:
         help="Multiplicative update rate for matched regimes (default 0.18).",
     )
     parser.add_argument(
+        "--diversity-threshold", type=float, default=0.50,
+        help=(
+            "Anti-monoculture threshold for the regime calibrator. When one "
+            "regime is predicted on more than this fraction of turns, its "
+            "weight is pulled back proportional to overuse. Set 0.99 to "
+            "effectively disable. Default 0.50."
+        ),
+    )
+    parser.add_argument(
+        "--diversity-lr", type=float, default=0.30,
+        help=(
+            "Strength of the diversity penalty. ``factor = 1 - "
+            "diversity_lr * (predicted_share - threshold)``. Set 0.0 to "
+            "recover pre-2026-04-29 calibrator behaviour. Default 0.30."
+        ),
+    )
+    parser.add_argument(
+        "--vertical",
+        choices=_KNOWN_VERTICALS,
+        default=None,
+        help=(
+            "Resolve scenarios AND DomainExperiencePackage from a known "
+            "vertical name (default: companion when neither --vertical nor "
+            "--scenarios is given). When set, --scenarios is ignored unless "
+            "you ALSO need a custom scenario pack on top of the vertical's "
+            "domain package."
+        ),
+    )
+    parser.add_argument(
         "--scenarios",
         default=None,
-        help="Path to a JSON scenario file or directory; overrides built-ins.",
+        help=(
+            "Path to a JSON scenario file or directory; overrides "
+            "--vertical's scenarios but keeps its domain package."
+        ),
     )
     parser.add_argument(
         "--save-temporal",
@@ -668,45 +849,65 @@ def _build_super_loop_parser() -> argparse.ArgumentParser:
 def main_super_loop(argv: list[str] | None = None) -> int:
     parser = _build_super_loop_parser()
     args = parser.parse_args(argv)
-    custom = _resolve_scenarios_flag(args.scenarios)
+    vertical_scenarios, vertical_packages = _resolve_vertical(args.vertical)
+    custom = _resolve_scenarios_flag(args.scenarios) or vertical_scenarios
     report = run_super_loop(
         rounds=args.rounds,
         scenarios=custom,
         n_z=args.n_z,
         alpha=args.alpha,
         regime_learning_rate=args.regime_learning_rate,
+        diversity_threshold=args.diversity_threshold,
+        diversity_lr=args.diversity_lr,
+        domain_experience_packages=vertical_packages,
     )
     print(format_super_loop_report(report))
     if args.save_temporal:
-        best = report.best_round()
+        # Temporal artifact: pick the sparsest-\u03b2_t round (avoids saving
+        # an over-trained snapshot from a later round where SSL has
+        # collapsed \u03b2_t to 1.0).
+        best_t = report.best_temporal_round()
         path = save_snapshot(
-            best.temporal_snapshot,
+            best_t.temporal_snapshot,
             args.save_temporal,
             metadata={
                 "produced_by": "lifeform-super-loop",
                 "scenarios": list(report.scenarios),
-                "round_index_best": best.round_index,
+                "round_index_best_temporal": best_t.round_index,
                 "rounds_total": len(report.rounds),
-                "regime_match_rate_at_best": best.regime_match_rate,
-                "switch_frequency_at_best": best.ssl.switch_frequency_last,
+                "regime_match_rate_at_best_temporal": best_t.regime_match_rate,
+                "switch_frequency_at_best_temporal": best_t.ssl.switch_frequency_last,
             },
         )
-        print(f"[super-loop] saved temporal snapshot to {path}")
+        print(
+            f"[super-loop] saved temporal snapshot to {path} "
+            f"(round {best_t.round_index}, \u03b2_t="
+            f"{best_t.ssl.switch_frequency_last:.3f})"
+        )
     if args.save_regime:
-        best = report.best_round()
+        # Regime artifact: pick the most-diverse round (avoids saving a
+        # monoculture bootstrap that would collapse all turns to one
+        # regime). The two artifacts can come from different rounds \u2014
+        # they encode different axes.
+        best_r = report.best_regime_round()
         path = save_regime_bootstrap(
-            best.regime_bootstrap,
+            best_r.regime_bootstrap,
             args.save_regime,
             metadata={
                 "produced_by": "lifeform-super-loop",
                 "scenarios": list(report.scenarios),
-                "round_index_best": best.round_index,
+                "round_index_best_regime": best_r.round_index,
                 "rounds_total": len(report.rounds),
-                "regime_match_rate_at_best": best.regime_match_rate,
+                "regime_match_rate_at_best_regime": best_r.regime_match_rate,
                 "regime_match_rate_baseline": report.baseline.regime_match_rate,
+                "predicted_top_share_at_best_regime": best_r.predicted_regime_share,
             },
         )
-        print(f"[super-loop] saved regime bootstrap to {path}")
+        print(
+            f"[super-loop] saved regime bootstrap to {path} "
+            f"(round {best_r.round_index}, top-share="
+            f"{best_r.predicted_regime_share:.0%})"
+        )
     if args.require_trajectory_passes and not report.trajectory_passes():
         return 1
     return 0

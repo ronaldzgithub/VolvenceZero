@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from volvence_zero.application import DomainExperiencePackage
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterSnapshot,
@@ -149,10 +150,13 @@ async def run_learning_loop_async(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     n_z: int = 3,
     alpha: float = 0.1,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> LearningLoopReport:
     chosen = scenarios or all_built_in_scenarios()
+    if domain_experience_packages is None:
+        domain_experience_packages = (build_companion_package(),)
     base_config = LifeformConfig().with_domain_experience(
-        (build_companion_package(),)
+        domain_experience_packages
     )
     from dataclasses import replace as _replace
     base_config = _replace(
@@ -241,12 +245,18 @@ def run_learning_loop(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     n_z: int = 3,
     alpha: float = 0.1,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> LearningLoopReport:
     """Sync wrapper around ``run_learning_loop_async``."""
     import asyncio
 
     return asyncio.run(
-        run_learning_loop_async(scenarios=scenarios, n_z=n_z, alpha=alpha)
+        run_learning_loop_async(
+            scenarios=scenarios,
+            n_z=n_z,
+            alpha=alpha,
+            domain_experience_packages=domain_experience_packages,
+        )
     )
 
 

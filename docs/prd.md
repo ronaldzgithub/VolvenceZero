@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 产品需求文档 (PRD)
 
 > Status: draft
-> Version: 0.3
-> Last updated: 2026-04-21
+> Version: 0.4
+> Last updated: 2026-04-29
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
@@ -58,6 +58,14 @@
 | 日常陪伴 | 闲聊、社交维系、轻度互动   | regime 持久性、个性化       |
 | 问题解决 | 离婚法律、育儿困境、职场冲突 | 世界知识经验、路径规划          |
 | 危机干预 | 心理危机、自伤风险      | 安全门控、有界自修改           |
+| 工程结对 | bug 排查、重构、模糊需求澄清、安全代码评审 | 意图清晰度 drive、问题探索 / 解决 regime、refer-out 边界 |
+
+**当前已落地的两个垂直**：
+
+- `lifeform-domain-emogpt` —— 关系陪伴 archetype。drive set：`bond_warmth` / `user_engagement` / `conversation_continuity`。
+- `lifeform-domain-coding` —— 工程结对 archetype（pair-programmer engineering partner）。drive set：`solution_clarity` / `code_freshness` / `direction_certainty`，其中 `direction_certainty` 在 `guided_exploration` regime 下使用 **负向 recharge**，刻意让"探索阶段"消耗确定性，证明 drive 层支持非单调激励。
+
+两个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
 
 
 ## 4. 系统需求
@@ -461,6 +469,32 @@
 - 实现 regime 的高层控制选择（由抽象控制层选择，而非硬编码规则）
 - 实现 regime 的延迟结果训练（通过信用分配回路）
 
+### 5.9 Lifeform Layer（R-PE, R8, R11, R14）
+
+**要解决的问题**：如何让系统从一个 turn-driven 的"会话助手"升级为 always-on 的"数字生命体"，并把这个升级落到稳定的契约边界上？
+
+**工程挑战**：
+
+- 在 turn 之外引入慢尺度 PE 源：drive 层从 homeostatic band 漂出即原始 prediction error，跨 `proactive_pe_threshold` 触发主动 followup
+- Tick / Scene / Followup 三个内生时间生命周期：`SYSTEM` tick 推进衰减、`ENERGY` / `CONTEXT` tick 仅推进时间索引；scene 闭合即触发 kernel `begin_new_context()`，挂上 R6 的 session-post slow loop
+- vertical 通过 drive 集合编码"这只生命体在乎什么"，但内核不知道哪些 drive 重要——每个 vertical 是 data + light glue（`DomainExperiencePackage` + `VitalsBootstrap` + `scenarios/*.json`），编译进同一组 application owner 表面
+- service 层 (`lifeform-service`) 把 vertical registry 自动发现 + 单 GPU 多 session 共享 substrate runtime + 冻结 substrate 不变量做成首类不变量（`allow_live_substrate_mutation=False` 在服务启动时 fail-loud 校验）
+
+**关键不变量**：
+
+- `VitalsModule` 是 drive level 的唯一 owner；消费者只读 `VitalsSnapshot`
+- Lifeform 永远不会自动伪造 user turn；tick 事件可以更新内部状态、上报 followup，但不能调用 `run_turn`
+- 内核（`vz-*`）严格不 import lifeform wheel；CI 由 `tests/contracts/test_import_boundaries.py` 强制
+- 每个 vertical 的预训练 bootstraps（`*-temporal.snap` / `*-regime.bs`）和 scenarios 都跟随 vertical wheel 发布，内核保留 flat 默认值
+
+**当前已实现**：
+
+- `lifeform-core`：Tick/Scene/Followup 引擎 + Vitals always-on PE 源 + Lifeform/LifeformSession facade
+- `lifeform-domain-emogpt` / `lifeform-domain-coding`：两个共存 vertical，独立 drive 集合、独立 scenarios、独立预训练 artefacts
+- `lifeform-evolution`：scripted benchmark + multi-round / regime-calibrator / super-loop 训练管线 + R12 family-report / 多轮 delta-vs-baseline acceptance
+- `lifeform-service`：aiohttp 服务 + vertical registry 自动发现 + 单 substrate 多 session 共享 + 冻结校验
+- `lifeform-expression`：prompt 渲染层（不是内核职责）
+
 ## 6. 必要脚手架
 
 以下基础设施不是从旧系统照搬，而是从上述能力域的工程需求推导出的最小必要脚手架。
@@ -494,6 +528,28 @@
 - wave 级调度：协调一轮交互中各模块的执行
 - 事件分发：场景状态变化等事件的异步通知
 - 后台任务管理：慢反思等异步任务的触发和监控
+
+### 6.4 仓库与 wheel 边界（R8, R15）
+
+**为什么需要**：R15 要求"迁移可解释、可回滚"，R8 要求"每个区域有唯一 owner、跨域只走快照/契约"。当代码量与产品垂直层数量增加时，**仓库边界应当 = 代码边界**，否则 owner 隔离会被相对 import 偷偷溶解。
+
+**当前形态**：单 monorepo + 多 wheel（Phase 1）
+
+| 类别 | wheel 前缀 | 内容 |
+|------|------------|------|
+| 内核 | `vz-*` | NL+ETA contracts、owners、学习循环；零产品知识 |
+| 数字生命体 | `lifeform-*` | tick / vitals / 表达层 / 垂直 vertical / 服务 / 进化（benchmark + 训练） |
+
+具体 wheel：`vz-contracts` / `vz-substrate` / `vz-cognition` / `vz-temporal` / `vz-memory` / `vz-application` / `vz-runtime` 和 `lifeform-core` / `lifeform-expression` / `lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-service` / `lifeform-evolution`。
+
+**关键不变量**：
+
+- `vz-*` 不得 import `lifeform-*`，由 `tests/contracts/test_import_boundaries.py` 强制
+- 跨 wheel 依赖必须同时在 `pyproject.toml` 与 `ALLOWED_VZ_UPSTREAM` 中声明
+- 不允许 `shared/` 目录；公共原语只能放在 `vz-contracts`
+- 顶层 `pyproject.toml` 是 workspace meta；根目录不放业务代码
+
+**Phase 2（仓库分裂）触发条件**与时间线见 `SPLIT.md`。截至 2026-04-29，触发条件 ② "第二个产品消费者" 已经 **MET**（`lifeform-domain-coding` 与 `lifeform-domain-emogpt` 在同一 monorepo 共存，service registry 自动发现，无须修改内核）；下一步关注的是触发条件 ① "契约表面稳定 ≥ 4 周"，由 `docs/specs/evaluation.md` 与 `docs/DATA_CONTRACT.md` 的演进节奏决定。
 
 ## 7. 算法基础映射
 
@@ -536,94 +592,165 @@
 
 ## 10. 里程碑规划
 
-以能力域为单位的增量交付计划。每个里程碑交付一个可验证的能力增量。
+以能力域为单位的增量交付计划。每个里程碑交付一个可验证的能力增量。状态标记：✅ 已交付 / 🟡 进行中 / ⬜ 未启动。
 
-### M0: 契约式运行时骨架
+### M0: 契约式运行时骨架 ✅
 
 **交付**：模块间通信总线 + 模块基类 + 编排调度框架
 
 **验证**：两个 stub 模块可通过快照交换数据，快照不可变性得到保证
 
+**当前状态**：已交付。`vz-contracts` 提供 Snapshot / RuntimeModule / WiringLevel / Guards / propagate；`vz-runtime` 编排器按 dependencies 拓扑排序。M0 wheel-split debt 已在 2026-04-28 解决（`vz-application` 自成 wheel）。
+
 **对应能力域**：5.5
 
-### M1: 连续记忆 + 慢反思
+### M1: 连续记忆 + 慢反思 ✅
 
 **交付**：多层记忆系统（瞬态/情景/持久/派生）+ 异步慢反思路径
 
 **验证**：交互轨迹可写入瞬态层，慢反思可异步产出持久记忆和策略沉淀
 
+**当前状态**：已交付。`vz-memory` 携带 learned CMS nested MLP tower，对外发布 `online_fast / session_medium / background_slow` 三频带摘要；`background-slow` 默认主路径已切到 session-post slow loop，context boundary enqueue deferred consolidation。
+
 **对应能力域**：5.3
 
-### M2: 双轨学习基础
+### M2: 双轨学习基础 ✅
 
 **交付**：World/Self 轨道标记 + 按轨道隔离的记忆写入和信用分配
 
 **验证**：同一交互中的世界知识和关系洞察分别写入对应轨道，不混淆
 
+**当前状态**：已交付。runtime 已从 "shared temporal + dual-track 投影" 推进到 `world_temporal` / `self_temporal` 双 owner + `temporal_abstraction` 聚合面；memory / credit / evaluation / regime 全部按轨道隔离。完全独立的 track-specific metacontroller 仍在演进。
+
 **对应能力域**：5.4
 
-### M3: 时间抽象与内部控制
+### M3: 时间抽象与内部控制 ✅
 
 **交付**：Metacontroller + 切换单元 + 控制器代码空间
 
 **验证**：在行为数据上训练后，切换门自发对齐子目标边界
 
+**当前状态**：已交付。`vz-temporal` 提供 metacontroller (encoder + β_t + decoder)；ETA paper-suite 与 dialogue PE proof harness 已发布 `claim_eta_internal_rl_advantage` 与 `claim_eta_real_open_weight_residual_control`；real residual control fail-closed 要求 fallback rate `0.0`、actual hook fire rate ≥ `0.75`。
+
 **对应能力域**：5.2
 
-### M4: 多时间尺度学习循环
+### M4: 多时间尺度学习循环 🟡
 
 **交付**：4 个时间尺度的 SSL-RL 交替循环 + 冻结基底/自适应控制器分层
 
 **验证**：在线快速适应不破坏基底，慢反思改善未来行为
 
+**当前状态**：进行中。`PE-schedule coupling` / `multi-timescale default path` / `internal-depth-with-contract-stability` 四条 proof surface 已成立；`SSLRLTrainingPipeline` 已分阶段 batch loop 化并导出 `adapter-delta-v2`。Titans/DGD 式 online-fast substrate 自修改仍只在 review / experimental lane；rare-heavy 还不是完整持续预训练 / 蒸馏管线。
+
 **对应能力域**：5.1
 
-### M5: 信用分配 + 门控自修改
+### M5: 信用分配 + 门控自修改 🟡
 
 **交付**：层级信用分配 + 语义化奖励记录 + 门控自修改规则
 
 **验证**：稀疏奖励下信用可正确归因到抽象动作级，自修改不越界
 
+**当前状态**：进行中。`prediction_error` 是 credit 源头，scheduler joint-pressure（PE / family stability / rollback risk / transition / substrate / rare-heavy）已写入 turn-level evaluation records；`ModificationGate.ONLINE / RARE_HEAVY` 与 owner-side `export/apply/restore_online_fast_state()` 已就位。完整 sparse-reward held-out 强证据仍需 ETA strong-proof gate 持续巩固。
+
 **对应能力域**：5.6
 
-### M6: 认知 Regime + 评估体系
+### M6: 认知 Regime + 评估体系 🟡
 
 **交付**：Regime 持久身份 + 6 族评估指标
 
 **验证**：regime 可被记忆、选择和训练；评估覆盖关系连续性和学习质量
 
+**当前状态**：进行中。Regime 已有 typed RegimeBootstrap + selection_weights，可被记忆、选择并通过 `regime_calibrator` 训练；6 族 family report 已通过 `lifeform-bench --family-report` 暴露给 CI 与人评，并接入 multi-round delta-vs-baseline acceptance。Cross-session longitudinal 训练面仍在演进。
+
 **对应能力域**：5.7, 5.8
 
-## 10.1 当前进展快照（2026-04-21）
+### M7: Lifeform Layer + 双 Vertical 共存 ✅
 
-当前工程进展已经从“先搭 8 个能力域的骨架”推进到“让 prediction error 真正进入主链，并让多时间尺度证据链开始闭合”的阶段。
+**交付**：always-on tick / scene / vitals 引擎 + DomainExperiencePackage / VitalsBootstrap / scenarios 三件套 + 至少两个共存 vertical + 单 GPU 多 session 共享 substrate 的服务层
 
-### 已实现并优于旧版顶层文档的部分
+**验证**：第二个 vertical 加载后内核未被改动；service registry 自动发现两个 vertical；两个 vertical 在同一进程内 drive 集合互不重叠；单 substrate runtime 共享时 fail-loud 校验冻结不变量
 
-- `prediction_error` 已作为正式 runtime slot 落地主链，`memory` / `regime` / `credit` / `reflection` / `temporal` 都已直接接入 PE-first 消费面。
-- session owner 已接入 bounded、substrate-aware 的 `rare-heavy` review / import；temporal / memory / substrate 三侧都具备 checkpoint / rollback / import surface。
-- 顶层评估已不止是固定 scripted dialogue benchmark；当前还覆盖 perturbation、systematic replay、replay selection artifact、multi-artifact acceptance、以及 staged real comprehensive benchmark。
-- final integration 已把 temporal public evidence、prediction-error evidence、cross-session verdict、evolution judge、以及 reflection -> temporal bounded writeback 收敛到同一条 integration spine。
+**当前状态**：已交付。`lifeform-domain-emogpt` 与 `lifeform-domain-coding` 共存；`lifeform-super-loop` 在两个 vertical 上分别产出预训练 bootstraps；`lifeform-service` 提供 aiohttp 服务并校验 substrate 共享不变量；`SPLIT.md` 触发条件 ② 在 2026-04-29 MET。
+
+**对应能力域**：5.9 + 跨域接入
+
+## 10.1 当前进展快照（2026-04-29）
+
+工程进展已经从 "8 个能力域的骨架" → "PE 进主链，多时间尺度证据链闭合" 推进到 **"内核稳定到可承载第二个产品 vertical，并用同一组 owner contract 同时承担两条产品线"** 的阶段。`SPLIT.md` 的触发条件 ② 在 2026-04-29 已经 MET。
+
+### 内核（`vz-*`）已在主链生效
+
+- **PE-first 主链** ：`prediction_error` 是正式 runtime slot，`memory` / `regime` / `credit` / `reflection` / `temporal` / `evaluation` 都从 PE 直接消费，evaluation 退到 readout / gate 层。
+- **多时间尺度证据链**：`PE-schedule coupling` / `multi-timescale default path` / `internal-depth-with-contract-stability` / `frozen-control evidence retention` 四条 proof surface 已通过 `dialogue benchmark` 与 real comprehensive benchmark 提供证据。
+- **`background-slow` 切到 session-post slow loop**：默认主路径不在 turn 内做 bounded apply，而是在 context boundary enqueue 一份 deferred slow-writeback request（含 trace stats + PE summary），后台执行 owner-side memory / regime / temporal consolidation，turn 延迟不再被反思阻塞。
+- **CMS nested MLP tower**：memory owner 默认携带 learned CMS core，对外仍发布 `online_fast / session_medium / background_slow` 三频带摘要，但 owner 内部已是 nested tower readout + meta-init levels；slow-to-fast init benefit 通过 lifecycle telemetry 发布。
+- **`rare-heavy` adapter-delta-v2**：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 同时导出 `temporal / memory / substrate` 三类 artifact；substrate checkpoint 携带 owner-side adapter delta payload + compatibility fingerprint + training mode，未导出时 pipeline fail-closed。
+- **scheduler joint-pressure**：joint-loop schedule 不止看 interval / wait-limit，还联合 `prediction-error` 强度 / `family_stability` / `rollback_risk` / `transition_pressure` / `substrate_pressure` / `rare_heavy_pressure`；在高风险场景显式走 `ssl-only-rare-heavy-hold` / `ssl-only-risk-hold` / `evidence-only-risk-hold`，所有 pressure 都已写入 turn-level evaluation records。
+- **冻结基底 + bounded substrate delta**：默认主路径不把 live substrate 作为正向学习面；substrate proposal 留在 review / rare-heavy / experimental lane，只有显式 experimental live-mutation runner 才会落地。
+- **Open-weight residual evidence**：ETA paper-suite 已新增 `eta-open-weight-*` manifest 与 `claim_eta_real_open_weight_residual_control`，把真实 residual capture/control 与 synthetic proof 显式拆开；fail-closed 要求 fallback rate `0.0` 且 actual hook fire rate ≥ `0.75`。
+- **wheel 边界已落地**：`vz-application` 在 2026-04-28 拆出独立 wheel，`vz-cognition.evaluation` 通过 `volvence_zero.application_types` 解开循环依赖；contract 测试守住 `vz-* ↛ lifeform-*` 方向。
+
+### Lifeform 层（`lifeform-*`）已上线
+
+- **Lifeform Layer**：tick / scene / followup / vitals 引擎，把 turn-driven 助手升级为 always-on 数字生命体；scene 闭合即调用 kernel `begin_new_context()`，挂上 R6 的 session-post slow loop。
+- **Vitals always-on PE 源**：drive level 偏离 homeostatic band 即慢尺度 prediction error；`pe_weight × deviation` 求和超过 `proactive_pe_threshold` 即触发 followup（受 owner 内部 cooldown 约束，永不洪泛）。decay 只在 SYSTEM tick 发生，ENERGY/CONTEXT tick 仅推进 tick_index。
+- **两个共存 vertical**：`lifeform-domain-emogpt`（companion）与 `lifeform-domain-coding`（pair-programmer engineering partner）在同一 Python 进程内共存，drive 集合互不重叠；service registry 通过 import 自动发现。
+- **vertical = data + light glue**：每个 vertical 是 `DomainExperiencePackage` + `VitalsBootstrap` + `scenarios/*.json`（+ 可选 `*-temporal.snap` / `*-regime.bs`），编译进既有 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / `rare-heavy application state`，**不**新增 runtime owner。
+- **预训练 bootstraps 跟随 vertical 发布**：`lifeform-super-loop --vertical {companion,coding}` 在每个 vertical 自己的 scenarios 上联合训练 `MetacontrollerParameterSnapshot`（β_t / z_t）+ `RegimeBootstrap`（regime selection_weights），结果以 magic-byte pickle envelope 作为 vertical wheel 的 package data 发布；`build_*_lifeform()` 默认加载，可通过 `use_*_bootstrap=False` 做 ablation。
+- **Service 层 `lifeform-service`**：aiohttp 服务，`POST /v1/sessions` / `POST /v1/turns` / `POST /v1/scenes/end` / `GET /v1/info`；vertical registry 自动发现；**单 GPU 多 session 共享同一 substrate runtime**，启动时 fail-loud 校验 `allow_live_substrate_mutation=False`。
+- **R12 6 族评估接到 lifeform CLI**：`lifeform-bench --family-report` / `--family-report-json` / `--require-family-pass` 把 `BenchmarkReport` 原始指标按 6 族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`--vertical {companion,coding}` 一键选择 vertical 的 scenarios + DomainExperiencePackage + 预训练 artefacts。
+- **multi-round 加 delta-vs-baseline acceptance**：`run_multi_round_loop` 发布 `RoundQualityMetrics` + `RoundDeltaVsBaseline`，对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance verdict 与原有结构性 verdict 解耦；CLI 提供 `--require-improvement-vs-baseline` fail-closed gate。
 
 ### 部分实现 / 仍受 gate 约束的部分
 
-- reflection writeback 已能作用到 memory / regime / temporal，但仍受 `writeback_mode`、credit gate、evolution judge 约束，不是无条件默认放开。
-- CMS 的 nested MLP profile、slow-to-fast initialization、以及 lifecycle telemetry 已落地，但这仍是当前工程实现形态，不代表 R1/R5 的全部目标空间已经完成。
-- `rare-heavy` 不是每次推荐都会执行；仍需要满足 cooldown、trace window、以及 offline RL 至少执行 1 步等条件。
+- reflection writeback 已能作用到 memory / regime / temporal，但仍受 `writeback_mode` / credit gate / evolution judge 约束。
+- `rare-heavy` 不是每次推荐都执行；仍需要 cooldown、trace window、offline RL ≥ 1 步等条件，且默认 frozen-substrate doctrine 下不会自动 import live runtime，主要作为 review / evidence / rollback-ready upgrade candidate 沉淀。
+- 双轨已经分到 `world_temporal` / `self_temporal` 双 owner + `temporal_abstraction` 聚合面，并扩散到 memory / credit / evaluation / regime；但默认 runtime 还没有完全独立的两个 track-specific metacontroller。
+- 服务层目前覆盖 single-process / single-GPU / multi-tenant；distributed / 跨 GPU 拓扑仍属于部署而非 PRD 边界。
 
 ### 仍属目标态、尚未完全实现的部分
 
-- 独立的 session-post async slow reflection worker / queue 还不是默认主路径；当前运行时仍以 turn 级 integration 为主。
-- `rare-heavy` 当前已经是 temporal + memory + substrate artifact 的离线路径：它能对 substrate owner 的 adapter-delta 状态做离线训练与回滚评审，但默认 frozen-substrate doctrine 下不会自动导入 live runtime；它还不是完整的基础模型持续预训练/蒸馏。
-- 双轨语义已经进入 memory / credit / evaluation / regime，但默认 runtime 还没有两个完全独立的 track-specific metacontroller。
-- 文档中提到的 Titans/DGD 式 online-fast substrate 自修改，当前也不是默认 live 路径；repo 中即便存在 bounded substrate delta proposal machinery，也只作为 review/evidence 或显式 experimental mode 使用。
+- Titans / DGD 式 online-fast substrate 自修改不是默认 live 路径；repo 中存在 bounded substrate delta proposal machinery，但只在 review / rare-heavy / explicit experimental mode 中生效。
+- `rare-heavy` 还不是完整的基础模型持续预训练 / 蒸馏管线；当前是 owner-aware adapter-delta + offline pipeline。
+- 独立的 session-post async slow reflection worker / queue 已经是默认主路径，但跨 session 的长期 background daemon（机器级而非 session 级）尚未拉成默认形态。
+- `SPLIT.md` Phase 2（仓库分裂）尚未触发；当前仍是单 monorepo + 多 wheel，需要触发条件 ① 契约稳定 ≥ 4 周再走 mechanical split。
 
-## 11. 参考文档
+## 11. 仓库结构与 wheel 边界
+
+| 层 | wheel | 角色 |
+|----|-------|------|
+| 契约 | `vz-contracts` | Snapshot / RuntimeModule / Guards / propagate |
+| 基底 | `vz-substrate` | 冻结 LLM + 残差捕获 + bounded adapter-delta |
+| 时间抽象 | `vz-temporal` | metacontroller (encoder + β_t + decoder) + Internal RL |
+| 记忆 | `vz-memory` | CMS 4 stratum + ReflectionEngine（background-slow） |
+| 认知 | `vz-cognition` | PE / credit / dual-track / regime / evaluation 等 owner |
+| 应用 | `vz-application` | domain knowledge / case memory / playbook / boundary policy |
+| 编排 | `vz-runtime` | 薄编排，唯一可 import 其他业务 wheel 的 wheel |
+| 生命体核 | `lifeform-core` | tick / scene / followup / vitals + Lifeform facade |
+| 表达 | `lifeform-expression` | prompt / response 渲染 |
+| 垂直 vertical | `lifeform-domain-emogpt` / `lifeform-domain-coding` | 每个 vertical 自带 DomainExperiencePackage + VitalsBootstrap + scenarios + 预训练 bootstraps |
+| 服务 | `lifeform-service` | aiohttp + vertical registry + 单 substrate 多 session 共享 |
+| 进化 | `lifeform-evolution` | scripted benchmark + super-loop 训练管线 + 6 族 family report + multi-round delta-vs-baseline |
+
+CI 强制 `vz-* ↛ lifeform-*`；跨 wheel 依赖必须同时在 `pyproject.toml` 与 `tests/contracts/test_import_boundaries.py:ALLOWED_VZ_UPSTREAM` 中声明。
+
+`SPLIT.md` 详述 Phase 1（当前）与 Phase 2（仓库分裂）的触发条件、机械拆分流程，以及"过早分仓"与"永不分仓"两端的代价。
+
+## 12. 参考文档
 
 
 | 文档                        | 用途                            |
 | ------------------------- | ----------------------------- |
 | `docs/next_gen_emogpt.md` | **唯一设计源头**：系统需求 + NL/ETA 算法详设 |
-| `docs/specs/00_INDEX.md`  | 分层知识入口总索引                     |
+| `docs/specs/00_INDEX.md`  | 分层知识入口总索引（默认起点）              |
+| `archetecture.md`         | 8 wheel 切分轴 + 替换映射 + 迁移路线     |
+| `SPLIT.md`                | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 |
+| `docs/specs/lifeform-vitals.md` | always-on drive 层契约（R-PE 慢尺度源） |
+| `docs/specs/domain-experience-layer.md` | 通用 vertical 经验包 schema 与编译边界 |
+| `docs/specs/core-package-boundary.md` | volvence-zero core package 边界、stable Brain API、HF optional runtime |
+| `docs/SYSTEM_DESIGN.md`   | 系统架构、模块职责、数据流、迁移策略           |
+| `docs/DATA_CONTRACT.md`   | 快照 schema、Slot 注册表、依赖图、变更协议 |
+| `docs/EVALUATION_SYSTEM.md` | 6 族评估框架、双轨评估隔离、评估信号回馈机制    |
+| `docs/DEBUG_SYSTEM.md`    | 5 层可观测性、契约守卫、checkpoint / rollback  |
 
 

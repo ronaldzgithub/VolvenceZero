@@ -91,6 +91,20 @@ VitalsSnapshot(
 
 Threshold `1.0`, cooldown `60` ticks. `build_companion_lifeform()` enables this by default; pass `use_vitals_bootstrap=False` for ablation.
 
+## Coding vertical (`lifeform-domain-coding`)
+
+`build_coding_vitals_bootstrap()` ships three drives covering engineering concerns instead of relational ones:
+
+| Drive                  | Decay/tick | Per-turn | Regime bonuses                                                                  |
+|------------------------|-----------:|---------:|---------------------------------------------------------------------------------|
+| `solution_clarity`     |      0.004 |     0.05 | problem_solving +0.20 / guided_exploration +0.08                                |
+| `code_freshness`       |      0.018 |     0.25 | (none — every user turn recharges)                                              |
+| `direction_certainty`  |      0.010 |     0.05 | problem_solving +0.18 / **guided_exploration −0.05** (drains during exploration) |
+
+`direction_certainty` deliberately uses a **negative** regime recharge: exploration is supposed to *reduce* certainty, and the drive layer supports this explicitly (clamped to `[0, 1]`). This proves the contract is general enough to encode non-monotonic incentives — it is not just "more regime activity ⇒ more drive level".
+
+`build_coding_lifeform()` enables this by default; pass `use_vitals_bootstrap=False` for ablation. The two verticals coexist in one Python process with disjoint drive name sets — this is part of the proof for `SPLIT.md` trigger ②.
+
 ## Open follow-ups
 
 * **Synthesizer-time vitals injection.** The kernel's `ResponseSynthesizer` ABC does not pass session context to `synthesize()`, so vitals currently reach the planner via direct `plan(..., vitals=...)` calls in tests but not through the kernel's call stack during `run_turn`. A clean fix is per-session synthesizers; tracked separately.

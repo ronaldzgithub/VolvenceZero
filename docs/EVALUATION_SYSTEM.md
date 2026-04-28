@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 评估体系
 
 > Status: draft
-> Version: 0.3
-> Last updated: 2026-04-25
+> Version: 0.4
+> Last updated: 2026-04-29
 > 对应需求: R12（评估覆盖"存在"而非仅任务成功）、R9（层级信用分配）、R7（双轨学习）
 
 ---
@@ -703,19 +703,37 @@ class EvaluationReport:
 - [ ] 评估数据是否可追溯（每个分数都有证据和信号源）？
 - [ ] 评估体系是否与调试体系集成（共享事件日志和检测结果）？
 
-## 14.1 当前实现状态（2026-04-20）
+## 14.1 当前实现状态（2026-04-29）
 
-当前已经超出 P05 的最小骨架阶段，新增的关键收敛包括：
+当前评估体系已经超出 P05 的最小骨架阶段，关键收敛包括：
+
+**内核侧（`vz-cognition.evaluation` + paper-suite）**：
 
 - evaluation 明确退居 PE-first learning loop 的 readout / gate 层
 - `EvaluationBackbone` 已直接记录 prediction-error evidence、temporal public evidence、joint-loop learning evidence
-- 当前 `evaluation` snapshot 已稳定承载 F4/F5/F6 相关 kernel evidence，而不改变公共 shape
-- 新增固定 scripted dialogue benchmark 作为顶层证据面，而不是只依赖 aggregate turn/session scores
-- 当前真实 benchmark 结果显示：
-  - `pe-eta`: `4/4` passed
-  - `eta-no-pe`: `0/4` passed
-  - `heuristic-baseline`: `0/4` passed
-- 当前 benchmark 已能给出 `recovery_lag_turns` / `pressure_localization_score`，以及 precision / recall / over-response / recovery-stability 这组更细的 response quality 指标
+- 当前 `evaluation` snapshot 已稳定承载 F4/F5/F6 相关 kernel evidence，不改变公共 shape
+- 固定 scripted dialogue benchmark + perturbation + systematic replay + replay selection artifact + multi-artifact acceptance + open-environment extrapolation + ETA paper-suite + `emergence dashboard` 形成顶层证据面
+- benchmark 已能给出 `recovery_lag_turns` / `pressure_localization_score`，以及 precision / recall / over-response / recovery-stability 这组更细的 response quality 指标
+- 真实 dialogue benchmark 结果（pe-eta vs matched controls）：
+  - `pe-eta`: 4/4 passed
+  - `eta-no-pe`: 0/4 passed
+  - `heuristic-baseline`: 0/4 passed
+- ETA paper-suite 已新增 `eta-open-weight-*` manifest 与 `claim_eta_real_open_weight_residual_control`，把真实 residual capture/control 与 synthetic proof 显式拆开；fail-closed 要求 fallback rate `0.0` 且 actual hook fire rate ≥ `0.75`
+
+**生命体侧（`lifeform-evolution`）—— R12 6 族评估接到 lifeform CLI**：
+
+- `lifeform_evolution.family_report` 把 `BenchmarkReport` 原始指标按 6 族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布
+- `lifeform-bench --family-report` / `--family-report-json` / `--require-family-pass` 让 R12 评估对 CI 与人工审阅都成为 first-class 输出
+- `lifeform-bench --vertical {companion,coding}` 一键选择 vertical 的 scenarios + DomainExperiencePackage + 预训练 artefacts；两个 vertical 都通过 6 族 family report 输出可比较的评估面
+- `lifeform_evolution.multi_round_loop` 增加 `RoundQualityMetrics` + `RoundDeltaVsBaseline`：每轮发布 `mean_regime_match_rate` / `pe_recovery` / `mean_switch_gate` 等聚合，并对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance#12 verdict，与原有结构性 verdict 解耦
+- CLI 增加 `--require-improvement-vs-baseline` 把 acceptance#12 转为 fail-closed gate
+- `lifeform-super-loop --vertical {companion,coding}` 在每个 vertical 自己的 scenarios 上联合训练 metacontroller + regime bootstrap，并给出 super-loop verdict
+
+**评估体系不变量（重申）**：
+
+- 6 族 family report 在 lifeform CLI 层成为 first-class 输出，但**不**改变内核 `evaluation` snapshot 的公共 shape
+- `lifeform-evolution` 是评估的 readout / gate 层，不是新的 learning owner
+- 内核与 lifeform 层之间通过 `Brain` / `BrainSession` facade 交互；评估证据在生命体侧聚合为 `BenchmarkReport`，但具体 turn-level evidence 仍来自内核 `evaluation` slot
 
 ---
 
@@ -727,4 +745,7 @@ class EvaluationReport:
 | `docs/SYSTEM_DESIGN.md` | 系统架构：评估体系在系统中的位置 |
 | `docs/DATA_CONTRACT.md` | EvaluationSnapshot 的快照 schema |
 | `docs/DEBUG_SYSTEM.md` | 调试体系：为评估提供原始数据 |
-| `docs/prd.md` | 5.7 评估体系的工程挑战 |
+| `docs/prd.md` | 5.7 评估体系的工程挑战、5.9 Lifeform Layer |
+| `docs/specs/evaluation.md` | evaluation owner 的 spec 与变更日志 |
+| `docs/specs/evidence_program.md` | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
+| `docs/specs/lifeform-vitals.md` | always-on drive 层评估面 |

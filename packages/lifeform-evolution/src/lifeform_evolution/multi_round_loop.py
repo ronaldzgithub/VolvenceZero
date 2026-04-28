@@ -34,6 +34,7 @@ import math
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from volvence_zero.application import DomainExperiencePackage
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterSnapshot,
@@ -267,15 +268,24 @@ async def run_multi_round_loop_async(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     n_z: int = 3,
     alpha: float = 0.1,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> MultiRoundLearningLoopReport:
+    """Run rounds of (collect \u2192 SSL \u2192 reinject) on a vertical's scenarios.
+
+    ``domain_experience_packages`` lets a different vertical (e.g.
+    ``lifeform-domain-coding``) drive the loop with its own
+    ``DomainExperiencePackage`` instead of the default companion pack.
+    """
     if rounds < 2:
         raise ValueError(
             "Multi-round loop needs at least 2 rounds (round 0 baseline + at least 1 trained)."
         )
     chosen = scenarios or all_built_in_scenarios()
+    if domain_experience_packages is None:
+        domain_experience_packages = (build_companion_package(),)
 
     base_config = LifeformConfig().with_domain_experience(
-        (build_companion_package(),)
+        domain_experience_packages
     )
     from dataclasses import replace as _replace
     base_config = _replace(
@@ -397,6 +407,7 @@ def run_multi_round_loop(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     n_z: int = 3,
     alpha: float = 0.1,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
 ) -> MultiRoundLearningLoopReport:
     import asyncio
 
@@ -406,6 +417,7 @@ def run_multi_round_loop(
             scenarios=scenarios,
             n_z=n_z,
             alpha=alpha,
+            domain_experience_packages=domain_experience_packages,
         )
     )
 

@@ -1,9 +1,9 @@
 # EmoGPT Next-Gen — 数据契约文档
 
 > Status: draft
-> Version: 0.3
-> Last updated: 2026-04-25
-> Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`
+> Version: 0.4
+> Last updated: 2026-04-29
+> Source: `docs/next_gen_emogpt.md`（R8, R11）、`docs/SYSTEM_DESIGN.md`、`SPLIT.md`
 
 ---
 
@@ -22,6 +22,26 @@
 - 返回内部可变对象引用
 - 原地修改快照
 - 消费者重建生产者内部状态
+
+### 1.1 契约表面的 wheel 边界
+
+数据契约同时承担**模块边界**（R8）与**仓库边界**（R15）两条作用：
+
+| 层 | wheel | 契约作用 |
+|----|-------|----------|
+| 内核 contracts | `vz-contracts` | 所有 vz-* / lifeform-* 共享的 Snapshot / RuntimeModule / Guards 类型；零产品知识 |
+| 内核 owner snapshot | `vz-substrate` / `vz-temporal` / `vz-memory` / `vz-cognition` / `vz-application` / `vz-runtime` | §3 列出的运行时 slot |
+| 生命体侧契约 | `lifeform-core` | `VitalsBootstrap` / `VitalsSnapshot` / `DriveSpec` / `DriveLevel` / `TurnSummary` 等；不进入内核运行时 slot |
+| 垂直经验 | `lifeform-domain-*` | `DomainExperiencePackage` / `VitalsBootstrap`；编译进既有内核 application owner |
+
+**关键不变量**：
+
+- `vz-*` 不得 import `lifeform-*`；CI 由 `tests/contracts/test_import_boundaries.py` 强制
+- vertical 不引入新的 runtime owner，只通过 `volvence_zero.application.domain_experience` 编译进 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / `application rare-heavy state`
+- vitals layer 的 `VitalsSnapshot` 是 lifeform-side 公共契约，由 `VitalsModule` 唯一拥有；**不**作为内核 runtime slot 出现在 §6 注册表
+- `Brain` / `BrainSession` 是内核暴露给 lifeform 层的 stable facade，详见 `docs/specs/core-package-boundary.md`
+
+详见 `SPLIT.md` 与 `archetecture.md`。
 
 ---
 
@@ -363,6 +383,75 @@ class RuntimePlaceholderValue:
     produced_by: str
     detail: str
 ```
+
+### 2.13 Lifeform-side Vitals Contract（生命体侧 always-on PE 契约）
+
+**所在 wheel**：`lifeform-core`（不进入内核运行时 slot 注册表）
+
+```python
+@dataclass(frozen=True)
+class DriveSpec:
+    name: str
+    target: float                                  # 理想 level [0, 1]
+    homeostatic_band: tuple[float, float]          # 舒适带
+    decay_per_tick: float                          # SYSTEM tick 衰减
+    pe_weight: float                               # 慢尺度 PE 中的权重
+    initial_level: float = 0.5
+    recharge_per_turn: float = 0.0                 # baseline charge on user turns
+    recharge_per_regime: dict[str, float] = ...    # regime 触发的额外 charge
+
+@dataclass(frozen=True)
+class DriveLevel:
+    name: str
+    level: float
+    deviation: float
+    out_of_band: bool
+    pe_contribution: float
+
+@dataclass(frozen=True)
+class VitalsBootstrap:
+    schema_version: int  # = 1
+    drives: tuple[DriveSpec, ...]
+    proactive_pe_threshold: float
+    proactive_followup_priority: float
+    proactive_cooldown_ticks: int
+
+@dataclass(frozen=True)
+class VitalsSnapshot:
+    schema_version: int  # = 1
+    tick_index: int
+    drive_levels: tuple[DriveLevel, ...]
+    total_pe: float
+    above_proactive_threshold: bool
+    last_proactive_at_tick: int | None
+```
+
+**关键不变量**：
+
+- `VitalsModule` 是 drive level 的唯一 owner；消费者只读 `VitalsSnapshot`
+- decay 只在 `TickKind.SYSTEM` 发生；`ENERGY` / `CONTEXT` tick 仅推进 `tick_index`
+- `recharge_per_regime` 允许负值（如 `direction_certainty` 在 `guided_exploration` regime 下使用 `-0.05`）；level 在 `[0, 1]` 内 clamp
+- `VitalsSnapshot` 不进入内核 §3 / §6 注册表；它是 `lifeform-core` 的 owner snapshot，仅通过 `LifeformSession.vitals_snapshot` 暴露给 `FollowupManager` / `PromptPlanner` / benchmark
+
+详见 `docs/specs/lifeform-vitals.md`。
+
+### 2.14 Lifeform-side DomainExperiencePackage（生命体侧 vertical 经验包契约）
+
+**所在 wheel**：`vz-application`（schema 与 compiler）/ `lifeform-domain-*`（数据）
+
+每个 vertical 通过 `DomainExperiencePackage` 编译进既有内核 application owner，**不**新增 runtime owner：
+
+| package 字段 | 编译目标 owner |
+|--------------|----------------|
+| `knowledge_records` | `domain_knowledge` (`DomainKnowledgeStore`) |
+| `case_records` | `case_memory` (`ApplicationCaseMemoryStore`) |
+| `playbook_rules` | `strategy_playbook` (`ApplicationRareHeavyState`) |
+| `boundary_hints` | `boundary_policy` (`ApplicationRareHeavyState`) |
+| 可选 evaluation scenarios | `lifeform-evolution` benchmark 输入（不进入运行时 slot）|
+
+vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t）+ `RegimeBootstrap`（regime selection_weights）作为 magic-byte pickle envelope 跟随 vertical wheel 发布；`build_*_lifeform()` 默认加载，`use_*_bootstrap=False` 用于 ablation。
+
+详见 `docs/specs/domain-experience-layer.md`。
 
 ---
 
@@ -1214,5 +1303,10 @@ reflection ──────────────→ owner-side writeback: m
 |------|------|
 | `docs/next_gen_emogpt.md` | R8（快照优先、契约优先）、R11（可学习的内部状态表示） |
 | `docs/SYSTEM_DESIGN.md` | 系统架构设计：模块职责、数据流、分层原则 |
-| `docs/prd.md` | 5.5 契约式运行时、6.1 模块间通信总线 |
+| `docs/prd.md` | 5.5 契约式运行时、6.1 模块间通信总线、6.4 仓库与 wheel 边界 |
+| `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 |
+| `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 |
+| `docs/specs/lifeform-vitals.md` | always-on drive 层契约（R-PE 慢尺度源） |
+| `docs/specs/domain-experience-layer.md` | 通用 vertical 经验包 schema 与编译边界 |
+| `docs/specs/core-package-boundary.md` | core package 边界、stable Brain API、HF optional runtime |
 | `.cursor/rules/ssot-module-boundaries.mdc` | 模块 SSOT + 快照隔离的编码规则 |

@@ -43,6 +43,79 @@ class SemanticProposalOperation(str, Enum):
     BLOCK = "block"
 
 
+class AdvocacyState(str, Enum):
+    """Where the AI sits on the path of advocating a commitment to the user.
+
+    Models the AAC decision lifecycle (Advocacy \u2192 Alignment \u2192 Commitment \u2192
+    Followup) at the AI side. A commitment record always has a value;
+    ``not_ready`` means the AI is aware of it but has not chosen to
+    surface it yet (e.g. still gathering evidence).
+    """
+
+    NOT_READY = "not_ready"  # observed / created but the AI is not surfacing it
+    READY = "ready"          # AI has decided to surface but has not yet (e.g. DEFER)
+    PROPOSED = "proposed"    # the AI advocated the commitment in-conversation
+
+
+class AlignmentState(str, Enum):
+    """The user's response to an advocated commitment.
+
+    Stays ``unknown`` until the AI advocates AND we observe a typed
+    user signal via the SemanticProposal pathway (REVISE / COMPLETE /
+    BLOCK). NEVER set from LLM keyword detection on free text \u2014 the
+    propose-then-observe contract is the whole point of having a
+    typed lifecycle here.
+    """
+
+    UNKNOWN = "unknown"
+    AGREE = "agree"
+    MODIFY = "modify"
+    REJECT = "reject"
+
+
+# Map each SemanticProposal operation to a lifecycle transition for
+# commitment records. The mapping is intentionally narrow \u2014 only
+# operations that meaningfully advance advocacy or alignment are
+# represented; the rest leave the existing state in place. Missing
+# entries keep whatever the previous operation set.
+_COMMITMENT_LIFECYCLE_TRANSITIONS: dict[
+    SemanticProposalOperation, tuple[AdvocacyState | None, AlignmentState | None]
+] = {
+    SemanticProposalOperation.OBSERVE: (AdvocacyState.NOT_READY, AlignmentState.UNKNOWN),
+    SemanticProposalOperation.CREATE: (AdvocacyState.NOT_READY, AlignmentState.UNKNOWN),
+    SemanticProposalOperation.DEFER: (AdvocacyState.READY, None),
+    SemanticProposalOperation.ACTIVATE: (AdvocacyState.PROPOSED, None),
+    SemanticProposalOperation.REVISE: (AdvocacyState.PROPOSED, AlignmentState.MODIFY),
+    SemanticProposalOperation.COMPLETE: (AdvocacyState.PROPOSED, AlignmentState.AGREE),
+    SemanticProposalOperation.CLOSE: (AdvocacyState.PROPOSED, None),
+    SemanticProposalOperation.BLOCK: (AdvocacyState.PROPOSED, AlignmentState.REJECT),
+}
+
+
+def commitment_lifecycle_for_operation(
+    operation: SemanticProposalOperation,
+    *,
+    previous: tuple[AdvocacyState, AlignmentState] | None = None,
+) -> tuple[AdvocacyState, AlignmentState]:
+    """Pure helper exposing the operation \u2192 lifecycle map.
+
+    Public so reflection writeback / evaluation / tests can derive the
+    same lifecycle the commitment owner uses, without duplicating the
+    truth table. ``previous`` lets a transition leave one axis untouched
+    (e.g. ``ACTIVATE`` advances advocacy but leaves alignment as
+    whatever the user-side signals last said).
+    """
+    base_advocacy = previous[0] if previous else AdvocacyState.NOT_READY
+    base_alignment = previous[1] if previous else AlignmentState.UNKNOWN
+    advocacy, alignment = _COMMITMENT_LIFECYCLE_TRANSITIONS.get(
+        operation, (None, None)
+    )
+    return (
+        advocacy if advocacy is not None else base_advocacy,
+        alignment if alignment is not None else base_alignment,
+    )
+
+
 @dataclass(frozen=True)
 class SemanticProposal:
     proposal_id: str
@@ -156,6 +229,24 @@ class PlanIntentSnapshot:
 
 
 @dataclass(frozen=True)
+class CommitmentLifecycleEntry:
+    """Per-record advocacy / alignment lifecycle state.
+
+    Published parallel to ``active_commitments`` / ``at_risk_commitments``
+    so consumers (reflection writeback, evaluation, prompt planner) can
+    answer the AAC question \u2014 "where is each commitment in the
+    Advocacy \u2192 Alignment \u2192 Commitment \u2192 Followup pipeline?" \u2014 without
+    pattern-matching on free text. Both states are always present;
+    a freshly-observed commitment with no AI advocacy yet shows
+    ``(NOT_READY, UNKNOWN)``.
+    """
+
+    record_id: str
+    advocacy_state: AdvocacyState
+    alignment_state: AlignmentState
+
+
+@dataclass(frozen=True)
 class CommitmentSnapshot:
     active_commitments: tuple[SemanticRecord, ...]
     honored_commitment_refs: tuple[str, ...]
@@ -164,6 +255,22 @@ class CommitmentSnapshot:
     continuity_score: float
     control_signal: float
     description: str
+    # AAC lifecycle additions (Gap 7 / docs/todo). Defaults preserve
+    # backwards compat for any synthetic CommitmentSnapshot built outside
+    # the owner module (e.g. older tests).
+    lifecycle_entries: tuple[CommitmentLifecycleEntry, ...] = ()
+    advocacy_proposed_count: int = 0
+    advocacy_ready_count: int = 0
+    alignment_agree_count: int = 0
+    alignment_modify_count: int = 0
+    alignment_reject_count: int = 0
+
+    def lifecycle_for(self, record_id: str) -> CommitmentLifecycleEntry | None:
+        """Look up a single record's lifecycle, or ``None`` if absent."""
+        for entry in self.lifecycle_entries:
+            if entry.record_id == record_id:
+                return entry
+        return None
 
 
 @dataclass(frozen=True)
@@ -849,11 +956,21 @@ class SemanticStateStore:
         self._records: dict[str, tuple[SemanticRecord, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
         self._completed_refs: dict[str, tuple[str, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
         self._revision_counts: dict[str, int] = {slot: 0 for slot in SEMANTIC_OWNER_SLOTS}
+        # Per-record lifecycle state for the commitment owner (and any
+        # other owner that later wants to consume it). Stored as
+        # ``slot -> {record_id -> (advocacy, alignment)}`` so the latest
+        # operation's transition wins and prior operations' state on the
+        # untouched axis is preserved (see
+        # ``commitment_lifecycle_for_operation``'s ``previous`` semantics).
+        self._record_lifecycle: dict[
+            str, dict[str, tuple[AdvocacyState, AlignmentState]]
+        ] = {slot: {} for slot in SEMANTIC_OWNER_SLOTS}
 
     def apply(self, *, slot: str, proposals: tuple[SemanticProposal, ...], turn_index: int) -> tuple[SemanticRecord, ...]:
         existing = list(self._records[slot])
         completed_refs = list(self._completed_refs[slot])
         revision_count = self._revision_counts[slot]
+        lifecycle_map = self._record_lifecycle[slot]
         for proposal in proposals:
             if proposal.target_slot != slot:
                 continue
@@ -878,9 +995,23 @@ class SemanticStateStore:
                     evidence=proposal.evidence,
                 )
             )
+            previous = lifecycle_map.get(proposal.proposal_id)
+            lifecycle_map[proposal.proposal_id] = (
+                commitment_lifecycle_for_operation(
+                    proposal.operation, previous=previous
+                )
+            )
         self._records[slot] = tuple(existing[-12:])
         self._completed_refs[slot] = tuple(completed_refs[-12:])
         self._revision_counts[slot] = revision_count
+        # Garbage-collect lifecycle entries whose record id has fallen out
+        # of the bounded window. Avoids unbounded growth across long
+        # sessions while still letting late-arriving proposals reuse
+        # earlier ids during the same session.
+        live_ids = {record.record_id for record in self._records[slot]}
+        for record_id in tuple(lifecycle_map.keys()):
+            if record_id not in live_ids:
+                del lifecycle_map[record_id]
         return self._records[slot]
 
     def records_for(self, slot: str) -> tuple[SemanticRecord, ...]:
@@ -891,6 +1022,12 @@ class SemanticStateStore:
 
     def revision_count_for(self, slot: str) -> int:
         return self._revision_counts[slot]
+
+    def lifecycle_for(
+        self, slot: str
+    ) -> dict[str, tuple[AdvocacyState, AlignmentState]]:
+        """Return a copy of the per-record lifecycle map for ``slot``."""
+        return dict(self._record_lifecycle[slot])
 
 
 def _records_with_status(records: tuple[SemanticRecord, ...], *statuses: str) -> tuple[SemanticRecord, ...]:
@@ -1005,6 +1142,35 @@ class CommitmentModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> CommitmentSnapshot:
         active = _records_with_status(records, "active")
         at_risk = _records_with_status(records, "blocked")
+        # Pull the per-record lifecycle map maintained by the store and
+        # publish it as a parallel tuple. Records present in the bounded
+        # window without a lifecycle entry (legacy / synthetic records)
+        # default to (NOT_READY, UNKNOWN).
+        lifecycle_map = self._store.lifecycle_for(self.slot_name)
+        lifecycle_entries: list[CommitmentLifecycleEntry] = []
+        ready = proposed = 0
+        agree = modify = reject = 0
+        for record in records:
+            advocacy, alignment = lifecycle_map.get(
+                record.record_id, (AdvocacyState.NOT_READY, AlignmentState.UNKNOWN)
+            )
+            lifecycle_entries.append(
+                CommitmentLifecycleEntry(
+                    record_id=record.record_id,
+                    advocacy_state=advocacy,
+                    alignment_state=alignment,
+                )
+            )
+            if advocacy is AdvocacyState.READY:
+                ready += 1
+            elif advocacy is AdvocacyState.PROPOSED:
+                proposed += 1
+            if alignment is AlignmentState.AGREE:
+                agree += 1
+            elif alignment is AlignmentState.MODIFY:
+                modify += 1
+            elif alignment is AlignmentState.REJECT:
+                reject += 1
         return CommitmentSnapshot(
             active_commitments=active,
             honored_commitment_refs=self._store.completed_refs_for(self.slot_name),
@@ -1012,7 +1178,17 @@ class CommitmentModule(SemanticOwnerModule):
             trust_obligation_count=len(active),
             continuity_score=self._mean_confidence(active),
             control_signal=self._batch_signal(batch),
-            description=f"Commitment owner published active={len(active)} at_risk={len(at_risk)}.",
+            description=(
+                f"Commitment owner published active={len(active)} "
+                f"at_risk={len(at_risk)} proposed={proposed} "
+                f"agreed={agree} modify={modify} rejected={reject}."
+            ),
+            lifecycle_entries=tuple(lifecycle_entries),
+            advocacy_proposed_count=proposed,
+            advocacy_ready_count=ready,
+            alignment_agree_count=agree,
+            alignment_modify_count=modify,
+            alignment_reject_count=reject,
         )
 
 
