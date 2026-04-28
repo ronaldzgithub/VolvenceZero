@@ -45,18 +45,28 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
     "vz-substrate": frozenset({"runtime", "learned_update"}),
     "vz-memory": frozenset({"runtime", "learned_update", "substrate"}),
-    # ``application`` ships inside vz-cognition for now (see vz-cognition
-    # pyproject NOTE on the application wheel deferral). Its sibling owners
-    # (dual_track / prediction / credit / regime / semantic_state /
-    # evaluation / reflection) live in the same wheel, so cross-references
-    # do not cross a wheel boundary.
+    # vz-cognition ships ``application_types`` (snapshot type definitions)
+    # but NOT ``application`` (owners). Owners live in vz-application,
+    # which depends on this wheel. The split was made possible by extracting
+    # the snapshot types into ``volvence_zero.application_types`` so
+    # ``evaluation`` does not have to import from owner code.
     "vz-cognition": frozenset({"runtime", "learned_update", "substrate", "memory"}),
+    "vz-application": frozenset(
+        {
+            "runtime", "learned_update", "substrate", "memory",
+            # everything in vz-cognition:
+            "dual_track", "evaluation", "credit", "regime", "prediction",
+            "reflection", "semantic_state", "application_types",
+        }
+    ),
     "vz-temporal": frozenset(
         {
             "runtime", "learned_update", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state", "application",
+            "reflection", "semantic_state", "application_types",
+            # vz-application:
+            "application",
         }
     ),
     "vz-runtime": frozenset(
@@ -64,7 +74,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state", "application",
+            "reflection", "semantic_state", "application_types",
+            # vz-application:
+            "application",
             # everything in vz-temporal:
             "temporal", "planning", "internal_rl", "joint_loop",
             # vz-runtime owns these directly:

@@ -23,6 +23,7 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     build_transformers_runtime_with_fallback,
 )
+from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterSnapshot,
@@ -205,6 +206,7 @@ class Brain:
         response_synthesizer: ResponseSynthesizer | None = None,
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
+        regime_bootstrap: RegimeBootstrap | None = None,
     ) -> None:
         self._config = config or BrainConfig()
         self._injected_runtime = substrate_runtime
@@ -212,6 +214,7 @@ class Brain:
         self._response_synthesizer = response_synthesizer
         self._semantic_proposal_runtime = semantic_proposal_runtime
         self._temporal_bootstrap = temporal_bootstrap
+        self._regime_bootstrap = regime_bootstrap
 
     @property
     def config(self) -> BrainConfig:
@@ -222,6 +225,21 @@ class Brain:
         """The trained metacontroller snapshot, if one was injected."""
         return self._temporal_bootstrap
 
+    @property
+    def regime_bootstrap(self) -> RegimeBootstrap | None:
+        """The calibrated regime selection-weights bootstrap, if injected."""
+        return self._regime_bootstrap
+
+    def _clone_kwargs(self) -> dict[str, object]:
+        return {
+            "substrate_runtime": self._injected_runtime,
+            "substrate_adapter_factory": self._substrate_adapter_factory,
+            "response_synthesizer": self._response_synthesizer,
+            "semantic_proposal_runtime": self._semantic_proposal_runtime,
+            "temporal_bootstrap": self._temporal_bootstrap,
+            "regime_bootstrap": self._regime_bootstrap,
+        }
+
     def with_domain_experience(
         self,
         packages: tuple[DomainExperiencePackage, ...],
@@ -231,11 +249,7 @@ class Brain:
                 self._config,
                 domain_experience_packages=self._config.domain_experience_packages + packages,
             ),
-            substrate_runtime=self._injected_runtime,
-            substrate_adapter_factory=self._substrate_adapter_factory,
-            response_synthesizer=self._response_synthesizer,
-            semantic_proposal_runtime=self._semantic_proposal_runtime,
-            temporal_bootstrap=self._temporal_bootstrap,
+            **self._clone_kwargs(),
         )
 
     def with_temporal_bootstrap(
@@ -246,14 +260,21 @@ class Brain:
 
         Pass ``None`` to drop the bootstrap and fall back to a fresh policy.
         """
-        return Brain(
-            self._config,
-            substrate_runtime=self._injected_runtime,
-            substrate_adapter_factory=self._substrate_adapter_factory,
-            response_synthesizer=self._response_synthesizer,
-            semantic_proposal_runtime=self._semantic_proposal_runtime,
-            temporal_bootstrap=snapshot,
-        )
+        kwargs = self._clone_kwargs()
+        kwargs["temporal_bootstrap"] = snapshot
+        return Brain(self._config, **kwargs)
+
+    def with_regime_bootstrap(
+        self,
+        bootstrap: RegimeBootstrap | None,
+    ) -> Brain:
+        """Return a clone of this Brain with calibrated regime weights.
+
+        Pass ``None`` to drop the bootstrap and fall back to flat weights.
+        """
+        kwargs = self._clone_kwargs()
+        kwargs["regime_bootstrap"] = bootstrap
+        return Brain(self._config, **kwargs)
 
     def create_session(self, *, session_id: str = "brain-session") -> BrainSession:
         runtime = self._resolve_substrate_runtime()
@@ -267,6 +288,7 @@ class Brain:
             response_synthesizer=self._response_synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
+            regime_bootstrap=self._regime_bootstrap,
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so

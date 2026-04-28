@@ -1,0 +1,18 @@
+{
+  "scenario_id": "trust-rupture-repair",
+  "description": "User signals that an earlier reply landed badly. Expected behaviour: the lifeform names the rupture, holds steady tone, and offers one repair move.",
+  "turns": [
+    {
+      "user_input": "Can you help me think through whether to leave my job?",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "acquaintance_building"]
+    },
+    {
+      "user_input": "Wait, that response felt completely cold and procedural. I am not asking you to optimise me.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Can we just back up and start that over?",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    }
+  ]
+}

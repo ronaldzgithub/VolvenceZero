@@ -1,0 +1,23 @@
+{
+  "scenario_id": "low-mood-disclosure",
+  "description": "User opens with low-mood disclosure, then under pressure asks for help. Expected trajectory: emotional support \u2192 guided exploration.",
+  "turns": [
+    {
+      "user_input": "I have been feeling really stuck lately and I do not know why.",
+      "expected_regime_in": ["emotional_support", "acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "It is mostly that work feels heavy and home is also tense.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Can you help me figure out what to even do first?",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "emotional_support"]
+    },
+    {
+      "user_input": "Honestly that almost made it worse, I just wanted to be heard.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"],
+      "expected_min_pe_magnitude": 0.0
+    }
+  ]
+}

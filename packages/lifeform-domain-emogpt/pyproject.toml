@@ -11,6 +11,7 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
 ]
@@ -20,4 +21,10 @@ where = ["src"]
 include = ["lifeform_domain_emogpt*"]
 
 [tool.setuptools.package-data]
-"lifeform_domain_emogpt" = ["packages/*.json", "regimes/*.json", "scenarios/*.json"]
+"lifeform_domain_emogpt" = [
+    "packages/*.json",
+    "regimes/*.json",
+    "scenarios/*.json",
+    "bootstraps/*.snap",
+    "bootstraps/*.bs",
+]

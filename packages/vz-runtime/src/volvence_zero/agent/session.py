@@ -95,7 +95,7 @@ from volvence_zero.prediction.error import (
     PredictionErrorModule,
 )
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
-from volvence_zero.regime import RegimeModule, RegimeSnapshot
+from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
     AdapterSemanticProposalRuntime,
@@ -500,6 +500,7 @@ class AgentSessionRunner:
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         default_residual_runtime: OpenWeightResidualRuntime | None = None,
+        regime_bootstrap: RegimeBootstrap | None = None,
         substrate_model_id: str = "distilgpt2",
         substrate_model_source: str | None = None,
         substrate_device: str = "auto",
@@ -592,6 +593,7 @@ class AgentSessionRunner:
         self._substrate_adapter_factory = substrate_adapter_factory
         self._regime_module = RegimeModule(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
+            bootstrap=regime_bootstrap,
         )
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),

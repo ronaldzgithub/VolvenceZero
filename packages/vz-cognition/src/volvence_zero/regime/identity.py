@@ -31,6 +31,27 @@ class RegimeSelectionWeights:
 
 
 @dataclass(frozen=True)
+class RegimeBootstrap:
+    """Pre-trained regime classifier state.
+
+    Lets a fresh ``RegimeModule`` start from learned ``selection_weights``,
+    ``historical_effectiveness``, and ``strategy_priors`` instead of the
+    flat 1.0 / 0.5 / 0.0 defaults. Mirrors ``MetacontrollerParameterSnapshot``
+    on the temporal axis: collected via the lifeform-evolution regime
+    calibrator, persisted via ``lifeform_evolution.regime_io``, injected at
+    ``Brain`` / ``Lifeform`` construction time.
+
+    Every field is optional; missing fields fall back to the historical
+    defaults so an old artifact stays loadable when the schema grows.
+    """
+
+    selection_weights: tuple[tuple[str, float], ...] = ()
+    historical_effectiveness: tuple[tuple[str, float], ...] = ()
+    strategy_priors: tuple[tuple[str, float], ...] = ()
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class RegimeSnapshot:
     active_regime: RegimeIdentity
     previous_regime: RegimeIdentity | None
@@ -490,9 +511,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         *,
         attribution_horizons: tuple[int, ...] = (2,),
         wiring_level: WiringLevel | None = None,
+        bootstrap: "RegimeBootstrap | None" = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._attribution_horizons = tuple(min(max(h, 1), 8) for h in attribution_horizons) or (2,)
+        # Historical defaults; overridden below if a bootstrap is provided.
         self._historical_effectiveness: dict[str, float] = {
             template.regime_id: 0.5 for template in REGIME_TEMPLATES
         }
@@ -503,6 +526,21 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             template.regime_id: 1.0 for template in REGIME_TEMPLATES
         }
         self._selection_weight_lr = 0.02
+        if bootstrap is not None:
+            # Apply only the entries that name a known regime; unknown ids
+            # are silently dropped so an artifact from a future build with
+            # extra regimes does not blow up old runtimes.
+            known_ids = {template.regime_id for template in REGIME_TEMPLATES}
+            for regime_id, value in bootstrap.selection_weights:
+                if regime_id in known_ids:
+                    # Same clip range as the online learning rule.
+                    self._selection_weights[regime_id] = max(0.3, min(2.0, float(value)))
+            for regime_id, value in bootstrap.historical_effectiveness:
+                if regime_id in known_ids:
+                    self._historical_effectiveness[regime_id] = max(0.0, min(1.0, float(value)))
+            for regime_id, value in bootstrap.strategy_priors:
+                if regime_id in known_ids:
+                    self._strategy_priors[regime_id] = max(-0.5, min(0.5, float(value)))
         self._active_regime_id: str | None = None
         self._previous_regime_id: str | None = None
         self._turns_in_current_regime = 0

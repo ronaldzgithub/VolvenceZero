@@ -1,0 +1,18 @@
+{
+  "scenario_id": "casual-social-checkin",
+  "description": "Light conversational check-in. No problem to solve; the test is whether the lifeform stays low-pressure rather than over-formalising.",
+  "turns": [
+    {
+      "user_input": "Just saying hi, hope your day is going alright.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Anything interesting on your mind today?",
+      "expected_regime_in": ["casual_social", "acquaintance_building", "guided_exploration"]
+    },
+    {
+      "user_input": "Cool, that is enough catching up \u2014 talk later.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    }
+  ]
+}

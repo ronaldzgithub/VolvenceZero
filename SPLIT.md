@@ -3,6 +3,15 @@
 > Status: active charter
 > Last updated: 2026-04-28
 
+## Recent changelog
+
+- 2026-04-28: M0 wheel-split debt resolved. ``vz-application`` is now its own
+  wheel under ``packages/vz-application``. The cycle (``vz-cognition.evaluation``
+  importing application owner snapshot types) was broken by extracting the
+  type definitions into ``volvence_zero.application_types`` (still in
+  vz-cognition). Owner code lives in ``vz-application`` and depends on
+  vz-cognition for those type definitions plus DualTrackSnapshot etc.
+
 This monorepo houses two architecturally distinct concerns that share a single
 git history **on purpose**, with a written exit plan:
 

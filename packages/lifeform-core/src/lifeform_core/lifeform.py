@@ -39,6 +39,7 @@ from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
 )
+from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
@@ -92,6 +93,7 @@ class Lifeform:
         response_synthesizer: ResponseSynthesizer | None = None,
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
+        regime_bootstrap: RegimeBootstrap | None = None,
     ) -> None:
         self._config = config or LifeformConfig()
         self._brain = Brain(
@@ -101,6 +103,7 @@ class Lifeform:
             response_synthesizer=response_synthesizer,
             semantic_proposal_runtime=semantic_proposal_runtime,
             temporal_bootstrap=temporal_bootstrap,
+            regime_bootstrap=regime_bootstrap,
         )
         self._init_kwargs = {
             "substrate_runtime": substrate_runtime,
@@ -108,6 +111,7 @@ class Lifeform:
             "response_synthesizer": response_synthesizer,
             "semantic_proposal_runtime": semantic_proposal_runtime,
             "temporal_bootstrap": temporal_bootstrap,
+            "regime_bootstrap": regime_bootstrap,
         }
 
     @property
@@ -121,6 +125,10 @@ class Lifeform:
     @property
     def temporal_bootstrap(self) -> MetacontrollerParameterSnapshot | None:
         return self._brain.temporal_bootstrap
+
+    @property
+    def regime_bootstrap(self) -> RegimeBootstrap | None:
+        return self._brain.regime_bootstrap
 
     def with_domain_experience(
         self,
@@ -138,6 +146,15 @@ class Lifeform:
         """Return a clone of this lifeform with the given trained metacontroller."""
         new_kwargs = dict(self._init_kwargs)
         new_kwargs["temporal_bootstrap"] = snapshot
+        return Lifeform(self._config, **new_kwargs)
+
+    def with_regime_bootstrap(
+        self,
+        bootstrap: RegimeBootstrap | None,
+    ) -> "Lifeform":
+        """Return a clone of this lifeform with calibrated regime weights."""
+        new_kwargs = dict(self._init_kwargs)
+        new_kwargs["regime_bootstrap"] = bootstrap
         return Lifeform(self._config, **new_kwargs)
 
     def create_session(self, *, session_id: str = "lifeform-session") -> "LifeformSession":

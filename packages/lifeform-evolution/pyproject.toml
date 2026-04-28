@@ -21,6 +21,8 @@ lifeform-trace      = "lifeform_evolution.cli:main_trace"
 lifeform-ssl        = "lifeform_evolution.cli:main_ssl"
 lifeform-loop       = "lifeform_evolution.cli:main_loop"
 lifeform-multi-loop = "lifeform_evolution.cli:main_multi_loop"
+lifeform-calibrate  = "lifeform_evolution.cli:main_calibrate"
+lifeform-super-loop = "lifeform_evolution.cli:main_super_loop"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -201,21 +201,36 @@ def run_benchmark(
     *,
     scenario: ScriptedScenario | None = None,
     config: LifeformConfig | None = None,
+    temporal_bootstrap: object | None = None,
+    regime_bootstrap: object | None = None,
 ) -> BenchmarkReport:
     """Run one scenario synchronously. Wraps ``run_benchmark_async``."""
-    return asyncio.run(run_benchmark_async(scenario=scenario, config=config))
+    return asyncio.run(
+        run_benchmark_async(
+            scenario=scenario,
+            config=config,
+            temporal_bootstrap=temporal_bootstrap,
+            regime_bootstrap=regime_bootstrap,
+        )
+    )
 
 
 async def run_benchmark_async(
     *,
     scenario: ScriptedScenario | None = None,
     config: LifeformConfig | None = None,
+    temporal_bootstrap: object | None = None,
+    regime_bootstrap: object | None = None,
 ) -> BenchmarkReport:
     chosen = scenario or low_mood_disclosure_scenario()
     base_config = config or LifeformConfig()
     base_config = base_config.with_domain_experience((build_companion_package(),))
 
-    lifeform = Lifeform(base_config)
+    lifeform = Lifeform(
+        base_config,
+        temporal_bootstrap=temporal_bootstrap,
+        regime_bootstrap=regime_bootstrap,
+    )
     session = lifeform.create_session(session_id=f"benchmark-{chosen.scenario_id}")
 
     turn_reports: list[TurnReport] = []

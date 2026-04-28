@@ -14,6 +14,7 @@ dependencies = [
     "vz-substrate==0.1.*",
     "vz-memory==0.1.*",
     "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
     "vz-temporal==0.1.*",
 ]
 

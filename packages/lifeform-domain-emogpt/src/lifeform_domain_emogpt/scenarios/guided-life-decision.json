@@ -1,0 +1,27 @@
+{
+  "scenario_id": "guided-life-decision",
+  "description": "User brings a long-horizon life decision in pieces. The lifeform should stay in guided exploration, narrow one thread at a time, and avoid premature solutioning. Vertical-specific scenario — not part of the built-in set.",
+  "turns": [
+    {
+      "user_input": "I am thinking about whether to move cities for the new offer, or stay near family.",
+      "expected_regime_in": ["guided_exploration", "acquaintance_building"]
+    },
+    {
+      "user_input": "It is not just career; I would also leave my parents during a hard year for them.",
+      "expected_regime_in": ["guided_exploration", "emotional_support"]
+    },
+    {
+      "user_input": "Can you just tell me what the right answer is?",
+      "expected_regime_in": ["guided_exploration", "repair_and_deescalation"],
+      "expected_min_pe_magnitude": 0.0
+    },
+    {
+      "user_input": "Okay fair, let us slow down. What thread should we pick first?",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Talking it through actually helped clarify the family side a lot.",
+      "expected_regime_in": ["acquaintance_building", "casual_social", "emotional_support"]
+    }
+  ]
+}

@@ -22,6 +22,7 @@ PACKAGES=(
   packages/vz-substrate
   packages/vz-memory
   packages/vz-cognition
+  packages/vz-application
   packages/vz-temporal
   packages/vz-runtime
   packages/lifeform-core

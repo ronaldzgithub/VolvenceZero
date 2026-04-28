@@ -25,6 +25,7 @@ dependencies = [
     "vz-substrate==0.1.*",
     "vz-memory==0.1.*",
     "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
     "vz-temporal==0.1.*",
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
@@ -47,6 +48,7 @@ vz-contracts        = { workspace = true }
 vz-substrate        = { workspace = true }
 vz-memory           = { workspace = true }
 vz-cognition        = { workspace = true }
+vz-application      = { workspace = true }
 vz-temporal         = { workspace = true }
 vz-runtime          = { workspace = true }
 lifeform-core       = { workspace = true }

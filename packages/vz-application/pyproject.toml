@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-application"
+version = "0.1.0"
+description = "Volvence Zero application owners: domain knowledge / case memory / strategy playbook / boundary policy / retrieval policy / response assembly / experience consolidation."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-memory==0.1.*",
+    "vz-cognition==0.1.*",
+]
+
+# This wheel was previously bundled inside vz-cognition. The split was
+# blocked by a snapshot-type cycle: vz-cognition.evaluation imported types
+# defined alongside application owners. The cycle was broken in M0+ by
+# extracting those types into ``volvence_zero.application_types`` (still in
+# vz-cognition), which both this wheel and vz-cognition.evaluation now
+# import without crossing into application owner code.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true

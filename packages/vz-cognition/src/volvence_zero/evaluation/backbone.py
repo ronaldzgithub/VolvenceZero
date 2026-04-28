@@ -6,7 +6,12 @@ import math
 from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
-from volvence_zero.application.runtime import (
+# Import from ``application_types`` (vz-cognition root) instead of
+# ``application.runtime`` to keep evaluation independent of the application
+# owner package. This is the cycle break that lets the application owners
+# eventually move to their own ``vz-application`` wheel without taking a
+# detour through vz-cognition.evaluation.
+from volvence_zero.application_types import (
     ApplicationOutcomeAttribution,
     ApplicationSequencePayoff,
     BoundaryPolicySnapshot,

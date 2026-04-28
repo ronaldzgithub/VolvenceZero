@@ -17,16 +17,9 @@ This is currently one wheel because the seven sub-packages it contains are tight
 | `semantic_state` | 9 semantic owners (plan, commitment, open-loop, user-model, etc.) | R11 |
 | `evaluation` | Six-family scores, readout-only | R12 |
 | `reflection` | Background-slow consolidation; produces writeback proposals | R6 |
-| `application` | Vertical adapter owners (domain knowledge / case memory / playbook / boundary policy) | — |
+| `application_types` | Frozen-dataclass snapshot definitions consumed by `evaluation` and produced by `vz-application` owners — defined here to break the wheel-level cycle | — |
 
-### Why `application` ships here today
-
-`vz-cognition.evaluation.backbone` imports application snapshot types
-(`BoundaryPolicySnapshot`, `CaseMemorySnapshot`, `DomainKnowledgeSnapshot`,
-`ResponseAssemblySnapshot`, ...) at module load. The clean fix is to extract
-those frozen-dataclass types into `vz-contracts` and let `vz-application`
-become its own wheel that depends on cognition without cycling. Until then,
-they share a wheel.
+> **Application owner code lives in the separate `vz-application` wheel.** Only the snapshot type **definitions** (frozen dataclasses, no behavior) live here, in `volvence_zero.application_types`. See `vz-application/README.md` for the cycle-break rationale.
 
 ## Hard limits
 

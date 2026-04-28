@@ -5,14 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lifeform-service"
 version = "0.1.0"
-description = "Lifeform service layer: HTTP/WS/CLI surfaces, multi-tenant isolation, persistence."
+description = "Lifeform service layer: multi-tenant aiohttp service exposing a Volvence Zero lifeform from any installed lifeform-domain-* vertical."
 requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "lifeform-core==0.1.*",
     "lifeform-expression==0.1.*",
+    "lifeform-domain-emogpt==0.1.*",
+    "aiohttp>=3.9",
 ]
+
+[project.scripts]
+lifeform-serve = "lifeform_service.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

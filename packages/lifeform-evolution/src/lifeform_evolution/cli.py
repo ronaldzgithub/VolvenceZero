@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from lifeform_evolution.benchmark import (
+    ScriptedScenario,
     all_built_in_scenarios,
     casual_social_checkin_scenario,
     format_report,
@@ -13,6 +14,7 @@ from lifeform_evolution.benchmark import (
     run_benchmark,
     trust_rupture_repair_scenario,
 )
+from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_evolution.learning_loop import (
     format_learning_loop_report,
     run_learning_loop,
@@ -20,6 +22,24 @@ from lifeform_evolution.learning_loop import (
 from lifeform_evolution.multi_round_loop import (
     format_multi_round_report,
     run_multi_round_loop,
+)
+from lifeform_evolution.regime_calibrator import (
+    format_regime_calibration_report,
+    run_regime_calibrator,
+)
+from lifeform_evolution.regime_io import (
+    load_regime_bootstrap_only,
+    save_regime_bootstrap,
+)
+from lifeform_evolution.super_loop import (
+    format_super_loop_report,
+    run_super_loop,
+)
+from lifeform_evolution.snapshot_io import (
+    SnapshotArtifact,
+    load_snapshot,
+    load_snapshot_only,
+    save_snapshot,
 )
 from lifeform_evolution.ssl_demo import (
     format_ssl_demo_report,
@@ -36,6 +56,16 @@ _SCENARIOS = {
 }
 
 
+def _resolve_scenarios_flag(path: str | None) -> tuple[ScriptedScenario, ...] | None:
+    """Return the scenarios named by ``--scenarios PATH``, or None if unset.
+
+    ``PATH`` may be a single ``.json`` scenario file or a directory of them.
+    """
+    if not path:
+        return None
+    return load_scenarios(path)
+
+
 # ---------------------------------------------------------------------------
 # lifeform-bench
 # ---------------------------------------------------------------------------
@@ -46,14 +76,27 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         prog="lifeform-bench",
         description=(
             "Run a scripted multi-turn benchmark on a Lifeform built from "
-            "VolvenceZero + the EmoGPT-style companion vertical."
+            "VolvenceZero + the EmoGPT-style companion vertical. Custom "
+            "verticals may pass --scenarios PATH (a JSON file or directory "
+            "of JSON files) to define their own benchmark set."
         ),
     )
     parser.add_argument(
         "--scenario",
-        choices=tuple(_SCENARIOS.keys()) + ("all",),
         default="low-mood-disclosure",
-        help='Scripted scenario to run (or "all" to run every built-in scenario).',
+        help=(
+            'Built-in scenario name (or "all"). Choices: '
+            + ", ".join(tuple(_SCENARIOS.keys()) + ("all",))
+            + ". Ignored when --scenarios is given."
+        ),
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help=(
+            "Path to a JSON scenario file or a directory of them. When set, "
+            "overrides --scenario and --SCENARIOS in --scenario all sense."
+        ),
     )
     parser.add_argument(
         "--min-regime-match-rate",
@@ -61,26 +104,59 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         default=0.5,
         help="Minimum regime-match rate for the run to be considered passed (default 0.5).",
     )
+    parser.add_argument(
+        "--bootstrap-snapshot",
+        default=None,
+        help="Path to a saved metacontroller snapshot to inject into the Lifeform.",
+    )
+    parser.add_argument(
+        "--regime-bootstrap",
+        default=None,
+        help="Path to a saved regime calibration artifact to inject into the Lifeform.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_bench_parser()
     args = parser.parse_args(argv)
+    bootstrap = load_snapshot_only(args.bootstrap_snapshot) if args.bootstrap_snapshot else None
+    if bootstrap is not None:
+        print(f"[bench] using bootstrap snapshot: {args.bootstrap_snapshot}")
+    regime_bootstrap = (
+        load_regime_bootstrap_only(args.regime_bootstrap)
+        if args.regime_bootstrap
+        else None
+    )
+    if regime_bootstrap is not None:
+        print(f"[bench] using regime bootstrap: {args.regime_bootstrap}")
 
-    if args.scenario == "all":
-        ok = True
-        for scenario in all_built_in_scenarios():
-            report = run_benchmark(scenario=scenario)
-            print(format_report(report))
+    custom = _resolve_scenarios_flag(args.scenarios)
+    if custom is not None:
+        scenarios: tuple[ScriptedScenario, ...] = custom
+        print(f"[bench] using {len(scenarios)} scenarios from {args.scenarios}")
+    elif args.scenario == "all":
+        scenarios = all_built_in_scenarios()
+    else:
+        if args.scenario not in _SCENARIOS:
+            parser.error(
+                f"unknown built-in scenario {args.scenario!r}; "
+                f"valid: {sorted(_SCENARIOS.keys()) + ['all']}"
+            )
+        scenarios = (_SCENARIOS[args.scenario](),)
+
+    ok = True
+    for scenario in scenarios:
+        report = run_benchmark(
+            scenario=scenario,
+            temporal_bootstrap=bootstrap,
+            regime_bootstrap=regime_bootstrap,
+        )
+        print(format_report(report))
+        if len(scenarios) > 1:
             print()
-            ok = ok and report.passed(min_regime_match_rate=args.min_regime_match_rate)
-        return 0 if ok else 1
-
-    scenario = _SCENARIOS[args.scenario]()
-    report = run_benchmark(scenario=scenario)
-    print(format_report(report))
-    return 0 if report.passed(min_regime_match_rate=args.min_regime_match_rate) else 1
+        ok = ok and report.passed(min_regime_match_rate=args.min_regime_match_rate)
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------
@@ -93,14 +169,21 @@ def _build_trace_parser() -> argparse.ArgumentParser:
         prog="lifeform-trace",
         description=(
             "Run scripted scenarios and emit a line-delimited JSON trace "
-            "suitable for offline vz-temporal SSL training."
+            "suitable for offline vz-temporal SSL training. Pass "
+            "--scenarios PATH to use a custom JSON pack instead of built-ins."
         ),
     )
     parser.add_argument(
         "--scenario",
-        choices=tuple(_SCENARIOS.keys()) + ("all",),
         default="all",
-        help='Scenario to capture (or "all"). Default: all.',
+        help=(
+            'Built-in scenario name (or "all"). Ignored when --scenarios is given.'
+        ),
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help="Path to a JSON scenario file or a directory of them.",
     )
     parser.add_argument(
         "--out",
@@ -114,9 +197,14 @@ def main_trace(argv: list[str] | None = None) -> int:
     parser = _build_trace_parser()
     args = parser.parse_args(argv)
 
-    if args.scenario == "all":
+    custom = _resolve_scenarios_flag(args.scenarios)
+    if custom is not None:
+        scenarios: tuple[ScriptedScenario, ...] = custom
+    elif args.scenario == "all":
         scenarios = all_built_in_scenarios()
     else:
+        if args.scenario not in _SCENARIOS:
+            parser.error(f"unknown built-in scenario {args.scenario!r}")
         scenarios = (_SCENARIOS[args.scenario](),)
 
     collector = TraceCollector(output_path=args.out)
@@ -223,14 +311,68 @@ def _build_loop_parser() -> argparse.ArgumentParser:
         "--require-loop-closed", action="store_true",
         help="Exit non-zero if the loop did not close (any verdict failed).",
     )
+    parser.add_argument(
+        "--save-snapshot",
+        default=None,
+        help="Path to write the trained metacontroller snapshot after the loop runs.",
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help="Path to a JSON scenario file or directory; overrides built-ins.",
+    )
     return parser
 
 
 def main_loop(argv: list[str] | None = None) -> int:
     parser = _build_loop_parser()
     args = parser.parse_args(argv)
-    report = run_learning_loop(n_z=args.n_z, alpha=args.alpha)
+    custom = _resolve_scenarios_flag(args.scenarios)
+    report = run_learning_loop(
+        scenarios=custom,
+        n_z=args.n_z,
+        alpha=args.alpha,
+    )
     print(format_learning_loop_report(report))
+    if args.save_snapshot:
+        # The single-round loop does not currently expose its trained
+        # ``MetacontrollerParameterSnapshot`` on the report. We re-run a
+        # tiny SSL pass against the same trace set for the export. This is
+        # acceptable because ``run_ssl_demo`` is fast on the built-in
+        # scenarios; if a future user needs avoid the duplicate train, we
+        # will lift the snapshot onto the report itself. For now, prefer
+        # ``lifeform-multi-loop --save-best`` for high-quality snapshots.
+        from lifeform_evolution.benchmark import all_built_in_scenarios
+        from lifeform_evolution.dataset_adapter import (
+            trace_records_to_training_dataset,
+        )
+        from lifeform_evolution.ssl_demo import run_ssl_demo
+        from lifeform_evolution.trace_collector import TraceCollector
+        from volvence_zero.temporal import FullLearnedTemporalPolicy
+
+        collector = TraceCollector()
+        try:
+            for scenario in all_built_in_scenarios():
+                collector.collect_scenario(scenario)
+        finally:
+            collector.close()
+        policy = FullLearnedTemporalPolicy()
+        run_ssl_demo(
+            dataset=trace_records_to_training_dataset(collector.records),
+            policy=policy,
+            n_z=args.n_z,
+            alpha=args.alpha,
+        )
+        snapshot = policy.export_rare_heavy_snapshot()
+        path = save_snapshot(
+            snapshot,
+            args.save_snapshot,
+            metadata={
+                "produced_by": "lifeform-loop",
+                "scenarios": [s.scenario_id for s in all_built_in_scenarios()],
+            },
+        )
+        print(f"[loop] saved trained snapshot to {path}")
     if args.require_loop_closed and not report.loop_closed():
         return 1
     return 0
@@ -268,18 +410,231 @@ def _build_multi_loop_parser() -> argparse.ArgumentParser:
         "--require-trajectory-passes", action="store_true",
         help="Exit non-zero if any per-round trajectory verdict failed.",
     )
+    parser.add_argument(
+        "--save-best",
+        default=None,
+        help=(
+            "Path to write the snapshot of the best round (max drift among "
+            "sparse-\u03b2_t rounds). Use it later with "
+            "``lifeform-bench --bootstrap-snapshot PATH`` or "
+            "``lifeform-loop --bootstrap-snapshot PATH``."
+        ),
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help="Path to a JSON scenario file or directory; overrides built-ins.",
+    )
     return parser
 
 
 def main_multi_loop(argv: list[str] | None = None) -> int:
     parser = _build_multi_loop_parser()
     args = parser.parse_args(argv)
+    custom = _resolve_scenarios_flag(args.scenarios)
     report = run_multi_round_loop(
         rounds=args.rounds,
+        scenarios=custom,
         n_z=args.n_z,
         alpha=args.alpha,
     )
     print(format_multi_round_report(report))
+    if args.save_best:
+        best = report.best_round()
+        path = save_snapshot(
+            best.snapshot,
+            args.save_best,
+            metadata={
+                "scenarios": list(report.scenarios),
+                "round_index": best.round_index,
+                "rounds_total": len(report.rounds),
+                "distance_to_baseline": best.distance_to_baseline,
+                "switch_frequency_last": best.ssl.switch_frequency_last,
+                "trained_step_count_at_best": best.ssl.trained_step_count,
+            },
+        )
+        print(
+            f"[multi-loop] saved best round {best.round_index}'s snapshot to {path}"
+        )
+    if args.require_trajectory_passes and not report.trajectory_passes():
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# lifeform-calibrate \u2014 trace-driven regime classifier calibration
+# ---------------------------------------------------------------------------
+
+
+def _build_calibrate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="lifeform-calibrate",
+        description=(
+            "Run the trace-driven regime calibrator: per scripted scenario, "
+            "compare the kernel's predicted regime against the scenario's "
+            "expected_regime_in label set; nudge selection_weights toward "
+            "expected regimes; iterate. Output a RegimeBootstrap artifact."
+        ),
+    )
+    parser.add_argument(
+        "--rounds", type=int, default=4,
+        help="Number of calibration rounds (default 4).",
+    )
+    parser.add_argument(
+        "--learning-rate", type=float, default=0.18,
+        help="Multiplicative update rate for matched regimes (default 0.18).",
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help="Path to a JSON scenario file or directory; overrides built-ins.",
+    )
+    parser.add_argument(
+        "--save-best",
+        default=None,
+        help=(
+            "Path to write the best-round regime bootstrap artifact. Use it "
+            "later with ``lifeform-bench --regime-bootstrap PATH``."
+        ),
+    )
+    parser.add_argument(
+        "--require-improvement",
+        action="store_true",
+        help=(
+            "Exit non-zero if the final round's regime_match_rate is not "
+            "strictly better than the baseline's."
+        ),
+    )
+    return parser
+
+
+def main_calibrate(argv: list[str] | None = None) -> int:
+    parser = _build_calibrate_parser()
+    args = parser.parse_args(argv)
+    custom = _resolve_scenarios_flag(args.scenarios)
+    report = run_regime_calibrator(
+        rounds=args.rounds,
+        scenarios=custom,
+        learning_rate=args.learning_rate,
+    )
+    print(format_regime_calibration_report(report))
+    if args.save_best:
+        best = report.best_round()
+        path = save_regime_bootstrap(
+            report.final_bootstrap,
+            args.save_best,
+            metadata={
+                "scenarios": list(report.scenarios),
+                "round_index_best": best.round_index,
+                "rounds_total": len(report.rounds),
+                "regime_match_rate_baseline": report.baseline.regime_match_rate,
+                "regime_match_rate_best": best.regime_match_rate,
+                "regime_match_rate_final": report.final.regime_match_rate,
+                "learning_rate": args.learning_rate,
+            },
+        )
+        print(f"[calibrate] saved final regime bootstrap to {path}")
+    if args.require_improvement:
+        if report.final.regime_match_rate <= report.baseline.regime_match_rate:
+            return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# lifeform-super-loop \u2014 joint temporal + regime calibration
+# ---------------------------------------------------------------------------
+
+
+def _build_super_loop_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="lifeform-super-loop",
+        description=(
+            "Joint multi-round calibration of the metacontroller (\u03b2_t / z_t) "
+            "AND the regime classifier in lockstep. Each round runs scenarios "
+            "with the current bootstraps, trains both axes against the same "
+            "evidence, and emits the next round's bootstraps."
+        ),
+    )
+    parser.add_argument(
+        "--rounds", type=int, default=3,
+        help="Number of rounds including round 0 baseline (default 3).",
+    )
+    parser.add_argument(
+        "--n-z", type=int, default=3,
+        help="Latent code dimensionality (default 3).",
+    )
+    parser.add_argument(
+        "--alpha", type=float, default=0.1,
+        help="Variational bottleneck weight (default 0.1).",
+    )
+    parser.add_argument(
+        "--regime-learning-rate", type=float, default=0.18,
+        help="Multiplicative update rate for matched regimes (default 0.18).",
+    )
+    parser.add_argument(
+        "--scenarios",
+        default=None,
+        help="Path to a JSON scenario file or directory; overrides built-ins.",
+    )
+    parser.add_argument(
+        "--save-temporal",
+        default=None,
+        help="Path to write the best-round's metacontroller snapshot.",
+    )
+    parser.add_argument(
+        "--save-regime",
+        default=None,
+        help="Path to write the best-round's regime bootstrap artifact.",
+    )
+    parser.add_argument(
+        "--require-trajectory-passes", action="store_true",
+        help="Exit non-zero if any per-round trajectory verdict failed.",
+    )
+    return parser
+
+
+def main_super_loop(argv: list[str] | None = None) -> int:
+    parser = _build_super_loop_parser()
+    args = parser.parse_args(argv)
+    custom = _resolve_scenarios_flag(args.scenarios)
+    report = run_super_loop(
+        rounds=args.rounds,
+        scenarios=custom,
+        n_z=args.n_z,
+        alpha=args.alpha,
+        regime_learning_rate=args.regime_learning_rate,
+    )
+    print(format_super_loop_report(report))
+    if args.save_temporal:
+        best = report.best_round()
+        path = save_snapshot(
+            best.temporal_snapshot,
+            args.save_temporal,
+            metadata={
+                "produced_by": "lifeform-super-loop",
+                "scenarios": list(report.scenarios),
+                "round_index_best": best.round_index,
+                "rounds_total": len(report.rounds),
+                "regime_match_rate_at_best": best.regime_match_rate,
+                "switch_frequency_at_best": best.ssl.switch_frequency_last,
+            },
+        )
+        print(f"[super-loop] saved temporal snapshot to {path}")
+    if args.save_regime:
+        best = report.best_round()
+        path = save_regime_bootstrap(
+            best.regime_bootstrap,
+            args.save_regime,
+            metadata={
+                "produced_by": "lifeform-super-loop",
+                "scenarios": list(report.scenarios),
+                "round_index_best": best.round_index,
+                "rounds_total": len(report.rounds),
+                "regime_match_rate_at_best": best.regime_match_rate,
+                "regime_match_rate_baseline": report.baseline.regime_match_rate,
+            },
+        )
+        print(f"[super-loop] saved regime bootstrap to {path}")
     if args.require_trajectory_passes and not report.trajectory_passes():
         return 1
     return 0

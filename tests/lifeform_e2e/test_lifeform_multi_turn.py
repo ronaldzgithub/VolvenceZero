@@ -595,6 +595,525 @@ def test_multi_round_loop_distance_is_zero_for_baseline_and_nonzero_after_traini
     )
 
 
+# ---------------------------------------------------------------------------
+# Snapshot persistence (R10 \u2014 gated layered self-modification, file-level)
+# ---------------------------------------------------------------------------
+
+
+def test_snapshot_round_trip_preserves_runtime_behavior(tmp_path):
+    """Save a trained metacontroller snapshot, load it back, run a benchmark.
+
+    The same scenario should produce the same regime / intent / response
+    text whether the snapshot is in memory or round-tripped through disk.
+    This is the "trained policy as portable artifact" claim: serialising
+    does not silently lose any field that affects runtime decisions.
+    """
+    from lifeform_evolution import (
+        SnapshotArtifact,
+        load_snapshot,
+        load_snapshot_only,
+        run_multi_round_loop,
+        save_snapshot,
+    )
+    from lifeform_evolution.benchmark import (
+        low_mood_disclosure_scenario,
+        run_benchmark,
+    )
+
+    report = run_multi_round_loop(rounds=3)
+    best = report.best_round()
+
+    out = tmp_path / "best.snap"
+    saved_path = save_snapshot(
+        best.snapshot,
+        out,
+        metadata={"round_index": best.round_index},
+    )
+    assert saved_path.is_file()
+
+    # Envelope round-trip: schema_version + metadata preserved.
+    artifact = load_snapshot(saved_path)
+    assert isinstance(artifact, SnapshotArtifact)
+    assert artifact.schema_version == "vz-metasnap.v1"
+    assert artifact.metadata == {"round_index": best.round_index}
+
+    # Convenience accessor returns the snapshot directly.
+    snapshot = load_snapshot_only(saved_path)
+    assert snapshot is not None
+
+    # Behaviour parity: same scenario, in-memory snapshot vs reloaded
+    # snapshot, must produce identical regime / intent / response text.
+    in_mem_report = run_benchmark(
+        scenario=low_mood_disclosure_scenario(),
+        temporal_bootstrap=best.snapshot,
+    )
+    reloaded_report = run_benchmark(
+        scenario=low_mood_disclosure_scenario(),
+        temporal_bootstrap=snapshot,
+    )
+    assert len(in_mem_report.turn_reports) == len(reloaded_report.turn_reports)
+    for in_mem, reloaded in zip(in_mem_report.turn_reports, reloaded_report.turn_reports):
+        assert in_mem.active_regime == reloaded.active_regime
+        assert in_mem.expression_intent == reloaded.expression_intent
+        assert in_mem.response_text == reloaded.response_text
+
+
+def test_snapshot_loader_rejects_files_without_magic_header(tmp_path):
+    """Random pickle files must not be accepted as snapshot artifacts.
+
+    Magic-header validation guards against accidentally loading something
+    that wasn't produced by ``save_snapshot``.
+    """
+    import pickle
+
+    from lifeform_evolution import load_snapshot
+
+    bogus = tmp_path / "bogus.snap"
+    bogus.write_bytes(pickle.dumps({"hello": "world"}))
+
+    import pytest
+
+    with pytest.raises(ValueError, match="not a Volvence Zero metacontroller snapshot"):
+        load_snapshot(bogus)
+
+
+def test_snapshot_loader_reports_missing_file_clearly(tmp_path):
+    """Missing snapshot path \u2192 clear ``FileNotFoundError`` with the path."""
+    from lifeform_evolution import load_snapshot
+    import pytest
+
+    missing = tmp_path / "does-not-exist.snap"
+    with pytest.raises(FileNotFoundError, match="does-not-exist.snap"):
+        load_snapshot(missing)
+
+
+# ---------------------------------------------------------------------------
+# Scenario pack registry (vertical extension point)
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_pack_round_trips_through_json(tmp_path):
+    """``dump_scenario_pack`` then ``load_scenario_pack`` must yield an
+    equivalent ``ScriptedScenario`` (same id, same number of turns, same
+    text, same expected regimes, same PE threshold).
+    """
+    from lifeform_evolution import (
+        dump_scenario_pack,
+        load_scenario_pack,
+        low_mood_disclosure_scenario,
+    )
+
+    original = low_mood_disclosure_scenario()
+    out = tmp_path / "pack.json"
+    dump_scenario_pack(original, out)
+    assert out.is_file()
+
+    reloaded = load_scenario_pack(out)
+    assert reloaded.scenario_id == original.scenario_id
+    assert reloaded.description == original.description
+    assert len(reloaded.turns) == len(original.turns)
+    for orig_turn, new_turn in zip(original.turns, reloaded.turns):
+        assert orig_turn.user_input == new_turn.user_input
+        assert tuple(orig_turn.expected_regime_in) == tuple(new_turn.expected_regime_in)
+        assert orig_turn.expected_min_pe_magnitude == new_turn.expected_min_pe_magnitude
+
+
+def test_scenario_pack_dir_loads_every_json_file_sorted(tmp_path):
+    """Loading a directory must pick up every ``.json`` and return them in
+    deterministic order so identical packs produce identical outputs across
+    machines.
+    """
+    from lifeform_evolution import (
+        dump_scenario_pack,
+        load_scenario_pack_dir,
+        load_scenarios,
+        low_mood_disclosure_scenario,
+        casual_social_checkin_scenario,
+        trust_rupture_repair_scenario,
+    )
+
+    scenarios = (
+        low_mood_disclosure_scenario(),
+        casual_social_checkin_scenario(),
+        trust_rupture_repair_scenario(),
+    )
+    for scenario in scenarios:
+        dump_scenario_pack(scenario, tmp_path / f"{scenario.scenario_id}.json")
+
+    reloaded = load_scenario_pack_dir(tmp_path)
+    assert len(reloaded) == 3
+    # Sorted by file name \u2192 scenario_id alphabetical.
+    assert tuple(s.scenario_id for s in reloaded) == (
+        "casual-social-checkin",
+        "low-mood-disclosure",
+        "trust-rupture-repair",
+    )
+
+    # ``load_scenarios`` accepts both files and directories.
+    via_dir = load_scenarios(tmp_path)
+    assert len(via_dir) == 3
+    via_file = load_scenarios(tmp_path / "casual-social-checkin.json")
+    assert len(via_file) == 1
+    assert via_file[0].scenario_id == "casual-social-checkin"
+
+
+def test_scenario_pack_loader_validates_required_fields(tmp_path):
+    """Malformed JSON must produce a ``ScenarioPackError`` whose message
+    points at the offending file (and turn index, when applicable).
+    """
+    import pytest
+    from lifeform_evolution import ScenarioPackError, load_scenario_pack
+
+    missing_id = tmp_path / "missing-id.json"
+    missing_id.write_text('{"description": "x", "turns": [{"user_input": "hi"}]}', encoding="utf-8")
+    with pytest.raises(ScenarioPackError, match="scenario_id"):
+        load_scenario_pack(missing_id)
+
+    bad_turn = tmp_path / "bad-turn.json"
+    bad_turn.write_text(
+        '{"scenario_id": "s", "description": "x", "turns": [{"user_input": ""}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ScenarioPackError, match=r"turns\[0\]"):
+        load_scenario_pack(bad_turn)
+
+    not_json = tmp_path / "not-json.json"
+    not_json.write_text("this is not json", encoding="utf-8")
+    with pytest.raises(ScenarioPackError, match="not valid JSON"):
+        load_scenario_pack(not_json)
+
+
+def test_lifeform_domain_emogpt_ships_loadable_scenarios():
+    """The companion vertical's ``scenarios_dir`` must expose at least the
+    three built-in scenario IDs (and, in our reference pack, one extra
+    vertical-only scenario), all loadable through ``load_scenarios``.
+    """
+    from lifeform_domain_emogpt import scenarios_dir
+    from lifeform_evolution import load_scenarios
+
+    sd = scenarios_dir()
+    assert sd.is_dir(), f"scenarios_dir does not exist: {sd}"
+
+    pack = load_scenarios(sd)
+    pack_ids = {s.scenario_id for s in pack}
+    # Built-in IDs must be present.
+    assert pack_ids >= {
+        "low-mood-disclosure",
+        "trust-rupture-repair",
+        "casual-social-checkin",
+    }
+    # Vertical-only scenario proves the registry is extension-friendly.
+    assert "guided-life-decision" in pack_ids
+
+
+# ---------------------------------------------------------------------------
+# Regime calibration (R-PE / R14 \u2014 trace-driven regime classifier learning)
+# ---------------------------------------------------------------------------
+
+
+def test_regime_calibrator_improves_match_rate_over_baseline():
+    """Trace-driven calibration must lift the regime match rate above the
+    untrained baseline on the built-in scenarios.
+
+    The exact lift depends on initialisation, but the direction (more
+    matches than baseline) is the contract. If this fails, the calibrator
+    is doing zero-or-negative work and the loop is broken.
+    """
+    from lifeform_evolution import (
+        format_regime_calibration_report,
+        run_regime_calibrator,
+    )
+
+    report = run_regime_calibrator(rounds=3)
+    assert len(report.rounds) == 3
+    baseline_match = report.baseline.regime_match_rate
+    best_match = report.best_round().regime_match_rate
+    assert best_match > baseline_match, (
+        f"calibration did not improve match rate: "
+        f"baseline={baseline_match:.0%}, best={best_match:.0%}"
+    )
+    # Final bootstrap exposes the per-regime weights.
+    weights = dict(report.final_bootstrap.selection_weights)
+    assert set(weights.keys()) == {
+        "casual_social",
+        "acquaintance_building",
+        "emotional_support",
+        "guided_exploration",
+        "problem_solving",
+        "repair_and_deescalation",
+    }
+    # Pretty-print does not crash.
+    assert "Regime calibrator" in format_regime_calibration_report(report)
+
+
+def test_regime_bootstrap_round_trips_through_disk_and_changes_runtime_behaviour(tmp_path):
+    """Save the calibrated bootstrap, reload it, run a benchmark, and
+    verify the regime distribution differs from the baseline.
+
+    Mirrors ``test_snapshot_round_trip_preserves_runtime_behavior`` for
+    the regime axis: persistence must not silently drop fields, and
+    injecting the reloaded artifact must reproduce the calibration's
+    behavioural effect.
+    """
+    from lifeform_evolution import (
+        load_regime_bootstrap,
+        load_regime_bootstrap_only,
+        run_regime_calibrator,
+        save_regime_bootstrap,
+    )
+    from lifeform_evolution.benchmark import (
+        low_mood_disclosure_scenario,
+        run_benchmark,
+    )
+
+    report = run_regime_calibrator(rounds=3)
+    out = tmp_path / "regime.bs"
+    saved_path = save_regime_bootstrap(
+        report.final_bootstrap,
+        out,
+        metadata={"scenarios": list(report.scenarios)},
+    )
+    assert saved_path.is_file()
+
+    artifact = load_regime_bootstrap(saved_path)
+    assert artifact.schema_version == "vz-regimebs.v1"
+    assert artifact.metadata == {"scenarios": list(report.scenarios)}
+
+    bootstrap = load_regime_bootstrap_only(saved_path)
+    # Same calibrated weights as the in-memory bootstrap.
+    assert dict(bootstrap.selection_weights) == dict(report.final_bootstrap.selection_weights)
+
+    # Behaviour: same scenario, baseline run vs reloaded bootstrap, must not
+    # produce identical regime trajectories \u2014 the calibration shifts at
+    # least one turn's regime selection.
+    baseline_bench = run_benchmark(scenario=low_mood_disclosure_scenario())
+    bootstrapped_bench = run_benchmark(
+        scenario=low_mood_disclosure_scenario(),
+        regime_bootstrap=bootstrap,
+    )
+    baseline_regimes = tuple(t.active_regime for t in baseline_bench.turn_reports)
+    bootstrapped_regimes = tuple(t.active_regime for t in bootstrapped_bench.turn_reports)
+    assert baseline_regimes != bootstrapped_regimes, (
+        f"regime trajectories were identical: {baseline_regimes!r}"
+    )
+
+
+def test_regime_bootstrap_loader_rejects_files_without_magic_header(tmp_path):
+    import pickle
+    import pytest
+
+    from lifeform_evolution import load_regime_bootstrap
+
+    bogus = tmp_path / "bogus.bs"
+    bogus.write_bytes(pickle.dumps({"hello": "world"}))
+    with pytest.raises(ValueError, match="not a Volvence Zero regime bootstrap"):
+        load_regime_bootstrap(bogus)
+
+
+def test_regime_module_accepts_bootstrap_in_constructor():
+    """Direct kernel-level test: ``RegimeModule(bootstrap=...)`` must apply
+    the supplied weights as initial state, not after a side effect.
+    """
+    from volvence_zero.regime import RegimeBootstrap, RegimeModule
+
+    bootstrap = RegimeBootstrap(
+        selection_weights=(
+            ("emotional_support", 1.7),
+            ("problem_solving", 0.6),
+            ("unknown_regime_id", 9.9),  # silently dropped
+        ),
+        historical_effectiveness=(("emotional_support", 0.8),),
+    )
+    module = RegimeModule(bootstrap=bootstrap)
+    assert module._selection_weights["emotional_support"] == 1.7
+    assert module._selection_weights["problem_solving"] == 0.6
+    assert module._historical_effectiveness["emotional_support"] == 0.8
+    # Other regimes keep their defaults.
+    assert module._selection_weights["casual_social"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Super-loop (R3 + R14 joint co-evolution)
+# ---------------------------------------------------------------------------
+
+
+def test_super_loop_co_trains_temporal_and_regime():
+    """Joint multi-round calibration must (a) move both axes' state,
+    (b) find at least one round that beats baseline match rate while
+    keeping \u03b2_t sparse, (c) pass all trajectory verdicts.
+
+    This is the most direct evidence of "NL multi-timescale learning"
+    we have: a single loop that updates two distinct adaptive layers
+    against the same evidence and reports their joint trajectory.
+    """
+    from lifeform_evolution import format_super_loop_report, run_super_loop
+
+    report = run_super_loop(rounds=3)
+    assert len(report.rounds) == 3
+
+    # Both axes' state must have actually moved.
+    snapshot_fingerprints = {repr(r.temporal_snapshot) for r in report.rounds}
+    assert len(snapshot_fingerprints) >= 2
+    weights_fingerprints = {tuple(r.selection_weights) for r in report.rounds}
+    assert len(weights_fingerprints) >= 2
+
+    # Best round must beat baseline on regime match.
+    best = report.best_round()
+    assert best.regime_match_rate > report.baseline.regime_match_rate
+
+    # All trajectory verdicts pass for the default rounds.
+    assert report.trajectory_passes(), report.verdicts
+
+    # Pretty-print does not crash.
+    assert "Super loop" in format_super_loop_report(report)
+
+
+def test_super_loop_artifacts_round_trip_through_disk(tmp_path):
+    """Both bootstraps written by the super-loop must reload via their
+    respective IO modules and reproduce the saved state.
+    """
+    from lifeform_evolution import (
+        load_regime_bootstrap_only,
+        load_snapshot_only,
+        run_super_loop,
+        save_regime_bootstrap,
+        save_snapshot,
+    )
+
+    report = run_super_loop(rounds=2)
+    best = report.best_round()
+
+    temporal_path = tmp_path / "super-temporal.snap"
+    regime_path = tmp_path / "super-regime.bs"
+    save_snapshot(best.temporal_snapshot, temporal_path)
+    save_regime_bootstrap(best.regime_bootstrap, regime_path)
+
+    reloaded_temporal = load_snapshot_only(temporal_path)
+    reloaded_regime = load_regime_bootstrap_only(regime_path)
+    assert reloaded_temporal is not None
+    # Selection weights survive the round-trip exactly.
+    assert dict(reloaded_regime.selection_weights) == dict(best.regime_bootstrap.selection_weights)
+
+
+# ---------------------------------------------------------------------------
+# Vertical-shipped calibration profile (per-vertical bootstraps)
+# ---------------------------------------------------------------------------
+
+
+def test_companion_vertical_ships_loadable_pretrained_bootstraps():
+    """The vertical's ``bootstraps_dir`` must contain a temporal snapshot
+    and a regime bootstrap, both reloadable via the typed loaders.
+    """
+    from volvence_zero.regime import RegimeBootstrap
+    from volvence_zero.temporal import MetacontrollerParameterSnapshot
+    from lifeform_domain_emogpt import (
+        bootstraps_dir,
+        load_companion_regime_bootstrap,
+        load_companion_temporal_bootstrap,
+    )
+
+    bdir = bootstraps_dir()
+    assert bdir.is_dir(), f"bootstraps_dir does not exist: {bdir}"
+
+    temporal = load_companion_temporal_bootstrap()
+    assert isinstance(temporal, MetacontrollerParameterSnapshot)
+
+    regime = load_companion_regime_bootstrap()
+    assert isinstance(regime, RegimeBootstrap)
+    weights = dict(regime.selection_weights)
+    # The companion calibration was trained with relational scenarios, so
+    # it should have suppressed problem_solving below its 1.0 default.
+    assert weights["problem_solving"] < 1.0, (
+        f"expected problem_solving < 1.0 after vertical calibration, "
+        f"got {weights['problem_solving']:.3f}"
+    )
+
+
+def test_build_companion_lifeform_wires_both_bootstraps_by_default():
+    """``build_companion_lifeform()`` must return a Lifeform that has the
+    vertical's bootstraps wired in, without the caller passing anything.
+    """
+    from lifeform_domain_emogpt import build_companion_lifeform
+
+    life = build_companion_lifeform()
+    assert life.temporal_bootstrap is not None
+    assert life.regime_bootstrap is not None
+
+
+def test_build_companion_lifeform_supports_ablation_flags():
+    """The factory's ``use_*_bootstrap`` flags exist for ablation runs.
+
+    A product or evaluation harness can disable one or both axes to
+    isolate the contribution of the vertical's calibration vs. baseline.
+    """
+    from lifeform_domain_emogpt import build_companion_lifeform
+
+    life_no_t = build_companion_lifeform(use_temporal_bootstrap=False)
+    assert life_no_t.temporal_bootstrap is None
+    assert life_no_t.regime_bootstrap is not None
+
+    life_no_r = build_companion_lifeform(use_regime_bootstrap=False)
+    assert life_no_r.temporal_bootstrap is not None
+    assert life_no_r.regime_bootstrap is None
+
+    life_neither = build_companion_lifeform(
+        use_temporal_bootstrap=False, use_regime_bootstrap=False
+    )
+    assert life_neither.temporal_bootstrap is None
+    assert life_neither.regime_bootstrap is None
+
+
+def test_companion_lifeform_changes_regime_selection_vs_uncalibrated_baseline():
+    """End-to-end: same user input on a fresh (untrained) companion vs.
+    one with the vertical's bootstraps must produce a different regime
+    trajectory on at least one turn.
+
+    This is the user-visible payoff: shipping a vertical = shipping its
+    calibration = product code gets relationship-appropriate behaviour
+    without running its own training.
+    """
+    import asyncio
+
+    from lifeform_core import Lifeform, LifeformConfig
+    from lifeform_domain_emogpt import (
+        build_companion_lifeform,
+        build_companion_package,
+    )
+
+    user_inputs = (
+        "I have been feeling really stuck lately and I do not know why.",
+        "It is mostly that work feels heavy and home is also tense.",
+        "Honestly that almost made it worse, I just wanted to be heard.",
+    )
+
+    async def go() -> tuple[tuple[str | None, ...], tuple[str | None, ...]]:
+        from dataclasses import replace as _r
+
+        base_config = LifeformConfig().with_domain_experience((build_companion_package(),))
+        base_config = _r(
+            base_config,
+            brain_config=_r(base_config.brain_config, rare_heavy_enabled=False),
+        )
+        fresh_life = Lifeform(base_config)
+        trained_life = build_companion_lifeform()
+
+        async def run(life: Lifeform, label: str) -> tuple[str | None, ...]:
+            sess = life.create_session(session_id=label)
+            regimes: list[str | None] = []
+            for user_input in user_inputs:
+                result = await sess.run_turn(user_input)
+                regimes.append(result.active_regime)
+            return tuple(regimes)
+
+        return await run(fresh_life, "fresh"), await run(trained_life, "companion")
+
+    fresh, companion = asyncio.run(go())
+    assert fresh != companion, (
+        f"vertical calibration produced identical regime trajectories: "
+        f"fresh={fresh!r}, companion={companion!r}"
+    )
+
+
 def test_lifeform_llm_synthesizer_attaches_plan_to_rationale_when_falling_back():
     """If the runtime's ``generate`` returns empty text, the LLM synthesizer
     falls back to the base templates. The plan must still be attached.
