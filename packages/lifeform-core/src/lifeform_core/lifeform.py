@@ -370,10 +370,26 @@ class LifeformSession:
                 )
 
         if commitment_snapshot is not None:
-            at_risk = tuple(getattr(commitment_snapshot.value, "at_risk_commitment_refs", ()) or ())
-            if at_risk:
+            commitment_value = commitment_snapshot.value
+            # Pre-Gap-7 the field name was a typo (``at_risk_commitment_refs``
+            # vs the actual ``at_risk_commitments``) so this branch was a
+            # silent no-op. Fixing the typo now \u2014 plus we feed the new
+            # lifecycle's REJECT entries as additional at-risk refs so a
+            # commitment the user explicitly rejected surfaces a follow-up
+            # alongside owner-side ``status=blocked`` records.
+            at_risk_records = tuple(
+                getattr(commitment_value, "at_risk_commitments", ()) or ()
+            )
+            rejected_ids = tuple(
+                entry.record_id
+                for entry in getattr(commitment_value, "lifecycle_entries", ())
+                if hasattr(entry, "alignment_state")
+                and getattr(entry.alignment_state, "value", "") == "reject"
+            )
+            at_risk_refs: tuple[Any, ...] = at_risk_records + rejected_ids
+            if at_risk_refs:
                 self._followups.ingest_at_risk_commitments(
-                    at_risk_refs=at_risk,
+                    at_risk_refs=at_risk_refs,
                     current_tick=self._tick.tick_index,
                 )
 

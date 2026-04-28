@@ -245,6 +245,76 @@ def test_lifecycle_for_returns_entry_or_none():
 # ---------------------------------------------------------------------------
 
 
+def test_lifeform_session_surfaces_followup_for_rejected_commitment():
+    """A REJECT-aligned lifecycle entry must surface a commitment-source
+    ``FollowupItem`` even when the owner-side status is not ``blocked``.
+
+    Without this, a user explicitly rejecting a commitment would only
+    leave an alignment_state=REJECT in the snapshot and otherwise be
+    invisible to the follow-up queue \u2014 which is exactly what Gap 7's
+    "AAC decision lifecycle" is supposed to fix."""
+    from lifeform_core import (
+        FollowupManager,
+        SceneManager,
+        TickEngine,
+        TickEngineConfig,
+    )
+    from lifeform_core.lifeform import LifeformSession
+
+    class _FakeBrainSession:
+        def __init__(self):
+            self.session_id = "lifecycle-followup"
+
+        async def run_turn_async(self, _input: str):
+            from types import SimpleNamespace
+
+            commitment_value = CommitmentSnapshot(
+                active_commitments=(),
+                honored_commitment_refs=(),
+                at_risk_commitments=(),
+                trust_obligation_count=0,
+                continuity_score=0.0,
+                control_signal=0.0,
+                description="rejected",
+                lifecycle_entries=(
+                    CommitmentLifecycleEntry(
+                        record_id="commit-rej-1",
+                        advocacy_state=AdvocacyState.PROPOSED,
+                        alignment_state=AlignmentState.REJECT,
+                    ),
+                ),
+                alignment_reject_count=1,
+                advocacy_proposed_count=1,
+            )
+            commitment_snap = SimpleNamespace(value=commitment_value)
+            response = SimpleNamespace(text="ok", regime_id=None, abstract_action=None, rationale="")
+            return SimpleNamespace(
+                response=response,
+                active_regime=None,
+                active_abstract_action=None,
+                active_snapshots={"commitment": commitment_snap},
+            )
+
+    tick = TickEngine(TickEngineConfig(system_tick_seconds=0.001))
+    scene = SceneManager(idle_close_after_system_ticks=None)
+    followups = FollowupManager()
+    session = LifeformSession(
+        brain_session=_FakeBrainSession(),  # type: ignore[arg-type]
+        tick=tick,
+        scene=scene,
+        followups=followups,
+    )
+
+    import asyncio
+
+    asyncio.run(session.run_turn("hi"))
+    pending = session.followup_manager.pending
+    assert any(
+        item.source == "commitment" and "commit-rej-1" in item.metadata.get("key", "")
+        for item in pending
+    ), f"expected a commitment followup keyed on commit-rej-1; got {pending}"
+
+
 async def test_commitment_module_publishes_aggregate_counts_through_kernel_path():
     """Drive a fresh BrainSession through scenarios that submit typed
     semantic events. The resulting ``commitment`` snapshot must expose
