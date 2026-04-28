@@ -16,8 +16,11 @@ dependencies = [
 ]
 
 [project.scripts]
-lifeform-bench = "lifeform_evolution.cli:main"
-lifeform-trace = "lifeform_evolution.cli:main_trace"
+lifeform-bench      = "lifeform_evolution.cli:main"
+lifeform-trace      = "lifeform_evolution.cli:main_trace"
+lifeform-ssl        = "lifeform_evolution.cli:main_ssl"
+lifeform-loop       = "lifeform_evolution.cli:main_loop"
+lifeform-multi-loop = "lifeform_evolution.cli:main_multi_loop"
 
 [tool.setuptools.packages.find]
 where = ["src"]

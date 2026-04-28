@@ -23,6 +23,10 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     build_transformers_runtime_with_fallback,
 )
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    MetacontrollerParameterSnapshot,
+)
 
 
 SubstrateMode = Literal["synthetic", "hf", "injected"]
@@ -185,6 +189,11 @@ class Brain:
     This class is the stable API boundary for product and service adapters.
     It accepts domain experience packages and explicit substrate choices, then
     delegates runtime execution to ``AgentSessionRunner``.
+
+    A pre-trained metacontroller can be injected via ``temporal_bootstrap``
+    (a ``MetacontrollerParameterSnapshot`` exported from a SSL training run).
+    Each ``create_session`` call rebuilds the policy from the snapshot so
+    sessions never share mutable controller state across tenants.
     """
 
     def __init__(
@@ -195,16 +204,23 @@ class Brain:
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         response_synthesizer: ResponseSynthesizer | None = None,
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+        temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
     ) -> None:
         self._config = config or BrainConfig()
         self._injected_runtime = substrate_runtime
         self._substrate_adapter_factory = substrate_adapter_factory
         self._response_synthesizer = response_synthesizer
         self._semantic_proposal_runtime = semantic_proposal_runtime
+        self._temporal_bootstrap = temporal_bootstrap
 
     @property
     def config(self) -> BrainConfig:
         return self._config
+
+    @property
+    def temporal_bootstrap(self) -> MetacontrollerParameterSnapshot | None:
+        """The trained metacontroller snapshot, if one was injected."""
+        return self._temporal_bootstrap
 
     def with_domain_experience(
         self,
@@ -219,11 +235,29 @@ class Brain:
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=self._response_synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,
+            temporal_bootstrap=self._temporal_bootstrap,
+        )
+
+    def with_temporal_bootstrap(
+        self,
+        snapshot: MetacontrollerParameterSnapshot | None,
+    ) -> Brain:
+        """Return a clone of this Brain with the given trained metacontroller.
+
+        Pass ``None`` to drop the bootstrap and fall back to a fresh policy.
+        """
+        return Brain(
+            self._config,
+            substrate_runtime=self._injected_runtime,
+            substrate_adapter_factory=self._substrate_adapter_factory,
+            response_synthesizer=self._response_synthesizer,
+            semantic_proposal_runtime=self._semantic_proposal_runtime,
+            temporal_bootstrap=snapshot,
         )
 
     def create_session(self, *, session_id: str = "brain-session") -> BrainSession:
         runtime = self._resolve_substrate_runtime()
-        runner = AgentSessionRunner(
+        runner_kwargs: dict[str, object] = dict(
             session_id=session_id,
             config=self._config.final_rollout_config or FinalRolloutConfig(),
             application_persistence_dir=self._config.application_persistence_dir,
@@ -234,6 +268,15 @@ class Brain:
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
         )
+        if self._temporal_bootstrap is not None:
+            # Build fresh policies per session from the trained snapshot so
+            # sessions never share mutable controller state. Both world and
+            # self tracks are seeded from the same bootstrap; the runner
+            # will clone the world track for the self track when needed.
+            runner_kwargs["world_temporal_policy"] = (
+                FullLearnedTemporalPolicy.from_bootstrap_snapshot(self._temporal_bootstrap)
+            )
+        runner = AgentSessionRunner(**runner_kwargs)
         return BrainSession(runner=runner)
 
     def _resolve_substrate_runtime(self) -> OpenWeightResidualRuntime:

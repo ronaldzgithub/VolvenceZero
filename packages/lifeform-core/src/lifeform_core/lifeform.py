@@ -40,6 +40,7 @@ from volvence_zero.semantic_state import (
     SemanticProposalRuntime,
 )
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
+from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,12 @@ class LifeformConfig:
 class Lifeform:
     """Stable product-facing factory for lifeform sessions.
 
-    Construct once per product process; reuse for many sessions.
+    Construct once per product process; reuse for many sessions. A pre-trained
+    metacontroller can be injected via ``temporal_bootstrap`` so newly-created
+    sessions start from learned \u03b2_t / z_t structure rather than a fresh
+    random policy. This is the closure of the SSL feedback loop:
+    ``lifeform-trace`` \u2192 ``lifeform-ssl`` \u2192 trained snapshot \u2192 inject here \u2192
+    ``lifeform-bench`` shows behaviour difference.
     """
 
     def __init__(
@@ -85,6 +91,7 @@ class Lifeform:
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         response_synthesizer: ResponseSynthesizer | None = None,
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+        temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
     ) -> None:
         self._config = config or LifeformConfig()
         self._brain = Brain(
@@ -93,7 +100,15 @@ class Lifeform:
             substrate_adapter_factory=substrate_adapter_factory,
             response_synthesizer=response_synthesizer,
             semantic_proposal_runtime=semantic_proposal_runtime,
+            temporal_bootstrap=temporal_bootstrap,
         )
+        self._init_kwargs = {
+            "substrate_runtime": substrate_runtime,
+            "substrate_adapter_factory": substrate_adapter_factory,
+            "response_synthesizer": response_synthesizer,
+            "semantic_proposal_runtime": semantic_proposal_runtime,
+            "temporal_bootstrap": temporal_bootstrap,
+        }
 
     @property
     def config(self) -> LifeformConfig:
@@ -103,11 +118,27 @@ class Lifeform:
     def brain(self) -> Brain:
         return self._brain
 
+    @property
+    def temporal_bootstrap(self) -> MetacontrollerParameterSnapshot | None:
+        return self._brain.temporal_bootstrap
+
     def with_domain_experience(
         self,
         packages: tuple[DomainExperiencePackage, ...],
     ) -> "Lifeform":
-        return Lifeform(self._config.with_domain_experience(packages))
+        return Lifeform(
+            self._config.with_domain_experience(packages),
+            **self._init_kwargs,
+        )
+
+    def with_temporal_bootstrap(
+        self,
+        snapshot: MetacontrollerParameterSnapshot | None,
+    ) -> "Lifeform":
+        """Return a clone of this lifeform with the given trained metacontroller."""
+        new_kwargs = dict(self._init_kwargs)
+        new_kwargs["temporal_bootstrap"] = snapshot
+        return Lifeform(self._config, **new_kwargs)
 
     def create_session(self, *, session_id: str = "lifeform-session") -> "LifeformSession":
         brain_session = self._brain.create_session(session_id=session_id)

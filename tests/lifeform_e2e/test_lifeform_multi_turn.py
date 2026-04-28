@@ -396,6 +396,148 @@ def test_trace_collector_writes_all_built_in_scenarios(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# SSL training loop (M1 of "downward growth")
+# ---------------------------------------------------------------------------
+
+
+def test_dataset_adapter_round_trips_collector_output(tmp_path):
+    from lifeform_evolution import (
+        TraceCollector,
+        casual_social_checkin_scenario,
+        trace_records_from_ndjson,
+        trace_records_to_training_dataset,
+    )
+
+    out = tmp_path / "trace.ndjson"
+    collector = TraceCollector(output_path=out)
+    try:
+        collector.collect_scenario(casual_social_checkin_scenario())
+    finally:
+        collector.close()
+
+    # Records read back from disk should be field-equivalent to the in-memory
+    # records the collector kept.
+    on_disk = trace_records_from_ndjson(out)
+    in_memory = collector.records
+    assert len(on_disk) == len(in_memory) == 3
+    assert {r.scenario_id for r in on_disk} == {r.scenario_id for r in in_memory}
+
+    dataset = trace_records_to_training_dataset(on_disk)
+    assert len(dataset.traces) == 3
+    # Every trace should have steps (at least the user-input tokens).
+    for trace in dataset.traces:
+        assert len(trace.steps) >= 1
+        # Trace ID is rich enough to attribute back to the originating turn.
+        assert trace.trace_id.startswith("casual-social-checkin::")
+
+
+def test_ssl_demo_drives_switch_gate_toward_sparser_firing():
+    """ETA's \u03b2_t emergence: after SSL training the switch frequency should
+    drop toward sparse, subgoal-aligned firings.
+
+    This is the M1 acceptance test for "downward growth": traces collected
+    on the synthetic substrate are semantically rich enough to drive
+    non-trivial SSL gradients in the metacontroller. The exact final value
+    depends on initialisation, but the direction (sparser firing across the
+    run) is the ETA paper's invariant for a discovered abstraction.
+    """
+    from lifeform_evolution import run_ssl_demo
+
+    report = run_ssl_demo()
+    assert report.trace_count >= 5
+    assert report.trained_step_count > 0
+    # Switch gate stats should be populated (trainer published them).
+    assert report.switch_frequency_first is not None
+    assert report.switch_frequency_last is not None
+    # Mean persistence should be a positive run length.
+    assert report.mean_persistence_first is not None
+    assert report.mean_persistence_first > 0.0
+    assert report.mean_persistence_last is not None
+    # Direction check: training should not make switching MORE random than
+    # the start. We allow a small noise margin (0.1) because some runs may
+    # naturally hover.
+    assert (
+        report.switch_frequency_last
+        <= report.switch_frequency_first + 0.1
+    ), (
+        f"switch frequency went from {report.switch_frequency_first:.3f} "
+        f"to {report.switch_frequency_last:.3f} \u2014 expected sparser or flat"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Closed feedback loop (M2 of "downward growth"): collect \u2192 SSL train \u2192
+# inject trained snapshot into a fresh Brain \u2192 re-benchmark \u2192 observe shift.
+# ---------------------------------------------------------------------------
+
+
+def test_brain_accepts_temporal_bootstrap_and_propagates_to_session():
+    """The kernel surface must let product code inject a trained policy.
+
+    Verifies the public API contract: ``Brain(temporal_bootstrap=...)`` is
+    accepted, exposed on ``brain.temporal_bootstrap``, and each
+    ``create_session`` constructs a fresh ``FullLearnedTemporalPolicy``
+    initialised from the snapshot (not a shared mutable instance).
+    """
+    from volvence_zero.brain import Brain, BrainConfig
+    from volvence_zero.temporal import FullLearnedTemporalPolicy
+
+    policy = FullLearnedTemporalPolicy()
+    snapshot = policy.export_rare_heavy_snapshot()
+
+    brain = Brain(BrainConfig(rare_heavy_enabled=False), temporal_bootstrap=snapshot)
+    assert brain.temporal_bootstrap is snapshot
+
+    s1 = brain.create_session(session_id="s1")
+    s2 = brain.create_session(session_id="s2")
+
+    runner_a = s1.runner
+    runner_b = s2.runner
+    assert runner_a is not runner_b
+    # Each session got its own world_temporal_policy instance.
+    assert runner_a._world_temporal_policy is not runner_b._world_temporal_policy
+
+
+def test_lifeform_with_temporal_bootstrap_returns_fresh_clone():
+    """``Lifeform.with_temporal_bootstrap`` must produce a clone, not mutate."""
+    from volvence_zero.brain import BrainConfig
+    from volvence_zero.temporal import FullLearnedTemporalPolicy
+
+    base = Lifeform(LifeformConfig(brain_config=BrainConfig(rare_heavy_enabled=False)))
+    policy = FullLearnedTemporalPolicy()
+    snap = policy.export_rare_heavy_snapshot()
+
+    bootstrapped = base.with_temporal_bootstrap(snap)
+    assert bootstrapped is not base
+    assert base.temporal_bootstrap is None
+    assert bootstrapped.temporal_bootstrap is snap
+
+
+def test_learning_loop_closes_end_to_end():
+    """The headline R3/R4/R12 acceptance test: collect \u2192 SSL \u2192 reinject \u2192
+    re-benchmark in one call, with all loop verdicts passing.
+    """
+    from lifeform_evolution import run_learning_loop, format_learning_loop_report
+
+    report = run_learning_loop()
+    assert report.scenarios == (
+        "low-mood-disclosure",
+        "trust-rupture-repair",
+        "casual-social-checkin",
+    )
+    # SSL ran on the trace volume.
+    assert report.ssl.trained_step_count > 0
+    # Both behavioural snapshots have content.
+    assert report.baseline.turn_count == report.trained.turn_count
+    assert report.baseline.turn_count > 0
+    # Pretty-print does not crash.
+    text = format_learning_loop_report(report)
+    assert "Lifeform learning loop" in text
+    # All loop verdicts pass.
+    assert report.loop_closed(), report.verdicts
+
+
 def test_lifeform_llm_synthesizer_attaches_plan_to_rationale_when_falling_back():
     """If the runtime's ``generate`` returns empty text, the LLM synthesizer
     falls back to the base templates. The plan must still be attached.

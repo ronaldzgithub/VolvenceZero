@@ -157,7 +157,19 @@ class TraceCollector:
         *,
         output_path: str | pathlib.Path | None = None,
         config: LifeformConfig | None = None,
+        temporal_bootstrap: object | None = None,
     ) -> None:
+        """Args:
+            output_path: optional ``.ndjson`` file to stream rows to.
+            config: optional ``LifeformConfig``; defaults force rare-heavy off
+                so traces are deterministic.
+            temporal_bootstrap: a ``MetacontrollerParameterSnapshot`` to seed
+                the underlying lifeform with a previously-trained policy.
+                When supplied, each new session starts from this trained
+                policy, so traces collected reflect that policy's behaviour
+                rather than a fresh one. This is the seam that lets the
+                multi-round learning loop have policy and traces co-evolve.
+        """
         base_config = config or LifeformConfig()
         # Force rare-heavy off for deterministic traces — the SSL pipeline
         # doesn't want online artifact import noise mixed into the dataset.
@@ -168,7 +180,7 @@ class TraceCollector:
         )
         base_config = base_config.with_domain_experience((build_companion_package(),))
 
-        self._lifeform = Lifeform(base_config)
+        self._lifeform = Lifeform(base_config, temporal_bootstrap=temporal_bootstrap)
         self._records: list[TraceTurnRecord] = []
         self._reports: list[TraceScenarioReport] = []
         self._output_path = pathlib.Path(output_path) if output_path is not None else None

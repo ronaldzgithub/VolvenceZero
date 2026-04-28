@@ -26,6 +26,31 @@ from lifeform_evolution.benchmark import (
     run_benchmark_async,
     trust_rupture_repair_scenario,
 )
+from lifeform_evolution.dataset_adapter import (
+    trace_record_to_training_trace,
+    trace_records_from_ndjson,
+    trace_records_to_training_dataset,
+)
+from lifeform_evolution.learning_loop import (
+    DistributionSnapshot,
+    LearningLoopReport,
+    format_learning_loop_report,
+    run_learning_loop,
+    run_learning_loop_async,
+)
+from lifeform_evolution.multi_round_loop import (
+    MultiRoundLearningLoopReport,
+    RoundReport,
+    format_multi_round_report,
+    run_multi_round_loop,
+    run_multi_round_loop_async,
+)
+from lifeform_evolution.ssl_demo import (
+    SSLDemoReport,
+    format_ssl_demo_report,
+    run_ssl_demo,
+    run_ssl_demo_from_ndjson,
+)
 from lifeform_evolution.trace_collector import (
     TraceCollector,
     TraceScenarioReport,
@@ -34,17 +59,34 @@ from lifeform_evolution.trace_collector import (
 
 __all__ = (
     "BenchmarkReport",
+    "DistributionSnapshot",
+    "LearningLoopReport",
+    "MultiRoundLearningLoopReport",
+    "RoundReport",
     "ScriptedScenario",
     "ScriptedTurn",
+    "SSLDemoReport",
     "TraceCollector",
     "TraceScenarioReport",
     "TraceTurnRecord",
     "TurnReport",
     "all_built_in_scenarios",
     "casual_social_checkin_scenario",
+    "format_learning_loop_report",
+    "format_multi_round_report",
     "format_report",
+    "format_ssl_demo_report",
     "low_mood_disclosure_scenario",
     "run_benchmark",
     "run_benchmark_async",
+    "run_learning_loop",
+    "run_learning_loop_async",
+    "run_multi_round_loop",
+    "run_multi_round_loop_async",
+    "run_ssl_demo",
+    "run_ssl_demo_from_ndjson",
+    "trace_record_to_training_trace",
+    "trace_records_from_ndjson",
+    "trace_records_to_training_dataset",
     "trust_rupture_repair_scenario",
 )
