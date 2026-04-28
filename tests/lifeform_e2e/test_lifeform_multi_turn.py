@@ -538,6 +538,63 @@ def test_learning_loop_closes_end_to_end():
     assert report.loop_closed(), report.verdicts
 
 
+# ---------------------------------------------------------------------------
+# Multi-round learning loop (R13 evidence harness)
+# ---------------------------------------------------------------------------
+
+
+def test_multi_round_loop_evolves_policy_state_and_finds_a_healthy_round():
+    """R13 acceptance: SSL across multiple rounds should produce evolving
+    policy snapshots, at least one round of meaningful surface drift, and
+    at least one round combining sparse \u03b2_t with that drift.
+
+    We deliberately do not assert "more rounds = monotonic improvement" \u2014
+    over-training on a small fixed dataset is *expected* to eventually
+    overshoot and collapse \u03b2_t (and the harness flags this when it
+    happens). The contract here is direction-only: the loop must produce a
+    healthy regime SOMEWHERE in the trajectory.
+    """
+    from lifeform_evolution import (
+        format_multi_round_report,
+        run_multi_round_loop,
+    )
+
+    report = run_multi_round_loop(rounds=3)
+    assert len(report.rounds) == 3
+    # Round 0 is the untrained baseline.
+    assert report.baseline.distance_to_baseline == 0.0
+    # SSL ran every round.
+    for r in report.rounds:
+        assert r.ssl.trained_step_count > 0
+    # Snapshots evolved.
+    fingerprints = {repr(r.snapshot) for r in report.rounds}
+    assert len(fingerprints) >= 2
+    # Best-round selector returns a real round.
+    best = report.best_round()
+    assert best.round_index >= 1
+    assert best.distance_to_baseline > 0.0
+    # Pretty-print does not crash.
+    assert "Multi-round learning loop" in format_multi_round_report(report)
+    # All trajectory verdicts passed at the chosen round count (3 rounds).
+    assert report.trajectory_passes(), report.verdicts
+
+
+def test_multi_round_loop_distance_is_zero_for_baseline_and_nonzero_after_training():
+    """The Hellinger-style distance metric must behave: round 0's distance
+    to baseline is 0 (it IS the baseline), and at least one later round
+    moves it.
+    """
+    from lifeform_evolution import run_multi_round_loop
+
+    report = run_multi_round_loop(rounds=3)
+    assert report.rounds[0].distance_to_baseline == 0.0
+    later_distances = [r.distance_to_baseline for r in report.rounds[1:]]
+    assert any(d > 0.0 for d in later_distances), (
+        f"Expected at least one trained round to move distance from baseline; "
+        f"got {later_distances}"
+    )
+
+
 def test_lifeform_llm_synthesizer_attaches_plan_to_rationale_when_falling_back():
     """If the runtime's ``generate`` returns empty text, the LLM synthesizer
     falls back to the base templates. The plan must still be attached.
