@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-memory"
+version = "0.1.0"
+description = "Volvence Zero memory continuum: CMS + episodic + durable strata (R5, R6)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true

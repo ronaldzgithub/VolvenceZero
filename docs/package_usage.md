@@ -1,31 +1,55 @@
 # Volvence Zero Package Usage
 
 > Scope: local package use for other projects on the same machine.
-> Status: draft
-> Last updated: 2026-04-25
+> Status: draft (post split-ready monorepo refactor)
+> Last updated: 2026-04-28
 
 This guide explains how to use the Volvence Zero brain kernel as a local Python package. It does not publish the package, upload code, download model weights, or start a public service.
 
 ## Install Locally
 
-From this repository:
+The repository is now a multi-wheel workspace under `packages/`. Each wheel
+has its own `pyproject.toml` and can be installed independently. The most
+common entry point is `vz-runtime`, which transitively pulls every other
+kernel wheel (`vz-contracts`, `vz-substrate`, `vz-memory`, `vz-cognition`,
+`vz-application`, `vz-temporal`).
+
+From this repository (Linux/macOS):
 
 ```bash
-cd /Users/mengfu/Documents/GitHub/VolvenceZero
-python -m pip install -e . --no-deps
+cd /path/to/VolvenceZero
+./install.sh                  # synthetic substrate, no torch
+VOLVENCE_EXTRAS=hf ./install.sh   # + transformers/torch
 ```
 
-From another project on the same machine:
+From this repository (Windows / PowerShell):
+
+```powershell
+cd C:\path\to\VolvenceZero
+.\install.ps1                 # synthetic substrate
+.\install.ps1 -Extras hf      # + transformers/torch
+```
+
+Manual installation of just the kernel facade:
 
 ```bash
-python -m pip install -e /Users/mengfu/Documents/GitHub/VolvenceZero --no-deps
+python -m pip install -e packages/vz-contracts --no-deps
+python -m pip install -e packages/vz-substrate --no-deps
+python -m pip install -e packages/vz-memory    --no-deps
+python -m pip install -e packages/vz-cognition --no-deps
+python -m pip install -e packages/vz-application --no-deps
+python -m pip install -e packages/vz-temporal  --no-deps
+python -m pip install -e packages/vz-runtime   --no-deps
 ```
 
-You can also add this to another project's `requirements.txt`:
+For another project on the same machine, point at individual wheels:
 
-```text
--e /Users/mengfu/Documents/GitHub/VolvenceZero
+```bash
+python -m pip install -e /path/to/VolvenceZero/packages/vz-runtime --no-deps
 ```
+
+The previous flat `pip install -e /path/to/VolvenceZero` form (a single
+`volvence-zero` wheel) no longer exists; use individual wheels instead.
 
 ## Stable API
 

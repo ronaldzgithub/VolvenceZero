@@ -1,43 +1,82 @@
+# Top-level workspace meta-package.
+#
+# The actual code lives in packages/vz-*/ and packages/lifeform-*/, each with
+# its own pyproject.toml. This top-level project exists ONLY to:
+#   1. Provide a single editable install entry that pulls in every wheel
+#      (`pip install -e .` or `make install-all`).
+#   2. Configure repo-wide tooling (pytest, ruff).
+#
+# Do not put runtime code under the repo root. New code goes into a wheel
+# under packages/.
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "volvence-zero"
+name = "volvence-zero-workspace"
 version = "0.1.0"
-description = "Package-first Volvence Zero brain kernel."
+description = "Volvence Zero monorepo workspace meta — installs every vz-* and lifeform-* wheel for development."
 requires-python = ">=3.11"
-authors = [
-    { name = "Volvence Zero Contributors" },
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
+    "vz-memory==0.1.*",
+    "vz-cognition==0.1.*",
+    "vz-temporal==0.1.*",
+    "vz-runtime==0.1.*",
+    "lifeform-core==0.1.*",
+    "lifeform-expression==0.1.*",
+    "lifeform-domain-emogpt==0.1.*",
+    "lifeform-service==0.1.*",
+    "lifeform-evolution==0.1.*",
 ]
-dependencies = []
 
 [project.optional-dependencies]
-hf = [
-    "torch",
-    "transformers",
-]
-cli = []
-bench = [
-    "torch",
-    "transformers",
-]
+hf = ["vz-runtime[hf]==0.1.*"]
+torch = ["vz-runtime[torch]==0.1.*"]
 dev = [
     "pytest",
-    "torch",
-    "transformers",
+    "ruff",
 ]
 
-[project.scripts]
-volvence-zero = "volvence_zero.agent.cli:main"
+[tool.uv.sources]
+vz-contracts        = { workspace = true }
+vz-substrate        = { workspace = true }
+vz-memory           = { workspace = true }
+vz-cognition        = { workspace = true }
+vz-temporal         = { workspace = true }
+vz-runtime          = { workspace = true }
+lifeform-core       = { workspace = true }
+lifeform-expression = { workspace = true }
+lifeform-domain-emogpt = { workspace = true }
+lifeform-service    = { workspace = true }
+lifeform-evolution  = { workspace = true }
 
-[tool.setuptools.packages.find]
-include = ["volvence_zero*"]
+[tool.uv.workspace]
+members = ["packages/*"]
 
-[tool.setuptools.package-data]
-"volvence_zero.semantic_state" = ["prompts/*.md", "schemas/*.json"]
+[tool.setuptools]
+# This top-level package contains no source — it's a meta-installer.
+packages = []
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 markers = [
     "hf: tests that require optional Hugging Face / torch substrate dependencies",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["**/__pycache__", "**/.pytest_cache", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "B",
+    "S110",  # blind try/except: pass
+    "S112",  # blind try/except: continue
+    "E722",  # bare except
 ]

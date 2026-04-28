@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-cognition"
+version = "0.1.0"
+description = "Volvence Zero cognition plane: dual-track + prediction-error + credit + regime + semantic owners + evaluation + reflection + application (R-PE, R7, R9, R10, R11, R12, R14)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
+    "vz-memory==0.1.*",
+]
+
+# NOTE: ``volvence_zero.application`` ships in this wheel for now because
+# evaluation/backbone.py imports application snapshot types (BoundaryPolicy,
+# CaseMemory, DomainKnowledge, ResponseAssembly, ...) at module load. The
+# clean separation requires extracting those snapshot dataclasses into
+# vz-contracts (or a small ``vz-types`` wheel) so vz-application can become
+# its own wheel that depends on cognition without cycling. Tracked as M5+
+# work in SPLIT.md.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"volvence_zero.semantic_state" = ["prompts/*.md", "schemas/*.json"]

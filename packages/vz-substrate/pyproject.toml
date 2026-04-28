@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-substrate"
+version = "0.1.0"
+description = "Volvence Zero substrate: frozen LLM adapter + residual capture + bounded self-mod (R2)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+]
+
+[project.optional-dependencies]
+hf = [
+    "torch",
+    "transformers",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true

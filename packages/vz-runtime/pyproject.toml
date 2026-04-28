@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-runtime"
+version = "0.1.0"
+description = "Volvence Zero runtime: Brain / BrainSession / final wiring orchestration."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
+    "vz-memory==0.1.*",
+    "vz-cognition==0.1.*",
+    "vz-temporal==0.1.*",
+]
+
+[project.optional-dependencies]
+hf = [
+    "vz-substrate[hf]==0.1.*",
+]
+torch = [
+    "vz-temporal[torch]==0.1.*",
+]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+volvence-zero = "volvence_zero.agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true

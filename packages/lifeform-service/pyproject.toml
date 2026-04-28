@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-service"
+version = "0.1.0"
+description = "Lifeform service layer: HTTP/WS/CLI surfaces, multi-tenant isolation, persistence."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "lifeform-core==0.1.*",
+    "lifeform-expression==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_service*"]

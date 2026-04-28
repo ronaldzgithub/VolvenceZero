@@ -4,7 +4,6 @@ import json
 
 import pytest
 
-import volvence_zero
 from volvence_zero.application import (
     BoundaryPriorHint,
     CaseMemoryRecord,
@@ -101,8 +100,15 @@ def _package() -> DomainExperiencePackage:
 
 
 def test_core_import_exposes_narrow_brain_api_without_model_weights() -> None:
-    assert volvence_zero.Brain is Brain
-    assert volvence_zero.BrainConfig is BrainConfig
+    # Top-level `import volvence_zero` is no longer a regular package — it is a
+    # PEP 420 namespace package contributed to by every vz-* wheel. Stable API
+    # is the explicit submodule path; convenience top-level re-exports are
+    # intentionally NOT provided so that `pip install vz-contracts` alone does
+    # not fail with `AttributeError: module has no attribute 'Brain'`.
+    from volvence_zero.brain import Brain as ImportedBrain, BrainConfig as ImportedBrainConfig
+
+    assert ImportedBrain is Brain
+    assert ImportedBrainConfig is BrainConfig
 
 
 def test_core_package_includes_semantic_state_runtime_resources() -> None:

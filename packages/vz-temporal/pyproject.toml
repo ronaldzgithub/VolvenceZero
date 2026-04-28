@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-temporal"
+version = "0.1.0"
+description = "Volvence Zero temporal abstraction: metacontroller + Internal RL on z_t + SSL/RL joint loop (R3, R4)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-substrate==0.1.*",
+    "vz-memory==0.1.*",
+    "vz-cognition==0.1.*",
+]
+
+[project.optional-dependencies]
+torch = [
+    "torch>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_zero*"]
+namespaces = true

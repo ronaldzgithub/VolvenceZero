@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-evolution"
+version = "0.1.0"
+description = "Lifeform evolution layer: scripted dialogue benchmarks, perturbation/replay harnesses, evidence dashboards."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-runtime==0.1.*",
+    "lifeform-core==0.1.*",
+    "lifeform-domain-emogpt==0.1.*",
+]
+
+[project.scripts]
+lifeform-bench = "lifeform_evolution.cli:main"
+lifeform-trace = "lifeform_evolution.cli:main_trace"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_evolution*"]

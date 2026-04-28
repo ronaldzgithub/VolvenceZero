@@ -1,16 +1,26 @@
+# Python
 *.pyc
-*.pyc
-*.pyc
-/tests/__pycache__
-/volvence_zero/temporal/__pycache__
-/tests/__pycache__
-/tests/__pycache__
-/tests/__pycache__
-*.pyc
-/tests/__pycache__
-/tests/__pycache__
-/volvence_zero/runtime/__pycache__
-volvence_zero/agent/__pycache__/session.cpython-313.pyc
-/volvence_zero/substrate/__pycache__
-/volvence_zero/agent/__pycache__
-*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artefacts
+*.db-shm
+*.db-wal
