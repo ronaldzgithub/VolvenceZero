@@ -28,6 +28,7 @@ PACKAGES=(
   packages/lifeform-core
   packages/lifeform-thinking
   packages/lifeform-ingestion
+  packages/lifeform-affordance
   packages/lifeform-expression
   packages/lifeform-domain-emogpt
   packages/lifeform-domain-coding

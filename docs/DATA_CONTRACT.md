@@ -1271,7 +1271,7 @@ reflection ──────────────→ owner-side writeback: m
 | Slot Name | Owner 模块 | Wheel | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-------|-----------|----------|----------|--------|
 | `vitals` | VitalsModule | `lifeform-core` | VitalsSnapshot | per-vertical | SYSTEM tick + per-turn | lifeform-expression, followup_manager, prompt_planner |
-| `affordance` | AffordanceModule | `lifeform-affordance`（**新建中，Phase 2**） | AffordanceSnapshot | DISABLED（v0）→ SHADOW → ACTIVE | 每 turn | prompt_planner, response_synthesizer, AffordanceInvoker |
+| `affordance` | AffordanceModule | `lifeform-affordance`（**slice 1 落地，slice 2 执行面进行中**） | AffordanceSnapshot | N/A（slice 1 未接 runtime propagate；host 按需 `build_neutral_snapshot(registry)` 或构造 snapshot） | per-call scaffold | prompt_planner, response_synthesizer, AffordanceInvoker（slice 2） |
 | `thinking_loop` | ThinkingScheduler | `lifeform-thinking`（**新建中，Phase 1**） | ThinkingLoopSnapshot | DISABLED（v0）→ SHADOW → ACTIVE | scene 内异步 | family_report metrics, debug dashboard |
 
 **lifeform-side slot 不变量**：
@@ -1306,7 +1306,7 @@ reflection ──────────────→ owner-side writeback: m
 | 类型 | 来源 spec | 实施状态 |
 |---|---|---|
 | `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` + `TERMINAL_THINKING_TASK_STATUSES` / `APPLIABLE_THINKING_TASK_STATUSES` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，`volvence_zero.thinking`，Phase 1 slice 1） |
-| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` | `docs/specs/affordance.md` | 待实施（Phase 2） |
+| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` / `AffordanceLatencyClass` / `AffordanceMonetaryClass` + `MIN_SELECTION_HINT_CHARS=50` 不变量 | `docs/specs/affordance.md` | **已落地**（2026-04-29 slice 1：schema + `vz-contracts/affordance.py`；lifeform-affordance wheel 含 registry + 4 renderers + snapshot + `build_neutral_snapshot` scaffold；execution / metacontroller 选择 / 真实 vertical 注册留 slice 2） |
 | `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | 待实施（Phase 2） |
 
 ---

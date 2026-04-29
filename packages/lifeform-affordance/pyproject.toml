@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-affordance"
+version = "0.1.0"
+description = "Lifeform-side affordance registry + snapshot + renderers. Verticals register AffordanceDescriptors here; downstream (prompt planner / invoker / metacontroller) consume the snapshot. Slice 1 ships registry + 4 renderers + snapshot; execution + metacontroller integration land in slice 2 (Gap 1 / docs/specs/affordance.md)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Immutable descriptor types (AffordanceDescriptor / AffordanceKind
+    # / AffordanceCost / AffordanceSafety) live in vz-contracts so
+    # both kernel-side consumers and lifeform-side authors share
+    # them without a reverse import. This wheel only adds the
+    # registry / snapshot / renderers on top.
+    "vz-contracts==0.1.*",
+    "lifeform-core==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_affordance*"]
