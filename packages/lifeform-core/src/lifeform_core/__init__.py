@@ -17,6 +17,8 @@ from lifeform_core.types import (
     TickEvent,
     TickKind,
     TurnSummary,
+    TurnTriggerKind,
+    is_apprenticeship_trigger,
 )
 from lifeform_core.vitals import (
     DriveLevel,
@@ -31,6 +33,7 @@ __all__ = (
     "DriveSpec",
     "FollowupItem",
     "FollowupManager",
+    "is_apprenticeship_trigger",
     "Lifeform",
     "LifeformConfig",
     "LifeformSession",
@@ -42,6 +45,7 @@ __all__ = (
     "TickEvent",
     "TickKind",
     "TurnSummary",
+    "TurnTriggerKind",
     "VitalsBootstrap",
     "VitalsModule",
     "VitalsSnapshot",

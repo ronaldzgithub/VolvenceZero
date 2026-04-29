@@ -229,7 +229,7 @@
 
 ---
 
-### 13. 中频思考循环（Phase 0 design freeze, 实施待 Phase 1）
+### 13. 中频思考循环（Phase 1 slice 1 + 2a + 2b **已落地**）
 
 **对应需求**：R1（多时间尺度）、R6（反思与沉淀）、R8（快照优先）、R11（内部状态可发布）、R15（可回滚演进）
 
@@ -242,6 +242,12 @@
 - fingerprint mismatch 一律 STALE，不允许"再 apply 一次试试"
 - ProvisionalLesson 不创新 owner，进 `case_memory` 加 lifecycle 字段
 - mid-reflection 的 self/world 双 lane 复用既有双 owner
+
+**已落地实现**：
+- 不可变契约：`volvence_zero.thinking`（`ThinkingTask / ThinkingArtifact / ThinkingDepth / ThinkingTaskStatus / ThinkingPurpose` + `TERMINAL` / `APPLIABLE` 常量）—— 在 `vz-contracts`，跨 wheel 共享
+- `case_memory` lifecycle 字段 + `ApplicationCaseMemoryStore.reconcile_provisional_cases` —— 在 `vz-application`
+- scene-end 自动 reconcile wiring —— 通过 `LifeformSession.end_scene` → `BrainSession.reconcile_case_memory_provisional`
+- 异步 scheduler + mid-reflection worker + fingerprint guard —— 新 wheel `packages/lifeform-thinking/`
 
 来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 4。
 

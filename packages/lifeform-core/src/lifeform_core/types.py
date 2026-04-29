@@ -101,6 +101,48 @@ class FollowupItem:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
+class TurnTriggerKind(str, Enum):
+    """What caused a turn to fire (Gap 2).
+
+    Pure observability label: the kernel runs the SAME cognition
+    pipeline for every turn regardless of trigger_kind. The only
+    behavioural difference is that ``APPRENTICE`` and ``INGESTION``
+    turns put ``VitalsModule`` into an apprentice override for the
+    duration of the turn so drive deviation does NOT contribute
+    slow-scale PE (we don't want operator-supplied teaching /
+    bulk-corpus ingestion to look like "the user is ignoring me"
+    for follow-up scheduling).
+
+    Never drive product routing off the string value of this enum
+    beyond the vitals override \u2014 that would violate red line A
+    (``no-keyword-matching-hacks.mdc``). Other behaviour is the
+    kernel's job.
+    """
+
+    USER_INPUT = "user_input"
+    INTERNAL_DRIVE = "internal_drive"
+    FOLLOWUP_DUE = "followup_due"
+    TOOL_RESULT = "tool_result"
+    APPRENTICE = "apprentice"
+    INGESTION = "ingestion"
+
+
+_APPRENTICESHIP_TRIGGER_KINDS: frozenset[TurnTriggerKind] = frozenset(
+    {TurnTriggerKind.APPRENTICE, TurnTriggerKind.INGESTION}
+)
+
+
+def is_apprenticeship_trigger(trigger_kind: "TurnTriggerKind") -> bool:
+    """Return True if this trigger should activate vitals apprentice override.
+
+    Named helper rather than an inline set literal so the intent is
+    grep-able: any future trigger that should suppress drive-deviation
+    PE adds itself to ``_APPRENTICESHIP_TRIGGER_KINDS`` and this function
+    starts returning True for it, with zero code churn at call sites.
+    """
+    return trigger_kind in _APPRENTICESHIP_TRIGGER_KINDS
+
+
 @dataclass(frozen=True)
 class TurnSummary:
     """Compact summary of a single turn for lifeform-side bookkeeping.
@@ -120,3 +162,7 @@ class TurnSummary:
     commitment_count: int
     pe_magnitude: float
     elapsed_at_tick: int
+    # Gap 2: which trigger caused this turn. Defaults to USER_INPUT so
+    # any pre-Gap-2 test / construct that omits the field still gets a
+    # sensible label.
+    trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT

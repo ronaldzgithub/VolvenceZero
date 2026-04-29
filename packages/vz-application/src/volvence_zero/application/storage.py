@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from enum import Enum
 import math
 from typing import Iterable
 
@@ -10,6 +11,37 @@ from volvence_zero.memory import (
     deserialize_checkpoint,
     serialize_checkpoint,
 )
+
+
+class CaseLifecycle(str, Enum):
+    """Per-record lifecycle stage for case memory entries (Gap 4).
+
+    ``VALIDATED`` is the default — it preserves backwards compatibility
+    for every case record that existed before the lifecycle field was
+    introduced. ``CANDIDATE`` / ``PROVISIONAL`` / ``RETIRED`` are the
+    new states unlocked by the thinking-loop mid-session path:
+
+    * ``CANDIDATE`` — reflection writeback produced a weak prior that
+      didn't meet the full promotion threshold; may still be used for
+      exploration but is lower-weight than ``VALIDATED`` for retrieval.
+    * ``PROVISIONAL`` — strong-enough to inject into retrieval with an
+      explicit TTL; will be promoted to ``VALIDATED`` or retired at
+      ``reconcile_provisional_cases`` time.
+    * ``VALIDATED`` — passed the full threshold (matches the EmoGPT
+      "pattern" evidence gate: min_total_records >= 2,
+      min_same_polarity >= 2, min_mean_abs_reward >= 0.15). Default
+      lifecycle for all pre-Gap-4 records.
+    * ``RETIRED`` — superseded, expired, or explicitly reconciled as
+      a failed provisional. Retrieval must skip retired records.
+
+    See ``docs/specs/thinking-loop.md`` for the transition semantics
+    enforced by ``reconcile_provisional_cases``.
+    """
+
+    CANDIDATE = "candidate"
+    PROVISIONAL = "provisional"
+    VALIDATED = "validated"
+    RETIRED = "retired"
 
 
 def _clamp(value: float) -> float:
@@ -103,6 +135,50 @@ class CaseMemoryRecord:
     continuum_position: float = 0.0
     continuum_update_frequency: float = 0.0
     reconstruction_source: str = "direct"
+    # Gap 4 / docs/specs/thinking-loop.md additions. Defaults preserve
+    # backwards compat for every record that existed before the
+    # lifecycle field was introduced.
+    lifecycle: CaseLifecycle = CaseLifecycle.VALIDATED
+    ttl_seconds: int | None = None
+    expires_at_tick: int | None = None
+    provisional_origin: str = ""
+
+    def __post_init__(self) -> None:
+        # Ownership invariants:
+        # - CANDIDATE / PROVISIONAL records MAY carry a ttl and an origin.
+        # - A non-VALIDATED lifecycle with neither a ttl nor an origin is
+        #   probably a bug: something produced a weak record without
+        #   identifying where it came from.
+        # - VALIDATED / RETIRED records must NOT carry an unresolved ttl
+        #   (fully validated or retired means lifecycle timer is no
+        #   longer meaningful).
+        if self.lifecycle in {CaseLifecycle.CANDIDATE, CaseLifecycle.PROVISIONAL}:
+            has_ttl = self.ttl_seconds is not None or self.expires_at_tick is not None
+            if not has_ttl and not self.provisional_origin:
+                raise ValueError(
+                    f"CaseMemoryRecord.lifecycle={self.lifecycle.value!r} "
+                    f"requires either a ttl_seconds / expires_at_tick or "
+                    f"a non-empty provisional_origin; both missing."
+                )
+        if self.ttl_seconds is not None and self.ttl_seconds < 0:
+            raise ValueError(
+                f"CaseMemoryRecord.ttl_seconds must be >= 0 when set, "
+                f"got {self.ttl_seconds!r}"
+            )
+        if self.expires_at_tick is not None and self.expires_at_tick < 0:
+            raise ValueError(
+                f"CaseMemoryRecord.expires_at_tick must be >= 0 when set, "
+                f"got {self.expires_at_tick!r}"
+            )
+
+    def is_available_for_retrieval(self) -> bool:
+        """Return True iff this record should appear in retrieval hits.
+
+        ``RETIRED`` records are always hidden. Other lifecycle stages
+        are available; consumers that want stricter filtering (e.g.
+        "validated only") should apply their own additional gate.
+        """
+        return self.lifecycle is not CaseLifecycle.RETIRED
 
 
 @dataclass(frozen=True)
@@ -174,6 +250,24 @@ def _reconstruct_case_memory_checkpoint(parsed: dict[str, object]) -> CaseMemory
                 continuum_position=float(record.get("continuum_position", 0.0)),
                 continuum_update_frequency=float(record.get("continuum_update_frequency", 0.0)),
                 reconstruction_source=str(record.get("reconstruction_source", "direct")),
+                # Gap 4: lifecycle fields. Records serialised before the
+                # lifecycle was introduced come back as VALIDATED (the
+                # default) with no ttl / origin \u2014 matching fresh
+                # construction semantics.
+                lifecycle=CaseLifecycle(
+                    str(record.get("lifecycle", CaseLifecycle.VALIDATED.value))
+                ),
+                ttl_seconds=(
+                    int(record["ttl_seconds"])
+                    if record.get("ttl_seconds") is not None
+                    else None
+                ),
+                expires_at_tick=(
+                    int(record["expires_at_tick"])
+                    if record.get("expires_at_tick") is not None
+                    else None
+                ),
+                provisional_origin=str(record.get("provisional_origin", "")),
             )
             for record in records_raw
         )
@@ -334,6 +428,53 @@ class ApplicationDomainKnowledgeStore:
         return True
 
 
+@dataclass(frozen=True)
+class ProvisionalReconcileThresholds:
+    """Threshold pack controlling promote / retire decisions.
+
+    Kept as a frozen dataclass so callers can construct a scenario-
+    specific set (e.g. tighter thresholds for coding vertical) without
+    touching the store. Defaults match the EmoGPT PRD \u00a75.10 "pattern"
+    evidence gate (``min_total_records >= 2``,
+    ``min_same_polarity >= 2``, ``min_mean_abs_reward >= 0.15``),
+    adapted to the single-record-at-a-time shape of ``CaseMemoryRecord``
+    via proxies: relevance_score as evidence strength, repair_observed
+    as polarity alignment.
+    """
+
+    promote_min_relevance: float = 0.55
+    promote_min_confidence: float = 0.50
+    promote_requires_repair_observed: bool = False
+    retire_max_relevance: float = 0.25
+
+
+@dataclass(frozen=True)
+class ProvisionalReconcileDecision:
+    """Single decision emitted by ``reconcile_provisional_cases``.
+
+    Consumers (reflection writeback audit, family report) can iterate
+    the decision list to explain why a record moved; nothing else is
+    needed for explainability.
+    """
+
+    case_id: str
+    previous_lifecycle: CaseLifecycle
+    new_lifecycle: CaseLifecycle
+    reason: str
+
+    @property
+    def changed(self) -> bool:
+        return self.previous_lifecycle is not self.new_lifecycle
+
+
+@dataclass(frozen=True)
+class ProvisionalReconcileResult:
+    promoted: tuple[str, ...]
+    retired: tuple[str, ...]
+    expired: tuple[str, ...]
+    decisions: tuple[ProvisionalReconcileDecision, ...]
+
+
 class ApplicationCaseMemoryStore:
     def __init__(
         self,
@@ -365,6 +506,11 @@ class ApplicationCaseMemoryStore:
     ) -> tuple[CaseMemoryRecord, ...]:
         scored: list[tuple[float, CaseMemoryRecord]] = []
         for record in self._records.values():
+            # Retired records are invisible to retrieval. Candidates /
+            # provisionals ARE visible; the store does not second-guess
+            # the caller's preference for weak-prior material.
+            if not record.is_available_for_retrieval():
+                continue
             score = record.relevance_score
             if experience_domains and record.domain in experience_domains:
                 score += 0.12
@@ -372,9 +518,131 @@ class ApplicationCaseMemoryStore:
                 score += 0.08
             if f"risk-{risk_band}" in record.risk_markers:
                 score += 0.06
+            # Provisional / candidate records retrieve at a slightly
+            # dampened score so validated prior records rank higher
+            # when relevance is otherwise tied. No magic ordering \u2014
+            # retired records are hidden above and all others are
+            # dampened uniformly by lifecycle.
+            if record.lifecycle is CaseLifecycle.PROVISIONAL:
+                score *= 0.75
+            elif record.lifecycle is CaseLifecycle.CANDIDATE:
+                score *= 0.50
             scored.append((score, record))
         scored.sort(key=lambda item: (-item[0], item[1].case_id))
         return tuple(record for _, record in scored[:limit])
+
+    def reconcile_provisional_cases(
+        self,
+        *,
+        now_tick: int,
+        thresholds: ProvisionalReconcileThresholds | None = None,
+    ) -> ProvisionalReconcileResult:
+        """Sweep CANDIDATE / PROVISIONAL records by TTL + evidence.
+
+        Pure in the sense that the decision table is deterministic given
+        ``(record_state, now_tick, thresholds)`` \u2014 the store is mutated
+        in place but the result contains the full decision list so
+        downstream audit / family-report consumers can explain every
+        promotion or retirement. VALIDATED / RETIRED records are
+        untouched.
+
+        Decision order:
+
+        1. **Expire by tick**: any CANDIDATE / PROVISIONAL with
+           ``expires_at_tick <= now_tick`` \u2192 RETIRED (reason
+           ``"ttl-expired"``).
+        2. **Promote**: PROVISIONAL records that meet the thresholds
+           \u2192 VALIDATED (reason ``"promoted-by-thresholds"``). TTL and
+           origin are cleared on promotion because the record is no
+           longer a weak prior.
+        3. **Retire by weakness**: CANDIDATE / PROVISIONAL records
+           below ``retire_max_relevance`` \u2192 RETIRED (reason
+           ``"retired-by-thresholds"``).
+        4. **Hold**: everything else stays in its current lifecycle.
+        """
+        threshold_pack = thresholds or ProvisionalReconcileThresholds()
+        decisions: list[ProvisionalReconcileDecision] = []
+        promoted: list[str] = []
+        retired: list[str] = []
+        expired: list[str] = []
+        for case_id, record in list(self._records.items()):
+            if record.lifecycle in {CaseLifecycle.VALIDATED, CaseLifecycle.RETIRED}:
+                continue
+            previous = record.lifecycle
+            # Expire by tick first.
+            if record.expires_at_tick is not None and record.expires_at_tick <= now_tick:
+                new_record = self._retire_record(record)
+                self._records[case_id] = new_record
+                expired.append(case_id)
+                decisions.append(
+                    ProvisionalReconcileDecision(
+                        case_id=case_id,
+                        previous_lifecycle=previous,
+                        new_lifecycle=CaseLifecycle.RETIRED,
+                        reason="ttl-expired",
+                    )
+                )
+                continue
+            # Promote (PROVISIONAL only).
+            if (
+                record.lifecycle is CaseLifecycle.PROVISIONAL
+                and record.relevance_score >= threshold_pack.promote_min_relevance
+                and record.confidence >= threshold_pack.promote_min_confidence
+                and (
+                    not threshold_pack.promote_requires_repair_observed
+                    or record.repair_observed
+                )
+            ):
+                new_record = self._promote_record(record)
+                self._records[case_id] = new_record
+                promoted.append(case_id)
+                decisions.append(
+                    ProvisionalReconcileDecision(
+                        case_id=case_id,
+                        previous_lifecycle=previous,
+                        new_lifecycle=CaseLifecycle.VALIDATED,
+                        reason="promoted-by-thresholds",
+                    )
+                )
+                continue
+            # Retire by weakness.
+            if record.relevance_score <= threshold_pack.retire_max_relevance:
+                new_record = self._retire_record(record)
+                self._records[case_id] = new_record
+                retired.append(case_id)
+                decisions.append(
+                    ProvisionalReconcileDecision(
+                        case_id=case_id,
+                        previous_lifecycle=previous,
+                        new_lifecycle=CaseLifecycle.RETIRED,
+                        reason="retired-by-thresholds",
+                    )
+                )
+                continue
+        return ProvisionalReconcileResult(
+            promoted=tuple(promoted),
+            retired=tuple(retired),
+            expired=tuple(expired),
+            decisions=tuple(decisions),
+        )
+
+    @staticmethod
+    def _promote_record(record: CaseMemoryRecord) -> CaseMemoryRecord:
+        # Clearing ttl / expires_at_tick signals that lifecycle is no
+        # longer a timer \u2014 the record is fully validated now.
+        # ``provisional_origin`` is kept as audit trail.
+        return replace(
+            record,
+            lifecycle=CaseLifecycle.VALIDATED,
+            ttl_seconds=None,
+            expires_at_tick=None,
+        )
+
+    @staticmethod
+    def _retire_record(record: CaseMemoryRecord) -> CaseMemoryRecord:
+        # Retired records keep ttl / origin for audit trail; retrieval
+        # hides them via ``is_available_for_retrieval``.
+        return replace(record, lifecycle=CaseLifecycle.RETIRED)
 
     def create_checkpoint(self, *, checkpoint_id: str) -> CaseMemoryCheckpoint:
         return CaseMemoryCheckpoint(

@@ -1075,19 +1075,24 @@ flowchart TD
 - ✅ 每个 Gap 在 `docs/DATA_CONTRACT.md` slot 注册表里有明确 owner 决议（§6.1 lifeform-side slot 表 + §6.2 owner 字段扩展表 + §6.3 新增 vz-contracts 类型表）
 - ⬜ §7 决策点全部确认（新 wheel vs 合 wheel、6 维 vs 12 维 readout 等）—— **由 stakeholder 推进**
 
-#### Phase 1 — P0 Foundation（≈ 3 周）
+#### Phase 1 — P0 Foundation（≈ 3 周，**进行中**）
 
 **目标**：补齐 R1 中频带 + R11 AAC 状态机。
 
 **任务**：
-- Gap 4 全部子阶段（4.1–4.7）
-- Gap 7 全部子阶段（7.1–7.6）
+- ✅ Gap 7 全部子阶段（7.1–7.6）—— **2026-04-29 落地**。AAC lifecycle（advocacy/alignment/followup_policy/outcome）进 commitment owner、alignment 跳变接 R-PE、FollowupManager policy 分流；21 contract+integration test 全绿，212/212 + 161/161 跨套件回归通过。
+- 🟡 Gap 4 slice 1 子阶段（4.1–4.3, 4.5–4.7）—— **2026-04-29 落地**。`vz-contracts.thinking` envelopes（ThinkingTask / ThinkingArtifact / 5 种 status）、`CaseMemoryRecord` lifecycle 字段、`reconcile_provisional_cases` 纯函数路径；33 新测试 + 122/122 lifeform e2e 回归通过。Wheel 边界守住（`vz-cognition ↛ vz-application` 保留）。
+- 🟡 Gap 4 slice 2a（scene-end reconcile wiring）—— **2026-04-29 落地**。`AgentSessionRunner.reconcile_case_memory_provisional(now_tick)` + `BrainSession` pass-through + `LifeformSession.end_scene` 在 `drain_slow_loop` 后自动触发 reconcile；`LifeformSession.latest_case_memory_reconcile` 暴露 decision trace 供 observability；7 新 e2e test 覆盖 promote/retire/expire/no-op/idle-timeout/multi-scene；404/404 跨套件回归通过。case memory lifecycle 现在真的会随 scene 流动，不再是 schema-only。
+- ✅ Gap 4 slice 2b（full scheduler + mid-reflection workers）—— **2026-04-29 落地**。新 wheel `packages/lifeform-thinking/` + `ThinkingScheduler`（async Task 生命周期 + DISABLED/SHADOW/ACTIVE wiring level + max_concurrent gate）+ `FingerprintScope` / `compute_fingerprint` / `fingerprints_match` + 自动 fingerprint guard（submit 时计算、collect 时比对、mismatch 自动翻 STALE）+ worker 异常捕获成 FAILED + `MidReflectionPayload` / `mid_reflection_worker` skeleton。**25 新测试**（13 scheduler unit + 5 mid-reflection unit + 3 read-only contract + 3 session-integration + 1 `test_worker_files_exist` sanity）全绿，含 "slow worker 不阻塞 next turn" 时延测试 + "new turn 自动使前一个 artifact 变 STALE" 集成证据。132/132 lifeform e2e 回归通过。`ALLOWED_VZ_UPSTREAM` 不需动（lifeform 层 import 走 lifeform 专属 boundary test）；top-level pyproject + install.sh/ps1 声明新 wheel。
+- ⬜ Gap 4 slice 2c（production wiring）：LifeformSession 集成 scheduler + 默认启动 mid-reflection 任务 + F4 family-report metric（mid-reflection benefit 相对 ablation 的 delta）。当前 scheduler 可被 host 按需调用但尚未成为默认路径——这留给有真实 eval gate 之后再切。
+- ✅ Gap 2（Apprenticeship Trigger）—— **2026-04-29 落地**。`TurnTriggerKind` enum（6 种：USER_INPUT / INTERNAL_DRIVE / FOLLOWUP_DUE / TOOL_RESULT / APPRENTICE / INGESTION）+ `is_apprenticeship_trigger` helper 进 `lifeform_core.types`；`TurnSummary.trigger_kind` 字段（默认 USER_INPUT 向后兼容）；`VitalsModule.set_apprentice_override(enabled)` + `apprentice_override_active` 只读 property：override 期间 `total_pe = 0` / `pe_contribution = 0` / `above_proactive_threshold = False`，但 deviation / out_of_band 字段保持真实供观测；`LifeformSession.run_turn(user_input, *, trigger_kind=...)` 接参数，APPRENTICE/INGESTION 自动套 override 并在 `finally` 恢复（leak-free 抗异常）；vitals `on_turn` 的 `user_input_present` 按 trigger_kind 分流。12 新 e2e test 覆盖 enum 完备 / trigger_kind 穿透 TurnSummary / mid-turn PE=0（用 deterministic fake brain session 捕获）/ 异常后状态恢复 / 交错 12 turn 不漏 / proactive 在 override 下不 trigger / deviation 字段真实。413/413 跨 lifeform e2e + contracts + AAC + scheduler + outcome 综合回归全绿（14m11s）。
+- ✅ Gap 3 slice 1（Runtime Ingestion）—— **2026-04-29 落地**。新 wheel `packages/lifeform-ingestion/`（只依赖 `lifeform-core`）；frozen 契约 `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` with fail-loud `__post_init__`（parse_error 非空必填 locator、partial_failures 必须精确匹配 chunk parse_error、chunk_id 全局唯一、empty envelope rejected）；`IngestionPipeline.process_envelope` 把 chunk 按 `compliance_profile` 映射成 `trigger_kind=INGESTION`（FORCED）或 `USER_INPUT`（CONSULTATIVE）的 turn；parse_error chunk 显式跳过记录在 `IngestionReport.turns` 里；per-chunk kernel 异常隔离（one-chunk failure 不污染后续）；自动 end_scene + drain slow loop；Source adapters `chunk_plain_text` / `envelope_from_text`（段落 + 硬切）/ `envelope_from_task_result`（结构化 JSON 按 known field 分 chunk）。PDF / DOCX / web 留 slice 2。**47 新 test**（14 envelope invariant + 15 sources + 6 pipeline + 7 contract isolation + 5 e2e 端到端：trigger_kind 穿透 / CONSULTATIVE 路径 / task_result 展开 / 保持 scene 开启能混 USER turn / 与 Gap 4 scene-end reconcile 联动）。466/466 跨 lifeform e2e + contracts + ingestion + AAC + scheduler + outcome 综合回归全绿（6m28s）。
 
 **Exit 条件**：
 
-- mid-reflection scheduler 在 `WiringLevel.ACTIVE` 下：family report F4 ≥ baseline + 0.02 / P95 turn 延迟漂移 ≤ 8%
-- AAC lifecycle：`reject` outcome 触发 PE spike + 进入 `repair_and_deescalation` regime 的转移率 ≥ 50%
-- 两轮 multi-round benchmark：mid-reflection ON vs OFF 的 delta-vs-baseline 显著为正
+- mid-reflection scheduler 在 `WiringLevel.ACTIVE` 下：family report F4 ≥ baseline + 0.02 / P95 turn 延迟漂移 ≤ 8%（slice 2 验收）
+- ✅ AAC lifecycle：`reject` outcome 触发 PE spike（`tests/test_aac_lifecycle_integration.py::test_alignment_reject_triggers_pe_spike` 绿）；进入 `repair_and_deescalation` regime 的转移率 ≥ 50%（待 multi-round benchmark gate）
+- 两轮 multi-round benchmark：mid-reflection ON vs OFF 的 delta-vs-baseline 显著为正（slice 2 验收）
 
 #### Phase 2 — P1 Tools and Ingestion（≈ 4 周）
 

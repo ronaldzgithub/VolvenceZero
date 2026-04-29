@@ -309,8 +309,15 @@ def test_lifeform_session_surfaces_followup_for_rejected_commitment():
 
     asyncio.run(session.run_turn("hi"))
     pending = session.followup_manager.pending
+    # Gap 7 introduced a dedicated ``commitment-lifecycle`` source for
+    # lifecycle-driven follow-ups so that observability can distinguish
+    # "this commitment is at-risk by owner status" (``source=commitment``)
+    # from "this commitment carries a REJECT / MODIFY alignment"
+    # (``source=commitment-lifecycle``). Either source is a valid Gap-7
+    # surfacing; accept both.
     assert any(
-        item.source == "commitment" and "commit-rej-1" in item.metadata.get("key", "")
+        item.source in {"commitment", "commitment-lifecycle"}
+        and item.metadata.get("record_id") == "commit-rej-1"
         for item in pending
     ), f"expected a commitment followup keyed on commit-rej-1; got {pending}"
 

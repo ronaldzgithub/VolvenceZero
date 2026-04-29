@@ -31,6 +31,8 @@ from volvence_zero.application.runtime import (
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
+    ProvisionalReconcileResult,
+    ProvisionalReconcileThresholds,
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
     build_filesystem_persistence_backend,
@@ -970,6 +972,38 @@ class AgentSessionRunner:
         )
         self._upstream_snapshots["experience_fast_prior"] = self._publish_experience_fast_prior_snapshot()
         return results
+
+    def reconcile_case_memory_provisional(
+        self,
+        *,
+        now_tick: int,
+        thresholds: ProvisionalReconcileThresholds | None = None,
+    ) -> ProvisionalReconcileResult:
+        """Sweep CANDIDATE / PROVISIONAL case_memory records (Gap 4 slice 2a).
+
+        Scene-boundary hook: typically called by the lifeform layer's
+        ``end_scene`` AFTER ``drain_session_post_slow_loop`` so that any
+        provisional records the slow loop wrote during scene close are
+        part of the decision set. Returns the full
+        ``ProvisionalReconcileResult`` (promoted / retired / expired
+        case_ids + per-decision audit tuple) so callers can surface it
+        for observability \u2014 the runner does NOT silently swallow the
+        outcome.
+
+        ``now_tick`` is the lifeform clock; the kernel never advances
+        this itself. Records with ``expires_at_tick <= now_tick`` are
+        retired; others go through the promote / retire-by-weakness
+        decision table in ``ApplicationCaseMemoryStore``.
+
+        This is a scene-level sweep \u2014 intentionally synchronous and
+        bounded. Mid-turn cheap expiry and async mid-reflection
+        workers are slice-2b concerns (see
+        ``docs/specs/thinking-loop.md``).
+        """
+        return self._case_memory_store.reconcile_provisional_cases(
+            now_tick=now_tick,
+            thresholds=thresholds,
+        )
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
         operations: list[str] = []

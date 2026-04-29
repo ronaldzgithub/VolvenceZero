@@ -29,6 +29,8 @@ dependencies = [
     "vz-temporal==0.1.*",
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
+    "lifeform-thinking==0.1.*",
+    "lifeform-ingestion==0.1.*",
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-coding==0.1.*",
@@ -53,6 +55,8 @@ vz-application      = { workspace = true }
 vz-temporal         = { workspace = true }
 vz-runtime          = { workspace = true }
 lifeform-core       = { workspace = true }
+lifeform-thinking   = { workspace = true }
+lifeform-ingestion  = { workspace = true }
 lifeform-expression = { workspace = true }
 lifeform-domain-emogpt = { workspace = true }
 lifeform-domain-coding = { workspace = true }

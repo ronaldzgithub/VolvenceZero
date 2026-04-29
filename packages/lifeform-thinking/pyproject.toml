@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-thinking"
+version = "0.1.0"
+description = "Lifeform middle-frequency thinking scheduler: async ThinkingTask lifecycle, fingerprint guard, and read-only mid-reflection / exploration / provisional-reconcile workers that produce owner-consumable ThinkingArtifacts (Gap 4 slice 2b)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Immutable envelopes (ThinkingTask / ThinkingArtifact / status enums)
+    # live in vz-contracts; the scheduler MUST use them directly so
+    # kernel owners can consume workers' outputs without a reverse
+    # import into lifeform-thinking.
+    "vz-contracts==0.1.*",
+    # The scheduler uses kernel snapshot types (read-only) to build
+    # fingerprints and feed workers; this is the standard
+    # lifeform-layer downstream direction.
+    "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_thinking*"]

@@ -191,6 +191,13 @@ class VitalsModule:
         self._tick_index = 0
         self._last_proactive_at: int | None = None
         self._turn_count = 0
+        # Gap 2 apprentice override: when active, drive deviation
+        # contributes 0 to slow-scale PE so operator-supplied teaching
+        # / bulk ingestion turns do NOT look like "user is ignoring me"
+        # for follow-up scheduling. Decay (on_tick) and recharge
+        # (on_turn) are unaffected \u2014 the override only gates
+        # published PE contributions.
+        self._apprentice_override_active = False
 
     # ------------------------------------------------------------------
     # Configuration
@@ -203,6 +210,39 @@ class VitalsModule:
     @property
     def turn_count(self) -> int:
         return self._turn_count
+
+    @property
+    def apprentice_override_active(self) -> bool:
+        """Whether the apprentice override is currently gating PE to zero.
+
+        Public read-only accessor so tests and observability surfaces
+        can assert the override is correctly restored after each turn
+        (leak-free invariant). The setter is ``set_apprentice_override``.
+        """
+        return self._apprentice_override_active
+
+    def set_apprentice_override(self, enabled: bool) -> None:
+        """Toggle the apprentice override (Gap 2).
+
+        When ``enabled=True``:
+
+        * ``current_snapshot()`` publishes ``total_pe=0.0`` and every
+          drive's ``pe_contribution=0.0`` \u2014 deviation / out_of_band
+          fields remain truthful so observability still works.
+        * ``above_proactive_threshold`` becomes False, so
+          ``consider_proactive_followup`` never fires during an
+          apprentice / ingestion turn.
+        * Decay (``on_tick``) and recharge (``on_turn``) are NOT
+          affected; drives still evolve, we just suppress PE
+          publication.
+
+        The override is a simple boolean rather than a stack: the
+        lifeform session invokes ``set_apprentice_override(True)`` at
+        the start of an apprentice turn and restores it to the
+        previous value in a ``finally`` block. Nesting would be a
+        lifeform-layer orchestration concern, not a vitals concern.
+        """
+        self._apprentice_override_active = bool(enabled)
 
     # ------------------------------------------------------------------
     # Mutation entry points
@@ -279,14 +319,29 @@ class VitalsModule:
     # ------------------------------------------------------------------
 
     def current_snapshot(self) -> VitalsSnapshot:
+        """Publish the current vitals snapshot.
+
+        During ``apprentice_override_active``, ``pe_contribution`` is
+        forced to 0 for every drive and ``total_pe`` is 0. Deviation
+        / ``out_of_band`` fields remain truthful so a proactive-minded
+        consumer can still tell whether the drive IS out of band \u2014
+        the override only suppresses the PE *publication*, not the
+        underlying state.
+        """
         levels: list[DriveLevel] = []
         total_pe = 0.0
+        override_active = self._apprentice_override_active
         for drive in self._bootstrap.drives:
             level = self._levels[drive.name]
             deviation = abs(level - drive.target)
             low, high = drive.homeostatic_band
             out_of_band = level < low or level > high
-            pe = drive.pe_weight * deviation if out_of_band else 0.0
+            # PE contribution is suppressed under apprentice override;
+            # deviation + out_of_band still report reality.
+            if override_active:
+                pe = 0.0
+            else:
+                pe = drive.pe_weight * deviation if out_of_band else 0.0
             total_pe += pe
             levels.append(
                 DriveLevel(
@@ -302,8 +357,13 @@ class VitalsModule:
             tick_index=self._tick_index,
             drive_levels=tuple(levels),
             total_pe=total_pe,
-            above_proactive_threshold=total_pe
-            >= self._bootstrap.proactive_pe_threshold,
+            # Under override, above_proactive_threshold is false by
+            # construction (total_pe == 0 < any positive threshold),
+            # so consider_proactive_followup() returns False without
+            # special-casing.
+            above_proactive_threshold=(
+                total_pe >= self._bootstrap.proactive_pe_threshold
+            ),
             last_proactive_at_tick=self._last_proactive_at,
         )
 

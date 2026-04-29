@@ -110,17 +110,15 @@ EmoGPT §11 是一整套**控制面**：多租户、license gate、teaching case
   - **完全不要做** `runtime_template_id` / `seed_payload` / `activation_status` 这一套 `InterviewCognitiveSphere.to_dict()` —— EmoGPT 的这套 sphere 概念在 VZ 里其实就是 `RegimeBootstrap + MetacontrollerParameterSnapshot + DomainExperiencePackage`，已经是标准 vertical bootstrap 三件套，复用即可。
 - 优先级：Tenant 隔离 > Exam/License > TeachingCase > Audience profile > Studio。
 
-### Gap 7 — AAC 决策生命周期（Advocacy → Alignment → Commitment → Followup）
+### Gap 7 — AAC 决策生命周期（Advocacy → Alignment → Commitment → Followup）  ✅ **已落地 (2026-04-29)**
 
 EmoGPT §5.6 的 `advocacy_state` / `alignment_state` / `followup_policy` / `followup_status` / `followup_outcome_ref`。
 
-**VZ 现状**：`semantic_state` 的 9 个 owner 中已有 `commitment` 和 `open_loop`，`FollowupManager` 在 `lifeform-core` 层，但**没有 advocacy / alignment 这两段**——也就是说 VZ 当前缺"AI 提议 → 用户对齐 → 进入承诺"这条显式状态机。
+**VZ 现状（更新）**：`commitment` owner 增加了 `AdvocacyState` + `AlignmentState` 双轴 lifecycle，通过 `CommitmentLifecycleEntry` 公布在 `CommitmentSnapshot`。Transition 完全从 `SemanticProposalOperation` 推导，REJECT alignment 进 `FollowupManager` 触发 follow-up。详见 `docs/specs/aac-commitment-lifecycle.md`。
 
-**第一性下该怎么落**：
-- 不要新开 AAC owner。`commitment` owner 增加两个 lifecycle state 字段：`advocacy_state ∈ {not_ready, ready, proposed}` + `alignment_state ∈ {unknown, agree, modify, reject}`。它本来就是 commitment 的前向通路。
-- `followup_outcome_ref` 已经在 `FollowupManager` 里存在等价物（`unresolved_loops`）。
-- "Iteration-3 commitment outcome 显式分类"（commitment_progressed / completed / stalled / rejected / followup_no_response）是 reflection writeback 的 outcome enum，加到 `PolicyConsolidation` 即可。
-- 关键守则：**不要让 LLM 输出去判定 alignment_state 关键词**。这一步必须走 `SemanticProposal` typed path（见 `semantic_state.SemanticProposalOperation`）。
+**还没做的部分（Gap 7 part 2）**：
+- Reflection writeback 的 `outcome_kind` enum（`commitment_progressed / completed / stalled / rejected / followup_no_response`）—— 应该是 `PolicyConsolidation` 上的 outcome 字段，从 lifecycle 聚合推导，**不**新开 owner
+- `relationship_state` owner cross-reference commitment lifecycle，让 REJECT 的 alignment_state 直接驱动 trust delta，不靠文本推断
 
 ### Gap 8 — Cognitive Depth + TurnParticipationSignal（参与门）
 

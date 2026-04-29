@@ -1,6 +1,11 @@
 from volvence_zero.regime.identity import (
+    CognitiveDepth,
+    CognitiveDepthHint,
     DelayedOutcomeAttribution,
     DelayedOutcomePayoff,
+    ParticipationFlowKind,
+    ParticipationHint,
+    ParticipationLevel,
     PendingRegimeOutcome,
     REGIME_TEMPLATES,
     RegimeBootstrap,
@@ -11,13 +16,20 @@ from volvence_zero.regime.identity import (
     RegimeSequencePayoff,
     RegimeSnapshot,
     build_regime_identity,
+    derive_cognitive_depth_hint,
+    derive_participation_hint,
     score_regimes,
 )
 
 __all__ = [
+    "CognitiveDepth",
+    "CognitiveDepthHint",
     "REGIME_TEMPLATES",
     "DelayedOutcomeAttribution",
     "DelayedOutcomePayoff",
+    "ParticipationFlowKind",
+    "ParticipationHint",
+    "ParticipationLevel",
     "PendingRegimeOutcome",
     "RegimeBootstrap",
     "RegimeCheckpoint",
@@ -27,5 +39,7 @@ __all__ = [
     "RegimeSequencePayoff",
     "RegimeSnapshot",
     "build_regime_identity",
+    "derive_cognitive_depth_hint",
+    "derive_participation_hint",
     "score_regimes",
 ]

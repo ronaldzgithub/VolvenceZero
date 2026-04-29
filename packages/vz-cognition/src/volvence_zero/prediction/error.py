@@ -6,11 +6,37 @@ from typing import TYPE_CHECKING, Any, Mapping
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.semantic_state import CommitmentSnapshot
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
 if TYPE_CHECKING:
     from volvence_zero.regime import RegimeSnapshot
     from volvence_zero.temporal import TemporalAbstractionSnapshot
+
+
+# AAC alignment transition severities (Gap 7 / docs/specs/aac-lifecycle.md).
+# Moving from unknown to any known state is a low-PE disclosure (user is
+# finally telling us where they stand); the high-PE events are transitions
+# WITHIN the known-states lattice, especially away from AGREE. Magnitudes
+# are chosen to keep the alignment contribution bounded to the same
+# [0, 1] envelope as the existing 4-axis errors (see
+# ``PredictionError.magnitude``).
+_ALIGNMENT_TRANSITION_SEVERITY: dict[tuple[str, str], float] = {
+    # unknown -> any known: low (initial disclosure signal)
+    ("unknown", "agree"): 0.10,
+    ("unknown", "modify"): 0.25,
+    ("unknown", "reject"): 0.45,
+    # AGREE -> weaker alignment: highest PE (expectations violated)
+    ("agree", "modify"): 0.45,
+    ("agree", "reject"): 0.90,
+    # MODIFY -> stronger alignment: positive PE (recovered alignment)
+    ("modify", "agree"): 0.20,
+    # MODIFY -> reject: high PE (alignment failed)
+    ("modify", "reject"): 0.70,
+    # REJECT recovery paths: moderate-positive PE
+    ("reject", "modify"): 0.35,
+    ("reject", "agree"): 0.60,
+}
 
 
 @dataclass(frozen=True)
@@ -364,13 +390,20 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     slot_name = "prediction_error"
     owner = "PredictionErrorModule"
     value_type = PredictionErrorSnapshot
-    dependencies = ("substrate", "evaluation", "dual_track", "regime")
+    # Commitment is added as a dependency so that AAC alignment transitions
+    # (Gap 7 / docs/specs/aac-lifecycle.md) can enter the PE signal chain
+    # as a discrete-event PE source distinct from continuous substrate PE.
+    # Consumers still read a single unified ``PredictionErrorSnapshot``; the
+    # commitment contribution is overlaid inside _advance and described in
+    # the snapshot description so the origin remains auditable.
+    dependencies = ("substrate", "evaluation", "dual_track", "regime", "commitment")
     default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
         super().__init__(wiring_level=wiring_level)
         self._previous_prediction: PredictedOutcome | None = None
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
+        self._previous_alignment_by_record: dict[str, str] = {}
         self._turn_index = 0
         self._outcome_head = _PredictionErrorHead()
 
@@ -414,10 +447,16 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         evaluation_snapshot = upstream["evaluation"]
         dual_track_snapshot = upstream["dual_track"]
         regime_snapshot = upstream["regime"]
+        commitment_snapshot = upstream.get("commitment")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         evaluation_value = evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
         regime_value = regime_snapshot.value if isinstance(regime_snapshot.value, RegimeSnapshot) else None
+        commitment_value: CommitmentSnapshot | None = None
+        if commitment_snapshot is not None and isinstance(
+            commitment_snapshot.value, CommitmentSnapshot
+        ):
+            commitment_value = commitment_snapshot.value
         if evaluation_value is None or dual_track_value is None:
             return self.publish(_bootstrap_snapshot(turn_index=self._turn_index))
         self._turn_index += 1
@@ -429,6 +468,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             evaluation_snapshot=evaluation_value,
             dual_track_snapshot=dual_track_value,
             regime_snapshot=regime_value,
+            commitment_snapshot=commitment_value,
         )
         self._previous_prediction = snapshot.next_prediction
         self._previous_substrate_snapshot = substrate_value
@@ -441,12 +481,16 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         evaluation_snapshot = kwargs.get("evaluation_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         regime_snapshot = kwargs.get("regime_snapshot")
+        commitment_snapshot = kwargs.get("commitment_snapshot")
         previous_prediction = kwargs.get("previous_prediction")
         previous_substrate_snapshot = kwargs.get("previous_substrate_snapshot")
         turn_index = int(kwargs.get("turn_index", 0))
         if not isinstance(evaluation_snapshot, EvaluationSnapshot) or not isinstance(dual_track_snapshot, DualTrackSnapshot):
             return self.publish(_bootstrap_snapshot(turn_index=turn_index))
         regime_value = regime_snapshot if isinstance(regime_snapshot, RegimeSnapshot) else None
+        commitment_value = (
+            commitment_snapshot if isinstance(commitment_snapshot, CommitmentSnapshot) else None
+        )
         return self.publish(
             self._advance(
                 turn_index=turn_index,
@@ -458,8 +502,85 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 evaluation_snapshot=evaluation_snapshot,
                 dual_track_snapshot=dual_track_snapshot,
                 regime_snapshot=regime_value,
+                commitment_snapshot=commitment_value,
             )
         )
+
+    def _compute_alignment_contribution(
+        self, commitment_snapshot: CommitmentSnapshot | None
+    ) -> tuple[float, str]:
+        """Return (signed_severity, audit_description) for this turn's deltas.
+
+        Diffs per-record alignment state against the previous turn's map
+        and sums matched transition severities. Updates the internal
+        previous-state map as a side effect.
+
+        Sign convention:
+
+        * **Positive** signed severity = *regression* (alignment got
+          weaker, e.g. AGREE -> REJECT). Indicates a relationship debt
+          taken on this turn; the caller should push relationship_error
+          and signed_reward in the NEGATIVE direction.
+        * **Negative** signed severity = *recovery* (alignment got
+          stronger, e.g. REJECT -> AGREE). The caller should push
+          relationship_error and signed_reward in the POSITIVE
+          direction.
+
+        The magnitude part is always ``|signed_severity|`` and is what
+        the caller adds to ``PredictionError.magnitude`` regardless of
+        direction: discrete-event PE registers as surprise either way.
+
+        Severity is clamped to ``[-1.0, 1.0]`` so the contribution never
+        overwhelms the base 4-axis error budget.
+        """
+        if commitment_snapshot is None:
+            return 0.0, ""
+        # Recovery transitions: current alignment strictly stronger than
+        # the previous. ``unknown -> agree`` is a disclosure + positive
+        # signal (user just told us they agree); we treat it as a
+        # recovery so it pushes signed_reward positive rather than
+        # pretending it's a regression.
+        recovery_keys: frozenset[tuple[str, str]] = frozenset(
+            {
+                ("unknown", "agree"),
+                ("modify", "agree"),
+                ("reject", "modify"),
+                ("reject", "agree"),
+            }
+        )
+        regression_weight = 0.0
+        recovery_weight = 0.0
+        transitions: list[str] = []
+        current: dict[str, str] = {}
+        for entry in commitment_snapshot.lifecycle_entries:
+            current[entry.record_id] = entry.alignment_state.value
+            previous_alignment = self._previous_alignment_by_record.get(
+                entry.record_id, "unknown"
+            )
+            if previous_alignment == entry.alignment_state.value:
+                continue
+            key = (previous_alignment, entry.alignment_state.value)
+            severity = _ALIGNMENT_TRANSITION_SEVERITY.get(key, 0.0)
+            if severity <= 0.0:
+                continue
+            if key in recovery_keys:
+                recovery_weight += severity
+            else:
+                regression_weight += severity
+            transitions.append(
+                f"{entry.record_id}:{previous_alignment}->{entry.alignment_state.value}"
+            )
+        self._previous_alignment_by_record = current
+        signed_severity = regression_weight - recovery_weight
+        if signed_severity == 0.0 and regression_weight == 0.0 and recovery_weight == 0.0:
+            return 0.0, ""
+        signed_severity = max(-1.0, min(1.0, signed_severity))
+        sign = "regression" if signed_severity >= 0.0 else "recovery"
+        summary = (
+            f"alignment_transition[{sign}] severity={abs(signed_severity):.2f} "
+            f"changes={';'.join(transitions[:4])}"
+        )
+        return signed_severity, summary
 
     def _advance(
         self,
@@ -471,6 +592,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         evaluation_snapshot: EvaluationSnapshot,
         dual_track_snapshot: DualTrackSnapshot,
         regime_snapshot: RegimeSnapshot | None,
+        commitment_snapshot: CommitmentSnapshot | None = None,
     ) -> PredictionErrorSnapshot:
         next_prediction = self.compute_prediction(
             source_turn_index=turn_index,
@@ -490,7 +612,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         )
         bootstrap = previous_prediction is None
         evaluated_prediction = previous_prediction
-        error = (
+        base_error = (
             self.compute_prediction_error(
                 predicted=evaluated_prediction,
                 actual_outcome=actual_outcome,
@@ -506,6 +628,46 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 description="Bootstrap turn: no previous prediction to evaluate yet.",
             )
         )
+        # Overlay the AAC alignment-transition contribution. We bump the
+        # relationship axis (alignment is fundamentally a relationship
+        # signal) and the overall magnitude, and push signed_reward in the
+        # regression / recovery direction. All three are re-clamped so
+        # they stay inside the existing [0,1] / [-1,1] envelopes.
+        #
+        # ``signed_severity`` is POSITIVE for regressions (AGREE -> REJECT)
+        # and NEGATIVE for recoveries (REJECT -> AGREE). Both
+        # relationship_error and signed_reward subtract it: regressions
+        # pull both negative (user pushed back, we owe relationship work),
+        # recoveries pull both positive (relationship debt reduced).
+        signed_severity, alignment_audit = self._compute_alignment_contribution(
+            commitment_snapshot
+        )
+        if signed_severity != 0.0:
+            severity = abs(signed_severity)
+            relationship_error = _clamp_signed(
+                base_error.relationship_error - signed_severity
+            )
+            signed_reward = _clamp_signed(
+                base_error.signed_reward - signed_severity
+            )
+            # magnitude: alignment transitions are discrete events, so we
+            # lift the magnitude regardless of direction; recoveries are
+            # informative PE too (they reduce relationship_error but
+            # still register as a surprise relative to the last turn).
+            magnitude = round(min(base_error.magnitude + severity, 4.0), 4)
+            error = PredictionError(
+                task_error=base_error.task_error,
+                relationship_error=round(relationship_error, 4),
+                regime_error=base_error.regime_error,
+                action_error=base_error.action_error,
+                magnitude=magnitude,
+                signed_reward=round(signed_reward, 4),
+                description=(
+                    f"{base_error.description} {alignment_audit}."
+                ),
+            )
+        else:
+            error = base_error
         return PredictionErrorSnapshot(
             evaluated_prediction=evaluated_prediction,
             actual_outcome=actual_outcome,

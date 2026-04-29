@@ -100,6 +100,109 @@ class FollowupManager:
         self._enforce_capacity()
         return tuple(new_items)
 
+    def ingest_commitment_lifecycle(
+        self,
+        *,
+        lifecycle_entries: tuple[Any, ...],
+        current_tick: int,
+        defer_only_delay_multiplier: float = 2.5,
+    ) -> tuple[FollowupItem, ...]:
+        """Policy-aware ingestion of commitment lifecycle entries (Gap 7).
+
+        Reads each entry's typed ``followup_policy`` and routes it to a
+        follow-up item with cadence matching the policy:
+
+        - ``GENTLE_CHECKIN`` (default): due after the standard half-delay
+          used for at-risk commitments so the lifeform proactively
+          re-engages.
+        - ``DEFER_ONLY``: due after ``defer_only_delay_multiplier`` * the
+          default delay so the lifeform does NOT badger the user about a
+          commitment they explicitly pushed back against; priority is
+          also lowered so the queue's capacity enforcer sheds these first
+          under pressure.
+
+        We intentionally do NOT fabricate a follow-up for every lifecycle
+        entry \u2014 only records whose alignment state has reached one of
+        the "needs user attention" markers (REJECT, MODIFY, or explicitly
+        READY/PROPOSED without alignment). AGREE + completed commitments
+        do not generate follow-ups from this path (they are handled by
+        ``honored_commitment_refs`` cleanup upstream).
+
+        Each entry is keyed by its ``record_id`` so repeated calls across
+        turns dedupe against ``_seen_keys``; this keeps the lifeform from
+        enqueueing the same "user said reject on X" follow-up once per
+        turn.
+        """
+        new_items: list[FollowupItem] = []
+        # Defer an import of the enum to avoid a hard import of the
+        # kernel from this lifeform-side module; we only need value
+        # comparisons, and defensive access to ``.value`` handles both
+        # enum instances and their string values without hasattr abuse.
+        base_delay = max(1, self._default_due_delay // 2)
+        defer_delay = max(
+            base_delay + 1,
+            int(self._default_due_delay * defer_only_delay_multiplier),
+        )
+        for entry in lifecycle_entries:
+            record_id = getattr(entry, "record_id", None)
+            if not isinstance(record_id, str) or not record_id:
+                continue
+            alignment_value = _enum_value(
+                getattr(entry, "alignment_state", None),
+                default="unknown",
+            )
+            advocacy_value = _enum_value(
+                getattr(entry, "advocacy_state", None),
+                default="not_ready",
+            )
+            needs_surface = (
+                alignment_value in {"reject", "modify"}
+                or advocacy_value in {"ready", "proposed"}
+            )
+            if not needs_surface:
+                continue
+            policy_value = _enum_value(
+                getattr(entry, "followup_policy", None),
+                default="gentle_checkin",
+            )
+            key = f"commit-lifecycle::{record_id}::{policy_value}::{alignment_value}"
+            if key in self._seen_keys:
+                continue
+            self._seen_keys.add(key)
+            self._counter += 1
+            if policy_value == "defer_only":
+                due_delay = defer_delay
+                priority = 0.25
+                description = (
+                    f"Deferred follow-up for commitment {record_id} "
+                    f"(policy=defer_only, alignment={alignment_value})."
+                )
+            else:
+                due_delay = base_delay
+                priority = 0.65 if alignment_value == "reject" else 0.55
+                description = (
+                    f"Gentle check-in for commitment {record_id} "
+                    f"(policy=gentle_checkin, alignment={alignment_value})."
+                )
+            item = FollowupItem(
+                followup_id=f"fu-{self._counter:05d}",
+                source="commitment-lifecycle",
+                description=description,
+                due_at_tick=current_tick + due_delay,
+                priority=priority,
+                metadata={
+                    "key": key,
+                    "record_id": record_id,
+                    "policy": policy_value,
+                    "alignment": alignment_value,
+                    "advocacy": advocacy_value,
+                },
+            )
+            self._pending.append(item)
+            new_items.append(item)
+        self._enforce_capacity()
+        return tuple(new_items)
+
     def ingest_proactive_drive_pressure(
         self,
         *,
@@ -227,3 +330,21 @@ def _entry_description(entry: Any, *, fallback: str) -> str:
         if isinstance(value, str) and value:
             return value
     return fallback
+
+
+def _enum_value(maybe_enum: Any, *, default: str) -> str:
+    """Extract the string value of an enum / string / None defensively.
+
+    Ordering matters: ``str, Enum`` subclasses satisfy ``isinstance(x,
+    str)`` BUT str-ify to their repr (``"FollowupPolicy.GENTLE_CHECKIN"``)
+    rather than their value. So we must check the ``.value`` attribute
+    first and only fall back to ``str`` for genuine plain strings.
+    """
+    if maybe_enum is None:
+        return default
+    value = getattr(maybe_enum, "value", None)
+    if isinstance(value, str):
+        return value
+    if isinstance(maybe_enum, str):
+        return maybe_enum
+    return default

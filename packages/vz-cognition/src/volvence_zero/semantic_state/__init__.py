@@ -73,6 +73,72 @@ class AlignmentState(str, Enum):
     REJECT = "reject"
 
 
+class FollowupPolicy(str, Enum):
+    """Who owns the re-engagement cadence for this commitment.
+
+    Mirrors EmoGPT PRD \u00a75.6 (AAC lifecycle) but stripped of the
+    product-side vocabulary: only two states that actually move the
+    followup scheduler. Defaults to ``gentle_checkin`` \u2014 proactively
+    due after the default delay. ``defer_only`` means the commitment
+    was explicitly held back (user rejected, asked to come back later,
+    or AI decided it wasn't the right moment) and the follow-up should
+    NOT be surfaced unless the user brings it up first.
+    """
+
+    GENTLE_CHECKIN = "gentle_checkin"
+    DEFER_ONLY = "defer_only"
+
+
+class CommitmentOutcomeKind(str, Enum):
+    """Typed outcome of a commitment lifecycle transition.
+
+    Used by reflection writeback to record WHAT happened to a commitment
+    at end-of-scene so ETA / regime / case_memory can learn from it.
+    Not used for live routing decisions \u2014 that is what advocacy /
+    alignment / followup_policy are for.
+    """
+
+    PROGRESSED = "commitment_progressed"
+    COMPLETED = "commitment_completed"
+    STALLED = "commitment_stalled"
+    REJECTED = "commitment_rejected"
+    FOLLOWUP_NO_RESPONSE = "followup_no_response"
+
+
+class PlanIntentOutcome(str, Enum):
+    """Typed outcome of a plan / intent lifecycle transition (Gap 10).
+
+    Complements the generic ``status`` field on ``SemanticRecord`` by
+    naming the *kind* of signal the transition represents. Used by
+    reflection writeback to tag runtime events with a stable enum
+    label instead of free-form strings.
+    """
+
+    DECISION_MADE = "decision_made"
+    ASSUMPTION_RECORDED = "assumption_recorded"
+    PROBLEM_PROGRESS_ASSESSED = "problem_progress_assessed"
+    OUTCOME_OBSERVED = "outcome_observed"
+
+
+class ExecutionResultOutcome(str, Enum):
+    """Typed outcome of an execution-result record (Gap 10).
+
+    Mirrors the EmoGPT PRD \u00a77.2 structured-runtime-event taxonomy,
+    narrowed to what the execution_result owner can actually emit:
+    tool outcomes, user feedback, teacher instructions, crystal
+    evaluations, and the learning-artifact publication / bootstrap
+    events.
+    """
+
+    USER_FEEDBACK_RECEIVED = "user_feedback_received"
+    INSTRUCTION_RECEIVED = "instruction_received"
+    TOOL_OUTCOME = "tool_outcome"
+    CRYSTAL_EVALUATION = "crystal_evaluation"
+    CRYSTAL_SUPPRESSION = "crystal_suppression"
+    PACKAGE_PUBLICATION = "package_publication"
+    BOOTSTRAP_CONSUMPTION = "bootstrap_consumption"
+
+
 # Map each SemanticProposal operation to a lifecycle transition for
 # commitment records. The mapping is intentionally narrow \u2014 only
 # operations that meaningfully advance advocacy or alignment are
@@ -89,6 +155,48 @@ _COMMITMENT_LIFECYCLE_TRANSITIONS: dict[
     SemanticProposalOperation.COMPLETE: (AdvocacyState.PROPOSED, AlignmentState.AGREE),
     SemanticProposalOperation.CLOSE: (AdvocacyState.PROPOSED, None),
     SemanticProposalOperation.BLOCK: (AdvocacyState.PROPOSED, AlignmentState.REJECT),
+}
+
+
+# Map each operation to the follow-up policy that best fits the resulting
+# lifecycle state. ``None`` means "leave whatever was set before". A
+# freshly-observed commitment starts with ``GENTLE_CHECKIN`` so that the
+# FollowupManager treats it as a normal engage-on-due item; ``BLOCK``
+# (user rejected) and ``DEFER`` (explicit hold) flip it to ``DEFER_ONLY``
+# so the lifeform does not badger the user about a commitment they just
+# pushed back against.
+_COMMITMENT_FOLLOWUP_POLICY_TRANSITIONS: dict[
+    SemanticProposalOperation, FollowupPolicy | None
+] = {
+    SemanticProposalOperation.OBSERVE: FollowupPolicy.GENTLE_CHECKIN,
+    SemanticProposalOperation.CREATE: FollowupPolicy.GENTLE_CHECKIN,
+    SemanticProposalOperation.DEFER: FollowupPolicy.DEFER_ONLY,
+    SemanticProposalOperation.ACTIVATE: FollowupPolicy.GENTLE_CHECKIN,
+    SemanticProposalOperation.REVISE: FollowupPolicy.GENTLE_CHECKIN,
+    SemanticProposalOperation.COMPLETE: None,
+    SemanticProposalOperation.CLOSE: None,
+    SemanticProposalOperation.BLOCK: FollowupPolicy.DEFER_ONLY,
+}
+
+
+# Map each operation to the typed outcome it produces, if any. Used by
+# reflection writeback to record a single canonical outcome enum per
+# commitment transition so downstream consumers (ETA credit, regime
+# calibration, case_memory) can key off a stable label rather than
+# reparse lifecycle state pairs. ``None`` means the operation does not
+# represent a meaningful outcome (merely an observation / advocacy
+# move), so no outcome is recorded.
+_COMMITMENT_OUTCOME_TRANSITIONS: dict[
+    SemanticProposalOperation, CommitmentOutcomeKind | None
+] = {
+    SemanticProposalOperation.OBSERVE: None,
+    SemanticProposalOperation.CREATE: None,
+    SemanticProposalOperation.DEFER: CommitmentOutcomeKind.STALLED,
+    SemanticProposalOperation.ACTIVATE: CommitmentOutcomeKind.PROGRESSED,
+    SemanticProposalOperation.REVISE: CommitmentOutcomeKind.PROGRESSED,
+    SemanticProposalOperation.COMPLETE: CommitmentOutcomeKind.COMPLETED,
+    SemanticProposalOperation.CLOSE: CommitmentOutcomeKind.STALLED,
+    SemanticProposalOperation.BLOCK: CommitmentOutcomeKind.REJECTED,
 }
 
 
@@ -114,6 +222,98 @@ def commitment_lifecycle_for_operation(
         advocacy if advocacy is not None else base_advocacy,
         alignment if alignment is not None else base_alignment,
     )
+
+
+def commitment_followup_policy_for_operation(
+    operation: SemanticProposalOperation,
+    *,
+    previous: FollowupPolicy | None = None,
+) -> FollowupPolicy:
+    """Pure helper exposing the operation \u2192 follow-up policy map.
+
+    Defaults to ``GENTLE_CHECKIN`` when both ``previous`` is None and the
+    operation is unmapped, so that callers constructing a fresh lifecycle
+    entry always get a usable policy.
+    """
+    policy = _COMMITMENT_FOLLOWUP_POLICY_TRANSITIONS.get(operation)
+    if policy is not None:
+        return policy
+    return previous or FollowupPolicy.GENTLE_CHECKIN
+
+
+def commitment_outcome_for_operation(
+    operation: SemanticProposalOperation,
+) -> CommitmentOutcomeKind | None:
+    """Pure helper exposing the operation \u2192 outcome enum.
+
+    ``None`` means the operation did not produce a durable outcome
+    (observe / create is a status read, not an outcome). Callers must
+    treat ``None`` as "leave the previous outcome in place" \u2014 never
+    overwrite a real outcome with nothing.
+    """
+    return _COMMITMENT_OUTCOME_TRANSITIONS.get(operation)
+
+
+# Gap 10: plan-intent outcome taxonomy. A plan / intent lifecycle
+# maps to four named outcome kinds. OBSERVE / CREATE are "status
+# reads" and intentionally do NOT produce a typed outcome; callers
+# treat ``None`` as "leave the previous outcome in place".
+_PLAN_INTENT_OUTCOME_TRANSITIONS: dict[
+    SemanticProposalOperation, PlanIntentOutcome | None
+] = {
+    SemanticProposalOperation.OBSERVE: None,
+    SemanticProposalOperation.CREATE: PlanIntentOutcome.ASSUMPTION_RECORDED,
+    SemanticProposalOperation.DEFER: PlanIntentOutcome.PROBLEM_PROGRESS_ASSESSED,
+    SemanticProposalOperation.ACTIVATE: PlanIntentOutcome.DECISION_MADE,
+    SemanticProposalOperation.REVISE: PlanIntentOutcome.DECISION_MADE,
+    SemanticProposalOperation.COMPLETE: PlanIntentOutcome.OUTCOME_OBSERVED,
+    SemanticProposalOperation.CLOSE: PlanIntentOutcome.OUTCOME_OBSERVED,
+    SemanticProposalOperation.BLOCK: PlanIntentOutcome.PROBLEM_PROGRESS_ASSESSED,
+}
+
+
+def plan_intent_outcome_for_operation(
+    operation: SemanticProposalOperation,
+) -> PlanIntentOutcome | None:
+    """Pure helper exposing the operation \u2192 plan_intent outcome enum."""
+    return _PLAN_INTENT_OUTCOME_TRANSITIONS.get(operation)
+
+
+# Gap 10: execution-result outcome taxonomy. The execution_result
+# owner receives external signals via adapters (tool results, profile
+# events, etc.) so the mapping here focuses on the status bucket the
+# owner actually writes. Product-specific subtypes (crystal
+# evaluation / suppression, package publication, bootstrap
+# consumption) do not arise from ``SemanticProposalOperation`` alone
+# \u2014 they come in through reviewed-knowledge / task events / test
+# writes. For those, ``None`` is returned here and the caller passes
+# an explicit ``ExecutionResultOutcome`` to the store when writing.
+_EXECUTION_RESULT_OUTCOME_TRANSITIONS: dict[
+    SemanticProposalOperation, ExecutionResultOutcome | None
+] = {
+    SemanticProposalOperation.OBSERVE: None,
+    SemanticProposalOperation.CREATE: None,
+    SemanticProposalOperation.DEFER: None,
+    SemanticProposalOperation.ACTIVATE: None,
+    SemanticProposalOperation.REVISE: None,
+    SemanticProposalOperation.COMPLETE: ExecutionResultOutcome.TOOL_OUTCOME,
+    SemanticProposalOperation.CLOSE: ExecutionResultOutcome.TOOL_OUTCOME,
+    SemanticProposalOperation.BLOCK: ExecutionResultOutcome.TOOL_OUTCOME,
+}
+
+
+def execution_result_outcome_for_operation(
+    operation: SemanticProposalOperation,
+) -> ExecutionResultOutcome | None:
+    """Pure helper exposing the operation \u2192 execution_result outcome.
+
+    Returns ``None`` for status-read / planning operations so the
+    caller can leave the previous outcome in place. Callers that have
+    direct typed information (e.g. a ``user_feedback_received`` event
+    from a tool_result adapter) should pass an explicit outcome to
+    the store rather than rely on this mapping.
+    """
+    return _EXECUTION_RESULT_OUTCOME_TRANSITIONS.get(operation)
 
 
 @dataclass(frozen=True)
@@ -213,6 +413,38 @@ class SemanticRecord:
 
 
 @dataclass(frozen=True)
+class PlanIntentLifecycleEntry:
+    """Per-record outcome state for a plan / intent record (Gap 10).
+
+    Published alongside ``candidate_plans`` / ``deferred_intents`` so
+    downstream consumers (reflection writeback, evaluation, credit
+    attribution) can key off a typed outcome enum rather than parsing
+    the free-form ``status`` string. Defaults represent a freshly
+    observed record with no outcome yet.
+    """
+
+    record_id: str
+    last_outcome: PlanIntentOutcome | None = None
+    last_outcome_evidence: str = ""
+    last_outcome_at_turn: int = -1
+
+    def __post_init__(self) -> None:
+        has_outcome = self.last_outcome is not None
+        if has_outcome and not self.last_outcome_evidence.strip():
+            raise ValueError(
+                "PlanIntentLifecycleEntry.last_outcome set without "
+                "non-empty last_outcome_evidence; every typed outcome "
+                "MUST carry evidence for reflection writeback audit."
+            )
+        if has_outcome and self.last_outcome_at_turn < 0:
+            raise ValueError(
+                "PlanIntentLifecycleEntry.last_outcome set without "
+                "last_outcome_at_turn (>= 0); outcome records must be "
+                "anchored to a turn."
+            )
+
+
+@dataclass(frozen=True)
 class PlanIntentSnapshot:
     active_plan_id: str | None
     active_goal: str
@@ -226,6 +458,19 @@ class PlanIntentSnapshot:
     continuity_score: float
     control_signal: float
     description: str
+    # Gap 10 additions. Defaults preserve backwards compat for any
+    # synthetic snapshot constructed outside the owner module.
+    lifecycle_entries: tuple[PlanIntentLifecycleEntry, ...] = ()
+    outcome_decision_made_count: int = 0
+    outcome_assumption_recorded_count: int = 0
+    outcome_problem_progress_assessed_count: int = 0
+    outcome_observed_count: int = 0
+
+    def lifecycle_for(self, record_id: str) -> PlanIntentLifecycleEntry | None:
+        for entry in self.lifecycle_entries:
+            if entry.record_id == record_id:
+                return entry
+        return None
 
 
 @dataclass(frozen=True)
@@ -239,11 +484,43 @@ class CommitmentLifecycleEntry:
     pattern-matching on free text. Both states are always present;
     a freshly-observed commitment with no AI advocacy yet shows
     ``(NOT_READY, UNKNOWN)``.
+
+    ``followup_policy`` tells the lifeform-side ``FollowupManager`` how
+    to treat this commitment when scheduling re-engagement. ``last_outcome``
+    is only ever set when a typed outcome transition actually fires; an
+    empty ``last_outcome_evidence`` with a non-None ``last_outcome`` is a
+    contract violation enforced by ``tests/contracts/test_aac_lifecycle.py``
+    (outcome-requires-evidence invariant).
     """
 
     record_id: str
     advocacy_state: AdvocacyState
     alignment_state: AlignmentState
+    followup_policy: FollowupPolicy = FollowupPolicy.GENTLE_CHECKIN
+    last_outcome: CommitmentOutcomeKind | None = None
+    last_outcome_evidence: str = ""
+    last_outcome_at_turn: int = -1
+
+    def __post_init__(self) -> None:
+        # Outcome-requires-evidence: if a typed outcome is recorded it MUST
+        # carry non-empty evidence. Reflection writeback / audit downstream
+        # rely on this being non-None-with-trace or None-without-trace;
+        # silent None-with-evidence or outcome-without-evidence lets drift
+        # sneak in.
+        has_outcome = self.last_outcome is not None
+        has_evidence = bool(self.last_outcome_evidence.strip())
+        if has_outcome and not has_evidence:
+            raise ValueError(
+                "CommitmentLifecycleEntry.last_outcome set without "
+                "non-empty last_outcome_evidence; every typed outcome "
+                "MUST carry evidence for reflection writeback audit."
+            )
+        if has_outcome and self.last_outcome_at_turn < 0:
+            raise ValueError(
+                "CommitmentLifecycleEntry.last_outcome set without "
+                "last_outcome_at_turn (>= 0); outcome records must be "
+                "anchored to a turn for credit attribution."
+            )
 
 
 @dataclass(frozen=True)
@@ -255,15 +532,25 @@ class CommitmentSnapshot:
     continuity_score: float
     control_signal: float
     description: str
-    # AAC lifecycle additions (Gap 7 / docs/todo). Defaults preserve
-    # backwards compat for any synthetic CommitmentSnapshot built outside
-    # the owner module (e.g. older tests).
+    # AAC lifecycle additions (Gap 7). Defaults preserve backwards
+    # compat for any synthetic CommitmentSnapshot built outside the
+    # owner module (e.g. older tests).
     lifecycle_entries: tuple[CommitmentLifecycleEntry, ...] = ()
     advocacy_proposed_count: int = 0
     advocacy_ready_count: int = 0
     alignment_agree_count: int = 0
     alignment_modify_count: int = 0
     alignment_reject_count: int = 0
+    # Follow-up / outcome aggregates \u2014 published alongside per-entry
+    # lifecycle for cheap O(1) consumption by FollowupManager /
+    # evaluation / family report.
+    followup_gentle_count: int = 0
+    followup_defer_only_count: int = 0
+    outcome_progressed_count: int = 0
+    outcome_completed_count: int = 0
+    outcome_stalled_count: int = 0
+    outcome_rejected_count: int = 0
+    outcome_followup_no_response_count: int = 0
 
     def lifecycle_for(self, record_id: str) -> CommitmentLifecycleEntry | None:
         """Look up a single record's lifecycle, or ``None`` if absent."""
@@ -296,6 +583,34 @@ class UserModelSnapshot:
 
 
 @dataclass(frozen=True)
+class ExecutionResultLifecycleEntry:
+    """Per-record typed outcome on an execution_result record (Gap 10).
+
+    Mirrors ``PlanIntentLifecycleEntry`` and ``CommitmentLifecycleEntry``
+    so reflection writeback can treat all three owners uniformly when
+    building the outcome audit trail.
+    """
+
+    record_id: str
+    last_outcome: ExecutionResultOutcome | None = None
+    last_outcome_evidence: str = ""
+    last_outcome_at_turn: int = -1
+
+    def __post_init__(self) -> None:
+        has_outcome = self.last_outcome is not None
+        if has_outcome and not self.last_outcome_evidence.strip():
+            raise ValueError(
+                "ExecutionResultLifecycleEntry.last_outcome set without "
+                "non-empty last_outcome_evidence."
+            )
+        if has_outcome and self.last_outcome_at_turn < 0:
+            raise ValueError(
+                "ExecutionResultLifecycleEntry.last_outcome set without "
+                "last_outcome_at_turn (>= 0)."
+            )
+
+
+@dataclass(frozen=True)
 class ExecutionResultSnapshot:
     attempted_actions: tuple[SemanticRecord, ...]
     completed_actions: tuple[SemanticRecord, ...]
@@ -304,6 +619,21 @@ class ExecutionResultSnapshot:
     execution_grounding_score: float
     control_signal: float
     description: str
+    # Gap 10 additions.
+    lifecycle_entries: tuple[ExecutionResultLifecycleEntry, ...] = ()
+    outcome_user_feedback_count: int = 0
+    outcome_instruction_received_count: int = 0
+    outcome_tool_outcome_count: int = 0
+    outcome_crystal_evaluation_count: int = 0
+    outcome_crystal_suppression_count: int = 0
+    outcome_package_publication_count: int = 0
+    outcome_bootstrap_consumption_count: int = 0
+
+    def lifecycle_for(self, record_id: str) -> ExecutionResultLifecycleEntry | None:
+        for entry in self.lifecycle_entries:
+            if entry.record_id == record_id:
+                return entry
+        return None
 
 
 @dataclass(frozen=True)
@@ -951,6 +1281,72 @@ def semantic_events_from_reviewed_knowledge(
     )
 
 
+@dataclass(frozen=True)
+class _CommitmentOutcomeRecord:
+    """Internal record: typed outcome + anchoring turn + evidence."""
+
+    outcome: CommitmentOutcomeKind
+    turn_index: int
+    evidence: str
+
+
+@dataclass(frozen=True)
+class _PlanIntentOutcomeRecord:
+    """Internal record for plan_intent outcome (Gap 10)."""
+
+    outcome: PlanIntentOutcome
+    turn_index: int
+    evidence: str
+
+
+@dataclass(frozen=True)
+class _ExecutionResultOutcomeRecord:
+    """Internal record for execution_result outcome (Gap 10)."""
+
+    outcome: ExecutionResultOutcome
+    turn_index: int
+    evidence: str
+
+
+# Per-slot dispatch for operation \u2192 outcome helpers. Lets ``apply``
+# call the right helper per slot instead of branching on slot name.
+# ``None`` means the slot does not participate in typed-outcome
+# tracking (only commitment / plan_intent / execution_result do).
+def _outcome_dispatch_for_slot(slot: str, operation: SemanticProposalOperation):
+    if slot == "commitment":
+        return commitment_outcome_for_operation(operation)
+    if slot == "plan_intent":
+        return plan_intent_outcome_for_operation(operation)
+    if slot == "execution_result":
+        return execution_result_outcome_for_operation(operation)
+    return None
+
+
+def _outcome_record_for_slot(
+    slot: str,
+    outcome: Any,
+    *,
+    turn_index: int,
+    evidence: str,
+):
+    if slot == "commitment":
+        return _CommitmentOutcomeRecord(
+            outcome=outcome, turn_index=turn_index, evidence=evidence
+        )
+    if slot == "plan_intent":
+        return _PlanIntentOutcomeRecord(
+            outcome=outcome, turn_index=turn_index, evidence=evidence
+        )
+    if slot == "execution_result":
+        return _ExecutionResultOutcomeRecord(
+            outcome=outcome, turn_index=turn_index, evidence=evidence
+        )
+    raise ValueError(
+        f"Unsupported outcome-tracking slot {slot!r}; expected one of "
+        "commitment / plan_intent / execution_result."
+    )
+
+
 class SemanticStateStore:
     def __init__(self) -> None:
         self._records: dict[str, tuple[SemanticRecord, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
@@ -965,12 +1361,27 @@ class SemanticStateStore:
         self._record_lifecycle: dict[
             str, dict[str, tuple[AdvocacyState, AlignmentState]]
         ] = {slot: {} for slot in SEMANTIC_OWNER_SLOTS}
+        # Per-record follow-up policy. Same GC semantics as lifecycle.
+        self._record_followup_policy: dict[str, dict[str, FollowupPolicy]] = {
+            slot: {} for slot in SEMANTIC_OWNER_SLOTS
+        }
+        # Per-record typed outcome, anchored to the turn it was produced
+        # and carrying non-empty evidence. Value type varies per slot:
+        # - commitment   -> _CommitmentOutcomeRecord
+        # - plan_intent  -> _PlanIntentOutcomeRecord  (Gap 10)
+        # - execution_result -> _ExecutionResultOutcomeRecord  (Gap 10)
+        # Other slots never populate this map.
+        self._record_outcome: dict[str, dict[str, Any]] = {
+            slot: {} for slot in SEMANTIC_OWNER_SLOTS
+        }
 
     def apply(self, *, slot: str, proposals: tuple[SemanticProposal, ...], turn_index: int) -> tuple[SemanticRecord, ...]:
         existing = list(self._records[slot])
         completed_refs = list(self._completed_refs[slot])
         revision_count = self._revision_counts[slot]
         lifecycle_map = self._record_lifecycle[slot]
+        policy_map = self._record_followup_policy[slot]
+        outcome_map = self._record_outcome[slot]
         for proposal in proposals:
             if proposal.target_slot != slot:
                 continue
@@ -1001,17 +1412,54 @@ class SemanticStateStore:
                     proposal.operation, previous=previous
                 )
             )
+            # Follow-up policy: keep previous if the operation does not
+            # prescribe one; default is GENTLE_CHECKIN via the helper.
+            policy_map[proposal.proposal_id] = commitment_followup_policy_for_operation(
+                proposal.operation,
+                previous=policy_map.get(proposal.proposal_id),
+            )
+            # Outcome: only record when the operation produces a typed
+            # outcome. Evidence MUST be non-empty \u2014 fall back to the
+            # proposal's evidence field or (as last resort) a short
+            # operation+summary trace so the outcome never ships with an
+            # empty audit string. Never silently overwrite an existing
+            # outcome with None. Per-slot dispatch lets commitment /
+            # plan_intent / execution_result each carry their own
+            # outcome taxonomy without a mega-if.
+            outcome_kind = _outcome_dispatch_for_slot(slot, proposal.operation)
+            if outcome_kind is not None:
+                evidence_text = proposal.evidence.strip() or (
+                    f"op={proposal.operation.value} summary={proposal.summary}".strip()
+                )
+                if not evidence_text:
+                    evidence_text = (
+                        f"op={proposal.operation.value} "
+                        f"record_id={proposal.proposal_id}"
+                    )
+                outcome_map[proposal.proposal_id] = _outcome_record_for_slot(
+                    slot,
+                    outcome_kind,
+                    turn_index=turn_index,
+                    evidence=evidence_text[:320],
+                )
         self._records[slot] = tuple(existing[-12:])
         self._completed_refs[slot] = tuple(completed_refs[-12:])
         self._revision_counts[slot] = revision_count
-        # Garbage-collect lifecycle entries whose record id has fallen out
-        # of the bounded window. Avoids unbounded growth across long
-        # sessions while still letting late-arriving proposals reuse
-        # earlier ids during the same session.
+        # Garbage-collect lifecycle / policy / outcome entries whose
+        # record id has fallen out of the bounded window. Avoids
+        # unbounded growth across long sessions while still letting
+        # late-arriving proposals reuse earlier ids during the same
+        # session.
         live_ids = {record.record_id for record in self._records[slot]}
         for record_id in tuple(lifecycle_map.keys()):
             if record_id not in live_ids:
                 del lifecycle_map[record_id]
+        for record_id in tuple(policy_map.keys()):
+            if record_id not in live_ids:
+                del policy_map[record_id]
+        for record_id in tuple(outcome_map.keys()):
+            if record_id not in live_ids:
+                del outcome_map[record_id]
         return self._records[slot]
 
     def records_for(self, slot: str) -> tuple[SemanticRecord, ...]:
@@ -1028,6 +1476,19 @@ class SemanticStateStore:
     ) -> dict[str, tuple[AdvocacyState, AlignmentState]]:
         """Return a copy of the per-record lifecycle map for ``slot``."""
         return dict(self._record_lifecycle[slot])
+
+    def followup_policy_for(self, slot: str) -> dict[str, FollowupPolicy]:
+        """Return a copy of the per-record follow-up policy map for ``slot``."""
+        return dict(self._record_followup_policy[slot])
+
+    def outcome_for(self, slot: str) -> dict[str, Any]:
+        """Return a copy of the per-record typed-outcome map for ``slot``.
+
+        Value type varies per slot (see ``_record_outcome`` attribute
+        docstring). Callers that care about the typed enum should
+        inspect ``record.outcome`` after lookup.
+        """
+        return dict(self._record_outcome[slot])
 
 
 def _records_with_status(records: tuple[SemanticRecord, ...], *statuses: str) -> tuple[SemanticRecord, ...]:
@@ -1118,6 +1579,34 @@ class PlanIntentModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> PlanIntentSnapshot:
         latest = self._latest_active(records)
         confidence = self._mean_confidence(records)
+        outcome_map = self._store.outcome_for(self.slot_name)
+        lifecycle_entries: list[PlanIntentLifecycleEntry] = []
+        decision_made = assumption_recorded = 0
+        problem_progress_assessed = outcome_observed = 0
+        for record in records:
+            outcome_record = outcome_map.get(record.record_id)
+            if outcome_record is None:
+                lifecycle_entries.append(
+                    PlanIntentLifecycleEntry(record_id=record.record_id)
+                )
+                continue
+            last_outcome = outcome_record.outcome
+            lifecycle_entries.append(
+                PlanIntentLifecycleEntry(
+                    record_id=record.record_id,
+                    last_outcome=last_outcome,
+                    last_outcome_evidence=outcome_record.evidence,
+                    last_outcome_at_turn=outcome_record.turn_index,
+                )
+            )
+            if last_outcome is PlanIntentOutcome.DECISION_MADE:
+                decision_made += 1
+            elif last_outcome is PlanIntentOutcome.ASSUMPTION_RECORDED:
+                assumption_recorded += 1
+            elif last_outcome is PlanIntentOutcome.PROBLEM_PROGRESS_ASSESSED:
+                problem_progress_assessed += 1
+            elif last_outcome is PlanIntentOutcome.OUTCOME_OBSERVED:
+                outcome_observed += 1
         return PlanIntentSnapshot(
             active_plan_id=latest.record_id if latest else None,
             active_goal=latest.summary if latest else "",
@@ -1130,7 +1619,19 @@ class PlanIntentModule(SemanticOwnerModule):
             plan_revision_count=self._store.revision_count_for(self.slot_name),
             continuity_score=confidence,
             control_signal=self._batch_signal(batch),
-            description=f"Plan/intent owner published {len(records)} records; active={latest.record_id if latest else 'none'}.",
+            description=(
+                f"Plan/intent owner published {len(records)} records; "
+                f"active={latest.record_id if latest else 'none'} "
+                f"outcomes[decision={decision_made} "
+                f"assumption={assumption_recorded} "
+                f"progress={problem_progress_assessed} "
+                f"observed={outcome_observed}]."
+            ),
+            lifecycle_entries=tuple(lifecycle_entries),
+            outcome_decision_made_count=decision_made,
+            outcome_assumption_recorded_count=assumption_recorded,
+            outcome_problem_progress_assessed_count=problem_progress_assessed,
+            outcome_observed_count=outcome_observed,
         )
 
 
@@ -1142,23 +1643,38 @@ class CommitmentModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> CommitmentSnapshot:
         active = _records_with_status(records, "active")
         at_risk = _records_with_status(records, "blocked")
-        # Pull the per-record lifecycle map maintained by the store and
-        # publish it as a parallel tuple. Records present in the bounded
-        # window without a lifecycle entry (legacy / synthetic records)
-        # default to (NOT_READY, UNKNOWN).
+        # Pull the per-record lifecycle / policy / outcome maps maintained
+        # by the store and publish them as a parallel tuple. Records
+        # present in the bounded window without a lifecycle entry
+        # (legacy / synthetic records) default to
+        # (NOT_READY, UNKNOWN, GENTLE_CHECKIN, no outcome).
         lifecycle_map = self._store.lifecycle_for(self.slot_name)
+        policy_map = self._store.followup_policy_for(self.slot_name)
+        outcome_map = self._store.outcome_for(self.slot_name)
         lifecycle_entries: list[CommitmentLifecycleEntry] = []
         ready = proposed = 0
         agree = modify = reject = 0
+        gentle = defer_only = 0
+        outcome_progressed = outcome_completed = outcome_stalled = 0
+        outcome_rejected = outcome_followup_none = 0
         for record in records:
             advocacy, alignment = lifecycle_map.get(
                 record.record_id, (AdvocacyState.NOT_READY, AlignmentState.UNKNOWN)
             )
+            policy = policy_map.get(record.record_id, FollowupPolicy.GENTLE_CHECKIN)
+            outcome_record = outcome_map.get(record.record_id)
+            last_outcome = outcome_record.outcome if outcome_record else None
+            last_outcome_evidence = outcome_record.evidence if outcome_record else ""
+            last_outcome_at_turn = outcome_record.turn_index if outcome_record else -1
             lifecycle_entries.append(
                 CommitmentLifecycleEntry(
                     record_id=record.record_id,
                     advocacy_state=advocacy,
                     alignment_state=alignment,
+                    followup_policy=policy,
+                    last_outcome=last_outcome,
+                    last_outcome_evidence=last_outcome_evidence,
+                    last_outcome_at_turn=last_outcome_at_turn,
                 )
             )
             if advocacy is AdvocacyState.READY:
@@ -1171,6 +1687,20 @@ class CommitmentModule(SemanticOwnerModule):
                 modify += 1
             elif alignment is AlignmentState.REJECT:
                 reject += 1
+            if policy is FollowupPolicy.GENTLE_CHECKIN:
+                gentle += 1
+            elif policy is FollowupPolicy.DEFER_ONLY:
+                defer_only += 1
+            if last_outcome is CommitmentOutcomeKind.PROGRESSED:
+                outcome_progressed += 1
+            elif last_outcome is CommitmentOutcomeKind.COMPLETED:
+                outcome_completed += 1
+            elif last_outcome is CommitmentOutcomeKind.STALLED:
+                outcome_stalled += 1
+            elif last_outcome is CommitmentOutcomeKind.REJECTED:
+                outcome_rejected += 1
+            elif last_outcome is CommitmentOutcomeKind.FOLLOWUP_NO_RESPONSE:
+                outcome_followup_none += 1
         return CommitmentSnapshot(
             active_commitments=active,
             honored_commitment_refs=self._store.completed_refs_for(self.slot_name),
@@ -1181,7 +1711,12 @@ class CommitmentModule(SemanticOwnerModule):
             description=(
                 f"Commitment owner published active={len(active)} "
                 f"at_risk={len(at_risk)} proposed={proposed} "
-                f"agreed={agree} modify={modify} rejected={reject}."
+                f"agreed={agree} modify={modify} rejected={reject} "
+                f"gentle={gentle} defer_only={defer_only} "
+                f"outcome[progressed={outcome_progressed} "
+                f"completed={outcome_completed} stalled={outcome_stalled} "
+                f"rejected={outcome_rejected} "
+                f"no_response={outcome_followup_none}]."
             ),
             lifecycle_entries=tuple(lifecycle_entries),
             advocacy_proposed_count=proposed,
@@ -1189,6 +1724,13 @@ class CommitmentModule(SemanticOwnerModule):
             alignment_agree_count=agree,
             alignment_modify_count=modify,
             alignment_reject_count=reject,
+            followup_gentle_count=gentle,
+            followup_defer_only_count=defer_only,
+            outcome_progressed_count=outcome_progressed,
+            outcome_completed_count=outcome_completed,
+            outcome_stalled_count=outcome_stalled,
+            outcome_rejected_count=outcome_rejected,
+            outcome_followup_no_response_count=outcome_followup_none,
         )
 
 
@@ -1237,6 +1779,41 @@ class ExecutionResultModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> ExecutionResultSnapshot:
         completed = _records_with_status(records, "completed")
         failed = _records_with_status(records, "blocked")
+        outcome_map = self._store.outcome_for(self.slot_name)
+        lifecycle_entries: list[ExecutionResultLifecycleEntry] = []
+        user_feedback = instruction = tool_outcome = 0
+        crystal_eval = crystal_suppress = 0
+        package_pub = bootstrap_cons = 0
+        for record in records:
+            outcome_record = outcome_map.get(record.record_id)
+            if outcome_record is None:
+                lifecycle_entries.append(
+                    ExecutionResultLifecycleEntry(record_id=record.record_id)
+                )
+                continue
+            last_outcome = outcome_record.outcome
+            lifecycle_entries.append(
+                ExecutionResultLifecycleEntry(
+                    record_id=record.record_id,
+                    last_outcome=last_outcome,
+                    last_outcome_evidence=outcome_record.evidence,
+                    last_outcome_at_turn=outcome_record.turn_index,
+                )
+            )
+            if last_outcome is ExecutionResultOutcome.USER_FEEDBACK_RECEIVED:
+                user_feedback += 1
+            elif last_outcome is ExecutionResultOutcome.INSTRUCTION_RECEIVED:
+                instruction += 1
+            elif last_outcome is ExecutionResultOutcome.TOOL_OUTCOME:
+                tool_outcome += 1
+            elif last_outcome is ExecutionResultOutcome.CRYSTAL_EVALUATION:
+                crystal_eval += 1
+            elif last_outcome is ExecutionResultOutcome.CRYSTAL_SUPPRESSION:
+                crystal_suppress += 1
+            elif last_outcome is ExecutionResultOutcome.PACKAGE_PUBLICATION:
+                package_pub += 1
+            elif last_outcome is ExecutionResultOutcome.BOOTSTRAP_CONSUMPTION:
+                bootstrap_cons += 1
         return ExecutionResultSnapshot(
             attempted_actions=records,
             completed_actions=completed,
@@ -1244,7 +1821,21 @@ class ExecutionResultModule(SemanticOwnerModule):
             artifact_refs=tuple(record.record_id for record in completed),
             execution_grounding_score=self._mean_confidence(completed or records),
             control_signal=self._batch_signal(batch),
-            description=f"Execution-result owner published attempted={len(records)} completed={len(completed)} failed={len(failed)}.",
+            description=(
+                f"Execution-result owner published attempted={len(records)} "
+                f"completed={len(completed)} failed={len(failed)} "
+                f"outcomes[tool={tool_outcome} feedback={user_feedback} "
+                f"instruction={instruction} "
+                f"crystal_eval={crystal_eval} crystal_suppress={crystal_suppress}]."
+            ),
+            lifecycle_entries=tuple(lifecycle_entries),
+            outcome_user_feedback_count=user_feedback,
+            outcome_instruction_received_count=instruction,
+            outcome_tool_outcome_count=tool_outcome,
+            outcome_crystal_evaluation_count=crystal_eval,
+            outcome_crystal_suppression_count=crystal_suppress,
+            outcome_package_publication_count=package_pub,
+            outcome_bootstrap_consumption_count=bootstrap_cons,
         )
 
 

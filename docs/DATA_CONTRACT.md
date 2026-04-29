@@ -1280,17 +1280,18 @@ reflection ──────────────→ owner-side writeback: m
 - 不可作为 kernel owner 间 propagate 的输入；只能被 lifeform 层（含 expression / service）消费
 - 副作用如果要进入 kernel，**必须**走已有公共入口（`BrainSession.submit_*` / `LifeformSession.run_turn`），不可旁路
 
-### 6.2 Owner 字段扩展（已批准 propose，待实施）
+### 6.2 Owner 字段扩展
 
-下列字段是已经在 spec 中冻结、待 Phase 1+ 实施的 owner 字段扩展。它们**不**新增 slot，只在现有 owner 的 `value` dataclass 上加字段。
+下列字段是在 spec 中冻结、Phase 1+ 逐步实施的 owner 字段扩展。它们**不**新增 slot，只在现有 owner 的 `value` dataclass 上加字段。
 
-| 现有 Slot | 新增字段 | 来源 spec | 实施 Phase |
+| 现有 Slot | 新增字段 | 来源 spec | 实施状态 |
 |---|---|---|---|
-| `commitment` | `advocacy_state: AdvocacyState`、`alignment_state: AlignmentState`、`followup_policy: FollowupPolicy`、`last_outcome: CommitmentOutcomeKind \| None`、`last_outcome_evidence: str`、`last_outcome_at_turn: int` | `docs/specs/aac-lifecycle.md` | Phase 1 (P0) |
-| `case_memory` | `lifecycle: CaseLifecycle`、`ttl_seconds: int \| None`、`expires_at_tick: int \| None`、`provisional_origin: str` | `docs/specs/thinking-loop.md` | Phase 1 (P0) |
-| `regime` | `participation_hint: ParticipationHint`、`depth_hint: CognitiveDepthHint` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 8 | Phase 3 (P2) |
-| `user_model` | `interlocutor_readout: InterlocutorReadout`（首版 6 维 / 终版 12 维）、`readout_confidence: float`、`readout_extraction_method: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 9 | Phase 4 (P3) |
-| `plan_intent` / `execution_result` | `outcome_kind: PlanIntentOutcome \| ExecutionResultOutcome`、`outcome_evidence: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | Phase 3 (P2) |
+| `commitment` | `advocacy_state: AdvocacyState`、`alignment_state: AlignmentState`、`followup_policy: FollowupPolicy`、`last_outcome: CommitmentOutcomeKind \| None`、`last_outcome_evidence: str`、`last_outcome_at_turn: int` | `docs/specs/aac-lifecycle.md` | **已落地**（2026-04-29，Phase 1） |
+| `case_memory` | `lifecycle: CaseLifecycle`、`ttl_seconds: int \| None`、`expires_at_tick: int \| None`、`provisional_origin: str` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，Phase 1 slice 1） |
+| `regime` | `participation_hint: ParticipationHint`、`depth_hint: CognitiveDepthHint` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 8 | 待实施（Phase 3） |
+| `user_model` | `interlocutor_readout: InterlocutorReadout`（首版 6 维 / 终版 12 维）、`readout_confidence: float`、`readout_extraction_method: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 9 | 待实施（Phase 4） |
+| `plan_intent` | `lifecycle_entries: tuple[PlanIntentLifecycleEntry, ...]` + 4 个 outcome 聚合 count（decision_made / assumption_recorded / problem_progress_assessed / outcome_observed）；每 entry 带 `last_outcome: PlanIntentOutcome \| None` / `last_outcome_evidence: str` / `last_outcome_at_turn: int` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | **已落地**（2026-04-29） |
+| `execution_result` | `lifecycle_entries: tuple[ExecutionResultLifecycleEntry, ...]` + 7 个 outcome 聚合 count（user_feedback / instruction / tool_outcome / crystal_eval / crystal_suppression / package_publication / bootstrap_consumption）；每 entry 带 `last_outcome: ExecutionResultOutcome \| None` 及 evidence / turn anchor | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | **已落地**（2026-04-29） |
 
 **字段扩展不变量**：
 
@@ -1298,15 +1299,15 @@ reflection ──────────────→ owner-side writeback: m
 - 字段添加 PR 必须同步更新本注册表
 - 字段必须可以被 reflection writeback 通过 `SemanticProposal` typed path 写入；**禁止** owner 私有 setter 直接赋值
 
-### 6.3 新增 vz-contracts 类型（已批准 propose，待实施）
+### 6.3 新增 vz-contracts 类型
 
 下列类型属于跨 wheel 共享的不可变契约，应当落到 `vz-contracts`：
 
-| 类型 | 来源 spec | 实施 Phase |
+| 类型 | 来源 spec | 实施状态 |
 |---|---|---|
-| `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` | `docs/specs/thinking-loop.md` | Phase 1 |
-| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` | `docs/specs/affordance.md` | Phase 2 |
-| `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | Phase 2 |
+| `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` + `TERMINAL_THINKING_TASK_STATUSES` / `APPLIABLE_THINKING_TASK_STATUSES` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，`volvence_zero.thinking`，Phase 1 slice 1） |
+| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` | `docs/specs/affordance.md` | 待实施（Phase 2） |
+| `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | 待实施（Phase 2） |
 
 ---
 

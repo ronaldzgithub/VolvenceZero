@@ -28,6 +28,7 @@ from enum import Enum
 from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
+from volvence_zero.regime import ParticipationHint, ParticipationLevel
 
 
 class SectionId(str, Enum):
@@ -146,10 +147,24 @@ class PromptPlanner:
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None,
         vitals: VitalsSnapshot | None = None,
+        participation_hint: ParticipationHint | None = None,
     ) -> PromptPlan:
+        """Build a frozen ``PromptPlan``.
+
+        ``participation_hint`` (Gap 8) is a lifeform-side advisory
+        originating in the ``regime`` snapshot. When present the
+        planner applies the hint to filter sections that the
+        regime says should stay out of this turn's prompt. When
+        ``None`` behaviour is identical to pre-Gap-8 \u2014 the planner
+        stays backwards-compatible for any caller that hasn't been
+        updated yet.
+        """
         intent = self._pick_intent(context=context, assembly=assembly)
         sections = self._pick_sections(
             context=context, assembly=assembly, intent=intent, vitals=vitals
+        )
+        sections, hint_rationale = self._apply_participation_hint(
+            sections=sections, participation_hint=participation_hint
         )
         budget = self._build_section_budget(sections=sections, intent=intent)
         question_budget = self._pick_question_budget(intent=intent, assembly=assembly)
@@ -157,7 +172,12 @@ class PromptPlanner:
             tuple(assembly.required_disclaimer_phrases) if assembly is not None else ()
         )
         rationale_tags = self._build_rationale_tags(
-            context=context, assembly=assembly, intent=intent, vitals=vitals
+            context=context,
+            assembly=assembly,
+            intent=intent,
+            vitals=vitals,
+            participation_hint=participation_hint,
+            hint_rationale=hint_rationale,
         )
         return PromptPlan(
             intent=intent,
@@ -296,6 +316,56 @@ class PromptPlanner:
 
         return base
 
+    def _apply_participation_hint(
+        self,
+        *,
+        sections: list[SectionId],
+        participation_hint: ParticipationHint | None,
+    ) -> tuple[list[SectionId], tuple[str, ...]]:
+        """Drop sections the regime's participation hint marks SILENT.
+
+        Mapping:
+
+        * ``panorama_level == SILENT`` \u2014 drop ``CLARIFICATION``
+          (probing the problem space is out of scope for this turn)
+        * ``method_level == SILENT`` \u2014 drop ``REGIME_FRAME`` (no
+          explicit regime-pose preamble needed)
+        * ``task_level == SILENT`` \u2014 drop ``NEXT_STEP`` and
+          ``OPEN_LOOP_HANDOFF`` (no task-progress pressure)
+
+        The planner NEVER drops everything; if all dropping rules
+        would leave the plan empty, the filter is skipped entirely
+        and the rationale records that the hint was over-applied.
+        This keeps pathological hint values from producing an
+        unrenderable plan.
+        """
+        if participation_hint is None:
+            return sections, ()
+        drops: set[SectionId] = set()
+        rationale: list[str] = []
+        if participation_hint.panorama_level is ParticipationLevel.SILENT:
+            drops.add(SectionId.CLARIFICATION)
+            rationale.append("hint_dropped=clarification(panorama=silent)")
+        if participation_hint.method_level is ParticipationLevel.SILENT:
+            drops.add(SectionId.REGIME_FRAME)
+            rationale.append("hint_dropped=regime_frame(method=silent)")
+        if participation_hint.task_level is ParticipationLevel.SILENT:
+            drops.update({SectionId.NEXT_STEP, SectionId.OPEN_LOOP_HANDOFF})
+            rationale.append(
+                "hint_dropped=next_step,open_loop_handoff(task=silent)"
+            )
+        if not drops:
+            return sections, ()
+        filtered = [s for s in sections if s not in drops]
+        if not filtered:
+            # Refuse to ship an empty plan; fall back to the unfiltered
+            # base and record the over-application.
+            return sections, (
+                "hint_overapplied_skipped:"
+                + ";".join(rationale),
+            )
+        return filtered, tuple(rationale)
+
     def _build_section_budget(
         self,
         *,
@@ -335,6 +405,8 @@ class PromptPlanner:
         assembly: ResponseAssemblySnapshot | None,
         intent: TurnIntent,
         vitals: VitalsSnapshot | None = None,
+        participation_hint: ParticipationHint | None = None,
+        hint_rationale: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         tags: list[str] = [f"intent={intent.value}"]
         regime_id = (
@@ -358,4 +430,15 @@ class PromptPlanner:
                 d.name for d in vitals.drive_levels if d.out_of_band
             )
             tags.append(f"vitals_pressure={out_of_band}")
+        # Gap 8: record participation-hint levels and any filter
+        # application so operators can see why sections were dropped.
+        if participation_hint is not None:
+            tags.append(f"flow_kind={participation_hint.flow_kind.value}")
+            tags.append(
+                f"participation=panorama:{participation_hint.panorama_level.value},"
+                f"method:{participation_hint.method_level.value},"
+                f"task:{participation_hint.task_level.value}"
+            )
+            for rationale in hint_rationale:
+                tags.append(rationale)
         return tuple(tags)

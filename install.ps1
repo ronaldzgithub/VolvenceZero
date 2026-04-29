@@ -22,6 +22,8 @@ $Packages = @(
     "packages\vz-temporal",
     "packages\vz-runtime",
     "packages\lifeform-core",
+    "packages\lifeform-thinking",
+    "packages\lifeform-ingestion",
     "packages\lifeform-expression",
     "packages\lifeform-domain-emogpt",
     "packages\lifeform-domain-coding",

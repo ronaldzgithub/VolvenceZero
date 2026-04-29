@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-ingestion"
+version = "0.1.0"
+description = "Lifeform-side ingestion adapter: chunk external corpora (plain text / JSON task results / future book / web) into IngestionEnvelopes and drive them through LifeformSession.run_turn(trigger_kind='ingestion'), so durable learning stays on the canonical R6 session-post slow-loop path (Gap 3)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Only lifeform-core. We explicitly do NOT pull in vz-application or
+    # any kernel-owner wheel: the only way ingestion affects kernel state
+    # is by calling LifeformSession.run_turn(chunk_text, trigger_kind=INGESTION).
+    # That invariant is enforced by tests/contracts/test_ingestion_isolation.py.
+    "lifeform-core==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_ingestion*"]

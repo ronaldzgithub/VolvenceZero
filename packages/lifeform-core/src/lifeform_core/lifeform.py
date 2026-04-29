@@ -30,7 +30,14 @@ from typing import Any
 from lifeform_core.followup_manager import FollowupManager
 from lifeform_core.scene_manager import SceneManager
 from lifeform_core.tick_engine import TickEngine, TickEngineConfig
-from lifeform_core.types import FollowupItem, Scene, TickEvent, TurnSummary
+from lifeform_core.types import (
+    FollowupItem,
+    Scene,
+    TickEvent,
+    TurnSummary,
+    TurnTriggerKind,
+    is_apprenticeship_trigger,
+)
 from lifeform_core.vitals import VitalsBootstrap, VitalsModule, VitalsSnapshot
 
 from volvence_zero.agent.response import (
@@ -253,6 +260,12 @@ class LifeformSession:
         # the cross-cutting lifeform state without poking at internals.
         self._latest_active_snapshots: dict[str, Any] = {}
         self._latest_response_text: str = ""
+        # Gap 4 slice 2a observability: last scene-end case-memory
+        # reconcile result, if any. Typed ``Any`` here to avoid a hard
+        # kernel import at module load time \u2014 the value is a kernel
+        # ``ProvisionalReconcileResult``. None means no scene has
+        # closed yet.
+        self._latest_case_reconcile: Any = None
 
     # ------------------------------------------------------------------
     # Read API
@@ -306,6 +319,18 @@ class LifeformSession:
     def latest_response_text(self) -> str:
         return self._latest_response_text
 
+    @property
+    def latest_case_memory_reconcile(self) -> Any:
+        """Last scene-end case-memory provisional reconcile result.
+
+        Returns a kernel-side ``ProvisionalReconcileResult`` with
+        ``promoted`` / ``retired`` / ``expired`` case_id tuples plus a
+        per-decision audit trail, or ``None`` when no scene has closed
+        yet in this session. Provides observability into the Gap 4
+        case-memory lifecycle without poking owner internals.
+        """
+        return self._latest_case_reconcile
+
     def due_followups(self) -> tuple[FollowupItem, ...]:
         return self._followups.due_now(current_tick=self._tick.tick_index)
 
@@ -335,7 +360,12 @@ class LifeformSession:
     # Turn lifecycle
     # ------------------------------------------------------------------
 
-    async def run_turn(self, user_input: str) -> Any:
+    async def run_turn(
+        self,
+        user_input: str,
+        *,
+        trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT,
+    ) -> Any:
         """Run one turn through the kernel.
 
         Returns the kernel's ``AgentTurnResult`` unchanged so callers can
@@ -343,15 +373,38 @@ class LifeformSession:
 
         * Open a new scene if none exists.
         * Increment the open scene's turn counter.
-        * Record a compact ``TurnSummary``.
+        * Record a compact ``TurnSummary`` (tagged with ``trigger_kind``).
         * Pull ``open_loop`` / ``commitment`` snapshots and feed the
           ``FollowupManager``.
+
+        ``trigger_kind`` (Gap 2) is a pure observability label EXCEPT
+        for two values \u2014 ``APPRENTICE`` / ``INGESTION`` \u2014 which
+        activate the vitals apprentice override for the duration of
+        this turn only. See ``is_apprenticeship_trigger``. The
+        override is restored in a ``finally`` block so even exceptions
+        from the kernel cannot leak the flag into subsequent turns.
         """
         # Open scene if needed; this is the only place a scene auto-opens.
         if self._scene.open_scene is None:
             self._scene.open_scene_now(current_tick=self._tick.tick_index)
 
-        result = await self._brain_session.run_turn_async(user_input)
+        apprentice_turn = is_apprenticeship_trigger(trigger_kind)
+        vitals_override_was_active = (
+            self._vitals.apprentice_override_active
+            if self._vitals is not None
+            else False
+        )
+        if apprentice_turn and self._vitals is not None:
+            self._vitals.set_apprentice_override(True)
+        try:
+            result = await self._brain_session.run_turn_async(user_input)
+        finally:
+            # Leak-free invariant: restore the prior override state
+            # regardless of whether the kernel raised. Nested calls
+            # (tests, scripted scenarios) see the same pre-turn state
+            # they had.
+            if apprentice_turn and self._vitals is not None:
+                self._vitals.set_apprentice_override(vitals_override_was_active)
 
         scene = self._scene.record_turn(current_tick=self._tick.tick_index)
         self._latest_active_snapshots = dict(result.active_snapshots)
@@ -371,25 +424,29 @@ class LifeformSession:
 
         if commitment_snapshot is not None:
             commitment_value = commitment_snapshot.value
-            # Pre-Gap-7 the field name was a typo (``at_risk_commitment_refs``
-            # vs the actual ``at_risk_commitments``) so this branch was a
-            # silent no-op. Fixing the typo now \u2014 plus we feed the new
-            # lifecycle's REJECT entries as additional at-risk refs so a
-            # commitment the user explicitly rejected surfaces a follow-up
-            # alongside owner-side ``status=blocked`` records.
+            # Owner-side ``at_risk_commitments`` (status=blocked records)
+            # are still surfaced via the classic ingest path so product
+            # layers that consumed the old shape keep working.
             at_risk_records = tuple(
                 getattr(commitment_value, "at_risk_commitments", ()) or ()
             )
-            rejected_ids = tuple(
-                entry.record_id
-                for entry in getattr(commitment_value, "lifecycle_entries", ())
-                if hasattr(entry, "alignment_state")
-                and getattr(entry.alignment_state, "value", "") == "reject"
-            )
-            at_risk_refs: tuple[Any, ...] = at_risk_records + rejected_ids
-            if at_risk_refs:
+            if at_risk_records:
                 self._followups.ingest_at_risk_commitments(
-                    at_risk_refs=at_risk_refs,
+                    at_risk_refs=at_risk_records,
+                    current_tick=self._tick.tick_index,
+                )
+            # Gap 7: lifecycle-aware ingestion. We hand the entire
+            # ``lifecycle_entries`` tuple to the follow-up manager and
+            # let it apply the ``followup_policy`` per record \u2014
+            # GENTLE_CHECKIN vs DEFER_ONLY \u2014 rather than fabricating a
+            # classifier here. This keeps the lifeform layer out of the
+            # business of interpreting commitment state.
+            lifecycle_entries = tuple(
+                getattr(commitment_value, "lifecycle_entries", ()) or ()
+            )
+            if lifecycle_entries:
+                self._followups.ingest_commitment_lifecycle(
+                    lifecycle_entries=lifecycle_entries,
                     current_tick=self._tick.tick_index,
                 )
 
@@ -416,15 +473,21 @@ class LifeformSession:
                 ),
                 pe_magnitude=pe_magnitude,
                 elapsed_at_tick=self._tick.tick_index,
+                trigger_kind=trigger_kind,
             )
         )
 
-        # Vitals: this turn recharges drives based on the active regime;
-        # because a real user spoke, ``user_input_present=True`` so the
-        # per-turn baseline applies in addition to any regime-keyed bonus.
+        # Vitals: this turn recharges drives based on the active regime.
+        # ``user_input_present`` applies the per-turn baseline recharge
+        # \u2014 we set it to True for USER_INPUT / FOLLOWUP_DUE /
+        # INTERNAL_DRIVE turns (a real exchange happened) and False
+        # for APPRENTICE / INGESTION turns (operator-supplied content,
+        # not a user engagement signal). Regime-keyed bonuses still
+        # apply in both cases, matching the bootstrap semantics.
         if self._vitals is not None:
             self._vitals.on_turn(
-                regime=result.active_regime, user_input_present=True
+                regime=result.active_regime,
+                user_input_present=not apprentice_turn,
             )
 
         return result
@@ -465,6 +528,15 @@ class LifeformSession:
         runner.begin_new_context(reason=reason)
         if drain_slow_loop:
             await runner.drain_session_post_slow_loop()
+        # Gap 4 slice 2a: after drain (so any provisional cases the
+        # slow loop just wrote are part of the decision set) sweep
+        # case_memory with the lifeform's current tick. Idle-timeout
+        # scenes ``drain_slow_loop=False`` would starve the reconcile,
+        # so we still invoke it \u2014 it is cheap, pure per-record work
+        # gated on ``lifecycle != VALIDATED``.
+        self._latest_case_reconcile = self._brain_session.reconcile_case_memory_provisional(
+            now_tick=self._tick.tick_index,
+        )
         return closed
 
     # ------------------------------------------------------------------

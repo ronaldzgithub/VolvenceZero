@@ -8,6 +8,10 @@ from typing import Literal
 from volvence_zero.agent.response import ResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
 from volvence_zero.application.domain_experience import DomainExperiencePackage
+from volvence_zero.application.storage import (
+    ProvisionalReconcileResult,
+    ProvisionalReconcileThresholds,
+)
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
@@ -182,6 +186,24 @@ class BrainSession:
         except RuntimeError:
             return asyncio.run(self.run_turn_async(user_input))
         raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")
+
+    def reconcile_case_memory_provisional(
+        self,
+        *,
+        now_tick: int,
+        thresholds: ProvisionalReconcileThresholds | None = None,
+    ) -> ProvisionalReconcileResult:
+        """Scene-boundary provisional case sweep (Gap 4 slice 2a).
+
+        Thin pass-through to ``AgentSessionRunner.reconcile_case_memory_provisional``.
+        Lifeform-layer callers (``LifeformSession.end_scene``) use this to
+        drive the case memory lifecycle at scene close. Returns the full
+        result so observers can surface the decision list.
+        """
+        return self._runner.reconcile_case_memory_provisional(
+            now_tick=now_tick,
+            thresholds=thresholds,
+        )
 
 
 class Brain:
