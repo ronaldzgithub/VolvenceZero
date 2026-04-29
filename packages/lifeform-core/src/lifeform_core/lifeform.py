@@ -438,6 +438,43 @@ class LifeformSession:
         return snapshot_fn()
 
     @property
+    def interlocutor_state(self) -> Any:
+        """Gap 9 slice 1: 12-axis readout of the current interlocutor.
+
+        Derived at read time from the latest kernel snapshots
+        (``regime`` / ``dual_track`` / ``evaluation`` /
+        ``prediction_error`` / ``memory`` / ``commitment``) via
+        the pure-function readout in ``volvence_zero.interlocutor``.
+        Returns a default ``InterlocutorState`` (neutral mid-point
+        + low ``readout_confidence``) when no turn has run yet.
+
+        The readout is **not** a kernel owner; it's a continuous
+        view computed at consumer time, same pattern as
+        ``latest_thinking_artifacts_by_consumer``. Downstream
+        product code that wants to style its response against
+        the interlocutor's resistance / openness / rapport should
+        read this property + gate on ``readout_confidence``.
+        """
+        # Local import to keep the module load graph thin; the
+        # readout is pure + stateless, so per-call import is cheap
+        # after the first.
+        from volvence_zero.interlocutor import (
+            build_interlocutor_readout_context_from_snapshots,
+            readout_interlocutor_state,
+        )
+
+        snaps = self._latest_active_snapshots
+        context = build_interlocutor_readout_context_from_snapshots(
+            regime_snapshot=snaps.get("regime"),
+            dual_track_snapshot=snaps.get("dual_track"),
+            evaluation_snapshot=snaps.get("evaluation"),
+            prediction_error_snapshot=snaps.get("prediction_error"),
+            memory_snapshot=snaps.get("memory"),
+            commitment_snapshot=snaps.get("commitment"),
+        )
+        return readout_interlocutor_state(context)
+
+    @property
     def latest_thinking_artifacts_by_consumer(self) -> Mapping[str, Any]:
         """Return the latest appliable mid-reflection artifacts.
 
