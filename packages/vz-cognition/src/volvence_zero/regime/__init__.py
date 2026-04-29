@@ -1,3 +1,9 @@
+from volvence_zero.regime.hint_readout import (
+    HintReadoutContext,
+    build_hint_readout_context,
+    readout_cognitive_depth_hint,
+    readout_participation_hint,
+)
 from volvence_zero.regime.identity import (
     CognitiveDepth,
     CognitiveDepthHint,
@@ -24,6 +30,7 @@ from volvence_zero.regime.identity import (
 __all__ = [
     "CognitiveDepth",
     "CognitiveDepthHint",
+    "HintReadoutContext",
     "REGIME_TEMPLATES",
     "DelayedOutcomeAttribution",
     "DelayedOutcomePayoff",
@@ -38,8 +45,11 @@ __all__ = [
     "RegimeSelectionWeights",
     "RegimeSequencePayoff",
     "RegimeSnapshot",
+    "build_hint_readout_context",
     "build_regime_identity",
     "derive_cognitive_depth_hint",
     "derive_participation_hint",
+    "readout_cognitive_depth_hint",
+    "readout_participation_hint",
     "score_regimes",
 ]

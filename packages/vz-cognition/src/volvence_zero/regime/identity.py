@@ -767,9 +767,26 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         attribution_horizons: tuple[int, ...] = (2,),
         wiring_level: WiringLevel | None = None,
         bootstrap: "RegimeBootstrap | None" = None,
+        hint_readout_mode: str = "readout",
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._attribution_horizons = tuple(min(max(h, 1), 8) for h in attribution_horizons) or (2,)
+        # Gap 8 slice 2: which derivation to use for the
+        # participation / depth hints.
+        #
+        # * ``readout`` (default) - continuous-feature readout over
+        #   the dual_track / evaluation / PE / candidate signals
+        #   via ``hint_readout.readout_*_hint``.
+        # * ``scaffold`` - the slice-1 static ``dict[regime_id -> hint]``
+        #   fallback. Kept available for rollback, for A/B comparison
+        #   in the family report, and for tests that assert the
+        #   pre-slice-2 behaviour.
+        if hint_readout_mode not in {"readout", "scaffold"}:
+            raise ValueError(
+                f"RegimeModule.hint_readout_mode must be 'readout' or "
+                f"'scaffold', got {hint_readout_mode!r}"
+            )
+        self._hint_readout_mode = hint_readout_mode
         # Historical defaults; overridden below if a bootstrap is provided.
         self._historical_effectiveness: dict[str, float] = {
             template.regime_id: 0.5 for template in REGIME_TEMPLATES
@@ -888,6 +905,14 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             f"turns_in_current_regime={self._turns_in_current_regime}, "
             f"delayed_outcomes={len(delayed_outcomes)}, identity_hints={len(identity_hints)}."
         )
+        participation_hint, depth_hint = self._derive_hints(
+            regime_id=active_regime.regime_id,
+            candidates=candidates,
+            memory=memory_value,
+            dual_track=dual_track_value,
+            evaluation=evaluation_value,
+            prediction_error=pe_value,
+        )
         return self.publish(
             RegimeSnapshot(
                 active_regime=active_regime,
@@ -908,11 +933,10 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                     learning_rate=self._selection_weight_lr,
                 ),
                 description=description,
-                # Gap 8: scaffold hint derivation. Stable contract
-                # surface; the derivation itself will be replaced by
-                # metacontroller learned weights in slice 2.
-                participation_hint=derive_participation_hint(active_regime.regime_id),
-                depth_hint=derive_cognitive_depth_hint(active_regime.regime_id),
+                # Gap 8 slice 2: hint derivation routed through
+                # ``_derive_hints`` (readout vs scaffold mode).
+                participation_hint=participation_hint,
+                depth_hint=depth_hint,
             )
         )
 
@@ -981,6 +1005,14 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             if self._previous_regime_id is not None
             else None
         )
+        participation_hint, depth_hint = self._derive_hints(
+            regime_id=active_regime.regime_id,
+            candidates=candidates,
+            memory=memory_snapshot,
+            dual_track=dual_track_snapshot,
+            evaluation=evaluation_snapshot,
+            prediction_error=prediction_error_snapshot,
+        )
         return self.publish(
             RegimeSnapshot(
                 active_regime=active_regime,
@@ -1001,9 +1033,9 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                     learning_rate=self._selection_weight_lr,
                 ),
                 description="Standalone regime snapshot.",
-                # Gap 8: same scaffold derivation as the main path.
-                participation_hint=derive_participation_hint(active_regime.regime_id),
-                depth_hint=derive_cognitive_depth_hint(active_regime.regime_id),
+                # Gap 8 slice 2: routed through ``_derive_hints``.
+                participation_hint=participation_hint,
+                depth_hint=depth_hint,
             )
         )
 
@@ -1241,6 +1273,53 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             elif entry.track is Track.SHARED and "user_input" in entry.tags:
                 hints.append(f"identity:user:{entry.content}")
         return tuple(dict.fromkeys(hints))[:3]
+
+    def _derive_hints(
+        self,
+        *,
+        regime_id: str,
+        candidates: tuple[tuple[str, float], ...],
+        memory: "MemorySnapshot | None",
+        dual_track: "DualTrackSnapshot | None",
+        evaluation: "EvaluationSnapshot | None",
+        prediction_error: "PredictionErrorSnapshot | None",
+    ) -> tuple[ParticipationHint, CognitiveDepthHint]:
+        """Produce the participation + depth hints for the current turn.
+
+        Branches on ``self._hint_readout_mode``:
+
+        * ``readout`` \u2014 Gap 8 slice 2 continuous-feature readout.
+          When cold-start (no dual_track + no evaluation) the
+          readout itself falls back to the scaffold internally and
+          lowers its confidence.
+        * ``scaffold`` \u2014 pre-slice-2 static regime_id lookup.
+          Kept for rollback parity.
+        """
+        if self._hint_readout_mode == "scaffold":
+            return (
+                derive_participation_hint(regime_id),
+                derive_cognitive_depth_hint(regime_id),
+            )
+        # Local import to avoid a top-level cycle: hint_readout
+        # imports the hint dataclasses from ``regime.identity``.
+        from volvence_zero.regime.hint_readout import (
+            build_hint_readout_context,
+            readout_cognitive_depth_hint,
+            readout_participation_hint,
+        )
+        context = build_hint_readout_context(
+            regime_id=regime_id,
+            turns_in_current_regime=self._turns_in_current_regime,
+            candidates=candidates,
+            memory=memory,
+            dual_track=dual_track,
+            evaluation=evaluation,
+            prediction_error=prediction_error,
+        )
+        return (
+            readout_participation_hint(context),
+            readout_cognitive_depth_hint(context),
+        )
 
     def _update_active_regime(
         self,

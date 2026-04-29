@@ -19,13 +19,18 @@ The Lifeform layer's invariants:
    session-post slow loop fires (R6).
 4. **No prompt rendering here.** Prompt assembly is the job of
    ``lifeform-expression`` and is injected via ``response_synthesizer``.
+5. **Thinking loop wiring is optional + protocol-only.** ``LifeformSession``
+   never imports ``lifeform-thinking`` directly. It accepts an adapter
+   object (conforming to ``ThinkingAdapterProtocol``) and calls three
+   narrow methods at turn / scene lifecycle points. Keeps
+   ``lifeform-core`` independent of the thinking wheel.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from lifeform_core.followup_manager import FollowupManager
 from lifeform_core.scene_manager import SceneManager
@@ -52,6 +57,43 @@ from volvence_zero.semantic_state import (
 from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
+
+
+@runtime_checkable
+class ThinkingAdapterProtocol(Protocol):
+    """Narrow structural protocol for a thinking-loop adapter.
+
+    ``LifeformSession`` calls exactly these three methods on the adapter
+    at well-defined turn / scene lifecycle points. The session NEVER
+    pokes at scheduler internals directly \u2014 that would couple
+    ``lifeform-core`` to ``lifeform-thinking``'s concrete types and
+    violate the wheel-boundary rule from SPLIT.md.
+
+    Concrete implementation lives in ``lifeform-thinking.adapter``.
+    Tests can supply a fake adapter implementing only these three
+    methods. Missing-method errors raise at call time (duck-typed), not
+    at adapter construction.
+    """
+
+    async def on_turn_begin(
+        self, *, snapshots: Mapping[str, Any], turn_index: int
+    ) -> None: ...
+
+    async def on_turn_end(
+        self, *, snapshots: Mapping[str, Any], turn_index: int
+    ) -> None: ...
+
+    async def drain(self) -> Any: ...
+
+
+ThinkingAdapterFactory = Callable[[], Any]
+"""Factory that builds a per-session thinking adapter.
+
+Returning ``None`` is legal (= "don't wire thinking for this session").
+The return type is ``Any`` \u2014 not ``ThinkingAdapterProtocol`` \u2014 because
+Python's ``runtime_checkable`` ``Protocol`` does not statically enforce
+method signatures; adapters duck-type at call time anyway.
+"""
 
 
 @dataclass(frozen=True)
@@ -109,6 +151,7 @@ class Lifeform:
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
+        thinking_adapter_factory: ThinkingAdapterFactory | None = None,
     ) -> None:
         self._config = config or LifeformConfig()
         self._brain = Brain(
@@ -120,6 +163,7 @@ class Lifeform:
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
         )
+        self._thinking_adapter_factory = thinking_adapter_factory
         self._init_kwargs = {
             "substrate_runtime": substrate_runtime,
             "substrate_adapter_factory": substrate_adapter_factory,
@@ -127,6 +171,7 @@ class Lifeform:
             "semantic_proposal_runtime": semantic_proposal_runtime,
             "temporal_bootstrap": temporal_bootstrap,
             "regime_bootstrap": regime_bootstrap,
+            "thinking_adapter_factory": thinking_adapter_factory,
         }
 
     @property
@@ -172,6 +217,31 @@ class Lifeform:
         new_kwargs["regime_bootstrap"] = bootstrap
         return Lifeform(self._config, **new_kwargs)
 
+    def with_thinking_adapter_factory(
+        self,
+        factory: ThinkingAdapterFactory | None,
+    ) -> "Lifeform":
+        """Return a clone of this lifeform with the given thinking-adapter factory.
+
+        ``factory`` is called once per ``create_session`` to build a
+        per-session adapter. Pass ``None`` to disable mid-frequency
+        thinking for sessions created from the returned lifeform.
+
+        The typical invocation (Gap 4 slice 2c default) is::
+
+            from lifeform_thinking import build_default_thinking_adapter
+
+            lf = base_lf.with_thinking_adapter_factory(
+                build_default_thinking_adapter
+            )
+
+        ``build_default_thinking_adapter`` has all-defaulted keyword
+        arguments, so it works directly as the factory.
+        """
+        new_kwargs = dict(self._init_kwargs)
+        new_kwargs["thinking_adapter_factory"] = factory
+        return Lifeform(self._config, **new_kwargs)
+
     def create_session(self, *, session_id: str = "lifeform-session") -> "LifeformSession":
         vitals = (
             VitalsModule(self._config.vitals_bootstrap)
@@ -190,6 +260,9 @@ class Lifeform:
             session_id=session_id,
             response_synthesizer=session_synthesizer,
         )
+        thinking_adapter: Any = None
+        if self._thinking_adapter_factory is not None:
+            thinking_adapter = self._thinking_adapter_factory()
         return LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
@@ -199,6 +272,7 @@ class Lifeform:
                 max_pending=self._config.followup_max_pending,
             ),
             vitals=vitals,
+            thinking_adapter=thinking_adapter,
         )
 
     def _maybe_clone_synthesizer_with_vitals(
@@ -249,6 +323,7 @@ class LifeformSession:
         scene: SceneManager,
         followups: FollowupManager,
         vitals: VitalsModule | None = None,
+        thinking_adapter: Any = None,
     ) -> None:
         self._brain_session = brain_session
         self._tick = tick
@@ -266,6 +341,11 @@ class LifeformSession:
         # ``ProvisionalReconcileResult``. None means no scene has
         # closed yet.
         self._latest_case_reconcile: Any = None
+        # Gap 4 slice 2c: optional thinking adapter. Duck-typed (Any)
+        # so lifeform-core does not import lifeform-thinking. The
+        # adapter (when present) is called at three well-defined
+        # lifecycle points; see ``_invoke_thinking_*`` helpers below.
+        self._thinking_adapter: Any = thinking_adapter
 
     # ------------------------------------------------------------------
     # Read API
@@ -331,6 +411,54 @@ class LifeformSession:
         """
         return self._latest_case_reconcile
 
+    @property
+    def thinking_adapter(self) -> Any:
+        """Return the attached thinking adapter (or None).
+
+        Exposed for tests / observability; product code should read
+        ``thinking_adapter_snapshot`` instead of poking at the
+        adapter directly. Returning ``Any`` here avoids a hard
+        import of the ``lifeform-thinking`` wheel.
+        """
+        return self._thinking_adapter
+
+    @property
+    def thinking_adapter_snapshot(self) -> Any:
+        """Return the adapter's ``snapshot()`` or None when no adapter.
+
+        Type is ``Any`` (not a concrete dataclass) to keep
+        ``lifeform-core`` wheel-independent of ``lifeform-thinking``.
+        Consumers that want the typed view cast it themselves.
+        """
+        if self._thinking_adapter is None:
+            return None
+        snapshot_fn = getattr(self._thinking_adapter, "snapshot", None)
+        if snapshot_fn is None:
+            return None
+        return snapshot_fn()
+
+    @property
+    def latest_thinking_artifacts_by_consumer(self) -> Mapping[str, Any]:
+        """Return the latest appliable mid-reflection artifacts.
+
+        Keyed by consumer owner name (``world_temporal`` /
+        ``self_temporal`` by default). Empty dict when no adapter
+        is wired OR no artifacts have completed yet.
+
+        Downstream consumers that want to ACT on an artifact should
+        still check ``artifact.is_appliable()`` before reading
+        ``payload`` \u2014 the adapter filters non-appliable ones, but
+        defense in depth is cheap.
+        """
+        if self._thinking_adapter is None:
+            return {}
+        getter = getattr(
+            self._thinking_adapter, "latest_artifacts_by_consumer", None
+        )
+        if getter is None:
+            return {}
+        return dict(getter)
+
     def due_followups(self) -> tuple[FollowupItem, ...]:
         return self._followups.due_now(current_tick=self._tick.tick_index)
 
@@ -387,6 +515,16 @@ class LifeformSession:
         # Open scene if needed; this is the only place a scene auto-opens.
         if self._scene.open_scene is None:
             self._scene.open_scene_now(current_tick=self._tick.tick_index)
+
+        # Gap 4 slice 2c: collect any thinking artifacts submitted
+        # at the end of the previous turn. This runs BEFORE the
+        # kernel executes this turn so the fingerprint guard sees
+        # the previous-turn snapshots (which are what tasks were
+        # submitted against). After this turn runs, any still-pending
+        # tasks will mismatch on the next collect and go STALE.
+        await self._invoke_thinking_on_turn_begin(
+            turn_index=len(self._turn_summaries),
+        )
 
         apprentice_turn = is_apprenticeship_trigger(trigger_kind)
         vitals_override_was_active = (
@@ -490,6 +628,15 @@ class LifeformSession:
                 user_input_present=not apprentice_turn,
             )
 
+        # Gap 4 slice 2c: submit mid-reflection tasks with the
+        # snapshots this kernel turn just produced. The adapter
+        # closes over its own scheduler; this call returns as soon
+        # as the tasks are enqueued (workers run concurrently).
+        await self._invoke_thinking_on_turn_end(
+            snapshots=result.active_snapshots,
+            turn_index=len(self._turn_summaries),
+        )
+
         return result
 
     async def end_scene(
@@ -537,6 +684,10 @@ class LifeformSession:
         self._latest_case_reconcile = self._brain_session.reconcile_case_memory_provisional(
             now_tick=self._tick.tick_index,
         )
+        # Gap 4 slice 2c: drain the thinking scheduler so no worker
+        # outlives the scene. Terminal artifacts are preserved for
+        # post-mortem observability (``thinking_adapter_snapshot``).
+        await self._invoke_thinking_drain()
         return closed
 
     # ------------------------------------------------------------------
@@ -616,3 +767,81 @@ class LifeformSession:
                 if isinstance(entry, str):
                     out.append(entry)
         return tuple(out)
+
+    # ------------------------------------------------------------------
+    # Gap 4 slice 2c: thinking-loop invocation helpers
+    # ------------------------------------------------------------------
+    #
+    # The three helpers below are the ONLY places in ``lifeform-core``
+    # that call into the thinking adapter. They are deliberately:
+    #
+    # * **Duck-typed.** No ``isinstance`` check against a concrete
+    #   ``ThinkingAdapter`` class \u2014 ``lifeform-core`` must not import
+    #   ``lifeform-thinking``. The adapter conforms to
+    #   ``ThinkingAdapterProtocol`` (defined above) but at call time
+    #   we just look up the method and call it.
+    # * **Non-fatal.** An adapter raising inside any of these hooks
+    #   would leak a failure mode into the normal turn path; we
+    #   catch and log so a buggy adapter cannot break the turn.
+    #   A contract test enforces that the SUPPLIED adapter
+    #   (lifeform-thinking's default one) never actually raises;
+    #   this try/except is defence in depth.
+
+    async def _invoke_thinking_on_turn_begin(self, *, turn_index: int) -> None:
+        if self._thinking_adapter is None:
+            return
+        hook: Callable[..., Awaitable[None]] | None = getattr(
+            self._thinking_adapter, "on_turn_begin", None
+        )
+        if hook is None:
+            return
+        try:
+            await hook(
+                snapshots=self._latest_active_snapshots,
+                turn_index=turn_index,
+            )
+        except Exception:  # noqa: BLE001 - adapter isolation boundary
+            import logging as _logging
+
+            _logging.getLogger("lifeform_core.lifeform").exception(
+                "thinking_adapter.on_turn_begin raised; continuing turn"
+            )
+
+    async def _invoke_thinking_on_turn_end(
+        self,
+        *,
+        snapshots: Mapping[str, Any],
+        turn_index: int,
+    ) -> None:
+        if self._thinking_adapter is None:
+            return
+        hook: Callable[..., Awaitable[None]] | None = getattr(
+            self._thinking_adapter, "on_turn_end", None
+        )
+        if hook is None:
+            return
+        try:
+            await hook(snapshots=snapshots, turn_index=turn_index)
+        except Exception:  # noqa: BLE001 - adapter isolation boundary
+            import logging as _logging
+
+            _logging.getLogger("lifeform_core.lifeform").exception(
+                "thinking_adapter.on_turn_end raised; continuing turn"
+            )
+
+    async def _invoke_thinking_drain(self) -> None:
+        if self._thinking_adapter is None:
+            return
+        hook: Callable[..., Awaitable[Any]] | None = getattr(
+            self._thinking_adapter, "drain", None
+        )
+        if hook is None:
+            return
+        try:
+            await hook()
+        except Exception:  # noqa: BLE001 - adapter isolation boundary
+            import logging as _logging
+
+            _logging.getLogger("lifeform_core.lifeform").exception(
+                "thinking_adapter.drain raised; continuing scene close"
+            )

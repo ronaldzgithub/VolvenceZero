@@ -20,7 +20,10 @@ descriptor's ``output_schema``.
 
 from __future__ import annotations
 
+import asyncio
 import pathlib
+import sys
+import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -237,6 +240,240 @@ async def _grep_backend(
     }
 
 
+_VALID_WRITE_MODES: frozenset[str] = frozenset({"create", "overwrite", "append"})
+_HARD_WRITE_CONTENT_BYTES: int = 10 * 1024 * 1024  # 10 MB hard cap per call
+_DEFAULT_RUN_TEST_SECONDS: int = 30
+_MAX_RUN_TEST_SECONDS: int = 300
+_RUN_TEST_OUTPUT_MAX_BYTES: int = 64 * 1024  # 64 KB per stream, truncated
+
+
+def _resolve_parent_under_sandbox(
+    path_str: str, *, sandbox_root: pathlib.Path
+) -> pathlib.Path:
+    """Resolve a target path that may NOT exist yet (for write_file).
+
+    Sibling of ``resolve_sandbox_path`` but for write paths where
+    the leaf file is allowed to be absent. The parent directory
+    MUST exist (we do not silently mkdir \u2014 that would let a
+    mis-typed path create unexpected subtrees) and the resolved
+    location must still sit inside the sandbox.
+    """
+    if not path_str:
+        raise SandboxPathError(
+            f"path must be non-empty; sandbox_root={sandbox_root!s}"
+        )
+    resolved_root = sandbox_root.resolve(strict=True)
+    candidate_raw = pathlib.Path(path_str)
+    if candidate_raw.is_absolute():
+        candidate = candidate_raw
+    else:
+        candidate = resolved_root / candidate_raw
+    # Non-strict resolve normalises ``..`` segments even for
+    # non-existent last components \u2014 the containment check rejects
+    # escape before the existence check fires.
+    lenient = candidate.resolve(strict=False)
+    try:
+        lenient.relative_to(resolved_root)
+    except ValueError as exc:
+        raise SandboxPathError(
+            f"path {path_str!r} resolves to {lenient!s}, "
+            f"which is outside sandbox {resolved_root!s}"
+        ) from exc
+    parent = lenient.parent
+    if not parent.exists():
+        raise SandboxPathError(
+            f"parent directory {parent!s} does not exist; "
+            f"write_file does not auto-create directories"
+        )
+    if not parent.is_dir():
+        raise SandboxPathError(
+            f"parent {parent!s} is not a directory"
+        )
+    # Final containment check against the STRICT-resolved parent
+    # (so a symlink ``parent -> outside`` is rejected).
+    strict_parent = parent.resolve(strict=True)
+    try:
+        strict_parent.relative_to(resolved_root)
+    except ValueError as exc:
+        raise SandboxPathError(
+            f"write target's parent {strict_parent!s} resolves outside "
+            f"sandbox {resolved_root!s}"
+        ) from exc
+    return strict_parent / lenient.name
+
+
+async def _write_file_backend(
+    parameters: Mapping[str, Any],
+    *,
+    sandbox_root: pathlib.Path,
+) -> Mapping[str, Any]:
+    """Write a UTF-8 text file under the sandbox.
+
+    Modes:
+
+    * ``create`` \u2014 target must NOT already exist. Fails loudly
+      on collision to protect accidental overwrites.
+    * ``overwrite`` \u2014 replace existing content; target may or
+      may not exist.
+    * ``append`` \u2014 target must exist; content is appended.
+
+    Returns a dict matching the descriptor output_schema. The
+    invocation is irreversible from the backend's perspective; the
+    host is responsible for the user-confirmation gate upstream.
+    """
+    path_str = str(parameters.get("path", ""))
+    content = parameters.get("content", "")
+    if not isinstance(content, str):
+        raise SandboxPathError(
+            f"write_file.content must be a string, got {type(content).__name__}"
+        )
+    mode = str(parameters.get("mode", "create"))
+    if mode not in _VALID_WRITE_MODES:
+        raise SandboxPathError(
+            f"write_file.mode must be one of {sorted(_VALID_WRITE_MODES)!r}, "
+            f"got {mode!r}"
+        )
+    encoded = content.encode("utf-8")
+    if len(encoded) > _HARD_WRITE_CONTENT_BYTES:
+        raise SandboxPathError(
+            f"write_file.content exceeds hard cap of "
+            f"{_HARD_WRITE_CONTENT_BYTES} bytes "
+            f"(got {len(encoded)}); split into multiple smaller writes"
+        )
+    resolved = _resolve_parent_under_sandbox(path_str, sandbox_root=sandbox_root)
+    already_exists = resolved.exists()
+    if already_exists and resolved.is_dir():
+        raise SandboxPathError(
+            f"write target {resolved!s} is a directory, not a file"
+        )
+    if mode == "create" and already_exists:
+        raise SandboxPathError(
+            f"write_file mode='create' but {resolved!s} already exists; "
+            f"use mode='overwrite' to replace it"
+        )
+    if mode == "append" and not already_exists:
+        raise SandboxPathError(
+            f"write_file mode='append' but {resolved!s} does not exist; "
+            f"use mode='create' first"
+        )
+    open_mode = {
+        "create": "wb",
+        "overwrite": "wb",
+        "append": "ab",
+    }[mode]
+    with resolved.open(open_mode) as handle:
+        handle.write(encoded)
+    final_size = resolved.stat().st_size
+    return {
+        "resolved_path": str(resolved),
+        "mode": mode,
+        "bytes_written": len(encoded),
+        "final_size_bytes": final_size,
+        "created": not already_exists,
+    }
+
+
+def _bounded_output(raw: bytes, *, max_bytes: int) -> tuple[str, bool]:
+    """Decode ``raw`` (at most ``max_bytes``) as UTF-8 with replacement.
+
+    Returns ``(decoded, truncated)``. Output truncation is silent on
+    the wire (caller appends a marker); subprocesses often produce
+    very long logs and we don't want to OOM the kernel tool bus.
+    """
+    truncated = len(raw) > max_bytes
+    body = raw[:max_bytes].decode("utf-8", errors="replace")
+    if truncated:
+        body = body + "\n... [output truncated] ..."
+    return body, truncated
+
+
+async def _run_test_backend(
+    parameters: Mapping[str, Any],
+    *,
+    sandbox_root: pathlib.Path,
+) -> Mapping[str, Any]:
+    """Run pytest against a single target inside the sandbox.
+
+    Implementation:
+
+    * Target path is resolved through the sandbox guard so a
+      caller cannot run tests outside the workspace.
+    * Subprocess is launched via ``sys.executable -m pytest -q``
+      so pytest doesn't need to be on PATH; ``cwd=sandbox_root``
+      so relative-path fixtures behave as expected.
+    * Timeout uses ``asyncio.wait_for``; on timeout the process is
+      terminated (``proc.kill()``) and we still return a structured
+      result with ``timed_out=True`` and whatever output was
+      captured before the kill.
+    * stdout + stderr are each bounded to 64 KB; above that the
+      tail is replaced with ``... [output truncated] ...``.
+    """
+    test_path_str = str(parameters.get("test_path", ""))
+    if not test_path_str:
+        raise SandboxPathError("run_test.test_path must be non-empty")
+    max_seconds_raw = parameters.get("max_seconds", _DEFAULT_RUN_TEST_SECONDS)
+    if not isinstance(max_seconds_raw, int) or isinstance(max_seconds_raw, bool):
+        raise SandboxPathError(
+            f"run_test.max_seconds must be an integer, got "
+            f"{type(max_seconds_raw).__name__}"
+        )
+    max_seconds = min(max(1, max_seconds_raw), _MAX_RUN_TEST_SECONDS)
+    # pytest accepts "path::node_id" selectors; split off the node id
+    # so the sandbox check only validates the file portion.
+    file_portion = test_path_str.split("::", 1)[0]
+    resolved_file = resolve_sandbox_path(file_portion, sandbox_root=sandbox_root)
+    # Reattach node id (if any) to the resolved file for the pytest arg.
+    node_suffix = test_path_str[len(file_portion):]
+    pytest_arg = str(resolved_file) + node_suffix
+    started_at = time.monotonic()
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        pytest_arg,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(sandbox_root),
+    )
+    timed_out = False
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=max_seconds
+        )
+        exit_code = proc.returncode if proc.returncode is not None else -1
+    except asyncio.TimeoutError:
+        timed_out = True
+        # Fire-and-forget kill + collect whatever we have. On Windows
+        # ``proc.kill()`` terminates the process immediately; on POSIX
+        # it sends SIGKILL.
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            # Already exited between the timeout firing and kill.
+            pass
+        # Drain the pipes so the fds don't leak; give communicate a
+        # short grace period now that the process is signalled.
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            stdout_bytes, stderr_bytes = b"", b""
+        exit_code = proc.returncode if proc.returncode is not None else -9
+    duration = round(time.monotonic() - started_at, 3)
+    stdout_str, _ = _bounded_output(stdout_bytes, max_bytes=_RUN_TEST_OUTPUT_MAX_BYTES)
+    stderr_str, _ = _bounded_output(stderr_bytes, max_bytes=_RUN_TEST_OUTPUT_MAX_BYTES)
+    return {
+        "exit_code": int(exit_code),
+        "stdout": stdout_str,
+        "stderr": stderr_str,
+        "duration_seconds": duration,
+        "timed_out": timed_out,
+        "resolved_path": str(resolved_file),
+    }
+
+
 def build_coding_affordance_backends(
     sandbox_root: pathlib.Path | str,
 ) -> dict[str, Any]:
@@ -262,7 +499,19 @@ def build_coding_affordance_backends(
     async def grep(parameters):
         return await _grep_backend(parameters, sandbox_root=root)
 
-    return {"read_file": read_file, "list_dir": list_dir, "grep": grep}
+    async def write_file(parameters):
+        return await _write_file_backend(parameters, sandbox_root=root)
+
+    async def run_test(parameters):
+        return await _run_test_backend(parameters, sandbox_root=root)
+
+    return {
+        "read_file": read_file,
+        "list_dir": list_dir,
+        "grep": grep,
+        "write_file": write_file,
+        "run_test": run_test,
+    }
 
 
 __all__ = [

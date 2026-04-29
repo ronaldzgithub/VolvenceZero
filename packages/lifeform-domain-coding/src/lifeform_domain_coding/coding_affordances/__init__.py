@@ -27,6 +27,8 @@ from lifeform_domain_coding.coding_affordances.backends import (
 from lifeform_domain_coding.coding_affordances.descriptors import (
     CODING_AFFORDANCE_DESCRIPTORS,
     CONSENT_FILESYSTEM_READ,
+    CONSENT_FILESYSTEM_WRITE,
+    CONSENT_RUN_SHELL_COMMANDS,
 )
 from lifeform_domain_coding.coding_affordances.factory import (
     build_coding_affordance_invoker,
@@ -36,6 +38,8 @@ from lifeform_domain_coding.coding_affordances.factory import (
 __all__ = [
     "CODING_AFFORDANCE_DESCRIPTORS",
     "CONSENT_FILESYSTEM_READ",
+    "CONSENT_FILESYSTEM_WRITE",
+    "CONSENT_RUN_SHELL_COMMANDS",
     "SandboxPathError",
     "build_coding_affordance_backends",
     "build_coding_affordance_invoker",

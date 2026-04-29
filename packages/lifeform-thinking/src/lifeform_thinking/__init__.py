@@ -25,6 +25,14 @@ from volvence_zero.thinking import (
     ThinkingTaskStatus,
 )
 
+from lifeform_thinking.adapter import (
+    CONSUMER_SELF_TEMPORAL,
+    CONSUMER_WORLD_TEMPORAL,
+    MID_REFLECTION_SCOPE,
+    ThinkingAdapter,
+    ThinkingAdapterSnapshot,
+    build_default_thinking_adapter,
+)
 from lifeform_thinking.fingerprint import (
     FingerprintScope,
     compute_fingerprint,
@@ -43,9 +51,14 @@ from lifeform_thinking.workers import (
 
 __all__ = [
     "APPLIABLE_THINKING_TASK_STATUSES",
+    "CONSUMER_SELF_TEMPORAL",
+    "CONSUMER_WORLD_TEMPORAL",
     "FingerprintScope",
+    "MID_REFLECTION_SCOPE",
     "MidReflectionPayload",
     "TERMINAL_THINKING_TASK_STATUSES",
+    "ThinkingAdapter",
+    "ThinkingAdapterSnapshot",
     "ThinkingArtifact",
     "ThinkingDepth",
     "ThinkingLoopSnapshot",
@@ -55,6 +68,7 @@ __all__ = [
     "ThinkingTaskStatus",
     "ThinkingWiringLevel",
     "WorkerFunc",
+    "build_default_thinking_adapter",
     "compute_fingerprint",
     "fingerprints_match",
     "mid_reflection_worker",

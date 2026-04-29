@@ -56,6 +56,12 @@ from lifeform_affordance.renderers import (
     render_markdown,
     render_openai_tools,
 )
+from lifeform_affordance.scorer import (
+    AffordanceScoringContext,
+    build_scored_snapshot,
+    build_scoring_context_from_snapshots,
+    score_affordance,
+)
 from lifeform_affordance.snapshot import (
     AffordanceCandidate,
     AffordanceSnapshot,
@@ -81,15 +87,19 @@ __all__ = [
     "AffordanceRegistryError",
     "AffordanceRegistrySealedError",
     "AffordanceSafety",
+    "AffordanceScoringContext",
     "AffordanceSnapshot",
     "BoundaryCheckContext",
     "BoundaryDenial",
     "BoundaryPolicy",
     "DescriptorDerivedBoundaryPolicy",
     "build_neutral_snapshot",
+    "build_scored_snapshot",
+    "build_scoring_context_from_snapshots",
     "render_catalog_json",
     "render_compact_list",
     "render_markdown",
     "render_openai_tools",
+    "score_affordance",
     "validate_parameters",
 ]

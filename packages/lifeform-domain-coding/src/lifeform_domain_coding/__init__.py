@@ -44,6 +44,8 @@ from volvence_zero.temporal import MetacontrollerParameterSnapshot
 from lifeform_domain_coding.coding_affordances import (
     CODING_AFFORDANCE_DESCRIPTORS,
     CONSENT_FILESYSTEM_READ,
+    CONSENT_FILESYSTEM_WRITE,
+    CONSENT_RUN_SHELL_COMMANDS,
     SandboxPathError,
     build_coding_affordance_backends,
     build_coding_affordance_invoker,
@@ -219,6 +221,8 @@ __all__ = (
     "build_coding_vitals_bootstrap",
     "CODING_AFFORDANCE_DESCRIPTORS",
     "CONSENT_FILESYSTEM_READ",
+    "CONSENT_FILESYSTEM_WRITE",
+    "CONSENT_RUN_SHELL_COMMANDS",
     "has_coding_regime_bootstrap",
     "has_coding_temporal_bootstrap",
     "load_coding_regime_bootstrap",

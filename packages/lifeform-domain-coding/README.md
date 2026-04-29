@@ -20,9 +20,11 @@ from lifeform_domain_coding import (
     build_coding_vitals_bootstrap,      # VitalsBootstrap (3 drives)
     scenarios_dir,                      # path to scripted scenarios
     build_coding_lifeform,              # ready-to-run Lifeform with everything wired
-    # Gap 1 slice 2b: real affordances (read-only)
-    CODING_AFFORDANCE_DESCRIPTORS,      # tuple[AffordanceDescriptor, ...]
-    CONSENT_FILESYSTEM_READ,            # canonical consent grant name
+    # Gap 1 slice 2b+2c: affordances
+    CODING_AFFORDANCE_DESCRIPTORS,      # 5 tuple[AffordanceDescriptor, ...]
+    CONSENT_FILESYSTEM_READ,            # read_file / list_dir / grep gate
+    CONSENT_FILESYSTEM_WRITE,           # write_file gate
+    CONSENT_RUN_SHELL_COMMANDS,         # run_test gate
     build_coding_affordance_registry,   # AffordanceRegistry factory (optionally sealed)
     build_coding_affordance_invoker,    # AffordanceInvoker wired to a sandbox
     build_coding_affordance_backends,   # name -> async backend dict (low-level)
@@ -33,15 +35,17 @@ from lifeform_domain_coding import (
 
 ## Affordances
 
-This vertical ships three **read-only** affordances scoped to a sandbox root:
+This vertical ships five affordances scoped to a sandbox root:
 
-| Name        | Kind | Latency | Consent grant required | Blocked in regimes                                     |
-|-------------|------|---------|------------------------|--------------------------------------------------------|
-| `read_file` | tool | FAST    | `filesystem_read`      | `casual_social` / `emotional_support` / `repair_and_deescalation` |
-| `list_dir`  | tool | INSTANT | `filesystem_read`      | same                                                   |
-| `grep`      | tool | FAST    | `filesystem_read`      | same                                                   |
+| Name         | Kind | Latency | Consent grant required | Extra safety | Blocked in regimes |
+|--------------|------|---------|------------------------|--------------|--------------------|
+| `read_file`  | tool | FAST    | `filesystem_read`      | —            | `casual_social` / `emotional_support` / `repair_and_deescalation` |
+| `list_dir`   | tool | INSTANT | `filesystem_read`      | —            | same               |
+| `grep`       | tool | FAST    | `filesystem_read`      | —            | same               |
+| `write_file` | tool | FAST    | `filesystem_write`     | requires user confirmation + irreversible + audit | same |
+| `run_test`   | tool | SLOW    | `run_shell_commands`   | rate-limited 6/min + audit                 | same |
 
-Writing / running tests / spawning subprocesses lands in Gap 1 slice 2c. Every backend is guarded by `resolve_sandbox_path` which rejects `..` escape, absolute paths outside the sandbox, and symlinks pointing outside the sandbox.
+Every backend is guarded by `resolve_sandbox_path` which rejects `..` escape, absolute paths outside the sandbox, and symlinks pointing outside the sandbox. `write_file` enforces `mode ∈ {create, overwrite, append}` with a 10 MB per-call hard cap and rejects auto-creating missing parent directories. `run_test` shells out via `python -m pytest -q` under `asyncio.create_subprocess_exec` with a configurable timeout (default 30 s, max 300 s); on timeout it kills the process and still returns structured `timed_out=True` output bounded to 64 KB per stream.
 
 Typical host wiring:
 
