@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lifeform-ingestion"
 version = "0.1.0"
-description = "Lifeform-side ingestion adapter: chunk external corpora (plain text / JSON task results / future book / web) into IngestionEnvelopes and drive them through LifeformSession.run_turn(trigger_kind='ingestion'), so durable learning stays on the canonical R6 session-post slow-loop path (Gap 3)."
+description = "Lifeform-side ingestion adapter: chunk external corpora (plain text / JSON task results / PDF / DOCX / future web) into IngestionEnvelopes and drive them through LifeformSession.run_turn(trigger_kind='ingestion'), so durable learning stays on the canonical R6 session-post slow-loop path (Gap 3)."
 requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
@@ -16,6 +16,19 @@ dependencies = [
     # That invariant is enforced by tests/contracts/test_ingestion_isolation.py.
     "lifeform-core==0.1.*",
 ]
+
+[project.optional-dependencies]
+# Gap 3 slice 2: multimedia source adapters.
+#
+# pypdf / python-docx are pure-python wheels (no native deps, MIT /
+# MIT-license) so they install cleanly across platforms without
+# compilation. Users who only use plain_text / task_result do not
+# pay the install cost \u2014 ``pip install lifeform-ingestion`` stays
+# thin; the extras are opt-in:
+#   pip install lifeform-ingestion[pdf,docx]   # both
+#   pip install lifeform-ingestion[pdf]        # just PDF
+pdf = ["pypdf>=4.0"]
+docx = ["python-docx>=1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
