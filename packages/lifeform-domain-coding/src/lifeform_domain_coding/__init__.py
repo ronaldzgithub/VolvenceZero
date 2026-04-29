@@ -41,6 +41,15 @@ from typing import Any
 from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
+from lifeform_domain_coding.coding_affordances import (
+    CODING_AFFORDANCE_DESCRIPTORS,
+    CONSENT_FILESYSTEM_READ,
+    SandboxPathError,
+    build_coding_affordance_backends,
+    build_coding_affordance_invoker,
+    build_coding_affordance_registry,
+    resolve_sandbox_path,
+)
 from lifeform_domain_coding.coding_pack import build_coding_package
 from lifeform_domain_coding.coding_vitals import build_coding_vitals_bootstrap
 
@@ -202,12 +211,19 @@ def build_coding_lifeform(
 
 __all__ = (
     "bootstraps_dir",
+    "build_coding_affordance_backends",
+    "build_coding_affordance_invoker",
+    "build_coding_affordance_registry",
     "build_coding_lifeform",
     "build_coding_package",
     "build_coding_vitals_bootstrap",
+    "CODING_AFFORDANCE_DESCRIPTORS",
+    "CONSENT_FILESYSTEM_READ",
     "has_coding_regime_bootstrap",
     "has_coding_temporal_bootstrap",
     "load_coding_regime_bootstrap",
     "load_coding_temporal_bootstrap",
+    "resolve_sandbox_path",
+    "SandboxPathError",
     "scenarios_dir",
 )

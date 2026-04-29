@@ -183,13 +183,6 @@ async def test_invoker_boundary_denial_does_not_touch_brain_session() -> None:
     invoker = AffordanceInvoker(registry=registry)
     invoker.register_backend("irreversible_op", _echo_backend)
 
-    # Record execution_result BEFORE the attempted invocation.
-    await session.run_turn("baseline")
-    baseline_snap = session.latest_active_snapshots.get("execution_result")
-    baseline_count = (
-        len(baseline_snap.value.attempted_actions) if baseline_snap is not None else 0
-    )
-
     result = await invoker.invoke(
         "irreversible_op",
         {},
@@ -205,14 +198,16 @@ async def test_invoker_boundary_denial_does_not_touch_brain_session() -> None:
         "wiring, so tool_event_ids stays empty."
     )
 
-    # Next turn: execution_result's attempted_actions count must not
-    # have grown because of the denial.
+    # Run another turn and verify the denied event_id never appears
+    # in execution_result. We check by id, not by total count, because
+    # the kernel's default NoOp semantic-proposal runtime adds an
+    # observe record per turn regardless of tool activity \u2014 so
+    # total attempted_actions naturally grows.
     await session.run_turn("anything new?")
-    after_snap = session.latest_active_snapshots.get("execution_result")
-    after_count = (
-        len(after_snap.value.attempted_actions) if after_snap is not None else 0
-    )
-    assert after_count == baseline_count, (
-        f"Denied invocation leaked into execution_result: "
-        f"attempted_actions went from {baseline_count} to {after_count}."
-    )
+    execution_snap = session.latest_active_snapshots.get("execution_result")
+    if execution_snap is not None:
+        all_ids = [r.record_id for r in execution_snap.value.attempted_actions]
+        assert not any("affordance-denied" in rid for rid in all_ids), (
+            f"Denied invocation's event_id leaked into execution_result: "
+            f"{all_ids!r}"
+        )

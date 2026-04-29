@@ -16,12 +16,61 @@ The contrast with `lifeform-domain-emogpt` is the proof of trigger ② in [`SPLI
 
 ```python
 from lifeform_domain_coding import (
-    build_coding_package,           # DomainExperiencePackage data
-    build_coding_vitals_bootstrap,  # VitalsBootstrap (3 drives)
-    scenarios_dir,                  # path to scripted scenarios
-    build_coding_lifeform,          # ready-to-run Lifeform with everything wired
+    build_coding_package,               # DomainExperiencePackage data
+    build_coding_vitals_bootstrap,      # VitalsBootstrap (3 drives)
+    scenarios_dir,                      # path to scripted scenarios
+    build_coding_lifeform,              # ready-to-run Lifeform with everything wired
+    # Gap 1 slice 2b: real affordances (read-only)
+    CODING_AFFORDANCE_DESCRIPTORS,      # tuple[AffordanceDescriptor, ...]
+    CONSENT_FILESYSTEM_READ,            # canonical consent grant name
+    build_coding_affordance_registry,   # AffordanceRegistry factory (optionally sealed)
+    build_coding_affordance_invoker,    # AffordanceInvoker wired to a sandbox
+    build_coding_affordance_backends,   # name -> async backend dict (low-level)
+    resolve_sandbox_path,               # path safety helper (exported for reuse)
+    SandboxPathError,                   # raised on sandbox escape / missing / non-file
 )
 ```
+
+## Affordances
+
+This vertical ships three **read-only** affordances scoped to a sandbox root:
+
+| Name        | Kind | Latency | Consent grant required | Blocked in regimes                                     |
+|-------------|------|---------|------------------------|--------------------------------------------------------|
+| `read_file` | tool | FAST    | `filesystem_read`      | `casual_social` / `emotional_support` / `repair_and_deescalation` |
+| `list_dir`  | tool | INSTANT | `filesystem_read`      | same                                                   |
+| `grep`      | tool | FAST    | `filesystem_read`      | same                                                   |
+
+Writing / running tests / spawning subprocesses lands in Gap 1 slice 2c. Every backend is guarded by `resolve_sandbox_path` which rejects `..` escape, absolute paths outside the sandbox, and symlinks pointing outside the sandbox.
+
+Typical host wiring:
+
+```python
+from lifeform_domain_coding import (
+    build_coding_affordance_invoker,
+    build_coding_lifeform,
+    CONSENT_FILESYSTEM_READ,
+)
+
+lifeform = build_coding_lifeform()
+session = lifeform.create_session(session_id="coding-1")
+invoker = build_coding_affordance_invoker(sandbox_root="/path/to/workspace")
+
+result = await invoker.invoke(
+    "read_file",
+    {"path": "src/main.py"},
+    session=session.brain_session,
+    event_id="turn-001-read-1",
+    granted_consents=frozenset({CONSENT_FILESYSTEM_READ}),
+    active_regime_id="problem_solving",
+)
+# result.payload -> {"content": "...", "truncated": False, ...}
+# A successful call also publishes an execution_result record to
+# the kernel's tool-result bus; denied / invalid calls are silent
+# to the kernel (see docs/specs/affordance.md §6).
+```
+
+See [`docs/specs/affordance.md`](../../docs/specs/affordance.md) and Gap 1 in [`docs/implementation/13_emogpt_prd_alignment_upgrade.md`](../../docs/implementation/13_emogpt_prd_alignment_upgrade.md).
 
 ## Drive set
 
