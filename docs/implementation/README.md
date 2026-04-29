@@ -1,7 +1,7 @@
 # Implementation Documents
 
 > Status: current index
-> Last updated: 2026-04-26
+> Last updated: 2026-04-29
 > Scope: implementation notes that still reflect the current runtime, validation surfaces, and evidence plans
 
 ## Source of Truth Order
@@ -27,6 +27,7 @@ Implementation notes are not the architectural source of truth. They explain con
 - `11_eta_internal_rl_strong_proof_harness.md` - repo-native ETA internal-RL proof harness and matched controls.
 - `12_eta_paper_grade_uplift_plan.md` - current staged path from engineering proof to paper-grade evidence discipline.
 - `13_emogpt_prd_alignment_upgrade.md` - 12-gap upgrade plan that maps EmoGPT v4.0 product PRD requirements onto VolvenceZero's NL+ETA owner contracts; identifies what to borrow, what to refuse, and the phased rollout that preserves SSOT.
+- `14_prd_alignment_sprint_report_2026_04_29.md` - one-day sprint report landing 7 slices across Gap 1 / 3 / 4 / 8 / 9; coding vertical's full "read → edit → run" affordance loop, thinking-loop production wiring, two new continuous-feature readouts (`ParticipationHint`, `InterlocutorState`) replacing lookup tables, and PDF / DOCX ingestion. 178 new tests, no back-compat break.
 
 ## Current Paper-Grade Uplift Stages
 
