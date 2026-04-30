@@ -142,6 +142,7 @@ def build_companion_lifeform(
     use_regime_bootstrap: bool = True,
     use_vitals_bootstrap: bool = True,
     substrate_runtime: Any = None,
+    semantic_proposal_runtime: Any = None,
 ) -> Any:
     """Build a Lifeform with the companion vertical fully wired in.
 
@@ -214,14 +215,42 @@ def build_companion_lifeform(
         temporal_bootstrap=temporal_bootstrap,
         regime_bootstrap=regime_bootstrap,
         substrate_runtime=substrate_runtime,
+        semantic_proposal_runtime=semantic_proposal_runtime,
+    )
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy re-exports for the real-substrate helper.
+
+    Importing ``volvence_zero.substrate`` pulls torch + transformers
+    transitively. We don't want every consumer of
+    ``lifeform_domain_emogpt`` to pay that startup cost; the
+    real-substrate helper imports lazily from ``real_substrate.py``
+    only when the caller actually asks for it.
+    """
+    if name in {
+        "CompanionLifeformBundle",
+        "DEFAULT_REAL_MODEL_ID",
+        "DEFAULT_REAL_MODEL_SOURCE",
+        "build_companion_lifeform_with_real_substrate",
+    }:
+        from lifeform_domain_emogpt import real_substrate
+
+        return getattr(real_substrate, name)
+    raise AttributeError(
+        f"module 'lifeform_domain_emogpt' has no attribute {name!r}"
     )
 
 
 __all__ = (
     "bootstraps_dir",
     "build_companion_lifeform",
+    "build_companion_lifeform_with_real_substrate",
     "build_companion_package",
     "build_companion_vitals_bootstrap",
+    "CompanionLifeformBundle",
+    "DEFAULT_REAL_MODEL_ID",
+    "DEFAULT_REAL_MODEL_SOURCE",
     "load_companion_regime_bootstrap",
     "load_companion_temporal_bootstrap",
     "scenarios_dir",

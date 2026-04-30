@@ -1,0 +1,18 @@
+{
+  "scenario_id": "task-help-concrete",
+  "description": "Concrete task request with no emotional flavour. The lifeform should stay in problem_solving / guided_exploration and not redirect to support.",
+  "turns": [
+    {
+      "user_input": "Can you help me draft a polite email declining a meeting invite?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "It is for tomorrow afternoon and I want to suggest async instead.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Great, that works. One more thing: how do I phrase the async ask?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    }
+  ]
+}

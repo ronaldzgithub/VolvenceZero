@@ -667,6 +667,15 @@ def score_regimes(
             + 0.06 * stabilize_bias
             + pe_relationship_shortfall * 0.06
         ),
+        # Phase 1.8 leaves emotional_support's per-feature weights
+        # unchanged: any boost (even modest, e.g. warmth 0.08->0.12)
+        # creates a synthetic-mode monoculture (warmth/support are
+        # mid-range in synthetic, so a constant lift dominates other
+        # regimes whose discriminative features need actual content).
+        # The lift this regime needs to compete under Qwen comes
+        # entirely from the ``problem_solving`` reductions (which
+        # remove the FREE task_score/task_pressure carry that was
+        # systematically boosting problem_solving on emotional content).
         "emotional_support": _clamp(
             0.28 * self_tension
             + 0.18 * self_presence
@@ -681,6 +690,11 @@ def score_regimes(
             + pe_relationship_shortfall * 0.18
             + pe_regime_shortfall * 0.08
         ),
+        # Phase 1.8 deliberately leaves guided_exploration alone:
+        # under synthetic substrate it correctly differentiates a
+        # range of scenarios via task_score / task_pressure, and
+        # cutting those (as we did for problem_solving) breaks the
+        # calibrator's ability to lift match rate during super_loop.
         "guided_exploration": _clamp(
             0.24 * balance
             + 0.12 * task_score
@@ -692,11 +706,18 @@ def score_regimes(
             + 0.26 * exploration_bias
             + pe_action_shortfall * 0.12
         ),
+        # Phase 1.8 rebalance: ``task_score`` (info_integration) and
+        # ``task_pressure`` collapse to a near-constant ~0.6-0.78 across
+        # all prompts under real Qwen 0.5B substrate (probe data). They
+        # gave problem_solving a structural ~0.18 free lift on every
+        # input, swamping per-content signal. Reduce their carry, and
+        # require ``task_dominance`` (the genuinely-discriminative
+        # task-vs-support delta) to do more of the work.
         "problem_solving": _clamp(
             0.25 * world_tension
-            + 0.16 * task_score
-            + 0.16 * task_pressure
-            + 0.16 * task_dominance
+            + 0.05 * task_score        # was 0.16 - info_integration is too constant
+            + 0.10 * task_pressure     # was 0.16 - same reason
+            + 0.22 * task_dominance    # was 0.16 - this one DOES move with content
             + 0.08 * relationship_stability
             + 0.20 * world_presence
             + 0.20 * world_drive
@@ -705,6 +726,15 @@ def score_regimes(
             + pe_task_shortfall * 0.18
             + pe_action_shortfall * 0.08
         ),
+        # Phase 1.8 leaves repair_and_deescalation unchanged: under
+        # synthetic substrate ``cross_track_tension`` and
+        # ``relationship_stability`` properly fire on rupture
+        # scenarios; touching them breaks
+        # ``test_regime_module_prefers_repair_when_cross_track_tension_is_high``.
+        # Under Qwen these features collapse to ~0 / 1.0 so repair
+        # is structurally suppressed there \u2014 acknowledged limitation
+        # of the formula on small open-weight LLMs; tracked as a
+        # follow-up for substrate-specific recalibration.
         "repair_and_deescalation": _clamp(
             0.34 * cross_tension
             + 0.24 * (1.0 - relationship_stability)
@@ -806,7 +836,15 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             for regime_id, value in bootstrap.selection_weights:
                 if regime_id in known_ids:
                     # Same clip range as the online learning rule.
-                    self._selection_weights[regime_id] = max(0.3, min(2.0, float(value)))
+                    # Selection weights are kept tight to ``[0.85, 1.15]`` so
+                    # they act as a soft prior on top of the per-turn
+                    # ``base_score``, not a winner-takes-all hard switch
+                    # (Gap 9 phase 1.7 architectural fix). With the previous
+                    # ``[0.3, 2.0]`` cap, ``base_score * weight`` clamped at
+                    # 1.0 meant any weight >= ~1.5 caused that regime to
+                    # dominate every prompt regardless of substrate signal,
+                    # producing the monoculture observed in phase 1.5/1.6.
+                    self._selection_weights[regime_id] = max(0.85, min(1.15, float(value)))
             for regime_id, value in bootstrap.historical_effectiveness:
                 if regime_id in known_ids:
                     self._historical_effectiveness[regime_id] = max(0.0, min(1.0, float(value)))
@@ -1157,8 +1195,14 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             )
             current_weight = self._selection_weights.get(pending.regime_id, 1.0)
             advantage = delayed_score - 0.5
+            # Same tightened cap as the bootstrap path above.
             self._selection_weights[pending.regime_id] = max(
-                0.3, min(2.0, current_weight + self._selection_weight_lr * advantage * current_weight)
+                0.85,
+                min(
+                    1.15,
+                    current_weight
+                    + self._selection_weight_lr * advantage * current_weight,
+                ),
             )
             matured.append(
                 DelayedOutcomeAttribution(

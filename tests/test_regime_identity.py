@@ -691,7 +691,10 @@ def test_regime_selection_weights_update_from_outcomes():
 
     for regime_id, weight in module._selection_weights.items():
         assert isinstance(weight, float)
-        assert 0.3 <= weight <= 2.0
+        # Tightened to [0.85, 1.15] in Gap 9 phase 1.7 so selection_weights
+        # acts as a soft prior over base_score rather than a winner-takes-all
+        # hard switch. See regime_calibrator._CLIP_LOW / _CLIP_HIGH.
+        assert 0.85 <= weight <= 1.15
 
 
 def test_regime_effectiveness_trend_in_snapshot():

@@ -1,0 +1,18 @@
+{
+  "scenario_id": "acquaintance-introduction",
+  "description": "First-meeting introduction. User shares basic context but no emotional weight. Expected: acquaintance_building, with light casual_social tolerable.",
+  "turns": [
+    {
+      "user_input": "Hi, this is my first time here. I work in product design and I mostly want someone to bounce ideas with.",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "I tend to be analytical at work and I want to keep that vibe casual here, not therapy.",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "What kind of stuff do you usually end up talking about with people?",
+      "expected_regime_in": ["acquaintance_building", "casual_social", "guided_exploration"]
+    }
+  ]
+}

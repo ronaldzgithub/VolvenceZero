@@ -1,0 +1,22 @@
+{
+  "scenario_id": "task-edit-help",
+  "description": "Concrete editorial / review request. The lifeform should treat this as problem_solving with optional guided_exploration when the user asks for trade-off framing, NOT route to emotional support.",
+  "turns": [
+    {
+      "user_input": "I have a one-paragraph bio I want shorter and punchier. Can you take a pass?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Here it is: 'I am a designer who loves slow craft and works on documentation tools.'",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Two versions please \u2014 one playful, one neutral.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "The neutral one works. Done.",
+      "expected_regime_in": ["problem_solving", "casual_social", "acquaintance_building"]
+    }
+  ]
+}

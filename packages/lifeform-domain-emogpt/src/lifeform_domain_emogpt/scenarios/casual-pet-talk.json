@@ -1,0 +1,18 @@
+{
+  "scenario_id": "casual-pet-talk",
+  "description": "Pure low-pressure chitchat about routine. No problem to solve, no emotional weight. The lifeform should stay casual_social and not over-formalise the conversation.",
+  "turns": [
+    {
+      "user_input": "My cat just sat on my keyboard and refused to move for ten minutes.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "She is a tabby and she is extremely opinionated about her snack times.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Anyway, just wanted to share. Heading off to make tea.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    }
+  ]
+}

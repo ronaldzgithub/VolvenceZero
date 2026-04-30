@@ -30,9 +30,13 @@ Invariants:
 * The calibrator never mutates a Lifeform that is in use \u2014 it only writes
   to its own staging dictionary, then publishes a frozen
   ``RegimeBootstrap``.
-* Selection weights are clipped to ``[0.3, 2.0]`` (same range as the
-  kernel's online rule), so a runaway calibration cannot push any regime
-  out of the candidate set entirely.
+* Selection weights are clipped to ``[0.85, 1.15]`` (same range as the
+  kernel's online rule, post Gap 9 phase 1.7). The narrow cap keeps
+  ``selection_weights`` a soft prior on top of the per-turn
+  ``base_score`` rather than a winner-takes-all hard switch. The
+  previous ``[0.3, 2.0]`` cap let any weight >= ~1.5 dominate every
+  prompt because ``base_score * weight`` clamped at 1.0; that produced
+  the monoculture observed in phase 1.5 / 1.6 calibration.
 * If a turn's ``expected_regime_in`` is empty, the turn is treated as
   unlabelled and skipped (no update applied).
 """
@@ -146,8 +150,8 @@ _DEFAULT_LR = 0.18
 _DEFAULT_NEGATIVE_LR_RATIO = 0.5
 _DEFAULT_DIVERSITY_THRESHOLD = 0.50
 _DEFAULT_DIVERSITY_LR = 0.30
-_CLIP_LOW = 0.3
-_CLIP_HIGH = 2.0
+_CLIP_LOW = 0.85
+_CLIP_HIGH = 1.15
 
 
 async def run_regime_calibrator_async(

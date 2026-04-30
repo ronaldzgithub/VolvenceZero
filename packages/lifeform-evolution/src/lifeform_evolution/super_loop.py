@@ -261,6 +261,7 @@ async def run_super_loop_async(
     diversity_threshold: float = 0.50,
     diversity_lr: float = 0.30,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
+    substrate_runtime: object | None = None,
 ) -> SuperLoopReport:
     """Jointly train (\u03b2_t / z_t) and regime axes over a vertical's scenarios.
 
@@ -293,6 +294,18 @@ async def run_super_loop_async(
         base_config,
         brain_config=_replace(base_config.brain_config, rare_heavy_enabled=False),
     )
+    # Slice 2a phase 1.5: when an explicit substrate runtime is supplied
+    # (typically real Qwen / HF transformer), force ``substrate_mode``
+    # to ``injected`` so all eval lifeforms across rounds share THAT one
+    # runtime instance. Loading Qwen weights once per round would burn
+    # 30+ seconds of overhead per round otherwise.
+    if substrate_runtime is not None:
+        base_config = _replace(
+            base_config,
+            brain_config=_replace(
+                base_config.brain_config, substrate_mode="injected"
+            ),
+        )
 
     # Persistent state across rounds.
     temporal_policy = FullLearnedTemporalPolicy()
@@ -313,6 +326,7 @@ async def run_super_loop_async(
             base_config,
             temporal_bootstrap=temporal_seed,
             regime_bootstrap=regime_bootstrap,
+            substrate_runtime=substrate_runtime,
         )
         bench_reports: list[BenchmarkReport] = []
         for scenario in chosen:
@@ -334,7 +348,10 @@ async def run_super_loop_async(
         # 2) Trace pass: collect SSL training data with the SAME bootstraps,
         #    so the next metacontroller update reflects the post-calibration
         #    behaviour rather than a stale baseline.
-        collector = TraceCollector(temporal_bootstrap=temporal_seed)
+        collector = TraceCollector(
+            temporal_bootstrap=temporal_seed,
+            substrate_runtime=substrate_runtime,
+        )
         try:
             for scenario in chosen:
                 await collector.collect_scenario_async(scenario)
@@ -435,6 +452,7 @@ def run_super_loop(
     diversity_threshold: float = 0.50,
     diversity_lr: float = 0.30,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
+    substrate_runtime: object | None = None,
 ) -> SuperLoopReport:
     import asyncio
 
@@ -448,6 +466,7 @@ def run_super_loop(
             diversity_threshold=diversity_threshold,
             diversity_lr=diversity_lr,
             domain_experience_packages=domain_experience_packages,
+            substrate_runtime=substrate_runtime,
         )
     )
 

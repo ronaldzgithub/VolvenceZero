@@ -158,6 +158,7 @@ class TraceCollector:
         output_path: str | pathlib.Path | None = None,
         config: LifeformConfig | None = None,
         temporal_bootstrap: object | None = None,
+        substrate_runtime: object | None = None,
     ) -> None:
         """Args:
             output_path: optional ``.ndjson`` file to stream rows to.
@@ -169,6 +170,16 @@ class TraceCollector:
                 policy, so traces collected reflect that policy's behaviour
                 rather than a fresh one. This is the seam that lets the
                 multi-round learning loop have policy and traces co-evolve.
+            substrate_runtime: optional pre-built ``OpenWeightResidualRuntime``
+                (synthetic OR real HF transformer). When supplied the
+                underlying lifeform is built with ``substrate_mode="injected"``
+                so traces collected reflect THAT substrate's residual
+                activations / semantic pulls rather than a freshly-built
+                synthetic default. This is the seam slice 2a phase 1.5
+                uses to recalibrate the companion regime classifier on
+                real-LLM signals (Gap 9 follow-up). When ``None`` (default)
+                the lifeform builds its own synthetic runtime, matching
+                pre-phase-1.5 behaviour.
         """
         base_config = config or LifeformConfig()
         # Force rare-heavy off for deterministic traces — the SSL pipeline
@@ -178,9 +189,24 @@ class TraceCollector:
             base_config,
             brain_config=_replace(base_config.brain_config, rare_heavy_enabled=False),
         )
+        # When an injected substrate is supplied, force ``substrate_mode``
+        # to ``injected`` so the brain consumes the supplied runtime
+        # instead of building a fresh one per session. Matches the
+        # discipline in ``build_companion_lifeform``.
+        if substrate_runtime is not None:
+            base_config = _replace(
+                base_config,
+                brain_config=_replace(
+                    base_config.brain_config, substrate_mode="injected"
+                ),
+            )
         base_config = base_config.with_domain_experience((build_companion_package(),))
 
-        self._lifeform = Lifeform(base_config, temporal_bootstrap=temporal_bootstrap)
+        self._lifeform = Lifeform(
+            base_config,
+            temporal_bootstrap=temporal_bootstrap,
+            substrate_runtime=substrate_runtime,
+        )
         self._records: list[TraceTurnRecord] = []
         self._reports: list[TraceScenarioReport] = []
         self._output_path = pathlib.Path(output_path) if output_path is not None else None

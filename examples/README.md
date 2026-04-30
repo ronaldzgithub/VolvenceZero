@@ -50,6 +50,66 @@ multi-turn session that exercises every affordance tier, and
 prints a structured audit trail at the end. No permanent files
 are written outside the temp dir; the sandbox is removed on exit.
 
+### `companionship_real_substrate_demo.py`
+
+Side-by-side companion runs under TWO substrate configurations
+(synthetic default vs real Qwen 2.5 0.5B Instruct via
+`lifeform_domain_emogpt.build_companion_lifeform_with_real_substrate`).
+Same 5-turn script + ingestion phase fed through both; per-phase
+trajectory tables + diff column show whether the substrate switch
+reaches the regime classifier and the 12-axis InterlocutorState.
+
+Run:
+
+```
+python examples/companionship_real_substrate_demo.py
+```
+
+First run downloads ~500 MB of Qwen weights into
+`~/.cache/huggingface/`. Subsequent runs are fast.
+
+This demo is the **slice 2a phase 1 diagnostic**: proves
+substrate plumbing reaches downstream layers, and surfaces
+which axes / regimes still need calibrator work. See Gap 9 /
+companion follow-ups in
+`docs/implementation/13_emogpt_prd_alignment_upgrade.md`.
+
+### `companionship_end_to_end_demo.py`
+
+The companion-vertical counterpart to the coding demo. Drives a
+scripted 5-turn emotional trajectory (post-absence reconnection
+-> emotional disclosure -> guided exploration -> rupture
+signal -> attempted repair) on top of the
+`lifeform_domain_emogpt` companion vertical, with:
+
+1. A "background memo about the user" injected up front via
+   `IngestionPipeline` + `compliance_profile=FORCED`
+   (proves the Gap 2 + Gap 3 cross-product works for
+   apprenticeship narratives, not just tool / task content).
+2. The same `ThinkingAdapter` wiring as the coding demo
+   (Gap 4 slice 2c, SHADOW mode).
+3. `LifeformSession.interlocutor_state` sampled at every
+   phase so the printed audit shows how the 12-axis readout
+   evolves across the conversation.
+
+Run:
+
+```
+python examples/companionship_end_to_end_demo.py
+```
+
+This demo is **a diagnostic instrument**, not a success story.
+Its job is to show what companion vertical produces today on
+canonical companionship inputs. The trajectory table at the
+end is the canonical artifact: scan it for axes that should
+move (rapport on disclosure, resistance on rupture, trust
+across repair) and stay flat -- those are the next companion
+investments.
+
+Findings noted at first run (2026-04-29) are tracked under
+Gap 9 / companion-vertical follow-ups in
+`docs/implementation/13_emogpt_prd_alignment_upgrade.md`.
+
 ## Adding a new demo
 
 1. Create `examples/<name>.py`

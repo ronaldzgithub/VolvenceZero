@@ -53,6 +53,10 @@ from volvence_zero.substrate.self_mod import (
     SubstrateSelfModModule,
     SubstrateSelfModSnapshot,
 )
+from volvence_zero.substrate.text_generation import (
+    HFTextGenerationProvider,
+    TextGenerationProvider,
+)
 
 __all__ = [
     "FeatureSignal",
@@ -60,6 +64,7 @@ __all__ = [
     "feature_signal_value",
     "FeatureSurfaceSubstrateAdapter",
     "GenerationResult",
+    "HFTextGenerationProvider",
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",
     "HookLayerCalibrationReport",
@@ -90,6 +95,7 @@ __all__ = [
     "SurfaceKind",
     "SyntheticOpenWeightResidualRuntime",
     "SubstrateFallbackMode",
+    "TextGenerationProvider",
     "TraceResidualInterventionBackend",
     "TransformersOpenWeightResidualRuntime",
     "TraceStep",

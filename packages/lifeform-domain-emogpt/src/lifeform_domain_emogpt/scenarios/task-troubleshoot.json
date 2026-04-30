@@ -1,0 +1,18 @@
+{
+  "scenario_id": "task-troubleshoot",
+  "description": "Concrete factual debugging question. Expected: problem_solving / guided_exploration. The lifeform must NOT redirect to emotional support, NOT auto-commit to a plan without confirming the failure mode first.",
+  "turns": [
+    {
+      "user_input": "My espresso machine keeps making the shot under-extracted. Beans are fresh, water is good. What else should I check?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Grind size is set to medium-fine. The puck looks dry afterwards, not muddy.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "OK I will tighten the grind. Anything else worth tweaking before I touch anything else?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "scenario_id": "acquaintance-shared-interest",
+  "description": "User shares a hobby / interest with light enthusiasm. The lifeform should mirror with curiosity in acquaintance_building, NOT escalate to emotional support or commit to problem-solving steps.",
+  "turns": [
+    {
+      "user_input": "I have been getting into ceramics on the weekends. Wedging clay is weirdly meditative.",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "Most of my pieces still come out lopsided but I do not really care. It is the focus that I like.",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "Have you ever encountered hobbies people pick up just to slow themselves down?",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration", "casual_social"]
+    }
+  ]
+}
