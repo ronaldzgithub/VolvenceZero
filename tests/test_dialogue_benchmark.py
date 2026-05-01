@@ -14,6 +14,7 @@ from volvence_zero.agent import (
     DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
     OpenDialogueEpisodeState,
     OpenDialogueScenario,
+    TranscriptOnlyUserSimulator,
     DialogueArtifactAcceptanceGateConfig,
     DialogueComprehensiveStage,
     DialogueNLEssenceAcceptanceConfig,
@@ -87,6 +88,7 @@ from volvence_zero.agent.dialogue_benchmark import (
     DialogueExpertReviewItem,
     DialogueExpertReviewPacket,
     DialogueExpertReviewSample,
+    _open_case_summary_metrics,
     evaluate_dialogue_artifact_acceptance,
 )
 from volvence_zero.agent.paper_suite import PaperSuiteProvenance
@@ -691,6 +693,46 @@ def test_build_deterministic_user_simulator_is_reproducible_for_same_seed():
     assert simulator_a.episode_state == simulator_b.episode_state
 
 
+def test_transcript_only_user_simulator_ignores_runtime_telemetry():
+    scenario = get_open_dialogue_scenario("open_repair")
+    simulator_a = TranscriptOnlyUserSimulator(scenario=scenario, seed=11)
+    simulator_b = TranscriptOnlyUserSimulator(scenario=scenario, seed=11)
+    opening_a = simulator_a.next_turn()
+    opening_b = simulator_b.next_turn()
+    assert opening_a == opening_b
+
+    telemetry_heavy_turn = _benchmark_turn(
+        turn_index=1,
+        pe=0.95,
+        reward=-0.9,
+        action="rl+ssl-pe",
+        regime="repair",
+        abstract_action="high-telemetry",
+        switch_gate=0.95,
+        delayed_metric=0.1,
+        bounded_writeback_applied=True,
+        reflection_promotion_eligible=True,
+        pe_triggered=True,
+    )
+    telemetry_light_turn = _benchmark_turn(
+        turn_index=1,
+        pe=0.0,
+        reward=0.0,
+        action="evidence-only",
+        regime="repair",
+        abstract_action="low-telemetry",
+        switch_gate=0.0,
+        delayed_metric=0.1,
+        bounded_writeback_applied=False,
+        reflection_promotion_eligible=False,
+        pe_triggered=False,
+    )
+
+    assert simulator_a.next_turn(last_turn=telemetry_heavy_turn) == simulator_b.next_turn(last_turn=telemetry_light_turn)
+    assert simulator_a.episode_state.user_policy_kind == "transcript-only"
+    assert simulator_b.episode_state.user_policy_kind == "transcript-only"
+
+
 def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     scenario = OpenDialogueScenario(
         scenario_id="open-proof",
@@ -761,6 +803,7 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
             last_stage="consolidation",
             completed=True,
             stop_reason="stable-consolidation",
+            user_policy_kind="transcript-only",
         ),
         turns=turns,
     )
@@ -773,6 +816,7 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     assert check_map["episode-runs-to-completion"] is True
     assert check_map["multi-timescale-evidence-observed"] is True
     assert report.passed is True
+    assert dict(_open_case_summary_metrics(report))["transcript_only_user_policy"] == 1.0
 
 
 def test_run_open_dialogue_case_reuses_runner_turn_path():
@@ -1619,6 +1663,76 @@ def test_dialogue_temporal_advantage_claim_requires_runtime_backbone_consistency
     )
     assert retain_claim["status"] == "retain"
     assert ("runtime_backbone_consistency_observed", 1.0) in [tuple(item) for item in retain_claim["evidence"]]
+
+
+def test_dialogue_rare_heavy_claim_requires_no_rare_heavy_control(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for rare-heavy gate test.",
+    )
+    report_without_control = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        pairwise_effects=(),
+        description="Synthetic report without rare-heavy matched control.",
+    )
+
+    export_dialogue_paper_suite_artifact_bundle(
+        report_without_control,
+        output_dir=tmp_path / "without-control",
+    )
+    missing_payload = json.loads(
+        (tmp_path / "without-control" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    missing_claim = next(
+        verdict for verdict in missing_payload["claim_verdicts"] if verdict["claim_id"] == "claim_rare_heavy_net_benefit"
+    )
+    assert missing_claim["status"] == "fail"
+
+    report_with_control = replace(
+        report_without_control,
+        pairwise_effects=(
+            PairwiseMetricEffect(
+                metric_name="canonical_pass_rate",
+                candidate_label="pe-eta",
+                control_label="pe-eta-no-rare-heavy",
+                sample_count=3,
+                mean_delta=0.25,
+                std_delta=0.0,
+                stderr_delta=0.0,
+                ci_low=0.1,
+                ci_high=0.3,
+                effect_size=1.0,
+                description="Synthetic rare-heavy net benefit over no-rare-heavy control.",
+            ),
+        ),
+    )
+
+    export_dialogue_paper_suite_artifact_bundle(
+        report_with_control,
+        output_dir=tmp_path / "with-control",
+    )
+    retained_payload = json.loads(
+        (tmp_path / "with-control" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    retained_claim = next(
+        verdict for verdict in retained_payload["claim_verdicts"] if verdict["claim_id"] == "claim_rare_heavy_net_benefit"
+    )
+    assert retained_claim["status"] == "retain"
+    assert ("canonical_gap_vs_no_rare_heavy_mean_delta", 0.25) in [tuple(item) for item in retained_claim["evidence"]]
 
 
 def test_run_dialogue_pe_eta_longitudinal_benchmark_emits_cross_session_report():

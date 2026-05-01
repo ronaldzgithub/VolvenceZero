@@ -13,6 +13,7 @@ from volvence_zero.application.storage import (
     ProvisionalReconcileThresholds,
 )
 from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
@@ -229,6 +230,7 @@ class Brain:
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
+        memory_store: MemoryStore | None = None,
     ) -> None:
         self._config = config or BrainConfig()
         self._injected_runtime = substrate_runtime
@@ -237,6 +239,7 @@ class Brain:
         self._semantic_proposal_runtime = semantic_proposal_runtime
         self._temporal_bootstrap = temporal_bootstrap
         self._regime_bootstrap = regime_bootstrap
+        self._memory_store = memory_store
 
     @property
     def config(self) -> BrainConfig:
@@ -260,6 +263,7 @@ class Brain:
             "semantic_proposal_runtime": self._semantic_proposal_runtime,
             "temporal_bootstrap": self._temporal_bootstrap,
             "regime_bootstrap": self._regime_bootstrap,
+            "memory_store": self._memory_store,
         }
 
     def with_domain_experience(
@@ -330,6 +334,7 @@ class Brain:
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
+            memory_store=self._memory_store,
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so

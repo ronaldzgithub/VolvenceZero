@@ -98,6 +98,7 @@ class OpenDialogueEpisodeState:
     last_stage: str = "opening"
     completed: bool = False
     stop_reason: str = "running"
+    user_policy_kind: str = "runtime-linked"
 
 
 class DialogueUserTurnSource(Protocol):
@@ -170,6 +171,7 @@ class DeterministicUserSimulator:
                 last_stage="opening",
                 completed=False,
                 stop_reason="running",
+                user_policy_kind="runtime-linked",
             )
         high_pe = _turn_is_high_pe(
             last_turn,
@@ -194,6 +196,7 @@ class DeterministicUserSimulator:
                 last_stage="consolidation",
                 completed=True,
                 stop_reason="stable-consolidation",
+                user_policy_kind="runtime-linked",
             )
         if adaptive and not high_pe:
             next_stage = "consolidation" if calm_turn_count > 0 else "stabilization"
@@ -216,6 +219,7 @@ class DeterministicUserSimulator:
             last_stage=next_stage,
             completed=False,
             stop_reason="running",
+            user_policy_kind="runtime-linked",
         )
 
     def _prompt_pool(self, stage: str) -> tuple[str, ...]:
@@ -235,6 +239,129 @@ class DeterministicUserSimulator:
             + updated_state.turn_index
             + updated_state.pressure_level
             + updated_state.adaptive_response_count
+            + self._rng.randrange(prompt_count)
+        ) % prompt_count
+
+
+class TranscriptOnlyUserSimulator:
+    def __init__(
+        self,
+        *,
+        scenario: OpenDialogueScenario,
+        seed: int = 0,
+    ) -> None:
+        self._scenario = scenario
+        self._seed = seed
+        self._rng = Random(seed)
+        self._episode_state = OpenDialogueEpisodeState(
+            scenario_id=scenario.scenario_id,
+            user_policy_kind="transcript-only",
+        )
+
+    @property
+    def scenario(self) -> OpenDialogueScenario:
+        return self._scenario
+
+    @property
+    def episode_state(self) -> OpenDialogueEpisodeState:
+        return self._episode_state
+
+    def next_turn(
+        self,
+        *,
+        last_result: AgentTurnResult | None = None,
+        last_turn: "DialogueBenchmarkTurn" | None = None,
+    ) -> str | None:
+        del last_result
+        updated_state = self._advance_state(last_turn=last_turn)
+        self._episode_state = updated_state
+        if updated_state.completed:
+            return None
+        prompt_pool = self._prompt_pool(updated_state.last_stage)
+        prompt_index = self._prompt_index(
+            updated_state=updated_state,
+            prompt_count=len(prompt_pool),
+            last_turn=last_turn,
+        )
+        return prompt_pool[prompt_index]
+
+    def _advance_state(
+        self,
+        *,
+        last_turn: "DialogueBenchmarkTurn" | None,
+    ) -> OpenDialogueEpisodeState:
+        state = self._episode_state
+        if state.completed:
+            return state
+        if state.turn_index >= self._scenario.max_turns:
+            return replace(state, completed=True, stop_reason="max-turns")
+        if last_turn is None:
+            return OpenDialogueEpisodeState(
+                scenario_id=self._scenario.scenario_id,
+                turn_index=1,
+                pressure_level=1,
+                adaptive_response_count=0,
+                calm_turn_count=0,
+                last_stage="opening",
+                completed=False,
+                stop_reason="running",
+                user_policy_kind="transcript-only",
+            )
+        next_turn_index = state.turn_index + 1
+        if next_turn_index > self._scenario.max_turns:
+            return replace(state, completed=True, stop_reason="max-turns")
+        stage = self._stage_for_turn(next_turn_index)
+        pressure_level = {
+            "opening": 1,
+            "escalation": 2,
+            "stabilization": 1,
+            "consolidation": 0,
+        }[stage]
+        completed = stage == "consolidation" and next_turn_index >= self._scenario.max_turns
+        return OpenDialogueEpisodeState(
+            scenario_id=self._scenario.scenario_id,
+            turn_index=next_turn_index,
+            pressure_level=pressure_level,
+            adaptive_response_count=0,
+            calm_turn_count=state.calm_turn_count + int(len(last_turn.assistant_response_text.strip()) > 0),
+            last_stage=stage,
+            completed=completed,
+            stop_reason="transcript-policy-complete" if completed else "running",
+            user_policy_kind="transcript-only",
+        )
+
+    def _stage_for_turn(self, turn_index: int) -> str:
+        if turn_index <= 1:
+            return "opening"
+        if turn_index <= max(2, self._scenario.max_turns // 2):
+            return "escalation"
+        if turn_index < self._scenario.max_turns:
+            return "stabilization"
+        return "consolidation"
+
+    def _prompt_pool(self, stage: str) -> tuple[str, ...]:
+        if stage == "opening":
+            return self._scenario.opening_turns
+        if stage == "escalation":
+            return self._scenario.escalation_turns
+        if stage == "stabilization":
+            return self._scenario.stabilization_turns
+        return self._scenario.consolidation_turns
+
+    def _prompt_index(
+        self,
+        *,
+        updated_state: OpenDialogueEpisodeState,
+        prompt_count: int,
+        last_turn: "DialogueBenchmarkTurn" | None,
+    ) -> int:
+        if prompt_count <= 1:
+            return 0
+        transcript_length = 0 if last_turn is None else len(last_turn.user_input) + len(last_turn.assistant_response_text)
+        return (
+            self._seed
+            + updated_state.turn_index
+            + transcript_length
             + self._rng.randrange(prompt_count)
         ) % prompt_count
 
@@ -3585,6 +3712,7 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("late_episode_stability_score", report.late_episode_stability_score),
         ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
         ("episode_runs_to_completion", float(report.final_episode_state.completed)),
+        ("transcript_only_user_policy", float(report.final_episode_state.user_policy_kind == "transcript-only")),
         ("mean_prediction_error", mean_pe),
         ("mean_switch_gate", mean_switch_gate),
     )
@@ -6381,6 +6509,17 @@ def _build_dialogue_claim_verdicts(
         if reference_report is not None and reference_report.open_ablation_report is not None
         else ()
     )
+    open_transcript_only_case_count = (
+        sum(
+            1
+            for path in reference_report.open_ablation_report.path_reports[:1]
+            for case_report in path.benchmark_report.case_reports
+            if case_report.final_episode_state.user_policy_kind == "transcript-only"
+        )
+        if reference_report is not None and reference_report.open_ablation_report is not None
+        else 0
+    )
+    transcript_only_open_observed = open_transcript_only_case_count > 0
     claim_a_status = _dialogue_claim_status(
         retain_checks=(
             gate_map.get("pe-first", False),
@@ -6479,6 +6618,7 @@ def _build_dialogue_claim_verdicts(
         retain_checks=(
             open_pe_drive is not None and open_pe_drive.ci_low > 0.0,
             has_heldout,
+            transcript_only_open_observed,
             perturbation_summary is not None and perturbation_summary.mean > 0.0,
         ),
         weak_checks=(
@@ -6622,10 +6762,14 @@ def _build_dialogue_claim_verdicts(
                 ("open_gap_vs_pe_drive_off_ci_low", open_pe_drive.ci_low if open_pe_drive is not None else 0.0),
                 ("open_gap_vs_pe_drive_off_mean_delta", open_pe_drive.mean_delta if open_pe_drive is not None else 0.0),
                 ("has_open_heldout", float(has_heldout)),
+                ("transcript_only_open_case_count", float(open_transcript_only_case_count)),
                 ("perturbation_pass_rate_mean", perturbation_summary.mean if perturbation_summary is not None else 0.0),
             ),
             summary="超出 canonical scripted 的 widening claim verdict.",
-            description="Claim C checks whether the retained advantage extends to perturbation and held-out open-environment surfaces.",
+            description=(
+                "Claim C checks whether the retained advantage extends to perturbation, held-out open-environment "
+                "surfaces, and at least one transcript-only open user policy that does not read runtime telemetry."
+            ),
         ),
         ClaimVerdict(
             claim_id="claim_external_human_legibility",

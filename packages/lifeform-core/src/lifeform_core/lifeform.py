@@ -50,6 +50,7 @@ from volvence_zero.agent.response import (
 )
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
+from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
@@ -174,6 +175,7 @@ class Lifeform:
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
+        memory_store: MemoryStore | None = None,
         thinking_adapter_factory: ThinkingAdapterFactory | None = None,
     ) -> None:
         self._config = config or LifeformConfig()
@@ -185,6 +187,7 @@ class Lifeform:
             semantic_proposal_runtime=semantic_proposal_runtime,
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
+            memory_store=memory_store,
         )
         self._thinking_adapter_factory = thinking_adapter_factory
         self._init_kwargs = {
@@ -194,6 +197,7 @@ class Lifeform:
             "semantic_proposal_runtime": semantic_proposal_runtime,
             "temporal_bootstrap": temporal_bootstrap,
             "regime_bootstrap": regime_bootstrap,
+            "memory_store": memory_store,
             "thinking_adapter_factory": thinking_adapter_factory,
         }
 

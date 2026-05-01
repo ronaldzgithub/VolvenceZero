@@ -125,6 +125,8 @@
 - 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
 - 当前 dialogue paper-suite 的外评闭环已补齐到可导出 aggregate：`human_rating_template.csv` 可由评审者填写，`load_dialogue_human_rating_entries_csv(...)` 读取评分，`aggregate_dialogue_human_ratings(...)` 发布 dimension / profile / pairwise preference 聚合；当 artifact bundle 传入 `human_ratings_aggregate` 时，`claim_external_human_legibility` 会用人评结果重新计算，而不是只保留内部 telemetry 结论
 - 当前 `claim_temporal_advantage_over_controls` 已加入 runtime backbone consistency gate：canonical matched-control 优势要升级为 retain，必须同时有 `canonical_runtime_backbone_evidence_rate > 0` 与 `canonical_mean_runtime_backbone_signal_quality > 0`；否则即使 canonical pass gap 为正，也只能作为 weak 证据，避免“全通过但主机制证据为空”的自证循环
+- 当前 dialogue paper-suite 还新增 `claim_rare_heavy_net_benefit`：`pe-eta` 必须显式优于 `pe-eta-no-rare-heavy` matched control 才能把 rare-heavy 收益写成 retain；缺少 no-rare-heavy 对照时该 claim fail，避免把慢尺度 artifact 收益隐含在总通过率中
+- 当前 open-environment 评估新增 `TranscriptOnlyUserSimulator`：它只根据公开 transcript 级输入（上一轮 user / assistant 文本与 turn index）推进 episode，不读取 PE、schedule、writeback、reflection、switch gate 等 runtime telemetry；`OpenDialogueEpisodeState.user_policy_kind` 与 `transcript_only_user_policy` metric 会进入 open report，`claim_beyond_scripted_canonical` 的 retain 条件要求至少出现一个 transcript-only open case
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 

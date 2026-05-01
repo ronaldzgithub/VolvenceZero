@@ -89,8 +89,109 @@
   - 命题：NL slow loop 对 ETA fast path 的初始化、family reuse 或 held-out payoff 有可测增益
   - 需要：slow-loop writeback evidence、credit-to-family write count、long-horizon payoff coverage、matched no-fast-prior / non-nested control
 
+## Dialogue Paper-Suite Evidence Map
+
+本节冻结 dialogue paper-suite 当前 claim 的可操作证据口径。这里的 claim verdict 是 rollout / 外部汇报层的证据读数，不改变 runtime slot，也不成为学习源头。
+
+### `claim_temporal_advantage_over_controls`
+
+**命题**：`pe-eta` 的 canonical scripted 表现优于 matched controls，且优势不是只有结果分数，没有机制证据。
+
+**retain 条件**：
+- `canonical_pass_rate` 对 `pe-drive-off` 的 pairwise effect `ci_low > 0`
+- `canonical_pass_rate` 对 `eta-off` 的 pairwise effect `ci_low > 0`
+- `canonical_runtime_backbone_evidence_rate > 0`
+- `canonical_mean_runtime_backbone_signal_quality > 0`
+
+**weak 条件**：
+- 对 `pe-drive-off` 与 `eta-off` 的 mean delta 为正，但 runtime backbone consistency 不完整，或 CI 尚未站稳
+
+**主要 artifact**：
+- `paper_suite_aggregate.json`
+- `evidence_bundle.json`
+
+**轻量测试节点**：
+- `tests/test_dialogue_benchmark.py::test_dialogue_temporal_advantage_claim_requires_runtime_backbone_consistency`
+
+### `claim_beyond_scripted_canonical`
+
+**命题**：优势不只存在于 canonical scripted cases，还能扩展到 perturbation / held-out open environment，并经过一个不读 runtime telemetry 的 user policy 检查。
+
+**retain 条件**：
+- `open_pass_rate` 对 `pe-drive-off` 的 pairwise effect `ci_low > 0`
+- open scenarios 包含 `open_heldout`
+- 至少一个 open case 的 `OpenDialogueEpisodeState.user_policy_kind == "transcript-only"`
+- `perturbation_pass_rate_pe_eta > 0`
+
+**weak 条件**：
+- open 或 perturbation mean delta 为正，但 held-out 或 transcript-only policy evidence 不完整
+
+**主要 artifact**：
+- `paper_suite_aggregate.json`
+- `reference_emergence_dashboard.json`
+- `evidence_bundle.json`
+
+**轻量测试节点**：
+- `tests/test_dialogue_benchmark.py::test_transcript_only_user_simulator_ignores_runtime_telemetry`
+- `tests/test_dialogue_benchmark.py::test_build_open_dialogue_case_report_uses_open_acceptance_surface`
+
+### `claim_external_human_legibility`
+
+**命题**：优势能被外部评审者在 blinded transcripts 上感知，而不只存在于内部 telemetry。
+
+**retain 条件**：
+- `human_ratings_aggregate.rater_count >= 3`
+- `inter_rater_agreement >= 0.6`
+- 满足以下任一项：
+  - 任一维度 `correlation_with_automatic > 0.1`
+  - 所有 pairwise preferences 都有 `pair_count > 0`、`win_rate >= 0.5`、`mean_score_delta > 0`
+
+**weak 条件**：
+- `rater_count >= 2`
+- `inter_rater_agreement >= 0.4`
+
+**主要 artifact**：
+- `expert_review_packet_blinded.json`
+- `expert_review_key_internal.json`（内部保留，不外发）
+- `human_rating_template.csv`
+- `human_ratings_aggregate.json`
+- `evidence_bundle.json`
+
+**轻量测试节点**：
+- `tests/test_dialogue_benchmark.py::test_dialogue_human_rating_csv_aggregate_exports_external_claim`
+
+### `claim_rare_heavy_net_benefit`
+
+**命题**：rare-heavy / slow artifact 路径带来可测净收益，而不是把收益藏在总通过率中。
+
+**retain 条件**：
+- 存在 `pe-eta` vs `pe-eta-no-rare-heavy` matched control
+- `canonical_pass_rate` 对 `pe-eta-no-rare-heavy` 的 pairwise effect `sample_count > 0`
+- 该 effect 的 `ci_low > 0`
+
+**weak 条件**：
+- 存在 matched control 且 `mean_delta > 0`，但 CI 尚未站稳
+
+**fail 条件**：
+- 缺少 `pe-eta-no-rare-heavy` control，或 no-rare-heavy 对照没有正向 gap
+
+**主要 artifact**：
+- `paper_suite_aggregate.json`
+- `evidence_bundle.json`
+
+**轻量测试节点**：
+- `tests/test_dialogue_benchmark.py::test_dialogue_rare_heavy_claim_requires_no_rare_heavy_control`
+
+### Artifact 使用边界
+
+- `expert_review_packet_blinded.json` 可以外发；`expert_review_key_internal.json` 只用于内部 unblinding 与 aggregate，不得进入 blind-review 包。
+- `paper_suite_aggregate.json` 是 claim verdict 的主入口；它必须由 manifest / provenance / pairwise effects / optional human ratings 重新计算，而不是手工改写。
+- `evidence_bundle.json` 是跨系统消费入口，包含 manifest、provenance、run summaries、aggregate metrics、pairwise effects、blind review packet 与 claim verdicts。
+- 轻量测试只验证 claim 规则和 artifact shape；完整 empirical 结论仍必须来自 `paper-suite-small` / `paper-suite-full` repeated-run aggregate。
+
 ## 变更日志
 
+- 2026-05-01: 新增 Dialogue Paper-Suite Evidence Map，冻结 temporal advantage、beyond scripted、external human legibility、rare-heavy net benefit 四类 dialogue claim 的 retain / weak / fail 条件、artifact 边界与轻量测试入口
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径

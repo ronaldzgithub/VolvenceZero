@@ -681,6 +681,7 @@ def score_regimes(
             + 0.25 * semantic_low_pressure
             + 0.10 * social_pressure
             - 0.20 * decision_delegation_pressure
+            - 0.22 * repair_pressure
             - 0.22 * switch_pressure
             + 0.10 * stabilize_bias
             - 0.14 * repair_bias
@@ -697,7 +698,8 @@ def score_regimes(
             + 0.18 * relationship_stability
             + 0.35 * semantic_low_pressure
             + 0.10 * social_pressure
-            - 0.18 * decision_delegation_pressure
+            - 0.28 * decision_delegation_pressure
+            - 0.28 * repair_pressure
             + 0.16 * self_drive
             + 0.12 * shared_drive
             + 0.08 * balance
