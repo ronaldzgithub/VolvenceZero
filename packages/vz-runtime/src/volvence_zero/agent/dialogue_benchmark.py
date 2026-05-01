@@ -6317,6 +6317,14 @@ def _build_dialogue_paper_suite_pairwise_effects(
         ),
         _dialogue_pairwise_metric_effect(
             run_summaries=run_summaries,
+            metric_name="canonical_pass_rate",
+            candidate_label="pe-eta",
+            control_label="pe-eta-no-rare-heavy",
+            candidate_metric_name="canonical_pass_rate_pe_eta",
+            gap_metric_name="canonical_pass_rate_gap_vs_pe_eta_no_rare_heavy",
+        ),
+        _dialogue_pairwise_metric_effect(
+            run_summaries=run_summaries,
             metric_name="open_pass_rate",
             candidate_label="pe-eta",
             control_label="pe-drive-off",
@@ -6421,6 +6429,7 @@ def _build_dialogue_claim_verdicts(
     )
     canonical_pe_drive = pairwise_map.get(("canonical_pass_rate", "pe-drive-off"))
     canonical_eta_off = pairwise_map.get(("canonical_pass_rate", "eta-off"))
+    canonical_no_rare_heavy = pairwise_map.get(("canonical_pass_rate", "pe-eta-no-rare-heavy"))
     canonical_runtime_evidence = _dialogue_metric_summary(
         aggregate_report,
         "canonical_runtime_backbone_evidence_rate",
@@ -6444,6 +6453,16 @@ def _build_dialogue_claim_verdicts(
         weak_checks=(
             canonical_pe_drive is not None and canonical_pe_drive.mean_delta > 0.0,
             canonical_eta_off is not None and canonical_eta_off.mean_delta > 0.0,
+        ),
+    )
+    claim_rare_heavy_status = _dialogue_claim_status(
+        retain_checks=(
+            canonical_no_rare_heavy is not None and canonical_no_rare_heavy.sample_count > 0,
+            canonical_no_rare_heavy is not None and canonical_no_rare_heavy.ci_low > 0.0,
+        ),
+        weak_checks=(
+            canonical_no_rare_heavy is not None and canonical_no_rare_heavy.sample_count > 0,
+            canonical_no_rare_heavy is not None and canonical_no_rare_heavy.mean_delta > 0.0,
         ),
     )
     open_pe_drive = pairwise_map.get(("open_pass_rate", "pe-drive-off"))
@@ -6567,6 +6586,31 @@ def _build_dialogue_claim_verdicts(
             description=(
                 "Claim B checks whether PE-ETA retains positive pairwise effects over matched controls "
                 "and whether canonical passing behavior is backed by runtime backbone evidence."
+            ),
+        ),
+        ClaimVerdict(
+            claim_id="claim_rare_heavy_net_benefit",
+            status=claim_rare_heavy_status,
+            required_gate_ids=(),
+            supporting_artifacts=("paper_suite_aggregate",),
+            evidence=(
+                (
+                    "canonical_gap_vs_no_rare_heavy_sample_count",
+                    float(canonical_no_rare_heavy.sample_count) if canonical_no_rare_heavy is not None else 0.0,
+                ),
+                (
+                    "canonical_gap_vs_no_rare_heavy_ci_low",
+                    canonical_no_rare_heavy.ci_low if canonical_no_rare_heavy is not None else 0.0,
+                ),
+                (
+                    "canonical_gap_vs_no_rare_heavy_mean_delta",
+                    canonical_no_rare_heavy.mean_delta if canonical_no_rare_heavy is not None else 0.0,
+                ),
+            ),
+            summary="Rare-heavy 净收益对照 claim verdict.",
+            description=(
+                "Claim Rare-Heavy checks whether the full PE-ETA path improves over the matched "
+                "PE-ETA no-rare-heavy control instead of hiding rare-heavy benefit inside aggregate pass rate."
             ),
         ),
         ClaimVerdict(
