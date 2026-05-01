@@ -5974,16 +5974,12 @@ def export_dialogue_paper_suite_artifact_bundle(
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
-    exported_report = (
-        replace(
-            aggregate_report,
-            claim_verdicts=_build_dialogue_claim_verdicts(
-                aggregate_report=aggregate_report,
-                human_ratings_aggregate=human_ratings_aggregate,
-            ),
+    exported_report = replace(
+        aggregate_report,
+        claim_verdicts=_build_dialogue_claim_verdicts(
+            aggregate_report=aggregate_report,
+            human_ratings_aggregate=human_ratings_aggregate,
         )
-        if human_ratings_aggregate is not None
-        else aggregate_report
     )
     written_paths = [
         export_json_artifact(
@@ -6330,6 +6326,20 @@ def _build_dialogue_paper_suite_pairwise_effects(
     )
 
 
+def _dialogue_metric_summary(
+    aggregate_report: DialoguePaperSuiteAggregateReport,
+    metric_name: str,
+) -> MetricIntervalSummary | None:
+    return next(
+        (
+            summary
+            for summary in (*aggregate_report.primary_metric_summaries, *aggregate_report.secondary_metric_summaries)
+            if summary.metric_name == metric_name
+        ),
+        None,
+    )
+
+
 def _dialogue_claim_status(*, retain_checks: tuple[bool, ...], weak_checks: tuple[bool, ...] = ()) -> str:
     if retain_checks and all(retain_checks):
         return "retain"
@@ -6411,10 +6421,25 @@ def _build_dialogue_claim_verdicts(
     )
     canonical_pe_drive = pairwise_map.get(("canonical_pass_rate", "pe-drive-off"))
     canonical_eta_off = pairwise_map.get(("canonical_pass_rate", "eta-off"))
+    canonical_runtime_evidence = _dialogue_metric_summary(
+        aggregate_report,
+        "canonical_runtime_backbone_evidence_rate",
+    )
+    canonical_runtime_quality = _dialogue_metric_summary(
+        aggregate_report,
+        "canonical_mean_runtime_backbone_signal_quality",
+    )
+    runtime_backbone_consistency_ok = (
+        canonical_runtime_evidence is not None
+        and canonical_runtime_evidence.mean > 0.0
+        and canonical_runtime_quality is not None
+        and canonical_runtime_quality.mean > 0.0
+    )
     claim_b_status = _dialogue_claim_status(
         retain_checks=(
             canonical_pe_drive is not None and canonical_pe_drive.ci_low > 0.0,
             canonical_eta_off is not None and canonical_eta_off.ci_low > 0.0,
+            runtime_backbone_consistency_ok,
         ),
         weak_checks=(
             canonical_pe_drive is not None and canonical_pe_drive.mean_delta > 0.0,
@@ -6528,9 +6553,21 @@ def _build_dialogue_claim_verdicts(
                 ("canonical_gap_vs_pe_drive_off_mean_delta", canonical_pe_drive.mean_delta if canonical_pe_drive is not None else 0.0),
                 ("canonical_gap_vs_eta_off_ci_low", canonical_eta_off.ci_low if canonical_eta_off is not None else 0.0),
                 ("canonical_gap_vs_eta_off_mean_delta", canonical_eta_off.mean_delta if canonical_eta_off is not None else 0.0),
+                (
+                    "canonical_runtime_backbone_evidence_rate",
+                    canonical_runtime_evidence.mean if canonical_runtime_evidence is not None else 0.0,
+                ),
+                (
+                    "canonical_runtime_backbone_signal_quality",
+                    canonical_runtime_quality.mean if canonical_runtime_quality is not None else 0.0,
+                ),
+                ("runtime_backbone_consistency_observed", float(runtime_backbone_consistency_ok)),
             ),
             summary="Matched-control 优势 claim verdict.",
-            description="Claim B checks whether PE-ETA retains positive pairwise effects over matched controls across repeated runs.",
+            description=(
+                "Claim B checks whether PE-ETA retains positive pairwise effects over matched controls "
+                "and whether canonical passing behavior is backed by runtime backbone evidence."
+            ),
         ),
         ClaimVerdict(
             claim_id="claim_beyond_scripted_canonical",

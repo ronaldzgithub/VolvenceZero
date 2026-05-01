@@ -78,7 +78,7 @@ from volvence_zero.agent import (
     export_dialogue_paper_suite_artifact_bundle,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
-from volvence_zero.evaluation.backbone import CrossSessionGrowthReport
+from volvence_zero.evaluation.backbone import CrossSessionGrowthReport, MetricIntervalSummary, PairwiseMetricEffect
 from volvence_zero.substrate import LocalSubstrateRuntimeMode, SyntheticOpenWeightResidualRuntime
 from volvence_zero.agent.dialogue_benchmark import (
     DialogueExpertReviewDimension,
@@ -1508,6 +1508,117 @@ def test_dialogue_human_rating_csv_aggregate_exports_external_claim(tmp_path):
         if verdict["claim_id"] == "claim_external_human_legibility"
     )
     assert external_claim["status"] == "retain"
+
+
+def test_dialogue_temporal_advantage_claim_requires_runtime_backbone_consistency(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for runtime consistency gate test.",
+    )
+    pairwise_effects = (
+        PairwiseMetricEffect(
+            metric_name="canonical_pass_rate",
+            candidate_label="pe-eta",
+            control_label="pe-drive-off",
+            sample_count=3,
+            mean_delta=0.4,
+            std_delta=0.0,
+            stderr_delta=0.0,
+            ci_low=0.2,
+            ci_high=0.5,
+            effect_size=1.0,
+            description="Synthetic positive PE drive gap.",
+        ),
+        PairwiseMetricEffect(
+            metric_name="canonical_pass_rate",
+            candidate_label="pe-eta",
+            control_label="eta-off",
+            sample_count=3,
+            mean_delta=0.4,
+            std_delta=0.0,
+            stderr_delta=0.0,
+            ci_low=0.2,
+            ci_high=0.5,
+            effect_size=1.0,
+            description="Synthetic positive ETA off gap.",
+        ),
+    )
+    report_without_runtime = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        pairwise_effects=pairwise_effects,
+        description="Synthetic report without runtime backbone evidence.",
+    )
+
+    export_dialogue_paper_suite_artifact_bundle(
+        report_without_runtime,
+        output_dir=tmp_path / "without-runtime",
+    )
+    weak_payload = json.loads(
+        (tmp_path / "without-runtime" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    weak_claim = next(
+        verdict for verdict in weak_payload["claim_verdicts"] if verdict["claim_id"] == "claim_temporal_advantage_over_controls"
+    )
+    assert weak_claim["status"] == "weak"
+    assert ("runtime_backbone_consistency_observed", 0.0) in [tuple(item) for item in weak_claim["evidence"]]
+
+    runtime_summaries = (
+        MetricIntervalSummary(
+            metric_name="canonical_runtime_backbone_evidence_rate",
+            sample_count=3,
+            mean=1.0,
+            std=0.0,
+            stderr=0.0,
+            ci_low=1.0,
+            ci_high=1.0,
+            min_value=1.0,
+            max_value=1.0,
+            description="Synthetic runtime evidence rate.",
+        ),
+        MetricIntervalSummary(
+            metric_name="canonical_mean_runtime_backbone_signal_quality",
+            sample_count=3,
+            mean=0.8,
+            std=0.0,
+            stderr=0.0,
+            ci_low=0.8,
+            ci_high=0.8,
+            min_value=0.8,
+            max_value=0.8,
+            description="Synthetic runtime signal quality.",
+        ),
+    )
+    report_with_runtime = replace(
+        report_without_runtime,
+        secondary_metric_summaries=runtime_summaries,
+    )
+
+    export_dialogue_paper_suite_artifact_bundle(
+        report_with_runtime,
+        output_dir=tmp_path / "with-runtime",
+    )
+    retain_payload = json.loads(
+        (tmp_path / "with-runtime" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    retain_claim = next(
+        verdict for verdict in retain_payload["claim_verdicts"] if verdict["claim_id"] == "claim_temporal_advantage_over_controls"
+    )
+    assert retain_claim["status"] == "retain"
+    assert ("runtime_backbone_consistency_observed", 1.0) in [tuple(item) for item in retain_claim["evidence"]]
 
 
 def test_run_dialogue_pe_eta_longitudinal_benchmark_emits_cross_session_report():

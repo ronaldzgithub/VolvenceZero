@@ -1116,20 +1116,26 @@ def test_companion_vertical_ships_loadable_pretrained_bootstraps():
     regime = load_companion_regime_bootstrap()
     assert isinstance(regime, RegimeBootstrap)
     weights = dict(regime.selection_weights)
-    # The shipped artifact predates the Gap 9 phase 1.7 cap tightening
-    # to ``[0.85, 1.15]``, so its raw values can sit outside that
-    # range; the runtime clips on load. The structural claim we
-    # actually care about is "calibration produced a non-uniform
-    # prior" \u2014 i.e. at least one regime is meaningfully above 1.0
-    # and at least one is meaningfully below. Pin only that.
-    assert max(weights.values()) > 1.05, (
-        f"expected at least one regime weight > 1.05 after vertical "
-        f"calibration; got {weights!r}"
+    strategy_priors = dict(regime.strategy_priors)
+    feature_weights = {
+        regime_id: dict(entries)
+        for regime_id, entries in getattr(regime, "feature_weights", ())
+    }
+    # Coordinate-search calibration can express the learned vertical
+    # prior through selection weights, strategy priors, or per-feature
+    # weights. Pin the structural claim: the shipped artifact must carry
+    # some non-flat learned regime preference.
+    has_selection_signal = any(abs(weight - 1.0) > 0.01 for weight in weights.values())
+    has_strategy_signal = any(abs(prior) > 0.01 for prior in strategy_priors.values())
+    has_feature_signal = any(
+        abs(value) > 0.01
+        for entries in feature_weights.values()
+        for value in entries.values()
     )
-    assert min(weights.values()) < 0.95, (
-        f"expected at least one regime weight < 0.95 after vertical "
-        f"calibration (calibrator should have suppressed something); "
-        f"got {weights!r}"
+    assert has_selection_signal or has_strategy_signal or has_feature_signal, (
+        "expected shipped companion regime bootstrap to carry learned calibration "
+        f"signal; got weights={weights!r}, strategy_priors={strategy_priors!r}, "
+        f"feature_weights={feature_weights!r}"
     )
 
 

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 
 from volvence_zero.dual_track import DualTrackModule, derive_cross_track_tension
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
-from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.runtime import Snapshot, WiringLevel, propagate
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -13,6 +14,11 @@ from volvence_zero.substrate import (
     SurfaceKind,
 )
 from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
+
+
+@dataclass(frozen=True)
+class _SemanticOwnerValue:
+    description: str
 
 
 def test_dual_track_standalone_builds_separated_track_states():
@@ -229,3 +235,47 @@ def test_dual_track_module_uses_substrate_semantic_signals_for_track_separation(
 
     assert snapshot.value.world_track.controller_code[0] > snapshot.value.self_track.controller_code[0]
     assert "substrate:task-focused" in snapshot.value.world_track.active_goals
+
+
+def test_dual_track_prefers_semantic_owner_descriptions_over_shared_projection():
+    memory = MemoryStore()
+    shared_entry = memory.write(
+        MemoryWriteRequest(
+            content="keep things steady while choosing the next concrete step",
+            track=Track.SHARED,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.75,
+        ),
+        timestamp_ms=50,
+    )
+    semantic_snapshots = {
+        "plan_intent": Snapshot(
+            slot_name="plan_intent",
+            owner="PlanIntentModule",
+            version=1,
+            timestamp_ms=1,
+            value=_SemanticOwnerValue(description="owner-published plan state"),
+        ),
+        "relationship_state": Snapshot(
+            slot_name="relationship_state",
+            owner="RelationshipStateModule",
+            version=1,
+            timestamp_ms=1,
+            value=_SemanticOwnerValue(description="owner-published relationship state"),
+        ),
+    }
+    module = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+
+    snapshot = asyncio.run(
+        module.process_standalone(
+            world_entries=(),
+            self_entries=(),
+            shared_entries=(shared_entry,),
+            semantic_snapshots=semantic_snapshots,
+        )
+    )
+
+    assert snapshot.value.world_track.active_goals[0] == "plan_intent:owner-published plan state"
+    assert snapshot.value.self_track.active_goals[0] == "relationship_state:owner-published relationship state"
+    assert snapshot.value.world_track.controller_source == "semantic-owner"
+    assert snapshot.value.self_track.controller_source == "semantic-owner"

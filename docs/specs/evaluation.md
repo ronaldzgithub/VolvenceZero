@@ -124,6 +124,7 @@
 - 当前 ETA claim verdict 已新增 `claim_eta_real_open_weight_residual_control`：它把 real residual capture/control 是否成立从 `claim_eta_internal_rl_advantage` 中拆出来，避免把 synthetic proof harness 的 success 误写成真实 open-weight residual-control success
 - 当前 dialogue paper-suite 还会导出固定 `expert_review_packet`，把 canonical transcripts 压成 blinded review items，作为外部/专家锚点评测输入，而不是要求评审者手工从 benchmark logs 里摘录文本
 - 当前 dialogue paper-suite 的外评闭环已补齐到可导出 aggregate：`human_rating_template.csv` 可由评审者填写，`load_dialogue_human_rating_entries_csv(...)` 读取评分，`aggregate_dialogue_human_ratings(...)` 发布 dimension / profile / pairwise preference 聚合；当 artifact bundle 传入 `human_ratings_aggregate` 时，`claim_external_human_legibility` 会用人评结果重新计算，而不是只保留内部 telemetry 结论
+- 当前 `claim_temporal_advantage_over_controls` 已加入 runtime backbone consistency gate：canonical matched-control 优势要升级为 retain，必须同时有 `canonical_runtime_backbone_evidence_rate > 0` 与 `canonical_mean_runtime_backbone_signal_quality > 0`；否则即使 canonical pass gap 为正，也只能作为 weak 证据，避免“全通过但主机制证据为空”的自证循环
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 

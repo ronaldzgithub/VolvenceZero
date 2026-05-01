@@ -5,7 +5,7 @@ import math
 from typing import Any, Mapping
 
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
-from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
 
@@ -85,6 +85,21 @@ SELF_TRACK_PROTOTYPE = _semantic_embedding(
     "feel overwhelmed need support warmth steadiness reassurance emotional care trust repair "
     "先陪我稳住 情绪支持 别急着解决 温暖 安抚 信任 修复"
 )
+SEMANTIC_OWNER_GOAL_LIMIT = 3
+SEMANTIC_OWNER_CONTEXT_WEIGHT = 0.35
+WORLD_SEMANTIC_OWNER_SLOTS = (
+    "plan_intent",
+    "execution_result",
+    "goal_value",
+    "belief_assumption",
+)
+SELF_SEMANTIC_OWNER_SLOTS = (
+    "relationship_state",
+    "user_model",
+    "commitment",
+    "boundary_consent",
+)
+SEMANTIC_OWNER_SLOTS = WORLD_SEMANTIC_OWNER_SLOTS + SELF_SEMANTIC_OWNER_SLOTS
 
 
 def _shared_track_affinity(entry: MemoryEntry, *, track: Track) -> float:
@@ -128,6 +143,24 @@ def _shared_track_controller_code(
     return (_clamp(weighted_strength), _clamp(weighted_presence))
 
 
+def _semantic_owner_context(
+    semantic_snapshots: Mapping[str, Snapshot[object]],
+    *,
+    track: Track,
+) -> tuple[tuple[str, ...], float]:
+    slot_names = WORLD_SEMANTIC_OWNER_SLOTS if track is Track.WORLD else SELF_SEMANTIC_OWNER_SLOTS
+    goals: list[str] = []
+    for slot_name in slot_names:
+        snapshot = semantic_snapshots.get(slot_name)
+        if snapshot is None or isinstance(snapshot.value, RuntimePlaceholderValue):
+            continue
+        description = snapshot.value.description
+        if description:
+            goals.append(f"{slot_name}:{description}")
+    presence = _clamp(len(goals) / max(len(slot_names), 1))
+    return (tuple(goals[:SEMANTIC_OWNER_GOAL_LIMIT]), presence)
+
+
 def _memory_controller_code(entries: tuple[MemoryEntry, ...]) -> tuple[float, ...]:
     if not entries:
         return (0.0, 0.0)
@@ -168,10 +201,16 @@ def derive_track_state(
     temporal_snapshot: Any = None,
     track_temporal_snapshot: Any = None,
     substrate_snapshot: SubstrateSnapshot | None = None,
+    semantic_owner_goals: tuple[str, ...] = (),
+    semantic_owner_presence: float = 0.0,
 ) -> TrackState:
     projected_shared_entries = _project_shared_entries(shared_entries, track=track)
     base_entries = memory_entries if memory_entries else projected_shared_entries[:3]
-    goals = list(_goal_from_entry(entry) for entry in base_entries[:3])
+    goals = list(semantic_owner_goals[:SEMANTIC_OWNER_GOAL_LIMIT])
+    goals.extend(
+        _goal_from_entry(entry)
+        for entry in base_entries[: max(0, SEMANTIC_OWNER_GOAL_LIMIT - len(goals))]
+    )
     temporal_controller_code, abstract_action_hint, action_family_version_hint, controller_source = _temporal_track_context(
         track=track,
         temporal_snapshot=temporal_snapshot,
@@ -194,10 +233,26 @@ def derive_track_state(
     if not memory_entries and projected_shared_entries:
         memory_controller_code = _shared_track_controller_code(projected_shared_entries, track=track)
     controller_code = (
-        _clamp(memory_controller_code[0] * 0.35 + temporal_controller_code[0] * 0.25 + semantic_primary * 0.40),
-        _clamp(memory_controller_code[1] * 0.25 + temporal_controller_code[1] * 0.30 + semantic_shared * 0.45),
+        _clamp(
+            memory_controller_code[0] * 0.25
+            + temporal_controller_code[0] * 0.20
+            + semantic_primary * 0.20
+            + semantic_owner_presence * SEMANTIC_OWNER_CONTEXT_WEIGHT
+        ),
+        _clamp(
+            memory_controller_code[1] * 0.20
+            + temporal_controller_code[1] * 0.25
+            + semantic_shared * 0.35
+            + semantic_owner_presence * 0.20
+        ),
         temporal_controller_code[2],
     )
+    if semantic_owner_goals:
+        controller_source = (
+            "semantic-owner"
+            if controller_source == "memory"
+            else f"{controller_source}+semantic-owner"
+        )
     return TrackState(
         track=track,
         active_goals=tuple(goals),
@@ -268,7 +323,14 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
     slot_name = "dual_track"
     owner = "DualTrackModule"
     value_type = DualTrackSnapshot
-    dependencies = ("memory", "temporal_abstraction", "world_temporal", "self_temporal", "substrate")
+    dependencies = (
+        "memory",
+        "temporal_abstraction",
+        "world_temporal",
+        "self_temporal",
+        "substrate",
+        *SEMANTIC_OWNER_SLOTS,
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[DualTrackSnapshot]:
@@ -277,6 +339,19 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         world_temporal_snapshot = upstream.get("world_temporal")
         self_temporal_snapshot = upstream.get("self_temporal")
         substrate_snapshot = upstream.get("substrate")
+        semantic_snapshots = {
+            slot_name: snapshot
+            for slot_name in SEMANTIC_OWNER_SLOTS
+            if (snapshot := upstream.get(slot_name)) is not None
+        }
+        world_semantic_goals, world_semantic_presence = _semantic_owner_context(
+            semantic_snapshots,
+            track=Track.WORLD,
+        )
+        self_semantic_goals, self_semantic_presence = _semantic_owner_context(
+            semantic_snapshots,
+            track=Track.SELF,
+        )
         memory_value = memory_snapshot.value
         temporal_value = temporal_snapshot.value if temporal_snapshot is not None else None
         world_temporal_value = world_temporal_snapshot.value if world_temporal_snapshot is not None else None
@@ -289,6 +364,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 temporal_snapshot=temporal_value,
                 track_temporal_snapshot=world_temporal_value,
                 substrate_snapshot=substrate_value,
+                semantic_owner_goals=world_semantic_goals,
+                semantic_owner_presence=world_semantic_presence,
             )
             self_track = derive_track_state(
                 track=Track.SELF,
@@ -296,6 +373,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 temporal_snapshot=temporal_value,
                 track_temporal_snapshot=self_temporal_value,
                 substrate_snapshot=substrate_value,
+                semantic_owner_goals=self_semantic_goals,
+                semantic_owner_presence=self_semantic_presence,
             )
         else:
             world_entries = entries_by_track(memory_value, Track.WORLD)
@@ -308,6 +387,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 temporal_snapshot=temporal_value,
                 track_temporal_snapshot=world_temporal_value,
                 substrate_snapshot=substrate_value,
+                semantic_owner_goals=world_semantic_goals,
+                semantic_owner_presence=world_semantic_presence,
             )
             self_track = derive_track_state(
                 track=Track.SELF,
@@ -316,6 +397,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 temporal_snapshot=temporal_value,
                 track_temporal_snapshot=self_temporal_value,
                 substrate_snapshot=substrate_value,
+                semantic_owner_goals=self_semantic_goals,
+                semantic_owner_presence=self_semantic_presence,
             )
 
         cross_track_tension = derive_cross_track_tension(
@@ -347,6 +430,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         self_temporal_snapshot = kwargs.get("self_temporal_snapshot")
         substrate_snapshot = kwargs.get("substrate_snapshot")
         shared_entries = kwargs.get("shared_entries")
+        semantic_snapshots = kwargs.get("semantic_snapshots")
         if world_entries is None:
             world_entries = ()
         if self_entries is None:
@@ -359,6 +443,18 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             raise TypeError("self_entries must be a tuple when provided.")
         if not isinstance(shared_entries, tuple):
             raise TypeError("shared_entries must be a tuple when provided.")
+        if semantic_snapshots is None:
+            semantic_snapshots = {}
+        if not isinstance(semantic_snapshots, Mapping):
+            raise TypeError("semantic_snapshots must be a mapping when provided.")
+        world_semantic_goals, world_semantic_presence = _semantic_owner_context(
+            semantic_snapshots,
+            track=Track.WORLD,
+        )
+        self_semantic_goals, self_semantic_presence = _semantic_owner_context(
+            semantic_snapshots,
+            track=Track.SELF,
+        )
 
         world_track = derive_track_state(
             track=Track.WORLD,
@@ -367,6 +463,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             temporal_snapshot=temporal_snapshot,
             track_temporal_snapshot=world_temporal_snapshot,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
+            semantic_owner_goals=world_semantic_goals,
+            semantic_owner_presence=world_semantic_presence,
         )
         self_track = derive_track_state(
             track=Track.SELF,
@@ -375,6 +473,8 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             temporal_snapshot=temporal_snapshot,
             track_temporal_snapshot=self_temporal_snapshot,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
+            semantic_owner_goals=self_semantic_goals,
+            semantic_owner_presence=self_semantic_presence,
         )
         cross_track_tension = derive_cross_track_tension(
             world_track,

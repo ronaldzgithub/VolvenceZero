@@ -1,0 +1,6 @@
+# Files ripgrep / Grep tool should skip in addition to .gitignore.
+# Kept separate so artifacts/ stays under git but does not slow searches.
+artifacts/
+_dl.log
+_diag_*.json
+_test_isolate.log
