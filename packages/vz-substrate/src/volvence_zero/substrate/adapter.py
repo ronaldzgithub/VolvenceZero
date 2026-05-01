@@ -236,34 +236,57 @@ def _softmax(values: tuple[float, ...], *, temperature: float = 0.18) -> tuple[f
     return tuple(value / total for value in exp_values)
 
 
-_SEMANTIC_PROTOTYPES: Mapping[str, tuple[float, ...]] = {
-    "task": _semantic_embedding(
-        "concrete problem solving troubleshoot edit revise check compare debug fix "
-        "configuration steps next action code implementation python script error index "
-        "jwt verification signature library dashboard reporting operations espresso "
-        "machine grind puck meeting email draft phrase"
+_SEMANTIC_PROTOTYPES: Mapping[str, tuple[tuple[float, ...], ...]] = {
+    "task": (
+        _semantic_embedding("debug error stack trace repro failing test python script index"),
+        _semantic_embedding("write edit draft revise email phrase wording document copy"),
+        _semantic_embedding("troubleshoot machine configuration check tweak fix concrete steps"),
+        _semantic_embedding("security jwt verification signature library implementation review"),
+        _semantic_embedding("dashboard reporting operations product requirement feature request"),
     ),
-    "support": _semantic_embedding(
-        "emotional support feeling overwhelmed sad hurt scared vulnerable reassurance "
-        "steady presence warmth trust comfort stuck heavy tense heard low mood"
+    "support": (
+        _semantic_embedding("feeling stuck low mood sad heavy overwhelmed tense"),
+        _semantic_embedding("wanted to be heard comfort reassurance steady presence warmth"),
+        _semantic_embedding("vulnerable scared hurt emotional support trust safety"),
+        _semantic_embedding("work feels heavy home tense do not know why"),
     ),
-    "repair": _semantic_embedding(
-        "repair rupture cold procedural blame trust broken start over apologize "
-        "felt dismissed restore safety"
+    "repair": (
+        _semantic_embedding("repair rupture cold procedural not asking optimize"),
+        _semantic_embedding("felt dismissed blame apology trust broken restore safety"),
+        _semantic_embedding("start over back up response landed badly"),
     ),
-    "exploration": _semantic_embedding(
-        "think through options uncertainty decide explore tradeoff not sure clarify "
-        "life decision direction"
+    "exploration": (
+        _semantic_embedding("think through options uncertainty decide explore tradeoff"),
+        _semantic_embedding("not sure clarify direction life decision career thread"),
+        _semantic_embedding("what should we pick first slow down consider"),
     ),
-    "directive": _semantic_embedding(
-        "do this write change fix check tweak concrete answer direct instruction "
-        "specific next step"
+    "directive": (
+        _semantic_embedding("do this write change fix check tweak concrete answer"),
+        _semantic_embedding("specific next step direct instruction tell me exactly"),
+        _semantic_embedding("can you help me draft phrase anything else worth tweaking"),
+    ),
+    "decision_delegation": (
+        _semantic_embedding("tell me what the right answer is decide for me"),
+        _semantic_embedding("should I leave my job move cities stay near family"),
+        _semantic_embedding("major life decision high stakes choice parents career"),
+        _semantic_embedding("what thread should we pick first slow down decide direction"),
     ),
 }
-_SOCIAL_PROTOTYPE = _semantic_embedding(
-    "casual social chat hello introduction getting to know shared interest pet "
-    "weekend hobby friendly light conversation acquaintance"
+_SOCIAL_PROTOTYPES: tuple[tuple[float, ...], ...] = (
+    _semantic_embedding("casual social chat hello saying hi catch up talk later"),
+    _semantic_embedding("introduction first time getting to know bounce ideas"),
+    _semantic_embedding("shared interest hobby weekend ceramics clay meditative"),
+    _semantic_embedding("pet cat tabby snack tea keyboard funny light conversation"),
 )
+
+
+def _anchor_similarity(
+    embedding: tuple[float, ...],
+    prototypes: tuple[tuple[float, ...], ...],
+) -> float:
+    if not prototypes:
+        return 0.0
+    return max(_cosine_similarity(embedding, prototype) for prototype in prototypes)
 
 
 def semantic_feature_surface_from_text(
@@ -281,8 +304,8 @@ def semantic_feature_surface_from_text(
 
     embedding = _semantic_embedding(source_text)
     similarities = {
-        name: _cosine_similarity(embedding, prototype)
-        for name, prototype in _SEMANTIC_PROTOTYPES.items()
+        name: _anchor_similarity(embedding, prototypes)
+        for name, prototypes in _SEMANTIC_PROTOTYPES.items()
     }
     mean_similarity = sum(similarities.values()) / max(len(similarities), 1)
     centered = tuple(similarities[name] - mean_similarity for name in _SEMANTIC_PROTOTYPES)
@@ -295,8 +318,12 @@ def semantic_feature_surface_from_text(
         )
         margin = _clamp_unit(0.5 + (target - runner_up) * 4.0)
         pulls[name] = _clamp_unit(distribution[name] * 0.78 + margin * 0.22)
+    decision_context = max(pulls["directive"], pulls["exploration"])
+    pulls["decision_delegation"] = _clamp_unit(
+        pulls["decision_delegation"] * (0.45 + decision_context * 0.90)
+    )
     social_absolute = _clamp_unit(
-        (_cosine_similarity(embedding, _SOCIAL_PROTOTYPE) + 1.0) / 2.0
+        (_anchor_similarity(embedding, _SOCIAL_PROTOTYPES) + 1.0) / 2.0
     )
     social_pull = _clamp_unit(max(social_absolute - 0.50, 0.0) * 2.0)
 
@@ -306,6 +333,11 @@ def semantic_feature_surface_from_text(
         FeatureSignal(name="semantic_repair_pull", values=(pulls["repair"],), source=source),
         FeatureSignal(name="semantic_exploration_pull", values=(pulls["exploration"],), source=source),
         FeatureSignal(name="semantic_directive_pull", values=(pulls["directive"],), source=source),
+        FeatureSignal(
+            name="semantic_decision_delegation_pull",
+            values=(pulls["decision_delegation"],),
+            source=source,
+        ),
         FeatureSignal(name="semantic_social_pull", values=(social_pull,), source=source),
         FeatureSignal(name="semantic_surface_active", values=(1.0,), source=source),
         FeatureSignal(name="fallback_active", values=(_clamp_unit(fallback_active),), source=source),

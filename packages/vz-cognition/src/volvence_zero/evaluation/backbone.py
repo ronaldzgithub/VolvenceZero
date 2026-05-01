@@ -1706,6 +1706,14 @@ class EvaluationBackbone:
             if substrate_snapshot is not None
             else 0.0
         )
+        semantic_decision_delegation_pull = (
+            feature_signal_value(
+                substrate_snapshot.feature_surface,
+                name="semantic_decision_delegation_pull",
+            )
+            if substrate_snapshot is not None
+            else 0.0
+        )
         fallback_active = (
             feature_signal_value(substrate_snapshot.feature_surface, name="fallback_active")
             if substrate_snapshot is not None
@@ -1874,6 +1882,18 @@ class EvaluationBackbone:
                 evidence=(
                     f"Read directly from substrate.semantic_repair_pull={semantic_repair_pull:.2f} "
                     "so regime selection can distinguish repair turns from low-pressure social turns."
+                ),
+            ),
+            EvaluationScore(
+                family="safety",
+                metric_name="decision_delegation_pressure",
+                value=semantic_decision_delegation_pull,
+                confidence=0.62,
+                evidence=(
+                    "Read from substrate.semantic_decision_delegation_pull="
+                    f"{semantic_decision_delegation_pull:.2f}; high values mean the user "
+                    "is asking the system to carry a high-stakes decision rather than "
+                    "just answer a bounded task."
                 ),
             ),
             EvaluationScore(

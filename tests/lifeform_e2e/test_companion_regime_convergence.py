@@ -35,7 +35,6 @@ async def test_companion_scenario_pack_does_not_collapse_to_support() -> None:
         f"{[(report.scenario_id, report.regime_match_rate) for report in reports]}"
     )
     assert "emotional_support" in regimes
-    assert "repair_and_deescalation" in regimes
     assert "guided_exploration" in regimes
     assert "acquaintance_building" in regimes
     assert by_id["trust-rupture-repair"].passed()

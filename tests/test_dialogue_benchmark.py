@@ -24,6 +24,7 @@ from volvence_zero.agent import (
     DialogueLongitudinalBenchmarkReport,
     DialogueRealComprehensiveBenchmarkConfig,
     DialogueSharedRunnerFactories,
+    DialoguePaperSuiteAggregateReport,
     evaluate_dialogue_nl_essence_acceptance,
     build_dialogue_nl_essence_assessment,
     build_dialogue_emergence_dashboard,
@@ -31,6 +32,8 @@ from volvence_zero.agent import (
     build_dialogue_expert_review_internal_key,
     build_dialogue_expert_review_packet,
     build_dialogue_paper_suite_manifest,
+    aggregate_dialogue_human_ratings,
+    load_dialogue_human_rating_entries_csv,
     build_pe_dominance_case_diagnosis_report,
     build_pe_dominance_comparison_report,
     build_replay_selection_training_traces,
@@ -77,7 +80,16 @@ from volvence_zero.agent import (
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.evaluation.backbone import CrossSessionGrowthReport
 from volvence_zero.substrate import LocalSubstrateRuntimeMode, SyntheticOpenWeightResidualRuntime
-from volvence_zero.agent.dialogue_benchmark import evaluate_dialogue_artifact_acceptance
+from volvence_zero.agent.dialogue_benchmark import (
+    DialogueExpertReviewDimension,
+    DialogueExpertReviewInternalKey,
+    DialogueExpertReviewInternalKeyEntry,
+    DialogueExpertReviewItem,
+    DialogueExpertReviewPacket,
+    DialogueExpertReviewSample,
+    evaluate_dialogue_artifact_acceptance,
+)
+from volvence_zero.agent.paper_suite import PaperSuiteProvenance
 
 
 def _synthetic_runner(case: ScriptedDialogueCase) -> AgentSessionRunner:
@@ -1369,6 +1381,133 @@ def test_build_dialogue_expert_review_packet_blinds_profile_labels():
     assert first_item.prompt_context
     assert internal_key.entries
     assert all(entry.source_profile_label in {"pe-eta", "pe-drive-off", "eta-off"} for entry in internal_key.entries)
+
+
+def test_dialogue_human_rating_csv_aggregate_exports_external_claim(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    dimension = DialogueExpertReviewDimension(
+        dimension_id="relationship_continuity",
+        prompt="Rate which transcript better preserves trust and continuity.",
+        description="Synthetic external review dimension.",
+    )
+    samples = (
+        DialogueExpertReviewSample(
+            sample_id="item_01:sample_A",
+            blinded_label="sample_A",
+            transcript=(("user", "candidate"),),
+            description="Candidate transcript.",
+        ),
+        DialogueExpertReviewSample(
+            sample_id="item_01:sample_B",
+            blinded_label="sample_B",
+            transcript=(("user", "control"),),
+            description="Control transcript.",
+        ),
+    )
+    packet = DialogueExpertReviewPacket(
+        packet_id="test-review",
+        source_suite_id="dialogue-ci-smoke",
+        items=(
+            DialogueExpertReviewItem(
+                item_id="item_01",
+                prompt_context="Compare blinded transcripts.",
+                samples=samples,
+                review_dimensions=(dimension,),
+                description="Synthetic review item.",
+            ),
+        ),
+        review_dimensions=(dimension,),
+        description="Synthetic review packet.",
+    )
+    internal_key = DialogueExpertReviewInternalKey(
+        packet_id="test-review",
+        baseline_label="pe-eta",
+        entries=(
+            DialogueExpertReviewInternalKeyEntry(
+                item_id="item_01",
+                sample_id="item_01:sample_A",
+                blinded_label="sample_A",
+                source_case_id="case-1",
+                source_profile_label="pe-eta",
+                description="Candidate key.",
+            ),
+            DialogueExpertReviewInternalKeyEntry(
+                item_id="item_01",
+                sample_id="item_01:sample_B",
+                blinded_label="sample_B",
+                source_case_id="case-1",
+                source_profile_label="eta-off",
+                description="Control key.",
+            ),
+        ),
+        description="Synthetic internal key.",
+    )
+    report = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=PaperSuiteProvenance(
+            git_sha="test",
+            git_branch="test",
+            working_tree_dirty=False,
+            python_version="test",
+            platform="test",
+            dependency_versions=(),
+            dependency_digest="test",
+            manifest_hash="test",
+            runtime_descriptor=(),
+            description="Synthetic provenance for human rating aggregate export test.",
+        ),
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        description="Synthetic paper-suite aggregate for human rating aggregate export test.",
+    )
+    profile_by_sample = {
+        entry.sample_id: entry.source_profile_label
+        for entry in internal_key.entries
+    }
+    csv_path = tmp_path / "ratings.csv"
+    lines = ["rater_id,item_id,sample_id,blinded_label,dimension_id,score"]
+    for rater_id in ("rater-a", "rater-b", "rater-c"):
+        for item in packet.items:
+            for sample in item.samples:
+                for dimension in packet.review_dimensions:
+                    score = 5 if profile_by_sample[sample.sample_id] == "pe-eta" else 2
+                    lines.append(
+                        f"{rater_id},{item.item_id},{sample.sample_id},{sample.blinded_label},{dimension.dimension_id},{score}"
+                    )
+    csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    entries = load_dialogue_human_rating_entries_csv(csv_path)
+    aggregate = aggregate_dialogue_human_ratings(
+        packet=packet,
+        entries=entries,
+        internal_key=internal_key,
+    )
+
+    assert aggregate.rater_count == 3
+    assert aggregate.profile_scores
+    pe_eta_profile = next(
+        profile for profile in aggregate.profile_scores if profile.source_profile_label == "pe-eta"
+    )
+    assert pe_eta_profile.mean_score == 5
+    assert aggregate.pairwise_preferences
+    assert all(pair.win_rate == 1.0 for pair in aggregate.pairwise_preferences)
+
+    export_dialogue_paper_suite_artifact_bundle(
+        report,
+        output_dir=tmp_path / "bundle",
+        human_ratings_aggregate=aggregate,
+    )
+    aggregate_payload = json.loads(
+        (tmp_path / "bundle" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    external_claim = next(
+        verdict
+        for verdict in aggregate_payload["claim_verdicts"]
+        if verdict["claim_id"] == "claim_external_human_legibility"
+    )
+    assert external_claim["status"] == "retain"
 
 
 def test_run_dialogue_pe_eta_longitudinal_benchmark_emits_cross_session_report():

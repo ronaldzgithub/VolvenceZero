@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, is_dataclass, replace
 from enum import Enum
@@ -927,6 +928,28 @@ class DialogueHumanRatingDimensionAggregate:
 
 
 @dataclass(frozen=True)
+class DialogueHumanRatingProfileAggregate:
+    source_profile_label: str
+    mean_score: float
+    sample_count: int
+    dimension_scores: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueHumanRatingPairwiseAggregate:
+    candidate_profile_label: str
+    control_profile_label: str
+    win_count: int
+    loss_count: int
+    tie_count: int
+    pair_count: int
+    win_rate: float
+    mean_score_delta: float
+    description: str
+
+
+@dataclass(frozen=True)
 class DialogueHumanRatingsAggregate:
     packet_id: str
     entry_count: int
@@ -934,6 +957,8 @@ class DialogueHumanRatingsAggregate:
     inter_rater_agreement: float
     dimensions: tuple[DialogueHumanRatingDimensionAggregate, ...]
     description: str
+    profile_scores: tuple[DialogueHumanRatingProfileAggregate, ...] = ()
+    pairwise_preferences: tuple[DialogueHumanRatingPairwiseAggregate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -5852,6 +5877,41 @@ def export_dialogue_human_rating_template(
     return tuple(written_paths)
 
 
+def load_dialogue_human_rating_entries_csv(
+    csv_path: str | Path,
+    *,
+    description: str = "Loaded from human rating CSV.",
+) -> tuple[DialogueHumanRatingEntry, ...]:
+    required_fields = ("rater_id", "item_id", "sample_id", "dimension_id", "score")
+    with Path(csv_path).open("r", encoding="utf-8", newline="") as rating_file:
+        reader = csv.DictReader(rating_file)
+        if reader.fieldnames is None:
+            raise ValueError("Human rating CSV is missing a header row.")
+        missing_fields = tuple(field for field in required_fields if field not in reader.fieldnames)
+        if missing_fields:
+            raise ValueError(f"Human rating CSV is missing required fields: {missing_fields}")
+        entries: list[DialogueHumanRatingEntry] = []
+        for row_index, row in enumerate(reader, start=2):
+            score_text = row["score"].strip()
+            if not score_text:
+                continue
+            try:
+                score = float(score_text)
+            except ValueError as exc:
+                raise ValueError(f"Invalid score at human rating CSV row {row_index}: {score_text!r}") from exc
+            entries.append(
+                DialogueHumanRatingEntry(
+                    rater_id=row["rater_id"].strip(),
+                    item_id=row["item_id"].strip(),
+                    sample_id=row["sample_id"].strip(),
+                    dimension_id=row["dimension_id"].strip(),
+                    score=score,
+                    description=description,
+                )
+            )
+    return tuple(entries)
+
+
 def aggregate_dialogue_human_ratings(
     *,
     packet: DialogueExpertReviewPacket,
@@ -5895,6 +5955,14 @@ def aggregate_dialogue_human_ratings(
             f"Dialogue human rating aggregate summarized {len(entries)} ratings "
             f"from {len(rater_ids)} raters."
         ),
+        profile_scores=_dialogue_human_rating_profile_aggregates(
+            entries=entries,
+            internal_key=internal_key,
+        ),
+        pairwise_preferences=_dialogue_human_rating_pairwise_aggregates(
+            entries=entries,
+            internal_key=internal_key,
+        ),
     )
 
 
@@ -5906,47 +5974,58 @@ def export_dialogue_paper_suite_artifact_bundle(
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
+    exported_report = (
+        replace(
+            aggregate_report,
+            claim_verdicts=_build_dialogue_claim_verdicts(
+                aggregate_report=aggregate_report,
+                human_ratings_aggregate=human_ratings_aggregate,
+            ),
+        )
+        if human_ratings_aggregate is not None
+        else aggregate_report
+    )
     written_paths = [
         export_json_artifact(
-            payload=aggregate_report.manifest,
+            payload=exported_report.manifest,
             output_path=target_dir / "paper_suite_manifest.json",
         ),
         export_json_artifact(
-            payload=aggregate_report.provenance,
+            payload=exported_report.provenance,
             output_path=target_dir / "paper_suite_provenance.json",
         ),
         export_json_artifact(
-            payload=aggregate_report.run_summaries,
+            payload=exported_report.run_summaries,
             output_path=target_dir / "paper_suite_run_summaries.json",
         ),
         export_json_artifact(
             payload={
-                "suite_id": aggregate_report.manifest.suite_id,
-                "primary_metric_summaries": aggregate_report.primary_metric_summaries,
-                "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
-                "pairwise_effects": aggregate_report.pairwise_effects,
-                "claim_verdicts": aggregate_report.claim_verdicts,
-                "description": aggregate_report.description,
+                "suite_id": exported_report.manifest.suite_id,
+                "primary_metric_summaries": exported_report.primary_metric_summaries,
+                "secondary_metric_summaries": exported_report.secondary_metric_summaries,
+                "pairwise_effects": exported_report.pairwise_effects,
+                "claim_verdicts": exported_report.claim_verdicts,
+                "description": exported_report.description,
             },
             output_path=target_dir / "paper_suite_aggregate.json",
         ),
     ]
     blind_review_packet: DialogueExpertReviewPacket | None = None
-    if aggregate_report.reference_run_report is not None:
+    if exported_report.reference_run_report is not None:
         written_paths.append(
             export_dialogue_emergence_dashboard_artifact(
-                aggregate_report.reference_run_report,
+                exported_report.reference_run_report,
                 output_path=target_dir / "reference_emergence_dashboard.json",
             )
         )
         expert_review_packet = build_dialogue_expert_review_packet(
-            aggregate_report.reference_run_report,
-            packet_id=f"{aggregate_report.manifest.suite_id}:expert-review",
+            exported_report.reference_run_report,
+            packet_id=f"{exported_report.manifest.suite_id}:expert-review",
         )
         blind_review_packet = expert_review_packet
         expert_review_internal_key = build_dialogue_expert_review_internal_key(
-            aggregate_report.reference_run_report,
-            packet_id=f"{aggregate_report.manifest.suite_id}:expert-review",
+            exported_report.reference_run_report,
+            packet_id=f"{exported_report.manifest.suite_id}:expert-review",
         )
         written_paths.append(
             export_dialogue_expert_review_packet(
@@ -5974,8 +6053,15 @@ def export_dialogue_paper_suite_artifact_bundle(
                     output_path=target_dir / "human_ratings_aggregate.json",
                 )
             )
+    elif human_ratings_aggregate is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=human_ratings_aggregate,
+                output_path=target_dir / "human_ratings_aggregate.json",
+            )
+        )
     evidence_bundle = build_dialogue_paper_suite_evidence_bundle(
-        aggregate_report=aggregate_report,
+        aggregate_report=exported_report,
         blind_review_packet=blind_review_packet,
         human_ratings_aggregate=human_ratings_aggregate,
     )
@@ -5986,6 +6072,129 @@ def export_dialogue_paper_suite_artifact_bundle(
         )
     )
     return tuple(written_paths)
+
+
+def _dialogue_human_rating_profile_aggregates(
+    *,
+    entries: tuple[DialogueHumanRatingEntry, ...],
+    internal_key: DialogueExpertReviewInternalKey | None,
+) -> tuple[DialogueHumanRatingProfileAggregate, ...]:
+    if internal_key is None:
+        return ()
+    profile_by_sample = {
+        entry.sample_id: entry.source_profile_label
+        for entry in internal_key.entries
+    }
+    profile_labels = tuple(sorted(set(profile_by_sample.values())))
+    aggregates: list[DialogueHumanRatingProfileAggregate] = []
+    for profile_label in profile_labels:
+        profile_entries = tuple(
+            rating
+            for rating in entries
+            if profile_by_sample.get(rating.sample_id) == profile_label
+        )
+        dimension_scores = tuple(
+            (dimension_id, _mean(tuple(rating.score for rating in dimension_entries)))
+            for dimension_id, dimension_entries in _group_ratings_by_dimension(profile_entries)
+        )
+        aggregates.append(
+            DialogueHumanRatingProfileAggregate(
+                source_profile_label=profile_label,
+                mean_score=_mean(tuple(rating.score for rating in profile_entries)),
+                sample_count=len(profile_entries),
+                dimension_scores=dimension_scores,
+                description=(
+                    f"Human rating profile aggregate for {profile_label} "
+                    f"with {len(profile_entries)} scored rows."
+                ),
+            )
+        )
+    return tuple(aggregates)
+
+
+def _dialogue_human_rating_pairwise_aggregates(
+    *,
+    entries: tuple[DialogueHumanRatingEntry, ...],
+    internal_key: DialogueExpertReviewInternalKey | None,
+) -> tuple[DialogueHumanRatingPairwiseAggregate, ...]:
+    if internal_key is None:
+        return ()
+    profile_by_sample = {
+        entry.sample_id: entry.source_profile_label
+        for entry in internal_key.entries
+    }
+    baseline_label = internal_key.baseline_label
+    control_labels = tuple(
+        sorted(profile_label for profile_label in set(profile_by_sample.values()) if profile_label != baseline_label)
+    )
+    if not control_labels:
+        return ()
+    scores_by_key: dict[tuple[str, str, str, str], float] = {}
+    for rating in entries:
+        profile_label = profile_by_sample.get(rating.sample_id)
+        if profile_label is None:
+            continue
+        scores_by_key[
+            (rating.rater_id, rating.item_id, rating.dimension_id, profile_label)
+        ] = rating.score
+    comparison_keys = tuple(
+        sorted(
+            {
+                (rating.rater_id, rating.item_id, rating.dimension_id)
+                for rating in entries
+            }
+        )
+    )
+    aggregates: list[DialogueHumanRatingPairwiseAggregate] = []
+    for control_label in control_labels:
+        deltas: list[float] = []
+        win_count = 0
+        loss_count = 0
+        tie_count = 0
+        for rater_id, item_id, dimension_id in comparison_keys:
+            candidate_key = (rater_id, item_id, dimension_id, baseline_label)
+            control_key = (rater_id, item_id, dimension_id, control_label)
+            if candidate_key not in scores_by_key or control_key not in scores_by_key:
+                continue
+            delta = scores_by_key[candidate_key] - scores_by_key[control_key]
+            deltas.append(delta)
+            if delta > 0.0:
+                win_count += 1
+            elif delta < 0.0:
+                loss_count += 1
+            else:
+                tie_count += 1
+        pair_count = win_count + loss_count + tie_count
+        aggregates.append(
+            DialogueHumanRatingPairwiseAggregate(
+                candidate_profile_label=baseline_label,
+                control_profile_label=control_label,
+                win_count=win_count,
+                loss_count=loss_count,
+                tie_count=tie_count,
+                pair_count=pair_count,
+                win_rate=(win_count / pair_count) if pair_count else 0.0,
+                mean_score_delta=_mean(tuple(deltas)),
+                description=(
+                    f"Pairwise human preference for {baseline_label} versus {control_label} "
+                    f"across {pair_count} matched rater-item-dimension comparisons."
+                ),
+            )
+        )
+    return tuple(aggregates)
+
+
+def _group_ratings_by_dimension(
+    entries: tuple[DialogueHumanRatingEntry, ...],
+) -> tuple[tuple[str, tuple[DialogueHumanRatingEntry, ...]], ...]:
+    dimension_ids = tuple(sorted({entry.dimension_id for entry in entries}))
+    return tuple(
+        (
+            dimension_id,
+            tuple(entry for entry in entries if entry.dimension_id == dimension_id),
+        )
+        for dimension_id in dimension_ids
+    )
 
 
 def _variance(values: tuple[float, ...]) -> float:
@@ -6241,11 +6450,21 @@ def _build_dialogue_claim_verdicts(
             for dimension in human_ratings_aggregate.dimensions
         )
     )
+    pairwise_preference_ok = (
+        human_ratings_aggregate is not None
+        and bool(human_ratings_aggregate.pairwise_preferences)
+        and all(
+            preference.pair_count > 0
+            and preference.win_rate >= 0.5
+            and preference.mean_score_delta > 0.0
+            for preference in human_ratings_aggregate.pairwise_preferences
+        )
+    )
     claim_d_status = _dialogue_claim_status(
         retain_checks=(
             human_ratings_aggregate is not None and human_ratings_aggregate.rater_count >= 3,
             agreement >= 0.6,
-            correlation_ok,
+            correlation_ok or pairwise_preference_ok,
         ),
         weak_checks=(
             human_ratings_aggregate is not None and human_ratings_aggregate.rater_count >= 2,
@@ -6336,6 +6555,7 @@ def _build_dialogue_claim_verdicts(
                 ("rater_count", float(human_ratings_aggregate.rater_count) if human_ratings_aggregate is not None else 0.0),
                 ("inter_rater_agreement", agreement),
                 ("auto_correlation_observed", float(correlation_ok)),
+                ("pairwise_preference_observed", float(pairwise_preference_ok)),
             ),
             summary="外部人评可见性 claim verdict.",
             description="Claim D checks whether blinded human review has enough rater coverage, agreement, and alignment with automatic evidence.",

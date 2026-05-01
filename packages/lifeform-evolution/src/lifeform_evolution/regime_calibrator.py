@@ -207,7 +207,7 @@ async def run_regime_calibrator_async(
     substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
     diversity_threshold: float = _DEFAULT_DIVERSITY_THRESHOLD,
     diversity_lr: float = _DEFAULT_DIVERSITY_LR,
-    search_candidate_limit: int = 7,
+    search_candidate_limit: int = 12,
 ) -> RegimeCalibrationReport:
     """Calibrate regime selection_weights against scripted ``expected_regime_in``.
 
@@ -395,7 +395,7 @@ def run_regime_calibrator(
     substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
     diversity_threshold: float = _DEFAULT_DIVERSITY_THRESHOLD,
     diversity_lr: float = _DEFAULT_DIVERSITY_LR,
-    search_candidate_limit: int = 7,
+    search_candidate_limit: int = 12,
 ) -> RegimeCalibrationReport:
     """Sync wrapper."""
     import asyncio
@@ -663,36 +663,50 @@ def _coordinate_candidates(
                 )
 
     candidates: list[tuple[str, _CalibrationCandidate]] = []
-    if regime_gradients:
-        regime, gradient = max(
-            regime_gradients.items(),
-            key=lambda item: abs(item[1]),
-        )
-        selection = _copy_weights(current.selection_weights)
-        factor = 1.0 + learning_rate if gradient > 0.0 else 1.0 - learning_rate * _DEFAULT_NEGATIVE_LR_RATIO
-        selection[regime] = max(_CLIP_LOW, min(_CLIP_HIGH, selection[regime] * factor))
-        label = f"coord-selection:{regime}:{'up' if gradient > 0.0 else 'down'}"
+    top_regime_gradients = tuple(
+        sorted(regime_gradients.items(), key=lambda item: abs(item[1]), reverse=True)[:3]
+    )
+    top_feature_gradients = tuple(
+        sorted(feature_gradients.items(), key=lambda item: abs(item[1]), reverse=True)[:5]
+    )
+
+    for regime, gradient in top_regime_gradients:
+        candidates.append(_selection_coordinate_candidate(current, regime, gradient, learning_rate))
+        candidates.append(_prior_coordinate_candidate(current, regime, gradient, learning_rate))
+
+    for (regime, feature_name), gradient in top_feature_gradients:
         candidates.append(
-            (
-                label,
-                _CalibrationCandidate(
-                    label=label,
-                    selection_weights=selection,
-                    strategy_priors=_copy_priors(current.strategy_priors),
-                    feature_weights=_copy_feature_weights(current.feature_weights),
-                ),
+            _feature_coordinate_candidate(
+                current,
+                regime,
+                feature_name,
+                gradient,
+                learning_rate,
             )
         )
 
-    if regime_gradients:
-        regime, gradient = max(
-            regime_gradients.items(),
-            key=lambda item: abs(item[1]),
-        )
+    for regime_gradient, feature_gradient in zip(
+        top_regime_gradients[:2],
+        top_feature_gradients[:2],
+        strict=False,
+    ):
+        regime, prior_gradient = regime_gradient
+        (feature_regime, feature_name), feature_delta = feature_gradient
         priors = _copy_priors(current.strategy_priors)
-        delta = learning_rate * 0.25 * (1.0 if gradient > 0.0 else -0.5)
-        priors[regime] = max(-0.5, min(0.5, priors.get(regime, 0.0) + delta))
-        label = f"coord-prior:{regime}:{'up' if gradient > 0.0 else 'down'}"
+        prior_delta = learning_rate * 0.25 * (1.0 if prior_gradient > 0.0 else -0.5)
+        priors[regime] = max(-0.5, min(0.5, priors.get(regime, 0.0) + prior_delta))
+        feature_weights = _copy_feature_weights(current.feature_weights)
+        current_value = feature_weights.setdefault(feature_regime, {}).get(feature_name, 0.0)
+        weight_delta = learning_rate * 0.35 * (1.0 if feature_delta > 0.0 else -0.5)
+        feature_weights[feature_regime][feature_name] = max(
+            -0.75, min(0.75, current_value + weight_delta)
+        )
+        label = (
+            f"coord-prior+feature:{regime}:"
+            f"{feature_regime}.{feature_name}:"
+            f"{'up' if prior_gradient > 0.0 else 'down'}:"
+            f"{'up' if feature_delta > 0.0 else 'down'}"
+        )
         candidates.append(
             (
                 label,
@@ -700,35 +714,82 @@ def _coordinate_candidates(
                     label=label,
                     selection_weights=_copy_weights(current.selection_weights),
                     strategy_priors=priors,
-                    feature_weights=_copy_feature_weights(current.feature_weights),
-                ),
-            )
-        )
-
-    if feature_gradients:
-        (regime, feature_name), gradient = max(
-            feature_gradients.items(),
-            key=lambda item: abs(item[1]),
-        )
-        feature_weights = _copy_feature_weights(current.feature_weights)
-        current_value = feature_weights.setdefault(regime, {}).get(feature_name, 0.0)
-        delta = learning_rate * 0.35 * (1.0 if gradient > 0.0 else -0.5)
-        feature_weights[regime][feature_name] = max(
-            -0.75, min(0.75, current_value + delta)
-        )
-        label = f"coord-feature:{regime}.{feature_name}:{'up' if gradient > 0.0 else 'down'}"
-        candidates.append(
-            (
-                label,
-                _CalibrationCandidate(
-                    label=label,
-                    selection_weights=_copy_weights(current.selection_weights),
-                    strategy_priors=_copy_priors(current.strategy_priors),
                     feature_weights=feature_weights,
                 ),
             )
         )
     return tuple(candidates)
+
+
+def _selection_coordinate_candidate(
+    current: _CalibrationCandidate,
+    regime: str,
+    gradient: float,
+    learning_rate: float,
+) -> tuple[str, _CalibrationCandidate]:
+    selection = _copy_weights(current.selection_weights)
+    factor = (
+        1.0 + learning_rate
+        if gradient > 0.0
+        else 1.0 - learning_rate * _DEFAULT_NEGATIVE_LR_RATIO
+    )
+    selection[regime] = max(_CLIP_LOW, min(_CLIP_HIGH, selection[regime] * factor))
+    label = f"coord-selection:{regime}:{'up' if gradient > 0.0 else 'down'}"
+    return (
+        label,
+        _CalibrationCandidate(
+            label=label,
+            selection_weights=selection,
+            strategy_priors=_copy_priors(current.strategy_priors),
+            feature_weights=_copy_feature_weights(current.feature_weights),
+        ),
+    )
+
+
+def _prior_coordinate_candidate(
+    current: _CalibrationCandidate,
+    regime: str,
+    gradient: float,
+    learning_rate: float,
+) -> tuple[str, _CalibrationCandidate]:
+    priors = _copy_priors(current.strategy_priors)
+    delta = learning_rate * 0.25 * (1.0 if gradient > 0.0 else -0.5)
+    priors[regime] = max(-0.5, min(0.5, priors.get(regime, 0.0) + delta))
+    label = f"coord-prior:{regime}:{'up' if gradient > 0.0 else 'down'}"
+    return (
+        label,
+        _CalibrationCandidate(
+            label=label,
+            selection_weights=_copy_weights(current.selection_weights),
+            strategy_priors=priors,
+            feature_weights=_copy_feature_weights(current.feature_weights),
+        ),
+    )
+
+
+def _feature_coordinate_candidate(
+    current: _CalibrationCandidate,
+    regime: str,
+    feature_name: str,
+    gradient: float,
+    learning_rate: float,
+) -> tuple[str, _CalibrationCandidate]:
+    feature_weights = _copy_feature_weights(current.feature_weights)
+    current_value = feature_weights.setdefault(regime, {}).get(feature_name, 0.0)
+    delta = learning_rate * 0.35 * (1.0 if gradient > 0.0 else -0.5)
+    feature_weights[regime][feature_name] = max(
+        -0.75, min(0.75, current_value + delta)
+    )
+    label = f"coord-feature:{regime}.{feature_name}:{'up' if gradient > 0.0 else 'down'}"
+    return (
+        label,
+        _CalibrationCandidate(
+            label=label,
+            selection_weights=_copy_weights(current.selection_weights),
+            strategy_priors=_copy_priors(current.strategy_priors),
+            feature_weights=feature_weights,
+        ),
+    )
 
 
 def _tally_matches(
