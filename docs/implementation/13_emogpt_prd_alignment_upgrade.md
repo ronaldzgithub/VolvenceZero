@@ -888,9 +888,46 @@ EmoGPT §13 整节："压力驱动有脾气的 AI"—— 12 维 InterlocutorStat
      - **不做的事 / 已知 limitation**：(a) 仅 commitment slot 用 LLM，其余 8 个 owner 仍 NoOp——其他 slot 有 prompt 设计 + cost 预算决策再加；(b) 每 turn 一次 LLM 生成（greedy 8 tok，5 s/turn on CPU 0.5B），生产部署需 batch / cache；(c) verify 的 `commit-prop` per-turn label 字段还是 `[observed]`（CommitmentSnapshot.description 模式没暴露 LLM 来源）——是 cosmetic，不影响 counters；(d) 1.5B 的 verify 待生产箱跑（diagnostic 箱 RAM 不够）。
      - **新文件**：`vz-substrate/.../text_generation.py`，`vz-cognition/.../semantic_state/llm_runtime.py`，`tests/test_llm_semantic_runtime.py`（19 tests），`tests/test_text_generation_provider.py`（5 tests），`examples/companion_verify_llm_semantic_runtime.py`。**修改文件**：`vz-substrate/.../substrate/__init__.py`（导出 provider），`lifeform-domain-emogpt/.../__init__.py`（`build_companion_lifeform` 加 kwarg），`lifeform-domain-emogpt/.../real_substrate.py`（重构整个 build helper：本地预加载 + LLM provider 共享 model）。**回归**：152 passed / 1 skipped (CI-safe opt-in) / 1 xfailed (phase 1.7 shipped coding bootstrap，无关)。
   3. **slice 2a phase 2（已合并到上 phase B+A 中）— LLM-driven SemanticProposalRuntime**：原计划单独的 phase 2，已与 phase B 合并落地。
+  9. ✅ **slice 2d - 兼 - 2a hardening（2026-05-01 落地）— commitment owner 信号洁净化两层防御**。phase B+A verify 揭出 `outcome_rejected_count: 6` 但只有 1 个真 BLOCK probe；探针证实 Qwen 0.5B 的 commitment 分类器在 8 prompt 上只有 3/8 正确，5 个全错判为 BLOCK（hello / task / emotion / rupture / repair）。少量 prompt 调优试验（few-shot）反而把准确率降到 2/8——0.5B 的偏置无法靠 prompt 救。**第一性的修法**不是 prompt 调优，是两层结构防御：
+     - **owner 层**（slice 2d）：`SemanticOwnerModule.min_proposal_confidence: ClassVar[float]` 默认 0.0，`CommitmentModule` 覆写为 **0.40**。NoOp OBSERVE (0.20) 和 LLM OBSERVE (0.25) 进 store 之前被 owner 过滤；DEFER (0.50) / CREATE (0.55) / COMPLETE / BLOCK (0.60) 全过。过滤发生在 `_store.apply` 之前，但 snapshot 的 `description` 仍来自原始 batch（audit trail 保全）。新 5 个单元 tests 钉边界（0.20 / 0.25 / 0.39 / 0.40 / 0.55 / 0.60）。
+     - **runtime 层**（slice 2a hardening）：`LLMSemanticProposalRuntime.propose` 加 `_has_active_commitment(previous_snapshot)` 结构守卫——LLM 输出 BLOCK / COMPLETE / DEFER 但 `previous_snapshot.active_commitments` 为空时，重路由到 OBSERVE。CREATE 无前置（创建不需要已有目标），OBSERVE 永远合法。Duck-typed on `active_commitments` 字段以防未来 CommitmentSnapshot 重命名。
+     - **A/B verify on real Qwen 0.5B**：
+
+       | 指标 | B+A 无防御 | B+A + 两层防御 |
+       |---|---|---|
+       | outcome_rejected_count | 6 | **0** |
+       | outcome_completed_count | 1 | 0\* |
+       | advocacy_proposed_count | 7 | 0\* |
+       | lifecycle_entries | 8 | **1** |
+       | active_commitments | 1 | 1 |
+
+       \* COMPLETE 也变 0 是预期 side effect：emotional turn 的 false BLOCK 提前退役了 commit_create 创建的真实 commitment，导致后续 commit_complete probe 没有 active commitment 可 complete。这恰好暴露 Qwen 0.5B 是商品分类器的薄弱点（架构正确，模型尺寸不够）；1.5B / 3B 上跑一次能验证。
+     - **结论**：信号洁净化用两层 defense-in-depth（runtime guard + owner threshold）替代单点 prompt 调优。Owner 层是 generic（任何 owner 都能 opt-in，default 不变），runtime 层是 commitment slot 专用结构约束。两层都 fail-closed（发生不确定时 → OBSERVE，不让 lifecycle 误转）。
+     - **新文件**：`tests/test_commitment_confidence_filter.py`（5 tests），`examples/companion_probe_llm_classifications.py`（诊断 LLM 分类原始输出）。**修改文件**：`packages/vz-cognition/.../semantic_state/__init__.py`（`SemanticOwnerModule` 加 `min_proposal_confidence` + `_filter_proposals_by_confidence`，`CommitmentModule` 覆写 0.40），`packages/vz-cognition/.../semantic_state/llm_runtime.py`（`_has_active_commitment` + propose 路径结构守卫），`tests/test_llm_semantic_runtime.py`（+5 新 tests，原 `test_runtime_classifies_each_label_correctly` 改成提供 active commitment）。
+  10. ✅ **slice 2c（2026-05-01 落地）— `PromptPlanner` 消费 `InterlocutorState`，闭合 perception → response loop**。Gap 9 slice 1 把 12 轴 InterlocutorState readout 接入 session 但下游无消费方——系统能感知用户却回应不变。slice 2c 是产品侧"真正的另一半"。
+     - **`PromptPlanner.plan()` 加 `interlocutor_state` 可选 kwarg**（默认 None，cold-start `readout_confidence < 0.30` 时 no-op，向后兼容）。新 `_apply_interlocutor_state` helper 用**连续特征阈值**（无 keyword）做 section 调制：
+       - `emotional_weight ≥ 0.55` 或 `resistance_level ≥ 0.50` 或 `trust_signal ≤ -0.10` → 前插 `ACKNOWLEDGE_PRESSURE`
+       - `rapport_warmth ≤ 0.40 AND engagement_intensity ≥ 0.30` → 后插 `CONTINUITY_NOTE`（冷且 disengaged 不强加 warmth）
+       - `emotional_weight ≥ 0.55` 或 `directness ≤ 0.40` → drop `CLARIFICATION`（emotional / 间接表达 不要被反问）
+       - `pace_pressure ≥ 0.65` → drop `REFLECTION_HOOK` + `OPEN_LOOP_HANDOFF`
+       - 任何上述高强度 axis → `question_budget` 强制为 0
+       - 拒绝产空 plan：dropping 把 sections 清空时回退到原始 + 记 `il_overapplied_skipped:` rationale
+       所有阈值是 ClassVar (`_IL_*`)，未来 calibration 改一行；输入是 typed readout，**不读 user text，不读 assembly text**。
+     - **`GroundedResponseSynthesizer` 加 `interlocutor_state_provider`** + `with_interlocutor_provider()` 方法（mirror `vitals_snapshot_provider` 的 closure 模式）。`synthesize` 调用 provider 并把结果传给 `planner.plan(...)`。
+     - **`Lifeform.create_session` 用 `_LateBoundSessionHolder` 解决 chicken-and-egg**：synthesizer 必须在 brain_session 创建前 wired，但 closure 要读的 `LifeformSession.interlocutor_state` 又要等 LifeformSession 构造完才存在。Holder 用 `__slots__ = ("session",)` 单字段持有 session 引用，closure 通过 holder 读取，factory 在 LifeformSession 建好后回填 `holder.session = session`。`_maybe_clone_synthesizer_with_vitals` 重命名为 `_maybe_clone_synthesizer_for_session`，统一 vitals + interlocutor 两 provider 的注入。
+     - **rationale forwarding**：`_attach_plan_rationale` 和 `_build_rationale` 都过滤出 `interlocutor_conf=` / `il_*` tag 接到回应 rationale 上，让 reflection / evaluation / family report 能审计哪些 axis 改变了哪个 turn 的 plan。
+     - **A/B 实测**（synthetic substrate，4 turn 对话）：
+
+       | turn | conf | emo | il tags |
+       |---|---|---|---|
+       | hello (turn 1, cold) | 0.86 | 0.56 | `[]`（cold-start gate） |
+       | task | 0.86 | 0.66 | `interlocutor_conf=0.86, il_drop=clarification(emo=...,dir=...), il_drop=meta(pace=...)` |
+       | rupture | 0.86 | 0.65 | 同上 |
+       | repair | 0.86 | 0.68 | 同上 |
+
+       turn 1 cold-start 守门正确（`_latest_active_snapshots` 空 → readout 默认中点 → planner 无 modulation），turn 2+ 一旦有 kernel snapshots 就开始 fire。
+     - **新文件**：`tests/test_prompt_planner_interlocutor_state.py`（13 tests，per-axis modulation + question budget cap + 跨 state diff），`tests/lifeform_e2e/test_interlocutor_state_in_synthesizer.py`（5 tests，per-session clone / 不同 session closures 不串 / late-bind holder 正常）。**修改文件**：`prompt_planner.py`（+`_apply_interlocutor_state`、`_pick_question_budget` 加 cap、`_build_rationale_tags` 加 IL 路径），`response_synthesizer.py`（+ provider + clone + rationale forward），`lifeform.py`（`_LateBoundSessionHolder` + `_maybe_clone_synthesizer_for_session`），`tests/lifeform_e2e/test_vitals_in_synthesizer.py`（旧 `test_lifeform_without_vitals_does_not_clone_synthesizer` 改成 `..._still_clones_for_interlocutor_state`，反映新契约）。**回归**：211 passed / 1 skipped / 1 xfailed。
   2. **slice 2b — `relationship_state` owner stage 推进逻辑**（中）：从 commitment.alignment 累计 + interlocutor.trust_signal 趋势驱动 stage transition（stranger → acquaintance → familiar → intimate）。即使 LLM 还是 stub，至少让 stage 字段不再恒 None。
-  3. **slice 2c — `prompt_planner` 消费 InterlocutorState 做语气调控**（小）：rapport_warmth + resistance + directness 影响 section 选择和措辞模板。这是 UX 面立刻可感的变化，不依赖 LLM 重训。
-  4. **slice 2d — observe-only commitment 噪声过滤**（小）：semantic_state runtime 现在每 turn 自动产 `commitment:observe:N`，应当过滤或不进入 lifecycle_entries。Gap 7 contract test 没覆盖到这条。
 
 #### R-ID 对齐 + 红线
 
@@ -1358,6 +1395,7 @@ template_service.adopt(template_id) →
 
 - **2026-04-29**：初稿。基于 EmoGPT v4.0 PRD 全文 review + VZ 当前代码扫描，识别 12 个 Gap、3 条红线、6 个分阶段路线图。Phase 0 起步前需确认 §7 决策点。
 - **2026-05-01**：Gap 9 slice 2a phase 1 → 1.9 全部落地（real Qwen substrate 注入 + 4 轮 calibrator 实验，揭出 multiplicative weights / `score_regimes` 公式 / calibrator 振荡天花板三层架构问题，做 architectural fix 不 ship recalibrated artifact）。Gap 9 slice 2a phase B + A 合并落地：phase B 把 `DEFAULT_REAL_MODEL_SOURCE` 升到 Qwen 1.5B Instruct + bf16 默认；phase A 在 `vz-substrate` 加 `HFTextGenerationProvider`、`vz-cognition.semantic_state` 加 `LLMSemanticProposalRuntime`，commitment slot 第一次有真 advocacy / outcome lifecycle（A/B 见 §3.9 phase B+A 表）。
+- **2026-05-01（晚）**：Gap 9 slice 2c（PromptPlanner ↔ InterlocutorState）+ slice 2d / 2a-hardening（commitment 信号洁净化两层防御）合并落地。slice 2d 加 `SemanticOwnerModule.min_proposal_confidence` ClassVar（CommitmentModule 覆写 0.40）+ `LLMSemanticProposalRuntime` 结构守卫（BLOCK/COMPLETE/DEFER 需要 active_commitment），把 phase B+A 的 `outcome_rejected: 6` 噪声降到 0。slice 2c 把 12 轴 InterlocutorState 接入 PromptPlanner 用连续特征阈值（无 keyword）modulate sections + question_budget，`_LateBoundSessionHolder` 解决 closure / session 构造顺序问题。两 slice 共 23 个新 tests，211 passed / 1 skipped / 1 xfailed。
 
 ---
 

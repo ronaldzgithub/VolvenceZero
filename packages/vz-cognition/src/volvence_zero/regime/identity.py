@@ -20,15 +20,14 @@ from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 # rather than commands: a consumer is allowed to ignore them, but the
 # spec's preferred path is "regime publishes, planner reads".
 #
-# They are SCAFFOLD today: ``RegimeModule._derive_hints_from_regime`` maps
-# regime_id -> hint via a static table. Future work (Gap 8 slice 2)
-# replaces that with a learned metacontroller readout, keyed off the
-# same regime_id + dual_track + vitals context. The contract surface
-# here is stable; only the derivation changes.
+# The default derivation now uses the Gap 8 readout path over regime,
+# dual_track, evaluation, PE, and candidate signals. The static scaffold
+# remains available behind ``hint_readout_mode="scaffold"`` for rollback
+# and A/B comparison. The contract surface here is stable; only the
+# derivation can change.
 #
-# Red line A (no keyword hacks): the derivation uses regime_id, which
-# is already a canonical categorical field populated via learned
-# regime selection_weights. It is NOT string matching on user text.
+# Red line A (no keyword hacks): the derivation consumes typed runtime
+# signals and canonical regime ids. It is NOT string matching on user text.
 # ---------------------------------------------------------------------------
 
 
@@ -295,6 +294,7 @@ class RegimeBootstrap:
     selection_weights: tuple[tuple[str, float], ...] = ()
     historical_effectiveness: tuple[tuple[str, float], ...] = ()
     strategy_priors: tuple[tuple[str, float], ...] = ()
+    feature_weights: tuple[tuple[str, tuple[tuple[str, float], ...]], ...] = ()
     description: str = ""
 
 
@@ -595,6 +595,7 @@ def score_regimes(
     historical_effectiveness: Mapping[str, float],
     strategy_priors: Mapping[str, float] | None = None,
     selection_weights: Mapping[str, float] | None = None,
+    feature_weights: Mapping[str, Mapping[str, float]] | None = None,
     experience_regime_biases: Mapping[str, float] | None = None,
 ) -> tuple[tuple[str, float], ...]:
     regime_priors = strategy_priors or {}
@@ -628,6 +629,9 @@ def score_regimes(
     # lifeform-evolution.TraceCollector). Tracked as todo #14b.
     task_score = _metric(evaluation_snapshot, "info_integration", default=0.4)
     task_pressure = _metric(evaluation_snapshot, "task_pressure", default=task_score)
+    repair_pressure = _metric(evaluation_snapshot, "repair_pressure", default=0.0)
+    social_pressure = _metric(evaluation_snapshot, "social_pressure", default=0.0)
+    semantic_surface_active = _metric(evaluation_snapshot, "semantic_surface_active", default=0.0)
     warmth = _metric(evaluation_snapshot, "warmth", default=0.4)
     support_presence = _metric(evaluation_snapshot, "support_presence", default=warmth)
     relationship_stability = _metric(evaluation_snapshot, "cross_track_stability", default=0.4)
@@ -638,14 +642,40 @@ def score_regimes(
     self_presence = _clamp(self_count / 3.0)
     task_dominance = _clamp(max(task_pressure - support_presence, 0.0) / 0.35)
     support_dominance = _clamp(max(support_presence - task_pressure, 0.0) / 0.35)
+    low_pressure = _clamp(1.0 - max(task_pressure, support_presence, repair_pressure))
+    semantic_low_pressure = low_pressure * semantic_surface_active
     world_drive, self_drive, shared_drive, switch_pressure = _controller_profile(dual_track_snapshot)
     repair_bias, task_bias, exploration_bias, stabilize_bias = _abstract_action_profile(dual_track_snapshot)
+    feature_values = {
+        "task_pressure": task_pressure,
+        "support_presence": support_presence,
+        "repair_pressure": repair_pressure,
+        "social_pressure": social_pressure,
+        "task_dominance": task_dominance,
+        "support_dominance": support_dominance,
+        "low_pressure": low_pressure,
+        "world_tension": world_tension,
+        "self_tension": self_tension,
+        "cross_tension": cross_tension,
+        "world_presence": world_presence,
+        "self_presence": self_presence,
+        "world_drive": world_drive,
+        "self_drive": self_drive,
+        "shared_drive": shared_drive,
+        "switch_pressure": switch_pressure,
+        "repair_bias": repair_bias,
+        "task_bias": task_bias,
+        "exploration_bias": exploration_bias,
+        "stabilize_bias": stabilize_bias,
+    }
     scores = {
         "casual_social": _clamp(
-            0.34 * (1.0 - max(world_tension, self_tension))
+            0.16 * (1.0 - max(world_tension, self_tension))
             + 0.24 * warmth
             + 0.20 * relationship_stability
             + 0.12 * balance
+            + 0.25 * semantic_low_pressure
+            + 0.10 * social_pressure
             - 0.22 * switch_pressure
             + 0.10 * stabilize_bias
             - 0.14 * repair_bias
@@ -660,6 +690,8 @@ def score_regimes(
             + 0.16 * warmth
             + 0.10 * support_presence
             + 0.18 * relationship_stability
+            + 0.35 * semantic_low_pressure
+            + 0.10 * social_pressure
             + 0.16 * self_drive
             + 0.12 * shared_drive
             + 0.08 * balance
@@ -667,24 +699,21 @@ def score_regimes(
             + 0.06 * stabilize_bias
             + pe_relationship_shortfall * 0.06
         ),
-        # Phase 1.8 leaves emotional_support's per-feature weights
-        # unchanged: any boost (even modest, e.g. warmth 0.08->0.12)
-        # creates a synthetic-mode monoculture (warmth/support are
-        # mid-range in synthetic, so a constant lift dominates other
-        # regimes whose discriminative features need actual content).
-        # The lift this regime needs to compete under Qwen comes
-        # entirely from the ``problem_solving`` reductions (which
-        # remove the FREE task_score/task_pressure carry that was
-        # systematically boosting problem_solving on emotional content).
+        # Emotional support must not be triggered by generic synthetic
+        # tension alone. Companion fallback runs often have high
+        # self_tension / self_drive on every prompt, so this regime is
+        # anchored to *support dominance* and relationship shortfall.
         "emotional_support": _clamp(
-            0.28 * self_tension
-            + 0.18 * self_presence
-            + 0.20 * self_drive
+            0.12 * self_tension
+            + 0.10 * self_presence
+            + 0.08 * self_drive
             + 0.08 * warmth
             + 0.18 * support_presence
-            + 0.14 * support_dominance
+            + 0.40 * support_presence * semantic_surface_active
+            + 0.34 * support_dominance
+            + 0.12 * repair_pressure
             + 0.08 * relationship_stability
-            + 0.12 * shared_drive
+            + 0.06 * shared_drive
             + 0.08 * switch_pressure
             + 0.12 * repair_bias
             + pe_relationship_shortfall * 0.18
@@ -704,6 +733,7 @@ def score_regimes(
             + 0.12 * self_presence
             + 0.10 * world_presence
             + 0.26 * exploration_bias
+            - 0.18 * low_pressure
             + pe_action_shortfall * 0.12
         ),
         # Phase 1.8 rebalance: ``task_score`` (info_integration) and
@@ -739,6 +769,7 @@ def score_regimes(
             0.34 * cross_tension
             + 0.24 * (1.0 - relationship_stability)
             + 0.12 * self_tension
+            + 0.56 * repair_pressure
             + 0.16 * alert_pressure
             + 0.12 * shared_drive
             + 0.12 * switch_pressure
@@ -751,13 +782,19 @@ def score_regimes(
     }
 
     learned_weights = selection_weights or {}
+    learned_feature_weights = feature_weights or {}
     ranked: list[tuple[str, float]] = []
     for template in REGIME_TEMPLATES:
         historical = historical_effectiveness.get(template.regime_id, 0.5)
+        feature_adjustment = sum(
+            feature_values.get(feature_name, 0.0) * weight
+            for feature_name, weight in learned_feature_weights.get(template.regime_id, {}).items()
+        )
         base_score = _clamp(
             scores[template.regime_id] * 0.80
             + historical * 0.15
             + regime_priors.get(template.regime_id, 0.0)
+            + feature_adjustment
         )
         weight = learned_weights.get(template.regime_id, 1.0)
         blended = _clamp(base_score * weight + fast_regime_biases.get(template.regime_id, 0.0) * 0.45)
@@ -827,6 +864,9 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._selection_weights: dict[str, float] = {
             template.regime_id: 1.0 for template in REGIME_TEMPLATES
         }
+        self._feature_weights: dict[str, dict[str, float]] = {
+            template.regime_id: {} for template in REGIME_TEMPLATES
+        }
         self._selection_weight_lr = 0.02
         if bootstrap is not None:
             # Apply only the entries that name a known regime; unknown ids
@@ -851,6 +891,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             for regime_id, value in bootstrap.strategy_priors:
                 if regime_id in known_ids:
                     self._strategy_priors[regime_id] = max(-0.5, min(0.5, float(value)))
+            for regime_id, entries in getattr(bootstrap, "feature_weights", ()):
+                if regime_id in known_ids:
+                    self._feature_weights[regime_id] = {
+                        feature_name: max(-0.75, min(0.75, float(value)))
+                        for feature_name, value in entries
+                    }
         self._active_regime_id: str | None = None
         self._previous_regime_id: str | None = None
         self._turns_in_current_regime = 0
@@ -913,6 +959,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,
+            feature_weights=self._feature_weights,
             experience_regime_biases=experience_regime_biases,
         )
         chosen_regime_id = candidates[0][0]
@@ -1018,6 +1065,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
             selection_weights=self._selection_weights,
+            feature_weights=self._feature_weights,
             experience_regime_biases=experience_regime_biases,
         )
         chosen_regime_id = candidates[0][0]

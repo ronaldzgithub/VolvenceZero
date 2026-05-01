@@ -130,6 +130,29 @@ class LifeformConfig:
         return _replace(self, vitals_bootstrap=bootstrap)
 
 
+class _LateBoundSessionHolder:
+    """Mutable ref to a ``LifeformSession`` for late-binding closures.
+
+    Why this exists: the synthesizer's ``interlocutor_state_provider``
+    must be wired BEFORE the brain session is created (the brain
+    session captures the synthesizer at construction time), but the
+    callable it wraps must read from a ``LifeformSession`` that
+    doesn't exist until AFTER the brain session is built. The
+    closure captures THIS holder by identity, the factory back-fills
+    ``self.session`` after the session is constructed, and the
+    closure reads through to the live attribute.
+
+    Single-attribute holder rather than a full delayed-init wrapper
+    so it is impossible to mistake for a real session and accidentally
+    invoke ``LifeformSession`` methods on it.
+    """
+
+    __slots__ = ("session",)
+
+    def __init__(self) -> None:
+        self.session: "LifeformSession | None" = None
+
+
 class Lifeform:
     """Stable product-facing factory for lifeform sessions.
 
@@ -249,13 +272,32 @@ class Lifeform:
             else None
         )
 
-        # Per-session synthesizer when vitals are wired AND the brain-level
-        # synthesizer can be cloned with a vitals provider. We deliberately
-        # NEVER mutate the Brain's own synthesizer \u2014 we only construct a
-        # session-local clone whose closure captures THIS session's vitals.
-        # That preserves single-ownership for the brain default while still
-        # letting drives reach the planner / continuity-note renderer.
-        session_synthesizer = self._maybe_clone_synthesizer_with_vitals(vitals)
+        # Late-bound holder for ``LifeformSession.interlocutor_state``.
+        # The synthesizer's ``interlocutor_state_provider`` closure
+        # is captured BEFORE the session is constructed (we need the
+        # synthesizer to wire the brain session); the closure reads
+        # through this holder, which the factory back-fills after
+        # the session is built. This is the canonical late-binding
+        # pattern \u2014 not silent mutation: the holder's identity is
+        # captured by the closure, only the ``session`` attribute
+        # is set later.
+        session_holder = _LateBoundSessionHolder()
+
+        def _interlocutor_provider() -> Any:
+            sess = session_holder.session
+            return sess.interlocutor_state if sess is not None else None
+
+        # Per-session synthesizer when vitals are wired AND/OR the
+        # brain-level synthesizer can be cloned with a vitals
+        # / interlocutor provider. We deliberately NEVER mutate the
+        # Brain's own synthesizer \u2014 we only construct session-local
+        # clones whose closures capture THIS session's state. That
+        # preserves single-ownership for the brain default while
+        # still letting drives + 12-axis readouts reach the planner.
+        session_synthesizer = self._maybe_clone_synthesizer_for_session(
+            vitals=vitals,
+            interlocutor_provider=_interlocutor_provider,
+        )
         brain_session = self._brain.create_session(
             session_id=session_id,
             response_synthesizer=session_synthesizer,
@@ -263,7 +305,7 @@ class Lifeform:
         thinking_adapter: Any = None
         if self._thinking_adapter_factory is not None:
             thinking_adapter = self._thinking_adapter_factory()
-        return LifeformSession(
+        session = LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
             scene=SceneManager(idle_close_after_system_ticks=self._config.idle_close_after_system_ticks),
@@ -274,28 +316,44 @@ class Lifeform:
             vitals=vitals,
             thinking_adapter=thinking_adapter,
         )
+        session_holder.session = session
+        return session
 
-    def _maybe_clone_synthesizer_with_vitals(
-        self, vitals: VitalsModule | None
+    def _maybe_clone_synthesizer_for_session(
+        self,
+        *,
+        vitals: VitalsModule | None,
+        interlocutor_provider: Callable[[], Any],
     ) -> ResponseSynthesizer | None:
-        """Return a per-session synthesizer clone bound to this session's vitals.
+        """Return a per-session synthesizer clone bound to this session's state.
+
+        Two providers are wired in one place because both are
+        session-scoped and both target ``GroundedResponseSynthesizer``:
+
+        * ``vitals.current_snapshot`` \u2014 always available when
+          ``vitals`` is non-None;
+        * ``interlocutor_provider`` \u2014 a late-bound closure that
+          reads ``LifeformSession.interlocutor_state`` after the
+          session is constructed.
 
         Returns ``None`` (i.e. fall back to the Brain's default) when:
-        * the lifeform has no vitals configured, or
+
         * the brain-level synthesizer is not a ``GroundedResponseSynthesizer``
-          (the only synthesizer shape that knows how to consume a vitals
-          provider). Plain ``ResponseSynthesizer`` and custom subclasses
+          (the only synthesizer shape that knows how to consume these
+          providers). Plain ``ResponseSynthesizer`` and custom subclasses
           are passed through unchanged \u2014 not silently downgraded \u2014 so
-          callers see the synthesizer they constructed.
+          callers see the synthesizer they constructed;
+        * neither vitals nor interlocutor wiring is available (in
+          practice the interlocutor provider is always available
+          since it just reads the readout, but we keep the guard
+          symmetric for future shape changes).
         """
-        if vitals is None:
-            return None
         synth = self._init_kwargs.get("response_synthesizer")
         if synth is None:
             return None
         # Lazy import to keep ``lifeform-core`` from depending on
-        # ``lifeform-expression`` at module import time. The dependency is
-        # already implicit (the user supplied a Grounded synthesizer
+        # ``lifeform-expression`` at module import time. The dependency
+        # is already implicit (the user supplied a Grounded synthesizer
         # constructed from lifeform-expression), so the import only
         # actually runs when the user opted into that synthesizer.
         try:
@@ -306,7 +364,11 @@ class Lifeform:
             return None
         if not isinstance(synth, GroundedResponseSynthesizer):
             return None
-        return synth.with_vitals_provider(vitals.current_snapshot)
+        cloned = synth
+        if vitals is not None:
+            cloned = cloned.with_vitals_provider(vitals.current_snapshot)
+        cloned = cloned.with_interlocutor_provider(interlocutor_provider)
+        return cloned
 
 
 class LifeformSession:

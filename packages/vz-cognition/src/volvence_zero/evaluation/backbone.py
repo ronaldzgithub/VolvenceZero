@@ -1676,6 +1676,16 @@ class EvaluationBackbone:
             if substrate_snapshot is not None
             else 0.0
         )
+        semantic_social_pull = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="semantic_social_pull")
+            if substrate_snapshot is not None
+            else 0.0
+        )
+        semantic_surface_active = (
+            feature_signal_value(substrate_snapshot.feature_surface, name="semantic_surface_active")
+            if substrate_snapshot is not None
+            else 0.0
+        )
         semantic_support_pull = (
             feature_signal_value(substrate_snapshot.feature_surface, name="semantic_support_pull")
             if substrate_snapshot is not None
@@ -1801,6 +1811,23 @@ class EvaluationBackbone:
 
         return (
             EvaluationScore(
+                family="interaction",
+                metric_name="social_pressure",
+                value=semantic_social_pull,
+                confidence=0.58,
+                evidence=(
+                    f"Read from substrate.semantic_social_pull={semantic_social_pull:.2f}; "
+                    "used by regime selection to distinguish light social / acquaintance turns."
+                ),
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="semantic_surface_active",
+                value=semantic_surface_active,
+                confidence=1.0,
+                evidence="1.0 when substrate publishes the public semantic pull surface.",
+            ),
+            EvaluationScore(
                 family="task",
                 metric_name="info_integration",
                 value=info_integration,
@@ -1837,6 +1864,16 @@ class EvaluationBackbone:
                     f"Derived from semantic_support_pull={semantic_support_pull:.2f}, "
                     f"semantic_repair_pull={semantic_repair_pull:.2f}, semantic_exploration_pull={semantic_exploration_pull:.2f}, "
                     f"semantic_directive_pull={semantic_directive_pull:.2f}."
+                ),
+            ),
+            EvaluationScore(
+                family="interaction",
+                metric_name="repair_pressure",
+                value=semantic_repair_pull,
+                confidence=0.58,
+                evidence=(
+                    f"Read directly from substrate.semantic_repair_pull={semantic_repair_pull:.2f} "
+                    "so regime selection can distinguish repair turns from low-pressure social turns."
                 ),
             ),
             EvaluationScore(

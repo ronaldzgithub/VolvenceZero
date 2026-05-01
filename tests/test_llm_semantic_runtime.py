@@ -156,21 +156,31 @@ def test_runtime_propagates_provider_exceptions() -> None:
 
 
 def test_runtime_classifies_each_label_correctly() -> None:
+    """Full label coverage with an active commitment present.
+
+    The lifecycle-precondition guard (BLOCK / COMPLETE / DEFER need
+    an active commitment to act on) is exercised by separate tests;
+    here we want to confirm every LLM-emitted label maps to the
+    right operation given the precondition holds.
+    """
     provider = _ScriptedProvider(["complete", "block", "defer", "observe"])
     runtime = LLMSemanticProposalRuntime(provider=provider)
+    active = _previous_with_active(1)
 
-    batch_complete = _propose(
-        runtime, user_input="I finished the chapter today.", turn_index=0
-    )
-    batch_block = _propose(
-        runtime, user_input="I can't keep going right now.", turn_index=1
-    )
-    batch_defer = _propose(
-        runtime, user_input="Let's move it to next Monday.", turn_index=2
-    )
-    batch_observe = _propose(
-        runtime, user_input="Tell me about the weather.", turn_index=3
-    )
+    def _with_active(text: str, turn_index: int):
+        return runtime.propose(
+            target_slot="commitment",
+            user_input=text,
+            substrate_snapshot=None,
+            memory_snapshot=None,
+            previous_snapshot=active,
+            turn_index=turn_index,
+        )
+
+    batch_complete = _with_active("I finished the chapter today.", 0)
+    batch_block = _with_active("I can't keep going right now.", 1)
+    batch_defer = _with_active("Let's move it to next Monday.", 2)
+    batch_observe = _with_active("Tell me about the weather.", 3)
 
     assert (
         batch_complete.proposals[0].operation is SemanticProposalOperation.COMPLETE
@@ -186,6 +196,88 @@ def test_runtime_classifies_each_label_correctly() -> None:
         "commitment:llm-defer:2",
         "commitment:llm-observe:3",
     }
+
+
+def _previous_with_active(count: int):
+    """A duck-typed previous snapshot exposing ``active_commitments``."""
+
+    class _S:
+        active_commitments = tuple(object() for _ in range(count))
+
+    return _S()
+
+
+@pytest.mark.parametrize(
+    "label", ["block", "complete", "defer"]
+)
+def test_runtime_routes_non_create_to_observe_when_no_active_commitment(
+    label: str,
+) -> None:
+    """Structural guard: BLOCK / COMPLETE / DEFER without a target -> OBSERVE.
+
+    The 0.5B Qwen probe showed the model over-classifies neutral
+    turns as ``block``; the guard refuses to apply lifecycle
+    operations to a commitment list that's empty, so the proposal
+    falls back to a confidence-0.25 OBSERVE that the
+    ``CommitmentModule.min_proposal_confidence=0.40`` filter then
+    drops at the owner layer. Defence in depth.
+    """
+    provider = _ScriptedProvider([label])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = runtime.propose(
+        target_slot="commitment",
+        user_input="something the LLM mistakes for a block",
+        substrate_snapshot=None,
+        memory_snapshot=None,
+        previous_snapshot=None,
+        turn_index=0,
+    )
+
+    assert len(batch.proposals) == 1
+    assert batch.proposals[0].operation is SemanticProposalOperation.OBSERVE
+
+
+@pytest.mark.parametrize("label", ["block", "complete", "defer"])
+def test_runtime_passes_through_non_create_when_active_commitment_exists(
+    label: str,
+) -> None:
+    """With an active commitment, the LLM's lifecycle classification stands."""
+    provider = _ScriptedProvider([label])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = runtime.propose(
+        target_slot="commitment",
+        user_input="follow-up to a real commitment",
+        substrate_snapshot=None,
+        memory_snapshot=None,
+        previous_snapshot=_previous_with_active(1),
+        turn_index=0,
+    )
+
+    expected = {
+        "block": SemanticProposalOperation.BLOCK,
+        "complete": SemanticProposalOperation.COMPLETE,
+        "defer": SemanticProposalOperation.DEFER,
+    }[label]
+    assert batch.proposals[0].operation is expected
+
+
+def test_runtime_create_always_passes_through_regardless_of_state() -> None:
+    """CREATE has no precondition: making a new commitment doesn't need an existing one."""
+    provider = _ScriptedProvider(["create"])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = runtime.propose(
+        target_slot="commitment",
+        user_input="I will start a new habit.",
+        substrate_snapshot=None,
+        memory_snapshot=None,
+        previous_snapshot=None,
+        turn_index=0,
+    )
+
+    assert batch.proposals[0].operation is SemanticProposalOperation.CREATE
 
 
 def test_runtime_clamps_user_input_to_safe_length() -> None:

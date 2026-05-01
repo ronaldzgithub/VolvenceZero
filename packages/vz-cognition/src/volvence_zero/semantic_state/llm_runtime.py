@@ -84,6 +84,28 @@ _COMMITMENT_PROMPT = (
 )
 
 
+def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:
+    """True iff ``previous_snapshot`` exposes >=1 active commitment.
+
+    The runtime ships with structural typing only \u2014 we duck-type
+    on ``active_commitments`` so a future replacement of
+    ``CommitmentSnapshot`` (e.g. with a richer typed lifecycle
+    aggregate) does not require a runtime re-import. Anything that
+    isn't a tuple-like with ``len() >= 1`` is treated as "no active
+    commitment", which fails closed: BLOCK / COMPLETE / DEFER are
+    routed to OBSERVE rather than risk applying to nothing.
+    """
+    if previous_snapshot is None:
+        return False
+    active = getattr(previous_snapshot, "active_commitments", None)
+    if active is None:
+        return False
+    try:
+        return len(active) > 0
+    except TypeError:
+        return False
+
+
 def _parse_commitment_label(text: str) -> SemanticProposalOperation | None:
     """Extract a commitment operation from the LLM's raw response.
 
@@ -203,6 +225,21 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             temperature=0.0,
         )
         operation = _parse_commitment_label(raw)
+        # Structural guard: BLOCK / COMPLETE / DEFER only make sense
+        # when there's a commitment to act on. Without an active
+        # commitment in ``previous_snapshot`` we re-route them to
+        # OBSERVE. This catches small-model bias (e.g. Qwen 0.5B
+        # over-classifying neutral / emotional turns as "block")
+        # without replacing the LLM's decision \u2014 it just refuses
+        # to apply lifecycle operations to a non-existent target.
+        # CREATE has no precondition (the whole point is to create
+        # a new commitment); OBSERVE is always valid.
+        if operation in {
+            SemanticProposalOperation.BLOCK,
+            SemanticProposalOperation.COMPLETE,
+            SemanticProposalOperation.DEFER,
+        } and not _has_active_commitment(previous_snapshot):
+            operation = SemanticProposalOperation.OBSERVE
         if operation is None:
             base_batch = self._base.propose(
                 target_slot=target_slot,

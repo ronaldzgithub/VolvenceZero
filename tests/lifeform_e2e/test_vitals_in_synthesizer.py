@@ -100,17 +100,33 @@ def test_brain_synthesizer_is_left_unchanged_after_create_session(
     )
 
 
-def test_lifeform_without_vitals_does_not_clone_synthesizer(
+def test_lifeform_without_vitals_still_clones_for_interlocutor_state(
     companion_with_grounded_synth_and_vitals: Lifeform,
 ):
-    """No vitals \u2192 no clone, the brain-level synthesizer is reused as-is."""
+    """Even without vitals the synthesizer is cloned per session.
+
+    Pre-Gap-9-slice-2c the no-vitals path skipped cloning entirely
+    (no per-session state to bind). Slice 2c adds an
+    ``interlocutor_state_provider`` that is ALWAYS per-session
+    (it reads ``LifeformSession.interlocutor_state``), so the
+    brain-default synthesizer is now ALWAYS cloned to bind that
+    closure. Vitals provider stays unbound when no vitals config
+    is supplied; that's the only difference from the with-vitals
+    path.
+    """
     base = companion_with_grounded_synth_and_vitals
     cfg = replace(base.config, vitals_bootstrap=None)
     life = Lifeform(cfg, response_synthesizer=GroundedResponseSynthesizer())
     brain_synth = life._init_kwargs["response_synthesizer"]
     session = life.create_session(session_id="no-vitals")
     runner = session.brain_session.runner
-    assert runner._response_synthesizer is brain_synth
+    session_synth = runner._response_synthesizer
+    assert session_synth is not brain_synth
+    assert session_synth.vitals_snapshot_provider is None
+    assert session_synth.interlocutor_state_provider is not None
+    # Same planner instance reused across the clone \u2014 only
+    # providers are session-bound.
+    assert session_synth.planner is brain_synth.planner
 
 
 # ---------------------------------------------------------------------------

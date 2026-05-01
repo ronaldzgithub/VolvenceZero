@@ -33,6 +33,7 @@ dependencies = [
     "lifeform-ingestion==0.1.*",
     "lifeform-affordance==0.1.*",
     "lifeform-expression==0.1.*",
+    "lifeform-domain-character==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-coding==0.1.*",
     "lifeform-service==0.1.*",
@@ -60,6 +61,7 @@ lifeform-thinking   = { workspace = true }
 lifeform-ingestion  = { workspace = true }
 lifeform-affordance = { workspace = true }
 lifeform-expression = { workspace = true }
+lifeform-domain-character = { workspace = true }
 lifeform-domain-emogpt = { workspace = true }
 lifeform-domain-coding = { workspace = true }
 lifeform-service    = { workspace = true }

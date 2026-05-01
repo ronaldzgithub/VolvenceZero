@@ -32,6 +32,7 @@ import pickle
 from typing import Any
 
 from volvence_zero.regime import RegimeBootstrap
+from volvence_zero.substrate import SemanticFeatureSurfaceSubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
 from lifeform_domain_emogpt.companion_pack import build_companion_package
@@ -215,6 +216,15 @@ def build_companion_lifeform(
         temporal_bootstrap=temporal_bootstrap,
         regime_bootstrap=regime_bootstrap,
         substrate_runtime=substrate_runtime,
+        substrate_adapter_factory=(
+            None
+            if substrate_runtime is not None
+            else lambda user_input, turn_index: SemanticFeatureSurfaceSubstrateAdapter(
+                source_text=user_input,
+                model_id=f"companion-semantic-surface:{turn_index}",
+                fallback_active=1.0,
+            )
+        ),
         semantic_proposal_runtime=semantic_proposal_runtime,
     )
 

@@ -44,12 +44,13 @@ Invariants:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import Callable, ClassVar
 
 from volvence_zero.application import DomainExperiencePackage
 from volvence_zero.regime import REGIME_TEMPLATES, RegimeBootstrap
 
 from lifeform_core import Lifeform, LifeformConfig
+from volvence_zero.substrate import SubstrateAdapter
 from lifeform_domain_emogpt import build_companion_package
 
 from lifeform_evolution.benchmark import (
@@ -71,11 +72,16 @@ class RegimeCalibrationRoundReport:
     regime_match_rate: float
     misclassified_turn_count: int
     selection_weights: tuple[tuple[str, float], ...]
+    strategy_priors: tuple[tuple[str, float], ...]
+    feature_weights: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    scenario_pass_rate: float
+    regime_bootstrap: RegimeBootstrap
     benchmark_reports: tuple[BenchmarkReport, ...]
     # Sorted descending by count. Lets the diversity penalty's effect be
     # audited round-by-round: when one regime dominates, the next round's
     # weight should drop accordingly.
     predicted_regime_counts: tuple[tuple[str, int], ...] = ()
+    selected_candidate_label: str = ""
 
     @property
     def predicted_regime_share(self) -> float:
@@ -121,8 +127,9 @@ class RegimeCalibrationReport:
         trained rounds:
 
         1. Prefer **diverse** rounds (top-share \u2264 ``_DIVERSITY_MAX_TOP_SHARE``).
-        2. Highest ``regime_match_rate`` within the chosen pool.
-        3. Ties broken by latest round (more update steps applied).
+        2. Highest scenario-level pass rate within the chosen pool.
+        3. Highest turn-level ``regime_match_rate``.
+        4. Ties broken by latest round (more update steps applied).
 
         Falls back to the trained-round set even when none qualify as
         diverse \u2014 a monoculture trained round is still preferable to
@@ -136,9 +143,45 @@ class RegimeCalibrationReport:
         pool = diverse or trained
         best = pool[0]
         for r in pool[1:]:
-            if r.regime_match_rate >= best.regime_match_rate:
+            if (
+                r.scenario_pass_rate,
+                r.regime_match_rate,
+                r.round_index,
+            ) >= (
+                best.scenario_pass_rate,
+                best.regime_match_rate,
+                best.round_index,
+            ):
                 best = r
         return best
+
+
+@dataclass(frozen=True)
+class _CalibrationCandidate:
+    label: str
+    selection_weights: dict[str, float]
+    strategy_priors: dict[str, float]
+    feature_weights: dict[str, dict[str, float]]
+
+
+@dataclass(frozen=True)
+class _CandidateEvaluation:
+    candidate: _CalibrationCandidate
+    benchmark_reports: tuple[BenchmarkReport, ...]
+    regime_match_rate: float
+    scenario_pass_rate: float
+    misclassified_turn_count: int
+    predicted_regime_counts: tuple[tuple[str, int], ...]
+    misses: tuple[tuple[str, str, tuple[tuple[str, float], ...]], ...]
+
+    @property
+    def predicted_regime_share(self) -> float:
+        if not self.predicted_regime_counts:
+            return 0.0
+        total = sum(count for _, count in self.predicted_regime_counts)
+        if total <= 0:
+            return 0.0
+        return self.predicted_regime_counts[0][1] / total
 
 
 # ---------------------------------------------------------------------------
@@ -160,14 +203,29 @@ async def run_regime_calibrator_async(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     learning_rate: float = _DEFAULT_LR,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
+    lifeform_factory: Callable[[RegimeBootstrap], Lifeform] | None = None,
+    substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
     diversity_threshold: float = _DEFAULT_DIVERSITY_THRESHOLD,
     diversity_lr: float = _DEFAULT_DIVERSITY_LR,
+    search_candidate_limit: int = 7,
 ) -> RegimeCalibrationReport:
     """Calibrate regime selection_weights against scripted ``expected_regime_in``.
 
     ``domain_experience_packages`` lets a different vertical drive the
     calibration with its own ``DomainExperiencePackage``. Defaults to
     the companion pack so existing call sites keep their behaviour.
+
+    ``lifeform_factory`` is the most faithful path for vertical-owned
+    calibration: it receives the round's candidate ``RegimeBootstrap`` and
+    must return a fresh Lifeform with that bootstrap wired into the same
+    substrate / temporal / vitals setup used by production benchmarks.
+    When set it takes precedence over ``domain_experience_packages`` and
+    ``substrate_adapter_factory``.
+
+    ``substrate_adapter_factory`` lets a vertical calibrate against the
+    same fallback feature surface it uses at runtime. Without this hook
+    the calibrator sees a different substrate contract than the benchmark
+    path and learns weights for the wrong evidence surface.
 
     ``diversity_threshold`` and ``diversity_lr`` parameterise the
     anti-monoculture penalty (see ``_apply_diversity_penalty``). With a
@@ -179,6 +237,10 @@ async def run_regime_calibrator_async(
     dominated (>``diversity_threshold`` of turns by one regime) and pulls
     the over-represented regime's weight back proportional to overuse.
     Set ``diversity_lr=0.0`` to recover the pre-2026-04-29 behaviour.
+
+    ``search_candidate_limit`` bounds the coordinate-search fanout per
+    round. The calibrator optimizes scenario-level pass rate directly,
+    but it must stay cheap enough for local and CI runs.
     """
     if rounds < 2:
         raise ValueError(
@@ -197,66 +259,122 @@ async def run_regime_calibrator_async(
         brain_config=_replace(base_config.brain_config, rare_heavy_enabled=False),
     )
 
-    # Per-regime running weight, mutated across rounds. Same defaults as
+    # Per-regime running weights, mutated across rounds. Same defaults as
     # ``RegimeModule.__init__``.
     weights: dict[str, float] = {
         template.regime_id: 1.0 for template in REGIME_TEMPLATES
     }
+    strategy_priors: dict[str, float] = {
+        template.regime_id: 0.0 for template in REGIME_TEMPLATES
+    }
+    feature_weights: dict[str, dict[str, float]] = {
+        template.regime_id: {} for template in REGIME_TEMPLATES
+    }
 
     round_reports: list[RegimeCalibrationRoundReport] = []
     for round_index in range(rounds):
-        bootstrap = _build_bootstrap_from_weights(weights)
-        lifeform = Lifeform(base_config, regime_bootstrap=bootstrap)
-
-        bench_reports: list[BenchmarkReport] = []
-        for scenario in chosen:
-            bench_reports.append(
-                await _run_scenario_with_lifeform(
-                    scenario=scenario, lifeform=lifeform
-                )
-            )
-
-        match_count, total_labelled, misses = _tally_matches(chosen, bench_reports)
-        match_rate = match_count / max(total_labelled, 1)
-        predicted_counts, predicted_total = _tally_predicted_regimes(bench_reports)
+        current = _CalibrationCandidate(
+            label="current",
+            selection_weights=_copy_weights(weights),
+            strategy_priors=_copy_priors(strategy_priors),
+            feature_weights=_copy_feature_weights(feature_weights),
+        )
+        current_eval = await _evaluate_candidate(
+            candidate=current,
+            scenarios=chosen,
+            base_config=base_config,
+            lifeform_factory=lifeform_factory,
+            substrate_adapter_factory=substrate_adapter_factory,
+        )
 
         round_reports.append(
             RegimeCalibrationRoundReport(
                 round_index=round_index,
-                regime_match_rate=match_rate,
-                misclassified_turn_count=len(misses),
+                regime_match_rate=current_eval.regime_match_rate,
+                misclassified_turn_count=current_eval.misclassified_turn_count,
                 selection_weights=tuple(sorted(weights.items())),
-                benchmark_reports=tuple(bench_reports),
-                predicted_regime_counts=tuple(
-                    sorted(predicted_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+                strategy_priors=tuple(sorted(strategy_priors.items())),
+                feature_weights=_freeze_feature_weights(feature_weights),
+                scenario_pass_rate=current_eval.scenario_pass_rate,
+                regime_bootstrap=_build_bootstrap_from_weights(
+                    weights,
+                    strategy_priors=strategy_priors,
+                    feature_weights=feature_weights,
                 ),
+                benchmark_reports=current_eval.benchmark_reports,
+                predicted_regime_counts=current_eval.predicted_regime_counts,
+                selected_candidate_label="",
             )
         )
 
-        # Apply updates only between rounds, so the last round's weights are
-        # the ones in the final bootstrap.
+        # Select the next round's bootstrap via a small coordinate search.
+        # Candidate evaluation, not the miss ledger itself, decides what
+        # survives.
         if round_index < rounds - 1:
-            _apply_updates_in_place(weights, misses, lr=learning_rate)
-            _apply_diversity_penalty(
-                weights,
-                predicted_counts,
-                predicted_total,
-                threshold=diversity_threshold,
-                lr=diversity_lr,
+            candidates = _generate_search_candidates(
+                current=current,
+                misses=list(current_eval.misses),
+                predicted_counts=dict(current_eval.predicted_regime_counts),
+                predicted_total=sum(
+                    count for _, count in current_eval.predicted_regime_counts
+                ),
+                learning_rate=learning_rate,
+                diversity_threshold=diversity_threshold,
+                diversity_lr=diversity_lr,
+                limit=max(1, search_candidate_limit),
+            )
+            candidate_evals = [
+                await _evaluate_candidate(
+                    candidate=candidate,
+                    scenarios=chosen,
+                    base_config=base_config,
+                    lifeform_factory=lifeform_factory,
+                    substrate_adapter_factory=substrate_adapter_factory,
+                )
+                for candidate in candidates
+            ]
+            selected = _select_best_evaluation((current_eval, *candidate_evals))
+            weights = _copy_weights(selected.candidate.selection_weights)
+            strategy_priors = _copy_priors(selected.candidate.strategy_priors)
+            feature_weights = _copy_feature_weights(selected.candidate.feature_weights)
+            last = round_reports[-1]
+            round_reports[-1] = RegimeCalibrationRoundReport(
+                round_index=last.round_index,
+                regime_match_rate=last.regime_match_rate,
+                misclassified_turn_count=last.misclassified_turn_count,
+                selection_weights=last.selection_weights,
+                strategy_priors=last.strategy_priors,
+                feature_weights=last.feature_weights,
+                scenario_pass_rate=last.scenario_pass_rate,
+                regime_bootstrap=last.regime_bootstrap,
+                benchmark_reports=last.benchmark_reports,
+                predicted_regime_counts=last.predicted_regime_counts,
+                selected_candidate_label=selected.candidate.label,
             )
 
-    final_bootstrap = _build_bootstrap_from_weights(
-        weights,
+    provisional_report = RegimeCalibrationReport(
+        scenarios=tuple(s.scenario_id for s in chosen),
+        rounds=tuple(round_reports),
+        final_bootstrap=round_reports[-1].regime_bootstrap,
+        description="",
+    )
+    best_round = provisional_report.best_round()
+    final_bootstrap = _replace_bootstrap_description(
+        best_round.regime_bootstrap,
         description=(
             f"Regime calibrator: {len(chosen)} scenarios x {rounds} rounds, "
-            f"final regime_match_rate={round_reports[-1].regime_match_rate:.0%}"
+            f"selected round {best_round.round_index}, "
+            f"scenario_pass_rate={best_round.scenario_pass_rate:.0%}, "
+            f"regime_match_rate={best_round.regime_match_rate:.0%}"
         ),
     )
 
     description = (
         f"Regime calibrator: {len(chosen)} scenarios x {rounds} rounds  "
         f"baseline match {round_reports[0].regime_match_rate:.0%} \u2192 "
-        f"final {round_reports[-1].regime_match_rate:.0%}"
+        f"selected round {best_round.round_index} "
+        f"({best_round.scenario_pass_rate:.0%} scenario pass, "
+        f"{best_round.regime_match_rate:.0%} turn match)"
     )
 
     return RegimeCalibrationReport(
@@ -273,8 +391,11 @@ def run_regime_calibrator(
     scenarios: tuple[ScriptedScenario, ...] | None = None,
     learning_rate: float = _DEFAULT_LR,
     domain_experience_packages: tuple[DomainExperiencePackage, ...] | None = None,
+    lifeform_factory: Callable[[RegimeBootstrap], Lifeform] | None = None,
+    substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
     diversity_threshold: float = _DEFAULT_DIVERSITY_THRESHOLD,
     diversity_lr: float = _DEFAULT_DIVERSITY_LR,
+    search_candidate_limit: int = 7,
 ) -> RegimeCalibrationReport:
     """Sync wrapper."""
     import asyncio
@@ -285,8 +406,11 @@ def run_regime_calibrator(
             scenarios=scenarios,
             learning_rate=learning_rate,
             domain_experience_packages=domain_experience_packages,
+            lifeform_factory=lifeform_factory,
+            substrate_adapter_factory=substrate_adapter_factory,
             diversity_threshold=diversity_threshold,
             diversity_lr=diversity_lr,
+            search_candidate_limit=search_candidate_limit,
         )
     )
 
@@ -296,19 +420,321 @@ def run_regime_calibrator(
 # ---------------------------------------------------------------------------
 
 
+def _copy_weights(weights: dict[str, float]) -> dict[str, float]:
+    return dict(weights)
+
+
+def _copy_priors(priors: dict[str, float]) -> dict[str, float]:
+    return dict(priors)
+
+
+def _copy_feature_weights(
+    feature_weights: dict[str, dict[str, float]],
+) -> dict[str, dict[str, float]]:
+    return {regime_id: dict(weights) for regime_id, weights in feature_weights.items()}
+
+
 def _build_bootstrap_from_weights(
-    weights: dict[str, float], *, description: str = ""
+    weights: dict[str, float],
+    *,
+    strategy_priors: dict[str, float] | None = None,
+    feature_weights: dict[str, dict[str, float]] | None = None,
+    description: str = "",
 ) -> RegimeBootstrap:
     return RegimeBootstrap(
         selection_weights=tuple(sorted(weights.items())),
+        strategy_priors=tuple(sorted((strategy_priors or {}).items())),
+        feature_weights=_freeze_feature_weights(feature_weights or {}),
         description=description,
     )
+
+
+def _replace_bootstrap_description(
+    bootstrap: RegimeBootstrap,
+    *,
+    description: str,
+) -> RegimeBootstrap:
+    return RegimeBootstrap(
+        selection_weights=bootstrap.selection_weights,
+        historical_effectiveness=bootstrap.historical_effectiveness,
+        strategy_priors=bootstrap.strategy_priors,
+        feature_weights=getattr(bootstrap, "feature_weights", ()),
+        description=description,
+    )
+
+
+def _freeze_feature_weights(
+    feature_weights: dict[str, dict[str, float]],
+) -> tuple[tuple[str, tuple[tuple[str, float], ...]], ...]:
+    return tuple(
+        (regime_id, tuple(sorted(weights.items())))
+        for regime_id, weights in sorted(feature_weights.items())
+        if weights
+    )
+
+
+async def _evaluate_candidate(
+    *,
+    candidate: _CalibrationCandidate,
+    scenarios: tuple[ScriptedScenario, ...],
+    base_config: LifeformConfig,
+    lifeform_factory: Callable[[RegimeBootstrap], Lifeform] | None,
+    substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None,
+) -> _CandidateEvaluation:
+    bootstrap = _build_bootstrap_from_weights(
+        candidate.selection_weights,
+        strategy_priors=candidate.strategy_priors,
+        feature_weights=candidate.feature_weights,
+    )
+    if lifeform_factory is not None:
+        lifeform = lifeform_factory(bootstrap)
+    else:
+        lifeform = Lifeform(
+            base_config,
+            regime_bootstrap=bootstrap,
+            substrate_adapter_factory=substrate_adapter_factory,
+        )
+
+    bench_reports: list[BenchmarkReport] = []
+    for scenario in scenarios:
+        bench_reports.append(
+            await _run_scenario_with_lifeform(scenario=scenario, lifeform=lifeform)
+        )
+    match_count, total_labelled, misses = _tally_matches(scenarios, bench_reports)
+    predicted_counts, _predicted_total = _tally_predicted_regimes(bench_reports)
+    scenario_pass_rate = sum(1 for report in bench_reports if report.passed()) / max(
+        len(bench_reports), 1
+    )
+    return _CandidateEvaluation(
+        candidate=candidate,
+        benchmark_reports=tuple(bench_reports),
+        regime_match_rate=match_count / max(total_labelled, 1),
+        scenario_pass_rate=scenario_pass_rate,
+        misclassified_turn_count=len(misses),
+        predicted_regime_counts=tuple(
+            sorted(predicted_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        ),
+        misses=tuple(misses),
+    )
+
+
+def _select_best_evaluation(
+    evaluations: tuple[_CandidateEvaluation, ...],
+) -> _CandidateEvaluation:
+    best = evaluations[0]
+    for evaluation in evaluations[1:]:
+        key = (
+            evaluation.scenario_pass_rate,
+            evaluation.regime_match_rate,
+            -evaluation.predicted_regime_share,
+        )
+        best_key = (
+            best.scenario_pass_rate,
+            best.regime_match_rate,
+            -best.predicted_regime_share,
+        )
+        if key > best_key:
+            best = evaluation
+    return best
+
+
+def _generate_search_candidates(
+    *,
+    current: _CalibrationCandidate,
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]],
+    predicted_counts: dict[str, int],
+    predicted_total: int,
+    learning_rate: float,
+    diversity_threshold: float,
+    diversity_lr: float,
+    limit: int,
+) -> tuple[_CalibrationCandidate, ...]:
+    candidates: list[_CalibrationCandidate] = []
+
+    selection_weights = _copy_weights(current.selection_weights)
+    _apply_updates_in_place(selection_weights, misses, lr=learning_rate)
+    _apply_diversity_penalty(
+        selection_weights,
+        predicted_counts,
+        predicted_total,
+        threshold=diversity_threshold,
+        lr=diversity_lr,
+    )
+    candidates.append(
+        _CalibrationCandidate(
+            label="selection-ledger",
+            selection_weights=selection_weights,
+            strategy_priors=_copy_priors(current.strategy_priors),
+            feature_weights=_copy_feature_weights(current.feature_weights),
+        )
+    )
+
+    priors = _copy_priors(current.strategy_priors)
+    _apply_prior_updates_in_place(priors, misses, lr=learning_rate * 0.25)
+    candidates.append(
+        _CalibrationCandidate(
+            label="strategy-ledger",
+            selection_weights=_copy_weights(current.selection_weights),
+            strategy_priors=priors,
+            feature_weights=_copy_feature_weights(current.feature_weights),
+        )
+    )
+
+    feature_weights = _copy_feature_weights(current.feature_weights)
+    _apply_feature_updates_in_place(
+        feature_weights,
+        misses,
+        lr=learning_rate * 0.35,
+    )
+    candidates.append(
+        _CalibrationCandidate(
+            label="feature-ledger",
+            selection_weights=_copy_weights(current.selection_weights),
+            strategy_priors=_copy_priors(current.strategy_priors),
+            feature_weights=feature_weights,
+        )
+    )
+
+    combined_selection = _copy_weights(selection_weights)
+    combined_priors = _copy_priors(priors)
+    combined_features = _copy_feature_weights(feature_weights)
+    candidates.append(
+        _CalibrationCandidate(
+            label="combined-ledger",
+            selection_weights=combined_selection,
+            strategy_priors=combined_priors,
+            feature_weights=combined_features,
+        )
+    )
+
+    for label, candidate in _coordinate_candidates(
+        current=current,
+        misses=misses,
+        learning_rate=learning_rate,
+    ):
+        candidates.append(candidate)
+        if len(candidates) >= limit:
+            break
+
+    unique: list[_CalibrationCandidate] = []
+    seen: set[
+        tuple[
+            tuple[tuple[str, float], ...],
+            tuple[tuple[str, float], ...],
+            tuple[tuple[str, tuple[tuple[str, float], ...]], ...],
+        ]
+    ] = set()
+    for candidate in candidates:
+        fingerprint = (
+            tuple(sorted(candidate.selection_weights.items())),
+            tuple(sorted(candidate.strategy_priors.items())),
+            _freeze_feature_weights(candidate.feature_weights),
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        unique.append(candidate)
+        if len(unique) >= limit:
+            break
+    return tuple(unique)
+
+
+def _coordinate_candidates(
+    *,
+    current: _CalibrationCandidate,
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]],
+    learning_rate: float,
+) -> tuple[tuple[str, _CalibrationCandidate], ...]:
+    regime_gradients: dict[str, float] = {}
+    feature_gradients: dict[tuple[str, str], float] = {}
+    for actual_regime, expected_csv, features in misses:
+        expected_set = tuple(part for part in expected_csv.split(",") if part)
+        for regime in expected_set:
+            regime_gradients[regime] = regime_gradients.get(regime, 0.0) + 1.0
+            for feature_name, value in features:
+                feature_gradients[(regime, feature_name)] = (
+                    feature_gradients.get((regime, feature_name), 0.0) + value
+                )
+        if actual_regime:
+            regime_gradients[actual_regime] = regime_gradients.get(actual_regime, 0.0) - 0.5
+            for feature_name, value in features:
+                feature_gradients[(actual_regime, feature_name)] = (
+                    feature_gradients.get((actual_regime, feature_name), 0.0) - value * 0.5
+                )
+
+    candidates: list[tuple[str, _CalibrationCandidate]] = []
+    if regime_gradients:
+        regime, gradient = max(
+            regime_gradients.items(),
+            key=lambda item: abs(item[1]),
+        )
+        selection = _copy_weights(current.selection_weights)
+        factor = 1.0 + learning_rate if gradient > 0.0 else 1.0 - learning_rate * _DEFAULT_NEGATIVE_LR_RATIO
+        selection[regime] = max(_CLIP_LOW, min(_CLIP_HIGH, selection[regime] * factor))
+        label = f"coord-selection:{regime}:{'up' if gradient > 0.0 else 'down'}"
+        candidates.append(
+            (
+                label,
+                _CalibrationCandidate(
+                    label=label,
+                    selection_weights=selection,
+                    strategy_priors=_copy_priors(current.strategy_priors),
+                    feature_weights=_copy_feature_weights(current.feature_weights),
+                ),
+            )
+        )
+
+    if regime_gradients:
+        regime, gradient = max(
+            regime_gradients.items(),
+            key=lambda item: abs(item[1]),
+        )
+        priors = _copy_priors(current.strategy_priors)
+        delta = learning_rate * 0.25 * (1.0 if gradient > 0.0 else -0.5)
+        priors[regime] = max(-0.5, min(0.5, priors.get(regime, 0.0) + delta))
+        label = f"coord-prior:{regime}:{'up' if gradient > 0.0 else 'down'}"
+        candidates.append(
+            (
+                label,
+                _CalibrationCandidate(
+                    label=label,
+                    selection_weights=_copy_weights(current.selection_weights),
+                    strategy_priors=priors,
+                    feature_weights=_copy_feature_weights(current.feature_weights),
+                ),
+            )
+        )
+
+    if feature_gradients:
+        (regime, feature_name), gradient = max(
+            feature_gradients.items(),
+            key=lambda item: abs(item[1]),
+        )
+        feature_weights = _copy_feature_weights(current.feature_weights)
+        current_value = feature_weights.setdefault(regime, {}).get(feature_name, 0.0)
+        delta = learning_rate * 0.35 * (1.0 if gradient > 0.0 else -0.5)
+        feature_weights[regime][feature_name] = max(
+            -0.75, min(0.75, current_value + delta)
+        )
+        label = f"coord-feature:{regime}.{feature_name}:{'up' if gradient > 0.0 else 'down'}"
+        candidates.append(
+            (
+                label,
+                _CalibrationCandidate(
+                    label=label,
+                    selection_weights=_copy_weights(current.selection_weights),
+                    strategy_priors=_copy_priors(current.strategy_priors),
+                    feature_weights=feature_weights,
+                ),
+            )
+        )
+    return tuple(candidates)
 
 
 def _tally_matches(
     scenarios: tuple[ScriptedScenario, ...],
     bench_reports: list[BenchmarkReport],
-) -> tuple[int, int, list[tuple[str, str]]]:
+) -> tuple[int, int, list[tuple[str, str, tuple[tuple[str, float], ...]]]]:
     """Count matched / unmatched labelled turns.
 
     Returns ``(match_count, labelled_total, misses)`` where ``misses`` is a
@@ -320,7 +746,7 @@ def _tally_matches(
         raise RuntimeError("scenario / benchmark report length mismatch")
     match_count = 0
     labelled_total = 0
-    misses: list[tuple[str, str]] = []
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]] = []
     for scenario, bench in zip(scenarios, bench_reports):
         for scripted_turn, turn_report in zip(scenario.turns, bench.turn_reports):
             expected = tuple(scripted_turn.expected_regime_in)
@@ -334,6 +760,7 @@ def _tally_matches(
                     (
                         turn_report.active_regime or "",
                         ",".join(expected),
+                        _features_from_turn_report(turn_report),
                     )
                 )
     return match_count, labelled_total, misses
@@ -360,9 +787,37 @@ def _tally_predicted_regimes(
     return counts, total
 
 
+_LEARNABLE_FEATURE_NAMES: tuple[str, ...] = (
+    "task_pressure",
+    "support_presence",
+    "repair_pressure",
+    "social_pressure",
+    "task_dominance",
+    "support_dominance",
+)
+
+
+def _features_from_turn_report(turn_report: TurnReport) -> tuple[tuple[str, float], ...]:
+    metrics = dict(turn_report.evaluation_metrics)
+    task_pressure = metrics.get("task_pressure", 0.0)
+    support_presence = metrics.get("support_presence", 0.0)
+    repair_pressure = metrics.get("repair_pressure", 0.0)
+    social_pressure = metrics.get("social_pressure", 0.0)
+    features = {
+        "task_pressure": task_pressure,
+        "support_presence": support_presence,
+        "repair_pressure": repair_pressure,
+        "social_pressure": social_pressure,
+        "task_dominance": max(task_pressure - support_presence, 0.0),
+        "support_dominance": max(support_presence - task_pressure, 0.0),
+        "low_pressure": max(1.0 - max(task_pressure, support_presence, repair_pressure), 0.0),
+    }
+    return tuple((name, features[name]) for name in _LEARNABLE_FEATURE_NAMES)
+
+
 def _apply_updates_in_place(
     weights: dict[str, float],
-    misses: list[tuple[str, str]],
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]],
     *,
     lr: float,
 ) -> None:
@@ -375,7 +830,7 @@ def _apply_updates_in_place(
     if lr <= 0.0:
         return
     neg_lr = lr * _DEFAULT_NEGATIVE_LR_RATIO
-    for actual_regime, expected_csv in misses:
+    for actual_regime, expected_csv, _features in misses:
         expected_set = tuple(part for part in expected_csv.split(",") if part)
         for regime in expected_set:
             if regime in weights:
@@ -383,6 +838,54 @@ def _apply_updates_in_place(
         if actual_regime and actual_regime in weights:
             weights[actual_regime] = max(
                 _CLIP_LOW, min(_CLIP_HIGH, weights[actual_regime] * (1.0 - neg_lr))
+            )
+
+
+def _apply_feature_updates_in_place(
+    feature_weights: dict[str, dict[str, float]],
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]],
+    *,
+    lr: float,
+) -> None:
+    if lr <= 0.0:
+        return
+    neg_lr = lr * _DEFAULT_NEGATIVE_LR_RATIO
+    for actual_regime, expected_csv, features in misses:
+        expected_set = tuple(part for part in expected_csv.split(",") if part)
+        for feature_name, value in features:
+            if value <= 0.0:
+                continue
+            for regime in expected_set:
+                if regime in feature_weights:
+                    current = feature_weights[regime].get(feature_name, 0.0)
+                    feature_weights[regime][feature_name] = max(
+                        -0.75, min(0.75, current + lr * value)
+                    )
+            if actual_regime and actual_regime in feature_weights:
+                current = feature_weights[actual_regime].get(feature_name, 0.0)
+                feature_weights[actual_regime][feature_name] = max(
+                    -0.75, min(0.75, current - neg_lr * value)
+                )
+
+
+def _apply_prior_updates_in_place(
+    priors: dict[str, float],
+    misses: list[tuple[str, str, tuple[tuple[str, float], ...]]],
+    *,
+    lr: float,
+) -> None:
+    if lr <= 0.0:
+        return
+    neg_lr = lr * _DEFAULT_NEGATIVE_LR_RATIO
+    for actual_regime, expected_csv, _features in misses:
+        expected_set = tuple(part for part in expected_csv.split(",") if part)
+        for regime in expected_set:
+            if regime in priors:
+                priors[regime] = max(-0.5, min(0.5, priors[regime] + lr))
+        if actual_regime and actual_regime in priors:
+            priors[actual_regime] = max(
+                -0.5,
+                min(0.5, priors[actual_regime] - neg_lr),
             )
 
 
@@ -450,6 +953,7 @@ def format_regime_calibration_report(report: RegimeCalibrationReport) -> str:
         lines.append(f"   --- {tag} ---")
         lines.append(
             f"      regime_match_rate: {r.regime_match_rate:.0%}  "
+            f"scenario_pass_rate: {r.scenario_pass_rate:.0%}  "
             f"misclassified: {r.misclassified_turn_count}  "
             f"top-regime share: {r.predicted_regime_share:.0%}"
         )
@@ -465,9 +969,30 @@ def format_regime_calibration_report(report: RegimeCalibrationReport) -> str:
             "      weights: "
             + ", ".join(f"{regime}={weight:.2f}" for regime, weight in r.selection_weights)
         )
+        nonzero_priors = tuple(
+            (regime, prior) for regime, prior in r.strategy_priors if abs(prior) > 1e-9
+        )
+        if nonzero_priors:
+            lines.append(
+                "      strategy_priors: "
+                + ", ".join(f"{regime}={prior:+.2f}" for regime, prior in nonzero_priors)
+            )
+        if r.feature_weights:
+            lines.append(
+                "      feature_weights: "
+                + "; ".join(
+                    f"{regime}("
+                    + ", ".join(f"{feature}={weight:.2f}" for feature, weight in entries)
+                    + ")"
+                    for regime, entries in r.feature_weights
+                )
+            )
+        if r.selected_candidate_label:
+            lines.append(f"      selected_next: {r.selected_candidate_label}")
     best = report.best_round()
     lines.append(
         f"   best round: round {best.round_index}  "
+        f"scenario_pass_rate={best.scenario_pass_rate:.0%}  "
         f"regime_match_rate={best.regime_match_rate:.0%}"
     )
     return "\n".join(lines)

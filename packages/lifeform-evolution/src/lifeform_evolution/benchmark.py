@@ -57,6 +57,7 @@ class TurnReport:
     continuum_target_position: float | None = None
     refer_out_required: bool = False
     response_length: int = 0
+    evaluation_metrics: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -306,6 +307,16 @@ async def run_benchmark_async(
             sg = getattr(temporal_snapshot.value, "switch_gate", None)
             if sg is not None:
                 switch_gate = float(sg)
+        evaluation_metrics: tuple[tuple[str, float], ...] = ()
+        evaluation_snapshot = result.active_snapshots.get("evaluation")
+        if evaluation_snapshot is not None:
+            scores = getattr(evaluation_snapshot.value, "turn_scores", ()) or ()
+            evaluation_metrics = tuple(
+                (str(getattr(score, "metric_name")), float(getattr(score, "value")))
+                for score in scores
+                if getattr(score, "metric_name", None) is not None
+                and isinstance(getattr(score, "value", None), int | float)
+            )
 
         turn_reports.append(
             TurnReport(
@@ -323,6 +334,7 @@ async def run_benchmark_async(
                 continuum_target_position=continuum_position,
                 refer_out_required=refer_out_required,
                 response_length=len(result.response.text),
+                evaluation_metrics=evaluation_metrics,
             )
         )
 

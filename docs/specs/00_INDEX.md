@@ -307,6 +307,21 @@
 
 ---
 
+### 17. Character Soul Bootstrap
+
+**对应需求**：R5（连续记忆）、R6（反思与沉淀）、R7（双轨学习）、R8（快照优先）、R11（内部状态可发布）、R14（regime 持久身份）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [character-soul-bootstrap.md](./character-soul-bootstrap.md) | 小说人物 → reviewed character profile → DomainExperiencePackage / VitalsBootstrap / IngestionEnvelope 的同仓异包 vertical |
+
+**核心不变量**：
+- character bootstrap 是 lifeform vertical，不是新 kernel owner
+- 角色画像必须是 reviewed structured artifact，不用关键词匹配从小说文本直接驱动行为
+- 原文小说只通过 canonical ingestion path 进入，durable 化仍由 R6 slow loop 处理
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |

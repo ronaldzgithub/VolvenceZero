@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
+import math
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -174,6 +176,160 @@ class FeatureSurfaceSubstrateAdapter(SubstrateAdapter):
                 ),
             ),
             description=source_detail,
+        )
+
+
+def _semantic_tokens(text: str) -> tuple[str, ...]:
+    tokens: list[str] = []
+    ascii_buffer: list[str] = []
+    compact = "".join(char for char in text.lower() if not char.isspace())
+    for char in text.lower():
+        if char.isascii() and char.isalnum():
+            ascii_buffer.append(char)
+            continue
+        if ascii_buffer:
+            tokens.append("".join(ascii_buffer))
+            ascii_buffer.clear()
+        if not char.isspace():
+            tokens.append(char)
+    if ascii_buffer:
+        tokens.append("".join(ascii_buffer))
+    tokens.extend(compact[index : index + 2] for index in range(len(compact) - 1))
+    return tuple(tokens)
+
+
+def _semantic_embedding(text: str, *, dim: int = 256) -> tuple[float, ...]:
+    tokens = _semantic_tokens(text)
+    if not tokens:
+        return tuple(0.0 for _ in range(dim))
+    vector = [0.0 for _ in range(dim)]
+    for token in tokens:
+        digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+        bucket = int.from_bytes(digest[:4], "big") % dim
+        sign = 1.0 if digest[4] % 2 == 0 else -1.0
+        vector[bucket] += sign
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm <= 1e-6:
+        return tuple(0.0 for _ in range(dim))
+    return tuple(value / norm for value in vector)
+
+
+def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+    if not left or not right:
+        return 0.0
+    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
+
+
+def _clamp_unit(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _softmax(values: tuple[float, ...], *, temperature: float = 0.18) -> tuple[float, ...]:
+    if not values:
+        return ()
+    scale = max(temperature, 1e-6)
+    shifted = tuple((value - max(values)) / scale for value in values)
+    exp_values = tuple(math.exp(value) for value in shifted)
+    total = sum(exp_values)
+    if total <= 1e-12:
+        return tuple(1.0 / len(values) for _ in values)
+    return tuple(value / total for value in exp_values)
+
+
+_SEMANTIC_PROTOTYPES: Mapping[str, tuple[float, ...]] = {
+    "task": _semantic_embedding(
+        "concrete problem solving troubleshoot edit revise check compare debug fix "
+        "configuration steps next action code implementation python script error index "
+        "jwt verification signature library dashboard reporting operations espresso "
+        "machine grind puck meeting email draft phrase"
+    ),
+    "support": _semantic_embedding(
+        "emotional support feeling overwhelmed sad hurt scared vulnerable reassurance "
+        "steady presence warmth trust comfort stuck heavy tense heard low mood"
+    ),
+    "repair": _semantic_embedding(
+        "repair rupture cold procedural blame trust broken start over apologize "
+        "felt dismissed restore safety"
+    ),
+    "exploration": _semantic_embedding(
+        "think through options uncertainty decide explore tradeoff not sure clarify "
+        "life decision direction"
+    ),
+    "directive": _semantic_embedding(
+        "do this write change fix check tweak concrete answer direct instruction "
+        "specific next step"
+    ),
+}
+_SOCIAL_PROTOTYPE = _semantic_embedding(
+    "casual social chat hello introduction getting to know shared interest pet "
+    "weekend hobby friendly light conversation acquaintance"
+)
+
+
+def semantic_feature_surface_from_text(
+    source_text: str,
+    *,
+    source: str = "substrate-semantic-surface",
+    fallback_active: float = 1.0,
+) -> tuple[FeatureSignal, ...]:
+    """Return the public semantic pull surface for text-only fallback captures.
+
+    This is a substrate-owned fallback for environments without a real
+    residual feature surface. It publishes the same semantic pull names as
+    the open-weight path, so downstream cognition consumes one contract.
+    """
+
+    embedding = _semantic_embedding(source_text)
+    similarities = {
+        name: _cosine_similarity(embedding, prototype)
+        for name, prototype in _SEMANTIC_PROTOTYPES.items()
+    }
+    mean_similarity = sum(similarities.values()) / max(len(similarities), 1)
+    centered = tuple(similarities[name] - mean_similarity for name in _SEMANTIC_PROTOTYPES)
+    distribution = dict(zip(_SEMANTIC_PROTOTYPES, _softmax(centered), strict=True))
+    pulls: dict[str, float] = {}
+    for name in _SEMANTIC_PROTOTYPES:
+        target = similarities[name]
+        runner_up = max(
+            value for other_name, value in similarities.items() if other_name != name
+        )
+        margin = _clamp_unit(0.5 + (target - runner_up) * 4.0)
+        pulls[name] = _clamp_unit(distribution[name] * 0.78 + margin * 0.22)
+    social_absolute = _clamp_unit(
+        (_cosine_similarity(embedding, _SOCIAL_PROTOTYPE) + 1.0) / 2.0
+    )
+    social_pull = _clamp_unit(max(social_absolute - 0.50, 0.0) * 2.0)
+
+    return (
+        FeatureSignal(name="semantic_task_pull", values=(pulls["task"],), source=source),
+        FeatureSignal(name="semantic_support_pull", values=(pulls["support"],), source=source),
+        FeatureSignal(name="semantic_repair_pull", values=(pulls["repair"],), source=source),
+        FeatureSignal(name="semantic_exploration_pull", values=(pulls["exploration"],), source=source),
+        FeatureSignal(name="semantic_directive_pull", values=(pulls["directive"],), source=source),
+        FeatureSignal(name="semantic_social_pull", values=(social_pull,), source=source),
+        FeatureSignal(name="semantic_surface_active", values=(1.0,), source=source),
+        FeatureSignal(name="fallback_active", values=(_clamp_unit(fallback_active),), source=source),
+    )
+
+
+class SemanticFeatureSurfaceSubstrateAdapter(FeatureSurfaceSubstrateAdapter):
+    """Text-only semantic feature surface for fallback substrate captures."""
+
+    def __init__(
+        self,
+        *,
+        source_text: str,
+        model_id: str = "semantic-feature-surface",
+        fallback_active: float = 1.0,
+    ) -> None:
+        super().__init__(
+            model_id=model_id,
+            feature_surface=semantic_feature_surface_from_text(
+                source_text,
+                fallback_active=fallback_active,
+            ),
+            token_logits=(),
+            is_frozen=True,
         )
 
 

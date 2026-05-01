@@ -33,6 +33,7 @@ from volvence_zero.agent.response import (
     ResponseSynthesizer,
 )
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
+from volvence_zero.interlocutor import InterlocutorState
 
 from lifeform_expression.prompt_planner import (
     PromptPlan,
@@ -43,6 +44,7 @@ from lifeform_expression.prompt_planner import (
 
 
 VitalsSnapshotProvider = Callable[[], VitalsSnapshot | None]
+InterlocutorStateProvider = Callable[[], InterlocutorState | None]
 
 
 class GroundedResponseSynthesizer(ResponseSynthesizer):
@@ -63,9 +65,11 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         *,
         planner: PromptPlanner | None = None,
         vitals_snapshot_provider: VitalsSnapshotProvider | None = None,
+        interlocutor_state_provider: InterlocutorStateProvider | None = None,
     ) -> None:
         self._planner = planner or PromptPlanner()
         self._vitals_snapshot_provider = vitals_snapshot_provider
+        self._interlocutor_state_provider = interlocutor_state_provider
 
     @property
     def planner(self) -> PromptPlanner:
@@ -75,19 +79,42 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     def vitals_snapshot_provider(self) -> VitalsSnapshotProvider | None:
         return self._vitals_snapshot_provider
 
+    @property
+    def interlocutor_state_provider(self) -> InterlocutorStateProvider | None:
+        return self._interlocutor_state_provider
+
     def with_vitals_provider(
         self, provider: VitalsSnapshotProvider | None
     ) -> "GroundedResponseSynthesizer":
-        """Return a clone of this synthesizer bound to the given provider.
+        """Return a clone of this synthesizer bound to the given vitals provider.
 
         The lifeform layer calls this once per ``LifeformSession`` so each
         session has its own synthesizer instance reading its own
         ``VitalsModule``. The original synthesizer (and its planner) are
         kept intact so the Brain-level default does not get mutated.
+        Existing interlocutor provider (if any) is preserved.
         """
         return GroundedResponseSynthesizer(
             planner=self._planner,
             vitals_snapshot_provider=provider,
+            interlocutor_state_provider=self._interlocutor_state_provider,
+        )
+
+    def with_interlocutor_provider(
+        self, provider: InterlocutorStateProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Return a clone bound to the given interlocutor-state provider.
+
+        Mirrors ``with_vitals_provider``: the lifeform layer wires
+        a per-session closure to ``LifeformSession.interlocutor_state``
+        so the planner sees fresh 12-axis readouts every turn. The
+        Brain-level default synthesizer is untouched. Existing
+        vitals provider (if any) is preserved on the clone.
+        """
+        return GroundedResponseSynthesizer(
+            planner=self._planner,
+            vitals_snapshot_provider=self._vitals_snapshot_provider,
+            interlocutor_state_provider=provider,
         )
 
     # Intents we delegate to the base kernel renderer because the base
@@ -106,7 +133,13 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
         vitals = self._read_vitals_snapshot()
-        plan = self._planner.plan(context=context, assembly=assembly, vitals=vitals)
+        interlocutor_state = self._read_interlocutor_state()
+        plan = self._planner.plan(
+            context=context,
+            assembly=assembly,
+            vitals=vitals,
+            interlocutor_state=interlocutor_state,
+        )
 
         if plan.intent in self._DELEGATE_TO_BASE or assembly is None:
             base = super().synthesize(context=context, assembly=assembly)
@@ -143,6 +176,19 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         if self._vitals_snapshot_provider is None:
             return None
         return self._vitals_snapshot_provider()
+
+    def _read_interlocutor_state(self) -> InterlocutorState | None:
+        """Pull the current 12-axis interlocutor readout (None when unbound).
+
+        Returning ``None`` is a normal cold-start signal: the
+        planner treats it as "no modulation". Callers are expected
+        to inspect ``readout_confidence`` themselves; here we just
+        forward whatever the provider hands back without any
+        interpretation \u2014 the planner is the policy owner.
+        """
+        if self._interlocutor_state_provider is None:
+            return None
+        return self._interlocutor_state_provider()
 
     # ------------------------------------------------------------------
     # Rendering hooks — subclass to swap in an LLM
@@ -368,7 +414,10 @@ def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentRe
         f"q={plan.question_budget}."
     )
     extra_tags = [
-        tag for tag in plan.rationale_tags if tag.startswith("vitals_pressure=")
+        tag for tag in plan.rationale_tags
+        if tag.startswith("vitals_pressure=")
+        or tag.startswith("interlocutor_conf=")
+        or tag.startswith("il_")
     ]
     extra = (" " + " ".join(extra_tags) + ".") if extra_tags else ""
     return AgentResponse(
@@ -410,4 +459,9 @@ def _build_rationale(
         if out_of_band:
             parts.append(f"vitals_pressure={out_of_band}")
             parts.append(f"vitals_total_pe={vitals.total_pe:.2f}")
+    # Forward Gap 9 slice 2c interlocutor-state tags so reflection /
+    # evaluation can audit which user-state axes shaped this turn.
+    for tag in plan.rationale_tags:
+        if tag.startswith("interlocutor_conf=") or tag.startswith("il_"):
+            parts.append(tag)
     return f"GroundedResponseSynthesizer from {regime_name}; " + ", ".join(parts) + "."

@@ -1502,6 +1502,20 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
     value_type: ClassVar[type[Any]]
     dependencies = ("substrate", "memory")
     default_wiring_level = WiringLevel.ACTIVE
+    # Owners that want to drop low-confidence proposals before they
+    # mutate the store override this. Default 0 keeps the historical
+    # behaviour: every proposal that the runtime emits flows into
+    # ``SemanticStateStore.apply``. Owners that absorb LLM-classified
+    # proposals (e.g. ``CommitmentModule`` consuming
+    # ``LLMSemanticProposalRuntime``) raise this so a routine OBSERVE
+    # (confidence ~0.20-0.25) cannot accidentally enter the lifecycle
+    # log and inflate AAC counters \u2014 the noise that phase B+A's
+    # verify exposed (``outcome_rejected_count: 6`` from a single
+    # explicit BLOCK probe). The threshold lives at the *owner*, not
+    # the runtime, because the policy decision is owner-specific:
+    # the user_model owner, for example, *wants* to absorb every
+    # observation regardless of confidence.
+    min_proposal_confidence: ClassVar[float] = 0.0
 
     def __init__(
         self,
@@ -1532,14 +1546,33 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
             previous_snapshot=self._last_snapshot,
             turn_index=self._turn_index,
         )
+        accepted = self._filter_proposals_by_confidence(batch.proposals)
         records = self._store.apply(
             slot=self.slot_name,
-            proposals=batch.proposals,
+            proposals=accepted,
             turn_index=self._turn_index,
         )
         value = self._build_snapshot(records=records, batch=batch)
         self._last_snapshot = value
         return self.publish(value)
+
+    def _filter_proposals_by_confidence(
+        self, proposals: tuple[SemanticProposal, ...]
+    ) -> tuple[SemanticProposal, ...]:
+        """Keep only proposals at-or-above ``min_proposal_confidence``.
+
+        Runs at the owner layer so the snapshot's ``batch`` field
+        still reflects the ORIGINAL runtime emission (audit trail
+        intact), while ``_store.apply`` only sees the accepted
+        subset. Owners that want every proposal applied keep the
+        default threshold of 0.0 \u2014 a strict ``>=`` check guarantees
+        the historical behaviour for that case (a 0.0-confidence
+        proposal still passes ``>= 0.0``).
+        """
+        threshold = self.min_proposal_confidence
+        if threshold <= 0.0:
+            return proposals
+        return tuple(p for p in proposals if p.confidence >= threshold)
 
     async def process_standalone(self, **kwargs: Any) -> Snapshot[SemanticSnapshotValue]:
         user_input = kwargs.get("user_input")
@@ -1639,6 +1672,19 @@ class CommitmentModule(SemanticOwnerModule):
     slot_name = "commitment"
     owner = "CommitmentModule"
     value_type = CommitmentSnapshot
+    # Confidence floor calibrated against the two runtimes that
+    # currently feed this owner:
+    #   * ``NoOpSemanticProposalRuntime``  emits OBSERVE @ 0.20
+    #   * ``LLMSemanticProposalRuntime``   emits OBSERVE @ 0.25,
+    #                                      DEFER @ 0.50,
+    #                                      CREATE @ 0.55,
+    #                                      COMPLETE / BLOCK @ 0.60
+    # 0.40 is below DEFER (the lowest-confidence operation we WANT
+    # in the lifecycle) and above OBSERVE (which is just "the user
+    # said something, no commitment-relevant change") for both
+    # runtimes. Result: AAC counters now reflect classified events,
+    # not every turn the kernel observed.
+    min_proposal_confidence: ClassVar[float] = 0.40
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> CommitmentSnapshot:
         active = _records_with_status(records, "active")
