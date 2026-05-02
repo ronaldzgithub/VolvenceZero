@@ -386,6 +386,7 @@
 | `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 | 理解仓库分裂时机与机械流程 |
 | `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、多时间尺度学习循环、wheel 边界、迁移策略 | 理解系统整体结构和模块关系 |
 | `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、wheel 边界、变更协议 | 理解模块间数据交换格式和约束 |
+| `docs/CONTRACT_MIGRATION_LOG.md` | 契约迁移流水：planned / SHADOW slots、字段扩展、shared type slice changelog | 查实现阶段和 rollout notes，避免污染稳定契约 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、信号回馈、lifeform-bench family report | 理解如何评估系统表现和驱动学习 |
 | `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |

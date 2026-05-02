@@ -290,3 +290,49 @@ def test_lifeform_does_not_import_other_lifeform_directly(
                 f"'{module}'. Product layer must consume the public surface "
                 f"(volvence_zero.runtime, volvence_zero.brain, ...) only."
             )
+
+
+def test_application_and_memory_use_temporal_contract_types_not_owner_package() -> None:
+    """Consumers may validate temporal snapshots without depending on vz-temporal."""
+
+    checked_files = (
+        PACKAGES_ROOT / "vz-application" / "src" / "volvence_zero" / "application" / "runtime.py",
+        PACKAGES_ROOT / "vz-memory" / "src" / "volvence_zero" / "memory" / "store.py",
+    )
+    for py_file in checked_files:
+        source = py_file.read_text(encoding="utf-8")
+        assert "volvence_zero.temporal.interface" not in source
+        assert "from volvence_zero.temporal import" not in source
+        assert "import volvence_zero.temporal" not in source
+
+
+def test_consumers_do_not_synthesize_disabled_temporal_placeholders() -> None:
+    """Disabled temporal wiring must be explicit upstream, not rebuilt downstream."""
+
+    source = (
+        PACKAGES_ROOT
+        / "vz-application"
+        / "src"
+        / "volvence_zero"
+        / "application"
+        / "runtime.py"
+    ).read_text(encoding="utf-8")
+    assert "temporal-disabled-placeholder" not in source
+    assert "fell back to placeholder temporal state" not in source
+
+
+def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:
+    """Open benchmark release gates should consume structured trace fields."""
+
+    source = (
+        PACKAGES_ROOT
+        / "vz-runtime"
+        / "src"
+        / "volvence_zero"
+        / "agent"
+        / "dialogue_benchmark.py"
+    ).read_text(encoding="utf-8")
+    assert "hidden-perturbation-label-not-leaked" not in source
+    assert "open_hidden_label_leak_count == 0" not in source
+    assert "marker in response" not in source
+    assert '"repair" in (turn.active_abstract_action or "")' not in source

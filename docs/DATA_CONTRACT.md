@@ -1332,9 +1332,11 @@ reflection ──────────────→ owner-side writeback: m
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
-### 6.X Social Cognition Learning Slots（R16-R20，planned）
+### 6.X Social Cognition Learning Slots（R16-R20，planned / migration log mirror）
 
 下表是 Social Cognition Learning Layer 的 planned slot 注册表。它们必须按 `docs/implementation/15_social_cognition_layer.md` 的 SHADOW → ACTIVE → retire 协议逐步落地；在 SHADOW 期不得破坏现有 flat `user_model` / `relationship_state` / `interlocutor_state` 消费路径。
+
+> 主契约的稳定 slot surface 以 §6 默认接线表为准。本节只保留 planned / SHADOW 迁移镜像；完整 rollout notes 与 slice changelog 迁到 `docs/CONTRACT_MIGRATION_LOG.md`，后续实现流水不再追加到本文档。
 
 | Slot Name | Owner 模块 | Value 类型 | 依赖 | 默认接线 | Timescale | Social prediction emitted | PE consumer |
 |-----------|-----------|-----------|------|----------|-----------|---------------------------|-------------|
@@ -1382,18 +1384,17 @@ reflection ──────────────→ owner-side writeback: m
 - 不可作为 kernel owner 间 propagate 的输入；只能被 lifeform 层（含 expression / service）消费
 - 副作用如果要进入 kernel，**必须**走已有公共入口（`BrainSession.submit_*` / `LifeformSession.run_turn`），不可旁路
 
-### 6.2 Owner 字段扩展
+### 6.2 Owner 字段扩展（stable readouts + migration log mirror）
 
 下列字段是在 spec 中冻结、Phase 1+ 逐步实施的 owner 字段扩展。它们**不**新增 slot，只在现有 owner 的 `value` dataclass 上加字段。
 
-| 现有 Slot | 新增字段 | 来源 spec | 实施状态 |
-|---|---|---|---|
-| `commitment` | `advocacy_state: AdvocacyState`、`alignment_state: AlignmentState`、`followup_policy: FollowupPolicy`、`last_outcome: CommitmentOutcomeKind \| None`、`last_outcome_evidence: str`、`last_outcome_at_turn: int` | `docs/specs/aac-lifecycle.md` | **已落地**（2026-04-29，Phase 1） |
-| `case_memory` | `lifecycle: CaseLifecycle`、`ttl_seconds: int \| None`、`expires_at_tick: int \| None`、`provisional_origin: str` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，Phase 1 slice 1） |
-| `regime` | `participation_hint: ParticipationHint`（flow_kind / panorama_level / method_level / task_level / confidence / rationale）、`depth_hint: CognitiveDepthHint`（depth / rationale / confidence）；scaffold 派生表 `derive_participation_hint` / `derive_cognitive_depth_hint` 映射 6 个已知 regime + safe fallback；prompt_planner 可选消费过滤 SILENT section | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 8 | **已落地**（2026-04-29 scaffold；learned metacontroller readout 留 slice 2） |
-| `user_model` | `interlocutor_readout: InterlocutorReadout`（首版 6 维 / 终版 12 维）、`readout_confidence: float`、`readout_extraction_method: str` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 9 | 待实施（Phase 4） |
-| `plan_intent` | `lifecycle_entries: tuple[PlanIntentLifecycleEntry, ...]` + 4 个 outcome 聚合 count（decision_made / assumption_recorded / problem_progress_assessed / outcome_observed）；每 entry 带 `last_outcome: PlanIntentOutcome \| None` / `last_outcome_evidence: str` / `last_outcome_at_turn: int` | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | **已落地**（2026-04-29） |
-| `execution_result` | `lifecycle_entries: tuple[ExecutionResultLifecycleEntry, ...]` + 7 个 outcome 聚合 count（user_feedback / instruction / tool_outcome / crystal_eval / crystal_suppression / package_publication / bootstrap_consumption）；每 entry 带 `last_outcome: ExecutionResultOutcome \| None` 及 evidence / turn anchor | `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 10 | **已落地**（2026-04-29） |
+> 本节只记录消费者可依赖的稳定 readout。字段实施流水、planned 状态和 slice 说明迁到 `docs/CONTRACT_MIGRATION_LOG.md`。
+
+| 现有 Slot | 新增稳定 readout | 所有者职责 |
+|---|---|---|
+| `memory` | `cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...]` | memory owner 发布 CMS band 向量，temporal 不再按属性名读取 `cms_state` 内部结构 |
+| `case_memory` | `support_prior: float`、`task_prior: float` | case_memory owner 发布 track prior，runtime 不再遍历 `hit.track_tags` 推导 |
+| `strategy_playbook` | `support_prior: float`、`task_prior: float` | strategy_playbook owner 发布 playbook prior，runtime 不再按 regime 字符串集合分类 |
 
 **字段扩展不变量**：
 
@@ -1401,22 +1402,19 @@ reflection ──────────────→ owner-side writeback: m
 - 字段添加 PR 必须同步更新本注册表
 - 字段必须可以被 reflection writeback 通过 `SemanticProposal` typed path 写入；**禁止** owner 私有 setter 直接赋值
 
-### 6.3 新增 vz-contracts 类型
+### 6.3 新增 vz-contracts 类型（stable surface + migration log mirror）
 
 下列类型属于跨 wheel 共享的不可变契约，应当落到 `vz-contracts`：
 
-| 类型 | 来源 spec | 实施状态 |
-|---|---|---|
-| `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` + `TERMINAL_THINKING_TASK_STATUSES` / `APPLIABLE_THINKING_TASK_STATUSES` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，`volvence_zero.thinking`，Phase 1 slice 1） |
-| `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` / `AffordanceLatencyClass` / `AffordanceMonetaryClass` + `MIN_SELECTION_HINT_CHARS=50` 不变量 | `docs/specs/affordance.md` | **已落地**（2026-04-29 slice 1：schema + `vz-contracts/affordance.py`；lifeform-affordance wheel 含 registry + 4 renderers + snapshot + `build_neutral_snapshot` scaffold；execution / metacontroller 选择 / 真实 vertical 注册留 slice 2） |
-| `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | 待实施（Phase 2） |
-| `InterlocutorIdentity` / `MultiPartyIdentitySnapshot` / `SocialPrediction` / `SocialPredictionError` / `SocialPredictionSnapshot` / `SocialPredictionErrorSnapshot` / `SocialPredictionKind` / `SocialPredictionOutcome` / `SocialScopeKind` + `PRIMARY_INTERLOCUTOR_ID` / `SELF_INTERLOCUTOR_ID` | `docs/specs/social_cognition/01_multi_party_identity.md` | **已落地**（2026-05-02，R16 Phase 1 slices 1-11：contracts、SHADOW identity owner、scope readout、memory subject/audience scope、`MemoryModule` ACTIVE identity-scope consumption、social prediction/error scaffolds、显式 social PE → credit；**Slice 11 ACTIVE 行为**：`MemoryStore.retrieve(active_subject_ids=...)` 严格 subject scope 过滤 + `RetrievalResult.suppressed_cross_scope_entries` + `MemorySnapshot.suppressed_cross_scope_entries`；`SocialPredictionAggregateModule` 自发 `MEMORY_VISIBILITY` `SocialPrediction`；`SocialPredictionErrorModule` 自动从被压制条目派生 `DISCONFIRMED` `SocialPredictionError`；自发 PE 通过既有 `derive_social_prediction_error_credit_records` 写入 credit ledger，全程无需 test-side `pending_errors` 注入；默认配置（无 `EnvironmentEvent` / SHADOW wiring）行为不变；`tests/test_social_memory_visibility_loop.py` 覆盖 5 项端到端契约） |
-| `OtherMindRecord` / `OtherMindRecordKind` / `OtherMindRecordStatus` / `BeliefAboutOtherSnapshot` / `IntentAboutOtherSnapshot` / `FeelingAboutOtherSnapshot` / `PreferenceAboutOtherSnapshot` | `docs/specs/social_cognition/02_theory_of_mind.md` | **已落地**（2026-05-02，R17 Phase 2 slices 1-6：`volvence_zero.social_cognition` ToM contract types；四类 snapshot 会校验 record kind，支持空 SHADOW scaffold；`BeliefAboutOtherModule` / `IntentAboutOtherModule` / `FeelingAboutOtherModule` / `PreferenceAboutOtherModule` 已注册 final wiring SHADOW owner；owner modules 支持显式注入 `SemanticProposalRuntime` 并转换为 typed `OtherMindRecord`；final wiring 默认不传通用 semantic runtime，避免 raw-text / NoOp runtime 成为 ToM classifier；false-belief / preference-conflict separation probe 已落地；`response_assembly.semantic_record_counts` 可诊断性显示 ToM owner counts，但 planner / renderer 尚不消费；`lifeform_evolution.run_social_cognition_evidence()` 汇总 T1-T3 evidence artifact） |
-| `ConversationalRoleSnapshot` + `build_primary_conversational_role_snapshot()` | `docs/specs/social_cognition/03_conversational_role.md` | **已落地**（2026-05-02，R18 Phase 3 slices 1-7：`volvence_zero.social_cognition` role contract + `primary/self` compatibility builder；contract tests 校验 required/optional role scope、confidence、prediction id；`ConversationalRoleModule` 已注册 final wiring SHADOW owner，默认发布 `primary/self` role snapshot；可消费 `EnvironmentEvent.frame` 的 active speaker / addressee / subject / audience scope；可从 EnvironmentEvent 发布 deterministic `ROLE_ASSIGNMENT` `SocialPrediction`；wrong-addressee role PE credit probe 已进入 Social Cognition evidence report；`response_assembly.semantic_record_counts` 可诊断性显示 role prediction count，但 planner / renderer 尚不消费；Social Cognition evidence report R2 gate 覆盖 role prediction diagnostic visibility；proposal consumption 待后续 slice） |
-| `CommonGroundAtom` / `CommonGroundSnapshot` / `MAX_COMMON_GROUND_RECURSION_DEPTH=2` | `docs/specs/social_cognition/04_common_ground.md` | **已落地**（2026-05-02，R19 Phase 4 slices 1-5：`volvence_zero.social_cognition` common-ground contracts；dyad/group scope only；bounded recursion depth；accepted_by ids 与 prediction ids 校验；`CommonGroundModule` 已注册 final wiring SHADOW owner，默认发布空 dyad/group atoms；module 支持显式 dyad/group atom injection 用于测试/证据；`response_assembly.semantic_record_counts` 可诊断性显示 common_ground atom count，但 planner / renderer 尚不消费；Social Cognition evidence report G1 gate 覆盖 common-ground diagnostic visibility；role / ToM / memory inference 待后续 slice） |
-| `GroupIdentity` / `GroupSnapshot` | `docs/specs/social_cognition/05_joint_entity.md` | **已落地**（2026-05-02，R20 Phase 5 slices 1-5：`volvence_zero.social_cognition` group contracts；unique membership；active group id validation；joint attention / commitment fields；prediction id validation；`GroupModule` 已注册 final wiring SHADOW owner，默认发布空 group state；module 支持显式 group identities / active group / joint attention / joint commitments / group regime id injection 用于测试/证据；`response_assembly.semantic_record_counts` 可诊断性显示 groups / group_joint_commitments counts，但 planner / renderer 尚不消费；Social Cognition evidence report GROUP1 gate 覆盖 group diagnostic visibility；role / common-ground / commitment inference 待后续 slice） |
-| `EnvironmentEvent` / `EnvironmentOutcome`（名称暂定） | `docs/specs/environment-interface.md` | planned（Phase 0 只冻结语义字段；Phase 1 决定落在 `lifeform-core` 还是 `vz-contracts`，不得新增 kernel owner / slot） |
-| `TemporalSegmentClosure` / `PredictionActionContext` + `EnvironmentOutcome` 最小观察字段（`latency_ms`、`monetary_cost`、`reversibility`、`environment_state_delta_kind`） | `docs/specs/emergent-action-abstraction.md` | Phase 1 clean（不新增 trace dataclass / runtime slot；扩展既有 `temporal_abstraction` 与 `prediction_error` 快照） |
+> 跨 wheel 类型的稳定入口如下；历史 slice 说明迁到 `docs/CONTRACT_MIGRATION_LOG.md`。
+
+| Module | 稳定类型面 |
+|---|---|
+| `volvence_zero.thinking` | thinking task / artifact contracts |
+| `volvence_zero.affordance` | affordance descriptor schema |
+| `volvence_zero.social_cognition` | social cognition contract snapshots and prediction/error types |
+| `volvence_zero.environment` | environment event / outcome contracts |
+| `volvence_zero.temporal_types` | `ControllerState` / `TemporalSegmentClosure` / `TemporalAbstractionSnapshot` |
 
 ---
 
@@ -1465,4 +1463,5 @@ reflection ──────────────→ owner-side writeback: m
 | `docs/specs/emergent-action-abstraction.md` | ETA/NL-clean action feedback abstraction：EnvironmentOutcome 最小观察字段、temporal segment closure、PE action context、PE-derived credit、snapshot replay export |
 | `docs/specs/domain-experience-layer.md` | 通用 vertical 经验包 schema 与编译边界 |
 | `docs/specs/core-package-boundary.md` | core package 边界、stable Brain API、HF optional runtime |
+| `docs/CONTRACT_MIGRATION_LOG.md` | planned / SHADOW slot、字段扩展与 shared type 的 rollout notes；避免本文档承载实现流水 |
 | `.cursor/rules/ssot-module-boundaries.mdc` | 模块 SSOT + 快照隔离的编码规则 |

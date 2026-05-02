@@ -111,6 +111,7 @@ class MemorySnapshot:
     cms_state: CMSState | None
     description: str
     lifecycle_metrics: tuple[tuple[str, float], ...] = ()
+    cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...] = ()
     suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
     active_subject_scope: tuple[str, ...] = ()
 
@@ -936,6 +937,15 @@ class MemoryStore:
                     hope_state.generated_reset_rate if hope_state is not None else 0.0,
                 ),
                 ("hope_self_mod_guarded", float(hope_state.guarded) if hope_state is not None else 0.0),
+            ),
+            cms_band_vectors=(
+                (
+                    ("online_fast", cms_state.online_fast.vector),
+                    ("session_medium", cms_state.session_medium.vector),
+                    ("background_slow", cms_state.background_slow.vector),
+                )
+                if cms_state is not None
+                else ()
             ),
             description=description,
             suppressed_cross_scope_entries=suppressed_cross_scope_entries,

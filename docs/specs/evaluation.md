@@ -12,7 +12,7 @@
 
 - **评估是 prediction error 的可读层**：评估分数是对预测误差的结构化 readout，不是学习信号的源头（R-PE）
 - 评估不仅衡量有用性，还衡量连续性、稳定性、信任和长期适应
-- 评估信号应回馈到学习循环（不只是离线报告）
+- 评估信号只作为 readout / gate context / widening evidence 回到学习循环，不替代 PE / credit owner
 - 评估按轨道分别衡量（R7 双轨隔离）
 
 ## 工程挑战
@@ -51,12 +51,13 @@
 
 ### 评估信号回馈
 
-评估不只是度量工具，更是学习循环的驱动力：
-- F1 分数 → World Track 信用分配
-- F2 + F3 分数 → Self Track 信用分配
-- F4 分数 → 门控自修改决策
-- F5 分数 → 抽象动作级信用
-- F6 告警 → 负信用 + 安全门控
+评估不是原始学习源。六族指标只能作为 PE-first 主链的观测层、门控上下文和 evidence widening：
+
+- F1 分数 → World Track credit 的 readout / audit evidence
+- F2 + F3 分数 → Self Track credit 的 readout / audit evidence
+- F4 分数 → ModificationGate 的上下文证据，不直接写自修改结果
+- F5 分数 → temporal / abstract action credit 的 readout，不绕过 PE-derived credit
+- F6 告警 → safety gate evidence；负信用仍由 PE / typed outcome evidence 派生
 
 当前实现补充：
 

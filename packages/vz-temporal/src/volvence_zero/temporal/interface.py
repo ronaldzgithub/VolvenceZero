@@ -1435,12 +1435,12 @@ def _reflection_signal(reflection_snapshot: ReflectionSnapshot | None) -> float:
 
 
 def _cms_band(memory_snapshot: MemorySnapshot | None, band_name: str) -> tuple[float, ...] | None:
-    if memory_snapshot is None or memory_snapshot.cms_state is None:
+    if memory_snapshot is None:
         return None
-    band = getattr(memory_snapshot.cms_state, band_name, None)
-    if band is None:
-        return None
-    return band.vector
+    for published_name, vector in memory_snapshot.cms_band_vectors:
+        if published_name == band_name:
+            return vector
+    return None
 
 
 def _should_take_binary_override(
