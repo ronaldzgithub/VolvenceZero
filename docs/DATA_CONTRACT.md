@@ -796,6 +796,10 @@ class MemorySnapshot:
 
     description: str                    # 模块自身生成的整体状态描述
     lifecycle_metrics: tuple[tuple[str, float], ...] = ()  # owner 负责的 lifecycle telemetry，如 reset、slow->fast benefit、learned recall evidence
+    cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...] = ()  # CMS 三带原向量；评估面消费
+    suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()  # 被 multi-party scope 过滤掉的检索结果（owner 自报，不是消费者推算）
+    active_subject_scope: tuple[str, ...] = ()  # 本轮 retrieval 真正使用的 active subject scope
+    social_pe_signals: tuple[MemorySocialPESignal, ...] = ()  # owner 自身发布的 typed social PE signals；社交 prediction / error owner 只做契约级 lift，不重建
 ```
 
 **owner 规则**：
@@ -810,6 +814,7 @@ class MemorySnapshot:
 - `lifecycle_metrics` 只发布 owner 自身负责的 nested lifecycle telemetry；消费者不得自行推断 reset、slow-to-fast transfer、或 learned-core-guided recall 是否发生
 - `hope_self_modification_state` 是 Memory owner 内部 tiny Hope 机制的只读证据面；它描述 owner 生成的有界 update 系数和 guard 状态，不授权消费者改写 CMS 参数
 - 显式 `MemoryEntry` 属于 artifact / explanation layer；主记忆基底由 owner 内部 learned core 承担
+- `social_pe_signals` 是 Memory owner 对社交 PE 主链的唯一 typed 入口；下游 `social_prediction` / `social_prediction_error` owner 必须通过 `social_prediction_from_memory_signal` / `social_prediction_error_from_memory_signal` 升级，**禁止**消费者从 `suppressed_cross_scope_entries` / `active_subject_scope` 反向重建 `SocialPrediction` / `SocialPredictionError`，也禁止借用 `MemoryModule` 名字写到下游 owner 的 snapshot 中
 - semantic retrieval index 属于 Memory owner 内部 derived index，不通过独立 slot 暴露
 - runtime retrieval facets 可消费上一轮已经发布的 `temporal_abstraction` / `dual_track` 快照；不得通过同轮直接调用形成第二 owner 或循环依赖
 
@@ -1351,8 +1356,8 @@ reflection ──────────────→ owner-side writeback: m
 | `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | DISABLED → SHADOW | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
 | `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | DISABLED → SHADOW | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
 | `groups` | GroupModule | GroupSnapshot | multi_party_identity, conversational_role, common_ground, commitment, open_loop | DISABLED → SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit | social_prediction_error → prediction_error / credit |
-| `social_prediction` | SocialPredictionAggregateModule | SocialPredictionSnapshot | multi_party_identity, memory（Slice 11+：所有 R16-R20 owners 计划纳入） | DISABLED → SHADOW → ACTIVE-when-multi-party | pre-action per turn | self-emitted MEMORY_VISIBILITY (Slice 11) + aggregate pre-action social predictions | social_prediction_error |
-| `social_prediction_error` | SocialPredictionErrorModule | SocialPredictionErrorSnapshot | social_prediction, multi_party_identity, memory（计划：evaluation, execution_result, relationship_states, common_ground, groups） | DISABLED → SHADOW → ACTIVE-when-multi-party | post-action per turn / session | self-derived MEMORY_VISIBILITY DISCONFIRMED PE (Slice 11) + manual probe injection | prediction_error / credit |
+| `social_prediction` | SocialPredictionAggregateModule (lifter) | SocialPredictionSnapshot | multi_party_identity, memory.social_pe_signals（Slice 12+：其它 R16-R20 owner 自报 typed signals 后并入） | DISABLED → SHADOW → ACTIVE-when-multi-party | pre-action per turn | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPrediction（不重建） | social_prediction_error |
+| `social_prediction_error` | SocialPredictionErrorModule (lifter) | SocialPredictionErrorSnapshot | social_prediction, multi_party_identity, memory.social_pe_signals（计划：evaluation, execution_result, relationship_states, common_ground, groups 各 owner typed signals） | DISABLED → SHADOW → ACTIVE-when-multi-party | post-action per turn / session | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPredictionError（owner 字段来自 signal.source_owner）+ 外部 probe 注入 | prediction_error / credit |
 
 **Social Cognition migration protocol**：
 

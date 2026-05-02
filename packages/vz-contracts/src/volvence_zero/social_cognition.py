@@ -147,6 +147,178 @@ class SocialPredictionErrorSnapshot:
 
 
 @dataclass(frozen=True)
+class MemorySocialPESignal:
+    """Typed PE signal published by ``MemoryModule`` itself.
+
+    R8 SSOT contract: only the owning ``MemoryModule`` writes this
+    record into its own ``MemorySnapshot.social_pe_signals``. Downstream
+    social prediction / error owners lift each signal into
+    :class:`SocialPrediction` / :class:`SocialPredictionError` via the
+    pure helpers below; they never reconstruct it from raw memory
+    fields and they never borrow another owner's name on the resulting
+    public records.
+
+    The signal carries both the pre-action prediction shape (so the
+    aggregator can publish a stable :class:`SocialPrediction`) and the
+    optional settled outcome (so the error owner can publish a stable
+    :class:`SocialPredictionError`). When ``outcome`` is ``None`` the
+    signal is prediction-only and the error owner skips it.
+    """
+
+    signal_id: str
+    prediction_id: str
+    source_owner: str
+    prediction_kind: SocialPredictionKind
+    scope_kind: SocialScopeKind
+    scope_id: str
+    subject_ids: tuple[str, ...]
+    audience_ids: tuple[str, ...]
+    predicted_outcome: str
+    confidence: float
+    outcome: SocialPredictionOutcome | None = None
+    magnitude: float = 0.0
+    evidence: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_non_empty("signal_id", self.signal_id)
+        _require_non_empty("prediction_id", self.prediction_id)
+        _require_non_empty("source_owner", self.source_owner)
+        _require_non_empty("scope_id", self.scope_id)
+        _require_non_empty_unique_tuple("subject_ids", self.subject_ids)
+        _require_non_empty_unique_tuple("audience_ids", self.audience_ids)
+        _require_non_empty("predicted_outcome", self.predicted_outcome)
+        _require_confidence("confidence", self.confidence)
+        _require_unit_interval("magnitude", self.magnitude)
+        _require_unique_non_empty("evidence", self.evidence)
+        if self.outcome is None and self.evidence:
+            raise ValueError(
+                "MemorySocialPESignal.evidence must be empty when outcome is None"
+            )
+        if self.outcome is not None and not self.evidence:
+            raise ValueError(
+                "MemorySocialPESignal.evidence must be non-empty when outcome is set"
+            )
+
+
+def build_memory_visibility_signals(
+    *,
+    source_owner: str,
+    sequence_index: int,
+    active_subject_scope: tuple[str, ...],
+    retrieved_count: int,
+    suppressed_evidence: tuple[str, ...],
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,),
+    pre_action_confidence: float = 0.6,
+) -> tuple[MemorySocialPESignal, ...]:
+    """Build typed memory-visibility PE signals for one retrieval cycle.
+
+    Pure functional contract helper. The owning ``MemoryModule`` calls
+    this once per ``process`` after running scoped retrieval and forwards
+    the result through ``MemorySnapshot.social_pe_signals``. A single
+    signal is emitted when the active multi-party scope is non-default;
+    the signal carries an outcome (``DISCONFIRMED`` + magnitude) only
+    when cross-scope memory entries were actually suppressed.
+
+    Returns an empty tuple when the scope is default or empty so the
+    caller can pass the result straight through without branching.
+    """
+
+    if not active_subject_scope:
+        return ()
+    if active_subject_scope == (PRIMARY_INTERLOCUTOR_ID,):
+        return ()
+
+    scope_id = active_subject_scope[0]
+    seq_token = f"v{sequence_index}"
+    prediction_id = f"memory_visibility:{scope_id}:{seq_token}"
+    signal_id = f"memory_visibility_pe:{scope_id}:{seq_token}"
+
+    suppressed_count = len(suppressed_evidence)
+    if suppressed_count > 0:
+        evaluated_total = retrieved_count + suppressed_count
+        magnitude = (
+            suppressed_count / evaluated_total if evaluated_total > 0 else 1.0
+        )
+        magnitude = min(1.0, max(0.0, magnitude))
+        outcome: SocialPredictionOutcome | None = SocialPredictionOutcome.DISCONFIRMED
+        evidence = suppressed_evidence
+    else:
+        outcome = None
+        magnitude = 0.0
+        evidence = ()
+
+    return (
+        MemorySocialPESignal(
+            signal_id=signal_id,
+            prediction_id=prediction_id,
+            source_owner=source_owner,
+            prediction_kind=SocialPredictionKind.MEMORY_VISIBILITY,
+            scope_kind=SocialScopeKind.INTERLOCUTOR,
+            scope_id=scope_id,
+            subject_ids=active_subject_scope,
+            audience_ids=audience_ids,
+            predicted_outcome="memory_subjects_match_active_subjects",
+            confidence=pre_action_confidence,
+            outcome=outcome,
+            magnitude=magnitude,
+            evidence=evidence,
+        ),
+    )
+
+
+def social_prediction_from_memory_signal(
+    signal: MemorySocialPESignal,
+    *,
+    extra_evidence: tuple[str, ...] = (),
+) -> SocialPrediction:
+    """Lift a memory PE signal to a public :class:`SocialPrediction`.
+
+    Used by the social-prediction aggregator. ``extra_evidence`` lets the
+    aggregator append contextual evidence (e.g. retrieved-count summary)
+    without touching the owner's signal.
+    """
+
+    return SocialPrediction(
+        prediction_id=signal.prediction_id,
+        kind=signal.prediction_kind,
+        scope_kind=signal.scope_kind,
+        scope_id=signal.scope_id,
+        subject_ids=signal.subject_ids,
+        audience_ids=signal.audience_ids,
+        predicted_outcome=signal.predicted_outcome,
+        confidence=signal.confidence,
+        evidence=tuple(extra_evidence),
+    )
+
+
+def social_prediction_error_from_memory_signal(
+    signal: MemorySocialPESignal,
+) -> SocialPredictionError | None:
+    """Lift a settled memory PE signal to a public :class:`SocialPredictionError`.
+
+    Returns ``None`` when the signal is prediction-only
+    (``outcome is None``). The resulting error's ``owner`` field comes
+    from the signal's ``source_owner``, so the SSOT contract is
+    preserved: the memory module owns the PE source, this helper only
+    converts the typed signal into the public PE record.
+    """
+
+    if signal.outcome is None:
+        return None
+    return SocialPredictionError(
+        error_id=signal.signal_id,
+        prediction_id=signal.prediction_id,
+        kind=signal.prediction_kind,
+        outcome=signal.outcome,
+        magnitude=signal.magnitude,
+        owner=signal.source_owner,
+        scope_kind=signal.scope_kind,
+        scope_id=signal.scope_id,
+        evidence=signal.evidence,
+    )
+
+
+@dataclass(frozen=True)
 class OtherMindRecord:
     record_id: str
     interlocutor_id: str
@@ -527,6 +699,7 @@ __all__ = [
     "GroupSnapshot",
     "InterlocutorIdentity",
     "IntentAboutOtherSnapshot",
+    "MemorySocialPESignal",
     "MultiPartyIdentitySnapshot",
     "OtherMindRecord",
     "OtherMindRecordKind",
@@ -539,6 +712,9 @@ __all__ = [
     "SocialPredictionOutcome",
     "SocialPredictionSnapshot",
     "SocialScopeKind",
+    "build_memory_visibility_signals",
     "build_primary_conversational_role_snapshot",
     "build_primary_multi_party_identity_snapshot",
+    "social_prediction_error_from_memory_signal",
+    "social_prediction_from_memory_signal",
 ]

@@ -3,6 +3,41 @@
 > Status: migration / implementation log
 > Last updated: 2026-05-02
 
+## Slice 12 (2026-05-02): MemoryModule SSOT for social PE signals
+
+Closes the SSOT violation where `SocialPredictionAggregateModule` and
+`SocialPredictionErrorModule` reconstructed `MEMORY_VISIBILITY`
+predictions / PE from raw `MemorySnapshot.suppressed_cross_scope_entries`
+and stamped `owner="MemoryModule"` on records they wrote themselves
+(R8 / `ssot-module-boundaries.mdc` violation).
+
+Landed shape:
+
+- New typed contract `MemorySocialPESignal` in
+  `volvence_zero.social_cognition` (vz-contracts), plus pure helpers
+  `build_memory_visibility_signals`,
+  `social_prediction_from_memory_signal`, and
+  `social_prediction_error_from_memory_signal`.
+- `MemorySnapshot` extended with `social_pe_signals: tuple[MemorySocialPESignal, ...]`;
+  `MemoryModule` is the only writer.
+- `SocialPredictionAggregateModule` and `SocialPredictionErrorModule`
+  are now lifter / pass-through owners; they read
+  `MemorySnapshot.social_pe_signals` and forward through the
+  contract helpers, never reconstruct from raw memory fields, and
+  never borrow another owner's name on their own snapshots.
+- `prediction_id` and `signal_id` keep the previous public format
+  (`memory_visibility:{scope}:v{seq}` /
+  `memory_visibility_pe:{scope}:v{seq}`); `seq` is the publishing
+  module's `_version + 1`.
+- `MemorySnapshot` doc + owner rules updated in
+  `docs/DATA_CONTRACT.md`; `social_prediction` /
+  `social_prediction_error` rows reflect the lifter contract.
+
+Tests: `tests/test_social_memory_visibility_loop.py` (5),
+`tests/test_final_wiring.py` social-prediction empty-scaffold case,
+and the social cognition / credit / contracts subset (481 tests)
+all pass with no regression.
+
 This file holds rollout notes, planned slot waves, and landed slice summaries that
 should not inflate the stable contract surface in `docs/DATA_CONTRACT.md`.
 

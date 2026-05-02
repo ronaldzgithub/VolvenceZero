@@ -28,7 +28,9 @@ from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
+    MemorySocialPESignal,
     MultiPartyIdentitySnapshot,
+    build_memory_visibility_signals,
 )
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
@@ -114,6 +116,7 @@ class MemorySnapshot:
     cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...] = ()
     suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
     active_subject_scope: tuple[str, ...] = ()
+    social_pe_signals: tuple[MemorySocialPESignal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -765,6 +768,7 @@ class MemoryStore:
         retrieved_entries: tuple[MemoryEntry, ...],
         suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = (),
         active_subject_scope: tuple[str, ...] = (),
+        social_pe_signals: tuple[MemorySocialPESignal, ...] = (),
     ) -> MemorySnapshot:
         transient_entries = self._entries_for(MemoryStratum.TRANSIENT)
         episodic_entries = self._entries_for(MemoryStratum.EPISODIC)
@@ -950,6 +954,7 @@ class MemoryStore:
             description=description,
             suppressed_cross_scope_entries=suppressed_cross_scope_entries,
             active_subject_scope=active_subject_scope,
+            social_pe_signals=social_pe_signals,
         )
 
     def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
@@ -1813,11 +1818,13 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             timestamp_ms=substrate_snapshot.timestamp_ms,
             active_subject_ids=subject_ids,
         )
+        social_pe_signals = self._build_social_pe_signals(retrieval=retrieval)
         return self.publish(
             self._store.snapshot(
                 retrieved_entries=retrieval.entries,
                 suppressed_cross_scope_entries=retrieval.suppressed_cross_scope_entries,
                 active_subject_scope=retrieval.active_subject_scope,
+                social_pe_signals=social_pe_signals,
             )
         )
 
@@ -1888,13 +1895,39 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             timestamp_ms=timestamp_ms,
             active_subject_ids=subject_ids,
         )
+        social_pe_signals = self._build_social_pe_signals(retrieval=retrieval)
         return self.publish(
             self._store.snapshot(
                 retrieved_entries=retrieval.entries,
                 suppressed_cross_scope_entries=retrieval.suppressed_cross_scope_entries,
                 active_subject_scope=retrieval.active_subject_scope,
+                social_pe_signals=social_pe_signals,
             )
         )
+
+    def _build_social_pe_signals(
+        self, *, retrieval: RetrievalResult
+    ) -> tuple[MemorySocialPESignal, ...]:
+        active_scope = retrieval.active_subject_scope
+        if not active_scope or active_scope == (PRIMARY_INTERLOCUTOR_ID,):
+            return ()
+        suppressed_evidence = tuple(
+            sorted(
+                {
+                    f"suppressed:{entry.entry_id}:subject={'+'.join(entry.subject_ids)}"
+                    for entry in retrieval.suppressed_cross_scope_entries
+                }
+            )
+        )
+        seq = self._version + 1
+        signals = build_memory_visibility_signals(
+            source_owner=self.owner,
+            sequence_index=seq,
+            active_subject_scope=active_scope,
+            retrieved_count=len(retrieval.entries),
+            suppressed_evidence=suppressed_evidence,
+        )
+        return signals
 
     def _runtime_query_facets(
         self,

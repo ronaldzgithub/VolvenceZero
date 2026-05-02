@@ -1,11 +1,23 @@
-"""Multi-party identity owner scaffold (R16).
+"""Multi-party identity owner + social prediction lifters (R16).
 
-Slice 2 introduced the SHADOW compatibility ``primary`` snapshot.  Slice 11
-adds the first self-emitting social prediction loop: when the upstream
-``multi_party_identity`` snapshot is non-default and the ``MemoryModule``
-suppressed cross-scope entries, ``SocialPredictionAggregateModule`` and
-``SocialPredictionErrorModule`` derive a ``MEMORY_VISIBILITY`` prediction
-and matching PE without any injection.
+R8 SSOT note (Slice 12 SSOT cleanup):
+
+- ``MultiPartyIdentityModule`` owns the active identity scope snapshot.
+- ``SocialPredictionAggregateModule`` and ``SocialPredictionErrorModule``
+  are lifter / pass-through owners that publish the public
+  :class:`SocialPrediction` / :class:`SocialPredictionError` snapshots
+  by **reading typed PE signals** (``MemorySnapshot.social_pe_signals``)
+  that the producing owner (currently ``MemoryModule``) emits itself.
+  They never reconstruct social PE state from raw memory fields and
+  they never borrow another module's owner name on their own published
+  snapshots.
+
+Earlier slices reconstructed ``MEMORY_VISIBILITY`` predictions and
+errors here from ``MemorySnapshot.suppressed_cross_scope_entries``,
+which violated the SSOT rule that consumers must not rebuild a
+producer's internal state. That reconstruction has moved into the
+producing ``MemoryModule`` itself, where the typed signal is published
+through ``MemorySnapshot.social_pe_signals``.
 """
 
 from __future__ import annotations
@@ -16,17 +28,15 @@ from volvence_zero.environment import EnvironmentEvent
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
-    PRIMARY_INTERLOCUTOR_ID,
     InterlocutorIdentity,
+    MemorySocialPESignal,
     MultiPartyIdentitySnapshot,
-    SocialPrediction,
     SocialPredictionError,
     SocialPredictionErrorSnapshot,
-    SocialPredictionKind,
-    SocialPredictionOutcome,
     SocialPredictionSnapshot,
-    SocialScopeKind,
     build_primary_multi_party_identity_snapshot,
+    social_prediction_error_from_memory_signal,
+    social_prediction_from_memory_signal,
 )
 
 
@@ -95,47 +105,42 @@ class MultiPartyIdentityModule(RuntimeModule[MultiPartyIdentitySnapshot]):
         )
 
 
-_MEMORY_VISIBILITY_OWNER = "MemoryModule"
-
-
-def _is_default_subject_scope(subject_ids: tuple[str, ...]) -> bool:
-    return subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
-
-
-def _identity_value(
-    snapshot: Snapshot[Any] | None,
-) -> MultiPartyIdentitySnapshot | None:
-    if snapshot is None or not isinstance(snapshot.value, MultiPartyIdentitySnapshot):
-        return None
-    return snapshot.value
-
-
-def _memory_value(snapshot: Snapshot[Any] | None) -> MemorySnapshot | None:
+def _memory_snapshot(snapshot: Snapshot[Any] | None) -> MemorySnapshot | None:
     if snapshot is None or not isinstance(snapshot.value, MemorySnapshot):
         return None
     return snapshot.value
 
 
-def _memory_visibility_prediction_id(
-    *, scope_id: str, memory_version: int
-) -> str:
-    return f"memory_visibility:{scope_id}:v{memory_version}"
+def _memory_social_pe_signals(
+    snapshot: Snapshot[Any] | None,
+) -> tuple[MemorySocialPESignal, ...]:
+    memory = _memory_snapshot(snapshot)
+    if memory is None:
+        return ()
+    return memory.social_pe_signals
 
 
-def _memory_visibility_error_id(
-    *, scope_id: str, memory_version: int
-) -> str:
-    return f"memory_visibility_pe:{scope_id}:v{memory_version}"
+def _describe_scope_state(memory: MemorySnapshot | None) -> str:
+    """Derive a short scope-state hint for empty-signal descriptions."""
+
+    if memory is None:
+        return "default-or-missing"
+    scope = memory.active_subject_scope
+    if not scope:
+        return "default-or-missing"
+    if scope == ("primary",):
+        return "default-or-missing"
+    return f"non-default:{scope[0]}"
 
 
 class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
-    """Publishes the pre-action social prediction aggregate.
+    """Lift typed PE signals from upstream owners into public predictions.
 
-    R16 Slice 11 introduces the first self-emitted prediction: when the
-    active multi-party scope is non-default and memory retrieval has run,
-    the module declares "memory retrieval will return entries scoped to the
-    active subjects". The owner remains :class:`MemoryModule` -- this slot
-    only aggregates predictions for downstream PE.
+    R8 SSOT contract: this module never reconstructs social predictions
+    from raw producer state. It only forwards typed signals (currently
+    ``MemorySnapshot.social_pe_signals``) through the
+    :func:`social_prediction_from_memory_signal` lifter. The producing
+    owner (``MemoryModule``) is the single source of truth.
     """
 
     slot_name = "social_prediction"
@@ -147,70 +152,66 @@ class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[SocialPredictionSnapshot]:
-        identity = _identity_value(upstream.get("multi_party_identity"))
-        memory = _memory_value(upstream.get("memory"))
-        memory_available = memory is not None
-        identity_available = identity is not None
-        if (
-            identity is None
-            or memory is None
-            or _is_default_subject_scope(identity.subject_ids)
-        ):
-            suffix = (
-                f"identity={'available' if identity_available else 'compatibility-fallback'}; "
-                f"memory={'available' if memory_available else 'unavailable'}; "
-                "scope=default-or-missing"
+        memory_snapshot = upstream.get("memory")
+        memory_value = _memory_snapshot(memory_snapshot)
+        signals = _memory_social_pe_signals(memory_snapshot)
+
+        if not signals:
+            memory_state = (
+                "available" if memory_value is not None else "unavailable"
             )
+            scope_state = _describe_scope_state(memory_value)
             return self.publish(
                 SocialPredictionSnapshot(
                     predictions=(),
                     description=(
-                        "R16 social prediction aggregate: no MEMORY_VISIBILITY "
-                        f"prediction emitted; {suffix}."
+                        "R16 social prediction aggregate: no upstream signals; "
+                        f"memory={memory_state}; scope={scope_state}."
                     ),
                 )
             )
-        scope_id = identity.subject_ids[0]
-        memory_snapshot = upstream.get("memory")
-        memory_version = memory_snapshot.version if memory_snapshot is not None else 0
-        prediction = SocialPrediction(
-            prediction_id=_memory_visibility_prediction_id(
-                scope_id=scope_id,
-                memory_version=memory_version,
-            ),
-            kind=SocialPredictionKind.MEMORY_VISIBILITY,
-            scope_kind=SocialScopeKind.INTERLOCUTOR,
-            scope_id=scope_id,
-            subject_ids=identity.subject_ids,
-            audience_ids=identity.audience_ids,
-            predicted_outcome="memory_subjects_match_active_subjects",
-            confidence=0.6,
-            evidence=(
-                f"active_subject_ids={','.join(identity.subject_ids)}",
-                f"retrieved_count={len(memory.retrieved_entries)}",
-            ),
+
+        retrieved_count = (
+            len(memory_value.retrieved_entries) if memory_value is not None else 0
         )
+        suppressed_count = (
+            len(memory_value.suppressed_cross_scope_entries)
+            if memory_value is not None
+            else 0
+        )
+        predictions = tuple(
+            social_prediction_from_memory_signal(
+                signal,
+                extra_evidence=(
+                    f"retrieved_count={retrieved_count}",
+                    f"suppressed_count={suppressed_count}",
+                ),
+            )
+            for signal in signals
+        )
+        source_owners = sorted({signal.source_owner for signal in signals})
         return self.publish(
             SocialPredictionSnapshot(
-                predictions=(prediction,),
+                predictions=predictions,
                 description=(
-                    "R16 social prediction aggregate: emitted 1 MEMORY_VISIBILITY "
-                    f"prediction for scope={scope_id}; "
-                    f"retrieved={len(memory.retrieved_entries)} "
-                    f"suppressed={len(memory.suppressed_cross_scope_entries)}."
+                    "R16 social prediction aggregate: lifted "
+                    f"{len(predictions)} typed signal(s) from owner(s) "
+                    f"{source_owners}."
                 ),
             )
         )
 
 
 class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
-    """Publishes typed social PE records derived from social predictions.
+    """Lift settled PE signals into public :class:`SocialPredictionError` records.
 
-    R16 Slice 11: when the upstream memory snapshot suppressed cross-scope
-    entries, this owner converts that into a :class:`SocialPredictionError`
-    that disconfirms the matching MEMORY_VISIBILITY prediction.  Manual
-    ``pending_errors`` injection (Slice 7 probe path) still flows through
-    so external probes can layer additional PE without conflict.
+    R8 SSOT contract: this module never reconstructs PE outcomes from
+    raw producer state. It forwards already-settled typed signals
+    (with ``outcome != None``) through
+    :func:`social_prediction_error_from_memory_signal` and concatenates
+    any externally injected ``pending_errors`` (probe / test path).
+    The owner field on each emitted error record comes from the
+    signal's ``source_owner`` so the SSOT contract is preserved.
     """
 
     slot_name = "social_prediction_error"
@@ -232,84 +233,34 @@ class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[SocialPredictionErrorSnapshot]:
         prediction_snapshot = upstream.get("social_prediction")
-        prediction_available = isinstance(
-            prediction_snapshot.value, SocialPredictionSnapshot
-        ) if prediction_snapshot is not None else False
-        identity = _identity_value(upstream.get("multi_party_identity"))
-        memory = _memory_value(upstream.get("memory"))
+        prediction_available = (
+            prediction_snapshot is not None
+            and isinstance(prediction_snapshot.value, SocialPredictionSnapshot)
+        )
         memory_snapshot = upstream.get("memory")
-        memory_version = memory_snapshot.version if memory_snapshot is not None else 0
-        derived_error = self._derive_memory_visibility_error(
-            identity=identity, memory=memory, memory_version=memory_version
+        signals = _memory_social_pe_signals(memory_snapshot)
+
+        derived_errors: list[SocialPredictionError] = []
+        for signal in signals:
+            error = social_prediction_error_from_memory_signal(signal)
+            if error is not None:
+                derived_errors.append(error)
+        derived_errors_tuple = tuple(derived_errors)
+        all_errors = self._pending_errors + derived_errors_tuple
+
+        prediction_state = (
+            "available" if prediction_available else "compatibility-fallback"
         )
-        all_errors = self._pending_errors + (
-            (derived_error,) if derived_error is not None else ()
-        )
-        suffix = (
-            "prediction=available"
-            if prediction_available
-            else "prediction=compatibility-fallback"
-        )
-        derivation_summary = (
-            "memory_visibility_pe=1"
-            if derived_error is not None
-            else "memory_visibility_pe=0"
-        )
+        derivation_summary = f"memory_visibility_pe={len(derived_errors_tuple)}"
         return self.publish(
             SocialPredictionErrorSnapshot(
                 errors=all_errors,
                 description=(
                     "R16 social PE: pending_injected="
                     f"{len(self._pending_errors)} {derivation_summary} "
-                    f"total={len(all_errors)}; {suffix}."
+                    f"total={len(all_errors)}; prediction={prediction_state}."
                 ),
             )
-        )
-
-    def _derive_memory_visibility_error(
-        self,
-        *,
-        identity: MultiPartyIdentitySnapshot | None,
-        memory: MemorySnapshot | None,
-        memory_version: int,
-    ) -> SocialPredictionError | None:
-        if (
-            identity is None
-            or memory is None
-            or _is_default_subject_scope(identity.subject_ids)
-            or not memory.suppressed_cross_scope_entries
-        ):
-            return None
-        suppressed = memory.suppressed_cross_scope_entries
-        evaluated_total = len(memory.retrieved_entries) + len(suppressed)
-        magnitude = (
-            len(suppressed) / evaluated_total if evaluated_total > 0 else 1.0
-        )
-        scope_id = identity.subject_ids[0]
-        evidence = tuple(
-            sorted(
-                {
-                    f"suppressed:{entry.entry_id}:subject={'+'.join(entry.subject_ids)}"
-                    for entry in suppressed
-                }
-            )
-        )
-        return SocialPredictionError(
-            error_id=_memory_visibility_error_id(
-                scope_id=scope_id,
-                memory_version=memory_version,
-            ),
-            prediction_id=_memory_visibility_prediction_id(
-                scope_id=scope_id,
-                memory_version=memory_version,
-            ),
-            kind=SocialPredictionKind.MEMORY_VISIBILITY,
-            outcome=SocialPredictionOutcome.DISCONFIRMED,
-            magnitude=min(1.0, max(0.0, magnitude)),
-            owner=_MEMORY_VISIBILITY_OWNER,
-            scope_kind=SocialScopeKind.INTERLOCUTOR,
-            scope_id=scope_id,
-            evidence=evidence,
         )
 
 
