@@ -36,14 +36,14 @@ EmoGPT is a **bounded, continuously adapting digital organism** whose core produ
    Following ETA, the system maintains a formal layer of temporally-abstract internal actions (controller codes `z_t`) above the raw token level, with learned switching conditions (`β_t`). Internal control operates in this compressed latent space, not in the high-dimensional token space. This enables efficient exploration, sparse-reward learning, and meaningful credit assignment.
 
 4. **Relationship and task are distinct prediction spaces.**
-   The system tracks two partially separated learning tracks: world/task (predicting task outcomes) and self/relationship (predicting relational consequences). These are not style variants; they are separate prediction error streams with distinct memory, credit, and controller update paths.
+   The system tracks two partially separated learning tracks: world/task (predicting task outcomes) and self/relationship (predicting relational consequences). These are not style variants; they are separate prediction error streams with distinct memory, credit, and controller update paths. This single-other relationship track generalizes to multi-agent social cognition in R16-R20.
 
 5. **The LLM is the expression layer, not the primary learner.**
    The pretrained language model provides the substrate and the voice. Learning, adaptation, and control happen in the layers above it — controllers, memory, reflection, regime — not through prompt engineering or token-level fine-tuning.
 
 ---
 
-## Part 2. Design Laws (R1–R15)
+## Part 2. Design Laws (R1–R20)
 
 Requirements are organized by dependency, not by number. R-IDs are stable and referenced across all specs.
 
@@ -75,6 +75,80 @@ Required evaluation families: task capability, interaction quality, relationship
 **R14. Social and Cognitive Regimes Need Persistent Identity**
 
 Regimes (casual social, acquaintance building, emotional support, guided exploration, problem solving, repair and de-escalation) are represented in runtime state, recallable from memory, selectable by higher-level control, and trainable through delayed outcomes. They are not prompt labels.
+
+### Social Cognition Learning: from single-other to multi-agent
+
+R16-R20 extend R7, R11, R-PE, R1, R3/R4, and R14 from one anonymous interlocutor to a social world containing multiple people, roles, shared contexts, and groups. These requirements are not a multi-person CRM schema. They define learned social cognition owners: each owner publishes immutable snapshots, emits pre-action social predictions, receives outcome evidence, contributes typed social prediction error, and exposes compact state for ETA controllers rather than renderer-owned text rules.
+
+**R16. Multi-Party Identity Learning Is Foundational**
+
+Every other-agent state carries an `interlocutor_id`. `user_model`, `relationship_state`, and `interlocutor_state` must evolve from flat single-other snapshots into keyed maps over interlocutors. `MemoryEntry` gains an audience / subject scope so the system knows whom a memory is about and who is allowed to hear it. A default `primary` interlocutor is allowed during migration, but it is a compatibility key, not a cognitive truth.
+
+The cognitive anchor is multi-agent Theory of Mind: children and adults do not merely track "a user"; they track distinct other minds with different beliefs, intentions, feelings, preferences, and relationship histories (Premack & Woodruff 1978; Wellman; Saxe). Applying Alice's preference to Bob is not a harmless retrieval mistake; it is a social misattribution.
+
+Owner / timescale: the multi-party identity owner is the single writer for interlocutor identity, relationship identity, and memory audience scope. `online-fast` assigns active speaker / addressee identity for the current turn, `session-medium` consolidates scene-level identity continuity, and `background-slow` promotes durable identity / relationship boundaries after reflection.
+
+Prediction error: before acting, the owner predicts which interlocutor each social state belongs to and which audience may receive it. Wrong-person memory application, private-memory leakage, or identity merge/split errors produce typed social prediction error and feed credit / memory correction.
+
+ETA consumption: metacontrollers and regime selection consume compact keyed identity state to choose `z_t` and switching conditions. The renderer must not infer "who this is about" from text; it only expresses the plan produced from owner snapshots.
+
+Kernel impact: `UserModelSnapshot`, `RelationshipStateSnapshot`, and `InterlocutorState` become keyed aggregates; `MemoryEntry` grows `audience_ids` / `subject_ids`; `ResponseContext` carries active speaker / audience keys; compatibility keeps single-user flows under `primary` until ACTIVE rollout.
+
+**R17. Theory-of-Mind Learning Owners Are Distinct from Preference**
+
+Other-mind modeling is not one `user_model` bucket. The system needs distinct learned owners for what the other seems to believe, intend, feel, and prefer. Preference is durable style / value tendency; belief is their model of the world; intent is likely action; feeling is current affective state. These have different update rules and different failure modes.
+
+The cognitive anchor is the classic Theory-of-Mind distinction: belief, desire/preference, intention, and affect are separable latent states (Premack & Woodruff 1978; Wellman). A person may prefer comfort, believe a task is urgent, intend to act practically, and feel fragile at the same time. Collapsing these into one semantic record causes wrong predictions.
+
+Owner / timescale: `belief_about_other`, `intent_about_other`, `feeling_about_other`, and `preference_about_other` are separate owners keyed by `interlocutor_id`. `online-fast` accepts structured proposals for current affect / intent, `session-medium` reconciles repeated evidence into working models, and `background-slow` promotes durable preferences / beliefs only after conflict-aware consolidation.
+
+Prediction error: each owner emits a different social prediction: belief predicts how new information will be interpreted, intent predicts follow-through, feeling predicts affective response, and preference predicts stable response style. Outcome mismatch updates the owning state and contributes owner-specific social PE.
+
+ETA consumption: ToM snapshots are compact advisories to latent controllers and regime selection. Long-term policy adaptation happens in controller code space; LLM structured output may propose ToM updates, but it is not the owner and cannot bypass reconciliation.
+
+Kernel impact: `UserModelModule.stable_preferences` is decomposed into four learned owner surfaces; semantic proposal adapters target the correct owner; response assembly and prompt planning consume owner summaries rather than reconstructing preference / belief / intent from raw text.
+
+**R18. Conversational Role Learning Is a Per-Turn State**
+
+Each turn has social roles: active speaker, addressee, subject, witness, overhearer, and possibly group audience. The same utterance has different cognitive meaning depending on who is being addressed, who is being discussed, and who can hear it. Role is a runtime state, not a prompt style.
+
+The cognitive anchor is audience design and conversational grounding (Bell 1984; Clark 1996). Speakers adapt utterances to addressees and overhearers; references and commitments depend on the conversational frame. A multi-person lifeform must model this frame explicitly.
+
+Owner / timescale: `ConversationalRoleModule` owns `ConversationalRoleSnapshot`. `online-fast` assigns roles for the current turn, `session-medium` stabilizes scene-level participation structure, and `background-slow` records durable interaction patterns only through reflection proposals.
+
+Prediction error: role assignment predicts who should respond, who is affected by the response, and who receives memory writes. Wrong addressee, missed witness constraints, or subject/addressee confusion generates social PE.
+
+ETA consumption: role state is consumed by controllers / regime selection as compact input to `z_t` and `beta_t`. It may alter social action mode, but renderer code must not implement role routing by string matching.
+
+Kernel impact: `ResponseContext` gains role fields; memory writes and semantic proposals include role scope; evidence gates include three-party cases where the agent speaks to one person about another while a witness is present.
+
+**R19. Common Ground Is Per-Dyad and Per-Group Learned Memory**
+
+Common ground is what the system believes is mutually known, accepted, or currently shared with a dyad or group. It is not the same as personal memory and not derivable from individual profiles. "We", "that thing", and "as before" only work when common ground is explicit.
+
+The cognitive anchor is Clark's theory of common ground: conversation relies on recursively shared assumptions and evidence of mutual acceptance. The system needs bounded recursion, not infinite mind reading; default depth `k=2` is sufficient for practical reference and repair.
+
+Owner / timescale: `CommonGroundModule` owns dyad and group common-ground atoms. `online-fast` tests whether a reference can be resolved, `session-medium` updates scene-level shared facts and commitments, and `background-slow` consolidates durable shared context.
+
+Prediction error: the owner predicts whether references, ellipses, pronouns, and "we" will resolve for the audience. Repair, clarification, or failed reference resolution generates common-ground PE and triggers owner-side update.
+
+ETA consumption: common-ground state shapes latent social action selection, e.g. whether to elaborate, compress, repair, or ask for grounding. The renderer only expresses the chosen plan; it does not infer common ground from surface keywords.
+
+Kernel impact: a new `common_ground` slot publishes dyad / group snapshots, memory retrieval can filter by shared scope, and response assembly consumes compact common-ground summaries.
+
+**R20. Group Is a First-Class Adaptive Entity**
+
+A group is not the sum of individual relationship states. Families, teams, cohorts, and conversations have their own continuity, norms, regimes, and joint commitments. The system must model a group as an adaptive owner with its own prediction error and credit path.
+
+The cognitive anchor is joint attention and joint commitment (Tomasello 2008). Joint action has properties that individual preference union cannot explain: shared goals, mutual accountability, and group-level repair.
+
+Owner / timescale: `GroupModule` owns group identity, group membership, group regime, joint attention, and joint commitments. `online-fast` tracks current group participation, `session-medium` updates group continuity after scenes, and `background-slow` promotes durable group norms and commitments.
+
+Prediction error: group state predicts joint commitment durability, group regime fit, shared-goal progress, and whether a response preserves group trust. Group-level PE is not reducible to per-person PE and must flow into its own credit evidence.
+
+ETA consumption: group snapshots inform latent controller choices and regime identity. The group owner can bias metacontroller state, but cannot become a prompt label or a renderer template switch.
+
+Kernel impact: a new `groups` slot publishes group snapshots; commitment / open-loop / relationship consumers gain group scope; evidence includes family / team scenarios where group continuity diverges from any single individual's state.
 
 ### Learning: prediction error, timescales, and compression
 

@@ -322,11 +322,31 @@
 
 ---
 
+### 18. Social Cognition Learning Layer
+
+**对应需求**：R16（多人身份学习）、R17（Theory of Mind owner 分解）、R18（会话角色学习）、R19（共同基础学习）、R20（群体实体学习）、R-PE、R1、R3/R4、R7、R8、R11、R14、R15
+
+| Spec | 内容 |
+|------|------|
+| [social_cognition/01_multi_party_identity.md](./social_cognition/01_multi_party_identity.md) | per-interlocutor keying、MemoryEntry subject/audience scope、wrong-person attribution PE |
+| [social_cognition/02_theory_of_mind.md](./social_cognition/02_theory_of_mind.md) | belief / intent / feeling / preference 四类 ToM owner 分解，禁止 LLM classifier 成为 owner |
+| [social_cognition/03_conversational_role.md](./social_cognition/03_conversational_role.md) | active speaker / addressee / subject / witness / overhearer per-turn role snapshot |
+| [social_cognition/04_common_ground.md](./social_cognition/04_common_ground.md) | dyad / group common-ground owner、bounded recursion、reference-resolution PE |
+| [social_cognition/05_joint_entity.md](./social_cognition/05_joint_entity.md) | group as adaptive owner、joint attention、joint commitment、group-level PE |
+
+**核心不变量**：
+- 不是多人 CRM schema：每个 social cognition state 必须有 owner、timescale、prediction、PE path、ETA consumption boundary
+- LLM structured output 只能是 proposal source，不是 social state owner
+- renderer 不从文本重建社会状态，只表达 owner snapshot → planner → renderer 的结果
+- social PE 是 `prediction_error` / `credit` 的 typed 下游输入，evaluation 仍然只是 readout / gate
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |
 |------|------|--------|
-| `docs/next_gen_emogpt.md` | **唯一设计源头**：系统需求 R-PE + R1-R15 + NL/ETA 算法详设（附录 A/B/C） | 理解需求根源和算法基础 |
+| `docs/next_gen_emogpt.md` | **唯一设计源头**：系统需求 R-PE + R1-R20 + NL/ETA 算法详设（附录 A/B/C） | 理解需求根源和算法基础 |
 | `docs/prd.md` | 产品需求文档：愿景、工程分解、必要脚手架、里程碑 | 理解工程规划和交付计划 |
 | `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 | 理解仓库与 wheel 切分思路 |
 | `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 | 理解仓库分裂时机与机械流程 |
@@ -339,7 +359,7 @@
 ### 文档依赖图
 
 ```
-docs/next_gen_emogpt.md  ← 唯一设计源头（R-PE + R1-R15 + NL/ETA 算法）
+docs/next_gen_emogpt.md  ← 唯一设计源头（R-PE + R1-R20 + NL/ETA 算法）
     │
     ├──→ docs/prd.md  ← 产品需求（愿景、能力域分解、里程碑、wheel 边界）
     │       │

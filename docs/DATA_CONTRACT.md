@@ -1264,6 +1264,40 @@ reflection ──────────────→ owner-side writeback: m
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
+### 6.X Social Cognition Learning Slots（R16-R20，planned）
+
+下表是 Social Cognition Learning Layer 的 planned slot 注册表。它们必须按 `docs/implementation/15_social_cognition_layer.md` 的 SHADOW → ACTIVE → retire 协议逐步落地；在 SHADOW 期不得破坏现有 flat `user_model` / `relationship_state` / `interlocutor_state` 消费路径。
+
+| Slot Name | Owner 模块 | Value 类型 | 依赖 | 默认接线 | Timescale | Social prediction emitted | PE consumer |
+|-----------|-----------|-----------|------|----------|-----------|---------------------------|-------------|
+| `multi_party_identity` | MultiPartyIdentityModule | MultiPartyIdentitySnapshot | substrate, memory, semantic proposals, scene role envelope | DISABLED → SHADOW | online-fast / session-medium / background-slow | active speaker, subject scope, audience scope, identity continuity | social_prediction_error → prediction_error / credit |
+| `interlocutor_models` | MultiPartyIdentityModule + keyed semantic owner views | Mapping[str, UserModelSnapshot] | user_model, multi_party_identity | SHADOW | per turn / scene | state-to-person attribution | social_prediction_error |
+| `relationship_states` | MultiPartyIdentityModule + keyed relationship views | Mapping[str, RelationshipStateSnapshot] | relationship_state, multi_party_identity | SHADOW | per turn / scene | dyad continuity / repair attribution | social_prediction_error |
+| `interlocutor_states` | MultiPartyIdentityModule + readout builder | Mapping[str, InterlocutorState] | evaluation, memory, commitment, multi_party_identity | SHADOW | per turn | current interlocutor readout attribution | social_prediction_error |
+| `belief_about_other` | BeliefAboutOtherModule | BeliefAboutOtherSnapshot | semantic proposals, memory, multi_party_identity, prediction_error | DISABLED → SHADOW | online-fast / session-medium / background-slow | interpretation / belief update outcome | social_prediction_error → prediction_error |
+| `intent_about_other` | IntentAboutOtherModule | IntentAboutOtherSnapshot | semantic proposals, execution_result, commitment, multi_party_identity | DISABLED → SHADOW | online-fast / session-medium | follow-through / next-action outcome | social_prediction_error → prediction_error |
+| `feeling_about_other` | FeelingAboutOtherModule | FeelingAboutOtherSnapshot | evaluation, relationship_states, multi_party_identity | DISABLED → SHADOW | online-fast / session-medium | affect / rapport movement | social_prediction_error → prediction_error |
+| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot | semantic proposals, memory, multi_party_identity | DISABLED → SHADOW | session-medium / background-slow | durable style / boundary stability | social_prediction_error → prediction_error |
+| `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | DISABLED → SHADOW | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
+| `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | DISABLED → SHADOW | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
+| `groups` | GroupModule | GroupSnapshot | multi_party_identity, conversational_role, common_ground, commitment, open_loop | DISABLED → SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit | social_prediction_error → prediction_error / credit |
+| `social_prediction` | SocialPredictionAggregateModule | SocialPredictionSnapshot | all R16-R20 owners | DISABLED → SHADOW | pre-action per turn | aggregate pre-action social predictions | social_prediction_error |
+| `social_prediction_error` | SocialPredictionErrorModule | SocialPredictionErrorSnapshot | social_prediction, evaluation, execution_result, relationship_states, common_ground, groups | DISABLED → SHADOW | post-action per turn / session | typed social PE readout | prediction_error / credit |
+
+**Social Cognition migration protocol**：
+
+1. **DISABLED**：types and docs exist; no runtime publication.
+2. **SHADOW**：new social cognition slots publish alongside existing flat slots; consumers continue using old slots unless explicitly opted in.
+3. **ACTIVE**：selected consumers switch to keyed/social slots; old flat slots become compatibility read models only.
+4. **Retire flat path**：after evidence gates pass and rollback window expires, flat single-other assumptions are removed or pinned behind `primary` compatibility adapters.
+
+**Social Cognition slot 不变量**：
+
+- Every row must identify an owner, timescale, social prediction, and PE consumer before implementation.
+- LLM output can only produce typed proposals; no LLM classifier owns social state.
+- Renderer never reconstructs social state from text. It may only express plan / snapshot outputs.
+- Social PE is a typed downstream readout into the existing `prediction_error` / `credit` path; evaluation remains readout / gate, not learning source.
+
 ### 6.1 Lifeform-side Slots（不进入 kernel slot 注册表）
 
 下表 slot 由 lifeform 层 wheel 拥有；它们**不**进入 kernel propagate 顺序，也**不**作为 kernel owner 单写者校验目标。它们是 lifeform 与 host / service 之间的契约面，由 `lifeform-*` 包发布，供 `lifeform-expression` / `lifeform-service` / 操作员 dashboard 消费。
