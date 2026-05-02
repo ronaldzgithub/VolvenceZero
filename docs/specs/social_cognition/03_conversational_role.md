@@ -91,12 +91,13 @@ Implemented Phase 3 scaffold:
 - `volvence_zero.social_cognition.ConversationalRoleSnapshot`: frozen shared contract for active speaker, addressees, subjects, witnesses, overhearers, group audience, role confidence, and role predictions.
 - `build_primary_conversational_role_snapshot()`: single-party compatibility builder using `primary/self`.
 - Contract tests enforce non-empty required role scopes, unique optional role scopes, bounded confidence, and unique role prediction ids.
-- `ConversationalRoleModule`: SHADOW owner scaffold registered in final wiring, publishing the default `primary/self` role snapshot without changing planner / renderer behavior.
+- `ConversationalRoleModule`: ACTIVE owner by default as of R18 Phase 3 slice 8, publishing the default `primary/self` role snapshot without changing planner / renderer behavior.
 - Environment frame consumption: when final wiring receives an `EnvironmentEvent`, `ConversationalRoleModule` publishes `active_speaker_id`, `addressee_ids`, and `subject_ids` from the event frame; witness / overhearer / group audience remain empty until later slices.
 - Role prediction scaffold: when an `EnvironmentEvent` is present, `ConversationalRoleModule` emits a deterministic `ROLE_ASSIGNMENT` `SocialPrediction` anchored to the event id. Default compatibility snapshot still has no predictions.
 - Evidence probe: Social Cognition evidence report includes R1, an artificial wrong-addressee role PE that derives shared negative credit through `derive_social_prediction_error_credit_records`.
 - Diagnostic downstream visibility: when `conversational_role` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `conversational_role` as the active role prediction count. Planner and renderer still do not consume the role snapshot.
 - Evidence report artifact: Social Cognition evidence report includes R2, proving EnvironmentEvent role prediction is visible in response assembly diagnostics without renderer consumption.
+- Evidence gate R18A: default final wiring publishes ACTIVE `conversational_role`; explicit EnvironmentEvent frames produce active role predictions and response assembly diagnostics without renderer leakage.
 
 ## 与其他能力域的关系
 
@@ -109,6 +110,7 @@ Implemented Phase 3 scaffold:
 
 ## 变更日志
 
+- 2026-05-02: R18 Phase 3 slice 8 landed: `conversational_role` promoted to ACTIVE by default; kill-switch rollback preserved; R18A evidence gate added for active role frame diagnostics.
 - 2026-05-02: R18 Phase 3 slice 6 landed: `conversational_role` active prediction count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R18 Phase 3 slice 7 landed: Social Cognition evidence report R2 gate covers role prediction diagnostic visibility.
 - 2026-05-02: R18 Phase 3 slice 5 landed: wrong-addressee `ROLE_ASSIGNMENT` social PE credit probe added to Social Cognition evidence report.

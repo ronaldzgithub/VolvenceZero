@@ -229,8 +229,8 @@ async def _social_scope_default_gate() -> CompanionEvidenceGate:
     result = await session.run_turn("Help me think through this gently.")
 
     identity_snapshot = result.active_snapshots.get("multi_party_identity")
-    prediction_snapshot = result.shadow_snapshots.get("social_prediction")
-    social_pe_snapshot = result.shadow_snapshots.get("social_prediction_error")
+    prediction_snapshot = result.active_snapshots.get("social_prediction")
+    social_pe_snapshot = result.active_snapshots.get("social_prediction_error")
     prediction_count = (
         len(prediction_snapshot.value.predictions)
         if prediction_snapshot is not None
@@ -262,7 +262,7 @@ async def _social_scope_default_gate() -> CompanionEvidenceGate:
         ),
         summary=(
             "Single-party companion evidence stays scoped to primary/self while "
-            "R16 identity is ACTIVE and social prediction / social PE slots publish empty SHADOW readouts."
+            "R16 identity, social prediction, and social PE slots publish ACTIVE empty readouts."
         ),
     )
 

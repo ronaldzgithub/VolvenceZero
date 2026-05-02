@@ -15,6 +15,7 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
     assert report.passed is True
     assert {gate.gate_id for gate in report.gates} == {
         "R16A",
+        "R16B",
         "T1",
         "T2",
         "T3",
@@ -22,6 +23,7 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
         "T5",
         "R1",
         "R2",
+        "R18A",
         "G1",
         "G2",
         "G3",
@@ -30,6 +32,7 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
     assert payload["passed"] is True
     assert {gate["gate_id"] for gate in payload["gates"]} == {
         "R16A",
+        "R16B",
         "T1",
         "T2",
         "T3",
@@ -37,6 +40,7 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
         "T5",
         "R1",
         "R2",
+        "R18A",
         "G1",
         "G2",
         "G3",
@@ -45,6 +49,10 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
     r16a = next(gate for gate in payload["gates"] if gate["gate_id"] == "R16A")
     assert r16a["metrics"]["scoped_memory_entries"] >= 1.0
     assert r16a["metrics"]["identity_active"] == 1.0
+    r16b = next(gate for gate in payload["gates"] if gate["gate_id"] == "R16B")
+    assert r16b["metrics"]["memory_visibility_predictions"] == 1.0
+    assert r16b["metrics"]["memory_visibility_errors"] == 1.0
+    assert r16b["metrics"]["social_pe_credit_count"] >= 1.0
     t3 = next(gate for gate in payload["gates"] if gate["gate_id"] == "T3")
     assert t3["metrics"]["belief_records"] == 1.0
     assert t3["metrics"]["preference_records"] == 1.0
@@ -60,6 +68,9 @@ def test_social_cognition_evidence_report_passes_tom_owner_gates() -> None:
     r2 = next(gate for gate in payload["gates"] if gate["gate_id"] == "R2")
     assert r2["metrics"]["role_prediction_count"] == 1.0
     assert r2["metrics"]["assembly_role_count"] == 1.0
+    r18a = next(gate for gate in payload["gates"] if gate["gate_id"] == "R18A")
+    assert r18a["metrics"]["role_prediction_count"] == 1.0
+    assert r18a["metrics"]["assembly_role_count"] == 1.0
     g1 = next(gate for gate in payload["gates"] if gate["gate_id"] == "G1")
     assert g1["metrics"]["common_ground_atom_count"] == 2.0
     assert g1["metrics"]["assembly_common_ground_count"] == 2.0
@@ -101,6 +112,7 @@ def test_social_cognition_evidence_cli_writes_json(tmp_path) -> None:
     assert payload["passed"] is True
     assert {gate["gate_id"] for gate in payload["gates"]} == {
         "R16A",
+        "R16B",
         "T1",
         "T2",
         "T3",
@@ -108,6 +120,7 @@ def test_social_cognition_evidence_cli_writes_json(tmp_path) -> None:
         "T5",
         "R1",
         "R2",
+        "R18A",
         "G1",
         "G2",
         "G3",

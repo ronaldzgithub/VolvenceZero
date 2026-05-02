@@ -105,11 +105,7 @@ def _multi_party_active_config() -> FinalRolloutConfig:
     to active consumers (memory, credit). Other social cognition slots
     (ToM, role, common ground, group) remain SHADOW for this slice.
     """
-    return FinalRolloutConfig(
-        multi_party_identity=WiringLevel.ACTIVE,
-        social_prediction=WiringLevel.ACTIVE,
-        social_prediction_error=WiringLevel.ACTIVE,
-    )
+    return FinalRolloutConfig()
 
 
 def _run_alice_turn(*, store: MemoryStore):
@@ -258,7 +254,7 @@ def test_default_identity_does_not_self_emit_memory_visibility_prediction():
     assert isinstance(identity_snapshot.value, MultiPartyIdentitySnapshot)
     assert identity_snapshot.value.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
 
-    prediction_value = result.shadow_snapshots["social_prediction"].value
-    error_value = result.shadow_snapshots["social_prediction_error"].value
+    prediction_value = result.active_snapshots["social_prediction"].value
+    error_value = result.active_snapshots["social_prediction_error"].value
     assert prediction_value.predictions == ()
     assert error_value.errors == ()

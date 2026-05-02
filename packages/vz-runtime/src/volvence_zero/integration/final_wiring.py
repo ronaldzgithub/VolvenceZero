@@ -172,8 +172,8 @@ class FinalRolloutConfig:
     goal_value: WiringLevel = WiringLevel.ACTIVE
     boundary_consent: WiringLevel = WiringLevel.ACTIVE
     multi_party_identity: WiringLevel = WiringLevel.ACTIVE
-    social_prediction: WiringLevel = WiringLevel.SHADOW
-    social_prediction_error: WiringLevel = WiringLevel.SHADOW
+    social_prediction: WiringLevel = WiringLevel.ACTIVE
+    social_prediction_error: WiringLevel = WiringLevel.ACTIVE
     conversational_role: WiringLevel = WiringLevel.ACTIVE
     common_ground: WiringLevel = WiringLevel.SHADOW
     groups: WiringLevel = WiringLevel.SHADOW

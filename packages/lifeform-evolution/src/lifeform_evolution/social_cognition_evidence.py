@@ -17,7 +17,7 @@ from volvence_zero.environment import (
     EnvironmentFrame,
 )
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
-from volvence_zero.memory import MemoryStore, Track
+from volvence_zero.memory import MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     SemanticProposal,
@@ -36,9 +36,11 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceAboutOtherSnapshot,
+    SocialPredictionErrorSnapshot,
     SocialPredictionError,
     SocialPredictionKind,
     SocialPredictionOutcome,
+    SocialPredictionSnapshot,
     SocialScopeKind,
 )
 from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
@@ -146,6 +148,7 @@ class _ScriptedToMProvider:
 async def run_social_cognition_evidence_async() -> SocialCognitionEvidenceReport:
     gates = (
         await _active_identity_memory_scope_gate(),
+        await _active_social_pe_memory_visibility_gate(),
         _tom_owner_contract_gate(),
         await _explicit_tom_proposal_path_gate(),
         await _false_belief_preference_separation_gate(),
@@ -222,6 +225,83 @@ async def _active_identity_memory_scope_gate() -> SocialCognitionEvidenceGate:
             ("identity_active", 1.0 if identity is not None else 0.0),
         ),
         summary="ACTIVE multi-party identity scope drives memory write subject/audience without renderer inference.",
+    )
+
+
+async def _active_social_pe_memory_visibility_gate() -> SocialCognitionEvidenceGate:
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="bob prefers careful planning before product decisions",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference", "planning"),
+            strength=0.85,
+            subject_ids=("bob",),
+            audience_ids=("self", "bob"),
+        ),
+        timestamp_ms=1,
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(),
+        substrate_adapter=_adapter(),
+        user_input="careful planning product decision",
+        memory_store=store,
+        environment_event=EnvironmentEvent(
+            event_id="r16b-active-social-pe-evidence",
+            event_kind=EnvironmentEventKind.USER_INPUT,
+            trigger_kind="user_input",
+            frame=EnvironmentFrame(
+                actor=EnvironmentActorRef(actor_id="alice"),
+                active_speaker_id="alice",
+                addressee_ids=("self",),
+                subject_ids=("alice",),
+                audience_ids=("self", "alice"),
+            ),
+            scene_id="r16b-scene",
+            timestamp_ms=2,
+            provenance="social-cognition-evidence",
+            payload_summary="Alice asks about careful planning.",
+        ),
+        session_id="r16b-active-social-pe-session",
+        wave_id="r16b-active-social-pe-wave",
+    )
+    prediction = result.active_snapshots.get("social_prediction")
+    error = result.active_snapshots.get("social_prediction_error")
+    credit = result.active_snapshots["credit"].value
+    matching_credits = tuple(
+        record
+        for record in credit.recent_credits
+        if record.source_event == "social_pe:memory_visibility"
+    )
+    prediction_count = (
+        len(prediction.value.predictions)
+        if prediction is not None
+        and isinstance(prediction.value, SocialPredictionSnapshot)
+        else -1
+    )
+    error_count = (
+        len(error.value.errors)
+        if error is not None
+        and isinstance(error.value, SocialPredictionErrorSnapshot)
+        else -1
+    )
+    passed = (
+        prediction_count == 1
+        and error_count == 1
+        and matching_credits
+        and matching_credits[0].credit_value < 0.0
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="R16B",
+        name="active social pe memory visibility",
+        passed=passed,
+        metrics=(
+            ("memory_visibility_predictions", float(prediction_count)),
+            ("memory_visibility_errors", float(error_count)),
+            ("social_pe_credit_count", float(len(matching_credits))),
+        ),
+        summary="ACTIVE social prediction/error derive memory-visibility PE and negative credit from cross-scope suppression.",
     )
 
 

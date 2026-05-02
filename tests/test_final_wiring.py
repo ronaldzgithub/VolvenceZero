@@ -420,12 +420,12 @@ def test_final_wiring_multi_party_identity_kill_switch_rolls_back_to_disabled():
     assert "multi_party_identity" not in result.shadow_snapshots
 
 
-def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
+def test_final_wiring_publishes_empty_social_prediction_active_scaffolds():
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
-                model_id="social-prediction-shadow-model",
+                model_id="social-prediction-active-model",
                 feature_surface=(
                     FeatureSignal(name="social_prediction_context", values=(0.5,), source="adapter"),
                 ),
@@ -435,16 +435,39 @@ def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
         )
     )
 
-    assert "social_prediction" not in result.active_snapshots
-    assert "social_prediction_error" not in result.active_snapshots
-    prediction_value = result.shadow_snapshots["social_prediction"].value
-    error_value = result.shadow_snapshots["social_prediction_error"].value
+    assert "social_prediction" in result.active_snapshots
+    assert "social_prediction_error" in result.active_snapshots
+    prediction_value = result.active_snapshots["social_prediction"].value
+    error_value = result.active_snapshots["social_prediction_error"].value
     assert isinstance(prediction_value, SocialPredictionSnapshot)
     assert isinstance(error_value, SocialPredictionErrorSnapshot)
     assert prediction_value.predictions == ()
     assert error_value.errors == ()
     assert "scope=default-or-missing" in prediction_value.description
     assert "memory_visibility_pe=0" in error_value.description
+
+
+def test_final_wiring_social_prediction_kill_switch_rolls_back_to_disabled():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                kill_switches=frozenset({"social_prediction", "social_prediction_error"})
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="social-prediction-kill-switch-model",
+                feature_surface=(
+                    FeatureSignal(name="social_prediction_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="social-prediction-kill-switch-session",
+            wave_id="social-prediction-kill-switch-wave",
+        )
+    )
+
+    assert "social_prediction" not in result.active_snapshots
+    assert "social_prediction_error" not in result.active_snapshots
+    assert "social_prediction" not in result.shadow_snapshots
+    assert "social_prediction_error" not in result.shadow_snapshots
 
 
 def test_final_wiring_publishes_empty_tom_owner_shadow_scaffolds():
