@@ -9,7 +9,15 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
+from volvence_zero.credit import derive_social_prediction_error_credit_records
+from volvence_zero.environment import (
+    EnvironmentActorRef,
+    EnvironmentEvent,
+    EnvironmentEventKind,
+    EnvironmentFrame,
+)
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
+from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     SemanticProposal,
@@ -19,10 +27,17 @@ from volvence_zero.semantic_state import (
 )
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
+    CommonGroundAtom,
+    ConversationalRoleSnapshot,
+    GroupIdentity,
     OtherMindRecord,
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceAboutOtherSnapshot,
+    SocialPredictionError,
+    SocialPredictionKind,
+    SocialPredictionOutcome,
+    SocialScopeKind,
 )
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter
 
@@ -114,13 +129,17 @@ async def run_social_cognition_evidence_async() -> SocialCognitionEvidenceReport
         _tom_owner_contract_gate(),
         await _explicit_tom_proposal_path_gate(),
         await _false_belief_preference_separation_gate(),
+        _wrong_addressee_social_pe_credit_gate(),
+        await _role_prediction_diagnostic_gate(),
+        await _common_ground_diagnostic_gate(),
+        await _group_diagnostic_gate(),
     )
     passed_count = sum(1 for gate in gates if gate.passed)
     return SocialCognitionEvidenceReport(
         gates=gates,
         description=(
             f"Social cognition evidence gates passed {passed_count}/{len(gates)} "
-            "for R17 ToM owner separation."
+            "for ToM owner separation and role PE credit."
         ),
     )
 
@@ -288,6 +307,185 @@ def format_social_cognition_evidence_report(
                 + ", ".join(f"{name}={value:.3f}" for name, value in gate.metrics)
             )
     return "\n".join(lines)
+
+
+def _wrong_addressee_social_pe_credit_gate() -> SocialCognitionEvidenceGate:
+    social_error = SocialPredictionError(
+        error_id="social-pe:role:wrong-addressee:evidence",
+        prediction_id="role-env-frame-1:role-assignment",
+        kind=SocialPredictionKind.ROLE_ASSIGNMENT,
+        outcome=SocialPredictionOutcome.DISCONFIRMED,
+        magnitude=0.71,
+        owner="ConversationalRoleModule",
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        evidence=("Role prediction addressed Bob, but Carol was the intended addressee.",),
+    )
+    records = derive_social_prediction_error_credit_records(
+        social_errors=(social_error,),
+        timestamp_ms=44,
+    )
+    passed = (
+        len(records) == 1
+        and records[0].level == "social_prediction_error"
+        and records[0].track is Track.SHARED
+        and records[0].source_event == "social_pe:role_assignment"
+        and records[0].credit_value == -0.71
+        and "owner=ConversationalRoleModule" in records[0].context
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="R1",
+        name="wrong-addressee role pe credit",
+        passed=passed,
+        metrics=(("role_pe_credit", records[0].credit_value if records else 0.0),),
+        summary="A typed wrong-addressee role PE can enter shared credit without renderer logic.",
+    )
+
+
+async def _role_prediction_diagnostic_gate() -> SocialCognitionEvidenceGate:
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(conversational_role=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        user_input="Alice tells Bob about Carol.",
+        environment_event=EnvironmentEvent(
+            event_id="role-evidence-frame-1",
+            event_kind=EnvironmentEventKind.USER_INPUT,
+            trigger_kind="user_input",
+            frame=EnvironmentFrame(
+                actor=EnvironmentActorRef(actor_id="alice"),
+                active_speaker_id="alice",
+                addressee_ids=("bob",),
+                subject_ids=("carol",),
+                audience_ids=("bob", "alice"),
+            ),
+            scene_id="role-evidence-scene",
+            timestamp_ms=1,
+            provenance="social-cognition-evidence",
+            payload_summary="Alice tells Bob about Carol.",
+        ),
+        session_id="role-evidence-session",
+        wave_id="role-evidence-wave",
+    )
+    role = result.active_snapshots["conversational_role"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    passed = (
+        isinstance(role, ConversationalRoleSnapshot)
+        and role.active_speaker_id == "alice"
+        and role.addressee_ids == ("bob",)
+        and role.subject_ids == ("carol",)
+        and len(role.active_predictions) == 1
+        and role.active_predictions[0].kind is SocialPredictionKind.ROLE_ASSIGNMENT
+        and counts.get("conversational_role") == 1
+        and "conversational_role" not in response_assembly.semantic_residue_summary
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="R2",
+        name="role prediction diagnostic visibility",
+        passed=passed,
+        metrics=(
+            ("role_prediction_count", float(len(role.active_predictions))),
+            ("assembly_role_count", float(counts.get("conversational_role", -1))),
+        ),
+        summary="Role assignment prediction is visible in response assembly diagnostics without renderer consumption.",
+    )
+
+
+async def _common_ground_diagnostic_gate() -> SocialCognitionEvidenceGate:
+    dyad = CommonGroundAtom(
+        atom_id="cg:evidence:dyad:alice-bob",
+        scope_id="alice:bob",
+        scope_kind=SocialScopeKind.DYAD,
+        summary="Alice and Bob both know the plan changed.",
+        recursion_depth=2,
+        confidence=0.74,
+        accepted_by_ids=("alice", "bob"),
+        evidence=("both confirmed the change",),
+    )
+    group = CommonGroundAtom(
+        atom_id="cg:evidence:group:launch",
+        scope_id="team:launch",
+        scope_kind=SocialScopeKind.GROUP,
+        summary="The launch team knows the deadline moved.",
+        recursion_depth=1,
+        confidence=0.69,
+        accepted_by_ids=("alice", "bob", "carol"),
+        evidence=("team acknowledgement",),
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(common_ground=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        common_ground_dyad_atoms=(dyad,),
+        common_ground_group_atoms=(group,),
+        session_id="common-ground-evidence-session",
+        wave_id="common-ground-evidence-wave",
+    )
+    common_ground = result.active_snapshots["common_ground"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    atom_count = len(common_ground.dyad_atoms) + len(common_ground.group_atoms)
+    passed = (
+        atom_count == 2
+        and counts.get("common_ground") == 2
+        and "common_ground" not in response_assembly.semantic_residue_summary
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="G1",
+        name="common-ground diagnostic visibility",
+        passed=passed,
+        metrics=(
+            ("common_ground_atom_count", float(atom_count)),
+            ("assembly_common_ground_count", float(counts.get("common_ground", -1))),
+        ),
+        summary="Explicit dyad/group common-ground atoms are visible in response assembly diagnostics only.",
+    )
+
+
+async def _group_diagnostic_gate() -> SocialCognitionEvidenceGate:
+    group = GroupIdentity(
+        group_id="group:launch",
+        member_ids=("alice", "bob", "carol"),
+        display_name="Launch group",
+        confidence=0.82,
+        evidence=("host membership",),
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(groups=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        group_identities=(group,),
+        active_group_id="group:launch",
+        group_joint_attention=("launch-plan",),
+        group_joint_commitments=("commitment:ship",),
+        group_regime_id="problem_solving",
+        session_id="group-evidence-session",
+        wave_id="group-evidence-wave",
+    )
+    groups = result.active_snapshots["groups"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    passed = (
+        len(groups.groups) == 1
+        and groups.active_group_id == "group:launch"
+        and len(groups.joint_commitments) == 1
+        and counts.get("groups") == 1
+        and counts.get("group_joint_commitments") == 1
+        and "groups" not in response_assembly.semantic_residue_summary
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="GROUP1",
+        name="group diagnostic visibility",
+        passed=passed,
+        metrics=(
+            ("group_count", float(len(groups.groups))),
+            ("joint_commitment_count", float(len(groups.joint_commitments))),
+            ("assembly_group_count", float(counts.get("groups", -1))),
+            (
+                "assembly_group_joint_commitment_count",
+                float(counts.get("group_joint_commitments", -1)),
+            ),
+        ),
+        summary="Explicit group state is visible in response assembly diagnostics without renderer consumption.",
+    )
 
 
 def _adapter() -> FeatureSurfaceSubstrateAdapter:

@@ -17,6 +17,7 @@ from enum import Enum
 
 PRIMARY_INTERLOCUTOR_ID = "primary"
 SELF_INTERLOCUTOR_ID = "self"
+MAX_COMMON_GROUND_RECURSION_DEPTH = 2
 
 
 class SocialScopeKind(str, Enum):
@@ -270,6 +271,106 @@ class ConversationalRoleSnapshot:
 
 
 @dataclass(frozen=True)
+class CommonGroundAtom:
+    atom_id: str
+    scope_id: str
+    scope_kind: SocialScopeKind
+    summary: str
+    recursion_depth: int
+    confidence: float
+    accepted_by_ids: tuple[str, ...]
+    evidence: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_non_empty("atom_id", self.atom_id)
+        _require_non_empty("scope_id", self.scope_id)
+        if self.scope_kind not in {SocialScopeKind.DYAD, SocialScopeKind.GROUP}:
+            raise ValueError(
+                "CommonGroundAtom.scope_kind must be dyad or group; "
+                f"got {self.scope_kind.value}"
+            )
+        _require_non_empty("summary", self.summary)
+        if (
+            self.recursion_depth < 0
+            or self.recursion_depth > MAX_COMMON_GROUND_RECURSION_DEPTH
+        ):
+            raise ValueError(
+                "recursion_depth must be between 0 and "
+                f"{MAX_COMMON_GROUND_RECURSION_DEPTH}, got {self.recursion_depth!r}"
+            )
+        _require_confidence("confidence", self.confidence)
+        _require_non_empty_unique_tuple("accepted_by_ids", self.accepted_by_ids)
+        _require_unique_non_empty("evidence", self.evidence)
+
+
+@dataclass(frozen=True)
+class CommonGroundSnapshot:
+    dyad_atoms: tuple[CommonGroundAtom, ...]
+    group_atoms: tuple[CommonGroundAtom, ...]
+    active_predictions: tuple[SocialPrediction, ...]
+    control_signal: float
+    description: str
+
+    def __post_init__(self) -> None:
+        _validate_common_ground_atoms("dyad_atoms", self.dyad_atoms, SocialScopeKind.DYAD)
+        _validate_common_ground_atoms("group_atoms", self.group_atoms, SocialScopeKind.GROUP)
+        prediction_ids = tuple(
+            prediction.prediction_id for prediction in self.active_predictions
+        )
+        _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
+        _require_unit_interval("control_signal", self.control_signal)
+        _require_non_empty("description", self.description)
+
+
+@dataclass(frozen=True)
+class GroupIdentity:
+    group_id: str
+    member_ids: tuple[str, ...]
+    display_name: str | None = None
+    confidence: float = 1.0
+    evidence: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_non_empty("group_id", self.group_id)
+        _require_non_empty_unique_tuple("member_ids", self.member_ids)
+        if self.display_name is not None:
+            _require_non_empty("display_name", self.display_name)
+        _require_confidence("confidence", self.confidence)
+        _require_unique_non_empty("evidence", self.evidence)
+
+
+@dataclass(frozen=True)
+class GroupSnapshot:
+    groups: tuple[GroupIdentity, ...]
+    active_group_id: str | None
+    joint_attention: tuple[str, ...]
+    joint_commitments: tuple[str, ...]
+    group_regime_id: str | None
+    active_predictions: tuple[SocialPrediction, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        group_ids = tuple(group.group_id for group in self.groups)
+        _require_unique_non_empty("groups.group_id", group_ids)
+        if self.active_group_id is not None:
+            _require_non_empty("active_group_id", self.active_group_id)
+            if self.active_group_id not in group_ids:
+                raise ValueError(
+                    "active_group_id must refer to one of groups.group_id; "
+                    f"got {self.active_group_id!r}"
+                )
+        _require_unique_non_empty("joint_attention", self.joint_attention)
+        _require_unique_non_empty("joint_commitments", self.joint_commitments)
+        if self.group_regime_id is not None:
+            _require_non_empty("group_regime_id", self.group_regime_id)
+        prediction_ids = tuple(
+            prediction.prediction_id for prediction in self.active_predictions
+        )
+        _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
+        _require_non_empty("description", self.description)
+
+
+@dataclass(frozen=True)
 class MultiPartyIdentitySnapshot:
     active_speaker_id: str
     addressee_ids: tuple[str, ...]
@@ -398,12 +499,32 @@ def _validate_other_mind_snapshot(
     _require_non_empty("description", description)
 
 
+def _validate_common_ground_atoms(
+    field_name: str,
+    atoms: tuple[CommonGroundAtom, ...],
+    expected_kind: SocialScopeKind,
+) -> None:
+    atom_ids = tuple(atom.atom_id for atom in atoms)
+    _require_unique_non_empty(f"{field_name}.atom_id", atom_ids)
+    for atom in atoms:
+        if atom.scope_kind is not expected_kind:
+            raise ValueError(
+                f"{field_name} must contain {expected_kind.value} atoms; "
+                f"got {atom.scope_kind.value} for {atom.atom_id!r}"
+            )
+
+
 __all__ = [
+    "MAX_COMMON_GROUND_RECURSION_DEPTH",
     "PRIMARY_INTERLOCUTOR_ID",
     "SELF_INTERLOCUTOR_ID",
     "BeliefAboutOtherSnapshot",
     "ConversationalRoleSnapshot",
+    "CommonGroundAtom",
+    "CommonGroundSnapshot",
     "FeelingAboutOtherSnapshot",
+    "GroupIdentity",
+    "GroupSnapshot",
     "InterlocutorIdentity",
     "IntentAboutOtherSnapshot",
     "MultiPartyIdentitySnapshot",

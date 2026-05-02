@@ -94,6 +94,9 @@ Implemented Phase 3 scaffold:
 - `ConversationalRoleModule`: SHADOW owner scaffold registered in final wiring, publishing the default `primary/self` role snapshot without changing planner / renderer behavior.
 - Environment frame consumption: when final wiring receives an `EnvironmentEvent`, `ConversationalRoleModule` publishes `active_speaker_id`, `addressee_ids`, and `subject_ids` from the event frame; witness / overhearer / group audience remain empty until later slices.
 - Role prediction scaffold: when an `EnvironmentEvent` is present, `ConversationalRoleModule` emits a deterministic `ROLE_ASSIGNMENT` `SocialPrediction` anchored to the event id. Default compatibility snapshot still has no predictions.
+- Evidence probe: Social Cognition evidence report includes R1, an artificial wrong-addressee role PE that derives shared negative credit through `derive_social_prediction_error_credit_records`.
+- Diagnostic downstream visibility: when `conversational_role` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `conversational_role` as the active role prediction count. Planner and renderer still do not consume the role snapshot.
+- Evidence report artifact: Social Cognition evidence report includes R2, proving EnvironmentEvent role prediction is visible in response assembly diagnostics without renderer consumption.
 
 ## 与其他能力域的关系
 
@@ -106,6 +109,9 @@ Implemented Phase 3 scaffold:
 
 ## 变更日志
 
+- 2026-05-02: R18 Phase 3 slice 6 landed: `conversational_role` active prediction count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
+- 2026-05-02: R18 Phase 3 slice 7 landed: Social Cognition evidence report R2 gate covers role prediction diagnostic visibility.
+- 2026-05-02: R18 Phase 3 slice 5 landed: wrong-addressee `ROLE_ASSIGNMENT` social PE credit probe added to Social Cognition evidence report.
 - 2026-05-02: R18 Phase 3 slice 4 landed: deterministic role-assignment `SocialPrediction` from `EnvironmentEvent.frame`, preparing wrong-addressee PE probes.
 - 2026-05-02: R18 Phase 3 slice 3 landed: `ConversationalRoleModule` consumes `EnvironmentEvent.frame` for speaker/addressee/subject role scope with `primary/self` fallback.
 - 2026-05-02: R18 Phase 3 slice 2 landed: `ConversationalRoleModule` SHADOW owner scaffold registered in final wiring, defaulting to `primary/self`.

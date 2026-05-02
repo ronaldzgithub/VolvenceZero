@@ -466,6 +466,10 @@ class DialogueBenchmarkTurn:
     runtime_backbone_hook_coverage: float = 0.0
     fast_memory_signal_norm: float = 0.0
     fast_memory_runtime_alignment: float = 0.0
+    dialogue_trace_id: str = ""
+    dialogue_prediction_id: str = ""
+    dialogue_outcome_kind: str = ""
+    dialogue_resolution_status: str = ""
 
 
 @dataclass(frozen=True)
@@ -3376,6 +3380,27 @@ def dialogue_turn_from_result(*, turn_index: int, user_input: str, result: Agent
         runtime_backbone_hook_coverage=result.runtime_backbone_hook_coverage,
         fast_memory_signal_norm=result.fast_memory_signal_norm,
         fast_memory_runtime_alignment=result.fast_memory_runtime_alignment,
+        dialogue_trace_id=(
+            result.dialogue_trace.trace_id
+            if result.dialogue_trace is not None
+            else ""
+        ),
+        dialogue_prediction_id=(
+            result.dialogue_trace.prediction_id
+            if result.dialogue_trace is not None
+            and result.dialogue_trace.prediction_id is not None
+            else ""
+        ),
+        dialogue_outcome_kind=(
+            result.dialogue_trace.outcome.kind.value
+            if result.dialogue_trace is not None
+            else ""
+        ),
+        dialogue_resolution_status=(
+            result.dialogue_outcome_resolution.status.value
+            if result.dialogue_outcome_resolution is not None
+            else ""
+        ),
     )
 
 

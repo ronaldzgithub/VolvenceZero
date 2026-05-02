@@ -10,7 +10,10 @@ from volvence_zero.memory import MemoryEntry, MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
+    ConversationalRoleSnapshot,
     FeelingAboutOtherSnapshot,
+    GroupSnapshot,
     IntentAboutOtherSnapshot,
     PreferenceAboutOtherSnapshot,
 )
@@ -1564,6 +1567,39 @@ def _tom_snapshot_counts(
     return tuple(counts)
 
 
+def _role_snapshot_counts(
+    snapshots: Mapping[str, Snapshot[Any]],
+) -> tuple[tuple[str, int], ...]:
+    snapshot = snapshots.get("conversational_role")
+    value = snapshot.value if snapshot is not None else None
+    if isinstance(value, ConversationalRoleSnapshot):
+        return (("conversational_role", len(value.active_predictions)),)
+    return ()
+
+
+def _common_ground_snapshot_counts(
+    snapshots: Mapping[str, Snapshot[Any]],
+) -> tuple[tuple[str, int], ...]:
+    snapshot = snapshots.get("common_ground")
+    value = snapshot.value if snapshot is not None else None
+    if isinstance(value, CommonGroundSnapshot):
+        return (("common_ground", len(value.dyad_atoms) + len(value.group_atoms)),)
+    return ()
+
+
+def _group_snapshot_counts(
+    snapshots: Mapping[str, Snapshot[Any]],
+) -> tuple[tuple[str, int], ...]:
+    snapshot = snapshots.get("groups")
+    value = snapshot.value if snapshot is not None else None
+    if isinstance(value, GroupSnapshot):
+        return (
+            ("groups", len(value.groups)),
+            ("group_joint_commitments", len(value.joint_commitments)),
+        )
+    return ()
+
+
 def _response_speech_plan(
     *,
     expression_intent: str,
@@ -3077,6 +3113,9 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         "relationship_state",
         "goal_value",
         "boundary_consent",
+        "conversational_role",
+        "common_ground",
+        "groups",
         "belief_about_other",
         "intent_about_other",
         "feeling_about_other",
@@ -3110,6 +3149,9 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 "relationship_state",
                 "goal_value",
                 "boundary_consent",
+                "conversational_role",
+                "common_ground",
+                "groups",
                 "belief_about_other",
                 "intent_about_other",
                 "feeling_about_other",
@@ -3183,7 +3225,13 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         )
 
         semantic_counts = semantic_snapshot_counts(semantic_snapshots)
-        semantic_counts = semantic_counts + _tom_snapshot_counts(semantic_snapshots)
+        semantic_counts = (
+            semantic_counts
+            + _tom_snapshot_counts(semantic_snapshots)
+            + _role_snapshot_counts(semantic_snapshots)
+            + _common_ground_snapshot_counts(semantic_snapshots)
+            + _group_snapshot_counts(semantic_snapshots)
+        )
         semantic_control = _clamp(
             sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots.values())
             / max(len(semantic_snapshots), 1)

@@ -29,6 +29,10 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentFrame,
 )
+from volvence_zero.dialogue_trace import (
+    DialogueOutcomeKind,
+    DialogueResolutionStatus,
+)
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
@@ -140,6 +144,28 @@ def test_agent_session_runner_surfaces_explicit_environment_frame():
     assert result.active_speaker_id == "alice"
     assert result.subject_ids == ("alice",)
     assert result.audience_ids == (SELF_INTERLOCUTOR_ID, "alice")
+
+
+def test_dialogue_trace_records_and_resolves_next_turn():
+    runner = AgentSessionRunner(session_id="dialogue-trace-session")
+    first = asyncio.run(runner.run_turn("Please help me think this through."))
+    second = asyncio.run(runner.run_turn("Continue with the next step."))
+
+    assert first.dialogue_trace is not None
+    assert first.dialogue_trace.event_id == first.environment_event_id
+    assert first.dialogue_trace.outcome.kind is DialogueOutcomeKind.UNKNOWN
+    assert first.dialogue_outcome_resolution is None
+    assert second.dialogue_trace is not None
+    assert second.dialogue_outcome_resolution is not None
+    assert second.dialogue_outcome_resolution.status is DialogueResolutionStatus.RESOLVED
+    assert second.dialogue_outcome_resolution.outcome.kind is DialogueOutcomeKind.UNKNOWN
+    assert second.dialogue_trace_snapshot is not None
+    assert len(second.dialogue_trace_snapshot.traces) == 2
+    assert second.dialogue_outcome_resolution.previous_trace_id == first.dialogue_trace.trace_id
+
+    artifact = runner.export_dialogue_trace_replay_artifact()
+    assert artifact["trace_count"] == 2
+    assert artifact["resolved_outcome_count"] == 1
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():

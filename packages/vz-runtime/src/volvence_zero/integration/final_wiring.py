@@ -81,7 +81,12 @@ from volvence_zero.runtime import (
     WiringLevel,
     propagate,
 )
-from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionErrorSnapshot
+from volvence_zero.social_cognition import (
+    CommonGroundAtom,
+    GroupIdentity,
+    SocialPredictionError,
+    SocialPredictionErrorSnapshot,
+)
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.semantic_state import (
     SEMANTIC_OWNER_SLOTS,
@@ -104,6 +109,8 @@ from volvence_zero.social_identity import (
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
 )
+from volvence_zero.social_common_ground import CommonGroundModule
+from volvence_zero.social_group import GroupModule
 from volvence_zero.social_role import ConversationalRoleModule
 from volvence_zero.social_tom import (
     BeliefAboutOtherModule,
@@ -167,6 +174,8 @@ class FinalRolloutConfig:
     social_prediction: WiringLevel = WiringLevel.SHADOW
     social_prediction_error: WiringLevel = WiringLevel.SHADOW
     conversational_role: WiringLevel = WiringLevel.SHADOW
+    common_ground: WiringLevel = WiringLevel.SHADOW
+    groups: WiringLevel = WiringLevel.SHADOW
     belief_about_other: WiringLevel = WiringLevel.SHADOW
     intent_about_other: WiringLevel = WiringLevel.SHADOW
     feeling_about_other: WiringLevel = WiringLevel.SHADOW
@@ -210,6 +219,8 @@ class FinalRolloutConfig:
             "social_prediction": self.social_prediction,
             "social_prediction_error": self.social_prediction_error,
             "conversational_role": self.conversational_role,
+            "common_ground": self.common_ground,
+            "groups": self.groups,
             "belief_about_other": self.belief_about_other,
             "intent_about_other": self.intent_about_other,
             "feeling_about_other": self.feeling_about_other,
@@ -995,6 +1006,13 @@ def build_final_runtime_modules(
     substrate_self_mod_pe_threshold: float = 0.18,
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
+    common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
+    common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
+    group_identities: tuple[GroupIdentity, ...] = (),
+    active_group_id: str | None = None,
+    group_joint_attention: tuple[str, ...] = (),
+    group_joint_commitments: tuple[str, ...] = (),
+    group_regime_id: str | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1071,6 +1089,19 @@ def build_final_runtime_modules(
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+        ),
+        CommonGroundModule(
+            wiring_level=config.level_for("common_ground", WiringLevel.SHADOW),
+            dyad_atoms=common_ground_dyad_atoms,
+            group_atoms=common_ground_group_atoms,
+        ),
+        GroupModule(
+            wiring_level=config.level_for("groups", WiringLevel.SHADOW),
+            groups=group_identities,
+            active_group_id=active_group_id,
+            joint_attention=group_joint_attention,
+            joint_commitments=group_joint_commitments,
+            group_regime_id=group_regime_id,
         ),
         *build_semantic_modules(
             store=semantic_store,
@@ -1191,6 +1222,13 @@ async def run_final_wiring_turn(
     substrate_self_mod_pe_threshold: float = 0.18,
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
+    common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
+    common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
+    group_identities: tuple[GroupIdentity, ...] = (),
+    active_group_id: str | None = None,
+    group_joint_attention: tuple[str, ...] = (),
+    group_joint_commitments: tuple[str, ...] = (),
+    group_regime_id: str | None = None,
 ) -> FinalIntegrationResult:
     modules = build_final_runtime_modules(
         config=config,
@@ -1220,6 +1258,13 @@ async def run_final_wiring_turn(
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
         social_prediction_errors=social_prediction_errors,
         environment_event=environment_event,
+        common_ground_dyad_atoms=common_ground_dyad_atoms,
+        common_ground_group_atoms=common_ground_group_atoms,
+        group_identities=group_identities,
+        active_group_id=active_group_id,
+        group_joint_attention=group_joint_attention,
+        group_joint_commitments=group_joint_commitments,
+        group_regime_id=group_regime_id,
     )
     if upstream_snapshots:
         for module in modules:

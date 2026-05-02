@@ -6,6 +6,11 @@ from dataclasses import dataclass, replace
 import os
 from typing import Any
 
+from volvence_zero.dialogue_trace import (
+    DialogueActionTrace,
+    DialogueOutcomeResolution,
+    DialogueTraceSnapshot,
+)
 from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
@@ -50,6 +55,7 @@ from volvence_zero.application.knowledge_channels import (
     domain_knowledge_prior_updates_from_reviewed,
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
+from volvence_zero.agent.dialogue_trace import DialogueTraceStore
 from volvence_zero.credit.gate import (
     GateDecision,
     ModificationGate,
@@ -180,6 +186,9 @@ class AgentTurnResult:
     environment_event_id: str = ""
     environment_event_kind: str = ""
     environment_trigger_kind: str = ""
+    dialogue_trace: DialogueActionTrace | None = None
+    dialogue_outcome_resolution: DialogueOutcomeResolution | None = None
+    dialogue_trace_snapshot: DialogueTraceSnapshot | None = None
     active_speaker_id: str = PRIMARY_INTERLOCUTOR_ID
     addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
     subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
@@ -603,6 +612,7 @@ class AgentSessionRunner:
         self._semantic_state_store = SemanticStateStore()
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
+        self._dialogue_trace_store = DialogueTraceStore()
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -715,6 +725,13 @@ class AgentSessionRunner:
     @property
     def completed_session_reports(self) -> tuple[EvaluationReport, ...]:
         return tuple(self._completed_session_reports)
+
+    @property
+    def dialogue_trace_snapshot(self) -> DialogueTraceSnapshot:
+        return self._dialogue_trace_store.snapshot()
+
+    def export_dialogue_trace_replay_artifact(self) -> dict[str, object]:
+        return self._dialogue_trace_store.export_replay_artifact()
 
     def enqueue_semantic_events(
         self,
@@ -3292,6 +3309,22 @@ class AgentSessionRunner:
         else:
             shadow_snapshots["experience_fast_prior"] = experience_fast_prior_snapshot
 
+        dialogue_trace, dialogue_outcome_resolution = self._dialogue_trace_store.record_action(
+            session_id=self.active_context_session_id,
+            wave_id=wave_id,
+            turn_index=self._turn_index,
+            environment_event=environment_event,
+            active_regime=active_regime,
+            active_abstract_action=active_abstract_action,
+            response_text=response.text,
+            response_rationale=response.rationale,
+            next_prediction=next_prediction,
+            evaluated_prediction=evaluated_prediction,
+            actual_outcome=actual_outcome,
+            prediction_error=prediction_error,
+        )
+        dialogue_trace_snapshot = self._dialogue_trace_store.snapshot()
+
         return AgentTurnResult(
             session_id=self.active_context_session_id,
             wave_id=wave_id,
@@ -3328,6 +3361,9 @@ class AgentSessionRunner:
             environment_event_id=environment_event.event_id,
             environment_event_kind=environment_event.event_kind.value,
             environment_trigger_kind=environment_event.trigger_kind,
+            dialogue_trace=dialogue_trace,
+            dialogue_outcome_resolution=dialogue_outcome_resolution,
+            dialogue_trace_snapshot=dialogue_trace_snapshot,
             active_speaker_id=active_speaker_id,
             addressee_ids=addressee_ids,
             subject_ids=subject_ids,

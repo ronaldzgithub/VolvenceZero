@@ -82,6 +82,18 @@ class CommonGroundSnapshot:
     description: str
 ```
 
+Implemented Phase 4 scaffold:
+
+- `volvence_zero.social_cognition.CommonGroundAtom`: frozen shared contract for dyad/group mutual-knowledge atoms.
+- `MAX_COMMON_GROUND_RECURSION_DEPTH = 2`: hard upper bound for recursion depth.
+- `CommonGroundAtom.scope_kind` accepts only `dyad` or `group`, never global / interlocutor-only scope.
+- `accepted_by_ids` must be non-empty and unique.
+- `CommonGroundSnapshot` validates dyad atoms and group atoms are kept in the correct buckets and active prediction ids are unique.
+- `CommonGroundModule`: SHADOW owner scaffold registered in final wiring, publishing empty dyad/group atoms and no active predictions.
+- Explicit atom path: `CommonGroundModule` can publish explicitly injected dyad/group atoms for tests and evidence. Default runtime remains empty and does not infer common ground from text.
+- Diagnostic downstream visibility: when `common_ground` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `common_ground` as dyad + group atom count. Planner and renderer still do not consume common-ground snapshots.
+- Evidence report artifact: Social Cognition evidence report includes G1, proving explicit dyad/group common-ground atoms are visible in response assembly diagnostics without renderer consumption.
+
 ## 与其他能力域的关系
 
 - R16 provides dyad identity keys.
@@ -93,5 +105,10 @@ class CommonGroundSnapshot:
 
 ## 变更日志
 
+- 2026-05-02: R19 Phase 4 slice 4 landed: common-ground atom count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
+- 2026-05-02: R19 Phase 4 slice 5 landed: Social Cognition evidence report G1 gate covers common-ground diagnostic visibility.
+- 2026-05-02: R19 Phase 4 slice 3 landed: `CommonGroundModule` supports explicit dyad/group atom injection while default runtime remains empty.
+- 2026-05-02: R19 Phase 4 slice 2 landed: `CommonGroundModule` SHADOW owner scaffold registered in final wiring, defaulting to empty dyad/group common-ground atoms.
+- 2026-05-02: R19 Phase 4 slice 1 landed in `vz-contracts`: `CommonGroundAtom` / `CommonGroundSnapshot` contracts with bounded recursion depth and dyad/group scope validation.
 - 2026-05-02: 补充 Environment Interface 依赖：common ground 的 active scope 来自 canonical conversational frame / role snapshot。
 - 2026-05-02: 初始 draft，冻结 CommonGroundModule as Social Cognition Learning Layer Phase 4。

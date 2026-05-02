@@ -70,8 +70,10 @@ from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
     BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
     ConversationalRoleSnapshot,
     FeelingAboutOtherSnapshot,
+    GroupSnapshot,
     IntentAboutOtherSnapshot,
     MultiPartyIdentitySnapshot,
     PreferenceAboutOtherSnapshot,
@@ -532,6 +534,96 @@ def test_final_wiring_conversational_role_consumes_environment_frame():
     assert prediction.scope_id == "alice"
     assert prediction.subject_ids == ("carol",)
     assert prediction.audience_ids == ("bob", "alice")
+
+
+def test_response_assembly_surfaces_conversational_role_prediction_count_diagnostically():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(conversational_role=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="role-count-model",
+                feature_surface=(
+                    FeatureSignal(name="role_count_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="role-count-session",
+            wave_id="role-count-wave",
+            environment_event=EnvironmentEvent(
+                event_id="role-count-frame-1",
+                event_kind=EnvironmentEventKind.USER_INPUT,
+                trigger_kind="user_input",
+                frame=EnvironmentFrame(
+                    actor=EnvironmentActorRef(actor_id="alice"),
+                    active_speaker_id="alice",
+                    addressee_ids=("bob",),
+                    subject_ids=("carol",),
+                    audience_ids=("bob", "alice"),
+                ),
+                scene_id="scene-role-count",
+                timestamp_ms=1,
+                provenance="test",
+                payload_summary="Alice tells Bob about Carol.",
+            ),
+        )
+    )
+
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    assert counts["conversational_role"] == 1
+    assert "conversational_role" not in response_assembly.semantic_residue_summary
+    assert response_assembly.expression_intent
+
+
+def test_final_wiring_publishes_common_ground_shadow_scaffold():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="common-ground-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="common_ground_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="common-ground-shadow-session",
+            wave_id="common-ground-shadow-wave",
+        )
+    )
+
+    assert "common_ground" not in result.active_snapshots
+    value = result.shadow_snapshots["common_ground"].value
+    assert isinstance(value, CommonGroundSnapshot)
+    assert value.dyad_atoms == ()
+    assert value.group_atoms == ()
+    assert value.active_predictions == ()
+    assert value.control_signal == 0.0
+    assert "R19 SHADOW scaffold" in value.description
+
+
+def test_final_wiring_publishes_groups_shadow_scaffold():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="groups-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="groups_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="groups-shadow-session",
+            wave_id="groups-shadow-wave",
+        )
+    )
+
+    assert "groups" not in result.active_snapshots
+    value = result.shadow_snapshots["groups"].value
+    assert isinstance(value, GroupSnapshot)
+    assert value.groups == ()
+    assert value.active_group_id is None
+    assert value.joint_attention == ()
+    assert value.joint_commitments == ()
+    assert value.group_regime_id is None
+    assert value.active_predictions == ()
+    assert "R20 SHADOW scaffold" in value.description
 
 
 def test_final_wiring_records_social_prediction_errors_into_credit_ledger():

@@ -141,6 +141,34 @@ def test_social_prediction_error_credit_records_carry_misattribution_probe():
     assert "Alice-scoped preference" in record.context
 
 
+def test_social_prediction_error_credit_records_carry_wrong_addressee_probe():
+    social_error = SocialPredictionError(
+        error_id="social-pe:role:wrong-addressee",
+        prediction_id="role-env-frame-1:role-assignment",
+        kind=SocialPredictionKind.ROLE_ASSIGNMENT,
+        outcome=SocialPredictionOutcome.DISCONFIRMED,
+        magnitude=0.71,
+        owner="ConversationalRoleModule",
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        evidence=("Role prediction addressed Bob, but Carol was the intended addressee.",),
+    )
+
+    records = derive_social_prediction_error_credit_records(
+        social_errors=(social_error,),
+        timestamp_ms=43,
+    )
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.level == "social_prediction_error"
+    assert record.track is Track.SHARED
+    assert record.source_event == "social_pe:role_assignment"
+    assert record.credit_value == -0.71
+    assert "owner=ConversationalRoleModule" in record.context
+    assert "intended addressee" in record.context
+
+
 def test_credit_module_consumes_chain_in_shadow_mode():
     store = MemoryStore()
     store.write(

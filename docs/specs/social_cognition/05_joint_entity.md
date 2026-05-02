@@ -86,6 +86,16 @@ class GroupSnapshot:
 
 Group-scoped commitments must preserve AAC alignment / advocacy / outcome semantics but add `group_id` and `member_ids` scope.
 
+Implemented Phase 5 scaffold:
+
+- `volvence_zero.social_cognition.GroupIdentity`: frozen shared contract for `group_id`, unique `member_ids`, optional display name, confidence, and evidence.
+- `GroupSnapshot`: frozen shared contract for groups, active group id, joint attention, joint commitments, optional group regime, active predictions, and description.
+- Contract tests enforce non-empty unique membership, active group id membership in `groups`, unique joint attention / commitments, and unique prediction ids.
+- `GroupModule`: SHADOW owner scaffold registered in final wiring, publishing empty groups / joint attention / joint commitments and no active predictions.
+- Explicit group state path: `GroupModule` can publish explicitly injected group identities, active group id, joint attention, joint commitments, and group regime id for tests/evidence. Default runtime remains empty and does not infer groups from text.
+- Diagnostic downstream visibility: when `groups` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `groups` and `group_joint_commitments` counts. Planner and renderer still do not consume group snapshots.
+- Evidence report artifact: Social Cognition evidence report includes GROUP1, proving explicit group identity / joint commitment state is visible in response assembly diagnostics without renderer consumption.
+
 ## 与其他能力域的关系
 
 - R16 supplies member identities.
@@ -97,5 +107,10 @@ Group-scoped commitments must preserve AAC alignment / advocacy / outcome semant
 
 ## 变更日志
 
+- 2026-05-02: R20 Phase 5 slice 5 landed: Social Cognition evidence report GROUP1 gate covers group diagnostic visibility.
+- 2026-05-02: R20 Phase 5 slice 4 landed: group identity count and group joint commitment count surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
+- 2026-05-02: R20 Phase 5 slice 3 landed: `GroupModule` supports explicit group state injection while default runtime remains empty.
+- 2026-05-02: R20 Phase 5 slice 2 landed: `GroupModule` SHADOW owner scaffold registered in final wiring, defaulting to empty group state.
+- 2026-05-02: R20 Phase 5 slice 1 landed in `vz-contracts`: `GroupIdentity` / `GroupSnapshot` contracts with membership, joint attention / commitment, active group, and prediction-id validation.
 - 2026-05-02: 补充 Environment Interface 依赖：group owner 消费 scene / membership / audience evidence，不从 raw text 关键词形成 group。
 - 2026-05-02: 初始 draft，冻结 GroupModule as Social Cognition Learning Layer Phase 5。

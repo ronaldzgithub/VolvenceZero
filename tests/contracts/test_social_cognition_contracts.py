@@ -10,8 +10,12 @@ from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
     BeliefAboutOtherSnapshot,
+    CommonGroundAtom,
+    CommonGroundSnapshot,
     ConversationalRoleSnapshot,
     FeelingAboutOtherSnapshot,
+    GroupIdentity,
+    GroupSnapshot,
     InterlocutorIdentity,
     IntentAboutOtherSnapshot,
     MultiPartyIdentitySnapshot,
@@ -19,6 +23,7 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceAboutOtherSnapshot,
+    MAX_COMMON_GROUND_RECURSION_DEPTH,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionErrorSnapshot,
@@ -180,6 +185,158 @@ def test_conversational_role_rejects_duplicate_prediction_ids() -> None:
             overhearer_ids=(),
             group_audience_ids=(),
             role_confidence=0.8,
+            active_predictions=(prediction, prediction),
+            description="duplicate predictions",
+        )
+
+
+def _common_ground_atom(
+    *,
+    atom_id: str = "cg:dyad:alice-bob:1",
+    scope_kind: SocialScopeKind = SocialScopeKind.DYAD,
+    recursion_depth: int = MAX_COMMON_GROUND_RECURSION_DEPTH,
+) -> CommonGroundAtom:
+    return CommonGroundAtom(
+        atom_id=atom_id,
+        scope_id="alice:bob" if scope_kind is SocialScopeKind.DYAD else "team:1",
+        scope_kind=scope_kind,
+        summary="Alice and Bob both know the plan changed.",
+        recursion_depth=recursion_depth,
+        confidence=0.7,
+        accepted_by_ids=("alice", "bob"),
+        evidence=("explicit confirmation",),
+    )
+
+
+def test_common_ground_atom_accepts_dyad_and_group_scopes() -> None:
+    dyad = _common_ground_atom(scope_kind=SocialScopeKind.DYAD)
+    group = _common_ground_atom(atom_id="cg:group:1", scope_kind=SocialScopeKind.GROUP)
+
+    assert dyad.scope_kind is SocialScopeKind.DYAD
+    assert group.scope_kind is SocialScopeKind.GROUP
+    assert dyad.recursion_depth == MAX_COMMON_GROUND_RECURSION_DEPTH
+
+
+def test_common_ground_atom_rejects_invalid_scope_or_depth() -> None:
+    with pytest.raises(ValueError, match="scope_kind"):
+        _common_ground_atom(scope_kind=SocialScopeKind.INTERLOCUTOR)
+    with pytest.raises(ValueError, match="recursion_depth"):
+        _common_ground_atom(recursion_depth=MAX_COMMON_GROUND_RECURSION_DEPTH + 1)
+    with pytest.raises(ValueError, match="accepted_by_ids"):
+        CommonGroundAtom(
+            atom_id="cg:bad:accepted-by",
+            scope_id="alice:bob",
+            scope_kind=SocialScopeKind.DYAD,
+            summary="shared assumption",
+            recursion_depth=1,
+            confidence=0.7,
+            accepted_by_ids=("alice", "alice"),
+            evidence=("duplicate accepted-by",),
+        )
+
+
+def test_common_ground_snapshot_validates_scope_buckets_and_prediction_ids() -> None:
+    dyad = _common_ground_atom(scope_kind=SocialScopeKind.DYAD)
+    group = _common_ground_atom(atom_id="cg:group:1", scope_kind=SocialScopeKind.GROUP)
+    prediction = SocialPrediction(
+        prediction_id="cg:prediction:1",
+        kind=SocialPredictionKind.COMMON_GROUND_RESOLUTION,
+        scope_kind=SocialScopeKind.DYAD,
+        scope_id="alice:bob",
+        subject_ids=("alice", "bob"),
+        audience_ids=("alice", "bob"),
+        predicted_outcome="Both can resolve the reference.",
+        confidence=0.8,
+    )
+
+    snapshot = CommonGroundSnapshot(
+        dyad_atoms=(dyad,),
+        group_atoms=(group,),
+        active_predictions=(prediction,),
+        control_signal=0.4,
+        description="common ground snapshot",
+    )
+    assert len(snapshot.dyad_atoms) == 1
+    assert len(snapshot.group_atoms) == 1
+
+    with pytest.raises(ValueError, match="dyad_atoms"):
+        CommonGroundSnapshot(
+            dyad_atoms=(group,),
+            group_atoms=(),
+            active_predictions=(),
+            control_signal=0.0,
+            description="wrong bucket",
+        )
+    with pytest.raises(ValueError, match="prediction_id"):
+        CommonGroundSnapshot(
+            dyad_atoms=(),
+            group_atoms=(),
+            active_predictions=(prediction, prediction),
+            control_signal=0.0,
+            description="duplicate prediction",
+        )
+
+
+def test_group_identity_validates_membership_and_confidence() -> None:
+    group = GroupIdentity(
+        group_id="group:launch",
+        member_ids=("alice", "bob"),
+        display_name="Launch group",
+        confidence=0.8,
+        evidence=("host membership list",),
+    )
+
+    assert group.group_id == "group:launch"
+    assert group.member_ids == ("alice", "bob")
+
+    with pytest.raises(ValueError, match="member_ids"):
+        GroupIdentity(group_id="group:bad", member_ids=("alice", "alice"))
+    with pytest.raises(ValueError, match="confidence"):
+        GroupIdentity(group_id="group:bad", member_ids=("alice",), confidence=1.1)
+
+
+def test_group_snapshot_validates_active_group_and_predictions() -> None:
+    group = GroupIdentity(group_id="group:launch", member_ids=("alice", "bob"))
+    prediction = SocialPrediction(
+        prediction_id="group:prediction:1",
+        kind=SocialPredictionKind.GROUP_COMMITMENT_DURABILITY,
+        scope_kind=SocialScopeKind.GROUP,
+        scope_id="group:launch",
+        subject_ids=("alice", "bob"),
+        audience_ids=("alice", "bob"),
+        predicted_outcome="Joint commitment remains active.",
+        confidence=0.8,
+    )
+    snapshot = GroupSnapshot(
+        groups=(group,),
+        active_group_id="group:launch",
+        joint_attention=("launch-plan",),
+        joint_commitments=("commitment:ship",),
+        group_regime_id="problem_solving",
+        active_predictions=(prediction,),
+        description="group snapshot",
+    )
+
+    assert snapshot.active_group_id == "group:launch"
+    assert snapshot.joint_commitments == ("commitment:ship",)
+
+    with pytest.raises(ValueError, match="active_group_id"):
+        GroupSnapshot(
+            groups=(group,),
+            active_group_id="group:missing",
+            joint_attention=(),
+            joint_commitments=(),
+            group_regime_id=None,
+            active_predictions=(),
+            description="bad active group",
+        )
+    with pytest.raises(ValueError, match="prediction_id"):
+        GroupSnapshot(
+            groups=(group,),
+            active_group_id="group:launch",
+            joint_attention=(),
+            joint_commitments=(),
+            group_regime_id=None,
             active_predictions=(prediction, prediction),
             description="duplicate predictions",
         )
