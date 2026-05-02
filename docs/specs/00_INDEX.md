@@ -305,7 +305,7 @@
 
 ---
 
-### 15. Affordance 体系（Phase 0 design freeze, 实施待 Phase 2）
+### 15. Affordance 体系（v1 已落地）
 
 **对应需求**：R3（时间抽象）、R4（内部控制）、R8（契约优先）、R10（有界自修改）、R11（内部状态可发布）、R15（可回滚演进）
 
@@ -314,10 +314,16 @@
 | [affordance.md](./affordance.md) | 4 Kind 描述符（Tool/Action/Organ/Shell）、`AffordanceRegistry`、4 渲染器、metacontroller learned 选择 |
 
 **核心不变量**：
-- 描述符 schema 在 `vz-contracts`；注册表与 invoker 在新 wheel `lifeform-affordance`
+- 描述符 schema 在 `vz-contracts`；注册表与 invoker 在 `lifeform-affordance` wheel
 - 选择由 metacontroller 在 z_t 空间学，**禁止**硬编码路由
 - safety_model + ModificationGate 共同守门；调用结果通过 `BrainSession.submit_tool_result` 回流
 - 跨 vertical affordance 隔离
+
+**已落地实现**：
+- `volvence_zero.affordance` —— 描述符 schema、4 Kind 枚举、selection-hint 不变量（vz-contracts）
+- `lifeform_affordance.registry / scorer / invoker / snapshot` —— 注册表、metacontroller-aware scorer、五阶段 invoker（lookup → safety gate → rate limit → param schema → backend → kernel result wiring）、snapshot 发布
+- `lifeform_affordance.renderers.{catalog_json, compact_list, markdown, openai_tools}` —— 4 个渲染器
+- 测试：`tests/test_affordance_{registry,scorer,invoker,renderers_and_snapshot}.py`
 
 来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 1。
 
