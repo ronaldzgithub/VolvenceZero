@@ -109,20 +109,18 @@ from volvence_zero.semantic_state import (
     UserModelSnapshot,
     build_semantic_modules,
 )
-from volvence_zero.social_identity import (
+from volvence_zero.social import (
+    BeliefAboutOtherModule,
+    CommonGroundModule,
+    ConversationalRoleModule,
+    FeelingAboutOtherModule,
+    GroupModule,
+    IntentAboutOtherModule,
+    LLMCommonGroundProposalRuntime,
     MultiPartyIdentityModule,
+    PreferenceAboutOtherModule,
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
-)
-from volvence_zero.social_common_ground import CommonGroundModule
-from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
-from volvence_zero.social_group import GroupModule
-from volvence_zero.social_role import ConversationalRoleModule
-from volvence_zero.social_tom import (
-    BeliefAboutOtherModule,
-    FeelingAboutOtherModule,
-    IntentAboutOtherModule,
-    PreferenceAboutOtherModule,
 )
 from volvence_zero.substrate import (
     SubstrateAdapter,

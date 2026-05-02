@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.social_cognition import SocialScopeKind
-from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
+from volvence_zero.social import LLMCommonGroundProposalRuntime
 
 
 class _ScriptedProvider:

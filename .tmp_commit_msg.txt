@@ -1,0 +1,28 @@
+refactor: vz-cognition social_*.py 收成 social/ 子包
+
+把散落在 vz-cognition 顶层的 7 个 social_*.py 重组为一个
+volvence_zero.social 子包，按能力域切成 5 个文件：
+
+- social_identity.py            → social/identity.py
+- social_role.py                → social/role.py
+- social_group.py               → social/group.py
+- social_tom.py + _runtime.py   → social/tom.py
+- social_common_ground.py + _runtime.py → social/common_ground.py
+
+设计要点：
+- 删 _runtime.py 后缀：每个 LLM proposal runtime 是 owner 的协作者，
+  与 owner 同文件；不再升格成同级模块
+- social/__init__.py re-export 所有公共类，外部统一走单一入口
+  `from volvence_zero.social import ...`
+- 5 个文件结构与 docs/specs/social_cognition/01-05 子目录对齐
+
+机械改造（一次性脚本）：
+- 删 7 个旧文件
+- 全仓 24 个 import 行重写（8 个文件：tests * 6, final_wiring,
+  social_cognition_evidence），0 残留
+- ALLOWED_VZ_UPSTREAM 折叠 7 个旧 token 为 1 个 "social"
+- final_wiring.py 5 段 from volvence_zero.social import 合并为 1 段
+  alphabetised 块
+
+Pure refactor，0 行为变化。Tests: 505 social/memory/contracts/final-wiring
+全通过；唯一 deselected 是 pre-existing kill-switch 失败，与本次无关。

@@ -6,11 +6,11 @@ from volvence_zero.memory import MemoryModule, MemoryStore
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.social_cognition import CommonGroundAtom, CommonGroundSnapshot, SocialScopeKind
-from volvence_zero.social_common_ground import CommonGroundModule
-from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
-from volvence_zero.social_identity import MultiPartyIdentityModule
-from volvence_zero.social_role import ConversationalRoleModule
-from volvence_zero.social_tom import BeliefAboutOtherModule
+from volvence_zero.social import CommonGroundModule
+from volvence_zero.social import LLMCommonGroundProposalRuntime
+from volvence_zero.social import MultiPartyIdentityModule
+from volvence_zero.social import ConversationalRoleModule
+from volvence_zero.social import BeliefAboutOtherModule
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter, SubstrateModule
 
 

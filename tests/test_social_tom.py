@@ -17,9 +17,9 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     PreferenceAboutOtherSnapshot,
 )
-from volvence_zero.social_identity import MultiPartyIdentityModule
-from volvence_zero.social_tom import BeliefAboutOtherModule, PreferenceAboutOtherModule
-from volvence_zero.social_tom_runtime import LLMToMProposalRuntime
+from volvence_zero.social import MultiPartyIdentityModule
+from volvence_zero.social import BeliefAboutOtherModule, PreferenceAboutOtherModule
+from volvence_zero.social import LLMToMProposalRuntime
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter, SubstrateModule
 
 

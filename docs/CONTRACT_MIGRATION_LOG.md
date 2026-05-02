@@ -3,6 +3,40 @@
 > Status: migration / implementation log
 > Last updated: 2026-05-02
 
+## Slice D (2026-05-02): vz-cognition social_*.py 收成 social/ 子包
+
+Pure refactor; no behavior change. Replaces 7 flat top-level files in
+`vz-cognition/src/volvence_zero/` with one capability-domain subpackage:
+
+- `social_identity.py` → `social/identity.py`
+- `social_role.py` → `social/role.py`
+- `social_group.py` → `social/group.py`
+- `social_tom.py` + `social_tom_runtime.py` → `social/tom.py`
+- `social_common_ground.py` + `social_common_ground_runtime.py` →
+  `social/common_ground.py`
+
+The `_runtime.py` suffix is dropped: each LLM proposal runtime is a
+collaborator of its owner module and lives in the same file. The new
+`volvence_zero.social.__init__` re-exports every previously top-level
+public class so external consumers use a single stable import path:
+`from volvence_zero.social import CommonGroundModule, ...`.
+
+Cross-wheel changes:
+
+- `tests/contracts/test_import_boundaries.py` `ALLOWED_VZ_UPSTREAM`
+  collapses 7 legacy `social_*` tokens into a single `social` token
+  for vz-application / vz-temporal / vz-runtime tiers.
+- `vz-runtime/.../integration/final_wiring.py` consolidates the 5
+  per-domain `from volvence_zero.social_X import` statements into one
+  alphabetised `from volvence_zero.social import (...)` block.
+- `lifeform-evolution/.../social_cognition_evidence.py` rewritten to
+  the new path.
+- All 24 affected import lines across 8 files were rewritten by a
+  one-shot migration script; residual reference scan returned 0.
+
+Tests: 505 social / memory / contracts / final-wiring tests pass with
+0 regression (1 deselected pre-existing failure unrelated to social).
+
 ## Slice 12 (2026-05-02): MemoryModule SSOT for social PE signals
 
 Closes the SSOT violation where `SocialPredictionAggregateModule` and

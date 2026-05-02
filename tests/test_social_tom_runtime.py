@@ -8,7 +8,7 @@ from volvence_zero.semantic_state import (
     NoOpSemanticProposalRuntime,
     SemanticProposalOperation,
 )
-from volvence_zero.social_tom_runtime import LLMToMProposalRuntime
+from volvence_zero.social import LLMToMProposalRuntime
 
 
 class _ScriptedProvider:

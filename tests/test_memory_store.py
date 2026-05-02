@@ -27,7 +27,7 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
-from volvence_zero.social_identity import MultiPartyIdentityModule
+from volvence_zero.social import MultiPartyIdentityModule
 
 
 class _AliceIdentityModule(RuntimeModule[MultiPartyIdentitySnapshot]):

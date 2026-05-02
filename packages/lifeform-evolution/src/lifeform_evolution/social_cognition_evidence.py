@@ -43,8 +43,8 @@ from volvence_zero.social_cognition import (
     SocialPredictionSnapshot,
     SocialScopeKind,
 )
-from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
-from volvence_zero.social_tom_runtime import LLMToMProposalRuntime
+from volvence_zero.social import LLMCommonGroundProposalRuntime
+from volvence_zero.social import LLMToMProposalRuntime
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter
 
 
