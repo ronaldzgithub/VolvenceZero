@@ -588,7 +588,7 @@ Stable package-facing API:
 
 Internal or research-heavy surfaces:
 
-- `volvence_zero.agent.dialogue_benchmark`
+- `volvence_zero.agent.dialogue`
 - `volvence_zero.agent.eta_proof_benchmark`
 - broad re-exports from `volvence_zero.agent`
 - internal integration helpers with leading underscores

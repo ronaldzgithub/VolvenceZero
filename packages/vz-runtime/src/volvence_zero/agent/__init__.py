@@ -1,5 +1,5 @@
 from volvence_zero.agent.cli import build_arg_parser, main, render_turn_result, run_repl
-from volvence_zero.agent.dialogue_benchmark import (
+from volvence_zero.agent.dialogue import (
     DEFAULT_DIALOGUE_CASE_VARIANTS,
     DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES,
     DEFAULT_DIALOGUE_REPLAY_SEEDS,

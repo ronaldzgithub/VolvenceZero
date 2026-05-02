@@ -3,7 +3,7 @@
 Product-layer skeleton: long-horizon **evidence and gating**.
 
 Future home of:
-- Scripted dialogue / perturbation / replay-selection benchmark drivers (currently in `volvence_zero.agent.dialogue_benchmark` etc.)
+- Scripted dialogue / perturbation / replay-selection benchmark drivers (currently in `volvence_zero.agent.dialogue` etc.)
 - Artifact acceptance gates for rare-heavy
 - Human-review dashboards
 - KPI export pipelines

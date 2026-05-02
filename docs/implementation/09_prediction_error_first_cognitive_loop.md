@@ -118,7 +118,7 @@
 
 ### 10. Dialogue benchmark 已接入 PE-ETA proof harness
 
-`volvence_zero.agent.dialogue_benchmark` 中新增：
+`volvence_zero.agent.dialogue` 中新增：
 
 - `ScriptedDialogueCase`
 - `DialogueBenchmarkTurn`
@@ -167,7 +167,7 @@
 
 ### 13. Dialogue benchmark 已接入 perturbation / replay variants
 
-当前 `volvence_zero.agent.dialogue_benchmark` 已新增：
+当前 `volvence_zero.agent.dialogue` 已新增：
 
 - `DialogueCaseVariant`
 - `DialoguePerturbationBenchmarkReport`
@@ -183,7 +183,7 @@
 
 ### 14. Dialogue benchmark 已接入 systematic replay / stochastic perturbation
 
-当前 `volvence_zero.agent.dialogue_benchmark` 已新增：
+当前 `volvence_zero.agent.dialogue` 已新增：
 
 - `DialogueParaphraseFamily`
 - `generate_stochastic_dialogue_case_variants()`
@@ -198,7 +198,7 @@
 
 ### 15. Dialogue proof gate 已与 runtime 阈值对齐
 
-`volvence_zero.agent.dialogue_benchmark` 中：
+`volvence_zero.agent.dialogue` 中：
 
 - case-level `high_pe_threshold` 已从早期过高的 proof gate 下调到 `0.18`
 - `reward_threshold` 已下调到 `0.05`

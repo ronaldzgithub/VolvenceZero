@@ -84,7 +84,7 @@ from volvence_zero.agent import (
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.evaluation.backbone import CrossSessionGrowthReport, MetricIntervalSummary, PairwiseMetricEffect
 from volvence_zero.substrate import LocalSubstrateRuntimeMode, SyntheticOpenWeightResidualRuntime
-from volvence_zero.agent.dialogue_benchmark import (
+from volvence_zero.agent.dialogue import (
     DialogueExpertReviewDimension,
     DialogueExpertReviewInternalKey,
     DialogueExpertReviewInternalKeyEntry,
@@ -314,7 +314,7 @@ def _benchmark_turn(
 
 
 def _synthetic_comprehensive_report_for_dashboard():
-    from volvence_zero.agent.dialogue_benchmark import (
+    from volvence_zero.agent.dialogue import (
         DialogueArtifactComparisonReport,
         DialogueBenchmarkPathReport,
         DialogueComprehensiveBenchmarkReport,

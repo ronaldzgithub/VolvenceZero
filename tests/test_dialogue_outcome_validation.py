@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 
-from volvence_zero.agent.dialogue_benchmark import (
+from volvence_zero.agent.dialogue import (
     ScriptedDialogueCase,
     run_dialogue_pe_eta_case,
 )

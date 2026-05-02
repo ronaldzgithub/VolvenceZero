@@ -327,7 +327,8 @@ def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:
         / "src"
         / "volvence_zero"
         / "agent"
-        / "dialogue_benchmark.py"
+        / "dialogue"
+        / "_legacy.py"
     ).read_text(encoding="utf-8")
     assert "hidden-perturbation-label-not-leaked" not in source
     assert "open_hidden_label_leak_count == 0" not in source

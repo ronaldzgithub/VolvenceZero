@@ -90,7 +90,7 @@
 - 当前 `EvaluationBackbone` 已提供 default evolution benchmark 与 `judge_evolution_candidate()`，把 replay suite + session trend 显式映射到 `promote / hold / rollback`
 - 当前 `evaluation` 已会对 family monopoly/collapse 输出显式 alert，并把这类 abstraction 竞争风险返回给 reflection / judge / rollout gate 使用
 - 当前 `evaluation` 已开始直接读取 memory owner 发布的 runtime-grounded learning evidence：如 `runtime_backbone_signal_quality`、`runtime_backbone_signal_strength`、`fast_memory_signal_norm`、`fast_memory_runtime_alignment`；tower telemetry 仍保留，但默认退到辅助 readout
-- 当前 `volvence_zero.agent.dialogue_benchmark` 已新增 fixed scripted dialogue proof harness：它不改变 `evaluation` snapshot schema，而是按 case 聚合 `prediction_error`、`joint_schedule_action`、`abstract_action`、`regime`、`switch_gate` 与 F4/F5/F2 相关 metrics，用于判断 PE 是否真的驱动 temporal abstraction 与后段改善
+- 当前 `volvence_zero.agent.dialogue` 已新增 fixed scripted dialogue proof harness：它不改变 `evaluation` snapshot schema，而是按 case 聚合 `prediction_error`、`joint_schedule_action`、`abstract_action`、`regime`、`switch_gate` 与 F4/F5/F2 相关 metrics，用于判断 PE 是否真的驱动 temporal abstraction 与后段改善
 - 当前 dialogue benchmark 也已开始把 runtime-grounded evidence 聚合进 case/report/gate：`runtime_backbone_evidence_turn_count`、`mean_runtime_backbone_signal_quality`、`mean_fast_memory_runtime_alignment` 已进入 benchmark summary；tower summary 仍保留，但不再单独代表默认主证据
 - 当前 `tower-memory-surface` gate 已从单纯可见性检查提升为更接近机制强度 gate：除 tower depth、alignment、consolidation 与 matched-control gap 外，还要求 runtime backbone evidence 与 fast-memory/runtime alignment 一起成立
 - 当前 `emergence dashboard` 与 dialogue paper-suite 也已开始直接暴露 runtime summary：canonical/open runtime evidence rate、runtime quality、fast-memory alignment 已进入高层 artifact；tower summary 退到辅证位

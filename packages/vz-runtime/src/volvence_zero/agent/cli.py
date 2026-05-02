@@ -7,7 +7,7 @@ import time
 from functools import partial
 from typing import Callable, TextIO
 
-from volvence_zero.agent.dialogue_benchmark import (
+from volvence_zero.agent.dialogue import (
     OpenDialogueREPLReader,
     build_deterministic_user_simulator,
 )
