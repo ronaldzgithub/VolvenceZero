@@ -117,13 +117,13 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             interlocutor_state_provider=provider,
         )
 
-    # Intents we delegate to the base kernel renderer because the base
-    # already produces strong, regime-faithful text for them (and tests pin
-    # the judgment-process / refer-out shapes). Direct-answer also delegates
-    # because there is no useful section structure to add on top of the
-    # kernel's regime-tail templates.
+    # Intents we delegate to the base kernel renderer. Judgment-process is
+    # rendered locally now: the base template was too repetitive for
+    # companion widening transcripts, while the grounded section renderer can
+    # still surface the "show your reasoning" posture without collapsing all
+    # such turns to one sentence.
     _DELEGATE_TO_BASE: frozenset[TurnIntent] = frozenset(
-        {TurnIntent.REFER_OUT, TurnIntent.JUDGMENT_PROCESS, TurnIntent.DIRECT_ANSWER}
+        {TurnIntent.REFER_OUT, TurnIntent.DIRECT_ANSWER}
     )
 
     def synthesize(
@@ -146,7 +146,11 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return _attach_plan_rationale(base, plan)
 
         text = self._render(
-            context=context, assembly=assembly, plan=plan, vitals=vitals
+            context=context,
+            assembly=assembly,
+            plan=plan,
+            vitals=vitals,
+            interlocutor_state=interlocutor_state,
         )
         if not text.strip():
             base = super().synthesize(context=context, assembly=assembly)
@@ -201,6 +205,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         assembly: ResponseAssemblySnapshot,
         plan: PromptPlan,
         vitals: VitalsSnapshot | None = None,
+        interlocutor_state: InterlocutorState | None = None,
     ) -> str:
         sentences: list[str] = []
         for section in plan.sections:
@@ -210,6 +215,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 assembly=assembly,
                 plan=plan,
                 vitals=vitals,
+                interlocutor_state=interlocutor_state,
             )
             if rendered:
                 sentences.append(rendered)
@@ -223,17 +229,30 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         assembly: ResponseAssemblySnapshot,
         plan: PromptPlan,
         vitals: VitalsSnapshot | None = None,
+        interlocutor_state: InterlocutorState | None = None,
     ) -> str:
         if section is SectionId.ACKNOWLEDGE_PRESSURE:
-            return self._render_acknowledge(context=context, assembly=assembly)
+            return self._render_acknowledge(
+                context=context,
+                assembly=assembly,
+                interlocutor_state=interlocutor_state,
+            )
         if section is SectionId.REGIME_FRAME:
-            return self._render_regime_frame(context=context, assembly=assembly)
+            return self._render_regime_frame(
+                context=context,
+                assembly=assembly,
+                interlocutor_state=interlocutor_state,
+            )
         if section is SectionId.OPEN_LOOP_HANDOFF:
             return self._render_open_loop(context=context, assembly=assembly)
         if section is SectionId.CLARIFICATION:
             return self._render_clarification(context=context, assembly=assembly, plan=plan)
         if section is SectionId.NEXT_STEP:
-            return self._render_next_step(context=context, assembly=assembly)
+            return self._render_next_step(
+                context=context,
+                assembly=assembly,
+                interlocutor_state=interlocutor_state,
+            )
         if section is SectionId.BOUNDARY_DISCLAIMER:
             return self._render_boundary(context=context, assembly=assembly)
         if section is SectionId.REFLECTION_HOOK:
@@ -250,13 +269,22 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
 
     @staticmethod
     def _render_acknowledge(
-        *, context: ResponseContext, assembly: ResponseAssemblySnapshot
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot,
+        interlocutor_state: InterlocutorState | None = None,
     ) -> str:
         if context.regime_id == "repair_and_deescalation":
             return (
                 "I want to slow this down so we can stay grounded together. "
                 "I am not going to push past what just happened."
             )
+        if _state_indicates_repair(interlocutor_state):
+            return "You are right to slow the pace; I do not want to turn you into a project."
+        if _state_indicates_direct_task(interlocutor_state):
+            return "I can keep this practical and bounded without turning it into a full analysis."
+        if _state_indicates_emotional_weight(interlocutor_state):
+            return "There is some weight here, so I want to stay close to what you are actually feeling."
         if context.regime_id == "emotional_support":
             return "I am hearing weight in this and I want to stay with it before we move."
         if assembly.continuum_target_position >= 0.7:
@@ -265,12 +293,21 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
 
     @staticmethod
     def _render_regime_frame(
-        *, context: ResponseContext, assembly: ResponseAssemblySnapshot
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot,
+        interlocutor_state: InterlocutorState | None = None,
     ) -> str:
         regime = assembly.regime_id or context.regime_id or ""
         if regime == "emotional_support":
             return "I will stay supportive first and not jump into solving."
         if regime == "guided_exploration":
+            if _state_indicates_repair(interlocutor_state):
+                return "Let's reset the pace and make the next move feel chosen, not imposed."
+            if _state_indicates_direct_task(interlocutor_state):
+                return "I will give one concrete step and keep the reasoning visible."
+            if _state_indicates_emotional_weight(interlocutor_state):
+                return "We can sort the feeling first, then decide whether a step is needed."
             return "I would rather explore this with you step by step than guess at one answer."
         if regime == "problem_solving":
             return "I see a structured path here we can walk together."
@@ -306,7 +343,10 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
 
     @staticmethod
     def _render_next_step(
-        *, context: ResponseContext, assembly: ResponseAssemblySnapshot
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot,
+        interlocutor_state: InterlocutorState | None = None,
     ) -> str:
         regime = assembly.regime_id or context.regime_id or ""
         if regime in {"emotional_support", "repair_and_deescalation"}:
@@ -314,6 +354,12 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         if regime == "problem_solving":
             return "Concretely, the smallest useful next step is to name the constraint that matters most."
         if regime == "guided_exploration":
+            if _state_indicates_repair(interlocutor_state):
+                return "A good next move is to name what felt off, then choose one gentler thread to continue."
+            if _state_indicates_direct_task(interlocutor_state):
+                return "One concrete next step: choose the smallest reversible action, then stop and reassess."
+            if _state_indicates_emotional_weight(interlocutor_state):
+                return "Start by naming the heaviest part in one sentence; we can decide after that."
             return "Pick one of the threads we just surfaced and we can go a little deeper on it."
         return "From here we can take one small, concrete step that keeps things moving without forcing the pace."
 
@@ -392,6 +438,33 @@ def _dedupe_sentences(sentences: Iterable[str]) -> list[str]:
         seen.add(normalised)
         out.append(normalised)
     return out
+
+
+def _state_indicates_repair(state: InterlocutorState | None) -> bool:
+    return (
+        state is not None
+        and state.readout_confidence >= 0.30
+        and (state.resistance_level >= 0.30 or state.trust_signal <= 0.05)
+    )
+
+
+def _state_indicates_direct_task(state: InterlocutorState | None) -> bool:
+    return (
+        state is not None
+        and state.readout_confidence >= 0.30
+        and state.task_focus_level >= 0.685
+        and state.directness >= 0.58
+        and state.emotional_weight <= 0.58
+    )
+
+
+def _state_indicates_emotional_weight(state: InterlocutorState | None) -> bool:
+    return (
+        state is not None
+        and state.readout_confidence >= 0.30
+        and state.emotional_weight >= 0.56
+        and state.self_disclosure_level >= 0.65
+    )
 
 
 def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentResponse:

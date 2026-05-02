@@ -26,6 +26,14 @@ from lifeform_evolution.benchmark import (
     run_benchmark_async,
     trust_rupture_repair_scenario,
 )
+from lifeform_evolution.companion_evidence import (
+    CompanionEvidenceGate,
+    CompanionEvidenceReport,
+    companion_evidence_report_to_dict,
+    format_companion_evidence_report,
+    run_companion_evidence,
+    run_companion_evidence_async,
+)
 from lifeform_evolution.family_report import (
     FamilyEvaluation,
     FamilyId,
@@ -104,6 +112,8 @@ from lifeform_evolution.trace_collector import (
 
 __all__ = (
     "BenchmarkReport",
+    "CompanionEvidenceGate",
+    "CompanionEvidenceReport",
     "DistributionSnapshot",
     "FamilyEvaluation",
     "FamilyId",
@@ -131,10 +141,12 @@ __all__ = (
     "all_built_in_scenarios",
     "casual_social_checkin_scenario",
     "compute_family_report",
+    "companion_evidence_report_to_dict",
     "dump_scenario_pack",
     "dump_scenario_packs",
     "family_report_to_dict",
     "format_family_report",
+    "format_companion_evidence_report",
     "format_learning_loop_report",
     "format_multi_round_report",
     "format_regime_calibration_report",
@@ -151,6 +163,8 @@ __all__ = (
     "low_mood_disclosure_scenario",
     "run_benchmark",
     "run_benchmark_async",
+    "run_companion_evidence",
+    "run_companion_evidence_async",
     "run_learning_loop",
     "run_learning_loop_async",
     "run_multi_round_loop",

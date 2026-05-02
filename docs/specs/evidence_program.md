@@ -88,6 +88,9 @@
 - `claim_nl_slow_loop_improves_eta_fast_path`
   - 命题：NL slow loop 对 ETA fast path 的初始化、family reuse 或 held-out payoff 有可测增益
   - 需要：slow-loop writeback evidence、credit-to-family write count、long-horizon payoff coverage、matched no-fast-prior / non-nested control
+- `claim_companion_stateful_relationship`
+  - 命题：companion 不是静态 support prompt，而是能感知当前对象状态、在 session 内调整、并在显式用户范围 memory 下跨 session 保留偏好
+  - 需要：C1 state sensitivity、C2 within-session adaptation、C3 explicit cross-session retention、C4 default memory isolation
 
 ## Dialogue Paper-Suite Evidence Map
 
@@ -189,9 +192,44 @@
 - `evidence_bundle.json` 是跨系统消费入口，包含 manifest、provenance、run summaries、aggregate metrics、pairwise effects、blind review packet 与 claim verdicts。
 - 轻量测试只验证 claim 规则和 artifact shape；完整 empirical 结论仍必须来自 `paper-suite-small` / `paper-suite-full` repeated-run aggregate。
 
+## Companion Evidence Map
+
+本节冻结 companionship claim 的最小自动证据口径。它回答“陪伴能力是否只是固定 prompt”的问题，但不把固定 scripted benchmark pass 误写成人类级关系成熟。
+
+### `claim_companion_stateful_relationship`
+
+**命题**：companion 能根据当前对话对象状态调整表达，在同一 session 中形成连续状态，并在显式同一用户 / 同一生命体范围的共享 memory 下跨 session 保留偏好；默认 session 仍保持隔离，避免多租户串记忆。
+
+**retain 条件**：
+- C1 `state_sensitivity`: 同一 companion 面对 task vs emotional context 时，`interlocutor_state` 至少在 task focus / directness / rapport warmth 上分化，且 readout confidence 达标
+- C2 `within_session_adaptation`: `low-mood-disclosure` 多轮内出现至少两个 expression intents，PE 有变化，且最终 interlocutor readout confidence 达标
+- C3 `explicit_cross_session_retention`: 注入共享 `MemoryStore` 后，session B 能检索到 session A 写入的偏好
+- C4 `default_memory_isolation`: 未显式注入共享 store 时，两个 session 的 `MemoryStore` 不共享
+- v2 `composite_score` 记录 C1-C4 gate score + widening transcript diversity；v2 transcript diversity 是 widening diagnostic，不单独作为 retain 硬门槛
+
+**weak 条件**：
+- C1/C2 通过，但 C3 只能通过人工脚本或临时状态证明，尚无显式 shared-memory gate
+
+**fail 条件**：
+- C1 不分化，或 C2 没有 session 内状态变化，或 C3 需要默认跨 session 串记忆才能通过
+
+**主要 artifact**：
+- `companion_evidence_report.json`
+- `lifeform-bench --companion-evidence-report` stdout
+- `companion_evidence_report.json.transcripts[]`：paraphrase / tone shift / delayed return / preference conflict 微场景 transcript，用于后续 blind review / human rating
+
+**轻量测试节点**：
+- `tests/lifeform_e2e/test_companion_learning_evidence.py`
+- `tests/lifeform_e2e/test_companion_evidence_report.py`
+
+**运行入口**：
+- `lifeform-bench --companion-evidence-report`
+- 可选 JSON：`lifeform-bench --companion-evidence-report --companion-evidence-json companion_evidence_report.json`
+
 ## 变更日志
 
 - 2026-05-01: 新增 Dialogue Paper-Suite Evidence Map，冻结 temporal advantage、beyond scripted、external human legibility、rare-heavy net benefit 四类 dialogue claim 的 retain / weak / fail 条件、artifact 边界与轻量测试入口
+- 2026-05-02: 新增 Companion Evidence Map，冻结 C1-C4 companion stateful-relationship claim、运行入口与轻量测试节点；v2 增加 widening transcript artifact 与 composite score（diagnostic，不替代 C1-C4 retain gate）
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径

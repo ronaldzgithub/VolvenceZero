@@ -12,6 +12,7 @@ license = { text = "Proprietary" }
 dependencies = [
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
+    "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
 ]
 

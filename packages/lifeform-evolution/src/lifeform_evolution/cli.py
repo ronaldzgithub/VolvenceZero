@@ -19,6 +19,11 @@ from lifeform_evolution.family_report import (
     family_report_to_dict,
     format_family_report,
 )
+from lifeform_evolution.companion_evidence import (
+    companion_evidence_report_to_dict,
+    format_companion_evidence_report,
+    run_companion_evidence,
+)
 from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_evolution.learning_loop import (
     format_learning_loop_report,
@@ -247,6 +252,19 @@ def _build_bench_parser() -> argparse.ArgumentParser:
             "--family-report."
         ),
     )
+    parser.add_argument(
+        "--companion-evidence-report",
+        action="store_true",
+        help=(
+            "Run the companion C1-C4 evidence report after the benchmark. "
+            "Valid only for the companion/default vertical."
+        ),
+    )
+    parser.add_argument(
+        "--companion-evidence-json",
+        default=None,
+        help="Optional path to write the companion evidence report as JSON.",
+    )
     return parser
 
 
@@ -293,6 +311,9 @@ def main(argv: list[str] | None = None) -> int:
         or args.family_report_json is not None
         or args.require_family_pass
     )
+    want_companion_evidence = (
+        args.companion_evidence_report or args.companion_evidence_json is not None
+    )
     ok = True
     family_pass = True
     family_artifacts: list[dict[str, object]] = []
@@ -332,6 +353,24 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         print(f"[bench] wrote family report artifact to {path}")
+
+    if want_companion_evidence:
+        if args.vertical not in (None, "companion"):
+            parser.error("--companion-evidence-report is only valid for the companion vertical")
+        companion_evidence = run_companion_evidence()
+        print(format_companion_evidence_report(companion_evidence))
+        if args.companion_evidence_json:
+            import json
+            import pathlib
+
+            path = pathlib.Path(args.companion_evidence_json).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(companion_evidence_report_to_dict(companion_evidence), indent=2),
+                encoding="utf-8",
+            )
+            print(f"[bench] wrote companion evidence artifact to {path}")
+        ok = ok and companion_evidence.passed
 
     if args.require_family_pass and not family_pass:
         return 1
