@@ -69,9 +69,18 @@ from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
+    BeliefAboutOtherSnapshot,
+    ConversationalRoleSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
     MultiPartyIdentitySnapshot,
+    PreferenceAboutOtherSnapshot,
+    SocialPredictionError,
     SocialPredictionErrorSnapshot,
+    SocialPredictionKind,
+    SocialPredictionOutcome,
     SocialPredictionSnapshot,
+    SocialScopeKind,
 )
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -79,6 +88,12 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import ControllerState, FullLearnedTemporalPolicy, TemporalAbstractionSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
+from volvence_zero.environment import (
+    EnvironmentActorRef,
+    EnvironmentEvent,
+    EnvironmentEventKind,
+    EnvironmentFrame,
+)
 
 
 def test_retrieval_control_readout_stays_compact_and_adjusts_domains():
@@ -344,6 +359,46 @@ def test_final_wiring_publishes_multi_party_identity_shadow_scaffold():
     assert "R16 SHADOW scaffold" in value.description
 
 
+def test_final_wiring_multi_party_identity_consumes_environment_frame():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="environment-frame-model",
+                feature_surface=(
+                    FeatureSignal(name="environment_frame", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="environment-frame-session",
+            wave_id="environment-frame-wave",
+            environment_event=EnvironmentEvent(
+                event_id="env-frame-1",
+                event_kind=EnvironmentEventKind.USER_INPUT,
+                trigger_kind="user_input",
+                frame=EnvironmentFrame(
+                    actor=EnvironmentActorRef(actor_id="alice"),
+                    active_speaker_id="alice",
+                    addressee_ids=(SELF_INTERLOCUTOR_ID,),
+                    subject_ids=("alice",),
+                    audience_ids=(SELF_INTERLOCUTOR_ID, "alice"),
+                ),
+                scene_id="scene-1",
+                timestamp_ms=1,
+                provenance="test",
+                payload_summary="Alice asks a question.",
+            ),
+        )
+    )
+
+    snapshot = result.shadow_snapshots["multi_party_identity"]
+    value = snapshot.value
+    assert isinstance(value, MultiPartyIdentitySnapshot)
+    assert value.active_speaker_id == "alice"
+    assert value.subject_ids == ("alice",)
+    assert value.audience_ids == (SELF_INTERLOCUTOR_ID, "alice")
+    assert "env-frame-1" in value.description
+
+
 def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
     result = asyncio.run(
         run_final_wiring_turn(
@@ -369,6 +424,154 @@ def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
     assert error_value.errors == ()
     assert "R16 SHADOW scaffold" in prediction_value.description
     assert "R16 SHADOW scaffold" in error_value.description
+
+
+def test_final_wiring_publishes_empty_tom_owner_shadow_scaffolds():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="tom-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="tom_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="tom-shadow-session",
+            wave_id="tom-shadow-wave",
+        )
+    )
+
+    expected = {
+        "belief_about_other": BeliefAboutOtherSnapshot,
+        "intent_about_other": IntentAboutOtherSnapshot,
+        "feeling_about_other": FeelingAboutOtherSnapshot,
+        "preference_about_other": PreferenceAboutOtherSnapshot,
+    }
+    for slot_name, expected_type in expected.items():
+        assert slot_name not in result.active_snapshots
+        value = result.shadow_snapshots[slot_name].value
+        assert isinstance(value, expected_type)
+        assert value.records == ()
+        assert value.active_predictions == ()
+        assert value.control_signal == 0.0
+        assert "R17 SHADOW scaffold" in value.description
+
+
+def test_final_wiring_publishes_conversational_role_shadow_scaffold():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="role-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="role_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="role-shadow-session",
+            wave_id="role-shadow-wave",
+        )
+    )
+
+    assert "conversational_role" not in result.active_snapshots
+    value = result.shadow_snapshots["conversational_role"].value
+    assert isinstance(value, ConversationalRoleSnapshot)
+    assert value.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
+    assert value.addressee_ids == (SELF_INTERLOCUTOR_ID,)
+    assert value.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert value.witness_ids == ()
+    assert value.overhearer_ids == ()
+    assert value.group_audience_ids == ()
+    assert value.active_predictions == ()
+    assert "R18 SHADOW scaffold" in value.description
+
+
+def test_final_wiring_conversational_role_consumes_environment_frame():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="role-environment-frame-model",
+                feature_surface=(
+                    FeatureSignal(name="role_environment_frame", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="role-environment-session",
+            wave_id="role-environment-wave",
+            environment_event=EnvironmentEvent(
+                event_id="role-env-frame-1",
+                event_kind=EnvironmentEventKind.USER_INPUT,
+                trigger_kind="user_input",
+                frame=EnvironmentFrame(
+                    actor=EnvironmentActorRef(actor_id="alice"),
+                    active_speaker_id="alice",
+                    addressee_ids=("bob",),
+                    subject_ids=("carol",),
+                    audience_ids=("bob", "alice"),
+                ),
+                scene_id="scene-role-1",
+                timestamp_ms=1,
+                provenance="test",
+                payload_summary="Alice tells Bob about Carol.",
+            ),
+        )
+    )
+
+    value = result.shadow_snapshots["conversational_role"].value
+    assert isinstance(value, ConversationalRoleSnapshot)
+    assert value.active_speaker_id == "alice"
+    assert value.addressee_ids == ("bob",)
+    assert value.subject_ids == ("carol",)
+    assert value.witness_ids == ()
+    assert value.overhearer_ids == ()
+    assert value.group_audience_ids == ()
+    assert "role-env-frame-1" in value.description
+    assert len(value.active_predictions) == 1
+    prediction = value.active_predictions[0]
+    assert prediction.kind is SocialPredictionKind.ROLE_ASSIGNMENT
+    assert prediction.prediction_id == "role-env-frame-1:role-assignment"
+    assert prediction.scope_id == "alice"
+    assert prediction.subject_ids == ("carol",)
+    assert prediction.audience_ids == ("bob", "alice")
+
+
+def test_final_wiring_records_social_prediction_errors_into_credit_ledger():
+    social_error = SocialPredictionError(
+        error_id="social-pe:alice-bob:runtime",
+        prediction_id="social-pred:alice-memory-visible-to-bob",
+        kind=SocialPredictionKind.MEMORY_VISIBILITY,
+        outcome=SocialPredictionOutcome.DISCONFIRMED,
+        magnitude=0.64,
+        owner="MultiPartyIdentityModule",
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        evidence=("Alice-scoped preference entered Bob audience context.",),
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="social-pe-credit-model",
+                feature_surface=(
+                    FeatureSignal(name="social_pe_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            social_prediction_errors=(social_error,),
+            session_id="social-pe-credit-session",
+            wave_id="social-pe-credit-wave",
+        )
+    )
+
+    credit = result.active_snapshots["credit"].value
+    social_credits = [
+        record
+        for record in credit.recent_credits
+        if record.level == "social_prediction_error"
+    ]
+    assert len(social_credits) == 1
+    assert social_credits[0].source_event == "social_pe:memory_visibility"
+    assert social_credits[0].credit_value == -0.64
+    assert "scope=interlocutor:alice" in social_credits[0].context
 
 
 def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():

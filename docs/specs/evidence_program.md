@@ -90,7 +90,7 @@
   - 需要：slow-loop writeback evidence、credit-to-family write count、long-horizon payoff coverage、matched no-fast-prior / non-nested control
 - `claim_companion_stateful_relationship`
   - 命题：companion 不是静态 support prompt，而是能感知当前对象状态、在 session 内调整、并在显式用户范围 memory 下跨 session 保留偏好
-  - 需要：C1 state sensitivity、C2 within-session adaptation、C3 explicit cross-session retention、C4 default memory isolation
+  - 需要：C1 state sensitivity、C2 within-session adaptation、C3 explicit cross-session retention、C4 default memory isolation、C5 default social scope isolation
 
 ## Dialogue Paper-Suite Evidence Map
 
@@ -205,13 +205,14 @@
 - C2 `within_session_adaptation`: `low-mood-disclosure` 多轮内出现至少两个 expression intents，PE 有变化，且最终 interlocutor readout confidence 达标
 - C3 `explicit_cross_session_retention`: 注入共享 `MemoryStore` 后，session B 能检索到 session A 写入的偏好
 - C4 `default_memory_isolation`: 未显式注入共享 store 时，两个 session 的 `MemoryStore` 不共享
-- v2 `composite_score` 记录 C1-C4 gate score + widening transcript diversity；v2 transcript diversity 是 widening diagnostic，不单独作为 retain 硬门槛
+- C5 `default_social_scope_isolation`: 默认 companion turn 的 R16 scope 固定为 `primary/self`，`multi_party_identity` / `social_prediction` / `social_prediction_error` 以 SHADOW readout 发布且 social PE 默认为空
+- v2 `composite_score` 记录 C1-C5 gate score + widening transcript diversity；v2 transcript diversity 是 widening diagnostic，不单独作为 retain 硬门槛
 
 **weak 条件**：
 - C1/C2 通过，但 C3 只能通过人工脚本或临时状态证明，尚无显式 shared-memory gate
 
 **fail 条件**：
-- C1 不分化，或 C2 没有 session 内状态变化，或 C3 需要默认跨 session 串记忆才能通过
+- C1 不分化，或 C2 没有 session 内状态变化，或 C3 需要默认跨 session 串记忆才能通过，或 C5 显示默认 social scope 不是 `primary/self`
 
 **主要 artifact**：
 - `companion_evidence_report.json`
@@ -226,10 +227,40 @@
 - `lifeform-bench --companion-evidence-report`
 - 可选 JSON：`lifeform-bench --companion-evidence-report --companion-evidence-json companion_evidence_report.json`
 
+## Social Cognition Evidence Map
+
+本节冻结 R16-R20 的最小自动证据口径。早期 slice 的目标不是证明人类级社会理解，而是证明社会认知状态没有退化为 renderer 文案分支或单一 `user_model` bucket。
+
+### `claim_tom_owner_separation`
+
+**命题**：Theory of Mind 状态至少在契约与显式 proposal path 上区分 belief / intent / feeling / preference；belief conflict 不会写入 preference owner，preference conflict 也不会伪装成 belief。
+
+**retain 条件**：
+- T1 `tom_owner_contract`: `OtherMindRecordKind` 有限枚举覆盖 belief / intent / feeling / preference，四类 snapshot 会拒绝 wrong-kind record
+- T2 `explicit_tom_proposal_path`: 显式 proposal 可以填充目标 ToM owner，final wiring 默认不把通用 semantic runtime 当 ToM classifier
+- T3 `false_belief_preference_separation_probe`: 人工 false-belief + preference-conflict probe 中，belief 与 preference 分别落入各自 owner，record kind 不混写
+
+**fail 条件**：
+- ToM proposal 进入 `user_model.stable_preferences` 才能通过；或四类 ToM 状态共享同一 untyped owner；或 renderer / raw text 分支直接决定 belief/preference 行为。
+
+**轻量测试节点**：
+- `tests/contracts/test_social_cognition_contracts.py`
+- `tests/test_social_tom.py`
+- `tests/test_social_cognition_evidence.py`
+
+**主要 artifact**：
+- `social_cognition_evidence_report`（Python API: `lifeform_evolution.run_social_cognition_evidence()`）
+- `social_cognition_evidence_report_to_dict(report)`：T1-T3 gate payload，可被后续 CLI / bundle 引用
+- CLI stdout: `lifeform-bench --social-cognition-evidence-report`
+- JSON artifact: `lifeform-bench --social-cognition-evidence-report --social-cognition-evidence-json social_cognition_evidence_report.json`
+
 ## 变更日志
 
 - 2026-05-01: 新增 Dialogue Paper-Suite Evidence Map，冻结 temporal advantage、beyond scripted、external human legibility、rare-heavy net benefit 四类 dialogue claim 的 retain / weak / fail 条件、artifact 边界与轻量测试入口
 - 2026-05-02: 新增 Companion Evidence Map，冻结 C1-C4 companion stateful-relationship claim、运行入口与轻量测试节点；v2 增加 widening transcript artifact 与 composite score（diagnostic，不替代 C1-C4 retain gate）
+- 2026-05-02: 增加 C5 default social scope isolation gate，覆盖 R16 `primary/self` 默认 scope 与空 social PE 链路，避免 companion v1 在多人化迁移中隐式串人
+- 2026-05-02: 新增 Social Cognition Evidence Map，冻结 R17 ToM owner separation 的 T1-T3 轻量证据门槛
+- 2026-05-02: 增加 Social Cognition evidence report artifact，T1-T3 由 `lifeform_evolution.run_social_cognition_evidence()` 汇总输出；CLI 支持 `--social-cognition-evidence-report` 与 `--social-cognition-evidence-json`
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径

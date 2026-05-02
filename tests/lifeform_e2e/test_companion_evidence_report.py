@@ -15,16 +15,24 @@ def test_companion_evidence_report_passes_all_current_gates() -> None:
     text = format_companion_evidence_report(report)
 
     assert report.passed is True
-    assert {gate.gate_id for gate in report.gates} == {"C1", "C2", "C3", "C4"}
+    assert {gate.gate_id for gate in report.gates} == {"C1", "C2", "C3", "C4", "C5"}
     assert payload["passed"] is True
     assert 0.0 <= payload["composite_score"] <= 1.0
-    assert len(payload["gates"]) == 4
+    assert len(payload["gates"]) == 5
     assert len(payload["transcripts"]) == 4
+    first_turn = payload["transcripts"][0]["turns"][0]
+    assert first_turn["active_speaker_id"] == "primary"
+    assert first_turn["subject_ids"] == ["primary"]
+    assert first_turn["addressee_ids"] == ["self"]
+    assert first_turn["audience_ids"] == ["self"]
+    assert first_turn["social_prediction_count"] == 0
+    assert first_turn["social_prediction_error_count"] == 0
     assert "Companion evidence report" in text
     assert "composite_score:" in text
     assert "widening_transcripts: 4" in text
     assert "[C1] PASS" in text
     assert "[C4] PASS" in text
+    assert "[C5] PASS" in text
 
 
 def test_companion_evidence_cli_writes_json(tmp_path) -> None:
@@ -48,7 +56,18 @@ def test_companion_evidence_cli_writes_json(tmp_path) -> None:
     assert exit_code == 0
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["passed"] is True
-    assert {gate["gate_id"] for gate in payload["gates"]} == {"C1", "C2", "C3", "C4"}
+    assert {gate["gate_id"] for gate in payload["gates"]} == {"C1", "C2", "C3", "C4", "C5"}
+    c5 = next(gate for gate in payload["gates"] if gate["gate_id"] == "C5")
+    assert c5["passed"] is True
+    assert c5["metrics"]["social_prediction_count"] == 0.0
+    assert c5["metrics"]["social_prediction_error_count"] == 0.0
+    first_turn = payload["transcripts"][0]["turns"][0]
+    assert first_turn["active_speaker_id"] == "primary"
+    assert first_turn["subject_ids"] == ["primary"]
+    assert first_turn["addressee_ids"] == ["self"]
+    assert first_turn["audience_ids"] == ["self"]
+    assert first_turn["social_prediction_count"] == 0
+    assert first_turn["social_prediction_error_count"] == 0
     assert {item["condition"] for item in payload["transcripts"]} == {
         "paraphrase-low-mood",
         "tone-shift-repair",

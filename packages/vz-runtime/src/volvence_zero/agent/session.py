@@ -66,6 +66,10 @@ from volvence_zero.evaluation.backbone import (
     EvolutionDecision,
     EvolutionJudgement,
 )
+from volvence_zero.environment import (
+    EnvironmentEvent,
+    build_user_input_environment_event,
+)
 from volvence_zero.integration import (
     _apply_application_prior_writeback,
     FinalIntegrationResult,
@@ -173,6 +177,9 @@ class AgentTurnResult:
     default_continual_learning_surface: DefaultContinualLearningSurface | None
     response: AgentResponse
     event_count: int
+    environment_event_id: str = ""
+    environment_event_kind: str = ""
+    environment_trigger_kind: str = ""
     active_speaker_id: str = PRIMARY_INTERLOCUTOR_ID
     addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
     subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
@@ -1681,13 +1688,26 @@ class AgentSessionRunner:
             operations.extend(self._application_rare_heavy_state.restore_rare_heavy_state(checkpoint.application_checkpoint))
         return tuple(operations)
 
-    async def run_turn(self, user_input: str) -> AgentTurnResult:
+    async def run_turn(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+    ) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
         self._session_post_queue.schedule()
         async with self._session_post_lock:
             self._turn_index += 1
             wave_id = f"wave-{self._turn_index}"
             context_session_id = self.active_context_session_id
+            if environment_event is None:
+                environment_event = build_user_input_environment_event(
+                    event_id=f"{wave_id}-environment-event",
+                    user_input=user_input,
+                    scene_id=context_session_id,
+                    timestamp_ms=self._turn_index,
+                    provenance="AgentSessionRunner.run_turn",
+                )
             pre_turn_world_temporal_snapshot = self._joint_loop.world_temporal_policy.export_rare_heavy_snapshot()
             pre_turn_self_temporal_snapshot = self._joint_loop.self_temporal_policy.export_rare_heavy_snapshot()
             substrate_adapter = self._build_substrate_adapter(user_input=user_input)
@@ -1768,6 +1788,7 @@ class AgentSessionRunner:
                 prior_session_reports=self.completed_session_reports,
                 upstream_snapshots=self._upstream_snapshots,
                 joint_loop_result=joint_result,
+                environment_event=environment_event,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,
@@ -1837,6 +1858,7 @@ class AgentSessionRunner:
         return self._to_turn_result(
             user_input=user_input,
             wave_id=wave_id,
+            environment_event=environment_event,
             integration_result=integration_result,
             joint_result=joint_result,
             imagination_result=imagination_result,
@@ -2443,54 +2465,6 @@ class AgentSessionRunner:
                 description="Online-fast substrate self-mod proposal was present, but schedule was not due.",
                 experimental_live_mutation=self.residual_runtime.supports_live_substrate_mutation,
             )
-        if gate_decision is GateDecision.BLOCK:
-            self._append_online_fast_credit_audit(
-                integration_result=integration_result,
-                record=SelfModificationRecord(
-                    target=substrate_self_mod.target,
-                    gate=ModificationGate.ONLINE,
-                    decision=GateDecision.BLOCK,
-                    old_value_hash="substrate.online_fast:pre",
-                    new_value_hash=substrate_self_mod.checkpoint_hash,
-                    justification=substrate_self_mod.description,
-                    timestamp_ms=self._turn_index,
-                    is_reversible=True,
-                    checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
-                    lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
-                    proposal_hash=substrate_self_mod.checkpoint_hash,
-                ),
-            )
-            blocked_result = OnlineFastSubstrateTurnResult(
-                recommended=True,
-                applied=False,
-                gate_decision=gate_decision.value,
-                applied_operations=(),
-                blocked_operations=("online-fast:evaluation-gate-block",),
-                rollback_operations=(),
-                parameter_change_rate=substrate_self_mod.parameter_change_rate,
-                optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
-                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
-                fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
-                source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
-                optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
-                fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
-                description="Online-fast substrate self-mod proposal was blocked by the ONLINE evaluation gate.",
-                experimental_live_mutation=self.residual_runtime.supports_live_substrate_mutation,
-            )
-            self._append_online_fast_evaluation_evidence(
-                integration_result=integration_result,
-                wave_id=wave_id,
-                result=blocked_result,
-            )
-            if substrate_self_mod.checkpoint.fast_memory_signal:
-                self._memory_store.observe_fast_memory_signal(
-                    signal=substrate_self_mod.checkpoint.fast_memory_signal,
-                    timestamp_ms=max(self._turn_index, 1),
-                )
-                self._refresh_memory_snapshot_after_online_fast_evidence(
-                    integration_result=integration_result,
-                )
-            return blocked_result
         if not self.residual_runtime.supports_live_substrate_mutation:
             self._append_online_fast_credit_audit(
                 integration_result=integration_result,
@@ -2530,6 +2504,54 @@ class AgentSessionRunner:
                     "is operating under the frozen-substrate doctrine."
                 ),
                 experimental_live_mutation=False,
+            )
+            self._append_online_fast_evaluation_evidence(
+                integration_result=integration_result,
+                wave_id=wave_id,
+                result=blocked_result,
+            )
+            if substrate_self_mod.checkpoint.fast_memory_signal:
+                self._memory_store.observe_fast_memory_signal(
+                    signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                    timestamp_ms=max(self._turn_index, 1),
+                )
+                self._refresh_memory_snapshot_after_online_fast_evidence(
+                    integration_result=integration_result,
+                )
+            return blocked_result
+        if gate_decision is GateDecision.BLOCK:
+            self._append_online_fast_credit_audit(
+                integration_result=integration_result,
+                record=SelfModificationRecord(
+                    target=substrate_self_mod.target,
+                    gate=ModificationGate.ONLINE,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash="substrate.online_fast:pre",
+                    new_value_hash=substrate_self_mod.checkpoint_hash,
+                    justification=substrate_self_mod.description,
+                    timestamp_ms=self._turn_index,
+                    is_reversible=True,
+                    checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                    lineage_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                    proposal_hash=substrate_self_mod.checkpoint_hash,
+                ),
+            )
+            blocked_result = OnlineFastSubstrateTurnResult(
+                recommended=True,
+                applied=False,
+                gate_decision=gate_decision.value,
+                applied_operations=(),
+                blocked_operations=("online-fast:evaluation-gate-block",),
+                rollback_operations=(),
+                parameter_change_rate=substrate_self_mod.parameter_change_rate,
+                optimizer_state_norm=substrate_self_mod.optimizer_state_norm,
+                checkpoint_id=substrate_self_mod.checkpoint.checkpoint_id,
+                fast_state_hash=substrate_self_mod.checkpoint.fast_state_hash,
+                source_fast_state_hash=substrate_self_mod.checkpoint.source_fast_state_hash,
+                optimizer_state_description=substrate_self_mod.checkpoint.optimizer_state_description,
+                fast_memory_signal=substrate_self_mod.checkpoint.fast_memory_signal,
+                description="Online-fast substrate self-mod proposal was blocked by the ONLINE evaluation gate.",
+                experimental_live_mutation=self.residual_runtime.supports_live_substrate_mutation,
             )
             self._append_online_fast_evaluation_evidence(
                 integration_result=integration_result,
@@ -3014,6 +3036,7 @@ class AgentSessionRunner:
         *,
         user_input: str,
         wave_id: str,
+        environment_event: EnvironmentEvent,
         integration_result: FinalIntegrationResult,
         joint_result: ScheduledJointLoopResult,
         imagination_result: ImaginationResult | None = None,
@@ -3302,6 +3325,9 @@ class AgentSessionRunner:
             default_continual_learning_surface=joint_result.default_continual_learning_surface,
             response=response,
             event_count=integration_result.event_count,
+            environment_event_id=environment_event.event_id,
+            environment_event_kind=environment_event.event_kind.value,
+            environment_trigger_kind=environment_event.trigger_kind,
             active_speaker_id=active_speaker_id,
             addressee_ids=addressee_ids,
             subject_ids=subject_ids,

@@ -95,6 +95,16 @@ Planned field extensions:
 - `ResponseContext.active_speaker_id: str`
 - `ResponseContext.audience_ids: tuple[str, ...]`
 
+Implemented Phase 1 scaffold:
+
+- `volvence_zero.social_cognition`: frozen contracts for `InterlocutorIdentity`, `MultiPartyIdentitySnapshot`, `SocialPrediction`, `SocialPredictionError`, social prediction/error snapshots, and default `primary/self` compatibility constants.
+- `MultiPartyIdentityModule`: SHADOW owner publishing `primary` compatibility identity scope.
+- `ResponseContext` / `AgentTurnResult`: expose `active_speaker_id`, `addressee_ids`, `subject_ids`, `audience_ids`.
+- `MemoryEntry` / `MemoryWriteRequest`: store `subject_ids` and `audience_ids`; default to `primary/self`; checkpoint restore fills defaults for old entries.
+- `MemoryModule`: consumes ACTIVE `multi_party_identity` for write scope; SHADOW identity defaults preserve existing behavior.
+- `SocialPredictionAggregateModule` / `SocialPredictionErrorModule`: empty SHADOW scaffolds plus explicit social PE probe path into credit.
+- Companion evidence C5: proves default companion scope remains `primary/self` and social prediction / social PE counts are zero.
+
 ## 与其他能力域的关系
 
 - R17 ToM owners require R16 keying.
@@ -106,5 +116,6 @@ Planned field extensions:
 
 ## 变更日志
 
+- 2026-05-02: R16 Phase 1 slices 1-10 landed: contracts, SHADOW identity owner, response/session scope readout, memory subject/audience scope, runtime memory write scope, social prediction/error scaffolds, social PE credit carry path, and companion evidence C5 artifact.
 - 2026-05-02: 补充 Environment Interface 依赖：social identity 是环境边界之上的 owner，消费 canonical conversational frame。
 - 2026-05-02: 初始 draft，作为 Social Cognition Learning Layer Phase 1 的 contract freeze。

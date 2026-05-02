@@ -24,6 +24,11 @@ from lifeform_evolution.companion_evidence import (
     format_companion_evidence_report,
     run_companion_evidence,
 )
+from lifeform_evolution.social_cognition_evidence import (
+    format_social_cognition_evidence_report,
+    run_social_cognition_evidence,
+    social_cognition_evidence_report_to_dict,
+)
 from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_evolution.learning_loop import (
     format_learning_loop_report,
@@ -265,6 +270,16 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to write the companion evidence report as JSON.",
     )
+    parser.add_argument(
+        "--social-cognition-evidence-report",
+        action="store_true",
+        help="Run the social cognition R16-R20 evidence report after the benchmark.",
+    )
+    parser.add_argument(
+        "--social-cognition-evidence-json",
+        default=None,
+        help="Optional path to write the social cognition evidence report as JSON.",
+    )
     return parser
 
 
@@ -313,6 +328,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     want_companion_evidence = (
         args.companion_evidence_report or args.companion_evidence_json is not None
+    )
+    want_social_cognition_evidence = (
+        args.social_cognition_evidence_report
+        or args.social_cognition_evidence_json is not None
     )
     ok = True
     family_pass = True
@@ -371,6 +390,25 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"[bench] wrote companion evidence artifact to {path}")
         ok = ok and companion_evidence.passed
+
+    if want_social_cognition_evidence:
+        social_cognition_evidence = run_social_cognition_evidence()
+        print(format_social_cognition_evidence_report(social_cognition_evidence))
+        if args.social_cognition_evidence_json:
+            import json
+            import pathlib
+
+            path = pathlib.Path(args.social_cognition_evidence_json).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(
+                    social_cognition_evidence_report_to_dict(social_cognition_evidence),
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"[bench] wrote social cognition evidence artifact to {path}")
+        ok = ok and social_cognition_evidence.passed
 
     if args.require_family_pass and not family_pass:
         return 1

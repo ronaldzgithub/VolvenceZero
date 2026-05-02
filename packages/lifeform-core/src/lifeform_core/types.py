@@ -14,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from volvence_zero.environment import EnvironmentEventKind
+
 
 class TickKind(str, Enum):
     """Three metabolic-tick kinds the lifeform fires on its own clock.
@@ -141,6 +143,24 @@ def is_apprenticeship_trigger(trigger_kind: "TurnTriggerKind") -> bool:
     starts returning True for it, with zero code churn at call sites.
     """
     return trigger_kind in _APPRENTICESHIP_TRIGGER_KINDS
+
+
+_ENVIRONMENT_EVENT_KIND_BY_TRIGGER: dict[TurnTriggerKind, EnvironmentEventKind] = {
+    TurnTriggerKind.USER_INPUT: EnvironmentEventKind.USER_INPUT,
+    TurnTriggerKind.INTERNAL_DRIVE: EnvironmentEventKind.INTERNAL_DRIVE,
+    TurnTriggerKind.FOLLOWUP_DUE: EnvironmentEventKind.FOLLOWUP_DUE,
+    TurnTriggerKind.TOOL_RESULT: EnvironmentEventKind.TOOL_RESULT,
+    TurnTriggerKind.APPRENTICE: EnvironmentEventKind.APPRENTICE,
+    TurnTriggerKind.INGESTION: EnvironmentEventKind.INGESTION,
+}
+
+
+def environment_event_kind_for_trigger(
+    trigger_kind: "TurnTriggerKind",
+) -> EnvironmentEventKind:
+    """Map lifeform trigger labels to canonical Environment Event kinds."""
+
+    return _ENVIRONMENT_EVENT_KIND_BY_TRIGGER[trigger_kind]
 
 
 @dataclass(frozen=True)

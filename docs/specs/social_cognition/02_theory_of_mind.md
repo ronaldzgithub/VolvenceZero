@@ -94,6 +94,19 @@ class BeliefAboutOtherSnapshot:
 
 `IntentAboutOtherSnapshot`、`FeelingAboutOtherSnapshot`、`PreferenceAboutOtherSnapshot` mirror the same frozen contract but define owner-specific prediction / outcome vocabularies.
 
+Implemented Phase 2 scaffold:
+
+- `volvence_zero.social_cognition.OtherMindRecord`: keyed by `interlocutor_id`, typed by `OtherMindRecordKind`, confidence-bounded, status-bearing, and linked to social PE refs.
+- `OtherMindRecordKind`: finite enum for `belief`, `intent`, `feeling`, `preference`.
+- `OtherMindRecordStatus`: finite lifecycle enum for `active`, `contested`, `retired`.
+- `BeliefAboutOtherSnapshot`, `IntentAboutOtherSnapshot`, `FeelingAboutOtherSnapshot`, `PreferenceAboutOtherSnapshot`: distinct frozen snapshot contracts that reject records of the wrong kind.
+- `BeliefAboutOtherModule`, `IntentAboutOtherModule`, `FeelingAboutOtherModule`, `PreferenceAboutOtherModule`: empty SHADOW owner scaffolds registered in final wiring. They establish ownership without changing response assembly / planner / renderer behavior.
+- Explicit proposal path: ToM owners can consume an explicitly injected `SemanticProposalRuntime` and convert accepted proposals into `OtherMindRecord` with the owner-specific kind. Final wiring does not pass the generic semantic runtime into ToM owners by default, so no raw-text / NoOp / broad runtime accidentally becomes a ToM classifier.
+- Evidence probe: `tests/test_social_tom.py` includes an artificial false-belief + preference-conflict probe proving belief records and preference records stay in separate owners and retain distinct `OtherMindRecordKind` values.
+- Diagnostic downstream visibility: when ToM owners are explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `belief_about_other` / `intent_about_other` / `feeling_about_other` / `preference_about_other` counts. Planner and renderer still do not consume these snapshots.
+- Evidence report artifact: `lifeform_evolution.run_social_cognition_evidence()` summarizes T1-T3 gates for ToM owner contract, explicit proposal path, and false-belief / preference separation.
+- CLI artifact: `lifeform-bench --social-cognition-evidence-report` prints the report, and `--social-cognition-evidence-json PATH` writes the T1-T3 payload.
+
 ## 与其他能力域的关系
 
 - R16 supplies `interlocutor_id` and audience / subject identity.
@@ -105,5 +118,12 @@ class BeliefAboutOtherSnapshot:
 
 ## 变更日志
 
+- 2026-05-02: R17 Phase 2 slice 5 landed: ToM owner record counts surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
+- 2026-05-02: R17 Phase 2 slice 6 landed: social cognition evidence report artifact for T1-T3 ToM owner separation gates.
+- 2026-05-02: R17 Phase 2 slice 7 landed: `lifeform-bench` CLI support for social cognition evidence report stdout and JSON artifact.
+- 2026-05-02: R17 Phase 2 slice 4 landed: first ToM evidence probe for false-belief / preference-conflict owner separation plus evidence-program T1-T3 claim wording.
+- 2026-05-02: R17 Phase 2 slice 3 landed: explicit ToM proposal runtime path for owner modules, with no default final-wiring consumption and no raw-text classifier behavior.
+- 2026-05-02: R17 Phase 2 slice 2 landed: four ToM SHADOW owner scaffolds publish empty snapshots in final wiring, while response assembly / planner remain unchanged.
+- 2026-05-02: R17 Phase 2 slice 1 landed in `vz-contracts`: `OtherMindRecord` / kind + status enums / four ToM snapshot contracts with kind validation and empty SHADOW-compatible snapshots.
 - 2026-05-02: 补充 Environment Interface 依赖：ToM proposal 进入 owner 前必须带 canonical event / role context。
 - 2026-05-02: 初始 draft，冻结 ToM owner decomposition as Social Cognition Learning Layer Phase 2。

@@ -156,9 +156,11 @@ def test_brain_session_accepts_external_semantic_events() -> None:
         artifact_refs=("artifact:core",),
         plan_ref="core-package-plan",
     )
+    pending_event = session.runner._pending_semantic_events[0]
     result = session.run_turn("Continue from the external tool result.")
 
     assert queued == ("tool:core:1",)
+    assert "environment_outcome:tool:core:1:outcome" in pending_event.artifact_refs
     assert result.active_snapshots["execution_result"].value.completed_actions
     assert result.active_snapshots["plan_intent"].value.plan_revision_count >= 1
 

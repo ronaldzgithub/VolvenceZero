@@ -15,6 +15,12 @@ from lifeform_domain_emogpt import build_companion_lifeform, scenarios_dir
 from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
 from volvence_zero.memory import build_default_memory_store
+from volvence_zero.social_cognition import (
+    PRIMARY_INTERLOCUTOR_ID,
+    SELF_INTERLOCUTOR_ID,
+    SocialPredictionErrorSnapshot,
+    SocialPredictionSnapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +38,12 @@ class CompanionEvidenceTurn:
     response_text: str
     active_regime: str | None
     expression_intent: str | None
+    active_speaker_id: str = PRIMARY_INTERLOCUTOR_ID
+    addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+    social_prediction_count: int = 0
+    social_prediction_error_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -59,6 +71,7 @@ async def run_companion_evidence_async() -> CompanionEvidenceReport:
         await _within_session_adaptation_gate(),
         await _cross_session_retention_gate(),
         _default_isolation_gate(),
+        await _social_scope_default_gate(),
     )
     transcripts = await _collect_widening_transcripts()
     transcript_score = _transcript_diversity_score(transcripts)
@@ -195,6 +208,49 @@ def _default_isolation_gate() -> CompanionEvidenceGate:
     )
 
 
+async def _social_scope_default_gate() -> CompanionEvidenceGate:
+    session = _build_evidence_lifeform().create_session(session_id="evidence-social-scope")
+    result = await session.run_turn("Help me think through this gently.")
+
+    identity_snapshot = result.shadow_snapshots.get("multi_party_identity")
+    prediction_snapshot = result.shadow_snapshots.get("social_prediction")
+    social_pe_snapshot = result.shadow_snapshots.get("social_prediction_error")
+    prediction_count = (
+        len(prediction_snapshot.value.predictions)
+        if prediction_snapshot is not None
+        and isinstance(prediction_snapshot.value, SocialPredictionSnapshot)
+        else -1
+    )
+    social_pe_count = (
+        len(social_pe_snapshot.value.errors)
+        if social_pe_snapshot is not None
+        and isinstance(social_pe_snapshot.value, SocialPredictionErrorSnapshot)
+        else -1
+    )
+    passed = (
+        result.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
+        and result.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+        and result.addressee_ids == (SELF_INTERLOCUTOR_ID,)
+        and result.audience_ids == (SELF_INTERLOCUTOR_ID,)
+        and identity_snapshot is not None
+        and prediction_count == 0
+        and social_pe_count == 0
+    )
+    return CompanionEvidenceGate(
+        gate_id="C5",
+        name="default social scope isolation",
+        passed=passed,
+        metrics=(
+            ("social_prediction_count", float(prediction_count)),
+            ("social_prediction_error_count", float(social_pe_count)),
+        ),
+        summary=(
+            "Single-party companion evidence stays scoped to primary/self while "
+            "R16 social prediction and social PE slots publish empty SHADOW readouts."
+        ),
+    )
+
+
 _WIDENING_MICRO_SCENARIOS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "paraphrase-low-mood",
@@ -233,12 +289,33 @@ async def _collect_widening_transcripts() -> tuple[CompanionEvidenceTranscript, 
         for user_input in turns:
             result = await session.run_turn(user_input)
             assembly = result.active_snapshots["response_assembly"].value
+            social_prediction = result.shadow_snapshots.get("social_prediction")
+            social_prediction_error = result.shadow_snapshots.get("social_prediction_error")
             transcript_turns.append(
                 CompanionEvidenceTurn(
                     user_input=user_input,
                     response_text=result.response.text,
                     active_regime=result.active_regime,
                     expression_intent=assembly.expression_intent,
+                    active_speaker_id=result.active_speaker_id,
+                    addressee_ids=result.addressee_ids,
+                    subject_ids=result.subject_ids,
+                    audience_ids=result.audience_ids,
+                    social_prediction_count=(
+                        len(social_prediction.value.predictions)
+                        if social_prediction is not None
+                        and isinstance(social_prediction.value, SocialPredictionSnapshot)
+                        else 0
+                    ),
+                    social_prediction_error_count=(
+                        len(social_prediction_error.value.errors)
+                        if social_prediction_error is not None
+                        and isinstance(
+                            social_prediction_error.value,
+                            SocialPredictionErrorSnapshot,
+                        )
+                        else 0
+                    ),
                 )
             )
         transcripts.append(
@@ -308,6 +385,12 @@ def companion_evidence_report_to_dict(report: CompanionEvidenceReport) -> dict[s
                         "response_text": turn.response_text,
                         "active_regime": turn.active_regime,
                         "expression_intent": turn.expression_intent,
+                        "active_speaker_id": turn.active_speaker_id,
+                        "addressee_ids": list(turn.addressee_ids),
+                        "subject_ids": list(turn.subject_ids),
+                        "audience_ids": list(turn.audience_ids),
+                        "social_prediction_count": turn.social_prediction_count,
+                        "social_prediction_error_count": turn.social_prediction_error_count,
                     }
                     for turn in transcript.turns
                 ],

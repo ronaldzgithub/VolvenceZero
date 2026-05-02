@@ -47,6 +47,7 @@ from volvence_zero.credit.gate import (
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     derive_prediction_error_credit_records,
+    derive_social_prediction_error_credit_records,
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
@@ -61,6 +62,7 @@ from volvence_zero.evaluation.backbone import (
     EvolutionJudgement,
     JudgementCategory,
 )
+from volvence_zero.environment import EnvironmentEvent
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
 from volvence_zero.prediction.error import PredictedOutcome, PredictionErrorModule, PredictionErrorSnapshot
 from volvence_zero.reflection import (
@@ -79,6 +81,7 @@ from volvence_zero.runtime import (
     WiringLevel,
     propagate,
 )
+from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionErrorSnapshot
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.semantic_state import (
     SEMANTIC_OWNER_SLOTS,
@@ -100,6 +103,13 @@ from volvence_zero.social_identity import (
     MultiPartyIdentityModule,
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
+)
+from volvence_zero.social_role import ConversationalRoleModule
+from volvence_zero.social_tom import (
+    BeliefAboutOtherModule,
+    FeelingAboutOtherModule,
+    IntentAboutOtherModule,
+    PreferenceAboutOtherModule,
 )
 from volvence_zero.substrate import (
     SubstrateAdapter,
@@ -156,6 +166,11 @@ class FinalRolloutConfig:
     multi_party_identity: WiringLevel = WiringLevel.SHADOW
     social_prediction: WiringLevel = WiringLevel.SHADOW
     social_prediction_error: WiringLevel = WiringLevel.SHADOW
+    conversational_role: WiringLevel = WiringLevel.SHADOW
+    belief_about_other: WiringLevel = WiringLevel.SHADOW
+    intent_about_other: WiringLevel = WiringLevel.SHADOW
+    feeling_about_other: WiringLevel = WiringLevel.SHADOW
+    preference_about_other: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -194,6 +209,11 @@ class FinalRolloutConfig:
             "multi_party_identity": self.multi_party_identity,
             "social_prediction": self.social_prediction,
             "social_prediction_error": self.social_prediction_error,
+            "conversational_role": self.conversational_role,
+            "belief_about_other": self.belief_about_other,
+            "intent_about_other": self.intent_about_other,
+            "feeling_about_other": self.feeling_about_other,
+            "preference_about_other": self.preference_about_other,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -958,6 +978,7 @@ def build_final_runtime_modules(
     memory_store: MemoryStore | None = None,
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+    tom_proposal_runtime: SemanticProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
@@ -972,6 +993,8 @@ def build_final_runtime_modules(
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
+    social_prediction_errors: tuple[SocialPredictionError, ...] = (),
+    environment_event: EnvironmentEvent | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1006,6 +1029,7 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("substrate_self_mod", WiringLevel.SHADOW),
         ),
         MultiPartyIdentityModule(
+            environment_event=environment_event,
             wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
         ),
         MemoryModule(
@@ -1018,6 +1042,35 @@ def build_final_runtime_modules(
         ),
         SocialPredictionErrorModule(
             wiring_level=config.level_for("social_prediction_error", WiringLevel.SHADOW),
+            pending_errors=social_prediction_errors,
+        ),
+        ConversationalRoleModule(
+            wiring_level=config.level_for("conversational_role", WiringLevel.SHADOW),
+            environment_event=environment_event,
+        ),
+        BeliefAboutOtherModule(
+            wiring_level=config.level_for("belief_about_other", WiringLevel.SHADOW),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+        ),
+        IntentAboutOtherModule(
+            wiring_level=config.level_for("intent_about_other", WiringLevel.SHADOW),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+        ),
+        FeelingAboutOtherModule(
+            wiring_level=config.level_for("feeling_about_other", WiringLevel.SHADOW),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+        ),
+        PreferenceAboutOtherModule(
+            wiring_level=config.level_for("preference_about_other", WiringLevel.SHADOW),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
         ),
         *build_semantic_modules(
             store=semantic_store,
@@ -1117,6 +1170,7 @@ async def run_final_wiring_turn(
     memory_store: MemoryStore | None = None,
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+    tom_proposal_runtime: SemanticProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
     upstream_snapshots: dict[str, Snapshot[Any]] | None = None,
@@ -1135,6 +1189,8 @@ async def run_final_wiring_turn(
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
+    social_prediction_errors: tuple[SocialPredictionError, ...] = (),
+    environment_event: EnvironmentEvent | None = None,
 ) -> FinalIntegrationResult:
     modules = build_final_runtime_modules(
         config=config,
@@ -1147,6 +1203,7 @@ async def run_final_wiring_turn(
         memory_store=memory_store,
         semantic_state_store=semantic_state_store,
         semantic_proposal_runtime=semantic_proposal_runtime,
+        tom_proposal_runtime=tom_proposal_runtime,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
         reflection_mode=reflection_mode,
@@ -1161,6 +1218,8 @@ async def run_final_wiring_turn(
         substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
         substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
+        social_prediction_errors=social_prediction_errors,
+        environment_event=environment_event,
     )
     if upstream_snapshots:
         for module in modules:
@@ -1468,6 +1527,24 @@ async def run_final_wiring_turn(
                 extra_credits = extra_credits + derive_prediction_error_credit_records(
                     prediction_error=prediction_snapshot_value.error,
                     timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
+                )
+            social_prediction_error_snapshot = active_snapshots.get(
+                "social_prediction_error"
+            ) or shadow_snapshots.get("social_prediction_error")
+            if (
+                social_prediction_error_snapshot is not None
+                and isinstance(
+                    social_prediction_error_snapshot.value,
+                    SocialPredictionErrorSnapshot,
+                )
+                and social_prediction_error_snapshot.value.errors
+            ):
+                extra_credits = (
+                    extra_credits
+                    + derive_social_prediction_error_credit_records(
+                        social_errors=social_prediction_error_snapshot.value.errors,
+                        timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
+                    )
                 )
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)

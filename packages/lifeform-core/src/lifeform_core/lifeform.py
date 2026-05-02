@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+import inspect
 from typing import Any, Protocol, runtime_checkable
 
 from lifeform_core.followup_manager import FollowupManager
@@ -41,6 +42,7 @@ from lifeform_core.types import (
     TickEvent,
     TurnSummary,
     TurnTriggerKind,
+    environment_event_kind_for_trigger,
     is_apprenticeship_trigger,
 )
 from lifeform_core.vitals import VitalsBootstrap, VitalsModule, VitalsSnapshot
@@ -50,6 +52,7 @@ from volvence_zero.agent.response import (
 )
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
+from volvence_zero.environment import build_user_input_environment_event
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
@@ -618,6 +621,9 @@ class LifeformSession:
         # Open scene if needed; this is the only place a scene auto-opens.
         if self._scene.open_scene is None:
             self._scene.open_scene_now(current_tick=self._tick.tick_index)
+        open_scene = self._scene.open_scene
+        if open_scene is None:
+            raise RuntimeError("SceneManager failed to open a scene for run_turn.")
 
         # Gap 4 slice 2c: collect any thinking artifacts submitted
         # at the end of the previous turn. This runs BEFORE the
@@ -638,7 +644,28 @@ class LifeformSession:
         if apprentice_turn and self._vitals is not None:
             self._vitals.set_apprentice_override(True)
         try:
-            result = await self._brain_session.run_turn_async(user_input)
+            event_kind = environment_event_kind_for_trigger(trigger_kind)
+            environment_event = build_user_input_environment_event(
+                event_id=(
+                    f"{self.session_id}:"
+                    f"{open_scene.scene_id}:"
+                    f"turn-{len(self._turn_summaries) + 1}:environment"
+                ),
+                user_input=user_input,
+                scene_id=open_scene.scene_id,
+                timestamp_ms=self._tick.tick_index,
+                trigger_kind=trigger_kind.value,
+                provenance=f"LifeformSession.run_turn:{event_kind.value}",
+            )
+            run_turn_async = self._brain_session.run_turn_async
+            signature = inspect.signature(run_turn_async)
+            if "environment_event" in signature.parameters:
+                result = await run_turn_async(
+                    user_input,
+                    environment_event=environment_event,
+                )
+            else:
+                result = await run_turn_async(user_input)
         finally:
             # Leak-free invariant: restore the prior override state
             # regardless of whether the kernel raised. Nested calls

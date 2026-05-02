@@ -4,6 +4,7 @@ import asyncio
 import types
 from dataclasses import replace
 
+import volvence_zero.agent.session as agent_session_module
 from volvence_zero.agent import (
     AgentSessionRunner,
     MultiPathBenchmarkReport,
@@ -22,6 +23,12 @@ from volvence_zero.application import (
     ReviewedKnowledgeCandidate,
 )
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
+from volvence_zero.environment import (
+    EnvironmentActorRef,
+    EnvironmentEvent,
+    EnvironmentEventKind,
+    EnvironmentFrame,
+)
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
@@ -99,6 +106,40 @@ def test_agent_session_runner_exposes_primary_social_scope_from_shadow_owner():
     assert result.audience_ids == (SELF_INTERLOCUTOR_ID,)
     assert "multi_party_identity" not in result.active_snapshots
     assert "multi_party_identity" in result.shadow_snapshots
+    assert result.environment_event_id == "wave-1-environment-event"
+    assert result.environment_event_kind == EnvironmentEventKind.USER_INPUT.value
+
+
+def test_agent_session_runner_surfaces_explicit_environment_frame():
+    runner = default_active_runner()
+    event = EnvironmentEvent(
+        event_id="env-alice-1",
+        event_kind=EnvironmentEventKind.USER_INPUT,
+        trigger_kind="user_input",
+        frame=EnvironmentFrame(
+            actor=EnvironmentActorRef(actor_id="alice"),
+            active_speaker_id="alice",
+            addressee_ids=(SELF_INTERLOCUTOR_ID,),
+            subject_ids=("alice",),
+            audience_ids=(SELF_INTERLOCUTOR_ID, "alice"),
+        ),
+        scene_id="scene-alice",
+        timestamp_ms=1,
+        provenance="test",
+        payload_summary="Alice asks for planning help.",
+    )
+
+    result = asyncio.run(
+        runner.run_turn(
+            "Alice asks for planning help.",
+            environment_event=event,
+        )
+    )
+
+    assert result.environment_event_id == "env-alice-1"
+    assert result.active_speaker_id == "alice"
+    assert result.subject_ids == ("alice",)
+    assert result.audience_ids == (SELF_INTERLOCUTOR_ID, "alice")
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():
@@ -113,6 +154,7 @@ def test_agent_session_runner_reuses_session_memory_across_turns():
         "temporal+memory",
         "temporal-track-projected",
         "temporal-track-owner",
+        "temporal-track-owner+semantic-owner",
     )
 
 
@@ -257,8 +299,8 @@ def test_agent_session_runner_returns_user_visible_response():
     assert result.response.text
     assert result.response.rationale
     assert "switch_gate=" in result.response.rationale
-    assert "joint=" in result.response.rationale
-    assert "primary_lesson=" in result.response.rationale
+    assert "question_budget=" in result.response.rationale
+    assert "regime=" in result.response.rationale
 
 
 def test_agent_session_runner_exposes_bounded_writeback_state():
@@ -989,7 +1031,7 @@ def test_multi_turn_rl_loop_produces_policy_changes():
     )
 
 
-def test_agent_session_runner_imports_rare_heavy_by_default_when_high_pe_persists():
+def test_agent_session_runner_keeps_rare_heavy_review_only_by_default_when_high_pe_persists():
     runner = AgentSessionRunner(
         session_id="rare-heavy-session",
         joint_schedule=JointLoopSchedule(ssl_interval=99, rl_interval=99, pe_full_cycle_threshold=0.6),
@@ -1037,13 +1079,13 @@ def test_agent_session_runner_imports_rare_heavy_by_default_when_high_pe_persist
 
     assert result.rare_heavy_result is not None
     assert result.rare_heavy_result.recommended is True
-    assert result.rare_heavy_result.applied is True
+    assert result.rare_heavy_result.applied is False
     assert result.rare_heavy_result.artifact_id is not None
-    assert "rare-heavy:substrate-import" in result.rare_heavy_result.applied_operations
-    assert result.rare_heavy_result.substrate_status == "imported"
+    assert result.rare_heavy_result.applied_operations == ()
+    assert result.rare_heavy_result.substrate_status == "review-only"
     assert result.rare_heavy_result.substrate_training_mode == "adapter-delta-v2"
-    assert result.rare_heavy_result.import_decision == "imported"
-    assert result.rare_heavy_result.reject_reason == ""
+    assert result.rare_heavy_result.import_decision == "blocked-by-doctrine"
+    assert result.rare_heavy_result.reject_reason == "frozen-substrate-doctrine"
     assert result.rare_heavy_result.pre_import_passed is True
     assert result.rare_heavy_result.pre_import_case_count >= 1
     assert result.rare_heavy_result.bundle_trace_count >= 2
@@ -1109,7 +1151,12 @@ def test_agent_session_runner_rejects_rare_heavy_candidate_when_preimport_replay
     assert result.rare_heavy_result.pre_import_mean_score_delta < 0.0
 
 
-def test_agent_session_runner_applies_online_fast_substrate_self_mod_by_default():
+def test_agent_session_runner_applies_online_fast_substrate_self_mod_in_experimental_lane(monkeypatch):
+    monkeypatch.setattr(
+        agent_session_module,
+        "evaluate_gate",
+        lambda *, proposal, evaluation_snapshot: GateDecision.ALLOW,
+    )
     runner = AgentSessionRunner(
         session_id="online-fast-session",
         joint_schedule=JointLoopSchedule(
@@ -1119,6 +1166,7 @@ def test_agent_session_runner_applies_online_fast_substrate_self_mod_by_default(
             pe_substrate_online_fast_threshold=0.18,
         ),
         rare_heavy_enabled=False,
+        allow_live_substrate_mutation=True,
     )
 
     asyncio.run(runner.run_turn("Seed substrate for online-fast self-mod."))
@@ -1248,7 +1296,12 @@ def test_agent_session_runner_keeps_rare_heavy_review_only_when_explicitly_froze
     assert result.rare_heavy_result.reject_reason == "frozen-substrate-doctrine"
 
 
-def test_agent_session_runner_rolls_back_online_fast_substrate_after_delayed_alert():
+def test_agent_session_runner_rolls_back_online_fast_substrate_after_delayed_alert(monkeypatch):
+    monkeypatch.setattr(
+        agent_session_module,
+        "evaluate_gate",
+        lambda *, proposal, evaluation_snapshot: GateDecision.ALLOW,
+    )
     runner = AgentSessionRunner(
         session_id="online-fast-delayed-rollback",
         joint_schedule=JointLoopSchedule(
@@ -1258,6 +1311,7 @@ def test_agent_session_runner_rolls_back_online_fast_substrate_after_delayed_ale
             pe_substrate_online_fast_threshold=0.18,
         ),
         rare_heavy_enabled=False,
+        allow_live_substrate_mutation=True,
     )
 
     asyncio.run(runner.run_turn("Seed substrate for delayed online-fast rollback."))
@@ -1311,6 +1365,7 @@ def test_agent_session_runner_rolls_back_rare_heavy_import_after_delayed_alert()
             ssl_max_steps=1,
             rl_max_steps=1,
         ),
+        allow_live_substrate_mutation=True,
     )
 
     asyncio.run(runner.run_turn("Seed the first trace for delayed rare-heavy rollback."))

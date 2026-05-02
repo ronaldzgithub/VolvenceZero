@@ -86,6 +86,15 @@ witness_ids = ()
 overhearer_ids = ()
 ```
 
+Implemented Phase 3 scaffold:
+
+- `volvence_zero.social_cognition.ConversationalRoleSnapshot`: frozen shared contract for active speaker, addressees, subjects, witnesses, overhearers, group audience, role confidence, and role predictions.
+- `build_primary_conversational_role_snapshot()`: single-party compatibility builder using `primary/self`.
+- Contract tests enforce non-empty required role scopes, unique optional role scopes, bounded confidence, and unique role prediction ids.
+- `ConversationalRoleModule`: SHADOW owner scaffold registered in final wiring, publishing the default `primary/self` role snapshot without changing planner / renderer behavior.
+- Environment frame consumption: when final wiring receives an `EnvironmentEvent`, `ConversationalRoleModule` publishes `active_speaker_id`, `addressee_ids`, and `subject_ids` from the event frame; witness / overhearer / group audience remain empty until later slices.
+- Role prediction scaffold: when an `EnvironmentEvent` is present, `ConversationalRoleModule` emits a deterministic `ROLE_ASSIGNMENT` `SocialPrediction` anchored to the event id. Default compatibility snapshot still has no predictions.
+
 ## 与其他能力域的关系
 
 - R16 supplies `interlocutor_id` keys.
@@ -97,5 +106,9 @@ overhearer_ids = ()
 
 ## 变更日志
 
+- 2026-05-02: R18 Phase 3 slice 4 landed: deterministic role-assignment `SocialPrediction` from `EnvironmentEvent.frame`, preparing wrong-addressee PE probes.
+- 2026-05-02: R18 Phase 3 slice 3 landed: `ConversationalRoleModule` consumes `EnvironmentEvent.frame` for speaker/addressee/subject role scope with `primary/self` fallback.
+- 2026-05-02: R18 Phase 3 slice 2 landed: `ConversationalRoleModule` SHADOW owner scaffold registered in final wiring, defaulting to `primary/self`.
+- 2026-05-02: R18 Phase 3 slice 1 landed in `vz-contracts`: `ConversationalRoleSnapshot` contract + `primary/self` compatibility builder + role-scope validation tests.
 - 2026-05-02: 补充 Environment Interface 依赖：role owner 消费 canonical conversational frame，并在模糊时通过 proposal 补全。
 - 2026-05-02: 初始 draft，冻结 role snapshot as Social Cognition Learning Layer Phase 3。

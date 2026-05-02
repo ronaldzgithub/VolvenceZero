@@ -51,7 +51,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     # the snapshot types into ``volvence_zero.application_types`` so
     # ``evaluation`` does not have to import from owner code.
     "vz-cognition": frozenset(
-        {"runtime", "learned_update", "substrate", "memory", "social_cognition"}
+        {"runtime", "learned_update", "substrate", "memory", "social_cognition", "environment"}
     ),
     "vz-application": frozenset(
         {
@@ -59,7 +59,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_cognition",
+            "social_identity", "social_role", "social_tom", "social_cognition", "environment",
         }
     ),
     "vz-temporal": frozenset(
@@ -68,7 +68,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_cognition",
+            "social_identity", "social_role", "social_tom", "social_cognition", "environment",
             # vz-application:
             "application",
         }
@@ -79,7 +79,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_cognition",
+            "social_identity", "social_role", "social_tom", "social_cognition", "environment",
             # vz-application:
             "application",
             # everything in vz-temporal:

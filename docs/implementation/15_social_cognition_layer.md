@@ -35,6 +35,8 @@
 
 **预计**：3-4 周，4-6 个 PR。
 
+**当前状态（2026-05-02）**：slices 1-10 已落地为 SHADOW-compatible scaffold，不改变默认 companion 行为。已完成 shared contracts、`MultiPartyIdentityModule` SHADOW owner、`ResponseContext` / `AgentTurnResult` scope readout、memory subject/audience scope、MemoryModule ACTIVE identity-scope consumption path、social prediction / social PE SHADOW scaffolds、manual social PE → credit carry path、Companion Evidence C5 default-social-scope gate 与 CLI JSON artifact 断言。
+
 ### 1.1 Scope
 
 把 single-other identity assumption 改为 keyed identity scaffold：
@@ -63,6 +65,7 @@
 - New per-interlocutor read tests: Alice preference never applies to Bob.
 - New privacy scope test: memory with `audience_ids=("alice",)` is not exposed to Bob.
 - Cross-session shared memory still works for `primary`.
+- C5 companion evidence proves default single-party scope is `primary/self` and social prediction / social PE counts are zero.
 
 ### 1.4 Social PE gates
 

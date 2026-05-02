@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Any, Mapping
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
+    PreferenceAboutOtherSnapshot,
+)
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
@@ -1541,6 +1547,23 @@ def _response_expression_intent(
     return "direct-answer", ()
 
 
+def _tom_snapshot_counts(
+    snapshots: Mapping[str, Snapshot[Any]],
+) -> tuple[tuple[str, int], ...]:
+    counts: list[tuple[str, int]] = []
+    for slot_name, snapshot_type in (
+        ("belief_about_other", BeliefAboutOtherSnapshot),
+        ("intent_about_other", IntentAboutOtherSnapshot),
+        ("feeling_about_other", FeelingAboutOtherSnapshot),
+        ("preference_about_other", PreferenceAboutOtherSnapshot),
+    ):
+        snapshot = snapshots.get(slot_name)
+        value = snapshot.value if snapshot is not None else None
+        if isinstance(value, snapshot_type):
+            counts.append((slot_name, len(value.records)))
+    return tuple(counts)
+
+
 def _response_speech_plan(
     *,
     expression_intent: str,
@@ -3054,6 +3077,10 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         "relationship_state",
         "goal_value",
         "boundary_consent",
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
@@ -3083,6 +3110,10 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 "relationship_state",
                 "goal_value",
                 "boundary_consent",
+                "belief_about_other",
+                "intent_about_other",
+                "feeling_about_other",
+                "preference_about_other",
             )
         }
         if not isinstance(regime_value, RegimeSnapshot):
@@ -3152,6 +3183,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         )
 
         semantic_counts = semantic_snapshot_counts(semantic_snapshots)
+        semantic_counts = semantic_counts + _tom_snapshot_counts(semantic_snapshots)
         semantic_control = _clamp(
             sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots.values())
             / max(len(semantic_snapshots), 1)

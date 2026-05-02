@@ -12,6 +12,11 @@ from volvence_zero.application.storage import (
     ProvisionalReconcileResult,
     ProvisionalReconcileThresholds,
 )
+from volvence_zero.environment import (
+    EnvironmentEvent,
+    EnvironmentEventKind,
+    EnvironmentOutcome,
+)
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
@@ -89,6 +94,18 @@ class BrainSession:
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
     ) -> tuple[str, ...]:
+        outcome = EnvironmentOutcome(
+            outcome_id=f"{event_id}:outcome",
+            event_id=event_id,
+            outcome_kind=EnvironmentEventKind.TOOL_RESULT,
+            action_id=action_id,
+            status=status,
+            summary=summary,
+            detail=detail,
+            confidence=confidence,
+            prediction_id=plan_ref,
+            evidence=(f"tool:{tool_name}",),
+        )
         return self.submit_semantic_events(
             semantic_events_from_tool_result(
                 event_id=event_id,
@@ -98,7 +115,10 @@ class BrainSession:
                 summary=summary,
                 detail=detail,
                 confidence=confidence,
-                artifact_refs=artifact_refs,
+                artifact_refs=(
+                    *artifact_refs,
+                    f"environment_outcome:{outcome.outcome_id}",
+                ),
                 plan_ref=plan_ref,
             )
         )
@@ -178,14 +198,32 @@ class BrainSession:
             )
         )
 
-    async def run_turn_async(self, user_input: str) -> AgentTurnResult:
-        return await self._runner.run_turn(user_input)
+    async def run_turn_async(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+    ) -> AgentTurnResult:
+        return await self._runner.run_turn(
+            user_input,
+            environment_event=environment_event,
+        )
 
-    def run_turn(self, user_input: str) -> AgentTurnResult:
+    def run_turn(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+    ) -> AgentTurnResult:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self.run_turn_async(user_input))
+            return asyncio.run(
+                self.run_turn_async(
+                    user_input,
+                    environment_event=environment_event,
+                )
+            )
         raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")
 
     def reconcile_case_memory_provisional(
