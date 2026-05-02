@@ -95,6 +95,8 @@ class RetrievalQuery:
 class RetrievalResult:
     query: RetrievalQuery
     entries: tuple[MemoryEntry, ...]
+    suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
+    active_subject_scope: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,8 @@ class MemorySnapshot:
     cms_state: CMSState | None
     description: str
     lifecycle_metrics: tuple[tuple[str, float], ...] = ()
+    suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
+    active_subject_scope: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -279,6 +283,12 @@ def _require_non_empty_unique_tuple(field_name: str, values: tuple[str, ...]) ->
             raise ValueError(f"{field_name} entries must be non-empty")
     if len(set(values)) != len(values):
         raise ValueError(f"{field_name} entries must be unique")
+
+
+def _entry_in_subject_scope(
+    entry: MemoryEntry, active_subject_ids: tuple[str, ...]
+) -> bool:
+    return any(subject_id in active_subject_ids for subject_id in entry.subject_ids)
 
 
 def _tokenize(text: str) -> set[str]:
@@ -695,12 +705,19 @@ class MemoryStore:
         self._observe_artifact_entry(entry=entry, timestamp_ms=timestamp_ms, source="write")
         return entry
 
-    def retrieve(self, query: RetrievalQuery, *, timestamp_ms: int) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: RetrievalQuery,
+        *,
+        timestamp_ms: int,
+        active_subject_ids: tuple[str, ...] | None = None,
+    ) -> RetrievalResult:
         tokens = _tokenize(query.text)
         query_embedding = self._query_base_signal(query)
         learned_recall = self._build_learned_recall(query=query, query_embedding=query_embedding)
         strata = query.strata or tuple(MemoryStratum)
         matches: list[tuple[float, MemoryEntry]] = []
+        suppressed: list[tuple[float, MemoryEntry]] = []
         for entry in self._artifact_store.entries_in(strata):
             if query.track is not None and entry.track is not query.track:
                 continue
@@ -712,10 +729,16 @@ class MemoryStore:
             )
             if score <= 0:
                 continue
+            if active_subject_ids is not None and not _entry_in_subject_scope(
+                entry, active_subject_ids
+            ):
+                suppressed.append((score, entry))
+                continue
             updated = self._artifact_store.touch(entry.entry_id, timestamp_ms=timestamp_ms)
             if updated is not None:
                 matches.append((score, updated))
         matches.sort(key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms))
+        suppressed.sort(key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms))
         self._learned_recall_count += 1
         self._last_recall_confidence = learned_recall.retrieval_confidence
         self._last_recall_driver = (
@@ -729,9 +752,19 @@ class MemoryStore:
         return RetrievalResult(
             query=query,
             entries=tuple(entry for _, entry in matches[: query.limit]),
+            suppressed_cross_scope_entries=tuple(
+                entry for _, entry in suppressed[: query.limit]
+            ),
+            active_subject_scope=tuple(active_subject_ids) if active_subject_ids is not None else (),
         )
 
-    def snapshot(self, *, retrieved_entries: tuple[MemoryEntry, ...]) -> MemorySnapshot:
+    def snapshot(
+        self,
+        *,
+        retrieved_entries: tuple[MemoryEntry, ...],
+        suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = (),
+        active_subject_scope: tuple[str, ...] = (),
+    ) -> MemorySnapshot:
         transient_entries = self._entries_for(MemoryStratum.TRANSIENT)
         episodic_entries = self._entries_for(MemoryStratum.EPISODIC)
         durable_entries = self._entries_for(MemoryStratum.DURABLE)
@@ -905,6 +938,8 @@ class MemoryStore:
                 ("hope_self_mod_guarded", float(hope_state.guarded) if hope_state is not None else 0.0),
             ),
             description=description,
+            suppressed_cross_scope_entries=suppressed_cross_scope_entries,
+            active_subject_scope=active_subject_scope,
         )
 
     def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
@@ -1766,8 +1801,15 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                 ),
             ),
             timestamp_ms=substrate_snapshot.timestamp_ms,
+            active_subject_ids=subject_ids,
         )
-        return self.publish(self._store.snapshot(retrieved_entries=retrieval.entries))
+        return self.publish(
+            self._store.snapshot(
+                retrieved_entries=retrieval.entries,
+                suppressed_cross_scope_entries=retrieval.suppressed_cross_scope_entries,
+                active_subject_scope=retrieval.active_subject_scope,
+            )
+        )
 
     async def process_standalone(self, **kwargs: object) -> Snapshot[MemorySnapshot]:
         from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -1834,8 +1876,15 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                 ),
             ),
             timestamp_ms=timestamp_ms,
+            active_subject_ids=subject_ids,
         )
-        return self.publish(self._store.snapshot(retrieved_entries=retrieval.entries))
+        return self.publish(
+            self._store.snapshot(
+                retrieved_entries=retrieval.entries,
+                suppressed_cross_scope_entries=retrieval.suppressed_cross_scope_entries,
+                active_subject_scope=retrieval.active_subject_scope,
+            )
+        )
 
     def _runtime_query_facets(
         self,

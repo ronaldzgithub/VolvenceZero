@@ -25,6 +25,12 @@ from volvence_zero.prediction import (
 )
 from volvence_zero.regime import RegimeIdentity, RegimeSnapshot
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.semantic_state import (
+    AdvocacyState,
+    AlignmentState,
+    CommitmentLifecycleEntry,
+    CommitmentSnapshot,
+)
 from volvence_zero.substrate import (
     build_builtin_transformers_runtime,
     FeatureSignal,
@@ -114,6 +120,29 @@ def _regime_snapshot(effectiveness: float = 0.7) -> RegimeSnapshot:
         turns_in_current_regime=1,
         description="regime",
         effectiveness_trend=(("problem_solving", effectiveness),),
+    )
+
+
+def _commitment_snapshot(
+    *,
+    record_id: str = "commitment-1",
+    alignment_state: AlignmentState,
+) -> CommitmentSnapshot:
+    return CommitmentSnapshot(
+        active_commitments=(record_id,),
+        honored_commitment_refs=(),
+        at_risk_commitments=(),
+        trust_obligation_count=1,
+        continuity_score=0.5,
+        control_signal=0.4,
+        description=f"commitment alignment {alignment_state.value}",
+        lifecycle_entries=(
+            CommitmentLifecycleEntry(
+                record_id=record_id,
+                advocacy_state=AdvocacyState.PROPOSED,
+                alignment_state=alignment_state,
+            ),
+        ),
     )
 
 
@@ -223,6 +252,99 @@ def test_prediction_error_credit_records():
     )
     assert len(records) == 4
     assert {r.source_event for r in records} == {"pe:task", "pe:relationship", "pe:regime", "pe:action"}
+
+
+def test_alignment_reject_transition_enters_relationship_prediction_error():
+    module = PredictionErrorModule(wiring_level=WiringLevel.ACTIVE)
+    first = asyncio.run(
+        module.process_standalone(
+            turn_index=1,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+            temporal_snapshot=_temporal_snapshot(),
+            commitment_snapshot=_commitment_snapshot(
+                alignment_state=AlignmentState.AGREE,
+            ),
+        )
+    )
+
+    second = asyncio.run(
+        module.process_standalone(
+            previous_prediction=first.value.next_prediction,
+            turn_index=2,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+            temporal_snapshot=_temporal_snapshot(),
+            commitment_snapshot=_commitment_snapshot(
+                alignment_state=AlignmentState.REJECT,
+            ),
+        )
+    )
+
+    error = second.value.error
+    assert "alignment_transition[regression]" in error.description
+    assert "agree->reject" in error.description
+    assert error.relationship_error < 0.0
+    assert error.signed_reward < 0.0
+
+
+def test_alignment_recovery_transition_enters_relationship_prediction_error():
+    module = PredictionErrorModule(wiring_level=WiringLevel.ACTIVE)
+    first = asyncio.run(
+        module.process_standalone(
+            turn_index=1,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+            temporal_snapshot=_temporal_snapshot(),
+            commitment_snapshot=_commitment_snapshot(
+                alignment_state=AlignmentState.REJECT,
+            ),
+        )
+    )
+
+    second = asyncio.run(
+        module.process_standalone(
+            previous_prediction=first.value.next_prediction,
+            turn_index=2,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+            temporal_snapshot=_temporal_snapshot(),
+            commitment_snapshot=_commitment_snapshot(
+                alignment_state=AlignmentState.AGREE,
+            ),
+        )
+    )
+
+    error = second.value.error
+    assert "alignment_transition[recovery]" in error.description
+    assert "reject->agree" in error.description
+    assert error.relationship_error > 0.0
+    assert error.signed_reward > 0.0
+
+
+def test_unknown_to_agree_alignment_is_recovery_not_regression():
+    module = PredictionErrorModule(wiring_level=WiringLevel.ACTIVE)
+    result = asyncio.run(
+        module.process_standalone(
+            turn_index=1,
+            evaluation_snapshot=_evaluation_snapshot(),
+            dual_track_snapshot=_dual_track_snapshot(),
+            regime_snapshot=_regime_snapshot(),
+            temporal_snapshot=_temporal_snapshot(),
+            commitment_snapshot=_commitment_snapshot(
+                alignment_state=AlignmentState.AGREE,
+            ),
+        )
+    )
+
+    error = result.value.error
+    assert "alignment_transition[recovery]" in error.description
+    assert "unknown->agree" in error.description
+    assert "alignment_transition[regression]" not in error.description
 
 
 def test_llm_response_synthesizer_passes_control_signal():

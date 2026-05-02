@@ -33,6 +33,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
     empty_description: str
     dependencies = ("substrate", "memory", "multi_party_identity")
     default_wiring_level = WiringLevel.SHADOW
+    min_proposal_confidence = 0.50
 
     def __init__(
         self,
@@ -77,6 +78,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 proposal
                 for proposal in batch.proposals
                 if proposal.target_slot == self.slot_name
+                and proposal.confidence >= self.min_proposal_confidence
             )
             records = tuple(
                 _record_from_proposal(

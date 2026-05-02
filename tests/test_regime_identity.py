@@ -479,6 +479,74 @@ def test_regime_module_builds_multi_step_delayed_ledger():
     assert third.delayed_payoffs[0].sample_count >= 1
 
 
+def test_regime_delayed_attribution_tracks_dialogue_repair_signal():
+    module = RegimeModule(attribution_horizons=(2,), wiring_level=WiringLevel.ACTIVE)
+    dual_track_snapshot = DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("resolve-next-step",),
+            recent_credits=(),
+            controller_code=(0.2, 0.3, 0.2),
+            tension_level=0.25,
+            abstract_action_hint="repair_controller",
+            action_family_version_hint=7,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("repair-rupture",),
+            recent_credits=(),
+            controller_code=(0.4, 0.7, 0.5),
+            tension_level=0.72,
+            abstract_action_hint="repair_controller",
+            action_family_version_hint=7,
+        ),
+        cross_track_tension=0.55,
+        description="dialogue repair signal after user pushback",
+    )
+    repair_eval = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("interaction", "warmth", 0.82, 0.8, "repair warmth recovered"),
+            EvaluationScore("relationship", "cross_track_stability", 0.86, 0.8, "relationship stabilized"),
+            EvaluationScore("task", "info_integration", 0.62, 0.7, "task secondary"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="dialogue repair evaluation",
+    )
+
+    first = asyncio.run(
+        module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=repair_eval,
+        )
+    ).value
+    second = asyncio.run(
+        module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=repair_eval,
+        )
+    ).value
+    third = asyncio.run(
+        module.process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=repair_eval,
+        )
+    ).value
+
+    assert not first.delayed_attributions
+    assert not second.delayed_attributions
+    assert third.delayed_attributions
+    attribution = third.delayed_attributions[0]
+    assert attribution.regime_id == first.active_regime.regime_id
+    assert attribution.abstract_action == "repair_controller"
+    assert attribution.action_family_version == 7
+    assert attribution.source_wave_id
+    assert third.delayed_attribution_ledger
+    assert third.delayed_payoffs
+    assert third.sequence_payoffs
+    assert dict(third.effectiveness_trend)[attribution.regime_id] >= 0.0
+
+
 def test_regime_module_projects_identity_hints_from_memory_snapshot():
     memory_store = MemoryStore()
     relationship_entry = memory_store.write(

@@ -267,6 +267,15 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
 5. `tool-result-replays-canonical-channel`
    - affordance invocation 结果只通过 `BrainSession.submit_tool_result` 进入 kernel，contract test grep 调用图
    - acceptance：`tests/contracts/test_affordance_canonical_return.py`
+6. `affordance-selection-learned-from-traces`（Phase 0 freeze，实施待 `docs/specs/emergent-action-abstraction.md` Phase 1）
+   - `AffordanceSelectionState.candidate_scores` 由 metacontroller 基于 replay 中的 `action_outcome_trace` 训练；grep 仓库找不到 `if name == ...` 等硬编码路由
+   - acceptance：`lifeform-bench --vertical coding --with-affordance --with-trace-replay` 对比 `--without-trace-replay` 时，selection distribution 随 trace outcome 变化
+7. `affordance-outcome-axes-wired`（Phase 0 freeze）
+   - `AffordanceInvoker` 在调用 `BrainSession.submit_tool_result` 前必须填写 `EnvironmentOutcome` 的 axis 字段（`latency_ms` / `monetary_cost` / `information_gain` / `risk_delta` / `privacy_scope_delta` / `trust_delta` / `commitment_progress_delta` / `common_ground_delta` / `reversibility` / `environment_state_delta_kind`），空值使用 spec 默认而非省略
+   - acceptance：`tests/contracts/test_affordance_outcome_axes.py` 校验所有受支持 axis 字段在调用结束后非缺省
+8. `affordance-replay-reproducible`（Phase 0 freeze）
+   - 注册的 affordance 调用可从 replay store 重放，重放得到的 trace axis 与原 trace 位等价
+   - acceptance：`tests/lifeform_e2e/test_affordance_replay_reproducible.py`
 
 ## 接口契约（公开数据流向）
 
@@ -290,6 +299,7 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
 |---|---|---|
 | 依赖 | Environment Interface | affordance 是 `Act` 面的有界外部作用能力，调用结果必须通过 outcome 回流 PE |
 | 依赖 | 时间抽象与内部控制 | affordance 选择由 metacontroller 学 |
+| 依赖 | Emergent Action Abstraction | 调用结果必须填写 `EnvironmentOutcome` axis；selection learning 从 `action_outcome_trace` 驱动；单次调用可回放 |
 | 依赖 | 契约式运行时 | descriptor + snapshot 走 R8 |
 | 依赖 | 信用分配与自修改 | safety_model 走 ModificationGate |
 | 协作 | 认知 Regime | 不同 regime 下不同 affordance 候选集 |
@@ -316,4 +326,5 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
 
 ## 变更日志
 
+- 2026-05-02：新增 Phase 0 acceptance gates `affordance-selection-learned-from-traces` / `affordance-outcome-axes-wired` / `affordance-replay-reproducible`，对齐 `docs/specs/emergent-action-abstraction.md` Phase 1 落地口径。
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 1 设计冻结。

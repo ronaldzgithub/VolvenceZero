@@ -7,10 +7,26 @@ from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.runtime import WiringLevel, propagate
 from volvence_zero.social_cognition import CommonGroundAtom, CommonGroundSnapshot, SocialScopeKind
 from volvence_zero.social_common_ground import CommonGroundModule
+from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
 from volvence_zero.social_identity import MultiPartyIdentityModule
 from volvence_zero.social_role import ConversationalRoleModule
 from volvence_zero.social_tom import BeliefAboutOtherModule
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter, SubstrateModule
+
+
+class ScriptedProvider:
+    def __init__(self, response: str) -> None:
+        self.response = response
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int = 384,
+        temperature: float = 0.0,
+    ) -> str:
+        del prompt, max_new_tokens, temperature
+        return self.response
 
 
 def _substrate() -> SubstrateModule:
@@ -95,6 +111,109 @@ def test_common_ground_module_publishes_explicit_dyad_and_group_atoms() -> None:
     assert "dyad_atoms=1 group_atoms=1" in snapshot.description
 
 
+def test_common_ground_module_consumes_structured_runtime_atoms() -> None:
+    runtime = LLMCommonGroundProposalRuntime(
+        provider=ScriptedProvider(
+            """
+            [
+              {
+                "scope_kind": "dyad",
+                "scope_id": "self:alice",
+                "summary": "We both know Alice wants a slower pace.",
+                "accepted_by_ids": ["self", "alice"],
+                "evidence": "slow down like we agreed",
+                "confidence": 0.82,
+                "recursion_depth": 2,
+                "control_signal": 0.40
+              },
+              {
+                "scope_kind": "group",
+                "scope_id": "team:launch",
+                "summary": "The launch team accepted the new deadline.",
+                "accepted_by_ids": ["alice", "bob", "carol"],
+                "evidence": "all confirmed",
+                "confidence": 0.78,
+                "recursion_depth": 1,
+                "control_signal": 0.35
+              }
+            ]
+            """
+        )
+    )
+
+    result = asyncio.run(
+        propagate(
+            [
+                _substrate(),
+                MultiPartyIdentityModule(wiring_level=WiringLevel.ACTIVE),
+                MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE),
+                ConversationalRoleModule(wiring_level=WiringLevel.ACTIVE),
+                BeliefAboutOtherModule(wiring_level=WiringLevel.ACTIVE),
+                CommonGroundModule(
+                    proposal_runtime=runtime,
+                    user_input="Let's slow down like we agreed.",
+                    turn_index=4,
+                    wiring_level=WiringLevel.ACTIVE,
+                ),
+            ],
+            session_id="common-ground-runtime-session",
+            wave_id="common-ground-runtime-wave",
+        )
+    )
+
+    snapshot = result["common_ground"].value
+    assert isinstance(snapshot, CommonGroundSnapshot)
+    assert len(snapshot.dyad_atoms) == 1
+    assert len(snapshot.group_atoms) == 1
+    assert snapshot.dyad_atoms[0].scope_id == "self:alice"
+    assert snapshot.group_atoms[0].scope_id == "team:launch"
+    assert snapshot.control_signal == 0.8
+
+
+def test_common_ground_module_runtime_low_confidence_keeps_empty_snapshot() -> None:
+    runtime = LLMCommonGroundProposalRuntime(
+        provider=ScriptedProvider(
+            """
+            [
+              {
+                "scope_kind": "dyad",
+                "scope_id": "self:alice",
+                "summary": "weak shared claim",
+                "accepted_by_ids": ["self", "alice"],
+                "evidence": "weak evidence",
+                "confidence": 0.25,
+                "recursion_depth": 2
+              }
+            ]
+            """
+        )
+    )
+
+    result = asyncio.run(
+        propagate(
+            [
+                _substrate(),
+                MultiPartyIdentityModule(wiring_level=WiringLevel.ACTIVE),
+                MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE),
+                ConversationalRoleModule(wiring_level=WiringLevel.ACTIVE),
+                BeliefAboutOtherModule(wiring_level=WiringLevel.ACTIVE),
+                CommonGroundModule(
+                    proposal_runtime=runtime,
+                    user_input="maybe shared",
+                    turn_index=5,
+                    wiring_level=WiringLevel.ACTIVE,
+                ),
+            ],
+            session_id="common-ground-low-confidence-session",
+            wave_id="common-ground-low-confidence-wave",
+        )
+    )
+
+    snapshot = result["common_ground"].value
+    assert snapshot.dyad_atoms == ()
+    assert snapshot.group_atoms == ()
+
+
 def test_response_assembly_surfaces_common_ground_atom_count_diagnostically() -> None:
     dyad = CommonGroundAtom(
         atom_id="cg:dyad:alice-bob:plan",
@@ -136,3 +255,47 @@ def test_response_assembly_surfaces_common_ground_atom_count_diagnostically() ->
     assert counts["common_ground"] == 2
     assert "common_ground" not in response_assembly.semantic_residue_summary
     assert response_assembly.expression_intent
+
+
+def test_final_wiring_structured_common_ground_runtime_populates_diagnostics() -> None:
+    runtime = LLMCommonGroundProposalRuntime(
+        provider=ScriptedProvider(
+            """
+            [
+              {
+                "scope_kind": "dyad",
+                "scope_id": "self:alice",
+                "summary": "We both know Alice wants a slower pace.",
+                "accepted_by_ids": ["self", "alice"],
+                "evidence": "slow down like we agreed",
+                "confidence": 0.82,
+                "recursion_depth": 2,
+                "control_signal": 0.40
+              }
+            ]
+            """
+        )
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(common_ground=WiringLevel.ACTIVE),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="common-ground-runtime-counts-model",
+                feature_surface=(FeatureSignal(name="common_ground_runtime", values=(0.5,), source="test"),),
+            ),
+            user_input="Let's slow down like we agreed.",
+            common_ground_proposal_runtime=runtime,
+            session_id="common-ground-runtime-counts-session",
+            wave_id="common-ground-runtime-counts-wave",
+            turn_index=6,
+        )
+    )
+
+    common_ground = result.active_snapshots["common_ground"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    assert isinstance(common_ground, CommonGroundSnapshot)
+    assert len(common_ground.dyad_atoms) == 1
+    assert counts["common_ground"] == 1
+    assert "common_ground" not in response_assembly.semantic_residue_summary

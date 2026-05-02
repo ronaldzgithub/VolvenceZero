@@ -48,6 +48,7 @@
 - internal unblinding key
 - human rating template / aggregate
 - unified evidence bundle
+- `action_outcome_replay_bundle.json`（planned，Phase 1 随 `docs/specs/emergent-action-abstraction.md` 落地）：导出 `action_outcome_trace` 序列、`EnvironmentOutcome` axis 覆盖率、resolution verdict 分布，支持 affordance / delayed outcome 的再现与证据审阅
 
 当前实现口径：
 
@@ -66,6 +67,7 @@
 | 依赖 | 契约式运行时 | provenance 与 artifact 必须回溯到真实 runtime 产物 |
 | 依赖 | 多时间尺度学习 / 时间抽象 | claim registry 需要把这些设计命题绑定到可观测 gate |
 | 协作 | 调试体系 | blind review / paper-suite 工件是 widening 与审计面 |
+| 协作 | Emergent Action Abstraction（Phase 0 freeze） | `action_outcome_replay_bundle.json` 是该能力域 Phase 1 落地的 artifact，进入 unified evidence bundle |
 | 被依赖 | rollout / 外部汇报 | evidence bundle 是对外结论、候选比较与审稿材料的统一入口 |
 
 ## 初始 Claim Registry
@@ -206,6 +208,9 @@
 - C3 `explicit_cross_session_retention`: 注入共享 `MemoryStore` 后，session B 能检索到 session A 写入的偏好
 - C4 `default_memory_isolation`: 未显式注入共享 store 时，两个 session 的 `MemoryStore` 不共享
 - C5 `default_social_scope_isolation`: 默认 companion turn 的 R16 scope 固定为 `primary/self`，`multi_party_identity` / `social_prediction` / `social_prediction_error` 以 SHADOW readout 发布且 social PE 默认为空
+- AAC1 `alignment_pe_repair_visibility`: commitment alignment 从 AGREE→REJECT 的转变能进入 relationship PE，并产生 `DEFER_ONLY` repair follow-up policy
+- RGM1 `regime_delayed_attribution_visibility`: dialogue-like repair/support regime evidence 能产生 delayed attribution、delayed credit records 与 evaluation readout metrics，且不要求硬编码 regime 切换
+- RFL1 `reflection_writeback_stability`: reflection 能消费 dialogue slow-loop evidence，并通过 checkpoint / rollback 的 bounded apply path 写入 memory / regime evidence，不直接绕过 owner
 - v2 `composite_score` 记录 C1-C5 gate score + widening transcript diversity；v2 transcript diversity 是 widening diagnostic，不单独作为 retain 硬门槛
 
 **weak 条件**：
@@ -236,12 +241,17 @@
 **命题**：Theory of Mind 状态至少在契约与显式 proposal path 上区分 belief / intent / feeling / preference；belief conflict 不会写入 preference owner，preference conflict 也不会伪装成 belief。
 
 **retain 条件**：
+- R16A `active_identity_memory_scope`: explicit `EnvironmentEvent.frame` publishes ACTIVE `multi_party_identity`, and memory writes inherit the same subject / audience scope without renderer inference
 - T1 `tom_owner_contract`: `OtherMindRecordKind` 有限枚举覆盖 belief / intent / feeling / preference，四类 snapshot 会拒绝 wrong-kind record
 - T2 `explicit_tom_proposal_path`: 显式 proposal 可以填充目标 ToM owner，final wiring 默认不把通用 semantic runtime 当 ToM classifier
 - T3 `false_belief_preference_separation_probe`: 人工 false-belief + preference-conflict probe 中，belief 与 preference 分别落入各自 owner，record kind 不混写
+- T4 `structured_tom_runtime_path`: `LLMToMProposalRuntime` 的结构化 JSON 输出能填充目标 ToM owner， malformed / low-confidence 输出不会伪造 durable record
+- T5 `affect_preference_separation_probe`: 同一输入中的 transient feeling 与 durable preference 分别进入 `feeling_about_other` / `preference_about_other`，不混写
 - R1 `wrong_addressee_role_pe_credit`: 人工 wrong-addressee role PE 可以转成 shared credit，证明 role mistake 能进入 PE/credit 链路而不是 renderer 规则
 - R2 `role_prediction_diagnostic_visibility`: EnvironmentEvent role frame 产生 `ROLE_ASSIGNMENT` prediction，且 `response_assembly.semantic_record_counts` 可诊断性显示 role prediction count
 - G1 `common_ground_diagnostic_visibility`: 显式 dyad/group common-ground atoms 可以进入 `common_ground` owner，并在 `response_assembly.semantic_record_counts` 诊断性显示 atom count
+- G2 `structured_common_ground_runtime_path`: 结构化 common-ground runtime 可以把 dyad/group JSON proposal 写入 `common_ground` owner，并显示为 diagnostic count
+- G3 `reference_repair_common_ground_probe`: repair / clarification evidence 可以进入 dyad common-ground atom，而不是由 renderer 文案推断
 - GROUP1 `group_diagnostic_visibility`: 显式 group identity / joint commitment 可以进入 `groups` owner，并在 `response_assembly.semantic_record_counts` 诊断性显示 group 与 joint commitment count
 
 **fail 条件**：
@@ -260,15 +270,22 @@
 
 ## 变更日志
 
+- 2026-05-02: Social Cognition evidence report 增加 R16A active identity memory scope gate，覆盖 EnvironmentEvent frame → ACTIVE multi_party_identity → memory subject/audience scope 链路
 - 2026-05-01: 新增 Dialogue Paper-Suite Evidence Map，冻结 temporal advantage、beyond scripted、external human legibility、rare-heavy net benefit 四类 dialogue claim 的 retain / weak / fail 条件、artifact 边界与轻量测试入口
 - 2026-05-02: 新增 Companion Evidence Map，冻结 C1-C4 companion stateful-relationship claim、运行入口与轻量测试节点；v2 增加 widening transcript artifact 与 composite score（diagnostic，不替代 C1-C4 retain gate）
 - 2026-05-02: 增加 C5 default social scope isolation gate，覆盖 R16 `primary/self` 默认 scope 与空 social PE 链路，避免 companion v1 在多人化迁移中隐式串人
+- 2026-05-02: 增加 AAC1 alignment PE repair visibility gate，覆盖 AAC commitment alignment reject → relationship PE → defer-only repair follow-up 链路
+- 2026-05-02: 增加 RGM1 regime delayed attribution visibility gate，覆盖 dialogue repair/support signal → RegimeSnapshot delayed attribution → credit/evaluation readout 链路
+- 2026-05-02: 增加 RFL1 reflection writeback stability gate，覆盖 dialogue slow-loop evidence → bounded reflection apply → checkpoint/rollback 链路
 - 2026-05-02: 新增 Social Cognition Evidence Map，冻结 R17 ToM owner separation 的 T1-T3 轻量证据门槛
 - 2026-05-02: 增加 Social Cognition evidence report artifact，T1-T3 由 `lifeform_evolution.run_social_cognition_evidence()` 汇总输出；CLI 支持 `--social-cognition-evidence-report` 与 `--social-cognition-evidence-json`
 - 2026-05-02: Social Cognition evidence report 增加 R1 wrong-addressee role PE credit gate，覆盖 R18 role mistake → credit 链路
+- 2026-05-02: Social Cognition evidence report 增加 T4/T5 structured ToM gates，覆盖 LLMToMProposalRuntime 结构化输出和 affect/preference 分离
 - 2026-05-02: Social Cognition evidence report 增加 R2 role prediction diagnostic visibility gate，覆盖 R18 role prediction → response_assembly diagnostic count 链路
 - 2026-05-02: Social Cognition evidence report 增加 G1 common-ground diagnostic visibility gate，覆盖 R19 explicit atoms → response_assembly diagnostic count 链路
+- 2026-05-02: Social Cognition evidence report 增加 G2/G3 structured common-ground gates，覆盖 R19 structured runtime → owner atom 与 reference repair → dyad atom 链路
 - 2026-05-02: Social Cognition evidence report 增加 GROUP1 group diagnostic visibility gate，覆盖 R20 explicit group state → response_assembly diagnostic count 链路
+- 2026-05-02: 引用 `docs/specs/emergent-action-abstraction.md` 的 `action_outcome_replay_bundle.json` 作为 planned evidence artifact（Phase 1 随 trace owner 一并落地）
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径

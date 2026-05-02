@@ -93,6 +93,9 @@ Implemented Phase 4 scaffold:
 - Explicit atom path: `CommonGroundModule` can publish explicitly injected dyad/group atoms for tests and evidence. Default runtime remains empty and does not infer common ground from text.
 - Diagnostic downstream visibility: when `common_ground` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `common_ground` as dyad + group atom count. Planner and renderer still do not consume common-ground snapshots.
 - Evidence report artifact: Social Cognition evidence report includes G1, proving explicit dyad/group common-ground atoms are visible in response assembly diagnostics without renderer consumption.
+- Structured proposal path: `LLMCommonGroundProposalRuntime` consumes bounded JSON output and emits validated dyad/group common-ground proposals; low-confidence / malformed output publishes no atoms.
+- Owner consumption path: `CommonGroundModule` can consume structured common-ground proposals while preserving explicit atom injection and default empty SHADOW behavior.
+- Evidence gates G2/G3: social cognition evidence now covers structured common-ground runtime and reference/repair common-ground probes.
 
 ## 与其他能力域的关系
 
@@ -105,6 +108,7 @@ Implemented Phase 4 scaffold:
 
 ## 变更日志
 
+- 2026-05-02: R19 Phase 4 slice 6 landed: structured common-ground proposal runtime + owner consumption + final-wiring diagnostics + G2/G3 evidence gates.
 - 2026-05-02: R19 Phase 4 slice 4 landed: common-ground atom count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R19 Phase 4 slice 5 landed: Social Cognition evidence report G1 gate covers common-ground diagnostic visibility.
 - 2026-05-02: R19 Phase 4 slice 3 landed: `CommonGroundModule` supports explicit dyad/group atom injection while default runtime remains empty.

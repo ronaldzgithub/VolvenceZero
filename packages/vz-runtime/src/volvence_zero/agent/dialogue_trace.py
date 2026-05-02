@@ -224,6 +224,70 @@ class DialogueTraceStore:
             if outcome.previous_trace_id in kept_ids
         ]
 
+    def attach_outcome_evidence_to_last_trace(
+        self,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution | None:
+        """Attach typed evidence to the most recent trace.
+
+        Used by producers that observe an event after the turn has been
+        recorded (for example, scene close). When no trace exists yet
+        the call is a no-op.
+        """
+
+        if not evidence or not self._traces:
+            return None
+        last_trace = self._traces[-1]
+        merged_evidence = tuple(
+            dict.fromkeys(
+                (
+                    *last_trace.outcome.structured_evidence,
+                    *evidence,
+                ),
+            )
+        )
+        merged_refs = tuple(
+            dict.fromkeys(
+                (
+                    *last_trace.outcome.evidence_refs,
+                    *_evidence_refs_from_structured(evidence),
+                ),
+            )
+        )
+        outcome = replace(
+            last_trace.outcome,
+            kind=_dialogue_outcome_kind_from_evidence(merged_evidence),
+            evidence_refs=merged_refs,
+            structured_evidence=merged_evidence,
+            description=(
+                "Outcome kind derived from structured owner/evaluation "
+                "evidence; raw text was not inspected."
+            ),
+        )
+        self._replace_trace_outcome(previous_trace_id=last_trace.trace_id, outcome=outcome)
+        if last_trace.trace_id in self._unresolved_trace_ids:
+            self._unresolved_trace_ids = [
+                trace_id
+                for trace_id in self._unresolved_trace_ids
+                if trace_id != last_trace.trace_id
+            ]
+        self._resolved_outcomes = [
+            existing
+            for existing in self._resolved_outcomes
+            if existing.previous_trace_id != last_trace.trace_id
+        ]
+        self._resolved_outcomes.append(outcome)
+        return DialogueOutcomeResolution(
+            previous_trace_id=last_trace.trace_id,
+            observed_trace_id=last_trace.trace_id,
+            status=DialogueResolutionStatus.RESOLVED,
+            outcome=outcome,
+            description=(
+                "Outcome attached from late owner/scene evidence; "
+                "structural mapping only."
+            ),
+        )
+
 
 def _previous_unresolved_id(
     unresolved_trace_ids: list[str],

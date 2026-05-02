@@ -100,7 +100,7 @@ def test_agent_session_runner_executes_single_turn():
     assert result.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
 
-def test_agent_session_runner_exposes_primary_social_scope_from_shadow_owner():
+def test_agent_session_runner_exposes_primary_social_scope_from_active_owner():
     runner = default_active_runner()
     result = asyncio.run(runner.run_turn("I need help organizing my plan."))
 
@@ -108,8 +108,8 @@ def test_agent_session_runner_exposes_primary_social_scope_from_shadow_owner():
     assert result.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
     assert result.addressee_ids == (SELF_INTERLOCUTOR_ID,)
     assert result.audience_ids == (SELF_INTERLOCUTOR_ID,)
-    assert "multi_party_identity" not in result.active_snapshots
-    assert "multi_party_identity" in result.shadow_snapshots
+    assert "multi_party_identity" in result.active_snapshots
+    assert "multi_party_identity" not in result.shadow_snapshots
     assert result.environment_event_id == "wave-1-environment-event"
     assert result.environment_event_kind == EnvironmentEventKind.USER_INPUT.value
 
@@ -144,6 +144,9 @@ def test_agent_session_runner_surfaces_explicit_environment_frame():
     assert result.active_speaker_id == "alice"
     assert result.subject_ids == ("alice",)
     assert result.audience_ids == (SELF_INTERLOCUTOR_ID, "alice")
+    memory_entries = result.active_snapshots["memory"].value.retrieved_entries
+    assert any(entry.subject_ids == ("alice",) for entry in memory_entries)
+    assert any(entry.audience_ids == (SELF_INTERLOCUTOR_ID, "alice") for entry in memory_entries)
 
 
 def test_dialogue_trace_records_and_resolves_next_turn():
@@ -158,7 +161,10 @@ def test_dialogue_trace_records_and_resolves_next_turn():
     assert second.dialogue_trace is not None
     assert second.dialogue_outcome_resolution is not None
     assert second.dialogue_outcome_resolution.status is DialogueResolutionStatus.RESOLVED
-    assert second.dialogue_outcome_resolution.outcome.kind is DialogueOutcomeKind.UNKNOWN
+    assert second.dialogue_outcome_resolution.outcome.kind in {
+        DialogueOutcomeKind.UNKNOWN,
+        DialogueOutcomeKind.CONTINUED,
+    }
     assert second.dialogue_trace_snapshot is not None
     assert len(second.dialogue_trace_snapshot.traces) == 2
     assert second.dialogue_outcome_resolution.previous_trace_id == first.dialogue_trace.trace_id
@@ -166,6 +172,19 @@ def test_dialogue_trace_records_and_resolves_next_turn():
     artifact = runner.export_dialogue_trace_replay_artifact()
     assert artifact["trace_count"] == 2
     assert artifact["resolved_outcome_count"] == 1
+
+
+def test_dialogue_trace_pe_producer_can_be_disabled():
+    runner = AgentSessionRunner(
+        session_id="dialogue-trace-disabled",
+        dialogue_pe_continued_evidence_enabled=False,
+        dialogue_commitment_outcome_evidence_enabled=False,
+    )
+    asyncio.run(runner.run_turn("First turn."))
+    second = asyncio.run(runner.run_turn("Second turn."))
+
+    assert second.dialogue_outcome_resolution is not None
+    assert second.dialogue_outcome_resolution.outcome.kind is DialogueOutcomeKind.UNKNOWN
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():

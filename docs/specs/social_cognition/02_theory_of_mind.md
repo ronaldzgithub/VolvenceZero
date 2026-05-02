@@ -106,6 +106,9 @@ Implemented Phase 2 scaffold:
 - Diagnostic downstream visibility: when ToM owners are explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `belief_about_other` / `intent_about_other` / `feeling_about_other` / `preference_about_other` counts. Planner and renderer still do not consume these snapshots.
 - Evidence report artifact: `lifeform_evolution.run_social_cognition_evidence()` summarizes T1-T3 gates for ToM owner contract, explicit proposal path, and false-belief / preference separation.
 - CLI artifact: `lifeform-bench --social-cognition-evidence-report` prints the report, and `--social-cognition-evidence-json PATH` writes the T1-T3 payload.
+- Structured LLM runtime: `LLMToMProposalRuntime` consumes JSON array output and emits typed `SemanticProposal`s targeted at belief / intent / feeling / preference owners. Malformed JSON falls back, provider exceptions propagate, and low-confidence records are dropped before owner mutation.
+- Owner hardening: ToM owners drop proposals below the owner confidence floor and ignore wrong-target proposals, preserving SHADOW safety and avoiding broad classifier leakage.
+- Evidence gates T4/T5: social cognition evidence now covers structured ToM runtime path and affect/preference separation through `lifeform_evolution.run_social_cognition_evidence()`.
 
 ## 与其他能力域的关系
 
@@ -118,6 +121,7 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-05-02: R17 Phase 2 slice 8 landed: `LLMToMProposalRuntime` structured JSON proposal path with low-confidence filtering, owner hardening, final-wiring diagnostics, and T4/T5 evidence gates.
 - 2026-05-02: R17 Phase 2 slice 5 landed: ToM owner record counts surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R17 Phase 2 slice 6 landed: social cognition evidence report artifact for T1-T3 ToM owner separation gates.
 - 2026-05-02: R17 Phase 2 slice 7 landed: `lifeform-bench` CLI support for social cognition evidence report stdout and JSON artifact.

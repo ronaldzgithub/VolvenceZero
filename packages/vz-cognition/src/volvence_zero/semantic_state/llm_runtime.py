@@ -34,6 +34,9 @@ make the system run a tool".
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import json
+from json import JSONDecodeError
 from typing import Protocol
 
 from volvence_zero.semantic_state import (
@@ -55,11 +58,14 @@ class _GenerateProtocol(Protocol):
 
 
 _VALID_COMMITMENT_LABELS: dict[str, SemanticProposalOperation] = {
-    "create": SemanticProposalOperation.CREATE,
-    "complete": SemanticProposalOperation.COMPLETE,
-    "block": SemanticProposalOperation.BLOCK,
-    "defer": SemanticProposalOperation.DEFER,
     "observe": SemanticProposalOperation.OBSERVE,
+    "create": SemanticProposalOperation.CREATE,
+    "revise": SemanticProposalOperation.REVISE,
+    "defer": SemanticProposalOperation.DEFER,
+    "activate": SemanticProposalOperation.ACTIVATE,
+    "complete": SemanticProposalOperation.COMPLETE,
+    "close": SemanticProposalOperation.CLOSE,
+    "block": SemanticProposalOperation.BLOCK,
 }
 
 
@@ -73,15 +79,27 @@ _COMMITMENT_PROMPT = (
     "{user_input}\n"
     '"""\n'
     "\n"
-    "Pick exactly ONE label from the list:\n"
-    '- "create": user makes a NEW commitment ("I will...", "I\'ll start...", "I want to commit to...")\n'
-    '- "complete": user reports FINISHING a commitment ("I did it", "I finished", "It\'s done")\n'
-    '- "block": user REJECTS, withdraws, or signals inability ("I can\'t", "Sorry I didn\'t", "I won\'t")\n'
-    '- "defer": user asks to POSTPONE a commitment ("can we move it", "later this week", "not today")\n'
-    '- "observe": none of the above; the message is neutral or about something else\n'
+    "Return a compact JSON object with exactly these fields:\n"
+    "{{\n"
+    '  \"operation\": \"observe|create|revise|defer|activate|complete|close|block\",\n'
+    '  \"alignment_evidence\": \"short quote or rationale from the user message\",\n'
+    '  \"confidence\": 0.0\n'
+    "}}\n"
     "\n"
-    "Respond with ONLY the single lowercase label word, no punctuation, no explanation."
+    "Operation meanings:\n"
+    '- \"create\": user makes a NEW commitment.\n'
+    '- \"activate\": assistant should surface an existing commitment.\n'
+    '- \"revise\": user agrees only with changes or conditions.\n'
+    '- \"defer\": user asks to postpone or hold the commitment.\n'
+    '- \"complete\": user reports finishing a commitment.\n'
+    '- \"close\": user wraps up without a stronger completion signal.\n'
+    '- \"block\": user rejects, withdraws, or signals inability.\n'
+    '- \"observe\": none of the above.\n'
+    "\n"
+    "Do not include markdown or explanatory text."
 )
+
+_MIN_STRUCTURED_COMMITMENT_CONFIDENCE = 0.40
 
 
 def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:
@@ -132,30 +150,108 @@ def _parse_commitment_label(text: str) -> SemanticProposalOperation | None:
 
 
 _OPERATION_SUMMARY: dict[SemanticProposalOperation, str] = {
-    SemanticProposalOperation.CREATE: "llm-detected-new-commitment",
-    SemanticProposalOperation.COMPLETE: "llm-detected-completion",
-    SemanticProposalOperation.BLOCK: "llm-detected-block",
-    SemanticProposalOperation.DEFER: "llm-detected-defer",
     SemanticProposalOperation.OBSERVE: "llm-observed-no-commitment-signal",
+    SemanticProposalOperation.CREATE: "llm-detected-new-commitment",
+    SemanticProposalOperation.REVISE: "llm-detected-commitment-revision",
+    SemanticProposalOperation.DEFER: "llm-detected-defer",
+    SemanticProposalOperation.ACTIVATE: "llm-detected-commitment-activation",
+    SemanticProposalOperation.COMPLETE: "llm-detected-completion",
+    SemanticProposalOperation.CLOSE: "llm-detected-close",
+    SemanticProposalOperation.BLOCK: "llm-detected-block",
 }
 
 
 _OPERATION_CONFIDENCE: dict[SemanticProposalOperation, float] = {
-    SemanticProposalOperation.CREATE: 0.55,
-    SemanticProposalOperation.COMPLETE: 0.60,
-    SemanticProposalOperation.BLOCK: 0.60,
-    SemanticProposalOperation.DEFER: 0.50,
     SemanticProposalOperation.OBSERVE: 0.25,
+    SemanticProposalOperation.CREATE: 0.55,
+    SemanticProposalOperation.REVISE: 0.60,
+    SemanticProposalOperation.DEFER: 0.50,
+    SemanticProposalOperation.ACTIVATE: 0.55,
+    SemanticProposalOperation.COMPLETE: 0.60,
+    SemanticProposalOperation.CLOSE: 0.50,
+    SemanticProposalOperation.BLOCK: 0.60,
 }
 
 
 _OPERATION_CONTROL: dict[SemanticProposalOperation, float] = {
-    SemanticProposalOperation.CREATE: 0.10,
-    SemanticProposalOperation.COMPLETE: 0.12,
-    SemanticProposalOperation.BLOCK: 0.10,
-    SemanticProposalOperation.DEFER: 0.06,
     SemanticProposalOperation.OBSERVE: 0.02,
+    SemanticProposalOperation.CREATE: 0.10,
+    SemanticProposalOperation.REVISE: 0.10,
+    SemanticProposalOperation.DEFER: 0.06,
+    SemanticProposalOperation.ACTIVATE: 0.10,
+    SemanticProposalOperation.COMPLETE: 0.12,
+    SemanticProposalOperation.CLOSE: 0.08,
+    SemanticProposalOperation.BLOCK: 0.10,
 }
+
+
+@dataclass(frozen=True)
+class _CommitmentDecision:
+    operation: SemanticProposalOperation
+    evidence: str
+    confidence: float
+    structured: bool
+
+
+def _parse_commitment_decision(text: str) -> _CommitmentDecision | None:
+    """Parse the structured AAC classifier payload.
+
+    JSON is the primary protocol. The legacy single-token label parser remains
+    as a compatibility fallback for small local models and old tests.
+    """
+
+    structured = _parse_structured_commitment_decision(text)
+    if structured is not None:
+        return structured
+    operation = _parse_commitment_label(text)
+    if operation is None:
+        return None
+    return _CommitmentDecision(
+        operation=operation,
+        evidence="",
+        confidence=_OPERATION_CONFIDENCE[operation],
+        structured=False,
+    )
+
+
+def _parse_structured_commitment_decision(text: str) -> _CommitmentDecision | None:
+    raw = text.strip()
+    if not raw.startswith("{"):
+        return None
+    try:
+        payload = json.loads(raw)
+    except JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    operation_raw = payload.get("operation")
+    evidence_raw = payload.get("alignment_evidence")
+    confidence_raw = payload.get("confidence")
+    if not isinstance(operation_raw, str):
+        return None
+    operation = _VALID_COMMITMENT_LABELS.get(operation_raw.strip().lower())
+    if operation is None:
+        return None
+    if not isinstance(evidence_raw, str) or not evidence_raw.strip():
+        return None
+    if isinstance(confidence_raw, bool) or not isinstance(confidence_raw, (int, float)):
+        return None
+    confidence = float(confidence_raw)
+    if confidence < 0.0 or confidence > 1.0:
+        return None
+    if confidence < _MIN_STRUCTURED_COMMITMENT_CONFIDENCE:
+        return _CommitmentDecision(
+            operation=SemanticProposalOperation.OBSERVE,
+            evidence=evidence_raw.strip()[:240],
+            confidence=min(confidence, _OPERATION_CONFIDENCE[SemanticProposalOperation.OBSERVE]),
+            structured=True,
+        )
+    return _CommitmentDecision(
+        operation=operation,
+        evidence=evidence_raw.strip()[:240],
+        confidence=confidence,
+        structured=True,
+    )
 
 
 class LLMSemanticProposalRuntime(SemanticProposalRuntime):
@@ -180,8 +276,7 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         commitment_slot_id: Slot name to upgrade. Defaults to
             ``"commitment"``. Exposed for tests / future expansion.
         max_new_tokens: Upper bound on generated tokens per call.
-            Eight is enough for a single label; raising it costs
-            latency without buying accuracy.
+            Defaults to a small JSON-sized budget for structured AAC output.
     """
 
     runtime_id = "semantic-llm-commitment"
@@ -192,7 +287,7 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         provider: _GenerateProtocol,
         base_runtime: SemanticProposalRuntime | None = None,
         commitment_slot_id: str = "commitment",
-        max_new_tokens: int = 8,
+        max_new_tokens: int = 96,
     ) -> None:
         self._provider = provider
         self._base = base_runtime or NoOpSemanticProposalRuntime()
@@ -224,7 +319,8 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             max_new_tokens=self._max_new_tokens,
             temperature=0.0,
         )
-        operation = _parse_commitment_label(raw)
+        decision = _parse_commitment_decision(raw)
+        operation = decision.operation if decision is not None else None
         # Structural guard: BLOCK / COMPLETE / DEFER only make sense
         # when there's a commitment to act on. Without an active
         # commitment in ``previous_snapshot`` we re-route them to
@@ -234,12 +330,16 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         # to apply lifecycle operations to a non-existent target.
         # CREATE has no precondition (the whole point is to create
         # a new commitment); OBSERVE is always valid.
+        guarded_to_observe = False
         if operation in {
-            SemanticProposalOperation.BLOCK,
-            SemanticProposalOperation.COMPLETE,
             SemanticProposalOperation.DEFER,
+            SemanticProposalOperation.REVISE,
+            SemanticProposalOperation.COMPLETE,
+            SemanticProposalOperation.CLOSE,
+            SemanticProposalOperation.BLOCK,
         } and not _has_active_commitment(previous_snapshot):
             operation = SemanticProposalOperation.OBSERVE
+            guarded_to_observe = True
         if operation is None:
             base_batch = self._base.propose(
                 target_slot=target_slot,
@@ -258,7 +358,16 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
                     f"unparseable label \"{raw[:32]!r}\"."
                 ),
             )
-        evidence = user_input.strip()[:240]
+        evidence = (
+            decision.evidence
+            if decision is not None and decision.evidence
+            else user_input.strip()[:240]
+        )
+        confidence = (
+            decision.confidence
+            if decision is not None and decision.structured and not guarded_to_observe
+            else _OPERATION_CONFIDENCE[operation]
+        )
         proposal = SemanticProposal(
             proposal_id=(
                 f"{target_slot}:llm-{operation.value}:{turn_index}"
@@ -267,7 +376,7 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             operation=operation,
             summary=_OPERATION_SUMMARY[operation],
             detail=evidence,
-            confidence=_OPERATION_CONFIDENCE[operation],
+            confidence=confidence,
             evidence=evidence,
             control_signal=_OPERATION_CONTROL[operation],
         )

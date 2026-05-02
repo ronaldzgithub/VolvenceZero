@@ -10,12 +10,25 @@ from volvence_zero.credit import (
     SelfModificationRecord,
 )
 from volvence_zero.dual_track import DualTrackModule
-from volvence_zero.evaluation import EvaluationModule, EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationModule, EvaluationReport, EvaluationScore, EvaluationSnapshot
+from volvence_zero.integration import SessionPostWritebackRequest
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, PredictedOutcome, ActualOutcome
-from volvence_zero.regime import DelayedOutcomeAttribution, DelayedOutcomePayoff, RegimeModule
-from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
+from volvence_zero.regime import (
+    DelayedOutcomeAttribution,
+    DelayedOutcomePayoff,
+    RegimeIdentity,
+    RegimeModule,
+    RegimeSnapshot,
+)
+from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode, WritebackResult
 from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.agent.session_post_slow_loop import (
+    SessionPostSlowLoopJob,
+    SessionPostSlowLoopModule,
+    SessionPostSlowLoopQueue,
+    SessionPostSlowLoopResult,
+)
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -144,6 +157,115 @@ def test_reflection_consumes_prediction_error_snapshot():
     assert snapshot.consolidation_score.description
 
 
+def test_reflection_consumes_dialogue_pe_and_regime_delayed_evidence_without_mutation():
+    memory_store = MemoryStore()
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=memory_store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="the user rejected a commitment and we need repair",
+            timestamp_ms=21,
+        )
+    ).value
+    prediction_error_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(
+            source_turn_index=1,
+            target_turn_index=2,
+            predicted_task_progress=0.5,
+            predicted_relationship_delta=0.7,
+            predicted_regime_stability=0.7,
+            predicted_action_payoff=0.5,
+            confidence=0.7,
+            description="prior alignment prediction",
+        ),
+        actual_outcome=ActualOutcome(
+            observed_turn_index=2,
+            task_progress=0.4,
+            relationship_delta=0.1,
+            regime_stability=0.4,
+            action_payoff=0.3,
+            description="user rejected commitment",
+        ),
+        next_prediction=PredictedOutcome(
+            source_turn_index=2,
+            target_turn_index=3,
+            predicted_task_progress=0.5,
+            predicted_relationship_delta=0.5,
+            predicted_regime_stability=0.5,
+            predicted_action_payoff=0.5,
+            confidence=0.5,
+            description="repair next",
+        ),
+        error=PredictionError(
+            task_error=-0.1,
+            relationship_error=-0.6,
+            regime_error=-0.3,
+            action_error=-0.2,
+            magnitude=1.2,
+            signed_reward=-0.45,
+            description="alignment_transition[regression] changes=commitment:agree->reject.",
+        ),
+        turn_index=2,
+        bootstrap=False,
+        description="dialogue PE chain",
+    )
+    regime_snapshot = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="repair_and_deescalation",
+            name="repair and de-escalation",
+            embedding=(0.35, 0.80, 0.80),
+            entry_conditions="repair",
+            exit_conditions="stabilized",
+            historical_effectiveness=0.62,
+        ),
+        previous_regime=None,
+        switch_reason="dialogue repair evidence",
+        candidate_regimes=(("repair_and_deescalation", 0.8),),
+        turns_in_current_regime=2,
+        description="repair regime delayed evidence",
+        delayed_outcomes=(("repair_and_deescalation", 0.76),),
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id="repair_and_deescalation",
+                outcome_score=0.76,
+                source_turn_index=2,
+                source_wave_id="wave-repair",
+                abstract_action="repair_controller",
+                action_family_version=7,
+            ),
+        ),
+        delayed_payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="repair_and_deescalation",
+                abstract_action="repair_controller",
+                action_family_version=7,
+                sample_count=2,
+                rolling_payoff=0.74,
+                latest_outcome=0.76,
+                last_source_wave_id="wave-repair",
+            ),
+        ),
+        identity_hints=("identity:relationship:repair after commitment rejection",),
+    )
+
+    before_totals = memory_store.snapshot(retrieved_entries=()).total_entries_by_stratum
+    snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
+            regime_snapshot=regime_snapshot,
+            timestamp_ms=22,
+        )
+    ).value
+
+    assert memory_store.snapshot(retrieved_entries=()).total_entries_by_stratum == before_totals
+    assert "prediction_error_relationship_mismatch" in snapshot.tensions_identified
+    assert "relationship_strategy_mismatch" in snapshot.lessons_extracted
+    assert any(
+        belief.startswith("delayed_regime:repair_and_deescalation")
+        for belief in snapshot.memory_consolidation.beliefs_updated
+    )
+    assert snapshot.policy_consolidation.temporal_prior_update is not None
+
+
 def test_reflection_ignores_runtime_fallback_caution_as_relationship_tension():
     reflection = ReflectionModule(wiring_level=WiringLevel.ACTIVE)
     evaluation_snapshot = asyncio.run(
@@ -270,6 +392,120 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
     engine.rollback(memory_store=store, checkpoint=writeback.checkpoint, regime_module=regime)
     restored_snapshot = store.snapshot(retrieved_entries=())
     assert restored_snapshot.description.startswith("Memory store")
+
+
+def test_reflection_apply_blocks_without_apply_mode_and_preserves_store():
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="existing durable baseline",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            strength=0.7,
+        ),
+        timestamp_ms=50,
+    )
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="candidate reflection content",
+            timestamp_ms=51,
+        )
+    ).value
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            timestamp_ms=52,
+        )
+    ).value
+    before_totals = store.snapshot(retrieved_entries=()).total_entries_by_stratum
+
+    result = ReflectionEngine(writeback_mode=WritebackMode.PROPOSAL_ONLY).apply(
+        memory_store=store,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=None,
+        checkpoint_id="blocked-writeback",
+    )
+
+    assert result.applied_operations == ()
+    assert result.blocked_operations == ("writeback-mode-not-apply",)
+    assert result.checkpoint is None
+    assert store.snapshot(retrieved_entries=()).total_entries_by_stratum == before_totals
+
+
+def test_session_post_slow_loop_publishes_completed_writeback_evidence():
+    async def _worker(job: SessionPostSlowLoopJob) -> SessionPostSlowLoopResult:
+        writeback = WritebackResult(
+            applied_operations=("memory:durable:1",),
+            blocked_operations=(),
+            checkpoint=None,
+            description="applied one durable writeback",
+        )
+        return SessionPostSlowLoopResult(
+            job_id=job.job_id,
+            context_session_id=job.context_session_id,
+            closed_at_turn=job.closed_at_turn,
+            writeback_result=writeback,
+            applied=True,
+            blocked=False,
+            description="completed test slow-loop writeback",
+        )
+
+    reflection_snapshot = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            timestamp_ms=60,
+        )
+    ).value
+    report = EvaluationReport(
+        report_id="report-slow-loop",
+        report_type="session",
+        timestamp_ms=60,
+        session_ids=("session-slow-loop",),
+        scores_by_family=(),
+        alerts=(),
+        trends=(),
+        recommendations=(),
+        description="slow-loop test report",
+    )
+    request = SessionPostWritebackRequest(
+        context_session_id="session-slow-loop",
+        source_wave_id="wave-slow-loop",
+        session_report=report,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=None,
+        evolution_judgement=None,
+        cross_session_verdict="retain",
+        writeback_source="test",
+        reflection_apply_enabled=True,
+        structural_writeback_allowed=True,
+        checkpoint_id="slow-loop-checkpoint",
+        description="slow-loop test request",
+    )
+    job = SessionPostSlowLoopJob(
+        job_id="job-slow-loop",
+        context_session_id="session-slow-loop",
+        closed_at_turn=3,
+        session_report=report,
+        prior_session_report_count=0,
+        trace_count=1,
+        substrate_batch_count=0,
+        prediction_error_summary=(),
+        writeback_request=request,
+        description="slow-loop test job",
+    )
+    queue = SessionPostSlowLoopQueue(worker=_worker)
+    queue.enqueue(job)
+
+    asyncio.run(queue.wait_for_idle())
+    completed = queue.consume_completed_results()
+    snapshot = SessionPostSlowLoopModule(wiring_level=WiringLevel.ACTIVE).publish_snapshot(
+        queue_state=queue.snapshot(),
+        completed_results=completed,
+    ).value
+
+    assert snapshot.queue_state.completed_job_count == 1
+    assert snapshot.recent_results[0].applied is True
+    assert snapshot.recent_results[0].applied_operation_count == 1
+    assert snapshot.last_completed_job_id == "job-slow-loop"
 
 
 def test_reflection_consumes_metacontroller_gate_audit_evidence():

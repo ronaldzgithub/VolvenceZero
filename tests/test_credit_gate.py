@@ -596,6 +596,59 @@ def test_delayed_attribution_credit_records_capture_regime_and_action_history():
     assert all("source_wave_id=wave-3" in record.context for record in records)
 
 
+def test_delayed_attribution_credit_records_capture_dialogue_repair_history():
+    regime_snapshot = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="repair_and_deescalation",
+            name="repair and de-escalation",
+            embedding=(0.3, 0.8, 0.8),
+            entry_conditions="repair",
+            exit_conditions="stabilized",
+            historical_effectiveness=0.64,
+        ),
+        previous_regime=None,
+        switch_reason="dialogue repair evidence",
+        candidate_regimes=(("repair_and_deescalation", 0.86),),
+        turns_in_current_regime=2,
+        description="dialogue repair regime snapshot",
+        delayed_outcomes=(("repair_and_deescalation", 0.81),),
+        delayed_attributions=(
+            DelayedOutcomeAttribution(
+                regime_id="repair_and_deescalation",
+                outcome_score=0.81,
+                source_turn_index=5,
+                source_wave_id="wave-repair",
+                abstract_action="repair_controller",
+                action_family_version=7,
+            ),
+        ),
+        delayed_payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="repair_and_deescalation",
+                abstract_action="repair_controller",
+                action_family_version=7,
+                sample_count=2,
+                rolling_payoff=0.79,
+                latest_outcome=0.81,
+                last_source_wave_id="wave-repair",
+            ),
+        ),
+    )
+
+    records = derive_delayed_attribution_credit_records(
+        regime_snapshot=regime_snapshot,
+        timestamp_ms=180,
+    )
+
+    assert {record.source_event for record in records} == {
+        "delayed_regime:repair_and_deescalation",
+        "delayed_action:repair_controller",
+        "delayed_payoff:repair_and_deescalation",
+        "delayed_payoff_action:repair_controller",
+    }
+    assert all("source_wave_id=wave-repair" in record.context for record in records)
+
+
 def test_nstep_credit_ledger_accumulates_outcomes():
     from volvence_zero.credit import CreditLedger
 

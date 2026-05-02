@@ -12,6 +12,13 @@ from volvence_zero.application.storage import (
     ProvisionalReconcileResult,
     ProvisionalReconcileThresholds,
 )
+from volvence_zero.agent.dialogue_outcome_producers import (
+    tool_outcome_evidence_from_environment_outcome,
+)
+from volvence_zero.dialogue_trace import (
+    DialogueOutcomeEvidence,
+    DialogueOutcomeResolution,
+)
 from volvence_zero.environment import (
     EnvironmentEvent,
     EnvironmentEventKind,
@@ -106,6 +113,12 @@ class BrainSession:
             prediction_id=plan_ref,
             evidence=(f"tool:{tool_name}",),
         )
+        tool_evidence = tool_outcome_evidence_from_environment_outcome(
+            environment_outcome=outcome,
+            tool_name=tool_name,
+        )
+        if tool_evidence:
+            self._runner.attach_dialogue_outcome_evidence(tool_evidence)
         return self.submit_semantic_events(
             semantic_events_from_tool_result(
                 event_id=event_id,
@@ -225,6 +238,19 @@ class BrainSession:
                 )
             )
         raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")
+
+    def submit_dialogue_outcome_evidence(
+        self,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution | None:
+        """Attach typed dialogue outcome evidence to the most recent trace.
+
+        Used by lifeform-side adapters (for example scene close) that
+        observe a structural outcome after the turn finished. Evidence
+        must be machine-readable; raw text is never inspected.
+        """
+
+        return self._runner.attach_dialogue_outcome_evidence(evidence)
 
     def reconcile_case_memory_provisional(
         self,

@@ -51,6 +51,7 @@ from volvence_zero.agent.response import (
     ResponseSynthesizer,
 )
 from volvence_zero.application.domain_experience import DomainExperiencePackage
+from volvence_zero.agent.dialogue_outcome_producers import scene_closed_evidence
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
 from volvence_zero.environment import build_user_input_environment_event
 from volvence_zero.memory import MemoryStore
@@ -798,6 +799,13 @@ class LifeformSession:
             scene_id=scene.scene_id,
             open_loops=open_loop_keys,
             current_tick=self._tick.tick_index,
+        )
+
+        # Attach a typed SCENE_CLOSED evidence to the last dialogue trace
+        # before we cross the kernel boundary so resolved outcome shows
+        # up in the same trace artifact. This is structural, not inferred.
+        self._brain_session.submit_dialogue_outcome_evidence(
+            (scene_closed_evidence(scene_id=scene.scene_id, reason=reason),)
         )
 
         # Hit the kernel boundary so session-post slow loop is enqueued.

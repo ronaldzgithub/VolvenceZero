@@ -139,6 +139,24 @@
 
 ---
 
+### 6C. Emergent Action Abstraction（Phase 0 design freeze，实施待 Phase 1）
+
+**对应需求**：R-PE、R1、R3、R4、R8、R9、R10、R11、R15
+
+| Spec | 内容 |
+|------|------|
+| [emergent-action-abstraction.md](./emergent-action-abstraction.md) | ActionOutcomeTrace 契约、EnvironmentOutcome axis taxonomy、DelayedOutcomeLedger、Replay Store、Action/Outcome Encoder、Affordance Selection Learning 六层架构；把复杂环境反馈压成可预测、可比较、可回放的 event/outcome/PE 序列 |
+
+**核心不变量**：
+- `action_outcome_trace` 由唯一 owner 持有；其他 owner 不得重写开放 trace
+- `EnvironmentOutcome` axes 必须是 owner 派生的结构化数值，禁止关键词分类
+- 延迟结算只通过 typed evidence 进入 `prediction_error`，不旁路 credit / memory / temporal
+- replay store 是 out-of-turn 工件，不参与 turn-time DAG；必须能由 manifest + seed + code sha 重现
+- encoder 是 `temporal_abstraction` 的 readout，不是第二 owner
+- affordance 的选择仍在 `z_t` 空间学，trace 只提供 evidence，不硬编码路由
+
+---
+
 ### 7. 信用分配与自修改
 
 **对应需求**：R-PE（prediction error 为原始学习信号）、R9（层级信用分配）、R10（有门控的分层自修改）

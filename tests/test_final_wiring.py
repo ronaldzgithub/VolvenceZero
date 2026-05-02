@@ -334,12 +334,12 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "consent_compliance" in metric_names
 
 
-def test_final_wiring_publishes_multi_party_identity_shadow_scaffold():
+def test_final_wiring_publishes_multi_party_identity_active_scaffold():
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
-                model_id="social-identity-shadow-model",
+                model_id="social-identity-active-model",
                 feature_surface=(
                     FeatureSignal(name="social_identity_context", values=(0.5,), source="adapter"),
                 ),
@@ -349,8 +349,8 @@ def test_final_wiring_publishes_multi_party_identity_shadow_scaffold():
         )
     )
 
-    assert "multi_party_identity" not in result.active_snapshots
-    snapshot = result.shadow_snapshots["multi_party_identity"]
+    assert "multi_party_identity" in result.active_snapshots
+    snapshot = result.active_snapshots["multi_party_identity"]
     value = snapshot.value
     assert isinstance(value, MultiPartyIdentitySnapshot)
     assert value.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
@@ -392,13 +392,32 @@ def test_final_wiring_multi_party_identity_consumes_environment_frame():
         )
     )
 
-    snapshot = result.shadow_snapshots["multi_party_identity"]
+    snapshot = result.active_snapshots["multi_party_identity"]
     value = snapshot.value
     assert isinstance(value, MultiPartyIdentitySnapshot)
     assert value.active_speaker_id == "alice"
     assert value.subject_ids == ("alice",)
     assert value.audience_ids == (SELF_INTERLOCUTOR_ID, "alice")
     assert "env-frame-1" in value.description
+
+
+def test_final_wiring_multi_party_identity_kill_switch_rolls_back_to_disabled():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(kill_switches=frozenset({"multi_party_identity"})),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="environment-frame-kill-switch-model",
+                feature_surface=(
+                    FeatureSignal(name="environment_frame", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="environment-frame-kill-switch-session",
+            wave_id="environment-frame-kill-switch-wave",
+        )
+    )
+
+    assert "multi_party_identity" not in result.active_snapshots
+    assert "multi_party_identity" not in result.shadow_snapshots
 
 
 def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
@@ -424,8 +443,8 @@ def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
     assert isinstance(error_value, SocialPredictionErrorSnapshot)
     assert prediction_value.predictions == ()
     assert error_value.errors == ()
-    assert "R16 SHADOW scaffold" in prediction_value.description
-    assert "R16 SHADOW scaffold" in error_value.description
+    assert "scope=default-or-missing" in prediction_value.description
+    assert "memory_visibility_pe=0" in error_value.description
 
 
 def test_final_wiring_publishes_empty_tom_owner_shadow_scaffolds():
@@ -459,23 +478,23 @@ def test_final_wiring_publishes_empty_tom_owner_shadow_scaffolds():
         assert "R17 SHADOW scaffold" in value.description
 
 
-def test_final_wiring_publishes_conversational_role_shadow_scaffold():
+def test_final_wiring_publishes_conversational_role_active_scaffold():
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
-                model_id="role-shadow-model",
+                model_id="role-active-model",
                 feature_surface=(
                     FeatureSignal(name="role_context", values=(0.5,), source="adapter"),
                 ),
             ),
-            session_id="role-shadow-session",
-            wave_id="role-shadow-wave",
+            session_id="role-active-session",
+            wave_id="role-active-wave",
         )
     )
 
-    assert "conversational_role" not in result.active_snapshots
-    value = result.shadow_snapshots["conversational_role"].value
+    assert "conversational_role" in result.active_snapshots
+    value = result.active_snapshots["conversational_role"].value
     assert isinstance(value, ConversationalRoleSnapshot)
     assert value.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
     assert value.addressee_ids == (SELF_INTERLOCUTOR_ID,)
@@ -518,7 +537,7 @@ def test_final_wiring_conversational_role_consumes_environment_frame():
         )
     )
 
-    value = result.shadow_snapshots["conversational_role"].value
+    value = result.active_snapshots["conversational_role"].value
     assert isinstance(value, ConversationalRoleSnapshot)
     assert value.active_speaker_id == "alice"
     assert value.addressee_ids == ("bob",)
@@ -534,6 +553,25 @@ def test_final_wiring_conversational_role_consumes_environment_frame():
     assert prediction.scope_id == "alice"
     assert prediction.subject_ids == ("carol",)
     assert prediction.audience_ids == ("bob", "alice")
+
+
+def test_final_wiring_conversational_role_kill_switch_disables_active_role():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(kill_switches=frozenset({"conversational_role"})),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="role-kill-switch-model",
+                feature_surface=(
+                    FeatureSignal(name="role_kill_switch", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="role-kill-switch-session",
+            wave_id="role-kill-switch-wave",
+        )
+    )
+
+    assert "conversational_role" not in result.active_snapshots
+    assert "conversational_role" not in result.shadow_snapshots
 
 
 def test_response_assembly_surfaces_conversational_role_prediction_count_diagnostically():

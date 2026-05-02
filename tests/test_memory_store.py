@@ -932,3 +932,97 @@ def test_memory_module_consumes_prediction_error_snapshot():
     all_contents = tuple(entry.content for entry in module.store._entries.values())
     assert any("prediction_error:" in content for content in all_contents)
 
+
+def test_memory_store_retrieve_filters_cross_scope_entries_in_multi_party_mode():
+    """R16 Slice 11: ``MemoryStore.retrieve`` strictly filters by active
+    subject scope in multi-party mode and reports suppressed entries.
+    """
+    store = MemoryStore()
+    bob_entry = store.write(
+        MemoryWriteRequest(
+            content="bob prefers careful planning before product decisions",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference", "planning"),
+            strength=0.85,
+            subject_ids=("bob",),
+            audience_ids=(SELF_INTERLOCUTOR_ID, "bob"),
+        ),
+        timestamp_ms=10,
+    )
+    alice_entry = store.write(
+        MemoryWriteRequest(
+            content="alice prefers careful planning before product decisions",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference", "planning"),
+            strength=0.85,
+            subject_ids=("alice",),
+            audience_ids=(SELF_INTERLOCUTOR_ID, "alice"),
+        ),
+        timestamp_ms=11,
+    )
+
+    result = store.retrieve(
+        RetrievalQuery(
+            text="careful planning product decisions",
+            track=Track.SHARED,
+            strata=(MemoryStratum.DURABLE,),
+            limit=5,
+        ),
+        timestamp_ms=20,
+        active_subject_ids=("alice",),
+    )
+
+    retrieved_ids = tuple(entry.entry_id for entry in result.entries)
+    suppressed_ids = tuple(
+        entry.entry_id for entry in result.suppressed_cross_scope_entries
+    )
+    assert alice_entry.entry_id in retrieved_ids
+    assert bob_entry.entry_id in suppressed_ids
+    assert alice_entry.entry_id not in suppressed_ids
+    assert result.active_subject_scope == ("alice",)
+
+
+def test_memory_store_retrieve_without_scope_filter_returns_all_subjects():
+    """When ``active_subject_ids`` is ``None`` retrieval is unfiltered for
+    backward compatibility with single-party tests.
+    """
+    store = MemoryStore()
+    store.write(
+        MemoryWriteRequest(
+            content="alice planning preference",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference",),
+            strength=0.8,
+            subject_ids=("alice",),
+        ),
+        timestamp_ms=10,
+    )
+    store.write(
+        MemoryWriteRequest(
+            content="bob planning preference",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference",),
+            strength=0.8,
+            subject_ids=("bob",),
+        ),
+        timestamp_ms=11,
+    )
+
+    result = store.retrieve(
+        RetrievalQuery(
+            text="planning preference",
+            track=Track.SHARED,
+            strata=(MemoryStratum.DURABLE,),
+            limit=5,
+        ),
+        timestamp_ms=20,
+    )
+
+    assert len(result.entries) == 2
+    assert result.suppressed_cross_scope_entries == ()
+    assert result.active_subject_scope == ()
+

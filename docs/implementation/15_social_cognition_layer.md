@@ -35,7 +35,7 @@
 
 **预计**：3-4 周，4-6 个 PR。
 
-**当前状态（2026-05-02）**：slices 1-10 已落地为 SHADOW-compatible scaffold，不改变默认 companion 行为。已完成 shared contracts、`MultiPartyIdentityModule` SHADOW owner、`ResponseContext` / `AgentTurnResult` scope readout、memory subject/audience scope、MemoryModule ACTIVE identity-scope consumption path、social prediction / social PE SHADOW scaffolds、manual social PE → credit carry path、Companion Evidence C5 default-social-scope gate 与 CLI JSON artifact 断言。
+**当前状态（2026-05-02）**：slices 1-11 已落地。slices 1-10 是 SHADOW-compatible scaffold（不改变默认 companion 行为）。Slice 11 是 R16 第一刀真正的 ACTIVE 行为：当 host 显式传入 multi-party `EnvironmentEvent` 并把 `multi_party_identity` / `social_prediction` / `social_prediction_error` 配置为 ACTIVE 时，`MemoryStore.retrieve` 按 active subject scope 严格过滤、暴露 `suppressed_cross_scope_entries`；`SocialPredictionAggregateModule` 自发产生 `MEMORY_VISIBILITY` `SocialPrediction`；`SocialPredictionErrorModule` 自动从被压制的条目派生 `DISCONFIRMED` `SocialPredictionError`；自发的 social PE 通过既有 `derive_social_prediction_error_credit_records` 写入 credit ledger，全程无需 test-side `pending_errors` 注入。默认配置（无 EnvironmentEvent / SHADOW wiring）不改变 companion 行为，C5 默认 scope gate 仍然成立。
 
 ### 1.1 Scope
 
@@ -69,7 +69,7 @@
 
 ### 1.4 Social PE gates
 
-- Misattribution probe: deliberately route Alice preference into Bob context; assert `social_prediction_error` records wrong-person attribution.
+- Misattribution probe: deliberately route Alice preference into Bob context; assert `social_prediction_error` records wrong-person attribution. **(Slice 11 landed: `tests/test_social_memory_visibility_loop.py` covers self-emitted prediction → self-derived PE → credit ledger without injection.)**
 - Audience leakage probe: private memory exposed to wrong audience creates social PE.
 - Identity merge/split probe: conflicting aliases create stale / conflict evidence instead of silent overwrite.
 

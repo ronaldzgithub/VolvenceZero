@@ -15,10 +15,10 @@ def test_companion_evidence_report_passes_all_current_gates() -> None:
     text = format_companion_evidence_report(report)
 
     assert report.passed is True
-    assert {gate.gate_id for gate in report.gates} == {"C1", "C2", "C3", "C4", "C5"}
+    assert {gate.gate_id for gate in report.gates} == {"C1", "C2", "C3", "C4", "C5", "AAC1", "RGM1", "RFL1"}
     assert payload["passed"] is True
     assert 0.0 <= payload["composite_score"] <= 1.0
-    assert len(payload["gates"]) == 5
+    assert len(payload["gates"]) == 8
     assert len(payload["transcripts"]) == 4
     first_turn = payload["transcripts"][0]["turns"][0]
     assert first_turn["active_speaker_id"] == "primary"
@@ -33,6 +33,9 @@ def test_companion_evidence_report_passes_all_current_gates() -> None:
     assert "[C1] PASS" in text
     assert "[C4] PASS" in text
     assert "[C5] PASS" in text
+    assert "[AAC1] PASS" in text
+    assert "[RGM1] PASS" in text
+    assert "[RFL1] PASS" in text
 
 
 def test_companion_evidence_cli_writes_json(tmp_path) -> None:
@@ -56,7 +59,7 @@ def test_companion_evidence_cli_writes_json(tmp_path) -> None:
     assert exit_code == 0
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["passed"] is True
-    assert {gate["gate_id"] for gate in payload["gates"]} == {"C1", "C2", "C3", "C4", "C5"}
+    assert {gate["gate_id"] for gate in payload["gates"]} == {"C1", "C2", "C3", "C4", "C5", "AAC1", "RGM1", "RFL1"}
     c5 = next(gate for gate in payload["gates"] if gate["gate_id"] == "C5")
     assert c5["passed"] is True
     assert c5["metrics"]["social_prediction_count"] == 0.0

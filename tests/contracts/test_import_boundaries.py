@@ -59,7 +59,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_role", "social_tom", "social_common_ground", "social_group", "social_cognition", "environment",
+            "social_identity", "social_role", "social_tom", "social_common_ground",
+            "social_common_ground_runtime", "social_group", "social_cognition", "environment",
         }
     ),
     "vz-temporal": frozenset(
@@ -68,7 +69,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_role", "social_tom", "social_common_ground", "social_group", "social_cognition", "environment",
+            "social_identity", "social_role", "social_tom", "social_common_ground",
+            "social_common_ground_runtime", "social_group", "social_cognition", "environment",
             # vz-application:
             "application",
         }
@@ -79,7 +81,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
-            "social_identity", "social_role", "social_tom", "social_common_ground", "social_group", "social_cognition", "environment",
+            "social_identity", "social_role", "social_tom", "social_common_ground",
+            "social_common_ground_runtime", "social_group", "social_cognition", "environment",
             # vz-application:
             "application",
             # everything in vz-temporal:

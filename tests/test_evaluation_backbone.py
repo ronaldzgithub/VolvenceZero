@@ -157,6 +157,65 @@ def test_evaluation_backbone_records_delayed_action_and_regime_payoff():
     assert "rolling_action_payoff" in metrics
 
 
+def test_evaluation_backbone_records_dialogue_repair_delayed_readouts():
+    backbone = EvaluationBackbone()
+    enriched = backbone.record_learning_evidence(
+        session_id="s-repair",
+        wave_id="w-repair",
+        timestamp_ms=26,
+        base_snapshot=EvaluationSnapshot(turn_scores=(), session_scores=(), alerts=(), description="base"),
+        memory_snapshot=None,
+        reflection_snapshot=None,
+        writeback_result=None,
+        joint_loop_result=None,
+        regime_snapshot=RegimeSnapshot(
+            active_regime=RegimeIdentity(
+                regime_id="repair_and_deescalation",
+                name="repair and de-escalation",
+                embedding=(0.3, 0.8, 0.8),
+                entry_conditions="repair",
+                exit_conditions="stable",
+                historical_effectiveness=0.64,
+            ),
+            previous_regime=None,
+            switch_reason="dialogue repair evidence",
+            candidate_regimes=(("repair_and_deescalation", 0.86),),
+            turns_in_current_regime=2,
+            description="dialogue repair regime snapshot",
+            delayed_outcomes=(("repair_and_deescalation", 0.81),),
+            delayed_attributions=(
+                DelayedOutcomeAttribution(
+                    regime_id="repair_and_deescalation",
+                    outcome_score=0.81,
+                    source_turn_index=5,
+                    source_wave_id="wave-repair",
+                    abstract_action="repair_controller",
+                    action_family_version=7,
+                ),
+            ),
+            delayed_payoffs=(
+                DelayedOutcomePayoff(
+                    regime_id="repair_and_deescalation",
+                    abstract_action="repair_controller",
+                    action_family_version=7,
+                    sample_count=2,
+                    rolling_payoff=0.79,
+                    latest_outcome=0.81,
+                    last_source_wave_id="wave-repair",
+                ),
+            ),
+        ),
+    )
+
+    scores = {score.metric_name: score for score in enriched.turn_scores}
+    assert "delayed_regime_alignment" in scores
+    assert "delayed_action_alignment" in scores
+    assert "regime_sequence_payoff" in scores
+    assert "delayed_credit_horizon" in scores
+    assert "rolling_action_payoff" in scores
+    assert scores["delayed_regime_alignment"].evidence
+
+
 def test_evaluation_module_consumes_runtime_chain_actively():
     store = MemoryStore()
     store.write(

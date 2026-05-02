@@ -14,7 +14,20 @@ from dataclasses import dataclass
 from lifeform_domain_emogpt import build_companion_lifeform, scenarios_dir
 from lifeform_evolution.scenario_pack import load_scenarios
 from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
-from volvence_zero.memory import build_default_memory_store
+from volvence_zero.dual_track import DualTrackSnapshot, TrackState
+from volvence_zero.credit import derive_delayed_attribution_credit_records
+from volvence_zero.evaluation import EvaluationBackbone, EvaluationScore, EvaluationSnapshot
+from volvence_zero.memory import MemoryModule, Track, build_default_memory_store
+from volvence_zero.prediction import PredictionErrorModule
+from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
+from volvence_zero.regime import RegimeIdentity, RegimeModule, RegimeSnapshot
+from volvence_zero.semantic_state import (
+    AdvocacyState,
+    AlignmentState,
+    CommitmentLifecycleEntry,
+    CommitmentSnapshot,
+    FollowupPolicy,
+)
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
@@ -72,6 +85,9 @@ async def run_companion_evidence_async() -> CompanionEvidenceReport:
         await _cross_session_retention_gate(),
         _default_isolation_gate(),
         await _social_scope_default_gate(),
+        await _aac_alignment_pe_repair_visibility_gate(),
+        await _regime_delayed_attribution_visibility_gate(),
+        await _reflection_writeback_stability_gate(),
     )
     transcripts = await _collect_widening_transcripts()
     transcript_score = _transcript_diversity_score(transcripts)
@@ -212,7 +228,7 @@ async def _social_scope_default_gate() -> CompanionEvidenceGate:
     session = _build_evidence_lifeform().create_session(session_id="evidence-social-scope")
     result = await session.run_turn("Help me think through this gently.")
 
-    identity_snapshot = result.shadow_snapshots.get("multi_party_identity")
+    identity_snapshot = result.active_snapshots.get("multi_party_identity")
     prediction_snapshot = result.shadow_snapshots.get("social_prediction")
     social_pe_snapshot = result.shadow_snapshots.get("social_prediction_error")
     prediction_count = (
@@ -246,8 +262,322 @@ async def _social_scope_default_gate() -> CompanionEvidenceGate:
         ),
         summary=(
             "Single-party companion evidence stays scoped to primary/self while "
-            "R16 social prediction and social PE slots publish empty SHADOW readouts."
+            "R16 identity is ACTIVE and social prediction / social PE slots publish empty SHADOW readouts."
         ),
+    )
+
+
+async def _aac_alignment_pe_repair_visibility_gate() -> CompanionEvidenceGate:
+    module = PredictionErrorModule()
+    agree = _aac_commitment_snapshot(
+        record_id="aac-repair-commitment",
+        alignment_state=AlignmentState.AGREE,
+        followup_policy=FollowupPolicy.GENTLE_CHECKIN,
+    )
+    reject = _aac_commitment_snapshot(
+        record_id="aac-repair-commitment",
+        alignment_state=AlignmentState.REJECT,
+        followup_policy=FollowupPolicy.DEFER_ONLY,
+    )
+    first = await module.process_standalone(
+        turn_index=1,
+        evaluation_snapshot=_aac_evaluation_snapshot(),
+        dual_track_snapshot=_aac_dual_track_snapshot(),
+        regime_snapshot=_aac_regime_snapshot(),
+        commitment_snapshot=agree,
+    )
+    second = await module.process_standalone(
+        previous_prediction=first.value.next_prediction,
+        turn_index=2,
+        evaluation_snapshot=_aac_evaluation_snapshot(),
+        dual_track_snapshot=_aac_dual_track_snapshot(),
+        regime_snapshot=_aac_regime_snapshot(),
+        commitment_snapshot=reject,
+    )
+    from lifeform_core import FollowupManager
+
+    followups = FollowupManager()
+    queued = followups.ingest_commitment_lifecycle(
+        lifecycle_entries=reject.lifecycle_entries,
+        current_tick=10,
+    )
+    pe = second.value.error
+    passed = (
+        "alignment_transition[regression]" in pe.description
+        and "agree->reject" in pe.description
+        and pe.relationship_error < 0.0
+        and pe.signed_reward < 0.0
+        and len(queued) == 1
+        and queued[0].source == "commitment-lifecycle"
+        and queued[0].metadata.get("policy") == FollowupPolicy.DEFER_ONLY.value
+    )
+    return CompanionEvidenceGate(
+        gate_id="AAC1",
+        name="aac alignment pe repair visibility",
+        passed=passed,
+        metrics=(
+            ("relationship_error", pe.relationship_error),
+            ("signed_reward", pe.signed_reward),
+            ("followup_count", float(len(queued))),
+        ),
+        summary=(
+            "Commitment alignment rejection is visible as relationship PE "
+            "and produces defer-only repair follow-up policy."
+        ),
+    )
+
+
+async def _regime_delayed_attribution_visibility_gate() -> CompanionEvidenceGate:
+    module = RegimeModule(attribution_horizons=(2,))
+    dual_track = _regime_evidence_dual_track_snapshot()
+    evaluation = _regime_evidence_evaluation_snapshot()
+    first = await module.process_standalone(
+        dual_track_snapshot=dual_track,
+        evaluation_snapshot=evaluation,
+    )
+    second = await module.process_standalone(
+        dual_track_snapshot=dual_track,
+        evaluation_snapshot=evaluation,
+    )
+    third = await module.process_standalone(
+        dual_track_snapshot=dual_track,
+        evaluation_snapshot=evaluation,
+    )
+    delayed_ready = (
+        not first.value.delayed_attributions
+        and not second.value.delayed_attributions
+        and bool(third.value.delayed_attributions)
+        and bool(third.value.delayed_payoffs)
+        and bool(third.value.sequence_payoffs)
+    )
+    credit_records = derive_delayed_attribution_credit_records(
+        regime_snapshot=third.value,
+        timestamp_ms=260,
+    )
+    enriched = EvaluationBackbone().record_learning_evidence(
+        session_id="companion-regime-delayed",
+        wave_id="companion-regime-delayed-wave",
+        timestamp_ms=261,
+        base_snapshot=EvaluationSnapshot(
+            turn_scores=(),
+            session_scores=(),
+            alerts=(),
+            description="base companion regime evidence",
+        ),
+        memory_snapshot=None,
+        reflection_snapshot=None,
+        writeback_result=None,
+        joint_loop_result=None,
+        regime_snapshot=third.value,
+    )
+    metrics = {score.metric_name for score in enriched.turn_scores}
+    passed = (
+        delayed_ready
+        and any(record.source_event.startswith("delayed_regime:") for record in credit_records)
+        and any(record.source_event.startswith("delayed_action:") for record in credit_records)
+        and "delayed_regime_alignment" in metrics
+        and "delayed_action_alignment" in metrics
+        and "regime_sequence_payoff" in metrics
+    )
+    return CompanionEvidenceGate(
+        gate_id="RGM1",
+        name="regime delayed attribution visibility",
+        passed=passed,
+        metrics=(
+            ("delayed_attribution_count", float(len(third.value.delayed_attributions))),
+            ("delayed_credit_count", float(len(credit_records))),
+            ("evaluation_delayed_metric_count", float(len(metrics))),
+        ),
+        summary=(
+            "Dialogue-like repair/support regime evidence produces delayed "
+            "attributions, credit records, and evaluation readout metrics."
+        ),
+    )
+
+
+async def _reflection_writeback_stability_gate() -> CompanionEvidenceGate:
+    store = build_default_memory_store()
+    memory_snapshot = (
+        await MemoryModule(store=store).process_standalone(
+            user_text="remember repair evidence should become durable carefully",
+            timestamp_ms=300,
+        )
+    ).value
+    regime = RegimeModule(attribution_horizons=(2,))
+    dual_track = _regime_evidence_dual_track_snapshot()
+    evaluation = _regime_evidence_evaluation_snapshot()
+    await regime.process_standalone(
+        dual_track_snapshot=dual_track,
+        evaluation_snapshot=evaluation,
+    )
+    await regime.process_standalone(
+        dual_track_snapshot=dual_track,
+        evaluation_snapshot=evaluation,
+    )
+    regime_snapshot = (
+        await regime.process_standalone(
+            dual_track_snapshot=dual_track,
+            evaluation_snapshot=evaluation,
+        )
+    ).value
+    reflection_snapshot = (
+        await ReflectionModule(
+            engine=ReflectionEngine(writeback_mode=WritebackMode.APPLY),
+        ).process_standalone(
+            memory_snapshot=memory_snapshot,
+            regime_snapshot=regime_snapshot,
+            timestamp_ms=301,
+        )
+    ).value
+    engine = ReflectionEngine(writeback_mode=WritebackMode.APPLY)
+    result = engine.apply(
+        memory_store=store,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=None,
+        regime_module=regime,
+        checkpoint_id="rfl1-checkpoint",
+    )
+    checkpoint_present = result.checkpoint is not None
+    applied = bool(result.applied_operations)
+    if result.checkpoint is not None:
+        engine.rollback(memory_store=store, checkpoint=result.checkpoint, regime_module=regime)
+    passed = (
+        applied
+        and checkpoint_present
+        and not result.blocked_operations
+        and reflection_snapshot.consolidation_score.description
+    )
+    return CompanionEvidenceGate(
+        gate_id="RFL1",
+        name="reflection writeback stability",
+        passed=passed,
+        metrics=(
+            ("applied_operation_count", float(len(result.applied_operations))),
+            ("blocked_operation_count", float(len(result.blocked_operations))),
+            ("new_durable_entry_count", float(len(reflection_snapshot.memory_consolidation.new_durable_entries))),
+        ),
+        summary=(
+            "Reflection consumes dialogue slow-loop evidence and applies bounded "
+            "memory/regime writeback with checkpoint/rollback."
+        ),
+    )
+
+
+def _regime_evidence_dual_track_snapshot() -> DualTrackSnapshot:
+    return DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("resolve-next-step",),
+            recent_credits=(),
+            controller_code=(0.2, 0.3),
+            tension_level=0.25,
+            abstract_action_hint="repair_controller",
+            action_family_version_hint=7,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("repair-rupture",),
+            recent_credits=(),
+            controller_code=(0.4, 0.7),
+            tension_level=0.72,
+            abstract_action_hint="repair_controller",
+            action_family_version_hint=7,
+        ),
+        cross_track_tension=0.55,
+        description="companion evidence repair/support delayed attribution",
+    )
+
+
+def _regime_evidence_evaluation_snapshot() -> EvaluationSnapshot:
+    return EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("interaction", "warmth", 0.82, 0.8, "repair warmth recovered"),
+            EvaluationScore("relationship", "cross_track_stability", 0.86, 0.8, "relationship stabilized"),
+            EvaluationScore("task", "info_integration", 0.62, 0.7, "task secondary"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="companion evidence repair/support evaluation",
+    )
+
+
+def _aac_commitment_snapshot(
+    *,
+    record_id: str,
+    alignment_state: AlignmentState,
+    followup_policy: FollowupPolicy,
+) -> CommitmentSnapshot:
+    return CommitmentSnapshot(
+        active_commitments=(record_id,),
+        honored_commitment_refs=(),
+        at_risk_commitments=(),
+        trust_obligation_count=1,
+        continuity_score=0.5,
+        control_signal=0.4,
+        description=f"AAC evidence alignment={alignment_state.value}",
+        lifecycle_entries=(
+            CommitmentLifecycleEntry(
+                record_id=record_id,
+                advocacy_state=AdvocacyState.PROPOSED,
+                alignment_state=alignment_state,
+                followup_policy=followup_policy,
+            ),
+        ),
+    )
+
+
+def _aac_evaluation_snapshot() -> EvaluationSnapshot:
+    return EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "task_pressure", 0.6, 0.8, "task"),
+            EvaluationScore("relationship", "relationship_continuity", 0.6, 0.8, "rel"),
+            EvaluationScore("learning", "joint_learning_progress", 0.6, 0.8, "learn"),
+            EvaluationScore("abstraction", "abstract_action_usefulness", 0.6, 0.8, "abs"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="aac evidence evaluation",
+    )
+
+
+def _aac_dual_track_snapshot() -> DualTrackSnapshot:
+    return DualTrackSnapshot(
+        world_track=TrackState(
+            track=Track.WORLD,
+            active_goals=("commitment",),
+            recent_credits=(),
+            controller_code=(0.2, 0.3),
+            tension_level=0.3,
+        ),
+        self_track=TrackState(
+            track=Track.SELF,
+            active_goals=("repair",),
+            recent_credits=(),
+            controller_code=(0.3, 0.2),
+            tension_level=0.6,
+        ),
+        cross_track_tension=0.4,
+        description="aac evidence dual track",
+    )
+
+
+def _aac_regime_snapshot() -> RegimeSnapshot:
+    regime = RegimeIdentity(
+        regime_id="repair_and_deescalation",
+        name="repair and de-escalation",
+        embedding=(0.2, 0.1, 0.3),
+        entry_conditions="alignment repair",
+        exit_conditions="repair complete",
+        historical_effectiveness=0.6,
+    )
+    return RegimeSnapshot(
+        active_regime=regime,
+        previous_regime=None,
+        switch_reason="aac evidence",
+        candidate_regimes=(("repair_and_deescalation", 0.6),),
+        turns_in_current_regime=1,
+        description="aac evidence regime",
+        effectiveness_trend=(("repair_and_deescalation", 0.6),),
     )
 
 

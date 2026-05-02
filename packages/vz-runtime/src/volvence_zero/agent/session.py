@@ -56,11 +56,17 @@ from volvence_zero.application.knowledge_channels import (
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
 from volvence_zero.agent.dialogue_trace import DialogueTraceStore
+from volvence_zero.agent.dialogue_outcome_producers import (
+    commitment_outcome_evidence_from_commitment,
+    pe_continued_evidence_from_prediction_error,
+)
+from volvence_zero.dialogue_trace import DialogueOutcomeEvidence
 from volvence_zero.credit.gate import (
     GateDecision,
     ModificationGate,
     ModificationProposal,
     SelfModificationRecord,
+    derive_dialogue_outcome_credit_records,
     extend_credit_snapshot,
     evaluate_gate,
 )
@@ -547,8 +553,12 @@ class AgentSessionRunner:
         external_prediction_error_drive: bool = True,
         prediction_error_readout_only: bool = False,
         primary_prediction_error_dominance_enabled: bool = True,
+        dialogue_pe_continued_evidence_enabled: bool = True,
+        dialogue_commitment_outcome_evidence_enabled: bool = True,
     ) -> None:
         self._session_id = session_id
+        self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
+        self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
         world_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
@@ -732,6 +742,12 @@ class AgentSessionRunner:
 
     def export_dialogue_trace_replay_artifact(self) -> dict[str, object]:
         return self._dialogue_trace_store.export_replay_artifact()
+
+    def attach_dialogue_outcome_evidence(
+        self,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution | None:
+        return self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(evidence)
 
     def enqueue_semantic_events(
         self,
@@ -3309,6 +3325,35 @@ class AgentSessionRunner:
         else:
             shadow_snapshots["experience_fast_prior"] = experience_fast_prior_snapshot
 
+        outcome_evidence: tuple[DialogueOutcomeEvidence, ...] = ()
+        if self._dialogue_pe_continued_evidence_enabled:
+            pe_snapshot = active_snapshots.get("prediction_error") or shadow_snapshots.get(
+                "prediction_error"
+            )
+            outcome_evidence = (
+                *outcome_evidence,
+                *pe_continued_evidence_from_prediction_error(
+                    prediction_error_snapshot=(
+                        pe_snapshot.value if pe_snapshot is not None else None
+                    ),
+                    wave_id=wave_id,
+                ),
+            )
+        if self._dialogue_commitment_outcome_evidence_enabled:
+            commitment_snapshot = active_snapshots.get("commitment") or shadow_snapshots.get(
+                "commitment"
+            )
+            outcome_evidence = (
+                *outcome_evidence,
+                *commitment_outcome_evidence_from_commitment(
+                    commitment_snapshot=(
+                        commitment_snapshot.value if commitment_snapshot is not None else None
+                    ),
+                    wave_id=wave_id,
+                    current_turn_index=self._turn_index,
+                ),
+            )
+
         dialogue_trace, dialogue_outcome_resolution = self._dialogue_trace_store.record_action(
             session_id=self.active_context_session_id,
             wave_id=wave_id,
@@ -3322,8 +3367,38 @@ class AgentSessionRunner:
             evaluated_prediction=evaluated_prediction,
             actual_outcome=actual_outcome,
             prediction_error=prediction_error,
+            outcome_evidence=outcome_evidence,
         )
         dialogue_trace_snapshot = self._dialogue_trace_store.snapshot()
+        if outcome_evidence:
+            credit_snapshot = active_snapshots.get("credit") or shadow_snapshots.get("credit")
+            if credit_snapshot is not None:
+                dialogue_credit_records = derive_dialogue_outcome_credit_records(
+                    outcome_evidence=outcome_evidence,
+                    timestamp_ms=max(
+                        credit_snapshot.timestamp_ms + 1,
+                        self._turn_index,
+                    ),
+                )
+                if dialogue_credit_records:
+                    extended_credit = extend_credit_snapshot(
+                        credit_snapshot=credit_snapshot.value,
+                        extra_records=dialogue_credit_records,
+                    )
+                    new_credit_snapshot = Snapshot(
+                        slot_name="credit",
+                        owner=credit_snapshot.owner,
+                        version=credit_snapshot.version + 1,
+                        timestamp_ms=max(
+                            credit_snapshot.timestamp_ms + 1,
+                            self._turn_index,
+                        ),
+                        value=extended_credit,
+                    )
+                    if "credit" in active_snapshots:
+                        active_snapshots["credit"] = new_credit_snapshot
+                    else:
+                        shadow_snapshots["credit"] = new_credit_snapshot
 
         return AgentTurnResult(
             session_id=self.active_context_session_id,

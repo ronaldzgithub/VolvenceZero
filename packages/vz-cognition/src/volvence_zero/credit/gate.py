@@ -371,6 +371,59 @@ def extend_credit_snapshot(
     )
 
 
+_DIALOGUE_OUTCOME_KIND_SIGN: dict[str, float] = {
+    "continued": 1.0,
+    "clarified": 1.0,
+    "corrected": -1.0,
+    "rejected": -1.0,
+    "deferred": 0.25,
+    "scene_closed": 0.0,
+    "unknown": 0.0,
+}
+
+
+def derive_dialogue_outcome_credit_records(
+    *,
+    outcome_evidence: tuple[object, ...],
+    timestamp_ms: int,
+    track: Track = Track.SHARED,
+) -> tuple[CreditRecord, ...]:
+    """Derive turn-level credit records from typed dialogue outcome evidence.
+
+    Each entry in ``outcome_evidence`` must be a frozen
+    ``DialogueOutcomeEvidence`` produced by an owner or evaluation
+    readout. The credit value is the signed product of evidence
+    confidence and a fixed structural sign per outcome kind. The trace
+    layer stays evidence-only; this helper turns owner-published
+    evidence into ledger entries without inventing semantics.
+    """
+
+    records: list[CreditRecord] = []
+    for evidence in outcome_evidence:
+        outcome_kind = getattr(evidence, "outcome_kind", None)
+        kind_value = getattr(outcome_kind, "value", None)
+        sign = _DIALOGUE_OUTCOME_KIND_SIGN.get(kind_value or "", 0.0)
+        if sign == 0.0:
+            continue
+        confidence = float(getattr(evidence, "confidence", 0.0))
+        if confidence <= 0.0:
+            continue
+        evidence_id = getattr(evidence, "evidence_id", "")
+        source_owner = getattr(evidence, "source_owner", "")
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="turn",
+                track=track,
+                source_event=f"dialogue_outcome:{kind_value}:{source_owner}",
+                credit_value=_clamp(sign * confidence),
+                context=evidence_id,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
+
+
 def derive_learning_evidence_credit_records(
     *,
     evaluation_snapshot: EvaluationSnapshot,

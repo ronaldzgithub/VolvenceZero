@@ -110,6 +110,7 @@ from volvence_zero.social_identity import (
     SocialPredictionErrorModule,
 )
 from volvence_zero.social_common_ground import CommonGroundModule
+from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
 from volvence_zero.social_group import GroupModule
 from volvence_zero.social_role import ConversationalRoleModule
 from volvence_zero.social_tom import (
@@ -170,10 +171,10 @@ class FinalRolloutConfig:
     relationship_state: WiringLevel = WiringLevel.ACTIVE
     goal_value: WiringLevel = WiringLevel.ACTIVE
     boundary_consent: WiringLevel = WiringLevel.ACTIVE
-    multi_party_identity: WiringLevel = WiringLevel.SHADOW
+    multi_party_identity: WiringLevel = WiringLevel.ACTIVE
     social_prediction: WiringLevel = WiringLevel.SHADOW
     social_prediction_error: WiringLevel = WiringLevel.SHADOW
-    conversational_role: WiringLevel = WiringLevel.SHADOW
+    conversational_role: WiringLevel = WiringLevel.ACTIVE
     common_ground: WiringLevel = WiringLevel.SHADOW
     groups: WiringLevel = WiringLevel.SHADOW
     belief_about_other: WiringLevel = WiringLevel.SHADOW
@@ -990,6 +991,7 @@ def build_final_runtime_modules(
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
     reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
@@ -1094,6 +1096,9 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("common_ground", WiringLevel.SHADOW),
             dyad_atoms=common_ground_dyad_atoms,
             group_atoms=common_ground_group_atoms,
+            proposal_runtime=common_ground_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
         ),
         GroupModule(
             wiring_level=config.level_for("groups", WiringLevel.SHADOW),
@@ -1202,6 +1207,7 @@ async def run_final_wiring_turn(
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
     upstream_snapshots: dict[str, Snapshot[Any]] | None = None,
@@ -1242,6 +1248,7 @@ async def run_final_wiring_turn(
         semantic_state_store=semantic_state_store,
         semantic_proposal_runtime=semantic_proposal_runtime,
         tom_proposal_runtime=tom_proposal_runtime,
+        common_ground_proposal_runtime=common_ground_proposal_runtime,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
         reflection_mode=reflection_mode,

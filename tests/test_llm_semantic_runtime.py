@@ -104,6 +104,71 @@ def test_runtime_emits_create_for_create_label() -> None:
     assert provider.kwargs[0]["temperature"] == 0.0
 
 
+def test_runtime_emits_structured_alignment_evidence() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"operation": "block", '
+            '"alignment_evidence": "I cannot keep this promise now.", '
+            '"confidence": 0.82}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = runtime.propose(
+        target_slot="commitment",
+        user_input="I cannot keep this promise now.",
+        substrate_snapshot=None,
+        memory_snapshot=None,
+        previous_snapshot=_previous_with_active(1),
+        turn_index=7,
+    )
+
+    proposal = batch.proposals[0]
+    assert proposal.operation is SemanticProposalOperation.BLOCK
+    assert proposal.evidence == "I cannot keep this promise now."
+    assert proposal.detail == "I cannot keep this promise now."
+    assert proposal.confidence == 0.82
+    assert proposal.proposal_id == "commitment:llm-block:7"
+
+
+def test_runtime_low_confidence_structured_output_becomes_observe() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"operation": "block", '
+            '"alignment_evidence": "ambiguous response", '
+            '"confidence": 0.31}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = runtime.propose(
+        target_slot="commitment",
+        user_input="Maybe not sure.",
+        substrate_snapshot=None,
+        memory_snapshot=None,
+        previous_snapshot=_previous_with_active(1),
+        turn_index=8,
+    )
+
+    proposal = batch.proposals[0]
+    assert proposal.operation is SemanticProposalOperation.OBSERVE
+    assert proposal.confidence == 0.25
+    assert proposal.evidence == "ambiguous response"
+
+
+def test_runtime_structured_malformed_output_falls_back() -> None:
+    provider = _ScriptedProvider(['{"operation": "block", "confidence": 0.8}'])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(runtime, user_input="I cannot commit to this.")
+
+    assert "fell back to base" in batch.description
+    assert all(
+        proposal.operation is SemanticProposalOperation.OBSERVE
+        for proposal in batch.proposals
+    )
+
+
 def test_runtime_routes_non_commitment_to_base() -> None:
     provider = _ScriptedProvider([])
     runtime = LLMSemanticProposalRuntime(provider=provider)

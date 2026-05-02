@@ -17,7 +17,7 @@ from volvence_zero.environment import (
     EnvironmentFrame,
 )
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
-from volvence_zero.memory import Track
+from volvence_zero.memory import MemoryStore, Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     SemanticProposal,
@@ -29,7 +29,9 @@ from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
     CommonGroundAtom,
     ConversationalRoleSnapshot,
+    FeelingAboutOtherSnapshot,
     GroupIdentity,
+    MultiPartyIdentitySnapshot,
     OtherMindRecord,
     OtherMindRecordKind,
     OtherMindRecordStatus,
@@ -39,6 +41,8 @@ from volvence_zero.social_cognition import (
     SocialPredictionOutcome,
     SocialScopeKind,
 )
+from volvence_zero.social_common_ground_runtime import LLMCommonGroundProposalRuntime
+from volvence_zero.social_tom_runtime import LLMToMProposalRuntime
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter
 
 
@@ -124,14 +128,35 @@ class _BeliefOnlyToMRuntime(_ExplicitToMRuntime):
         )
 
 
+class _ScriptedToMProvider:
+    def __init__(self, response: str) -> None:
+        self.response = response
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int = 384,
+        temperature: float = 0.0,
+    ) -> str:
+        del prompt, max_new_tokens, temperature
+        return self.response
+
+
 async def run_social_cognition_evidence_async() -> SocialCognitionEvidenceReport:
     gates = (
+        await _active_identity_memory_scope_gate(),
         _tom_owner_contract_gate(),
         await _explicit_tom_proposal_path_gate(),
         await _false_belief_preference_separation_gate(),
+        await _structured_tom_runtime_path_gate(),
+        await _affect_preference_separation_gate(),
         _wrong_addressee_social_pe_credit_gate(),
         await _role_prediction_diagnostic_gate(),
+        await _active_role_frame_diagnostic_gate(),
         await _common_ground_diagnostic_gate(),
+        await _structured_common_ground_runtime_gate(),
+        await _reference_repair_common_ground_gate(),
         await _group_diagnostic_gate(),
     )
     passed_count = sum(1 for gate in gates if gate.passed)
@@ -146,6 +171,58 @@ async def run_social_cognition_evidence_async() -> SocialCognitionEvidenceReport
 
 def run_social_cognition_evidence() -> SocialCognitionEvidenceReport:
     return asyncio.run(run_social_cognition_evidence_async())
+
+
+async def _active_identity_memory_scope_gate() -> SocialCognitionEvidenceGate:
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(),
+        substrate_adapter=_adapter(),
+        user_input="Alice asks for careful planning help.",
+        memory_store=MemoryStore(),
+        environment_event=EnvironmentEvent(
+            event_id="r16a-active-identity-evidence",
+            event_kind=EnvironmentEventKind.USER_INPUT,
+            trigger_kind="user_input",
+            frame=EnvironmentFrame(
+                actor=EnvironmentActorRef(actor_id="alice"),
+                active_speaker_id="alice",
+                addressee_ids=("self",),
+                subject_ids=("alice",),
+                audience_ids=("self", "alice"),
+            ),
+            scene_id="r16a-scene",
+            timestamp_ms=1,
+            provenance="social-cognition-evidence",
+            payload_summary="Alice asks for careful planning help.",
+        ),
+        session_id="r16a-active-identity-session",
+        wave_id="r16a-active-identity-wave",
+    )
+    identity = result.active_snapshots.get("multi_party_identity")
+    memory = result.active_snapshots["memory"].value
+    scoped_entries = tuple(
+        entry
+        for entry in memory.retrieved_entries
+        if entry.subject_ids == ("alice",)
+        and entry.audience_ids == ("self", "alice")
+    )
+    passed = (
+        identity is not None
+        and isinstance(identity.value, MultiPartyIdentitySnapshot)
+        and identity.value.active_speaker_id == "alice"
+        and identity.value.subject_ids == ("alice",)
+        and bool(scoped_entries)
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="R16A",
+        name="active identity memory scope",
+        passed=passed,
+        metrics=(
+            ("scoped_memory_entries", float(len(scoped_entries))),
+            ("identity_active", 1.0 if identity is not None else 0.0),
+        ),
+        summary="ACTIVE multi-party identity scope drives memory write subject/audience without renderer inference.",
+    )
 
 
 def _tom_owner_contract_gate() -> SocialCognitionEvidenceGate:
@@ -270,6 +347,110 @@ async def _false_belief_preference_separation_gate() -> SocialCognitionEvidenceG
     )
 
 
+async def _structured_tom_runtime_path_gate() -> SocialCognitionEvidenceGate:
+    runtime = LLMToMProposalRuntime(
+        provider=_ScriptedToMProvider(
+            """
+            [
+              {
+                "target_slot": "belief_about_other",
+                "summary": "Alice believes the meeting is tomorrow.",
+                "detail": "Alice explicitly says the meeting is tomorrow.",
+                "evidence": "meeting is tomorrow",
+                "confidence": 0.84,
+                "control_signal": 0.33
+              }
+            ]
+            """
+        )
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(belief_about_other=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        user_input="Alice believes the meeting is tomorrow.",
+        tom_proposal_runtime=runtime,
+        session_id="tom-structured-evidence",
+        wave_id="tom-structured-evidence-wave",
+        turn_index=8,
+    )
+    belief = result.active_snapshots["belief_about_other"].value
+    passed = (
+        isinstance(belief, BeliefAboutOtherSnapshot)
+        and len(belief.records) == 1
+        and belief.records[0].kind is OtherMindRecordKind.BELIEF
+        and belief.records[0].evidence == "meeting is tomorrow"
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="T4",
+        name="structured tom runtime path",
+        passed=passed,
+        metrics=(("belief_records", float(len(belief.records))),),
+        summary="Structured LLM ToM runtime can populate a targeted belief owner.",
+    )
+
+
+async def _affect_preference_separation_gate() -> SocialCognitionEvidenceGate:
+    runtime = LLMToMProposalRuntime(
+        provider=_ScriptedToMProvider(
+            """
+            [
+              {
+                "target_slot": "feeling_about_other",
+                "summary": "Alice feels overwhelmed.",
+                "detail": "Alice says work feels heavy right now.",
+                "evidence": "work feels heavy",
+                "confidence": 0.83,
+                "control_signal": 0.45
+              },
+              {
+                "target_slot": "preference_about_other",
+                "summary": "Alice prefers gentle pacing.",
+                "detail": "Alice asks to slow down before steps.",
+                "evidence": "slow down before steps",
+                "confidence": 0.82,
+                "control_signal": 0.31
+              }
+            ]
+            """
+        )
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(
+            feeling_about_other=WiringLevel.ACTIVE,
+            preference_about_other=WiringLevel.ACTIVE,
+        ),
+        substrate_adapter=_adapter(),
+        user_input="Work feels heavy; please slow down before steps.",
+        tom_proposal_runtime=runtime,
+        session_id="tom-affect-preference-evidence",
+        wave_id="tom-affect-preference-wave",
+        turn_index=9,
+    )
+    feeling = result.active_snapshots["feeling_about_other"].value
+    preference = result.active_snapshots["preference_about_other"].value
+    counts = dict(result.active_snapshots["response_assembly"].value.semantic_record_counts)
+    passed = (
+        isinstance(feeling, FeelingAboutOtherSnapshot)
+        and isinstance(preference, PreferenceAboutOtherSnapshot)
+        and len(feeling.records) == 1
+        and len(preference.records) == 1
+        and feeling.records[0].kind is OtherMindRecordKind.FEELING
+        and preference.records[0].kind is OtherMindRecordKind.PREFERENCE
+        and counts.get("feeling_about_other") == 1
+        and counts.get("preference_about_other") == 1
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="T5",
+        name="affect preference separation",
+        passed=passed,
+        metrics=(
+            ("feeling_records", float(len(feeling.records))),
+            ("preference_records", float(len(preference.records))),
+        ),
+        summary="Structured ToM runtime keeps transient feeling and durable preference separate.",
+    )
+
+
 def social_cognition_evidence_report_to_dict(
     report: SocialCognitionEvidenceReport,
 ) -> dict[str, object]:
@@ -391,6 +572,55 @@ async def _role_prediction_diagnostic_gate() -> SocialCognitionEvidenceGate:
     )
 
 
+async def _active_role_frame_diagnostic_gate() -> SocialCognitionEvidenceGate:
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(),
+        substrate_adapter=_adapter(),
+        user_input="Alice tells Bob about Carol.",
+        environment_event=EnvironmentEvent(
+            event_id="role-active-frame-1",
+            event_kind=EnvironmentEventKind.USER_INPUT,
+            trigger_kind="user_input",
+            frame=EnvironmentFrame(
+                actor=EnvironmentActorRef(actor_id="alice"),
+                active_speaker_id="alice",
+                addressee_ids=("bob",),
+                subject_ids=("carol",),
+                audience_ids=("bob", "alice"),
+            ),
+            scene_id="role-active-scene",
+            timestamp_ms=1,
+            provenance="social-cognition-evidence",
+            payload_summary="Alice tells Bob about Carol.",
+        ),
+        session_id="role-active-evidence-session",
+        wave_id="role-active-evidence-wave",
+    )
+    role_snapshot = result.active_snapshots.get("conversational_role")
+    role = role_snapshot.value if role_snapshot is not None else None
+    response_assembly = result.active_snapshots["response_assembly"].value
+    counts = dict(response_assembly.semantic_record_counts)
+    passed = (
+        isinstance(role, ConversationalRoleSnapshot)
+        and role.active_speaker_id == "alice"
+        and role.addressee_ids == ("bob",)
+        and role.subject_ids == ("carol",)
+        and len(role.active_predictions) == 1
+        and counts.get("conversational_role") == 1
+        and "conversational_role" not in response_assembly.semantic_residue_summary
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="R18A",
+        name="active role frame diagnostics",
+        passed=passed,
+        metrics=(
+            ("role_prediction_count", float(len(role.active_predictions) if isinstance(role, ConversationalRoleSnapshot) else -1)),
+            ("assembly_role_count", float(counts.get("conversational_role", -1))),
+        ),
+        summary="Default ACTIVE conversational role consumes EnvironmentEvent frame as diagnostics without renderer leakage.",
+    )
+
+
 async def _common_ground_diagnostic_gate() -> SocialCognitionEvidenceGate:
     dyad = CommonGroundAtom(
         atom_id="cg:evidence:dyad:alice-bob",
@@ -438,6 +668,109 @@ async def _common_ground_diagnostic_gate() -> SocialCognitionEvidenceGate:
             ("assembly_common_ground_count", float(counts.get("common_ground", -1))),
         ),
         summary="Explicit dyad/group common-ground atoms are visible in response assembly diagnostics only.",
+    )
+
+
+async def _structured_common_ground_runtime_gate() -> SocialCognitionEvidenceGate:
+    runtime = LLMCommonGroundProposalRuntime(
+        provider=_ScriptedToMProvider(
+            """
+            [
+              {
+                "scope_kind": "dyad",
+                "scope_id": "self:alice",
+                "summary": "Self and Alice both know the plan should slow down.",
+                "accepted_by_ids": ["self", "alice"],
+                "evidence": "slow down like we agreed",
+                "confidence": 0.82,
+                "recursion_depth": 2,
+                "control_signal": 0.40
+              },
+              {
+                "scope_kind": "group",
+                "scope_id": "team:launch",
+                "summary": "The launch team accepted the new deadline.",
+                "accepted_by_ids": ["alice", "bob", "carol"],
+                "evidence": "all confirmed",
+                "confidence": 0.78,
+                "recursion_depth": 1,
+                "control_signal": 0.35
+              }
+            ]
+            """
+        )
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(common_ground=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        user_input="Let's slow down like we agreed; all confirmed the deadline.",
+        common_ground_proposal_runtime=runtime,
+        session_id="common-ground-structured-evidence",
+        wave_id="common-ground-structured-wave",
+        turn_index=10,
+    )
+    common_ground = result.active_snapshots["common_ground"].value
+    counts = dict(result.active_snapshots["response_assembly"].value.semantic_record_counts)
+    passed = (
+        len(common_ground.dyad_atoms) == 1
+        and len(common_ground.group_atoms) == 1
+        and counts.get("common_ground") == 2
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="G2",
+        name="structured common-ground runtime path",
+        passed=passed,
+        metrics=(
+            ("dyad_atoms", float(len(common_ground.dyad_atoms))),
+            ("group_atoms", float(len(common_ground.group_atoms))),
+            ("assembly_common_ground_count", float(counts.get("common_ground", -1))),
+        ),
+        summary="Structured common-ground runtime can populate dyad and group atoms.",
+    )
+
+
+async def _reference_repair_common_ground_gate() -> SocialCognitionEvidenceGate:
+    runtime = LLMCommonGroundProposalRuntime(
+        provider=_ScriptedToMProvider(
+            """
+            [
+              {
+                "scope_kind": "dyad",
+                "scope_id": "self:alice",
+                "summary": "Self and Alice repaired the reference to the work plan.",
+                "accepted_by_ids": ["self", "alice"],
+                "evidence": "I meant the work plan from earlier, not the home thing",
+                "confidence": 0.84,
+                "recursion_depth": 2,
+                "control_signal": 0.46
+              }
+            ]
+            """
+        )
+    )
+    result = await run_final_wiring_turn(
+        config=FinalRolloutConfig(common_ground=WiringLevel.ACTIVE),
+        substrate_adapter=_adapter(),
+        user_input="I meant the work plan from earlier, not the home thing.",
+        common_ground_proposal_runtime=runtime,
+        session_id="common-ground-repair-evidence",
+        wave_id="common-ground-repair-wave",
+        turn_index=11,
+    )
+    common_ground = result.active_snapshots["common_ground"].value
+    atom = common_ground.dyad_atoms[0] if common_ground.dyad_atoms else None
+    passed = (
+        atom is not None
+        and atom.scope_kind is SocialScopeKind.DYAD
+        and "work plan" in atom.summary
+        and "work plan from earlier" in atom.evidence[0]
+    )
+    return SocialCognitionEvidenceGate(
+        gate_id="G3",
+        name="reference repair common-ground probe",
+        passed=passed,
+        metrics=(("repair_atoms", float(len(common_ground.dyad_atoms))),),
+        summary="A repair/clarification signal can enter common-ground owner as a dyad atom.",
     )
 
 

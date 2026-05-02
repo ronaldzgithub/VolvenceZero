@@ -27,6 +27,7 @@ from volvence_zero.semantic_state import (
     AdvocacyState,
     AlignmentState,
     CommitmentLifecycleEntry,
+    CommitmentOutcomeKind,
     CommitmentSnapshot,
     SemanticProposal,
     SemanticProposalOperation,
@@ -145,6 +146,49 @@ def test_store_walks_one_commitment_through_full_lifecycle():
         )
         state = store.lifecycle_for("commitment").get("c-1")
         assert state == expected_state, f"after {op.value}: got {state}"
+
+
+def test_store_records_commitment_outcomes_with_evidence():
+    store = SemanticStateStore()
+    store.apply(
+        slot="commitment",
+        proposals=(
+            _proposal("c-reject", SemanticProposalOperation.BLOCK),
+            _proposal("c-done", SemanticProposalOperation.COMPLETE),
+            _proposal("c-stalled", SemanticProposalOperation.DEFER),
+        ),
+        turn_index=4,
+    )
+
+    outcomes = store.outcome_for("commitment")
+    assert outcomes["c-reject"].outcome is CommitmentOutcomeKind.REJECTED
+    assert outcomes["c-done"].outcome is CommitmentOutcomeKind.COMPLETED
+    assert outcomes["c-stalled"].outcome is CommitmentOutcomeKind.STALLED
+    for outcome in outcomes.values():
+        assert outcome.evidence == "e"
+        assert outcome.turn_index == 4
+
+
+def test_commitment_lifecycle_outcome_requires_evidence_and_turn_anchor():
+    with pytest.raises(ValueError, match="last_outcome"):
+        CommitmentLifecycleEntry(
+            record_id="bad-outcome",
+            advocacy_state=AdvocacyState.PROPOSED,
+            alignment_state=AlignmentState.REJECT,
+            last_outcome=CommitmentOutcomeKind.REJECTED,
+            last_outcome_evidence="",
+            last_outcome_at_turn=3,
+        )
+
+    with pytest.raises(ValueError, match="last_outcome_at_turn"):
+        CommitmentLifecycleEntry(
+            record_id="bad-turn",
+            advocacy_state=AdvocacyState.PROPOSED,
+            alignment_state=AlignmentState.REJECT,
+            last_outcome=CommitmentOutcomeKind.REJECTED,
+            last_outcome_evidence="user rejected the commitment",
+            last_outcome_at_turn=-1,
+        )
 
 
 def test_store_lifecycle_only_for_targeted_slot():

@@ -81,6 +81,7 @@ class RegimeIdentity:
 - 当前 `RegimeSnapshot` 还发布 `delayed_attribution_ledger`、`delayed_payoffs`、`sequence_payoffs`、`effectiveness_trend`、`regime_changed` 与 `selection_weights`，供 credit / evaluation / reflection 读取 owner-side delayed outcome 与选择权重证据
 - 当前 `RegimeModule.default_wiring_level = SHADOW`；默认类级接线保持 evidence / audit surface，final wiring 可按 rollout 需要显式激活
 - 后续可由 temporal / learned selector 替换，但不改变 `regime` snapshot 契约
+- 当前 companion evidence 增加 `RGM1 regime_delayed_attribution_visibility` gate：用 dialogue-like repair/support 信号证明 `RegimeModule` 的 delayed attribution / delayed payoff / sequence payoff 能进入 credit 与 evaluation readout，而不是每 turn 静态 prompt 标签重选
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节
 
@@ -97,6 +98,7 @@ class RegimeIdentity:
 
 ## 变更日志
 
+- 2026-05-02: 增加 RGM1 companion evidence gate，冻结 regime delayed attribution visibility 的自动证据口径（RegimeSnapshot delayed attribution → credit → evaluation readout）
 - 2026-04-25: 同步当前 `RegimeSnapshot` delayed payoff / sequence payoff / selection weight 字段，并补充 `experience_fast_prior` 输入与默认 `SHADOW` 接线
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + dual_track + evaluation + prediction_error`；当前实现口径明确 regime owner 已直接用 PE 更新 selection bias 与 historical effectiveness
 - 2026-04-09: next_gen_emogpt v2: regimes positioned as prediction spaces within the dual-track framework; regime selection weight updates driven by prediction error from delayed outcomes; repo default term: `abstract action` (paper synonym: `subgoal`)

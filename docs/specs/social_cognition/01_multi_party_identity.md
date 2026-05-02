@@ -98,12 +98,16 @@ Planned field extensions:
 Implemented Phase 1 scaffold:
 
 - `volvence_zero.social_cognition`: frozen contracts for `InterlocutorIdentity`, `MultiPartyIdentitySnapshot`, `SocialPrediction`, `SocialPredictionError`, social prediction/error snapshots, and default `primary/self` compatibility constants.
-- `MultiPartyIdentityModule`: SHADOW owner publishing `primary` compatibility identity scope.
+- `MultiPartyIdentityModule`: ACTIVE owner by default as of R16 Phase 1 Slice 12; publishes `primary` compatibility identity scope for one-user turns and consumes `EnvironmentEvent.frame` to publish multi-party scope when host supplies it.
 - `ResponseContext` / `AgentTurnResult`: expose `active_speaker_id`, `addressee_ids`, `subject_ids`, `audience_ids`.
 - `MemoryEntry` / `MemoryWriteRequest`: store `subject_ids` and `audience_ids`; default to `primary/self`; checkpoint restore fills defaults for old entries.
-- `MemoryModule`: consumes ACTIVE `multi_party_identity` for write scope; SHADOW identity defaults preserve existing behavior.
-- `SocialPredictionAggregateModule` / `SocialPredictionErrorModule`: empty SHADOW scaffolds plus explicit social PE probe path into credit.
-- Companion evidence C5: proves default companion scope remains `primary/self` and social prediction / social PE counts are zero.
+- `MemoryModule`: consumes ACTIVE `multi_party_identity` for write scope; default `primary/self` frame preserves one-user companion behavior.
+- `MemoryStore.retrieve(active_subject_ids=...)` (R16 Slice 11): strict subject-scope filter that suppresses cross-scope entries and exposes them via `RetrievalResult.suppressed_cross_scope_entries` and `MemorySnapshot.suppressed_cross_scope_entries`. Default `None` keeps existing single-party tests unchanged.
+- `SocialPredictionAggregateModule` (R16 Slice 11): self-emits a `MEMORY_VISIBILITY` `SocialPrediction` for the active scope when identity is non-default and memory ran in the same turn.
+- `SocialPredictionErrorModule` (R16 Slice 11): self-derives a `DISCONFIRMED` `SocialPredictionError` from `MemorySnapshot.suppressed_cross_scope_entries`, references the matching `prediction_id`, and continues to accept manual `pending_errors` for external probes.
+- Self-derived social PE flows into `derive_social_prediction_error_credit_records` and the credit ledger via the existing final-wiring path (Slice 11).
+- Companion evidence C5: proves default companion scope remains `primary/self` with ACTIVE identity and social prediction / social PE counts are zero.
+- Social cognition evidence R16A: proves explicit `EnvironmentEvent.frame` produces ACTIVE identity scope and memory writes inherit `subject_ids` / `audience_ids` through the identity owner.
 
 ## 与其他能力域的关系
 
@@ -116,6 +120,8 @@ Implemented Phase 1 scaffold:
 
 ## 变更日志
 
+- 2026-05-02: R16 Phase 1 Slice 12 landed: `multi_party_identity` promoted to ACTIVE by default; one-user turns remain `primary/self`; explicit EnvironmentEvent frames now drive active memory subject/audience scope; evidence gate R16A added.
+- 2026-05-02: R16 Phase 1 Slice 11 landed: `MemoryStore.retrieve` strict subject-scope filter, `MemorySnapshot.suppressed_cross_scope_entries`, self-emitted `MEMORY_VISIBILITY` prediction, self-derived `DISCONFIRMED` PE, social PE → credit ledger via the existing path.  No injection required.  Default config remains compatible.
 - 2026-05-02: R16 Phase 1 slices 1-10 landed: contracts, SHADOW identity owner, response/session scope readout, memory subject/audience scope, runtime memory write scope, social prediction/error scaffolds, social PE credit carry path, and companion evidence C5 artifact.
 - 2026-05-02: 补充 Environment Interface 依赖：social identity 是环境边界之上的 owner，消费 canonical conversational frame。
 - 2026-05-02: 初始 draft，作为 Social Cognition Learning Layer Phase 1 的 contract freeze。

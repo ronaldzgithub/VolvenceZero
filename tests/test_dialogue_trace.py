@@ -124,6 +124,49 @@ def test_dialogue_trace_uses_only_structured_evidence_for_richer_outcome() -> No
     assert "This raw text says" not in resolution.outcome.description
 
 
+def test_dialogue_trace_attach_outcome_evidence_to_last_trace() -> None:
+    store = DialogueTraceStore()
+    event = build_user_input_environment_event(
+        event_id="event-1",
+        user_input="recorded turn",
+        scene_id="scene-1",
+        timestamp_ms=1,
+    )
+    trace, _ = store.record_action(
+        session_id="session",
+        wave_id="wave-1",
+        turn_index=1,
+        environment_event=event,
+        active_regime="support",
+        active_abstract_action="clarify",
+        response_text="response",
+        response_rationale="rationale",
+        next_prediction=None,
+        evaluated_prediction=None,
+        actual_outcome=None,
+        prediction_error=None,
+    )
+
+    resolution = store.attach_outcome_evidence_to_last_trace(
+        (
+            DialogueOutcomeEvidence(
+                evidence_id="scene_closed:scene-1:scene-end",
+                source=DialogueOutcomeEvidenceSource.SCENE_EVENT,
+                source_owner="SceneManager",
+                outcome_kind=DialogueOutcomeKind.SCENE_CLOSED,
+                confidence=0.9,
+            ),
+        )
+    )
+
+    assert resolution is not None
+    assert resolution.outcome.kind is DialogueOutcomeKind.SCENE_CLOSED
+    snapshot = store.snapshot()
+    assert snapshot.traces[-1].outcome.kind is DialogueOutcomeKind.SCENE_CLOSED
+    assert snapshot.unresolved_trace_ids == ()
+    assert snapshot.resolved_outcomes[-1].previous_trace_id == trace.trace_id
+
+
 def test_dialogue_trace_export_is_replay_safe() -> None:
     store = DialogueTraceStore()
     event = build_user_input_environment_event(
