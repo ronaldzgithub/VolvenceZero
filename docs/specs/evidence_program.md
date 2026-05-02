@@ -48,7 +48,7 @@
 - internal unblinding key
 - human rating template / aggregate
 - unified evidence bundle
-- `action_outcome_replay_bundle.json`（planned，Phase 1 随 `docs/specs/emergent-action-abstraction.md` 落地）：导出 `action_outcome_trace` 序列、`EnvironmentOutcome` axis 覆盖率、resolution verdict 分布，支持 affordance / delayed outcome 的再现与证据审阅
+- `snapshot_replay_bundle.json`（planned，Phase 1 随 `docs/specs/emergent-action-abstraction.md` 落地）：导出 existing snapshots（`EnvironmentEvent` / `EnvironmentOutcome` / `temporal_abstraction.closed_segments` / `prediction_error` / `credit`）用于再现与证据审阅，不引入 trace runtime schema
 
 当前实现口径：
 
@@ -67,7 +67,7 @@
 | 依赖 | 契约式运行时 | provenance 与 artifact 必须回溯到真实 runtime 产物 |
 | 依赖 | 多时间尺度学习 / 时间抽象 | claim registry 需要把这些设计命题绑定到可观测 gate |
 | 协作 | 调试体系 | blind review / paper-suite 工件是 widening 与审计面 |
-| 协作 | Emergent Action Abstraction（Phase 0 freeze） | `action_outcome_replay_bundle.json` 是该能力域 Phase 1 落地的 artifact，进入 unified evidence bundle |
+| 协作 | Emergent Action Abstraction | `snapshot_replay_bundle.json` 是该能力域 Phase 1 落地的 artifact，进入 unified evidence bundle |
 | 被依赖 | rollout / 外部汇报 | evidence bundle 是对外结论、候选比较与审稿材料的统一入口 |
 
 ## 初始 Claim Registry
@@ -294,7 +294,7 @@
 - 2026-05-02: Social Cognition evidence report 增加 G1 common-ground diagnostic visibility gate，覆盖 R19 explicit atoms → response_assembly diagnostic count 链路
 - 2026-05-02: Social Cognition evidence report 增加 G2/G3 structured common-ground gates，覆盖 R19 structured runtime → owner atom 与 reference repair → dyad atom 链路
 - 2026-05-02: Social Cognition evidence report 增加 GROUP1 group diagnostic visibility gate，覆盖 R20 explicit group state → response_assembly diagnostic count 链路
-- 2026-05-02: 引用 `docs/specs/emergent-action-abstraction.md` 的 `action_outcome_replay_bundle.json` 作为 planned evidence artifact（Phase 1 随 trace owner 一并落地）
+- 2026-05-02: 重写 `docs/specs/emergent-action-abstraction.md` 的 replay artifact 为 `snapshot_replay_bundle.json`，由 existing snapshots 导出，不依赖 trace owner
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径

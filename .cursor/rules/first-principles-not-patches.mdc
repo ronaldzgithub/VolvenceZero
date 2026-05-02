@@ -41,11 +41,12 @@ EmoGPT 是养成式数字生命系统。核心产品是关系与主体性（EQ +
 | `vz-substrate` | R2 | 冻结 LLM + 残差捕获 + 有界 adapter-delta 入口（不做策略，不做 prompt） |
 | `vz-temporal` | R3, R4 | metacontroller (encoder + β_t + decoder) + Internal RL on `z_t` |
 | `vz-memory` | R5, R6 | CMS 4 stratum + ReflectionEngine（background-slow，不阻塞 turn） |
-| `vz-pe-credit` | R-PE, R9, R10 | PredictionError + 多层级 credit + ModificationGate |
-| `vz-self-model` | R7, R11, R14 | dual-track + regime + 9 语义 owner |
-| `vz-evaluation` | R12 | 6 族评分 + benchmark harness（只读） |
+| `vz-cognition` | R-PE, R7, R9, R10, R11, R12, R14 | PredictionError + credit + ModificationGate + dual-track + regime + 9 语义 owner + evaluation |
+| `vz-application` | R5, R6, R7, R8, R12, R15 | domain knowledge / case memory / playbook / boundary policy；垂直经验编译进既有 owner |
 | `vz-runtime` | — | 薄编排，**唯一**可 import 其他业务库 |
-| `vz-application` / `lifeform-*` | — | 垂直适配，只能向 `ModificationGate` 发提案，**不反向写脑核** |
+| `lifeform-*` | — | 产品 / 生命体适配，只能经 Brain facade / contracts / `ModificationGate` 进入脑核，**不反向写脑核** |
+
+历史能力名 `vz-pe-credit` / `vz-self-model` / `vz-evaluation` 不是当前 wheel 名；当前仓库中它们由 `vz-cognition` 的 `prediction` / `credit` / `dual_track` / `regime` / `semantic_state` / `evaluation` 子包承载。若未来物理拆 wheel，必须同改 `docs/DATA_CONTRACT.md`、`archetecture.md`、`tests/contracts/test_import_boundaries.py` 和相关 `pyproject.toml`。
 
 迁移走 `WiringLevel` 三态：`ACTIVE / SHADOW / DISABLED`，新旧并跑 → 比对快照 → 切换；任何切换必须可回滚。
 

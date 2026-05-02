@@ -254,6 +254,8 @@ class CaseMemorySnapshot:
     continuum_profile_id: str | None = None
     active_band_ids: tuple[str, ...] = ()
     mean_continuum_position: float = 0.0
+    support_prior: float = 0.0
+    task_prior: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -324,6 +326,8 @@ class StrategyPlaybookSnapshot:
     description: str
     continuum_profile_id: str | None = None
     active_band_ids: tuple[str, ...] = ()
+    support_prior: float = 0.0
+    task_prior: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ import math
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.memory import MemoryEntry, MemorySnapshot
+from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
@@ -33,7 +33,7 @@ from volvence_zero.application.retrieval_readout import (
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
     from volvence_zero.regime import RegimeSnapshot
-    from volvence_zero.temporal import TemporalAbstractionSnapshot
+    from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 
 def _clamp(value: float) -> float:
@@ -2112,7 +2112,7 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[RetrievalPolicySnapshot]:
         from volvence_zero.regime import RegimeSnapshot
-        from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
+        from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
         world_temporal_snapshot = upstream["world_temporal"].value
         self_temporal_snapshot = upstream["self_temporal"].value
@@ -2121,31 +2121,9 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
         memory_snapshot = upstream["memory"].value
         experience_fast_prior_snapshot = upstream["experience_fast_prior"].value
         if not isinstance(world_temporal_snapshot, TemporalAbstractionSnapshot):
-            world_temporal_snapshot = TemporalAbstractionSnapshot(
-                controller_state=ControllerState(
-                    code=(0.0, 0.0, 0.0),
-                    code_dim=3,
-                    switch_gate=0.0,
-                    is_switching=False,
-                    steps_since_switch=0,
-                ),
-                active_abstract_action="temporal-disabled-placeholder",
-                controller_params_hash="temporal-disabled",
-                description="world_temporal disabled; retrieval policy fell back to placeholder temporal state.",
-            )
+            raise TypeError("world_temporal must publish TemporalAbstractionSnapshot.")
         if not isinstance(self_temporal_snapshot, TemporalAbstractionSnapshot):
-            self_temporal_snapshot = TemporalAbstractionSnapshot(
-                controller_state=ControllerState(
-                    code=(0.0, 0.0, 0.0),
-                    code_dim=3,
-                    switch_gate=0.0,
-                    is_switching=False,
-                    steps_since_switch=0,
-                ),
-                active_abstract_action="temporal-disabled-placeholder",
-                controller_params_hash="temporal-disabled",
-                description="self_temporal disabled; retrieval policy fell back to placeholder temporal state.",
-            )
+            raise TypeError("self_temporal must publish TemporalAbstractionSnapshot.")
         if not isinstance(dual_track_snapshot, DualTrackSnapshot):
             raise TypeError("dual_track must publish DualTrackSnapshot.")
         if not isinstance(regime_snapshot, RegimeSnapshot):
@@ -2668,6 +2646,13 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 active_problem_patterns.append(cluster.problem_pattern)
                 active_risk_markers.extend(cluster.risk_markers)
                 existing_patterns.add(cluster.problem_pattern)
+        total_hits = max(len(hits), 1)
+        support_prior = _clamp(
+            sum(1.0 for hit in hits if Track.SELF.value in hit.track_tags) / total_hits
+        )
+        task_prior = _clamp(
+            sum(1.0 for hit in hits if Track.WORLD.value in hit.track_tags) / total_hits
+        )
         return self.publish(
             CaseMemorySnapshot(
                 retrieval_policy_id=retrieval_policy_id,
@@ -2685,6 +2670,8 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 mean_continuum_position=(
                     sum(continuum_positions) / len(continuum_positions) if continuum_positions else 0.0
                 ),
+                support_prior=support_prior,
+                task_prior=task_prior,
                 description=(
                     f"Case memory produced {len(hits)} compact case hits for "
                     f"{len(retrieval_policy.experience_domains)} experience domains."
@@ -2889,6 +2876,8 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
                 matched_rules=tuple(rules),
                 continuum_profile_id=case_memory_snapshot.continuum_profile_id,
                 active_band_ids=_dedupe(tuple(active_band_ids)),
+                support_prior=_clamp(self_weight),
+                task_prior=_clamp(world_weight),
                 description=(
                     f"Strategy playbook produced {len(rules)} matched rules from "
                     f"{len(case_memory_snapshot.hits)} case hits."
@@ -3126,7 +3115,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ResponseAssemblySnapshot]:
         from volvence_zero.reflection import ReflectionSnapshot
         from volvence_zero.regime import RegimeSnapshot
-        from volvence_zero.temporal import TemporalAbstractionSnapshot
+        from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
         regime_value = upstream["regime"].value
         temporal_value = upstream["temporal_abstraction"].value

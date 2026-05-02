@@ -139,21 +139,20 @@
 
 ---
 
-### 6C. Emergent Action Abstraction（Phase 0 design freeze，实施待 Phase 1）
+### 6C. Emergent Action Abstraction（Phase 1 clean，contract + tests landed）
 
 **对应需求**：R-PE、R1、R3、R4、R8、R9、R10、R11、R15
 
 | Spec | 内容 |
 |------|------|
-| [emergent-action-abstraction.md](./emergent-action-abstraction.md) | ActionOutcomeTrace 契约、EnvironmentOutcome axis taxonomy、DelayedOutcomeLedger、Replay Store、Action/Outcome Encoder、Affordance Selection Learning 六层架构；把复杂环境反馈压成可预测、可比较、可回放的 event/outcome/PE 序列 |
+| [emergent-action-abstraction.md](./emergent-action-abstraction.md) | ETA/NL-clean 动作反馈抽象：最小 EnvironmentOutcome 观察字段、`beta_t` segment closure、PE action context、PE-derived segment credit、snapshot replay export |
 
 **核心不变量**：
-- `action_outcome_trace` 由唯一 owner 持有；其他 owner 不得重写开放 trace
-- `EnvironmentOutcome` axes 必须是 owner 派生的结构化数值，禁止关键词分类
-- 延迟结算只通过 typed evidence 进入 `prediction_error`，不旁路 credit / memory / temporal
-- replay store 是 out-of-turn 工件，不参与 turn-time DAG；必须能由 manifest + seed + code sha 重现
-- encoder 是 `temporal_abstraction` 的 readout，不是第二 owner
-- affordance 的选择仍在 `z_t` 空间学，trace 只提供 evidence，不硬编码路由
+- 不新增 `action_outcome_trace` runtime slot、ledger owner 或 action/outcome encoder owner
+- delayed outcome 边界来自 `temporal_abstraction.closed_segments`（`beta_t` segment closure）
+- `EnvironmentOutcome` 只包含外部可观察字段，不承载 trust / common-ground / commitment semantic delta
+- PE owner 承载 action context；credit 只从 PE 派生 segment/action records
+- replay 是既有 snapshot 序列的 out-of-turn export，不是 runtime schema
 
 ---
 
@@ -287,18 +286,19 @@
 
 ---
 
-### 14. AAC Commitment Lifecycle（Phase 0 design freeze, 实施待 Phase 1）
+### 14. AAC Commitment Lifecycle（v1 typed lifecycle landed）
 
 **对应需求**：R-PE（PE 主链）、R8（快照优先）、R11（内部状态可发布）、R14（regime 持久身份）
 
 | Spec | 内容 |
 |------|------|
-| [aac-lifecycle.md](./aac-lifecycle.md) | `commitment` owner 增加 advocacy / alignment / followup_policy / outcome_kind 状态机；alignment 跳变进入 R-PE |
+| [aac-commitment-lifecycle.md](./aac-commitment-lifecycle.md) | 权威落地 spec：`SemanticProposalOperation` → advocacy / alignment lifecycle 真值表；follow-up surfacing 已接入 `lifeform-core` |
+| [aac-lifecycle.md](./aac-lifecycle.md) | 设计背景与 PRD Gap 7 映射；若与 v1 落地 spec 冲突，以 `aac-commitment-lifecycle.md` 为准 |
 
 **核心不变量**：
 - 不新建 owner；commitment 仍是单写者
-- 状态迁移**只**通过 `SemanticProposal` typed path
-- alignment 判定**只**来自 LLM structured output 或 embedding similarity，禁止关键词
+- 状态迁移**只**通过 `SemanticProposal` typed path，生命周期由 `SemanticProposalOperation` 派生
+- alignment proposal source 可来自 LLM structured output / embedding similarity，但 owner 不从文本关键词判定状态
 - alignment AGREE→REJECT 是高 PE 信号源，进入 prediction_error 主链
 
 来源：`docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 7。

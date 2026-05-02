@@ -4,6 +4,10 @@
 > **Owner wheel:** `vz-cognition` (`semantic_state.CommitmentModule`)
 > **Status:** v1 \u2014 typed lifecycle landed, follow-up surfacing wired in `lifeform-core`.
 
+This is the canonical AAC lifecycle contract. `docs/specs/aac-lifecycle.md`
+remains as the PRD Gap 7 design mapping; implementation and contract questions
+should start here.
+
 ## Why this exists
 
 Pre-Gap-7 the kernel exposed only a coarse `status` enum on commitment records (`active` / `blocked` / `completed` / `closed` / `deferred`). That can't distinguish:

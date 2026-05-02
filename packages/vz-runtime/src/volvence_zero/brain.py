@@ -260,6 +260,9 @@ class BrainSession:
 
         return self._runner.attach_dialogue_outcome_evidence(evidence)
 
+    def export_snapshot_replay_artifact(self) -> dict[str, object]:
+        return self._runner.export_snapshot_replay_artifact()
+
     def reconcile_case_memory_provisional(
         self,
         *,

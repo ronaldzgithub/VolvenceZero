@@ -5,6 +5,11 @@
 > 对应需求: R-PE, R8, R11, R14
 > 来源: `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 7
 
+> Canonical status: background / design-mapping document. The landed v1 data
+> contract and operation truth table live in
+> `docs/specs/aac-commitment-lifecycle.md`. If the two documents disagree,
+> prefer `aac-commitment-lifecycle.md` and update this mapping document.
+
 ## 要解决的问题
 
 VolvenceZero 已有 `commitment` / `open_loop` / `plan_intent` 三个语义 owner，可以表达"已承诺要做什么"，但**缺一段显式的前向状态机**：
@@ -24,7 +29,7 @@ EmoGPT v4 PRD §5.6 用 AAC（Advocacy-Alignment-Commitment）框架把这条路
 
 - `commitment` owner 仍是单写者；advocacy / alignment / outcome 的所有状态迁移**只能**通过 `SemanticProposal` typed path 进入 owner store
 - `SemanticProposalOperation` 的 8 类 op 已足够覆盖状态转移；**禁止**新增 op
-- 任何"用户表态" alignment 判定**只能**来自 LLM structured output 或 embedding similarity；**禁止**关键词匹配
+- 任何"用户表态" alignment proposal source **只能**来自 LLM structured output 或 embedding similarity；commitment owner 的最终状态迁移由 `SemanticProposalOperation` 派生，**禁止**关键词匹配
 - `commitment.last_outcome` 一旦写入必须带 `last_outcome_evidence != ""`，否则 contract test fail
 - alignment 从 `agree` 转 `reject` 的状态变化是 PE 信号源（高 PE）；从 `unknown` 转 `agree` 不算 PE
 - followup 调度优先级由 `commitment.followup_policy` 决定，**不**由关键词或 user_input 长度决定

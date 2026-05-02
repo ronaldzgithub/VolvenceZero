@@ -743,6 +743,27 @@ class AgentSessionRunner:
     def export_dialogue_trace_replay_artifact(self) -> dict[str, object]:
         return self._dialogue_trace_store.export_replay_artifact()
 
+    def export_snapshot_replay_artifact(self) -> dict[str, object]:
+        snapshots = tuple(
+            {
+                "slot_name": slot_name,
+                "owner": snapshot.owner,
+                "version": snapshot.version,
+                "description": getattr(snapshot.value, "description", ""),
+            }
+            for slot_name, snapshot in sorted(self._upstream_snapshots.items())
+        )
+        return {
+            "session_id": self.active_context_session_id,
+            "snapshot_count": len(snapshots),
+            "snapshots": snapshots,
+            "dialogue_trace": self.export_dialogue_trace_replay_artifact(),
+            "description": (
+                "Snapshot replay artifact exported from existing runtime "
+                "snapshots; no trace-specific runtime schema was introduced."
+            ),
+        }
+
     def attach_dialogue_outcome_evidence(
         self,
         evidence: tuple[DialogueOutcomeEvidence, ...],
@@ -954,12 +975,9 @@ class AgentSessionRunner:
                 mean_relevance = _clamp(
                     sum(hit.relevance_score for hit in case_snapshot.value.hits) / len(case_snapshot.value.hits)
                 )
-                self_track_hits = sum(1.0 for hit in case_snapshot.value.hits if "self" in hit.track_tags)
-                world_track_hits = sum(1.0 for hit in case_snapshot.value.hits if "world" in hit.track_tags)
-                total_hits = max(len(case_snapshot.value.hits), 1)
                 signals["experience_case_strength"] = mean_relevance
-                signals["experience_case_support_prior"] = _clamp(self_track_hits / total_hits)
-                signals["experience_case_task_prior"] = _clamp(world_track_hits / total_hits)
+                signals["experience_case_support_prior"] = _clamp(case_snapshot.value.support_prior)
+                signals["experience_case_task_prior"] = _clamp(case_snapshot.value.task_prior)
                 signals["experience_case_continuum_position"] = _clamp(case_snapshot.value.mean_continuum_position)
                 signals["experience_case_continuum_band_coverage"] = _clamp(
                     len(case_snapshot.value.active_band_ids) / 4.0
@@ -977,18 +995,8 @@ class AgentSessionRunner:
                 signals["experience_playbook_experience_hint"] = _clamp(
                     sum(rule.experience_weight_hint for rule in matched_rules) / len(matched_rules)
                 )
-                support_prior = sum(
-                    1.0
-                    for rule in matched_rules
-                    if rule.recommended_regime in {"emotional_support", "repair_and_deescalation"}
-                ) / len(matched_rules)
-                task_prior = sum(
-                    1.0
-                    for rule in matched_rules
-                    if rule.recommended_regime in {"problem_solving", "guided_exploration"}
-                ) / len(matched_rules)
-                signals["experience_playbook_support_prior"] = _clamp(support_prior)
-                signals["experience_playbook_task_prior"] = _clamp(task_prior)
+                signals["experience_playbook_support_prior"] = _clamp(playbook_snapshot.value.support_prior)
+                signals["experience_playbook_task_prior"] = _clamp(playbook_snapshot.value.task_prior)
                 signals["experience_playbook_band_coverage"] = _clamp(
                     len(playbook_snapshot.value.active_band_ids) / 4.0
                 )

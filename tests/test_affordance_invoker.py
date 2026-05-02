@@ -457,6 +457,10 @@ class _ToolCall:
     summary: str
     detail: str
     confidence: float
+    latency_ms: int | None
+    monetary_cost: float
+    reversibility: str
+    environment_state_delta_kind: str
 
 
 class _FakeSession:
@@ -475,6 +479,10 @@ class _FakeSession:
         confidence: float = 0.8,
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
+        latency_ms: int | None = None,
+        monetary_cost: float = 0.0,
+        reversibility: str = "reversible",
+        environment_state_delta_kind: str = "none",
     ) -> tuple[str, ...]:
         self.calls.append(
             _ToolCall(
@@ -485,6 +493,10 @@ class _FakeSession:
                 summary=summary,
                 detail=detail,
                 confidence=confidence,
+                latency_ms=latency_ms,
+                monetary_cost=monetary_cost,
+                reversibility=reversibility,
+                environment_state_delta_kind=environment_state_delta_kind,
             )
         )
         return (f"semantic:{event_id}",)
@@ -508,6 +520,10 @@ async def test_success_feeds_submit_tool_result_when_session_supplied() -> None:
     assert call.tool_name == "ping"
     assert call.status == "succeeded"
     assert call.confidence == pytest.approx(1.0)
+    assert call.latency_ms is not None
+    assert call.monetary_cost == pytest.approx(0.0)
+    assert call.reversibility == "reversible"
+    assert call.environment_state_delta_kind == "tool"
 
 
 async def test_failure_also_feeds_submit_tool_result_with_failed_status() -> None:
@@ -526,6 +542,7 @@ async def test_failure_also_feeds_submit_tool_result_with_failed_status() -> Non
     call = session.calls[0]
     assert call.status == "failed"
     assert "RuntimeError" in call.detail
+    assert call.latency_ms is not None
 
 
 async def test_no_session_means_no_tool_event_ids() -> None:

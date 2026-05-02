@@ -77,7 +77,7 @@
 | 依赖 | 契约式运行时 | 通过独立 slot 发布正式 prediction chain |
 | 依赖 | 双轨学习 | task / relationship 维度误差需要双轨状态 |
 | 依赖 | 认知 Regime | regime stability / action payoff 的一部分来自 regime owner 发布状态 |
-| 依赖 | Emergent Action Abstraction（Phase 0 freeze） | 接收 `action_outcome_trace` resolution 作为 typed evidence，不把 trace owner 变成第二 PE 源头 |
+| 依赖 | Emergent Action Abstraction | 接收 `temporal_abstraction.closed_segments` 与可观察 `EnvironmentOutcome` 字段作为 action context，不新增第二 PE owner |
 | 被依赖 | 信用分配与自修改 | credit 是 prediction error 的聚合与审计层 |
 | 被依赖 | 连续记忆系统 | memory owner 用 PE 调整写入、promotion threshold 和 retrieval facets |
 | 被依赖 | 时间抽象与内部控制 | temporal owner 用 PE 调节 controller update 与 schedule 选择 |
@@ -87,7 +87,7 @@
 
 ## 变更日志
 
-- 2026-05-02: 补充对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：`action_outcome_trace` resolution 作为 typed evidence 进入 prediction_error 链，不新增 learning primitive
+- 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：PE 消费 temporal segment closure 与可观察 outcome context，不新增 trace owner 或 learning primitive
 - 2026-04-22: 补充 `pe-eta-pe-readout-only` proof 口径，明确区分 PE publication/readout 与 PE primary dominance
 - 2026-04-22: 当前实现口径补充单一 owner-side mapper/head、confidence-aware calibrated error weighting，以及 evaluation 只发布 PE-owner readout 的边界
 - 2026-04-20: 初始版本。将 `prediction_error` 从 credit/evaluation 的上游设计原则提升为独立能力域 spec，固定主链契约 `evaluated_prediction -> actual_outcome -> next_prediction -> error`

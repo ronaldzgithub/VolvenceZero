@@ -89,7 +89,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 | 依赖 | Prediction Error 主链 | 直接消费 prediction error 并派生多层级 credit |
 | 依赖 | 双轨学习（5.4）| 按轨道隔离信用分配 |
 | 依赖 | 评估体系（5.7）| 评估分数驱动门控决策 |
-| 协作 | Emergent Action Abstraction（Phase 0 freeze） | `action_outcome_trace` resolution 提供稳定的 abstract-action / delayed-outcome 证据；credit 仅通过 PE 通道间接消费，不直接持有 trace owner |
+| 协作 | Emergent Action Abstraction | `PredictionErrorSnapshot.action_context` 提供稳定的 abstract-action / segment evidence；credit 仅从 PE 派生，不直接持有环境 outcome 或 trace store |
 | 被依赖 | 连续记忆（5.3）| 信用记录作为反思输入 |
 | 协作 | 多时间尺度学习（5.1）| 门控规则对齐时间尺度 |
 
@@ -111,7 +111,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 ## 变更日志
 
-- 2026-05-02: 补充对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的协作口径：trace resolution 仅通过 prediction_error 通道进入 credit，不让 credit owner 直接持有 trace 存储
+- 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的协作口径：segment/action credit 仅由 enriched PE snapshot 派生，不引入 trace owner
 - 2026-04-25: 补充 `CreditModule` 默认 `SHADOW` 接线与 PE-first 派生路径说明，避免把 credit owner 误读为直接在线自修改执行者
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `dual_track + evaluation + prediction_error`；temporal / delayed outcome 证据通过上游 owner 发布的结构化状态间接进入 credit owner
 - 2026-04-09: next_gen_emogpt v2: R-PE (prediction error as primitive learning signal) added; credit repositioned as aggregation layer downstream of prediction error, not the source of learning itself

@@ -667,6 +667,7 @@ class AffordanceInvoker:
         event_id: str | None,
         action_id: str | None,
         payload: Mapping[str, Any] | None = None,
+        latency_ms: int | None = None,
         error_class: str = "",
         error_detail: str = "",
     ) -> AffordanceInvocationResult:
@@ -721,6 +722,14 @@ class AffordanceInvoker:
                 summary=summary,
                 detail=detail,
                 confidence=1.0 if status is AffordanceInvocationStatus.SUCCEEDED else 0.6,
+                latency_ms=latency_ms,
+                monetary_cost=_monetary_cost_from_descriptor(descriptor),
+                reversibility=(
+                    "irreversible"
+                    if descriptor.safety_model.irreversible
+                    else "reversible"
+                ),
+                environment_state_delta_kind=descriptor.kind.value,
             )
         return AffordanceInvocationResult(
             descriptor_name=descriptor.name,
@@ -730,6 +739,17 @@ class AffordanceInvoker:
             error_detail=error_detail,
             tool_event_ids=tool_event_ids,
         )
+
+
+def _monetary_cost_from_descriptor(descriptor: AffordanceDescriptor) -> float:
+    monetary_class = descriptor.cost_model.monetary_class
+    value = monetary_class.value if hasattr(monetary_class, "value") else str(monetary_class)
+    return {
+        "free": 0.0,
+        "low": 0.25,
+        "medium": 0.5,
+        "high": 1.0,
+    }.get(value, 0.0)
 
 
 def _summarise_for_kernel(

@@ -1920,7 +1920,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
 
 
 def _temporal_query_facets(temporal_value: Any) -> tuple[str, ...]:
-    from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
+    from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
     if not isinstance(temporal_value, TemporalAbstractionSnapshot):
         return ()
@@ -1931,7 +1931,7 @@ def _temporal_query_facets(temporal_value: Any) -> tuple[str, ...]:
 
 
 def _temporal_feedback_signal(temporal_value: Any) -> tuple[float, ...]:
-    from volvence_zero.temporal.interface import TemporalAbstractionSnapshot
+    from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
     if not isinstance(temporal_value, TemporalAbstractionSnapshot):
         return ()

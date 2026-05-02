@@ -90,12 +90,15 @@ git filter-repo \
   --path packages/lifeform-domain-coding \
   --path packages/lifeform-service \
   --path packages/lifeform-evolution \
-  --path docs/lifeform_specs \
+  --path docs/specs/lifeform-vitals.md \
+  --path docs/specs/domain-experience-layer.md \
+  --path docs/specs/affordance.md \
+  --path docs/scenarios \
   --path tests/lifeform_e2e
 
 # 2) Drop lifeform from the kernel repo.
 cd <volvence-zero-repo>
-git rm -r packages/lifeform-* docs/lifeform_specs tests/lifeform_e2e
+git rm -r packages/lifeform-* docs/specs/lifeform-vitals.md docs/specs/domain-experience-layer.md docs/specs/affordance.md docs/scenarios tests/lifeform_e2e
 git commit -m "chore: split lifeform layer into its own repository"
 
 # 3) Pin wheel versions in lifeform-emogpt.

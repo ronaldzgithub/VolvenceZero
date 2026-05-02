@@ -2603,7 +2603,8 @@ def _runtime_adaptation_evidence_observed(turns: tuple[DialogueBenchmarkTurn, ..
         turn.joint_schedule_action != "evidence-only"
         or turn.bounded_writeback_applied
         or turn.reflection_promotion_eligible
-        or turn.pe_triggered
+        or turn.prediction_error_magnitude > 1e-8
+        or abs(turn.prediction_error_reward) > 1e-8
         or turn.switch_gate > 0.0
         for turn in turns
     )

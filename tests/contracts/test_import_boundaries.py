@@ -55,7 +55,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     ),
     "vz-application": frozenset(
         {
-            "runtime", "learned_update", "substrate", "memory",
+            "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
@@ -65,7 +65,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     ),
     "vz-temporal": frozenset(
         {
-            "runtime", "learned_update", "substrate", "memory",
+            "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
