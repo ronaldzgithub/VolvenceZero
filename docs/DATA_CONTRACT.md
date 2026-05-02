@@ -1369,7 +1369,8 @@ reflection ──────────────→ owner-side writeback: m
 | `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` + `TERMINAL_THINKING_TASK_STATUSES` / `APPLIABLE_THINKING_TASK_STATUSES` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，`volvence_zero.thinking`，Phase 1 slice 1） |
 | `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` / `AffordanceLatencyClass` / `AffordanceMonetaryClass` + `MIN_SELECTION_HINT_CHARS=50` 不变量 | `docs/specs/affordance.md` | **已落地**（2026-04-29 slice 1：schema + `vz-contracts/affordance.py`；lifeform-affordance wheel 含 registry + 4 renderers + snapshot + `build_neutral_snapshot` scaffold；execution / metacontroller 选择 / 真实 vertical 注册留 slice 2） |
 | `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | 待实施（Phase 2） |
-| `InterlocutorIdentity` / `MultiPartyIdentitySnapshot` / `SocialPrediction` / `SocialPredictionError` / `SocialPredictionKind` / `SocialPredictionOutcome` / `SocialScopeKind` + `PRIMARY_INTERLOCUTOR_ID` / `SELF_INTERLOCUTOR_ID` | `docs/specs/social_cognition/01_multi_party_identity.md` | **已落地**（2026-05-02，`volvence_zero.social_cognition`，R16 Phase 1 slice 1：contract types + `primary` compatibility builder；runtime owner / propagate wiring 待后续 slice） |
+| `InterlocutorIdentity` / `MultiPartyIdentitySnapshot` / `SocialPrediction` / `SocialPredictionError` / `SocialPredictionSnapshot` / `SocialPredictionErrorSnapshot` / `SocialPredictionKind` / `SocialPredictionOutcome` / `SocialScopeKind` + `PRIMARY_INTERLOCUTOR_ID` / `SELF_INTERLOCUTOR_ID` | `docs/specs/social_cognition/01_multi_party_identity.md` | **已落地**（2026-05-02，R16 Phase 1 slices 1-7：`volvence_zero.social_cognition` contract types + `primary` compatibility builder；`MultiPartyIdentityModule` SHADOW owner；`ResponseContext` / `AgentTurnResult` scope readout；`MemoryEntry` / `MemoryWriteRequest` subject/audience scope；MemoryModule can consume ACTIVE `multi_party_identity` for write scope；`SocialPredictionAggregateModule` / `SocialPredictionErrorModule` empty SHADOW scaffolds；`derive_social_prediction_error_credit_records` 可承载人工 social PE probe，默认不改变行为） |
+| `EnvironmentEvent` / `EnvironmentOutcome`（名称暂定） | `docs/specs/environment-interface.md` | planned（Phase 0 只冻结语义字段；Phase 1 决定落在 `lifeform-core` 还是 `vz-contracts`，不得新增 kernel owner / slot） |
 
 ---
 
@@ -1414,6 +1415,7 @@ reflection ──────────────→ owner-side writeback: m
 | `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 |
 | `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 |
 | `docs/specs/lifeform-vitals.md` | always-on drive 层契约（R-PE 慢尺度源） |
+| `docs/specs/environment-interface.md` | 生命体与环境之间的 Observe / Perceive / Act / Assimilate 总边界协议 |
 | `docs/specs/domain-experience-layer.md` | 通用 vertical 经验包 schema 与编译边界 |
 | `docs/specs/core-package-boundary.md` | core package 边界、stable Brain API、HF optional runtime |
 | `.cursor/rules/ssot-module-boundaries.mdc` | 模块 SSOT + 快照隔离的编码规则 |

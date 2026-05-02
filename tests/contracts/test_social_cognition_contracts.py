@@ -13,8 +13,10 @@ from volvence_zero.social_cognition import (
     MultiPartyIdentitySnapshot,
     SocialPrediction,
     SocialPredictionError,
+    SocialPredictionErrorSnapshot,
     SocialPredictionKind,
     SocialPredictionOutcome,
+    SocialPredictionSnapshot,
     SocialScopeKind,
     build_primary_multi_party_identity_snapshot,
 )
@@ -156,4 +158,57 @@ def test_social_prediction_error_is_typed_and_bounded() -> None:
             scope_kind=SocialScopeKind.INTERLOCUTOR,
             scope_id="alice",
             evidence=("out of range",),
+        )
+
+
+def test_social_prediction_snapshots_accept_empty_shadow_scaffolds() -> None:
+    predictions = SocialPredictionSnapshot(
+        predictions=(),
+        description="empty shadow social prediction scaffold",
+    )
+    errors = SocialPredictionErrorSnapshot(
+        errors=(),
+        description="empty shadow social prediction error scaffold",
+    )
+
+    assert predictions.predictions == ()
+    assert errors.errors == ()
+
+
+def test_social_prediction_snapshot_rejects_duplicate_prediction_ids() -> None:
+    prediction = SocialPrediction(
+        prediction_id="p1",
+        kind=SocialPredictionKind.IDENTITY_ATTRIBUTION,
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        subject_ids=("alice",),
+        audience_ids=("self",),
+        predicted_outcome="state belongs to Alice",
+        confidence=0.8,
+    )
+
+    with pytest.raises(ValueError, match="prediction_id"):
+        SocialPredictionSnapshot(
+            predictions=(prediction, prediction),
+            description="duplicate predictions",
+        )
+
+
+def test_social_prediction_error_snapshot_rejects_duplicate_error_ids() -> None:
+    error = SocialPredictionError(
+        error_id="e1",
+        prediction_id="p1",
+        kind=SocialPredictionKind.MEMORY_VISIBILITY,
+        outcome=SocialPredictionOutcome.DISCONFIRMED,
+        magnitude=0.5,
+        owner="MultiPartyIdentityModule",
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        evidence=("scope mismatch",),
+    )
+
+    with pytest.raises(ValueError, match="error_id"):
+        SocialPredictionErrorSnapshot(
+            errors=(error, error),
+            description="duplicate errors",
         )

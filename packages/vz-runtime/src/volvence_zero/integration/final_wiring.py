@@ -96,7 +96,11 @@ from volvence_zero.semantic_state import (
     UserModelSnapshot,
     build_semantic_modules,
 )
-from volvence_zero.social_identity import MultiPartyIdentityModule
+from volvence_zero.social_identity import (
+    MultiPartyIdentityModule,
+    SocialPredictionAggregateModule,
+    SocialPredictionErrorModule,
+)
 from volvence_zero.substrate import (
     SubstrateAdapter,
     SubstrateModule,
@@ -150,6 +154,8 @@ class FinalRolloutConfig:
     goal_value: WiringLevel = WiringLevel.ACTIVE
     boundary_consent: WiringLevel = WiringLevel.ACTIVE
     multi_party_identity: WiringLevel = WiringLevel.SHADOW
+    social_prediction: WiringLevel = WiringLevel.SHADOW
+    social_prediction_error: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -186,6 +192,8 @@ class FinalRolloutConfig:
             "goal_value": self.goal_value,
             "boundary_consent": self.boundary_consent,
             "multi_party_identity": self.multi_party_identity,
+            "social_prediction": self.social_prediction,
+            "social_prediction_error": self.social_prediction_error,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -997,13 +1005,19 @@ def build_final_runtime_modules(
             external_pe_reward=substrate_self_mod_pe_reward,
             wiring_level=config.level_for("substrate_self_mod", WiringLevel.SHADOW),
         ),
+        MultiPartyIdentityModule(
+            wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
+        ),
         MemoryModule(
             store=memory_store or build_default_memory_store(),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
         ),
-        MultiPartyIdentityModule(
-            wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
+        SocialPredictionAggregateModule(
+            wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),
+        ),
+        SocialPredictionErrorModule(
+            wiring_level=config.level_for("social_prediction_error", WiringLevel.SHADOW),
         ),
         *build_semantic_modules(
             store=semantic_store,

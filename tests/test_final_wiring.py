@@ -70,6 +70,8 @@ from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
     MultiPartyIdentitySnapshot,
+    SocialPredictionErrorSnapshot,
+    SocialPredictionSnapshot,
 )
 from volvence_zero.substrate import (
     FeatureSignal,
@@ -340,6 +342,33 @@ def test_final_wiring_publishes_multi_party_identity_shadow_scaffold():
     assert value.audience_ids == (SELF_INTERLOCUTOR_ID,)
     assert value.identity_predictions == ()
     assert "R16 SHADOW scaffold" in value.description
+
+
+def test_final_wiring_publishes_empty_social_prediction_shadow_scaffolds():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="social-prediction-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="social_prediction_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="social-prediction-session",
+            wave_id="social-prediction-wave",
+        )
+    )
+
+    assert "social_prediction" not in result.active_snapshots
+    assert "social_prediction_error" not in result.active_snapshots
+    prediction_value = result.shadow_snapshots["social_prediction"].value
+    error_value = result.shadow_snapshots["social_prediction_error"].value
+    assert isinstance(prediction_value, SocialPredictionSnapshot)
+    assert isinstance(error_value, SocialPredictionErrorSnapshot)
+    assert prediction_value.predictions == ()
+    assert error_value.errors == ()
+    assert "R16 SHADOW scaffold" in prediction_value.description
+    assert "R16 SHADOW scaffold" in error_value.description
 
 
 def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():

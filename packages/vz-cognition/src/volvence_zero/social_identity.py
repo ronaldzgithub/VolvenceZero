@@ -12,6 +12,8 @@ from typing import Any, Mapping
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     MultiPartyIdentitySnapshot,
+    SocialPredictionErrorSnapshot,
+    SocialPredictionSnapshot,
     build_primary_multi_party_identity_snapshot,
 )
 
@@ -44,4 +46,67 @@ class MultiPartyIdentityModule(RuntimeModule[MultiPartyIdentitySnapshot]):
         )
 
 
-__all__ = ["MultiPartyIdentityModule"]
+class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
+    """Publishes the pre-action social prediction aggregate.
+
+    Slice 6 is intentionally empty: it establishes ownership and wiring so
+    later slices can add misattribution predictions without changing the
+    public snapshot shape.
+    """
+
+    slot_name = "social_prediction"
+    owner = "SocialPredictionAggregateModule"
+    value_type = SocialPredictionSnapshot
+    dependencies = ("multi_party_identity",)
+    default_wiring_level = WiringLevel.SHADOW
+
+    async def process(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> Snapshot[SocialPredictionSnapshot]:
+        identity_snapshot = upstream.get("multi_party_identity")
+        identity_available = isinstance(
+            identity_snapshot.value, MultiPartyIdentitySnapshot
+        ) if identity_snapshot is not None else False
+        suffix = "identity=available" if identity_available else "identity=compatibility-fallback"
+        return self.publish(
+            SocialPredictionSnapshot(
+                predictions=(),
+                description=f"R16 SHADOW scaffold: no social predictions emitted yet; {suffix}.",
+            )
+        )
+
+
+class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
+    """Publishes typed social PE records derived from social predictions."""
+
+    slot_name = "social_prediction_error"
+    owner = "SocialPredictionErrorModule"
+    value_type = SocialPredictionErrorSnapshot
+    dependencies = ("social_prediction",)
+    default_wiring_level = WiringLevel.SHADOW
+
+    async def process(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> Snapshot[SocialPredictionErrorSnapshot]:
+        prediction_snapshot = upstream.get("social_prediction")
+        prediction_available = isinstance(
+            prediction_snapshot.value, SocialPredictionSnapshot
+        ) if prediction_snapshot is not None else False
+        suffix = (
+            "prediction=available"
+            if prediction_available
+            else "prediction=compatibility-fallback"
+        )
+        return self.publish(
+            SocialPredictionErrorSnapshot(
+                errors=(),
+                description=f"R16 SHADOW scaffold: no social prediction errors emitted yet; {suffix}.",
+            )
+        )
+
+
+__all__ = [
+    "MultiPartyIdentityModule",
+    "SocialPredictionAggregateModule",
+    "SocialPredictionErrorModule",
+]

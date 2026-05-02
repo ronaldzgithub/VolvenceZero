@@ -11,6 +11,7 @@ from volvence_zero.credit import (
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     derive_metacontroller_credit_records,
+    derive_social_prediction_error_credit_records,
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
@@ -30,6 +31,12 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
 )
 from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, ActualOutcome, PredictedOutcome
+from volvence_zero.social_cognition import (
+    SocialPredictionError,
+    SocialPredictionKind,
+    SocialPredictionOutcome,
+    SocialScopeKind,
+)
 from volvence_zero.temporal import LearnedLiteTemporalPolicy, MetacontrollerRuntimeState, TemporalModule
 
 
@@ -104,6 +111,34 @@ def test_credit_module_records_credits_and_modification_audit():
     assert snapshot.value.recent_modifications
     assert snapshot.value.cumulative_credit_by_level
     assert snapshot.value.recent_modifications[-1].decision is GateDecision.ALLOW
+
+
+def test_social_prediction_error_credit_records_carry_misattribution_probe():
+    social_error = SocialPredictionError(
+        error_id="social-pe:alice-bob:1",
+        prediction_id="social-pred:alice-memory-visible-to-bob",
+        kind=SocialPredictionKind.MEMORY_VISIBILITY,
+        outcome=SocialPredictionOutcome.DISCONFIRMED,
+        magnitude=0.82,
+        owner="MultiPartyIdentityModule",
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id="alice",
+        evidence=("Alice-scoped preference was presented in Bob audience context.",),
+    )
+
+    records = derive_social_prediction_error_credit_records(
+        social_errors=(social_error,),
+        timestamp_ms=42,
+    )
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.level == "social_prediction_error"
+    assert record.track is Track.SHARED
+    assert record.source_event == "social_pe:memory_visibility"
+    assert record.credit_value == -0.82
+    assert "scope=interlocutor:alice" in record.context
+    assert "Alice-scoped preference" in record.context
 
 
 def test_credit_module_consumes_chain_in_shadow_mode():

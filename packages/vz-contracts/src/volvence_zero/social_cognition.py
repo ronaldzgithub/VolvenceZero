@@ -107,6 +107,28 @@ class SocialPredictionError:
 
 
 @dataclass(frozen=True)
+class SocialPredictionSnapshot:
+    predictions: tuple[SocialPrediction, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        prediction_ids = tuple(prediction.prediction_id for prediction in self.predictions)
+        _require_unique_non_empty("predictions.prediction_id", prediction_ids)
+        _require_non_empty("description", self.description)
+
+
+@dataclass(frozen=True)
+class SocialPredictionErrorSnapshot:
+    errors: tuple[SocialPredictionError, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        error_ids = tuple(error.error_id for error in self.errors)
+        _require_unique_non_empty("errors.error_id", error_ids)
+        _require_non_empty("description", self.description)
+
+
+@dataclass(frozen=True)
 class MultiPartyIdentitySnapshot:
     active_speaker_id: str
     addressee_ids: tuple[str, ...]
@@ -198,8 +220,10 @@ __all__ = [
     "MultiPartyIdentitySnapshot",
     "SocialPrediction",
     "SocialPredictionError",
+    "SocialPredictionErrorSnapshot",
     "SocialPredictionKind",
     "SocialPredictionOutcome",
+    "SocialPredictionSnapshot",
     "SocialScopeKind",
     "build_primary_multi_party_identity_snapshot",
 ]

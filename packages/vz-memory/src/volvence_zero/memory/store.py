@@ -25,7 +25,11 @@ from volvence_zero.memory.runtime_evidence import (
     cosine_alignment,
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
-from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
+from volvence_zero.social_cognition import (
+    PRIMARY_INTERLOCUTOR_ID,
+    SELF_INTERLOCUTOR_ID,
+    MultiPartyIdentitySnapshot,
+)
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
 if TYPE_CHECKING:
@@ -1574,6 +1578,8 @@ def build_memory_write_requests(
     substrate_snapshot: SubstrateSnapshot | None,
     user_text: str | None,
     track: Track = Track.SHARED,
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,),
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,),
 ) -> tuple[MemoryWriteRequest, ...]:
     requests: list[MemoryWriteRequest] = []
     if user_text:
@@ -1584,6 +1590,8 @@ def build_memory_write_requests(
                 stratum=MemoryStratum.TRANSIENT,
                 tags=("user_input",),
                 strength=0.55,
+                subject_ids=subject_ids,
+                audience_ids=audience_ids,
             )
         )
     if substrate_snapshot is None:
@@ -1597,6 +1605,8 @@ def build_memory_write_requests(
                 stratum=MemoryStratum.TRANSIENT,
                 tags=("substrate_sequence", substrate_snapshot.surface_kind.value),
                 strength=0.6,
+                subject_ids=subject_ids,
+                audience_ids=audience_ids,
             )
         )
     if substrate_snapshot.feature_surface:
@@ -1608,6 +1618,8 @@ def build_memory_write_requests(
                     stratum=MemoryStratum.DERIVED,
                     tags=(feature.name, feature.source),
                     strength=0.4,
+                    subject_ids=subject_ids,
+                    audience_ids=audience_ids,
                 )
             )
     return tuple(requests)
@@ -1645,6 +1657,14 @@ def build_retrieval_query(
     )
 
 
+def _memory_scope_from_identity_snapshot(
+    snapshot: Snapshot[object] | None,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if snapshot is None or not isinstance(snapshot.value, MultiPartyIdentitySnapshot):
+        return (PRIMARY_INTERLOCUTOR_ID,), (SELF_INTERLOCUTOR_ID,)
+    return snapshot.value.subject_ids, snapshot.value.audience_ids
+
+
 def _query_parts_from_feature_surface(feature_surface: tuple[FeatureSignal, ...]) -> tuple[str, ...]:
     return tuple(feature.name for feature in feature_surface[:3])
 
@@ -1662,7 +1682,13 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
     slot_name = "memory"
     owner = "MemoryModule"
     value_type = MemorySnapshot
-    dependencies = ("substrate", "temporal_abstraction", "dual_track", "prediction_error")
+    dependencies = (
+        "substrate",
+        "multi_party_identity",
+        "temporal_abstraction",
+        "dual_track",
+        "prediction_error",
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -1689,7 +1715,11 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         temporal_snapshot = upstream.get("temporal_abstraction")
         dual_track_snapshot = upstream.get("dual_track")
         prediction_error_snapshot = upstream.get("prediction_error")
+        multi_party_identity_snapshot = upstream.get("multi_party_identity")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
+        subject_ids, audience_ids = _memory_scope_from_identity_snapshot(
+            multi_party_identity_snapshot
+        )
         prediction_error_value = (
             prediction_error_snapshot.value
             if prediction_error_snapshot is not None and isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
@@ -1718,6 +1748,8 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             substrate_snapshot=substrate_value,
             user_text=self._user_text,
             track=Track.SHARED,
+            subject_ids=subject_ids,
+            audience_ids=audience_ids,
         ):
             self._store.write(request, timestamp_ms=substrate_snapshot.timestamp_ms)
 
@@ -1750,6 +1782,12 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         temporal_snapshot = kwargs.get("temporal_snapshot")
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        subject_ids = kwargs.get("subject_ids", (PRIMARY_INTERLOCUTOR_ID,))
+        audience_ids = kwargs.get("audience_ids", (SELF_INTERLOCUTOR_ID,))
+        if not isinstance(subject_ids, tuple):
+            raise TypeError("subject_ids must be a tuple when provided.")
+        if not isinstance(audience_ids, tuple):
+            raise TypeError("audience_ids must be a tuple when provided.")
 
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
@@ -1777,6 +1815,8 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             substrate_snapshot=substrate_value,
             user_text=user_text,
             track=Track.SHARED,
+            subject_ids=subject_ids,
+            audience_ids=audience_ids,
         ):
             self._store.write(request, timestamp_ms=timestamp_ms)
 

@@ -10,6 +10,7 @@ from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.memory import Track
 from volvence_zero.prediction.error import PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionOutcome
 
 if TYPE_CHECKING:
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
@@ -262,6 +263,31 @@ def derive_prediction_error_credit_records(
         ),
     )
     return records
+
+
+def derive_social_prediction_error_credit_records(
+    *,
+    social_errors: tuple[SocialPredictionError, ...],
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    records: list[CreditRecord] = []
+    for error in social_errors:
+        sign = -1.0 if error.outcome is SocialPredictionOutcome.DISCONFIRMED else 1.0
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="social_prediction_error",
+                track=Track.SHARED,
+                source_event=f"social_pe:{error.kind.value}",
+                credit_value=_clamp(sign * error.magnitude),
+                context=(
+                    f"owner={error.owner}; scope={error.scope_kind.value}:{error.scope_id}; "
+                    f"outcome={error.outcome.value}; evidence={' | '.join(error.evidence)}"
+                ),
+                timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
 
 
 def derive_abstract_action_credit_records(

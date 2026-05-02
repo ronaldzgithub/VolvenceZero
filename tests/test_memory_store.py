@@ -13,8 +13,13 @@ from volvence_zero.memory import (
     Track,
 )
 from volvence_zero.prediction import ActualOutcome, PredictionError, PredictionErrorSnapshot, PredictedOutcome
-from volvence_zero.runtime import WiringLevel, propagate
-from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
+from volvence_zero.runtime import RuntimeModule, WiringLevel, propagate
+from volvence_zero.social_cognition import (
+    PRIMARY_INTERLOCUTOR_ID,
+    SELF_INTERLOCUTOR_ID,
+    InterlocutorIdentity,
+    MultiPartyIdentitySnapshot,
+)
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -22,6 +27,29 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import ControllerState, TemporalAbstractionSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
+from volvence_zero.social_identity import MultiPartyIdentityModule
+
+
+class _AliceIdentityModule(RuntimeModule[MultiPartyIdentitySnapshot]):
+    slot_name = "multi_party_identity"
+    owner = "TestAliceIdentityModule"
+    value_type = MultiPartyIdentitySnapshot
+    dependencies: tuple[str, ...] = ()
+    default_wiring_level = WiringLevel.ACTIVE
+
+    async def process(self, upstream):
+        del upstream
+        return self.publish(
+            MultiPartyIdentitySnapshot(
+                active_speaker_id="alice",
+                addressee_ids=("self",),
+                subject_ids=("alice",),
+                audience_ids=("self", "alice"),
+                interlocutors=(InterlocutorIdentity(interlocutor_id="alice"),),
+                identity_predictions=(),
+                description="test identity scope for Alice",
+            )
+        )
 
 
 def test_memory_store_write_and_retrieve_by_track_and_query():
@@ -242,6 +270,22 @@ def test_memory_module_process_standalone_publishes_memory_snapshot():
     assert snapshot.value.description.startswith("Memory store with")
 
 
+def test_memory_module_process_standalone_accepts_explicit_social_scope():
+    module = MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE)
+    snapshot = asyncio.run(
+        module.process_standalone(
+            user_text="remember alice scope",
+            timestamp_ms=100,
+            subject_ids=("alice",),
+            audience_ids=("self", "alice"),
+        )
+    )
+
+    entry = snapshot.value.retrieved_entries[0]
+    assert entry.subject_ids == ("alice",)
+    assert entry.audience_ids == ("self", "alice")
+
+
 def test_memory_module_consumes_substrate_and_publishes_shadow_snapshot():
     substrate = SubstrateModule(
         adapter=FeatureSurfaceSubstrateAdapter(
@@ -269,6 +313,62 @@ def test_memory_module_consumes_substrate_and_publishes_shadow_snapshot():
     memory_snapshot = shadow_snapshots["memory"]
     assert memory_snapshot.value.total_entries_by_stratum
     assert memory_snapshot.value.retrieved_entries
+
+
+def test_memory_module_process_uses_active_multi_party_identity_scope():
+    substrate = SubstrateModule(
+        adapter=FeatureSurfaceSubstrateAdapter(
+            model_id="identity-scoped-memory-model",
+            feature_surface=(
+                FeatureSignal(name="trust_signal", values=(0.8,), source="adapter"),
+            ),
+        ),
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    identity = _AliceIdentityModule(wiring_level=WiringLevel.ACTIVE)
+    memory = MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE, user_text="alice scoped preference")
+
+    result = asyncio.run(
+        propagate(
+            [substrate, identity, memory],
+            session_id="identity-scope-session",
+            wave_id="identity-scope-wave",
+        )
+    )
+
+    memory_snapshot = result["memory"]
+    entry = memory_snapshot.value.retrieved_entries[0]
+    assert entry.subject_ids == ("alice",)
+    assert entry.audience_ids == ("self", "alice")
+
+
+def test_memory_module_scope_falls_back_when_identity_is_shadow_only():
+    substrate = SubstrateModule(
+        adapter=FeatureSurfaceSubstrateAdapter(
+            model_id="shadow-identity-scoped-memory-model",
+            feature_surface=(
+                FeatureSignal(name="trust_signal", values=(0.8,), source="adapter"),
+            ),
+        ),
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    identity = MultiPartyIdentityModule(wiring_level=WiringLevel.SHADOW)
+    memory = MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE, user_text="shadow scoped preference")
+    shadow_snapshots: dict[str, object] = {}
+
+    result = asyncio.run(
+        propagate(
+            [substrate, identity, memory],
+            session_id="shadow-identity-scope-session",
+            wave_id="shadow-identity-scope-wave",
+            shadow_snapshots=shadow_snapshots,
+        )
+    )
+
+    assert "multi_party_identity" in shadow_snapshots
+    entry = result["memory"].value.retrieved_entries[0]
+    assert entry.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert entry.audience_ids == (SELF_INTERLOCUTOR_ID,)
 
 
 def test_memory_module_process_can_ingest_runtime_user_text_into_owner_memory():
