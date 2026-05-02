@@ -123,6 +123,22 @@
 
 ---
 
+### 6B. Environment Interface
+
+**对应需求**：R-PE、R1、R3/R4、R8、R10、R11、R15、R16-R20
+
+| Spec | 内容 |
+|------|------|
+| [environment-interface.md](./environment-interface.md) | 生命体与环境之间的 Observe / Perceive / Act / Assimilate 总边界协议；Environment Event 语义；行动 outcome 到 PE 的回流；与 social cognition 的正交依赖 |
+
+**核心不变量**：
+- 环境不是内核 owner；`lifeform-*` 负责适配环境，`vz-*` 只消费 canonical event / frozen snapshot
+- 感知层只产生 typed proposal / owner input，不拥有最终社会状态或记忆状态
+- 行动必须能形成 pre-action prediction，并通过 outcome 回流 `prediction_error`
+- Social Cognition 消费 Environment Event 的 conversational frame，不从 raw text / renderer / prompt 重建社会事实
+
+---
+
 ### 7. 信用分配与自修改
 
 **对应需求**：R-PE（prediction error 为原始学习信号）、R9（层级信用分配）、R10（有门控的分层自修改）

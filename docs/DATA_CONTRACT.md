@@ -117,6 +117,33 @@ class WiringLevel(Enum):
     ACTIVE = "active"       # 模块输出写入正式 upstream
 ```
 
+### 2.6 Environment Event（planned，Phase 0 design freeze）
+
+Environment Event 是 `docs/specs/environment-interface.md` 定义的生命体与环境之间的 canonical event 语义。Phase 0 只冻结字段语义，不承诺新增 Python dataclass 或 kernel slot。
+
+**语义字段**：
+
+- `event_id`
+- `event_kind`
+- `trigger_kind`
+- `actor_id`
+- `active_speaker_id`
+- `addressee_ids`
+- `subject_ids`
+- `audience_ids`
+- `scene_id`
+- `timestamp_ms`
+- `provenance`
+- `consent_context`
+- `payload_summary`
+
+**不变量**：
+
+- Environment Event 不是 kernel owner，也不进入 §6 kernel slot 注册表。
+- `lifeform-*` / host / service adapter 负责生产 canonical event / outcome；`vz-*` 只能通过 `Brain` / `BrainSession` facade 与公共 snapshot 消费。
+- social cognition owners 消费 Environment Event conversational frame 或其 owner snapshot，不从 renderer / prompt / raw text 重建社会事实。
+- tool / affordance / expression outcome 必须能关联到 prior prediction 或 prediction context，再进入 `prediction_error` typed evidence。
+
 ### 2.7 Session-Post Slow Loop（会话后慢环）
 
 `background-slow` 的默认运行时形态是 **session-post slow loop**：
@@ -1342,6 +1369,7 @@ reflection ──────────────→ owner-side writeback: m
 | `ThinkingTask` / `ThinkingArtifact` / `ThinkingDepth` / `ThinkingTaskStatus` / `ThinkingPurpose` + `TERMINAL_THINKING_TASK_STATUSES` / `APPLIABLE_THINKING_TASK_STATUSES` | `docs/specs/thinking-loop.md` | **已落地**（2026-04-29，`volvence_zero.thinking`，Phase 1 slice 1） |
 | `AffordanceDescriptor` / `AffordanceKind` / `AffordanceCost` / `AffordanceSafety` / `AffordanceLatencyClass` / `AffordanceMonetaryClass` + `MIN_SELECTION_HINT_CHARS=50` 不变量 | `docs/specs/affordance.md` | **已落地**（2026-04-29 slice 1：schema + `vz-contracts/affordance.py`；lifeform-affordance wheel 含 registry + 4 renderers + snapshot + `build_neutral_snapshot` scaffold；execution / metacontroller 选择 / 真实 vertical 注册留 slice 2） |
 | `IngestionEnvelope` / `IngestionChunk` / `IngestionProvenance` / `IngestionSourceKind` / `IngestionComplianceProfile` —— 注：**不**进 vz-contracts，应在 `lifeform-ingestion` wheel 内（lifeform-side 契约） | `docs/specs/runtime-ingestion.md` | 待实施（Phase 2） |
+| `InterlocutorIdentity` / `MultiPartyIdentitySnapshot` / `SocialPrediction` / `SocialPredictionError` / `SocialPredictionKind` / `SocialPredictionOutcome` / `SocialScopeKind` + `PRIMARY_INTERLOCUTOR_ID` / `SELF_INTERLOCUTOR_ID` | `docs/specs/social_cognition/01_multi_party_identity.md` | **已落地**（2026-05-02，`volvence_zero.social_cognition`，R16 Phase 1 slice 1：contract types + `primary` compatibility builder；runtime owner / propagate wiring 待后续 slice） |
 
 ---
 

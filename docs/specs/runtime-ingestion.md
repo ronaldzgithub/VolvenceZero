@@ -26,6 +26,7 @@ EmoGPT v4 PRD §10 给出 5 种 ContentSource（novel / materials / persona_rese
   - **Apprenticeship trigger**（Gap 2，lifeform-core 内部扩展）：给 turn 加 `trigger_kind` 标签
   - **Runtime Ingestion adapter**（Gap 3，新 wheel）：把外部 corpus 切片成多次 `run_turn` 调用，每次带 `trigger_kind="ingestion"`
 - durable 化**只能**走 R6 session-post slow loop，不存在"特殊学习路径"
+- 在 Environment Interface 口径下，ingestion 是 `Observe` 面的 source adapter：它把外部 corpus 规范化为 canonical turn / event 输入，不成为独立学习管线或 owner。
 
 ## 关键不变量
 
@@ -38,6 +39,7 @@ EmoGPT v4 PRD §10 给出 5 种 ContentSource（novel / materials / persona_rese
 - ingestion adapter **禁止**做任何"内容关键词分类"：source_kind 由文件类型 / URL 协议决定，不是 LLM 关键词判定
 - web ingestion 第一阶段**禁止** Playwright / 浏览器自动安装，只用 `requests` + `readability-lxml`
 - ingestion session 与用户 session 隔离：`session_id` 命名前缀 `ingestion-` 强制，host 不可在 ingestion session 与用户 session 之间共享 transcript
+- ingestion 产生的 evidence 必须能回溯到 Environment Event / envelope provenance；durable 化仍只能通过标准 PE + session-post slow loop。
 
 ## 工程挑战
 
@@ -295,6 +297,7 @@ async def handle_teaching_case_submit(req: web.Request) -> web.Response:
 
 | 关系 | 能力域 | 说明 |
 |---|---|---|
+| 依赖 | Environment Interface | ingestion 是外部材料进入系统的 `Observe` source adapter，必须归并到 canonical event / turn 路径 |
 | 依赖 | 契约式运行时 | 所有 chunk 走 `run_turn` 主链 |
 | 依赖 | 连续记忆系统 | consolidation 路径由 R6 slow loop 处理 |
 | 依赖 | Lifeform Vitals | apprenticeship override 走 vitals 已有机制 |

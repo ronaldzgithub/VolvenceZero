@@ -44,19 +44,22 @@ PACKAGES_ROOT = REPO_ROOT / "packages"
 ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
     "vz-substrate": frozenset({"runtime", "learned_update"}),
-    "vz-memory": frozenset({"runtime", "learned_update", "substrate"}),
+    "vz-memory": frozenset({"runtime", "learned_update", "substrate", "social_cognition"}),
     # vz-cognition ships ``application_types`` (snapshot type definitions)
     # but NOT ``application`` (owners). Owners live in vz-application,
     # which depends on this wheel. The split was made possible by extracting
     # the snapshot types into ``volvence_zero.application_types`` so
     # ``evaluation`` does not have to import from owner code.
-    "vz-cognition": frozenset({"runtime", "learned_update", "substrate", "memory"}),
+    "vz-cognition": frozenset(
+        {"runtime", "learned_update", "substrate", "memory", "social_cognition"}
+    ),
     "vz-application": frozenset(
         {
             "runtime", "learned_update", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
+            "social_identity", "social_cognition",
         }
     ),
     "vz-temporal": frozenset(
@@ -65,6 +68,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
+            "social_identity", "social_cognition",
             # vz-application:
             "application",
         }
@@ -75,6 +79,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "application_types",
+            "social_identity", "social_cognition",
             # vz-application:
             "application",
             # everything in vz-temporal:

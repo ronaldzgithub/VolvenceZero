@@ -107,6 +107,11 @@ from volvence_zero.semantic_state import (
     SemanticProposalRuntime,
     SemanticStateStore,
 )
+from volvence_zero.social_cognition import (
+    PRIMARY_INTERLOCUTOR_ID,
+    SELF_INTERLOCUTOR_ID,
+    MultiPartyIdentitySnapshot,
+)
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
     LocalSubstrateRuntimeMode,
@@ -168,6 +173,10 @@ class AgentTurnResult:
     default_continual_learning_surface: DefaultContinualLearningSurface | None
     response: AgentResponse
     event_count: int
+    active_speaker_id: str = PRIMARY_INTERLOCUTOR_ID
+    addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
     substrate_model_id: str | None = None
     substrate_runtime_origin: str | None = None
     substrate_fallback_active: bool = False
@@ -3144,6 +3153,22 @@ class AgentSessionRunner:
         case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
         strategy_playbook_snapshot = integration_result.active_snapshots.get("strategy_playbook")
         boundary_policy_snapshot = integration_result.active_snapshots.get("boundary_policy")
+        multi_party_identity_snapshot = integration_result.active_snapshots.get(
+            "multi_party_identity"
+        ) or integration_result.shadow_snapshots.get("multi_party_identity")
+        active_speaker_id = PRIMARY_INTERLOCUTOR_ID
+        addressee_ids = (SELF_INTERLOCUTOR_ID,)
+        subject_ids = (PRIMARY_INTERLOCUTOR_ID,)
+        audience_ids = (SELF_INTERLOCUTOR_ID,)
+        if (
+            multi_party_identity_snapshot is not None
+            and isinstance(multi_party_identity_snapshot.value, MultiPartyIdentitySnapshot)
+        ):
+            identity_scope = multi_party_identity_snapshot.value
+            active_speaker_id = identity_scope.active_speaker_id
+            addressee_ids = identity_scope.addressee_ids
+            subject_ids = identity_scope.subject_ids
+            audience_ids = identity_scope.audience_ids
 
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
@@ -3166,6 +3191,10 @@ class AgentSessionRunner:
                 primary_reflection_tension=primary_reflection_tension,
                 joint_schedule_action=joint_result.schedule_action,
                 user_input=user_input,
+                active_speaker_id=active_speaker_id,
+                addressee_ids=addressee_ids,
+                subject_ids=subject_ids,
+                audience_ids=audience_ids,
             ),
             assembly=response_assembly,
         )
@@ -3273,6 +3302,10 @@ class AgentSessionRunner:
             default_continual_learning_surface=joint_result.default_continual_learning_surface,
             response=response,
             event_count=integration_result.event_count,
+            active_speaker_id=active_speaker_id,
+            addressee_ids=addressee_ids,
+            subject_ids=subject_ids,
+            audience_ids=audience_ids,
             substrate_model_id=substrate_model_id,
             substrate_runtime_origin=substrate_runtime_origin,
             substrate_fallback_active=substrate_fallback_active,

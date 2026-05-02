@@ -25,6 +25,7 @@ from volvence_zero.memory.runtime_evidence import (
     cosine_alignment,
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
 if TYPE_CHECKING:
@@ -54,6 +55,12 @@ class MemoryEntry:
     last_accessed_ms: int
     strength: float
     tags: tuple[str, ...]
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+
+    def __post_init__(self) -> None:
+        _require_non_empty_unique_tuple("subject_ids", self.subject_ids)
+        _require_non_empty_unique_tuple("audience_ids", self.audience_ids)
 
 
 @dataclass(frozen=True)
@@ -63,6 +70,12 @@ class MemoryWriteRequest:
     stratum: MemoryStratum
     tags: tuple[str, ...] = ()
     strength: float = 0.5
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+
+    def __post_init__(self) -> None:
+        _require_non_empty_unique_tuple("subject_ids", self.subject_ids)
+        _require_non_empty_unique_tuple("audience_ids", self.audience_ids)
 
 
 @dataclass(frozen=True)
@@ -123,6 +136,14 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                 last_accessed_ms=int(e["last_accessed_ms"]),
                 strength=float(e["strength"]),
                 tags=tuple(str(t) for t in e.get("tags", ())),
+                subject_ids=tuple(
+                    str(subject_id)
+                    for subject_id in e.get("subject_ids", (PRIMARY_INTERLOCUTOR_ID,))
+                ),
+                audience_ids=tuple(
+                    str(audience_id)
+                    for audience_id in e.get("audience_ids", (SELF_INTERLOCUTOR_ID,))
+                ),
             )
             for e in entries_raw
         )
@@ -244,6 +265,16 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
 
 def _clamp_strength(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _require_non_empty_unique_tuple(field_name: str, values: tuple[str, ...]) -> None:
+    if not values:
+        raise ValueError(f"{field_name} must contain at least one entry")
+    for value in values:
+        if not value.strip():
+            raise ValueError(f"{field_name} entries must be non-empty")
+    if len(set(values)) != len(values):
+        raise ValueError(f"{field_name} entries must be unique")
 
 
 def _tokenize(text: str) -> set[str]:
@@ -652,6 +683,8 @@ class MemoryStore:
             last_accessed_ms=timestamp_ms,
             strength=_clamp_strength(request.strength),
             tags=request.tags,
+            subject_ids=request.subject_ids,
+            audience_ids=request.audience_ids,
         )
         self._artifact_store.write(entry)
         self._derived_index.index_entry(entry, embedding=self._entry_signal(entry))

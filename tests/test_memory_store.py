@@ -14,6 +14,7 @@ from volvence_zero.memory import (
 )
 from volvence_zero.prediction import ActualOutcome, PredictionError, PredictionErrorSnapshot, PredictedOutcome
 from volvence_zero.runtime import WiringLevel, propagate
+from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -48,6 +49,65 @@ def test_memory_store_write_and_retrieve_by_track_and_query():
     assert len(result.entries) == 1
     assert result.entries[0].track is Track.SELF
     assert result.entries[0].last_accessed_ms == 20
+    assert result.entries[0].subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert result.entries[0].audience_ids == (SELF_INTERLOCUTOR_ID,)
+
+
+def test_memory_store_preserves_explicit_subject_and_audience_scope():
+    store = MemoryStore()
+    entry = store.write(
+        MemoryWriteRequest(
+            content="alice prefers direct planning when bob is not present",
+            track=Track.SHARED,
+            stratum=MemoryStratum.DURABLE,
+            tags=("preference", "planning"),
+            strength=0.8,
+            subject_ids=("alice",),
+            audience_ids=("self", "alice"),
+        ),
+        timestamp_ms=10,
+    )
+
+    result = store.retrieve(
+        query=RetrievalQuery(
+            text="direct planning preference",
+            track=Track.SHARED,
+            strata=(MemoryStratum.DURABLE,),
+            limit=3,
+        ),
+        timestamp_ms=20,
+    )
+
+    assert entry.subject_ids == ("alice",)
+    assert entry.audience_ids == ("self", "alice")
+    assert result.entries[0].subject_ids == ("alice",)
+    assert result.entries[0].audience_ids == ("self", "alice")
+
+
+def test_memory_scope_rejects_empty_and_duplicate_ids():
+    try:
+        MemoryWriteRequest(
+            content="bad scope",
+            track=Track.SELF,
+            stratum=MemoryStratum.TRANSIENT,
+            subject_ids=(),
+        )
+    except ValueError as exc:
+        assert "subject_ids" in str(exc)
+    else:
+        raise AssertionError("empty subject_ids should be rejected")
+
+    try:
+        MemoryWriteRequest(
+            content="bad scope",
+            track=Track.SELF,
+            stratum=MemoryStratum.TRANSIENT,
+            audience_ids=("self", "self"),
+        )
+    except ValueError as exc:
+        assert "audience_ids" in str(exc)
+    else:
+        raise AssertionError("duplicate audience_ids should be rejected")
 
 
 def test_memory_store_hybrid_semantic_retrieval_can_match_without_exact_overlap():
@@ -87,6 +147,8 @@ def test_memory_store_checkpoint_restore_preserves_semantic_retrieval_index():
             stratum=MemoryStratum.DURABLE,
             tags=("repair", "support"),
             strength=0.8,
+            subject_ids=("alice",),
+            audience_ids=("self", "alice"),
         ),
         timestamp_ms=10,
     )
@@ -106,6 +168,8 @@ def test_memory_store_checkpoint_restore_preserves_semantic_retrieval_index():
 
     assert restored.entries
     assert restored.entries[0].content == "careful paced support during tense moments"
+    assert restored.entries[0].subject_ids == ("alice",)
+    assert restored.entries[0].audience_ids == ("self", "alice")
 
 
 def test_memory_module_uses_temporal_and_dual_track_facets_in_runtime_query():

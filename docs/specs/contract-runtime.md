@@ -87,6 +87,17 @@ P00 运行时内核固定以下最小守卫和视图：
 - `ImmutabilityGuard`：发布后消费前校验 value hash 不变
 - `UpstreamView`：对模块暴露带守卫的上游快照视图，缺失 slot 统一返回 runtime placeholder snapshot
 
+### Environment Boundary（Phase 0 design freeze）
+
+Environment Interface 是运行时外侧的边界协议，不是新的 kernel owner 或 slot。`lifeform-*` / host / service adapter 负责把用户输入、tool result、tick、scene、ingestion、apprentice 等外部事实规范化为 canonical event / outcome；`vz-*` 模块只能通过 `Brain` / `BrainSession` facade 和公共 snapshot 消费这些事实。
+
+约束：
+
+- `BrainSession` / service 层可以传递环境事件和 outcome，但不得成为 memory、temporal、social cognition、application state 的第二 owner。
+- 环境 adapter 不直接调用 owner store，不绕过 `RuntimeModule.process()` / owner-side apply surface。
+- social cognition 的 speaker / audience / subject scope 来自 Environment Event conversational frame 或其 owner snapshot，不由 renderer / prompt planner 从 raw text 重建。
+- tool / affordance / expression outcome 必须能作为 typed evidence 关联到 prior prediction 或 prediction context，再进入 `prediction_error` 主链。
+
 ### 当前实现补充
 
 - substrate owner 现已区分三层：`OpenWeightResidualRuntime`（真实 runtime / hook 所有者）、`OpenWeightResidualStreamSubstrateAdapter`（对外发布稳定 `SubstrateSnapshot`）、`OpenWeightResidualInterventionBackend`（owner-side residual control 执行位点）

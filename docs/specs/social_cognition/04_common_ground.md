@@ -17,6 +17,7 @@ R19 把 dyad / group mutual knowledge 作为独立 learned owner。它不是 ind
 - 递归深度默认 bounded at `k=2`，避免无限 ToM。
 - reference-resolution failure 必须产生 common-ground PE。
 - common-ground snapshot 可被 controller / regime / planner 消费，但不可作为学习源替代 PE。
+- common-ground owner 消费 Environment Event / role 提供的 audience 与 scope，不从文本表面或 renderer 输出重建"谁共享了什么"。
 
 ## Owner / Timescale / Prediction Error / ETA Consumption
 
@@ -88,7 +89,9 @@ class CommonGroundSnapshot:
 - R18 role determines which common-ground scope is active.
 - R20 group owner uses group common ground for joint commitment but does not own common-ground atoms.
 - R5/R6 memory continuum provides source evidence and slow consolidation path.
+- Environment Interface supplies event provenance, audience scope, and outcome evidence for reference-resolution PE.
 
 ## 变更日志
 
+- 2026-05-02: 补充 Environment Interface 依赖：common ground 的 active scope 来自 canonical conversational frame / role snapshot。
 - 2026-05-02: 初始 draft，冻结 CommonGroundModule as Social Cognition Learning Layer Phase 4。

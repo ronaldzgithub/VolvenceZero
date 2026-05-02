@@ -96,6 +96,7 @@ from volvence_zero.semantic_state import (
     UserModelSnapshot,
     build_semantic_modules,
 )
+from volvence_zero.social_identity import MultiPartyIdentityModule
 from volvence_zero.substrate import (
     SubstrateAdapter,
     SubstrateModule,
@@ -148,6 +149,7 @@ class FinalRolloutConfig:
     relationship_state: WiringLevel = WiringLevel.ACTIVE
     goal_value: WiringLevel = WiringLevel.ACTIVE
     boundary_consent: WiringLevel = WiringLevel.ACTIVE
+    multi_party_identity: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -183,6 +185,7 @@ class FinalRolloutConfig:
             "relationship_state": self.relationship_state,
             "goal_value": self.goal_value,
             "boundary_consent": self.boundary_consent,
+            "multi_party_identity": self.multi_party_identity,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -998,6 +1001,9 @@ def build_final_runtime_modules(
             store=memory_store or build_default_memory_store(),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
+        ),
+        MultiPartyIdentityModule(
+            wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
         ),
         *build_semantic_modules(
             store=semantic_store,

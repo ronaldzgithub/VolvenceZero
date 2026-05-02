@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
+from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,10 @@ class ResponseContext:
     primary_reflection_tension: str | None
     joint_schedule_action: str
     user_input: str = ""
+    active_speaker_id: str = PRIMARY_INTERLOCUTOR_ID
+    addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
+    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ from volvence_zero.agent import (
     run_multi_path_benchmark,
     run_substrate_path_benchmark,
 )
+from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application import (
     ApplicationCaseCluster,
     ApplicationRareHeavyCheckpoint,
@@ -29,6 +30,7 @@ from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.agent.session import RareHeavyPreImportEvaluation
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
     SubstrateFallbackMode,
@@ -39,6 +41,29 @@ from volvence_zero.substrate import (
 from volvence_zero.temporal import DualTrackRareHeavySnapshot, FullLearnedTemporalPolicy
 from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
 from volvence_zero.substrate import build_training_trace
+
+
+def test_response_context_defaults_to_primary_social_scope():
+    context = ResponseContext(
+        regime_id=None,
+        regime_name="current context",
+        regime_switched=False,
+        abstract_action=None,
+        alert_count=0,
+        temporal_switch_gate=0.0,
+        temporal_is_switching=False,
+        reflection_lesson_count=0,
+        reflection_tension_count=0,
+        reflection_writeback_applied=False,
+        primary_reflection_lesson=None,
+        primary_reflection_tension=None,
+        joint_schedule_action="ssl-only",
+    )
+
+    assert context.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
+    assert context.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert context.addressee_ids == (SELF_INTERLOCUTOR_ID,)
+    assert context.audience_ids == (SELF_INTERLOCUTOR_ID,)
 
 
 def test_agent_session_runner_executes_single_turn():
@@ -62,6 +87,18 @@ def test_agent_session_runner_executes_single_turn():
     assert "experience_consolidation" in result.active_snapshots
     assert "session_post_slow_loop" in result.shadow_snapshots
     assert result.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
+
+
+def test_agent_session_runner_exposes_primary_social_scope_from_shadow_owner():
+    runner = default_active_runner()
+    result = asyncio.run(runner.run_turn("I need help organizing my plan."))
+
+    assert result.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
+    assert result.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert result.addressee_ids == (SELF_INTERLOCUTOR_ID,)
+    assert result.audience_ids == (SELF_INTERLOCUTOR_ID,)
+    assert "multi_party_identity" not in result.active_snapshots
+    assert "multi_party_identity" in result.shadow_snapshots
 
 
 def test_agent_session_runner_reuses_session_memory_across_turns():

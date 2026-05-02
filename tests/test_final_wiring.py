@@ -66,6 +66,11 @@ from volvence_zero.prediction import PredictionErrorModule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS
+from volvence_zero.social_cognition import (
+    PRIMARY_INTERLOCUTOR_ID,
+    SELF_INTERLOCUTOR_ID,
+    MultiPartyIdentitySnapshot,
+)
 from volvence_zero.substrate import (
     FeatureSignal,
     FeatureSurfaceSubstrateAdapter,
@@ -308,6 +313,33 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "relationship_continuity" in metric_names
     assert "goal_alignment" in metric_names
     assert "consent_compliance" in metric_names
+
+
+def test_final_wiring_publishes_multi_party_identity_shadow_scaffold():
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="social-identity-shadow-model",
+                feature_surface=(
+                    FeatureSignal(name="social_identity_context", values=(0.5,), source="adapter"),
+                ),
+            ),
+            session_id="social-identity-session",
+            wave_id="social-identity-wave",
+        )
+    )
+
+    assert "multi_party_identity" not in result.active_snapshots
+    snapshot = result.shadow_snapshots["multi_party_identity"]
+    value = snapshot.value
+    assert isinstance(value, MultiPartyIdentitySnapshot)
+    assert value.active_speaker_id == PRIMARY_INTERLOCUTOR_ID
+    assert value.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
+    assert value.addressee_ids == (SELF_INTERLOCUTOR_ID,)
+    assert value.audience_ids == (SELF_INTERLOCUTOR_ID,)
+    assert value.identity_predictions == ()
+    assert "R16 SHADOW scaffold" in value.description
 
 
 def test_final_wiring_phase1_slots_publish_compact_knowledge_and_boundary_state():
