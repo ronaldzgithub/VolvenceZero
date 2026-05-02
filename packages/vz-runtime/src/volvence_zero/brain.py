@@ -100,6 +100,10 @@ class BrainSession:
         confidence: float = 0.8,
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
+        latency_ms: int | None = None,
+        monetary_cost: float = 0.0,
+        reversibility: str = "reversible",
+        environment_state_delta_kind: str = "none",
     ) -> tuple[str, ...]:
         outcome = EnvironmentOutcome(
             outcome_id=f"{event_id}:outcome",
@@ -112,6 +116,10 @@ class BrainSession:
             confidence=confidence,
             prediction_id=plan_ref,
             evidence=(f"tool:{tool_name}",),
+            latency_ms=latency_ms,
+            monetary_cost=monetary_cost,
+            reversibility=reversibility,
+            environment_state_delta_kind=environment_state_delta_kind,
         )
         tool_evidence = tool_outcome_evidence_from_environment_outcome(
             environment_outcome=outcome,

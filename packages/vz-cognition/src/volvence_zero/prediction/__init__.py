@@ -1,6 +1,7 @@
 from volvence_zero.prediction.error import (
     ActualOutcome,
     PredictedOutcome,
+    PredictionActionContext,
     PredictionError,
     PredictionErrorModule,
     PredictionErrorSnapshot,
@@ -11,6 +12,7 @@ from volvence_zero.prediction.error import (
 __all__ = [
     "ActualOutcome",
     "PredictedOutcome",
+    "PredictionActionContext",
     "PredictionError",
     "PredictionErrorModule",
     "PredictionErrorSnapshot",

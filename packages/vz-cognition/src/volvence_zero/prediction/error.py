@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
@@ -40,6 +40,17 @@ _ALIGNMENT_TRANSITION_SEVERITY: dict[tuple[str, str], float] = {
 
 
 @dataclass(frozen=True)
+class PredictionActionContext:
+    segment_id: str = ""
+    abstract_action_id: str = ""
+    z_t_digest: tuple[float, ...] = ()
+    regime_id: str = ""
+    affordance_name: str = ""
+    environment_event_id: str = ""
+    environment_outcome_id: str = ""
+
+
+@dataclass(frozen=True)
 class PredictedOutcome:
     source_turn_index: int
     target_turn_index: int
@@ -49,6 +60,7 @@ class PredictedOutcome:
     predicted_action_payoff: float
     confidence: float
     description: str
+    action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
 
 
 @dataclass(frozen=True)
@@ -59,6 +71,7 @@ class ActualOutcome:
     regime_stability: float
     action_payoff: float
     description: str
+    action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,7 @@ class PredictionErrorSnapshot:
     turn_index: int
     bootstrap: bool
     description: str
+    action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
 
 
 @dataclass(frozen=True)
@@ -176,6 +190,7 @@ class _PredictionErrorHead:
         *,
         source_turn_index: int,
         evidence: _OutcomeEvidence,
+        action_context: PredictionActionContext,
     ) -> PredictedOutcome:
         task_progress = self._axis_value("task", evidence=evidence, calibrations=self._prediction_axes)
         relationship_signal = self._axis_value("relationship", evidence=evidence, calibrations=self._prediction_axes)
@@ -195,6 +210,7 @@ class _PredictionErrorHead:
                 f"regime={regime_stability:.2f} action={action_payoff:.2f} confidence={confidence:.2f} "
                 f"task_signal={self._task_signal(evidence):.2f} relationship_signal={self._relationship_signal(evidence):.2f}."
             ),
+            action_context=action_context,
         )
 
     def build_actual_outcome(
@@ -202,6 +218,7 @@ class _PredictionErrorHead:
         *,
         observed_turn_index: int,
         evidence: _OutcomeEvidence,
+        action_context: PredictionActionContext,
     ) -> ActualOutcome:
         task_progress = self._axis_value("task", evidence=evidence, calibrations=self._actual_axes)
         relationship_delta = self._axis_value("relationship", evidence=evidence, calibrations=self._actual_axes)
@@ -219,6 +236,7 @@ class _PredictionErrorHead:
                 f"task_shift={evidence.substrate_delta['task_shift']:.2f} support_shift={evidence.substrate_delta['support_shift']:.2f} "
                 f"residual_shift={evidence.substrate_delta['residual_shift']:.2f}."
             ),
+            action_context=action_context,
         )
 
     def compute_error(
@@ -399,13 +417,19 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     dependencies = ("substrate", "evaluation", "dual_track", "regime", "commitment")
     default_wiring_level = WiringLevel.ACTIVE
 
-    def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        wiring_level: WiringLevel | None = None,
+        action_context: PredictionActionContext | None = None,
+    ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._previous_prediction: PredictedOutcome | None = None
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
         self._previous_alignment_by_record: dict[str, str] = {}
         self._turn_index = 0
         self._outcome_head = _PredictionErrorHead()
+        self._action_context = action_context or PredictionActionContext()
 
     def compute_prediction(
         self,
@@ -416,6 +440,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         evaluation_snapshot: EvaluationSnapshot,
         dual_track_snapshot: DualTrackSnapshot,
         regime_snapshot: RegimeSnapshot | None,
+        action_context: PredictionActionContext | None = None,
     ) -> PredictedOutcome:
         evidence = _build_outcome_evidence(
             substrate_snapshot=substrate_snapshot,
@@ -427,6 +452,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         return self._outcome_head.build_prediction(
             source_turn_index=source_turn_index,
             evidence=evidence,
+            action_context=action_context or PredictionActionContext(),
         )
 
     def compute_prediction_error(
@@ -601,6 +627,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             evaluation_snapshot=evaluation_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
+            action_context=self._action_context,
         )
         actual_outcome = derive_actual_outcome(
             observed_turn_index=turn_index,
@@ -609,6 +636,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             evaluation_snapshot=evaluation_snapshot,
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
+            action_context=self._action_context,
         )
         bootstrap = previous_prediction is None
         evaluated_prediction = previous_prediction
@@ -679,6 +707,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 f"{'Bootstrap' if bootstrap else 'Evaluated'} prediction chain at turn {turn_index}. "
                 f"{error.description} Next prediction targets turn {next_prediction.target_turn_index}."
             ),
+            action_context=self._action_context,
         )
 
 
@@ -690,6 +719,7 @@ def derive_actual_outcome(
     evaluation_snapshot: EvaluationSnapshot,
     dual_track_snapshot: DualTrackSnapshot,
     regime_snapshot: RegimeSnapshot | None,
+    action_context: PredictionActionContext | None = None,
 ) -> ActualOutcome:
     evidence = _build_outcome_evidence(
         substrate_snapshot=substrate_snapshot,
@@ -701,6 +731,7 @@ def derive_actual_outcome(
     return _PredictionErrorHead().build_actual_outcome(
         observed_turn_index=observed_turn_index,
         evidence=evidence,
+        action_context=action_context or PredictionActionContext(),
     )
 
 

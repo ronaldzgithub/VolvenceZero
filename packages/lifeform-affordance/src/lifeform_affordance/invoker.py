@@ -442,6 +442,10 @@ class _SessionLike(Protocol):
         confidence: float = 0.8,
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
+        latency_ms: int | None = None,
+        monetary_cost: float = 0.0,
+        reversibility: str = "reversible",
+        environment_state_delta_kind: str = "none",
     ) -> tuple[str, ...]: ...
 
 
@@ -601,6 +605,7 @@ class AffordanceInvoker:
                     f"call AffordanceInvoker.register_backend(name, fn)."
                 ),
             )
+        backend_started_at = time.monotonic()
         try:
             raw_payload = await backend(parameters)
         except Exception as exc:  # noqa: BLE001 \u2014 invoker isolation boundary
@@ -614,6 +619,7 @@ class AffordanceInvoker:
                 session=session,
                 event_id=event_id,
                 action_id=action_id,
+                latency_ms=int((time.monotonic() - backend_started_at) * 1000),
                 error_class=type(exc).__name__,
                 error_detail=str(exc)[:512],
             )
@@ -627,6 +633,7 @@ class AffordanceInvoker:
             event_id=event_id,
             action_id=action_id,
             payload=payload,
+            latency_ms=int((time.monotonic() - backend_started_at) * 1000),
         )
 
     async def invoke_or_raise(

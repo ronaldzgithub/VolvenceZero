@@ -86,6 +86,9 @@ class OpenDialogueScenario:
     pressure_shape: str = "escalate-stabilize"
     goal_shift_mid_episode: bool = False
     max_turns: int = 6
+    hidden_perturbation_family: str = ""
+    expected_repair_observable: bool = False
+    expected_adaptation_signal: bool = False
 
 
 @dataclass(frozen=True)
@@ -585,6 +588,10 @@ class OpenDialogueCaseReport:
     temporal_change_count: int
     late_episode_stability_score: float
     delayed_improvement_observed: bool
+    hidden_perturbation_family: str
+    hidden_label_leak_count: int
+    repair_observable: bool
+    runtime_adaptation_evidence_observed: bool
     acceptance_checks: tuple[tuple[str, bool], ...]
     passed: bool
     reasons: tuple[str, ...]
@@ -2545,6 +2552,63 @@ def _delayed_improvement_observed(turns: tuple[DialogueBenchmarkTurn, ...]) -> b
     return False
 
 
+def _hidden_label_leak_count(
+    *,
+    hidden_label: str,
+    turns: tuple[DialogueBenchmarkTurn, ...],
+) -> int:
+    if not hidden_label:
+        return 0
+    lowered = hidden_label.lower()
+    return sum(
+        1
+        for turn in turns
+        if lowered in turn.user_input.lower()
+        or lowered in turn.assistant_response_text.lower()
+    )
+
+
+def _repair_observable(
+    *,
+    expected: bool,
+    turns: tuple[DialogueBenchmarkTurn, ...],
+) -> bool:
+    if not expected:
+        return True
+    for turn in turns:
+        response = turn.assistant_response_text.lower()
+        repair_stance = (
+            turn.active_regime == "repair_and_deescalation"
+            or "repair" in (turn.active_abstract_action or "")
+        )
+        repair_text = any(
+            marker in response
+            for marker in (
+                "sorry",
+                "misunderstood",
+                "back up",
+                "start over",
+                "slow down",
+                "heard",
+                "repair",
+            )
+        )
+        if repair_stance and repair_text:
+            return True
+    return False
+
+
+def _runtime_adaptation_evidence_observed(turns: tuple[DialogueBenchmarkTurn, ...]) -> bool:
+    return any(
+        turn.joint_schedule_action != "evidence-only"
+        or turn.bounded_writeback_applied
+        or turn.reflection_promotion_eligible
+        or turn.pe_triggered
+        or turn.switch_gate > 0.0
+        for turn in turns
+    )
+
+
 def _late_episode_stability_score(
     *,
     turns: tuple[DialogueBenchmarkTurn, ...],
@@ -2778,8 +2842,28 @@ def build_open_dialogue_case_report(
         reward_threshold=reward_threshold,
     )
     delayed_improvement_observed = _delayed_improvement_observed(turns)
+    hidden_perturbation_family = scenario.hidden_perturbation_family
+    hidden_label_leak_count = _hidden_label_leak_count(
+        hidden_label=hidden_perturbation_family,
+        turns=turns,
+    )
+    repair_observable = _repair_observable(
+        expected=scenario.expected_repair_observable,
+        turns=turns,
+    )
+    runtime_adaptation_evidence_observed = _runtime_adaptation_evidence_observed(turns)
     acceptance_checks = (
         ("episode-runs-to-completion", final_episode_state.completed),
+        ("hidden-perturbation-label-not-leaked", hidden_label_leak_count == 0),
+        (
+            "repair-observable-when-expected",
+            repair_observable,
+        ),
+        (
+            "runtime-adaptation-evidence-observed",
+            (not scenario.expected_adaptation_signal)
+            or runtime_adaptation_evidence_observed,
+        ),
         ("prediction-chain-present", prediction_chain_turn_count > 0),
         ("pe-schedule-observed", pe_triggered_turn_count > 0),
         (
@@ -2858,6 +2942,10 @@ def build_open_dialogue_case_report(
         temporal_change_count=temporal_change_count,
         late_episode_stability_score=late_episode_stability_score,
         delayed_improvement_observed=delayed_improvement_observed,
+        hidden_perturbation_family=hidden_perturbation_family,
+        hidden_label_leak_count=hidden_label_leak_count,
+        repair_observable=repair_observable,
+        runtime_adaptation_evidence_observed=runtime_adaptation_evidence_observed,
         acceptance_checks=acceptance_checks,
         passed=passed,
         reasons=reasons,
@@ -3736,6 +3824,9 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("temporal_change_count", float(report.temporal_change_count)),
         ("late_episode_stability_score", report.late_episode_stability_score),
         ("delayed_improvement_observed", float(report.delayed_improvement_observed)),
+        ("hidden_label_leak_count", float(report.hidden_label_leak_count)),
+        ("repair_observable", float(report.repair_observable)),
+        ("runtime_adaptation_evidence_observed", float(report.runtime_adaptation_evidence_observed)),
         ("episode_runs_to_completion", float(report.final_episode_state.completed)),
         ("transcript_only_user_policy", float(report.final_episode_state.user_policy_kind == "transcript-only")),
         ("mean_prediction_error", mean_pe),
@@ -6545,6 +6636,36 @@ def _build_dialogue_claim_verdicts(
         else 0
     )
     transcript_only_open_observed = open_transcript_only_case_count > 0
+    open_repair_observable_count = (
+        sum(
+            1
+            for path in reference_report.open_ablation_report.path_reports[:1]
+            for case_report in path.benchmark_report.case_reports
+            if case_report.repair_observable
+            and case_report.scenario.expected_repair_observable
+        )
+        if reference_report is not None and reference_report.open_ablation_report is not None
+        else 0
+    )
+    open_hidden_label_leak_count = (
+        sum(
+            case_report.hidden_label_leak_count
+            for path in reference_report.open_ablation_report.path_reports[:1]
+            for case_report in path.benchmark_report.case_reports
+        )
+        if reference_report is not None and reference_report.open_ablation_report is not None
+        else 0
+    )
+    open_runtime_adaptation_evidence_count = (
+        sum(
+            1
+            for path in reference_report.open_ablation_report.path_reports[:1]
+            for case_report in path.benchmark_report.case_reports
+            if case_report.runtime_adaptation_evidence_observed
+        )
+        if reference_report is not None and reference_report.open_ablation_report is not None
+        else 0
+    )
     claim_a_status = _dialogue_claim_status(
         retain_checks=(
             gate_map.get("pe-first", False),
@@ -6644,6 +6765,9 @@ def _build_dialogue_claim_verdicts(
             open_pe_drive is not None and open_pe_drive.ci_low > 0.0,
             has_heldout,
             transcript_only_open_observed,
+            open_hidden_label_leak_count == 0,
+            open_repair_observable_count > 0,
+            open_runtime_adaptation_evidence_count > 0,
             perturbation_summary is not None and perturbation_summary.mean > 0.0,
         ),
         weak_checks=(
@@ -6788,12 +6912,16 @@ def _build_dialogue_claim_verdicts(
                 ("open_gap_vs_pe_drive_off_mean_delta", open_pe_drive.mean_delta if open_pe_drive is not None else 0.0),
                 ("has_open_heldout", float(has_heldout)),
                 ("transcript_only_open_case_count", float(open_transcript_only_case_count)),
+                ("open_hidden_label_leak_count", float(open_hidden_label_leak_count)),
+                ("open_repair_observable_count", float(open_repair_observable_count)),
+                ("open_runtime_adaptation_evidence_count", float(open_runtime_adaptation_evidence_count)),
                 ("perturbation_pass_rate_mean", perturbation_summary.mean if perturbation_summary is not None else 0.0),
             ),
             summary="超出 canonical scripted 的 widening claim verdict.",
             description=(
-                "Claim C checks whether the retained advantage extends to perturbation, held-out open-environment "
-                "surfaces, and at least one transcript-only open user policy that does not read runtime telemetry."
+                "Claim C checks whether retained advantage extends to perturbation and held-out open-environment "
+                "surfaces, with no hidden-label leakage, transcript-only policy evidence, repair observability, "
+                "and runtime adaptation evidence."
             ),
         ),
         ClaimVerdict(

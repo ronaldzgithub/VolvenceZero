@@ -123,6 +123,10 @@ class EnvironmentOutcome:
     confidence: float = 0.8
     prediction_id: str | None = None
     evidence: tuple[str, ...] = ()
+    latency_ms: int | None = None
+    monetary_cost: float = 0.0
+    reversibility: str = "reversible"
+    environment_state_delta_kind: str = "none"
 
     def __post_init__(self) -> None:
         _require_non_empty("outcome_id", self.outcome_id)
@@ -134,6 +138,15 @@ class EnvironmentOutcome:
         if self.prediction_id is not None:
             _require_non_empty("prediction_id", self.prediction_id)
         _require_unique_non_empty("evidence", self.evidence)
+        if self.latency_ms is not None:
+            _require_non_negative_int("latency_ms", self.latency_ms)
+        _require_non_negative_float("monetary_cost", self.monetary_cost)
+        _require_enum_value(
+            "reversibility",
+            self.reversibility,
+            ("reversible", "costly", "irreversible"),
+        )
+        _require_non_empty("environment_state_delta_kind", self.environment_state_delta_kind)
 
 
 def build_primary_environment_frame(
@@ -210,9 +223,23 @@ def _require_non_negative_int(field_name: str, value: int) -> None:
         raise ValueError(f"{field_name} must be non-negative")
 
 
+def _require_non_negative_float(field_name: str, value: float) -> None:
+    if value < 0.0:
+        raise ValueError(f"{field_name} must be non-negative")
+
+
 def _require_unit_interval(field_name: str, value: float) -> None:
     if value < 0.0 or value > 1.0:
         raise ValueError(f"{field_name} must be in [0, 1], got {value!r}")
+
+
+def _require_enum_value(
+    field_name: str,
+    value: str,
+    allowed: tuple[str, ...],
+) -> None:
+    if value not in allowed:
+        raise ValueError(f"{field_name} must be one of {allowed}, got {value!r}")
 
 
 __all__ = [

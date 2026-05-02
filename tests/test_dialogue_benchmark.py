@@ -14,6 +14,9 @@ from volvence_zero.agent import (
     DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS,
     OpenDialogueEpisodeState,
     OpenDialogueScenario,
+    OpenDialogueBenchmarkComparisonReport,
+    OpenDialogueBenchmarkPathReport,
+    OpenDialogueBenchmarkReport,
     TranscriptOnlyUserSimulator,
     DialogueArtifactAcceptanceGateConfig,
     DialogueComprehensiveStage,
@@ -244,12 +247,14 @@ def _benchmark_turn(
     runtime_backbone_hook_coverage: float = 0.55,
     fast_memory_signal_norm: float = 0.24,
     fast_memory_runtime_alignment: float = 0.18,
+    assistant_response_text: str | None = None,
+    user_input: str | None = None,
 ) -> DialogueBenchmarkTurn:
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
         wave_id=f"wave-{turn_index}",
-        user_input=f"turn-{turn_index}",
-        assistant_response_text=f"assistant-response-{turn_index}",
+        user_input=user_input or f"turn-{turn_index}",
+        assistant_response_text=assistant_response_text or f"assistant-response-{turn_index}",
         acceptance_passed=True,
         active_regime=regime,
         active_abstract_action=abstract_action,
@@ -744,6 +749,9 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
         stabilization_turns=("stabilize",),
         consolidation_turns=("compress",),
         max_turns=4,
+        hidden_perturbation_family="hidden_family_alpha",
+        expected_repair_observable=True,
+        expected_adaptation_signal=True,
     )
     turns = (
         _benchmark_turn(
@@ -769,6 +777,7 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
             reflection_promotion_eligible=True,
             session_post_completed_job_count=1,
             pe_triggered=True,
+            assistant_response_text="I misunderstood you; let's slow down and repair this.",
         ),
         _benchmark_turn(
             turn_index=3,
@@ -816,7 +825,196 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     assert check_map["episode-runs-to-completion"] is True
     assert check_map["multi-timescale-evidence-observed"] is True
     assert report.passed is True
-    assert dict(_open_case_summary_metrics(report))["transcript_only_user_policy"] == 1.0
+    metrics = dict(_open_case_summary_metrics(report))
+    assert metrics["transcript_only_user_policy"] == 1.0
+    assert metrics["hidden_label_leak_count"] == 0.0
+    assert metrics["repair_observable"] == 1.0
+    assert metrics["runtime_adaptation_evidence_observed"] == 1.0
+
+
+def test_open_dialogue_case_report_detects_hidden_label_leak() -> None:
+    scenario = OpenDialogueScenario(
+        scenario_id="open-leak-proof",
+        family_id="synthetic",
+        split="open_heldout",
+        description="Synthetic hidden-label leak scenario.",
+        opening_turns=("start",),
+        escalation_turns=("push",),
+        stabilization_turns=("stabilize",),
+        consolidation_turns=("done",),
+        hidden_perturbation_family="hidden_family_beta",
+        expected_repair_observable=False,
+        expected_adaptation_signal=False,
+    )
+    report = build_open_dialogue_case_report(
+        scenario=scenario,
+        final_episode_state=OpenDialogueEpisodeState(
+            scenario_id=scenario.scenario_id,
+            turn_index=1,
+            completed=True,
+            stop_reason="complete",
+            user_policy_kind="transcript-only",
+        ),
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.1,
+                reward=0.0,
+                action="evidence-only",
+                regime="support",
+                abstract_action="support",
+                switch_gate=0.0,
+                delayed_metric=0.0,
+                user_input="This hidden_family_beta label must never reach runtime.",
+            ),
+        ),
+    )
+
+    check_map = dict(report.acceptance_checks)
+    assert report.hidden_label_leak_count == 1
+    assert check_map["hidden-perturbation-label-not-leaked"] is False
+    assert report.passed is False
+
+
+def test_claim_beyond_scripted_requires_open_repair_and_no_hidden_label_leak(tmp_path) -> None:
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for beyond-scripted claim test.",
+    )
+    scenario = OpenDialogueScenario(
+        scenario_id="open-heldout-repair-proof",
+        family_id="synthetic",
+        split="open_heldout",
+        description="Synthetic heldout repair case.",
+        opening_turns=("start",),
+        escalation_turns=("push",),
+        stabilization_turns=("repair",),
+        consolidation_turns=("done",),
+        hidden_perturbation_family="hidden_family_gamma",
+        expected_repair_observable=True,
+        expected_adaptation_signal=True,
+    )
+    case_report = build_open_dialogue_case_report(
+        scenario=scenario,
+        final_episode_state=OpenDialogueEpisodeState(
+            scenario_id=scenario.scenario_id,
+            turn_index=2,
+            completed=True,
+            stop_reason="stable-consolidation",
+            user_policy_kind="transcript-only",
+        ),
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.35,
+                reward=-0.2,
+                action="evidence-only",
+                regime="problem_solving",
+                abstract_action="probe",
+                switch_gate=0.1,
+                delayed_metric=0.1,
+            ),
+            _benchmark_turn(
+                turn_index=2,
+                pe=0.10,
+                reward=0.1,
+                action="ssl-only-pe",
+                regime="repair_and_deescalation",
+                abstract_action="repair_controller",
+                switch_gate=0.4,
+                delayed_metric=0.6,
+                pe_triggered=True,
+                bounded_writeback_applied=True,
+                assistant_response_text="I misunderstood you; let's back up and repair this.",
+            ),
+        ),
+    )
+    open_report = OpenDialogueBenchmarkReport(
+        case_reports=(case_report,),
+        passed_case_count=1,
+        total_case_count=1,
+        metric_means=_open_case_summary_metrics(case_report),
+        description="synthetic open repair report",
+    )
+    open_comparison = OpenDialogueBenchmarkComparisonReport(
+        baseline_label="pe-eta",
+        path_reports=(
+            OpenDialogueBenchmarkPathReport(path_label="pe-eta", benchmark_report=open_report, description="baseline"),
+            OpenDialogueBenchmarkPathReport(path_label="pe-drive-off", benchmark_report=open_report, description="control"),
+        ),
+        case_deltas_from_baseline=(),
+        metric_deltas_from_baseline=(),
+        description="synthetic open comparison",
+    )
+    reference = replace(
+        _synthetic_comprehensive_report_for_dashboard(),
+        open_ablation_report=open_comparison,
+    )
+    aggregate = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=reference,
+        primary_metric_summaries=(
+            MetricIntervalSummary(
+                metric_name="perturbation_pass_rate_pe_eta",
+                sample_count=1,
+                mean=1.0,
+                std=0.0,
+                stderr=0.0,
+                ci_low=1.0,
+                ci_high=1.0,
+                min_value=1.0,
+                max_value=1.0,
+                description="Synthetic perturbation pass.",
+            ),
+        ),
+        secondary_metric_summaries=(),
+        pairwise_effects=(
+            PairwiseMetricEffect(
+                metric_name="open_pass_rate",
+                candidate_label="pe-eta",
+                control_label="pe-drive-off",
+                sample_count=1,
+                mean_delta=0.5,
+                std_delta=0.0,
+                stderr_delta=0.0,
+                ci_low=0.2,
+                ci_high=0.5,
+                effect_size=1.0,
+                description="Synthetic positive open gap.",
+            ),
+        ),
+        description="Synthetic aggregate for beyond-scripted repair claim.",
+    )
+
+    export_dialogue_paper_suite_artifact_bundle(
+        aggregate,
+        output_dir=tmp_path / "beyond-scripted",
+    )
+    payload = json.loads(
+        (tmp_path / "beyond-scripted" / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    claim = next(
+        verdict for verdict in payload["claim_verdicts"] if verdict["claim_id"] == "claim_beyond_scripted_canonical"
+    )
+
+    assert claim["status"] == "retain"
+    evidence = {name: value for name, value in claim["evidence"]}
+    assert evidence["has_open_heldout"] == 1.0
+    assert evidence["transcript_only_open_case_count"] == 1.0
+    assert evidence["open_hidden_label_leak_count"] == 0.0
+    assert evidence["open_repair_observable_count"] == 1.0
+    assert evidence["open_runtime_adaptation_evidence_count"] == 1.0
 
 
 def test_run_open_dialogue_case_reuses_runner_turn_path():

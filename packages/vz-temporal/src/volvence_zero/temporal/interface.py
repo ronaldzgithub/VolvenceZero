@@ -64,6 +64,19 @@ class ControllerState:
 
 
 @dataclass(frozen=True)
+class TemporalSegmentClosure:
+    segment_id: str
+    open_turn_index: int
+    close_turn_index: int
+    abstract_action_id: str
+    z_t_digest: tuple[float, ...]
+    beta_open_digest: float
+    beta_close_digest: float
+    affordance_name: str | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class TemporalAbstractionSnapshot:
     controller_state: ControllerState
     active_abstract_action: str
@@ -72,6 +85,7 @@ class TemporalAbstractionSnapshot:
     action_family_version: int = 0
     switch_gate_stats: SwitchGateStats | None = None
     memory_feedback_signal: tuple[float, ...] = ()
+    closed_segments: tuple[TemporalSegmentClosure, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -2402,6 +2416,45 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
 
 
+def _code_digest(code: tuple[float, ...]) -> tuple[float, ...]:
+    return tuple(round(value, 6) for value in code[:8])
+
+
+def _closed_segment_from_switch(
+    *,
+    previous_snapshot: TemporalAbstractionSnapshot | None,
+    current_step: TemporalStep,
+    close_turn_index: int,
+) -> tuple[TemporalSegmentClosure, ...]:
+    if previous_snapshot is None or not current_step.controller_state.is_switching:
+        return ()
+    open_turn_index = max(
+        0,
+        close_turn_index - previous_snapshot.controller_state.steps_since_switch,
+    )
+    segment_id = (
+        f"{previous_snapshot.active_abstract_action}:"
+        f"{open_turn_index}->{close_turn_index}:"
+        f"{previous_snapshot.action_family_version}"
+    )
+    return (
+        TemporalSegmentClosure(
+            segment_id=segment_id,
+            open_turn_index=open_turn_index,
+            close_turn_index=close_turn_index,
+            abstract_action_id=previous_snapshot.active_abstract_action,
+            z_t_digest=_code_digest(previous_snapshot.controller_state.code),
+            beta_open_digest=previous_snapshot.controller_state.switch_gate,
+            beta_close_digest=current_step.controller_state.switch_gate,
+            description=(
+                "Temporal segment closed by beta_t switch from "
+                f"{previous_snapshot.active_abstract_action} to "
+                f"{current_step.active_abstract_action}."
+            ),
+        ),
+    )
+
+
 class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
     slot_name = "temporal_abstraction"
     owner = "TemporalModule"
@@ -2483,6 +2536,11 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             description=step.description,
             action_family_version=step.action_family_version,
             memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=step,
+                close_turn_index=self._version + 1,
+            ),
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -2619,6 +2677,15 @@ def build_temporal_aggregate_snapshot(
         memory_feedback_signal=_merge_track_codes(
             world_snapshot.memory_feedback_signal,
             self_snapshot.memory_feedback_signal,
+        ),
+        closed_segments=(
+            world_snapshot.closed_segments
+            + tuple(
+                segment
+                for segment in self_snapshot.closed_segments
+                if segment.segment_id
+                not in {item.segment_id for item in world_snapshot.closed_segments}
+            )
         ),
     )
 
@@ -2864,6 +2931,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             memory_feedback_signal=(
                 self._policy.latest_encoder_output_for_cms or ()
             ) + ((semantic_pressure,) if semantic_pressure > 0.0 else ()),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=step,
+                close_turn_index=self._version + 1,
+            ),
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -2895,6 +2967,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             description=f"{self._track.value}-track {step.description}",
             action_family_version=step.action_family_version,
             memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=step,
+                close_turn_index=self._version + 1,
+            ),
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)

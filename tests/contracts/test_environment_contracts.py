@@ -142,3 +142,48 @@ def test_environment_outcome_is_traceable_and_bounded() -> None:
             detail="detail",
             confidence=1.5,
         )
+
+
+def test_environment_outcome_observable_fields_are_minimal_and_validated() -> None:
+    outcome = EnvironmentOutcome(
+        outcome_id="out-3",
+        event_id="evt-1",
+        outcome_kind=EnvironmentEventKind.TOOL_RESULT,
+        action_id="tool-call-1",
+        status="success",
+        summary="tool completed",
+        detail="detail",
+        latency_ms=42,
+        monetary_cost=0.2,
+        reversibility="costly",
+        environment_state_delta_kind="filesystem_read",
+    )
+
+    assert outcome.latency_ms == 42
+    assert outcome.monetary_cost == 0.2
+    assert outcome.reversibility == "costly"
+    assert outcome.environment_state_delta_kind == "filesystem_read"
+
+    with pytest.raises(ValueError, match="latency_ms"):
+        EnvironmentOutcome(
+            outcome_id="out-4",
+            event_id="evt-1",
+            outcome_kind=EnvironmentEventKind.TOOL_RESULT,
+            action_id="tool-call-1",
+            status="success",
+            summary="tool completed",
+            detail="detail",
+            latency_ms=-1,
+        )
+
+    with pytest.raises(ValueError, match="reversibility"):
+        EnvironmentOutcome(
+            outcome_id="out-5",
+            event_id="evt-1",
+            outcome_kind=EnvironmentEventKind.TOOL_RESULT,
+            action_id="tool-call-1",
+            status="success",
+            summary="tool completed",
+            detail="detail",
+            reversibility="unsafe",
+        )

@@ -126,6 +126,9 @@
 - `open_pass_rate` 对 `pe-drive-off` 的 pairwise effect `ci_low > 0`
 - open scenarios 包含 `open_heldout`
 - 至少一个 open case 的 `OpenDialogueEpisodeState.user_policy_kind == "transcript-only"`
+- hidden perturbation family label 不得出现在 runtime transcript / user input / assistant response 中（只作为 evidence-layer 分组）
+- 至少一个 expected repair open case 的 `repair_observable` 为 true
+- 至少一个 open case 的 `runtime_adaptation_evidence_observed` 为 true
 - `perturbation_pass_rate_pe_eta > 0`
 
 **weak 条件**：
@@ -139,6 +142,7 @@
 **轻量测试节点**：
 - `tests/test_dialogue_benchmark.py::test_transcript_only_user_simulator_ignores_runtime_telemetry`
 - `tests/test_dialogue_benchmark.py::test_build_open_dialogue_case_report_uses_open_acceptance_surface`
+- `tests/test_dialogue_benchmark.py::test_claim_beyond_scripted_requires_open_repair_and_no_hidden_label_leak`
 
 ### `claim_external_human_legibility`
 
@@ -274,6 +278,7 @@
 
 - 2026-05-02: Social Cognition evidence report 增加 R16A active identity memory scope gate，覆盖 EnvironmentEvent frame → ACTIVE multi_party_identity → memory subject/audience scope 链路
 - 2026-05-02: Social Cognition evidence report 增加 R16B active social PE memory visibility gate，覆盖 ACTIVE social_prediction/social_prediction_error → memory visibility PE → negative credit 链路
+- 2026-05-02: 强化 `claim_beyond_scripted_canonical`，新增 hidden perturbation label non-leak、repair observable 与 runtime adaptation evidence 条件，仍复用现有 dialogue benchmark / paper-suite / evidence bundle
 - 2026-05-01: 新增 Dialogue Paper-Suite Evidence Map，冻结 temporal advantage、beyond scripted、external human legibility、rare-heavy net benefit 四类 dialogue claim 的 retain / weak / fail 条件、artifact 边界与轻量测试入口
 - 2026-05-02: 新增 Companion Evidence Map，冻结 C1-C4 companion stateful-relationship claim、运行入口与轻量测试节点；v2 增加 widening transcript artifact 与 composite score（diagnostic，不替代 C1-C4 retain gate）
 - 2026-05-02: 增加 C5 default social scope isolation gate，覆盖 R16 `primary/self` 默认 scope 与空 social PE 链路，避免 companion v1 在多人化迁移中隐式串人

@@ -64,7 +64,12 @@ from volvence_zero.evaluation.backbone import (
 )
 from volvence_zero.environment import EnvironmentEvent
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
-from volvence_zero.prediction.error import PredictedOutcome, PredictionErrorModule, PredictionErrorSnapshot
+from volvence_zero.prediction.error import (
+    PredictedOutcome,
+    PredictionActionContext,
+    PredictionErrorModule,
+    PredictionErrorSnapshot,
+)
 from volvence_zero.reflection import (
     ReflectionEngine,
     ReflectionModule,
@@ -978,6 +983,37 @@ def apply_session_post_writeback_request(
     return (writeback_result, temporal_audits)
 
 
+def _prediction_action_context_from_upstream(
+    *,
+    upstream_snapshots: dict[str, Snapshot[Any]] | None,
+    environment_event: EnvironmentEvent | None,
+) -> PredictionActionContext:
+    temporal_snapshot = (
+        upstream_snapshots.get("temporal_abstraction")
+        if upstream_snapshots is not None
+        else None
+    )
+    temporal_value = (
+        temporal_snapshot.value
+        if temporal_snapshot is not None
+        and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+        else None
+    )
+    segment = next(iter(temporal_value.closed_segments), None) if temporal_value else None
+    return PredictionActionContext(
+        segment_id=segment.segment_id if segment is not None else "",
+        abstract_action_id=(
+            segment.abstract_action_id
+            if segment is not None
+            else (temporal_value.active_abstract_action if temporal_value is not None else "")
+        ),
+        z_t_digest=segment.z_t_digest if segment is not None else (),
+        regime_id="",
+        affordance_name=(segment.affordance_name or "") if segment is not None else "",
+        environment_event_id=environment_event.event_id if environment_event is not None else "",
+    )
+
+
 def build_final_runtime_modules(
     *,
     config: FinalRolloutConfig,
@@ -1008,6 +1044,7 @@ def build_final_runtime_modules(
     substrate_self_mod_pe_threshold: float = 0.18,
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
+    prediction_action_context: PredictionActionContext | None = None,
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
     group_identities: tuple[GroupIdentity, ...] = (),
@@ -1156,6 +1193,7 @@ def build_final_runtime_modules(
         prediction_module
         or PredictionErrorModule(
             wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
+            action_context=prediction_action_context,
         ),
         CaseMemoryModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -1236,6 +1274,10 @@ async def run_final_wiring_turn(
     group_joint_commitments: tuple[str, ...] = (),
     group_regime_id: str | None = None,
 ) -> FinalIntegrationResult:
+    prediction_action_context = _prediction_action_context_from_upstream(
+        upstream_snapshots=upstream_snapshots,
+        environment_event=environment_event,
+    )
     modules = build_final_runtime_modules(
         config=config,
         substrate_adapter=substrate_adapter,
@@ -1265,6 +1307,7 @@ async def run_final_wiring_turn(
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
         social_prediction_errors=social_prediction_errors,
         environment_event=environment_event,
+        prediction_action_context=prediction_action_context,
         common_ground_dyad_atoms=common_ground_dyad_atoms,
         common_ground_group_atoms=common_ground_group_atoms,
         group_identities=group_identities,

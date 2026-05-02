@@ -265,6 +265,37 @@ def derive_prediction_error_credit_records(
     return records
 
 
+def derive_segment_closure_credit_records(
+    *,
+    prediction_error_snapshot: PredictionErrorSnapshot,
+    temporal_snapshot: TemporalAbstractionSnapshot,
+    timestamp_ms: int = 0,
+) -> tuple[CreditRecord, ...]:
+    context = prediction_error_snapshot.action_context
+    if not context.segment_id or not temporal_snapshot.closed_segments:
+        return ()
+    if not any(
+        segment.segment_id == context.segment_id
+        for segment in temporal_snapshot.closed_segments
+    ):
+        return ()
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="abstract_action_segment",
+            track=Track.SHARED,
+            source_event=f"segment:{context.segment_id}",
+            credit_value=_clamp(prediction_error_snapshot.error.action_error),
+            context=(
+                f"abstract_action={context.abstract_action_id}; "
+                f"z_t_digest={context.z_t_digest}; "
+                f"pe={prediction_error_snapshot.error.description}"
+            ),
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
 def derive_social_prediction_error_credit_records(
     *,
     social_errors: tuple[SocialPredictionError, ...],
