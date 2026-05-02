@@ -24,3 +24,6 @@ Thumbs.db
 # Project artefacts
 *.db-shm
 *.db-wal
+
+# Transient agent / migration scripts (one-shot patches, commit messages, ...)
+.tmp_*
