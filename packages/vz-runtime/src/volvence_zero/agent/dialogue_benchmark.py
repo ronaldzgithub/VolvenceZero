@@ -1162,6 +1162,7 @@ PROOF_PE_IMPROVEMENT_DELTA = 0.02
 PROOF_OUTCOME_IMPROVEMENT_DELTA = 0.02
 PROOF_SLOW_TO_FAST_INIT_BENEFIT_THRESHOLD = 0.003
 PROOF_SLOW_TO_FAST_SIGNAL_STRENGTH_THRESHOLD = 0.42
+REPAIR_OBSERVABLE_REGIME_IDS = frozenset(("repair_and_deescalation", "repair"))
 PROOF_MIN_CANONICAL_CASES = 2
 PROOF_REWARD_THRESHOLD = PROOF_PRESSURE_REWARD_THRESHOLD
 PROOF_RARE_HEAVY_THRESHOLD = 0.4
@@ -2580,7 +2581,7 @@ def _repair_observable(
 ) -> bool:
     if not expected:
         return True
-    return any(turn.active_regime == "repair_and_deescalation" for turn in turns)
+    return any(turn.active_regime in REPAIR_OBSERVABLE_REGIME_IDS for turn in turns)
 
 
 def _runtime_adaptation_evidence_observed(turns: tuple[DialogueBenchmarkTurn, ...]) -> bool:

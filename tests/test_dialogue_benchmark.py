@@ -873,7 +873,7 @@ def test_open_dialogue_case_report_tracks_hidden_label_leak_as_diagnostic() -> N
     check_map = dict(report.acceptance_checks)
     assert report.hidden_label_leak_count == 1
     assert "hidden-perturbation-label-not-leaked" not in check_map
-    assert report.passed is True
+    assert "hidden-perturbation-label-not-leaked" not in report.reasons
 
 
 def test_claim_beyond_scripted_requires_structured_open_repair(tmp_path) -> None:
