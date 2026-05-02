@@ -45,20 +45,23 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
     "vz-substrate": frozenset({"runtime", "learned_update"}),
     "vz-memory": frozenset({"runtime", "learned_update", "substrate", "social_cognition"}),
-    # vz-cognition ships ``application_types`` (snapshot type definitions)
-    # but NOT ``application`` (owners). Owners live in vz-application,
-    # which depends on this wheel. The split was made possible by extracting
-    # the snapshot types into ``volvence_zero.application_types`` so
-    # ``evaluation`` does not have to import from owner code.
+    # Slice C (2026-05-03): vz-cognition no longer hosts application-tier
+    # dataclasses. The ``evaluation`` layer consumes a structural
+    # ``Protocol`` surface (``volvence_zero.application_readouts`` in
+    # vz-contracts) instead, so the kernel never imports concrete
+    # application schema. Owners live in vz-application as before.
     "vz-cognition": frozenset(
-        {"runtime", "learned_update", "substrate", "memory", "social_cognition", "environment"}
+        {
+            "runtime", "learned_update", "substrate", "memory",
+            "application_readouts", "social_cognition", "environment",
+        }
     ),
     "vz-application": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state", "application_types",
+            "reflection", "semantic_state",
             "social", "social_cognition", "environment",
         }
     ),
@@ -67,7 +70,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state", "application_types",
+            "reflection", "semantic_state",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",
@@ -78,7 +81,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "substrate", "memory", "dialogue_trace",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state", "application_types",
+            "reflection", "semantic_state",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",

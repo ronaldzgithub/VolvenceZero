@@ -6,20 +6,20 @@ import math
 from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
-# Import from ``application_types`` (vz-cognition root) instead of
-# ``application.runtime`` to keep evaluation independent of the application
-# owner package. This is the cycle break that lets the application owners
-# eventually move to their own ``vz-application`` wheel without taking a
-# detour through vz-cognition.evaluation.
-from volvence_zero.application_types import (
-    ApplicationOutcomeAttribution,
-    ApplicationSequencePayoff,
-    BoundaryPolicySnapshot,
-    CaseMemorySnapshot,
-    DomainKnowledgeSnapshot,
-    ExperienceFastPriorSnapshot,
-    ResponseAssemblySnapshot,
-    StrategyPlaybookSnapshot,
+# Slice C (2026-05-03): the evaluation layer consumes application-tier
+# snapshots through structural ``Protocol`` readouts published by
+# ``vz-contracts``. Concrete dataclasses live in vz-application and
+# satisfy these protocols by attribute presence, so no kernel-tier
+# wheel needs to import application owner code.
+from volvence_zero.application_readouts import (
+    ApplicationOutcomeAttributionReadout,
+    ApplicationSequencePayoffReadout,
+    BoundaryReadout,
+    CaseMemoryReadout,
+    DomainKnowledgeReadout,
+    ExperienceFastPriorReadout,
+    ResponseAssemblyReadout,
+    StrategyPlaybookReadout,
 )
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemorySnapshot
@@ -1366,15 +1366,15 @@ class EvaluationBackbone:
         writeback_result: object | None,
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None" = None,
-        domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
-        case_memory_snapshot: CaseMemorySnapshot | None = None,
-        strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
-        boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
-        experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
-        response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        domain_knowledge_snapshot: DomainKnowledgeReadout | None = None,
+        case_memory_snapshot: CaseMemoryReadout | None = None,
+        strategy_playbook_snapshot: StrategyPlaybookReadout | None = None,
+        boundary_policy_snapshot: BoundaryReadout | None = None,
+        experience_fast_prior_snapshot: ExperienceFastPriorReadout | None = None,
+        response_assembly_snapshot: ResponseAssemblyReadout | None = None,
         semantic_state_snapshots: tuple[object, ...] = (),
-        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
-        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttributionReadout, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoffReadout, ...] = (),
     ) -> EvaluationSnapshot:
         scores = self._learning_evidence_scores(
             memory_snapshot=memory_snapshot,
@@ -1410,8 +1410,8 @@ class EvaluationBackbone:
         wave_id: str,
         timestamp_ms: int,
         base_snapshot: EvaluationSnapshot,
-        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
-        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttributionReadout, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoffReadout, ...] = (),
     ) -> EvaluationSnapshot:
         scores = self._learning_evidence_scores(
             memory_snapshot=None,
@@ -1948,15 +1948,15 @@ class EvaluationBackbone:
         writeback_result: object | None,
         joint_loop_result: object | None,
         regime_snapshot: "RegimeSnapshot | None",
-        domain_knowledge_snapshot: DomainKnowledgeSnapshot | None = None,
-        case_memory_snapshot: CaseMemorySnapshot | None = None,
-        strategy_playbook_snapshot: StrategyPlaybookSnapshot | None = None,
-        boundary_policy_snapshot: BoundaryPolicySnapshot | None = None,
-        experience_fast_prior_snapshot: ExperienceFastPriorSnapshot | None = None,
-        response_assembly_snapshot: ResponseAssemblySnapshot | None = None,
+        domain_knowledge_snapshot: DomainKnowledgeReadout | None = None,
+        case_memory_snapshot: CaseMemoryReadout | None = None,
+        strategy_playbook_snapshot: StrategyPlaybookReadout | None = None,
+        boundary_policy_snapshot: BoundaryReadout | None = None,
+        experience_fast_prior_snapshot: ExperienceFastPriorReadout | None = None,
+        response_assembly_snapshot: ResponseAssemblyReadout | None = None,
         semantic_state_snapshots: tuple[object, ...] = (),
-        delayed_outcome_ledger: tuple[ApplicationOutcomeAttribution, ...] = (),
-        sequence_payoffs: tuple[ApplicationSequencePayoff, ...] = (),
+        delayed_outcome_ledger: tuple[ApplicationOutcomeAttributionReadout, ...] = (),
+        sequence_payoffs: tuple[ApplicationSequencePayoffReadout, ...] = (),
     ) -> tuple[EvaluationScore, ...]:
         """Build readout evidence scores for the learning loop.
 

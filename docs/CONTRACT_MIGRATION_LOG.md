@@ -1,7 +1,58 @@
 # Contract Migration Log
 
 > Status: migration / implementation log
-> Last updated: 2026-05-02
+> Last updated: 2026-05-03
+
+## Slice C (2026-05-03): 解 vz-cognition ↔ vz-application 真循环依赖
+
+Closes the architectural debt where `vz-cognition.evaluation.backbone`
+imported 8 application-tier dataclass types via
+`volvence_zero.application_types`, a cycle-break shim that physically
+hosted application schema inside the kernel wheel and forced
+`vz-cognition` to permanently own product-tier knowledge.
+
+Slice C replaces the shim with a structural `Protocol` surface in
+`vz-contracts`:
+
+- New module `volvence_zero.application_readouts` (vz-contracts) holds
+  14 minimal `Protocol` types declaring only the attributes the
+  evaluation layer reads: `BoundaryReadout`, `BoundaryDecisionReadout`,
+  `CaseMemoryReadout`, `CaseEpisodeHitReadout`,
+  `CaseOutcomeSummaryReadout`, `DomainKnowledgeReadout`,
+  `StrategyPlaybookReadout`, `PlaybookRuleReadout`,
+  `ResponseAssemblyReadout`, `ExperienceFastPriorReadout`,
+  `ExperienceFastPriorRegimeBiasReadout`,
+  `ExperienceFastPriorFamilyBiasReadout`,
+  `ApplicationOutcomeAttributionReadout`,
+  `ApplicationSequencePayoffReadout`.
+- `vz-cognition.evaluation.backbone` now imports those Protocols and
+  uses them as the parameter type annotations on
+  `record_learning_evidence`, `record_application_delayed_evidence`,
+  and `_learning_evidence_scores`. No method body changed: structural
+  Protocol matching means existing concrete dataclass instances
+  satisfy the Protocols by attribute presence.
+- The dataclass definitions previously hosted in
+  `vz-cognition/src/volvence_zero/application_types.py` have been
+  moved back to their natural home in
+  `vz-application/src/volvence_zero/application/runtime.py`. The shim
+  module is deleted.
+- `tests/contracts/test_import_boundaries.py` `ALLOWED_VZ_UPSTREAM`:
+  - vz-cognition gains `application_readouts`; comment rewritten to
+    reflect the Protocol surface design.
+  - vz-application / vz-temporal / vz-runtime drop `application_types`
+    (the shim no longer exists).
+
+External imports of the form
+`from volvence_zero.application.runtime import BoundaryPolicySnapshot`
+(used by lifeform-expression, vz-runtime agent code, vz-temporal
+joint loop, and several test files) keep working unchanged because
+those dataclasses are now defined directly in `application.runtime`
+instead of being re-exported from a shim.
+
+Tests: 518 contracts / social / credit / memory / final-wiring /
+application-storage / prediction-error / dialogue-outcome tests pass
+with 0 regression (1 deselected pre-existing kill-switch failure
+unrelated to this change).
 
 ## Slice D (2026-05-02): vz-cognition social_*.py 收成 social/ 子包
 
