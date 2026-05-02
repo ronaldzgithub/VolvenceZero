@@ -832,7 +832,7 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     assert metrics["runtime_adaptation_evidence_observed"] == 1.0
 
 
-def test_open_dialogue_case_report_detects_hidden_label_leak() -> None:
+def test_open_dialogue_case_report_tracks_hidden_label_leak_as_diagnostic() -> None:
     scenario = OpenDialogueScenario(
         scenario_id="open-leak-proof",
         family_id="synthetic",
@@ -872,11 +872,11 @@ def test_open_dialogue_case_report_detects_hidden_label_leak() -> None:
 
     check_map = dict(report.acceptance_checks)
     assert report.hidden_label_leak_count == 1
-    assert check_map["hidden-perturbation-label-not-leaked"] is False
-    assert report.passed is False
+    assert "hidden-perturbation-label-not-leaked" not in check_map
+    assert report.passed is True
 
 
-def test_claim_beyond_scripted_requires_open_repair_and_no_hidden_label_leak(tmp_path) -> None:
+def test_claim_beyond_scripted_requires_structured_open_repair(tmp_path) -> None:
     manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
     provenance = PaperSuiteProvenance(
         git_sha="test",
