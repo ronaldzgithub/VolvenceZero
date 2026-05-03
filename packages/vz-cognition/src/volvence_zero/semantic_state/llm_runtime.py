@@ -1,9 +1,9 @@
 """LLM-driven semantic proposal runtime.
 
-Wraps a text-generation provider to extract richer commitment-life-cycle
-events from a user turn than the ``NoOpSemanticProposalRuntime``'s
-single OBSERVE emission. Currently we only upgrade the ``commitment``
-slot; other owners delegate to a base runtime so this class is
+Wraps a text-generation provider to extract typed semantic proposals
+from a user turn. The runtime keeps the original richer commitment
+life-cycle path and adds a small schema-bound proposal path for selected
+owners; other owners delegate to a base runtime so this class remains
 strictly additive.
 
 Why a separate module:
@@ -40,6 +40,8 @@ from json import JSONDecodeError
 from typing import Protocol
 
 from volvence_zero.semantic_state import (
+    load_semantic_json_schema,
+    load_semantic_prompt_template,
     NoOpSemanticProposalRuntime,
     SemanticProposal,
     SemanticProposalBatch,
@@ -100,6 +102,8 @@ _COMMITMENT_PROMPT = (
 )
 
 _MIN_STRUCTURED_COMMITMENT_CONFIDENCE = 0.40
+_MIN_GENERIC_PROPOSAL_CONFIDENCE = 0.35
+_GENERIC_LLM_SLOT_IDS = frozenset({"boundary_consent", "goal_value"})
 
 
 def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:
@@ -193,6 +197,17 @@ class _CommitmentDecision:
     structured: bool
 
 
+@dataclass(frozen=True)
+class _ParsedProposal:
+    operation: SemanticProposalOperation
+    summary: str
+    detail: str
+    confidence: float
+    evidence: str
+    control_signal: float
+    requires_confirmation: bool
+
+
 def _parse_commitment_decision(text: str) -> _CommitmentDecision | None:
     """Parse the structured AAC classifier payload.
 
@@ -254,12 +269,92 @@ def _parse_structured_commitment_decision(text: str) -> _CommitmentDecision | No
     )
 
 
-class LLMSemanticProposalRuntime(SemanticProposalRuntime):
-    """Upgrades the ``commitment`` slot with LLM-classified operations.
+def _generic_prompt(*, target_slot: str, user_input: str) -> str:
+    template = load_semantic_prompt_template()
+    schema = load_semantic_json_schema()
+    return (
+        f"{template}\n\n"
+        f"Target owner slot: {target_slot}\n"
+        "Return JSON matching this schema. Only emit proposals whose target_slot equals the target owner slot.\n"
+        f"Schema:\n{schema}\n\n"
+        "User message:\n"
+        '"""\n'
+        f"{user_input}\n"
+        '"""\n'
+        "Return JSON only."
+    )
 
-    All other slots delegate to ``base_runtime`` (defaults to
+
+def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedProposal, ...] | None:
+    raw = text.strip()
+    if not raw.startswith("{"):
+        return None
+    try:
+        payload = json.loads(raw)
+    except JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    proposals_raw = payload.get("proposals")
+    if not isinstance(proposals_raw, list):
+        return None
+    parsed: list[_ParsedProposal] = []
+    for item in proposals_raw:
+        if not isinstance(item, dict):
+            return None
+        if item.get("target_slot") != target_slot:
+            return None
+        operation_raw = item.get("operation")
+        summary_raw = item.get("summary")
+        detail_raw = item.get("detail")
+        confidence_raw = item.get("confidence")
+        evidence_raw = item.get("evidence")
+        if not isinstance(operation_raw, str):
+            return None
+        operation = _VALID_COMMITMENT_LABELS.get(operation_raw.strip().lower())
+        if operation is None:
+            return None
+        if not isinstance(summary_raw, str) or not summary_raw.strip():
+            return None
+        if not isinstance(detail_raw, str) or not detail_raw.strip():
+            return None
+        if not isinstance(evidence_raw, str) or not evidence_raw.strip():
+            return None
+        if isinstance(confidence_raw, bool) or not isinstance(confidence_raw, (int, float)):
+            return None
+        confidence = float(confidence_raw)
+        if confidence < 0.0 or confidence > 1.0:
+            return None
+        if confidence < _MIN_GENERIC_PROPOSAL_CONFIDENCE:
+            continue
+        control_raw = item.get("control_signal", _OPERATION_CONTROL[operation])
+        if isinstance(control_raw, bool) or not isinstance(control_raw, (int, float)):
+            return None
+        requires_confirmation_raw = item.get("requires_confirmation", False)
+        if not isinstance(requires_confirmation_raw, bool):
+            return None
+        parsed.append(
+            _ParsedProposal(
+                operation=operation,
+                summary=summary_raw.strip()[:160],
+                detail=detail_raw.strip()[:320],
+                confidence=confidence,
+                evidence=evidence_raw.strip()[:320],
+                control_signal=max(0.0, min(1.0, float(control_raw))),
+                requires_confirmation=requires_confirmation_raw,
+            )
+        )
+    return tuple(parsed)
+
+
+class LLMSemanticProposalRuntime(SemanticProposalRuntime):
+    """Upgrades selected slots with LLM-classified typed proposals.
+
+    ``commitment`` uses the AAC-focused classifier. ``boundary_consent``
+    and ``goal_value`` use the shared proposal schema. All other slots
+    delegate to ``base_runtime`` (defaults to
     :class:`NoOpSemanticProposalRuntime`). This gives us a focused
-    win on the most behaviourally-load-bearing owner without
+    win on the most behaviourally-load-bearing owners without
     forcing us to design 9 prompts on day one.
 
     Construction example::
@@ -304,8 +399,26 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         previous_snapshot: SemanticSnapshotValue | None,
         turn_index: int,
     ) -> SemanticProposalBatch:
-        if target_slot != self._commitment_slot_id or not user_input:
-            return self._base.propose(
+        if not user_input:
+            return self._base_propose(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=substrate_snapshot,
+                memory_snapshot=memory_snapshot,
+                previous_snapshot=previous_snapshot,
+                turn_index=turn_index,
+            )
+        if target_slot != self._commitment_slot_id:
+            if target_slot in _GENERIC_LLM_SLOT_IDS:
+                return self._propose_generic_slot(
+                    target_slot=target_slot,
+                    user_input=user_input,
+                    substrate_snapshot=substrate_snapshot,
+                    memory_snapshot=memory_snapshot,
+                    previous_snapshot=previous_snapshot,
+                    turn_index=turn_index,
+                )
+            return self._base_propose(
                 target_slot=target_slot,
                 user_input=user_input,
                 substrate_snapshot=substrate_snapshot,
@@ -341,7 +454,7 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             operation = SemanticProposalOperation.OBSERVE
             guarded_to_observe = True
         if operation is None:
-            base_batch = self._base.propose(
+            base_batch = self._base_propose(
                 target_slot=target_slot,
                 user_input=user_input,
                 substrate_snapshot=substrate_snapshot,
@@ -387,6 +500,87 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             description=(
                 f"LLM runtime classified turn {turn_index} as "
                 f"{operation.value} for {target_slot}."
+            ),
+        )
+
+    def _base_propose(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        return self._base.propose(
+            target_slot=target_slot,
+            user_input=user_input,
+            substrate_snapshot=substrate_snapshot,
+            memory_snapshot=memory_snapshot,
+            previous_snapshot=previous_snapshot,
+            turn_index=turn_index,
+        )
+
+    def _propose_generic_slot(
+        self,
+        *,
+        target_slot: str,
+        user_input: str,
+        substrate_snapshot: SubstrateSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        previous_snapshot: SemanticSnapshotValue | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        del substrate_snapshot, memory_snapshot, previous_snapshot
+        prompt = _generic_prompt(
+            target_slot=target_slot,
+            user_input=user_input.strip()[:600],
+        )
+        raw = self._provider.generate(
+            prompt=prompt,
+            max_new_tokens=self._max_new_tokens,
+            temperature=0.0,
+        )
+        parsed = _parse_generic_proposals(raw, target_slot=target_slot)
+        if parsed is None:
+            base_batch = self._base_propose(
+                target_slot=target_slot,
+                user_input=user_input,
+                substrate_snapshot=None,
+                memory_snapshot=None,
+                previous_snapshot=None,
+                turn_index=turn_index,
+            )
+            return SemanticProposalBatch(
+                proposals=base_batch.proposals,
+                runtime_id=self.runtime_id,
+                schema_version=base_batch.schema_version,
+                description=(
+                    f"LLM runtime fell back to base for {target_slot}; "
+                    f"unparseable proposal payload \"{raw[:32]!r}\"."
+                ),
+            )
+        proposals = tuple(
+            SemanticProposal(
+                proposal_id=f"{target_slot}:llm-{item.operation.value}:{turn_index}:{index}",
+                target_slot=target_slot,
+                operation=item.operation,
+                summary=item.summary,
+                detail=item.detail,
+                confidence=item.confidence,
+                evidence=item.evidence,
+                control_signal=item.control_signal,
+                requires_confirmation=item.requires_confirmation,
+            )
+            for index, item in enumerate(parsed)
+        )
+        return SemanticProposalBatch(
+            proposals=proposals,
+            runtime_id=self.runtime_id,
+            schema_version=1,
+            description=(
+                f"LLM runtime emitted {len(proposals)} typed proposal(s) for {target_slot}."
             ),
         )
 

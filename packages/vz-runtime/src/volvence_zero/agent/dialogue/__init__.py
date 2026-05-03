@@ -34,5 +34,6 @@ from volvence_zero.agent.dialogue._legacy import *  # noqa: F401,F403
 # these by Python convention so they are imported explicitly.
 from volvence_zero.agent.dialogue._legacy import (  # noqa: F401
     _case_summary_metrics,
+    _empty_emergence_dashboard,
     _open_case_summary_metrics,
 )

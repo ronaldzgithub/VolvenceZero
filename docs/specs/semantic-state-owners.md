@@ -60,7 +60,7 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
 - `ResponseAssemblyModule` 消费九个 slots，发布 `semantic_record_counts`、`semantic_control_signal`、`semantic_residue_summary`。
 - `BoundaryPolicyModule` 消费 `boundary_consent`，缺失授权或拒绝边界会提升澄清/边界约束。
-- `EvaluationBackbone` 记录 semantic readout metrics，但不把 evaluation 变成学习源头。
+- `EvaluationBackbone` 记录 semantic readout metrics，并发布 `semantic_spine_coverage` / `cognitive_loop_readiness` 作为窄 cognitive loop 的证据读数；evaluation 只消费 owner 快照，不把 evaluation 变成学习源头。
 - session-post request 携带 semantic state descriptions，供 background-slow 层沉淀与审计。
 - `AgentSessionRunner` exposes a bounded pending external-event queue. Each turn drains the queue into `AdapterSemanticProposalRuntime`, so external events are consumed exactly once unless resubmitted.
 - `BrainSession` exposes package-facing helper methods for tool result, profile/settings, task/calendar, and reviewed-knowledge events. These helpers enqueue structured events only; they do not mutate owner stores.
@@ -69,8 +69,31 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
 
 每个 semantic slot 都由 `FinalRolloutConfig` 暴露 wiring level，并支持 `kill_switches`。禁用某个 slot 时，下游通过 runtime placeholder 退化，不读取 owner 私有状态。
 
+## 验收读数
+
+当 `relationship_state`、`goal_value`、`boundary_consent`、`commitment`、`execution_result` 与 `evaluation` 同时 ACTIVE 时，`FinalAcceptanceReport` 必须能看到：
+
+- `semantic_spine_coverage = 1.0`
+- `cognitive_loop_readiness` 已发布
+- session / cross-session report 中的 `semantic_spine_readiness` 趋势由 `cognitive_loop_readiness` 派生，用于判断地基是否退化；`semantic_spine_coverage` 只作为完整性验收，不混入趋势
+- dialogue benchmark case report、emergence dashboard 与 paper-suite metric values 汇总 `mean_semantic_spine_coverage` / `mean_cognitive_loop_readiness`，作为产品对话回归层和证据产物层的地基证据
+- NL essence assessment 发布 `semantic-spine-ready` gate；该 gate 先作为审计证据，不进入默认 required gate 列表
+- `claim_companion_stateful_relationship` 的当前轻量 verdict 消费 `semantic-spine-ready` 与 dashboard 读数，作为完整 companion 证据前的状态感知地基门
+- paper-suite manifest 将 canonical semantic spine 指标列入 secondary metrics；companion verdict 优先消费 repeated-run summary，reference dashboard 仅作 fallback
+
+该检查只验证 owner 快照是否形成窄 cognitive loop 证据，不把 readiness 当作学习奖励，也不允许 evaluation 重建 owner 内部状态。
+
 ## 变更日志
 
+- 2026-05-03: Commitment / OpenLoop / BoundaryConsent / GoalValue / RelationshipState 增加 owner-side lifecycle / continuity readouts；`LLMSemanticProposalRuntime` 最小扩展到 `boundary_consent`、`goal_value` 的 schema-bound typed proposal 路径，非目标 slot 继续 delegate。
+- 2026-05-03: `clone_semantic_store` 开始保留 lifecycle / follow-up policy / typed outcome maps，避免跨上下文复制时丢失 owner-side continuity evidence。
+- 2026-05-03: paper-suite manifest 将 canonical semantic spine coverage / cognitive loop readiness 纳入 secondary metrics，companion verdict 优先消费 repeated-run summary。
+- 2026-05-03: `claim_companion_stateful_relationship` 当前轻量 verdict 接入 `semantic-spine-ready` 与 dashboard 读数；retain 仍需 cross-session gate，避免把单轮读数夸大为完整 companion 证明。
+- 2026-05-03: NL essence assessment 新增 `semantic-spine-ready` gate，将 semantic spine 读数提升为 paper-suite 审计门，但暂不加入默认 required gate。
+- 2026-05-03: Dialogue benchmark case report、emergence dashboard 与 paper-suite metric values 开始汇总 semantic spine coverage / cognitive loop readiness，让对话回归和证据产物能直接观察认知地基状态。
+- 2026-05-03: `cognitive_loop_readiness` 进入 session / cross-session 趋势，`EvolutionJudgement` 在 `semantic_spine_readiness` 明显退化时回滚，避免扩能力掩盖认知地基退化。
+- 2026-05-03: `FinalAcceptanceReport` 开始要求 ACTIVE 核心 semantic spine 发布 `semantic_spine_coverage` 与 `cognitive_loop_readiness`，作为继续扩能力前的验收门槛。
+- 2026-05-03: `EvaluationBackbone` 新增 `semantic_spine_coverage` 与 `cognitive_loop_readiness`，基于 `relationship_state`、`goal_value`、`boundary_consent`、`commitment`、`execution_result` 五个 owner 的公开快照评估窄 cognitive loop 的地基成熟度。
 - 2026-05-03: 四个情绪决策相关 owner 增加 owner-side readout：
   - `relationship_state` 发布 `emotional_load`、`repair_need`、`trust_delta`、`attunement_gap`、`stabilization_need`
   - `goal_value` 发布 `value_conflict`、`decision_readiness`、`active_tradeoff_count`、`reversibility_need`、`goal_shift_pressure`

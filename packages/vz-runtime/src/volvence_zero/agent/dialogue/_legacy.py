@@ -744,6 +744,18 @@ def build_dialogue_paper_suite_manifest(
             description="Average tower alignment on the canonical PE-ETA path.",
         ),
         PaperMetricSpec(
+            metric_name="canonical_mean_semantic_spine_coverage",
+            role="secondary",
+            direction="higher-is-better",
+            description="Average semantic owner spine coverage on the canonical PE-ETA path.",
+        ),
+        PaperMetricSpec(
+            metric_name="canonical_mean_cognitive_loop_readiness",
+            role="secondary",
+            direction="higher-is-better",
+            description="Average cognitive-loop readiness published from semantic owner snapshots.",
+        ),
+        PaperMetricSpec(
             metric_name="artifact_candidate_mean_score_delta",
             role="secondary",
             direction="higher-is-better",
@@ -1822,6 +1834,8 @@ def build_open_dialogue_case_report(
     mean_fast_memory_runtime_alignment = _mean(
         tuple(turn.fast_memory_runtime_alignment for turn in turns)
     )
+    mean_semantic_spine_coverage = _mean_turn_metric(turns, "semantic_spine_coverage")
+    mean_cognitive_loop_readiness = _mean_turn_metric(turns, "cognitive_loop_readiness")
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     late_episode_stability_score = _late_episode_stability_score(
         turns=turns,
@@ -1951,6 +1965,8 @@ def build_open_dialogue_case_report(
             f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f} "
             f"runtime_quality={mean_runtime_backbone_signal_quality:.3f} "
             f"fast_memory_alignment={mean_fast_memory_runtime_alignment:.3f} "
+            f"semantic_spine_coverage={mean_semantic_spine_coverage:.3f} "
+            f"cognitive_loop_readiness={mean_cognitive_loop_readiness:.3f} "
             f"tower_depth={mean_memory_tower_depth:.2f} "
             f"tower_alignment={mean_memory_tower_alignment:.2f} "
             f"tower_consolidation_max={max_tower_consolidation_count} "
@@ -1960,6 +1976,8 @@ def build_open_dialogue_case_report(
         mean_memory_tower_depth=mean_memory_tower_depth,
         mean_memory_tower_alignment=mean_memory_tower_alignment,
         memory_tower_profile_turn_count=memory_tower_profile_turn_count,
+        mean_semantic_spine_coverage=mean_semantic_spine_coverage,
+        mean_cognitive_loop_readiness=mean_cognitive_loop_readiness,
     )
 
 
@@ -2211,6 +2229,8 @@ def build_dialogue_case_report(
     mean_fast_memory_runtime_alignment = _mean(
         tuple(turn.fast_memory_runtime_alignment for turn in turns)
     )
+    mean_semantic_spine_coverage = _mean_turn_metric(turns, "semantic_spine_coverage")
+    mean_cognitive_loop_readiness = _mean_turn_metric(turns, "cognitive_loop_readiness")
     temporal_change_count = abstract_action_changes + regime_changes + int(family_version_growth > 0)
     delayed_improvement_observed = _delayed_improvement_observed(turns)
     acceptance_checks = (
@@ -2308,6 +2328,8 @@ def build_dialogue_case_report(
             f"online_fast_optimizer_norm={mean_online_fast_substrate_optimizer_state_norm:.3f}, "
             f"runtime_quality={mean_runtime_backbone_signal_quality:.3f}, "
             f"fast_memory_alignment={mean_fast_memory_runtime_alignment:.3f}, "
+            f"semantic_spine_coverage={mean_semantic_spine_coverage:.3f}, "
+            f"cognitive_loop_readiness={mean_cognitive_loop_readiness:.3f}, "
             f"slow_to_fast_init_benefit={mean_slow_to_fast_init_benefit:.2f}, "
             f"reset_turn_benefit={mean_reset_turn_slow_to_fast_init_benefit:.2f}, "
             f"target_alignment_gain={mean_reset_turn_slow_to_fast_target_alignment_gain:.3f}, "
@@ -2329,6 +2351,8 @@ def build_dialogue_case_report(
         mean_memory_tower_depth=mean_memory_tower_depth,
         mean_memory_tower_alignment=mean_memory_tower_alignment,
         memory_tower_profile_turn_count=memory_tower_profile_turn_count,
+        mean_semantic_spine_coverage=mean_semantic_spine_coverage,
+        mean_cognitive_loop_readiness=mean_cognitive_loop_readiness,
     )
 
 
@@ -2769,6 +2793,8 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
         ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
         ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
+        ("mean_semantic_spine_coverage", report.mean_semantic_spine_coverage),
+        ("mean_cognitive_loop_readiness", report.mean_cognitive_loop_readiness),
         ("mean_substrate_online_fast_applied", mean_substrate_online_fast_applied),
         ("mean_substrate_online_fast_experimental_mode", mean_substrate_online_fast_experimental_mode),
         (
@@ -3132,6 +3158,8 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
         ("fast_memory_signal_turn_count", float(report.fast_memory_signal_turn_count)),
         ("mean_fast_memory_signal_norm", report.mean_fast_memory_signal_norm),
         ("mean_fast_memory_runtime_alignment", report.mean_fast_memory_runtime_alignment),
+        ("mean_semantic_spine_coverage", report.mean_semantic_spine_coverage),
+        ("mean_cognitive_loop_readiness", report.mean_cognitive_loop_readiness),
         ("mean_substrate_online_fast_applied", mean_substrate_online_fast_applied),
         ("mean_substrate_online_fast_experimental_mode", mean_substrate_online_fast_experimental_mode),
         (
@@ -3546,6 +3574,8 @@ def build_dialogue_emergence_dashboard(
     open_runtime_backbone_evidence_rate = 0.0
     open_mean_runtime_backbone_signal_quality = 0.0
     open_mean_fast_memory_runtime_alignment = 0.0
+    open_mean_semantic_spine_coverage = 0.0
+    open_mean_cognitive_loop_readiness = 0.0
     if open_report is not None:
         open_baseline_path = next(
             (path for path in open_report.path_reports if path.path_label == open_report.baseline_label),
@@ -3570,6 +3600,12 @@ def build_dialogue_emergence_dashboard(
             )
             open_mean_fast_memory_runtime_alignment = open_metric_means.get(
                 "mean_fast_memory_runtime_alignment", 0.0
+            )
+            open_mean_semantic_spine_coverage = open_metric_means.get(
+                "mean_semantic_spine_coverage", 0.0
+            )
+            open_mean_cognitive_loop_readiness = open_metric_means.get(
+                "mean_cognitive_loop_readiness", 0.0
             )
         open_panels = tuple(
             _dashboard_panel_from_metric_deltas(
@@ -3680,6 +3716,8 @@ def build_dialogue_emergence_dashboard(
             f"canonical_pass_rate={canonical_pass_rate:.3f} open_pass_rate={open_pass_rate:.3f} "
             f"runtime_evidence={canonical_metric_means.get('runtime_backbone_evidence_turn_count', 0.0) / max(canonical_report.total_case_count, 1):.2f} "
             f"runtime_quality={canonical_metric_means.get('mean_runtime_backbone_signal_quality', 0.0):.2f} "
+            f"semantic_spine={canonical_metric_means.get('mean_semantic_spine_coverage', 0.0):.2f} "
+            f"cognitive_loop={canonical_metric_means.get('mean_cognitive_loop_readiness', 0.0):.2f} "
             f"tower_depth={canonical_metric_means.get('mean_memory_tower_depth', 0.0):.2f} "
             f"tower_alignment={canonical_metric_means.get('mean_memory_tower_alignment', 0.0):.2f} "
             f"tower_gate_strength={tower_memory_gate_strength:.2f} "
@@ -3697,9 +3735,17 @@ def build_dialogue_emergence_dashboard(
         canonical_mean_fast_memory_runtime_alignment=canonical_metric_means.get(
             "mean_fast_memory_runtime_alignment", 0.0
         ),
+        canonical_mean_semantic_spine_coverage=canonical_metric_means.get(
+            "mean_semantic_spine_coverage", 0.0
+        ),
+        canonical_mean_cognitive_loop_readiness=canonical_metric_means.get(
+            "mean_cognitive_loop_readiness", 0.0
+        ),
         open_runtime_backbone_evidence_rate=round(open_runtime_backbone_evidence_rate, 4),
         open_mean_runtime_backbone_signal_quality=open_mean_runtime_backbone_signal_quality,
         open_mean_fast_memory_runtime_alignment=open_mean_fast_memory_runtime_alignment,
+        open_mean_semantic_spine_coverage=open_mean_semantic_spine_coverage,
+        open_mean_cognitive_loop_readiness=open_mean_cognitive_loop_readiness,
     )
 
 
@@ -3760,6 +3806,8 @@ def _emergence_dashboard_description_fragment(dashboard: DialogueEmergenceDashbo
         f"open_pass_rate={dashboard.open_pass_rate:.3f} "
         f"runtime_evidence_rate={dashboard.canonical_runtime_backbone_evidence_rate:.3f} "
         f"runtime_quality={dashboard.canonical_mean_runtime_backbone_signal_quality:.3f} "
+        f"semantic_spine={dashboard.canonical_mean_semantic_spine_coverage:.3f} "
+        f"cognitive_loop={dashboard.canonical_mean_cognitive_loop_readiness:.3f} "
         f"strongest_scaffold={dashboard.strongest_scaffold_path_label or 'none'} "
         f"strongest_scaffold_score={dashboard.strongest_scaffold_retention_score:.3f} "
         f"strongest_open={dashboard.strongest_open_path_label or 'none'} "
@@ -3843,6 +3891,10 @@ def build_dialogue_nl_essence_assessment(
         and evidence_metric_means.get("mean_default_substrate_live_mutation_suppressed", 0.0) >= 0.95
         and evidence_metric_means.get("online_fast_substrate_applied_count", 0.0) <= 0.0
         and evidence_metric_means.get("mean_default_continual_rollback_clean", 0.0) >= 0.5
+    )
+    semantic_spine_ready_passed = (
+        evidence_metric_means.get("mean_semantic_spine_coverage", 0.0) >= 1.0
+        and evidence_metric_means.get("mean_cognitive_loop_readiness", 0.0) > 0.0
     )
     store_nested_reset_count = evidence_metric_means.get("store_nested_context_reset_count", 0.0)
     reset_turn_slow_to_fast_init_benefit = evidence_metric_means.get(
@@ -4129,6 +4181,24 @@ def build_dialogue_nl_essence_assessment(
             description=(
                 "Default continual learner should retain owner-side bounded writeback while keeping live "
                 "substrate mutation suppressed by default."
+            ),
+        ),
+        DialogueNLEssenceGate(
+            gate_id="semantic-spine-ready",
+            passed=semantic_spine_ready_passed,
+            evidence=(
+                (
+                    "mean_semantic_spine_coverage",
+                    evidence_metric_means.get("mean_semantic_spine_coverage", 0.0),
+                ),
+                (
+                    "mean_cognitive_loop_readiness",
+                    evidence_metric_means.get("mean_cognitive_loop_readiness", 0.0),
+                ),
+            ),
+            description=(
+                "Core semantic owners should publish complete spine coverage and a nonzero "
+                "cognitive-loop readiness readout before stronger cognitive claims are widened."
             ),
         ),
         DialogueNLEssenceGate(
@@ -4543,6 +4613,8 @@ def build_dialogue_emergence_dashboard_payload(
             "runtime_backbone_evidence_rate": dashboard.canonical_runtime_backbone_evidence_rate,
             "mean_runtime_backbone_signal_quality": dashboard.canonical_mean_runtime_backbone_signal_quality,
             "mean_fast_memory_runtime_alignment": dashboard.canonical_mean_fast_memory_runtime_alignment,
+            "mean_semantic_spine_coverage": dashboard.canonical_mean_semantic_spine_coverage,
+            "mean_cognitive_loop_readiness": dashboard.canonical_mean_cognitive_loop_readiness,
             "passed_case_count": comprehensive_report.canonical_ablation_report.path_reports[0].benchmark_report.passed_case_count
             if comprehensive_report.canonical_ablation_report.path_reports
             else 0,
@@ -4556,6 +4628,8 @@ def build_dialogue_emergence_dashboard_payload(
             "runtime_backbone_evidence_rate": dashboard.open_runtime_backbone_evidence_rate,
             "mean_runtime_backbone_signal_quality": dashboard.open_mean_runtime_backbone_signal_quality,
             "mean_fast_memory_runtime_alignment": dashboard.open_mean_fast_memory_runtime_alignment,
+            "mean_semantic_spine_coverage": dashboard.open_mean_semantic_spine_coverage,
+            "mean_cognitive_loop_readiness": dashboard.open_mean_cognitive_loop_readiness,
             "present": comprehensive_report.open_ablation_report is not None,
         },
         "strongest_paths": {
@@ -4707,6 +4781,22 @@ def _dialogue_paper_suite_metric_values(
         (
             "canonical_mean_fast_memory_runtime_alignment",
             report.emergence_dashboard.canonical_mean_fast_memory_runtime_alignment,
+        ),
+        (
+            "canonical_mean_semantic_spine_coverage",
+            report.emergence_dashboard.canonical_mean_semantic_spine_coverage,
+        ),
+        (
+            "canonical_mean_cognitive_loop_readiness",
+            report.emergence_dashboard.canonical_mean_cognitive_loop_readiness,
+        ),
+        (
+            "open_mean_semantic_spine_coverage",
+            report.emergence_dashboard.open_mean_semantic_spine_coverage,
+        ),
+        (
+            "open_mean_cognitive_loop_readiness",
+            report.emergence_dashboard.open_mean_cognitive_loop_readiness,
         ),
         (
             "default_continual_learning_active_rate",
@@ -5803,6 +5893,57 @@ def _build_dialogue_claim_verdicts(
             agreement >= 0.4,
         ),
     )
+    semantic_dashboard = reference_report.emergence_dashboard if reference_report is not None else None
+    semantic_spine_ready = gate_map.get("semantic-spine-ready", False)
+    canonical_semantic_spine_summary = _dialogue_metric_summary(
+        aggregate_report,
+        "canonical_mean_semantic_spine_coverage",
+    )
+    canonical_cognitive_loop_summary = _dialogue_metric_summary(
+        aggregate_report,
+        "canonical_mean_cognitive_loop_readiness",
+    )
+    canonical_semantic_spine_coverage = (
+        canonical_semantic_spine_summary.mean
+        if canonical_semantic_spine_summary is not None
+        else (
+            semantic_dashboard.canonical_mean_semantic_spine_coverage
+            if semantic_dashboard is not None
+            else 0.0
+        )
+    )
+    canonical_cognitive_loop_readiness = (
+        canonical_cognitive_loop_summary.mean
+        if canonical_cognitive_loop_summary is not None
+        else (
+            semantic_dashboard.canonical_mean_cognitive_loop_readiness
+            if semantic_dashboard is not None
+            else 0.0
+        )
+    )
+    open_semantic_spine_coverage = (
+        semantic_dashboard.open_mean_semantic_spine_coverage
+        if semantic_dashboard is not None
+        else 0.0
+    )
+    open_cognitive_loop_readiness = (
+        semantic_dashboard.open_mean_cognitive_loop_readiness
+        if semantic_dashboard is not None
+        else 0.0
+    )
+    claim_companion_stateful_status = _dialogue_claim_status(
+        retain_checks=(
+            semantic_spine_ready,
+            canonical_semantic_spine_coverage >= 1.0,
+            canonical_cognitive_loop_readiness > 0.0,
+            gate_map.get("cross-session-growth", False),
+        ),
+        weak_checks=(
+            semantic_spine_ready,
+            canonical_semantic_spine_coverage >= 1.0,
+            canonical_cognitive_loop_readiness > 0.0,
+        ),
+    )
     return (
         ClaimVerdict(
             claim_id="claim_pe_multi_timescale_default",
@@ -5936,6 +6077,37 @@ def _build_dialogue_claim_verdicts(
             ),
             summary="外部人评可见性 claim verdict.",
             description="Claim D checks whether blinded human review has enough rater coverage, agreement, and alignment with automatic evidence.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_companion_stateful_relationship",
+            status=claim_companion_stateful_status,
+            required_gate_ids=("semantic-spine-ready",),
+            supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
+            evidence=(
+                ("semantic-spine-ready", float(semantic_spine_ready)),
+                ("canonical_mean_semantic_spine_coverage", canonical_semantic_spine_coverage),
+                ("canonical_mean_cognitive_loop_readiness", canonical_cognitive_loop_readiness),
+                (
+                    "canonical_semantic_spine_summary_sample_count",
+                    float(canonical_semantic_spine_summary.sample_count)
+                    if canonical_semantic_spine_summary is not None
+                    else 0.0,
+                ),
+                (
+                    "canonical_cognitive_loop_summary_sample_count",
+                    float(canonical_cognitive_loop_summary.sample_count)
+                    if canonical_cognitive_loop_summary is not None
+                    else 0.0,
+                ),
+                ("open_mean_semantic_spine_coverage", open_semantic_spine_coverage),
+                ("open_mean_cognitive_loop_readiness", open_cognitive_loop_readiness),
+                ("cross-session-growth", float(gate_map.get("cross-session-growth", False))),
+            ),
+            summary="Companion stateful relationship semantic-spine claim verdict.",
+            description=(
+                "Claim Companion-Stateful checks whether the semantic owner spine is complete and "
+                "publishes nonzero cognitive-loop readiness before making stronger relationship-continuity claims."
+            ),
         ),
     )
 

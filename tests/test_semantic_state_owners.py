@@ -10,8 +10,10 @@ from volvence_zero.semantic_state import (
     BoundaryConsentSnapshot,
     SEMANTIC_OWNER_SLOTS,
     AdapterSemanticProposalRuntime,
+    CommitmentSnapshot,
     GoalValueSnapshot,
     NoOpSemanticProposalRuntime,
+    OpenLoopSnapshot,
     PlanIntentSnapshot,
     RelationshipStateSnapshot,
     SemanticProposal,
@@ -20,6 +22,7 @@ from volvence_zero.semantic_state import (
     SemanticProposalRuntime,
     SemanticStateStore,
     UserModelSnapshot,
+    clone_semantic_store,
     semantic_events_from_profile,
     semantic_events_from_reviewed_knowledge,
     semantic_events_from_task_event,
@@ -203,6 +206,28 @@ def test_semantic_owner_snapshots_are_frozen_and_active() -> None:
         plan_snapshot.active_goal = "mutated"  # type: ignore[misc]
 
 
+def test_semantic_spine_publishes_cognitive_loop_readiness_evidence() -> None:
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            user_input="Track the goal, boundary, commitment, relationship, and result.",
+            semantic_state_store=SemanticStateStore(),
+            semantic_proposal_runtime=DeterministicPlanRuntime(),
+            session_id="semantic-spine",
+            wave_id="semantic-spine-wave",
+            turn_index=1,
+        )
+    )
+
+    evaluation = result.active_snapshots["evaluation"].value
+    metrics = {score.metric_name: score for score in evaluation.turn_scores}
+
+    assert metrics["semantic_spine_coverage"].value == 1.0
+    assert metrics["cognitive_loop_readiness"].value > 0.0
+    assert "semantic owner snapshots" in metrics["cognitive_loop_readiness"].evidence
+
+
 def test_semantic_proposals_persist_across_turns_and_revise_plan() -> None:
     store = SemanticStateStore()
     runtime = DeterministicPlanRuntime()
@@ -240,6 +265,137 @@ def test_semantic_proposals_persist_across_turns_and_revise_plan() -> None:
     response_assembly = second.active_snapshots["response_assembly"].value
     assert dict(response_assembly.semantic_record_counts)["plan_intent"] >= 1
     assert response_assembly.semantic_control_signal > 0.0
+
+
+def test_clone_semantic_store_preserves_lifecycle_policy_and_outcomes() -> None:
+    store = SemanticStateStore()
+    proposals = (
+        SemanticProposal(
+            proposal_id="commitment:complete:1",
+            target_slot="commitment",
+            operation=SemanticProposalOperation.COMPLETE,
+            summary="follow-up completed",
+            detail="The commitment reached a typed completion outcome.",
+            confidence=0.90,
+            evidence="typed completion evidence",
+            control_signal=0.40,
+        ),
+    )
+    store.apply(slot="commitment", proposals=proposals, turn_index=3)
+
+    cloned = clone_semantic_store(store)
+
+    assert cloned.records_for("commitment") == store.records_for("commitment")
+    assert cloned.completed_refs_for("commitment") == store.completed_refs_for("commitment")
+    assert cloned.lifecycle_for("commitment") == store.lifecycle_for("commitment")
+    assert cloned.followup_policy_for("commitment") == store.followup_policy_for("commitment")
+    assert cloned.outcome_for("commitment") == store.outcome_for("commitment")
+
+
+def test_commitment_owner_publishes_continuity_readouts() -> None:
+    store = SemanticStateStore()
+    store.apply(
+        slot="commitment",
+        proposals=(
+            SemanticProposal(
+                proposal_id="commitment:active:1",
+                target_slot="commitment",
+                operation=SemanticProposalOperation.CREATE,
+                summary="check launch status",
+                detail="Follow up on launch status.",
+                confidence=0.90,
+                evidence="typed active commitment evidence",
+                control_signal=0.30,
+            ),
+            SemanticProposal(
+                proposal_id="commitment:done:1",
+                target_slot="commitment",
+                operation=SemanticProposalOperation.COMPLETE,
+                summary="publish checklist",
+                detail="Checklist publication completed.",
+                confidence=0.92,
+                evidence="typed completion evidence",
+                control_signal=0.30,
+            ),
+            SemanticProposal(
+                proposal_id="commitment:stalled:1",
+                target_slot="commitment",
+                operation=SemanticProposalOperation.DEFER,
+                summary="wait for review",
+                detail="Review follow-up is deferred.",
+                confidence=0.84,
+                evidence="typed defer evidence",
+                control_signal=0.40,
+            ),
+        ),
+        turn_index=1,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=store,
+            session_id="commitment-continuity",
+            wave_id="commitment-continuity-wave",
+            turn_index=2,
+        )
+    )
+
+    commitment = result.active_snapshots["commitment"].value
+    assert isinstance(commitment, CommitmentSnapshot)
+    assert commitment.due_followup_count >= 1
+    assert commitment.recent_completion_count == 1
+    assert commitment.stalled_commitment_count >= 1
+
+
+def test_open_loop_owner_publishes_continuity_readouts() -> None:
+    store = SemanticStateStore()
+    store.apply(
+        slot="open_loop",
+        proposals=(
+            SemanticProposal(
+                proposal_id="open-loop:old:1",
+                target_slot="open_loop",
+                operation=SemanticProposalOperation.CREATE,
+                summary="old unanswered loop",
+                detail="An unresolved follow-up from an earlier turn.",
+                confidence=0.50,
+                evidence="typed open loop evidence",
+                control_signal=0.35,
+                requires_confirmation=True,
+            ),
+            SemanticProposal(
+                proposal_id="open-loop:closed:1",
+                target_slot="open_loop",
+                operation=SemanticProposalOperation.CLOSE,
+                summary="closed loop",
+                detail="A loop that has been closed.",
+                confidence=0.88,
+                evidence="typed closure evidence",
+                control_signal=0.10,
+            ),
+        ),
+        turn_index=1,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=store,
+            session_id="open-loop-continuity",
+            wave_id="open-loop-continuity-wave",
+            turn_index=5,
+        )
+    )
+
+    open_loop = result.active_snapshots["open_loop"].value
+    assert isinstance(open_loop, OpenLoopSnapshot)
+    assert open_loop.oldest_open_turn == 1
+    assert open_loop.stale_loop_count >= 1
+    assert open_loop.confirmation_debt_count >= 1
+    assert open_loop.closure_readiness > 0.0
 
 
 def test_noop_semantic_runtime_does_not_keyword_drive_operations() -> None:
@@ -315,8 +471,188 @@ def test_boundary_consent_owner_tightens_boundary_policy() -> None:
     boundary_policy = result.active_snapshots["boundary_policy"].value
 
     assert boundary_consent.denied_boundaries
+    assert boundary_consent.denial_count == 1
+    assert boundary_consent.external_action_blocked is True
+    assert boundary_consent.memory_scope_status == "denied"
     assert "consent-boundary-denied" in boundary_policy.trigger_reasons
     assert boundary_policy.active_decision.refer_out_required is True
+
+
+def test_boundary_consent_owner_publishes_lifecycle_readouts() -> None:
+    store = SemanticStateStore()
+    store.apply(
+        slot="boundary_consent",
+        proposals=(
+            SemanticProposal(
+                proposal_id="boundary:grant:1",
+                target_slot="boundary_consent",
+                operation=SemanticProposalOperation.OBSERVE,
+                summary="memory scope granted",
+                detail="User grants memory scope for planning preferences.",
+                confidence=0.86,
+                evidence="typed consent grant evidence",
+                control_signal=0.20,
+            ),
+            SemanticProposal(
+                proposal_id="boundary:revoke:1",
+                target_slot="boundary_consent",
+                operation=SemanticProposalOperation.CLOSE,
+                summary="old scope revoked",
+                detail="User revokes an older consent scope.",
+                confidence=0.88,
+                evidence="typed revocation evidence",
+                control_signal=0.30,
+            ),
+        ),
+        turn_index=1,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=store,
+            session_id="boundary-lifecycle",
+            wave_id="boundary-lifecycle-wave",
+            turn_index=2,
+        )
+    )
+
+    boundary = result.active_snapshots["boundary_consent"].value
+    assert isinstance(boundary, BoundaryConsentSnapshot)
+    assert boundary.active_scope_count >= 1
+    assert boundary.revocation_count == 1
+    assert boundary.denial_count == 0
+    assert boundary.external_action_blocked is False
+    assert boundary.memory_scope_status == "granted"
+
+
+def test_goal_value_owner_publishes_lifecycle_readouts() -> None:
+    store = SemanticStateStore()
+    store.apply(
+        slot="goal_value",
+        proposals=(
+            SemanticProposal(
+                proposal_id="goal:active:1",
+                target_slot="goal_value",
+                operation=SemanticProposalOperation.CREATE,
+                summary="ship safely",
+                detail="User wants a safe launch path.",
+                confidence=0.90,
+                evidence="typed goal evidence",
+                control_signal=0.20,
+            ),
+            SemanticProposal(
+                proposal_id="goal:defer:1",
+                target_slot="goal_value",
+                operation=SemanticProposalOperation.DEFER,
+                summary="defer risky shortcut",
+                detail="Shortcut is deferred pending value clarification.",
+                confidence=0.82,
+                evidence="typed tradeoff evidence",
+                control_signal=0.55,
+            ),
+            SemanticProposal(
+                proposal_id="goal:blocked:1",
+                target_slot="goal_value",
+                operation=SemanticProposalOperation.BLOCK,
+                summary="conflicting priority",
+                detail="A priority conflicts with the active goal.",
+                confidence=0.78,
+                evidence="typed conflict evidence",
+                control_signal=0.60,
+            ),
+            SemanticProposal(
+                proposal_id="goal:done:1",
+                target_slot="goal_value",
+                operation=SemanticProposalOperation.COMPLETE,
+                summary="resolved prior goal",
+                detail="A prior goal has been resolved.",
+                confidence=0.84,
+                evidence="typed resolution evidence",
+                control_signal=0.10,
+            ),
+        ),
+        turn_index=1,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=store,
+            session_id="goal-lifecycle",
+            wave_id="goal-lifecycle-wave",
+            turn_index=2,
+        )
+    )
+
+    goal = result.active_snapshots["goal_value"].value
+    assert isinstance(goal, GoalValueSnapshot)
+    assert goal.active_goal_count >= 1
+    assert goal.deferred_goal_count == 1
+    assert goal.conflicted_goal_count == 1
+    assert goal.resolved_goal_refs
+    assert goal.goal_continuity_score > 0.0
+
+
+def test_relationship_state_owner_publishes_structured_continuity_readouts() -> None:
+    store = SemanticStateStore()
+    store.apply(
+        slot="relationship_state",
+        proposals=(
+            SemanticProposal(
+                proposal_id="relationship:rapport:1",
+                target_slot="relationship_state",
+                operation=SemanticProposalOperation.OBSERVE,
+                summary="calm collaboration",
+                detail="User and assistant are collaborating calmly.",
+                confidence=0.84,
+                evidence="typed rapport evidence",
+                control_signal=0.20,
+            ),
+            SemanticProposal(
+                proposal_id="relationship:tension:1",
+                target_slot="relationship_state",
+                operation=SemanticProposalOperation.BLOCK,
+                summary="unresolved friction",
+                detail="A relational tension remains unresolved.",
+                confidence=0.70,
+                evidence="typed tension evidence",
+                control_signal=0.75,
+            ),
+            SemanticProposal(
+                proposal_id="relationship:repair:1",
+                target_slot="relationship_state",
+                operation=SemanticProposalOperation.CLOSE,
+                summary="repair completed",
+                detail="A previous misunderstanding was repaired.",
+                confidence=0.88,
+                evidence="typed repair evidence",
+                control_signal=0.20,
+            ),
+        ),
+        turn_index=1,
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            semantic_state_store=store,
+            session_id="relationship-continuity",
+            wave_id="relationship-continuity-wave",
+            turn_index=2,
+        )
+    )
+
+    relationship = result.active_snapshots["relationship_state"].value
+    assert isinstance(relationship, RelationshipStateSnapshot)
+    assert relationship.recent_repair_count == 1
+    assert relationship.unresolved_tension_count == 1
+    assert relationship.attunement_trend >= 0.0
+    assert relationship.trust_recovery_signal > 0.0
+    assert relationship.relationship_continuity_score > 0.0
 
 
 def test_tool_result_adapter_updates_execution_and_open_loop() -> None:

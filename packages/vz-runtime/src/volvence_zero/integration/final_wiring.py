@@ -1811,6 +1811,33 @@ def build_acceptance_report(
     if missing_active:
         issues.append(f"Missing active slots: {', '.join(missing_active)}")
 
+    core_semantic_spine_slots = {
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
+        "commitment",
+        "execution_result",
+    }
+    if (
+        config.is_active("evaluation")
+        and all(config.is_active(slot) for slot in core_semantic_spine_slots)
+        and "evaluation" in active_snapshots
+    ):
+        evaluation_value = active_snapshots["evaluation"].value
+        if isinstance(evaluation_value, EvaluationSnapshot):
+            metric_values = {
+                score.metric_name: score.value
+                for score in evaluation_value.turn_scores
+            }
+            if "semantic_spine_coverage" not in metric_values:
+                issues.append("Evaluation did not publish semantic_spine_coverage for the active semantic spine.")
+            elif metric_values["semantic_spine_coverage"] < 1.0:
+                issues.append(
+                    "Semantic spine coverage is below 1.0 while all core semantic owners are ACTIVE."
+                )
+            if "cognitive_loop_readiness" not in metric_values:
+                issues.append("Evaluation did not publish cognitive_loop_readiness for the active semantic spine.")
+
     violation_count = sum(1 for event in recorder.events if event.event_type == "contract.violation")
     if violation_count:
         issues.append(f"Observed {violation_count} contract violation events during final wiring.")
@@ -1927,6 +1954,11 @@ def build_acceptance_report(
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if config.is_active("response_assembly"):
         recommendations.append("Keep response assembly as the single public expression-control surface, not a second prompt owner.")
+    if (
+        config.is_active("evaluation")
+        and all(config.is_active(slot) for slot in core_semantic_spine_slots)
+    ):
+        recommendations.append("Use cognitive_loop_readiness as the gate before widening beyond the semantic spine.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")
 

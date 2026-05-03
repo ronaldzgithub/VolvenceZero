@@ -3,6 +3,83 @@
 > Status: migration / implementation log
 > Last updated: 2026-05-03
 
+## Slice C.2 (2026-05-03): Semantic spine readiness evidence chain
+
+Builds the first narrow cognitive-loop evidence chain over the five
+core semantic owners:
+
+- `relationship_state`
+- `goal_value`
+- `boundary_consent`
+- `commitment`
+- `execution_result`
+
+Landed shape:
+
+- `EvaluationBackbone` publishes `semantic_spine_coverage` and
+  `cognitive_loop_readiness` from public semantic owner snapshots only.
+  Evaluation does not reconstruct owner internals and remains a readout
+  / gate layer, not a learning source.
+- `FinalAcceptanceReport` requires these readouts when the five core
+  semantic owners and `evaluation` are ACTIVE.
+- Session and cross-session evaluation now track
+  `semantic_spine_readiness`, derived only from
+  `cognitive_loop_readiness`; `semantic_spine_coverage` remains a
+  completeness check and is not mixed into trend calculations.
+- `EvolutionJudgement` rolls back on clear `semantic_spine_readiness`
+  regression, preventing capability widening from masking degradation
+  in the semantic-state foundation.
+- Dialogue benchmark case reports, open dialogue reports, emergence
+  dashboard payloads, and dialogue paper-suite metric values surface:
+  - `mean_semantic_spine_coverage`
+  - `mean_cognitive_loop_readiness`
+- NL essence assessment adds `semantic-spine-ready` as an audit gate.
+  It is intentionally not part of the default required gate list yet.
+- `claim_companion_stateful_relationship` consumes
+  `semantic-spine-ready` plus dashboard / repeated-run paper-suite
+  summaries. `retain` still requires the cross-session gate; semantic
+  spine alone can at most support the current lightweight foundation
+  evidence.
+- Dialogue paper-suite manifest includes
+  `canonical_mean_semantic_spine_coverage` and
+  `canonical_mean_cognitive_loop_readiness` as secondary metrics, so
+  companion-stateful verdicts prefer repeated-run summaries over a
+  single reference dashboard.
+
+Rollback:
+
+- Disable individual semantic owners via `FinalRolloutConfig.kill_switches`;
+  downstream modules receive placeholders and must not read owner
+  internals.
+- Remove `semantic-spine-ready` from any stricter future
+  `required_gate_ids` config before rolling back code.
+- Revert the readout additions without changing snapshot schemas: the
+  semantic owner snapshots themselves are unchanged by this slice.
+- Retrieval policy has an explicit temporal-disabled fallback so
+  `temporal` kill-switch rollbacks do not force consumers to reconstruct
+  temporal state.
+- Follow-up hardening: `clone_semantic_store` now preserves lifecycle,
+  follow-up policy, and typed outcome maps so cloned semantic stores keep
+  owner-side continuity evidence instead of copying only raw records.
+- Owner-depth follow-up: commitment, open_loop, boundary_consent,
+  goal_value, and relationship_state now publish additional owner-side
+  lifecycle / continuity readouts. `LLMSemanticProposalRuntime` remains
+  typed-proposal-only and now supports schema-bound proposals for
+  `boundary_consent` and `goal_value` while non-target slots still
+  delegate to the base runtime.
+
+Focused validation used for this slice:
+
+- `python -m pytest tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
+- `python -m pytest tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env_evidence tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
+- `python -m pytest tests/test_dialogue_benchmark.py::test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope tests/test_dialogue_benchmark.py::test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
+
+Long dialogue replay note: full `tests/test_dialogue_benchmark.py`
+enters systematic replay paths and may exceed a short interactive run.
+The semantic-spine evidence path was validated through focused shards
+covering evaluation, final wiring, dialogue case reports, emergence
+dashboard, NL essence, and paper-suite repeated summaries.
+
 ## Slice C.1 (2026-05-03): 情绪决策支持 owner-side readout
 
 Extends the existing semantic owner snapshot surface so emotional

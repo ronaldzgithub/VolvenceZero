@@ -55,6 +55,9 @@
 - `volvence_zero.agent.paper_suite` 提供共享 `ClaimVerdict` 与 `EvidenceBundle`
 - dialogue / ETA paper-suite aggregate 会额外发布 pairwise effects 与 claim verdicts
 - dialogue paper-suite export 会同时导出 blinded packet、internal key、rating template、rating aggregate 与 unified evidence bundle
+- dialogue emergence dashboard / paper-suite metric values 发布 `canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 以及 open-environment 对应读数；这些是 semantic owner 快照的证据读数，不作为学习源头
+- dialogue NL essence assessment 发布 `semantic-spine-ready` gate，用于审计核心 semantic owner spine 是否具备完整 coverage 与非零 readiness；该 gate 目前不进入默认 required gate 列表
+- dialogue paper-suite manifest 将 `canonical_mean_semantic_spine_coverage` 与 `canonical_mean_cognitive_loop_readiness` 列为 secondary metrics；companion stateful relationship verdict 优先消费 repeated-run summary，reference dashboard 只作为 fallback
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
@@ -93,6 +96,8 @@
 - `claim_companion_stateful_relationship`
   - 命题：companion 不是静态 support prompt，而是能感知当前对象状态、在 session 内调整、并在显式用户范围 memory 下跨 session 保留偏好
   - 需要：C1 state sensitivity、C2 within-session adaptation、C3 explicit cross-session retention、C4 default memory isolation、C5 default social scope isolation
+  - 当前轻量 verdict 先绑定 `semantic-spine-ready`、`canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 与 `cross-session-growth`，作为完整 companion 证据前的地基门
+- repeated-run verdict 优先使用 paper-suite secondary metric summary 的 sample count / mean，避免只看单次 reference dashboard
 
 ## Dialogue Paper-Suite Evidence Map
 
@@ -143,6 +148,29 @@
 - `tests/test_dialogue_benchmark.py::test_transcript_only_user_simulator_ignores_runtime_telemetry`
 - `tests/test_dialogue_benchmark.py::test_build_open_dialogue_case_report_uses_open_acceptance_surface`
 - `tests/test_dialogue_benchmark.py::test_claim_beyond_scripted_requires_open_repair_and_no_hidden_label_leak`
+
+### `claim_companion_stateful_relationship`
+
+**命题**：companion 不是静态 support prompt，而是至少具备可审计的 semantic owner spine，可在后续 C1-C5 完整证据前证明“状态感知地基”存在。
+
+**retain 条件（当前轻量口径）**：
+- `semantic-spine-ready` gate 通过
+- `canonical_mean_semantic_spine_coverage >= 1.0`
+- `canonical_mean_cognitive_loop_readiness > 0`
+- `cross-session-growth` gate 通过
+
+**weak 条件**：
+- `semantic-spine-ready` gate 通过
+- `canonical_mean_semantic_spine_coverage >= 1.0`
+- `canonical_mean_cognitive_loop_readiness > 0`
+
+**主要 artifact**：
+- `paper_suite_aggregate.json`
+- `reference_emergence_dashboard.json`
+- `evidence_bundle.json`
+
+**轻量测试节点**：
+- `tests/test_dialogue_benchmark.py::test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries`
 
 ### `claim_external_human_legibility`
 

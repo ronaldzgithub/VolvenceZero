@@ -182,6 +182,87 @@ def test_runtime_routes_non_commitment_to_base() -> None:
     )
 
 
+def test_runtime_emits_boundary_consent_typed_proposal_from_schema_payload() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "boundary", '
+            '"proposals": [{"proposal_id": "ignored", "target_slot": "boundary_consent", '
+            '"operation": "block", "summary": "external action denied", '
+            '"detail": "User denied external action.", "confidence": 0.77, '
+            '"evidence": "Do not act externally", "control_signal": 0.66, '
+            '"requires_confirmation": true}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="boundary_consent",
+        user_input="Do not act externally without asking.",
+        turn_index=4,
+    )
+
+    proposal = batch.proposals[0]
+    assert proposal.target_slot == "boundary_consent"
+    assert proposal.operation is SemanticProposalOperation.BLOCK
+    assert proposal.proposal_id == "boundary_consent:llm-block:4:0"
+    assert proposal.requires_confirmation is True
+    assert proposal.control_signal == 0.66
+    assert "proposal.schema" in provider.prompts[0] or '"proposals"' in provider.prompts[0]
+
+
+def test_runtime_emits_goal_value_typed_proposal_from_schema_payload() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "goal", '
+            '"proposals": [{"proposal_id": "ignored", "target_slot": "goal_value", '
+            '"operation": "defer", "summary": "value tradeoff", '
+            '"detail": "Goal needs value clarification.", "confidence": 0.71, '
+            '"evidence": "I need to think about the tradeoff", "control_signal": 0.52}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="goal_value",
+        user_input="I need to think about the tradeoff.",
+        turn_index=5,
+    )
+
+    proposal = batch.proposals[0]
+    assert proposal.target_slot == "goal_value"
+    assert proposal.operation is SemanticProposalOperation.DEFER
+    assert proposal.proposal_id == "goal_value:llm-defer:5:0"
+    assert proposal.confidence == 0.71
+
+
+def test_runtime_generic_payload_target_mismatch_falls_back() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "bad", '
+            '"proposals": [{"proposal_id": "ignored", "target_slot": "commitment", '
+            '"operation": "create", "summary": "wrong target", '
+            '"detail": "Wrong target slot.", "confidence": 0.90, '
+            '"evidence": "wrong target"}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="goal_value",
+        user_input="I have a goal.",
+        turn_index=6,
+    )
+
+    assert "fell back to base" in batch.description
+    assert all(
+        proposal.operation is SemanticProposalOperation.OBSERVE
+        for proposal in batch.proposals
+    )
+
+
 def test_runtime_skips_llm_on_empty_input() -> None:
     provider = _ScriptedProvider([])
     runtime = LLMSemanticProposalRuntime(provider=provider)

@@ -552,6 +552,9 @@ class CommitmentSnapshot:
     outcome_stalled_count: int = 0
     outcome_rejected_count: int = 0
     outcome_followup_no_response_count: int = 0
+    due_followup_count: int = 0
+    stalled_commitment_count: int = 0
+    recent_completion_count: int = 0
 
     def lifecycle_for(self, record_id: str) -> CommitmentLifecycleEntry | None:
         """Look up a single record's lifecycle, or ``None`` if absent."""
@@ -570,6 +573,10 @@ class OpenLoopSnapshot:
     closure_pressure: float
     control_signal: float
     description: str
+    oldest_open_turn: int | None = None
+    stale_loop_count: int = 0
+    confirmation_debt_count: int = 0
+    closure_readiness: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -665,6 +672,11 @@ class RelationshipStateSnapshot:
     trust_delta: float = 0.0
     attunement_gap: float = 0.0
     stabilization_need: float = 0.0
+    recent_repair_count: int = 0
+    unresolved_tension_count: int = 0
+    attunement_trend: float = 0.0
+    trust_recovery_signal: float = 0.0
+    relationship_continuity_score: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -681,6 +693,11 @@ class GoalValueSnapshot:
     active_tradeoff_count: int = 0
     reversibility_need: float = 0.0
     goal_shift_pressure: float = 0.0
+    active_goal_count: int = 0
+    deferred_goal_count: int = 0
+    conflicted_goal_count: int = 0
+    resolved_goal_refs: tuple[str, ...] = ()
+    goal_continuity_score: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -697,6 +714,11 @@ class BoundaryConsentSnapshot:
     consent_clarity: float = 0.0
     professional_scope_pressure: float = 0.0
     overreach_risk: float = 0.0
+    active_scope_count: int = 0
+    denial_count: int = 0
+    revocation_count: int = 0
+    external_action_blocked: bool = False
+    memory_scope_status: str = "unknown"
 
 
 SemanticSnapshotValue = (
@@ -1793,6 +1815,14 @@ class CommitmentModule(SemanticOwnerModule):
                 outcome_rejected += 1
             elif last_outcome is CommitmentOutcomeKind.FOLLOWUP_NO_RESPONSE:
                 outcome_followup_none += 1
+        due_followup = sum(
+            1
+            for record in active
+            if policy_map.get(record.record_id, FollowupPolicy.GENTLE_CHECKIN)
+            is FollowupPolicy.GENTLE_CHECKIN
+        )
+        stalled_commitments = len(at_risk) + outcome_stalled + outcome_followup_none
+        recent_completions = outcome_completed
         return CommitmentSnapshot(
             active_commitments=active,
             honored_commitment_refs=self._store.completed_refs_for(self.slot_name),
@@ -1808,7 +1838,9 @@ class CommitmentModule(SemanticOwnerModule):
                 f"outcome[progressed={outcome_progressed} "
                 f"completed={outcome_completed} stalled={outcome_stalled} "
                 f"rejected={outcome_rejected} "
-                f"no_response={outcome_followup_none}]."
+                f"no_response={outcome_followup_none}] "
+                f"continuity[due_followup={due_followup} "
+                f"stalled={stalled_commitments} recent_completion={recent_completions}]."
             ),
             lifecycle_entries=tuple(lifecycle_entries),
             advocacy_proposed_count=proposed,
@@ -1823,6 +1855,9 @@ class CommitmentModule(SemanticOwnerModule):
             outcome_stalled_count=outcome_stalled,
             outcome_rejected_count=outcome_rejected,
             outcome_followup_no_response_count=outcome_followup_none,
+            due_followup_count=due_followup,
+            stalled_commitment_count=stalled_commitments,
+            recent_completion_count=recent_completions,
         )
 
 
@@ -1835,6 +1870,16 @@ class OpenLoopModule(SemanticOwnerModule):
         unresolved = _records_with_status(records, "active", "deferred")
         confirmations = tuple(record for record in unresolved if record.confidence < 0.55)
         highest = unresolved[-1].record_id if unresolved else None
+        oldest_open_turn = min((record.source_turn for record in unresolved), default=None)
+        stale_loops = sum(
+            1
+            for record in unresolved
+            if self._turn_index - record.source_turn >= 3
+        )
+        confirmation_debt = len(confirmations)
+        closure_readiness = _clamp(
+            len(self._store.completed_refs_for(self.slot_name)) / max(len(records), 1)
+        )
         return OpenLoopSnapshot(
             unresolved_loops=unresolved,
             pending_confirmations=confirmations,
@@ -1842,7 +1887,15 @@ class OpenLoopModule(SemanticOwnerModule):
             highest_priority_loop_id=highest,
             closure_pressure=_clamp(len(unresolved) / 5.0),
             control_signal=max(self._batch_signal(batch), _clamp(len(confirmations) / 5.0)),
-            description=f"Open-loop owner published unresolved={len(unresolved)} confirmations={len(confirmations)}.",
+            description=(
+                f"Open-loop owner published unresolved={len(unresolved)} confirmations={len(confirmations)} "
+                f"oldest_turn={oldest_open_turn if oldest_open_turn is not None else 'none'} "
+                f"stale={stale_loops} closure_readiness={closure_readiness:.2f}."
+            ),
+            oldest_open_turn=oldest_open_turn,
+            stale_loop_count=stale_loops,
+            confirmation_debt_count=confirmation_debt,
+            closure_readiness=closure_readiness,
         )
 
 
@@ -1982,6 +2035,7 @@ class RelationshipStateModule(SemanticOwnerModule):
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> RelationshipStateSnapshot:
         tensions = _records_with_status(records, "blocked")
+        repair_refs = self._store.completed_refs_for(self.slot_name)
         confidence = self._mean_confidence(records)
         emotional_load = _clamp(
             _mean_record_control(records) * 0.44
@@ -1999,6 +2053,20 @@ class RelationshipStateModule(SemanticOwnerModule):
         trust_delta = _clamp(trust_level - 0.5)
         attunement_gap = _clamp((1.0 - trust_level) * 0.55 + repair_need * 0.45)
         stabilization_need = _clamp(emotional_load * 0.62 + repair_need * 0.22 + attunement_gap * 0.16)
+        recent_repair_count = len(repair_refs)
+        unresolved_tension_count = len(tensions)
+        attunement_trend = _clamp(0.5 + trust_delta * 0.40 - attunement_gap * 0.25)
+        trust_recovery_signal = _clamp(
+            min(recent_repair_count / 3.0, 1.0) * 0.45
+            + trust_level * 0.35
+            + (1.0 - repair_need) * 0.20
+        )
+        relationship_continuity_score = _clamp(
+            continuity_level * 0.45
+            + trust_level * 0.35
+            + trust_recovery_signal * 0.20
+            - min(unresolved_tension_count / 4.0, 1.0) * 0.15
+        )
         return RelationshipStateSnapshot(
             trust_level=trust_level,
             continuity_level=continuity_level,
@@ -2009,13 +2077,19 @@ class RelationshipStateModule(SemanticOwnerModule):
             description=(
                 f"Relationship-state owner published continuity={len(records)} tensions={len(tensions)} "
                 f"emotional_load={emotional_load:.2f} repair_need={repair_need:.2f} "
-                f"stabilization_need={stabilization_need:.2f}."
+                f"stabilization_need={stabilization_need:.2f} "
+                f"repair_count={recent_repair_count} continuity_score={relationship_continuity_score:.2f}."
             ),
             emotional_load=emotional_load,
             repair_need=repair_need,
             trust_delta=trust_delta,
             attunement_gap=attunement_gap,
             stabilization_need=stabilization_need,
+            recent_repair_count=recent_repair_count,
+            unresolved_tension_count=unresolved_tension_count,
+            attunement_trend=attunement_trend,
+            trust_recovery_signal=trust_recovery_signal,
+            relationship_continuity_score=relationship_continuity_score,
         )
 
 
@@ -2027,6 +2101,10 @@ class GoalValueModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> GoalValueSnapshot:
         latest = self._latest_active(records)
         tradeoffs = _records_with_status(records, "deferred", "blocked")
+        active_goals = _records_with_status(records, "active")
+        deferred_goals = _records_with_status(records, "deferred")
+        conflicted_goals = _records_with_status(records, "blocked")
+        resolved_goal_refs = self._store.completed_refs_for(self.slot_name)
         alignment_score = self._mean_confidence(records)
         revision_count = self._store.revision_count_for(self.slot_name)
         active_tradeoff_count = len(tradeoffs)
@@ -2038,6 +2116,12 @@ class GoalValueModule(SemanticOwnerModule):
         goal_shift_pressure = _clamp(min(revision_count / 4.0, 1.0) * 0.72 + value_conflict * 0.28)
         reversibility_need = _clamp(value_conflict * 0.50 + goal_shift_pressure * 0.30 + (1.0 - alignment_score) * 0.20)
         decision_readiness = _clamp(alignment_score * 0.62 + (1.0 - value_conflict) * 0.28 - reversibility_need * 0.10)
+        goal_continuity_score = _clamp(
+            alignment_score * 0.55
+            + min(len(active_goals) / 3.0, 1.0) * 0.20
+            + min(len(resolved_goal_refs) / 3.0, 1.0) * 0.15
+            - min(len(conflicted_goals) / 3.0, 1.0) * 0.10
+        )
         return GoalValueSnapshot(
             explicit_goals=records,
             value_priorities=records[-4:],
@@ -2048,13 +2132,20 @@ class GoalValueModule(SemanticOwnerModule):
             description=(
                 f"Goal/value owner published goals={len(records)} active={latest.record_id if latest else 'none'} "
                 f"value_conflict={value_conflict:.2f} decision_readiness={decision_readiness:.2f} "
-                f"reversibility_need={reversibility_need:.2f} shift={goal_shift_pressure:.2f}."
+                f"reversibility_need={reversibility_need:.2f} shift={goal_shift_pressure:.2f} "
+                f"lifecycle[active={len(active_goals)} deferred={len(deferred_goals)} "
+                f"conflicted={len(conflicted_goals)} resolved={len(resolved_goal_refs)}]."
             ),
             value_conflict=value_conflict,
             decision_readiness=decision_readiness,
             active_tradeoff_count=active_tradeoff_count,
             reversibility_need=reversibility_need,
             goal_shift_pressure=goal_shift_pressure,
+            active_goal_count=len(active_goals),
+            deferred_goal_count=len(deferred_goals),
+            conflicted_goal_count=len(conflicted_goals),
+            resolved_goal_refs=resolved_goal_refs,
+            goal_continuity_score=goal_continuity_score,
         )
 
 
@@ -2067,6 +2158,7 @@ class BoundaryConsentModule(SemanticOwnerModule):
         granted = _records_with_status(records, "active", "completed")
         missing = tuple(record for record in records if record.confidence < 0.55 and record.status not in {"blocked", "closed"})
         denied = _records_with_status(records, "blocked")
+        revoked = _records_with_status(records, "closed")
         compliance = _clamp(1.0 - len(missing) * 0.12 - len(denied) * 0.20)
         autonomy_risk = _clamp(
             min((len(missing) + len(denied)) / 4.0, 1.0) * 0.44
@@ -2082,23 +2174,38 @@ class BoundaryConsentModule(SemanticOwnerModule):
             + (1.0 - compliance) * 0.30
         )
         overreach_risk = _clamp(autonomy_risk * 0.62 + professional_scope_pressure * 0.38)
+        active_scope_count = len(granted)
+        denial_count = len(denied)
+        revocation_count = len(revoked)
+        external_action_blocked = denial_count > 0
+        memory_scope_status = (
+            "denied"
+            if denial_count > 0
+            else "granted" if active_scope_count > 0 else "unknown"
+        )
         return BoundaryConsentSnapshot(
             granted_consents=granted,
             missing_consents=missing,
             denied_boundaries=denied,
-            memory_consent="unknown" if not granted else "granted",
-            external_action_consent="unknown" if missing else "not-required",
+            memory_consent=memory_scope_status,
+            external_action_consent="denied" if external_action_blocked else ("unknown" if missing else "not-required"),
             compliance_score=compliance,
             control_signal=max(self._batch_signal(batch), _clamp(len(missing) / 5.0)),
             description=(
-                f"Boundary/consent owner published granted={len(granted)} missing={len(missing)} denied={len(denied)} "
+                f"Boundary/consent owner published granted={len(granted)} missing={len(missing)} denied={len(denied)} revoked={len(revoked)} "
                 f"autonomy_risk={autonomy_risk:.2f} consent_clarity={consent_clarity:.2f} "
-                f"overreach_risk={overreach_risk:.2f}."
+                f"overreach_risk={overreach_risk:.2f} memory_scope={memory_scope_status} "
+                f"external_blocked={int(external_action_blocked)}."
             ),
             autonomy_risk=autonomy_risk,
             consent_clarity=consent_clarity,
             professional_scope_pressure=professional_scope_pressure,
             overreach_risk=overreach_risk,
+            active_scope_count=active_scope_count,
+            denial_count=denial_count,
+            revocation_count=revocation_count,
+            external_action_blocked=external_action_blocked,
+            memory_scope_status=memory_scope_status,
         )
 
 
@@ -2183,4 +2290,7 @@ def clone_semantic_store(source: SemanticStateStore) -> SemanticStateStore:
         target._records[slot] = source.records_for(slot)
         target._completed_refs[slot] = source.completed_refs_for(slot)
         target._revision_counts[slot] = source.revision_count_for(slot)
+        target._record_lifecycle[slot] = source.lifecycle_for(slot)
+        target._record_followup_policy[slot] = source.followup_policy_for(slot)
+        target._record_outcome[slot] = source.outcome_for(slot)
     return target

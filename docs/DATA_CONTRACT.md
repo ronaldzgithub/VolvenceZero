@@ -1344,9 +1344,11 @@ reflection ──────────────→ owner-side writeback: m
 | Snapshot | Owner-side readout fields | 主要消费者 |
 |----------|---------------------------|------------|
 | `UserModelSnapshot` | `preferred_support_pacing`, `decision_style`, `overwhelm_pattern_strength`, `durable_goals` | dual_track, response_assembly, evaluation |
-| `RelationshipStateSnapshot` | `emotional_load`, `repair_need`, `trust_delta`, `attunement_gap`, `stabilization_need` | dual_track, response_assembly, evaluation |
-| `GoalValueSnapshot` | `value_conflict`, `decision_readiness`, `active_tradeoff_count`, `reversibility_need`, `goal_shift_pressure` | dual_track, response_assembly, evaluation |
-| `BoundaryConsentSnapshot` | `autonomy_risk`, `consent_clarity`, `professional_scope_pressure`, `overreach_risk` | boundary_policy, response_assembly, evaluation |
+| `CommitmentSnapshot` | `due_followup_count`, `stalled_commitment_count`, `recent_completion_count` | followup, response_assembly, evaluation |
+| `OpenLoopSnapshot` | `oldest_open_turn`, `stale_loop_count`, `confirmation_debt_count`, `closure_readiness` | response_assembly, evaluation, session-post evidence |
+| `RelationshipStateSnapshot` | `emotional_load`, `repair_need`, `trust_delta`, `attunement_gap`, `stabilization_need`, `recent_repair_count`, `unresolved_tension_count`, `attunement_trend`, `trust_recovery_signal`, `relationship_continuity_score` | dual_track, response_assembly, evaluation |
+| `GoalValueSnapshot` | `value_conflict`, `decision_readiness`, `active_tradeoff_count`, `reversibility_need`, `goal_shift_pressure`, `active_goal_count`, `deferred_goal_count`, `conflicted_goal_count`, `resolved_goal_refs`, `goal_continuity_score` | dual_track, response_assembly, evaluation |
+| `BoundaryConsentSnapshot` | `autonomy_risk`, `consent_clarity`, `professional_scope_pressure`, `overreach_risk`, `active_scope_count`, `denial_count`, `revocation_count`, `external_action_blocked`, `memory_scope_status` | boundary_policy, response_assembly, evaluation |
 
 `response_assembly.support_before_decision_pressure` 必须优先消费上述 owner-side readouts；domain/prototype 路由只能作为辅助证据。ETA / temporal 层消费的是压缩后的 action-family advisory，不拥有这些语义事实。
 

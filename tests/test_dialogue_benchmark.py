@@ -91,6 +91,7 @@ from volvence_zero.agent.dialogue import (
     DialogueExpertReviewItem,
     DialogueExpertReviewPacket,
     DialogueExpertReviewSample,
+    _case_summary_metrics,
     _open_case_summary_metrics,
     evaluate_dialogue_artifact_acceptance,
 )
@@ -436,6 +437,8 @@ def _synthetic_comprehensive_report_for_dashboard():
             ("mean_runtime_backbone_signal_quality", baseline_case_report.mean_runtime_backbone_signal_quality),
             ("mean_fast_memory_signal_norm", baseline_case_report.mean_fast_memory_signal_norm),
             ("mean_fast_memory_runtime_alignment", baseline_case_report.mean_fast_memory_runtime_alignment),
+            ("mean_semantic_spine_coverage", 1.0),
+            ("mean_cognitive_loop_readiness", 0.62),
             ("memory_tower_profile_turn_count", float(baseline_case_report.memory_tower_profile_turn_count)),
             ("mean_memory_tower_depth", baseline_case_report.mean_memory_tower_depth),
             ("mean_memory_tower_alignment", baseline_case_report.mean_memory_tower_alignment),
@@ -1564,6 +1567,8 @@ def test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env
     assert dashboard.open_environment_panels
     assert dashboard.canonical_mean_memory_tower_depth >= 5.0
     assert dashboard.canonical_runtime_backbone_evidence_rate > 0.0
+    assert dashboard.canonical_mean_semantic_spine_coverage == 1.0
+    assert dashboard.canonical_mean_cognitive_loop_readiness > 0.0
     assert dashboard.tower_memory_gate_strength > 0.0
     assert dashboard.strongest_scaffold_path_label is not None
     assert dashboard.strongest_open_path_label is not None
@@ -1580,6 +1585,8 @@ def test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys():
     assert payload["canonical"]["case_count"] == 1
     assert "mean_memory_tower_depth" in payload["canonical"]
     assert "runtime_backbone_evidence_rate" in payload["canonical"]
+    assert payload["canonical"]["mean_semantic_spine_coverage"] == 1.0
+    assert payload["canonical"]["mean_cognitive_loop_readiness"] > 0.0
     assert "tower_memory_gate" in payload
     assert payload["open_environment"]["scenario_count"] == 1
     assert payload["strong_proof_panels"]
@@ -1621,6 +1628,8 @@ def test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope():
     assert any(metric.metric_name == "canonical_pass_rate_pe_eta" for metric in manifest.primary_metrics)
     assert any(metric.metric_name == "canonical_runtime_backbone_evidence_rate" for metric in manifest.primary_metrics)
     assert any(metric.metric_name == "canonical_mean_memory_tower_depth" for metric in manifest.secondary_metrics)
+    assert any(metric.metric_name == "canonical_mean_semantic_spine_coverage" for metric in manifest.secondary_metrics)
+    assert any(metric.metric_name == "canonical_mean_cognitive_loop_readiness" for metric in manifest.secondary_metrics)
     assert any(metric.metric_name == "tower_memory_gate_strength" for metric in manifest.secondary_metrics)
     assert all("heldout" not in scenario_id for scenario_id in manifest.case_groups[1][1])
     assert config.runtime_mode == LocalSubstrateRuntimeMode.BUILTIN_ONLY
@@ -1646,6 +1655,16 @@ def test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries(tm
     assert report.claim_verdicts
     assert report.provenance.manifest_hash
     assert report.reference_run_report is not None
+    companion_verdict = next(
+        verdict
+        for verdict in report.claim_verdicts
+        if verdict.claim_id == "claim_companion_stateful_relationship"
+    )
+    assert companion_verdict.status in {"retain", "weak", "fail"}
+    assert "semantic-spine-ready" in companion_verdict.required_gate_ids
+    companion_evidence = dict(companion_verdict.evidence)
+    assert "canonical_semantic_spine_summary_sample_count" in companion_evidence
+    assert "canonical_cognitive_loop_summary_sample_count" in companion_evidence
 
 
 def test_dialogue_paper_suite_artifact_bundle_exports_expert_review_packet(tmp_path):
@@ -2064,9 +2083,10 @@ def test_build_dialogue_nl_essence_assessment_uses_nested_and_cross_session_evid
     )
 
     assert assessment.path_label == "pe-eta"
-    assert assessment.total_gate_count == 12
+    assert assessment.total_gate_count == 13
     gate_map = {gate.gate_id: gate for gate in assessment.gates}
     assert "multi-timescale-default" in gate_map
+    assert "semantic-spine-ready" in gate_map
     assert "default-continual-learner" in gate_map
     assert "online-fast-pe-coupling" in gate_map
     assert "cross-session-growth" in gate_map
@@ -2386,6 +2406,111 @@ def test_case_report_aggregates_memory_tower_metrics():
     assert report.mean_memory_tower_depth == 5.0
     assert report.mean_memory_tower_alignment > 0.3
     assert report.memory_tower_profile_turn_count == 2
+
+
+def test_case_report_aggregates_semantic_spine_readiness_metrics():
+    case = ScriptedDialogueCase(
+        case_id="semantic-spine-telemetry",
+        description="Case report should expose semantic spine evidence from evaluation metrics.",
+        user_inputs=("turn-1", "turn-2"),
+    )
+    turns = (
+        _benchmark_turn(
+            turn_index=1,
+            pe=0.08,
+            reward=0.10,
+            action="evidence-only",
+            regime="stable",
+            abstract_action="observe",
+            switch_gate=0.10,
+            delayed_metric=0.30,
+            extra_outcome_metrics=(
+                ("learning:semantic_spine_coverage", 1.0),
+                ("learning:cognitive_loop_readiness", 0.42),
+            ),
+        ),
+        _benchmark_turn(
+            turn_index=2,
+            pe=0.06,
+            reward=0.12,
+            action="ssl-only-pe",
+            regime="stable",
+            abstract_action="adapt",
+            switch_gate=0.35,
+            delayed_metric=0.45,
+            extra_outcome_metrics=(
+                ("learning:semantic_spine_coverage", 1.0),
+                ("learning:cognitive_loop_readiness", 0.58),
+            ),
+        ),
+    )
+
+    report = build_dialogue_case_report(case=case, turns=turns)
+    summary = dict(_case_summary_metrics(report))
+
+    assert report.mean_semantic_spine_coverage == 1.0
+    assert report.mean_cognitive_loop_readiness == 0.5
+    assert summary["mean_semantic_spine_coverage"] == 1.0
+    assert summary["mean_cognitive_loop_readiness"] == 0.5
+
+
+def test_nl_essence_assessment_surfaces_semantic_spine_ready_gate():
+    case = ScriptedDialogueCase(
+        case_id="semantic-spine-gate",
+        description="NL essence should surface semantic spine readiness as an audit gate.",
+        user_inputs=("turn-1", "turn-2"),
+    )
+    case_report = build_dialogue_case_report(
+        case=case,
+        turns=(
+            _benchmark_turn(
+                turn_index=1,
+                pe=0.10,
+                reward=0.12,
+                action="evidence-only",
+                regime="stable",
+                abstract_action="observe",
+                switch_gate=0.10,
+                delayed_metric=0.30,
+                extra_outcome_metrics=(
+                    ("learning:semantic_spine_coverage", 1.0),
+                    ("learning:cognitive_loop_readiness", 0.40),
+                ),
+            ),
+            _benchmark_turn(
+                turn_index=2,
+                pe=0.06,
+                reward=0.15,
+                action="ssl-only-pe",
+                regime="stable",
+                abstract_action="adapt",
+                switch_gate=0.35,
+                delayed_metric=0.55,
+                extra_outcome_metrics=(
+                    ("learning:semantic_spine_coverage", 1.0),
+                    ("learning:cognitive_loop_readiness", 0.60),
+                ),
+            ),
+        ),
+    )
+    benchmark_report = DialogueBenchmarkReport(
+        case_reports=(case_report,),
+        passed_case_count=1,
+        total_case_count=1,
+        metric_means=_case_summary_metrics(case_report),
+        description="semantic spine gate benchmark report",
+    )
+
+    assessment = build_dialogue_nl_essence_assessment(
+        path_label="pe-eta",
+        benchmark_report=benchmark_report,
+    )
+    gate = {item.gate_id: item for item in assessment.gates}["semantic-spine-ready"]
+    evidence = dict(gate.evidence)
+
+    assert gate.passed is True
+    assert evidence["mean_semantic_spine_coverage"] == 1.0
+    assert evidence["mean_cognitive_loop_readiness"] == 0.5
 
 
 def test_case_report_surfaces_rare_heavy_preimport_selection_telemetry():
@@ -2942,7 +3067,7 @@ def test_run_real_dialogue_pe_eta_comprehensive_benchmark_completes_with_builtin
     assert report.canonical_ablation_report.baseline_label == "pe-eta"
     assert len(report.longitudinal_report.case_reports) == 2
     assert report.longitudinal_report.cross_session_report.verdict in {"growing", "stable", "regressing", "insufficient-data"}
-    assert report.essence_report.total_gate_count == 12
+    assert report.essence_report.total_gate_count == 13
     assert isinstance(report.essence_acceptance, DialogueNLEssenceAcceptanceDecision)
     assert report.open_ablation_report is not None
     assert report.open_ablation_report.baseline_label == "pe-eta"

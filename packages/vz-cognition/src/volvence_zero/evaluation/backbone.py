@@ -750,7 +750,13 @@ class EvaluationBackbone:
                 verdict="insufficient-data",
                 description="No session reports to compare.",
             )
-        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse", "scheduler_health")
+        metric_keys = (
+            "relationship_continuity",
+            "learning_quality",
+            "abstraction_reuse",
+            "scheduler_health",
+            "semantic_spine_readiness",
+        )
         window_trends: list[tuple[int, tuple[tuple[str, float], ...]]] = []
         for window in suite.comparison_windows:
             if len(reports) < window + 1:
@@ -796,7 +802,11 @@ class EvaluationBackbone:
         regression_signals = 0
         for _, trends in window_trends:
             for metric, delta in trends:
-                if metric in ("relationship_continuity", "learning_quality"):
+                if metric in (
+                    "relationship_continuity",
+                    "learning_quality",
+                    "semantic_spine_readiness",
+                ):
                     if delta > 0.01:
                         growth_signals += 1
                     elif delta < -0.01:
@@ -826,7 +836,13 @@ class EvaluationBackbone:
         """Build a rich longitudinal report on top of the cross-session benchmark."""
         cross_session = self.run_cross_session_benchmark(suite=suite)
         reports = suite.session_reports
-        metric_keys = ("relationship_continuity", "learning_quality", "abstraction_reuse", "scheduler_health")
+        metric_keys = (
+            "relationship_continuity",
+            "learning_quality",
+            "abstraction_reuse",
+            "scheduler_health",
+            "semantic_spine_readiness",
+        )
         dimension_trends: list[tuple[str, float, float]] = []
         for metric in metric_keys:
             values = [v for r in reports for _, m, v in r.trends if m == metric]
@@ -902,6 +918,11 @@ class EvaluationBackbone:
             family="relationship",
             metric_name="relationship_continuity",
         )
+        semantic_spine_trend = _report_trend(
+            session_report,
+            family="learning",
+            metric_name="semantic_spine_readiness",
+        )
         delayed_mix_alignment = _report_metric_mean(
             session_report,
             family="learning",
@@ -946,6 +967,8 @@ class EvaluationBackbone:
             reasons.append("high-alert-pressure")
         if abstraction_trend < -0.03 or learning_trend < -0.03:
             reasons.append("trend-regression")
+        if semantic_spine_trend < -0.03:
+            reasons.append("semantic-spine-regression")
         if cross_session_report is not None and cross_session_report.verdict == "regressing":
             reasons.append("cross-session-regression")
         if any(
@@ -1005,6 +1028,7 @@ class EvaluationBackbone:
                 f"replay_passed={replay_suite_result.passed} "
                 f"abstraction_trend={abstraction_trend:.3f} learning_trend={learning_trend:.3f} "
                 f"relationship_trend={relationship_trend:.3f} "
+                f"semantic_spine_trend={semantic_spine_trend:.3f} "
                 f"delayed_mix_alignment={delayed_mix_alignment:.3f} "
                 f"delayed_regime_alignment={delayed_regime_alignment:.3f} "
                 f"delayed_action_alignment={delayed_action_alignment:.3f} "
@@ -2681,6 +2705,11 @@ class EvaluationBackbone:
                         ),
                     )
                 )
+        scores.extend(
+            self._semantic_spine_readiness_scores(
+                semantic_state_snapshots=semantic_state_snapshots,
+            )
+        )
         if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
             confidence = reflection_snapshot.consolidation_score.confidence
             applied_count = len(writeback_result.applied_operations) if isinstance(writeback_result, WritebackResult) else 0
@@ -3043,6 +3072,108 @@ class EvaluationBackbone:
             )
         return tuple(scores)
 
+    def _semantic_spine_readiness_scores(
+        self,
+        *,
+        semantic_state_snapshots: tuple[object, ...],
+    ) -> tuple[EvaluationScore, ...]:
+        """Read the narrow cognitive-loop spine from public owner snapshots."""
+        from volvence_zero.semantic_state import (
+            BoundaryConsentSnapshot,
+            CommitmentSnapshot,
+            ExecutionResultSnapshot,
+            GoalValueSnapshot,
+            RelationshipStateSnapshot,
+        )
+
+        relationship: RelationshipStateSnapshot | None = None
+        goal: GoalValueSnapshot | None = None
+        boundary: BoundaryConsentSnapshot | None = None
+        commitment: CommitmentSnapshot | None = None
+        execution: ExecutionResultSnapshot | None = None
+        for snapshot in semantic_state_snapshots:
+            if isinstance(snapshot, RelationshipStateSnapshot):
+                relationship = snapshot
+            elif isinstance(snapshot, GoalValueSnapshot):
+                goal = snapshot
+            elif isinstance(snapshot, BoundaryConsentSnapshot):
+                boundary = snapshot
+            elif isinstance(snapshot, CommitmentSnapshot):
+                commitment = snapshot
+            elif isinstance(snapshot, ExecutionResultSnapshot):
+                execution = snapshot
+
+        present = tuple(
+            item
+            for item in (relationship, goal, boundary, commitment, execution)
+            if item is not None
+        )
+        if not present:
+            return ()
+
+        coverage = _clamp(len(present) / 5.0)
+        relationship_readiness = relationship.continuity_level if relationship is not None else 0.0
+        goal_readiness = goal.decision_readiness if goal is not None else 0.0
+        boundary_readiness = (
+            _clamp(boundary.compliance_score * (1.0 - boundary.overreach_risk))
+            if boundary is not None
+            else 0.0
+        )
+        commitment_readiness = (
+            _clamp(
+                commitment.continuity_score * 0.55
+                + min(commitment.trust_obligation_count / 3.0, 1.0) * 0.25
+                + min(commitment.outcome_completed_count / 2.0, 1.0) * 0.20
+            )
+            if commitment is not None
+            else 0.0
+        )
+        execution_readiness = (
+            execution.execution_grounding_score if execution is not None else 0.0
+        )
+        cognitive_loop_readiness = _clamp(
+            (
+                relationship_readiness
+                + goal_readiness
+                + boundary_readiness
+                + commitment_readiness
+                + execution_readiness
+            )
+            / 5.0
+            * coverage
+        )
+        evidence = (
+            "Derived from core semantic owner snapshots: "
+            f"relationship={'present' if relationship is not None else 'missing'}, "
+            f"goal={'present' if goal is not None else 'missing'}, "
+            f"boundary={'present' if boundary is not None else 'missing'}, "
+            f"commitment={'present' if commitment is not None else 'missing'}, "
+            f"execution={'present' if execution is not None else 'missing'}."
+        )
+        return (
+            EvaluationScore(
+                family="learning",
+                metric_name="semantic_spine_coverage",
+                value=coverage,
+                confidence=0.72,
+                evidence=evidence,
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="cognitive_loop_readiness",
+                value=cognitive_loop_readiness,
+                confidence=0.68,
+                evidence=(
+                    f"{evidence} readiness components: "
+                    f"relationship={relationship_readiness:.3f}, "
+                    f"goal={goal_readiness:.3f}, "
+                    f"boundary={boundary_readiness:.3f}, "
+                    f"commitment={commitment_readiness:.3f}, "
+                    f"execution={execution_readiness:.3f}."
+                ),
+            ),
+        )
+
     def _merge_turn_scores(
         self,
         base_scores: tuple[EvaluationScore, ...],
@@ -3121,6 +3252,14 @@ class EvaluationBackbone:
                         "scheduler_discipline",
                         "scheduler_risk_managed",
                     ),
+                ),
+            ),
+            (
+                "learning",
+                "semantic_spine_readiness",
+                self._trend_for_metrics(
+                    records,
+                    ("cognitive_loop_readiness",),
                 ),
             ),
             (
@@ -3269,6 +3408,14 @@ class EvaluationBackbone:
             return ("regime.delayed_payoffs",)
         if metric_name == "regime_sequence_alignment":
             return ("regime.sequence_payoffs",)
+        if metric_name in {"semantic_spine_coverage", "cognitive_loop_readiness"}:
+            return (
+                "semantic_state.relationship_state",
+                "semantic_state.goal_value",
+                "semantic_state.boundary_consent",
+                "semantic_state.commitment",
+                "semantic_state.execution_result",
+            )
         if metric_name == "temporal_action_commitment":
             return ("temporal_abstraction.active_abstract_action", "temporal_abstraction.controller_state")
         if metric_name == "adaptive_stability":

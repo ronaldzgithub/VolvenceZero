@@ -277,6 +277,8 @@ class DialogueBenchmarkCaseReport:
     fast_memory_signal_turn_count: int = 0
     mean_fast_memory_signal_norm: float = 0.0
     mean_fast_memory_runtime_alignment: float = 0.0
+    mean_semantic_spine_coverage: float = 0.0
+    mean_cognitive_loop_readiness: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -340,6 +342,8 @@ class OpenDialogueCaseReport:
     fast_memory_signal_turn_count: int = 0
     mean_fast_memory_signal_norm: float = 0.0
     mean_fast_memory_runtime_alignment: float = 0.0
+    mean_semantic_spine_coverage: float = 0.0
+    mean_cognitive_loop_readiness: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -535,9 +539,13 @@ class DialogueEmergenceDashboardArtifact:
     canonical_runtime_backbone_evidence_rate: float = 0.0
     canonical_mean_runtime_backbone_signal_quality: float = 0.0
     canonical_mean_fast_memory_runtime_alignment: float = 0.0
+    canonical_mean_semantic_spine_coverage: float = 0.0
+    canonical_mean_cognitive_loop_readiness: float = 0.0
     open_runtime_backbone_evidence_rate: float = 0.0
     open_mean_runtime_backbone_signal_quality: float = 0.0
     open_mean_fast_memory_runtime_alignment: float = 0.0
+    open_mean_semantic_spine_coverage: float = 0.0
+    open_mean_cognitive_loop_readiness: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -332,6 +332,12 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "relationship_continuity" in metric_names
     assert "goal_alignment" in metric_names
     assert "consent_compliance" in metric_names
+    assert "semantic_spine_coverage" in metric_names
+    assert "cognitive_loop_readiness" in metric_names
+    assert any(
+        "cognitive_loop_readiness" in recommendation
+        for recommendation in result.acceptance_report.recommendations
+    )
 
 
 def test_final_wiring_publishes_multi_party_identity_active_scaffold():

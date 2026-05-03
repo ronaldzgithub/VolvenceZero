@@ -967,6 +967,93 @@ def test_session_report_carries_scheduler_health_trend():
     assert "scheduler_health" in trend_names
 
 
+def test_session_report_carries_semantic_spine_readiness_trend():
+    backbone = EvaluationBackbone()
+    backbone._append_records(
+        session_id="semantic-spine-session",
+        wave_id="w1",
+        timestamp_ms=1,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="semantic_spine_coverage",
+                value=1.0,
+                confidence=0.7,
+                evidence="semantic spine coverage turn 1",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="cognitive_loop_readiness",
+                value=0.42,
+                confidence=0.7,
+                evidence="cognitive loop readiness turn 1",
+            ),
+        ),
+    )
+    backbone._append_records(
+        session_id="semantic-spine-session",
+        wave_id="w2",
+        timestamp_ms=2,
+        timescale="turn",
+        scores=(
+            EvaluationScore(
+                family="learning",
+                metric_name="semantic_spine_coverage",
+                value=1.0,
+                confidence=0.7,
+                evidence="semantic spine coverage turn 2",
+            ),
+            EvaluationScore(
+                family="learning",
+                metric_name="cognitive_loop_readiness",
+                value=0.58,
+                confidence=0.7,
+                evidence="cognitive loop readiness turn 2",
+            ),
+        ),
+    )
+
+    report = backbone.build_session_report(
+        session_id="semantic-spine-session",
+        timestamp_ms=10,
+    )
+
+    trends = {metric_name: value for _, metric_name, value in report.trends}
+    assert trends["semantic_spine_readiness"] > 0.0
+
+
+def test_semantic_spine_regression_triggers_judge_rollback_reason():
+    from uuid import uuid4
+
+    backbone = EvaluationBackbone()
+    benchmark = backbone.run_default_evolution_benchmark(timestamp_ms=100)
+    report = EvaluationReport(
+        report_id=str(uuid4()),
+        report_type="session",
+        timestamp_ms=300,
+        session_ids=("judge-semantic-spine",),
+        scores_by_family=(),
+        alerts=(),
+        trends=(
+            ("relationship", "relationship_continuity", 0.02),
+            ("learning", "learning_quality", 0.02),
+            ("learning", "semantic_spine_readiness", -0.05),
+            ("abstraction", "abstraction_reuse", 0.02),
+        ),
+        recommendations=(),
+        description="semantic spine regression report",
+    )
+
+    judgement = backbone.judge_evolution_candidate(
+        replay_suite_result=benchmark,
+        session_report=report,
+    )
+
+    assert judgement.decision == EvolutionDecision.ROLLBACK
+    assert "semantic-spine-regression" in judgement.reasons
+
+
 def test_evaluation_backbone_emits_substrate_signal_quality():
     backbone = EvaluationBackbone()
     substrate_snapshot = SubstrateSnapshot(

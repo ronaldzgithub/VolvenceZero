@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
-from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
     CommonGroundSnapshot,
@@ -2565,6 +2565,10 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
         memory_snapshot = upstream["memory"].value
         experience_fast_prior_snapshot = upstream["experience_fast_prior"].value
         if not isinstance(world_temporal_snapshot, TemporalAbstractionSnapshot):
+            if isinstance(world_temporal_snapshot, RuntimePlaceholderValue) and isinstance(
+                self_temporal_snapshot, RuntimePlaceholderValue
+            ):
+                return self._publish_temporal_disabled_fallback()
             raise TypeError("world_temporal must publish TemporalAbstractionSnapshot.")
         if not isinstance(self_temporal_snapshot, TemporalAbstractionSnapshot):
             raise TypeError("self_temporal must publish TemporalAbstractionSnapshot.")
@@ -2739,6 +2743,32 @@ class RetrievalPolicyModule(RuntimeModule[RetrievalPolicySnapshot]):
                     f"{control_readout.description} Retrieval policy remains a compact control surface; "
                     "knowledge and experience owners publish evidence and priors without entering ETA ownership. "
                     f"checkpoint={'present' if self._rare_heavy_state is not None and self._rare_heavy_state.retrieval_readout_checkpoint is not None else 'default'}."
+                ),
+            )
+        )
+
+    def _publish_temporal_disabled_fallback(self) -> Snapshot[RetrievalPolicySnapshot]:
+        return self.publish(
+            RetrievalPolicySnapshot(
+                knowledge_domains=("general",),
+                experience_domains=("general_guidance_patterns",),
+                knowledge_weight=0.5,
+                experience_weight=0.5,
+                world_weight=0.5,
+                self_weight=0.5,
+                retrieval_depth=KnowledgeDepth.LIGHT,
+                citation_required=False,
+                jurisdiction_required=False,
+                risk_band=RiskBand.LOW,
+                regime_id=None,
+                abstract_action=None,
+                intent_description=(
+                    "retrieval policy fallback: temporal owners are disabled, "
+                    "so retrieval stays conservative and does not infer an abstract action."
+                ),
+                description=(
+                    "Retrieval policy published conservative fallback because temporal owners "
+                    "were explicitly disabled by wiring; no temporal state was reconstructed."
                 ),
             )
         )
