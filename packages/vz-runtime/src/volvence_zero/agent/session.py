@@ -62,6 +62,7 @@ from volvence_zero.agent.dialogue_outcome_producers import (
 )
 from volvence_zero.dialogue_trace import DialogueOutcomeEvidence
 from volvence_zero.credit.gate import (
+    CreditSnapshot,
     GateDecision,
     ModificationGate,
     ModificationProposal,
@@ -111,6 +112,7 @@ from volvence_zero.prediction.error import (
     PredictedOutcome,
     PredictionError,
     PredictionErrorModule,
+    PredictionErrorSnapshot,
 )
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
 from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
@@ -622,6 +624,7 @@ class AgentSessionRunner:
         self._semantic_state_store = SemanticStateStore()
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
+        self._pending_environment_outcome_id: str = ""
         self._dialogue_trace_store = DialogueTraceStore()
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
@@ -753,10 +756,98 @@ class AgentSessionRunner:
             }
             for slot_name, snapshot in sorted(self._upstream_snapshots.items())
         )
+        prediction_snapshot = self._upstream_snapshots.get("prediction_error")
+        prediction_value = (
+            prediction_snapshot.value
+            if prediction_snapshot is not None
+            and isinstance(prediction_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        temporal_snapshot = self._upstream_snapshots.get("temporal_abstraction")
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None
+            and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
+        credit_snapshot = self._upstream_snapshots.get("credit")
+        credit_value = (
+            credit_snapshot.value
+            if credit_snapshot is not None
+            and isinstance(credit_snapshot.value, CreditSnapshot)
+            else None
+        )
+        action_context = (
+            prediction_value.action_context if prediction_value is not None else None
+        )
+        action_replay = {
+            "prediction_error": (
+                {
+                    "turn_index": prediction_value.turn_index,
+                    "bootstrap": prediction_value.bootstrap,
+                    "task_error": prediction_value.error.task_error,
+                    "relationship_error": prediction_value.error.relationship_error,
+                    "regime_error": prediction_value.error.regime_error,
+                    "action_error": prediction_value.error.action_error,
+                    "magnitude": prediction_value.error.magnitude,
+                    "signed_reward": prediction_value.error.signed_reward,
+                    "description": prediction_value.description,
+                }
+                if prediction_value is not None
+                else None
+            ),
+            "action_context": (
+                {
+                    "segment_id": action_context.segment_id,
+                    "abstract_action_id": action_context.abstract_action_id,
+                    "z_t_digest": action_context.z_t_digest,
+                    "regime_id": action_context.regime_id,
+                    "affordance_name": action_context.affordance_name,
+                    "environment_event_id": action_context.environment_event_id,
+                    "environment_outcome_id": action_context.environment_outcome_id,
+                }
+                if action_context is not None
+                else None
+            ),
+            "closed_segments": (
+                tuple(
+                    {
+                        "segment_id": segment.segment_id,
+                        "open_turn_index": segment.open_turn_index,
+                        "close_turn_index": segment.close_turn_index,
+                        "abstract_action_id": segment.abstract_action_id,
+                        "z_t_digest": segment.z_t_digest,
+                        "affordance_name": segment.affordance_name,
+                    }
+                    for segment in temporal_value.closed_segments
+                )
+                if temporal_value is not None
+                else ()
+            ),
+            "credit_records": (
+                tuple(
+                    {
+                        "level": record.level,
+                        "track": record.track.value,
+                        "source_event": record.source_event,
+                        "credit_value": record.credit_value,
+                        "context": record.context,
+                    }
+                    for record in credit_value.recent_credits
+                )
+                if credit_value is not None
+                else ()
+            ),
+            "description": (
+                "Action replay evidence exported from existing prediction_error, "
+                "temporal_abstraction, and credit snapshots."
+            ),
+        }
         return {
             "session_id": self.active_context_session_id,
             "snapshot_count": len(snapshots),
             "snapshots": snapshots,
+            "action_replay": action_replay,
             "dialogue_trace": self.export_dialogue_trace_replay_artifact(),
             "description": (
                 "Snapshot replay artifact exported from existing runtime "
@@ -784,6 +875,14 @@ class AgentSessionRunner:
         events = tuple(self._pending_semantic_events)
         self._pending_semantic_events.clear()
         return events
+
+    def remember_environment_outcome(self, outcome_id: str) -> None:
+        self._pending_environment_outcome_id = outcome_id
+
+    def _consume_pending_environment_outcome_id(self) -> str:
+        outcome_id = self._pending_environment_outcome_id
+        self._pending_environment_outcome_id = ""
+        return outcome_id
 
     @property
     def session_post_queue_state(self) -> SessionPostSlowLoopQueueState:
@@ -1807,6 +1906,7 @@ class AgentSessionRunner:
                 apply_writeback=False,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
+            environment_outcome_id = self._consume_pending_environment_outcome_id()
             active_semantic_runtime: SemanticProposalRuntime = (
                 AdapterSemanticProposalRuntime(
                     base_runtime=self._semantic_proposal_runtime,
@@ -1830,6 +1930,7 @@ class AgentSessionRunner:
                 upstream_snapshots=self._upstream_snapshots,
                 joint_loop_result=joint_result,
                 environment_event=environment_event,
+                environment_outcome_id=environment_outcome_id,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,

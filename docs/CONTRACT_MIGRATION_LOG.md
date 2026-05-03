@@ -77,6 +77,26 @@ Rollback:
   (`false-positive`, `missing-expected-operation`,
   `confidence-below-floor`, `runtime-fallback`) without blocking
   runtime or owner-store writes.
+- Environment-outcome follow-up: reused `PredictionErrorModule`
+  instances now receive the current turn's `PredictionActionContext`
+  without resetting previous prediction state. Tool outcomes recorded
+  through `BrainSession.submit_tool_result(...)` are carried as
+  next-turn `PredictionActionContext.environment_outcome_id` lineage.
+- Evidence export follow-up: dialogue paper-suite export can write a
+  non-gating `semantic_proposal_quality_shadow.json` sidecar and also
+  include that payload in `EvidenceBundle.reference_artifacts`.
+- Action-credit follow-up: `CreditModule` now declares
+  `temporal_abstraction` as an upstream dependency and appends
+  `derive_segment_closure_credit_records(...)` to the PE-first credit
+  path when `PredictionActionContext.segment_id` matches a closed
+  temporal segment. PE-derived credit contexts now carry
+  segment/action/environment event/outcome lineage without changing the
+  numeric credit formula.
+- Snapshot replay follow-up: `AgentSessionRunner.export_snapshot_replay_artifact()`
+  now includes an `action_replay` section derived from existing
+  `prediction_error`, `temporal_abstraction`, and `credit` snapshots.
+  `dialogue_trace` remains a parallel debug artifact, not a runtime
+  schema dependency.
 
 Focused validation used for this slice:
 
@@ -84,6 +104,8 @@ Focused validation used for this slice:
 - `python -m pytest tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env_evidence tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
 - `python -m pytest tests/test_dialogue_benchmark.py::test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope tests/test_dialogue_benchmark.py::test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
 - `python -m pytest tests/test_semantic_proposal_quality.py tests/test_llm_semantic_runtime.py`
+- `python -m pytest tests/test_final_wiring.py::test_reused_prediction_module_receives_current_action_context tests/test_tool_outcome_evidence.py::test_brain_submit_tool_result_links_next_turn_prediction_context tests/test_dialogue_benchmark.py::test_dialogue_paper_suite_exports_proposal_quality_shadow_artifact`
+- `python -m pytest tests/test_credit_gate.py tests/test_eta_nl_clean_action_abstraction.py tests/test_tool_outcome_evidence.py`
 
 Long dialogue replay note: full `tests/test_dialogue_benchmark.py`
 enters systematic replay paths and may exceed a short interactive run.

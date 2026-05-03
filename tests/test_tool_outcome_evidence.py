@@ -102,6 +102,31 @@ def test_brain_submit_tool_result_attaches_evidence_to_last_trace() -> None:
     )
 
 
+def test_brain_submit_tool_result_links_next_turn_prediction_context() -> None:
+    brain = Brain(BrainConfig(rare_heavy_enabled=False))
+    session = brain.create_session(session_id="tool-outcome-pe-context")
+
+    asyncio.run(session.run_turn_async("First turn that records a prediction."))
+    session.submit_tool_result(
+        event_id="tool:prediction",
+        tool_name="read_file",
+        action_id="action:prediction",
+        status="succeeded",
+        summary="tool completed",
+        detail="detail body",
+        plan_ref="plan-1",
+    )
+    result = asyncio.run(session.run_turn_async("Continue after tool result."))
+
+    prediction_snapshot = result.active_snapshots["prediction_error"].value
+    assert prediction_snapshot.action_context.environment_outcome_id == "tool:prediction:outcome"
+    replay = session.runner.export_snapshot_replay_artifact()
+    action_replay = replay["action_replay"]
+    assert action_replay["action_context"]["environment_outcome_id"] == "tool:prediction:outcome"
+    assert action_replay["prediction_error"]["turn_index"] >= 1
+    assert "credit_records" in action_replay
+
+
 def test_brain_submit_tool_result_failure_marks_trace_rejected() -> None:
     brain = Brain(BrainConfig(rare_heavy_enabled=False))
     session = brain.create_session(session_id="tool-evidence-failure-session")

@@ -147,6 +147,7 @@ def test_snapshot_replay_export_uses_existing_snapshots() -> None:
 
     assert artifact["session_id"] == "snapshot-replay-test:context-1"
     assert artifact["snapshot_count"] == 0
+    assert "action_replay" in artifact
     assert "dialogue_trace" in artifact
     assert "trace-specific runtime schema" in artifact["description"]
 

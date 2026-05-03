@@ -261,10 +261,10 @@ class ETAProofProfileConfig:
 
 @dataclass(frozen=True)
 class ETAOpenWeightRuntimeConfig:
-    model_id: str = "distilgpt2"
+    model_id: str = "Qwen/Qwen2.5-0.5B-Instruct"
     model_source: str | None = None
     device: str = "auto"
-    layer_indices: tuple[int, ...] | None = None
+    layer_indices: tuple[int, ...] | None = (20, 21, 22)
     hook_layer_selection: str = "all"
     local_files_only: bool = True
     runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.STRICT_LOCAL
@@ -357,7 +357,8 @@ def _validate_eta_open_weight_runtime(
         raise RuntimeError(
             f"ETA real residual lane requires a non-fallback transformers backend, got "
             f"model_id={runtime.model_id!r} runtime_origin={runtime.runtime_origin!r}. "
-            "Use a locally available transformers model or set require_real_backend=False for explicit smoke tests."
+            "Pre-cache the default model 'Qwen/Qwen2.5-0.5B-Instruct' (or a configured equivalent) "
+            "via huggingface-cli download, or set require_real_backend=False for explicit smoke tests."
         )
 
 
@@ -2699,6 +2700,49 @@ def _repo_root_from_eta_module() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _open_weight_runtime_descriptor(
+    *,
+    runtime: OpenWeightResidualRuntime | None,
+    config: ETAOpenWeightRuntimeConfig | None,
+) -> dict[str, str]:
+    if runtime is None and config is None:
+        return {}
+    import importlib
+
+    try:
+        torch_version = importlib.import_module("torch").__version__
+    except ImportError:
+        torch_version = "unavailable"
+    try:
+        transformers_version = importlib.import_module("transformers").__version__
+    except ImportError:
+        transformers_version = "unavailable"
+    if runtime is not None:
+        model_id = str(getattr(runtime, "model_id", ""))
+        runtime_origin = str(getattr(runtime, "runtime_origin", "unknown"))
+        fallback_active = "1" if getattr(runtime, "fallback_active", False) else "0"
+    else:
+        model_id = config.model_id
+        runtime_origin = "config-only"
+        fallback_active = "unknown"
+    layer_indices_value = config.layer_indices if config is not None else None
+    layer_indices_str = (
+        ",".join(str(index) for index in layer_indices_value)
+        if layer_indices_value is not None
+        else "auto"
+    )
+    return {
+        "open_weight_model_id": model_id,
+        "open_weight_runtime_origin": runtime_origin,
+        "open_weight_fallback_active": fallback_active,
+        "open_weight_layer_indices": layer_indices_str,
+        "open_weight_device": str(config.device) if config is not None else "auto",
+        "open_weight_max_prefix_steps": str(config.max_prefix_steps) if config is not None else "",
+        "torch_version": torch_version,
+        "transformers_version": transformers_version,
+    }
+
+
 def run_eta_internal_rl_paper_suite(
     *,
     manifest: PaperSuiteManifest | None = None,
@@ -2707,6 +2751,17 @@ def run_eta_internal_rl_paper_suite(
     open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
 ) -> ETAProofPaperSuiteAggregateReport:
     active_manifest = manifest or build_eta_proof_paper_suite_manifest()
+    if (
+        active_manifest.suite_kind == "eta-open-weight-residual-proof"
+        and open_weight_runtime is None
+    ):
+        active_open_weight_config = open_weight_config or ETAOpenWeightRuntimeConfig()
+        open_weight_runtime = _build_eta_open_weight_runtime(active_open_weight_config)
+        _validate_eta_open_weight_runtime(
+            runtime=open_weight_runtime,
+            config=active_open_weight_config,
+        )
+        open_weight_config = active_open_weight_config
     route_ids = {
         route_id
         for name, values in active_manifest.case_groups
@@ -2845,15 +2900,22 @@ def run_eta_internal_rl_paper_suite(
             metric_names=tuple(metric.metric_name for metric in active_manifest.secondary_metrics),
         )
     )
+    runtime_descriptor: dict[str, str] = {
+        "suite_kind": active_manifest.suite_kind,
+        "train_epochs": str(train_epochs),
+        "backend_mode": "+".join(backend_labels),
+        "primary_backend": primary_backend_label,
+    }
+    runtime_descriptor.update(
+        _open_weight_runtime_descriptor(
+            runtime=open_weight_runtime,
+            config=open_weight_config,
+        )
+    )
     provenance = collect_paper_suite_provenance(
         manifest=active_manifest,
         repo_root=_repo_root_from_eta_module(),
-        runtime_descriptor={
-            "suite_kind": active_manifest.suite_kind,
-            "train_epochs": str(train_epochs),
-            "backend_mode": "+".join(backend_labels),
-            "primary_backend": primary_backend_label,
-        },
+        runtime_descriptor=runtime_descriptor,
     )
     interpretation_summary = _build_eta_paper_suite_interpretation_summary(
         reference_assessment=reference_assessment,

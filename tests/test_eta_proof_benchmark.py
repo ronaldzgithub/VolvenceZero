@@ -465,6 +465,57 @@ def test_eta_open_weight_real_snapshots_cover_proof_subgoal_budget():
     assert metrics["intervention_application_count"] >= min_steps
 
 
+def _qwen_default_real_backend_available() -> bool:
+    try:
+        import importlib
+
+        transformers = importlib.import_module("transformers")
+        transformers.AutoTokenizer.from_pretrained(
+            "Qwen/Qwen2.5-0.5B-Instruct", local_files_only=True
+        )
+        transformers.AutoModelForCausalLM.from_pretrained(
+            "Qwen/Qwen2.5-0.5B-Instruct", local_files_only=True
+        )
+        return True
+    except (ImportError, OSError, ValueError):
+        return False
+
+
+def test_eta_open_weight_real_backend_residual_claim_retains():
+    import pytest
+
+    if not _qwen_default_real_backend_available():
+        pytest.skip(
+            "Qwen/Qwen2.5-0.5B-Instruct not available in local HF cache; "
+            "run `huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct` to enable."
+        )
+
+    config = ETAOpenWeightRuntimeConfig(max_prefix_steps=2)
+
+    assert config.model_id == "Qwen/Qwen2.5-0.5B-Instruct"
+    assert config.layer_indices == (20, 21, 22)
+    assert config.require_real_backend is True
+    assert config.max_fallback_rate == 0.0
+
+    report = run_eta_open_weight_residual_benchmark(
+        cases=default_eta_proof_cases()[:1],
+        profile_labels=("full-internal-rl",),
+        runtime_config=config,
+    )
+
+    assert report.backend_label == "transformers-open-weight"
+    full_metrics = dict(
+        next(profile.metric_means for profile in report.profile_reports if profile.profile_label == "full-internal-rl")
+    )
+    assert full_metrics["real_open_weight_fallback_rate"] == 0.0
+    assert full_metrics["real_open_weight_capture_rate"] == 1.0
+    assert full_metrics["real_open_weight_hook_coverage"] >= ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE
+    assert full_metrics["real_open_weight_residual_sequence_present"] == 1.0
+    assert full_metrics["real_open_weight_intervention_protocol_valid"] == 1.0
+    assert full_metrics["residual_signal_quality"] > 0.0
+    assert full_metrics["intervention_application_count"] > 0.0
+
+
 def test_final_rollout_config_exposes_eta_open_weight_runtime_gate():
     config = FinalRolloutConfig()
 

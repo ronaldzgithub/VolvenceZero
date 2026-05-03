@@ -30,14 +30,27 @@ from volvence_zero.substrate import (
     SubstrateModule,
     SyntheticOpenWeightResidualRuntime,
 )
-from volvence_zero.prediction import PredictionError, PredictionErrorSnapshot, ActualOutcome, PredictedOutcome
+from volvence_zero.prediction import (
+    ActualOutcome,
+    PredictedOutcome,
+    PredictionActionContext,
+    PredictionError,
+    PredictionErrorSnapshot,
+)
 from volvence_zero.social_cognition import (
     SocialPredictionError,
     SocialPredictionKind,
     SocialPredictionOutcome,
     SocialScopeKind,
 )
-from volvence_zero.temporal import LearnedLiteTemporalPolicy, MetacontrollerRuntimeState, TemporalModule
+from volvence_zero.temporal import (
+    ControllerState,
+    LearnedLiteTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalAbstractionSnapshot,
+    TemporalModule,
+    TemporalSegmentClosure,
+)
 
 
 def test_gate_blocks_online_modification_when_high_alert_present():
@@ -111,6 +124,121 @@ def test_credit_module_records_credits_and_modification_audit():
     assert snapshot.value.recent_modifications
     assert snapshot.value.cumulative_credit_by_level
     assert snapshot.value.recent_modifications[-1].decision is GateDecision.ALLOW
+
+
+def test_credit_module_derives_segment_credit_with_outcome_lineage():
+    dual_track_snapshot = asyncio.run(
+        DualTrackModule(wiring_level=WiringLevel.ACTIVE).process_standalone(world_entries=(), self_entries=())
+    ).value
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="segment-credit",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+    context = PredictionActionContext(
+        segment_id="segment-credit-1",
+        abstract_action_id="clarify-before-act",
+        z_t_digest=(0.2, 0.4),
+        environment_event_id="env:segment",
+        environment_outcome_id="outcome:segment",
+    )
+    prediction_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(
+            source_turn_index=0,
+            target_turn_index=1,
+            predicted_task_progress=0.5,
+            predicted_relationship_delta=0.5,
+            predicted_regime_stability=0.5,
+            predicted_action_payoff=0.6,
+            confidence=0.7,
+            description="predicted",
+            action_context=context,
+        ),
+        actual_outcome=ActualOutcome(
+            observed_turn_index=1,
+            task_progress=0.4,
+            relationship_delta=0.5,
+            regime_stability=0.5,
+            action_payoff=0.2,
+            description="actual",
+            action_context=context,
+        ),
+        next_prediction=PredictedOutcome(
+            source_turn_index=1,
+            target_turn_index=2,
+            predicted_task_progress=0.5,
+            predicted_relationship_delta=0.5,
+            predicted_regime_stability=0.5,
+            predicted_action_payoff=0.5,
+            confidence=0.7,
+            description="next",
+            action_context=context,
+        ),
+        error=PredictionError(
+            task_error=-0.1,
+            relationship_error=0.0,
+            regime_error=0.0,
+            action_error=-0.4,
+            magnitude=0.4,
+            signed_reward=-0.3,
+            description="action segment underperformed",
+        ),
+        turn_index=1,
+        bootstrap=False,
+        description="prediction error with segment context",
+        action_context=context,
+    )
+    temporal_snapshot = TemporalAbstractionSnapshot(
+        controller_state=ControllerState(
+            code=(0.2, 0.4),
+            code_dim=2,
+            switch_gate=0.9,
+            is_switching=True,
+            steps_since_switch=0,
+        ),
+        active_abstract_action="clarify-before-act",
+        controller_params_hash="temporal-hash",
+        description="temporal segment closure",
+        closed_segments=(
+            TemporalSegmentClosure(
+                segment_id="segment-credit-1",
+                open_turn_index=0,
+                close_turn_index=1,
+                abstract_action_id="clarify-before-act",
+                z_t_digest=(0.2, 0.4),
+                beta_open_digest=0.3,
+                beta_close_digest=0.9,
+            ),
+        ),
+    )
+
+    snapshot = asyncio.run(
+        CreditModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            prediction_error_snapshot=prediction_snapshot,
+            temporal_snapshot=temporal_snapshot,
+            timestamp_ms=20,
+        )
+    )
+
+    segment_records = [
+        record
+        for record in snapshot.value.recent_credits
+        if record.level == "abstract_action_segment"
+    ]
+    assert len(segment_records) == 1
+    assert segment_records[0].source_event == "segment:segment-credit-1"
+    assert "environment_outcome_id=outcome:segment" in segment_records[0].context
+    pe_records = [
+        record
+        for record in snapshot.value.recent_credits
+        if record.source_event == "pe:action"
+    ]
+    assert pe_records
+    assert "environment_outcome_id=outcome:segment" in pe_records[0].context
 
 
 def test_social_prediction_error_credit_records_carry_misattribution_probe():

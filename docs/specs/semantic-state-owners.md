@@ -81,12 +81,14 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
 - `claim_companion_stateful_relationship` 的当前轻量 verdict 消费 `semantic-spine-ready` 与 dashboard 读数，作为完整 companion 证据前的状态感知地基门
 - paper-suite manifest 将 canonical semantic spine 指标列入 secondary metrics；companion verdict 优先消费 repeated-run summary，reference dashboard 仅作 fallback
 - `semantic_state.quality` 提供 proposal-level quality harness，先用于 `boundary_consent` / `goal_value` 的 precision / recall / false-positive / fallback 评估；它只评估 proposal runtime，不写 owner store，并发布 shadow-only `would_block` / `would_allow` / gate reason 读数
+- dialogue paper-suite export 可将 proposal quality shadow report 作为 `semantic_proposal_quality_shadow.json` sidecar 与 `EvidenceBundle.reference_artifacts` 条目导出；该 artifact 标记为 non-gating，不改变 owner apply 或 claim verdict
 
 该检查只验证 owner 快照是否形成窄 cognitive loop 证据，不把 readiness 当作学习奖励，也不允许 evaluation 重建 owner 内部状态。
 
 ## 变更日志
 
 - 2026-05-03: 新增 `semantic_state.quality` proposal quality harness，首批覆盖 `boundary_consent` / `goal_value` scripted LLM cases，用于在 owner 合并前评估 typed proposal 输入质量；shadow gate 只报告 would-block，不阻断 runtime。
+- 2026-05-03: dialogue paper-suite export 新增 non-gating `semantic_proposal_quality_shadow.json` sidecar，并把同一 payload 挂入 evidence bundle reference artifacts。
 - 2026-05-03: Commitment / OpenLoop / BoundaryConsent / GoalValue / RelationshipState 增加 owner-side lifecycle / continuity readouts；`LLMSemanticProposalRuntime` 最小扩展到 `boundary_consent`、`goal_value` 的 schema-bound typed proposal 路径，非目标 slot 继续 delegate。
 - 2026-05-03: `clone_semantic_store` 开始保留 lifecycle / follow-up policy / typed outcome maps，避免跨上下文复制时丢失 owner-side continuity evidence。
 - 2026-05-03: paper-suite manifest 将 canonical semantic spine coverage / cognitive loop readiness 纳入 secondary metrics，companion verdict 优先消费 repeated-run summary。

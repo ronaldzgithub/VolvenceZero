@@ -48,7 +48,7 @@
 - internal unblinding key
 - human rating template / aggregate
 - unified evidence bundle
-- `snapshot_replay_bundle.json`（planned，Phase 1 随 `docs/specs/emergent-action-abstraction.md` 落地）：导出 existing snapshots（`EnvironmentEvent` / `EnvironmentOutcome` / `temporal_abstraction.closed_segments` / `prediction_error` / `credit`）用于再现与证据审阅，不引入 trace runtime schema
+- `snapshot_replay_bundle.json`（Phase 1 runtime export shape started）：导出 existing snapshots 的 action replay section（`PredictionActionContext` / `temporal_abstraction.closed_segments` / `prediction_error` / `credit` summaries）用于再现与证据审阅，不引入 trace runtime schema；完整 paper-suite bundle 挂载仍可后续扩展
 
 当前实现口径：
 
@@ -58,6 +58,7 @@
 - dialogue emergence dashboard / paper-suite metric values 发布 `canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 以及 open-environment 对应读数；这些是 semantic owner 快照的证据读数，不作为学习源头
 - dialogue NL essence assessment 发布 `semantic-spine-ready` gate，用于审计核心 semantic owner spine 是否具备完整 coverage 与非零 readiness；该 gate 目前不进入默认 required gate 列表
 - dialogue paper-suite manifest 将 `canonical_mean_semantic_spine_coverage` 与 `canonical_mean_cognitive_loop_readiness` 列为 secondary metrics；companion stateful relationship verdict 优先消费 repeated-run summary，reference dashboard 只作为 fallback
+- dialogue paper-suite export 可额外导出 `semantic_proposal_quality_shadow.json`，并在 `EvidenceBundle.reference_artifacts` 中登记同一 payload；该 payload 是 non-gating shadow diagnostic，不参与 retain/fail verdict
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论

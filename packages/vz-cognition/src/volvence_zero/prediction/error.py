@@ -431,6 +431,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._outcome_head = _PredictionErrorHead()
         self._action_context = action_context or PredictionActionContext()
 
+    def set_action_context(self, action_context: PredictionActionContext | None) -> None:
+        """Set the current-turn action context without resetting prediction state."""
+        self._action_context = action_context or PredictionActionContext()
+
     def compute_prediction(
         self,
         *,

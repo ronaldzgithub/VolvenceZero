@@ -2994,6 +2994,20 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         return tuple(projected)
 
 
+_BUILTIN_TRANSFORMERS_RUNTIME_LAYER_COUNT: int = 4
+
+
+def _builtin_safe_layer_indices(
+    layer_indices: tuple[int, ...] | None,
+    *,
+    builtin_layer_count: int = _BUILTIN_TRANSFORMERS_RUNTIME_LAYER_COUNT,
+) -> tuple[int, ...] | None:
+    if layer_indices is None:
+        return None
+    clipped = tuple(index for index in layer_indices if 0 <= index < builtin_layer_count)
+    return clipped or None
+
+
 def build_builtin_transformers_runtime(
     *,
     model_id: str = "builtin-transformers-runtime",
@@ -3056,7 +3070,7 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
-            layer_indices=layer_indices,
+            layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
@@ -3091,7 +3105,7 @@ def build_transformers_runtime_with_fallback(
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
-            layer_indices=layer_indices,
+            layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )

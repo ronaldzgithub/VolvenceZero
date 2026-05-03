@@ -8,9 +8,10 @@ from uuid import uuid4
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.memory import Track
-from volvence_zero.prediction.error import PredictionError, PredictionErrorSnapshot
+from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionOutcome
+from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 if TYPE_CHECKING:
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
@@ -166,6 +167,7 @@ def derive_credit_records_from_prediction_error_first(
     evaluation_snapshot: EvaluationSnapshot,
     prediction_error_snapshot: PredictionErrorSnapshot | None,
     timestamp_ms: int,
+    temporal_snapshot: TemporalAbstractionSnapshot | None = None,
 ) -> tuple[CreditRecord, ...]:
     """Primary credit derivation path.
 
@@ -183,6 +185,7 @@ def derive_credit_records_from_prediction_error_first(
         derive_prediction_error_credit_records(
             prediction_error=prediction_error_snapshot.error,
             timestamp_ms=timestamp_ms,
+            action_context=prediction_error_snapshot.action_context,
         )
     )
     if evaluation_snapshot.turn_scores:
@@ -216,6 +219,14 @@ def derive_credit_records_from_prediction_error_first(
             timestamp_ms=timestamp_ms,
         )
     )
+    if temporal_snapshot is not None:
+        records.extend(
+            derive_segment_closure_credit_records(
+                prediction_error_snapshot=prediction_error_snapshot,
+                temporal_snapshot=temporal_snapshot,
+                timestamp_ms=timestamp_ms,
+            )
+        )
     return tuple(records)
 
 
@@ -223,7 +234,9 @@ def derive_prediction_error_credit_records(
     *,
     prediction_error: PredictionError,
     timestamp_ms: int,
+    action_context: PredictionActionContext | None = None,
 ) -> tuple[CreditRecord, ...]:
+    context_suffix = _action_context_suffix(action_context)
     records = (
         CreditRecord(
             record_id=str(uuid4()),
@@ -231,7 +244,7 @@ def derive_prediction_error_credit_records(
             track=Track.WORLD,
             source_event="pe:task",
             credit_value=_clamp(prediction_error.task_error),
-            context=prediction_error.description,
+            context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
         ),
         CreditRecord(
@@ -240,7 +253,7 @@ def derive_prediction_error_credit_records(
             track=Track.SELF,
             source_event="pe:relationship",
             credit_value=_clamp(prediction_error.relationship_error),
-            context=prediction_error.description,
+            context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
         ),
         CreditRecord(
@@ -249,7 +262,7 @@ def derive_prediction_error_credit_records(
             track=Track.SHARED,
             source_event="pe:regime",
             credit_value=_clamp(prediction_error.regime_error),
-            context=prediction_error.description,
+            context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
         ),
         CreditRecord(
@@ -258,7 +271,7 @@ def derive_prediction_error_credit_records(
             track=Track.SHARED,
             source_event="pe:action",
             credit_value=_clamp(prediction_error.action_error),
-            context=prediction_error.description,
+            context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
         ),
     )
@@ -289,6 +302,8 @@ def derive_segment_closure_credit_records(
             context=(
                 f"abstract_action={context.abstract_action_id}; "
                 f"z_t_digest={context.z_t_digest}; "
+                f"environment_event_id={context.environment_event_id}; "
+                f"environment_outcome_id={context.environment_outcome_id}; "
                 f"pe={prediction_error_snapshot.error.description}"
             ),
             timestamp_ms=timestamp_ms,
@@ -319,6 +334,23 @@ def derive_social_prediction_error_credit_records(
             )
         )
     return tuple(records)
+
+
+def _action_context_suffix(action_context: PredictionActionContext | None) -> str:
+    if action_context is None:
+        return ""
+    segment_id = action_context.segment_id
+    abstract_action_id = action_context.abstract_action_id
+    environment_event_id = action_context.environment_event_id
+    environment_outcome_id = action_context.environment_outcome_id
+    if not any((segment_id, abstract_action_id, environment_event_id, environment_outcome_id)):
+        return ""
+    return (
+        f" action_context[segment_id={segment_id}; "
+        f"abstract_action={abstract_action_id}; "
+        f"environment_event_id={environment_event_id}; "
+        f"environment_outcome_id={environment_outcome_id}]"
+    )
 
 
 def derive_abstract_action_credit_records(
@@ -867,7 +899,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
     slot_name = "credit"
     owner = "CreditModule"
     value_type = CreditSnapshot
-    dependencies = ("dual_track", "evaluation", "prediction_error")
+    dependencies = ("dual_track", "evaluation", "prediction_error", "temporal_abstraction")
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -889,6 +921,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         dual_track_snapshot = upstream["dual_track"]
         evaluation_snapshot = upstream["evaluation"]
         prediction_error_snapshot = upstream["prediction_error"]
+        temporal_snapshot = upstream.get("temporal_abstraction")
         dual_track_value = (
             dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
         )
@@ -898,6 +931,12 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         prediction_error_value = (
             prediction_error_snapshot.value if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot) else None
         )
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None
+            and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
         if dual_track_value is None or evaluation_value is None:
             return self.publish(self._ledger.snapshot())
 
@@ -906,6 +945,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
             evaluation_snapshot=evaluation_value,
             prediction_error_snapshot=prediction_error_value,
             timestamp_ms=max(dual_track_snapshot.timestamp_ms, evaluation_snapshot.timestamp_ms),
+            temporal_snapshot=temporal_value,
         )
         self._ledger.record_credits(credits)
         self._record_proposals(
@@ -919,6 +959,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         evaluation_snapshot = kwargs.get("evaluation_snapshot")
         prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        temporal_snapshot = kwargs.get("temporal_snapshot")
         proposals = kwargs.get("proposals", self._pending_proposals)
         if not isinstance(proposals, tuple):
             raise TypeError("proposals must be a tuple when provided.")
@@ -931,6 +972,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
                 evaluation_snapshot=evaluation_snapshot,
                 prediction_error_snapshot=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
                 timestamp_ms=int(kwargs.get("timestamp_ms", 1)),
+                temporal_snapshot=temporal_snapshot if isinstance(temporal_snapshot, TemporalAbstractionSnapshot) else None,
             )
             self._ledger.record_credits(credits)
             self._record_proposals(

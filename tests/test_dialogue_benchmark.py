@@ -4,6 +4,8 @@ import asyncio
 import json
 from dataclasses import replace
 
+import pytest
+
 from volvence_zero.agent import (
     AgentSessionRunner,
     DEFAULT_DIALOGUE_CASE_VARIANTS,
@@ -83,6 +85,11 @@ from volvence_zero.agent import (
 )
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.evaluation.backbone import CrossSessionGrowthReport, MetricIntervalSummary, PairwiseMetricEffect
+from volvence_zero.semantic_state import SemanticProposalOperation
+from volvence_zero.semantic_state.quality import (
+    SemanticProposalQualityCaseResult,
+    SemanticProposalQualityReport,
+)
 from volvence_zero.substrate import LocalSubstrateRuntimeMode, SyntheticOpenWeightResidualRuntime
 from volvence_zero.agent.dialogue import (
     DialogueExpertReviewDimension,
@@ -1702,6 +1709,110 @@ def test_dialogue_paper_suite_artifact_bundle_exports_expert_review_packet(tmp_p
     assert bundle_payload["claim_verdicts"]
 
 
+def test_dialogue_paper_suite_exports_proposal_quality_shadow_artifact(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    report = asyncio.run(
+        run_dialogue_paper_suite_repeated_benchmark(
+            manifest=manifest,
+            runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+        )
+    )
+    shadow_report = SemanticProposalQualityReport(
+        target_slot="boundary_consent",
+        runtime_id="semantic-llm-commitment",
+        case_results=(
+            SemanticProposalQualityCaseResult(
+                case_id="ambiguous-consent",
+                target_slot="boundary_consent",
+                expected_operations=(),
+                observed_operations=(SemanticProposalOperation.BLOCK,),
+                true_positive_count=0,
+                false_positive_count=1,
+                missing_count=0,
+                confidence_floor_passed=True,
+                fell_back=False,
+                would_block=True,
+                shadow_gate_reasons=("false-positive",),
+                passed=False,
+                description="shadow false-positive diagnostic",
+            ),
+        ),
+        passed_case_count=0,
+        total_case_count=1,
+        precision=0.0,
+        recall=1.0,
+        false_positive_count=1,
+        missing_count=0,
+        fallback_count=0,
+        would_block_count=1,
+        would_allow_count=0,
+        shadow_gate_reasons=(("ambiguous-consent", ("false-positive",)),),
+        description="boundary consent shadow quality report",
+    )
+
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        report,
+        output_dir=tmp_path,
+        proposal_quality_shadow_reports=(shadow_report,),
+    )
+
+    shadow_path = tmp_path / "semantic_proposal_quality_shadow.json"
+    evidence_bundle_path = tmp_path / "evidence_bundle.json"
+    assert shadow_path in written_paths
+    shadow_payload = json.loads(shadow_path.read_text(encoding="utf-8"))
+    assert shadow_payload["shadow_only"] is True
+    assert shadow_payload["non_gating"] is True
+    assert shadow_payload["reports"][0]["would_block_count"] == 1
+    bundle_payload = json.loads(evidence_bundle_path.read_text(encoding="utf-8"))
+    artifact_names = {item[0] for item in bundle_payload["reference_artifacts"]}
+    assert "semantic_proposal_quality_shadow" in artifact_names
+
+
+def test_dialogue_paper_suite_bundle_attaches_extra_reference_artifacts(tmp_path):
+    """ETA open-weight aggregate (or any opaque payload) can be attached
+    as a generic reference artifact in the dialogue evidence bundle without
+    coupling dialogue to the upstream module."""
+
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    report = asyncio.run(
+        run_dialogue_paper_suite_repeated_benchmark(
+            manifest=manifest,
+            runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+        )
+    )
+
+    eta_open_weight_payload = {
+        "claim_id": "claim_eta_real_open_weight_residual_control",
+        "status": "weak",
+        "evidence": {
+            "real_open_weight_fallback_rate": 0.0,
+            "real_open_weight_hook_coverage": 1.0,
+        },
+    }
+
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        report,
+        output_dir=tmp_path,
+        extra_reference_artifacts=(
+            ("eta_open_weight_paper_suite_aggregate", eta_open_weight_payload),
+        ),
+    )
+
+    evidence_bundle_path = tmp_path / "evidence_bundle.json"
+    assert evidence_bundle_path in written_paths
+    bundle_payload = json.loads(evidence_bundle_path.read_text(encoding="utf-8"))
+    artifact_names = {item[0] for item in bundle_payload["reference_artifacts"]}
+    assert "eta_open_weight_paper_suite_aggregate" in artifact_names
+
+    eta_artifact = next(
+        item[1]
+        for item in bundle_payload["reference_artifacts"]
+        if item[0] == "eta_open_weight_paper_suite_aggregate"
+    )
+    assert eta_artifact["claim_id"] == "claim_eta_real_open_weight_residual_control"
+    assert eta_artifact["evidence"]["real_open_weight_fallback_rate"] == 0.0
+
+
 def test_build_dialogue_expert_review_packet_blinds_profile_labels():
     report = asyncio.run(
         run_dialogue_pe_eta_comprehensive_benchmark(
@@ -1731,6 +1842,56 @@ def test_build_dialogue_expert_review_packet_blinds_profile_labels():
     assert first_item.prompt_context
     assert internal_key.entries
     assert all(entry.source_profile_label in {"pe-eta", "pe-drive-off", "eta-off"} for entry in internal_key.entries)
+
+
+def test_blind_packet_transcripts_have_no_profile_label_leak():
+    """The blinded transcripts must not contain any profile-label string
+    that would let the rater identify which condition produced a sample.
+
+    We deliberately do NOT also assert the source case_id is absent: case
+    ids can legitimately be common English words (``"repair"``,
+    ``"goal_drift"``, ...) that appear in the conversation topic itself.
+    Profile labels (``pe-eta``, ``pe-drive-off``, ``eta-off``) are
+    hyphenated discriminators and never appear naturally in user text;
+    if they do, the blind dispatch is broken.
+    """
+
+    report = asyncio.run(
+        run_dialogue_pe_eta_comprehensive_benchmark(
+            canonical_cases=DEFAULT_DIALOGUE_PROOF_CASES[:2],
+            open_scenarios=DEFAULT_OPEN_DIALOGUE_SCENARIOS[:1],
+            variant_cases=DEFAULT_DIALOGUE_CASE_VARIANTS[:1],
+            seeds=(0,),
+            families=DEFAULT_DIALOGUE_PARAPHRASE_FAMILIES[:1],
+            selection_top_k=1,
+            candidate_configs=DEFAULT_RARE_HEAVY_CANDIDATE_CONFIGS[:1],
+            canonical_runner_factory=_synthetic_ablation_runner,
+            open_runner_factory=_synthetic_open_ablation_runner,
+            perturbation_runner_factory=_synthetic_perturbation_runner,
+            systematic_runner_factory=_synthetic_systematic_runner,
+            acceptance_runner_factory=_synthetic_acceptance_runner,
+        )
+    )
+
+    packet = build_dialogue_expert_review_packet(report)
+
+    forbidden_profile_labels: set[str] = {"pe-eta", "pe-drive-off", "eta-off"}
+
+    leak_findings: list[tuple[str, str, str]] = []
+    for item in packet.items:
+        for sample in item.samples:
+            for turn_index, (user_text, assistant_text) in enumerate(sample.transcript):
+                for forbidden in forbidden_profile_labels:
+                    if forbidden in user_text:
+                        leak_findings.append((sample.sample_id, f"user-turn-{turn_index}", forbidden))
+                    if forbidden in assistant_text:
+                        leak_findings.append((sample.sample_id, f"assistant-turn-{turn_index}", forbidden))
+
+    assert not leak_findings, (
+        "blind packet transcript leaked profile-label strings: "
+        f"{leak_findings}. Profile labels must only live in "
+        "DialogueExpertReviewInternalKey, never in transcripts."
+    )
 
 
 def test_dialogue_human_rating_csv_aggregate_exports_external_claim(tmp_path):
@@ -1858,6 +2019,65 @@ def test_dialogue_human_rating_csv_aggregate_exports_external_claim(tmp_path):
         if verdict["claim_id"] == "claim_external_human_legibility"
     )
     assert external_claim["status"] == "retain"
+
+
+def test_load_dialogue_human_rating_entries_csv_dir_merges_per_rater_files(tmp_path):
+    from volvence_zero.agent import load_dialogue_human_rating_entries_csv_dir
+
+    csv_dir = tmp_path / "ratings"
+    csv_dir.mkdir()
+    header = "rater_id,item_id,sample_id,blinded_label,dimension_id,score"
+    (csv_dir / "rater_a.csv").write_text(
+        "\n".join(
+            [
+                header,
+                "rater-a,item_01,item_01:sample_A,sample_A,relationship_continuity,5",
+                "rater-a,item_01,item_01:sample_B,sample_B,relationship_continuity,2",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (csv_dir / "rater_b.csv").write_text(
+        "\n".join(
+            [
+                header,
+                "rater-b,item_01,item_01:sample_A,sample_A,relationship_continuity,4",
+                "rater-b,item_01,item_01:sample_B,sample_B,relationship_continuity,2",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    merged = load_dialogue_human_rating_entries_csv_dir(csv_dir)
+    rater_ids = {entry.rater_id for entry in merged}
+    assert rater_ids == {"rater-a", "rater-b"}
+    assert len(merged) == 4
+
+
+def test_load_dialogue_human_rating_entries_csv_dir_rejects_rater_id_collision(tmp_path):
+    from volvence_zero.agent import load_dialogue_human_rating_entries_csv_dir
+
+    csv_dir = tmp_path / "ratings"
+    csv_dir.mkdir()
+    header = "rater_id,item_id,sample_id,blinded_label,dimension_id,score"
+    (csv_dir / "rater_a_v1.csv").write_text(
+        f"{header}\nrater-a,item_01,item_01:sample_A,sample_A,relationship_continuity,5\n",
+        encoding="utf-8",
+    )
+    (csv_dir / "rater_a_v2.csv").write_text(
+        f"{header}\nrater-a,item_01,item_01:sample_B,sample_B,relationship_continuity,2\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="rater_id"):
+        load_dialogue_human_rating_entries_csv_dir(csv_dir)
+
+    merged = load_dialogue_human_rating_entries_csv_dir(
+        csv_dir, forbid_rater_id_collision=False
+    )
+    assert len(merged) == 2
 
 
 def test_dialogue_temporal_advantage_claim_requires_runtime_backbone_consistency(tmp_path):

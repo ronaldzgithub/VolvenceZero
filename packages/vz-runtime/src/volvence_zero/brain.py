@@ -127,6 +127,7 @@ class BrainSession:
         )
         if tool_evidence:
             self._runner.attach_dialogue_outcome_evidence(tool_evidence)
+        self._runner.remember_environment_outcome(outcome.outcome_id)
         return self.submit_semantic_events(
             semantic_events_from_tool_result(
                 event_id=event_id,

@@ -47,6 +47,7 @@ from volvence_zero.joint_loop import (
 from volvence_zero.memory import build_default_memory_store
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.semantic_state.quality import SemanticProposalQualityReport
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
     LocalSubstrateRuntimeMode,
@@ -5246,6 +5247,50 @@ def load_dialogue_human_rating_entries_csv(
     return tuple(entries)
 
 
+def load_dialogue_human_rating_entries_csv_dir(
+    csv_dir: str | Path,
+    *,
+    glob_pattern: str = "*.csv",
+    description: str = "Loaded from human rating CSV directory.",
+    forbid_rater_id_collision: bool = True,
+) -> tuple[DialogueHumanRatingEntry, ...]:
+    """Merge multiple per-rater CSVs from a directory into a single
+    tuple of ``DialogueHumanRatingEntry``.
+
+    Each rater is expected to submit one CSV with a unique ``rater_id``.
+    By default this raises if the same ``rater_id`` appears in multiple
+    files (a strong signal of double-counting); set
+    ``forbid_rater_id_collision=False`` to allow it (useful when one
+    rater submits the same rating set across multiple revisions and the
+    operator wants the union).
+    """
+    directory = Path(csv_dir)
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Human rating CSV directory not found: {csv_dir}")
+    paths = sorted(directory.glob(glob_pattern))
+    merged_entries: list[DialogueHumanRatingEntry] = []
+    rater_ids_per_file: dict[str, str] = {}
+    for path in paths:
+        file_entries = load_dialogue_human_rating_entries_csv(
+            path, description=f"{description} ({path.name})"
+        )
+        if not file_entries:
+            continue
+        rater_ids_in_file = sorted({entry.rater_id for entry in file_entries})
+        if forbid_rater_id_collision:
+            for rater_id in rater_ids_in_file:
+                if rater_id in rater_ids_per_file:
+                    previous_file = rater_ids_per_file[rater_id]
+                    raise ValueError(
+                        f"Human rating CSV directory has rater_id {rater_id!r} "
+                        f"in both {previous_file!r} and {path.name!r}. "
+                        "Pass forbid_rater_id_collision=False to allow."
+                    )
+                rater_ids_per_file[rater_id] = path.name
+        merged_entries.extend(file_entries)
+    return tuple(merged_entries)
+
+
 def aggregate_dialogue_human_ratings(
     *,
     packet: DialogueExpertReviewPacket,
@@ -5305,6 +5350,8 @@ def export_dialogue_paper_suite_artifact_bundle(
     *,
     output_dir: str | Path,
     human_ratings_aggregate: DialogueHumanRatingsAggregate | None = None,
+    proposal_quality_shadow_reports: tuple[SemanticProposalQualityReport, ...] = (),
+    extra_reference_artifacts: tuple[tuple[str, Any], ...] = (),
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -5390,10 +5437,22 @@ def export_dialogue_paper_suite_artifact_bundle(
                 output_path=target_dir / "human_ratings_aggregate.json",
             )
         )
+    proposal_quality_shadow_payload = _proposal_quality_shadow_payload(
+        proposal_quality_shadow_reports
+    )
+    if proposal_quality_shadow_payload is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=proposal_quality_shadow_payload,
+                output_path=target_dir / "semantic_proposal_quality_shadow.json",
+            )
+        )
     evidence_bundle = build_dialogue_paper_suite_evidence_bundle(
         aggregate_report=exported_report,
         blind_review_packet=blind_review_packet,
         human_ratings_aggregate=human_ratings_aggregate,
+        proposal_quality_shadow_reports=proposal_quality_shadow_reports,
+        extra_reference_artifacts=extra_reference_artifacts,
     )
     written_paths.append(
         export_json_artifact(
@@ -5402,6 +5461,23 @@ def export_dialogue_paper_suite_artifact_bundle(
         )
     )
     return tuple(written_paths)
+
+
+def _proposal_quality_shadow_payload(
+    reports: tuple[SemanticProposalQualityReport, ...],
+) -> dict[str, Any] | None:
+    if not reports:
+        return None
+    return {
+        "shadow_only": True,
+        "non_gating": True,
+        "report_count": len(reports),
+        "reports": reports,
+        "description": (
+            "Semantic proposal quality shadow diagnostics are exported for audit only; "
+            "they do not block runtime proposals, owner store writes, or claim verdicts."
+        ),
+    }
 
 
 def _dialogue_human_rating_profile_aggregates(
@@ -6117,12 +6193,23 @@ def build_dialogue_paper_suite_evidence_bundle(
     aggregate_report: DialoguePaperSuiteAggregateReport,
     blind_review_packet: DialogueExpertReviewPacket | None = None,
     human_ratings_aggregate: DialogueHumanRatingsAggregate | None = None,
+    proposal_quality_shadow_reports: tuple[SemanticProposalQualityReport, ...] = (),
+    extra_reference_artifacts: tuple[tuple[str, Any], ...] = (),
 ) -> EvidenceBundle:
     reference_artifacts: list[tuple[str, Any]] = []
     if aggregate_report.reference_run_report is not None:
         reference_artifacts.append(
             ("reference_emergence_dashboard", aggregate_report.reference_run_report.emergence_dashboard)
         )
+    proposal_quality_shadow_payload = _proposal_quality_shadow_payload(
+        proposal_quality_shadow_reports
+    )
+    if proposal_quality_shadow_payload is not None:
+        reference_artifacts.append(
+            ("semantic_proposal_quality_shadow", proposal_quality_shadow_payload)
+        )
+    for label, payload in extra_reference_artifacts:
+        reference_artifacts.append((label, payload))
     return EvidenceBundle(
         bundle_id=f"{aggregate_report.manifest.suite_id}:evidence-bundle",
         suite_kind=aggregate_report.manifest.suite_kind,

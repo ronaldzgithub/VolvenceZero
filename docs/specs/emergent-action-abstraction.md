@@ -122,6 +122,8 @@ derive_segment_closure_credit_records(
 - 生成 keyed by `segment_id / abstract_action_id / z_t_digest` 的 credit records。
 - 不读取 raw outcome text。
 - 不持有 trace store。
+- 当前主链路中 `CreditModule` 声明消费 `temporal_abstraction`，在 PE-first credit 派生后追加该 helper 的结果；`closed_segments` 为空或不匹配时返回空，不影响既有 credit。
+- credit context 可带 `environment_event_id` / `environment_outcome_id` lineage，但不改变 PE 或 credit 数值公式。
 
 ## Layer 6. Snapshot Replay Export
 
@@ -135,6 +137,8 @@ Replay 是现有 snapshot 的 append-only artifact，不是 runtime slot：
 - manifest / seed / git sha
 
 Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不得推断运行时状态。
+
+当前 runtime `export_snapshot_replay_artifact()` 输出 `action_replay` section，内容来自既有 `prediction_error`、`temporal_abstraction`、`credit` snapshots；`dialogue_trace` 仍是并行 debug artifact，不是 replay 所依赖的 runtime schema。
 
 ## Acceptance Gates
 

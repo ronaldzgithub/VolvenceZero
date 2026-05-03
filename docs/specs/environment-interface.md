@@ -102,6 +102,15 @@ Assimilate maps environment outcome back into the learning loop:
 - credit / memory / reflection / temporal owners consume the resulting public PE evidence through normal snapshot paths;
 - slow consolidation remains session-post and owner-side.
 
+Current runtime wiring uses next-turn lineage for environment outcomes:
+
+- `BrainSession.submit_tool_result(...)` records the canonical `EnvironmentOutcome.outcome_id`;
+- the next `run_turn` injects that id into `PredictionActionContext.environment_outcome_id`;
+- `PredictionErrorModule` receives the per-turn context even when the module instance is reused across a session;
+- the id is lineage evidence only and does not by itself change the PE magnitude/reward formula.
+- `CreditModule` can then derive segment/action credit from PE action context plus `temporal_abstraction.closed_segments`; this keeps credit downstream of PE instead of making outcome a second owner.
+- snapshot replay export includes an `action_replay` section built from existing `prediction_error`, `temporal_abstraction`, and `credit` snapshots for audit.
+
 Assimilation must not bypass owners by directly writing memory, regime, temporal, social cognition, or application stores.
 
 ## Social Cognition Boundary

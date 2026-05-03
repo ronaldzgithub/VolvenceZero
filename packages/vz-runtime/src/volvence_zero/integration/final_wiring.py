@@ -985,6 +985,7 @@ def _prediction_action_context_from_upstream(
     *,
     upstream_snapshots: dict[str, Snapshot[Any]] | None,
     environment_event: EnvironmentEvent | None,
+    environment_outcome_id: str = "",
 ) -> PredictionActionContext:
     temporal_snapshot = (
         upstream_snapshots.get("temporal_abstraction")
@@ -1009,6 +1010,7 @@ def _prediction_action_context_from_upstream(
         regime_id="",
         affordance_name=(segment.affordance_name or "") if segment is not None else "",
         environment_event_id=environment_event.event_id if environment_event is not None else "",
+        environment_outcome_id=environment_outcome_id,
     )
 
 
@@ -1042,6 +1044,7 @@ def build_final_runtime_modules(
     substrate_self_mod_pe_threshold: float = 0.18,
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
+    environment_outcome_id: str = "",
     prediction_action_context: PredictionActionContext | None = None,
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
@@ -1070,6 +1073,8 @@ def build_final_runtime_modules(
         resolved_self_temporal_policy = resolved_world_temporal_policy
     semantic_store = semantic_state_store or SemanticStateStore()
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+    if prediction_module is not None:
+        prediction_module.set_action_context(prediction_action_context)
     return [
         SubstrateModule(
             adapter=substrate_adapter,
@@ -1264,6 +1269,7 @@ async def run_final_wiring_turn(
     substrate_self_mod_pe_threshold: float = 0.18,
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
+    environment_outcome_id: str = "",
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
     group_identities: tuple[GroupIdentity, ...] = (),
@@ -1275,6 +1281,7 @@ async def run_final_wiring_turn(
     prediction_action_context = _prediction_action_context_from_upstream(
         upstream_snapshots=upstream_snapshots,
         environment_event=environment_event,
+        environment_outcome_id=environment_outcome_id,
     )
     modules = build_final_runtime_modules(
         config=config,
@@ -1305,6 +1312,7 @@ async def run_final_wiring_turn(
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
         social_prediction_errors=social_prediction_errors,
         environment_event=environment_event,
+        environment_outcome_id=environment_outcome_id,
         prediction_action_context=prediction_action_context,
         common_ground_dyad_atoms=common_ground_dyad_atoms,
         common_ground_group_atoms=common_ground_group_atoms,

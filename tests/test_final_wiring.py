@@ -2121,6 +2121,44 @@ def test_final_wiring_prediction_error_metrics_remain_owner_readouts_on_second_t
     assert "prediction_confidence" in turn_scores["predictive_accuracy"].evidence
 
 
+def test_reused_prediction_module_receives_current_action_context():
+    prediction_module = PredictionErrorModule()
+    environment_event = EnvironmentEvent(
+        event_id="env:event:prediction-context",
+        event_kind=EnvironmentEventKind.USER_INPUT,
+        trigger_kind="user-message",
+        frame=EnvironmentFrame(
+            actor=EnvironmentActorRef(actor_id="primary"),
+            active_speaker_id="primary",
+            addressee_ids=("self",),
+            subject_ids=("primary",),
+            audience_ids=("self",),
+        ),
+        scene_id="scene:prediction-context",
+        timestamp_ms=10,
+        provenance="test",
+    )
+
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="prediction-context-model",
+                feature_surface=(FeatureSignal(name="prediction_context", values=(0.6,), source="adapter"),),
+            ),
+            prediction_module=prediction_module,
+            environment_event=environment_event,
+            environment_outcome_id="tool:context:outcome",
+            session_id="prediction-context-session",
+            wave_id="wave-context",
+        )
+    )
+
+    prediction_snapshot = result.active_snapshots["prediction_error"].value
+    assert prediction_snapshot.action_context.environment_event_id == "env:event:prediction-context"
+    assert prediction_snapshot.action_context.environment_outcome_id == "tool:context:outcome"
+
+
 # ---------------------------------------------------------------------------
 # Phase 4 W10.1 — Reflection promotion evaluation
 # ---------------------------------------------------------------------------

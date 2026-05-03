@@ -282,6 +282,42 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to write the social cognition evidence report as JSON.",
     )
+    parser.add_argument(
+        "--eta-open-weight-paper-suite",
+        action="store_true",
+        help=(
+            "Run the ETA open-weight residual paper suite using the real "
+            "Qwen/Qwen2.5-0.5B-Instruct backend. Pre-cache the model with "
+            "`huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct` once."
+        ),
+    )
+    parser.add_argument(
+        "--eta-open-weight-tier",
+        choices=("ci-smoke", "paper-suite-small", "paper-suite-full"),
+        default="ci-smoke",
+        help=(
+            "Tier for the ETA open-weight paper suite. ci-smoke verifies "
+            "wiring only (caps claim status at weak); paper-suite-small "
+            "and paper-suite-full are required for retain. Default ci-smoke."
+        ),
+    )
+    parser.add_argument(
+        "--eta-open-weight-output-dir",
+        default=None,
+        help=(
+            "Output directory for the ETA open-weight paper suite artifact "
+            "bundle. Default: artifacts/eta_open_weight/<tier>/."
+        ),
+    )
+    parser.add_argument(
+        "--eta-open-weight-require-retain",
+        action="store_true",
+        help=(
+            "Exit non-zero if claim_eta_real_open_weight_residual_control "
+            "is not retain. ci-smoke can never reach retain, so this should "
+            "only be combined with paper-suite-small or paper-suite-full."
+        ),
+    )
     return parser
 
 
@@ -412,9 +448,100 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[bench] wrote social cognition evidence artifact to {path}")
         ok = ok and social_cognition_evidence.passed
 
+    if args.eta_open_weight_paper_suite:
+        ok = _run_eta_open_weight_paper_suite_from_bench(args=args) and ok
+
     if args.require_family_pass and not family_pass:
         return 1
     return 0 if ok else 1
+
+
+def _run_eta_open_weight_paper_suite_from_bench(*, args: argparse.Namespace) -> bool:
+    import json
+    import pathlib
+
+    from volvence_zero.agent import (
+        ETAOpenWeightRuntimeConfig,
+        build_eta_open_weight_paper_suite_manifest,
+        export_eta_internal_rl_paper_suite_artifact_bundle,
+        run_eta_internal_rl_paper_suite,
+    )
+
+    tier: str = args.eta_open_weight_tier
+    output_dir = pathlib.Path(
+        args.eta_open_weight_output_dir or f"artifacts/eta_open_weight/{tier}"
+    ).expanduser()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    config = ETAOpenWeightRuntimeConfig()
+    manifest = build_eta_open_weight_paper_suite_manifest(suite_tier=tier)
+    print(
+        f"[bench] ETA open-weight paper suite tier={tier} "
+        f"model={config.model_id} layers={config.layer_indices} "
+        f"output_dir={output_dir}"
+    )
+    report = run_eta_internal_rl_paper_suite(
+        manifest=manifest,
+        open_weight_config=config,
+        output_dir=str(output_dir),
+    )
+    export_eta_internal_rl_paper_suite_artifact_bundle(report, output_dir=output_dir)
+
+    real_claim = next(
+        (
+            verdict
+            for verdict in report.claim_verdicts
+            if verdict.claim_id == "claim_eta_real_open_weight_residual_control"
+        ),
+        None,
+    )
+    print(
+        "[bench] ETA open-weight paper suite claim verdicts:"
+    )
+    for verdict in report.claim_verdicts:
+        print(f"[bench]   {verdict.claim_id}: {verdict.status}")
+    if real_claim is not None:
+        print("[bench] real claim evidence:")
+        for key, value in real_claim.evidence:
+            print(f"[bench]   {key}: {value}")
+    print(
+        f"[bench] ETA open-weight paper suite bundle exported to {output_dir.resolve()}"
+    )
+
+    provenance_descriptor = dict(report.provenance.runtime_descriptor)
+    print("[bench] runtime provenance descriptor:")
+    for key in sorted(provenance_descriptor):
+        print(f"[bench]   {key}: {provenance_descriptor[key]}")
+    runtime_provenance_path = output_dir / "eta_open_weight_runtime_provenance.json"
+    runtime_provenance_path.write_text(
+        json.dumps(
+            {
+                "git_sha": report.provenance.git_sha,
+                "git_branch": report.provenance.git_branch,
+                "working_tree_dirty": report.provenance.working_tree_dirty,
+                "python_version": report.provenance.python_version,
+                "platform": report.provenance.platform,
+                "runtime_descriptor": provenance_descriptor,
+                "manifest_hash": report.provenance.manifest_hash,
+                "dependency_digest": report.provenance.dependency_digest,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(
+        f"[bench] runtime provenance written to {runtime_provenance_path}"
+    )
+
+    if args.eta_open_weight_require_retain:
+        if real_claim is None or real_claim.status != "retain":
+            status = "missing" if real_claim is None else real_claim.status
+            print(
+                f"[bench] ERROR: --eta-open-weight-require-retain set, "
+                f"but claim status is {status} (need retain)."
+            )
+            return False
+    return True
 
 
 # ---------------------------------------------------------------------------
