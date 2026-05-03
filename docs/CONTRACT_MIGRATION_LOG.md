@@ -67,12 +67,23 @@ Rollback:
   typed-proposal-only and now supports schema-bound proposals for
   `boundary_consent` and `goal_value` while non-target slots still
   delegate to the base runtime.
+- Proposal-quality follow-up: `volvence_zero.semantic_state.quality`
+  adds a proposal-level harness that evaluates precision, recall,
+  false positives, missing operations, and fallback count before owner
+  store mutation. Initial tests cover `boundary_consent` and
+  `goal_value` scripted LLM cases, including explicit false-positive
+  and fallback-count checks. The harness also publishes shadow-only
+  `would_block` / `would_allow` counts and gate reasons
+  (`false-positive`, `missing-expected-operation`,
+  `confidence-below-floor`, `runtime-fallback`) without blocking
+  runtime or owner-store writes.
 
 Focused validation used for this slice:
 
 - `python -m pytest tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
 - `python -m pytest tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_compresses_strong_proof_and_open_env_evidence tests/test_dialogue_benchmark.py::test_build_dialogue_emergence_dashboard_payload_exposes_summary_keys tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
 - `python -m pytest tests/test_dialogue_benchmark.py::test_build_dialogue_paper_suite_manifest_and_config_freeze_expected_scope tests/test_dialogue_benchmark.py::test_run_dialogue_paper_suite_repeated_benchmark_emits_interval_summaries tests/test_dialogue_benchmark.py::test_nl_essence_assessment_surfaces_semantic_spine_ready_gate tests/test_evaluation_backbone.py tests/test_semantic_state_owners.py tests/test_final_wiring.py`
+- `python -m pytest tests/test_semantic_proposal_quality.py tests/test_llm_semantic_runtime.py`
 
 Long dialogue replay note: full `tests/test_dialogue_benchmark.py`
 enters systematic replay paths and may exceed a short interactive run.

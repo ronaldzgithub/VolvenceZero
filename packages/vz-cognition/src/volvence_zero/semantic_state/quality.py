@@ -30,6 +30,8 @@ class SemanticProposalQualityCaseResult:
     missing_count: int
     confidence_floor_passed: bool
     fell_back: bool
+    would_block: bool
+    shadow_gate_reasons: tuple[str, ...]
     passed: bool
     description: str
 
@@ -46,6 +48,9 @@ class SemanticProposalQualityReport:
     false_positive_count: int
     missing_count: int
     fallback_count: int
+    would_block_count: int
+    would_allow_count: int
+    shadow_gate_reasons: tuple[tuple[str, tuple[str, ...]], ...]
     description: str
 
 
@@ -61,6 +66,7 @@ def evaluate_semantic_proposal_quality(
         raise ValueError("All semantic proposal quality cases must target the same slot.")
     case_results: list[SemanticProposalQualityCaseResult] = []
     true_positive_total = false_positive_total = missing_total = fallback_count = 0
+    would_block_count = 0
     runtime_id = runtime.runtime_id
     for turn_index, case in enumerate(cases):
         batch = runtime.propose(
@@ -98,6 +104,15 @@ def evaluate_semantic_proposal_quality(
         fell_back = "fell back to base" in batch.description
         if fell_back:
             fallback_count += 1
+        shadow_gate_reasons = _shadow_gate_reasons(
+            false_positive=false_positive,
+            missing=missing,
+            confidence_floor_passed=confidence_floor_passed,
+            fell_back=fell_back,
+        )
+        would_block = bool(shadow_gate_reasons)
+        if would_block:
+            would_block_count += 1
         passed = false_positive == 0 and missing == 0 and confidence_floor_passed
         true_positive_total += true_positive
         false_positive_total += false_positive
@@ -113,10 +128,13 @@ def evaluate_semantic_proposal_quality(
                 missing_count=missing,
                 confidence_floor_passed=confidence_floor_passed,
                 fell_back=fell_back,
+                would_block=would_block,
+                shadow_gate_reasons=shadow_gate_reasons,
                 passed=passed,
                 description=(
                     f"Case {case.case_id} expected={tuple(item.value for item in case.expected_operations)} "
-                    f"observed={tuple(item.value for item in observed)} fallback={int(fell_back)}."
+                    f"observed={tuple(item.value for item in observed)} fallback={int(fell_back)} "
+                    f"would_block={int(would_block)}."
                 ),
             )
         )
@@ -141,8 +159,35 @@ def evaluate_semantic_proposal_quality(
         false_positive_count=false_positive_total,
         missing_count=missing_total,
         fallback_count=fallback_count,
+        would_block_count=would_block_count,
+        would_allow_count=len(case_results) - would_block_count,
+        shadow_gate_reasons=tuple(
+            (result.case_id, result.shadow_gate_reasons)
+            for result in case_results
+            if result.shadow_gate_reasons
+        ),
         description=(
             f"Semantic proposal quality target={target_slot} passed={passed_case_count}/{len(case_results)} "
-            f"precision={precision:.3f} recall={recall:.3f} fallback={fallback_count}."
+            f"precision={precision:.3f} recall={recall:.3f} fallback={fallback_count} "
+            f"would_block={would_block_count}."
         ),
     )
+
+
+def _shadow_gate_reasons(
+    *,
+    false_positive: int,
+    missing: int,
+    confidence_floor_passed: bool,
+    fell_back: bool,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if false_positive > 0:
+        reasons.append("false-positive")
+    if missing > 0:
+        reasons.append("missing-expected-operation")
+    if not confidence_floor_passed:
+        reasons.append("confidence-below-floor")
+    if fell_back:
+        reasons.append("runtime-fallback")
+    return tuple(reasons)
