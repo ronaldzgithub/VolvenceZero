@@ -645,6 +645,22 @@ def score_regimes(
     self_presence = _clamp(self_count / 3.0)
     task_dominance = _clamp(max(task_pressure - support_presence, 0.0) / 0.35)
     support_dominance = _clamp(max(support_presence - task_pressure, 0.0) / 0.35)
+    support_before_decision_pressure = _metric(
+        evaluation_snapshot,
+        "support_before_decision_pressure",
+        default=0.0,
+    )
+    emotional_decision_pressure = _clamp(
+        support_before_decision_pressure * 0.40
+        + min(support_presence, max(task_pressure, decision_delegation_pressure)) * 0.36
+        + decision_delegation_pressure * 0.14
+        + repair_pressure * 0.10
+    )
+    mixed_support_task_pressure = _clamp(
+        support_presence
+        * max(task_pressure, decision_delegation_pressure)
+        * (1.0 - task_dominance * 0.55)
+    )
     low_pressure = _clamp(1.0 - max(task_pressure, support_presence, repair_pressure))
     semantic_low_pressure = low_pressure * semantic_surface_active
     world_drive, self_drive, shared_drive, switch_pressure = _controller_profile(dual_track_snapshot)
@@ -655,6 +671,9 @@ def score_regimes(
         "repair_pressure": repair_pressure,
         "social_pressure": social_pressure,
         "decision_delegation_pressure": decision_delegation_pressure,
+        "support_before_decision_pressure": support_before_decision_pressure,
+        "emotional_decision_pressure": emotional_decision_pressure,
+        "mixed_support_task_pressure": mixed_support_task_pressure,
         "task_dominance": task_dominance,
         "support_dominance": support_dominance,
         "low_pressure": low_pressure,
@@ -725,6 +744,8 @@ def score_regimes(
             + 0.08 * switch_pressure
             + 0.12 * repair_bias
             + 0.08 * decision_delegation_pressure
+            + 0.28 * emotional_decision_pressure
+            + 0.26 * mixed_support_task_pressure
             + pe_relationship_shortfall * 0.18
             + pe_regime_shortfall * 0.08
         ),
@@ -743,6 +764,8 @@ def score_regimes(
             + 0.10 * world_presence
             + 0.26 * exploration_bias
             + 0.22 * decision_delegation_pressure
+            + 0.12 * emotional_decision_pressure
+            + 0.18 * mixed_support_task_pressure
             - 0.18 * low_pressure
             + pe_action_shortfall * 0.12
         ),
@@ -764,6 +787,8 @@ def score_regimes(
             + 0.11 * switch_pressure
             + 0.22 * task_bias
             + 0.08 * decision_delegation_pressure
+            - 0.42 * emotional_decision_pressure
+            - 0.22 * mixed_support_task_pressure
             + pe_task_shortfall * 0.18
             + pe_action_shortfall * 0.08
         ),
@@ -786,6 +811,7 @@ def score_regimes(
             + 0.12 * switch_pressure
             + 0.30 * repair_bias
             + 0.20 * decision_delegation_pressure
+            + 0.18 * emotional_decision_pressure
             - 0.08 * task_dominance
             - 0.10 * support_dominance
             + pe_relationship_shortfall * 0.20

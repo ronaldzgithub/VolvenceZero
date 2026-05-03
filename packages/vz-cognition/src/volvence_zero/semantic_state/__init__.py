@@ -410,6 +410,7 @@ class SemanticRecord:
     status: str
     source_turn: int
     evidence: str
+    control_signal: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -580,6 +581,9 @@ class UserModelSnapshot:
     stability_score: float
     control_signal: float
     description: str
+    preferred_support_pacing: str = "unknown"
+    decision_style: str = "unknown"
+    overwhelm_pattern_strength: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -656,6 +660,11 @@ class RelationshipStateSnapshot:
     relational_tensions: tuple[SemanticRecord, ...]
     control_signal: float
     description: str
+    emotional_load: float = 0.0
+    repair_need: float = 0.0
+    trust_delta: float = 0.0
+    attunement_gap: float = 0.0
+    stabilization_need: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -667,6 +676,11 @@ class GoalValueSnapshot:
     alignment_score: float
     control_signal: float
     description: str
+    value_conflict: float = 0.0
+    decision_readiness: float = 0.0
+    active_tradeoff_count: int = 0
+    reversibility_need: float = 0.0
+    goal_shift_pressure: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -679,6 +693,10 @@ class BoundaryConsentSnapshot:
     compliance_score: float
     control_signal: float
     description: str
+    autonomy_risk: float = 0.0
+    consent_clarity: float = 0.0
+    professional_scope_pressure: float = 0.0
+    overreach_risk: float = 0.0
 
 
 SemanticSnapshotValue = (
@@ -888,9 +906,9 @@ class ProfileSemanticAdapter(SemanticEventAdapter):
         if not isinstance(event, ProfileSemanticEvent):
             return ()
         evidence = f"profile_source={event.source}"
-        if target_slot == "user_model" and (event.preferences or event.relationship_note):
-            detail = "; ".join(event.preferences + ((event.relationship_note,) if event.relationship_note else ()))
-            return (
+        if target_slot == "user_model" and (event.preferences or event.goals or event.relationship_note):
+            detail = "; ".join(event.preferences + event.goals + ((event.relationship_note,) if event.relationship_note else ()))
+            profile_proposal = (
                 _proposal(
                     event_id=event.event_id,
                     target_slot=target_slot,
@@ -903,6 +921,21 @@ class ProfileSemanticAdapter(SemanticEventAdapter):
                     control_signal=0.26,
                 ),
             )
+            goal_proposals = tuple(
+                _proposal(
+                    event_id=f"{event.event_id}:durable-goal:{index}",
+                    target_slot=target_slot,
+                    operation=SemanticProposalOperation.OBSERVE,
+                    summary=goal,
+                    detail=goal,
+                    confidence=event.confidence,
+                    evidence=evidence,
+                    turn_index=turn_index,
+                    control_signal=0.24,
+                )
+                for index, goal in enumerate(event.goals)
+            )
+            return profile_proposal + goal_proposals
         if target_slot == "goal_value" and event.goals:
             return tuple(
                 _proposal(
@@ -1404,6 +1437,7 @@ class SemanticStateStore:
                     status=status,
                     source_turn=turn_index,
                     evidence=proposal.evidence,
+                    control_signal=_clamp(proposal.control_signal),
                 )
             )
             previous = lifecycle_map.get(proposal.proposal_id)
@@ -1494,6 +1528,18 @@ class SemanticStateStore:
 def _records_with_status(records: tuple[SemanticRecord, ...], *statuses: str) -> tuple[SemanticRecord, ...]:
     allowed = set(statuses)
     return tuple(record for record in records if record.status in allowed)
+
+
+def _mean_record_control(records: tuple[SemanticRecord, ...]) -> float:
+    if not records:
+        return 0.0
+    return _clamp(sum(record.control_signal for record in records) / len(records))
+
+
+def _mean_record_confidence(records: tuple[SemanticRecord, ...]) -> float:
+    if not records:
+        return 0.0
+    return _clamp(sum(record.confidence for record in records) / len(records))
 
 
 class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
@@ -1806,14 +1852,40 @@ class UserModelModule(SemanticOwnerModule):
     value_type = UserModelSnapshot
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> UserModelSnapshot:
+        sensitive_boundaries = _records_with_status(records, "blocked")
+        durable_goals = tuple(record for record in records if ":durable-goal:" in record.record_id)[-4:]
+        active_records = _records_with_status(records, "active")
+        stability_score = self._mean_confidence(records)
+        overwhelm_pattern_strength = _clamp(
+            _mean_record_control(records) * 0.52
+            + (1.0 - stability_score) * 0.22
+            + min(len(sensitive_boundaries) / 4.0, 1.0) * 0.26
+        )
+        preferred_support_pacing = (
+            "support-first"
+            if overwhelm_pattern_strength >= 0.35 or sensitive_boundaries
+            else "standard"
+        )
+        decision_style = (
+            "values-first"
+            if durable_goals or len(active_records) >= 2
+            else "unknown"
+        )
         return UserModelSnapshot(
-            stable_preferences=records[-4:],
+            stable_preferences=active_records[-4:],
             working_style_hints=records[-4:],
-            sensitive_boundaries=_records_with_status(records, "blocked"),
-            durable_goals=(),
-            stability_score=self._mean_confidence(records),
+            sensitive_boundaries=sensitive_boundaries,
+            durable_goals=durable_goals,
+            stability_score=stability_score,
             control_signal=self._batch_signal(batch),
-            description=f"User-model owner published {len(records)} profile records.",
+            description=(
+                f"User-model owner published {len(records)} profile records; "
+                f"pacing={preferred_support_pacing} decision_style={decision_style} "
+                f"overwhelm={overwhelm_pattern_strength:.2f} durable_goals={len(durable_goals)}."
+            ),
+            preferred_support_pacing=preferred_support_pacing,
+            decision_style=decision_style,
+            overwhelm_pattern_strength=overwhelm_pattern_strength,
         )
 
 
@@ -1911,14 +1983,39 @@ class RelationshipStateModule(SemanticOwnerModule):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> RelationshipStateSnapshot:
         tensions = _records_with_status(records, "blocked")
         confidence = self._mean_confidence(records)
+        emotional_load = _clamp(
+            _mean_record_control(records) * 0.44
+            + (1.0 - confidence) * 0.24
+            + min(len(records) / 6.0, 1.0) * 0.12
+            + min(len(tensions) / 4.0, 1.0) * 0.20
+        )
+        repair_need = _clamp(
+            min(len(tensions) / 4.0, 1.0) * 0.58
+            + _mean_record_control(tensions) * 0.24
+            + (1.0 - confidence) * 0.18
+        )
+        trust_level = _clamp(0.45 + confidence * 0.35 - len(tensions) * 0.05)
+        continuity_level = _clamp(0.35 + len(records) / 10.0)
+        trust_delta = _clamp(trust_level - 0.5)
+        attunement_gap = _clamp((1.0 - trust_level) * 0.55 + repair_need * 0.45)
+        stabilization_need = _clamp(emotional_load * 0.62 + repair_need * 0.22 + attunement_gap * 0.16)
         return RelationshipStateSnapshot(
-            trust_level=_clamp(0.45 + confidence * 0.35 - len(tensions) * 0.05),
-            continuity_level=_clamp(0.35 + len(records) / 10.0),
+            trust_level=trust_level,
+            continuity_level=continuity_level,
             repair_pressure=_clamp(len(tensions) / 4.0),
             rapport_signals=records[-4:],
             relational_tensions=tensions,
             control_signal=self._batch_signal(batch),
-            description=f"Relationship-state owner published continuity={len(records)} tensions={len(tensions)}.",
+            description=(
+                f"Relationship-state owner published continuity={len(records)} tensions={len(tensions)} "
+                f"emotional_load={emotional_load:.2f} repair_need={repair_need:.2f} "
+                f"stabilization_need={stabilization_need:.2f}."
+            ),
+            emotional_load=emotional_load,
+            repair_need=repair_need,
+            trust_delta=trust_delta,
+            attunement_gap=attunement_gap,
+            stabilization_need=stabilization_need,
         )
 
 
@@ -1929,14 +2026,35 @@ class GoalValueModule(SemanticOwnerModule):
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> GoalValueSnapshot:
         latest = self._latest_active(records)
+        tradeoffs = _records_with_status(records, "deferred", "blocked")
+        alignment_score = self._mean_confidence(records)
+        revision_count = self._store.revision_count_for(self.slot_name)
+        active_tradeoff_count = len(tradeoffs)
+        value_conflict = _clamp(
+            min(active_tradeoff_count / 4.0, 1.0) * 0.50
+            + (1.0 - alignment_score) * 0.24
+            + _mean_record_control(tradeoffs) * 0.26
+        )
+        goal_shift_pressure = _clamp(min(revision_count / 4.0, 1.0) * 0.72 + value_conflict * 0.28)
+        reversibility_need = _clamp(value_conflict * 0.50 + goal_shift_pressure * 0.30 + (1.0 - alignment_score) * 0.20)
+        decision_readiness = _clamp(alignment_score * 0.62 + (1.0 - value_conflict) * 0.28 - reversibility_need * 0.10)
         return GoalValueSnapshot(
             explicit_goals=records,
             value_priorities=records[-4:],
-            tradeoff_notes=_records_with_status(records, "deferred", "blocked"),
+            tradeoff_notes=tradeoffs,
             active_goal_id=latest.record_id if latest else None,
-            alignment_score=self._mean_confidence(records),
+            alignment_score=alignment_score,
             control_signal=self._batch_signal(batch),
-            description=f"Goal/value owner published goals={len(records)} active={latest.record_id if latest else 'none'}.",
+            description=(
+                f"Goal/value owner published goals={len(records)} active={latest.record_id if latest else 'none'} "
+                f"value_conflict={value_conflict:.2f} decision_readiness={decision_readiness:.2f} "
+                f"reversibility_need={reversibility_need:.2f} shift={goal_shift_pressure:.2f}."
+            ),
+            value_conflict=value_conflict,
+            decision_readiness=decision_readiness,
+            active_tradeoff_count=active_tradeoff_count,
+            reversibility_need=reversibility_need,
+            goal_shift_pressure=goal_shift_pressure,
         )
 
 
@@ -1950,6 +2068,20 @@ class BoundaryConsentModule(SemanticOwnerModule):
         missing = tuple(record for record in records if record.confidence < 0.55 and record.status not in {"blocked", "closed"})
         denied = _records_with_status(records, "blocked")
         compliance = _clamp(1.0 - len(missing) * 0.12 - len(denied) * 0.20)
+        autonomy_risk = _clamp(
+            min((len(missing) + len(denied)) / 4.0, 1.0) * 0.44
+            + _mean_record_control(denied or missing) * 0.34
+            + (1.0 - compliance) * 0.22
+        )
+        consent_clarity = _clamp(
+            len(granted) / max(len(granted) + len(missing) + len(denied), 1)
+        )
+        professional_scope_pressure = _clamp(
+            min(len(denied) / 3.0, 1.0) * 0.52
+            + _mean_record_confidence(denied) * 0.18
+            + (1.0 - compliance) * 0.30
+        )
+        overreach_risk = _clamp(autonomy_risk * 0.62 + professional_scope_pressure * 0.38)
         return BoundaryConsentSnapshot(
             granted_consents=granted,
             missing_consents=missing,
@@ -1958,7 +2090,15 @@ class BoundaryConsentModule(SemanticOwnerModule):
             external_action_consent="unknown" if missing else "not-required",
             compliance_score=compliance,
             control_signal=max(self._batch_signal(batch), _clamp(len(missing) / 5.0)),
-            description=f"Boundary/consent owner published granted={len(granted)} missing={len(missing)} denied={len(denied)}.",
+            description=(
+                f"Boundary/consent owner published granted={len(granted)} missing={len(missing)} denied={len(denied)} "
+                f"autonomy_risk={autonomy_risk:.2f} consent_clarity={consent_clarity:.2f} "
+                f"overreach_risk={overreach_risk:.2f}."
+            ),
+            autonomy_risk=autonomy_risk,
+            consent_clarity=consent_clarity,
+            professional_scope_pressure=professional_scope_pressure,
+            overreach_risk=overreach_risk,
         )
 
 

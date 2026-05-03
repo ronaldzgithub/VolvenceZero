@@ -21,6 +21,7 @@ from volvence_zero.agent.paper_suite import (
     export_json_artifact,
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
+from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.evaluation.backbone import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
@@ -443,6 +444,36 @@ DEFAULT_OPEN_DIALOGUE_SCENARIOS: tuple[OpenDialogueScenario, ...] = (
         pressure_shape="double-goal-shift",
         goal_shift_mid_episode=True,
         max_turns=6,
+    ),
+    OpenDialogueScenario(
+        scenario_id="open_emotional_decision_support",
+        family_id="emotional_decision_support",
+        split="open_core",
+        description=(
+            "Open emotional decision episode where the user is overwhelmed, needs support, "
+            "and still needs a bounded next decision step."
+        ),
+        opening_turns=(
+            "I need help deciding what to do next, but I am overwhelmed and I do not want to be optimized past how I feel.",
+            "Please do not decide for me. Help me get steady enough to see the choice clearly.",
+        ),
+        escalation_turns=(
+            "If you jump straight into pros and cons, I will feel pushed instead of helped.",
+            "The goal is shifting from maximum output to recovery, so the decision has to respect that emotional constraint.",
+        ),
+        stabilization_turns=(
+            "That is closer. Keep the emotional load visible while you clarify the values behind the choice.",
+            "Now help me name the tradeoff and choose one reversible next step.",
+        ),
+        consolidation_turns=(
+            "Summarize the support-before-decision frame so I can carry it into the next session.",
+            "Make the final step small enough that it does not override how uncertain I still feel.",
+        ),
+        pressure_shape="support-before-decision",
+        goal_shift_mid_episode=True,
+        max_turns=6,
+        expected_adaptation_signal=True,
+        expected_emotional_decision_support=True,
     ),
     OpenDialogueScenario(
         scenario_id="intelligence_demo",
@@ -1146,13 +1177,26 @@ def _profile_allows_interval_carryover_credit(profile_label: str) -> bool:
 
 def _metric_pairs(result: AgentTurnResult) -> tuple[tuple[str, float], ...]:
     evaluation_snapshot = result.active_snapshots.get("evaluation")
-    if evaluation_snapshot is None or not isinstance(evaluation_snapshot.value, EvaluationSnapshot):
-        return ()
-    return tuple(
-        (f"{score.family}:{score.metric_name}", score.value)
-        for score in evaluation_snapshot.value.turn_scores
-        if score.family in {"learning", "relationship", "abstraction", "safety"}
-    )
+    metric_pairs: list[tuple[str, float]] = []
+    if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot):
+        metric_pairs.extend(
+            (f"{score.family}:{score.metric_name}", score.value)
+            for score in evaluation_snapshot.value.turn_scores
+            if score.family in {"task", "interaction", "learning", "relationship", "abstraction", "safety"}
+        )
+    response_assembly_snapshot = result.active_snapshots.get("response_assembly")
+    if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot):
+        assembly = response_assembly_snapshot.value
+        metric_pairs.extend(
+            (
+                ("interaction:support_before_decision_pressure", assembly.support_before_decision_pressure),
+                (
+                    "abstraction:emotional_decision_action_family",
+                    1.0 if assembly.eta_action_family in EMOTIONAL_DECISION_ACTION_FAMILIES else 0.0,
+                ),
+            )
+        )
+    return tuple(metric_pairs)
 
 
 def _metric_value(turn: DialogueBenchmarkTurn, metric_name: str) -> float | None:
@@ -1520,6 +1564,38 @@ def _runtime_adaptation_evidence_observed(turns: tuple[DialogueBenchmarkTurn, ..
     )
 
 
+EMOTIONAL_DECISION_ACTION_FAMILIES = {
+    "stabilize_before_deciding",
+    "repair_then_reframe",
+    "clarify_values_then_options",
+    "small_reversible_next_step",
+    "hold_boundary_while_supporting",
+}
+
+
+def _mean_turn_metric(turns: tuple[DialogueBenchmarkTurn, ...], metric_name: str) -> float:
+    return _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, metric_name)) is not None
+        )
+    )
+
+
+def _emotional_decision_support_observed(turns: tuple[DialogueBenchmarkTurn, ...]) -> bool:
+    support_presence = _mean_turn_metric(turns, "support_presence")
+    warmth = _mean_turn_metric(turns, "warmth")
+    support_before_decision = _mean_turn_metric(turns, "support_before_decision_pressure")
+    action_family_signal = _mean_turn_metric(turns, "emotional_decision_action_family")
+    return (
+        support_presence >= 0.35
+        and warmth >= 0.30
+        and support_before_decision >= 0.35
+        and action_family_signal >= 0.25
+    )
+
+
 def _late_episode_stability_score(
     *,
     turns: tuple[DialogueBenchmarkTurn, ...],
@@ -1763,6 +1839,7 @@ def build_open_dialogue_case_report(
         turns=turns,
     )
     runtime_adaptation_evidence_observed = _runtime_adaptation_evidence_observed(turns)
+    emotional_decision_support_observed = _emotional_decision_support_observed(turns)
     acceptance_checks = (
         ("episode-runs-to-completion", final_episode_state.completed),
         (
@@ -1800,6 +1877,11 @@ def build_open_dialogue_case_report(
         (
             "late-episode-stabilization-or-improvement",
             delayed_improvement_observed or late_episode_stability_score >= 0.5,
+        ),
+        (
+            "emotional-decision-support-observed",
+            (not scenario.expected_emotional_decision_support)
+            or emotional_decision_support_observed,
         ),
     )
     reasons = tuple(check_name for check_name, passed in acceptance_checks if not passed)
@@ -2539,6 +2621,10 @@ async def run_dialogue_pe_eta_case(
 def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[str, float], ...]:
     mean_pe = _mean(tuple(turn.prediction_error_magnitude for turn in report.turns))
     mean_switch_gate = _mean(tuple(turn.switch_gate for turn in report.turns))
+    mean_support_presence = _mean_turn_metric(report.turns, "support_presence")
+    mean_warmth = _mean_turn_metric(report.turns, "warmth")
+    mean_support_before_decision_pressure = _mean_turn_metric(report.turns, "support_before_decision_pressure")
+    mean_emotional_decision_action_family = _mean_turn_metric(report.turns, "emotional_decision_action_family")
     mean_substrate_online_fast_applied = _mean(
         tuple(
             value
@@ -2737,6 +2823,10 @@ def _open_case_summary_metrics(report: OpenDialogueCaseReport) -> tuple[tuple[st
         ("hidden_label_leak_count", float(report.hidden_label_leak_count)),
         ("repair_observable", float(report.repair_observable)),
         ("runtime_adaptation_evidence_observed", float(report.runtime_adaptation_evidence_observed)),
+        ("mean_support_presence", mean_support_presence),
+        ("mean_warmth", mean_warmth),
+        ("mean_support_before_decision_pressure", mean_support_before_decision_pressure),
+        ("mean_emotional_decision_action_family", mean_emotional_decision_action_family),
         ("episode_runs_to_completion", float(report.final_episode_state.completed)),
         ("transcript_only_user_policy", float(report.final_episode_state.user_policy_kind == "transcript-only")),
         ("mean_prediction_error", mean_pe),

@@ -101,6 +101,7 @@ class OpenDialogueScenario:
     hidden_perturbation_family: str = ""
     expected_repair_observable: bool = False
     expected_adaptation_signal: bool = False
+    expected_emotional_decision_support: bool = False
 
 
 @dataclass(frozen=True)

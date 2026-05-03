@@ -9,6 +9,7 @@ from lifeform_evolution.benchmark import (
     ScriptedScenario,
     all_built_in_scenarios,
     casual_social_checkin_scenario,
+    emotional_decision_support_scenario,
     format_report,
     low_mood_disclosure_scenario,
     run_benchmark,
@@ -67,6 +68,7 @@ from lifeform_evolution.trace_collector import TraceCollector
 _SCENARIOS = {
     "low-mood-disclosure": low_mood_disclosure_scenario,
     "trust-rupture-repair": trust_rupture_repair_scenario,
+    "emotional-decision-support": emotional_decision_support_scenario,
     "casual-social-checkin": casual_social_checkin_scenario,
 }
 

@@ -228,6 +228,7 @@ class ResponseSynthesizer:
         # through to the generic regime-tail templates below.
         _STRUCTURED_INTENTS = {
             "support-first",
+            "support-before-decision",
             "repair-first",
             "structure-first",
             "warmth-first",

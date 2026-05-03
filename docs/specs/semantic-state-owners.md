@@ -71,5 +71,11 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
 
 ## 变更日志
 
+- 2026-05-03: 四个情绪决策相关 owner 增加 owner-side readout：
+  - `relationship_state` 发布 `emotional_load`、`repair_need`、`trust_delta`、`attunement_gap`、`stabilization_need`
+  - `goal_value` 发布 `value_conflict`、`decision_readiness`、`active_tradeoff_count`、`reversibility_need`、`goal_shift_pressure`
+  - `boundary_consent` 发布 `autonomy_risk`、`consent_clarity`、`professional_scope_pressure`、`overreach_risk`
+  - `user_model` 发布 `preferred_support_pacing`、`decision_style`、`overwhelm_pattern_strength`，并开始从 typed profile proposals 沉淀 `durable_goals`
+  - `response_assembly.support_before_decision_pressure` 优先消费这些 owner-side readouts，ETA 只消费压缩后的 action-family advisory，不拥有语义事实
 - 2026-04-25: 初始版本，建立九个 semantic owner、typed proposal path、ETA/NL/response/evaluation/session-post 集成边界。
 - 2026-04-25: 新增 external semantic adapters：tool result、profile/settings、task/calendar 与 reviewed knowledge 事件经 adapter runtime 转为 typed proposals 后进入 semantic owners。

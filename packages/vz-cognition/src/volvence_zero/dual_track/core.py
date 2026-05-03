@@ -148,15 +148,51 @@ def _semantic_owner_context(
     *,
     track: Track,
 ) -> tuple[tuple[str, ...], float]:
+    from volvence_zero.semantic_state import (
+        BoundaryConsentSnapshot,
+        GoalValueSnapshot,
+        RelationshipStateSnapshot,
+        UserModelSnapshot,
+    )
+
     slot_names = WORLD_SEMANTIC_OWNER_SLOTS if track is Track.WORLD else SELF_SEMANTIC_OWNER_SLOTS
     goals: list[str] = []
     for slot_name in slot_names:
         snapshot = semantic_snapshots.get(slot_name)
         if snapshot is None or isinstance(snapshot.value, RuntimePlaceholderValue):
             continue
-        description = snapshot.value.description
-        if description:
-            goals.append(f"{slot_name}:{description}")
+        value = snapshot.value
+        if isinstance(value, GoalValueSnapshot):
+            if value.active_goal_id is not None:
+                goals.append(f"goal_value:active_goal={value.active_goal_id}")
+            if value.tradeoff_notes:
+                goals.append(
+                    f"goal_value:tradeoffs={value.active_tradeoff_count} "
+                    f"conflict={value.value_conflict:.2f} readiness={value.decision_readiness:.2f} "
+                    f"reversibility={value.reversibility_need:.2f}"
+                )
+        elif isinstance(value, RelationshipStateSnapshot):
+            goals.append(
+                "relationship_state:"
+                f"trust={value.trust_level:.2f} emotional_load={value.emotional_load:.2f} "
+                f"repair_need={value.repair_need:.2f} stabilization={value.stabilization_need:.2f}"
+            )
+        elif isinstance(value, BoundaryConsentSnapshot):
+            goals.append(
+                "boundary_consent:"
+                f"autonomy_risk={value.autonomy_risk:.2f} consent_clarity={value.consent_clarity:.2f} "
+                f"overreach={value.overreach_risk:.2f}"
+            )
+        elif isinstance(value, UserModelSnapshot):
+            goals.append(
+                "user_model:"
+                f"pacing={value.preferred_support_pacing} decision_style={value.decision_style} "
+                f"overwhelm={value.overwhelm_pattern_strength:.2f} durable_goals={len(value.durable_goals)}"
+            )
+        else:
+            description = value.description
+            if description:
+                goals.append(f"{slot_name}:{description}")
     presence = _clamp(len(goals) / max(len(slot_names), 1))
     return (tuple(goals[:SEMANTIC_OWNER_GOAL_LIMIT]), presence)
 

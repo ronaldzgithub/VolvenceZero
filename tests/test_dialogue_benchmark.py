@@ -249,6 +249,7 @@ def _benchmark_turn(
     fast_memory_runtime_alignment: float = 0.18,
     assistant_response_text: str | None = None,
     user_input: str | None = None,
+    extra_outcome_metrics: tuple[tuple[str, float], ...] = (),
 ) -> DialogueBenchmarkTurn:
     return DialogueBenchmarkTurn(
         turn_index=turn_index,
@@ -287,7 +288,8 @@ def _benchmark_turn(
             ("learning:default_owner_writeback_retained", 1.0 if bounded_writeback_applied or session_post_completed_job_count else 0.8),
             ("safety:default_substrate_live_mutation_suppressed", 1.0),
             ("safety:default_continual_rollback_clean", 1.0),
-        ),
+        )
+        + extra_outcome_metrics,
         description="synthetic benchmark turn",
         tower_consolidation_count=tower_consolidation_count,
         learned_recall_count=learned_recall_count,
@@ -667,6 +669,9 @@ def test_dialogue_benchmark_exposes_default_open_dialogue_scenarios():
     )
     assert any(scenario.split == "open_heldout" for scenario in scenarios)
     assert get_open_dialogue_scenario("intelligence_demo").family_id == "introspective_chat"
+    emotional_decision = get_open_dialogue_scenario("open_emotional_decision_support")
+    assert emotional_decision.expected_emotional_decision_support is True
+    assert emotional_decision.pressure_shape == "support-before-decision"
 
 
 def test_dialogue_benchmark_exposes_default_open_ablation_profiles():
@@ -830,6 +835,90 @@ def test_build_open_dialogue_case_report_uses_open_acceptance_surface():
     assert metrics["hidden_label_leak_count"] == 0.0
     assert metrics["repair_observable"] == 1.0
     assert metrics["runtime_adaptation_evidence_observed"] == 1.0
+
+
+def test_open_dialogue_emotional_decision_support_gate_is_fail_closed() -> None:
+    scenario = OpenDialogueScenario(
+        scenario_id="open-emotional-decision-proof",
+        family_id="emotional_decision_support",
+        split="open_core",
+        description="Synthetic emotional decision support scenario.",
+        opening_turns=("start",),
+        escalation_turns=("push",),
+        stabilization_turns=("stabilize",),
+        consolidation_turns=("done",),
+        max_turns=3,
+        expected_adaptation_signal=True,
+        expected_emotional_decision_support=True,
+    )
+    base_turns = (
+        _benchmark_turn(
+            turn_index=1,
+            pe=0.32,
+            reward=-0.08,
+            action="ssl-only-pe",
+            regime="problem_solving",
+            abstract_action="generic_problem_solving",
+            switch_gate=0.4,
+            delayed_metric=0.2,
+            bounded_writeback_applied=True,
+            pe_triggered=True,
+        ),
+        _benchmark_turn(
+            turn_index=2,
+            pe=0.12,
+            reward=-0.02,
+            action="evidence-only",
+            regime="problem_solving",
+            abstract_action="generic_problem_solving",
+            switch_gate=0.2,
+            delayed_metric=0.5,
+        ),
+    )
+    failing_report = build_open_dialogue_case_report(
+        scenario=scenario,
+        final_episode_state=OpenDialogueEpisodeState(
+            scenario_id=scenario.scenario_id,
+            turn_index=2,
+            completed=True,
+            stop_reason="stable-consolidation",
+        ),
+        turns=base_turns,
+    )
+
+    assert failing_report.passed is False
+    assert "emotional-decision-support-observed" in failing_report.reasons
+
+    passing_turns = tuple(
+        replace(
+            turn,
+            active_regime="emotional_support",
+            active_abstract_action="clarify_values_then_options",
+            outcome_metrics=turn.outcome_metrics
+            + (
+                ("interaction:support_presence", 0.62),
+                ("interaction:warmth", 0.58),
+                ("interaction:support_before_decision_pressure", 0.66),
+                ("abstraction:emotional_decision_action_family", 1.0),
+            ),
+        )
+        for turn in base_turns
+    )
+    passing_report = build_open_dialogue_case_report(
+        scenario=scenario,
+        final_episode_state=OpenDialogueEpisodeState(
+            scenario_id=scenario.scenario_id,
+            turn_index=2,
+            completed=True,
+            stop_reason="stable-consolidation",
+        ),
+        turns=passing_turns,
+    )
+
+    assert "emotional-decision-support-observed" not in passing_report.reasons
+    metrics = dict(_open_case_summary_metrics(passing_report))
+    assert metrics["mean_support_before_decision_pressure"] >= 0.35
+    assert metrics["mean_emotional_decision_action_family"] >= 0.25
 
 
 def test_open_dialogue_case_report_tracks_hidden_label_leak_as_diagnostic() -> None:

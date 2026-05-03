@@ -7,15 +7,19 @@ import pytest
 
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.semantic_state import (
+    BoundaryConsentSnapshot,
     SEMANTIC_OWNER_SLOTS,
     AdapterSemanticProposalRuntime,
+    GoalValueSnapshot,
     NoOpSemanticProposalRuntime,
     PlanIntentSnapshot,
+    RelationshipStateSnapshot,
     SemanticProposal,
     SemanticProposalBatch,
     SemanticProposalOperation,
     SemanticProposalRuntime,
     SemanticStateStore,
+    UserModelSnapshot,
     semantic_events_from_profile,
     semantic_events_from_reviewed_knowledge,
     semantic_events_from_task_event,
@@ -97,6 +101,74 @@ class DeniedConsentRuntime(SemanticProposalRuntime):
             runtime_id=self.runtime_id,
             schema_version=1,
             description=f"consent proposal for {target_slot}",
+        )
+
+
+class EmotionalDecisionRuntime(SemanticProposalRuntime):
+    runtime_id = "emotional-decision-test"
+
+    def propose(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: object | None,
+        memory_snapshot: object | None,
+        previous_snapshot: object | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        del substrate_snapshot, memory_snapshot, previous_snapshot
+        proposal: SemanticProposal | None = None
+        if target_slot == "relationship_state":
+            proposal = SemanticProposal(
+                proposal_id=f"{target_slot}:emotional-load:{turn_index}",
+                target_slot=target_slot,
+                operation=SemanticProposalOperation.OBSERVE,
+                summary="emotional-load",
+                detail=user_input or "",
+                confidence=0.72,
+                evidence="typed emotional load evidence",
+                control_signal=0.82,
+            )
+        elif target_slot == "goal_value":
+            proposal = SemanticProposal(
+                proposal_id=f"{target_slot}:tradeoff:{turn_index}",
+                target_slot=target_slot,
+                operation=SemanticProposalOperation.DEFER,
+                summary="values-before-choice",
+                detail="choice needs value clarification before commitment",
+                confidence=0.68,
+                evidence="typed value conflict evidence",
+                control_signal=0.74,
+            )
+        elif target_slot == "boundary_consent":
+            proposal = SemanticProposal(
+                proposal_id=f"{target_slot}:autonomy:{turn_index}",
+                target_slot=target_slot,
+                operation=SemanticProposalOperation.OBSERVE,
+                summary="do-not-decide-for-me",
+                detail="user wants support without delegated decision",
+                confidence=0.50,
+                evidence="typed autonomy boundary evidence",
+                control_signal=0.62,
+            )
+        elif target_slot == "user_model":
+            proposal = SemanticProposal(
+                proposal_id=f"{target_slot}:durable-goal:{turn_index}",
+                target_slot=target_slot,
+                operation=SemanticProposalOperation.OBSERVE,
+                summary="steady-before-analysis",
+                detail="prefers support-first pacing before decision analysis",
+                confidence=0.76,
+                evidence="typed user pacing evidence",
+                control_signal=0.70,
+            )
+        proposals = () if proposal is None else (proposal,)
+        return SemanticProposalBatch(
+            proposals=proposals,
+            runtime_id=self.runtime_id,
+            schema_version=1,
+            description=f"emotional decision proposal for {target_slot}",
         )
 
 
@@ -312,6 +384,55 @@ def test_profile_adapter_updates_user_model_goal_and_consent() -> None:
     assert result.active_snapshots["goal_value"].value.explicit_goals
     assert result.active_snapshots["relationship_state"].value.rapport_signals
     assert result.active_snapshots["boundary_consent"].value.denied_boundaries
+
+
+def test_semantic_owners_publish_emotional_decision_readouts() -> None:
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            user_input="I am overwhelmed and need help deciding without being pushed.",
+            semantic_state_store=SemanticStateStore(),
+            semantic_proposal_runtime=EmotionalDecisionRuntime(),
+            session_id="semantic-emotional-decision",
+            wave_id="wave-emotional-decision",
+            turn_index=1,
+        )
+    )
+
+    relationship = result.active_snapshots["relationship_state"].value
+    goal = result.active_snapshots["goal_value"].value
+    boundary = result.active_snapshots["boundary_consent"].value
+    user_model = result.active_snapshots["user_model"].value
+    response_assembly = result.active_snapshots["response_assembly"].value
+    evaluation_metrics = {
+        score.metric_name: score.value
+        for score in result.active_snapshots["evaluation"].value.turn_scores
+    }
+
+    assert isinstance(relationship, RelationshipStateSnapshot)
+    assert isinstance(goal, GoalValueSnapshot)
+    assert isinstance(boundary, BoundaryConsentSnapshot)
+    assert isinstance(user_model, UserModelSnapshot)
+    assert relationship.emotional_load > 0.35
+    assert relationship.stabilization_need > 0.30
+    assert goal.value_conflict > 0.30
+    assert goal.reversibility_need > 0.20
+    assert boundary.autonomy_risk > 0.20
+    assert boundary.consent_clarity < 1.0
+    assert user_model.preferred_support_pacing == "support-first"
+    assert user_model.decision_style == "values-first"
+    assert user_model.durable_goals
+    assert response_assembly.support_before_decision_pressure > 0.30
+    assert response_assembly.eta_action_family in {
+        "clarify_values_then_options",
+        "hold_boundary_while_supporting",
+        "small_reversible_next_step",
+        "stabilize_before_deciding",
+    }
+    assert evaluation_metrics["owner_emotional_load"] == relationship.emotional_load
+    assert evaluation_metrics["owner_value_conflict"] == goal.value_conflict
+    assert evaluation_metrics["owner_autonomy_risk"] == boundary.autonomy_risk
 
 
 def test_task_event_adapter_updates_plan_commitment_and_execution() -> None:

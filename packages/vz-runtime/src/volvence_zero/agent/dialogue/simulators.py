@@ -46,6 +46,12 @@ from volvence_zero.agent.paper_suite import (
     export_json_artifact,
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
+from volvence_zero.agent.dialogue.types import (
+    DialogueBenchmarkTurn,
+    DialogueUserTurnSource,
+    OpenDialogueEpisodeState,
+    OpenDialogueScenario,
+)
 from volvence_zero.evaluation.backbone import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,

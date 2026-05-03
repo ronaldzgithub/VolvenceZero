@@ -159,6 +159,42 @@ def trust_rupture_repair_scenario() -> ScriptedScenario:
     )
 
 
+def emotional_decision_support_scenario() -> ScriptedScenario:
+    """Mixed support + decision pressure where solving too early is failure."""
+
+    return ScriptedScenario(
+        scenario_id="emotional-decision-support",
+        description=(
+            "User is overwhelmed but still needs a decision frame. Expected behaviour: "
+            "support-first stabilization before guided exploration or bounded problem solving."
+        ),
+        turns=(
+            ScriptedTurn(
+                user_input=(
+                    "I need help deciding what to do next, but I am overwhelmed and I do not want "
+                    "to be optimized past how I feel."
+                ),
+                expected_regime_in=("emotional_support", "repair_and_deescalation", "guided_exploration"),
+            ),
+            ScriptedTurn(
+                user_input="Please do not decide for me. Help me get steady enough to see the choice clearly.",
+                expected_regime_in=("emotional_support", "guided_exploration"),
+            ),
+            ScriptedTurn(
+                user_input=(
+                    "The goal is shifting from maximum output to recovery, so the decision has to respect "
+                    "that emotional constraint."
+                ),
+                expected_regime_in=("emotional_support", "guided_exploration", "problem_solving"),
+            ),
+            ScriptedTurn(
+                user_input="Now help me name the tradeoff and choose one reversible next step.",
+                expected_regime_in=("guided_exploration", "problem_solving", "emotional_support"),
+            ),
+        ),
+    )
+
+
 def casual_social_checkin_scenario() -> ScriptedScenario:
     """Low-pressure social check-in, no decision pressure, no rupture.
 
@@ -204,6 +240,7 @@ def all_built_in_scenarios() -> tuple[ScriptedScenario, ...]:
     return (
         low_mood_disclosure_scenario(),
         trust_rupture_repair_scenario(),
+        emotional_decision_support_scenario(),
         casual_social_checkin_scenario(),
     )
 

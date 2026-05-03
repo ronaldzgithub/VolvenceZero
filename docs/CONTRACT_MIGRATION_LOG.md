@@ -3,6 +3,33 @@
 > Status: migration / implementation log
 > Last updated: 2026-05-03
 
+## Slice C.1 (2026-05-03): 情绪决策支持 owner-side readout
+
+Extends the existing semantic owner snapshot surface so emotional
+decision support is produced by owners before it is consumed by
+ETA / response assembly:
+
+- `UserModelSnapshot` adds `preferred_support_pacing`,
+  `decision_style`, `overwhelm_pattern_strength`; `durable_goals`
+  now receives typed profile goal proposals instead of staying empty.
+- `RelationshipStateSnapshot` adds `emotional_load`, `repair_need`,
+  `trust_delta`, `attunement_gap`, `stabilization_need`.
+- `GoalValueSnapshot` adds `value_conflict`, `decision_readiness`,
+  `active_tradeoff_count`, `reversibility_need`,
+  `goal_shift_pressure`.
+- `BoundaryConsentSnapshot` adds `autonomy_risk`, `consent_clarity`,
+  `professional_scope_pressure`, `overreach_risk`.
+- `SemanticRecord` now retains proposal `control_signal`, allowing
+  owner-side confidence/control aggregation without downstream text
+  reconstruction.
+- `ResponseAssemblySnapshot.support_before_decision_pressure` now
+  prioritizes these owner readouts; domain/prototype evidence remains
+  auxiliary. `ResponseAssemblyReadout` in `vz-contracts` includes the
+  pressure and `eta_action_family` fields consumed by evaluation.
+
+Compatibility: all new snapshot fields have defaults, preserving
+synthetic fixtures and older tests that construct snapshots directly.
+
 ## Slice C (2026-05-03): 解 vz-cognition ↔ vz-application 真循环依赖
 
 Closes the architectural debt where `vz-cognition.evaluation.backbone`

@@ -135,6 +135,8 @@ class ResponseAssemblyReadout(Protocol):
     ordering_plan: tuple[str, ...]
     prompt_residue_ratio: float
     prompt_residue_summary: str
+    support_before_decision_pressure: float
+    eta_action_family: str
     description: str
 
 

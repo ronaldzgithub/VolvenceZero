@@ -336,6 +336,8 @@ class ResponseAssemblySnapshot:
     expression_intent: str = "direct-answer"
     judgment_focus: tuple[str, ...] = ()
     speech_plan: ResponseSpeechPlan | None = None
+    support_before_decision_pressure: float = 0.0
+    eta_action_family: str = ""
 
 
 @dataclass(frozen=True)
@@ -1782,12 +1784,120 @@ def _prompt_residue_summary(
     return summary, _clamp(prompt_signal_count / max(prompt_signal_count + explicit_signal_count, 1))
 
 
+def _semantic_emotional_decision_readout(
+    *,
+    semantic_snapshots: Mapping[str, Snapshot[Any]],
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None,
+    ordering_plan: tuple[str, ...],
+    response_mode: ResponseMode,
+) -> tuple[float, str]:
+    from volvence_zero.semantic_state import (
+        BoundaryConsentSnapshot,
+        GoalValueSnapshot,
+        RelationshipStateSnapshot,
+        UserModelSnapshot,
+    )
+
+    relationship_value = semantic_snapshots.get("relationship_state")
+    relationship_snapshot = relationship_value.value if relationship_value is not None else None
+    relationship_pressure = 0.0
+    if isinstance(relationship_snapshot, RelationshipStateSnapshot):
+        relationship_pressure = _clamp(
+            relationship_snapshot.stabilization_need * 0.38
+            + relationship_snapshot.emotional_load * 0.26
+            + relationship_snapshot.repair_need * 0.20
+            + relationship_snapshot.attunement_gap * 0.16
+        )
+
+    goal_value = semantic_snapshots.get("goal_value")
+    goal_snapshot = goal_value.value if goal_value is not None else None
+    goal_pressure = 0.0
+    if isinstance(goal_snapshot, GoalValueSnapshot):
+        goal_pressure = _clamp(
+            goal_snapshot.value_conflict * 0.32
+            + goal_snapshot.reversibility_need * 0.26
+            + goal_snapshot.goal_shift_pressure * 0.22
+            + (1.0 - goal_snapshot.decision_readiness) * 0.20
+        )
+
+    boundary_value = semantic_snapshots.get("boundary_consent")
+    boundary_snapshot = boundary_value.value if boundary_value is not None else None
+    boundary_pressure = 0.0
+    if isinstance(boundary_snapshot, BoundaryConsentSnapshot):
+        boundary_pressure = _clamp(
+            boundary_snapshot.autonomy_risk * 0.42
+            + boundary_snapshot.overreach_risk * 0.34
+            + boundary_snapshot.professional_scope_pressure * 0.14
+            + (1.0 - boundary_snapshot.consent_clarity) * 0.10
+        )
+
+    user_value = semantic_snapshots.get("user_model")
+    user_snapshot = user_value.value if user_value is not None else None
+    user_pressure = 0.0
+    if isinstance(user_snapshot, UserModelSnapshot):
+        user_pressure = _clamp(
+            user_snapshot.overwhelm_pattern_strength * 0.54
+            + (1.0 - user_snapshot.stability_score) * 0.18
+            + (0.18 if user_snapshot.preferred_support_pacing == "support-first" else 0.0)
+            + (0.10 if user_snapshot.decision_style == "values-first" else 0.0)
+        )
+
+    active_domains = set(retrieval_policy_snapshot.knowledge_domains if retrieval_policy_snapshot is not None else ())
+    support_domain_active = bool(active_domains & {"emotional_support_basics", "relational_repair"})
+    decision_domain_active = bool(
+        active_domains
+        & {
+            "structured_decision_support",
+            "career_decision",
+            "family_transition",
+            "professional_process",
+        }
+    )
+    domain_pressure = 0.0
+    if support_domain_active and decision_domain_active:
+        domain_pressure = 0.82
+    elif support_domain_active or decision_domain_active:
+        domain_pressure = 0.42
+
+    ordering_pressure = 0.0
+    if "stabilize" in ordering_plan and (
+        "clarify_goal" in ordering_plan
+        or "split_axes" in ordering_plan
+        or "smallest_next_step" in ordering_plan
+    ):
+        ordering_pressure = 0.68
+    if response_mode is ResponseMode.CLARIFY and support_domain_active:
+        ordering_pressure = max(ordering_pressure, 0.52)
+
+    pressure = _clamp(
+        relationship_pressure * 0.18
+        + goal_pressure * 0.18
+        + boundary_pressure * 0.08
+        + user_pressure * 0.06
+        + domain_pressure * 0.34
+        + ordering_pressure * 0.16
+    )
+
+    if pressure < 0.24:
+        return pressure, ""
+    if boundary_pressure >= 0.42:
+        return pressure, "hold_boundary_while_supporting"
+    if relationship_pressure >= 0.46:
+        return pressure, "repair_then_reframe"
+    if goal_pressure >= 0.36 and decision_domain_active:
+        return pressure, "clarify_values_then_options"
+    if "smallest_next_step" in ordering_plan:
+        return pressure, "small_reversible_next_step"
+    return pressure, "stabilize_before_deciding"
+
+
 def _response_expression_intent(
     *,
     regime_id: str,
     response_mode: ResponseMode,
     temporal_snapshot: "TemporalAbstractionSnapshot | None",
     semantic_control_signal: float,
+    support_before_decision_pressure: float = 0.0,
 ) -> tuple[str, tuple[str, ...]]:
     """Pick a structured ``expression_intent`` for the active turn.
 
@@ -1813,6 +1923,8 @@ def _response_expression_intent(
     if response_mode is ResponseMode.REFER_OUT:
         return "refer-out", ()
     if response_mode is ResponseMode.CLARIFY:
+        if support_before_decision_pressure >= 0.26:
+            return "support-before-decision", ()
         return "clarify-first", ()
 
     # Strong control signals override regime defaults — the system is
@@ -1823,6 +1935,9 @@ def _response_expression_intent(
         and getattr(temporal_snapshot, "switch_active", False)
     )
     strong_semantic = semantic_control_signal >= 0.32
+
+    if support_before_decision_pressure >= 0.26:
+        return "support-before-decision", ()
 
     if regime_id == "guided_exploration" or strong_temporal or strong_semantic:
         focus: list[str] = []
@@ -1964,6 +2079,25 @@ def _response_speech_plan(
                 "offer_small_step",
             ),
             description=f"Speech plan for {regime_name}: support-first.",
+        )
+
+    if expression_intent == "support-before-decision":
+        return ResponseSpeechPlan(
+            cue="This is both emotionally loaded and decision-shaped, so solving too fast would miss the real need.",
+            inferred_need=(
+                "You need the pressure acknowledged, the values clarified, and then one reversible next step rather than a verdict."
+            ),
+            response_adjustment=(
+                "I should stabilize first, separate the feeling from the choice, name the active tradeoff, and keep the next move small."
+            ),
+            question_budget=1 if clarification_required else 0,
+            required_steps=(
+                "acknowledge_pressure",
+                "clarify_values",
+                "name_tradeoff",
+                "offer_reversible_step",
+            ),
+            description=f"Speech plan for {regime_name}: support-before-decision.",
         )
 
     if expression_intent == "repair-first":
@@ -3575,11 +3709,18 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             if case_memory_snapshot is not None
             else ()
         )
+        support_before_decision_pressure, eta_action_family = _semantic_emotional_decision_readout(
+            semantic_snapshots=semantic_snapshots,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
+            ordering_plan=ordering_plan,
+            response_mode=response_mode,
+        )
         expression_intent, judgment_focus = _response_expression_intent(
             regime_id=regime_id,
             response_mode=response_mode,
             temporal_snapshot=temporal_snapshot,
             semantic_control_signal=semantic_control,
+            support_before_decision_pressure=support_before_decision_pressure,
         )
         clarification_required = (
             boundary_expression_relevant
@@ -3646,6 +3787,8 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 expression_intent=expression_intent,
                 judgment_focus=judgment_focus,
                 speech_plan=speech_plan,
+                support_before_decision_pressure=support_before_decision_pressure,
+                eta_action_family=eta_action_family,
                 description=(
                     f"Response assembly published mode={response_mode.value} depth="
                     f"{boundary_policy_value.active_decision.answer_depth_limit} "
@@ -3653,6 +3796,8 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                     f"ordering={len(ordering_plan)} control_scale={control_scale:.2f} "
                     f"continuum_target={continuum_target_position:.2f} driver={ordering_driver} "
                     f"semantic_control={semantic_control:.2f} expression={expression_intent} "
+                    f"support_before_decision={support_before_decision_pressure:.2f} "
+                    f"eta_action_family={eta_action_family or 'none'} "
                     f"questions={speech_plan.question_budget}."
                 ),
             )

@@ -2517,6 +2517,20 @@ class EvaluationBackbone:
                         confidence=0.64,
                         evidence=response_assembly_snapshot.prompt_residue_summary,
                     ),
+                    EvaluationScore(
+                        family="interaction",
+                        metric_name="support_before_decision_pressure",
+                        value=_clamp(response_assembly_snapshot.support_before_decision_pressure),
+                        confidence=0.66,
+                        evidence=response_assembly_snapshot.description,
+                    ),
+                    EvaluationScore(
+                        family="abstraction",
+                        metric_name="emotional_decision_action_family",
+                        value=1.0 if response_assembly_snapshot.eta_action_family else 0.0,
+                        confidence=0.62,
+                        evidence=response_assembly_snapshot.description,
+                    ),
                 )
             )
         for semantic_snapshot in semantic_state_snapshots:
@@ -2551,13 +2565,22 @@ class EvaluationBackbone:
                     )
                 )
             elif isinstance(semantic_snapshot, UserModelSnapshot):
-                scores.append(
-                    EvaluationScore(
-                        family="relationship",
-                        metric_name="user_model_stability",
-                        value=_clamp(semantic_snapshot.stability_score),
-                        confidence=0.60,
-                        evidence=semantic_snapshot.description,
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="relationship",
+                            metric_name="user_model_stability",
+                            value=_clamp(semantic_snapshot.stability_score),
+                            confidence=0.60,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="interaction",
+                            metric_name="user_overwhelm_pattern_strength",
+                            value=_clamp(semantic_snapshot.overwhelm_pattern_strength),
+                            confidence=0.62,
+                            evidence=semantic_snapshot.description,
+                        ),
                     )
                 )
             elif isinstance(semantic_snapshot, ExecutionResultSnapshot):
@@ -2581,33 +2604,81 @@ class EvaluationBackbone:
                     )
                 )
             elif isinstance(semantic_snapshot, RelationshipStateSnapshot):
-                scores.append(
-                    EvaluationScore(
-                        family="relationship",
-                        metric_name="relationship_continuity",
-                        value=_clamp(semantic_snapshot.continuity_level),
-                        confidence=0.62,
-                        evidence=semantic_snapshot.description,
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="relationship",
+                            metric_name="relationship_continuity",
+                            value=_clamp(semantic_snapshot.continuity_level),
+                            confidence=0.62,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="interaction",
+                            metric_name="owner_emotional_load",
+                            value=_clamp(semantic_snapshot.emotional_load),
+                            confidence=0.64,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="interaction",
+                            metric_name="owner_stabilization_need",
+                            value=_clamp(semantic_snapshot.stabilization_need),
+                            confidence=0.64,
+                            evidence=semantic_snapshot.description,
+                        ),
                     )
                 )
             elif isinstance(semantic_snapshot, GoalValueSnapshot):
-                scores.append(
-                    EvaluationScore(
-                        family="task",
-                        metric_name="goal_alignment",
-                        value=_clamp(semantic_snapshot.alignment_score),
-                        confidence=0.62,
-                        evidence=semantic_snapshot.description,
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="task",
+                            metric_name="goal_alignment",
+                            value=_clamp(semantic_snapshot.alignment_score),
+                            confidence=0.62,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="task",
+                            metric_name="owner_value_conflict",
+                            value=_clamp(semantic_snapshot.value_conflict),
+                            confidence=0.63,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="task",
+                            metric_name="owner_decision_readiness",
+                            value=_clamp(semantic_snapshot.decision_readiness),
+                            confidence=0.63,
+                            evidence=semantic_snapshot.description,
+                        ),
                     )
                 )
             elif isinstance(semantic_snapshot, BoundaryConsentSnapshot):
-                scores.append(
-                    EvaluationScore(
-                        family="safety",
-                        metric_name="consent_compliance",
-                        value=_clamp(semantic_snapshot.compliance_score),
-                        confidence=0.66,
-                        evidence=semantic_snapshot.description,
+                scores.extend(
+                    (
+                        EvaluationScore(
+                            family="safety",
+                            metric_name="consent_compliance",
+                            value=_clamp(semantic_snapshot.compliance_score),
+                            confidence=0.66,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="safety",
+                            metric_name="owner_autonomy_risk",
+                            value=_clamp(semantic_snapshot.autonomy_risk),
+                            confidence=0.66,
+                            evidence=semantic_snapshot.description,
+                        ),
+                        EvaluationScore(
+                            family="safety",
+                            metric_name="owner_overreach_risk",
+                            value=_clamp(semantic_snapshot.overreach_risk),
+                            confidence=0.66,
+                            evidence=semantic_snapshot.description,
+                        ),
                     )
                 )
         if reflection_snapshot is not None and isinstance(reflection_snapshot, ReflectionSnapshot):
