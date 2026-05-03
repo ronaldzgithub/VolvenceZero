@@ -5352,6 +5352,7 @@ def export_dialogue_paper_suite_artifact_bundle(
     human_ratings_aggregate: DialogueHumanRatingsAggregate | None = None,
     proposal_quality_shadow_reports: tuple[SemanticProposalQualityReport, ...] = (),
     extra_reference_artifacts: tuple[tuple[str, Any], ...] = (),
+    companion_structural_gates: tuple[tuple[str, bool], ...] = (),
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -5360,6 +5361,7 @@ def export_dialogue_paper_suite_artifact_bundle(
         claim_verdicts=_build_dialogue_claim_verdicts(
             aggregate_report=aggregate_report,
             human_ratings_aggregate=human_ratings_aggregate,
+            companion_structural_gates=companion_structural_gates,
         )
     )
     written_paths = [
@@ -5772,12 +5774,16 @@ def _build_dialogue_claim_verdicts(
     *,
     aggregate_report: DialoguePaperSuiteAggregateReport,
     human_ratings_aggregate: DialogueHumanRatingsAggregate | None,
+    companion_structural_gates: tuple[tuple[str, bool], ...] = (),
 ) -> tuple[ClaimVerdict, ...]:
     reference_report = aggregate_report.reference_run_report
     gate_map = {
         gate.gate_id: gate.passed
         for gate in reference_report.essence_report.gates
     } if reference_report is not None else {}
+    companion_gate_map: dict[str, bool] = {
+        gate_id: bool(passed) for gate_id, passed in companion_structural_gates
+    }
     pairwise_map = {
         (effect.metric_name, effect.control_label): effect
         for effect in aggregate_report.pairwise_effects
@@ -6007,12 +6013,23 @@ def _build_dialogue_claim_verdicts(
         if semantic_dashboard is not None
         else 0.0
     )
+    aac1_passed = companion_gate_map.get("AAC1")
+    rgm1_passed = companion_gate_map.get("RGM1")
+    rfl1_passed = companion_gate_map.get("RFL1")
+    structural_gate_checks: list[bool] = []
+    if aac1_passed is not None:
+        structural_gate_checks.append(aac1_passed)
+    if rgm1_passed is not None:
+        structural_gate_checks.append(rgm1_passed)
+    if rfl1_passed is not None:
+        structural_gate_checks.append(rfl1_passed)
     claim_companion_stateful_status = _dialogue_claim_status(
         retain_checks=(
             semantic_spine_ready,
             canonical_semantic_spine_coverage >= 1.0,
             canonical_cognitive_loop_readiness > 0.0,
             gate_map.get("cross-session-growth", False),
+            *structural_gate_checks,
         ),
         weak_checks=(
             semantic_spine_ready,
@@ -6157,7 +6174,16 @@ def _build_dialogue_claim_verdicts(
         ClaimVerdict(
             claim_id="claim_companion_stateful_relationship",
             status=claim_companion_stateful_status,
-            required_gate_ids=("semantic-spine-ready",),
+            required_gate_ids=tuple(
+                gate_id
+                for gate_id in (
+                    "semantic-spine-ready",
+                    "AAC1" if aac1_passed is not None else None,
+                    "RGM1" if rgm1_passed is not None else None,
+                    "RFL1" if rfl1_passed is not None else None,
+                )
+                if gate_id is not None
+            ),
             supporting_artifacts=("paper_suite_aggregate", "reference_emergence_dashboard"),
             evidence=(
                 ("semantic-spine-ready", float(semantic_spine_ready)),
@@ -6178,6 +6204,9 @@ def _build_dialogue_claim_verdicts(
                 ("open_mean_semantic_spine_coverage", open_semantic_spine_coverage),
                 ("open_mean_cognitive_loop_readiness", open_cognitive_loop_readiness),
                 ("cross-session-growth", float(gate_map.get("cross-session-growth", False))),
+                ("AAC1_alignment_pe_repair_visibility", float(aac1_passed) if aac1_passed is not None else -1.0),
+                ("RGM1_regime_delayed_attribution_visibility", float(rgm1_passed) if rgm1_passed is not None else -1.0),
+                ("RFL1_reflection_writeback_stability", float(rfl1_passed) if rfl1_passed is not None else -1.0),
             ),
             summary="Companion stateful relationship semantic-spine claim verdict.",
             description=(

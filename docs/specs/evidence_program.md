@@ -227,6 +227,33 @@
 - `evidence_bundle.json` 是跨系统消费入口，包含 manifest、provenance、run summaries、aggregate metrics、pairwise effects、blind review packet 与 claim verdicts。
 - 轻量测试只验证 claim 规则和 artifact shape；完整 empirical 结论仍必须来自 `paper-suite-small` / `paper-suite-full` repeated-run aggregate。
 
+### Blind Review External Dispatch（recruitment-agnostic）
+
+本节描述 `claim_external_human_legibility` 的实际外发流程。**该流程刻意不绑定具体招募/分发平台**（Google Form / Prolific / 内部团队都可以承载），只规定文件清单、rater 任务说明与回收 schema，让运营层灵活替换。
+
+**步骤**
+
+1. 生成 packet：跑 `bash scripts/run_dialogue_paper_suite.sh artifacts/dialogue_paper_suite paper-suite-small`，产物里包含
+   - `expert_review_packet_blinded.json` —— 外发安全
+   - `expert_review_key_internal.json` —— 仅内部
+   - `human_rating_template.csv` —— 1 个空模板，含 header `rater_id,item_id,sample_id,blinded_label,dimension_id,score`
+2. 招募 rater（≥3 人，独立填写）：把 `expert_review_packet_blinded.json` 与 rater 操作说明分发给 rater；操作说明里至少包括 packet 里的 `review_dimensions[*].prompt`、量表 1–5、不允许查看 packet 之外的内部 telemetry。**任何分发渠道都可以**（云盘 / 邮件 / 表单 / 平台），只要 rater 最终交回**一个 CSV per rater**（保留 header）。
+3. 回收 + 合并：把所有 rater 的 CSV 放到一个目录，例如 `artifacts/dialogue_paper_suite/ratings/`。每个 rater 一个 CSV，rater_id 不冲突。然后用 `volvence_zero.agent.load_dialogue_human_rating_entries_csv_dir(csv_dir)` 一次性加载（rater_id 冲突会抛错防止重复计票，紧急情况可用 `forbid_rater_id_collision=False`）。
+4. Aggregate + 重导：把合并后的 entries 与 `expert_review_key_internal.json` + 原始 `reference_run_report` 喂给 `aggregate_dialogue_human_ratings(packet, entries, internal_key, reference_report)`，得到 `human_ratings_aggregate`；再调用 `export_dialogue_paper_suite_artifact_bundle(report, output_dir, human_ratings_aggregate=aggregate)` 重导 bundle，让 `claim_external_human_legibility` verdict 反映真实评分。
+5. 验收：`paper_suite_aggregate.json` 中
+   - `claim_external_human_legibility.status == "retain"` 需要 `rater_count >= 3` AND `inter_rater_agreement >= 0.6` AND（任一维度 `correlation_with_automatic > 0.1` 或所有 pairwise preferences `win_rate >= 0.5` 且 `mean_score_delta > 0`）
+   - `weak` 仅需 `rater_count >= 2` 且 `inter_rater_agreement >= 0.4`
+
+**安全护栏**
+
+- `tests/test_dialogue_benchmark.py::test_blind_packet_transcripts_have_no_profile_label_leak` —— 验证 packet 里的 transcript 不含 `pe-eta` / `pe-drive-off` / `eta-off` 这类 profile-label 字符串（case_id 是英文常用词如 `repair` / `goal_drift` 时不能误报，因为它们必然出现在话题中）
+- `tests/test_dialogue_benchmark.py::test_dialogue_paper_suite_artifact_bundle_exports_expert_review_packet` —— 验证 `source_profile_label` 不出现在 packet JSON 全文中
+- `human_ratings_aggregate.json` 里包含真实 profile_label，**只能内部消费**，不要随 packet 一起外发
+
+**当前 inter-rater agreement 算法**
+
+实现见 `_dialogue_inter_rater_agreement`：对每个 `(item_id, sample_id, dimension_id)` 单元，计算所有 rater 两两绝对差的均值，映射到 [0, 1]（除以 4，假定 1–5 量表），最后对所有单元再取均值。这与 Krippendorff's alpha / Cohen's kappa 不直接可比。Krippendorff alpha v2 是 backlog 项；外发数据对外引用时请明确指出口径。
+
 ## Companion Evidence Map
 
 本节冻结 companionship claim 的最小自动证据口径。它回答“陪伴能力是否只是固定 prompt”的问题，但不把固定 scripted benchmark pass 误写成人类级关系成熟。
@@ -244,6 +271,7 @@
 - AAC1 `alignment_pe_repair_visibility`: commitment alignment 从 AGREE→REJECT 的转变能进入 relationship PE，并产生 `DEFER_ONLY` repair follow-up policy
 - RGM1 `regime_delayed_attribution_visibility`: dialogue-like repair/support regime evidence 能产生 delayed attribution、delayed credit records 与 evaluation readout metrics，且不要求硬编码 regime 切换
 - RFL1 `reflection_writeback_stability`: reflection 能消费 dialogue slow-loop evidence，并通过 checkpoint / rollback 的 bounded apply path 写入 memory / regime evidence，不直接绕过 owner
+- AAC1 / RGM1 / RFL1 在 dialogue paper-suite 层是**外部注入**：上游 `lifeform_evolution.companion_evidence.run_companion_evidence()` 生产 `CompanionEvidenceGate` 列表后，由编排层（如 lifeform-bench）通过 `export_dialogue_paper_suite_artifact_bundle(..., companion_structural_gates=((gate_id, passed), ...))` 注入。dialogue 层不导入 `lifeform_evolution`，只读不可变 `(gate_id, passed)` 元组（R8 / SSOT 合规）。当未注入时，verdict 的 retain 检查回退到 4 项地基（`semantic-spine-ready` + 两个 spine 指标 + `cross-session-growth`），与历史行为一致；注入后 retain 还要求所有提供的 structural gate 通过
 - v2 `composite_score` 记录 C1-C5 gate score + widening transcript diversity；v2 transcript diversity 是 widening diagnostic，不单独作为 retain 硬门槛
 
 **weak 条件**：

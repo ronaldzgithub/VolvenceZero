@@ -2080,6 +2080,68 @@ def test_load_dialogue_human_rating_entries_csv_dir_rejects_rater_id_collision(t
     assert len(merged) == 2
 
 
+def test_companion_structural_gates_propagate_into_companion_stateful_verdict(tmp_path):
+    """AAC1 / RGM1 / RFL1 gate results from upstream
+    `companion_evidence` can be injected into the dialogue export and
+    surface as additional retain checks + required_gate_ids on
+    `claim_companion_stateful_relationship`. When the gate map is empty
+    the verdict shape is unchanged (back-compat)."""
+
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    report = asyncio.run(
+        run_dialogue_paper_suite_repeated_benchmark(
+            manifest=manifest,
+            runtime_mode=LocalSubstrateRuntimeMode.BUILTIN_ONLY,
+        )
+    )
+
+    bundle_with_gates_dir = tmp_path / "with_gates"
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        report,
+        output_dir=bundle_with_gates_dir,
+        companion_structural_gates=(("AAC1", True), ("RGM1", True), ("RFL1", False)),
+    )
+    aggregate_payload = json.loads(
+        (bundle_with_gates_dir / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    companion_verdict = next(
+        verdict
+        for verdict in aggregate_payload["claim_verdicts"]
+        if verdict["claim_id"] == "claim_companion_stateful_relationship"
+    )
+    required_gate_ids = set(companion_verdict["required_gate_ids"])
+    assert {"AAC1", "RGM1", "RFL1"}.issubset(required_gate_ids)
+    evidence_map = dict(companion_verdict["evidence"])
+    assert evidence_map["AAC1_alignment_pe_repair_visibility"] == 1.0
+    assert evidence_map["RGM1_regime_delayed_attribution_visibility"] == 1.0
+    assert evidence_map["RFL1_reflection_writeback_stability"] == 0.0
+    # When any structural gate fails, the verdict must NOT be retain
+    # even if all spine checks would otherwise pass.
+    assert companion_verdict["status"] in {"weak", "fail"}
+
+    bundle_no_gates_dir = tmp_path / "no_gates"
+    export_dialogue_paper_suite_artifact_bundle(
+        report,
+        output_dir=bundle_no_gates_dir,
+    )
+    aggregate_no_gates = json.loads(
+        (bundle_no_gates_dir / "paper_suite_aggregate.json").read_text(encoding="utf-8")
+    )
+    companion_verdict_no_gates = next(
+        verdict
+        for verdict in aggregate_no_gates["claim_verdicts"]
+        if verdict["claim_id"] == "claim_companion_stateful_relationship"
+    )
+    no_gates_required = set(companion_verdict_no_gates["required_gate_ids"])
+    assert "AAC1" not in no_gates_required
+    assert "RGM1" not in no_gates_required
+    assert "RFL1" not in no_gates_required
+    no_gates_evidence_map = dict(companion_verdict_no_gates["evidence"])
+    assert no_gates_evidence_map["AAC1_alignment_pe_repair_visibility"] == -1.0
+    assert no_gates_evidence_map["RGM1_regime_delayed_attribution_visibility"] == -1.0
+    assert no_gates_evidence_map["RFL1_reflection_writeback_stability"] == -1.0
+
+
 def test_dialogue_temporal_advantage_claim_requires_runtime_backbone_consistency(tmp_path):
     manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
     provenance = PaperSuiteProvenance(
