@@ -655,6 +655,7 @@ class LifeformSession:
                 user_input=user_input,
                 scene_id=open_scene.scene_id,
                 timestamp_ms=self._tick.tick_index,
+                event_kind=event_kind,
                 trigger_kind=trigger_kind.value,
                 provenance=f"LifeformSession.run_turn:{event_kind.value}",
             )

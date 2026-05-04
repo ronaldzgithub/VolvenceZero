@@ -175,6 +175,7 @@ def build_user_input_environment_event(
     user_input: str,
     scene_id: str,
     timestamp_ms: int,
+    event_kind: EnvironmentEventKind = EnvironmentEventKind.USER_INPUT,
     trigger_kind: str = EnvironmentEventKind.USER_INPUT.value,
     frame: EnvironmentFrame | None = None,
     provenance: str = "user_input",
@@ -184,7 +185,7 @@ def build_user_input_environment_event(
 
     return EnvironmentEvent(
         event_id=event_id,
-        event_kind=EnvironmentEventKind.USER_INPUT,
+        event_kind=event_kind,
         trigger_kind=trigger_kind,
         frame=frame or build_primary_environment_frame(),
         scene_id=scene_id,

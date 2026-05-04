@@ -9,6 +9,7 @@ ingested content.
 from __future__ import annotations
 
 from lifeform_core import TurnTriggerKind
+from volvence_zero.environment import EnvironmentEventKind
 
 from lifeform_ingestion import (
     IngestionComplianceProfile,
@@ -64,6 +65,24 @@ async def test_consultative_profile_produces_user_input_turns() -> None:
     report = await pipeline.process_envelope(envelope, session=session)
     assert report.processed_chunks == 1
     assert session.turn_summaries[-1].trigger_kind is TurnTriggerKind.USER_INPUT
+    assert report.turns[0].environment_event_kind == EnvironmentEventKind.USER_INPUT.value
+
+
+async def test_forced_ingestion_turns_publish_ingestion_environment_event_kind() -> None:
+    from lifeform_domain_emogpt import build_companion_lifeform
+
+    lifeform = build_companion_lifeform()
+    session = lifeform.create_session(session_id="ingestion-e2e-event-kind")
+    envelope = envelope_from_text(
+        "Canonical ingestion event kind should reach the kernel.",
+        source_uri="inline:event-kind",
+    )
+    pipeline = IngestionPipeline()
+    report = await pipeline.process_envelope(envelope, session=session)
+
+    assert report.processed_chunks == 1
+    assert session.turn_summaries[-1].trigger_kind is TurnTriggerKind.INGESTION
+    assert report.turns[0].environment_event_kind == EnvironmentEventKind.INGESTION.value
 
 
 async def test_task_result_envelope_flows_through_ingestion() -> None:

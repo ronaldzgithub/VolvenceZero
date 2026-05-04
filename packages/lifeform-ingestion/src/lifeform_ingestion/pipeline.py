@@ -79,6 +79,7 @@ class IngestionTurnRecord:
     turn_succeeded: bool
     response_text_snippet: str = ""
     skipped_reason: str = ""
+    environment_event_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -190,6 +191,7 @@ class IngestionPipeline:
                     locator=chunk.locator,
                     turn_succeeded=True,
                     response_text_snippet=response_text,
+                    environment_event_kind=_extract_environment_event_kind(result),
                 )
             )
 
@@ -226,6 +228,11 @@ def _extract_response_snippet(run_turn_result: Any, *, max_chars: int = 160) -> 
     if not isinstance(text, str):
         return ""
     return text[:max_chars]
+
+
+def _extract_environment_event_kind(run_turn_result: Any) -> str:
+    event_kind = getattr(run_turn_result, "environment_event_kind", "")
+    return event_kind if isinstance(event_kind, str) else ""
 
 
 __all__ = [
