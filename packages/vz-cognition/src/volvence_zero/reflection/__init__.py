@@ -14,6 +14,8 @@ from volvence_zero.reflection.writeback import (
     WritebackCheckpoint,
     WritebackMode,
     WritebackResult,
+    enrich_reflection_snapshot_with_rupture_repair,
+    rupture_repair_memory_entries,
 )
 
 __all__ = [
@@ -32,4 +34,6 @@ __all__ = [
     "WritebackCheckpoint",
     "WritebackMode",
     "WritebackResult",
+    "enrich_reflection_snapshot_with_rupture_repair",
+    "rupture_repair_memory_entries",
 ]

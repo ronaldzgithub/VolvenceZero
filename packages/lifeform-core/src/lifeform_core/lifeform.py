@@ -53,6 +53,11 @@ from volvence_zero.agent.response import (
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.agent.dialogue_outcome_producers import scene_closed_evidence
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+)
 from volvence_zero.environment import build_user_input_environment_event
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
@@ -181,6 +186,7 @@ class Lifeform:
         regime_bootstrap: RegimeBootstrap | None = None,
         memory_store: MemoryStore | None = None,
         thinking_adapter_factory: ThinkingAdapterFactory | None = None,
+        identity_provider: Any | None = None,
     ) -> None:
         self._config = config or LifeformConfig()
         self._brain = Brain(
@@ -192,6 +198,7 @@ class Lifeform:
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
             memory_store=memory_store,
+            identity_provider=identity_provider,
         )
         self._thinking_adapter_factory = thinking_adapter_factory
         self._init_kwargs = {
@@ -203,6 +210,7 @@ class Lifeform:
             "regime_bootstrap": regime_bootstrap,
             "memory_store": memory_store,
             "thinking_adapter_factory": thinking_adapter_factory,
+            "identity_provider": identity_provider,
         }
 
     @property
@@ -590,6 +598,33 @@ class LifeformSession:
 
     def submit_reviewed_knowledge_event(self, **kwargs: Any) -> tuple[str, ...]:
         return self._brain_session.submit_reviewed_knowledge_event(**kwargs)
+
+    def submit_dialogue_outcome(
+        self,
+        *,
+        kind: DialogueExternalOutcomeKind,
+        source: DialogueExternalOutcomeEvidenceSource = DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence: float = 0.9,
+        turn_index: int | None = None,
+        evidence_ref: str | None = None,
+        description: str = "",
+    ) -> DialogueExternalOutcomeEvidence:
+        """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
+
+        Thin pass-through to
+        ``BrainSession.submit_dialogue_outcome``. The lifeform layer
+        does not add its own semantics here; it only provides the
+        product-level entry point.
+        """
+
+        return self._brain_session.submit_dialogue_outcome(
+            kind=kind,
+            source=source,
+            confidence=confidence,
+            turn_index=turn_index,
+            evidence_ref=evidence_ref,
+            description=description,
+        )
 
     # ------------------------------------------------------------------
     # Turn lifecycle

@@ -77,8 +77,15 @@ from volvence_zero.reflection import (
     WritebackCheckpoint,
     WritebackMode,
     WritebackResult,
+    enrich_reflection_snapshot_with_rupture_repair,
 )
+from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
+from volvence_zero.dialogue_trace import DialogueExternalOutcomeSnapshot
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
+from volvence_zero.rupture_state import (
+    RuptureStateModule,
+    RuptureStateSnapshot,
+)
 from volvence_zero.runtime import (
     EventRecorder,
     RuntimePlaceholderValue,
@@ -185,6 +192,12 @@ class FinalRolloutConfig:
     intent_about_other: WiringLevel = WiringLevel.SHADOW
     feeling_about_other: WiringLevel = WiringLevel.SHADOW
     preference_about_other: WiringLevel = WiringLevel.SHADOW
+    # Rupture-and-repair v0 (F1 / F2): rupture_state is SHADOW only.
+    # dialogue_external_outcome is ACTIVE because it is the single legal
+    # snapshot channel for external outcomes into the kernel; disabling
+    # it would silently lose any submitted evidence.
+    dialogue_external_outcome: WiringLevel = WiringLevel.ACTIVE
+    rupture_state: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -230,6 +243,8 @@ class FinalRolloutConfig:
             "intent_about_other": self.intent_about_other,
             "feeling_about_other": self.feeling_about_other,
             "preference_about_other": self.preference_about_other,
+            "dialogue_external_outcome": self.dialogue_external_outcome,
+            "rupture_state": self.rupture_state,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -1089,6 +1104,8 @@ def build_final_runtime_modules(
     group_joint_attention: tuple[str, ...] = (),
     group_joint_commitments: tuple[str, ...] = (),
     group_regime_id: str | None = None,
+    dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
+    rupture_state_module: RuptureStateModule | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1111,7 +1128,28 @@ def build_final_runtime_modules(
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
     if prediction_module is not None:
         prediction_module.set_action_context(prediction_action_context)
+    # Dialogue external outcome and rupture_state are wired alongside
+    # the existing graph. The outcome module has no declared upstream,
+    # so topological sort places it early; rupture_state declares
+    # prediction_error / relationship_state / response_assembly /
+    # dialogue_external_outcome as dependencies, so it runs after them.
+    dialogue_external_outcome_owner = (
+        dialogue_external_outcome_module
+        or DialogueExternalOutcomeModule(
+            wiring_level=config.level_for(
+                "dialogue_external_outcome", WiringLevel.ACTIVE
+            ),
+        )
+    )
+    dialogue_external_outcome_owner.set_turn_index(turn_index)
+    rupture_state_owner = rupture_state_module or RuptureStateModule(
+        wiring_level=config.level_for("rupture_state", WiringLevel.SHADOW),
+    )
     return [
+        # dialogue_external_outcome must be published before PE and
+        # regime (both depend on it). The PE<->regime cycle forces
+        # topo_sort into input-order fallback, so module order matters.
+        dialogue_external_outcome_owner,
         SubstrateModule(
             adapter=substrate_adapter,
             wiring_level=config.level_for("substrate", WiringLevel.ACTIVE),
@@ -1268,6 +1306,7 @@ def build_final_runtime_modules(
             policy=resolved_self_temporal_policy,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
+        rupture_state_owner,
     ]
 
 
@@ -1296,6 +1335,9 @@ async def run_final_wiring_turn(
     self_temporal_policy: TemporalPolicy | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
+    dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
+    rupture_state_module: RuptureStateModule | None = None,
+    user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
     turn_index: int = 0,
@@ -1357,6 +1399,8 @@ async def run_final_wiring_turn(
         group_joint_attention=group_joint_attention,
         group_joint_commitments=group_joint_commitments,
         group_regime_id=group_regime_id,
+        dialogue_external_outcome_module=dialogue_external_outcome_module,
+        rupture_state_module=rupture_state_module,
     )
     if upstream_snapshots:
         for module in modules:
@@ -1687,6 +1731,61 @@ async def run_final_wiring_turn(
                 credit_module.ledger.record_credits(extra_credits)
             active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
             credit_snapshot = active_snapshots.get("credit")
+    # Rupture-and-Repair M3: ReflectionModule runs during propagate and
+    # only sees ACTIVE upstream snapshots; rupture_state is SHADOW in
+    # v0, so the reflection snapshot built inside propagate does not
+    # carry rupture-repair memory entries. Post-propagate, we read the
+    # shadow snapshot and enrich the reflection snapshot so the
+    # session-post apply path writes the durable entry through
+    # ``ReflectionEngine.apply`` -> ``memory_store`` (the only legal
+    # rupture_repair write path, see docs/specs/rupture-and-repair.md).
+    if (
+        reflection_snapshot is not None
+        and isinstance(reflection_snapshot.value, ReflectionSnapshot)
+    ):
+        rupture_shadow = shadow_snapshots.get("rupture_state")
+        rupture_value = (
+            rupture_shadow.value
+            if rupture_shadow is not None
+            and isinstance(rupture_shadow.value, RuptureStateSnapshot)
+            else None
+        )
+        external_outcome_snapshot_for_reflection = active_snapshots.get(
+            "dialogue_external_outcome"
+        )
+        external_outcome_value = (
+            external_outcome_snapshot_for_reflection.value
+            if external_outcome_snapshot_for_reflection is not None
+            and isinstance(
+                external_outcome_snapshot_for_reflection.value,
+                DialogueExternalOutcomeSnapshot,
+            )
+            else None
+        )
+        regime_snapshot_for_reflection = active_snapshots.get(
+            "regime"
+        ) or shadow_snapshots.get("regime")
+        regime_value_for_reflection = (
+            regime_snapshot_for_reflection.value
+            if regime_snapshot_for_reflection is not None
+            and isinstance(regime_snapshot_for_reflection.value, RegimeSnapshot)
+            else None
+        )
+        enriched = enrich_reflection_snapshot_with_rupture_repair(
+            reflection_snapshot=reflection_snapshot.value,
+            rupture_state_snapshot=rupture_value,
+            external_outcome_snapshot=external_outcome_value,
+            regime_snapshot=regime_value_for_reflection,
+            user_scope=user_scope,
+            timestamp_ms=reflection_snapshot.timestamp_ms,
+        )
+        reflection_snapshot = Snapshot(
+            slot_name=reflection_snapshot.slot_name,
+            owner=reflection_snapshot.owner,
+            version=reflection_snapshot.version,
+            timestamp_ms=reflection_snapshot.timestamp_ms,
+            value=enriched,
+        )
     session_post_writeback_request = _build_session_post_writeback_request(
         context_session_id=session_id,
         source_wave_id=wave_id,

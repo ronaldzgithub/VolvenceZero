@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeKind,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -72,6 +77,11 @@ class ActualOutcome:
     action_payoff: float
     description: str
     action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
+    # Provenance: evidence_ids of DialogueExternalOutcomeEvidence entries
+    # that biased this outcome. Empty tuple when PE derived the outcome
+    # purely from internal upstream signals. Populated via
+    # ``_apply_external_outcome_bias``; never set by external writers.
+    external_outcome_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -436,10 +446,22 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     # Commitment is added as a dependency so that AAC alignment transitions
     # (Gap 7 / docs/specs/aac-lifecycle.md) can enter the PE signal chain
     # as a discrete-event PE source distinct from continuous substrate PE.
+    # dialogue_external_outcome (Rupture-and-Repair M2) is added so the
+    # PE owner can fuse externally-confirmed outcome signals into its
+    # internally-derived actual outcome; the single legal channel for
+    # external outcomes into the kernel. No external writer mutates PE
+    # state directly; PE consumes the snapshot inside its own ``process``.
     # Consumers still read a single unified ``PredictionErrorSnapshot``; the
     # commitment contribution is overlaid inside _advance and described in
     # the snapshot description so the origin remains auditable.
-    dependencies = ("substrate", "evaluation", "dual_track", "regime", "commitment")
+    dependencies = (
+        "substrate",
+        "evaluation",
+        "dual_track",
+        "regime",
+        "commitment",
+        "dialogue_external_outcome",
+    )
     default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(
@@ -503,6 +525,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         dual_track_snapshot = upstream["dual_track"]
         regime_snapshot = upstream["regime"]
         commitment_snapshot = upstream.get("commitment")
+        external_outcome_snapshot = upstream.get("dialogue_external_outcome")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         evaluation_value = evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
@@ -512,6 +535,14 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             commitment_snapshot.value, CommitmentSnapshot
         ):
             commitment_value = commitment_snapshot.value
+        external_outcome_value: DialogueExternalOutcomeSnapshot | None = None
+        if (
+            external_outcome_snapshot is not None
+            and isinstance(
+                external_outcome_snapshot.value, DialogueExternalOutcomeSnapshot
+            )
+        ):
+            external_outcome_value = external_outcome_snapshot.value
         if evaluation_value is None or dual_track_value is None:
             return self.publish(_bootstrap_snapshot(turn_index=self._turn_index))
         self._turn_index += 1
@@ -524,6 +555,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             dual_track_snapshot=dual_track_value,
             regime_snapshot=regime_value,
             commitment_snapshot=commitment_value,
+            external_outcome_snapshot=external_outcome_value,
         )
         self._previous_prediction = snapshot.next_prediction
         self._previous_substrate_snapshot = substrate_value
@@ -537,6 +569,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         dual_track_snapshot = kwargs.get("dual_track_snapshot")
         regime_snapshot = kwargs.get("regime_snapshot")
         commitment_snapshot = kwargs.get("commitment_snapshot")
+        external_outcome_snapshot = kwargs.get("external_outcome_snapshot")
         previous_prediction = kwargs.get("previous_prediction")
         previous_substrate_snapshot = kwargs.get("previous_substrate_snapshot")
         turn_index = int(kwargs.get("turn_index", 0))
@@ -545,6 +578,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         regime_value = regime_snapshot if isinstance(regime_snapshot, RegimeSnapshot) else None
         commitment_value = (
             commitment_snapshot if isinstance(commitment_snapshot, CommitmentSnapshot) else None
+        )
+        external_outcome_value = (
+            external_outcome_snapshot
+            if isinstance(external_outcome_snapshot, DialogueExternalOutcomeSnapshot)
+            else None
         )
         return self.publish(
             self._advance(
@@ -558,6 +596,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 dual_track_snapshot=dual_track_snapshot,
                 regime_snapshot=regime_value,
                 commitment_snapshot=commitment_value,
+                external_outcome_snapshot=external_outcome_value,
             )
         )
 
@@ -648,6 +687,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         dual_track_snapshot: DualTrackSnapshot,
         regime_snapshot: RegimeSnapshot | None,
         commitment_snapshot: CommitmentSnapshot | None = None,
+        external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
     ) -> PredictionErrorSnapshot:
         next_prediction = self.compute_prediction(
             source_turn_index=turn_index,
@@ -666,6 +706,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             dual_track_snapshot=dual_track_snapshot,
             regime_snapshot=regime_snapshot,
             action_context=self._action_context,
+            external_outcome_snapshot=external_outcome_snapshot,
         )
         bootstrap = previous_prediction is None
         evaluated_prediction = previous_prediction
@@ -749,6 +790,7 @@ def derive_actual_outcome(
     dual_track_snapshot: DualTrackSnapshot,
     regime_snapshot: RegimeSnapshot | None,
     action_context: PredictionActionContext | None = None,
+    external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
 ) -> ActualOutcome:
     evidence = _build_outcome_evidence(
         substrate_snapshot=substrate_snapshot,
@@ -757,10 +799,96 @@ def derive_actual_outcome(
         dual_track_snapshot=dual_track_snapshot,
         regime_snapshot=regime_snapshot,
     )
-    return _PredictionErrorHead().build_actual_outcome(
+    base = _PredictionErrorHead().build_actual_outcome(
         observed_turn_index=observed_turn_index,
         evidence=evidence,
         action_context=action_context or PredictionActionContext(),
+    )
+    return _apply_external_outcome_bias(
+        base=base,
+        external_outcome_snapshot=external_outcome_snapshot,
+    )
+
+
+# Per-kind bias table for external outcomes. Each bias is a signed delta
+# applied to the corresponding axis of ``ActualOutcome``; the result is
+# clamped to the axis' valid range (task / regime / action to ``[0, 1]``,
+# relationship_delta to ``[-1, 1]``). Values are scaled by the evidence's
+# confidence before being applied. The table is a documented static
+# mapping, NOT learned — learned outcome weighting is explicitly
+# post-v0 (see docs/specs/rupture-and-repair.md).
+_EXTERNAL_OUTCOME_AXIS_BIAS: dict[
+    DialogueExternalOutcomeKind,
+    tuple[float, float, float, float],
+] = {
+    # (task_progress_delta, relationship_delta, regime_stability_delta, action_payoff_delta)
+    DialogueExternalOutcomeKind.HELPED: (0.0, +0.50, 0.0, +0.30),
+    DialogueExternalOutcomeKind.FELT_HEARD: (0.0, +0.60, 0.0, 0.0),
+    DialogueExternalOutcomeKind.DECISION_CLEARER: (+0.50, 0.0, 0.0, +0.50),
+    DialogueExternalOutcomeKind.COME_BACK: (0.0, 0.0, -0.20, -0.30),
+    DialogueExternalOutcomeKind.MISSED: (0.0, -0.60, 0.0, -0.20),
+    DialogueExternalOutcomeKind.OVER_DIRECTIVE: (0.0, -0.40, -0.10, -0.30),
+    DialogueExternalOutcomeKind.UNSAFE: (0.0, -0.70, -0.30, -0.50),
+    DialogueExternalOutcomeKind.ABANDONED: (-0.40, -0.60, 0.0, -0.40),
+}
+
+
+def _apply_external_outcome_bias(
+    *,
+    base: ActualOutcome,
+    external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None,
+) -> ActualOutcome:
+    """Bias ``base`` by per-entry kind deltas from the external snapshot.
+
+    This helper preserves provenance via ``external_outcome_refs``. The
+    bias magnitudes are the only place where the external-outcome
+    vocabulary meets the PE axes; the mapping is documented and closed.
+    """
+
+    if external_outcome_snapshot is None:
+        return base
+    entries: tuple[DialogueExternalOutcomeEvidence, ...] = external_outcome_snapshot.entries
+    if not entries:
+        return base
+
+    task_bias = 0.0
+    relationship_bias = 0.0
+    regime_bias = 0.0
+    action_bias = 0.0
+    refs: list[str] = []
+    for entry in entries:
+        weights = _EXTERNAL_OUTCOME_AXIS_BIAS.get(entry.kind)
+        if weights is None:
+            continue
+        scale = max(0.0, min(1.0, float(entry.confidence)))
+        task_delta, rel_delta, regime_delta, action_delta = weights
+        task_bias += task_delta * scale
+        relationship_bias += rel_delta * scale
+        regime_bias += regime_delta * scale
+        action_bias += action_delta * scale
+        refs.append(entry.evidence_id)
+
+    if not refs:
+        return base
+
+    task_progress = _clamp_unit(base.task_progress + task_bias)
+    relationship_delta = _clamp_signed(base.relationship_delta + relationship_bias)
+    regime_stability = _clamp_unit(base.regime_stability + regime_bias)
+    action_payoff = _clamp_unit(base.action_payoff + action_bias)
+    ref_list = ", ".join(refs[:3]) + (f" (+{len(refs) - 3} more)" if len(refs) > 3 else "")
+    return ActualOutcome(
+        observed_turn_index=base.observed_turn_index,
+        task_progress=task_progress,
+        relationship_delta=relationship_delta,
+        regime_stability=regime_stability,
+        action_payoff=action_payoff,
+        description=(
+            f"{base.description} | external-outcome bias applied "
+            f"task+{task_bias:.2f} rel{relationship_bias:+.2f} "
+            f"regime{regime_bias:+.2f} action{action_bias:+.2f} refs=[{ref_list}]"
+        ),
+        action_context=base.action_context,
+        external_outcome_refs=tuple(refs),
     )
 
 

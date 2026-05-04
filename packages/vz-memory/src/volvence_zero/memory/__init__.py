@@ -13,6 +13,18 @@ from volvence_zero.memory.cms import (
     CMSTowerProfile,
     CMSVariant,
 )
+from volvence_zero.memory.identity import (
+    ANONYMOUS_USER_SCOPE,
+    AnonymousIdentityProvider,
+    IdentityProvider,
+    StaticIdentityProvider,
+    UserIdentity,
+    build_scoped_memory_store,
+    delete_entries_for_scope,
+    list_durable_entries_for_scope,
+    scope_key_for,
+    scoped_memory_dir,
+)
 from volvence_zero.memory.persistence import (
     FileSystemPersistenceBackend,
     PersistenceBackend,
@@ -36,6 +48,8 @@ from volvence_zero.memory.store import (
 )
 
 __all__ = [
+    "ANONYMOUS_USER_SCOPE",
+    "AnonymousIdentityProvider",
     "CMSBandMLP",
     "CMSBandState",
     "CMSCheckpointState",
@@ -50,8 +64,16 @@ __all__ = [
     "CMSTowerProfile",
     "CMSVariant",
     "FileSystemPersistenceBackend",
+    "IdentityProvider",
     "PersistenceBackend",
+    "StaticIdentityProvider",
+    "UserIdentity",
+    "build_scoped_memory_store",
+    "delete_entries_for_scope",
     "deserialize_checkpoint",
+    "list_durable_entries_for_scope",
+    "scope_key_for",
+    "scoped_memory_dir",
     "serialize_checkpoint",
     "build_default_memory_store",
     "MemoryEntry",

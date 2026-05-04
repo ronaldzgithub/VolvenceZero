@@ -10,6 +10,8 @@ values without adding semantic logic of its own.
 from __future__ import annotations
 
 from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeKind,
     DialogueOutcomeEvidence,
     DialogueOutcomeEvidenceSource,
     DialogueOutcomeKind,
@@ -190,6 +192,57 @@ def tool_outcome_evidence_from_environment_outcome(
     )
 
 
+_EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME: dict[
+    DialogueExternalOutcomeKind, DialogueOutcomeKind
+] = {
+    # Positive external outcomes map to CLARIFIED (resolved the turn).
+    DialogueExternalOutcomeKind.HELPED: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.FELT_HEARD: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.DECISION_CLEARER: DialogueOutcomeKind.CLARIFIED,
+    # COME_BACK = user wants to return later; structurally DEFERRED.
+    DialogueExternalOutcomeKind.COME_BACK: DialogueOutcomeKind.DEFERRED,
+    # Negative external outcomes map to CORRECTED (user explicitly pushed
+    # back). UNSAFE and ABANDONED use REJECTED (stronger rejection).
+    DialogueExternalOutcomeKind.MISSED: DialogueOutcomeKind.CORRECTED,
+    DialogueExternalOutcomeKind.OVER_DIRECTIVE: DialogueOutcomeKind.CORRECTED,
+    DialogueExternalOutcomeKind.UNSAFE: DialogueOutcomeKind.REJECTED,
+    DialogueExternalOutcomeKind.ABANDONED: DialogueOutcomeKind.REJECTED,
+}
+
+
+def structural_outcome_evidence_from_external(
+    evidence: DialogueExternalOutcomeEvidence,
+) -> DialogueOutcomeEvidence | None:
+    """Produce a structural ``DialogueOutcomeEvidence`` from an external entry.
+
+    The structural evidence is attached to the dialogue trace for replay /
+    reporting purposes. It is a lossy projection of the external kind into
+    the conservative trace vocabulary; the authoritative signal remains on
+    the ``dialogue_external_outcome`` snapshot.
+    """
+
+    outcome_kind = _EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME.get(evidence.kind)
+    if outcome_kind is None:
+        return None
+    return DialogueOutcomeEvidence(
+        evidence_id=f"external-bridge:{evidence.evidence_id}",
+        source=DialogueOutcomeEvidenceSource.SCENE_EVENT,
+        source_owner="DialogueExternalOutcomeModule",
+        outcome_kind=outcome_kind,
+        confidence=float(evidence.confidence),
+        evidence_refs=(
+            f"external_kind:{evidence.kind.value}",
+            f"external_source:{evidence.source.value}",
+            f"external_ref:{evidence.evidence_ref}",
+        ),
+        description=(
+            "Structural projection of DialogueExternalOutcomeEvidence for dialogue "
+            "trace replay; authoritative signal is on the dialogue_external_outcome "
+            "snapshot slot."
+        ),
+    )
+
+
 def _commitment_outcome_to_dialogue_outcome(last_outcome: object) -> DialogueOutcomeKind | None:
     name = getattr(last_outcome, "name", None)
     if name is None:
@@ -214,5 +267,6 @@ __all__ = [
     "commitment_outcome_evidence_from_commitment",
     "pe_continued_evidence_from_prediction_error",
     "scene_closed_evidence",
+    "structural_outcome_evidence_from_external",
     "tool_outcome_evidence_from_environment_outcome",
 ]

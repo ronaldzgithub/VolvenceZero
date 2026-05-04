@@ -85,7 +85,34 @@ from volvence_zero.temporal import (
 
 
 class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
-    """Minimal SSL-RL alternation loop over the stage-two building blocks."""
+    """SSL-RL joint training loop over the stage-two building blocks.
+
+    State ownership and write contract (read before changing ``run_cycle``):
+
+    * ``_memory_store``, ``_evaluation_backbone``, ``_world_policy`` and
+      ``_self_policy`` are by construction **shared** with the runtime main
+      chain (see ``AgentSessionRunner.__init__``). This is intentional
+      online-adaptation: joint-loop training updates must be visible to the
+      next serving turn. ``_regime_module`` is joint-loop private.
+    * Within a turn, the runtime main chain writes first (through
+      ``propagate(modules)`` and the final-wiring session-post path).
+      ``run_cycle`` is invoked afterwards. The two paths are therefore
+      serialised inside a turn, not concurrent.
+    * The only place ``run_cycle`` is permitted to mutate the shared
+      owners is the clearly marked TRAINING WRITEBACK PHASE below. If a
+      future change adds owner-state mutation outside that block, the
+      joint-loop becomes a second uncontrolled orchestrator and violates
+      R8. Keep the contract test
+      ``tests/test_phase2_eta_nl.py::test_joint_loop_shares_owner_instances_with_runtime``
+      green.
+
+    Handoffs that DO NOT go through the training writeback phase:
+    ``apply_rare_heavy_artifact`` / ``rollback_rare_heavy_import`` /
+    ``apply_online_fast_substrate_checkpoint`` are bounded checkpoint
+    transfers gated by ``live_substrate_mutation`` and audited via
+    ``SelfModificationRecord``; they are intentionally outside the
+    per-turn training writeback phase.
+    """
 
     owner_path = "online-joint-loop"
 
@@ -531,6 +558,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
             else None
         )
+        # === TRAINING WRITEBACK PHASE BEGIN ====================================
+        # All owner-state mutations from here to the matching `PHASE END`
+        # marker happen on shared instances (memory_store / evaluation_backbone
+        # / world_policy / self_policy). See class docstring for the contract.
+        # Any change that writes to a shared owner MUST sit inside this block.
+        # ========================================================================
         evaluation_snapshot = self._evaluation_backbone.record_temporal_public_evidence(
             session_id=session_id,
             wave_id=wave_id,
@@ -714,6 +747,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             applied_operations = applied_operations + ("ssl-rollback",)
         if policy_rollback_applied:
             applied_operations = applied_operations + ("policy-rollback",)
+        # === TRAINING WRITEBACK PHASE END ======================================
+        # Everything below here is pure bookkeeping on joint-loop PRIVATE state
+        # (previous_total_reward / previous_metacontroller_state / family
+        # signals cache / previous credit snapshot). It never mutates shared
+        # owner instances.
+        # ========================================================================
         self._previous_total_reward = total_reward
         self._previous_metacontroller_state = metacontroller_state
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)

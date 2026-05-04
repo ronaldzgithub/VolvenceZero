@@ -362,6 +362,25 @@
 
 ---
 
+### 17A. Rupture and Repair Loop（v0 SHADOW, M0 contract landed）
+
+**对应需求**：R-PE、R7、R8、R11、R15
+
+| Spec | 内容 |
+|------|------|
+| [rupture-and-repair.md](./rupture-and-repair.md) | `rupture_state` owner + `dialogue_external_outcome` slot；closed `RuptureKind` / `DialogueExternalOutcomeKind` vocabularies；external-confirmed-only rupture rule；rupture-repair memory tag schema and v0 → post-v0 migration path |
+
+**核心不变量**：
+
+- `rupture_kind` 是 evidence-bucket label，不是情绪分类
+- 只有至少一个非 PE 的 typed source 触发时才能写出 `rupture_kind`
+- 添加新 `RuptureKind` 必须先添加新 typed signal source（不用关键词 / LLM 分类）
+- `submit_dialogue_outcome` 不直接写 memory/regime/PE 内部状态；只发布 `dialogue_external_outcome` snapshot
+- rupture-repair durable 写入仅通过 `ReflectionEngine.apply(...)`
+- LLM proposal 默认禁用；启用后也只能低置信度 proposal
+
+---
+
 ### 18. Social Cognition Learning Layer
 
 **对应需求**：R16（多人身份学习）、R17（Theory of Mind owner 分解）、R18（会话角色学习）、R19（共同基础学习）、R20（群体实体学习）、R-PE、R1、R3/R4、R7、R8、R11、R14、R15

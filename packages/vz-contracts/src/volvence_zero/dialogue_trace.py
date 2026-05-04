@@ -40,6 +40,43 @@ class DialogueOutcomeEvidenceSource(str, Enum):
     SCENE_EVENT = "scene_event"
 
 
+class DialogueExternalOutcomeKind(str, Enum):
+    """Closed v0 vocabulary for *externally*-produced dialogue outcomes.
+
+    This vocabulary is distinct from :class:`DialogueOutcomeKind`:
+
+    * ``DialogueOutcomeKind`` is the structural replay taxonomy used by the
+      dialogue trace store (e.g. ``CONTINUED``, ``REJECTED``, ``SCENE_CLOSED``).
+    * ``DialogueExternalOutcomeKind`` is the *external-signal* taxonomy used
+      by rupture / repair evidence (e.g. ``MISSED``, ``DECISION_CLEARER``).
+
+    Adding a new value requires a typed evidence source capable of producing
+    it; free-text inference is not a typed source.
+    """
+
+    HELPED = "helped"
+    FELT_HEARD = "felt_heard"
+    MISSED = "missed"
+    OVER_DIRECTIVE = "over_directive"
+    DECISION_CLEARER = "decision_clearer"
+    COME_BACK = "come_back"
+    UNSAFE = "unsafe"
+    ABANDONED = "abandoned"
+
+
+class DialogueExternalOutcomeEvidenceSource(str, Enum):
+    """Typed source of :class:`DialogueExternalOutcomeEvidence`.
+
+    LLM proposal is present in the enum so the contract is stable, but
+    runtime intake is gated behind an explicit ``BrainConfig`` flag in v0.
+    """
+
+    USER_EXPLICIT = "user_explicit"
+    HUMAN_REVIEW = "human_review"
+    ENVIRONMENT = "environment"
+    LLM_PROPOSAL = "llm_proposal"
+
+
 class DialogueResolutionStatus(str, Enum):
     """Resolution state for a previous dialogue trace."""
 
@@ -69,6 +106,58 @@ class DialogueOutcomeEvidence:
         _require_non_empty("source_owner", self.source_owner)
         _require_unit_interval("confidence", self.confidence)
         _require_unique_non_empty("evidence_refs", self.evidence_refs)
+
+
+@dataclass(frozen=True)
+class DialogueExternalOutcomeEvidence:
+    """External outcome evidence for rupture / repair.
+
+    Produced by :func:`submit_dialogue_outcome` adapters (wired in vz-runtime)
+    and published on the ``dialogue_external_outcome`` snapshot slot. This
+    type carries only external-signal provenance; it does not model the
+    dialogue action being evaluated (that lives in :class:`DialogueActionTrace`).
+    """
+
+    evidence_id: str
+    turn_index: int
+    kind: DialogueExternalOutcomeKind
+    source: DialogueExternalOutcomeEvidenceSource
+    confidence: float
+    evidence_ref: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        _require_non_empty("evidence_id", self.evidence_id)
+        _require_non_empty("evidence_ref", self.evidence_ref)
+        _require_non_negative_int("turn_index", self.turn_index)
+        _require_unit_interval("confidence", self.confidence)
+
+
+@dataclass(frozen=True)
+class DialogueExternalOutcomeSnapshot:
+    """Per-turn readout of external outcome evidence.
+
+    Owned by ``DialogueExternalOutcomeModule`` (vz-runtime). Consumers
+    (``PredictionErrorModule``, ``RegimeModule``, ``RuptureStateModule``,
+    ``ReflectionEngine``) read this snapshot and integrate its entries
+    inside their own ``process(...)`` paths — no external caller mutates
+    those owners' internal state.
+    """
+
+    turn_index: int
+    entries: tuple[DialogueExternalOutcomeEvidence, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        _require_non_negative_int("turn_index", self.turn_index)
+        evidence_ids = tuple(entry.evidence_id for entry in self.entries)
+        _require_unique_non_empty("entries.evidence_id", evidence_ids)
+        for entry in self.entries:
+            if entry.turn_index > self.turn_index:
+                raise ValueError(
+                    "DialogueExternalOutcomeSnapshot.entries must not carry evidence "
+                    "from a later turn than the snapshot's turn_index."
+                )
 
 
 @dataclass(frozen=True)
@@ -217,6 +306,10 @@ def _require_unit_interval(field_name: str, value: float) -> None:
 __all__ = [
     "DialogueActionKind",
     "DialogueActionTrace",
+    "DialogueExternalOutcomeEvidence",
+    "DialogueExternalOutcomeEvidenceSource",
+    "DialogueExternalOutcomeKind",
+    "DialogueExternalOutcomeSnapshot",
     "DialogueOutcomeEvidence",
     "DialogueOutcomeEvidenceSource",
     "DialogueOutcomeKind",

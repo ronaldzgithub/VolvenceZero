@@ -823,6 +823,41 @@ class MemorySnapshot:
 - semantic retrieval index 属于 Memory owner 内部 derived index，不通过独立 slot 暴露
 - runtime retrieval facets 只消费上游 owner 已发布的 `memory_retrieval_facets`（如 `temporal_abstraction` / `dual_track` / `prediction_error`）；不得由 memory 解析 peer snapshot 内部字段重建 facet，也不得通过同轮直接调用形成第二 owner 或循环依赖
 
+**Rupture-repair 记忆 tag schema**（M0 契约冻结，M3 实施）：
+
+rupture-repair 条目**不**引入新的 `MemoryEntryKind` enum。它们复用
+`MemoryEntry`，通过固定的 tag schema + `content` 中的结构化 JSON 识别：
+
+必含 tags：
+
+- `rupture_repair`
+- `rupture_kind:<kind>`（`kind` 来自 `RuptureKind` 封闭枚举）
+- `repair_outcome:<observed|pending>`
+- `user_scope:<user_id_or_anon>`
+- `source_wave:<wave_id>`
+
+`MemoryEntry.content` 为 JSON 对象，包含：
+
+```json
+{
+  "rupture_kind": "misread",
+  "repair_move": "<id or placeholder>",
+  "source_turn_index": 12,
+  "source_wave_id": "<wave_id>",
+  "observed_outcome_kind": "HELPED",
+  "confidence": 0.8
+}
+```
+
+写入路径：**只有** `ReflectionEngine.apply(...)` 可以写入带 `rupture_repair`
+tag 的条目；`stratum=DURABLE` 仅当至少一个 typed external outcome 已观察到。
+持久化范围：`DURABLE` 条目落盘；`DERIVED` 派生索引在加载时由 owner 重建。
+
+**Post-v0 迁移路径**：如果 rupture-repair 变成承重能力，在 vz-memory 引入
+`RuptureRepairHistory` derived readout（**不**是 `MemoryEntryKind` enum），
+从现存 tag 反查回填，消费者切过去后再弃用 tag。详见
+[`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
+
 **消费者**：编排器、时间抽象层、双轨学习层、认知 Regime 层、慢反思路径
 **发布频率**：每 turn（瞬态/情景）、每会话（持久）
 
@@ -1357,8 +1392,14 @@ reflection ──────────────→ proposals; runtime invo
 | `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation |
 | `experience_consolidation` | ExperienceConsolidationModule | ExperienceConsolidationSnapshot | ACTIVE | session-post | experience_fast_prior, reports |
 | `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
+| `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |
+| `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
+
+**`dialogue_external_outcome` 契约语义**：这是**外部 outcome 进入内核的唯一 snapshot 通道**。`submit_dialogue_outcome(...)` 只向该 slot 的 owner 追加 typed evidence；它**不**直接写 memory / regime / PE 内部状态。`PredictionErrorModule` 在自身 `derive_actual_outcome(...)` 内消费该 snapshot，`RegimeModule` 在自身 `process(...)` 内根据该 snapshot 创建 `PendingRegimeOutcome` 行。这样保持 `_pending_outcomes` / `ActualOutcome` 的单写者不变量（R8）。
+
+**`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
 
 ### 6.1A Semantic Owner Emotional Decision Readouts
 

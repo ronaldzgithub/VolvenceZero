@@ -54,6 +54,11 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             "application_readouts", "social_cognition", "environment",
+            # rupture_state owner (Rupture and Repair, M1) consumes
+            # DialogueExternalOutcomeSnapshot published by vz-runtime's
+            # DialogueExternalOutcomeModule. The snapshot type itself lives
+            # in vz-contracts' dialogue_trace module.
+            "dialogue_trace",
         }
     ),
     "vz-application": frozenset(
@@ -61,8 +66,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state",
+            "reflection", "semantic_state", "rupture_state",
             "social", "social_cognition", "environment",
+            "dialogue_trace",
         }
     ),
     "vz-temporal": frozenset(
@@ -70,10 +76,11 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state",
+            "reflection", "semantic_state", "rupture_state",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",
+            "dialogue_trace",
         }
     ),
     "vz-runtime": frozenset(
@@ -81,7 +88,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "substrate", "memory", "dialogue_trace",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
-            "reflection", "semantic_state",
+            "reflection", "semantic_state", "rupture_state",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",

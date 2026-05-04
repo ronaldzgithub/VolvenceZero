@@ -16,6 +16,9 @@ from volvence_zero.agent.dialogue_outcome_producers import (
     tool_outcome_evidence_from_environment_outcome,
 )
 from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
     DialogueOutcomeEvidence,
     DialogueOutcomeResolution,
 )
@@ -25,7 +28,14 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
 )
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.memory import MemoryStore
+from volvence_zero.memory import (
+    AnonymousIdentityProvider,
+    IdentityProvider,
+    MemoryStore,
+    UserIdentity,
+    build_scoped_memory_store,
+    scope_key_for,
+)
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
@@ -69,6 +79,17 @@ class BrainConfig:
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
     rare_heavy_enabled: bool = True
+    # Rupture-and-Repair v0 Risk 2 mitigation: LLM-sourced external
+    # outcome proposals are OFF by default. Set this to True ONLY after
+    # reviewing the proposal adapter contract (post-v0 M9). See
+    # docs/specs/rupture-and-repair.md Risk 2.
+    allow_llm_outcome_proposals: bool = False
+    # Rupture-and-Repair M4: directory under which per-user scoped
+    # MemoryStore files are written. Required when the identity
+    # provider resolves a non-None UserIdentity with the ``"persist"``
+    # permission. None (default) keeps the current
+    # no-cross-session-memory behavior.
+    memory_scope_root_dir: str | None = None
 
 
 class BrainSession:
@@ -261,6 +282,34 @@ class BrainSession:
 
         return self._runner.attach_dialogue_outcome_evidence(evidence)
 
+    def submit_dialogue_outcome(
+        self,
+        *,
+        kind: DialogueExternalOutcomeKind,
+        source: DialogueExternalOutcomeEvidenceSource = DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence: float = 0.9,
+        turn_index: int | None = None,
+        evidence_ref: str | None = None,
+        description: str = "",
+    ) -> DialogueExternalOutcomeEvidence:
+        """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
+
+        Thin pass-through to ``AgentSessionRunner.submit_dialogue_outcome``.
+        Writes only to the ``dialogue_external_outcome`` snapshot buffer
+        and the dialogue trace store; no memory / regime / PE mutation.
+        LLM-sourced outcomes require the runner's
+        ``allow_llm_outcome_proposals`` flag to be True.
+        """
+
+        return self._runner.submit_dialogue_outcome(
+            kind=kind,
+            source=source,
+            confidence=confidence,
+            turn_index=turn_index,
+            evidence_ref=evidence_ref,
+            description=description,
+        )
+
     def export_snapshot_replay_artifact(self) -> dict[str, object]:
         return self._runner.export_snapshot_replay_artifact()
 
@@ -307,6 +356,7 @@ class Brain:
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
         memory_store: MemoryStore | None = None,
+        identity_provider: IdentityProvider | None = None,
     ) -> None:
         self._config = config or BrainConfig()
         self._injected_runtime = substrate_runtime
@@ -316,6 +366,13 @@ class Brain:
         self._temporal_bootstrap = temporal_bootstrap
         self._regime_bootstrap = regime_bootstrap
         self._memory_store = memory_store
+        # Rupture-and-Repair M4: identity provider resolves
+        # ``session_id`` into an optional ``UserIdentity``. Default is
+        # the anonymous provider; existing callers that don't pass a
+        # provider behave exactly as before.
+        self._identity_provider: IdentityProvider = (
+            identity_provider or AnonymousIdentityProvider()
+        )
 
     @property
     def config(self) -> BrainConfig:
@@ -340,6 +397,7 @@ class Brain:
             "temporal_bootstrap": self._temporal_bootstrap,
             "regime_bootstrap": self._regime_bootstrap,
             "memory_store": self._memory_store,
+            "identity_provider": self._identity_provider,
         }
 
     def with_domain_experience(
@@ -396,9 +454,31 @@ class Brain:
                 per-session state (e.g. a ``VitalsModule`` reference) can
                 be bound by closure without sharing mutable state across
                 sessions of the same Brain.
+
+        Rupture-and-Repair M4: when the configured ``identity_provider``
+        resolves ``session_id`` to a non-None ``UserIdentity`` with the
+        ``"persist"`` permission AND ``BrainConfig.memory_scope_root_dir``
+        is set, the session is given a filesystem-backed ``MemoryStore``
+        scoped to that user's directory so rupture-repair entries
+        survive across sessions. Anonymous sessions (the default) keep
+        the current in-memory-only behavior.
         """
         runtime = self._resolve_substrate_runtime()
         synthesizer = response_synthesizer or self._response_synthesizer
+        identity = self._identity_provider.resolve(session_id)
+        user_scope = scope_key_for(identity)
+        # Prefer an explicitly-injected ``Brain.memory_store`` (used by
+        # callers that manage their own persistence). Otherwise, if we
+        # have an identity with persist permission AND a scope root,
+        # build a per-user scoped store; else fall back to the default
+        # in-memory store via the session runner constructor.
+        session_memory_store: MemoryStore | None = self._memory_store
+        if session_memory_store is None and identity is not None and identity.has_permission("persist"):
+            if self._config.memory_scope_root_dir is not None:
+                session_memory_store = build_scoped_memory_store(
+                    identity=identity,
+                    root_dir=self._config.memory_scope_root_dir,
+                )
         runner_kwargs: dict[str, object] = dict(
             session_id=session_id,
             config=self._config.final_rollout_config or FinalRolloutConfig(),
@@ -410,7 +490,9 @@ class Brain:
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
-            memory_store=self._memory_store,
+            memory_store=session_memory_store,
+            allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
+            user_scope=user_scope,
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so

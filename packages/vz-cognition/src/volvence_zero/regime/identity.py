@@ -11,6 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeKind,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.backbone import EvaluationSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
@@ -55,11 +59,40 @@ if TYPE_CHECKING:
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
 
 
+# Per-kind score table for converting external outcome kinds into
+# ``DelayedOutcomeAttribution.outcome_score`` values in ``[0, 1]``.
+# 0.5 is neutral; positive outcomes pull toward 1.0, negative outcomes
+# pull toward 0.0. Scaled by evidence confidence before being applied.
+# This is a documented static mapping; learned scoring is post-v0.
+_EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
+    DialogueExternalOutcomeKind.HELPED: 0.85,
+    DialogueExternalOutcomeKind.FELT_HEARD: 0.85,
+    DialogueExternalOutcomeKind.DECISION_CLEARER: 0.90,
+    DialogueExternalOutcomeKind.COME_BACK: 0.40,
+    DialogueExternalOutcomeKind.MISSED: 0.20,
+    DialogueExternalOutcomeKind.OVER_DIRECTIVE: 0.15,
+    DialogueExternalOutcomeKind.UNSAFE: 0.05,
+    DialogueExternalOutcomeKind.ABANDONED: 0.05,
+}
+
+
 class RegimeModule(RuntimeModule[RegimeSnapshot]):
     slot_name = "regime"
     owner = "RegimeModule"
     value_type = RegimeSnapshot
-    dependencies = ("memory", "dual_track", "evaluation", "prediction_error", "experience_fast_prior")
+    # ``dialogue_external_outcome`` (Rupture-and-Repair M2) is added so the
+    # regime owner can build ``DelayedOutcomeAttribution`` rows from
+    # externally-confirmed outcomes inside its own ``process``. No
+    # external writer mutates ``_pending_outcomes``; the queue stays
+    # single-writer (R8).
+    dependencies = (
+        "memory",
+        "dual_track",
+        "evaluation",
+        "prediction_error",
+        "experience_fast_prior",
+        "dialogue_external_outcome",
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -155,6 +188,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         evaluation_snapshot = upstream["evaluation"]
         prediction_error_snapshot = upstream["prediction_error"]
         experience_fast_prior_snapshot = upstream["experience_fast_prior"]
+        external_outcome_snapshot = upstream.get("dialogue_external_outcome")
 
         memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
@@ -171,6 +205,14 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             if isinstance(experience_fast_prior_snapshot.value, ExperienceFastPriorSnapshot)
             else None
         )
+        external_outcome_value: DialogueExternalOutcomeSnapshot | None = None
+        if (
+            external_outcome_snapshot is not None
+            and isinstance(
+                external_outcome_snapshot.value, DialogueExternalOutcomeSnapshot
+            )
+        ):
+            external_outcome_value = external_outcome_snapshot.value
         experience_regime_biases = (
             {item.regime_id: item.bias for item in experience_fast_prior.regime_biases}
             if experience_fast_prior is not None
@@ -179,10 +221,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
 
         self._turn_index += 1
         self._record_turn_score(evaluation_value, prediction_error_snapshot=pe_value)
-        delayed_attributions = self._apply_delayed_outcomes(evaluation_value)
-        delayed_outcomes = tuple(
-            (item.regime_id, item.outcome_score) for item in delayed_attributions
-        )
+        delayed_attributions_internal = self._apply_delayed_outcomes(evaluation_value)
         self._update_historical_effectiveness(evaluation_value, prediction_error_snapshot=pe_value)
         previous_active = self._active_regime_id
         candidates = score_regimes(
@@ -204,6 +243,21 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             regime_id=self._active_regime_id or chosen_regime_id,
             abstract_action=abstract_action,
             action_family_version=action_family_version,
+        )
+        # Ingest externally-confirmed outcomes *after* the active regime
+        # has been chosen this turn, so attributions are attached to the
+        # regime the user actually scored. This is the only path that
+        # mutates _delayed_attribution_ledger / _delayed_payoffs from an
+        # external source; the pending-outcome queue stays single-writer.
+        external_attributions = self._ingest_external_outcome_attributions(
+            external_outcome_snapshot=external_outcome_value,
+            current_regime_id=self._active_regime_id or chosen_regime_id,
+            abstract_action=abstract_action,
+            action_family_version=action_family_version,
+        )
+        delayed_attributions = delayed_attributions_internal + external_attributions
+        delayed_outcomes = tuple(
+            (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
         self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
         identity_hints = self._identity_hints(memory_value)
@@ -453,6 +507,76 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                     resolution_horizon_turns=horizon,
                 )
             )
+
+    def _ingest_external_outcome_attributions(
+        self,
+        *,
+        external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None,
+        current_regime_id: str,
+        abstract_action: str | None,
+        action_family_version: int,
+    ) -> tuple[DelayedOutcomeAttribution, ...]:
+        """Build DelayedOutcomeAttribution rows from external outcome evidence.
+
+        Owner-internal: this is the only path by which external outcome
+        snapshot entries become regime attribution rows. The snapshot is
+        the single legal channel; PE and Regime each decide how to
+        consume it (R8).
+        """
+
+        if external_outcome_snapshot is None:
+            return ()
+        entries = external_outcome_snapshot.entries
+        if not entries:
+            return ()
+        matured: list[DelayedOutcomeAttribution] = []
+        for entry in entries:
+            score = _EXTERNAL_OUTCOME_REGIME_SCORE.get(entry.kind)
+            if score is None:
+                continue
+            # Confidence scales how far the score moves away from 0.5
+            # (neutral). This keeps low-confidence entries from fully
+            # replacing the internal trajectory.
+            scale = max(0.0, min(1.0, float(entry.confidence)))
+            resolved_score = 0.5 + (score - 0.5) * scale
+            resolved_score = max(0.0, min(1.0, resolved_score))
+            attribution = DelayedOutcomeAttribution(
+                regime_id=current_regime_id,
+                outcome_score=round(resolved_score, 4),
+                source_turn_index=int(entry.turn_index),
+                source_wave_id=f"external:{entry.evidence_id}",
+                abstract_action=abstract_action,
+                action_family_version=action_family_version,
+                resolved_turn_index=self._turn_index,
+            )
+            matured.append(attribution)
+            # Update internal effectiveness / priors / weights the same
+            # way _apply_delayed_outcomes does, preserving audit parity.
+            current = self._historical_effectiveness.get(current_regime_id, 0.5)
+            self._historical_effectiveness[current_regime_id] = round(
+                current * 0.8 + resolved_score * 0.2, 4
+            )
+            self._strategy_priors[current_regime_id] = _clamp(
+                self._strategy_priors.get(current_regime_id, 0.0)
+                + (resolved_score - 0.5) * 0.08
+            )
+            current_weight = self._selection_weights.get(current_regime_id, 1.0)
+            advantage = resolved_score - 0.5
+            self._selection_weights[current_regime_id] = max(
+                0.85,
+                min(
+                    1.15,
+                    current_weight
+                    + self._selection_weight_lr * advantage * current_weight,
+                ),
+            )
+            self._update_delayed_payoff(attribution)
+            self._update_sequence_payoff(attribution)
+        if not matured:
+            return ()
+        self._delayed_attribution_ledger.extend(matured)
+        self._delayed_attribution_ledger = self._delayed_attribution_ledger[-24:]
+        return tuple(matured)
 
     def _apply_delayed_outcomes(
         self,

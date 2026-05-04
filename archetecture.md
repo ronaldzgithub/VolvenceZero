@@ -81,3 +81,4 @@ Each boundary exists to protect one invariant, not to mirror a directory layout:
 - `docs/SYSTEM_DESIGN.md` explains the current data flow and implementation shape.
 - `SPLIT.md` defines repository split timing and mechanics.
 - `docs/next_gen_emogpt.md` is the design source for R-IDs and NL / ETA rationale.
+- `docs/specs/rupture-and-repair.md` defines the v0 `rupture_state` owner and the `dialogue_external_outcome` snapshot channel (single legal path for external outcomes into the kernel).

@@ -59,8 +59,15 @@ from volvence_zero.agent.dialogue_trace import DialogueTraceStore
 from volvence_zero.agent.dialogue_outcome_producers import (
     commitment_outcome_evidence_from_commitment,
     pe_continued_evidence_from_prediction_error,
+    structural_outcome_evidence_from_external,
 )
-from volvence_zero.dialogue_trace import DialogueOutcomeEvidence
+from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+    DialogueOutcomeEvidence,
+)
 from volvence_zero.credit.gate import (
     CreditSnapshot,
     GateDecision,
@@ -557,10 +564,23 @@ class AgentSessionRunner:
         primary_prediction_error_dominance_enabled: bool = True,
         dialogue_pe_continued_evidence_enabled: bool = True,
         dialogue_commitment_outcome_evidence_enabled: bool = True,
+        allow_llm_outcome_proposals: bool = False,
+        user_scope: str = "anonymous",
     ) -> None:
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
         self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
+        # Rupture-and-Repair v0: LLM-sourced external outcome proposals
+        # are OFF by default. Callers that want to experiment with an
+        # LLM proposal adapter must explicitly opt in (see docs/specs/
+        # rupture-and-repair.md Risk 2).
+        self._allow_llm_outcome_proposals = bool(allow_llm_outcome_proposals)
+        # Rupture-and-Repair v0 per-user scope: rupture-repair memory
+        # entries are tagged ``user_scope:<scope>``. Default is
+        # ``anonymous`` (current behavior preserved). Identified
+        # sessions pass the user's scope key here through the Brain
+        # facade so rupture_repair entries stay attributable.
+        self._user_scope = str(user_scope) if user_scope else "anonymous"
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
         world_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
@@ -638,6 +658,12 @@ class AgentSessionRunner:
         )
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
+        )
+        self._dialogue_external_outcome_module = DialogueExternalOutcomeModule(
+            wiring_level=self._config.level_for(
+                "dialogue_external_outcome", WiringLevel.ACTIVE
+            ),
+            allow_llm_outcome_proposals=self._allow_llm_outcome_proposals,
         )
         self._substrate_runtime_mode = (
             LocalSubstrateRuntimeMode(substrate_runtime_mode)
@@ -860,6 +886,60 @@ class AgentSessionRunner:
         evidence: tuple[DialogueOutcomeEvidence, ...],
     ) -> DialogueOutcomeResolution | None:
         return self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(evidence)
+
+    def submit_dialogue_outcome(
+        self,
+        *,
+        kind: DialogueExternalOutcomeKind,
+        source: DialogueExternalOutcomeEvidenceSource = DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence: float = 0.9,
+        turn_index: int | None = None,
+        evidence_ref: str | None = None,
+        description: str = "",
+    ) -> DialogueExternalOutcomeEvidence:
+        """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
+
+        This is the single legal entry point for external dialogue
+        outcomes (user explicit feedback, environment outcomes, human
+        review, or gated LLM proposals). It:
+
+        * appends a ``DialogueExternalOutcomeEvidence`` to the
+          ``DialogueExternalOutcomeModule`` buffer — the only path into
+          the ``dialogue_external_outcome`` snapshot slot;
+        * attaches a *structural* ``DialogueOutcomeEvidence`` to the
+          most recent dialogue trace via the existing trace-resolution
+          path, so replay artifacts also see the outcome;
+        * does NOT write memory, regime, or PE state directly. All
+          downstream effects arise from PE / regime / rupture_state
+          consuming the published snapshot on the next turn (R8).
+
+        ``turn_index`` defaults to the current turn index, which is
+        correct for outcomes attached to the turn that just finished
+        (or is about to run when ``submit`` is called before
+        ``run_turn``). Pass an explicit value when an external reviewer
+        retrospectively scores a past turn.
+        """
+
+        resolved_turn = int(turn_index) if turn_index is not None else max(
+            0, int(self._turn_index)
+        )
+        ref = evidence_ref or f"{source.value}:{kind.value}:turn-{resolved_turn}"
+        evidence = DialogueExternalOutcomeEvidence(
+            evidence_id=f"external:{source.value}:{kind.value}:{resolved_turn}:{ref}",
+            turn_index=resolved_turn,
+            kind=kind,
+            source=source,
+            confidence=float(confidence),
+            evidence_ref=ref,
+            description=description,
+        )
+        self._dialogue_external_outcome_module.append_evidence(evidence)
+        structural = structural_outcome_evidence_from_external(evidence)
+        if structural is not None:
+            self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(
+                (structural,)
+            )
+        return evidence
 
     def enqueue_semantic_events(
         self,
@@ -1127,6 +1207,12 @@ class AgentSessionRunner:
             completed_results=results
         )
         self._upstream_snapshots["experience_fast_prior"] = self._publish_experience_fast_prior_snapshot()
+        # Rupture-and-Repair M4/M6: persist the memory store after the
+        # slow-loop writeback has settled. Scoped stores (built via
+        # ``volvence_zero.memory.identity.build_scoped_memory_store``)
+        # carry a filesystem persistence backend; unscoped stores are
+        # in-memory only and ``save_to_backend`` becomes a no-op.
+        self._memory_store.save_to_backend()
         return results
 
     def reconcile_case_memory_provisional(
@@ -1937,6 +2023,8 @@ class AgentSessionRunner:
                 self_temporal_policy=self._self_temporal_policy,
                 prediction_module=self._prediction_module,
                 regime_module=self._regime_module,
+                dialogue_external_outcome_module=self._dialogue_external_outcome_module,
+                user_scope=self._user_scope,
                 session_id=context_session_id,
                 wave_id=wave_id,
                 turn_index=self._turn_index,

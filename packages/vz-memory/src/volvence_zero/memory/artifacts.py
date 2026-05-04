@@ -68,6 +68,26 @@ class ArtifactStore:
             elif entry.entry_id in bucket:
                 bucket.remove(entry.entry_id)
 
+    def delete_entry(self, entry_id: str) -> MemoryEntry | None:
+        """Remove an entry from every stratum index and the entries dict.
+
+        Used by the per-user scope deletion path
+        (``volvence_zero.memory.identity.delete_entries_for_scope``).
+        Returns the removed entry or ``None`` if the id was unknown.
+        """
+
+        entry = self._entries.pop(entry_id, None)
+        if entry is None:
+            return None
+        for bucket in self._by_stratum.values():
+            if entry_id in bucket:
+                bucket.remove(entry_id)
+        if entry_id in self._pending_promotions:
+            self._pending_promotions.remove(entry_id)
+        if entry_id in self._pending_decays:
+            self._pending_decays.remove(entry_id)
+        return entry
+
     def entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
         return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])
 

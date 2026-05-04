@@ -228,6 +228,43 @@ def test_internal_rl_sandbox_can_run_continuous_causal_path():
     assert 0.0 <= rollout.transitions[0].controller_state.switch_gate <= 1.0
 
 
+def test_joint_loop_shares_owner_instances_with_runtime_by_design():
+    """Architectural contract for the joint-loop second-orchestrator pattern.
+
+    ``ETANLJointLoop`` is explicitly constructed by ``AgentSessionRunner``
+    with the SAME ``memory_store`` / ``evaluation_backbone`` / world+self
+    ``temporal`` policies that runtime main-chain ``propagate(modules)``
+    uses. This enables online adaptation (training updates visible to
+    serving on the next turn).
+
+    ``RegimeModule`` is intentionally **not** shared: the joint-loop owns
+    its own training-side regime module. Runtime main-chain regime state
+    lives in ``AgentSessionRunner._regime_module`` (see
+    ``ETANLJointLoop.__init__`` and ``AgentSessionRunner.__init__``).
+
+    If this test ever fails, the joint-loop / runtime state ownership
+    contract has drifted. Read
+    ``packages/vz-temporal/.../joint_loop/runtime.py :: ETANLJointLoop``
+    docstring for the mutation contract before "fixing" either side.
+    """
+    from lifeform_domain_emogpt import build_companion_lifeform
+    from volvence_zero.agent.session import AgentSessionRunner
+
+    life = build_companion_lifeform(use_temporal_bootstrap=False, use_regime_bootstrap=False)
+    session = life.create_session(session_id="joint-loop-ownership-contract")
+    runner: AgentSessionRunner = session.brain_session.runner
+    joint = runner._joint_loop
+
+    assert runner._memory_store is joint.memory_store
+    assert runner._evaluation_backbone is joint._evaluation_backbone
+    assert runner._world_temporal_policy is joint.world_temporal_policy
+    assert runner._self_temporal_policy is joint.self_temporal_policy
+    assert runner._default_residual_runtime is joint.residual_runtime
+    assert runner._regime_module is not joint._regime_module, (
+        "RegimeModule must stay joint-loop-private; see ETANLJointLoop docstring."
+    )
+
+
 def test_eta_nl_joint_loop_runs_minimal_cycle():
     loop = ETANLJointLoop()
     trace = build_training_trace(trace_id="joint-trace", source_text="repair tension then continue helpfully")

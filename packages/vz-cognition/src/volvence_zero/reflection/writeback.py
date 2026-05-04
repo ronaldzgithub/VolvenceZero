@@ -5,7 +5,13 @@ from enum import Enum
 from typing import Mapping
 from uuid import uuid4
 
+import json
+
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeKind,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import (
@@ -18,6 +24,7 @@ from volvence_zero.memory import (
 )
 from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.regime import RegimeCheckpoint, RegimeSnapshot
+from volvence_zero.rupture_state import RuptureKind, RuptureStateSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 
@@ -263,6 +270,139 @@ def _count_error_driven_lessons(lessons: tuple[str, ...]) -> int:
     )
 
 
+# Positive external outcome kinds that resolve a rupture-repair as observed
+# (i.e. "the repair landed"). Negative kinds keep the pair as "pending".
+_REPAIR_POSITIVE_KINDS: frozenset[DialogueExternalOutcomeKind] = frozenset(
+    {
+        DialogueExternalOutcomeKind.HELPED,
+        DialogueExternalOutcomeKind.FELT_HEARD,
+        DialogueExternalOutcomeKind.DECISION_CLEARER,
+    }
+)
+
+
+def rupture_repair_memory_entries(
+    *,
+    rupture_state_snapshot: RuptureStateSnapshot | None,
+    external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None,
+    regime_snapshot: RegimeSnapshot | None,
+    user_scope: str,
+    timestamp_ms: int,
+) -> tuple[MemoryEntry, ...]:
+    """Build durable rupture-repair ``MemoryEntry`` objects for reflection.
+
+    Returns a 0 or 1 tuple. The entry is only produced when *both* a
+    ``rupture_kind`` has been resolved (i.e. externally confirmed) on
+    this turn AND at least one externally-confirmed outcome contributed
+    to that turn's external-outcome snapshot. This keeps the v0 rule
+    that a durable rupture-repair write requires typed external
+    confirmation.
+
+    The returned entry follows the tag schema defined in
+    ``docs/DATA_CONTRACT.md`` §3.3 "Rupture-repair 记忆 tag schema":
+
+    * tags: ``rupture_repair``, ``rupture_kind:<kind>``,
+      ``repair_outcome:<observed|pending>``, ``user_scope:<user>``,
+      ``source_wave:<wave_id>``;
+    * ``content``: structured JSON with ``rupture_kind``,
+      ``repair_move``, ``source_turn_index``, ``source_wave_id``,
+      ``observed_outcome_kind``, ``confidence``.
+
+    This function is pure; it does NOT write to ``memory_store``. The
+    only write path is ``ReflectionEngine.apply`` -> ``memory_store``.
+    """
+
+    if rupture_state_snapshot is None or rupture_state_snapshot.rupture_kind is None:
+        return ()
+    if external_outcome_snapshot is None or not external_outcome_snapshot.entries:
+        return ()
+    rupture_kind: RuptureKind = rupture_state_snapshot.rupture_kind
+
+    # Identify the externally-confirmed entry that names the rupture. It
+    # is the first non-LLM entry whose kind maps into this rupture
+    # category; positive entries on the same turn indicate the user
+    # also reported HELPED/CLEARER, so repair_outcome becomes observed.
+    from volvence_zero.rupture_state.contracts import (
+        EXTERNAL_OUTCOME_TO_RUPTURE_KIND,
+    )
+
+    triggering_entry = None
+    positive_entry = None
+    for entry in external_outcome_snapshot.entries:
+        mapped = EXTERNAL_OUTCOME_TO_RUPTURE_KIND.get(entry.kind)
+        if mapped is rupture_kind and triggering_entry is None:
+            triggering_entry = entry
+        if entry.kind in _REPAIR_POSITIVE_KINDS and positive_entry is None:
+            positive_entry = entry
+    if triggering_entry is None:
+        # The rupture kind was resolved (e.g. via composition), but no
+        # single entry directly produced it. In that case use the first
+        # non-LLM external entry as provenance.
+        for entry in external_outcome_snapshot.entries:
+            if entry.source.value != "llm_proposal":
+                triggering_entry = entry
+                break
+    if triggering_entry is None:
+        return ()
+
+    repair_outcome = "observed" if positive_entry is not None else "pending"
+    observed_outcome_kind = (
+        positive_entry.kind.value
+        if positive_entry is not None
+        else triggering_entry.kind.value
+    )
+    source_turn_index = int(triggering_entry.turn_index)
+    source_wave_id = f"wave-{source_turn_index}"
+    confidence = float(rupture_state_snapshot.confidence)
+
+    regime_id = ""
+    abstract_action = ""
+    action_family_version = 0
+    if regime_snapshot is not None:
+        regime_id = str(regime_snapshot.active_regime.regime_id)
+        for attribution in regime_snapshot.delayed_attributions:
+            # Prefer attributions matching our source wave id so the
+            # content carries a consistent abstract action context.
+            if attribution.source_wave_id.endswith(triggering_entry.evidence_id):
+                abstract_action = str(attribution.abstract_action or "")
+                action_family_version = int(attribution.action_family_version or 0)
+                break
+
+    content_obj = {
+        "rupture_kind": rupture_kind.value,
+        "repair_move": "",  # v0 placeholder; filled in when response-assembly repair primitive ships (post-v0 M7).
+        "source_turn_index": source_turn_index,
+        "source_wave_id": source_wave_id,
+        "observed_outcome_kind": observed_outcome_kind,
+        "confidence": round(confidence, 4),
+        "regime_id": regime_id,
+        "abstract_action": abstract_action,
+        "action_family_version": action_family_version,
+        "user_scope": user_scope,
+    }
+    tags = (
+        "rupture_repair",
+        f"rupture_kind:{rupture_kind.value}",
+        f"repair_outcome:{repair_outcome}",
+        f"user_scope:{user_scope}",
+        f"source_wave:{source_wave_id}",
+    )
+    entry_id = (
+        f"rupture_repair:{user_scope}:{source_wave_id}:{rupture_kind.value}:{repair_outcome}"
+    )
+    entry = MemoryEntry(
+        entry_id=entry_id,
+        content=json.dumps(content_obj, sort_keys=True, separators=(",", ":")),
+        track=Track.SELF,
+        stratum=MemoryStratum.DURABLE.value,
+        created_at_ms=timestamp_ms,
+        last_accessed_ms=timestamp_ms,
+        strength=min(1.0, 0.6 + confidence * 0.3),
+        tags=tags,
+    )
+    return (entry,)
+
+
 class ReflectionEngine:
     """Builds proposal-first slow reflection artifacts from current session state."""
 
@@ -297,6 +437,9 @@ class ReflectionEngine:
         credit_snapshot: CreditSnapshot | None,
         prediction_error_snapshot: PredictionErrorSnapshot | None = None,
         regime_snapshot: RegimeSnapshot | None = None,
+        rupture_state_snapshot: RuptureStateSnapshot | None = None,
+        dialogue_external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
+        user_scope: str = "anonymous",
     ) -> ReflectionSnapshot:
         self._update_proposal_outcome_ledger(evaluation_snapshot)
         consolidation_score = self._consolidation_score(
@@ -314,6 +457,27 @@ class ReflectionEngine:
             regime_snapshot=regime_snapshot,
             prediction_error_snapshot=prediction_error_snapshot,
         )
+        # Rupture-and-Repair M3: if the rupture_state snapshot resolved a
+        # kind AND at least one externally-confirmed outcome contributed
+        # this turn, write a durable rupture-repair memory entry. The
+        # entry is added to ``new_durable_entries`` so it flows through
+        # the existing ``ReflectionEngine.apply`` -> ``memory_store``
+        # path (R8; no bypass writes).
+        rupture_repair_entries = rupture_repair_memory_entries(
+            rupture_state_snapshot=rupture_state_snapshot,
+            external_outcome_snapshot=dialogue_external_outcome_snapshot,
+            regime_snapshot=regime_snapshot,
+            user_scope=user_scope,
+            timestamp_ms=timestamp_ms,
+        )
+        if rupture_repair_entries:
+            memory_consolidation = MemoryConsolidation(
+                new_durable_entries=memory_consolidation.new_durable_entries
+                + rupture_repair_entries,
+                promoted_entries=memory_consolidation.promoted_entries,
+                decayed_entries=memory_consolidation.decayed_entries,
+                beliefs_updated=memory_consolidation.beliefs_updated,
+            )
         policy_consolidation = self._policy_consolidation(
             dual_track_snapshot=dual_track_snapshot,
             evaluation_snapshot=evaluation_snapshot,
@@ -1086,7 +1250,21 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
     slot_name = "reflection"
     owner = "ReflectionModule"
     value_type = ReflectionSnapshot
-    dependencies = ("memory", "dual_track", "evaluation", "regime", "credit", "prediction_error")
+    # Rupture-and-Repair M3: ``rupture_state`` and
+    # ``dialogue_external_outcome`` are added so reflection can emit
+    # rupture-repair durable proposals on the turn both conditions hold.
+    # The slots are SHADOW-safe reads: reflection only consumes them
+    # through snapshots.
+    dependencies = (
+        "memory",
+        "dual_track",
+        "evaluation",
+        "regime",
+        "credit",
+        "prediction_error",
+        "rupture_state",
+        "dialogue_external_outcome",
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -1109,6 +1287,18 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
         credit_snapshot = upstream["credit"]
         regime_snapshot = upstream["regime"]
         prediction_error_snapshot = upstream["prediction_error"]
+        rupture_state_snapshot = upstream.get("rupture_state")
+        external_outcome_snapshot = upstream.get("dialogue_external_outcome")
+        rupture_value = None
+        if rupture_state_snapshot is not None and isinstance(
+            rupture_state_snapshot.value, RuptureStateSnapshot
+        ):
+            rupture_value = rupture_state_snapshot.value
+        external_outcome_value = None
+        if external_outcome_snapshot is not None and isinstance(
+            external_outcome_snapshot.value, DialogueExternalOutcomeSnapshot
+        ):
+            external_outcome_value = external_outcome_snapshot.value
         return self.publish(
             self._engine.reflect(
                 timestamp_ms=max(
@@ -1133,6 +1323,8 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
                 else None,
                 regime_snapshot=regime_snapshot.value if isinstance(regime_snapshot.value, RegimeSnapshot) else None,
+                rupture_state_snapshot=rupture_value,
+                dialogue_external_outcome_snapshot=external_outcome_value,
             )
         )
 
@@ -1161,3 +1353,46 @@ class ReflectionModule(RuntimeModule[ReflectionSnapshot]):
                 else None,
             )
         )
+
+
+def enrich_reflection_snapshot_with_rupture_repair(
+    *,
+    reflection_snapshot: ReflectionSnapshot,
+    rupture_state_snapshot: RuptureStateSnapshot | None,
+    external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None,
+    regime_snapshot: RegimeSnapshot | None,
+    user_scope: str,
+    timestamp_ms: int,
+) -> ReflectionSnapshot:
+    """Append rupture-repair durable entries to a reflection snapshot.
+
+    Used by ``run_final_wiring_turn`` to merge SHADOW rupture_state into
+    the reflection snapshot that feeds the session-post slow loop. The
+    underlying ``ReflectionModule`` runs during propagate and at that
+    point only sees ACTIVE upstream snapshots; SHADOW rupture_state is
+    not in that view. Post-propagate enrichment reads the shadow
+    snapshot and splices the rupture-repair memory entry into
+    ``memory_consolidation.new_durable_entries`` so
+    ``ReflectionEngine.apply`` can write it durably through the usual
+    checkpoint path.
+    """
+
+    from dataclasses import replace
+
+    entries = rupture_repair_memory_entries(
+        rupture_state_snapshot=rupture_state_snapshot,
+        external_outcome_snapshot=external_outcome_snapshot,
+        regime_snapshot=regime_snapshot,
+        user_scope=user_scope,
+        timestamp_ms=timestamp_ms,
+    )
+    if not entries:
+        return reflection_snapshot
+    enriched_memory = MemoryConsolidation(
+        new_durable_entries=reflection_snapshot.memory_consolidation.new_durable_entries
+        + entries,
+        promoted_entries=reflection_snapshot.memory_consolidation.promoted_entries,
+        decayed_entries=reflection_snapshot.memory_consolidation.decayed_entries,
+        beliefs_updated=reflection_snapshot.memory_consolidation.beliefs_updated,
+    )
+    return replace(reflection_snapshot, memory_consolidation=enriched_memory)
