@@ -37,3 +37,16 @@ class TemporalAbstractionSnapshot:
     switch_gate_stats: Any | None = None
     memory_feedback_signal: tuple[float, ...] = ()
     closed_segments: tuple[TemporalSegmentClosure, ...] = ()
+    memory_retrieval_facets: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.memory_retrieval_facets:
+            return
+        object.__setattr__(
+            self,
+            "memory_retrieval_facets",
+            (
+                f"temporal:{self.active_abstract_action}",
+                f"temporal:steps_since_switch:{self.controller_state.steps_since_switch}",
+            ),
+        )

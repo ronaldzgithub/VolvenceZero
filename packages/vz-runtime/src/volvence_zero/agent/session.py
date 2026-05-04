@@ -2586,6 +2586,9 @@ class AgentSessionRunner:
                     old_value_hash="substrate.online_fast:pre",
                     new_value_hash=substrate_self_mod.checkpoint_hash,
                     justification=substrate_self_mod.description,
+                    validation_delta=substrate_self_mod.proposal_readiness - 0.5,
+                    capacity_cost=min(substrate_self_mod.parameter_change_rate, 1.0),
+                    rollback_evidence=substrate_self_mod.checkpoint.checkpoint_id,
                 ),
                 evaluation_snapshot=evaluation_value,
             )

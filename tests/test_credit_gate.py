@@ -15,6 +15,7 @@ from volvence_zero.credit import (
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
+    evaluate_gate_reasons,
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
@@ -63,7 +64,16 @@ def test_gate_blocks_online_modification_when_high_alert_present():
     ).value
     evaluation_snapshot = type(evaluation_snapshot)(
         turn_scores=evaluation_snapshot.turn_scores,
-        session_scores=evaluation_snapshot.session_scores,
+        session_scores=tuple(
+            EvaluationScore(
+                family=score.family,
+                metric_name=score.metric_name,
+                value=1.0 if score.metric_name == "contract_integrity" else score.value,
+                confidence=score.confidence,
+                evidence=score.evidence,
+            )
+            for score in evaluation_snapshot.session_scores
+        ),
         alerts=("HIGH: cross-track stability is degraded",),
         description=evaluation_snapshot.description,
     )
@@ -94,8 +104,26 @@ def test_credit_module_records_credits_and_modification_audit():
         )
     ).value
     evaluation_snapshot = EvaluationSnapshot(
-        turn_scores=evaluation_snapshot.turn_scores,
-        session_scores=evaluation_snapshot.session_scores,
+        turn_scores=tuple(
+            EvaluationScore(
+                family=score.family,
+                metric_name=score.metric_name,
+                value=1.0 if score.metric_name == "contract_integrity" else score.value,
+                confidence=score.confidence,
+                evidence=score.evidence,
+            )
+            for score in evaluation_snapshot.turn_scores
+        ),
+        session_scores=tuple(
+            EvaluationScore(
+                family=score.family,
+                metric_name=score.metric_name,
+                value=1.0 if score.metric_name == "contract_integrity" else score.value,
+                confidence=score.confidence,
+                evidence=score.evidence,
+            )
+            for score in evaluation_snapshot.session_scores
+        ),
         alerts=(),
         description=evaluation_snapshot.description,
     )
@@ -109,6 +137,9 @@ def test_credit_module_records_credits_and_modification_audit():
                 old_value_hash="old-prior",
                 new_value_hash="new-prior",
                 justification="Small turn-level policy adjustment.",
+                validation_delta=0.03,
+                capacity_cost=0.05,
+                rollback_evidence="checkpoint:strategy-prior:test",
             ),
         ),
     )
@@ -124,6 +155,58 @@ def test_credit_module_records_credits_and_modification_audit():
     assert snapshot.value.recent_modifications
     assert snapshot.value.cumulative_credit_by_level
     assert snapshot.value.recent_modifications[-1].decision is GateDecision.ALLOW
+
+
+def test_gate_blocks_missing_two_gate_evidence():
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s-two-gate",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+
+    proposal = ModificationProposal(
+        target="strategy_prior",
+        desired_gate=ModificationGate.BACKGROUND,
+        old_value_hash="old",
+        new_value_hash="new",
+        justification="Missing validation and rollback evidence should fail closed.",
+    )
+
+    decision = evaluate_gate(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+    reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+
+    assert decision is GateDecision.BLOCK
+    assert any("validation_delta" in reason for reason in reasons)
+    assert "missing rollback evidence" in reasons
+
+
+def test_gate_blocks_capacity_expansion_even_with_validation_gain():
+    evaluation_snapshot = asyncio.run(
+        EvaluationModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            session_id="s-capacity",
+            wave_id="w1",
+            timestamp_ms=10,
+        )
+    ).value
+
+    proposal = ModificationProposal(
+        target="metacontroller.runtime_adaptation",
+        desired_gate=ModificationGate.BACKGROUND,
+        old_value_hash="old",
+        new_value_hash="new",
+        justification="Validation is positive but capacity expansion is too broad.",
+        validation_delta=0.08,
+        capacity_cost=0.60,
+        rollback_evidence="checkpoint:metacontroller:test",
+    )
+
+    decision = evaluate_gate(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+    reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+
+    assert decision is GateDecision.BLOCK
+    assert any("capacity_cost" in reason for reason in reasons)
 
 
 def test_credit_module_derives_segment_credit_with_outcome_lineage():
@@ -336,6 +419,9 @@ def test_credit_module_consumes_chain_in_shadow_mode():
                 old_value_hash="old-weight",
                 new_value_hash="new-weight",
                 justification="Adjust retrieval after evaluation feedback.",
+                validation_delta=0.02,
+                capacity_cost=0.04,
+                rollback_evidence="checkpoint:retrieval-weight:test",
             ),
         ),
     )

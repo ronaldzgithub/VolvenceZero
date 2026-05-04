@@ -620,6 +620,7 @@ class TemporalAbstractionSnapshot:
     description: str                    # 模块自身生成的状态描述
     action_family_version: int = 0      # owner-side discovered family bank 版本
     memory_feedback_signal: tuple[float, ...] = ()  # temporal owner 发布给 memory owner 的上一轮 learned feedback signal
+    memory_retrieval_facets: tuple[str, ...] = ()    # temporal owner 自报的 memory retrieval facets
 ```
 
 **当前实现口径**：
@@ -627,7 +628,7 @@ class TemporalAbstractionSnapshot:
 - P08 已固定 `controller_state` 的 machine-readable shape
 - 当前实现支持 `placeholder` / `heuristic` / `learned-lite` / `full-learned` 四类可替换策略位点
 - `active_abstract_action` 和 `description` 是可读输出，不作为 machine state 的唯一来源
-- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score，以及 discovered family summary/version；公共 `TemporalAbstractionSnapshot` 额外允许发布 `memory_feedback_signal`，供 memory owner 在自己的 processing path 中消费，而不是由 orchestrator 直接 side-effect memory owner
+- `full-learned` owner 的 runtime-visible state 当前已发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior drift、binary switch ratio / sparsity / persistence window、decoder output / applied control、policy replacement score，以及 discovered family summary/version；公共 `TemporalAbstractionSnapshot` 额外允许发布 `memory_feedback_signal` 与 `memory_retrieval_facets`，供 memory owner 在自己的 processing path 中消费，而不是由 orchestrator 或 memory owner 反向解析 temporal 内部结构
 - internal RL 当前允许通过 causal policy proposal 覆盖 owner 的 `z_candidate`，但覆盖仍通过 temporal owner 完成最终 `z_t` 更新，保持单一 owner
 - substrate owner 当前允许 owner-side residual intervention backend 基于现有 `SubstrateSnapshot` 生成受控 residual effect；backend 名称和 rollout path evidence 仅在 owner/internal report 层发布，不改变公共 snapshot shape
 - 当前 residual intervention backend 已补充真正 open-weight 运行时位点：`OpenWeightResidualInterventionBackend(runtime, source_text)` 委托 runtime 自己执行中间层干预，公共 `ResidualControlApplication` shape 保持不变；当前 `TransformersOpenWeightResidualRuntime` 已实现 middle-layer hook capture/intervention，`TraceResidualInterventionBackend` 退回为近似基线而非唯一 backend
@@ -820,7 +821,7 @@ class MemorySnapshot:
 - 显式 `MemoryEntry` 属于 artifact / explanation layer；主记忆基底由 owner 内部 learned core 承担
 - `social_pe_signals` 是 Memory owner 对社交 PE 主链的唯一 typed 入口；下游 `social_prediction` / `social_prediction_error` owner 必须通过 `social_prediction_from_memory_signal` / `social_prediction_error_from_memory_signal` 升级，**禁止**消费者从 `suppressed_cross_scope_entries` / `active_subject_scope` 反向重建 `SocialPrediction` / `SocialPredictionError`，也禁止借用 `MemoryModule` 名字写到下游 owner 的 snapshot 中
 - semantic retrieval index 属于 Memory owner 内部 derived index，不通过独立 slot 暴露
-- runtime retrieval facets 可消费上一轮已经发布的 `temporal_abstraction` / `dual_track` 快照；不得通过同轮直接调用形成第二 owner 或循环依赖
+- runtime retrieval facets 只消费上游 owner 已发布的 `memory_retrieval_facets`（如 `temporal_abstraction` / `dual_track` / `prediction_error`）；不得由 memory 解析 peer snapshot 内部字段重建 facet，也不得通过同轮直接调用形成第二 owner 或循环依赖
 
 **消费者**：编排器、时间抽象层、双轨学习层、认知 Regime 层、慢反思路径
 **发布频率**：每 turn（瞬态/情景）、每会话（持久）
@@ -847,6 +848,7 @@ class DualTrackSnapshot:
     self_track: TrackState
     cross_track_tension: float          # 跨轨道张力（两轨目标冲突程度）
     description: str                    # 模块自身生成的状态描述
+    memory_retrieval_facets: tuple[str, ...] = ()  # dual_track owner 自报的 memory retrieval facets
 ```
 
 **当前实现口径**：
@@ -856,6 +858,7 @@ class DualTrackSnapshot:
 - `controller_code` 当前允许是从已知状态压缩出的占位向量，而不是最终 learned controller code
 - `abstract_action_hint` / `controller_source` 当前用于显式说明 dual-track state 是否已经消费 temporal owner 发布的控制证据
 - 默认 final wiring 下，dual-track 当前优先消费上一轮已发布的 `temporal_abstraction` 快照，避免形成同轮循环依赖
+- `memory_retrieval_facets` 是 dual-track owner 对 memory retrieval 的唯一 compact hint；memory 不从 `world_track.active_goals` / `self_track.active_goals` / `cross_track_tension` 反向拼装 dual-track facet
 
 **消费者**：编排器、记忆系统、信用分配、评估体系
 **发布频率**：每 turn
@@ -887,6 +890,18 @@ class SelfModificationRecord:
     is_reversible: bool                 # 是否可回滚
 
 @dataclass(frozen=True)
+class ModificationProposal:
+    target: str
+    desired_gate: ModificationGate
+    old_value_hash: str
+    new_value_hash: str
+    justification: str
+    is_reversible: bool = True
+    validation_delta: float = 0.0        # 候选相对基线的验证改进
+    capacity_cost: float = 0.0           # 容量/影响面成本估计，越高越保守
+    rollback_evidence: str = ""          # checkpoint / replay / rollback lineage
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
@@ -902,6 +917,7 @@ class CreditSnapshot:
 - 第二阶段允许在 owner 内部基于 temporal / rollout 结果扩展出 `abstract_action` 级 credit，而不改变 `CreditSnapshot` shape
 - metacontroller credit 当前会消费 posterior drift、binary gate ratio、policy replacement score 等 ETA kernel evidence，并将其压入 `CreditRecord.context`
 - `derive_credit_records_from_prediction_error_first(...)` 是当前 PE-first credit 派生路径；evaluation 只提供 readout / gate context，不重新成为原始学习源
+- 自修改 gate 当前采用 Two-Gate 风格的保守准入：候选必须提供 validation margin、capacity cap 内的容量成本和 rollback evidence；缺证据默认 block，并把原因写入 `SelfModificationRecord.justification`
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
@@ -1017,6 +1033,7 @@ class EvaluationSnapshot:
 - 告警先以结构化字符串对外发布，后续可升级为更细粒度 alert schema
 - owner-side kernel evaluation 当前已直接记录 `posterior_stability`、`switch_sparsity`、`binary_gate_ratio`、`decoder_usefulness`、`policy_replacement_quality`，以及 family-level abstraction metrics（如 `action_family_reuse`、`action_family_stability`、`action_family_diversity`、`delayed_action_alignment`、`regime_sequence_payoff`、`delayed_credit_horizon`、`rolling_action_payoff`）
 - `EvaluationBackbone` 当前还提供 default replay benchmark 与 evolution judge（promote / hold / rollback），但这些 judgement 仍以 report/evidence 形式存在，不改变 `EvaluationSnapshot` 公共 shape
+- session / cross-session report 当前补充 `identity_continuity`、`relationship_repair_continuity`、`async_robustness` 三类存在性 readout；它们只进入 report/trend/evidence，不改变 `EvaluationSnapshot` 公共 shape，也不成为学习源头
 
 **消费者**：编排器、信用分配、门控自修改
 **发布频率**：每 turn（即时评分）、每会话（会话评分）
@@ -1079,12 +1096,12 @@ class ReflectionSnapshot:
 **当前实现口径**：
 
 - P07 默认以 `proposal-only` 运行
-- 第二阶段补充 bounded apply path，可对 memory owner 和 regime owner 执行有限写回并保留 checkpoint
+- 第二阶段补充 bounded apply path；`ReflectionEngine.apply` 只执行 memory owner 有界写回并保留 checkpoint，regime / temporal 写回由编排层显式调用目标 owner 的正式 API
 - `memory_consolidation` 和 `policy_consolidation` 仍先表达提案和审计结果，再由 gate / rollout 决定是否 apply
-- `consolidation_score` 是 reflection owner 发布的统一 bounded score 路径；memory/regime writeback 幅度由该 score 决定
+- `consolidation_score` 是 reflection owner 发布的统一 bounded score 路径；memory / regime / temporal 的写回幅度由该 score 决定，但目标 owner 自己负责最终应用
 - `beliefs_updated` 已接入 memory owner 的 audited apply，不再是仅存在于 proposal 中的伪状态
 - `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
-- 当前 `policy_consolidation.temporal_prior_update` 已成为 reflection owner 对 temporal owner 的 typed 写回契约；编排层只负责 target-specific gate + audit，再调用 temporal owner 的 `apply_reflection_prior_update(...)`
+- 当前 `policy_consolidation` 已成为 reflection owner 对 regime / temporal owner 的 typed 写回契约；编排层只负责 target-specific gate + audit，再调用目标 owner 的正式 apply API
 - 默认主链中的 active reflection / temporal 会把该 bounded prior writeback 纳入 `writeback_result.applied_operations` 与 credit modification audit
 
 **消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层
@@ -1134,6 +1151,7 @@ class PredictionErrorSnapshot:
     turn_index: int
     bootstrap: bool
     description: str
+    memory_retrieval_facets: tuple[str, ...] = ()  # PE owner 自报的 memory retrieval facets
 ```
 
 **当前实现口径**：
@@ -1143,6 +1161,7 @@ class PredictionErrorSnapshot:
 - `error` 维度固定覆盖 `task` / `relationship` / `regime` / `action`
 - `bootstrap=True` 表示当前 turn 还没有可结算的上一轮 prediction，不应被下游当作正式误差信号消费
 - live session 中，部分消费者会把 `prediction_error` 视为“上一轮 carryover learning evidence”，以避免同轮自因果闭环
+- `memory_retrieval_facets` 由 PredictionError owner 根据自身 error 维度生成；memory 不从 `PredictionError.error` 各分量重新选择 dominant dimension
 
 **消费者**：记忆系统、时间抽象层、认知 Regime 层、信用分配、慢反思路径；`evaluation` 在 final wiring 中追加 PE evidence，但不把它变成新的模块 owner
 **发布频率**：每 turn
@@ -1289,13 +1308,13 @@ retrieval_policy ────────┬────────→ domain_k
                          ├────────→ case_memory ─────────┼────────→ strategy_playbook
                          └────────→ response_assembly    └────────→ response_assembly
 
-reflection ──────────────→ owner-side writeback: memory / regime / temporal / credit audit
+reflection ──────────────→ proposals; runtime invokes owner-side writeback: memory / regime / temporal / credit audit
 ```
 
 **依赖规则**：
 - 每个模块只读取上游快照，不反向依赖
 - `reflection` 与 `session_post_slow_loop` 都属于 background/session-post 路径；它们只发布公共 report / proposal surface，真正 apply 仍调用目标 owner 的正式 API
-- `reflection` 的产物通过正式 API 写回 `memory`、`regime`、`temporal`，并通过 `credit` 保留审计证据
+- `reflection` 的产物通过编排层调用正式 API 写回 `memory`、`regime`、`temporal`，`ReflectionEngine` 不持有或直接调用 `RegimeModule`，并通过 `credit` 保留审计证据
 - `prediction_error` 是显式学习证据层；部分 live runtime 路径把它当作跨 turn carryover signal，而不是同 turn 自举输入
 
 **关于直接消费与间接消费**：上图展示的是**直接快照依赖**。Slot 注册表（第 6 节）中列出的消费者是**声明的直接消费者**——即模块在 `process()` 中从 upstream dict 读取的 slot。模块不通过中间模块间接获取数据，而是直接声明并读取所需的上游快照。

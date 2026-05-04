@@ -19,6 +19,7 @@ from volvence_zero.credit.gate import (
     derive_runtime_adaptation_audit_records,
     extend_credit_snapshot,
     evaluate_gate,
+    evaluate_gate_reasons,
     extract_abstract_action_credit_bonus,
     has_blocking_writeback,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "derive_runtime_adaptation_audit_records",
     "extend_credit_snapshot",
     "evaluate_gate",
+    "evaluate_gate_reasons",
     "extract_abstract_action_credit_bonus",
     "has_blocking_writeback",
 ]

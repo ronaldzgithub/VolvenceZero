@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation.backbone import EvaluationSnapshot
+from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import (
     MemoryEntry,
     MemorySnapshot,
@@ -17,7 +17,7 @@ from volvence_zero.memory import (
     Track,
 )
 from volvence_zero.prediction.error import PredictionErrorSnapshot
-from volvence_zero.regime import RegimeCheckpoint, RegimeModule, RegimeSnapshot
+from volvence_zero.regime import RegimeCheckpoint, RegimeSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 
@@ -173,9 +173,9 @@ def _relationship_relevant_alerts(evaluation_snapshot: EvaluationSnapshot | None
     if evaluation_snapshot is None:
         return ()
     return tuple(
-        alert
-        for alert in evaluation_snapshot.alerts
-        if "cross-track stability" in alert.lower() or "rollback pressure" in alert.lower()
+        alert.legacy_text
+        for alert in evaluation_snapshot.structured_alerts
+        if alert.code in {"cross_track_stability_degraded", "rollback_pressure_elevated"}
     )
 
 
@@ -368,7 +368,6 @@ class ReflectionEngine:
         memory_store: MemoryStore,
         reflection_snapshot: ReflectionSnapshot,
         credit_snapshot: CreditSnapshot | None,
-        regime_module: RegimeModule | None = None,
         checkpoint_id: str | None = None,
     ) -> WritebackResult:
         if self._writeback_mode is not WritebackMode.APPLY:
@@ -394,11 +393,6 @@ class ReflectionEngine:
                 ),
             )
         memory_checkpoint = memory_store.create_checkpoint(checkpoint_id=checkpoint_id)
-        regime_checkpoint = (
-            regime_module.create_checkpoint(checkpoint_id=checkpoint_id or "regime-writeback")
-            if regime_module is not None
-            else None
-        )
         applied_operations = memory_store.apply_reflection_consolidation(
             new_durable_entries=reflection_snapshot.memory_consolidation.new_durable_entries,
             promoted_entries=reflection_snapshot.memory_consolidation.promoted_entries,
@@ -417,17 +411,9 @@ class ReflectionEngine:
                 delta=reflection_snapshot.consolidation_score.threshold_delta
             ),
         )
-        if regime_module is not None:
-            applied_operations = applied_operations + regime_module.apply_policy_consolidation(
-                strategy_updates=reflection_snapshot.policy_consolidation.strategy_priors_updated,
-                regime_effectiveness_updates=reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
-                strategy_gain=reflection_snapshot.consolidation_score.strategy_gain,
-                effectiveness_gain=reflection_snapshot.consolidation_score.regime_effectiveness_gain,
-            )
         checkpoint = WritebackCheckpoint(
             checkpoint_id=memory_checkpoint.checkpoint_id,
             memory_checkpoint=memory_checkpoint,
-            regime_checkpoint=regime_checkpoint,
         )
         return WritebackResult(
             applied_operations=applied_operations,
@@ -444,11 +430,8 @@ class ReflectionEngine:
         *,
         memory_store: MemoryStore,
         checkpoint: WritebackCheckpoint,
-        regime_module: RegimeModule | None = None,
     ) -> None:
         memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
-        if regime_module is not None and checkpoint.regime_checkpoint is not None:
-            regime_module.restore_checkpoint(checkpoint.regime_checkpoint)
 
     def _memory_consolidation(
         self,

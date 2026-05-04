@@ -6,6 +6,11 @@ from typing import Any, Mapping
 
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
+from volvence_zero.semantic_state import (
+    SELF_SEMANTIC_OWNER_SLOTS,
+    SEMANTIC_OWNER_SLOTS,
+    WORLD_SEMANTIC_OWNER_SLOTS,
+)
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
 
@@ -27,6 +32,20 @@ class DualTrackSnapshot:
     self_track: TrackState
     cross_track_tension: float
     description: str
+    memory_retrieval_facets: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.memory_retrieval_facets:
+            return
+        object.__setattr__(
+            self,
+            "memory_retrieval_facets",
+            (
+                *(f"world-goal:{goal}" for goal in self.world_track.active_goals[:2]),
+                *(f"self-goal:{goal}" for goal in self.self_track.active_goals[:2]),
+                f"cross-track:{self.cross_track_tension:.2f}",
+            ),
+        )
 
 
 def _clamp(value: float) -> float:
@@ -87,19 +106,6 @@ SELF_TRACK_PROTOTYPE = _semantic_embedding(
 )
 SEMANTIC_OWNER_GOAL_LIMIT = 3
 SEMANTIC_OWNER_CONTEXT_WEIGHT = 0.35
-WORLD_SEMANTIC_OWNER_SLOTS = (
-    "plan_intent",
-    "execution_result",
-    "goal_value",
-    "belief_assumption",
-)
-SELF_SEMANTIC_OWNER_SLOTS = (
-    "relationship_state",
-    "user_model",
-    "commitment",
-    "boundary_consent",
-)
-SEMANTIC_OWNER_SLOTS = WORLD_SEMANTIC_OWNER_SLOTS + SELF_SEMANTIC_OWNER_SLOTS
 
 
 def _shared_track_affinity(entry: MemoryEntry, *, track: Track) -> float:

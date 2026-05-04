@@ -130,6 +130,7 @@
 - 当前 open-environment 评估新增 `TranscriptOnlyUserSimulator`：它只根据公开 transcript 级输入（上一轮 user / assistant 文本与 turn index）推进 episode，不读取 PE、schedule、writeback、reflection、switch gate 等 runtime telemetry；`OpenDialogueEpisodeState.user_policy_kind` 与 `transcript_only_user_policy` metric 会进入 open report，`claim_beyond_scripted_canonical` 的 retain 条件要求至少出现一个 transcript-only open case
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
+- 当前 session / cross-session report 增加存在性维度 readout：`identity_continuity`、`relationship_repair_continuity`、`async_robustness`。这些指标只由既有 evaluation records 聚合而来，用于长期身份、关系修复连续性和异步/回滚退化监测；不新增 runtime owner，不改变 `EvaluationSnapshot` 公共 shape，也不反向成为学习源
 
 ### Dialogue Proof Harness 边界
 
@@ -169,6 +170,7 @@
 
 ## 变更日志
 
+- 2026-05-05: 将 Sophia / Agent eval 类论文启发收敛为 report-only evidence：新增 identity continuity、relationship repair continuity、async robustness 三类趋势读数，只服务 evidence / gate review，不改运行时学习主链
 - 2026-04-29: regime calibrator 增加 anti-monoculture 多样性约束：
   - 新增 `_apply_diversity_penalty(weights, predicted_counts, total, *, threshold, lr)`：当某一 regime 在预测分布中占比超过 `threshold` 时，按 `factor = 1 - lr * (predicted_share - threshold)` 倍率拉回该 regime 的 selection_weight；预测分布本来就多样时无效（factor=1）
   - `RegimeCalibrationRoundReport` / `SuperLoopRoundReport` 新增 `predicted_regime_counts` + `predicted_regime_share` 字段，让每轮的多样性证据进入快照

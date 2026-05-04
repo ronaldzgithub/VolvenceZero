@@ -73,6 +73,9 @@ def test_reflection_module_consolidates_memory_and_policy_from_inputs():
                     old_value_hash="old",
                     new_value_hash="new",
                     justification="use audit trail in reflection",
+                    validation_delta=0.02,
+                    capacity_cost=0.04,
+                    rollback_evidence="checkpoint:reflection-audit:test",
                 ),
             ),
         ).process_standalone(
@@ -333,6 +336,9 @@ def test_reflection_module_runs_in_shadow_chain():
                 old_value_hash="old-prior",
                 new_value_hash="new-prior",
                 justification="reflection should see gate audit",
+                validation_delta=0.02,
+                capacity_cost=0.04,
+                rollback_evidence="checkpoint:reflection-shadow:test",
             ),
         )
     )
@@ -381,7 +387,6 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
         memory_store=store,
         reflection_snapshot=reflection_snapshot,
         credit_snapshot=None,
-        regime_module=regime,
         checkpoint_id="rollback-checkpoint",
     )
 
@@ -389,7 +394,7 @@ def test_reflection_apply_path_supports_checkpoint_and_rollback():
     assert writeback.checkpoint is not None
     assert any(operation.startswith("promotion-threshold:") for operation in writeback.applied_operations)
 
-    engine.rollback(memory_store=store, checkpoint=writeback.checkpoint, regime_module=regime)
+    engine.rollback(memory_store=store, checkpoint=writeback.checkpoint)
     restored_snapshot = store.snapshot(retrieved_entries=())
     assert restored_snapshot.description.startswith("Memory store")
 

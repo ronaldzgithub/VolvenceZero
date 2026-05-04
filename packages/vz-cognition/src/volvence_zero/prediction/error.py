@@ -95,6 +95,31 @@ class PredictionErrorSnapshot:
     bootstrap: bool
     description: str
     action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
+    memory_retrieval_facets: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.memory_retrieval_facets:
+            return
+        if self.bootstrap:
+            object.__setattr__(self, "memory_retrieval_facets", ())
+            return
+        dominant_dimension = max(
+            (
+                ("task", abs(self.error.task_error)),
+                ("relationship", abs(self.error.relationship_error)),
+                ("regime", abs(self.error.regime_error)),
+                ("action", abs(self.error.action_error)),
+            ),
+            key=lambda item: item[1],
+        )[0]
+        object.__setattr__(
+            self,
+            "memory_retrieval_facets",
+            (
+                f"prediction_error:{dominant_dimension}",
+                f"prediction_reward:{self.error.signed_reward:.2f}",
+            ),
+        )
 
 
 @dataclass(frozen=True)

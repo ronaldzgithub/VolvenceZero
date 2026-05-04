@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 
 from volvence_zero.evaluation.statistics import _clamp
+from volvence_zero.evaluation.types import EvaluationAlert
 
 
 def _semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
@@ -76,9 +77,9 @@ def _goal_semantic_pressure(goals: tuple[str, ...], *, prototype: tuple[float, .
     return sum(values) / len(values)
 
 
-def _relationship_relevant_alerts(alerts: tuple[str, ...]) -> tuple[str, ...]:
+def _relationship_relevant_alerts(alerts: tuple[EvaluationAlert, ...]) -> tuple[EvaluationAlert, ...]:
     return tuple(
         alert
         for alert in alerts
-        if "cross-track stability" in alert.lower() or "rollback pressure" in alert.lower()
+        if alert.code in {"cross_track_stability_degraded", "rollback_pressure_elevated"}
     )

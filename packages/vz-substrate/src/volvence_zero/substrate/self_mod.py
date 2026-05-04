@@ -234,6 +234,13 @@ class SubstrateSelfModModule(RuntimeModule[SubstrateSelfModSnapshot]):
                     old_value_hash="substrate-online-fast:old",
                     new_value_hash=_checkpoint_hash(checkpoint),
                     justification="Turn-time bounded substrate self-modification proposal.",
+                    validation_delta=proposal_readiness - 0.5,
+                    capacity_cost=min(parameter_change_rate, 1.0),
+                    rollback_evidence=(
+                        checkpoint.checkpoint_id
+                        if checkpoint is not None
+                        else "blocked:no-checkpoint-produced"
+                    ),
                 ),
                 evaluation_snapshot=evaluation_snapshot,
             )

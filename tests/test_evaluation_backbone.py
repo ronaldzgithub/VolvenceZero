@@ -71,6 +71,50 @@ def test_evaluation_backbone_builds_session_report():
     assert report.trends
 
 
+def test_evaluation_report_includes_existence_evidence_trends():
+    backbone = EvaluationBackbone()
+    base = EvaluationSnapshot(turn_scores=(), session_scores=(), alerts=(), description="base")
+    backbone.record_external_scores(
+        session_id="s-existence",
+        wave_id="w1",
+        timestamp_ms=10,
+        base_snapshot=base,
+        scores=(
+            EvaluationScore("interaction", "support_presence", 0.40, 0.7, "early support"),
+            EvaluationScore("interaction", "warmth", 0.42, 0.7, "early warmth"),
+            EvaluationScore("relationship", "cross_track_stability", 0.50, 0.7, "early stability"),
+            EvaluationScore("learning", "delayed_regime_alignment", 0.45, 0.7, "early regime"),
+            EvaluationScore("learning", "regime_sequence_payoff", 0.44, 0.7, "early payoff"),
+            EvaluationScore("safety", "rollback_resilience", 0.55, 0.7, "early rollback"),
+            EvaluationScore("learning", "scheduler_risk_managed", 0.50, 0.7, "early scheduler"),
+        ),
+        description_suffix="early existence evidence",
+    )
+    backbone.record_external_scores(
+        session_id="s-existence",
+        wave_id="w2",
+        timestamp_ms=20,
+        base_snapshot=base,
+        scores=(
+            EvaluationScore("interaction", "support_presence", 0.70, 0.7, "late support"),
+            EvaluationScore("interaction", "warmth", 0.72, 0.7, "late warmth"),
+            EvaluationScore("relationship", "cross_track_stability", 0.74, 0.7, "late stability"),
+            EvaluationScore("learning", "delayed_regime_alignment", 0.73, 0.7, "late regime"),
+            EvaluationScore("learning", "regime_sequence_payoff", 0.71, 0.7, "late payoff"),
+            EvaluationScore("safety", "rollback_resilience", 0.82, 0.7, "late rollback"),
+            EvaluationScore("learning", "scheduler_risk_managed", 0.80, 0.7, "late scheduler"),
+        ),
+        description_suffix="late existence evidence",
+    )
+
+    report = backbone.build_session_report(session_id="s-existence", timestamp_ms=30)
+    trend_names = {metric_name for _, metric_name, _ in report.trends}
+
+    assert "identity_continuity" in trend_names
+    assert "relationship_repair_continuity" in trend_names
+    assert "async_robustness" in trend_names
+
+
 def test_evaluation_backbone_uses_public_temporal_snapshot_fields():
     backbone = EvaluationBackbone()
     snapshot = asyncio.run(

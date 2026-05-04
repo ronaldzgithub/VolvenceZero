@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from volvence_zero.semantic_state.contracts import (
     SEMANTIC_OWNER_SLOTS,
+    SELF_SEMANTIC_OWNER_SLOTS,
+    WORLD_SEMANTIC_OWNER_SLOTS,
     AdvocacyState,
     AlignmentState,
     BeliefAssumptionSnapshot,
@@ -129,6 +131,8 @@ __all__ = [
     "ReviewedKnowledgeSemanticEvent",
     "SEMANTIC_MODULE_TYPES",
     "SEMANTIC_OWNER_SLOTS",
+    "SELF_SEMANTIC_OWNER_SLOTS",
+    "WORLD_SEMANTIC_OWNER_SLOTS",
     "SemanticEventAdapter",
     "SemanticOwnerModule",
     "SemanticProposal",

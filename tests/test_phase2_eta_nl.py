@@ -1257,6 +1257,9 @@ def test_phase1_gate_deny_blocks_policy_update():
         old_value_hash="hash-old",
         new_value_hash="hash-new",
         justification="attempt update during critical alert",
+        validation_delta=0.03,
+        capacity_cost=0.05,
+        rollback_evidence="checkpoint:causal-policy:test",
     )
     decision = evaluate_gate(
         proposal=proposal,

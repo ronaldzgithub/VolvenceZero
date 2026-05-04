@@ -31,6 +31,17 @@ SEMANTIC_OWNER_SLOTS: tuple[str, ...] = (
     "boundary_consent",
 )
 
+WORLD_SEMANTIC_OWNER_SLOTS: tuple[str, ...] = (
+    "plan_intent",
+    "execution_result",
+    "goal_value",
+    "belief_assumption",
+)
+
+SELF_SEMANTIC_OWNER_SLOTS: tuple[str, ...] = tuple(
+    slot for slot in SEMANTIC_OWNER_SLOTS if slot not in WORLD_SEMANTIC_OWNER_SLOTS
+)
+
 
 def load_semantic_prompt_template(name: str = "extraction.md") -> str:
     return files("volvence_zero.semantic_state").joinpath("prompts", name).read_text(encoding="utf-8")

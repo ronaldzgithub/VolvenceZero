@@ -1,30 +1,58 @@
+"""MemoryStore and MemoryModule runtime implementations.
+
+The frozen contracts, artifact store, and derived retrieval helpers live in
+sibling modules. This module keeps the owner runtime and re-exports the
+historic public API from ``volvence_zero.memory.store``.
+"""
+
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, replace
-from enum import Enum
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
-from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRuleState
+from volvence_zero.learned_update import LearnedUpdateRuleState
+from volvence_zero.memory.artifacts import ArtifactStore
 from volvence_zero.memory.cms import (
     CMSCheckpointState,
-    CMSHopeSelfModificationState,
     CMSMemoryCore,
     CMSState,
     CMSTowerConsolidationUpdate,
     CMSTowerProfile,
+)
+from volvence_zero.memory.contracts import (
+    MemoryEntry,
+    MemorySnapshot,
+    MemoryStoreCheckpoint,
+    MemoryStratum,
+    MemoryWriteRequest,
+    RetrievalQuery,
+    RetrievalResult,
+    Track,
+    _reconstruct_checkpoint,
 )
 from volvence_zero.memory.persistence import (
     PersistenceBackend,
     deserialize_checkpoint,
     serialize_checkpoint,
 )
+from volvence_zero.memory.retrieval import (
+    DerivedRetrievalIndex,
+    LearnedMemoryRecall,
+    _align_signal,
+    _blend_signals,
+    _clamp_strength,
+    _cosine_similarity,
+    _entry_in_subject_scope,
+    _mean_abs,
+    _semantic_embedding,
+    _tokenize,
+    summarize_entries,
+)
 from volvence_zero.memory.runtime_evidence import (
     build_runtime_backbone_evidence,
     cosine_alignment,
 )
-from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
@@ -36,522 +64,6 @@ from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKin
 
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
-
-
-class Track(str, Enum):
-    WORLD = "world"
-    SELF = "self"
-    SHARED = "shared"
-
-
-class MemoryStratum(str, Enum):
-    TRANSIENT = "transient"
-    EPISODIC = "episodic"
-    DURABLE = "durable"
-    DERIVED = "derived"
-
-
-@dataclass(frozen=True)
-class MemoryEntry:
-    entry_id: str
-    content: str
-    track: Track
-    stratum: str
-    created_at_ms: int
-    last_accessed_ms: int
-    strength: float
-    tags: tuple[str, ...]
-    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
-    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
-
-    def __post_init__(self) -> None:
-        _require_non_empty_unique_tuple("subject_ids", self.subject_ids)
-        _require_non_empty_unique_tuple("audience_ids", self.audience_ids)
-
-
-@dataclass(frozen=True)
-class MemoryWriteRequest:
-    content: str
-    track: Track
-    stratum: MemoryStratum
-    tags: tuple[str, ...] = ()
-    strength: float = 0.5
-    subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
-    audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
-
-    def __post_init__(self) -> None:
-        _require_non_empty_unique_tuple("subject_ids", self.subject_ids)
-        _require_non_empty_unique_tuple("audience_ids", self.audience_ids)
-
-
-@dataclass(frozen=True)
-class RetrievalQuery:
-    text: str
-    track: Track | None = None
-    strata: tuple[MemoryStratum, ...] = ()
-    limit: int = 5
-    facets: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class RetrievalResult:
-    query: RetrievalQuery
-    entries: tuple[MemoryEntry, ...]
-    suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
-    active_subject_scope: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class MemorySnapshot:
-    transient_summary: str
-    episodic_summary: str
-    durable_summary: str
-    retrieved_entries: tuple[MemoryEntry, ...]
-    total_entries_by_stratum: tuple[tuple[str, int], ...]
-    pending_promotions: int
-    pending_decays: int
-    cms_state: CMSState | None
-    description: str
-    lifecycle_metrics: tuple[tuple[str, float], ...] = ()
-    cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...] = ()
-    suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
-    active_subject_scope: tuple[str, ...] = ()
-    social_pe_signals: tuple[MemorySocialPESignal, ...] = ()
-
-
-@dataclass(frozen=True)
-class MemoryStoreCheckpoint:
-    checkpoint_id: str
-    entries: tuple[MemoryEntry, ...]
-    pending_promotions: tuple[str, ...]
-    pending_decays: tuple[str, ...]
-    cms_state: CMSCheckpointState | None
-    promotion_threshold: float
-    semantic_index: tuple[tuple[str, tuple[float, ...]], ...]
-
-
-def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
-    """Reconstruct a MemoryStoreCheckpoint from a deserialized dict.
-
-    Returns None if the dict is missing required fields or has
-    incompatible structure.
-    """
-    try:
-        entries_raw = parsed.get("entries", [])
-        entries = tuple(
-            MemoryEntry(
-                entry_id=str(e["entry_id"]),
-                content=str(e["content"]),
-                track=Track(e["track"]),
-                stratum=str(e["stratum"]),
-                created_at_ms=int(e["created_at_ms"]),
-                last_accessed_ms=int(e["last_accessed_ms"]),
-                strength=float(e["strength"]),
-                tags=tuple(str(t) for t in e.get("tags", ())),
-                subject_ids=tuple(
-                    str(subject_id)
-                    for subject_id in e.get("subject_ids", (PRIMARY_INTERLOCUTOR_ID,))
-                ),
-                audience_ids=tuple(
-                    str(audience_id)
-                    for audience_id in e.get("audience_ids", (SELF_INTERLOCUTOR_ID,))
-                ),
-            )
-            for e in entries_raw
-        )
-        cms_raw = parsed.get("cms_state")
-        cms_state: CMSCheckpointState | None = None
-        if cms_raw is not None and isinstance(cms_raw, dict):
-            update_rule_raw = cms_raw.get("update_rule_state")
-            update_rule_state = None
-            if isinstance(update_rule_raw, dict):
-                update_rule_state = LearnedUpdateRuleState(
-                    rule_id=str(update_rule_raw["rule_id"]),
-                    feature_dim=int(update_rule_raw["feature_dim"]),
-                    hidden_dim=int(update_rule_raw["hidden_dim"]),
-                    update_count=int(update_rule_raw["update_count"]),
-                    last_feature_norm=float(update_rule_raw["last_feature_norm"]),
-                    last_improvement=float(update_rule_raw["last_improvement"]),
-                    last_guard_reason=str(update_rule_raw.get("last_guard_reason", "")),
-                    input_projection=tuple(
-                        tuple(float(v) for v in row) for row in update_rule_raw.get("input_projection", ())
-                    ),
-                    hidden_bias=tuple(float(v) for v in update_rule_raw.get("hidden_bias", ())),
-                    output_projection=tuple(
-                        tuple(float(v) for v in row) for row in update_rule_raw.get("output_projection", ())
-                    ),
-                    output_bias=tuple(float(v) for v in update_rule_raw.get("output_bias", ())),
-                    last_decisions=tuple(
-                        LearnedUpdateDecision(
-                            target_id=str(item["target_id"]),
-                            write_gate=float(item["write_gate"]),
-                            step_scale=float(item["step_scale"]),
-                            momentum_gate=float(item["momentum_gate"]),
-                            slow_mix=float(item["slow_mix"]),
-                            reset_mix=float(item["reset_mix"]),
-                            bias_delta=float(item["bias_delta"]),
-                            confidence=float(item["confidence"]),
-                            guard_applied=bool(item.get("guard_applied", False)),
-                            guard_reason=str(item.get("guard_reason", "")),
-                            description=str(item.get("description", "")),
-                        )
-                        for item in update_rule_raw.get("last_decisions", ())
-                    ),
-                    base_learning_rate=float(update_rule_raw.get("base_learning_rate", 0.0)),
-                    last_effective_learning_rate=float(
-                        update_rule_raw.get("last_effective_learning_rate", 0.0)
-                    ),
-                    last_reward=float(update_rule_raw.get("last_reward", 0.0)),
-                    last_stability=float(update_rule_raw.get("last_stability", 0.0)),
-                    last_write_gate=float(update_rule_raw.get("last_write_gate", 0.0)),
-                    last_step_scale=float(update_rule_raw.get("last_step_scale", 0.0)),
-                    last_momentum_gate=float(update_rule_raw.get("last_momentum_gate", 0.0)),
-                    last_slow_mix=float(update_rule_raw.get("last_slow_mix", 0.0)),
-                    last_reset_mix=float(update_rule_raw.get("last_reset_mix", 0.0)),
-                    last_confidence=float(update_rule_raw.get("last_confidence", 0.0)),
-                    description=str(update_rule_raw.get("description", "")),
-                )
-            hope_raw = cms_raw.get("hope_self_modification_state")
-            hope_state = None
-            if isinstance(hope_raw, dict):
-                hope_state = CMSHopeSelfModificationState(
-                    enabled=bool(hope_raw.get("enabled", True)),
-                    update_count=int(hope_raw.get("update_count", 0)),
-                    last_target_id=str(hope_raw.get("last_target_id", "")),
-                    generated_learning_rate=float(hope_raw.get("generated_learning_rate", 0.0)),
-                    generated_decay_rate=float(hope_raw.get("generated_decay_rate", 0.0)),
-                    generated_reset_rate=float(hope_raw.get("generated_reset_rate", 0.0)),
-                    last_improvement=float(hope_raw.get("last_improvement", 0.0)),
-                    last_stability=float(hope_raw.get("last_stability", 0.0)),
-                    last_reward=float(hope_raw.get("last_reward", 0.0)),
-                    guarded=bool(hope_raw.get("guarded", False)),
-                    guard_reason=str(hope_raw.get("guard_reason", "")),
-                    description=str(hope_raw.get("description", "")),
-                )
-            cms_state = CMSCheckpointState(
-                online_fast=tuple(float(v) for v in cms_raw["online_fast"]),
-                session_medium=tuple(float(v) for v in cms_raw["session_medium"]),
-                background_slow=tuple(float(v) for v in cms_raw["background_slow"]),
-                last_update_ms=int(cms_raw["last_update_ms"]),
-                total_observations=int(cms_raw["total_observations"]),
-                total_reflections=int(cms_raw["total_reflections"]),
-                session_observations_since_update=int(cms_raw["session_observations_since_update"]),
-                background_observations_since_update=int(cms_raw["background_observations_since_update"]),
-                session_pending_signal=tuple(float(v) for v in cms_raw["session_pending_signal"]),
-                background_pending_signal=tuple(float(v) for v in cms_raw["background_pending_signal"]),
-                mode=str(cms_raw.get("mode", "vector")),
-                mlp_params=tuple(
-                    tuple(tuple(float(x) for x in group) for group in band)
-                    for band in cms_raw.get("mlp_params", ())
-                ),
-                nested_session_init_target=tuple(
-                    float(v) for v in cms_raw.get("nested_session_init_target", ())
-                ),
-                nested_online_init_target=tuple(
-                    float(v) for v in cms_raw.get("nested_online_init_target", ())
-                ),
-                tower_meta_levels=tuple(
-                    (str(level[0]), tuple(float(v) for v in level[1]))
-                    for level in cms_raw.get("tower_meta_levels", ())
-                ),
-                update_rule_state=update_rule_state,
-                hope_self_modification_state=hope_state,
-            )
-        semantic_raw = parsed.get("semantic_index", [])
-        semantic_index = tuple(
-            (str(pair[0]), tuple(float(v) for v in pair[1]))
-            for pair in semantic_raw
-        )
-        return MemoryStoreCheckpoint(
-            checkpoint_id=str(parsed.get("checkpoint_id", "restored")),
-            entries=entries,
-            pending_promotions=tuple(str(p) for p in parsed.get("pending_promotions", ())),
-            pending_decays=tuple(str(d) for d in parsed.get("pending_decays", ())),
-            cms_state=cms_state,
-            promotion_threshold=float(parsed.get("promotion_threshold", 0.3)),
-            semantic_index=semantic_index,
-        )
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-def _clamp_strength(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
-def _require_non_empty_unique_tuple(field_name: str, values: tuple[str, ...]) -> None:
-    if not values:
-        raise ValueError(f"{field_name} must contain at least one entry")
-    for value in values:
-        if not value.strip():
-            raise ValueError(f"{field_name} entries must be non-empty")
-    if len(set(values)) != len(values):
-        raise ValueError(f"{field_name} entries must be unique")
-
-
-def _entry_in_subject_scope(
-    entry: MemoryEntry, active_subject_ids: tuple[str, ...]
-) -> bool:
-    return any(subject_id in active_subject_ids for subject_id in entry.subject_ids)
-
-
-def _tokenize(text: str) -> set[str]:
-    tokens: set[str] = set()
-    ascii_buffer: list[str] = []
-    compact = "".join(char for char in text.lower() if not char.isspace())
-    for char in text.lower():
-        if char.isascii() and char.isalnum():
-            ascii_buffer.append(char)
-            continue
-        if ascii_buffer:
-            tokens.add("".join(ascii_buffer))
-            ascii_buffer.clear()
-        if not char.isspace():
-            tokens.add(char)
-    if ascii_buffer:
-        tokens.add("".join(ascii_buffer))
-    for index in range(len(compact) - 1):
-        tokens.add(compact[index : index + 2])
-    return tokens
-
-
-def _semantic_embedding(*, text: str, tags: tuple[str, ...], dim: int = 6) -> tuple[float, ...]:
-    tokens = tuple(sorted(_tokenize(text) | {tag.lower() for tag in tags}))
-    if not tokens:
-        return tuple(0.0 for _ in range(dim))
-    vector = [0.0 for _ in range(dim)]
-    for token in tokens:
-        token_strength = max(len(token), 1)
-        for index, char in enumerate(token):
-            vector[(index + len(token)) % dim] += (ord(char) % 31) / 31.0 / token_strength
-    norm = math.sqrt(sum(value * value for value in vector))
-    if norm <= 1e-6:
-        return tuple(0.0 for _ in range(dim))
-    return tuple(value / norm for value in vector)
-
-
-def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    if not left or not right:
-        return 0.0
-    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
-
-
-def _mean_abs(values: tuple[float, ...]) -> float:
-    if not values:
-        return 0.0
-    return sum(abs(value) for value in values) / len(values)
-
-
-def _align_signal(signal: tuple[float, ...], *, dim: int) -> tuple[float, ...]:
-    if len(signal) == dim:
-        return signal
-    if not signal:
-        return tuple(0.0 for _ in range(dim))
-    return tuple(signal[index % len(signal)] for index in range(dim))
-
-
-def _blend_signals(
-    *,
-    dim: int,
-    weighted_signals: tuple[tuple[tuple[float, ...], float], ...],
-) -> tuple[float, ...]:
-    total_weight = sum(weight for _, weight in weighted_signals if weight > 0.0)
-    if total_weight <= 1e-6:
-        return tuple(0.0 for _ in range(dim))
-    blended = [0.0 for _ in range(dim)]
-    for signal, weight in weighted_signals:
-        if weight <= 0.0:
-            continue
-        aligned = _align_signal(signal, dim=dim)
-        for index in range(dim):
-            blended[index] += aligned[index] * weight
-    return tuple(_clamp_strength(value / total_weight) for value in blended)
-
-
-def summarize_entries(entries: Iterable[MemoryEntry], *, fallback: str) -> str:
-    collected = tuple(entries)
-    if not collected:
-        return fallback
-    preview = "; ".join(entry.content for entry in collected[:3])
-    if len(collected) > 3:
-        preview += "; ..."
-    return preview
-
-
-@dataclass(frozen=True)
-class LearnedMemoryRecall:
-    query_base_signal: tuple[float, ...]
-    query_signal: tuple[float, ...]
-    core_signal: tuple[float, ...]
-    tower_profile_id: str
-    tower_depth: int
-    retrieval_confidence: float
-    tower_alignment: float
-    query_only_alignment: float
-    composite_alignment: float
-    transfer_alignment: float
-    artifact_weight: float
-    learned_weight: float
-    description: str
-
-
-class ArtifactStore:
-    """Audit-friendly durable artifact layer.
-
-    This layer stores explicit cards, beliefs, and other rollback-friendly
-    artifacts. It is not the primary memory substrate; learned multi-timescale
-    state lives in the CMS core.
-    """
-
-    def __init__(self) -> None:
-        self._entries: dict[str, MemoryEntry] = {}
-        self._by_stratum: dict[MemoryStratum, list[str]] = {
-            MemoryStratum.TRANSIENT: [],
-            MemoryStratum.EPISODIC: [],
-            MemoryStratum.DURABLE: [],
-            MemoryStratum.DERIVED: [],
-        }
-        self._pending_promotions: list[str] = []
-        self._pending_decays: list[str] = []
-
-    @property
-    def pending_promotions(self) -> tuple[str, ...]:
-        return tuple(self._pending_promotions)
-
-    @property
-    def pending_decays(self) -> tuple[str, ...]:
-        return tuple(self._pending_decays)
-
-    def write(self, entry: MemoryEntry) -> MemoryEntry:
-        self._entries[entry.entry_id] = entry
-        stratum = MemoryStratum(entry.stratum)
-        if entry.entry_id not in self._by_stratum[stratum]:
-            self._by_stratum[stratum].append(entry.entry_id)
-        if stratum in {MemoryStratum.TRANSIENT, MemoryStratum.EPISODIC} and entry.entry_id not in self._pending_promotions:
-            self._pending_promotions.append(entry.entry_id)
-        if stratum is MemoryStratum.TRANSIENT and entry.strength < 0.4 and entry.entry_id not in self._pending_decays:
-            self._pending_decays.append(entry.entry_id)
-        return entry
-
-    def get(self, entry_id: str) -> MemoryEntry | None:
-        return self._entries.get(entry_id)
-
-    def touch(self, entry_id: str, *, timestamp_ms: int) -> MemoryEntry | None:
-        entry = self._entries.get(entry_id)
-        if entry is None:
-            return None
-        updated = replace(entry, last_accessed_ms=timestamp_ms)
-        self._entries[entry_id] = updated
-        return updated
-
-    def replace_entry(self, entry: MemoryEntry) -> None:
-        self._entries[entry.entry_id] = entry
-        stratum = MemoryStratum(entry.stratum)
-        for candidate in MemoryStratum:
-            bucket = self._by_stratum[candidate]
-            if candidate is stratum:
-                if entry.entry_id not in bucket:
-                    bucket.append(entry.entry_id)
-            elif entry.entry_id in bucket:
-                bucket.remove(entry.entry_id)
-
-    def entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
-        return tuple(self._entries[entry_id] for entry_id in self._by_stratum[stratum])
-
-    def entries_in(self, strata: tuple[MemoryStratum, ...]) -> tuple[MemoryEntry, ...]:
-        return tuple(
-            self._entries[entry_id]
-            for stratum in strata
-            for entry_id in self._by_stratum[stratum]
-        )
-
-    def total_entries_by_stratum(self) -> tuple[tuple[str, int], ...]:
-        return tuple((stratum.value, len(self._by_stratum[stratum])) for stratum in MemoryStratum)
-
-    def entry_count(self) -> int:
-        return len(self._entries)
-
-    def promote(
-        self,
-        *,
-        entry_id: str,
-        promotion_threshold: float,
-        promotion_boost: float,
-        timestamp_ms: int,
-    ) -> MemoryEntry | None:
-        entry = self._entries.get(entry_id)
-        if entry is None or entry.strength < promotion_threshold:
-            return None
-        updated = replace(
-            entry,
-            stratum=MemoryStratum.DURABLE.value,
-            strength=_clamp_strength(max(entry.strength, 0.55 + promotion_boost * 0.35)),
-            last_accessed_ms=timestamp_ms,
-        )
-        self.replace_entry(updated)
-        return updated
-
-    def decay(
-        self,
-        *,
-        entry_id: str,
-        decay_scale: float,
-        timestamp_ms: int,
-    ) -> MemoryEntry | None:
-        entry = self._entries.get(entry_id)
-        if entry is None:
-            return None
-        updated = replace(
-            entry,
-            strength=_clamp_strength(entry.strength * max(0.55, 1.0 - decay_scale * 0.35)),
-            last_accessed_ms=timestamp_ms,
-        )
-        self._entries[entry_id] = updated
-        return updated
-
-    def export_entries(self) -> tuple[MemoryEntry, ...]:
-        return tuple(self._entries.values())
-
-    def restore(
-        self,
-        *,
-        entries: tuple[MemoryEntry, ...],
-        pending_promotions: tuple[str, ...],
-        pending_decays: tuple[str, ...],
-    ) -> None:
-        self._entries = {entry.entry_id: entry for entry in entries}
-        self._by_stratum = {
-            stratum: [entry.entry_id for entry in entries if entry.stratum == stratum.value]
-            for stratum in MemoryStratum
-        }
-        self._pending_promotions = list(pending_promotions)
-        self._pending_decays = list(pending_decays)
-
-
-class DerivedRetrievalIndex:
-    """Rebuildable artifact retrieval support.
-
-    This index is intentionally derived from explicit artifacts and can be
-    reconstructed from checkpoints. It should not be treated as memory truth.
-    """
-
-    def __init__(self) -> None:
-        self._artifact_embeddings: dict[str, tuple[float, ...]] = {}
-
-    def index_entry(self, entry: MemoryEntry, *, embedding: tuple[float, ...] | None = None) -> None:
-        self._artifact_embeddings[entry.entry_id] = embedding or _semantic_embedding(
-            text=entry.content,
-            tags=entry.tags,
-        )
-
-    def affinity(self, *, entry: MemoryEntry, query_embedding: tuple[float, ...]) -> float:
-        return _cosine_similarity(query_embedding, self._artifact_embeddings.get(entry.entry_id, (0.0,) * len(query_embedding)))
-
-    def export_state(self) -> tuple[tuple[str, tuple[float, ...]], ...]:
-        return tuple(sorted(self._artifact_embeddings.items()))
-
-    def restore(self, embeddings: tuple[tuple[str, tuple[float, ...]], ...]) -> None:
-        self._artifact_embeddings = dict(embeddings)
 
 
 def build_default_memory_store(*, latent_dim: int = 8, nested_profile: bool = True) -> "MemoryStore":
@@ -1956,59 +1468,44 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                 )
         if substrate_snapshot is not None:
             facets.extend(_query_parts_from_feature_surface(substrate_snapshot.feature_surface))
-        facets.extend(_temporal_query_facets(temporal_value))
-        facets.extend(_dual_track_query_facets(dual_track_value))
-        facets.extend(_prediction_error_query_facets(prediction_error_value))
+        facets.extend(_published_memory_retrieval_facets(temporal_value))
+        facets.extend(_published_memory_retrieval_facets(dual_track_value))
+        facets.extend(_published_memory_retrieval_facets(prediction_error_value))
         return tuple(facets)
 
 
-def _temporal_query_facets(temporal_value: Any) -> tuple[str, ...]:
-    from volvence_zero.temporal_types import TemporalAbstractionSnapshot
-
-    if not isinstance(temporal_value, TemporalAbstractionSnapshot):
+def _published_memory_retrieval_facets(value: Any) -> tuple[str, ...]:
+    if value is None:
         return ()
-    return (
-        f"temporal:{temporal_value.active_abstract_action}",
-        f"temporal:steps_since_switch:{temporal_value.controller_state.steps_since_switch}",
-    )
+    if isinstance(value, RuntimePlaceholderValue):
+        return ()
+    return tuple(value.memory_retrieval_facets)
 
 
 def _temporal_feedback_signal(temporal_value: Any) -> tuple[float, ...]:
-    from volvence_zero.temporal_types import TemporalAbstractionSnapshot
-
-    if not isinstance(temporal_value, TemporalAbstractionSnapshot):
+    if temporal_value is None:
         return ()
-    return temporal_value.memory_feedback_signal
-
-
-def _dual_track_query_facets(dual_track_value: Any) -> tuple[str, ...]:
-    from volvence_zero.dual_track.core import DualTrackSnapshot
-
-    if not isinstance(dual_track_value, DualTrackSnapshot):
+    if isinstance(temporal_value, RuntimePlaceholderValue):
         return ()
-    facets: list[str] = []
-    for goal in dual_track_value.world_track.active_goals[:2]:
-        facets.append(f"world-goal:{goal}")
-    for goal in dual_track_value.self_track.active_goals[:2]:
-        facets.append(f"self-goal:{goal}")
-    facets.append(f"cross-track:{dual_track_value.cross_track_tension:.2f}")
-    return tuple(facets)
+    return tuple(temporal_value.memory_feedback_signal)
 
 
-def _prediction_error_query_facets(prediction_error_value: "PredictionErrorSnapshot | None") -> tuple[str, ...]:
-    if prediction_error_value is None or prediction_error_value.bootstrap:
-        return ()
-    pe = prediction_error_value.error
-    dominant_dimension = max(
-        (
-            ("task", abs(pe.task_error)),
-            ("relationship", abs(pe.relationship_error)),
-            ("regime", abs(pe.regime_error)),
-            ("action", abs(pe.action_error)),
-        ),
-        key=lambda item: item[1],
-    )[0]
-    return (
-        f"prediction_error:{dominant_dimension}",
-        f"prediction_reward:{pe.signed_reward:.2f}",
-    )
+__all__ = [
+    "ArtifactStore",
+    "DerivedRetrievalIndex",
+    "LearnedMemoryRecall",
+    "MemoryEntry",
+    "MemoryModule",
+    "MemorySnapshot",
+    "MemoryStore",
+    "MemoryStoreCheckpoint",
+    "MemoryStratum",
+    "MemoryWriteRequest",
+    "RetrievalQuery",
+    "RetrievalResult",
+    "Track",
+    "build_default_memory_store",
+    "build_memory_write_requests",
+    "build_retrieval_query",
+    "summarize_entries",
+]

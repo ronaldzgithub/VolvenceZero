@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Mapping
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation.backbone import EvaluationSnapshot
+from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import MemorySnapshot, Track
 from volvence_zero.regime.contracts import RegimeIdentity
 from volvence_zero.regime.templates import REGIME_TEMPLATES
@@ -152,12 +152,12 @@ def _alert_pressure(evaluation_snapshot: EvaluationSnapshot | None) -> float:
         return 0.0
     relevant_alerts = tuple(
         alert
-        for alert in evaluation_snapshot.alerts
-        if "cross-track stability" in alert.lower() or "rollback pressure" in alert.lower()
+        for alert in evaluation_snapshot.structured_alerts
+        if alert.code in {"cross_track_stability_degraded", "rollback_pressure_elevated"}
     )
-    if any(alert.startswith("CRITICAL") for alert in relevant_alerts):
+    if any(alert.severity == "CRITICAL" for alert in relevant_alerts):
         return 1.0
-    if any(alert.startswith("HIGH") for alert in relevant_alerts):
+    if any(alert.severity == "HIGH" for alert in relevant_alerts):
         return 0.8
     if relevant_alerts:
         return 0.5

@@ -74,6 +74,7 @@ from volvence_zero.reflection import (
     ReflectionEngine,
     ReflectionModule,
     ReflectionSnapshot,
+    WritebackCheckpoint,
     WritebackMode,
     WritebackResult,
 )
@@ -918,9 +919,44 @@ def apply_session_post_writeback_request(
             memory_store=memory_store,
             reflection_snapshot=request.reflection_snapshot,
             credit_snapshot=request.credit_snapshot,
-            regime_module=regime_module if structural_apply_enabled else None,
             checkpoint_id=request.checkpoint_id,
         )
+        if (
+            structural_apply_enabled
+            and regime_module is not None
+            and writeback_result is not None
+            and not writeback_result.blocked_operations
+        ):
+            regime_checkpoint = regime_module.create_checkpoint(
+                checkpoint_id=f"{request.checkpoint_id}:regime"
+            )
+            regime_operations = regime_module.apply_policy_consolidation(
+                strategy_updates=request.reflection_snapshot.policy_consolidation.strategy_priors_updated,
+                regime_effectiveness_updates=request.reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
+                strategy_gain=request.reflection_snapshot.consolidation_score.strategy_gain,
+                effectiveness_gain=request.reflection_snapshot.consolidation_score.regime_effectiveness_gain,
+            )
+            if regime_operations:
+                checkpoint = (
+                    replace(writeback_result.checkpoint, regime_checkpoint=regime_checkpoint)
+                    if writeback_result.checkpoint is not None
+                    else WritebackCheckpoint(
+                        checkpoint_id=request.checkpoint_id,
+                        memory_checkpoint=memory_store.create_checkpoint(
+                            checkpoint_id=f"{request.checkpoint_id}:memory-after-regime"
+                        ),
+                        regime_checkpoint=regime_checkpoint,
+                    )
+                )
+                writeback_result = replace(
+                    writeback_result,
+                    applied_operations=writeback_result.applied_operations + regime_operations,
+                    checkpoint=checkpoint,
+                    description=(
+                        f"{writeback_result.description} "
+                        f"Regime owner applied {len(regime_operations)} consolidation operations."
+                    ),
+                )
         if (
             not structural_apply_enabled
             and writeback_result is not None

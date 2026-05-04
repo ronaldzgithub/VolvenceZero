@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 from volvence_zero.evaluation.types import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
+    EvaluationAlert,
     EvaluationRecord,
     EvaluationReplayCase,
     EvaluationReplayCaseResult,
@@ -68,7 +69,6 @@ from volvence_zero.evaluation.semantic_readouts import (
     TASK_PRESSURE_PROTOTYPE,
     _cosine_similarity,
     _goal_semantic_pressure,
-    _relationship_relevant_alerts,
     _semantic_embedding,
     _semantic_tokens,
 )
@@ -119,7 +119,8 @@ class EvaluationBackbone:
             ),
             self._temporal_public_scores(temporal_snapshot=temporal_snapshot),
         )
-        alerts = self._build_alerts(turn_scores=turn_scores)
+        structured_alerts = self._build_structured_alerts(turn_scores=turn_scores)
+        alerts = tuple(alert.legacy_text for alert in structured_alerts)
         self._append_records(
             session_id=session_id,
             wave_id=wave_id,
@@ -136,6 +137,7 @@ class EvaluationBackbone:
                 f"Evaluation backbone produced {len(turn_scores)} turn scores and "
                 f"{len(alerts)} alerts."
             ),
+            structured_alerts=structured_alerts,
         )
 
     def family_signals(self, evaluation_snapshot: EvaluationSnapshot) -> dict[str, float]:
@@ -255,9 +257,12 @@ class EvaluationBackbone:
             )
         metric_keys = (
             "relationship_continuity",
+            "identity_continuity",
+            "relationship_repair_continuity",
             "learning_quality",
             "abstraction_reuse",
             "scheduler_health",
+            "async_robustness",
             "semantic_spine_readiness",
         )
         window_trends: list[tuple[int, tuple[tuple[str, float], ...]]] = []
@@ -307,7 +312,10 @@ class EvaluationBackbone:
             for metric, delta in trends:
                 if metric in (
                     "relationship_continuity",
+                    "identity_continuity",
+                    "relationship_repair_continuity",
                     "learning_quality",
+                    "async_robustness",
                     "semantic_spine_readiness",
                 ):
                     if delta > 0.01:
@@ -341,9 +349,12 @@ class EvaluationBackbone:
         reports = suite.session_reports
         metric_keys = (
             "relationship_continuity",
+            "identity_continuity",
+            "relationship_repair_continuity",
             "learning_quality",
             "abstraction_reuse",
             "scheduler_health",
+            "async_robustness",
             "semantic_spine_readiness",
         )
         dimension_trends: list[tuple[str, float, float]] = []
@@ -462,11 +473,16 @@ class EvaluationBackbone:
             if value > 0.0
         )
         reasons: list[str] = []
-        high_alerts = [alert for _, alert in session_report.alerts if alert.startswith("HIGH") or alert.startswith("CRITICAL")]
-        has_unsafe = any("collapse" in a.lower() or "safety" in a.lower() for _, a in session_report.alerts)
+        critical_alerts = [
+            alert for alert in session_report.alerts if alert[0] == "CRITICAL"
+        ]
+        has_unsafe = any(severity == "CRITICAL" for severity, _ in session_report.alerts) or any(
+            family == "safety" and any(record.value < 0.85 for record in records)
+            for family, records in session_report.scores_by_family
+        )
         if not replay_suite_result.passed:
             reasons.append("replay-suite-failed")
-        if high_alerts:
+        if critical_alerts:
             reasons.append("high-alert-pressure")
         if abstraction_trend < -0.03 or learning_trend < -0.03:
             reasons.append("trend-regression")
@@ -560,12 +576,22 @@ class EvaluationBackbone:
             scores=scores,
         )
         turn_scores = self._merge_turn_scores(base_snapshot.turn_scores, scores)
-        alerts = tuple(dict.fromkeys(base_snapshot.alerts + self._build_alerts(turn_scores=turn_scores)))
+        structured_alerts = tuple(
+            {
+                (alert.code, alert.metric_name, alert.severity): alert
+                for alert in (
+                    base_snapshot.structured_alerts
+                    + self._build_structured_alerts(turn_scores=turn_scores)
+                )
+            }.values()
+        )
+        alerts = tuple(alert.legacy_text for alert in structured_alerts)
         return EvaluationSnapshot(
             turn_scores=turn_scores,
             session_scores=self._session_scores_for(session_id=session_id),
             alerts=alerts,
             description=f"{base_snapshot.description} {description_suffix}",
+            structured_alerts=structured_alerts,
             reflection_accuracy=base_snapshot.reflection_accuracy,
             longitudinal_verdict=base_snapshot.longitudinal_verdict,
         )
@@ -2693,30 +2719,113 @@ class EvaluationBackbone:
             ordered_scores[index] = score
         return tuple(ordered_scores)
 
-    def _build_alerts(self, *, turn_scores: tuple[EvaluationScore, ...]) -> tuple[str, ...]:
-        alerts: list[str] = []
+    def _build_structured_alerts(self, *, turn_scores: tuple[EvaluationScore, ...]) -> tuple[EvaluationAlert, ...]:
+        alerts: list[EvaluationAlert] = []
         for score in turn_scores:
             if score.family == "relationship" and score.value < 0.4:
-                alerts.append("HIGH: cross-track stability is degraded")
+                alerts.append(
+                    EvaluationAlert(
+                        code="cross_track_stability_degraded",
+                        severity="HIGH",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="cross-track stability is degraded",
+                    )
+                )
             if score.metric_name == "contract_integrity" and score.value < 0.95:
-                alerts.append("HIGH: contract integrity below threshold")
+                alerts.append(
+                    EvaluationAlert(
+                        code="contract_integrity_low",
+                        severity="HIGH",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="contract integrity below threshold",
+                    )
+                )
             if score.metric_name == "fallback_reliance" and score.value > 0.5:
-                alerts.append("MEDIUM: substrate fallback is active")
+                alerts.append(
+                    EvaluationAlert(
+                        code="substrate_fallback_active",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="substrate fallback is active",
+                    )
+                )
             if score.metric_name == "rollback_resilience" and score.value < 0.6:
-                alerts.append("MEDIUM: rollback pressure is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="rollback_pressure_elevated",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="rollback pressure is elevated",
+                    )
+                )
             if score.metric_name == "scheduler_rollback_risk" and score.value > 0.7:
-                alerts.append("HIGH: scheduler rollback risk is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="scheduler_rollback_risk_elevated",
+                        severity="HIGH",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="scheduler rollback risk is elevated",
+                    )
+                )
             if score.metric_name == "scheduler_transition_pressure" and score.value > 0.75:
-                alerts.append("MEDIUM: scheduler transition pressure is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="scheduler_transition_pressure_elevated",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="scheduler transition pressure is elevated",
+                    )
+                )
             if score.metric_name == "scheduler_rare_heavy_pressure" and score.value > 0.8:
-                alerts.append("MEDIUM: scheduler rare-heavy pressure is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="scheduler_rare_heavy_pressure_elevated",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="scheduler rare-heavy pressure is elevated",
+                    )
+                )
             if score.metric_name == "action_family_monopoly_pressure" and score.value > 0.72:
-                alerts.append("MEDIUM: action-family monopoly pressure is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="action_family_monopoly_pressure_elevated",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="action-family monopoly pressure is elevated",
+                    )
+                )
             if score.metric_name == "action_family_collapse_risk" and score.value > 0.68:
-                alerts.append("HIGH: action-family collapse risk is elevated")
+                alerts.append(
+                    EvaluationAlert(
+                        code="action_family_collapse_risk_elevated",
+                        severity="HIGH",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="action-family collapse risk is elevated",
+                    )
+                )
             if score.metric_name == "family_outcome_divergence" and score.value < 0.05:
-                alerts.append("MEDIUM: family outcome stagnation - all families have indistinguishable outcomes")
+                alerts.append(
+                    EvaluationAlert(
+                        code="family_outcome_stagnation",
+                        severity="MEDIUM",
+                        family=score.family,
+                        metric_name=score.metric_name,
+                        description="family outcome stagnation - all families have indistinguishable outcomes",
+                    )
+                )
         return tuple(alerts)
+
+    def _build_alerts(self, *, turn_scores: tuple[EvaluationScore, ...]) -> tuple[str, ...]:
+        return tuple(alert.legacy_text for alert in self._build_structured_alerts(turn_scores=turn_scores))
 
     def _longitudinal_trends(
         self,
@@ -2724,6 +2833,30 @@ class EvaluationBackbone:
     ) -> tuple[tuple[str, str, float], ...]:
         return (
             ("relationship", "relationship_continuity", self._trend_for_metrics(records, ("cross_track_stability",))),
+            (
+                "relationship",
+                "identity_continuity",
+                self._trend_for_metrics(
+                    records,
+                    (
+                        "cross_track_stability",
+                        "delayed_regime_alignment",
+                        "regime_sequence_payoff",
+                    ),
+                ),
+            ),
+            (
+                "relationship",
+                "relationship_repair_continuity",
+                self._trend_for_metrics(
+                    records,
+                    (
+                        "support_presence",
+                        "warmth",
+                        "delayed_regime_alignment",
+                    ),
+                ),
+            ),
             (
                 "learning",
                 "learning_quality",
@@ -2754,6 +2887,18 @@ class EvaluationBackbone:
                     (
                         "scheduler_discipline",
                         "scheduler_risk_managed",
+                    ),
+                ),
+            ),
+            (
+                "safety",
+                "async_robustness",
+                self._trend_for_metrics(
+                    records,
+                    (
+                        "rollback_resilience",
+                        "scheduler_risk_managed",
+                        "residual_env_fidelity",
                     ),
                 ),
             ),

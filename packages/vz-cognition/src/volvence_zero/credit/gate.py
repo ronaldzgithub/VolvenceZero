@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation.backbone import EvaluationSnapshot
+from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import Track
 from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -79,6 +79,9 @@ class ModificationProposal:
     new_value_hash: str
     justification: str
     is_reversible: bool = True
+    validation_delta: float = 0.0
+    capacity_cost: float = 0.0
+    rollback_evidence: str = ""
 
 
 @dataclass(frozen=True)
@@ -389,14 +392,75 @@ def evaluate_gate(
     proposal: ModificationProposal,
     evaluation_snapshot: EvaluationSnapshot,
 ) -> GateDecision:
-    critical_alert = any(alert.startswith("CRITICAL") for alert in evaluation_snapshot.alerts)
-    high_alert = any(alert.startswith("HIGH") for alert in evaluation_snapshot.alerts)
-
-    if proposal.desired_gate is ModificationGate.ONLINE and (critical_alert or high_alert):
-        return GateDecision.BLOCK
-    if proposal.desired_gate is ModificationGate.BACKGROUND and critical_alert:
+    if evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot):
         return GateDecision.BLOCK
     return GateDecision.ALLOW
+
+
+def evaluate_gate_reasons(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+) -> tuple[str, ...]:
+    """Return fail-closed blocking reasons for a self-modification proposal."""
+    critical_alert = any(alert.severity == "CRITICAL" for alert in evaluation_snapshot.structured_alerts)
+    high_alert = any(alert.severity == "HIGH" for alert in evaluation_snapshot.structured_alerts)
+    metric_values = {
+        score.metric_name: score.value
+        for score in evaluation_snapshot.turn_scores + evaluation_snapshot.session_scores
+    }
+    reasons: list[str] = []
+
+    if proposal.desired_gate is ModificationGate.ONLINE and (critical_alert or high_alert):
+        reasons.append("online gate blocked by high-or-critical evaluation alert")
+    if proposal.desired_gate is ModificationGate.BACKGROUND and critical_alert:
+        reasons.append("background gate blocked by critical evaluation alert")
+    if proposal.desired_gate is ModificationGate.HUMAN_REVIEW:
+        reasons.append("human-review proposal cannot be auto-allowed by runtime gate")
+    margin = _validation_margin_for_gate(proposal.desired_gate)
+    if proposal.validation_delta < margin:
+        reasons.append(
+            f"validation_delta {proposal.validation_delta:.3f} below required margin {margin:.3f}"
+        )
+    capacity_cap = _capacity_cap_for_gate(proposal.desired_gate)
+    if proposal.capacity_cost > capacity_cap:
+        reasons.append(
+            f"capacity_cost {proposal.capacity_cost:.3f} exceeds cap {capacity_cap:.3f}"
+        )
+    if not proposal.rollback_evidence:
+        reasons.append("missing rollback evidence")
+    if proposal.desired_gate in {ModificationGate.ONLINE, ModificationGate.BACKGROUND} and not proposal.is_reversible:
+        reasons.append("online/background proposal is not reversible")
+    contract_integrity = metric_values.get("contract_integrity", 1.0)
+    if contract_integrity < 0.95:
+        reasons.append(f"contract_integrity {contract_integrity:.3f} below 0.950")
+    fallback_reliance = metric_values.get("fallback_reliance", 0.0)
+    if proposal.desired_gate is ModificationGate.ONLINE and fallback_reliance > 0.5:
+        reasons.append(f"fallback_reliance {fallback_reliance:.3f} above 0.500")
+    rollback_resilience = metric_values.get("rollback_resilience", 1.0)
+    if rollback_resilience < 0.6:
+        reasons.append(f"rollback_resilience {rollback_resilience:.3f} below 0.600")
+    return tuple(reasons)
+
+
+def _validation_margin_for_gate(gate: ModificationGate) -> float:
+    if gate is ModificationGate.ONLINE:
+        return 0.0
+    if gate is ModificationGate.BACKGROUND:
+        return 0.02
+    if gate is ModificationGate.OFFLINE:
+        return 0.05
+    return 0.0
+
+
+def _capacity_cap_for_gate(gate: ModificationGate) -> float:
+    if gate is ModificationGate.ONLINE:
+        return 0.20
+    if gate is ModificationGate.BACKGROUND:
+        return 0.45
+    if gate is ModificationGate.OFFLINE:
+        return 0.75
+    return 1.0
 
 
 def has_blocking_writeback(credit_snapshot: CreditSnapshot, *, target_prefix: str | None = None) -> bool:
@@ -990,11 +1054,12 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         timestamp_ms: int,
     ) -> None:
         for proposal in proposals:
-            decision = evaluate_gate(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+            gate_reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+            decision = GateDecision.BLOCK if gate_reasons else GateDecision.ALLOW
             if decision is GateDecision.ALLOW:
                 justification = f"ALLOWED: {proposal.justification}"
             else:
-                justification = f"BLOCKED: {proposal.justification}"
+                justification = f"BLOCKED: {proposal.justification}; reasons={'; '.join(gate_reasons)}"
             self._ledger.record_modification(
                 SelfModificationRecord(
                     target=proposal.target,

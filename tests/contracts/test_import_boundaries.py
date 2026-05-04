@@ -52,7 +52,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     # application schema. Owners live in vz-application as before.
     "vz-cognition": frozenset(
         {
-            "runtime", "learned_update", "substrate", "memory",
+            "runtime", "learned_update", "temporal_types", "substrate", "memory",
             "application_readouts", "social_cognition", "environment",
         }
     ),

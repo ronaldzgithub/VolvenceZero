@@ -20,6 +20,7 @@ from __future__ import annotations
 from volvence_zero.evaluation.types import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
+    EvaluationAlert,
     EvaluationRecord,
     EvaluationReplayCase,
     EvaluationReplayCaseResult,
@@ -56,6 +57,7 @@ __all__ = [
     "EvaluationReplayCaseResult",
     "EvaluationReplaySuiteResult",
     "EvaluationModule",
+    "EvaluationAlert",
     "EvaluationRecord",
     "EvaluationReport",
     "EvaluationScore",

@@ -1,8 +1,14 @@
+"""ETA/NL joint learning loop runtime.
+
+Pure contracts, cadence scheduling helpers, and artifact import/rollback
+helpers live in sibling modules. This module keeps the online runtime core
+and re-exports the historic public API from ``volvence_zero.joint_loop.runtime``.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import replace
 
-from volvence_zero.application.runtime import ApplicationRareHeavyCheckpoint
 from volvence_zero.credit.gate import (
     CreditModule,
     CreditSnapshot,
@@ -25,11 +31,9 @@ from volvence_zero.evaluation.backbone import (
     EvolutionJudgement,
     JudgementCategory,
     EvaluationModule,
-    EvaluationScore,
     EvaluationSnapshot,
 )
 from volvence_zero.internal_rl import (
-    CausalPolicyCheckpoint,
     DualTrackOptimizationReport,
     DualTrackRollout,
     InternalRLSandbox,
@@ -37,27 +41,37 @@ from volvence_zero.internal_rl import (
     PolicyOptimizationResult,
     derive_abstract_action_credit,
 )
+from volvence_zero.joint_loop.artifact_imports import _JointLoopArtifactImportMixin
+from volvence_zero.joint_loop.contracts import (
+    DefaultContinualLearningSurface,
+    JointCycleReport,
+    JointLoopSchedule,
+    OnlineFastImportCheckpoint,
+    OnlineFastImportResult,
+    RareHeavyImportCheckpoint,
+    RareHeavyImportResult,
+    ScheduledJointLoopResult,
+)
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
-from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, Track, build_default_memory_store
+from volvence_zero.joint_loop.scheduling import _JointLoopSchedulingMixin
+from volvence_zero.memory import MemoryModule
+from volvence_zero.memory import MemoryStore, Track, build_default_memory_store
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
-    SubstrateOnlineFastCheckpoint,
-    SubstrateRareHeavyCheckpoint,
     ResidualSequenceStep,
     SimulatedResidualSubstrateAdapter,
+    SubstrateModule,
     SubstrateSnapshot,
     SurfaceKind,
     TraceStep,
     TrainingTrace,
 )
 from volvence_zero.temporal import (
-    DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
-    MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
     MetacontrollerSSLTrainer,
     MetacontrollerRuntimeState,
@@ -68,132 +82,9 @@ from volvence_zero.temporal import (
     build_temporal_runtime_state_aggregate,
     clone_full_learned_temporal_policy,
 )
-from volvence_zero.memory import MemoryModule
-from volvence_zero.substrate import SubstrateModule
 
 
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
-@dataclass(frozen=True)
-class DefaultContinualLearningSurface:
-    surface_id: str
-    active: bool
-    owner_path: str
-    memory_regime_writeback_applied: bool
-    temporal_writeback_applied: bool
-    regime_evidence_applied: bool
-    substrate_live_mutation_applied: bool
-    substrate_review_only: bool
-    rare_heavy_review_recommended: bool
-    applied_operations: tuple[str, ...]
-    blocked_operations: tuple[str, ...]
-    rollback_applied: bool
-    evolution_decision: str
-    evolution_category: str
-    description: str
-
-
-@dataclass(frozen=True)
-class JointCycleReport:
-    cycle_index: int
-    acceptance_passed: bool
-    ssl_prediction_loss: float
-    ssl_kl_loss: float
-    ssl_posterior_drift: float
-    total_reward: float
-    mean_transition_reward: float
-    task_reward: float
-    relationship_reward: float
-    ssl_rollback_applied: bool
-    policy_rollback_applied: bool
-    rollback_reasons: tuple[str, ...]
-    optimization_summary: str
-    policy_objective: float
-    kernel_score_count: int
-    kernel_scores: tuple[EvaluationScore, ...]
-    backend_name: str
-    backend_fidelity: float
-    applied_operations: tuple[str, ...]
-    metacontroller_state: MetacontrollerRuntimeState | None
-    cms_description: str
-    evolution_judgement: EvolutionJudgement | None
-    owner_path: str
-    schedule_telemetry: tuple[tuple[str, int], ...]
-    description: str
-    policy_update_applied: bool = False
-    policy_kl_divergence: float = 0.0
-    policy_epochs_executed: int = 0
-    rare_heavy_review_recommended: bool = False
-    rl_batch_rollout_count: int = 1
-    default_continual_learning_surface: DefaultContinualLearningSurface | None = None
-
-
-@dataclass(frozen=True)
-class JointLoopSchedule:
-    ssl_interval: int = 1
-    rl_interval: int = 3
-    rl_batch_max_wait_turns: int = 2
-    pe_full_cycle_threshold: float = 0.6
-    pe_ssl_threshold: float = 0.18
-    pe_substrate_online_fast_threshold: float = 0.18
-    pe_rare_heavy_threshold: float = 1.2
-    latent_continuation_threshold: float = 0.52
-
-
-@dataclass(frozen=True)
-class ScheduledJointLoopResult:
-    turn_index: int
-    schedule_action: str
-    cycle_report: JointCycleReport | None
-    kernel_scores: tuple[EvaluationScore, ...]
-    ssl_prediction_loss: float
-    ssl_kl_loss: float
-    metacontroller_state: MetacontrollerRuntimeState | None
-    cms_description: str
-    owner_path: str
-    schedule_telemetry: tuple[tuple[str, int], ...]
-    description: str
-    substrate_online_fast_due: bool = False
-    rare_heavy_review_recommended: bool = False
-    default_continual_learning_surface: DefaultContinualLearningSurface | None = None
-
-
-@dataclass(frozen=True)
-class RareHeavyImportCheckpoint:
-    artifact_id: str
-    world_policy_checkpoint: CausalPolicyCheckpoint
-    self_policy_checkpoint: CausalPolicyCheckpoint
-    world_temporal_snapshot: MetacontrollerParameterSnapshot
-    self_temporal_snapshot: MetacontrollerParameterSnapshot
-    memory_checkpoint: MemoryStoreCheckpoint
-    substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
-    application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
-
-
-@dataclass(frozen=True)
-class RareHeavyImportResult:
-    artifact_id: str
-    applied_operations: tuple[str, ...]
-    checkpoint: RareHeavyImportCheckpoint
-    description: str
-
-
-@dataclass(frozen=True)
-class OnlineFastImportCheckpoint:
-    checkpoint_id: str
-    substrate_checkpoint: SubstrateOnlineFastCheckpoint | None = None
-
-
-@dataclass(frozen=True)
-class OnlineFastImportResult:
-    applied_operations: tuple[str, ...]
-    checkpoint: OnlineFastImportCheckpoint
-    description: str
-
-
-class ETANLJointLoop:
+class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     """Minimal SSL-RL alternation loop over the stage-two building blocks."""
 
     owner_path = "online-joint-loop"
@@ -255,74 +146,6 @@ class ETANLJointLoop:
         self._world_sandbox._env.set_primary_prediction_error_enabled(enabled)
         self._self_sandbox._env.set_primary_prediction_error_enabled(enabled)
 
-    def _experience_credit_signal(self) -> float:
-        keys = (
-            "delayed_retrieval_mix_alignment",
-            "delayed_regime_alignment",
-            "delayed_abstract_action_alignment",
-            "regime_sequence_payoff",
-        )
-        values = [self._external_learning_signals[key] for key in keys if key in self._external_learning_signals]
-        if not values:
-            return 0.0
-        return _clamp(sum(values) / len(values))
-
-    def _experience_control_prior_signal(self) -> float:
-        keys = (
-            "experience_case_strength",
-            "experience_playbook_strength",
-            "experience_control_prior_strength",
-            "experience_playbook_knowledge_hint",
-            "experience_playbook_experience_hint",
-        )
-        values = [self._external_learning_signals[key] for key in keys if key in self._external_learning_signals]
-        if not values:
-            return 0.0
-        return _clamp(sum(values) / len(values))
-
-    def _record_schedule_outcome(
-        self,
-        *,
-        turn_index: int,
-        schedule_action: str,
-        metacontroller_state: MetacontrollerRuntimeState | None,
-    ) -> None:
-        self._last_schedule_action = schedule_action
-        if schedule_action != "evidence-only":
-            self._last_learning_turn_index = turn_index
-        if metacontroller_state is not None:
-            self._previous_metacontroller_state = metacontroller_state
-
-    def _latent_continuation_due(
-        self,
-        *,
-        turn_index: int,
-        schedule: JointLoopSchedule,
-    ) -> bool:
-        state = self._previous_metacontroller_state
-        if state is None:
-            return False
-        if self._last_schedule_action == "evidence-only":
-            return False
-        if self._last_learning_turn_index <= 0 or turn_index - self._last_learning_turn_index != 1:
-            return False
-        active_family = state.active_family_summary
-        if active_family is None:
-            return False
-        family_support = _clamp(min(active_family.support / 4.0, 1.0))
-        family_strength = _clamp(
-            active_family.stability * 0.30
-            + state.active_family_competition_score * 0.25
-            + family_support * 0.20
-            + (1.0 - state.action_family_monopoly_pressure) * 0.10
-            + state.switch_sparsity * 0.15
-        )
-        continuation_bias = _clamp(
-            (1.0 if state.latest_switch_gate >= 0.55 else 0.0) * 0.45
-            + min(state.mean_persistence_window / 2.0, 1.0) * 0.35
-            + family_strength * 0.20
-        )
-        return _clamp(family_strength * 0.65 + continuation_bias * 0.35) >= schedule.latent_continuation_threshold
 
     def _apply_temporal_reflection_writeback(
         self,
@@ -852,9 +675,27 @@ class ETANLJointLoop:
                 memory_store=self._memory_store,
                 reflection_snapshot=reflection_snapshot,
                 credit_snapshot=enriched_credit_snapshot,
-                regime_module=self._regime_module,
                 checkpoint_id=f"{session_id}:{wave_id}",
             )
+            if not reflection_writeback_result.blocked_operations:
+                reflection_regime_operations = self._regime_module.apply_policy_consolidation(
+                    strategy_updates=reflection_snapshot.policy_consolidation.strategy_priors_updated,
+                    regime_effectiveness_updates=reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
+                    strategy_gain=reflection_snapshot.consolidation_score.strategy_gain,
+                    effectiveness_gain=reflection_snapshot.consolidation_score.regime_effectiveness_gain,
+                )
+                if reflection_regime_operations:
+                    reflection_writeback_result = replace(
+                        reflection_writeback_result,
+                        applied_operations=(
+                            reflection_writeback_result.applied_operations
+                            + reflection_regime_operations
+                        ),
+                        description=(
+                            f"{reflection_writeback_result.description} "
+                            f"Regime owner applied {len(reflection_regime_operations)} consolidation operations."
+                        ),
+                    )
             applied_operations = applied_operations + reflection_writeback_result.applied_operations
             blocked_writeback_operations = reflection_writeback_result.blocked_operations
             memory_regime_writeback_applied = bool(reflection_writeback_result.applied_operations)
@@ -1162,402 +1003,6 @@ class ETANLJointLoop:
             rare_heavy_review_recommended=rare_heavy_review_recommended,
         )
 
-    def _schedule_telemetry(
-        self,
-        *,
-        turn_index: int,
-        schedule: JointLoopSchedule,
-    ) -> tuple[tuple[str, int], ...]:
-        ssl_due = int(schedule.ssl_interval > 0 and turn_index % schedule.ssl_interval == 0)
-        rl_due = int(schedule.rl_interval > 0 and turn_index % schedule.rl_interval == 0)
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        pe_full_cycle_due = int(self._pe_full_cycle_due(schedule=schedule))
-        pe_ssl_due = int(self._pe_ssl_due(schedule=schedule))
-        pe_substrate_online_fast_due = int(self._pe_substrate_online_fast_due(schedule=schedule))
-        pe_rare_heavy_due = int(self._pe_rare_heavy_due(schedule=schedule))
-        latent_continuation_due = int(self._latent_continuation_due(turn_index=turn_index, schedule=schedule))
-        batch_target = self._effective_rl_batch_target()
-        pending_batch_count = self._pending_rl_batch_count()
-        rl_batch_ready_due = int(self._rl_batch_ready_due())
-        rl_batch_wait_due = int(self._rl_batch_wait_due(turn_index=turn_index, schedule=schedule))
-        (
-            pe_pressure,
-            family_stability,
-            rollback_risk,
-            transition_pressure,
-            substrate_pressure,
-            rare_heavy_pressure,
-        ) = self._joint_schedule_inputs(
-            turn_index=turn_index,
-            schedule=schedule,
-        )
-        experience_credit = self._experience_credit_signal()
-        control_prior_strength = self._experience_control_prior_signal()
-        return (
-            ("turn_index", turn_index),
-            ("ssl_interval", schedule.ssl_interval),
-            ("rl_interval", schedule.rl_interval),
-            ("rl_batch_target", batch_target),
-            ("pending_batch_count", pending_batch_count),
-            ("ssl_due", ssl_due),
-            ("rl_due", rl_due),
-            ("rl_batch_ready_due", rl_batch_ready_due),
-            ("rl_batch_wait_due", rl_batch_wait_due),
-            ("pe_full_cycle_due", pe_full_cycle_due),
-            ("pe_ssl_due", pe_ssl_due),
-            ("pe_substrate_online_fast_due", pe_substrate_online_fast_due),
-            ("pe_rare_heavy_due", pe_rare_heavy_due),
-            ("latent_continuation_due", latent_continuation_due),
-            ("pe_magnitude_x1000", int(pe_magnitude * 1000)),
-            ("pe_abs_reward_x1000", int(pe_abs_reward * 1000)),
-            ("pe_pressure_x1000", int(pe_pressure * 1000)),
-            ("family_stability_x1000", int(family_stability * 1000)),
-            ("rollback_risk_x1000", int(rollback_risk * 1000)),
-            ("transition_pressure_x1000", int(transition_pressure * 1000)),
-            ("substrate_pressure_x1000", int(substrate_pressure * 1000)),
-            ("rare_heavy_pressure_x1000", int(rare_heavy_pressure * 1000)),
-            ("experience_credit_x1000", int(experience_credit * 1000)),
-            ("control_prior_strength_x1000", int(control_prior_strength * 1000)),
-        )
-
-    def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        return pe_magnitude >= schedule.pe_full_cycle_threshold or pe_abs_reward >= schedule.pe_full_cycle_threshold * 0.5
-
-    def _pe_ssl_due(self, *, schedule: JointLoopSchedule) -> bool:
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        return (
-            not self._pe_full_cycle_due(schedule=schedule)
-            and (pe_magnitude >= schedule.pe_ssl_threshold or pe_abs_reward >= schedule.pe_ssl_threshold)
-        )
-
-    def _pe_rare_heavy_due(self, *, schedule: JointLoopSchedule) -> bool:
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        return (
-            pe_magnitude >= schedule.pe_rare_heavy_threshold
-            or pe_abs_reward >= schedule.pe_rare_heavy_threshold * 0.35
-        )
-
-    def _pe_substrate_online_fast_due(self, *, schedule: JointLoopSchedule) -> bool:
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        return (
-            pe_magnitude >= schedule.pe_substrate_online_fast_threshold
-            or pe_abs_reward >= schedule.pe_substrate_online_fast_threshold * 0.5
-        )
-
-    def _effective_rl_batch_target(self) -> int:
-        return max(1, self._rl_batch_accumulation_size)
-
-    def _pending_rl_batch_count(self) -> int:
-        return len(self._pending_task_rollouts)
-
-    def _rl_batch_ready_due(self) -> bool:
-        target = self._effective_rl_batch_target()
-        if target <= 1:
-            return False
-        return self._pending_rl_batch_count() + 1 >= target
-
-    def _rl_batch_wait_due(
-        self,
-        *,
-        turn_index: int,
-        schedule: JointLoopSchedule,
-    ) -> bool:
-        if self._effective_rl_batch_target() <= 1:
-            return False
-        if self._pending_rl_batch_count() <= 0:
-            return False
-        if schedule.rl_batch_max_wait_turns <= 0:
-            return False
-        if self._last_learning_turn_index <= 0:
-            return False
-        return turn_index - self._last_learning_turn_index >= schedule.rl_batch_max_wait_turns
-
-    def _joint_schedule_inputs(
-        self,
-        *,
-        turn_index: int,
-        schedule: JointLoopSchedule,
-    ) -> tuple[float, float, float, float, float, float]:
-        pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
-        pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        experience_credit = self._experience_credit_signal()
-        control_prior_strength = self._experience_control_prior_signal()
-        pe_pressure = _clamp(
-            max(
-                pe_magnitude / max(schedule.pe_full_cycle_threshold, 1e-6),
-                pe_abs_reward / max(schedule.pe_ssl_threshold, 1e-6),
-            )
-            * 0.42
-            + (1.0 - experience_credit) * 0.08
-        )
-        state = self._previous_metacontroller_state
-        if state is None:
-            family_stability = _clamp(0.45 + experience_credit * 0.20 + control_prior_strength * 0.10)
-        else:
-            active_family = state.active_family_summary
-            support = min((active_family.support if active_family is not None else 0) / 4.0, 1.0)
-            stability = active_family.stability if active_family is not None else 0.5
-            competition = active_family.competition_score if active_family is not None else 0.5
-            family_stability = _clamp(
-                stability * 0.30
-                + competition * 0.18
-                + support * 0.12
-                + state.switch_sparsity * 0.14
-                + (1.0 - state.action_family_monopoly_pressure) * 0.14
-                + experience_credit * 0.08
-                + control_prior_strength * 0.04
-            )
-        family_signals = self._previous_family_signals
-        rollback_risk = _clamp(
-            max(
-                1.0 - family_signals.get("safety", 1.0),
-                max(0.0, 0.55 - family_signals.get("relationship", 0.55)),
-                max(0.0, 0.55 - family_signals.get("learning", 0.55)),
-                max(0.0, 0.50 - family_signals.get("abstraction", 0.50)),
-                (state.action_family_monopoly_pressure if state is not None else 0.0) * 0.8,
-            )
-        )
-        transition_pressure = _clamp(
-            (
-                (1.0 - family_stability) * 0.30
-                + (state.posterior_drift if state is not None else 0.0) * 0.18
-                + (1.0 - min(state.policy_replacement_score, 1.0) if state is not None else 0.5) * 0.18
-                + (0.0 if state is None else abs(state.latest_switch_gate - 0.5) * 2.0) * 0.08
-                + min((state.active_family_summary.support if state is not None and state.active_family_summary is not None else 0) / 4.0, 1.0) * 0.12
-                + (1.0 - control_prior_strength) * 0.14
-            )
-        )
-        substrate_pressure = _clamp(
-            max(
-                pe_magnitude / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
-                pe_abs_reward / max(schedule.pe_substrate_online_fast_threshold, 1e-6),
-            )
-            * 0.44
-            + (1.0 - experience_credit) * 0.04
-        )
-        rare_heavy_pressure = _clamp(
-            pe_magnitude / max(schedule.pe_rare_heavy_threshold, 1e-6)
-            + (1.0 - experience_credit) * 0.10
-        )
-        return (
-            pe_pressure,
-            family_stability,
-            rollback_risk,
-            transition_pressure,
-            substrate_pressure,
-            rare_heavy_pressure,
-        )
-
-    def _batch_schedule_action(
-        self,
-        *,
-        turn_index: int,
-        schedule: JointLoopSchedule,
-        pe_full_cycle_due: bool,
-        pe_ssl_due: bool,
-        rl_due: bool,
-        rl_batch_ready_due: bool,
-        rl_batch_wait_due: bool,
-        substrate_online_fast_due: bool,
-        rare_heavy_review_recommended: bool,
-    ) -> str | None:
-        if self._effective_rl_batch_target() <= 1:
-            return None
-        (
-            pe_pressure,
-            family_stability,
-            rollback_risk,
-            transition_pressure,
-            substrate_pressure,
-            rare_heavy_pressure,
-        ) = self._joint_schedule_inputs(
-            turn_index=turn_index,
-            schedule=schedule,
-        )
-        if rare_heavy_review_recommended and rollback_risk >= 0.70 and rare_heavy_pressure >= 0.75:
-            return "ssl-only-rare-heavy-hold"
-        if pe_full_cycle_due:
-            return "full-cycle-pe"
-        if rl_batch_wait_due:
-            if transition_pressure >= 0.55 or substrate_pressure >= 0.55:
-                return "full-cycle-batch-forced"
-            if pe_pressure >= 0.55 or family_stability >= 0.55 or rollback_risk <= 0.35:
-                return "full-cycle-batch-forced"
-            return "ssl-only-risk-hold" if pe_ssl_due or family_stability >= 0.35 else "evidence-only-risk-hold"
-        if rl_batch_ready_due:
-            if rare_heavy_review_recommended and rollback_risk >= 0.75 and transition_pressure < 0.55:
-                return "ssl-only-rare-heavy-hold"
-            if rollback_risk >= 0.75 and pe_pressure < 0.55:
-                return "ssl-only-risk-hold"
-            if transition_pressure >= 0.55:
-                return "full-cycle-batch-transition"
-            return "full-cycle-batch"
-        if rl_due:
-            if substrate_online_fast_due and substrate_pressure >= 0.50 and rollback_risk < 0.75:
-                return "full-cycle-collect-substrate"
-            if transition_pressure >= 0.60 and family_stability < 0.55 and rollback_risk < 0.75:
-                return "full-cycle-collect-transition"
-            if rollback_risk >= 0.70 and pe_pressure < 0.45:
-                return "ssl-only-risk-hold" if family_stability >= 0.30 else "evidence-only-risk-hold"
-            if pe_pressure >= 0.40 or family_stability >= 0.45:
-                return "full-cycle-collect"
-        return None
-
-    def _require_live_substrate_mutation_enabled(self, *, operation: str) -> None:
-        if self._residual_runtime is None:
-            raise RuntimeError(f"{operation} requires a residual runtime.")
-        self._residual_runtime.require_live_substrate_mutation(operation=operation)
-
-    def apply_rare_heavy_artifact(
-        self,
-        artifact: RareHeavyArtifact,
-        *,
-        checkpoint_id: str | None = None,
-    ) -> RareHeavyImportResult:
-        self._require_live_substrate_mutation_enabled(operation="apply_rare_heavy_artifact()")
-        checkpoint_label = checkpoint_id or f"rare-heavy:{artifact.artifact_id}"
-        world_policy_checkpoint = self._world_sandbox.create_checkpoint(
-            checkpoint_id=f"{checkpoint_label}:world-policy"
-        )
-        self_policy_checkpoint = self._self_sandbox.create_checkpoint(
-            checkpoint_id=f"{checkpoint_label}:self-policy"
-        )
-        world_temporal_snapshot = self._world_policy.export_rare_heavy_snapshot()
-        self_temporal_snapshot = self._self_policy.export_rare_heavy_snapshot()
-        memory_checkpoint = self._memory_store.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:memory")
-        substrate_checkpoint = (
-            self._residual_runtime.export_rare_heavy_state(checkpoint_id=f"{checkpoint_label}:substrate")
-            if self._residual_runtime is not None and artifact.substrate_checkpoint is not None
-            else None
-        )
-        if isinstance(artifact.temporal_snapshot, DualTrackRareHeavySnapshot):
-            applied_operations = self._world_policy.apply_rare_heavy_snapshot(
-                artifact.temporal_snapshot.world_snapshot
-            ) + self._self_policy.apply_rare_heavy_snapshot(
-                artifact.temporal_snapshot.self_snapshot
-            )
-        else:
-            applied_operations = self._world_policy.apply_rare_heavy_snapshot(artifact.temporal_snapshot)
-            applied_operations = applied_operations + self._self_policy.apply_rare_heavy_snapshot(
-                artifact.temporal_snapshot
-            )
-        if artifact.memory_checkpoint is not None:
-            applied_operations = applied_operations + self._memory_store.import_rare_heavy_state(
-                artifact.memory_checkpoint
-            )
-        if artifact.substrate_checkpoint is not None and self._residual_runtime is not None:
-            applied_operations = applied_operations + self._residual_runtime.import_rare_heavy_state(
-                artifact.substrate_checkpoint
-            )
-        checkpoint = RareHeavyImportCheckpoint(
-            artifact_id=artifact.artifact_id,
-            world_policy_checkpoint=world_policy_checkpoint,
-            self_policy_checkpoint=self_policy_checkpoint,
-            world_temporal_snapshot=world_temporal_snapshot,
-            self_temporal_snapshot=self_temporal_snapshot,
-            memory_checkpoint=memory_checkpoint,
-            substrate_checkpoint=substrate_checkpoint,
-        )
-        return RareHeavyImportResult(
-            artifact_id=artifact.artifact_id,
-            applied_operations=applied_operations,
-            checkpoint=checkpoint,
-            description=(
-                f"Applied rare-heavy artifact {artifact.artifact_id} from {artifact.owner_path} "
-                f"with {len(applied_operations)} owner-side imports."
-            ),
-        )
-
-    def review_rare_heavy_artifact(
-        self,
-        artifact: RareHeavyArtifact,
-        *,
-        checkpoint_id: str | None = None,
-    ) -> RareHeavyImportResult:
-        checkpoint_label = checkpoint_id or f"rare-heavy-review:{artifact.artifact_id}"
-        checkpoint = RareHeavyImportCheckpoint(
-            artifact_id=artifact.artifact_id,
-            world_policy_checkpoint=self._world_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_label}:world-policy"
-            ),
-            self_policy_checkpoint=self._self_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_label}:self-policy"
-            ),
-            world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
-            self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
-            memory_checkpoint=self._memory_store.export_rare_heavy_state(
-                checkpoint_id=f"{checkpoint_label}:memory"
-            ),
-            substrate_checkpoint=None,
-        )
-        return RareHeavyImportResult(
-            artifact_id=artifact.artifact_id,
-            applied_operations=(),
-            checkpoint=checkpoint,
-            description=(
-                f"Reviewed rare-heavy artifact {artifact.artifact_id} in review-only mode; "
-                "no owner-side imports were applied because the runtime is staying under the "
-                "frozen-substrate doctrine."
-            ),
-        )
-
-    def rollback_rare_heavy_import(self, checkpoint: RareHeavyImportCheckpoint) -> tuple[str, ...]:
-        self._world_sandbox.restore_checkpoint(checkpoint.world_policy_checkpoint)
-        self._self_sandbox.restore_checkpoint(checkpoint.self_policy_checkpoint)
-        self._world_policy.apply_rare_heavy_snapshot(checkpoint.world_temporal_snapshot)
-        self._self_policy.apply_rare_heavy_snapshot(checkpoint.self_temporal_snapshot)
-        self._memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
-        operations = [
-            "rare-heavy:world-temporal-rollback",
-            "rare-heavy:self-temporal-rollback",
-            "rare-heavy:memory-rollback",
-        ]
-        if checkpoint.substrate_checkpoint is not None and self._residual_runtime is not None:
-            operations.extend(self._residual_runtime.restore_rare_heavy_state(checkpoint.substrate_checkpoint))
-        return tuple(operations)
-
-    def apply_online_fast_substrate_checkpoint(
-        self,
-        checkpoint: SubstrateOnlineFastCheckpoint,
-        *,
-        checkpoint_id: str | None = None,
-    ) -> OnlineFastImportResult:
-        self._require_live_substrate_mutation_enabled(operation="apply_online_fast_substrate_checkpoint()")
-        prior_checkpoint = (
-            self._residual_runtime.export_online_fast_state(
-                checkpoint_id=checkpoint_id or f"{checkpoint.checkpoint_id}:prior"
-            )
-            if self._residual_runtime is not None
-            else None
-        )
-        applied_operations = (
-            self._residual_runtime.apply_online_fast_state(checkpoint)
-            if self._residual_runtime is not None
-            else ()
-        )
-        return OnlineFastImportResult(
-            applied_operations=applied_operations,
-            checkpoint=OnlineFastImportCheckpoint(
-                checkpoint_id=checkpoint_id or checkpoint.checkpoint_id,
-                substrate_checkpoint=prior_checkpoint,
-            ),
-            description=(
-                f"Applied online-fast substrate checkpoint {checkpoint.checkpoint_id} "
-                f"with {len(applied_operations)} owner-side operations."
-            ),
-        )
-
-    def rollback_online_fast_substrate_import(self, checkpoint: OnlineFastImportCheckpoint) -> tuple[str, ...]:
-        if checkpoint.substrate_checkpoint is None or self._residual_runtime is None:
-            return ()
-        return self._residual_runtime.restore_online_fast_state(checkpoint.substrate_checkpoint)
-
     def _enrich_credit_snapshot(
         self,
         active_snapshots: dict[str, Snapshot[object]],
@@ -1595,7 +1040,10 @@ class ETANLJointLoop:
             reasons.append("safety-degraded")
         if family_signals.get("relationship", 1.0) < 0.3:
             reasons.append("relationship-critical")
-        if any(alert.startswith("HIGH") or alert.startswith("CRITICAL") for alert in evaluation_snapshot.alerts):
+        if any(
+            alert.severity in {"HIGH", "CRITICAL"}
+            for alert in evaluation_snapshot.structured_alerts
+        ):
             reasons.append("evaluation-alert")
         if (
             optimization_report.task_report.surrogate_objective < -0.1
@@ -1696,3 +1144,16 @@ class ETANLJointLoop:
             description=f"Trace step {step.step} for {trace.trace_id}.",
         )
 
+
+
+__all__ = [
+    "DefaultContinualLearningSurface",
+    "ETANLJointLoop",
+    "JointCycleReport",
+    "JointLoopSchedule",
+    "OnlineFastImportCheckpoint",
+    "OnlineFastImportResult",
+    "RareHeavyImportCheckpoint",
+    "RareHeavyImportResult",
+    "ScheduledJointLoopResult",
+]

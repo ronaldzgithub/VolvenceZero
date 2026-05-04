@@ -434,13 +434,12 @@ async def _reflection_writeback_stability_gate() -> CompanionEvidenceGate:
         memory_store=store,
         reflection_snapshot=reflection_snapshot,
         credit_snapshot=None,
-        regime_module=regime,
         checkpoint_id="rfl1-checkpoint",
     )
     checkpoint_present = result.checkpoint is not None
     applied = bool(result.applied_operations)
     if result.checkpoint is not None:
-        engine.rollback(memory_store=store, checkpoint=result.checkpoint, regime_module=regime)
+        engine.rollback(memory_store=store, checkpoint=result.checkpoint)
     passed = (
         applied
         and checkpoint_present

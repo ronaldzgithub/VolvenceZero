@@ -37,13 +37,103 @@ class EvaluationScore:
 
 
 @dataclass(frozen=True)
+class EvaluationAlert:
+    code: str
+    severity: str
+    family: str
+    metric_name: str
+    description: str
+
+    @property
+    def legacy_text(self) -> str:
+        return f"{self.severity}: {self.description}"
+
+    @classmethod
+    def from_legacy_text(cls, alert: str) -> "EvaluationAlert":
+        severity, _, description = alert.partition(": ")
+        normalized_severity = severity if severity else "INFO"
+        legacy_map = {
+            "cross-track stability is degraded": (
+                "cross_track_stability_degraded",
+                "relationship",
+                "cross_track_stability",
+            ),
+            "contract integrity below threshold": (
+                "contract_integrity_low",
+                "safety",
+                "contract_integrity",
+            ),
+            "substrate fallback is active": (
+                "substrate_fallback_active",
+                "safety",
+                "fallback_reliance",
+            ),
+            "rollback pressure is elevated": (
+                "rollback_pressure_elevated",
+                "safety",
+                "rollback_resilience",
+            ),
+            "scheduler rollback risk is elevated": (
+                "scheduler_rollback_risk_elevated",
+                "safety",
+                "scheduler_rollback_risk",
+            ),
+            "scheduler transition pressure is elevated": (
+                "scheduler_transition_pressure_elevated",
+                "learning",
+                "scheduler_transition_pressure",
+            ),
+            "scheduler rare-heavy pressure is elevated": (
+                "scheduler_rare_heavy_pressure_elevated",
+                "learning",
+                "scheduler_rare_heavy_pressure",
+            ),
+            "action-family monopoly pressure is elevated": (
+                "action_family_monopoly_pressure_elevated",
+                "abstraction",
+                "action_family_monopoly_pressure",
+            ),
+            "action-family collapse risk is elevated": (
+                "action_family_collapse_risk_elevated",
+                "abstraction",
+                "action_family_collapse_risk",
+            ),
+            "family outcome stagnation - all families have indistinguishable outcomes": (
+                "family_outcome_stagnation",
+                "learning",
+                "family_outcome_divergence",
+            ),
+        }
+        code, family, metric_name = legacy_map.get(
+            description,
+            ("legacy_alert", "unknown", "unknown"),
+        )
+        return cls(
+            code=code,
+            severity=normalized_severity,
+            family=family,
+            metric_name=metric_name,
+            description=description or alert,
+        )
+
+
+@dataclass(frozen=True)
 class EvaluationSnapshot:
     turn_scores: tuple[EvaluationScore, ...]
     session_scores: tuple[EvaluationScore, ...]
     alerts: tuple[str, ...]
     description: str
+    structured_alerts: tuple[EvaluationAlert, ...] = ()
     reflection_accuracy: float = 0.0
     longitudinal_verdict: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.structured_alerts and self.alerts:
+            object.__setattr__(
+                self,
+                "structured_alerts",
+                tuple(EvaluationAlert.from_legacy_text(alert) for alert in self.alerts),
+            )
 
 
 @dataclass(frozen=True)
