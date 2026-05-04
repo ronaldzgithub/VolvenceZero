@@ -434,12 +434,19 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
             f"capture_source={capture_source} fallback_active={fallback_active} "
             f"residual_sequence_len={len(capture.residual_sequence)}."
         )
+        feature_surface = capture.feature_surface
+        if not any(signal.name == "semantic_surface_active" for signal in feature_surface):
+            feature_surface = feature_surface + semantic_feature_surface_from_text(
+                effective_source_text,
+                fallback_active=float(fallback_active),
+                source=f"{capture_source}:semantic-readout",
+            )
         return SubstrateSnapshot(
             model_id=self.model_id,
             is_frozen=self.is_frozen,
             surface_kind=self.surface_kind,
             token_logits=capture.token_logits,
-            feature_surface=capture.feature_surface,
+            feature_surface=feature_surface,
             residual_activations=capture.residual_activations,
             residual_sequence=capture.residual_sequence,
             unavailable_fields=(),

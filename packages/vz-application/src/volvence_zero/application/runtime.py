@@ -1922,11 +1922,6 @@ def _response_expression_intent(
     """
     if response_mode is ResponseMode.REFER_OUT:
         return "refer-out", ()
-    if response_mode is ResponseMode.CLARIFY:
-        if support_before_decision_pressure >= 0.26:
-            return "support-before-decision", ()
-        return "clarify-first", ()
-
     # Strong control signals override regime defaults — the system is
     # deliberately deviating from autopilot, the user should see why.
     strong_temporal = bool(
@@ -1936,7 +1931,24 @@ def _response_expression_intent(
     )
     strong_semantic = semantic_control_signal >= 0.32
 
-    if support_before_decision_pressure >= 0.26:
+    support_decision_regime = regime_id in {
+        "guided_exploration",
+        "problem_solving",
+        "emotional_support",
+    }
+    support_decision_threshold = 0.36 if regime_id == "guided_exploration" else 0.44
+    support_decision_active = (
+        support_decision_regime
+        and support_before_decision_pressure >= support_decision_threshold
+    )
+    if response_mode is ResponseMode.CLARIFY:
+        if support_decision_active:
+            return "support-before-decision", ()
+        return "clarify-first", ()
+
+    if support_decision_active and regime_id in {"guided_exploration", "problem_solving"}:
+        return "support-before-decision", ()
+    if support_decision_active and regime_id == "emotional_support" and strong_temporal:
         return "support-before-decision", ()
 
     if regime_id == "guided_exploration" or strong_temporal or strong_semantic:

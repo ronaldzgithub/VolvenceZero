@@ -30,7 +30,12 @@ from lifeform_core import (
     TickKind,
 )
 from lifeform_domain_emogpt import build_companion_package
-from lifeform_evolution import format_report, run_benchmark_async, low_mood_disclosure_scenario
+from lifeform_evolution import (
+    casual_social_checkin_scenario,
+    format_report,
+    low_mood_disclosure_scenario,
+    run_benchmark_async,
+)
 from lifeform_expression import (
     GroundedResponseSynthesizer,
     PromptPlan,
@@ -376,6 +381,19 @@ def test_lifeform_benchmark_surfaces_multiple_distinct_expression_intents():
     intents = {tr.expression_intent for tr in report.turn_reports if tr.expression_intent}
     # Pre-fix: this set was ``{"judgment-process"}`` for every input.
     assert len(intents) >= 2, f"expected >=2 distinct intents, got {intents!r}"
+
+
+def test_lifeform_benchmark_keeps_low_pressure_social_turns_relational():
+    import asyncio
+
+    report = asyncio.run(run_benchmark_async(scenario=casual_social_checkin_scenario()))
+    relational_regimes = {"casual_social", "acquaintance_building"}
+    relational_turns = sum(
+        1 for turn in report.turn_reports if turn.active_regime in relational_regimes
+    )
+
+    assert relational_turns >= 2
+    assert report.passed(min_regime_match_rate=0.5)
 
 
 # ---------------------------------------------------------------------------

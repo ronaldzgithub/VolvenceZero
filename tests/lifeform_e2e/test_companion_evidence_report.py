@@ -19,6 +19,9 @@ def test_companion_evidence_report_passes_all_current_gates() -> None:
     assert payload["passed"] is True
     assert 0.0 <= payload["composite_score"] <= 1.0
     assert len(payload["gates"]) == 8
+    c2 = next(gate for gate in payload["gates"] if gate["gate_id"] == "C2")
+    assert c2["passed"] is True
+    assert c2["metrics"]["distinct_intents"] >= 2.0
     assert len(payload["transcripts"]) == 4
     first_turn = payload["transcripts"][0]["turns"][0]
     assert first_turn["active_speaker_id"] == "primary"

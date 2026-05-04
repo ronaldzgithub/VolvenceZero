@@ -243,6 +243,12 @@ def score_regimes(
     semantic_low_pressure = low_pressure * semantic_surface_active
     world_drive, self_drive, shared_drive, switch_pressure = _controller_profile(dual_track_snapshot)
     repair_bias, task_bias, exploration_bias, stabilize_bias = _abstract_action_profile(dual_track_snapshot)
+    memory_task_planning_bias = (
+        task_dominance
+        if dual_track_snapshot.world_track.controller_source == "memory"
+        and dual_track_snapshot.self_track.controller_source == "memory"
+        else 0.0
+    )
     feature_values = {
         "task_pressure": task_pressure,
         "support_presence": support_presence,
@@ -285,7 +291,7 @@ def score_regimes(
             - 0.08 * task_bias
             - 0.12 * exploration_bias
             - 0.10 * task_pressure
-            - 0.16 * task_dominance
+            - 0.40 * task_dominance
             + pe_relationship_shortfall * 0.05
         ),
         "acquaintance_building": _clamp(
@@ -293,8 +299,8 @@ def score_regimes(
             + 0.16 * warmth
             + 0.10 * support_presence
             + 0.18 * relationship_stability
-            + 0.35 * semantic_low_pressure
-            + 0.10 * social_pressure
+            + 0.55 * semantic_low_pressure
+            + 0.35 * social_pressure
             - 0.28 * decision_delegation_pressure
             - 0.28 * repair_pressure
             + 0.16 * self_drive
@@ -359,6 +365,7 @@ def score_regimes(
             + 0.05 * task_score        # was 0.16 - info_integration is too constant
             + 0.10 * task_pressure     # was 0.16 - same reason
             + 0.22 * task_dominance    # was 0.16 - this one DOES move with content
+            + 0.20 * memory_task_planning_bias
             + 0.08 * relationship_stability
             + 0.20 * world_presence
             + 0.20 * world_drive

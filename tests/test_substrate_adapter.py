@@ -27,6 +27,7 @@ from volvence_zero.substrate import (
     build_builtin_transformers_runtime,
     build_training_trace,
     build_transformers_runtime_with_fallback,
+    feature_signal_value,
 )
 
 
@@ -315,6 +316,8 @@ def test_open_weight_residual_adapter_uses_runtime_capture_contract():
     assert snapshot.model_id == "synthetic-runtime"
     assert snapshot.surface_kind is SurfaceKind.RESIDUAL_STREAM
     assert snapshot.residual_sequence
+    assert feature_signal_value(snapshot.feature_surface, name="semantic_surface_active") == 1.0
+    assert feature_signal_value(snapshot.feature_surface, name="semantic_social_pull") >= 0.0
 
 
 def test_open_weight_residual_backend_delegates_to_runtime():

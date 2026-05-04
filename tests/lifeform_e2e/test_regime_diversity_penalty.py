@@ -267,19 +267,6 @@ async def test_super_loop_diversity_lr_zero_recovers_old_behaviour():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Shipped coding-regime.bs was calibrated under the pre-phase-1.7 "
-        "cap [0.3, 2.0]; its weights span [0.83, 1.39] which lies "
-        "outside the post-phase-1.7 cap [0.85, 1.15]. The runtime "
-        "re-clips on load via the new RegimeModule cap, so behaviour "
-        "stays bounded \u2014 but the artifact-on-disk fails the "
-        "structural assertion until coding super_loop is re-run with "
-        "the new cap. Tracked as Gap 1 / Gap 9 follow-up: re-ship "
-        "coding bootstrap after phase 1.7 lands."
-    ),
-    strict=True,
-)
 def test_shipped_coding_regime_bootstrap_does_not_concentrate_weight_on_one_regime():
     """The shipped artifact must not have any single regime weight >= clip
     high, AND must not push any single regime down to clip low \u2014 both

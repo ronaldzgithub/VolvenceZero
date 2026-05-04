@@ -312,6 +312,9 @@ async def run_super_loop_async(
     regime_weights: dict[str, float] = {
         template.regime_id: 1.0 for template in REGIME_TEMPLATES
     }
+    regime_priors: dict[str, float] = {
+        template.regime_id: 0.0 for template in REGIME_TEMPLATES
+    }
 
     round_reports: list[SuperLoopRoundReport] = []
 
@@ -319,7 +322,10 @@ async def run_super_loop_async(
         temporal_seed = (
             None if round_index == 0 else round_reports[-1].temporal_snapshot
         )
-        regime_bootstrap = _build_regime_bootstrap(regime_weights)
+        regime_bootstrap = _build_regime_bootstrap(
+            regime_weights,
+            strategy_priors=regime_priors,
+        )
 
         # 1) Eval pass: per-scenario benchmark with the current bootstraps.
         eval_lifeform = Lifeform(
@@ -385,7 +391,17 @@ async def run_super_loop_async(
                 threshold=diversity_threshold,
                 lr=diversity_lr,
             )
-        new_regime_bootstrap = _build_regime_bootstrap(regime_weights)
+            _apply_diversity_prior_penalty(
+                regime_priors,
+                predicted_counts,
+                predicted_total,
+                threshold=diversity_threshold,
+                lr=diversity_lr,
+            )
+        new_regime_bootstrap = _build_regime_bootstrap(
+            regime_weights,
+            strategy_priors=regime_priors,
+        )
 
         if round_reports:
             distance_to_baseline = _distance(
@@ -417,6 +433,7 @@ async def run_super_loop_async(
     final_temporal = round_reports[-1].temporal_snapshot
     final_regime = _build_regime_bootstrap(
         regime_weights,
+        strategy_priors=regime_priors,
         description=(
             f"Super loop final regime bootstrap: "
             f"baseline match {round_reports[0].regime_match_rate:.0%} -> "
@@ -477,12 +494,48 @@ def run_super_loop(
 
 
 def _build_regime_bootstrap(
-    weights: dict[str, float], *, description: str = ""
+    weights: dict[str, float],
+    *,
+    strategy_priors: dict[str, float] | None = None,
+    description: str = "",
 ) -> RegimeBootstrap:
     return RegimeBootstrap(
         selection_weights=tuple(sorted(weights.items())),
+        strategy_priors=tuple(sorted((strategy_priors or {}).items())),
         description=description,
     )
+
+
+def _apply_diversity_prior_penalty(
+    priors: dict[str, float],
+    predicted_counts: dict[str, int],
+    total_turns: int,
+    *,
+    threshold: float,
+    lr: float,
+) -> None:
+    """Persist anti-monoculture pressure in regime strategy priors.
+
+    Selection weights are intentionally clipped to a tight band so they do
+    not override per-turn evidence. When a tiny vertical scenario pack
+    collapses to one regime, a bounded negative prior on the overrepresented
+    regime provides a stable memory of that pressure across rounds.
+    """
+    if total_turns <= 0 or lr <= 0.0:
+        return
+    if not 0.0 < threshold < 1.0:
+        raise ValueError(
+            f"diversity threshold must be in (0, 1), got {threshold!r}"
+        )
+    severe_threshold = max(threshold, 0.85)
+    for regime, count in predicted_counts.items():
+        if regime not in priors:
+            continue
+        share = count / total_turns
+        if share <= severe_threshold:
+            continue
+        excess = share - threshold
+        priors[regime] = max(-0.5, min(0.5, priors[regime] - lr * excess))
 
 
 def _build_verdicts(rounds: list[SuperLoopRoundReport]) -> dict[str, bool]:
