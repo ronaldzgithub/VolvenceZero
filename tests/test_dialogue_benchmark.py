@@ -26,18 +26,32 @@ from volvence_zero.agent import (
     DialogueNLEssenceAcceptanceDecision,
     DialogueNLEssenceAssessmentReport,
     DialogueBenchmarkReport,
+    DialogueBenchmarkPathReport,
     DialogueBenchmarkComparisonReport,
     DialogueLongitudinalBenchmarkReport,
+    LongitudinalDialogueReport,
+    LongitudinalDialogueSessionEvidence,
+    MemoryStratumFlowReport,
+    NLAblationMatrixReport,
+    RegimeLockinReport,
     DialogueRealComprehensiveBenchmarkConfig,
     DialogueSharedRunnerFactories,
     DialoguePaperSuiteAggregateReport,
+    DialogueOptionDiscoveryReport,
+    PECounterfactualClosureReport,
     evaluate_dialogue_nl_essence_acceptance,
     build_dialogue_nl_essence_assessment,
     build_dialogue_emergence_dashboard,
     build_dialogue_emergence_dashboard_payload,
+    build_longitudinal_dialogue_report,
+    build_memory_stratum_flow_report,
+    build_nl_ablation_matrix_report,
+    build_regime_lockin_report,
     build_dialogue_expert_review_internal_key,
     build_dialogue_expert_review_packet,
+    build_dialogue_option_discovery_report,
     build_dialogue_paper_suite_manifest,
+    build_pe_counterfactual_closure_report,
     aggregate_dialogue_human_ratings,
     load_dialogue_human_rating_entries_csv,
     build_pe_dominance_case_diagnosis_report,
@@ -45,6 +59,7 @@ from volvence_zero.agent import (
     build_replay_selection_training_traces,
     build_dialogue_replay_selection_artifact,
     build_real_dialogue_comprehensive_runner_factories,
+    default_longitudinal_dialogue_personas,
     build_standard_dialogue_runner,
     default_rare_heavy_candidate_configs,
     default_dialogue_ablation_profiles,
@@ -1811,6 +1826,675 @@ def test_dialogue_paper_suite_bundle_attaches_extra_reference_artifacts(tmp_path
     )
     assert eta_artifact["claim_id"] == "claim_eta_real_open_weight_residual_control"
     assert eta_artifact["evidence"]["real_open_weight_fallback_rate"] == 0.0
+
+
+def _phase_a_option_benchmark_report() -> DialogueBenchmarkReport:
+    case = ScriptedDialogueCase(
+        case_id="phase-a-option",
+        description="Synthetic case for Phase A option discovery report.",
+        user_inputs=("one", "two", "three", "four"),
+        expected_pressure_turns=(2,),
+    )
+    turns = (
+        _benchmark_turn(
+            turn_index=1,
+            pe=0.1,
+            reward=0.1,
+            action="stabilize",
+            regime="support",
+            abstract_action="support",
+            switch_gate=0.0,
+            delayed_metric=0.1,
+        ),
+        _benchmark_turn(
+            turn_index=2,
+            pe=0.8,
+            reward=0.2,
+            action="repair",
+            regime="repair",
+            abstract_action="repair",
+            switch_gate=0.9,
+            delayed_metric=0.4,
+        ),
+        _benchmark_turn(
+            turn_index=3,
+            pe=0.3,
+            reward=0.2,
+            action="repair",
+            regime="repair",
+            abstract_action="repair",
+            switch_gate=0.0,
+            delayed_metric=0.5,
+        ),
+        _benchmark_turn(
+            turn_index=4,
+            pe=0.2,
+            reward=0.2,
+            action="summarize",
+            regime="support",
+            abstract_action="summarize",
+            switch_gate=0.7,
+            delayed_metric=0.6,
+        ),
+    )
+    case_report = build_dialogue_case_report(case=case, turns=turns)
+    return DialogueBenchmarkReport(
+        case_reports=(case_report,),
+        passed_case_count=1,
+        total_case_count=1,
+        metric_means=tuple(_case_summary_metrics(case_report)),
+        description="Synthetic benchmark report for Phase A option discovery.",
+    )
+
+
+def test_build_dialogue_option_discovery_report_from_turns_and_replay():
+    report = _phase_a_option_benchmark_report()
+    replay_artifact = {
+        "action_replay": {
+            "action_context": {
+                "segment_id": "segment-repair",
+                "z_t_digest": "z-repair",
+            },
+            "closed_segments": (
+                {
+                    "segment_id": "segment-support",
+                    "z_t_digest": "z-support",
+                    "abstract_action_id": "support",
+                },
+            ),
+            "credit_records": (),
+        }
+    }
+
+    option_report = build_dialogue_option_discovery_report(
+        report,
+        replay_artifacts=(replay_artifact,),
+        source_id="test-option-discovery",
+    )
+
+    assert isinstance(option_report, DialogueOptionDiscoveryReport)
+    assert option_report.non_gating is True
+    assert option_report.case_count == 1
+    assert option_report.turn_count == 4
+    assert option_report.termination_event_count == 2
+    assert option_report.abstract_action_diversity == 3
+    assert option_report.evidence_quality == "snapshot-replay+turn-telemetry"
+    assert option_report.pe_spike_near_termination_rate > 0.0
+    assert option_report.case_reports[0].turn_evidence[0].z_t_digest == "z-repair"
+
+
+def test_build_dialogue_option_discovery_report_empty_when_no_turns():
+    empty_report = DialogueBenchmarkReport(
+        case_reports=(),
+        passed_case_count=0,
+        total_case_count=0,
+        metric_means=(),
+        description="Empty source for option discovery.",
+    )
+
+    option_report = build_dialogue_option_discovery_report(empty_report)
+
+    assert option_report.non_gating is True
+    assert option_report.case_count == 0
+    assert option_report.turn_count == 0
+    assert option_report.termination_event_count == 0
+    assert option_report.evidence_quality == "turn-telemetry-only"
+    assert option_report.random_boundary_baseline_rate == 0.0
+
+
+def _phase_a_counterfactual_comparison_report() -> DialogueBenchmarkComparisonReport:
+    def path(
+        label: str,
+        *,
+        passed: int,
+        prediction_chain: float,
+        pe_triggered: float,
+        carryover_credit: float,
+        bounded_writeback: float,
+        delayed: float,
+        precision: float,
+        stability: float,
+    ) -> DialogueBenchmarkPathReport:
+        benchmark = DialogueBenchmarkReport(
+            case_reports=(),
+            passed_case_count=passed,
+            total_case_count=2,
+            metric_means=(
+                ("prediction_chain_turn_count", prediction_chain),
+                ("pe_triggered_turn_count", pe_triggered),
+                ("carryover_credit_turn_count", carryover_credit),
+                ("bounded_writeback_turn_count", bounded_writeback),
+                ("delayed_improvement_observed", delayed),
+                ("pressure_response_precision", precision),
+                ("stability_after_recovery_score", stability),
+                ("runtime_backbone_evidence_turn_count", 1.0),
+            ),
+            description=f"Synthetic benchmark report for {label}.",
+        )
+        return DialogueBenchmarkPathReport(
+            path_label=label,
+            benchmark_report=benchmark,
+            description=f"Synthetic path {label}.",
+        )
+
+    path_reports = (
+        path(
+            "pe-eta",
+            passed=2,
+            prediction_chain=4.0,
+            pe_triggered=3.0,
+            carryover_credit=2.0,
+            bounded_writeback=1.0,
+            delayed=1.0,
+            precision=0.8,
+            stability=0.7,
+        ),
+        path(
+            "pe-drive-off",
+            passed=1,
+            prediction_chain=4.0,
+            pe_triggered=0.5,
+            carryover_credit=0.4,
+            bounded_writeback=0.2,
+            delayed=0.3,
+            precision=0.3,
+            stability=0.2,
+        ),
+        path(
+            "pe-eta-pe-readout-only",
+            passed=1,
+            prediction_chain=4.0,
+            pe_triggered=1.0,
+            carryover_credit=0.5,
+            bounded_writeback=0.2,
+            delayed=0.4,
+            precision=0.35,
+            stability=0.25,
+        ),
+        path(
+            "eta-off",
+            passed=1,
+            prediction_chain=2.0,
+            pe_triggered=0.5,
+            carryover_credit=0.4,
+            bounded_writeback=0.2,
+            delayed=0.2,
+            precision=0.25,
+            stability=0.1,
+        ),
+    )
+    return DialogueBenchmarkComparisonReport(
+        baseline_label="pe-eta",
+        path_reports=path_reports,
+        case_deltas_from_baseline=(),
+        metric_deltas_from_baseline=(),
+        description="Synthetic comparison for PE counterfactual closure.",
+    )
+
+
+def test_build_pe_counterfactual_closure_report_from_existing_profiles():
+    closure_report = build_pe_counterfactual_closure_report(
+        _phase_a_counterfactual_comparison_report()
+    )
+
+    assert isinstance(closure_report, PECounterfactualClosureReport)
+    assert closure_report.non_gating is True
+    assert closure_report.baseline_label == "pe-eta"
+    assert {variant.variant_label for variant in closure_report.variants} == {
+        "pe-eta",
+        "pe-drive-off",
+        "pe-eta-pe-readout-only",
+        "eta-off",
+    }
+    assert closure_report.pe_to_credit_drop > 0.0
+    assert closure_report.pe_to_behavior_drop > 0.0
+    assert closure_report.readout_only_gap > 0.0
+    assert closure_report.eta_dependency_gap > 0.0
+    assert closure_report.closure_strength > 0.0
+
+
+def test_build_pe_counterfactual_closure_report_requires_all_profiles():
+    comparison = _phase_a_counterfactual_comparison_report()
+    incomplete = replace(
+        comparison,
+        path_reports=tuple(
+            path for path in comparison.path_reports if path.path_label != "eta-off"
+        ),
+    )
+
+    with pytest.raises(ValueError, match="eta-off"):
+        build_pe_counterfactual_closure_report(incomplete)
+
+
+def test_dialogue_paper_suite_export_writes_phase_a_trajectory_reports(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for Phase A trajectory export test.",
+    )
+    aggregate_report = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        description="Synthetic aggregate for Phase A trajectory export test.",
+    )
+    option_report = build_dialogue_option_discovery_report(_phase_a_option_benchmark_report())
+    closure_report = build_pe_counterfactual_closure_report(
+        _phase_a_counterfactual_comparison_report()
+    )
+
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        aggregate_report,
+        output_dir=tmp_path,
+        dialogue_option_discovery_report=option_report,
+        pe_counterfactual_closure_report=closure_report,
+    )
+
+    option_path = tmp_path / "dialogue_option_discovery_report.json"
+    closure_path = tmp_path / "pe_counterfactual_closure_report.json"
+    bundle_path = tmp_path / "evidence_bundle.json"
+    assert option_path in written_paths
+    assert closure_path in written_paths
+    assert option_path.exists()
+    assert closure_path.exists()
+    bundle_payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+    artifact_names = {item[0] for item in bundle_payload["reference_artifacts"]}
+    assert "dialogue_option_discovery_report" in artifact_names
+    assert "pe_counterfactual_closure_report" in artifact_names
+
+
+def _phase_b_session_evidence() -> tuple[LongitudinalDialogueSessionEvidence, ...]:
+    return (
+        LongitudinalDialogueSessionEvidence(
+            persona_id="delayed-return",
+            session_id="delayed-return:s1",
+            session_index=1,
+            passed=True,
+            mean_prediction_error=0.28,
+            temporal_change_count=1,
+            delayed_improvement_observed=True,
+            mean_cognitive_loop_readiness=0.2,
+            explicit_retention_observed=True,
+            default_isolation_preserved=True,
+            retrieved_preference_count=1,
+            preference_conflict_observed=False,
+            repair_observable=True,
+            regime_stability_score=0.55,
+            description="Session 1 writes the preference.",
+        ),
+        LongitudinalDialogueSessionEvidence(
+            persona_id="delayed-return",
+            session_id="delayed-return:s2",
+            session_index=2,
+            passed=True,
+            mean_prediction_error=0.18,
+            temporal_change_count=2,
+            delayed_improvement_observed=True,
+            mean_cognitive_loop_readiness=0.45,
+            explicit_retention_observed=True,
+            default_isolation_preserved=True,
+            retrieved_preference_count=2,
+            preference_conflict_observed=False,
+            repair_observable=True,
+            regime_stability_score=0.7,
+            description="Session 2 retrieves the preference.",
+        ),
+        LongitudinalDialogueSessionEvidence(
+            persona_id="preference-conflict",
+            session_id="preference-conflict:s1",
+            session_index=1,
+            passed=True,
+            mean_prediction_error=0.35,
+            temporal_change_count=2,
+            delayed_improvement_observed=True,
+            mean_cognitive_loop_readiness=0.3,
+            explicit_retention_observed=True,
+            default_isolation_preserved=True,
+            retrieved_preference_count=1,
+            preference_conflict_observed=True,
+            repair_observable=True,
+            regime_stability_score=0.6,
+            description="Preference conflict is repaired through clarification.",
+        ),
+    )
+
+
+def test_build_longitudinal_dialogue_report_from_session_evidence():
+    report = build_longitudinal_dialogue_report(
+        session_evidence=_phase_b_session_evidence(),
+        report_id="phase-b-test",
+    )
+
+    assert isinstance(report, LongitudinalDialogueReport)
+    assert report.non_gating is True
+    assert report.persona_count == 2
+    assert report.session_count == 3
+    assert report.retention_rate > 0.0
+    assert report.isolation_pass_rate == 1.0
+    assert report.trajectory_strength > 0.0
+    delayed_return = next(
+        persona for persona in report.persona_reports if persona.persona_id == "delayed-return"
+    )
+    assert delayed_return.retention_rate == 1.0
+    assert delayed_return.adaptation_trend > 0.0
+    preference_conflict = next(
+        persona for persona in report.persona_reports if persona.persona_id == "preference-conflict"
+    )
+    assert preference_conflict.preference_conflict_repair_rate == 1.0
+
+
+def test_build_longitudinal_dialogue_report_empty_is_non_gating_and_zero_strength():
+    report = build_longitudinal_dialogue_report(report_id="phase-b-empty")
+
+    assert report.non_gating is True
+    assert report.persona_count == 0
+    assert report.session_count == 0
+    assert report.trajectory_strength == 0.0
+    assert report.cross_session_verdict == "insufficient"
+    assert report.evidence_quality == "empty"
+
+
+def test_default_longitudinal_dialogue_personas_cover_v1_surface():
+    personas = default_longitudinal_dialogue_personas()
+    persona_ids = {persona_id for persona_id, _ in personas}
+
+    assert {
+        "direct-but-overwhelmed",
+        "slow-trust-repair",
+        "boundary-sensitive",
+        "preference-conflict",
+        "delayed-return",
+    } <= persona_ids
+    assert all(len(sessions) == 3 for _, sessions in personas)
+
+
+def test_dialogue_paper_suite_export_writes_phase_b_longitudinal_report(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for PhaseB longitudinal export test.",
+    )
+    aggregate_report = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        description="Synthetic aggregate for PhaseB longitudinal export test.",
+    )
+    longitudinal_report = build_longitudinal_dialogue_report(
+        session_evidence=_phase_b_session_evidence(),
+        report_id="phase-b-export-test",
+    )
+
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        aggregate_report,
+        output_dir=tmp_path,
+        longitudinal_dialogue_report=longitudinal_report,
+    )
+
+    report_path = tmp_path / "longitudinal_dialogue_report.json"
+    bundle_path = tmp_path / "evidence_bundle.json"
+    assert report_path in written_paths
+    assert report_path.exists()
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["non_gating"] is True
+    assert payload["retention_rate"] > 0.0
+    bundle_payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+    artifact_names = {item[0] for item in bundle_payload["reference_artifacts"]}
+    assert "longitudinal_dialogue_report" in artifact_names
+
+
+def _phase_c_variant_metrics() -> tuple[tuple[str, tuple[tuple[str, float], ...]], ...]:
+    return (
+        (
+            "full-nl",
+            (
+                ("cross_session_growth_score", 0.8),
+                ("heldout_payoff_score", 0.7),
+                ("slow_to_fast_transfer_gain", 0.4),
+                ("memory_churn_risk", 0.1),
+                ("behavior_drift_risk", 0.1),
+            ),
+        ),
+        (
+            "no-ssl",
+            (
+                ("cross_session_growth_score", 0.35),
+                ("heldout_payoff_score", 0.3),
+                ("slow_to_fast_transfer_gain", 0.05),
+                ("memory_churn_risk", 0.35),
+                ("behavior_drift_risk", 0.25),
+            ),
+        ),
+        (
+            "no-rl",
+            (
+                ("cross_session_growth_score", 0.4),
+                ("heldout_payoff_score", 0.35),
+                ("slow_to_fast_transfer_gain", 0.1),
+                ("memory_churn_risk", 0.25),
+                ("behavior_drift_risk", 0.3),
+            ),
+        ),
+        (
+            "timescale-off",
+            (
+                ("cross_session_growth_score", 0.2),
+                ("heldout_payoff_score", 0.25),
+                ("slow_to_fast_transfer_gain", 0.0),
+                ("memory_churn_risk", 0.5),
+                ("behavior_drift_risk", 0.45),
+            ),
+        ),
+    )
+
+
+def test_build_nl_ablation_matrix_report_from_explicit_variant_metrics():
+    report = build_nl_ablation_matrix_report(
+        variant_metrics=_phase_c_variant_metrics(),
+        report_id="phase-c-nl-test",
+    )
+
+    assert isinstance(report, NLAblationMatrixReport)
+    assert report.non_gating is True
+    assert report.evidence_quality == "explicit-variant-metrics"
+    assert report.full_nl_advantage > 0.0
+    assert report.slow_to_fast_transfer_gain > 0.0
+    assert {variant.variant_label for variant in report.variants} >= {
+        "full-nl",
+        "no-ssl",
+        "no-rl",
+        "timescale-off",
+    }
+
+
+def test_build_memory_stratum_flow_report_from_dict_snapshots():
+    report = build_memory_stratum_flow_report(
+        (
+            {
+                "snapshot_id": "memory-1",
+                "total_entries_by_stratum": (("transient", 2.0), ("episodic", 1.0), ("durable", 0.0)),
+                "pending_promotions": 2,
+                "pending_decays": 0,
+                "cms_band_vectors": (),
+                "lifecycle_metrics": (("slow_to_fast_init_benefit", 0.1),),
+            },
+            {
+                "snapshot_id": "memory-2",
+                "total_entries_by_stratum": (
+                    ("transient", 0.0),
+                    ("episodic", 2.0),
+                    ("durable", 1.0),
+                    ("derived", 2.0),
+                ),
+                "pending_promotions": 1,
+                "pending_decays": 0,
+                "cms_band_vectors": (("band-a", (0.1, 0.2)),),
+                "lifecycle_metrics": (
+                    ("slow_to_fast_init_benefit", 0.2),
+                    ("tower_consolidation_count", 2.0),
+                    ("continuum_band_count", 2.0),
+                    ("fast_memory_signal_count", 1.0),
+                ),
+            },
+        ),
+        report_id="phase-c-memory-test",
+    )
+
+    assert isinstance(report, MemoryStratumFlowReport)
+    assert report.non_gating is True
+    assert report.snapshot_count == 2
+    assert report.stratum_progression_score > 0.0
+    assert report.derived_index_activity > 0.0
+    assert report.lifecycle_signal_strength > 0.0
+    assert report.memory_flow_strength > 0.0
+
+
+def test_build_regime_lockin_report_from_dict_snapshots():
+    report = build_regime_lockin_report(
+        (
+            {
+                "snapshot_id": "regime-1",
+                "active_regime": "emotional_support",
+                "previous_regime": "acquaintance_building",
+                "turns_in_current_regime": 1,
+                "regime_changed": True,
+                "candidate_regimes": ("emotional_support", "repair"),
+                "delayed_attributions": (),
+                "delayed_payoffs": (),
+                "sequence_payoffs": (),
+                "identity_hints": ("supportive",),
+            },
+            {
+                "snapshot_id": "regime-2",
+                "active_regime": "emotional_support",
+                "previous_regime": "emotional_support",
+                "turns_in_current_regime": 4,
+                "regime_changed": False,
+                "candidate_regimes": ("emotional_support", "repair"),
+                "delayed_attributions": ("a1",),
+                "delayed_payoffs": ("p1",),
+                "sequence_payoffs": ("s1",),
+                "identity_hints": ("supportive",),
+            },
+        ),
+        report_id="phase-c-regime-test",
+    )
+
+    assert isinstance(report, RegimeLockinReport)
+    assert report.non_gating is True
+    assert report.snapshot_count == 2
+    assert report.lockin_strength > 0.0
+    assert report.hysteresis_proxy > 0.0
+    assert report.delayed_attribution_strength > 0.0
+    assert report.sequence_payoff_strength > 0.0
+    assert report.regime_identity_stability == 1.0
+
+
+def test_phase_c_empty_reports_are_non_gating_and_zero_strength():
+    nl = build_nl_ablation_matrix_report(report_id="phase-c-empty-nl")
+    memory = build_memory_stratum_flow_report(report_id="phase-c-empty-memory")
+    regime = build_regime_lockin_report(report_id="phase-c-empty-regime")
+
+    assert nl.non_gating is True
+    assert nl.full_nl_advantage == 0.0
+    assert memory.non_gating is True
+    assert memory.memory_flow_strength == 0.0
+    assert regime.non_gating is True
+    assert regime.lockin_strength == 0.0
+
+
+def test_dialogue_paper_suite_export_writes_phase_c_reports(tmp_path):
+    manifest = build_dialogue_paper_suite_manifest(suite_tier="ci-smoke")
+    provenance = PaperSuiteProvenance(
+        git_sha="test",
+        git_branch="test",
+        working_tree_dirty=False,
+        python_version="test",
+        platform="test",
+        dependency_versions=(),
+        dependency_digest="test",
+        manifest_hash="test",
+        runtime_descriptor=(),
+        description="Synthetic provenance for PhaseC export test.",
+    )
+    aggregate_report = DialoguePaperSuiteAggregateReport(
+        manifest=manifest,
+        provenance=provenance,
+        run_summaries=(),
+        reference_run_report=None,
+        primary_metric_summaries=(),
+        secondary_metric_summaries=(),
+        description="Synthetic aggregate for PhaseC export test.",
+    )
+    nl_report = build_nl_ablation_matrix_report(variant_metrics=_phase_c_variant_metrics())
+    memory_report = build_memory_stratum_flow_report(
+        (
+            {
+                "snapshot_id": "memory-export",
+                "total_entries_by_stratum": (("episodic", 1.0), ("durable", 1.0), ("derived", 1.0)),
+                "pending_promotions": 1,
+                "pending_decays": 0,
+                "cms_band_vectors": (("band-a", (0.1,)),),
+                "lifecycle_metrics": (("slow_to_fast_init_benefit", 0.2),),
+            },
+        )
+    )
+    regime_report = build_regime_lockin_report(
+        (
+            {
+                "snapshot_id": "regime-export",
+                "active_regime": "emotional_support",
+                "previous_regime": "emotional_support",
+                "turns_in_current_regime": 3,
+                "regime_changed": False,
+                "candidate_regimes": ("emotional_support", "repair"),
+                "delayed_attributions": ("a1",),
+                "sequence_payoffs": ("s1",),
+                "identity_hints": ("supportive",),
+            },
+        )
+    )
+
+    written_paths = export_dialogue_paper_suite_artifact_bundle(
+        aggregate_report,
+        output_dir=tmp_path,
+        nl_ablation_matrix_report=nl_report,
+        memory_stratum_flow_report=memory_report,
+        regime_lockin_report=regime_report,
+    )
+
+    assert tmp_path / "nl_ablation_matrix_report.json" in written_paths
+    assert tmp_path / "memory_stratum_flow_report.json" in written_paths
+    assert tmp_path / "regime_lockin_report.json" in written_paths
+    bundle_payload = json.loads((tmp_path / "evidence_bundle.json").read_text(encoding="utf-8"))
+    artifact_names = {item[0] for item in bundle_payload["reference_artifacts"]}
+    assert {
+        "nl_ablation_matrix_report",
+        "memory_stratum_flow_report",
+        "regime_lockin_report",
+    } <= artifact_names
 
 
 def test_build_dialogue_expert_review_packet_blinds_profile_labels():

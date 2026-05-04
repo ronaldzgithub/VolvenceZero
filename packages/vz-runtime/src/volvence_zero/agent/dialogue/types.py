@@ -398,6 +398,143 @@ class DialogueLongitudinalBenchmarkReport:
 
 
 @dataclass(frozen=True)
+class LongitudinalDialogueSessionEvidence:
+    persona_id: str
+    session_id: str
+    session_index: int
+    passed: bool
+    mean_prediction_error: float
+    temporal_change_count: int
+    delayed_improvement_observed: bool
+    mean_cognitive_loop_readiness: float
+    explicit_retention_observed: bool
+    default_isolation_preserved: bool
+    retrieved_preference_count: int
+    preference_conflict_observed: bool
+    repair_observable: bool
+    regime_stability_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class LongitudinalDialoguePersonaReport:
+    persona_id: str
+    session_evidence: tuple[LongitudinalDialogueSessionEvidence, ...]
+    session_count: int
+    retention_rate: float
+    isolation_pass_rate: float
+    adaptation_trend: float
+    drift_risk_score: float
+    trajectory_strength: float
+    preference_conflict_repair_rate: float
+    description: str
+
+
+@dataclass(frozen=True)
+class LongitudinalDialogueReport:
+    report_id: str
+    persona_reports: tuple[LongitudinalDialoguePersonaReport, ...]
+    persona_count: int
+    session_count: int
+    retention_rate: float
+    isolation_pass_rate: float
+    adaptation_trend: float
+    drift_risk_score: float
+    trajectory_strength: float
+    cross_session_verdict: str
+    non_gating: bool
+    evidence_quality: str
+    description: str
+
+
+@dataclass(frozen=True)
+class NLAblationVariantReport:
+    variant_label: str
+    cross_session_growth_score: float
+    heldout_payoff_score: float
+    memory_churn_risk: float
+    behavior_drift_risk: float
+    slow_to_fast_transfer_gain: float
+    aggregate_score: float
+    description: str
+
+
+@dataclass(frozen=True)
+class NLAblationMatrixReport:
+    report_id: str
+    baseline_label: str
+    variants: tuple[NLAblationVariantReport, ...]
+    full_nl_advantage: float
+    slow_to_fast_transfer_gain: float
+    memory_churn_risk_delta: float
+    behavior_drift_risk_delta: float
+    evidence_quality: str
+    non_gating: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class MemoryStratumFlowSnapshotEvidence:
+    snapshot_id: str
+    transient_count: float
+    episodic_count: float
+    durable_count: float
+    derived_count: float
+    pending_promotions: float
+    pending_decays: float
+    derived_index_activity: float
+    lifecycle_signal_strength: float
+    description: str
+
+
+@dataclass(frozen=True)
+class MemoryStratumFlowReport:
+    report_id: str
+    snapshots: tuple[MemoryStratumFlowSnapshotEvidence, ...]
+    snapshot_count: int
+    stratum_progression_score: float
+    promotion_pressure: float
+    decay_pressure: float
+    derived_index_activity: float
+    lifecycle_signal_strength: float
+    memory_flow_strength: float
+    evidence_quality: str
+    non_gating: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class RegimeLockinSnapshotEvidence:
+    snapshot_id: str
+    active_regime: str
+    previous_regime: str
+    turns_in_current_regime: float
+    regime_changed: bool
+    candidate_regime_count: int
+    delayed_attribution_count: int
+    delayed_payoff_count: int
+    sequence_payoff_count: int
+    identity_hint_count: int
+    description: str
+
+
+@dataclass(frozen=True)
+class RegimeLockinReport:
+    report_id: str
+    snapshots: tuple[RegimeLockinSnapshotEvidence, ...]
+    snapshot_count: int
+    lockin_strength: float
+    switch_rate: float
+    hysteresis_proxy: float
+    delayed_attribution_strength: float
+    sequence_payoff_strength: float
+    regime_identity_stability: float
+    evidence_quality: str
+    non_gating: bool
+    description: str
+
+
+@dataclass(frozen=True)
 class DialogueNLEssenceGate:
     gate_id: str
     passed: bool
@@ -492,6 +629,85 @@ class PEDominanceCaseDiagnosisReport:
     case_diagnoses: tuple[PEDominanceCaseDiagnosis, ...]
     worst_case_id: str | None
     dominant_failure_mode: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueOptionDiscoveryTurnEvidence:
+    case_id: str
+    turn_index: int
+    active_abstract_action: str
+    switch_gate: float
+    terminated: bool
+    prediction_error_magnitude: float
+    pe_spike: bool
+    near_termination: bool
+    z_t_digest: str
+    segment_id: str
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueOptionDiscoveryCaseReport:
+    case_id: str
+    turn_count: int
+    termination_event_count: int
+    option_duration_mean: float
+    abstract_action_diversity: int
+    pe_spike_near_termination_rate: float
+    option_reuse_count: int
+    turn_evidence: tuple[DialogueOptionDiscoveryTurnEvidence, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class DialogueOptionDiscoveryReport:
+    source_id: str
+    case_reports: tuple[DialogueOptionDiscoveryCaseReport, ...]
+    case_count: int
+    turn_count: int
+    termination_event_count: int
+    option_duration_mean: float
+    abstract_action_diversity: int
+    pe_spike_near_termination_rate: float
+    option_reuse_across_cases: float
+    random_boundary_baseline_rate: float
+    evidence_quality: str
+    non_gating: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class PECounterfactualVariantReport:
+    variant_label: str
+    case_count: int
+    passed_case_count: int
+    pass_rate: float
+    prediction_chain_turn_count: float
+    pe_triggered_turn_count: float
+    carryover_credit_turn_count: float
+    bounded_writeback_turn_count: float
+    delayed_improvement_rate: float
+    pressure_response_precision: float
+    stability_after_recovery_score: float
+    runtime_backbone_evidence_rate: float
+    description: str
+
+
+@dataclass(frozen=True)
+class PECounterfactualClosureReport:
+    baseline_label: str
+    pe_drive_off_label: str
+    pe_readout_only_label: str
+    eta_off_label: str
+    variants: tuple[PECounterfactualVariantReport, ...]
+    pe_to_credit_drop: float
+    pe_to_behavior_drop: float
+    readout_only_gap: float
+    eta_dependency_gap: float
+    closure_strength: float
+    evidence_quality: str
+    non_gating: bool
     description: str
 
 

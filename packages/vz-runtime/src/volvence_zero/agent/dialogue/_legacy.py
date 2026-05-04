@@ -3449,6 +3449,329 @@ def build_pe_dominance_case_diagnosis_report(
     )
 
 
+def _dialogue_benchmark_report_from_option_source(
+    report: DialogueComprehensiveBenchmarkReport | DialogueBenchmarkReport,
+    *,
+    baseline_label: str = "pe-eta",
+) -> DialogueBenchmarkReport:
+    if isinstance(report, DialogueBenchmarkReport):
+        return report
+    for path in report.canonical_ablation_report.path_reports:
+        if path.path_label == baseline_label:
+            return path.benchmark_report
+    raise ValueError(
+        f"Dialogue option discovery requires baseline path {baseline_label!r}; "
+        f"available={tuple(path.path_label for path in report.canonical_ablation_report.path_reports)!r}."
+    )
+
+
+def _action_replay_contexts(
+    replay_artifacts: tuple[dict[str, Any], ...],
+) -> tuple[tuple[str, str], ...]:
+    contexts: list[tuple[str, str]] = []
+    for artifact in replay_artifacts:
+        action_replay = artifact.get("action_replay", {})
+        if not isinstance(action_replay, dict):
+            continue
+        action_context = action_replay.get("action_context")
+        if isinstance(action_context, dict):
+            z_t_digest = str(action_context.get("z_t_digest") or "")
+            segment_id = str(action_context.get("segment_id") or "")
+            if z_t_digest or segment_id:
+                contexts.append((z_t_digest, segment_id))
+        closed_segments = action_replay.get("closed_segments", ())
+        if isinstance(closed_segments, (tuple, list)):
+            for segment in closed_segments:
+                if not isinstance(segment, dict):
+                    continue
+                z_t_digest = str(segment.get("z_t_digest") or "")
+                segment_id = str(segment.get("segment_id") or "")
+                if z_t_digest or segment_id:
+                    contexts.append((z_t_digest, segment_id))
+    return tuple(contexts)
+
+
+def _option_duration_mean(turns: tuple[DialogueBenchmarkTurn, ...]) -> float:
+    if not turns:
+        return 0.0
+    durations: list[float] = []
+    previous_action = turns[0].active_abstract_action or turns[0].joint_schedule_action
+    current_duration = 0
+    for turn in turns:
+        action = turn.active_abstract_action or turn.joint_schedule_action
+        if action == previous_action:
+            current_duration += 1
+            continue
+        durations.append(float(current_duration))
+        previous_action = action
+        current_duration = 1
+    durations.append(float(current_duration))
+    return round(_mean(tuple(durations)), 4)
+
+
+def _random_near_termination_baseline(
+    *,
+    turn_count: int,
+    termination_count: int,
+) -> float:
+    if turn_count <= 0 or termination_count <= 0:
+        return 0.0
+    # Expected hit rate for a random PE spike under the same number of
+    # termination windows (previous/current/next turn). This is a report-only
+    # baseline and does not affect runtime behavior.
+    return round(min(1.0, (termination_count * 3.0) / turn_count), 4)
+
+
+def _build_option_case_report(
+    case_report: DialogueBenchmarkCaseReport,
+    *,
+    replay_contexts: tuple[tuple[str, str], ...],
+) -> DialogueOptionDiscoveryCaseReport:
+    turns = case_report.turns
+    pe_values = tuple(turn.prediction_error_magnitude for turn in turns)
+    pe_mean = _mean(pe_values)
+    termination_indices = {
+        turn.turn_index
+        for turn in turns
+        if turn.switch_gate >= 0.5
+    }
+    replay_context_by_index = {
+        index: context for index, context in enumerate(replay_contexts)
+    }
+    evidence: list[DialogueOptionDiscoveryTurnEvidence] = []
+    for index, turn in enumerate(turns):
+        z_t_digest, segment_id = replay_context_by_index.get(index, ("", ""))
+        action = turn.active_abstract_action or turn.joint_schedule_action or "unknown"
+        pe_spike = turn.prediction_error_magnitude >= pe_mean and turn.prediction_error_magnitude > 0.0
+        near_termination = any(
+            abs(turn.turn_index - termination_index) <= 1
+            for termination_index in termination_indices
+        )
+        terminated = turn.turn_index in termination_indices
+        evidence.append(
+            DialogueOptionDiscoveryTurnEvidence(
+                case_id=case_report.case.case_id,
+                turn_index=turn.turn_index,
+                active_abstract_action=action,
+                switch_gate=turn.switch_gate,
+                terminated=terminated,
+                prediction_error_magnitude=turn.prediction_error_magnitude,
+                pe_spike=pe_spike,
+                near_termination=near_termination,
+                z_t_digest=z_t_digest,
+                segment_id=segment_id,
+                description=(
+                    f"case={case_report.case.case_id} turn={turn.turn_index} action={action} "
+                    f"switch_gate={turn.switch_gate:.3f} pe={turn.prediction_error_magnitude:.3f}."
+                ),
+            )
+        )
+    pe_spikes = tuple(item for item in evidence if item.pe_spike)
+    pe_spike_near_rate = (
+        sum(1 for item in pe_spikes if item.near_termination) / len(pe_spikes)
+        if pe_spikes
+        else 0.0
+    )
+    actions = tuple(item.active_abstract_action for item in evidence if item.active_abstract_action)
+    action_counts: dict[str, int] = {}
+    for action in actions:
+        action_counts[action] = action_counts.get(action, 0) + 1
+    return DialogueOptionDiscoveryCaseReport(
+        case_id=case_report.case.case_id,
+        turn_count=len(turns),
+        termination_event_count=len(termination_indices),
+        option_duration_mean=_option_duration_mean(turns),
+        abstract_action_diversity=len(set(actions)),
+        pe_spike_near_termination_rate=round(pe_spike_near_rate, 4),
+        option_reuse_count=sum(1 for count in action_counts.values() if count > 1),
+        turn_evidence=tuple(evidence),
+        description=(
+            f"Option discovery case={case_report.case.case_id} turns={len(turns)} "
+            f"terminations={len(termination_indices)} pe_near_rate={pe_spike_near_rate:.3f}."
+        ),
+    )
+
+
+def build_dialogue_option_discovery_report(
+    report: DialogueComprehensiveBenchmarkReport | DialogueBenchmarkReport,
+    *,
+    replay_artifacts: tuple[dict[str, Any], ...] = (),
+    source_id: str = "dialogue-option-discovery",
+) -> DialogueOptionDiscoveryReport:
+    benchmark_report = _dialogue_benchmark_report_from_option_source(report)
+    replay_contexts = _action_replay_contexts(replay_artifacts)
+    case_reports = tuple(
+        _build_option_case_report(case_report, replay_contexts=replay_contexts)
+        for case_report in benchmark_report.case_reports
+    )
+    turn_count = sum(case_report.turn_count for case_report in case_reports)
+    termination_event_count = sum(case_report.termination_event_count for case_report in case_reports)
+    option_duration_mean = _mean(tuple(case_report.option_duration_mean for case_report in case_reports))
+    distinct_actions = {
+        evidence.active_abstract_action
+        for case_report in case_reports
+        for evidence in case_report.turn_evidence
+        if evidence.active_abstract_action
+    }
+    action_case_ids: dict[str, set[str]] = {}
+    for case_report in case_reports:
+        for evidence in case_report.turn_evidence:
+            if evidence.active_abstract_action:
+                action_case_ids.setdefault(evidence.active_abstract_action, set()).add(case_report.case_id)
+    reused_action_count = sum(1 for case_ids in action_case_ids.values() if len(case_ids) > 1)
+    option_reuse_across_cases = (
+        reused_action_count / len(action_case_ids)
+        if action_case_ids
+        else 0.0
+    )
+    pe_spike_near_rate = _mean(
+        tuple(case_report.pe_spike_near_termination_rate for case_report in case_reports)
+    )
+    evidence_quality = (
+        "snapshot-replay+turn-telemetry"
+        if replay_contexts
+        else "turn-telemetry-only"
+    )
+    return DialogueOptionDiscoveryReport(
+        source_id=source_id,
+        case_reports=case_reports,
+        case_count=len(case_reports),
+        turn_count=turn_count,
+        termination_event_count=termination_event_count,
+        option_duration_mean=round(option_duration_mean, 4),
+        abstract_action_diversity=len(distinct_actions),
+        pe_spike_near_termination_rate=round(pe_spike_near_rate, 4),
+        option_reuse_across_cases=round(option_reuse_across_cases, 4),
+        random_boundary_baseline_rate=_random_near_termination_baseline(
+            turn_count=turn_count,
+            termination_count=termination_event_count,
+        ),
+        evidence_quality=evidence_quality,
+        non_gating=True,
+        description=(
+            f"Dialogue option discovery source={source_id} cases={len(case_reports)} "
+            f"turns={turn_count} evidence_quality={evidence_quality}; non-gating trajectory diagnostic."
+        ),
+    )
+
+
+def _variant_report_from_path(
+    path_report: DialogueBenchmarkPathReport,
+) -> PECounterfactualVariantReport:
+    metrics = dict(path_report.benchmark_report.metric_means)
+    total_cases = max(path_report.benchmark_report.total_case_count, 1)
+    passed_cases = path_report.benchmark_report.passed_case_count
+    return PECounterfactualVariantReport(
+        variant_label=path_report.path_label,
+        case_count=path_report.benchmark_report.total_case_count,
+        passed_case_count=passed_cases,
+        pass_rate=round(passed_cases / total_cases, 4),
+        prediction_chain_turn_count=metrics.get("prediction_chain_turn_count", 0.0),
+        pe_triggered_turn_count=metrics.get("pe_triggered_turn_count", 0.0),
+        carryover_credit_turn_count=metrics.get("carryover_credit_turn_count", 0.0),
+        bounded_writeback_turn_count=metrics.get("bounded_writeback_turn_count", 0.0),
+        delayed_improvement_rate=metrics.get("delayed_improvement_observed", 0.0),
+        pressure_response_precision=metrics.get("pressure_response_precision", 0.0),
+        stability_after_recovery_score=metrics.get("stability_after_recovery_score", 0.0),
+        runtime_backbone_evidence_rate=(
+            metrics.get("runtime_backbone_evidence_turn_count", 0.0) / total_cases
+        ),
+        description=(
+            f"PE counterfactual variant {path_report.path_label} pass_rate={passed_cases / total_cases:.3f} "
+            f"pe_triggers={metrics.get('pe_triggered_turn_count', 0.0):.3f}."
+        ),
+    )
+
+
+def _counterfactual_path_reports(
+    report: DialogueBenchmarkComparisonReport | DialogueComprehensiveBenchmarkReport,
+) -> tuple[DialogueBenchmarkPathReport, ...]:
+    if isinstance(report, DialogueBenchmarkComparisonReport):
+        return report.path_reports
+    return report.canonical_ablation_report.path_reports
+
+
+def _bounded_drop(*, baseline: float, counterfactual: float) -> float:
+    return round(max(0.0, baseline - counterfactual), 4)
+
+
+def build_pe_counterfactual_closure_report(
+    comparison_report: DialogueBenchmarkComparisonReport | DialogueComprehensiveBenchmarkReport,
+    *,
+    baseline_label: str = "pe-eta",
+    pe_drive_off_label: str = "pe-drive-off",
+    pe_readout_only_label: str = "pe-eta-pe-readout-only",
+    eta_off_label: str = "eta-off",
+) -> PECounterfactualClosureReport:
+    path_reports = _counterfactual_path_reports(comparison_report)
+    path_report_map = {path.path_label: path for path in path_reports}
+    required_labels = (baseline_label, pe_drive_off_label, pe_readout_only_label, eta_off_label)
+    missing_labels = tuple(label for label in required_labels if label not in path_report_map)
+    if missing_labels:
+        raise ValueError(
+            f"PE counterfactual closure requires paths {required_labels!r}; missing {missing_labels!r}."
+        )
+    variants = tuple(
+        _variant_report_from_path(path_report_map[label])
+        for label in required_labels
+    )
+    variant_map = {variant.variant_label: variant for variant in variants}
+    baseline = variant_map[baseline_label]
+    drive_off = variant_map[pe_drive_off_label]
+    readout_only = variant_map[pe_readout_only_label]
+    eta_off = variant_map[eta_off_label]
+    pe_to_credit_drop = _bounded_drop(
+        baseline=baseline.carryover_credit_turn_count + baseline.bounded_writeback_turn_count,
+        counterfactual=drive_off.carryover_credit_turn_count + drive_off.bounded_writeback_turn_count,
+    )
+    pe_to_behavior_drop = _bounded_drop(
+        baseline=baseline.pass_rate + baseline.pressure_response_precision + baseline.stability_after_recovery_score,
+        counterfactual=drive_off.pass_rate + drive_off.pressure_response_precision + drive_off.stability_after_recovery_score,
+    )
+    readout_only_gap = _bounded_drop(
+        baseline=baseline.pass_rate + baseline.delayed_improvement_rate + baseline.pressure_response_precision,
+        counterfactual=readout_only.pass_rate + readout_only.delayed_improvement_rate + readout_only.pressure_response_precision,
+    )
+    eta_dependency_gap = _bounded_drop(
+        baseline=baseline.pass_rate + baseline.stability_after_recovery_score,
+        counterfactual=eta_off.pass_rate + eta_off.stability_after_recovery_score,
+    )
+    closure_strength = round(
+        min(
+            1.0,
+            (pe_to_credit_drop * 0.25)
+            + (pe_to_behavior_drop * 0.25)
+            + (readout_only_gap * 0.25)
+            + (eta_dependency_gap * 0.25),
+        ),
+        4,
+    )
+    evidence_quality = (
+        "counterfactual-profile-complete"
+        if closure_strength > 0.0
+        else "counterfactual-profile-present-no-positive-drop"
+    )
+    return PECounterfactualClosureReport(
+        baseline_label=baseline_label,
+        pe_drive_off_label=pe_drive_off_label,
+        pe_readout_only_label=pe_readout_only_label,
+        eta_off_label=eta_off_label,
+        variants=variants,
+        pe_to_credit_drop=pe_to_credit_drop,
+        pe_to_behavior_drop=pe_to_behavior_drop,
+        readout_only_gap=readout_only_gap,
+        eta_dependency_gap=eta_dependency_gap,
+        closure_strength=closure_strength,
+        evidence_quality=evidence_quality,
+        non_gating=True,
+        description=(
+            f"PE counterfactual closure baseline={baseline_label} suppressed={pe_drive_off_label} "
+            f"readout_only={pe_readout_only_label} eta_off={eta_off_label} closure={closure_strength:.3f}; "
+            "non-gating trajectory diagnostic."
+        ),
+    )
+
+
 def _dashboard_panel_from_metric_deltas(
     *,
     path_label: str,
@@ -4479,6 +4802,609 @@ async def run_dialogue_pe_eta_longitudinal_benchmark(
     )
 
 
+def default_longitudinal_dialogue_personas() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    return (
+        (
+            "direct-but-overwhelmed",
+            (
+                "Direct answers help me, but please stabilize the feeling before steps.",
+                "I am back and still want direct help, but not before you name the stress.",
+                "Keep the directness and show you remember I need emotional sorting first.",
+            ),
+        ),
+        (
+            "slow-trust-repair",
+            (
+                "I do not trust quick advice after the last mismatch.",
+                "I am returning; repair the tension before you suggest anything.",
+                "Check whether the trust repair is holding before moving into a plan.",
+            ),
+        ),
+        (
+            "boundary-sensitive",
+            (
+                "Do not push professional or medical advice beyond scope.",
+                "I need help staying inside my boundary while thinking clearly.",
+                "Notice the boundary again before making suggestions.",
+            ),
+        ),
+        (
+            "preference-conflict",
+            (
+                "I usually want direct steps after support.",
+                "Actually today direct steps feel too much; ask before pushing.",
+                "Resolve the conflict between my usual directness and today's slower pace.",
+            ),
+        ),
+        (
+            "delayed-return",
+            (
+                "Remember that I prefer warmth before planning.",
+                "A few days later, I want to see if you still remember that preference.",
+                "Use the remembered preference without overdoing it.",
+            ),
+        ),
+    )
+
+
+def _session_evidence_from_case_report(
+    *,
+    persona_id: str,
+    case_report: DialogueBenchmarkCaseReport,
+    session_index: int,
+    cross_session_verdict: str,
+) -> LongitudinalDialogueSessionEvidence:
+    summary = dict(_case_summary_metrics(case_report))
+    retrieved_preference_count = int(
+        max(
+            summary.get("learned_recall_count", 0.0),
+            summary.get("memory_tower_profile_turn_count", 0.0),
+        )
+    )
+    mean_cognitive_loop_readiness = summary.get("mean_cognitive_loop_readiness", 0.0)
+    delayed_improvement = bool(summary.get("delayed_improvement_observed", 0.0) > 0.0)
+    explicit_retention = bool(
+        retrieved_preference_count > 0
+        or mean_cognitive_loop_readiness > 0.0
+        or cross_session_verdict in {"growing", "stable"}
+    )
+    repair_observable = bool(
+        case_report.recovery_lag_turns >= 0
+        and (
+            case_report.pressure_response_precision > 0.0
+            or any(turn.active_regime in REPAIR_OBSERVABLE_REGIME_IDS for turn in case_report.turns)
+        )
+    )
+    return LongitudinalDialogueSessionEvidence(
+        persona_id=persona_id,
+        session_id=case_report.case.case_id,
+        session_index=session_index,
+        passed=case_report.passed,
+        mean_prediction_error=summary.get("mean_prediction_error", 0.0),
+        temporal_change_count=case_report.temporal_change_count,
+        delayed_improvement_observed=delayed_improvement,
+        mean_cognitive_loop_readiness=mean_cognitive_loop_readiness,
+        explicit_retention_observed=explicit_retention,
+        default_isolation_preserved=True,
+        retrieved_preference_count=retrieved_preference_count,
+        preference_conflict_observed="conflict" in case_report.case.case_id,
+        repair_observable=repair_observable,
+        regime_stability_score=case_report.late_episode_stability_score,
+        description=(
+            f"Longitudinal session evidence persona={persona_id} session={case_report.case.case_id} "
+            f"passed={case_report.passed} retention={explicit_retention}."
+        ),
+    )
+
+
+def _build_longitudinal_persona_report(
+    *,
+    persona_id: str,
+    sessions: tuple[LongitudinalDialogueSessionEvidence, ...],
+) -> LongitudinalDialoguePersonaReport:
+    session_count = len(sessions)
+    retention_rate = _mean(tuple(1.0 if session.explicit_retention_observed else 0.0 for session in sessions))
+    isolation_pass_rate = _mean(tuple(1.0 if session.default_isolation_preserved else 0.0 for session in sessions))
+    cognitive_values = tuple(session.mean_cognitive_loop_readiness for session in sessions)
+    adaptation_trend = round(cognitive_values[-1] - cognitive_values[0], 4) if len(cognitive_values) >= 2 else 0.0
+    drift_risk_score = round(
+        _mean(
+            tuple(
+                max(0.0, session.mean_prediction_error - session.regime_stability_score)
+                for session in sessions
+            )
+        ),
+        4,
+    )
+    conflict_sessions = tuple(session for session in sessions if session.preference_conflict_observed)
+    preference_conflict_repair_rate = (
+        _mean(tuple(1.0 if session.repair_observable else 0.0 for session in conflict_sessions))
+        if conflict_sessions
+        else 0.0
+    )
+    trajectory_strength = round(
+        min(
+            1.0,
+            (retention_rate * 0.35)
+            + (isolation_pass_rate * 0.25)
+            + (max(0.0, adaptation_trend) * 0.20)
+            + (preference_conflict_repair_rate * 0.20)
+            - (drift_risk_score * 0.10),
+        ),
+        4,
+    )
+    return LongitudinalDialoguePersonaReport(
+        persona_id=persona_id,
+        session_evidence=sessions,
+        session_count=session_count,
+        retention_rate=round(retention_rate, 4),
+        isolation_pass_rate=round(isolation_pass_rate, 4),
+        adaptation_trend=adaptation_trend,
+        drift_risk_score=drift_risk_score,
+        trajectory_strength=trajectory_strength,
+        preference_conflict_repair_rate=round(preference_conflict_repair_rate, 4),
+        description=(
+            f"Longitudinal persona {persona_id} sessions={session_count} "
+            f"retention={retention_rate:.3f} isolation={isolation_pass_rate:.3f} "
+            f"strength={trajectory_strength:.3f}."
+        ),
+    )
+
+
+def build_longitudinal_dialogue_report(
+    longitudinal_report: DialogueLongitudinalBenchmarkReport | None = None,
+    *,
+    session_evidence: tuple[LongitudinalDialogueSessionEvidence, ...] = (),
+    report_id: str = "longitudinal-dialogue-v1",
+) -> LongitudinalDialogueReport:
+    if not session_evidence and longitudinal_report is not None:
+        cross_session_verdict = longitudinal_report.cross_session_report.verdict
+        session_evidence = tuple(
+            _session_evidence_from_case_report(
+                persona_id="dialogue-longitudinal",
+                case_report=case_report,
+                session_index=index,
+                cross_session_verdict=cross_session_verdict,
+            )
+            for index, case_report in enumerate(longitudinal_report.case_reports, start=1)
+        )
+    persona_ids = tuple(sorted({session.persona_id for session in session_evidence}))
+    persona_reports = tuple(
+        _build_longitudinal_persona_report(
+            persona_id=persona_id,
+            sessions=tuple(
+                sorted(
+                    (session for session in session_evidence if session.persona_id == persona_id),
+                    key=lambda item: item.session_index,
+                )
+            ),
+        )
+        for persona_id in persona_ids
+    )
+    session_count = sum(report.session_count for report in persona_reports)
+    retention_rate = _mean(tuple(report.retention_rate for report in persona_reports))
+    isolation_pass_rate = _mean(tuple(report.isolation_pass_rate for report in persona_reports))
+    adaptation_trend = _mean(tuple(report.adaptation_trend for report in persona_reports))
+    drift_risk_score = _mean(tuple(report.drift_risk_score for report in persona_reports))
+    trajectory_strength = _mean(tuple(report.trajectory_strength for report in persona_reports))
+    if longitudinal_report is not None:
+        cross_session_verdict = longitudinal_report.cross_session_report.verdict
+    elif trajectory_strength > 0.66:
+        cross_session_verdict = "growing"
+    elif trajectory_strength > 0.33:
+        cross_session_verdict = "stable"
+    else:
+        cross_session_verdict = "insufficient"
+    evidence_quality = (
+        "dialogue-longitudinal-benchmark"
+        if longitudinal_report is not None
+        else ("synthetic-session-evidence" if session_evidence else "empty")
+    )
+    return LongitudinalDialogueReport(
+        report_id=report_id,
+        persona_reports=persona_reports,
+        persona_count=len(persona_reports),
+        session_count=session_count,
+        retention_rate=round(retention_rate, 4),
+        isolation_pass_rate=round(isolation_pass_rate, 4),
+        adaptation_trend=round(adaptation_trend, 4),
+        drift_risk_score=round(drift_risk_score, 4),
+        trajectory_strength=round(trajectory_strength, 4),
+        cross_session_verdict=cross_session_verdict,
+        non_gating=True,
+        evidence_quality=evidence_quality,
+        description=(
+            f"Longitudinal dialogue report {report_id} personas={len(persona_reports)} "
+            f"sessions={session_count} strength={trajectory_strength:.3f}; non-gating trajectory diagnostic."
+        ),
+    )
+
+
+def _float_metric(metrics: dict[str, float], *names: str) -> float:
+    for name in names:
+        if name in metrics:
+            return float(metrics[name])
+    return 0.0
+
+
+def _clamped01(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _variant_metrics_from_comparison(
+    report: DialogueBenchmarkComparisonReport | DialogueComprehensiveBenchmarkReport,
+) -> dict[str, dict[str, float]]:
+    comparison = (
+        report.canonical_ablation_report
+        if isinstance(report, DialogueComprehensiveBenchmarkReport)
+        else report
+    )
+    return {
+        path.path_label: dict(path.benchmark_report.metric_means)
+        for path in comparison.path_reports
+    }
+
+
+def _normalize_variant_label(label: str) -> str:
+    aliases = {
+        "pe-eta": "full-nl",
+        "pe-eta-no-rare-heavy": "no-rare-heavy",
+        "pe-eta-no-fast-prior": "no-fast-prior",
+        "timescale-off": "timescale-off",
+    }
+    return aliases.get(label, label)
+
+
+def _nl_variant_report(
+    *,
+    label: str,
+    metrics: dict[str, float],
+) -> NLAblationVariantReport:
+    cross_session_growth_score = _clamped01(
+        _float_metric(metrics, "cross_session_growth", "cross-session-growth", "cross_session_growth_score")
+    )
+    heldout_payoff_score = _clamped01(
+        _float_metric(metrics, "heldout_payoff_score", "heldout_strong_success_rate", "heldout_terminal_success_rate")
+    )
+    memory_churn_risk = _clamped01(
+        _float_metric(metrics, "memory_churn_risk", "nested_context_reset_count")
+        + max(0.0, -_float_metric(metrics, "mean_memory_tower_alignment")) * 0.25
+    )
+    behavior_drift_risk = _clamped01(
+        _float_metric(metrics, "behavior_drift_risk")
+        + max(0.0, _float_metric(metrics, "mean_prediction_error") - 0.5)
+    )
+    slow_to_fast_transfer_gain = _clamped01(
+        _float_metric(
+            metrics,
+            "slow_to_fast_transfer_gain",
+            "slow_to_fast_init_benefit",
+            "mean_reset_turn_slow_to_fast_init_benefit",
+        )
+        + _float_metric(metrics, "slow_to_fast_target_alignment_gain", "mean_reset_turn_slow_to_fast_target_alignment_gain")
+    )
+    aggregate_score = round(
+        _clamped01(
+            (cross_session_growth_score * 0.25)
+            + (heldout_payoff_score * 0.20)
+            + (slow_to_fast_transfer_gain * 0.25)
+            + ((1.0 - memory_churn_risk) * 0.15)
+            + ((1.0 - behavior_drift_risk) * 0.15)
+        ),
+        4,
+    )
+    return NLAblationVariantReport(
+        variant_label=label,
+        cross_session_growth_score=round(cross_session_growth_score, 4),
+        heldout_payoff_score=round(heldout_payoff_score, 4),
+        memory_churn_risk=round(memory_churn_risk, 4),
+        behavior_drift_risk=round(behavior_drift_risk, 4),
+        slow_to_fast_transfer_gain=round(slow_to_fast_transfer_gain, 4),
+        aggregate_score=aggregate_score,
+        description=(
+            f"NL ablation variant {label} aggregate={aggregate_score:.3f} "
+            f"slow_to_fast={slow_to_fast_transfer_gain:.3f}."
+        ),
+    )
+
+
+def build_nl_ablation_matrix_report(
+    report: DialogueBenchmarkComparisonReport | DialogueComprehensiveBenchmarkReport | None = None,
+    *,
+    variant_metrics: tuple[tuple[str, tuple[tuple[str, float], ...]], ...] = (),
+    report_id: str = "nl-ablation-matrix-v1",
+    baseline_label: str = "full-nl",
+) -> NLAblationMatrixReport:
+    metric_map: dict[str, dict[str, float]] = {}
+    if report is not None:
+        for label, metrics in _variant_metrics_from_comparison(report).items():
+            metric_map[_normalize_variant_label(label)] = metrics
+    for label, metrics in variant_metrics:
+        metric_map[_normalize_variant_label(label)] = dict(metrics)
+    variants = tuple(
+        _nl_variant_report(label=label, metrics=metrics)
+        for label, metrics in sorted(metric_map.items())
+    )
+    variant_score = {variant.variant_label: variant for variant in variants}
+    baseline = variant_score.get(baseline_label)
+    control_scores = tuple(
+        variant.aggregate_score
+        for variant in variants
+        if variant.variant_label != baseline_label
+    )
+    strongest_control = max(control_scores, default=0.0)
+    full_nl_advantage = round(
+        max(0.0, (baseline.aggregate_score if baseline is not None else 0.0) - strongest_control),
+        4,
+    )
+    slow_to_fast_transfer_gain = baseline.slow_to_fast_transfer_gain if baseline is not None else 0.0
+    control_memory_churn = _mean(tuple(
+        variant.memory_churn_risk for variant in variants if variant.variant_label != baseline_label
+    ))
+    control_behavior_drift = _mean(tuple(
+        variant.behavior_drift_risk for variant in variants if variant.variant_label != baseline_label
+    ))
+    memory_churn_risk_delta = round(
+        max(0.0, control_memory_churn - (baseline.memory_churn_risk if baseline is not None else 0.0)),
+        4,
+    )
+    behavior_drift_risk_delta = round(
+        max(0.0, control_behavior_drift - (baseline.behavior_drift_risk if baseline is not None else 0.0)),
+        4,
+    )
+    evidence_quality = "comparison-report" if report is not None else ("explicit-variant-metrics" if variant_metrics else "empty")
+    return NLAblationMatrixReport(
+        report_id=report_id,
+        baseline_label=baseline_label,
+        variants=variants,
+        full_nl_advantage=full_nl_advantage,
+        slow_to_fast_transfer_gain=round(slow_to_fast_transfer_gain, 4),
+        memory_churn_risk_delta=memory_churn_risk_delta,
+        behavior_drift_risk_delta=behavior_drift_risk_delta,
+        evidence_quality=evidence_quality,
+        non_gating=True,
+        description=(
+            f"NL ablation matrix {report_id} variants={len(variants)} "
+            f"full_advantage={full_nl_advantage:.3f}; non-gating diagnostic."
+        ),
+    )
+
+
+def _mapping_from_evidence(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    inner_value = getattr(value, "value", value)
+    if isinstance(inner_value, dict):
+        return inner_value
+    return {
+        name: getattr(inner_value, name)
+        for name in dir(inner_value)
+        if not name.startswith("_") and not callable(getattr(inner_value, name))
+    }
+
+
+def _as_metric_dict(value: Any) -> dict[str, float]:
+    if isinstance(value, dict):
+        return {str(key): float(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        result: dict[str, float] = {}
+        for item in value:
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                result[str(item[0])] = float(item[1])
+        return result
+    return {}
+
+
+def _count_from_stratum_map(value: Any, *names: str) -> float:
+    metrics = _as_metric_dict(value)
+    for name in names:
+        if name in metrics:
+            return metrics[name]
+    return 0.0
+
+
+def _memory_snapshot_evidence(
+    *,
+    snapshot: Any,
+    index: int,
+) -> MemoryStratumFlowSnapshotEvidence:
+    mapping = _mapping_from_evidence(snapshot)
+    stratum_counts = mapping.get("total_entries_by_stratum", ())
+    lifecycle_metrics = _as_metric_dict(mapping.get("lifecycle_metrics", ()))
+    cms_band_vectors = mapping.get("cms_band_vectors", ())
+    derived_count = _count_from_stratum_map(stratum_counts, "derived", "DERIVED", "MemoryStratum.DERIVED")
+    if derived_count == 0.0:
+        derived_count = float(len(cms_band_vectors)) if isinstance(cms_band_vectors, (tuple, list)) else 0.0
+    lifecycle_signal_strength = _clamped01(
+        lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0)
+        + lifecycle_metrics.get("tower_consolidation_count", 0.0) * 0.1
+        + lifecycle_metrics.get("continuum_band_count", 0.0) * 0.1
+        + lifecycle_metrics.get("fast_memory_signal_count", 0.0) * 0.1
+    )
+    return MemoryStratumFlowSnapshotEvidence(
+        snapshot_id=str(mapping.get("snapshot_id", f"memory-snapshot-{index}")),
+        transient_count=_count_from_stratum_map(stratum_counts, "transient", "TRANSIENT", "MemoryStratum.TRANSIENT"),
+        episodic_count=_count_from_stratum_map(stratum_counts, "episodic", "EPISODIC", "MemoryStratum.EPISODIC"),
+        durable_count=_count_from_stratum_map(stratum_counts, "durable", "DURABLE", "MemoryStratum.DURABLE"),
+        derived_count=derived_count,
+        pending_promotions=float(mapping.get("pending_promotions", 0.0)),
+        pending_decays=float(mapping.get("pending_decays", 0.0)),
+        derived_index_activity=round(_clamped01(derived_count / 3.0), 4),
+        lifecycle_signal_strength=round(lifecycle_signal_strength, 4),
+        description=f"Memory stratum flow snapshot index={index} derived={derived_count:.1f}.",
+    )
+
+
+def build_memory_stratum_flow_report(
+    snapshots: tuple[Any, ...] = (),
+    *,
+    report_id: str = "memory-stratum-flow-v1",
+) -> MemoryStratumFlowReport:
+    evidence = tuple(
+        _memory_snapshot_evidence(snapshot=snapshot, index=index)
+        for index, snapshot in enumerate(snapshots, start=1)
+    )
+    if not evidence:
+        return MemoryStratumFlowReport(
+            report_id=report_id,
+            snapshots=(),
+            snapshot_count=0,
+            stratum_progression_score=0.0,
+            promotion_pressure=0.0,
+            decay_pressure=0.0,
+            derived_index_activity=0.0,
+            lifecycle_signal_strength=0.0,
+            memory_flow_strength=0.0,
+            evidence_quality="empty",
+            non_gating=True,
+            description=f"Memory stratum flow report {report_id} has no snapshots; non-gating diagnostic.",
+        )
+    first = evidence[0]
+    last = evidence[-1]
+    stratum_progression_score = _clamped01(
+        (max(0.0, last.episodic_count - first.transient_count) * 0.15)
+        + (max(0.0, last.durable_count - first.durable_count) * 0.20)
+        + (max(0.0, last.derived_count - first.derived_count) * 0.25)
+    )
+    promotion_pressure = _clamped01(_mean(tuple(item.pending_promotions for item in evidence)) / 3.0)
+    decay_pressure = _clamped01(_mean(tuple(item.pending_decays for item in evidence)) / 3.0)
+    derived_index_activity = _mean(tuple(item.derived_index_activity for item in evidence))
+    lifecycle_signal_strength = _mean(tuple(item.lifecycle_signal_strength for item in evidence))
+    memory_flow_strength = round(
+        _clamped01(
+            (stratum_progression_score * 0.30)
+            + (promotion_pressure * 0.15)
+            + ((1.0 - decay_pressure) * 0.10)
+            + (derived_index_activity * 0.20)
+            + (lifecycle_signal_strength * 0.25)
+        ),
+        4,
+    )
+    return MemoryStratumFlowReport(
+        report_id=report_id,
+        snapshots=evidence,
+        snapshot_count=len(evidence),
+        stratum_progression_score=round(stratum_progression_score, 4),
+        promotion_pressure=round(promotion_pressure, 4),
+        decay_pressure=round(decay_pressure, 4),
+        derived_index_activity=round(derived_index_activity, 4),
+        lifecycle_signal_strength=round(lifecycle_signal_strength, 4),
+        memory_flow_strength=memory_flow_strength,
+        evidence_quality="memory-snapshot-sequence",
+        non_gating=True,
+        description=(
+            f"Memory stratum flow report {report_id} snapshots={len(evidence)} "
+            f"strength={memory_flow_strength:.3f}; non-gating diagnostic."
+        ),
+    )
+
+
+def _sequence_len(value: Any) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, (tuple, list, set)):
+        return len(value)
+    return 1
+
+
+def _string_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "regime_id"):
+        return str(value.regime_id)
+    return str(value)
+
+
+def _regime_snapshot_evidence(
+    *,
+    snapshot: Any,
+    index: int,
+) -> RegimeLockinSnapshotEvidence:
+    mapping = _mapping_from_evidence(snapshot)
+    active_regime = _string_value(mapping.get("active_regime"))
+    previous_regime = _string_value(mapping.get("previous_regime"))
+    return RegimeLockinSnapshotEvidence(
+        snapshot_id=str(mapping.get("snapshot_id", f"regime-snapshot-{index}")),
+        active_regime=active_regime,
+        previous_regime=previous_regime,
+        turns_in_current_regime=float(mapping.get("turns_in_current_regime", 0.0)),
+        regime_changed=bool(mapping.get("regime_changed", False)),
+        candidate_regime_count=_sequence_len(mapping.get("candidate_regimes", ())),
+        delayed_attribution_count=_sequence_len(mapping.get("delayed_attributions", ())),
+        delayed_payoff_count=_sequence_len(mapping.get("delayed_payoffs", ())),
+        sequence_payoff_count=_sequence_len(mapping.get("sequence_payoffs", ())),
+        identity_hint_count=_sequence_len(mapping.get("identity_hints", ())),
+        description=(
+            f"Regime lock-in snapshot index={index} active={active_regime or 'unknown'} "
+            f"turns={float(mapping.get('turns_in_current_regime', 0.0)):.1f}."
+        ),
+    )
+
+
+def build_regime_lockin_report(
+    snapshots: tuple[Any, ...] = (),
+    *,
+    report_id: str = "regime-lockin-v1",
+) -> RegimeLockinReport:
+    evidence = tuple(
+        _regime_snapshot_evidence(snapshot=snapshot, index=index)
+        for index, snapshot in enumerate(snapshots, start=1)
+    )
+    if not evidence:
+        return RegimeLockinReport(
+            report_id=report_id,
+            snapshots=(),
+            snapshot_count=0,
+            lockin_strength=0.0,
+            switch_rate=0.0,
+            hysteresis_proxy=0.0,
+            delayed_attribution_strength=0.0,
+            sequence_payoff_strength=0.0,
+            regime_identity_stability=0.0,
+            evidence_quality="empty",
+            non_gating=True,
+            description=f"Regime lock-in report {report_id} has no snapshots; non-gating diagnostic.",
+        )
+    lockin_strength = _clamped01(_mean(tuple(item.turns_in_current_regime for item in evidence)) / 5.0)
+    switch_rate = _mean(tuple(1.0 if item.regime_changed else 0.0 for item in evidence))
+    hysteresis_proxy = _mean(tuple(
+        1.0
+        if item.candidate_regime_count > 1 and not item.regime_changed
+        else 0.0
+        for item in evidence
+    ))
+    delayed_attribution_strength = _clamped01(
+        _mean(tuple(item.delayed_attribution_count + item.delayed_payoff_count for item in evidence)) / 3.0
+    )
+    sequence_payoff_strength = _clamped01(_mean(tuple(item.sequence_payoff_count for item in evidence)) / 2.0)
+    active_regimes = tuple(item.active_regime for item in evidence if item.active_regime)
+    regime_identity_stability = (
+        max(
+            active_regimes.count(regime) / len(active_regimes)
+            for regime in set(active_regimes)
+        )
+        if active_regimes
+        else 0.0
+    )
+    return RegimeLockinReport(
+        report_id=report_id,
+        snapshots=evidence,
+        snapshot_count=len(evidence),
+        lockin_strength=round(lockin_strength, 4),
+        switch_rate=round(switch_rate, 4),
+        hysteresis_proxy=round(hysteresis_proxy, 4),
+        delayed_attribution_strength=round(delayed_attribution_strength, 4),
+        sequence_payoff_strength=round(sequence_payoff_strength, 4),
+        regime_identity_stability=round(regime_identity_stability, 4),
+        evidence_quality="regime-snapshot-sequence",
+        non_gating=True,
+        description=(
+            f"Regime lock-in report {report_id} snapshots={len(evidence)} "
+            f"lockin={lockin_strength:.3f} switch_rate={switch_rate:.3f}; non-gating diagnostic."
+        ),
+    )
+
+
 def _limit_items(items: tuple[Any, ...], limit: int | None) -> tuple[Any, ...]:
     if limit is None or limit <= 0 or limit >= len(items):
         return items
@@ -5353,6 +6279,15 @@ def export_dialogue_paper_suite_artifact_bundle(
     proposal_quality_shadow_reports: tuple[SemanticProposalQualityReport, ...] = (),
     extra_reference_artifacts: tuple[tuple[str, Any], ...] = (),
     companion_structural_gates: tuple[tuple[str, bool], ...] = (),
+    dialogue_option_discovery_report: DialogueOptionDiscoveryReport | None = None,
+    pe_counterfactual_closure_report: PECounterfactualClosureReport | None = None,
+    longitudinal_dialogue_report: LongitudinalDialogueReport | None = None,
+    nl_ablation_matrix_report: NLAblationMatrixReport | None = None,
+    memory_stratum_flow_report: MemoryStratumFlowReport | None = None,
+    regime_lockin_report: RegimeLockinReport | None = None,
+    include_phase_a_trajectory_reports: bool = False,
+    include_phase_b_longitudinal_report: bool = False,
+    include_phase_c_reports: bool = False,
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -5439,6 +6374,89 @@ def export_dialogue_paper_suite_artifact_bundle(
                 output_path=target_dir / "human_ratings_aggregate.json",
             )
         )
+    reference_artifacts = list(extra_reference_artifacts)
+    if include_phase_a_trajectory_reports and exported_report.reference_run_report is not None:
+        if dialogue_option_discovery_report is None:
+            dialogue_option_discovery_report = build_dialogue_option_discovery_report(
+                exported_report.reference_run_report,
+                source_id=f"{exported_report.manifest.suite_id}:dialogue-option-discovery",
+            )
+        if pe_counterfactual_closure_report is None:
+            pe_counterfactual_closure_report = build_pe_counterfactual_closure_report(
+                exported_report.reference_run_report,
+            )
+    if include_phase_b_longitudinal_report and exported_report.reference_run_report is not None:
+        if longitudinal_dialogue_report is None:
+            longitudinal_dialogue_report = build_longitudinal_dialogue_report(
+                exported_report.reference_run_report.longitudinal_report,
+                report_id=f"{exported_report.manifest.suite_id}:longitudinal-dialogue",
+            )
+    if include_phase_c_reports and exported_report.reference_run_report is not None:
+        if nl_ablation_matrix_report is None:
+            nl_ablation_matrix_report = build_nl_ablation_matrix_report(
+                exported_report.reference_run_report,
+                report_id=f"{exported_report.manifest.suite_id}:nl-ablation-matrix",
+            )
+    if dialogue_option_discovery_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=dialogue_option_discovery_report,
+                output_path=target_dir / "dialogue_option_discovery_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("dialogue_option_discovery_report", dialogue_option_discovery_report)
+        )
+    if pe_counterfactual_closure_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=pe_counterfactual_closure_report,
+                output_path=target_dir / "pe_counterfactual_closure_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("pe_counterfactual_closure_report", pe_counterfactual_closure_report)
+        )
+    if longitudinal_dialogue_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=longitudinal_dialogue_report,
+                output_path=target_dir / "longitudinal_dialogue_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("longitudinal_dialogue_report", longitudinal_dialogue_report)
+        )
+    if nl_ablation_matrix_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=nl_ablation_matrix_report,
+                output_path=target_dir / "nl_ablation_matrix_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("nl_ablation_matrix_report", nl_ablation_matrix_report)
+        )
+    if memory_stratum_flow_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=memory_stratum_flow_report,
+                output_path=target_dir / "memory_stratum_flow_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("memory_stratum_flow_report", memory_stratum_flow_report)
+        )
+    if regime_lockin_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=regime_lockin_report,
+                output_path=target_dir / "regime_lockin_report.json",
+            )
+        )
+        reference_artifacts.append(
+            ("regime_lockin_report", regime_lockin_report)
+        )
     proposal_quality_shadow_payload = _proposal_quality_shadow_payload(
         proposal_quality_shadow_reports
     )
@@ -5454,7 +6472,7 @@ def export_dialogue_paper_suite_artifact_bundle(
         blind_review_packet=blind_review_packet,
         human_ratings_aggregate=human_ratings_aggregate,
         proposal_quality_shadow_reports=proposal_quality_shadow_reports,
-        extra_reference_artifacts=extra_reference_artifacts,
+        extra_reference_artifacts=tuple(reference_artifacts),
     )
     written_paths.append(
         export_json_artifact(

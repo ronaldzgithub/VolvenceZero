@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from volvence_zero.agent import AgentSessionRunner
+from volvence_zero.agent import (
+    AgentSessionRunner,
+    DialogueBenchmarkReport,
+    build_dialogue_option_discovery_report,
+)
 from volvence_zero.credit.gate import derive_segment_closure_credit_records
 from volvence_zero.environment import EnvironmentEventKind, EnvironmentOutcome
 from volvence_zero.prediction import (
@@ -150,6 +154,40 @@ def test_snapshot_replay_export_uses_existing_snapshots() -> None:
     assert "action_replay" in artifact
     assert "dialogue_trace" in artifact
     assert "trace-specific runtime schema" in artifact["description"]
+
+
+def test_dialogue_option_discovery_accepts_snapshot_replay_context() -> None:
+    report = DialogueBenchmarkReport(
+        case_reports=(),
+        passed_case_count=0,
+        total_case_count=0,
+        metric_means=(),
+        description="empty report for replay-only option discovery smoke",
+    )
+    replay_artifact = {
+        "action_replay": {
+            "action_context": {
+                "segment_id": "segment-1",
+                "z_t_digest": "z-1",
+            },
+            "closed_segments": (
+                {
+                    "segment_id": "segment-closed",
+                    "z_t_digest": "z-closed",
+                },
+            ),
+            "credit_records": (),
+        }
+    }
+
+    option_report = build_dialogue_option_discovery_report(
+        report,
+        replay_artifacts=(replay_artifact,),
+    )
+
+    assert option_report.evidence_quality == "snapshot-replay+turn-telemetry"
+    assert option_report.non_gating is True
+    assert option_report.case_count == 0
 
 
 def test_environment_outcome_observable_defaults() -> None:

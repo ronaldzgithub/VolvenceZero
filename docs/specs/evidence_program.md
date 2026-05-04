@@ -284,10 +284,51 @@
 - `companion_evidence_report.json`
 - `lifeform-bench --companion-evidence-report` stdout
 - `companion_evidence_report.json.transcripts[]`：paraphrase / tone shift / delayed return / preference conflict 微场景 transcript，用于后续 blind review / human rating
+- `dialogue_option_discovery_report.json`（Phase A trajectory diagnostic, non-gating）：从 `DialogueBenchmarkTurn` 与 optional snapshot replay `action_replay` 读取 `switch_gate`、`active_abstract_action`、`prediction_error`、`closed_segments` / `z_t_digest`，报告 `termination_event_count`、`option_duration_mean`、`abstract_action_diversity`、`pe_spike_near_termination_rate`、`option_reuse_across_cases`。该 artifact 验证 ETA 时间抽象是否在 dialogue trajectory 上有可审计形状，但当前不改变 retain 条件。
+- `pe_counterfactual_closure_report.json`（Phase A trajectory diagnostic, non-gating）：复用现有 `pe-eta` / `pe-drive-off` / `pe-eta-pe-readout-only` / `eta-off` profile comparison，报告 `pe_to_credit_drop`、`pe_to_behavior_drop`、`readout_only_gap`、`eta_dependency_gap`、`closure_strength`。该 artifact 验证 PE drive 与 readout-only / ETA-off 对照之间的因果闭环迹象，但当前不替代后续 delayed / shuffled / wrong-sign PE harness。
+- `longitudinal_dialogue_report.json`（PhaseB longitudinal trajectory diagnostic, non-gating）：按 persona/session 聚合多 session 证据，报告 `retention_rate`、`isolation_pass_rate`、`adaptation_trend`、`drift_risk_score`、`trajectory_strength`、`cross_session_verdict`。首版支持从 `DialogueLongitudinalBenchmarkReport` 派生，也支持显式 `LongitudinalDialogueSessionEvidence`（shared-memory / isolation evidence 由上游 owner/report 产生后注入）。该 artifact 验证同一 virtual user 多 session 轨迹的连续性地基，但当前不改变 retain 条件。
+- `nl_ablation_matrix_report.json`（PhaseC NL diagnostic, non-gating）：聚合 `full-nl` / `no-ssl` / `no-rl` / `no-reflection` / `no-rare-heavy` / `no-fast-prior` / `timescale-off` 的 structured metrics，报告 `cross_session_growth_score`、`heldout_payoff_score`、`memory_churn_risk`、`behavior_drift_risk`、`slow_to_fast_transfer_gain`、`full_nl_advantage`。首版支持从 dialogue comparison report 或 explicit variant metrics 生成；没有真实 profile 的 variant 必须显式输入，不能伪造。
+- `memory_stratum_flow_report.json`（PhaseC memory diagnostic, non-gating）：读取 `MemorySnapshot` 或 normalized dict evidence，报告 stratum progression、promotion/decay pressure、derived index activity、lifecycle signal strength 与 `memory_flow_strength`。它只读 memory owner 发布的 snapshot/readout，不推断 raw text。
+- `regime_lockin_report.json`（PhaseC regime diagnostic, non-gating）：读取 `RegimeSnapshot` 或 normalized dict evidence，报告 `lockin_strength`、`switch_rate`、`hysteresis_proxy`、`delayed_attribution_strength`、`sequence_payoff_strength`、`regime_identity_stability`。当前没有 runtime-level hysteresis owner，`hysteresis_proxy` 只由候选 regime 波动但 active regime 保持的结构化证据派生。
+
+**Phase A trajectory evidence 边界**：
+
+- 两个 Phase A artifact 均通过 `export_dialogue_paper_suite_artifact_bundle(..., include_phase_a_trajectory_reports=True)` 或显式传入 report 后进入 `EvidenceBundle.reference_artifacts`。
+- 它们是 readout / evidence artifact，不写 owner、不成为 learning source、不新增 runtime slot。
+- `dialogue_option_discovery_report` 首版允许 `evidence_quality="turn-telemetry-only"`，因为完整 per-turn replay accumulation 尚未进入 runtime；若提供 `snapshot_replay_artifact`，则升级为 `snapshot-replay+turn-telemetry`。
+- `pe_counterfactual_closure_report` 首版只覆盖已有 profile counterfactual；delayed / shuffled / wrong-sign PE 仍是后续 harness，不在本阶段伪造。
+- `claim_companion_stateful_relationship` 的 retain 条件暂不消费这两个 artifact；它们为后续从机制 gate 升级到 trajectory gate 提供证据输入。
+
+**PhaseB longitudinal trajectory evidence 边界**：
+
+- `longitudinal_dialogue_report` 通过 `export_dialogue_paper_suite_artifact_bundle(..., include_phase_b_longitudinal_report=True)` 或显式传入 report 后进入 `EvidenceBundle.reference_artifacts`。
+- 它是 readout / evidence artifact，不写 owner、不新增 runtime slot、不成为 learning source。
+- 首版 v1 personas 是 `direct-but-overwhelmed`、`slow-trust-repair`、`boundary-sensitive`、`preference-conflict`、`delayed-return`，每个 persona 先 3 sessions，作为 synthetic trajectory surface；不能把 v1 结果夸大成人类级 companion retain。
+- Shared-memory retention 与 default isolation 是双轨指标：`explicit_retention_observed` / `retrieved_preference_count` 证明显式共享路径存在，`default_isolation_preserved` 证明默认隔离仍保持。
+- `claim_companion_stateful_relationship` 的 retain 条件暂不消费该 artifact；未来升级 retain 需要至少同时满足 multi-session trend、memory retention、default isolation、preference-conflict repair 与 human review anchor。
+
+**PhaseC NL / memory / regime longitudinal evidence 边界**：
+
+- `nl_ablation_matrix_report`、`memory_stratum_flow_report`、`regime_lockin_report` 可显式传入 `export_dialogue_paper_suite_artifact_bundle(...)`，或在后续完整 paper-suite runner 中按需生成，最终进入 `EvidenceBundle.reference_artifacts`。
+- 三个 artifact 都是 non-gating diagnostics，不写 owner、不新增 runtime slot、不成为 learning source。
+- `nl_ablation_matrix_report` 的首版 explicit variant metrics 是 proof harness 入口；若缺少 no-SSL / no-RL / no-reflection 等真实 profile，不得把 full-NL claim 写成 retain，只能作为待补对照。
+- `memory_stratum_flow_report` 的 stratum flow 只基于 `MemorySnapshot.total_entries_by_stratum`、`pending_promotions`、`pending_decays`、`cms_band_vectors`、`lifecycle_metrics` 等 owner-owned readouts。
+- `regime_lockin_report` 的 lock-in / hysteresis 是从 `RegimeSnapshot.turns_in_current_regime`、`regime_changed`、`candidate_regimes`、`delayed_attributions`、`sequence_payoffs` 派生的 readout，不改变 regime selection policy。
+- 后续把 `claim_companion_stateful_relationship` 升级到 trajectory retain 时，至少需要同时具备：PhaseA ETA/PE trajectory evidence、PhaseB longitudinal dialogue evidence、PhaseC NL positive ablation gap、memory stratum flow、regime lock-in，以及 external human review anchor。
 
 **轻量测试节点**：
 - `tests/lifeform_e2e/test_companion_learning_evidence.py`
 - `tests/lifeform_e2e/test_companion_evidence_report.py`
+- `tests/test_dialogue_benchmark.py::test_build_dialogue_option_discovery_report_from_turns_and_replay`
+- `tests/test_dialogue_benchmark.py::test_build_pe_counterfactual_closure_report_from_existing_profiles`
+- `tests/test_dialogue_benchmark.py::test_dialogue_paper_suite_export_writes_phase_a_trajectory_reports`
+- `tests/test_dialogue_benchmark.py::test_build_longitudinal_dialogue_report_from_session_evidence`
+- `tests/test_dialogue_benchmark.py::test_dialogue_paper_suite_export_writes_phase_b_longitudinal_report`
+- `tests/test_dialogue_benchmark.py::test_build_nl_ablation_matrix_report_from_explicit_variant_metrics`
+- `tests/test_dialogue_benchmark.py::test_build_memory_stratum_flow_report_from_dict_snapshots`
+- `tests/test_dialogue_benchmark.py::test_build_regime_lockin_report_from_dict_snapshots`
+- `tests/test_dialogue_benchmark.py::test_dialogue_paper_suite_export_writes_phase_c_reports`
+- `tests/test_eta_nl_clean_action_abstraction.py::test_dialogue_option_discovery_accepts_snapshot_replay_context`
 
 **运行入口**：
 - `lifeform-bench --companion-evidence-report`
