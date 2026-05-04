@@ -1,7 +1,7 @@
 # Environment Interface Spec
 
-> Status: draft
-> Last updated: 2026-05-02
+> Status: Phase 1 contract landed; partial routing verified
+> Last updated: 2026-05-04
 > 对应需求: R-PE, R1, R3, R4, R8, R10, R11, R15, R16-R20
 
 ## 要解决的问题
@@ -16,10 +16,37 @@
 
 Environment Interface 不是新的内核 owner，也不是新的 runtime slot。它是生命体层与内核之间的底层边界协议：`lifeform-*` 负责把外部世界适配成 canonical event / outcome，`vz-*` 只消费公共契约和不可变 snapshot。
 
+## 当前实现状态
+
+截至 2026-05-04，本 spec 已从 Phase 0 语义冻结推进到 **Phase 1 contract surface 已落地**：
+
+- `vz-contracts` 已提供 `volvence_zero.environment`
+- 已落地 frozen dataclass：
+  - `EnvironmentActorRef`
+  - `EnvironmentFrame`
+  - `EnvironmentEvent`
+  - `EnvironmentOutcome`
+- 已落地枚举：`EnvironmentEventKind`
+- 已落地 compatibility builder：`build_user_input_environment_event(...)`
+- 已有合同测试：`tests/contracts/test_environment_contracts.py`
+
+已验证的 routing / lineage：
+
+- `user_input`：`LifeformSession.run_turn(..., trigger_kind=USER_INPUT)` 生成 `EnvironmentEventKind.USER_INPUT`
+- `ingestion`：`IngestionPipeline` 通过 `run_turn(..., trigger_kind=INGESTION)` 进入主链，并在 report 中保留 kernel result 的 `EnvironmentEventKind.INGESTION`
+- `tool_result`：`BrainSession.submit_tool_result(...)` 构造 `EnvironmentOutcome`，下一轮 PE action context 与 snapshot replay 携带 `environment_outcome_id`
+- social frame：`MultiPartyIdentityModule` 消费 `EnvironmentEvent.frame`，memory subject / audience scope 与 social PE 路径已有证据测试
+
+仍未完成的 full wiring：
+
+- `system_tick` / `scene_event` / `followup_due` 的 canonical event adapter 仍待逐入口验收
+- ingestion envelope provenance -> PE lineage 仍待端到端证据
+- expression / scene outcome 是否都携带 prior prediction id 或 documented prediction context 仍待补测
+
 ## 关键不变量
 
 - 环境不是内核模块；内核不得反向 import 或持有 `lifeform-*` / service / UI / host runtime。
-- `EnvironmentEvent` 是统一概念；Phase 0 只冻结字段语义，不新增 Python dataclass。
+- `EnvironmentEvent` 是统一概念；Phase 1 已在 `vz-contracts` 落地 frozen dataclass，但它仍不是 runtime owner / slot。
 - 所有环境入口必须能归入 Observe / Perceive / Act / Assimilate 四面之一。
 - 感知层只产生 typed proposals / owner inputs，不拥有最终社会状态、记忆状态或行动结果。
 - 所有外部行动必须能形成 pre-action prediction，并通过 outcome 回流到 `prediction_error` typed evidence。
@@ -131,27 +158,50 @@ Therefore:
 
 ## 接口契约
 
-Phase 0 freezes the semantic contract only. A future Phase 1 implementation may introduce a frozen dataclass equivalent to:
+Phase 1 contract surface 已落地在 `vz-contracts` 的 `volvence_zero.environment`。当前 canonical shape 为：
 
 ```python
 @dataclass(frozen=True)
-class EnvironmentEvent:
-    event_id: str
-    event_kind: str
-    trigger_kind: str
-    actor_id: str
+class EnvironmentFrame:
+    actor: EnvironmentActorRef
     active_speaker_id: str
     addressee_ids: tuple[str, ...]
     subject_ids: tuple[str, ...]
     audience_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EnvironmentEvent:
+    event_id: str
+    event_kind: EnvironmentEventKind
+    trigger_kind: str
+    frame: EnvironmentFrame
     scene_id: str
     timestamp_ms: int
     provenance: str
-    consent_context: tuple[str, ...]
-    payload_summary: str
+    consent_context: tuple[str, ...] = ()
+    payload_summary: str = ""
+
+
+@dataclass(frozen=True)
+class EnvironmentOutcome:
+    outcome_id: str
+    event_id: str
+    outcome_kind: EnvironmentEventKind
+    action_id: str
+    status: str
+    summary: str
+    detail: str
+    confidence: float = 0.8
+    prediction_id: str | None = None
+    evidence: tuple[str, ...] = ()
+    latency_ms: int | None = None
+    monetary_cost: float = 0.0
+    reversibility: str = "reversible"
+    environment_state_delta_kind: str = "none"
 ```
 
-This sketch is not an implementation commitment. The Phase 1 contract must land in `vz-contracts` or `lifeform-core` according to the final wheel boundary review.
+The single-user compatibility path is `build_user_input_environment_event(...)`, which supplies the explicit `primary -> self` frame instead of leaving speaker / audience / subject scope for downstream inference.
 
 ## 与其他能力域的关系
 
@@ -169,16 +219,21 @@ This sketch is not an implementation commitment. The Phase 1 contract must land 
 1. `canonical-event-routing`
    - All user / ingestion / tool-result / tick / scene entrypoints can be traced to a canonical event or documented compatibility adapter.
    - No new environment entrypoint writes directly to memory, regime, temporal, social cognition, or application owner stores.
+   - Status: **partial**. `user_input`, `ingestion`, and `tool_result` are covered; tick / scene / followup still need per-source integration evidence.
 2. `social-frame-source-of-truth`
    - Social cognition owners consume speaker / audience / subject scope from Environment Event or role snapshot.
    - Renderer / prompt planner does not infer social frame from raw text.
+   - Status: **satisfied for Phase 1 social identity scope**. `multi_party_identity`, memory subject/audience scope, social prediction, and social PE tests pass.
 3. `outcome-links-to-prediction`
    - Tool result, expression result, scene outcome, and ingestion report evidence can link to a prior prediction id or documented prediction context.
+   - Status: **partial**. `tool_result` carries `EnvironmentOutcome` and next-turn `environment_outcome_id`; ingestion emits `EnvironmentEventKind.INGESTION` but envelope provenance -> PE lineage remains pending; expression / scene outcomes still need tests.
 4. `owner-boundary-preserved`
    - `vz-*` wheels do not import `lifeform-*`.
    - Environment adapters do not become second owners for memory, temporal, social cognition, or application state.
+   - Status: **satisfied for checked surfaces**. `vz-contracts` owns only data contracts; `lifeform-ingestion` isolation tests forbid owner-store and runtime-internal imports.
 5. `rollback-ready`
    - New event routes can run in `SHADOW` or compatibility mode without changing active owner outputs.
+   - Status: **pending** for tick / scene / followup route rollout.
 
 ## 回滚
 
@@ -191,4 +246,7 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-05-04: 更新实现状态：`volvence_zero.environment` 的 Phase 1 frozen contract surface 已落地，`user_input` / `ingestion` / `tool_result` 环境路由已有测试覆盖，social frame source-of-truth 已通过 Phase 1 social identity scope 测试；tick / scene / followup 与部分 outcome lineage 仍待逐入口验收。
+- 2026-05-04: 验收 `ingestion` canonical event kind route：`lifeform-ingestion` envelope / pipeline 测试覆盖 immutable envelope、partial failure 显式化、`trigger_kind=INGESTION` turn routing、`EnvironmentEventKind.INGESTION` 到达 kernel result、scene close、per-chunk exception isolation，以及禁止 import owner store / runtime internals；envelope provenance -> PE lineage 仍待端到端证据。
+- 2026-05-04: 验收 `tool_result` 环境 outcome 路径：`BrainSession.submit_tool_result(...)` 构造 `EnvironmentOutcome`，affordance invoker success/failure 均回流 session，下一轮 PE action context 与 snapshot replay 携带 `environment_outcome_id`。
 - 2026-05-02: 初始 draft，冻结 Environment Interface 作为生命体环境边界总入口，并明确其与 Social Cognition 的正交依赖关系。

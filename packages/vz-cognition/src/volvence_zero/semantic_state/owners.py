@@ -44,6 +44,7 @@ from volvence_zero.semantic_state.contracts import (
     SemanticRecord,
     SemanticSnapshotValue,
     UserModelSnapshot,
+    _clamp,
     semantic_control_signal,
     semantic_snapshot_description,
 )
@@ -51,10 +52,6 @@ from volvence_zero.semantic_state.proposal_runtime import (
     SemanticProposalRuntime,
 )
 from volvence_zero.semantic_state.store import SemanticStateStore
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
 
 
 def _records_with_status(records: tuple[SemanticRecord, ...], *statuses: str) -> tuple[SemanticRecord, ...]:

@@ -25,6 +25,7 @@ from volvence_zero.semantic_state.contracts import (
     SemanticProposal,
     SemanticProposalOperation,
     SemanticRecord,
+    _clamp,
 )
 from volvence_zero.semantic_state.lifecycle import (
     _CommitmentOutcomeRecord,
@@ -38,10 +39,6 @@ from volvence_zero.semantic_state.lifecycle import (
     execution_result_outcome_for_operation,
     plan_intent_outcome_for_operation,
 )
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
 
 
 class SemanticStateStore:

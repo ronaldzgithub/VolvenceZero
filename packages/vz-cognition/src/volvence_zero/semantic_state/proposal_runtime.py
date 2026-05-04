@@ -27,7 +27,6 @@ from volvence_zero.memory import MemorySnapshot
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
-    ExternalSemanticEvent,
     ExternalSemanticEventBatch,
     ProfileSemanticEvent,
     ReviewedKnowledgeSemanticEvent,
@@ -37,11 +36,8 @@ from volvence_zero.semantic_state.contracts import (
     SemanticSnapshotValue,
     TaskSemanticEvent,
     ToolResultSemanticEvent,
+    _clamp,
 )
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
 
 
 class SemanticProposalRuntime(ABC):

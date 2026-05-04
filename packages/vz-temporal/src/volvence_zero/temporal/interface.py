@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from enum import Enum
 from hashlib import sha256
 from typing import Any, Mapping
@@ -265,6 +265,67 @@ def build_bootstrapped_parameter_store(
     return store
 
 
+
+@dataclass(frozen=True)
+class LatestMetacontrollerTelemetry:
+    """Frozen snapshot of metacontroller per-step telemetry (R8 + R11).
+
+    Grouped semantically (latent / switch / decoder / SSL loss /
+    optimizer / learned-update / fast-prior) but kept in a single
+    dataclass so :func:`dataclasses.replace` can update several
+    related fields in one batched step. The producing
+    :class:`MetacontrollerParameterStore` publishes a fresh instance
+    on every runtime observation, optimizer update, SSL metric cycle,
+    and fast-prior update. External consumers access individual fields
+    transparently via ``store.latest_X`` (routed through ``__getattr__``
+    to ``store._latest.X``) so the pre-existing read API is unchanged.
+    """
+
+    # Latent / encoder state
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    prior_mean: tuple[float, ...]
+    prior_std: tuple[float, ...]
+    posterior_mean: tuple[float, ...]
+    posterior_std: tuple[float, ...]
+    posterior_sample_noise: tuple[float, ...]
+    z_tilde: tuple[float, ...]
+    posterior_hidden_state: tuple[float, ...]
+
+    # Decoder output
+    decoder_control: tuple[float, ...]
+    decoder_applied_control: tuple[float, ...]
+
+    # Switch / beta gating
+    switch_gate: float = 0.0
+    beta_binary: int = 0
+    switch_sparsity: float = 0.0
+    binary_switch_rate: float = 0.0
+    mean_persistence_window: float = 0.0
+    posterior_drift: float = 0.0
+
+    # Active action + replacement score
+    active_label: str = "unassigned_action"
+    policy_replacement_score: float = 0.0
+
+    # SSL loss telemetry
+    ssl_loss: float = 0.0
+    ssl_kl_loss: float = 0.0
+    sequence_length: int = 0
+
+    # Optimizer + learned-update state
+    encoder_optimizer_state: "M3OptimizerState | None" = None
+    decoder_optimizer_state: "M3OptimizerState | None" = None
+    learned_update_rule_state: "LearnedUpdateRuleState | None" = None
+
+    # Fast prior readouts
+    fast_prior_strength: float = 0.0
+    fast_prior_action_bias: float = 0.0
+    fast_prior_family_bias: float = 0.0
+    fast_prior_sequence_bias: float = 0.0
+    fast_prior_switch_pressure_delta: float = 0.0
+
+
 class MetacontrollerParameterStore:
     """Shared parameter store for runtime temporal control and internal RL."""
 
@@ -340,42 +401,27 @@ class MetacontrollerParameterStore:
             Track.SELF: 0,
             Track.SHARED: 0,
         }
-        self.latest_latent_mean: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_latent_scale: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_decoder_control: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_switch_gate = 0.0
-        self.latest_sequence_length = 0
-        self.latest_ssl_loss = 0.0
-        self.latest_ssl_kl_loss = 0.0
-        self.latest_active_label = "unassigned_action"
-        self.latest_prior_mean: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_prior_std: tuple[float, ...] = _nz_ones(n_z)
-        self.latest_posterior_mean: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_posterior_std: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_posterior_sample_noise: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_z_tilde: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_posterior_hidden_state: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_posterior_drift = 0.0
-        self.latest_beta_binary = 0
-        self.latest_switch_sparsity = 0.0
-        self.latest_binary_switch_rate = 0.0
-        self.latest_mean_persistence_window = 0.0
-        self.latest_decoder_applied_control: tuple[float, ...] = _nz_zeros(n_z)
-        self.latest_policy_replacement_score = 0.0
-        self.latest_encoder_optimizer_state: M3OptimizerState | None = None
-        self.latest_decoder_optimizer_state: M3OptimizerState | None = None
-        self.latest_fast_prior_strength = 0.0
-        self.latest_fast_prior_action_bias = 0.0
-        self.latest_fast_prior_family_bias = 0.0
-        self.latest_fast_prior_sequence_bias = 0.0
-        self.latest_fast_prior_switch_pressure_delta = 0.0
         self.learned_update_rule = LearnedUpdateRule(
             rule_id="metacontroller-update",
             feature_dim=max(12, n_z * 5),
             hidden_dim=max(8, n_z * 2),
         )
-        self.latest_learned_update_rule_state: LearnedUpdateRuleState | None = (
-            self.learned_update_rule.export_state()
+        # R8 + R11: all per-step telemetry lives in a single frozen
+        # snapshot. External reads of ``store.latest_X`` resolve via
+        # ``__getattr__`` below; every write goes through ``replace``.
+        self._latest: LatestMetacontrollerTelemetry = LatestMetacontrollerTelemetry(
+            latent_mean=_nz_zeros(n_z),
+            latent_scale=_nz_zeros(n_z),
+            prior_mean=_nz_zeros(n_z),
+            prior_std=_nz_ones(n_z),
+            posterior_mean=_nz_zeros(n_z),
+            posterior_std=_nz_zeros(n_z),
+            posterior_sample_noise=_nz_zeros(n_z),
+            z_tilde=_nz_zeros(n_z),
+            posterior_hidden_state=_nz_zeros(n_z),
+            decoder_control=_nz_zeros(n_z),
+            decoder_applied_control=_nz_zeros(n_z),
+            learned_update_rule_state=self.learned_update_rule.export_state(),
         )
         self.structure_frozen = True
         self.learning_phase = "runtime"
@@ -388,6 +434,35 @@ class MetacontrollerParameterStore:
     @property
     def action_family_version(self) -> int:
         return self._action_family_version
+
+    @property
+    def latest_telemetry(self) -> LatestMetacontrollerTelemetry:
+        """Return the current frozen telemetry snapshot (R11 readout)."""
+        return self._latest
+
+    def __getattr__(self, name: str):
+        """Proxy ``latest_X`` attribute reads to ``self._latest.X``.
+
+        Preserves the pre-Slice-F external API: dozens of sites read
+        ``store.latest_latent_mean`` / ``store.latest_switch_gate`` etc.
+        Those now transparently resolve to fields on the frozen
+        :class:`LatestMetacontrollerTelemetry` snapshot without touching
+        the callers.
+        """
+        if name.startswith("latest_"):
+            # ``_latest`` may not be set during early ``__init__`` steps;
+            # use ``__dict__`` lookup to avoid recursing back into this
+            # method via normal attribute access.
+            latest = self.__dict__.get("_latest")
+            if latest is not None:
+                field_name = name[len("latest_"):]
+                try:
+                    return getattr(latest, field_name)
+                except AttributeError:
+                    pass
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
 
     def export_temporal_parameters(self) -> TemporalControllerParameters:
         return TemporalControllerParameters(
@@ -567,37 +642,42 @@ class MetacontrollerParameterStore:
         self.update_steps = {
             Track(track_name): step_count for track_name, step_count in snapshot.update_steps
         }
-        self.latest_latent_mean = snapshot.latent_mean
-        self.latest_latent_scale = snapshot.latent_scale
-        self.latest_decoder_control = snapshot.decoder_control
-        self.latest_switch_gate = snapshot.latest_switch_gate
-        self.latest_sequence_length = snapshot.sequence_length
-        self.latest_ssl_loss = snapshot.latest_ssl_loss
-        self.latest_ssl_kl_loss = snapshot.latest_ssl_kl_loss
-        self.latest_active_label = snapshot.active_label
-        self.latest_prior_mean = snapshot.prior_mean
-        self.latest_prior_std = snapshot.prior_std
-        self.latest_posterior_mean = snapshot.posterior_mean
-        self.latest_posterior_std = snapshot.posterior_std
-        self.latest_posterior_sample_noise = snapshot.posterior_sample_noise
-        self.latest_z_tilde = snapshot.z_tilde
-        self.latest_posterior_hidden_state = snapshot.posterior_hidden_state
-        self.latest_posterior_drift = snapshot.posterior_drift
-        self.latest_beta_binary = snapshot.beta_binary
-        self.latest_switch_sparsity = snapshot.switch_sparsity
-        self.latest_binary_switch_rate = snapshot.binary_switch_rate
-        self.latest_mean_persistence_window = snapshot.mean_persistence_window
-        self.latest_decoder_applied_control = snapshot.decoder_applied_control
-        self.latest_policy_replacement_score = snapshot.policy_replacement_score
         self.action_families = snapshot.action_families
-        self.latest_encoder_optimizer_state = snapshot.encoder_optimizer_state
-        self.latest_decoder_optimizer_state = snapshot.decoder_optimizer_state
+        self._latest = replace(
+            self._latest,
+            latent_mean=snapshot.latent_mean,
+            latent_scale=snapshot.latent_scale,
+            decoder_control=snapshot.decoder_control,
+            switch_gate=snapshot.latest_switch_gate,
+            sequence_length=snapshot.sequence_length,
+            ssl_loss=snapshot.latest_ssl_loss,
+            ssl_kl_loss=snapshot.latest_ssl_kl_loss,
+            active_label=snapshot.active_label,
+            prior_mean=snapshot.prior_mean,
+            prior_std=snapshot.prior_std,
+            posterior_mean=snapshot.posterior_mean,
+            posterior_std=snapshot.posterior_std,
+            posterior_sample_noise=snapshot.posterior_sample_noise,
+            z_tilde=snapshot.z_tilde,
+            posterior_hidden_state=snapshot.posterior_hidden_state,
+            posterior_drift=snapshot.posterior_drift,
+            beta_binary=snapshot.beta_binary,
+            switch_sparsity=snapshot.switch_sparsity,
+            binary_switch_rate=snapshot.binary_switch_rate,
+            mean_persistence_window=snapshot.mean_persistence_window,
+            decoder_applied_control=snapshot.decoder_applied_control,
+            policy_replacement_score=snapshot.policy_replacement_score,
+            encoder_optimizer_state=snapshot.encoder_optimizer_state,
+            decoder_optimizer_state=snapshot.decoder_optimizer_state,
+        )
         self.structure_frozen = snapshot.structure_frozen
         self.learning_phase = snapshot.learning_phase
         self._action_family_version = snapshot.action_family_version
         if snapshot.learned_update_rule_state is not None:
             self.learned_update_rule.restore_state(snapshot.learned_update_rule_state)
-            self.latest_learned_update_rule_state = snapshot.learned_update_rule_state
+            self._latest = replace(
+                self._latest, learned_update_rule_state=snapshot.learned_update_rule_state
+            )
 
     def record_runtime_observation(
         self,
@@ -623,31 +703,41 @@ class MetacontrollerParameterStore:
         decoder_applied_control: tuple[float, ...] | None = None,
         policy_replacement_score: float | None = None,
     ) -> None:
-        self.latest_latent_mean = latent_mean
-        self.latest_latent_scale = latent_scale
-        self.latest_decoder_control = decoder_control
-        self.latest_switch_gate = switch_gate
-        self.latest_sequence_length = sequence_length
-        self.latest_active_label = active_label
-        self.latest_prior_mean = prior_mean or self.latest_prior_mean
-        self.latest_prior_std = prior_std or self.latest_prior_std
-        self.latest_posterior_mean = posterior_mean or latent_mean
-        self.latest_posterior_std = posterior_std or latent_scale
-        self.latest_posterior_sample_noise = posterior_sample_noise or self.latest_posterior_sample_noise
-        self.latest_z_tilde = z_tilde or latent_mean
-        self.latest_posterior_hidden_state = posterior_hidden_state or self.latest_posterior_hidden_state
-        self.latest_posterior_drift = posterior_drift or 0.0
-        self.latest_beta_binary = beta_binary if beta_binary is not None else int(switch_gate >= self.beta_threshold)
-        self.latest_switch_sparsity = switch_sparsity if switch_sparsity is not None else 1.0 - switch_gate
-        self.latest_binary_switch_rate = binary_switch_rate if binary_switch_rate is not None else float(
-            self.latest_beta_binary
+        resolved_beta_binary = (
+            beta_binary if beta_binary is not None else int(switch_gate >= self.beta_threshold)
         )
-        self.latest_mean_persistence_window = (
-            mean_persistence_window if mean_persistence_window is not None else self.latest_mean_persistence_window
-        )
-        self.latest_decoder_applied_control = decoder_applied_control or decoder_control
-        self.latest_policy_replacement_score = (
-            policy_replacement_score if policy_replacement_score is not None else self.latest_policy_replacement_score
+        self._latest = replace(
+            self._latest,
+            latent_mean=latent_mean,
+            latent_scale=latent_scale,
+            decoder_control=decoder_control,
+            switch_gate=switch_gate,
+            sequence_length=sequence_length,
+            active_label=active_label,
+            prior_mean=prior_mean or self._latest.prior_mean,
+            prior_std=prior_std or self._latest.prior_std,
+            posterior_mean=posterior_mean or latent_mean,
+            posterior_std=posterior_std or latent_scale,
+            posterior_sample_noise=posterior_sample_noise or self._latest.posterior_sample_noise,
+            z_tilde=z_tilde or latent_mean,
+            posterior_hidden_state=posterior_hidden_state or self._latest.posterior_hidden_state,
+            posterior_drift=posterior_drift or 0.0,
+            beta_binary=resolved_beta_binary,
+            switch_sparsity=switch_sparsity if switch_sparsity is not None else 1.0 - switch_gate,
+            binary_switch_rate=(
+                binary_switch_rate if binary_switch_rate is not None else float(resolved_beta_binary)
+            ),
+            mean_persistence_window=(
+                mean_persistence_window
+                if mean_persistence_window is not None
+                else self._latest.mean_persistence_window
+            ),
+            decoder_applied_control=decoder_applied_control or decoder_control,
+            policy_replacement_score=(
+                policy_replacement_score
+                if policy_replacement_score is not None
+                else self._latest.policy_replacement_score
+            ),
         )
 
     def record_optimizer_memory_states(
@@ -656,15 +746,17 @@ class MetacontrollerParameterStore:
         encoder_state: M3OptimizerState | None,
         decoder_state: M3OptimizerState | None,
     ) -> None:
-        self.latest_encoder_optimizer_state = encoder_state
-        self.latest_decoder_optimizer_state = decoder_state
+        self._latest = replace(
+            self._latest,
+            encoder_optimizer_state=encoder_state,
+            decoder_optimizer_state=decoder_state,
+        )
 
     def record_learned_update_rule_state(self, *, state: LearnedUpdateRuleState) -> None:
-        self.latest_learned_update_rule_state = state
+        self._latest = replace(self._latest, learned_update_rule_state=state)
 
     def record_ssl_metrics(self, *, total_loss: float, kl_loss: float) -> None:
-        self.latest_ssl_loss = total_loss
-        self.latest_ssl_kl_loss = kl_loss
+        self._latest = replace(self._latest, ssl_loss=total_loss, ssl_kl_loss=kl_loss)
 
     def in_ssl_discovery_phase(self) -> bool:
         return self.learning_phase.startswith("ssl") and not self.structure_frozen
@@ -782,11 +874,14 @@ class MetacontrollerParameterStore:
         sequence_bias: float,
         switch_pressure_delta: float,
     ) -> None:
-        self.latest_fast_prior_strength = _clamp(strength)
-        self.latest_fast_prior_action_bias = max(-1.0, min(1.0, action_bias))
-        self.latest_fast_prior_family_bias = max(-1.0, min(1.0, family_bias))
-        self.latest_fast_prior_sequence_bias = max(-1.0, min(1.0, sequence_bias))
-        self.latest_fast_prior_switch_pressure_delta = max(-0.25, min(0.25, switch_pressure_delta))
+        self._latest = replace(
+            self._latest,
+            fast_prior_strength=_clamp(strength),
+            fast_prior_action_bias=max(-1.0, min(1.0, action_bias)),
+            fast_prior_family_bias=max(-1.0, min(1.0, family_bias)),
+            fast_prior_sequence_bias=max(-1.0, min(1.0, sequence_bias)),
+            fast_prior_switch_pressure_delta=max(-0.25, min(0.25, switch_pressure_delta)),
+        )
 
     def fast_prior_switch_pressure_delta(self) -> float:
         return self.latest_fast_prior_switch_pressure_delta
@@ -869,7 +964,7 @@ class MetacontrollerParameterStore:
         )
         if self.action_families != previous_families:
             self._action_family_version += 1
-        self.latest_active_label = active_label
+        self._latest = replace(self._latest, active_label=active_label)
         return (active_label, family_summary)
 
     def fit_temporal_from_signals(
