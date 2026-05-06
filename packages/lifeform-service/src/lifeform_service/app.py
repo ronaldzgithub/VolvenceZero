@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+from uuid import uuid4
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -377,11 +378,24 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
     if not isinstance(description, str):
         raise _BadRequest("invalid_description", "description must be string")
     session = await manager.get_session(session_id)
+    raw_turn_index = payload.get("turn_index")
+    if raw_turn_index is not None and not isinstance(raw_turn_index, int):
+        raise _BadRequest("invalid_turn_index", "turn_index must be an integer")
+    # User-facing feedback is consumed by the next kernel turn, so by
+    # default bind it to that upcoming turn. Review tools may pass an
+    # explicit historical turn_index when needed.
+    turn_index = (
+        raw_turn_index
+        if isinstance(raw_turn_index, int)
+        else len(session.turn_summaries) + 1
+    )
     evidence = session.submit_dialogue_outcome(
         kind=kind,
         source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
         confidence=float(confidence),
-        evidence_ref=evidence_ref,
+        turn_index=turn_index,
+        evidence_ref=evidence_ref
+        or f"service:{session_id}:{kind.value}:turn-{turn_index}:{uuid4().hex[:12]}",
         description=description,
     )
     return _json_ok(

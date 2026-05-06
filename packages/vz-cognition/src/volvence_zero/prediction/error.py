@@ -17,7 +17,6 @@ from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
 if TYPE_CHECKING:
     from volvence_zero.regime import RegimeSnapshot
-    from volvence_zero.temporal import TemporalAbstractionSnapshot
 
 
 # AAC alignment transition severities (Gap 7 / docs/specs/aac-lifecycle.md).
@@ -121,6 +120,26 @@ class PEDecomposition:
     aleatoric_magnitude: float
     epistemic_magnitude: float
     per_axis: tuple[tuple[str, float, float], ...]
+    description: str = ""
+    critic_predicted_magnitude: float = 0.0
+    improvement_magnitude: float = 0.0
+    critic_update_count: int = 0
+    critic_checkpoint_id: str = ""
+    critic_gate_decision: str = "shadow"
+
+
+@dataclass(frozen=True)
+class PECriticHeadState:
+    rule_id: str
+    feature_dim: int
+    update_count: int
+    axis_weights: tuple[tuple[str, tuple[float, ...]], ...]
+    axis_biases: tuple[tuple[str, float], ...]
+    last_prediction: float
+    last_target: float
+    last_validation_delta: float
+    last_capacity_cost: float
+    last_rollback_evidence: str
     description: str = ""
 
 
@@ -809,6 +828,8 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             decomposition = self._critic.update(
                 error=error,
                 action_context=self._action_context,
+                substrate_snapshot=substrate_snapshot,
+                timestamp_ms=turn_index,
             )
         return PredictionErrorSnapshot(
             evaluated_prediction=evaluated_prediction,
@@ -1083,6 +1104,227 @@ class _AxisRunningStats:
         self.count += 1
 
 
+def _mean_abs(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _unit_digest(value: str, *, width: int = 2) -> tuple[float, ...]:
+    if not value:
+        return tuple(0.0 for _ in range(width))
+    total = sum((index + 1) * ord(char) for index, char in enumerate(value))
+    return tuple(
+        ((total + index * 131) % 257) / 128.0 - 1.0
+        for index in range(width)
+    )
+
+
+def _substrate_feature_digest(
+    substrate_snapshot: SubstrateSnapshot | None,
+    *,
+    dim: int,
+) -> tuple[float, ...]:
+    if substrate_snapshot is None or not substrate_snapshot.feature_surface:
+        return tuple(0.0 for _ in range(dim))
+    values: list[float] = []
+    for signal in sorted(substrate_snapshot.feature_surface, key=lambda item: item.name):
+        values.extend(float(value) for value in signal.values)
+        if len(values) >= dim:
+            break
+    if not values:
+        return tuple(0.0 for _ in range(dim))
+    norm = math.sqrt(sum(value * value for value in values)) or 1.0
+    normalized = tuple(_clamp_signed(value / norm) for value in values[:dim])
+    if len(normalized) < dim:
+        normalized = normalized + tuple(0.0 for _ in range(dim - len(normalized)))
+    return normalized
+
+
+def _critic_features(
+    *,
+    substrate_snapshot: SubstrateSnapshot | None,
+    action_context: PredictionActionContext,
+    dim: int,
+) -> tuple[float, ...]:
+    substrate_digest = _substrate_feature_digest(substrate_snapshot, dim=8)
+    z_digest = tuple(action_context.z_t_digest[:4])
+    if len(z_digest) < 4:
+        z_digest = z_digest + tuple(0.0 for _ in range(4 - len(z_digest)))
+    context_digest = (
+        _unit_digest(action_context.regime_id, width=2)
+        + _unit_digest(action_context.abstract_action_id, width=2)
+        + _unit_digest(action_context.segment_id, width=2)
+    )
+    features = substrate_digest + z_digest + context_digest
+    if len(features) >= dim:
+        return tuple(_clamp_signed(features[index]) for index in range(dim))
+    return features + tuple(0.0 for _ in range(dim - len(features)))
+
+
+class _PELearnedCritic:
+    """Bounded contextual regressor for expected absolute PE per axis."""
+
+    _FEATURE_DIM = 18
+
+    def __init__(self, *, learning_rate: float = 0.06) -> None:
+        self._learning_rate = max(0.01, min(learning_rate, 0.18))
+        self._axis_weights = {
+            axis: tuple(0.0 for _ in range(self._FEATURE_DIM))
+            for axis in _PE_AXES
+        }
+        self._axis_biases = {axis: 0.0 for axis in _PE_AXES}
+        self._update_count = 0
+        self._last_prediction = 0.0
+        self._last_target = 0.0
+        self._last_validation_delta = 0.0
+        self._last_capacity_cost = 0.0
+        self._last_rollback_evidence = ""
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    def export_state(self) -> PECriticHeadState:
+        return PECriticHeadState(
+            rule_id="prediction.pe_critic_head.v1",
+            feature_dim=self._FEATURE_DIM,
+            update_count=self._update_count,
+            axis_weights=tuple(
+                (axis, self._axis_weights[axis])
+                for axis in _PE_AXES
+            ),
+            axis_biases=tuple((axis, self._axis_biases[axis]) for axis in _PE_AXES),
+            last_prediction=self._last_prediction,
+            last_target=self._last_target,
+            last_validation_delta=self._last_validation_delta,
+            last_capacity_cost=self._last_capacity_cost,
+            last_rollback_evidence=self._last_rollback_evidence,
+            description=(
+                f"PE learned critic updates={self._update_count} "
+                f"last_prediction={self._last_prediction:.3f} target={self._last_target:.3f} "
+                f"validation_delta={self._last_validation_delta:.3f} "
+                f"capacity_cost={self._last_capacity_cost:.3f}."
+            ),
+        )
+
+    def restore_state(self, state: PECriticHeadState) -> None:
+        if state.feature_dim <= 0:
+            raise ValueError("PE critic feature_dim must be positive")
+        weights = dict(state.axis_weights)
+        biases = dict(state.axis_biases)
+        self._axis_weights = {
+            axis: self._align(weights.get(axis, ()))
+            for axis in _PE_AXES
+        }
+        self._axis_biases = {
+            axis: _clamp_unit(float(biases.get(axis, 0.0)))
+            for axis in _PE_AXES
+        }
+        self._update_count = max(0, state.update_count)
+        self._last_prediction = _clamp_unit(state.last_prediction)
+        self._last_target = _clamp_unit(state.last_target)
+        self._last_validation_delta = float(state.last_validation_delta)
+        self._last_capacity_cost = _clamp_unit(state.last_capacity_cost)
+        self._last_rollback_evidence = state.last_rollback_evidence
+
+    def predict_axis(self, *, axis: str, features: tuple[float, ...], fallback: float) -> float:
+        if self._update_count == 0:
+            return _clamp_unit(fallback)
+        aligned = self._align(features)
+        weights = self._axis_weights[axis]
+        prediction = self._axis_biases[axis] + sum(
+            weight * value for weight, value in zip(weights, aligned, strict=True)
+        )
+        return _clamp_unit(prediction)
+
+    def update(
+        self,
+        *,
+        axis_targets: tuple[tuple[str, float], ...],
+        features: tuple[float, ...],
+        timestamp_ms: int,
+    ) -> tuple[str, str]:
+        aligned = self._align(features)
+        old_predictions = tuple(
+            (
+                axis,
+                _clamp_unit(
+                    self._axis_biases[axis]
+                    + sum(
+                        weight * value
+                        for weight, value in zip(self._axis_weights[axis], aligned, strict=True)
+                    )
+                ),
+            )
+            for axis, target in axis_targets
+        )
+        old_error = sum(
+            abs(_clamp_unit(target) - prediction)
+            for (axis, target), (_, prediction) in zip(axis_targets, old_predictions, strict=True)
+        ) / max(1, len(axis_targets))
+        step = self._learning_rate * max(0.25, min(1.0, _mean_abs(aligned) + 0.25))
+        proposed_weights = dict(self._axis_weights)
+        proposed_biases = dict(self._axis_biases)
+        deltas: list[float] = []
+        for axis, target in axis_targets:
+            prediction = _clamp_unit(
+                self._axis_biases[axis]
+                + sum(
+                    weight * value
+                    for weight, value in zip(self._axis_weights[axis], aligned, strict=True)
+                )
+            )
+            error = _clamp_unit(target) - prediction
+            current_weights = self._axis_weights[axis]
+            next_weights = tuple(
+                _clamp_signed(weight + step * error * value)
+                for weight, value in zip(current_weights, aligned, strict=True)
+            )
+            next_bias = _clamp_unit(self._axis_biases[axis] + step * error)
+            deltas.extend(
+                abs(next_weight - weight)
+                for next_weight, weight in zip(next_weights, current_weights, strict=True)
+            )
+            deltas.append(abs(next_bias - self._axis_biases[axis]))
+            proposed_weights[axis] = next_weights
+            proposed_biases[axis] = next_bias
+        new_error = 0.0
+        for axis, target in axis_targets:
+            prediction = _clamp_unit(
+                proposed_biases[axis]
+                + sum(
+                    weight * value
+                    for weight, value in zip(proposed_weights[axis], aligned, strict=True)
+                )
+            )
+            new_error += abs(_clamp_unit(target) - prediction)
+        new_error /= max(1, len(axis_targets))
+        validation_delta = old_error - new_error
+        capacity_cost = sum(deltas) / max(1, len(deltas))
+        checkpoint_id = f"prediction-pe-critic:{timestamp_ms}:{self._update_count + 1}"
+        gate_decision = "allow"
+        if validation_delta < 0.0 or capacity_cost > 0.20 or not checkpoint_id:
+            gate_decision = "block"
+        if gate_decision == "allow":
+            self._axis_weights = proposed_weights
+            self._axis_biases = proposed_biases
+            self._update_count += 1
+        self._last_prediction = sum(prediction for _, prediction in old_predictions) / max(1, len(old_predictions))
+        self._last_target = sum(_clamp_unit(target) for _, target in axis_targets) / max(1, len(axis_targets))
+        self._last_validation_delta = validation_delta
+        self._last_capacity_cost = capacity_cost
+        self._last_rollback_evidence = checkpoint_id
+        return gate_decision, checkpoint_id
+
+    def _align(self, features: tuple[float, ...]) -> tuple[float, ...]:
+        if not features:
+            return tuple(0.0 for _ in range(self._FEATURE_DIM))
+        if len(features) >= self._FEATURE_DIM:
+            return tuple(_clamp_signed(features[index]) for index in range(self._FEATURE_DIM))
+        return tuple(_clamp_signed(features[index % len(features)]) for index in range(self._FEATURE_DIM))
+
+
 class _PECriticHead:
     """Owner-internal running-stats critic for PE decomposition.
 
@@ -1098,6 +1340,7 @@ class _PECriticHead:
     def __init__(self, *, decay: float = 0.9) -> None:
         self._decay = max(0.0, min(0.999, decay))
         self._stats: dict[tuple[str, str], _AxisRunningStats] = {}
+        self._learned = _PELearnedCritic()
 
     @property
     def decay(self) -> float:
@@ -1105,6 +1348,12 @@ class _PECriticHead:
 
     def reset(self) -> None:
         self._stats.clear()
+
+    def export_state(self) -> PECriticHeadState:
+        return self._learned.export_state()
+
+    def restore_state(self, state: PECriticHeadState) -> None:
+        self._learned.restore_state(state)
 
     def _bucket_key(self, action_context: PredictionActionContext) -> str:
         if action_context.regime_id:
@@ -1131,36 +1380,62 @@ class _PECriticHead:
         *,
         error: PredictionError,
         action_context: PredictionActionContext,
+        substrate_snapshot: SubstrateSnapshot | None = None,
+        timestamp_ms: int = 0,
     ) -> PEDecomposition:
         bucket = self._bucket_key(action_context)
+        features = _critic_features(
+            substrate_snapshot=substrate_snapshot,
+            action_context=action_context,
+            dim=_PELearnedCritic._FEATURE_DIM,
+        )
         per_axis: list[tuple[str, float, float]] = []
+        axis_targets: list[tuple[str, float]] = []
         total_aleatoric = 0.0
         total_epistemic = 0.0
+        total_predicted = 0.0
         for axis in _PE_AXES:
             value = self._axis_value(axis=axis, error=error)
+            axis_targets.append((axis, value))
             stats = self._stats.setdefault((axis, bucket), _AxisRunningStats())
             stats.update(value=value, decay=self._decay)
             # Aleatoric = sqrt(variance), bounded to [0, 1]. Variance is
             # the EMA of squared deviation from EMA mean, so this is the
             # noise floor that learning cannot remove on its own.
             aleatoric = max(0.0, min(1.0, math.sqrt(max(stats.variance, 0.0))))
-            # Epistemic = the part of |error| that exceeds the noise
-            # floor; clamped to [0, 1]. With a stable mean and tight
-            # variance, repeat samples at the same level make epistemic
-            # decay toward zero (= the policy has compressed all signal
-            # available; remaining error is irreducible by learning).
-            epistemic = max(0.0, value - aleatoric)
+            learned_prediction = self._learned.predict_axis(
+                axis=axis,
+                features=features,
+                fallback=stats.mean,
+            )
+            # Phase 2.B: epistemic is the improvement-PE component,
+            # ``actual |axis_error| - critic_prediction``. The EMA
+            # variance remains the aleatoric readout and the learned
+            # critic explains away stable contextual PE.
+            epistemic = max(0.0, value - learned_prediction)
             epistemic = min(1.0, epistemic)
             per_axis.append((axis, round(aleatoric, 4), round(epistemic, 4)))
             total_aleatoric += aleatoric
             total_epistemic += epistemic
+            total_predicted += learned_prediction
+        gate_decision, checkpoint_id = self._learned.update(
+            axis_targets=tuple(axis_targets),
+            features=features,
+            timestamp_ms=timestamp_ms,
+        )
         per_axis_count = float(len(_PE_AXES))
         aggregate_aleatoric = round(min(1.0, total_aleatoric / per_axis_count), 4)
         aggregate_epistemic = round(min(1.0, total_epistemic / per_axis_count), 4)
+        aggregate_predicted = round(min(1.0, total_predicted / per_axis_count), 4)
+        aggregate_improvement = aggregate_epistemic
         description = (
             f"pe_decomposition[bucket={bucket}; "
             f"aleatoric={aggregate_aleatoric:.3f}; "
             f"epistemic={aggregate_epistemic:.3f}; "
+            f"critic_predicted={aggregate_predicted:.3f}; "
+            f"improvement={aggregate_improvement:.3f}; "
+            f"updates={self._learned.update_count}; "
+            f"gate={gate_decision}; "
             f"decay={self._decay:.2f}]"
         )
         return PEDecomposition(
@@ -1168,6 +1443,11 @@ class _PECriticHead:
             epistemic_magnitude=aggregate_epistemic,
             per_axis=tuple(per_axis),
             description=description,
+            critic_predicted_magnitude=aggregate_predicted,
+            improvement_magnitude=aggregate_improvement,
+            critic_update_count=self._learned.update_count,
+            critic_checkpoint_id=checkpoint_id,
+            critic_gate_decision=gate_decision,
         )
 
 

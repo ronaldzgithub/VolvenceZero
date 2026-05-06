@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Mapping
@@ -60,6 +61,35 @@ class NStepAttributionEntry:
 
 
 @dataclass(frozen=True)
+class RewardingStateHeadState:
+    rule_id: str
+    feature_dim: int
+    update_count: int
+    weights: tuple[float, ...]
+    bias: float
+    last_prediction: float
+    last_target: float
+    last_validation_delta: float
+    last_capacity_cost: float
+    last_rollback_evidence: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CounterfactualContributionReadout:
+    source_event: str
+    historical_baseline: float
+    learned_baseline: float
+    actual_outcome: float
+    learned_contribution: float
+    validation_delta: float
+    update_count: int
+    checkpoint_id: str
+    gate_decision: GateDecision
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
@@ -69,6 +99,23 @@ class CreditSnapshot:
     delayed_ledger_size: int = 0
     horizon_depth: int = 1
     description: str = ""
+    rewarding_state_head: RewardingStateHeadState | None = None
+    counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
+
+
+@dataclass(frozen=True)
+class _CounterfactualContext:
+    chosen_regime_id: str
+    chosen_abstract_action: str
+    chosen_segment_id: str
+    source_event: str
+    historical_baseline: float
+    actual_outcome: float
+    contribution: float
+    weight_total: float
+    contributors: int
+    context: str
+    features: tuple[float, ...]
 
 
 @dataclass(frozen=True)
@@ -103,6 +150,208 @@ def _clamp(value: float) -> float:
 class GateDecision(str, Enum):
     ALLOW = "allow"
     BLOCK = "block"
+
+
+def _unit_digest(value: str, *, width: int = 2) -> tuple[float, ...]:
+    if not value:
+        return tuple(0.0 for _ in range(width))
+    digest = hashlib.sha256(value.encode("utf-8")).digest()
+    return tuple((digest[index] / 127.5) - 1.0 for index in range(width))
+
+
+def _state_hash(state: object) -> str:
+    return hashlib.sha256(repr(state).encode("utf-8")).hexdigest()
+
+
+def _clamp_unit(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _mean_abs(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _align_counterfactual_features(features: tuple[float, ...], *, dim: int) -> tuple[float, ...]:
+    if not features:
+        return tuple(0.0 for _ in range(dim))
+    if len(features) >= dim:
+        return tuple(_clamp(features[index]) for index in range(dim))
+    return tuple(_clamp(features[index % len(features)]) for index in range(dim))
+
+
+def _counterfactual_features(
+    *,
+    action_context: PredictionActionContext,
+    historical_baseline: float,
+    weight_total: float,
+    contributors: int,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+) -> tuple[float, ...]:
+    z_digest = tuple(action_context.z_t_digest[:4])
+    if len(z_digest) < 4:
+        z_digest = z_digest + tuple(0.0 for _ in range(4 - len(z_digest)))
+    regime_digest = _unit_digest(action_context.regime_id, width=2)
+    action_digest = _unit_digest(action_context.abstract_action_id, width=2)
+    segment_digest = _unit_digest(action_context.segment_id, width=2)
+    closed_count = 0.0
+    active_match = 0.0
+    if temporal_snapshot is not None:
+        closed_count = _clamp_unit(len(temporal_snapshot.closed_segments) / 8.0)
+        active_match = 1.0 if temporal_snapshot.active_abstract_action == action_context.abstract_action_id else 0.0
+    return (
+        z_digest
+        + regime_digest
+        + action_digest
+        + segment_digest
+        + (
+            _clamp(historical_baseline),
+            _clamp_unit(weight_total / max(weight_total, 1.0)),
+            _clamp_unit(contributors / 8.0),
+            closed_count,
+            active_match,
+        )
+    )
+
+
+class _RewardingStateHead:
+    """Small owner-internal contextual baseline for Phase 2.A COCOA."""
+
+    _FEATURE_DIM = 15
+
+    def __init__(self, *, learning_rate: float = 0.08) -> None:
+        self._learning_rate = max(0.01, min(learning_rate, 0.20))
+        self._weights = tuple(0.0 for _ in range(self._FEATURE_DIM))
+        self._bias = 0.0
+        self._update_count = 0
+        self._last_prediction = 0.0
+        self._last_target = 0.0
+        self._last_validation_delta = 0.0
+        self._last_capacity_cost = 0.0
+        self._last_rollback_evidence = ""
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    def predict(self, *, features: tuple[float, ...], fallback: float) -> float:
+        if self._update_count == 0:
+            return _clamp(fallback)
+        aligned = _align_counterfactual_features(features, dim=self._FEATURE_DIM)
+        prediction = self._bias + sum(
+            weight * value for weight, value in zip(self._weights, aligned, strict=True)
+        )
+        return _clamp(prediction)
+
+    def export_state(self) -> RewardingStateHeadState:
+        return RewardingStateHeadState(
+            rule_id="credit.rewarding_state_head.v1",
+            feature_dim=self._FEATURE_DIM,
+            update_count=self._update_count,
+            weights=self._weights,
+            bias=self._bias,
+            last_prediction=self._last_prediction,
+            last_target=self._last_target,
+            last_validation_delta=self._last_validation_delta,
+            last_capacity_cost=self._last_capacity_cost,
+            last_rollback_evidence=self._last_rollback_evidence,
+            description=(
+                f"COCOA rewarding-state head updates={self._update_count} "
+                f"last_prediction={self._last_prediction:.3f} target={self._last_target:.3f} "
+                f"validation_delta={self._last_validation_delta:.3f} "
+                f"capacity_cost={self._last_capacity_cost:.3f}."
+            ),
+        )
+
+    def restore_state(self, state: RewardingStateHeadState) -> None:
+        if state.feature_dim <= 0:
+            raise ValueError("rewarding state head feature_dim must be positive")
+        aligned_weights = _align_counterfactual_features(state.weights, dim=self._FEATURE_DIM)
+        self._weights = aligned_weights
+        self._bias = _clamp(state.bias)
+        self._update_count = max(0, state.update_count)
+        self._last_prediction = _clamp(state.last_prediction)
+        self._last_target = _clamp(state.last_target)
+        self._last_validation_delta = float(state.last_validation_delta)
+        self._last_capacity_cost = _clamp_unit(state.last_capacity_cost)
+        self._last_rollback_evidence = state.last_rollback_evidence
+
+    def propose_update(
+        self,
+        *,
+        features: tuple[float, ...],
+        target: float,
+        evaluation_snapshot: EvaluationSnapshot,
+        timestamp_ms: int,
+    ) -> SelfModificationRecord:
+        aligned = _align_counterfactual_features(features, dim=self._FEATURE_DIM)
+        target = _clamp(target)
+        old_state = self.export_state()
+        old_prediction = _clamp(
+            self._bias
+            + sum(weight * value for weight, value in zip(self._weights, aligned, strict=True))
+        )
+        error = _clamp(target - old_prediction)
+        step = self._learning_rate * max(0.25, min(1.0, _mean_abs(aligned) + 0.25))
+        proposed_weights = tuple(
+            _clamp(weight + step * error * value)
+            for weight, value in zip(self._weights, aligned, strict=True)
+        )
+        proposed_bias = _clamp(self._bias + step * error)
+        proposed_prediction = _clamp(
+            proposed_bias
+            + sum(weight * value for weight, value in zip(proposed_weights, aligned, strict=True))
+        )
+        validation_delta = abs(target - old_prediction) - abs(target - proposed_prediction)
+        capacity_cost = _mean_abs(
+            tuple(
+                proposed - current
+                for proposed, current in zip(proposed_weights, self._weights, strict=True)
+            )
+            + (proposed_bias - self._bias,)
+        )
+        checkpoint_id = f"credit-rewarding-state:{timestamp_ms}:{self._update_count + 1}"
+        proposal = ModificationProposal(
+            target="credit.rewarding_state_head",
+            desired_gate=ModificationGate.ONLINE,
+            old_value_hash=_state_hash(old_state),
+            new_value_hash=_state_hash((proposed_weights, proposed_bias, self._update_count + 1)),
+            justification=(
+                "Update COCOA rewarding-state head from closed action outcome; "
+                f"old_prediction={old_prediction:.3f}; proposed_prediction={proposed_prediction:.3f}; "
+                f"target={target:.3f}."
+            ),
+            is_reversible=True,
+            validation_delta=validation_delta,
+            capacity_cost=capacity_cost,
+            rollback_evidence=checkpoint_id,
+        )
+        gate_reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+        decision = GateDecision.BLOCK if gate_reasons else GateDecision.ALLOW
+        if decision is GateDecision.ALLOW:
+            self._weights = proposed_weights
+            self._bias = proposed_bias
+            self._update_count += 1
+            justification = f"ALLOWED: {proposal.justification}"
+        else:
+            justification = f"BLOCKED: {proposal.justification}; reasons={'; '.join(gate_reasons)}"
+        self._last_prediction = old_prediction
+        self._last_target = target
+        self._last_validation_delta = validation_delta
+        self._last_capacity_cost = capacity_cost
+        self._last_rollback_evidence = checkpoint_id
+        return SelfModificationRecord(
+            target=proposal.target,
+            gate=proposal.desired_gate,
+            decision=decision,
+            old_value_hash=proposal.old_value_hash,
+            new_value_hash=proposal.new_value_hash,
+            justification=justification,
+            timestamp_ms=timestamp_ms,
+            is_reversible=True,
+            checkpoint_id=checkpoint_id,
+        )
 
 
 def derive_credit_records(
@@ -294,7 +543,7 @@ def derive_segment_closure_credit_records(
         segment.segment_id == context.segment_id
         for segment in temporal_snapshot.closed_segments
     ):
-        return ()
+        return None
     return (
         CreditRecord(
             record_id=str(uuid4()),
@@ -495,6 +744,8 @@ def extend_credit_snapshot(
             f"{credit_snapshot.description} Extended with {len(extra_records)} extra credits "
             f"and {len(extra_modifications)} extra modification audits."
         ),
+        rewarding_state_head=credit_snapshot.rewarding_state_head,
+        counterfactual_readouts=credit_snapshot.counterfactual_readouts,
     )
 
 
@@ -715,42 +966,12 @@ def derive_delayed_attribution_credit_records(
     return tuple(credit_records)
 
 
-def derive_counterfactual_contribution_records(
+def _counterfactual_context(
     *,
     regime_snapshot: object | None,
     temporal_snapshot: TemporalAbstractionSnapshot | None,
     prediction_error_snapshot: PredictionErrorSnapshot | None,
-    timestamp_ms: int,
-) -> tuple[CreditRecord, ...]:
-    """Lightweight COCOA-style contribution credit (Phase 1.A).
-
-    Inspired by COCOA (Meulemans et al., NeurIPS 2023): credit for an
-    action is the difference between its observed outcome and the
-    *counterfactual baseline* the policy would have produced under the
-    same context. We do **not** train a rewarding-state head here
-    (Phase 2.A uplift); instead we reuse already-published statistics
-    from the regime and temporal owners:
-
-    - regime owner publishes ``selection_weights`` (per regime) and
-      ``delayed_payoffs`` (rolling payoff per regime / abstract-action /
-      family-version);
-    - the chosen regime / abstract-action is read from the
-      ``PredictionErrorSnapshot.action_context`` and from the
-      ``temporal_snapshot.active_abstract_action`` at segment closure;
-    - the actual scalar outcome is the PE ``signed_reward`` (already
-      bounded in ``[-1, 1]``).
-
-    baseline = sum_i normalized_w_i * rolling_payoff_i over the regime
-    selection distribution. contribution = actual - baseline. Returns an
-    empty tuple if any required snapshot is missing or the chosen
-    context lacks a known regime / segment, so the caller stays
-    fail-safe in bootstrap turns.
-
-    The new ``CreditRecord`` ships at ``level="counterfactual_contribution"``
-    so existing ``recent_credits`` consumers (which filter by level)
-    treat it as opt-in evidence rather than a behavioural change.
-    """
-
+) -> _CounterfactualContext | None:
     from volvence_zero.regime import RegimeSnapshot
 
     if (
@@ -759,7 +980,7 @@ def derive_counterfactual_contribution_records(
         or regime_snapshot is None
         or not isinstance(regime_snapshot, RegimeSnapshot)
     ):
-        return ()
+        return None
 
     action_context = prediction_error_snapshot.action_context
     chosen_regime_id = action_context.regime_id
@@ -773,7 +994,7 @@ def derive_counterfactual_contribution_records(
         chosen_regime_id = regime_snapshot.active_regime.regime_id
 
     if not chosen_regime_id:
-        return ()
+        return None
 
     weights_payload: tuple[tuple[str, float], ...] = ()
     if regime_snapshot.selection_weights is not None:
@@ -797,7 +1018,7 @@ def derive_counterfactual_contribution_records(
     # Without it the baseline collapses to zero and the contribution
     # equals the raw actual, which would double-count PE credit.
     if not regime_payoffs and not regime_action_payoffs:
-        return ()
+        return None
 
     weight_total = 0.0
     weight_pairs: list[tuple[str, float]] = []
@@ -808,7 +1029,7 @@ def derive_counterfactual_contribution_records(
         weight_total += clean_weight
         weight_pairs.append((regime_id, clean_weight))
     if weight_total <= 0.0 or not weight_pairs:
-        return ()
+        return None
 
     baseline = 0.0
     contributors = 0
@@ -823,7 +1044,7 @@ def derive_counterfactual_contribution_records(
             baseline += normalized * regime_payoffs[regime_id]
             contributors += 1
     if contributors == 0:
-        return ()
+        return None
 
     actual = float(prediction_error_snapshot.error.signed_reward)
     contribution = _clamp(actual - baseline)
@@ -851,13 +1072,79 @@ def derive_counterfactual_contribution_records(
             context_parts.append(f"segment_closed={chosen_segment_id}")
     context = "; ".join(context_parts)
 
+    return _CounterfactualContext(
+        chosen_regime_id=chosen_regime_id,
+        chosen_abstract_action=chosen_abstract_action,
+        chosen_segment_id=chosen_segment_id,
+        source_event=source_event,
+        historical_baseline=baseline,
+        actual_outcome=actual,
+        contribution=contribution,
+        weight_total=weight_total,
+        contributors=contributors,
+        context=context,
+        features=_counterfactual_features(
+            action_context=PredictionActionContext(
+                segment_id=chosen_segment_id,
+                abstract_action_id=chosen_abstract_action,
+                z_t_digest=action_context.z_t_digest,
+                regime_id=chosen_regime_id,
+                affordance_name=action_context.affordance_name,
+                environment_event_id=action_context.environment_event_id,
+                environment_outcome_id=action_context.environment_outcome_id,
+            ),
+            historical_baseline=baseline,
+            weight_total=weight_total,
+            contributors=contributors,
+            temporal_snapshot=temporal_snapshot,
+        ),
+    )
+
+
+def _counterfactual_record_from_context(
+    *,
+    context: _CounterfactualContext,
+    timestamp_ms: int,
+) -> CreditRecord:
     return (
         CreditRecord(
             record_id=str(uuid4()),
             level="counterfactual_contribution",
             track=Track.SHARED,
-            source_event=source_event,
-            credit_value=contribution,
+            source_event=context.source_event,
+            credit_value=context.contribution,
+            context=context.context,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+
+
+def derive_counterfactual_contribution_records(
+    *,
+    regime_snapshot: object | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Lightweight COCOA-style contribution credit (Phase 1.A).
+
+    Inspired by COCOA (Meulemans et al., NeurIPS 2023): credit for an
+    action is the difference between its observed outcome and the
+    counterfactual baseline the policy would have produced under the
+    same context. Phase 2.A adds an owner-internal learned baseline in
+    ``CreditLedger``; this function remains the stable historical
+    baseline helper for compatibility and fallback.
+    """
+
+    context = _counterfactual_context(
+        regime_snapshot=regime_snapshot,
+        temporal_snapshot=temporal_snapshot,
+        prediction_error_snapshot=prediction_error_snapshot,
+    )
+    if context is None:
+        return ()
+    return (
+        _counterfactual_record_from_context(
             context=context,
             timestamp_ms=timestamp_ms,
         ),
@@ -1031,12 +1318,14 @@ class CreditLedger:
     def __init__(self, *, discount_factor: float = 0.95, horizon_depth: int = 5) -> None:
         self._recent_credits: list[CreditRecord] = []
         self._recent_modifications: list[SelfModificationRecord] = []
+        self._recent_counterfactual_readouts: list[CounterfactualContributionReadout] = []
         self._discount_factor = discount_factor
         self._session_credits: dict[str, list[CreditRecord]] = {}
         self._turn_count = 0
         self._horizon_depth = max(horizon_depth, 1)
         self._nstep_ledger: list[NStepAttributionEntry] = []
         self._max_ledger_entries = 1000
+        self._rewarding_state_head = _RewardingStateHead()
 
     @property
     def recent_credits(self) -> tuple[CreditRecord, ...]:
@@ -1063,6 +1352,91 @@ class CreditLedger:
 
     def record_modification(self, record: SelfModificationRecord) -> None:
         self._recent_modifications.append(record)
+
+    def restore_rewarding_state_head(self, state: RewardingStateHeadState) -> None:
+        self._rewarding_state_head.restore_state(state)
+
+    def derive_learned_counterfactual_contribution_records(
+        self,
+        *,
+        regime_snapshot: object | None,
+        temporal_snapshot: TemporalAbstractionSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        timestamp_ms: int,
+        include_historical: bool = True,
+    ) -> tuple[CreditRecord, ...]:
+        context = _counterfactual_context(
+            regime_snapshot=regime_snapshot,
+            temporal_snapshot=temporal_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
+        )
+        if isinstance(context, tuple):
+            if len(context) == 1 and isinstance(context[0], _CounterfactualContext):
+                context = context[0]
+            else:
+                return ()
+        if context is None:
+            return ()
+
+        learned_baseline = self._rewarding_state_head.predict(
+            features=context.features,
+            fallback=context.historical_baseline,
+        )
+        learned_contribution = _clamp(context.actual_outcome - learned_baseline)
+        checkpoint_id = ""
+        gate_decision = GateDecision.BLOCK
+        validation_delta = 0.0
+        if evaluation_snapshot is not None:
+            modification_record = self._rewarding_state_head.propose_update(
+                features=context.features,
+                target=context.actual_outcome,
+                evaluation_snapshot=evaluation_snapshot,
+                timestamp_ms=timestamp_ms,
+            )
+            self.record_modification(modification_record)
+            checkpoint_id = modification_record.checkpoint_id
+            gate_decision = modification_record.decision
+            validation_delta = self._rewarding_state_head.export_state().last_validation_delta
+
+        readout = CounterfactualContributionReadout(
+            source_event=context.source_event,
+            historical_baseline=_clamp(context.historical_baseline),
+            learned_baseline=learned_baseline,
+            actual_outcome=_clamp(context.actual_outcome),
+            learned_contribution=learned_contribution,
+            validation_delta=validation_delta,
+            update_count=self._rewarding_state_head.update_count,
+            checkpoint_id=checkpoint_id,
+            gate_decision=gate_decision,
+            description=(
+                f"learned_cocoa historical={context.historical_baseline:.3f} "
+                f"learned={learned_baseline:.3f} actual={context.actual_outcome:.3f} "
+                f"contribution={learned_contribution:.3f} gate={gate_decision.value}."
+            ),
+        )
+        self._recent_counterfactual_readouts.append(readout)
+        self._recent_counterfactual_readouts = self._recent_counterfactual_readouts[-10:]
+
+        records: list[CreditRecord] = []
+        if include_historical:
+            records.append(_counterfactual_record_from_context(context=context, timestamp_ms=timestamp_ms))
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="counterfactual_contribution_learned",
+                track=Track.SHARED,
+                source_event=f"cocoa_learned:{context.source_event.removeprefix('cocoa:')}",
+                credit_value=learned_contribution,
+                context=(
+                    f"{context.context}; learned_baseline={learned_baseline:.3f}; "
+                    f"learned_updates={self._rewarding_state_head.update_count}; "
+                    f"gate={gate_decision.value}; checkpoint={checkpoint_id or 'none'}"
+                ),
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        return tuple(records)
 
     def record_nstep_outcome(
         self,
@@ -1171,6 +1545,8 @@ class CreditLedger:
                 f"gamma={self._discount_factor}, turns={self._turn_count}, "
                 f"nstep_entries={len(self._nstep_ledger)}, horizon={self._horizon_depth}."
             ),
+            rewarding_state_head=self._rewarding_state_head.export_state(),
+            counterfactual_readouts=tuple(self._recent_counterfactual_readouts[-5:]),
         )
 
 

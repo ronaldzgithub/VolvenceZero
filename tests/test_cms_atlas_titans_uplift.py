@@ -342,6 +342,33 @@ def test_memory_store_observe_substrate_pe_optional() -> None:
         social_pe_signals=(),
     )
     assert snap.cms_state is not None
+    assert snap.cms_state.titans_pe_gate_active is True
+    assert snap.cms_state.atlas_replay_active is True
+
+
+def test_memory_store_default_uplift_can_be_explicitly_rolled_back() -> None:
+    """The uplift is ACTIVE by default, but the rollback flags recover the
+    pre-uplift CMS path for A/B and emergency revert."""
+    store = build_default_memory_store(
+        latent_dim=4,
+        cms_pe_features_enabled=False,
+        cms_replay_window_size=None,
+    )
+    store.observe_substrate(
+        substrate_snapshot=_make_substrate(0.3),
+        timestamp_ms=1,
+        prediction_error=_make_pe_snapshot(relationship=0.7),
+    )
+    snap = store.snapshot(
+        retrieved_entries=(),
+        suppressed_cross_scope_entries=(),
+        active_subject_scope=(),
+        social_pe_signals=(),
+    )
+    assert snap.cms_state is not None
+    assert snap.cms_state.titans_pe_gate_active is False
+    assert snap.cms_state.atlas_replay_active is False
+    assert snap.cms_state.online_fast.pe_feature_summary == (0.0, 0.0, 0.0, 0.0)
 
 
 def test_memory_store_observe_substrate_pe_forwarded() -> None:

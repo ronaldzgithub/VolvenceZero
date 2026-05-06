@@ -647,6 +647,11 @@ class TemporalAbstractionSnapshot:
 
 **Slot**: `memory`
 
+2026-05-06 update: CMS ATLAS / Titans uplift is default-ACTIVE via
+`build_default_memory_store(...)` after the SHADOW validation ladder passed.
+Rollback remains explicit by constructing the store with
+`cms_pe_features_enabled=False, cms_replay_window_size=None`.
+
 ```python
 @dataclass(frozen=True)
 class MemoryEntry:
@@ -961,14 +966,43 @@ class ModificationProposal:
     rollback_evidence: str = ""          # checkpoint / replay / rollback lineage
 
 @dataclass(frozen=True)
+class RewardingStateHeadState:
+    rule_id: str
+    feature_dim: int
+    update_count: int
+    weights: tuple[float, ...]
+    bias: float
+    last_prediction: float
+    last_target: float
+    last_validation_delta: float
+    last_capacity_cost: float
+    last_rollback_evidence: str
+    description: str = ""
+
+@dataclass(frozen=True)
+class CounterfactualContributionReadout:
+    source_event: str
+    historical_baseline: float
+    learned_baseline: float
+    actual_outcome: float
+    learned_contribution: float
+    validation_delta: float
+    update_count: int
+    checkpoint_id: str
+    gate_decision: GateDecision
+    description: str = ""
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
     cumulative_credit_by_level: tuple[tuple[str, float], ...]  # (level, sum) pairs
     description: str
+    rewarding_state_head: RewardingStateHeadState | None = None
+    counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
 ```
 
-**`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）。
+**`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）/ `counterfactual_contribution_learned`（Phase 2.A learned rewarding-state head readout，SHADOW 默认）。
 
 **当前实现口径**：
 
@@ -979,6 +1013,7 @@ class CreditSnapshot:
 - metacontroller credit 当前会消费 posterior drift、binary gate ratio、policy replacement score 等 ETA kernel evidence，并将其压入 `CreditRecord.context`
 - `derive_credit_records_from_prediction_error_first(...)` 是当前 PE-first credit 派生路径；evaluation 只提供 readout / gate context，不重新成为原始学习源
 - 自修改 gate 当前采用 Two-Gate 风格的保守准入：候选必须提供 validation margin、capacity cap 内的容量成本和 rollback evidence；缺证据默认 block，并把原因写入 `SelfModificationRecord.justification`
+- Phase 2.A 的 `RewardingStateHeadState` 归属 `CreditLedger`，只用 owner 内部 context 向量预测 expected outcome；更新必须带 `validation_delta` / `capacity_cost` / `rollback_evidence`，并写入 `recent_modifications` 审计。`counterfactual_readouts` 是对比 readout，不授权下游重建 head 权重。
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）
@@ -1206,8 +1241,27 @@ class PredictionError:
 @dataclass(frozen=True)
 class PEDecomposition:
     aleatoric_magnitude: float                # variance floor (sqrt of EMA variance), [0, 1]
-    epistemic_magnitude: float                # 可学的部分（|error| - aleatoric 的轴聚合）, [0, 1]
+    epistemic_magnitude: float                # 可学的部分；Phase 2.B 为 improvement-PE 轴聚合, [0, 1]
     per_axis: tuple[tuple[str, float, float], ...]  # (axis_name, aleatoric, epistemic)
+    description: str = ""
+    critic_predicted_magnitude: float = 0.0
+    improvement_magnitude: float = 0.0
+    critic_update_count: int = 0
+    critic_checkpoint_id: str = ""
+    critic_gate_decision: str = "shadow"
+
+@dataclass(frozen=True)
+class PECriticHeadState:
+    rule_id: str
+    feature_dim: int
+    update_count: int
+    axis_weights: tuple[tuple[str, tuple[float, ...]], ...]
+    axis_biases: tuple[tuple[str, float], ...]
+    last_prediction: float
+    last_target: float
+    last_validation_delta: float
+    last_capacity_cost: float
+    last_rollback_evidence: str
     description: str = ""
 
 @dataclass(frozen=True)
@@ -1231,6 +1285,7 @@ class PredictionErrorSnapshot:
 - `bootstrap=True` 表示当前 turn 还没有可结算的上一轮 prediction，不应被下游当作正式误差信号消费
 - live session 中，部分消费者会把 `prediction_error` 视为“上一轮 carryover learning evidence”，以避免同轮自因果闭环
 - `memory_retrieval_facets` 由 PredictionError owner 根据自身 error 维度生成；memory 不从 `PredictionError.error` 各分量重新选择 dominant dimension
+- Phase 2.B 在 `_PECriticHead` 内维护 learned contextual critic（`SubstrateSnapshot.feature_surface` digest + `PredictionActionContext` -> expected `|axis_error|`）。`aleatoric_magnitude` 仍来自 EMA variance floor；`epistemic_magnitude` / `improvement_magnitude` 代表 `actual |axis_error| - critic_prediction` 的可改进部分。该 readout 仍为 report-only，不进入 evaluation acceptance gate。
 
 **消费者**：记忆系统、时间抽象层、认知 Regime 层、信用分配、慢反思路径；`evaluation` 在 final wiring 中追加 PE evidence，但不把它变成新的模块 owner
 **发布频率**：每 turn

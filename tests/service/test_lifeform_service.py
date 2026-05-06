@@ -340,6 +340,33 @@ async def test_alpha_typed_feedback_repair_memory_and_delete(alpha_client):
     assert after["entries"] == []
 
 
+async def test_alpha_duplicate_feedback_clicks_do_not_break_next_turn(alpha_client):
+    create = await (
+        await alpha_client.post(
+            "/v1/sessions",
+            headers={"X-Alpha-User": "alice"},
+            json={"session_id": "alpha-duplicate-feedback"},
+        )
+    ).json()
+    sid = create["session_id"]
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/turns",
+        json={"user_input": "我想测试一下重复反馈。"},
+    )
+    for _ in range(2):
+        resp = await alpha_client.post(
+            f"/v1/sessions/{sid}/dialogue-outcomes",
+            json={"kind": "MISSED", "confidence": 0.9},
+        )
+        assert resp.status == 201
+
+    turn = await alpha_client.post(
+        f"/v1/sessions/{sid}/turns",
+        json={"user_input": "继续。"},
+    )
+    assert turn.status == 200
+
+
 async def test_alpha_pause_and_admin_report(alpha_client):
     create = await (
         await alpha_client.post(

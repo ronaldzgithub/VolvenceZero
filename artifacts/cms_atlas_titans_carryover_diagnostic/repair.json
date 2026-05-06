@@ -1,0 +1,553 @@
+{
+  "case_id": "repair",
+  "profiles": {
+    "pe-eta": [
+      {
+        "turn_index": 1,
+        "user_input": "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+        "joint_schedule_action": "ssl-only",
+        "active_regime": "guided_exploration",
+        "online_fast_update_gate": 0.4979598821990439,
+        "online_fast_step_scale": 0.3737840979531568,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.0,
+        "background_slow_update_gate": 0.0,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 1.0761855711917114
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.060115502739593
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.5
+          },
+          {
+            "level": "turn",
+            "value": 2.3205975177638067
+          }
+        ],
+        "recent_credit_record_count": 10,
+        "prediction_error_magnitude": 0.0,
+        "prediction_error_signed_reward": 0.0
+      },
+      {
+        "turn_index": 2,
+        "user_input": "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.5718328019173728,
+        "online_fast_step_scale": 0.5877223131061263,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.5633837867235015,
+        "background_slow_update_gate": 0.0,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 11.35298702415658
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0605626246951672
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.07179990825166582
+          },
+          {
+            "level": "turn",
+            "value": 2.3480413037890946
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.2655,
+        "prediction_error_signed_reward": -0.0508
+      },
+      {
+        "turn_index": 3,
+        "user_input": "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+        "joint_schedule_action": "ssl-only-pe",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.5901831902982402,
+        "online_fast_step_scale": 0.611605885817724,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.5934176312741468,
+        "background_slow_update_gate": 0.5845754491216175,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 8.139750395274573
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.0419139561603116
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0741893243724228
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.7997978689581977
+          },
+          {
+            "level": "session",
+            "value": 2.01
+          },
+          {
+            "level": "turn",
+            "value": 3.7239316109731213
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.1691,
+        "prediction_error_signed_reward": 0.0368
+      },
+      {
+        "turn_index": 4,
+        "user_input": "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.6282840387570156,
+        "online_fast_step_scale": 0.660112104953537,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.6317571118240537,
+        "background_slow_update_gate": 0.5845754491216175,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 14.957087904569697
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.19258434660709725
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0548891079216356
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.24015344913652326
+          },
+          {
+            "level": "session",
+            "value": 2.5547999999999997
+          },
+          {
+            "level": "turn",
+            "value": 3.5144230847840907
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.274,
+        "prediction_error_signed_reward": -0.0311
+      },
+      {
+        "turn_index": 5,
+        "user_input": "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+        "joint_schedule_action": "ssl-only-pe",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.6707360047679091,
+        "online_fast_step_scale": 0.7133559554140225,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.6530847716739042,
+        "background_slow_update_gate": 0.5845754491216175,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 9.576022840369554
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.0972678094431379
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.071365106879734
+          },
+          {
+            "level": "prediction_error",
+            "value": 1.0079358529049123
+          },
+          {
+            "level": "session",
+            "value": 3.0687000000000006
+          },
+          {
+            "level": "turn",
+            "value": 3.420273228523728
+          }
+        ],
+        "recent_credit_record_count": 10,
+        "prediction_error_magnitude": 0.4343,
+        "prediction_error_signed_reward": 0.0648
+      },
+      {
+        "turn_index": 6,
+        "user_input": "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.7352808087770913,
+        "online_fast_step_scale": 0.7942604766108038,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.7286061421638096,
+        "background_slow_update_gate": 0.6710488790744888,
+        "atlas_replay_active": false,
+        "titans_pe_gate_active": false,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 17.12955849537649
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.1556258179664485
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0860631408954329
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.5766638592130069
+          },
+          {
+            "level": "session",
+            "value": 3.6256
+          },
+          {
+            "level": "turn",
+            "value": 3.5820834977920004
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.1556,
+        "prediction_error_signed_reward": 0.0099
+      }
+    ],
+    "atlas-titans-cms-uplift": [
+      {
+        "turn_index": 1,
+        "user_input": "I feel like you are not really getting what matters to me here, and that makes it harder to trust this.",
+        "joint_schedule_action": "ssl-only",
+        "active_regime": "guided_exploration",
+        "online_fast_update_gate": 0.49150183613347104,
+        "online_fast_step_scale": 0.36780997501018897,
+        "online_fast_replay_window_size": 1,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.0,
+        "background_slow_update_gate": 0.0,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 1.0761929037402012
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.060115502739593
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.5
+          },
+          {
+            "level": "turn",
+            "value": 2.3205975177638067
+          }
+        ],
+        "recent_credit_record_count": 10,
+        "prediction_error_magnitude": 0.0,
+        "prediction_error_signed_reward": 0.0
+      },
+      {
+        "turn_index": 2,
+        "user_input": "That reply still felt off, a bit cold, and too solution-first for where I actually am.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.5687970789178516,
+        "online_fast_step_scale": 0.5842109990493746,
+        "online_fast_replay_window_size": 5,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.558846288259665,
+        "background_slow_update_gate": 0.0,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 11.35332507086743
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0605626246951672
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.07180160825166582
+          },
+          {
+            "level": "turn",
+            "value": 2.3480412955149337
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.2655,
+        "prediction_error_signed_reward": -0.0508
+      },
+      {
+        "turn_index": 3,
+        "user_input": "Try again, but repair the tension first. If you rush into planning again, that will confirm you missed the point.",
+        "joint_schedule_action": "ssl-only-pe",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.5876744535050771,
+        "online_fast_step_scale": 0.608609271509425,
+        "online_fast_replay_window_size": 8,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.5888322246953551,
+        "background_slow_update_gate": 0.5812289597993411,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 8.139370962644437
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.0419139561603116
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0741505752127722
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.7997818294259105
+          },
+          {
+            "level": "session",
+            "value": 2.01
+          },
+          {
+            "level": "turn",
+            "value": 3.723921357984369
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.1691,
+        "prediction_error_signed_reward": 0.0368
+      },
+      {
+        "turn_index": 4,
+        "user_input": "That is better. I feel a little less defensive now, so help me stabilize before we solve anything.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.6274398467661139,
+        "online_fast_step_scale": 0.6586487191579102,
+        "online_fast_replay_window_size": 8,
+        "online_fast_pe_feature_summary": [
+          0.10275312554432525,
+          0.0041777854145717,
+          0.01024762968061893,
+          0.053207633434677215
+        ],
+        "session_medium_update_gate": 0.6299976964855697,
+        "background_slow_update_gate": 0.5812289597993411,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 14.95952625121069
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.19258434660709725
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0548391587910335
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.2401796989473688
+          },
+          {
+            "level": "session",
+            "value": 2.5547999999999997
+          },
+          {
+            "level": "turn",
+            "value": 3.5144266722065574
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.2739,
+        "prediction_error_signed_reward": -0.0311
+      },
+      {
+        "turn_index": 5,
+        "user_input": "Yes, this tone is working better. Turn that calmer state into one concrete next step without losing the warmth.",
+        "joint_schedule_action": "ssl-only-pe",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.6695617967920886,
+        "online_fast_step_scale": 0.7110364925684706,
+        "online_fast_replay_window_size": 8,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.654760797128533,
+        "background_slow_update_gate": 0.5812289597993411,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 9.57702277517458
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.0972678094431379
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0713651102104809
+          },
+          {
+            "level": "prediction_error",
+            "value": 1.0079574194964573
+          },
+          {
+            "level": "session",
+            "value": 3.0687000000000006
+          },
+          {
+            "level": "turn",
+            "value": 3.420268151363418
+          }
+        ],
+        "recent_credit_record_count": 10,
+        "prediction_error_magnitude": 0.4344,
+        "prediction_error_signed_reward": 0.0648
+      },
+      {
+        "turn_index": 6,
+        "user_input": "Close this by summarizing what changed between the bad start and the better repair so it is easier to keep next time.",
+        "joint_schedule_action": "full-cycle",
+        "active_regime": "emotional_support",
+        "online_fast_update_gate": 0.7397081737791178,
+        "online_fast_step_scale": 0.7978286007800666,
+        "online_fast_replay_window_size": 8,
+        "online_fast_pe_feature_summary": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "session_medium_update_gate": 0.7368529914352868,
+        "background_slow_update_gate": 0.6679828948897201,
+        "atlas_replay_active": true,
+        "titans_pe_gate_active": true,
+        "cumulative_credit_by_level": [
+          {
+            "level": "abstract_action",
+            "value": 17.124537886898402
+          },
+          {
+            "level": "counterfactual_contribution",
+            "value": -0.1556258179664485
+          },
+          {
+            "level": "evaluation_readout",
+            "value": 1.0860631442261797
+          },
+          {
+            "level": "prediction_error",
+            "value": 0.5766309922846174
+          },
+          {
+            "level": "session",
+            "value": 3.6256
+          },
+          {
+            "level": "turn",
+            "value": 3.5820826957844574
+          }
+        ],
+        "recent_credit_record_count": 11,
+        "prediction_error_magnitude": 0.1556,
+        "prediction_error_signed_reward": 0.0099
+      }
+    ]
+  }
+}

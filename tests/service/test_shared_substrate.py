@@ -96,6 +96,7 @@ async def test_concurrent_turns_on_shared_runtime_complete_independently(
     assert len(results) == 4
     for result in results:
         assert result.response.text.strip(), "empty response on shared runtime"
+        assert "model=shared-test-runtime" in result.response.rationale
         assert result.active_regime, "regime not selected"
 
     # Each session has independent turn bookkeeping.

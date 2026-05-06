@@ -58,6 +58,27 @@ class VerticalSpec:
     alpha_factory: AlphaVerticalFactory | None = None
 
 
+def _expression_synthesizer_for_runtime(
+    runtime: "OpenWeightResidualRuntime | None",
+    *,
+    repair_alpha_enabled: bool = False,
+):
+    """Use the LLM expression path only when a real/shared runtime exists."""
+
+    if runtime is None:
+        from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
+
+        return GroundedResponseSynthesizer(
+            planner=PromptPlanner(repair_alpha_enabled=repair_alpha_enabled)
+        )
+    from lifeform_expression import LifeformLLMResponseSynthesizer, PromptPlanner
+
+    return LifeformLLMResponseSynthesizer(
+        runtime=runtime,
+        planner=PromptPlanner(repair_alpha_enabled=repair_alpha_enabled),
+    )
+
+
 def _try_companion() -> VerticalSpec | None:
     try:
         from lifeform_domain_emogpt import (
@@ -71,25 +92,27 @@ def _try_companion() -> VerticalSpec | None:
     sdir = scenarios_dir()
     def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
         from lifeform_core import LifeformConfig
-        from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
             brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
         )
-        synthesizer = GroundedResponseSynthesizer(
-            planner=PromptPlanner(repair_alpha_enabled=True)
-        )
         return build_companion_lifeform(
             config=config,
             substrate_runtime=runtime,
             identity_provider=identity_provider,
-            response_synthesizer=synthesizer,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime,
+                repair_alpha_enabled=True,
+            ),
         )
 
     return VerticalSpec(
         name="companion",
-        factory=lambda runtime: build_companion_lifeform(substrate_runtime=runtime),
+        factory=lambda runtime: build_companion_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        ),
         has_temporal_bootstrap=(bdir / "companion-temporal.snap").is_file(),
         has_regime_bootstrap=(bdir / "companion-regime.bs").is_file(),
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
@@ -110,14 +133,10 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         return None
     def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
         from lifeform_core import LifeformConfig
-        from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
             brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
-        )
-        synthesizer = GroundedResponseSynthesizer(
-            planner=PromptPlanner(repair_alpha_enabled=True)
         )
         return build_companion_lifeform(
             config=config,
@@ -125,7 +144,10 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
             use_regime_bootstrap=False,
             substrate_runtime=runtime,
             identity_provider=identity_provider,
-            response_synthesizer=synthesizer,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime,
+                repair_alpha_enabled=True,
+            ),
         )
 
     return VerticalSpec(
@@ -134,6 +156,7 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
             use_temporal_bootstrap=False,
             use_regime_bootstrap=False,
             substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
         ),
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,

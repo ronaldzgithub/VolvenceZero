@@ -70,6 +70,11 @@ def build_system_prompt(
         "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts."
     )
     sections.append(
+        "Match the user's language. If the latest user message is in Chinese, "
+        "reply in natural Chinese. If it is in English, reply in English. "
+        "Do not switch languages unless the user asks you to."
+    )
+    sections.append(
         "Do not expose internal module names, control codes, rule residue, legal or jurisdiction reminders, "
         "or other system bookkeeping unless the current boundary state below explicitly requires it."
     )

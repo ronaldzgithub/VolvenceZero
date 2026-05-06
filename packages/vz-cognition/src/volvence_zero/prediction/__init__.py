@@ -1,6 +1,7 @@
 from volvence_zero.prediction.error import (
     ActualOutcome,
     PEDecomposition,
+    PECriticHeadState,
     PredictedOutcome,
     PredictionActionContext,
     PredictionError,
@@ -13,6 +14,7 @@ from volvence_zero.prediction.error import (
 __all__ = [
     "ActualOutcome",
     "PEDecomposition",
+    "PECriticHeadState",
     "PredictedOutcome",
     "PredictionActionContext",
     "PredictionError",
