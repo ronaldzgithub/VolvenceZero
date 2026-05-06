@@ -34,6 +34,85 @@ class WritebackMode(str, Enum):
     APPLY = "apply"
 
 
+class ReflectionTensionId(str, Enum):
+    """Stable identifiers for reflection-detected tensions.
+
+    These are the canonical (single-source) string ids that reflection
+    publishes in :attr:`ReflectionSnapshot.tensions_identified` and that
+    downstream consumers (expression, evaluation) read by enum key
+    instead of bare-string substring comparison. Adding a new tension
+    requires landing a member here AND a corresponding hint entry in
+    ``lifeform_expression.reflection_hints``.
+    """
+
+    PE_RELATIONSHIP_MISMATCH = "prediction_error_relationship_mismatch"
+    PE_TASK_MISMATCH = "prediction_error_task_mismatch"
+    PE_ACTION_INSTABILITY = "prediction_error_action_instability"
+    PE_REGIME_INSTABILITY = "prediction_error_regime_instability"
+    CROSS_TRACK_TENSION_HIGH = "cross_track_tension_high"
+    CROSS_TRACK_ALIGNMENT_DRIFT = "cross_track_alignment_drift"
+    SELF_TRACK_PRESSURE_DOMINANT = "self_track_pressure_dominant"
+    WORLD_TRACK_PRESSURE_DOMINANT = "world_track_pressure_dominant"
+    RELATIONSHIP_STABILITY_SOFT_DROP = "relationship_stability_soft_drop"
+    WARMTH_SIGNAL_THIN = "warmth_signal_thin"
+    TASK_SIGNAL_DIFFUSE = "task_signal_diffuse"
+
+
+class ReflectionLessonId(str, Enum):
+    """Stable identifiers for reflection-extracted lessons.
+
+    Same role as :class:`ReflectionTensionId` for the
+    :attr:`ReflectionSnapshot.lessons_extracted` channel.
+    """
+
+    RELATIONSHIP_STRATEGY_MISMATCH = "relationship_strategy_mismatch"
+    TASK_FRAMING_INADEQUATE = "task_framing_inadequate"
+    ABSTRACT_ACTION_INSTABILITY = "abstract_action_instability"
+    REGIME_SELECTION_MISMATCH = "regime_selection_mismatch"
+    PROMOTE_HIGH_SIGNAL_MEMORIES = "promote_high_signal_memories"
+    REINFORCE_RECENT_HIGH_CREDIT_BELIEFS = "reinforce_recent_high_credit_beliefs"
+    ADJUST_TRACK_PRIORITY_FROM_SESSION_FEEDBACK = (
+        "adjust_track_priority_from_session_feedback"
+    )
+    REBALANCE_TEMPORAL_PRIOR_TOWARD_MEMORY = "rebalance_temporal_prior_toward_memory"
+    REBALANCE_TEMPORAL_PRIOR_TOWARD_REFLECTION = (
+        "rebalance_temporal_prior_toward_reflection"
+    )
+    REBALANCE_TEMPORAL_PRIOR_TOWARD_RESIDUAL = (
+        "rebalance_temporal_prior_toward_residual"
+    )
+    INCREASE_CONTROLLER_PERSISTENCE_FOR_CONTINUITY = (
+        "increase_controller_persistence_for_continuity"
+    )
+    REDUCE_CONTROLLER_PERSISTENCE_FOR_FASTER_RECOVERY = (
+        "reduce_controller_persistence_for_faster_recovery"
+    )
+    ALLOW_CONTROLLER_SWITCH_WHEN_CONTEXT_SHIFTS = (
+        "allow_controller_switch_when_context_shifts"
+    )
+    HOLD_CONTROLLER_BEFORE_SWITCHING = "hold_controller_before_switching"
+    RESTRUCTURE_ACTION_FAMILY_BANK = "restructure_action_family_bank"
+    RESPECT_METACONTROLLER_RUNTIME_GUARD = "respect_metacontroller_runtime_guard"
+    KEEP_CONTROLLER_GUARD_SIGNAL_IN_BACKGROUND = (
+        "keep_controller_guard_signal_in_background"
+    )
+    REVIEW_TENSION_BEFORE_AUTO_WRITEBACK = "review_tension_before_auto_writeback"
+
+
+# Canonical tuple of the four PE-driven lessons. Used by
+# ``_count_error_driven_lessons`` and (defensively) by external
+# consumers that want to know which lessons are derived from
+# prediction-error magnitudes vs. reflection heuristics.
+PE_DERIVED_LESSON_IDS: frozenset[ReflectionLessonId] = frozenset(
+    {
+        ReflectionLessonId.RELATIONSHIP_STRATEGY_MISMATCH,
+        ReflectionLessonId.TASK_FRAMING_INADEQUATE,
+        ReflectionLessonId.ABSTRACT_ACTION_INSTABILITY,
+        ReflectionLessonId.REGIME_SELECTION_MISMATCH,
+    }
+)
+
+
 @dataclass(frozen=True)
 class MemoryConsolidation:
     new_durable_entries: tuple[MemoryEntry, ...]
@@ -229,13 +308,13 @@ def _prediction_error_tensions(
     error = prediction_error_snapshot.error
     tensions: list[str] = []
     if error.relationship_error < -0.10:
-        tensions.append("prediction_error_relationship_mismatch")
+        tensions.append(ReflectionTensionId.PE_RELATIONSHIP_MISMATCH.value)
     if error.task_error < -0.10:
-        tensions.append("prediction_error_task_mismatch")
+        tensions.append(ReflectionTensionId.PE_TASK_MISMATCH.value)
     if abs(error.action_error) > 0.20:
-        tensions.append("prediction_error_action_instability")
+        tensions.append(ReflectionTensionId.PE_ACTION_INSTABILITY.value)
     if error.regime_error < -0.10:
-        tensions.append("prediction_error_regime_instability")
+        tensions.append(ReflectionTensionId.PE_REGIME_INSTABILITY.value)
     return tuple(tensions)
 
 
@@ -247,27 +326,19 @@ def _prediction_error_lessons(
     error = prediction_error_snapshot.error
     lessons: list[str] = []
     if error.relationship_error < -0.10:
-        lessons.append("relationship_strategy_mismatch")
+        lessons.append(ReflectionLessonId.RELATIONSHIP_STRATEGY_MISMATCH.value)
     if error.task_error < -0.10:
-        lessons.append("task_framing_inadequate")
+        lessons.append(ReflectionLessonId.TASK_FRAMING_INADEQUATE.value)
     if abs(error.action_error) > 0.20:
-        lessons.append("abstract_action_instability")
+        lessons.append(ReflectionLessonId.ABSTRACT_ACTION_INSTABILITY.value)
     if error.regime_error < -0.10:
-        lessons.append("regime_selection_mismatch")
+        lessons.append(ReflectionLessonId.REGIME_SELECTION_MISMATCH.value)
     return tuple(lessons)
 
 
 def _count_error_driven_lessons(lessons: tuple[str, ...]) -> int:
-    return sum(
-        1
-        for lesson in lessons
-        if lesson in {
-            "relationship_strategy_mismatch",
-            "task_framing_inadequate",
-            "abstract_action_instability",
-            "regime_selection_mismatch",
-        }
-    )
+    pe_lesson_values = {item.value for item in PE_DERIVED_LESSON_IDS}
+    return sum(1 for lesson in lessons if lesson in pe_lesson_values)
 
 
 # Positive external outcome kinds that resolve a rupture-repair as observed
@@ -1076,22 +1147,24 @@ class ReflectionEngine:
         tensions: list[str] = []
         if dual_track_snapshot is not None:
             if dual_track_snapshot.cross_track_tension > 0.4:
-                tensions.append("cross_track_tension_high")
+                tensions.append(ReflectionTensionId.CROSS_TRACK_TENSION_HIGH.value)
             elif dual_track_snapshot.cross_track_tension > 0.2:
-                tensions.append("cross_track_alignment_drift")
+                tensions.append(ReflectionTensionId.CROSS_TRACK_ALIGNMENT_DRIFT.value)
             world_tension = dual_track_snapshot.world_track.tension_level
             self_tension = dual_track_snapshot.self_track.tension_level
             if self_tension > world_tension + 0.12:
-                tensions.append("self_track_pressure_dominant")
+                tensions.append(ReflectionTensionId.SELF_TRACK_PRESSURE_DOMINANT.value)
             elif world_tension > self_tension + 0.12:
-                tensions.append("world_track_pressure_dominant")
+                tensions.append(ReflectionTensionId.WORLD_TRACK_PRESSURE_DOMINANT.value)
         if evaluation_snapshot is not None:
             if _metric(evaluation_snapshot, "cross_track_stability", default=1.0) < 0.7:
-                tensions.append("relationship_stability_soft_drop")
+                tensions.append(
+                    ReflectionTensionId.RELATIONSHIP_STABILITY_SOFT_DROP.value
+                )
             if _metric(evaluation_snapshot, "warmth", default=1.0) < 0.45:
-                tensions.append("warmth_signal_thin")
+                tensions.append(ReflectionTensionId.WARMTH_SIGNAL_THIN.value)
             if _metric(evaluation_snapshot, "info_integration", default=1.0) < 0.45:
-                tensions.append("task_signal_diffuse")
+                tensions.append(ReflectionTensionId.TASK_SIGNAL_DIFFUSE.value)
             tensions.extend(_relationship_relevant_alerts(evaluation_snapshot)[:3])
         return tuple(dict.fromkeys(tensions))
 
@@ -1105,38 +1178,68 @@ class ReflectionEngine:
     ) -> tuple[str, ...]:
         lessons: list[str] = []
         if memory_consolidation.new_durable_entries or memory_consolidation.promoted_entries:
-            lessons.append("promote_high_signal_memories")
+            lessons.append(ReflectionLessonId.PROMOTE_HIGH_SIGNAL_MEMORIES.value)
         if memory_consolidation.beliefs_updated:
-            lessons.append("reinforce_recent_high_credit_beliefs")
+            lessons.append(
+                ReflectionLessonId.REINFORCE_RECENT_HIGH_CREDIT_BELIEFS.value
+            )
         if policy_consolidation.strategy_priors_updated:
-            lessons.append("adjust_track_priority_from_session_feedback")
+            lessons.append(
+                ReflectionLessonId.ADJUST_TRACK_PRIORITY_FROM_SESSION_FEEDBACK.value
+            )
         if policy_consolidation.temporal_prior_update is not None:
             temporal_update = policy_consolidation.temporal_prior_update
             strongest_channel = max(
                 (
-                    ("residual", temporal_update.residual_strength),
-                    ("memory", temporal_update.memory_strength),
-                    ("reflection", temporal_update.reflection_strength),
+                    (
+                        "residual",
+                        temporal_update.residual_strength,
+                        ReflectionLessonId.REBALANCE_TEMPORAL_PRIOR_TOWARD_RESIDUAL,
+                    ),
+                    (
+                        "memory",
+                        temporal_update.memory_strength,
+                        ReflectionLessonId.REBALANCE_TEMPORAL_PRIOR_TOWARD_MEMORY,
+                    ),
+                    (
+                        "reflection",
+                        temporal_update.reflection_strength,
+                        ReflectionLessonId.REBALANCE_TEMPORAL_PRIOR_TOWARD_REFLECTION,
+                    ),
                 ),
                 key=lambda item: item[1],
-            )[0]
-            lessons.append(f"rebalance_temporal_prior_toward_{strongest_channel}")
+            )[2]
+            lessons.append(strongest_channel.value)
             if temporal_update.persistence_delta > 0.02:
-                lessons.append("increase_controller_persistence_for_continuity")
+                lessons.append(
+                    ReflectionLessonId.INCREASE_CONTROLLER_PERSISTENCE_FOR_CONTINUITY.value
+                )
             elif temporal_update.persistence_delta < -0.02:
-                lessons.append("reduce_controller_persistence_for_faster_recovery")
+                lessons.append(
+                    ReflectionLessonId.REDUCE_CONTROLLER_PERSISTENCE_FOR_FASTER_RECOVERY.value
+                )
             if temporal_update.switch_bias_delta > 0.02:
-                lessons.append("allow_controller_switch_when_context_shifts")
+                lessons.append(
+                    ReflectionLessonId.ALLOW_CONTROLLER_SWITCH_WHEN_CONTEXT_SHIFTS.value
+                )
             elif temporal_update.switch_bias_delta < -0.02:
-                lessons.append("hold_controller_before_switching")
+                lessons.append(
+                    ReflectionLessonId.HOLD_CONTROLLER_BEFORE_SWITCHING.value
+                )
             if temporal_update.structure_proposals:
-                lessons.append("restructure_action_family_bank")
+                lessons.append(
+                    ReflectionLessonId.RESTRUCTURE_ACTION_FAMILY_BANK.value
+                )
         if policy_consolidation.controller_guard_blocked:
-            lessons.append("respect_metacontroller_runtime_guard")
+            lessons.append(ReflectionLessonId.RESPECT_METACONTROLLER_RUNTIME_GUARD.value)
         elif policy_consolidation.controller_guard_audit_present:
-            lessons.append("keep_controller_guard_signal_in_background")
+            lessons.append(
+                ReflectionLessonId.KEEP_CONTROLLER_GUARD_SIGNAL_IN_BACKGROUND.value
+            )
         if tensions:
-            lessons.append("review_tension_before_auto_writeback")
+            lessons.append(
+                ReflectionLessonId.REVIEW_TENSION_BEFORE_AUTO_WRITEBACK.value
+            )
         lessons.extend(_prediction_error_lessons(prediction_error_snapshot))
         return tuple(dict.fromkeys(lessons))
 

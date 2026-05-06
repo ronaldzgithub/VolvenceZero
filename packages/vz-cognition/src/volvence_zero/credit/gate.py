@@ -715,6 +715,221 @@ def derive_delayed_attribution_credit_records(
     return tuple(credit_records)
 
 
+def derive_counterfactual_contribution_records(
+    *,
+    regime_snapshot: object | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Lightweight COCOA-style contribution credit (Phase 1.A).
+
+    Inspired by COCOA (Meulemans et al., NeurIPS 2023): credit for an
+    action is the difference between its observed outcome and the
+    *counterfactual baseline* the policy would have produced under the
+    same context. We do **not** train a rewarding-state head here
+    (Phase 2.A uplift); instead we reuse already-published statistics
+    from the regime and temporal owners:
+
+    - regime owner publishes ``selection_weights`` (per regime) and
+      ``delayed_payoffs`` (rolling payoff per regime / abstract-action /
+      family-version);
+    - the chosen regime / abstract-action is read from the
+      ``PredictionErrorSnapshot.action_context`` and from the
+      ``temporal_snapshot.active_abstract_action`` at segment closure;
+    - the actual scalar outcome is the PE ``signed_reward`` (already
+      bounded in ``[-1, 1]``).
+
+    baseline = sum_i normalized_w_i * rolling_payoff_i over the regime
+    selection distribution. contribution = actual - baseline. Returns an
+    empty tuple if any required snapshot is missing or the chosen
+    context lacks a known regime / segment, so the caller stays
+    fail-safe in bootstrap turns.
+
+    The new ``CreditRecord`` ships at ``level="counterfactual_contribution"``
+    so existing ``recent_credits`` consumers (which filter by level)
+    treat it as opt-in evidence rather than a behavioural change.
+    """
+
+    from volvence_zero.regime import RegimeSnapshot
+
+    if (
+        prediction_error_snapshot is None
+        or prediction_error_snapshot.bootstrap
+        or regime_snapshot is None
+        or not isinstance(regime_snapshot, RegimeSnapshot)
+    ):
+        return ()
+
+    action_context = prediction_error_snapshot.action_context
+    chosen_regime_id = action_context.regime_id
+    chosen_abstract_action = action_context.abstract_action_id
+    chosen_segment_id = action_context.segment_id
+
+    # Backfill regime_id from the active regime when the PE owner did
+    # not stamp one on the action context. This is read-only and uses
+    # already-published regime state.
+    if not chosen_regime_id and regime_snapshot.active_regime is not None:
+        chosen_regime_id = regime_snapshot.active_regime.regime_id
+
+    if not chosen_regime_id:
+        return ()
+
+    weights_payload: tuple[tuple[str, float], ...] = ()
+    if regime_snapshot.selection_weights is not None:
+        weights_payload = regime_snapshot.selection_weights.weights
+    if not weights_payload:
+        weights_payload = regime_snapshot.candidate_regimes
+
+    # Build a payoff lookup keyed by regime_id; if the abstract action
+    # matches in the chosen regime, prefer the (regime, action) entry,
+    # otherwise fall back to the regime-level rolling payoff.
+    regime_payoffs: dict[str, float] = {}
+    regime_action_payoffs: dict[tuple[str, str], float] = {}
+    for payoff in regime_snapshot.delayed_payoffs:
+        regime_payoffs.setdefault(payoff.regime_id, payoff.rolling_payoff)
+        if payoff.abstract_action is not None:
+            regime_action_payoffs[(payoff.regime_id, payoff.abstract_action)] = (
+                payoff.rolling_payoff
+            )
+
+    # Skip when we have no historical payoff signal for any regime.
+    # Without it the baseline collapses to zero and the contribution
+    # equals the raw actual, which would double-count PE credit.
+    if not regime_payoffs and not regime_action_payoffs:
+        return ()
+
+    weight_total = 0.0
+    weight_pairs: list[tuple[str, float]] = []
+    for regime_id, weight in weights_payload:
+        clean_weight = max(0.0, float(weight))
+        if clean_weight <= 0.0:
+            continue
+        weight_total += clean_weight
+        weight_pairs.append((regime_id, clean_weight))
+    if weight_total <= 0.0 or not weight_pairs:
+        return ()
+
+    baseline = 0.0
+    contributors = 0
+    for regime_id, weight in weight_pairs:
+        normalized = weight / weight_total
+        action_key = (regime_id, chosen_abstract_action) if chosen_abstract_action else None
+        if action_key is not None and action_key in regime_action_payoffs:
+            baseline += normalized * regime_action_payoffs[action_key]
+            contributors += 1
+            continue
+        if regime_id in regime_payoffs:
+            baseline += normalized * regime_payoffs[regime_id]
+            contributors += 1
+    if contributors == 0:
+        return ()
+
+    actual = float(prediction_error_snapshot.error.signed_reward)
+    contribution = _clamp(actual - baseline)
+
+    source_event = f"cocoa:{chosen_regime_id}"
+    if chosen_segment_id:
+        source_event = f"{source_event}:{chosen_segment_id}"
+    if chosen_abstract_action:
+        source_event = f"{source_event}:{chosen_abstract_action}"
+
+    context_parts = [
+        f"baseline={baseline:.3f}",
+        f"actual={actual:.3f}",
+        f"weight_total={weight_total:.3f}",
+        f"contributors={contributors}",
+    ]
+    if temporal_snapshot is not None:
+        context_parts.append(
+            f"temporal_active={temporal_snapshot.active_abstract_action}"
+        )
+        if chosen_segment_id and any(
+            segment.segment_id == chosen_segment_id
+            for segment in temporal_snapshot.closed_segments
+        ):
+            context_parts.append(f"segment_closed={chosen_segment_id}")
+    context = "; ".join(context_parts)
+
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="counterfactual_contribution",
+            track=Track.SHARED,
+            source_event=source_event,
+            credit_value=contribution,
+            context=context,
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
+def record_nstep_outcomes_from_segment_closure(
+    *,
+    ledger: "CreditLedger",
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    regime_snapshot: object | None,
+    timestamp_ms: int,
+) -> int:
+    """Append the chosen action's outcome to the N-step ledger.
+
+    The COCOA path needs a per-action outcome trajectory so future
+    Phase 2 uplift can compute multi-step counterfactuals. We resurrect
+    the dormant ``CreditLedger.record_nstep_outcome`` API by calling it
+    when ``temporal_snapshot.closed_segments`` reports that the chosen
+    segment just closed. Returns the number of N-step entries that were
+    created or extended (0 when no segment closed or when the snapshot
+    chain is incomplete).
+    """
+
+    from volvence_zero.regime import RegimeSnapshot
+
+    if (
+        prediction_error_snapshot is None
+        or prediction_error_snapshot.bootstrap
+        or temporal_snapshot is None
+        or not temporal_snapshot.closed_segments
+    ):
+        return 0
+
+    action_context = prediction_error_snapshot.action_context
+    chosen_segment_id = action_context.segment_id
+    chosen_abstract_action = action_context.abstract_action_id
+    chosen_regime_id = action_context.regime_id
+    if not chosen_regime_id and isinstance(regime_snapshot, RegimeSnapshot):
+        if regime_snapshot.active_regime is not None:
+            chosen_regime_id = regime_snapshot.active_regime.regime_id
+    if not chosen_segment_id and not chosen_abstract_action:
+        return 0
+    matched_segment = next(
+        (
+            segment
+            for segment in temporal_snapshot.closed_segments
+            if (chosen_segment_id and segment.segment_id == chosen_segment_id)
+            or (
+                chosen_abstract_action
+                and segment.abstract_action_id == chosen_abstract_action
+            )
+        ),
+        None,
+    )
+    if matched_segment is None:
+        return 0
+    action_id = matched_segment.segment_id or chosen_segment_id or chosen_abstract_action
+    family_id = matched_segment.abstract_action_id or chosen_abstract_action or "unknown"
+    regime_id = chosen_regime_id or "unknown"
+    outcome = float(prediction_error_snapshot.error.signed_reward)
+    ledger.record_nstep_outcome(
+        action_id=action_id,
+        family_id=family_id,
+        regime_id=regime_id,
+        outcome=outcome,
+        timestamp_ms=timestamp_ms,
+    )
+    return 1
+
+
 def derive_runtime_adaptation_audit_records(
     *,
     rollback_reasons: tuple[str, ...],

@@ -27,10 +27,16 @@ from lifeform_core.vitals import (
     VitalsModule,
     VitalsSnapshot,
 )
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+)
 
 __all__ = (
     "DriveLevel",
     "DriveSpec",
+    "DialogueExternalOutcomeEvidenceSource",
+    "DialogueExternalOutcomeKind",
     "FollowupItem",
     "FollowupManager",
     "is_apprenticeship_trigger",

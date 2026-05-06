@@ -43,6 +43,27 @@ async def client(aiohttp_client):
     return await aiohttp_client(app)
 
 
+@pytest.fixture
+async def alpha_client(aiohttp_client, tmp_path):
+    from lifeform_service.alpha import AlphaServiceConfig
+    from lifeform_service.app import create_app
+    from lifeform_service.verticals import discover_verticals
+
+    spec = discover_verticals()["companion"]
+    app = create_app(
+        vertical=spec,
+        max_sessions=8,
+        idle_eviction_seconds=None,
+        alpha_config=AlphaServiceConfig(
+            enabled=True,
+            memory_scope_root_dir=str(tmp_path / "memory"),
+            evidence_root_dir=str(tmp_path / "evidence"),
+            alpha_users=frozenset({"alice", "bob"}),
+        ),
+    )
+    return await aiohttp_client(app)
+
+
 # ---------------------------------------------------------------------------
 # Static surfaces
 # ---------------------------------------------------------------------------
@@ -57,6 +78,16 @@ async def test_health_reports_vertical_and_session_count(client):
     assert body["session_count"] == 0
 
 
+async def test_chat_ui_is_served(client):
+    resp = await client.get("/chat")
+    assert resp.status == 200
+    assert resp.content_type == "text/html"
+    text = await resp.text()
+    assert "Volvence Zero Chat" in text
+    assert "/v1/sessions" in text
+    assert "dialogue-outcomes" in text
+
+
 async def test_info_advertises_pre_trained_bootstraps(client):
     resp = await client.get("/v1/info")
     assert resp.status == 200
@@ -67,6 +98,14 @@ async def test_info_advertises_pre_trained_bootstraps(client):
     assert body["has_regime_bootstrap"] is True
     assert body["bootstraps_dir"] is not None
     assert body["scenarios_dir"] is not None
+
+
+async def test_alpha_info_advertises_policy(alpha_client):
+    resp = await alpha_client.get("/v1/info")
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["alpha"]["enabled"] is True
+    assert "not therapy" in body["alpha"]["disclaimer"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +122,25 @@ async def test_create_session_mints_id_and_201s(client):
     # Health now sees one session.
     health = await (await client.get("/v1/health")).json()
     assert health["session_count"] == 1
+
+
+async def test_alpha_create_session_requires_identity(alpha_client):
+    resp = await alpha_client.post("/v1/sessions", json={})
+    assert resp.status == 400
+    body = await resp.json()
+    assert body["error"] == "missing_alpha_user"
+
+
+async def test_alpha_create_session_binds_user(alpha_client):
+    resp = await alpha_client.post(
+        "/v1/sessions",
+        headers={"X-Alpha-User": "alice"},
+        json={"session_id": "alice-s1"},
+    )
+    assert resp.status == 201
+    body = await resp.json()
+    assert body["user_id"] == "alice"
+    assert body["service_version"] == "closed-alpha-v0"
 
 
 async def test_create_session_honours_explicit_id(client):
@@ -135,6 +193,25 @@ async def test_turn_runs_and_returns_kernel_state(client):
     assert turn["scene_id"].startswith("scene-")
 
 
+async def test_alpha_turn_returns_rationale_tags_and_safety(alpha_client):
+    create = await (
+        await alpha_client.post(
+            "/v1/sessions",
+            headers={"X-Alpha-User": "alice"},
+            json={"session_id": "alpha-turn"},
+        )
+    ).json()
+    sid = create["session_id"]
+    resp = await alpha_client.post(
+        f"/v1/sessions/{sid}/turns",
+        json={"user_input": "I feel stuck and need a slower frame."},
+    )
+    assert resp.status == 200
+    body = await resp.json()
+    assert isinstance(body["response_rationale_tags"], list)
+    assert "alpha_disclaimer" in body["safety"]
+
+
 async def test_turn_404s_on_unknown_session(client):
     resp = await client.post(
         "/v1/sessions/no-such/turns", json={"user_input": "hi"}
@@ -182,6 +259,109 @@ async def test_end_scene_closes_and_drains(client):
     assert body["slow_loop_drained"] is True
 
 
+async def test_alpha_typed_feedback_repair_memory_and_delete(alpha_client):
+    create = await (
+        await alpha_client.post(
+            "/v1/sessions",
+            headers={"X-Alpha-User": "alice"},
+            json={"session_id": "alpha-repair"},
+        )
+    ).json()
+    sid = create["session_id"]
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/turns",
+        json={"user_input": "I am scared and do not want to be optimized."},
+    )
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/dialogue-outcomes",
+        json={"kind": "OVER_DIRECTIVE", "confidence": 0.95},
+    )
+    repair = await (
+        await alpha_client.post(
+            f"/v1/sessions/{sid}/turns",
+            json={"user_input": "That felt too procedural. Can we repair it?"},
+        )
+    ).json()
+    assert "repair_alpha=over_directive" in repair["response_rationale_tags"]
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/dialogue-outcomes",
+        json={"kind": "OVER_DIRECTIVE", "confidence": 0.95},
+    )
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/dialogue-outcomes",
+        json={"kind": "FELT_HEARD", "confidence": 0.9},
+    )
+    await alpha_client.post(
+        f"/v1/sessions/{sid}/turns",
+        json={"user_input": "That felt heard. Please remember the slower frame."},
+    )
+    ended = await (
+        await alpha_client.post(f"/v1/sessions/{sid}/end-scene", json={})
+    ).json()
+    assert ended["evidence_artifact_ref"]
+
+    memory = await (
+        await alpha_client.get(
+            "/v1/users/me/memory/rupture-repair",
+            headers={"X-Alpha-User": "alice"},
+        )
+    ).json()
+    assert any("repair_outcome:observed" in e["tags"] for e in memory["entries"])
+
+    bob_memory = await (
+        await alpha_client.get(
+            "/v1/users/me/memory/rupture-repair",
+            headers={"X-Alpha-User": "bob"},
+        )
+    ).json()
+    assert bob_memory["entries"] == []
+
+    summary = await (
+        await alpha_client.get(
+            "/v1/users/me/relationship-summary",
+            headers={"X-Alpha-User": "alice"},
+        )
+    ).json()
+    assert summary["observed_repair_count"] >= 1
+
+    deleted = await (
+        await alpha_client.delete(
+            "/v1/users/me/memory",
+            headers={"X-Alpha-User": "alice"},
+        )
+    ).json()
+    assert deleted["deleted_entry_ids"]
+    after = await (
+        await alpha_client.get(
+            "/v1/users/me/memory/rupture-repair",
+            headers={"X-Alpha-User": "alice"},
+        )
+    ).json()
+    assert after["entries"] == []
+
+
+async def test_alpha_pause_and_admin_report(alpha_client):
+    create = await (
+        await alpha_client.post(
+            "/v1/sessions",
+            headers={"X-Alpha-User": "alice"},
+            json={"session_id": "alpha-admin"},
+        )
+    ).json()
+    sid = create["session_id"]
+    paused = await (
+        await alpha_client.post(f"/v1/sessions/{sid}/pause", json={})
+    ).json()
+    assert paused["paused"] is True
+    report = await (
+        await alpha_client.get(
+            "/v1/admin/weekly-report",
+            headers={"X-Alpha-User": "alice"},
+        )
+    ).json()
+    assert report["active_user_count"] >= 1
+
+
 # ---------------------------------------------------------------------------
 # State + multi-tenant isolation
 # ---------------------------------------------------------------------------
@@ -210,3 +390,50 @@ async def test_two_sessions_are_independent_tenants(client):
     state_b = await (await client.get("/v1/sessions/b/state")).json()
     assert state_a["turn_count"] == 1
     assert state_b["turn_count"] == 0
+
+
+def test_cli_can_require_alpha_preflight(monkeypatch):
+    from lifeform_service import cli
+    from lifeform_service.verticals import discover_verticals
+
+    class _Report:
+        passed = True
+
+    called = {}
+
+    def fake_preflight(*, artifacts_dir, scope_root_dir):
+        called["artifacts_dir"] = artifacts_dir
+        called["scope_root_dir"] = scope_root_dir
+        return _Report()
+
+    def fake_format(report):
+        assert report.passed is True
+        return "preflight ok"
+
+    def fake_run_app(app, *, host, port, print):  # noqa: A002, ARG001
+        called["host"] = host
+        called["port"] = port
+
+    import lifeform_evolution.closed_alpha_preflight as preflight
+
+    monkeypatch.setattr(preflight, "run_closed_alpha_preflight", fake_preflight)
+    monkeypatch.setattr(preflight, "format_closed_alpha_preflight_report", fake_format)
+    monkeypatch.setattr(cli.web, "run_app", fake_run_app)
+
+    assert "companion" in discover_verticals()
+    exit_code = cli.main(
+        [
+            "--alpha-enabled",
+            "--memory-scope-root-dir",
+            "alpha-memory",
+            "--evidence-root-dir",
+            "alpha-evidence",
+            "--require-alpha-preflight",
+            "--idle-eviction-seconds",
+            "0",
+        ]
+    )
+
+    assert exit_code == 0
+    assert called["artifacts_dir"] == "alpha-evidence/preflight"
+    assert called["scope_root_dir"] == "alpha-evidence/preflight_scope"

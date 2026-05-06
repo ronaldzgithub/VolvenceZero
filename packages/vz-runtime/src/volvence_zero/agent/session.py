@@ -54,7 +54,13 @@ from volvence_zero.application.knowledge_channels import (
     build_conversation_knowledge_candidates,
     domain_knowledge_prior_updates_from_reviewed,
 )
-from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseContext, ResponseSynthesizer
+from volvence_zero.agent.response import (
+    AgentResponse,
+    LLMResponseSynthesizer,
+    RepairExpressionAdvisory,
+    ResponseContext,
+    ResponseSynthesizer,
+)
 from volvence_zero.agent.dialogue_trace import DialogueTraceStore
 from volvence_zero.agent.dialogue_outcome_producers import (
     commitment_outcome_evidence_from_commitment,
@@ -123,6 +129,7 @@ from volvence_zero.prediction.error import (
 )
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
 from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
+from volvence_zero.rupture_state import RuptureStateSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
     AdapterSemanticProposalRuntime,
@@ -246,6 +253,26 @@ class AgentTurnResult:
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
     online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
+
+
+def _repair_expression_advisory_from_snapshots(
+    shadow_snapshots: dict[str, Snapshot[Any]],
+) -> RepairExpressionAdvisory | None:
+    rupture_snapshot = shadow_snapshots.get("rupture_state")
+    if (
+        rupture_snapshot is None
+        or not isinstance(rupture_snapshot.value, RuptureStateSnapshot)
+    ):
+        return None
+    rupture = rupture_snapshot.value
+    if rupture.rupture_kind is None or rupture.internal_suspected_only:
+        return None
+    return RepairExpressionAdvisory(
+        rupture_kind=rupture.rupture_kind.value,
+        confidence=rupture.confidence,
+        signal_strength=rupture.rupture_signal_strength,
+        description=rupture.description,
+    )
 
 
 def _clamp(value: float) -> float:
@@ -3426,6 +3453,9 @@ class AgentSessionRunner:
             subject_ids = identity_scope.subject_ids
             audience_ids = identity_scope.audience_ids
 
+        repair_advisory = _repair_expression_advisory_from_snapshots(
+            integration_result.shadow_snapshots
+        )
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
                 regime_id=active_regime,
@@ -3451,6 +3481,7 @@ class AgentSessionRunner:
                 addressee_ids=addressee_ids,
                 subject_ids=subject_ids,
                 audience_ids=audience_ids,
+                repair_advisory=repair_advisory,
             ),
             assembly=response_assembly,
         )

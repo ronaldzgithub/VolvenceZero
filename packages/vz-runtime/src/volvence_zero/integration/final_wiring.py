@@ -44,11 +44,13 @@ from volvence_zero.credit.gate import (
     ModificationGate,
     ModificationProposal,
     SelfModificationRecord,
+    derive_counterfactual_contribution_records,
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     derive_prediction_error_credit_records,
     derive_social_prediction_error_credit_records,
     has_blocking_writeback,
+    record_nstep_outcomes_from_segment_closure,
 )
 from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
 from volvence_zero.evaluation.backbone import (
@@ -82,6 +84,10 @@ from volvence_zero.reflection import (
 from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
 from volvence_zero.dialogue_trace import DialogueExternalOutcomeSnapshot
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
+from volvence_zero.interlocutor import (
+    InterlocutorStateModule,
+    InterlocutorStateSnapshot,
+)
 from volvence_zero.rupture_state import (
     RuptureStateModule,
     RuptureStateSnapshot,
@@ -1145,6 +1151,16 @@ def build_final_runtime_modules(
     rupture_state_owner = rupture_state_module or RuptureStateModule(
         wiring_level=config.level_for("rupture_state", WiringLevel.SHADOW),
     )
+    # Wave 2 SSOT cleanup: interlocutor_state owner is the single
+    # producer of the 12-axis readout. Default SHADOW so consumers
+    # can read it without changing active behaviour; promotion to
+    # ACTIVE is gated on validating that the planner / synthesizer
+    # produce the same plan when reading the snapshot vs. the
+    # historical re-built readout (matched-control verified by
+    # ``tests/test_prompt_planner_interlocutor_state.py``).
+    interlocutor_state_owner = InterlocutorStateModule(
+        wiring_level=config.level_for("interlocutor_state", WiringLevel.SHADOW),
+    )
     return [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -1307,6 +1323,7 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         rupture_state_owner,
+        interlocutor_state_owner,
     ]
 
 
@@ -1699,8 +1716,13 @@ async def run_final_wiring_turn(
                 evaluation_snapshot=enriched_evaluation,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
             )
+            regime_snapshot_value_for_credit = (
+                active_snapshots.get("regime").value
+                if active_snapshots.get("regime") is not None
+                else None
+            )
             delayed_credits = derive_delayed_attribution_credit_records(
-                regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
+                regime_snapshot=regime_snapshot_value_for_credit,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
             )
             extra_credits = extra_credits + delayed_credits
@@ -1709,6 +1731,29 @@ async def run_final_wiring_turn(
                     prediction_error=prediction_snapshot_value.error,
                     timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
                 )
+            # Phase 1.A: append COCOA-style counterfactual contribution
+            # credit (no-op when regime payoffs / weights / PE context
+            # are insufficient; see derive_counterfactual_contribution_records).
+            temporal_snapshot_value_for_credit = None
+            temporal_snapshot_for_credit = active_snapshots.get("temporal_abstraction")
+            if temporal_snapshot_for_credit is not None and isinstance(
+                temporal_snapshot_for_credit.value, TemporalAbstractionSnapshot
+            ):
+                temporal_snapshot_value_for_credit = temporal_snapshot_for_credit.value
+            counterfactual_credits = derive_counterfactual_contribution_records(
+                regime_snapshot=regime_snapshot_value_for_credit,
+                temporal_snapshot=temporal_snapshot_value_for_credit,
+                prediction_error_snapshot=prediction_snapshot_value,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 5,
+            )
+            extra_credits = extra_credits + counterfactual_credits
+            record_nstep_outcomes_from_segment_closure(
+                ledger=credit_module.ledger,
+                prediction_error_snapshot=prediction_snapshot_value,
+                temporal_snapshot=temporal_snapshot_value_for_credit,
+                regime_snapshot=regime_snapshot_value_for_credit,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 6,
+            )
             social_prediction_error_snapshot = active_snapshots.get(
                 "social_prediction_error"
             ) or shadow_snapshots.get("social_prediction_error")

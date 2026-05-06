@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 from aiohttp import web
 
 from lifeform_service.app import create_app
+from lifeform_service.alpha import AlphaServiceConfig, load_alpha_users
 from lifeform_service.verticals import default_vertical_name, discover_verticals
 
 if TYPE_CHECKING:
@@ -116,6 +117,41 @@ def _build_parser() -> argparse.ArgumentParser:
         "--log-level", default="INFO",
         help="Python logging level (default INFO).",
     )
+    parser.add_argument(
+        "--alpha-enabled",
+        action="store_true",
+        help="Enable closed-alpha service mode with required user identity.",
+    )
+    parser.add_argument(
+        "--alpha-users-file",
+        default=None,
+        help="JSON list or {'users': [...]} allowlist for closed-alpha users.",
+    )
+    parser.add_argument(
+        "--memory-scope-root-dir",
+        default=None,
+        help="Root directory for per-user scoped memory in alpha mode.",
+    )
+    parser.add_argument(
+        "--evidence-root-dir",
+        default=None,
+        help="Root directory for closed-alpha session/deletion evidence bundles.",
+    )
+    parser.add_argument(
+        "--service-version",
+        default="closed-alpha-v0",
+        help="Service version returned in alpha responses.",
+    )
+    parser.add_argument(
+        "--policy-version",
+        default="alpha-policy-v0",
+        help="Policy version returned in alpha responses.",
+    )
+    parser.add_argument(
+        "--require-alpha-preflight",
+        action="store_true",
+        help="Run closed-alpha preflight before binding the service.",
+    )
     return parser
 
 
@@ -197,6 +233,36 @@ def main(argv: list[str] | None = None) -> int:
 
     spec = discovered[name]
     idle = args.idle_eviction_seconds if args.idle_eviction_seconds > 0 else None
+    try:
+        alpha_users = load_alpha_users(args.alpha_users_file)
+    except Exception as exc:
+        print(f"Failed to load --alpha-users-file: {exc}", file=sys.stderr)
+        return 1
+    alpha_config = AlphaServiceConfig(
+        enabled=args.alpha_enabled,
+        memory_scope_root_dir=args.memory_scope_root_dir,
+        evidence_root_dir=args.evidence_root_dir,
+        service_version=args.service_version,
+        policy_version=args.policy_version,
+        alpha_users=alpha_users,
+    )
+    if args.alpha_enabled and args.memory_scope_root_dir is None:
+        print("--alpha-enabled requires --memory-scope-root-dir", file=sys.stderr)
+        return 1
+    if args.require_alpha_preflight:
+        from lifeform_evolution.closed_alpha_preflight import (
+            format_closed_alpha_preflight_report,
+            run_closed_alpha_preflight,
+        )
+
+        preflight_root = args.evidence_root_dir or "artifacts/lifeform_service_alpha"
+        report = run_closed_alpha_preflight(
+            artifacts_dir=f"{preflight_root}/preflight",
+            scope_root_dir=f"{preflight_root}/preflight_scope",
+        )
+        print(format_closed_alpha_preflight_report(report))
+        if not report.passed:
+            return 1
 
     try:
         substrate_runtime = _build_shared_substrate(args)
@@ -216,12 +282,14 @@ def main(argv: list[str] | None = None) -> int:
         max_sessions=args.max_sessions,
         idle_eviction_seconds=idle,
         substrate_runtime=substrate_runtime,
+        alpha_config=alpha_config,
     )
     print(
         f"[lifeform-serve] vertical={spec.name}  "
         f"temporal_bootstrap={spec.has_temporal_bootstrap}  "
         f"regime_bootstrap={spec.has_regime_bootstrap}  "
         f"substrate_mode={args.substrate_mode}"
+        + (f"  alpha_enabled={args.alpha_enabled}" if args.alpha_enabled else "")
         + (
             f"  model_id={args.substrate_model_id}"
             if args.substrate_mode == "hf-shared"

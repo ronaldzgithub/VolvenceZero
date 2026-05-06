@@ -1034,7 +1034,7 @@ class EvaluationBackbone:
         magnitude_readout = _clamp(min(pe.magnitude / 4.0, 1.0))
         reward_readout = _clamp(0.5 + pe.signed_reward * 0.5)
         predictive_accuracy = _clamp((1.0 - magnitude_readout) * 0.8 + prediction_confidence * 0.2)
-        return (
+        scores: list[EvaluationScore] = [
             EvaluationScore(
                 family="learning",
                 metric_name="prediction_error_magnitude",
@@ -1087,7 +1087,38 @@ class EvaluationBackbone:
                 confidence=0.8,
                 evidence=pe.description,
             ),
-        )
+        ]
+        # Phase 1.B: Curiosity-Critic readout. Strictly report-only;
+        # not consumed by any acceptance gate. Skipped when the PE
+        # owner did not publish a decomposition (bootstrap turn or
+        # Phase 1.B not yet in this code path).
+        decomposition = prediction_error_snapshot.pe_decomposition
+        if decomposition is not None:
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="pe_aleatoric_magnitude",
+                    value=_clamp(decomposition.aleatoric_magnitude),
+                    confidence=0.6,
+                    evidence=(
+                        f"PE-owner Curiosity-Critic readout. "
+                        f"{decomposition.description}"
+                    ),
+                )
+            )
+            scores.append(
+                EvaluationScore(
+                    family="learning",
+                    metric_name="pe_epistemic_magnitude",
+                    value=_clamp(decomposition.epistemic_magnitude),
+                    confidence=0.6,
+                    evidence=(
+                        f"PE-owner Curiosity-Critic readout. "
+                        f"{decomposition.description}"
+                    ),
+                )
+            )
+        return tuple(scores)
 
     def _family_outcome_divergence(
         self,

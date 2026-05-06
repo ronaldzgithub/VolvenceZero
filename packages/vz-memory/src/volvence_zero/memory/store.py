@@ -7,6 +7,7 @@ historic public API from ``volvence_zero.memory.store``.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from volvence_zero.memory.cms import (
     CMSTowerProfile,
 )
 from volvence_zero.memory.contracts import (
+    MemoryAttributeReadout,
     MemoryEntry,
     MemorySnapshot,
     MemoryStoreCheckpoint,
@@ -45,6 +47,7 @@ from volvence_zero.memory.retrieval import (
     _entry_in_subject_scope,
     _mean_abs,
     _semantic_embedding,
+    _substrate_embedding,
     _tokenize,
     summarize_entries,
 )
@@ -66,8 +69,35 @@ if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
 
 
-def build_default_memory_store(*, latent_dim: int = 8, nested_profile: bool = True) -> "MemoryStore":
+def build_default_memory_store(
+    *,
+    latent_dim: int = 8,
+    nested_profile: bool = True,
+    cms_pe_features_enabled: bool = False,
+    cms_replay_window_size: int | None = None,
+) -> "MemoryStore":
+    """Build a default :class:`MemoryStore` with optional ATLAS / Titans uplift.
+
+    Defaults preserve canonical (pre-uplift) CMS behavior. SHADOW evaluation
+    turns the two flags on:
+
+    - ``cms_pe_features_enabled`` activates Titans-style PE-driven write
+      gating in the CMS ``LearnedUpdateRule``.
+    - ``cms_replay_window_size`` activates ATLAS-style joint optimization
+      over the recent K observations on the online band, with K/2 and K/4
+      on session and background bands respectively (each clamped to >= 1).
+
+    See ``docs/specs/cms-atlas-titans-uplift.md`` §7.
+    """
     variant = "nested" if nested_profile else "sequential"
+    replay_window_sizes: dict[str, int] | None = None
+    if cms_replay_window_size is not None:
+        online_k = max(1, int(cms_replay_window_size))
+        replay_window_sizes = {
+            "online-fast": online_k,
+            "session-medium": max(2, online_k // 2),
+            "background-slow": max(2, online_k // 4),
+        }
     learned_core = CMSMemoryCore(
         mode="mlp",
         d_in=max(latent_dim, 4),
@@ -75,6 +105,8 @@ def build_default_memory_store(*, latent_dim: int = 8, nested_profile: bool = Tr
         variant=variant,
         session_cadence=2,
         background_cadence=4,
+        pe_features_enabled=cms_pe_features_enabled,
+        replay_window_sizes=replay_window_sizes,
     )
     return MemoryStore(learned_core=learned_core)
 
@@ -127,6 +159,19 @@ class MemoryStore:
         self._last_tower_depth = 0
         self._last_tower_alignment = 0.0
         self._last_tower_profile_id = "artifact-only"
+        # Phase 1.C: substrate feature_surface cache + per-entry
+        # PE/substrate-derived attribute index. The cache is updated in
+        # ``observe_substrate`` so writes / queries hit the same surface
+        # within a turn. The attribute index is owner-internal and
+        # published as a summary block in ``MemorySnapshot``.
+        self._current_substrate_feature_surface: tuple[FeatureSignal, ...] = ()
+        self._current_pe_intensity: float = 0.0
+        self._current_pe_primary_axis: str = ""
+        self._current_pe_regime_id: str = ""
+        self._current_pe_epistemic: float = 0.0
+        self._current_pe_aleatoric: float = 0.0
+        self._entry_attributes: dict[str, MemoryAttributeReadout] = {}
+        self._attribute_summary_capacity: int = 16
 
     @property
     def learned_core(self) -> CMSMemoryCore | None:
@@ -219,6 +264,25 @@ class MemoryStore:
         self._artifact_store.write(entry)
         self._derived_index.index_entry(entry, embedding=self._entry_signal(entry))
         self._observe_artifact_entry(entry=entry, timestamp_ms=timestamp_ms, source="write")
+        # Phase 1.C: pin PE/substrate-derived attribute readout to the
+        # entry. Caches are populated upstream by ``observe_substrate``
+        # and ``apply_prediction_error_signal``; if nothing populated
+        # them yet, the readout records zero PE intensity (still stable).
+        substrate_digest_dim = max(min(self._learned_signal_dim(), 8), 1)
+        substrate_digest = _substrate_embedding(
+            feature_surface=self._current_substrate_feature_surface,
+            dim=substrate_digest_dim,
+        )
+        self._entry_attributes[entry.entry_id] = MemoryAttributeReadout(
+            entry_id=entry.entry_id,
+            pe_intensity=self._current_pe_intensity,
+            pe_primary_axis=self._current_pe_primary_axis,
+            regime_id=self._current_pe_regime_id,
+            substrate_feature_digest=substrate_digest,
+            epistemic_magnitude=self._current_pe_epistemic,
+            aleatoric_magnitude=self._current_pe_aleatoric,
+            timestamp_ms=timestamp_ms,
+        )
         return entry
 
     def retrieve(
@@ -467,9 +531,36 @@ class MemoryStore:
             suppressed_cross_scope_entries=suppressed_cross_scope_entries,
             active_subject_scope=active_subject_scope,
             social_pe_signals=social_pe_signals,
+            attribute_summary=self._attribute_summary(),
         )
 
-    def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
+    def _attribute_summary(self) -> tuple[MemoryAttributeReadout, ...]:
+        # Phase 1.C: published view of the most recent owner-internal
+        # attribute readouts (capped to ``_attribute_summary_capacity``).
+        # Sorted by timestamp_ms descending so the latest writes land
+        # at the top.
+        if not self._entry_attributes:
+            return ()
+        ordered = sorted(
+            self._entry_attributes.values(),
+            key=lambda readout: (readout.timestamp_ms, readout.entry_id),
+            reverse=True,
+        )
+        return tuple(ordered[: self._attribute_summary_capacity])
+
+    def observe_substrate(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot | None,
+        timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
+    ) -> None:
+        # Phase 1.C: cache feature_surface so retrieval embedding / write
+        # attribute readout pull from the same per-turn substrate surface.
+        if substrate_snapshot is not None:
+            self._current_substrate_feature_surface = substrate_snapshot.feature_surface
+        else:
+            self._current_substrate_feature_surface = ()
         evidence = build_runtime_backbone_evidence(
             substrate_snapshot=substrate_snapshot,
             dim=self._learned_signal_dim(),
@@ -488,6 +579,7 @@ class MemoryStore:
             self._learned_core.observe_substrate(
                 substrate_snapshot=substrate_snapshot,
                 timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error,
             )
 
     def observe_encoder_feedback(
@@ -495,11 +587,13 @@ class MemoryStore:
         *,
         encoder_signal: tuple[float, ...],
         timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
         if self._learned_core is not None:
             self._learned_core.observe_encoder_feedback(
                 encoder_signal=encoder_signal,
                 timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error,
             )
 
     def observe_temporal_feedback(
@@ -507,14 +601,20 @@ class MemoryStore:
         *,
         encoder_signal: tuple[float, ...],
         timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
-        self.observe_encoder_feedback(encoder_signal=encoder_signal, timestamp_ms=timestamp_ms)
+        self.observe_encoder_feedback(
+            encoder_signal=encoder_signal,
+            timestamp_ms=timestamp_ms,
+            prediction_error=prediction_error,
+        )
 
     def observe_fast_memory_signal(
         self,
         *,
         signal: tuple[float, ...],
         timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
         self._fast_memory_signal_count += 1
         self._last_fast_memory_signal = _align_signal(signal, dim=self._learned_signal_dim())
@@ -527,6 +627,7 @@ class MemoryStore:
             self._learned_core.observe_fast_memory_signal(
                 signal=signal,
                 timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error,
             )
 
     def apply_prediction_error_signal(
@@ -549,6 +650,21 @@ class MemoryStore:
             ),
             key=lambda item: item[1],
         )[0]
+        # Phase 1.C: cache PE-derived attribute fields so the next
+        # ``write`` (PE-driven or domain-driven) can pin them onto the
+        # entry attribute index. Decomposition is optional (Phase 1.B).
+        self._current_pe_intensity = float(magnitude)
+        self._current_pe_primary_axis = primary_dimension
+        self._current_pe_regime_id = (
+            prediction_error_snapshot.action_context.regime_id
+        )
+        decomposition = prediction_error_snapshot.pe_decomposition
+        if decomposition is not None:
+            self._current_pe_epistemic = float(decomposition.epistemic_magnitude)
+            self._current_pe_aleatoric = float(decomposition.aleatoric_magnitude)
+        else:
+            self._current_pe_epistemic = 0.0
+            self._current_pe_aleatoric = 0.0
         target_track = (
             Track.WORLD if primary_dimension == "task"
             else Track.SELF if primary_dimension == "relationship"
@@ -805,6 +921,14 @@ class MemoryStore:
         base_signal: tuple[float, ...] = (),
     ) -> tuple[float, ...]:
         dim = self._learned_signal_dim()
+        # Phase 1.C: prefer substrate feature_surface as the dense
+        # embedding source. When no substrate has been observed yet the
+        # vector is zero and we fall back to the legacy hash embedding,
+        # so existing tests / bootstrap paths remain identical.
+        substrate_signal = _substrate_embedding(
+            feature_surface=self._current_substrate_feature_surface,
+            dim=dim,
+        )
         semantic = _semantic_embedding(
             text=" ".join(
                 part
@@ -832,9 +956,18 @@ class MemoryStore:
             tags=tags,
             dim=dim,
         )
+        substrate_norm = math.sqrt(sum(value * value for value in substrate_signal))
+        substrate_weight = 0.55 if substrate_norm > 1e-9 else 0.0
+        # When substrate is available we let it contribute the dominant
+        # share of the dense signal; semantic + metadata still play a
+        # stabilising role so write/query keys stay deterministic for
+        # bootstrap turns and unit tests that lack substrate. When
+        # substrate is absent the legacy semantic+metadata blend is
+        # preserved exactly (substrate_weight = 0).
         return _blend_signals(
             dim=dim,
             weighted_signals=(
+                (substrate_signal, substrate_weight),
                 (semantic, 0.62 + _clamp_strength(strength) * 0.18),
                 (metadata, 0.18),
                 (base_signal, 0.2 if base_signal else 0.0),
@@ -1290,17 +1423,20 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         self._store.observe_substrate(
             substrate_snapshot=substrate_value,
             timestamp_ms=substrate_snapshot.timestamp_ms,
+            prediction_error=prediction_error_value,
         )
         temporal_feedback_signal = _temporal_feedback_signal(temporal_snapshot.value if temporal_snapshot is not None else None)
         if temporal_feedback_signal:
             self._store.observe_temporal_feedback(
                 encoder_signal=temporal_feedback_signal,
                 timestamp_ms=substrate_snapshot.timestamp_ms,
+                prediction_error=prediction_error_value,
             )
         elif self._memory_feedback_signal:
             self._store.observe_temporal_feedback(
                 encoder_signal=self._memory_feedback_signal,
                 timestamp_ms=substrate_snapshot.timestamp_ms,
+                prediction_error=prediction_error_value,
             )
         self._store.apply_prediction_error_signal(
             prediction_error_snapshot=prediction_error_value,
@@ -1362,23 +1498,31 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
 
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
+        prediction_error_value = (
+            prediction_error_snapshot
+            if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
+            else None
+        )
         self._store.observe_substrate(
             substrate_snapshot=substrate_value,
             timestamp_ms=timestamp_ms,
+            prediction_error=prediction_error_value,
         )
         temporal_feedback_signal = _temporal_feedback_signal(temporal_snapshot)
         if temporal_feedback_signal:
             self._store.observe_temporal_feedback(
                 encoder_signal=temporal_feedback_signal,
                 timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error_value,
             )
         elif self._memory_feedback_signal:
             self._store.observe_temporal_feedback(
                 encoder_signal=self._memory_feedback_signal,
                 timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error_value,
             )
         self._store.apply_prediction_error_signal(
-            prediction_error_snapshot=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
+            prediction_error_snapshot=prediction_error_value,
             timestamp_ms=timestamp_ms,
         )
 

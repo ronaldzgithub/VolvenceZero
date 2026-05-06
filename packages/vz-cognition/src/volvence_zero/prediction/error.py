@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -96,6 +97,34 @@ class PredictionError:
 
 
 @dataclass(frozen=True)
+class PEDecomposition:
+    """Owner-internal, running-stats based PE decomposition (Phase 1.B).
+
+    Inspired by Curiosity-Critic (PE = aleatoric noise floor + epistemic
+    reducible part). The PE owner maintains an EMA mean / variance per
+    ``(axis, regime_id_or_segment_id)`` bucket. The variance floor is
+    treated as aleatoric (noise the policy cannot remove). The
+    deviation of the absolute error above the noise floor is treated
+    as epistemic (the part learning can drive down).
+
+    Both magnitudes are normalized to ``[0, 1]``. ``per_axis`` lists each
+    axis' (axis_name, aleatoric, epistemic) for fine-grained inspection.
+    Field ordering and typing are append-only stable for downstream
+    consumers.
+
+    This is a Phase 1 readout: it is **not** an acceptance gate input
+    and does not feed any RL reward. Phase 2.B uplift may replace the
+    running stats with a learned critic head; see
+    ``research/papers/core-author-paper-assessment-2026-05.md``.
+    """
+
+    aleatoric_magnitude: float
+    epistemic_magnitude: float
+    per_axis: tuple[tuple[str, float, float], ...]
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class PredictionErrorSnapshot:
     evaluated_prediction: PredictedOutcome | None
     actual_outcome: ActualOutcome
@@ -106,6 +135,7 @@ class PredictionErrorSnapshot:
     description: str
     action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
     memory_retrieval_facets: tuple[str, ...] = ()
+    pe_decomposition: PEDecomposition | None = None
 
     def __post_init__(self) -> None:
         if self.memory_retrieval_facets:
@@ -469,6 +499,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         *,
         wiring_level: WiringLevel | None = None,
         action_context: PredictionActionContext | None = None,
+        pe_critic_decay: float = 0.9,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._previous_prediction: PredictedOutcome | None = None
@@ -477,6 +508,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._turn_index = 0
         self._outcome_head = _PredictionErrorHead()
         self._action_context = action_context or PredictionActionContext()
+        # Phase 1.B: owner-internal Curiosity-Critic running-stats head.
+        # Decay is the EMA retention factor; pe_critic_decay = 0.9 means
+        # each new sample contributes 10% to the EMA mean / variance.
+        self._critic = _PECriticHead(decay=pe_critic_decay)
 
     def set_action_context(self, action_context: PredictionActionContext | None) -> None:
         """Set the current-turn action context without resetting prediction state."""
@@ -766,6 +801,15 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             )
         else:
             error = base_error
+        # Phase 1.B: owner-internal Curiosity-Critic readout. Bootstrap
+        # turns publish ``pe_decomposition=None`` so legacy consumers
+        # that ignore the field stay byte-for-byte compatible.
+        decomposition: PEDecomposition | None = None
+        if not bootstrap:
+            decomposition = self._critic.update(
+                error=error,
+                action_context=self._action_context,
+            )
         return PredictionErrorSnapshot(
             evaluated_prediction=evaluated_prediction,
             actual_outcome=actual_outcome,
@@ -778,6 +822,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 f"{error.description} Next prediction targets turn {next_prediction.target_turn_index}."
             ),
             action_context=self._action_context,
+            pe_decomposition=decomposition,
         )
 
 
@@ -1000,6 +1045,130 @@ def _substrate_delta(
         "directive_shift": directive_shift,
         "residual_shift": residual_shift,
     }
+
+
+_PE_AXES: tuple[str, ...] = ("task", "relationship", "regime", "action")
+
+
+@dataclass
+class _AxisRunningStats:
+    """EMA mean / variance for one (axis, bucket_key) cell.
+
+    Welford-style is overkill here; a simple EMA (``alpha`` = 1 - decay)
+    is enough to filter out short-window noise without retaining a full
+    history. Decay is supplied by the owner so it stays auditable and
+    is not hardcoded into the dataclass.
+    """
+
+    mean: float = 0.0
+    variance: float = 0.0
+    count: int = 0
+
+    def update(self, *, value: float, decay: float) -> None:
+        # alpha is the new-sample weight: alpha = 1 - decay. With
+        # decay = 0.9 each new sample contributes 10% to the EMA mean
+        # and the variance estimator follows the standard EMA form:
+        #   delta = value - prev_mean
+        #   new_mean = prev_mean + alpha * delta
+        #   new_variance = (1 - alpha) * (prev_variance + alpha * delta**2)
+        if self.count == 0:
+            self.mean = value
+            self.variance = 0.0
+            self.count = 1
+            return
+        alpha = max(0.0, min(1.0, 1.0 - decay))
+        delta = value - self.mean
+        self.mean = self.mean + alpha * delta
+        self.variance = (1.0 - alpha) * (self.variance + alpha * delta * delta)
+        self.count += 1
+
+
+class _PECriticHead:
+    """Owner-internal running-stats critic for PE decomposition.
+
+    Maintains per-axis EMA stats per ``bucket_key`` (regime_id, falling
+    back to segment_id, falling back to "default") and emits a
+    ``PEDecomposition`` summarizing aleatoric vs epistemic magnitudes.
+
+    The critic does *not* mutate ``PredictionError`` or any other
+    upstream snapshot. It is fully owner-internal and is reset only by
+    the owner. The decay rate is configurable via the module init.
+    """
+
+    def __init__(self, *, decay: float = 0.9) -> None:
+        self._decay = max(0.0, min(0.999, decay))
+        self._stats: dict[tuple[str, str], _AxisRunningStats] = {}
+
+    @property
+    def decay(self) -> float:
+        return self._decay
+
+    def reset(self) -> None:
+        self._stats.clear()
+
+    def _bucket_key(self, action_context: PredictionActionContext) -> str:
+        if action_context.regime_id:
+            return f"regime:{action_context.regime_id}"
+        if action_context.segment_id:
+            return f"segment:{action_context.segment_id}"
+        if action_context.abstract_action_id:
+            return f"action:{action_context.abstract_action_id}"
+        return "default"
+
+    def _axis_value(self, *, axis: str, error: PredictionError) -> float:
+        if axis == "task":
+            return abs(error.task_error)
+        if axis == "relationship":
+            return abs(error.relationship_error)
+        if axis == "regime":
+            return abs(error.regime_error)
+        if axis == "action":
+            return abs(error.action_error)
+        return 0.0
+
+    def update(
+        self,
+        *,
+        error: PredictionError,
+        action_context: PredictionActionContext,
+    ) -> PEDecomposition:
+        bucket = self._bucket_key(action_context)
+        per_axis: list[tuple[str, float, float]] = []
+        total_aleatoric = 0.0
+        total_epistemic = 0.0
+        for axis in _PE_AXES:
+            value = self._axis_value(axis=axis, error=error)
+            stats = self._stats.setdefault((axis, bucket), _AxisRunningStats())
+            stats.update(value=value, decay=self._decay)
+            # Aleatoric = sqrt(variance), bounded to [0, 1]. Variance is
+            # the EMA of squared deviation from EMA mean, so this is the
+            # noise floor that learning cannot remove on its own.
+            aleatoric = max(0.0, min(1.0, math.sqrt(max(stats.variance, 0.0))))
+            # Epistemic = the part of |error| that exceeds the noise
+            # floor; clamped to [0, 1]. With a stable mean and tight
+            # variance, repeat samples at the same level make epistemic
+            # decay toward zero (= the policy has compressed all signal
+            # available; remaining error is irreducible by learning).
+            epistemic = max(0.0, value - aleatoric)
+            epistemic = min(1.0, epistemic)
+            per_axis.append((axis, round(aleatoric, 4), round(epistemic, 4)))
+            total_aleatoric += aleatoric
+            total_epistemic += epistemic
+        per_axis_count = float(len(_PE_AXES))
+        aggregate_aleatoric = round(min(1.0, total_aleatoric / per_axis_count), 4)
+        aggregate_epistemic = round(min(1.0, total_epistemic / per_axis_count), 4)
+        description = (
+            f"pe_decomposition[bucket={bucket}; "
+            f"aleatoric={aggregate_aleatoric:.3f}; "
+            f"epistemic={aggregate_epistemic:.3f}; "
+            f"decay={self._decay:.2f}]"
+        )
+        return PEDecomposition(
+            aleatoric_magnitude=aggregate_aleatoric,
+            epistemic_magnitude=aggregate_epistemic,
+            per_axis=tuple(per_axis),
+            description=description,
+        )
 
 
 def _bootstrap_snapshot(*, turn_index: int) -> PredictionErrorSnapshot:

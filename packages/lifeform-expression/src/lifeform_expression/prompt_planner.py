@@ -143,6 +143,15 @@ class PromptPlanner:
     (R8 / SSOT).
     """
 
+    _REPAIR_ALPHA_MIN_CONFIDENCE: ClassVar[float] = 0.50
+
+    def __init__(self, *, repair_alpha_enabled: bool = False) -> None:
+        self._repair_alpha_enabled = bool(repair_alpha_enabled)
+
+    @property
+    def repair_alpha_enabled(self) -> bool:
+        return self._repair_alpha_enabled
+
     def plan(
         self,
         *,
@@ -218,6 +227,8 @@ class PromptPlanner:
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None,
     ) -> TurnIntent:
+        if self._repair_advisory_active(context):
+            return TurnIntent.REPAIR_FIRST
         # The kernel's ``expression_intent`` is the canonical decision (it
         # already considered regime + response_mode + temporal + semantic
         # control). Adopt it directly when it lands in our enum so the
@@ -285,6 +296,13 @@ class PromptPlanner:
             ]
         if intent is TurnIntent.DIRECT_ANSWER:
             return [SectionId.REGIME_FRAME, SectionId.NEXT_STEP]
+        if intent is TurnIntent.REPAIR_FIRST:
+            return [
+                SectionId.ACKNOWLEDGE_PRESSURE,
+                SectionId.REGIME_FRAME,
+                SectionId.OPEN_LOOP_HANDOFF,
+                SectionId.NEXT_STEP,
+            ]
 
         regime_id = (
             (assembly.regime_id if assembly is not None else None)
@@ -387,24 +405,13 @@ class PromptPlanner:
         return filtered, tuple(rationale)
 
     # ------------------------------------------------------------------
-    # Gap 9 slice 2c: continuous-feature interlocutor-state modulation
+    # Wave 2 SSOT cleanup: interlocutor-state modulation reads typed
+    # zone booleans published by the InterlocutorStateModule owner
+    # rather than re-applying numeric thresholds. The numeric
+    # thresholds live ONCE in ``volvence_zero.interlocutor.contracts``
+    # (``InterlocutorThresholds``) and the zone classification is
+    # done ONCE in ``compute_zones``.
     # ------------------------------------------------------------------
-    # All thresholds below are calibrated against the InterlocutorState
-    # axis ranges (``[0, 1]`` for most, ``[-1, 1]`` for ``trust_signal``).
-    # These are NOT keyword thresholds \u2014 they're continuous-feature
-    # cut-offs analogous to the participation_hint thresholds in
-    # ``hint_readout``. The lattice is intentionally conservative
-    # (only act on clearly-non-neutral readouts) so cold-start and
-    # near-neutral states stay backwards-compatible with the
-    # pre-slice-2c planner output.
-    _IL_MIN_CONFIDENCE: ClassVar[float] = 0.30
-    _IL_EMOTIONAL_HIGH: ClassVar[float] = 0.55
-    _IL_RESISTANCE_HIGH: ClassVar[float] = 0.50
-    _IL_RAPPORT_LOW: ClassVar[float] = 0.40
-    _IL_PACE_HIGH: ClassVar[float] = 0.65
-    _IL_DIRECTNESS_LOW: ClassVar[float] = 0.40
-    _IL_TRUST_NEGATIVE: ClassVar[float] = -0.10
-    _IL_ENGAGEMENT_FLOOR: ClassVar[float] = 0.30
 
     def _apply_interlocutor_state(
         self,
@@ -412,7 +419,7 @@ class PromptPlanner:
         sections: list[SectionId],
         interlocutor_state: InterlocutorState | None,
     ) -> tuple[list[SectionId], tuple[str, ...]]:
-        """Modulate sections based on the 12-axis interlocutor readout.
+        """Modulate sections based on the typed zones in the readout.
 
         Returns ``(possibly_modified_sections, rationale_tags)``.
         Conservative behaviour:
@@ -422,46 +429,54 @@ class PromptPlanner:
         - refuses to ship an empty plan: if the drop set would
           empty the section list, the original list is restored
           and the rationale records the over-application;
-        - reads ``readout_confidence`` first \u2014 cold-start sessions
-          (no turn has produced kernel snapshots yet) get the
-          historical no-modulation behaviour.
+        - cold-start (low confidence) sessions get all-False zones
+          and produce a no-op; the historical readout_confidence
+          gate is implicit in :func:`compute_zones`.
 
-        Each decision rule is keyed to a single InterlocutorState
-        axis, so future calibration is "tune one threshold". No
-        rule reads user text or assembly text \u2014 the input is
-        purely the typed readout.
+        Reads zone bools (``acknowledge_pressure_zone`` etc.); the
+        underlying numeric thresholds are owned by the snapshot
+        producer and are NOT re-applied here.
         """
-        if (
-            interlocutor_state is None
-            or interlocutor_state.readout_confidence < self._IL_MIN_CONFIDENCE
-        ):
+        if interlocutor_state is None:
             return sections, ()
         s = interlocutor_state
+        # When confidence is below the floor, ``compute_zones`` has
+        # set every zone to ``False``. Short-circuit to avoid emitting
+        # a confidence rationale entry when no zone fired.
+        if not (
+            s.acknowledge_pressure_zone
+            or s.cold_rapport_zone
+            or s.emotional_high_zone
+            or s.low_directness_zone
+            or s.pace_pressure_zone
+        ):
+            return sections, ()
         rationale: list[str] = []
         add: list[SectionId] = []
         drop: set[SectionId] = set()
 
-        # Acknowledge pressure: any of (emotional weight high,
-        # resistance high, trust dropped) merits an explicit
-        # "I hear you" section at the front. We only ADD if the
-        # section is not already there.
-        ack_reasons: list[str] = []
-        if s.emotional_weight >= self._IL_EMOTIONAL_HIGH:
-            ack_reasons.append(f"emo={s.emotional_weight:.2f}")
-        if s.resistance_level >= self._IL_RESISTANCE_HIGH:
-            ack_reasons.append(f"res={s.resistance_level:.2f}")
-        if s.trust_signal <= self._IL_TRUST_NEGATIVE:
-            ack_reasons.append(f"trust={s.trust_signal:+.2f}")
-        if ack_reasons and SectionId.ACKNOWLEDGE_PRESSURE not in sections:
-            add.append(SectionId.ACKNOWLEDGE_PRESSURE)
-            rationale.append("il_add=acknowledge_pressure(" + ",".join(ack_reasons) + ")")
+        # Acknowledge pressure: composite zone fires when any of
+        # (emotional weight high, resistance high, trust negative)
+        # is true. Components are exposed individually for the
+        # rationale tag so operators can see WHY it fired.
+        if s.acknowledge_pressure_zone:
+            ack_reasons: list[str] = []
+            if s.emotional_high_zone:
+                ack_reasons.append(f"emo={s.emotional_weight:.2f}")
+            if s.resistance_high_zone:
+                ack_reasons.append(f"res={s.resistance_level:.2f}")
+            if s.trust_negative_zone:
+                ack_reasons.append(f"trust={s.trust_signal:+.2f}")
+            if ack_reasons and SectionId.ACKNOWLEDGE_PRESSURE not in sections:
+                add.append(SectionId.ACKNOWLEDGE_PRESSURE)
+                rationale.append(
+                    "il_add=acknowledge_pressure(" + ",".join(ack_reasons) + ")"
+                )
 
-        # Continuity note: cold rapport + non-zero engagement.
-        # If the user is cold AND disengaged, leave them alone
-        # (don't force-warm an exit).
+        # Continuity note: cold rapport + engaged. Cold + disengaged
+        # is intentionally a no-op (don't force-warm an exit).
         if (
-            s.rapport_warmth <= self._IL_RAPPORT_LOW
-            and s.engagement_intensity >= self._IL_ENGAGEMENT_FLOOR
+            s.cold_rapport_zone
             and SectionId.CONTINUITY_NOTE not in sections
         ):
             add.append(SectionId.CONTINUITY_NOTE)
@@ -471,13 +486,7 @@ class PromptPlanner:
             )
 
         # Drop probing / clarifying when emotional or indirect.
-        # Same rule fires twice intentionally: emotional users
-        # don't want to be quizzed; indirect users don't want
-        # literal probes either.
-        if (
-            s.emotional_weight >= self._IL_EMOTIONAL_HIGH
-            or s.directness <= self._IL_DIRECTNESS_LOW
-        ):
+        if s.emotional_high_zone or s.low_directness_zone:
             drop.add(SectionId.CLARIFICATION)
             rationale.append(
                 f"il_drop=clarification(emo={s.emotional_weight:.2f},"
@@ -485,7 +494,7 @@ class PromptPlanner:
             )
 
         # High pace pressure trims meta sections that slow the turn.
-        if s.pace_pressure >= self._IL_PACE_HIGH:
+        if s.pace_pressure_zone:
             drop.update({SectionId.REFLECTION_HOOK, SectionId.OPEN_LOOP_HANDOFF})
             rationale.append(f"il_drop=meta(pace={s.pace_pressure:.2f})")
 
@@ -501,8 +510,6 @@ class PromptPlanner:
         new_sections = [section for section in new_sections if section not in drop]
 
         if not new_sections:
-            # Refuse to ship an empty plan; drop our modulation
-            # entirely and record over-application.
             return sections, (
                 "il_overapplied_skipped:" + ";".join(rationale),
             )
@@ -533,6 +540,8 @@ class PromptPlanner:
         assembly: ResponseAssemblySnapshot | None,
         interlocutor_state: InterlocutorState | None = None,
     ) -> int:
+        if intent is TurnIntent.REPAIR_FIRST:
+            return 0
         if assembly is not None:
             sp = assembly.speech_plan
             if sp is not None and isinstance(sp.question_budget, int):
@@ -546,19 +555,14 @@ class PromptPlanner:
 
         # Interlocutor-state cap: we never RAISE the kernel's budget;
         # we only LOWER it when the readout says questions would be
-        # mis-timed. This keeps the kernel as the upper bound and
-        # the planner as a downstream tone moderator (R8: the
-        # kernel still owns the speech_plan; the planner is a
-        # consumer).
-        if (
-            interlocutor_state is not None
-            and interlocutor_state.readout_confidence >= self._IL_MIN_CONFIDENCE
-        ):
+        # mis-timed. Reads typed zone bools (W2 SSOT), not raw
+        # numeric thresholds.
+        if interlocutor_state is not None:
             s = interlocutor_state
             if (
-                s.emotional_weight >= self._IL_EMOTIONAL_HIGH
-                or s.pace_pressure >= self._IL_PACE_HIGH
-                or s.directness <= self._IL_DIRECTNESS_LOW
+                s.emotional_high_zone
+                or s.pace_pressure_zone
+                or s.low_directness_zone
             ):
                 base = 0
         return base
@@ -586,6 +590,10 @@ class PromptPlanner:
             tags.append("regime_switched")
         if context.temporal_is_switching:
             tags.append("temporal_switching")
+        repair_advisory = context.repair_advisory
+        if self._repair_advisory_active(context) and repair_advisory is not None:
+            tags.append(f"repair_alpha={repair_advisory.rupture_kind}")
+            tags.append(f"repair_confidence={repair_advisory.confidence:.2f}")
         if assembly is not None and assembly.knowledge_hit_count:
             tags.append(f"knowledge_hits={assembly.knowledge_hit_count}")
         if assembly is not None and assembly.case_hit_count:
@@ -611,9 +619,15 @@ class PromptPlanner:
         # Gap 9 slice 2c: surface the interlocutor-state confidence
         # and rationale so operators can see when / why the planner
         # added or dropped sections in response to user-state.
-        if (
-            interlocutor_state is not None
-            and interlocutor_state.readout_confidence >= self._IL_MIN_CONFIDENCE
+        # Confidence floor is enforced inside ``compute_zones``; here
+        # we surface the tag only when at least one zone fired (i.e.
+        # we actually modulated something).
+        if interlocutor_state is not None and (
+            interlocutor_state.acknowledge_pressure_zone
+            or interlocutor_state.cold_rapport_zone
+            or interlocutor_state.emotional_high_zone
+            or interlocutor_state.low_directness_zone
+            or interlocutor_state.pace_pressure_zone
         ):
             tags.append(
                 f"interlocutor_conf={interlocutor_state.readout_confidence:.2f}"
@@ -621,3 +635,11 @@ class PromptPlanner:
             for rationale in il_rationale:
                 tags.append(rationale)
         return tuple(tags)
+
+    def _repair_advisory_active(self, context: ResponseContext) -> bool:
+        advisory = context.repair_advisory
+        return (
+            self._repair_alpha_enabled
+            and advisory is not None
+            and advisory.confidence >= self._REPAIR_ALPHA_MIN_CONFIDENCE
+        )

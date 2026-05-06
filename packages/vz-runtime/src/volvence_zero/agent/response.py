@@ -8,10 +8,40 @@ from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLO
 
 @dataclass(frozen=True)
 class AgentResponse:
+    """Final per-turn expression artefact.
+
+    ``rationale_tags`` is the structured (typed) audit surface for the
+    response. Each entry is a stable ``"key=value"`` token (or a bare
+    flag like ``"reflection_writeback=applied"``). Consumers that need
+    to gate behaviour on what shaped a turn must read this tuple
+    rather than substring-match the ``rationale`` string. See
+    ``docs/specs/expression-layer.md``.
+
+    The ``rationale`` string remains the human-readable summary and
+    will continue to embed the same tokens for log readability, but
+    its exact phrasing is **not** a contract.
+    """
+
     text: str
     regime_id: str | None
     abstract_action: str | None
     rationale: str
+    rationale_tags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class RepairExpressionAdvisory:
+    """One-turn expression advisory derived from ``rupture_state``.
+
+    This is not a new rupture owner. Runtime builds it from the owner
+    snapshot after propagation so expression can adjust wording without
+    reading SHADOW snapshots or re-interpreting rupture evidence.
+    """
+
+    rupture_kind: str
+    confidence: float
+    signal_strength: float
+    description: str
 
 
 @dataclass(frozen=True)
@@ -34,6 +64,7 @@ class ResponseContext:
     addressee_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
     subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
     audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
+    repair_advisory: RepairExpressionAdvisory | None = None
 
 
 @dataclass(frozen=True)
@@ -108,30 +139,11 @@ class ResponseSynthesizer:
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
-        lesson_hint_map = {
-            "promote_high_signal_memories": "I want to keep hold of the strongest signals rather than restart from scratch.",
-            "reinforce_recent_high_credit_beliefs": "I want to lean on the parts of the interaction that have already proven stable.",
-            "adjust_track_priority_from_session_feedback": "I want to rebalance between the task and the relationship instead of over-favoring one side.",
-            "rebalance_temporal_prior_toward_memory": "I want to use continuity and recalled context more strongly in how I respond.",
-            "rebalance_temporal_prior_toward_reflection": "I want the slower reflective layer to shape this reply more directly.",
-            "rebalance_temporal_prior_toward_residual": "I want to stay closer to the immediate task signal while keeping the frame coherent.",
-            "increase_controller_persistence_for_continuity": "I want to keep the same internal frame steady for longer instead of jumping too quickly.",
-            "reduce_controller_persistence_for_faster_recovery": "I want to stay flexible enough to recover if the current frame is not the right one.",
-            "allow_controller_switch_when_context_shifts": "I am allowing myself to change internal stance because the context has shifted.",
-            "hold_controller_before_switching": "I want to hold the current stance a bit longer before I switch tracks.",
-            "respect_metacontroller_runtime_guard": "I am keeping the response conservative because an internal guard was triggered.",
-            "keep_controller_guard_signal_in_background": "I am keeping a background check on the controller while still moving forward.",
-            "review_tension_before_auto_writeback": "I do not want to smooth over the remaining tension too quickly.",
-        }
-        tension_hint_map = {
-            "cross_track_tension_high": "There is a strong mismatch between task pressure and relational stability right now.",
-            "cross_track_alignment_drift": "I can feel some drift between the task frame and the relational frame.",
-            "self_track_pressure_dominant": "The relational or emotional side currently needs more weight than the task side.",
-            "world_track_pressure_dominant": "The task side is currently pressing harder than the relational side.",
-            "relationship_stability_soft_drop": "I do not want to assume continuity is fully stable yet.",
-            "warmth_signal_thin": "I want to add more warmth instead of sounding mechanically efficient.",
-            "task_signal_diffuse": "The task signal is still a bit diffuse, so I should narrow it carefully.",
-        }
+        # Per-lesson and per-tension UX text now lives in the lifeform
+        # layer (``lifeform_expression.reflection_hints``) so the
+        # kernel does not own how reflection ids sound to the user.
+        # The kernel still surfaces *that* a lesson / tension exists
+        # (counts + flags below); only the rendered prose moved.
 
         transition_hint = ""
         if context.temporal_is_switching or context.temporal_switch_gate >= 0.65:
@@ -198,11 +210,15 @@ class ResponseSynthesizer:
 
         tension_hint = ""
         if context.primary_reflection_tension is not None:
-            tension_hint = f" {tension_hint_map.get(context.primary_reflection_tension, 'I want to keep an eye on the tensions that are still open rather than collapsing too quickly.')}"
+            tension_hint = (
+                " I want to keep the open tensions in view rather than smoothing past them."
+            )
 
         lesson_hint = ""
         if context.primary_reflection_lesson is not None:
-            lesson_hint = f" {lesson_hint_map.get(context.primary_reflection_lesson, 'I am letting the slower reflective layer shape the reply rather than treating it as a no-op.')}"
+            lesson_hint = (
+                " I am letting the slower reflective layer shape this reply."
+            )
 
         response_mode = assembly.response_mode.value if assembly is not None else None
         effective_regime_id = assembly.regime_id if assembly is not None else context.regime_id
@@ -221,6 +237,7 @@ class ResponseSynthesizer:
                 regime_id=effective_regime_id,
                 abstract_action=effective_abstract_action,
                 rationale=f"Synthesized from {effective_regime_name}; {rationale}.",
+                rationale_tags=tuple(rationale_parts),
             )
 
         # Other structured intents — render directly from the speech plan so
@@ -256,6 +273,7 @@ class ResponseSynthesizer:
                     regime_id=effective_regime_id,
                     abstract_action=effective_abstract_action,
                     rationale=f"Synthesized from {effective_regime_name}; {rationale}.",
+                    rationale_tags=tuple(rationale_parts),
                 )
         if response_mode == ResponseMode.REFER_OUT.value:
             text = (
@@ -344,6 +362,7 @@ class ResponseSynthesizer:
             regime_id=effective_regime_id,
             abstract_action=effective_abstract_action,
             rationale=f"Synthesized from {effective_regime_name}; {rationale}.",
+            rationale_tags=tuple(rationale_parts),
         )
 
 
@@ -476,4 +495,5 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             regime_id=assembly.regime_id if assembly is not None else context.regime_id,
             abstract_action=assembly.abstract_action if assembly is not None else context.abstract_action,
             rationale=f"LLM generated; {', '.join(rationale_parts)}.",
+            rationale_tags=tuple(rationale_parts),
         )

@@ -9,6 +9,7 @@ from volvence_zero.credit.gate import (
     NStepAttributionEntry,
     SelfModificationRecord,
     derive_abstract_action_credit_records,
+    derive_counterfactual_contribution_records,
     derive_credit_records,
     derive_credit_records_from_prediction_error_first,
     derive_prediction_error_credit_records,
@@ -22,6 +23,7 @@ from volvence_zero.credit.gate import (
     evaluate_gate_reasons,
     extract_abstract_action_credit_bonus,
     has_blocking_writeback,
+    record_nstep_outcomes_from_segment_closure,
 )
 
 __all__ = [
@@ -35,6 +37,7 @@ __all__ = [
     "NStepAttributionEntry",
     "SelfModificationRecord",
     "derive_abstract_action_credit_records",
+    "derive_counterfactual_contribution_records",
     "derive_credit_records",
     "derive_credit_records_from_prediction_error_first",
     "derive_prediction_error_credit_records",
@@ -48,4 +51,5 @@ __all__ = [
     "evaluate_gate_reasons",
     "extract_abstract_action_credit_bonus",
     "has_blocking_writeback",
+    "record_nstep_outcomes_from_segment_closure",
 ]

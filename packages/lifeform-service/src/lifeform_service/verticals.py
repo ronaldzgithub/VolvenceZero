@@ -29,17 +29,22 @@ even with vertical-only optional deps.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform
 
 if TYPE_CHECKING:
+    from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
 
 VerticalFactory = Callable[["OpenWeightResidualRuntime | None"], Lifeform]
+AlphaVerticalFactory = Callable[
+    ["OpenWeightResidualRuntime | None", "IdentityProvider", str | None],
+    Lifeform,
+]
 
 
 @dataclass(frozen=True)
@@ -50,6 +55,7 @@ class VerticalSpec:
     has_regime_bootstrap: bool
     bootstraps_dir: str | None = None
     scenarios_dir: str | None = None
+    alpha_factory: AlphaVerticalFactory | None = None
 
 
 def _try_companion() -> VerticalSpec | None:
@@ -63,6 +69,24 @@ def _try_companion() -> VerticalSpec | None:
         return None
     bdir = bootstraps_dir()
     sdir = scenarios_dir()
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        synthesizer = GroundedResponseSynthesizer(
+            planner=PromptPlanner(repair_alpha_enabled=True)
+        )
+        return build_companion_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=synthesizer,
+        )
+
     return VerticalSpec(
         name="companion",
         factory=lambda runtime: build_companion_lifeform(substrate_runtime=runtime),
@@ -70,6 +94,7 @@ def _try_companion() -> VerticalSpec | None:
         has_regime_bootstrap=(bdir / "companion-regime.bs").is_file(),
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
         scenarios_dir=str(sdir) if sdir.is_dir() else None,
+        alpha_factory=alpha_factory,
     )
 
 
@@ -83,6 +108,26 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         from lifeform_domain_emogpt import build_companion_lifeform
     except ImportError:
         return None
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        synthesizer = GroundedResponseSynthesizer(
+            planner=PromptPlanner(repair_alpha_enabled=True)
+        )
+        return build_companion_lifeform(
+            config=config,
+            use_temporal_bootstrap=False,
+            use_regime_bootstrap=False,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=synthesizer,
+        )
+
     return VerticalSpec(
         name="companion-cold",
         factory=lambda runtime: build_companion_lifeform(
@@ -92,6 +137,7 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         ),
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
     )
 
 

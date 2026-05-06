@@ -24,6 +24,12 @@ from lifeform_expression.prompt_planner import (
     SectionId,
     TurnIntent,
 )
+from lifeform_expression.reflection_hints import (
+    lesson_hint_map,
+    reflection_lesson_hint,
+    reflection_tension_hint,
+    tension_hint_map,
+)
 from lifeform_expression.response_synthesizer import GroundedResponseSynthesizer
 
 __all__ = (
@@ -36,4 +42,8 @@ __all__ = (
     "SectionId",
     "SpeakVerdict",
     "TurnIntent",
+    "lesson_hint_map",
+    "reflection_lesson_hint",
+    "reflection_tension_hint",
+    "tension_hint_map",
 )

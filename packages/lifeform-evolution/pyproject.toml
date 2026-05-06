@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
+    "vz-memory==0.1.*",
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
     "lifeform-expression==0.1.*",
@@ -24,6 +25,8 @@ lifeform-loop       = "lifeform_evolution.cli:main_loop"
 lifeform-multi-loop = "lifeform_evolution.cli:main_multi_loop"
 lifeform-calibrate  = "lifeform_evolution.cli:main_calibrate"
 lifeform-super-loop = "lifeform_evolution.cli:main_super_loop"
+lifeform-repair-alpha-gate = "lifeform_evolution.cli:main_repair_alpha_gate"
+lifeform-alpha-preflight = "lifeform_evolution.cli:main_alpha_preflight"
 
 [tool.setuptools.packages.find]
 where = ["src"]

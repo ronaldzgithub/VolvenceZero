@@ -60,6 +60,66 @@ class CMSBandMLP:
         lr_scale: float = 1.0,
         momentum_gate: float = 1.0,
     ) -> None:
+        self._apply_single_target_update(
+            target=target,
+            lr_scale=lr_scale,
+            momentum_gate=momentum_gate,
+        )
+
+    def update_with_replay(
+        self,
+        *,
+        targets: tuple[tuple[float, ...], ...],
+        weights: tuple[float, ...],
+        lr_scale: float = 1.0,
+        momentum_gate: float = 1.0,
+    ) -> None:
+        """ATLAS-style joint optimization step over a replay window.
+
+        The joint loss
+
+            L = sum_k w_k * || y(x) - t_k ||^2
+
+        has gradient ``2 * (y - sum_k w_k * t_k)`` whenever the weights are
+        normalized to sum to 1, which is identical (up to the constant 2 that
+        is absorbed into the learning rate) to the single-target gradient on
+        the weighted-average target. We therefore run **one** SGD step on
+        the weighted-average target. This keeps ``update_with_replay`` with
+        a single normalized target bit-equal to the legacy ``update``
+        method, which the SHADOW vs ACTIVE protocol relies on.
+
+        See ``docs/specs/cms-atlas-titans-uplift.md`` §3.
+        """
+        if not targets:
+            return
+        if len(targets) != len(weights):
+            raise ValueError(
+                f"replay targets length {len(targets)} != weights length {len(weights)}"
+            )
+        d_in = self._d_in
+        weight_total = sum(max(0.0, weight) for weight in weights)
+        if weight_total <= 1e-9:
+            return
+        averaged = [0.0] * d_in
+        for target, weight in zip(targets, weights, strict=True):
+            normalized_weight = max(0.0, weight) / weight_total
+            if normalized_weight <= 0.0:
+                continue
+            for i in range(d_in):
+                averaged[i] += normalized_weight * target[i]
+        self._apply_single_target_update(
+            target=tuple(averaged),
+            lr_scale=lr_scale,
+            momentum_gate=momentum_gate,
+        )
+
+    def _apply_single_target_update(
+        self,
+        *,
+        target: tuple[float, ...],
+        lr_scale: float,
+        momentum_gate: float,
+    ) -> None:
         x = self._state
         d_in = self._d_in
         d_hidden = self._d_hidden

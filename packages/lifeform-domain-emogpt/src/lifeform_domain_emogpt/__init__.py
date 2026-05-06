@@ -146,6 +146,7 @@ def build_companion_lifeform(
     semantic_proposal_runtime: Any = None,
     memory_store: Any = None,
     response_synthesizer: Any = None,
+    identity_provider: Any = None,
 ) -> Any:
     """Build a Lifeform with the companion vertical fully wired in.
 
@@ -230,6 +231,7 @@ def build_companion_lifeform(
         response_synthesizer=response_synthesizer,
         semantic_proposal_runtime=semantic_proposal_runtime,
         memory_store=memory_store,
+        identity_provider=identity_provider,
     )
 
 

@@ -61,7 +61,9 @@ except (AttributeError, OSError):
 # Public wheel imports only. Same discipline as the coding demo.
 # ---------------------------------------------------------------------------
 
+from lifeform_core import DialogueExternalOutcomeKind
 from lifeform_domain_emogpt import build_companion_lifeform
+from lifeform_expression import GroundedResponseSynthesizer, PromptPlanner
 from lifeform_ingestion import (
     IngestionPipeline,
     envelope_from_text,
@@ -116,6 +118,7 @@ class TurnRecord:
 class CompanionAudit:
     """Lightweight counters + history for the summary phase."""
 
+    repair_alpha_enabled: bool = True
     ingestion_turns: int = 0
     natural_turns: int = 0
     trajectory: list[TurnRecord] = field(default_factory=list)
@@ -126,6 +129,10 @@ class CompanionAudit:
     case_memory_promoted: int = 0
     case_memory_retired: int = 0
     case_memory_expired: int = 0
+    external_outcomes_submitted: int = 0
+    ruptures_observed: int = 0
+    repair_alpha_response: str = ""
+    repair_alpha_rationale: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +243,22 @@ def _print_observed_owners(session: Any, *, audit: CompanionAudit) -> None:
             f"relationship_state: stage={stage!s} trust_level={trust!s}"
         )
 
+    rupture_snap = session.latest_shadow_snapshots.get("rupture_state")
+    if rupture_snap is not None:
+        rupture = rupture_snap.value
+        rupture_kind = rupture.rupture_kind
+        kind_text = rupture_kind.value if rupture_kind is not None else "<none>"
+        sources = ",".join(source.value for source in rupture.evidence_sources)
+        if rupture_kind is not None:
+            audit.ruptures_observed += 1
+        _print_bullet(
+            "rupture_state[shadow]: "
+            f"kind={kind_text} confidence={rupture.confidence:.2f} "
+            f"signal={rupture.rupture_signal_strength:.2f} "
+            f"internal_only={rupture.internal_suspected_only} "
+            f"sources={sources or '<none>'}"
+        )
+
 
 def _print_interlocutor_snapshot(session: Any, *, tag: str) -> None:
     state = session.interlocutor_state
@@ -296,13 +319,26 @@ def _print_trajectory_table(audit: CompanionAudit) -> None:
 
 async def _phase_setup(audit: CompanionAudit) -> Any:
     _print_header("Phase 1: setup")
-    lifeform = build_companion_lifeform().with_thinking_adapter_factory(
+    repair_alpha_synthesizer = GroundedResponseSynthesizer(
+        planner=PromptPlanner(repair_alpha_enabled=audit.repair_alpha_enabled)
+    )
+    lifeform = build_companion_lifeform(
+        response_synthesizer=repair_alpha_synthesizer
+    ).with_thinking_adapter_factory(
         lambda: build_default_thinking_adapter(
             wiring_level=ThinkingWiringLevel.SHADOW,
         ),
     )
     session = lifeform.create_session(session_id="companionship-demo")
     _print_section("vertical", "lifeform_domain_emogpt (companion)")
+    _print_section(
+        "repair_alpha",
+        (
+            "enabled for internal scripted demo"
+            if audit.repair_alpha_enabled
+            else "disabled matched control"
+        ),
+    )
     _print_section(
         "thinking", f"wiring={session.thinking_adapter_snapshot.wiring_level.value}"
     )
@@ -332,8 +368,8 @@ async def _phase_ingest_background(session: Any, audit: CompanionAudit) -> None:
         f"skipped={report.skipped_chunks}",
     )
     _print_bullet(
-        f"each chunk ran as a TurnTriggerKind.INGESTION turn; vitals "
-        f"override engaged + restored per turn (Gap 2 \u2194 Gap 3 cross)."
+        "each chunk ran as a TurnTriggerKind.INGESTION turn; vitals "
+        "override engaged + restored per turn (Gap 2 \u2194 Gap 3 cross)."
     )
     audit.trajectory.append(_snapshot_to_record("after-ingest", session))
 
@@ -383,18 +419,38 @@ async def _phase_rupture(session: Any, audit: CompanionAudit) -> None:
     audit.natural_turns += 1
     _print_interlocutor_snapshot(session, tag="interlocutor")
     _print_observed_owners(session, audit=audit)
+    evidence = session.submit_dialogue_outcome(
+        kind=DialogueExternalOutcomeKind.OVER_DIRECTIVE,
+        confidence=0.95,
+        turn_index=audit.natural_turns,
+        evidence_ref="demo:turn-4:user-explicit-rupture",
+        description=(
+            "Scripted user explicitly reports being optimized/workshopped "
+            "rather than heard."
+        ),
+    )
+    audit.external_outcomes_submitted += 1
+    _print_section(
+        "external_outcome",
+        f"submitted={evidence.kind.value} confidence={evidence.confidence:.2f} "
+        "(will be consumed on the next kernel turn)",
+    )
     audit.trajectory.append(_snapshot_to_record("turn-4-rupture", session))
 
 
 async def _phase_repair(session: Any, audit: CompanionAudit) -> None:
     _print_header("Phase 7: turn 5 \u2014 attempted repair")
-    await session.run_turn(
+    result = await session.run_turn(
         "OK. Sorry. Can we just back up. I don't even need an answer right "
         "now \u2014 I just needed to say it out loud."
     )
     audit.natural_turns += 1
+    audit.repair_alpha_response = result.response.text
+    audit.repair_alpha_rationale = result.response.rationale
     _print_interlocutor_snapshot(session, tag="interlocutor")
     _print_observed_owners(session, audit=audit)
+    _print_section("assistant_repair", result.response.text)
+    _print_section("repair_rationale", result.response.rationale)
     audit.trajectory.append(_snapshot_to_record("turn-5-repair", session))
 
 
@@ -479,6 +535,21 @@ def _phase_summary(audit: CompanionAudit) -> None:
         f"retired={audit.case_memory_retired} "
         f"expired={audit.case_memory_expired}",
     )
+    _print_section(
+        "rupture",
+        f"external_outcomes_submitted={audit.external_outcomes_submitted} "
+        f"shadow_ruptures_observed={audit.ruptures_observed}",
+    )
+    _print_section(
+        "repair_alpha",
+        (
+            "enabled/observed"
+            if audit.repair_alpha_enabled and audit.repair_alpha_response
+            else "enabled/not-observed"
+            if audit.repair_alpha_enabled
+            else "disabled-control"
+        ),
+    )
     print()
     print("  InterlocutorState trajectory (eng/focus/rapp/res/open/trust/conf):")
     _print_trajectory_table(audit)
@@ -500,9 +571,9 @@ def _phase_summary(audit: CompanionAudit) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def main() -> CompanionAudit:
+async def main(*, repair_alpha_enabled: bool = True) -> CompanionAudit:
     """Run the companion demo end-to-end and return the audit struct."""
-    audit = CompanionAudit()
+    audit = CompanionAudit(repair_alpha_enabled=repair_alpha_enabled)
     session = await _phase_setup(audit)
     await _phase_ingest_background(session, audit)
     await _phase_first_contact(session, audit)

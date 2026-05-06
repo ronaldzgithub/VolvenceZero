@@ -93,6 +93,33 @@ class RetrievalResult:
 
 
 @dataclass(frozen=True)
+class MemoryAttributeReadout:
+    """Phase 1.C: PE + substrate-derived attribute pinned to a memory entry.
+
+    Owner-internal readout that captures *why* an entry was written and
+    what runtime state the substrate was in at write time. Published
+    via ``MemorySnapshot.attribute_summary`` (recent entries only) and
+    intentionally **not** merged onto ``MemoryEntry`` itself: keeping
+    ``MemoryEntry`` schema stable means checkpoint / persistence / many
+    tests stay byte-for-byte compatible while we still have a place to
+    publish PE-driven attributes for inspection and downstream learning.
+
+    Replaces what an A-Mem-style external LLM curator would otherwise
+    produce; here every field is sourced from already-published owner
+    state (PE owner + substrate owner), so no second curator exists.
+    """
+
+    entry_id: str
+    pe_intensity: float
+    pe_primary_axis: str
+    regime_id: str
+    substrate_feature_digest: tuple[float, ...]
+    epistemic_magnitude: float
+    aleatoric_magnitude: float
+    timestamp_ms: int
+
+
+@dataclass(frozen=True)
 class MemorySnapshot:
     transient_summary: str
     episodic_summary: str
@@ -108,6 +135,10 @@ class MemorySnapshot:
     suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()
     active_subject_scope: tuple[str, ...] = ()
     social_pe_signals: tuple[MemorySocialPESignal, ...] = ()
+    # Phase 1.C: optional attribute readout summary (most recent N
+    # entries), populated by MemoryStore. Default empty tuple keeps
+    # legacy consumers unaffected.
+    attribute_summary: tuple[MemoryAttributeReadout, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -201,6 +232,7 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                     last_reset_mix=float(update_rule_raw.get("last_reset_mix", 0.0)),
                     last_confidence=float(update_rule_raw.get("last_confidence", 0.0)),
                     description=str(update_rule_raw.get("description", "")),
+                    feature_version=int(update_rule_raw.get("feature_version", 1)),
                 )
             hope_raw = cms_raw.get("hope_self_modification_state")
             hope_state = None
@@ -247,6 +279,12 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
                 ),
                 update_rule_state=update_rule_state,
                 hope_self_modification_state=hope_state,
+                atlas_replay_active=bool(cms_raw.get("atlas_replay_active", False)),
+                titans_pe_gate_active=bool(cms_raw.get("titans_pe_gate_active", False)),
+                replay_window_sizes=tuple(
+                    (str(item[0]), int(item[1]))
+                    for item in cms_raw.get("replay_window_sizes", ())
+                ),
             )
         semantic_raw = parsed.get("semantic_index", [])
         semantic_index = tuple(

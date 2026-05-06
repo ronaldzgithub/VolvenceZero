@@ -41,6 +41,10 @@ from lifeform_expression.prompt_planner import (
     SectionId,
     TurnIntent,
 )
+from lifeform_expression.reflection_hints import (
+    reflection_lesson_hint,
+    reflection_tension_hint,
+)
 
 
 VitalsSnapshotProvider = Callable[[], VitalsSnapshot | None]
@@ -145,12 +149,14 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             base = super().synthesize(context=context, assembly=assembly)
             return _attach_plan_rationale(base, plan)
 
+        section_tags: list[str] = []
         text = self._render(
             context=context,
             assembly=assembly,
             plan=plan,
             vitals=vitals,
             interlocutor_state=interlocutor_state,
+            section_tags=section_tags,
         )
         if not text.strip():
             base = super().synthesize(context=context, assembly=assembly)
@@ -159,7 +165,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         regime_id = assembly.regime_id if assembly is not None else context.regime_id
         regime_name = assembly.regime_name if assembly is not None else context.regime_name
         abstract_action = assembly.abstract_action if assembly is not None else context.abstract_action
-        rationale = _build_rationale(
+        rationale, rationale_parts = _build_rationale(
             regime_name=regime_name,
             regime_id=regime_id,
             abstract_action=abstract_action,
@@ -168,11 +174,18 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             plan=plan,
             vitals=vitals,
         )
+        merged_tags = _merge_rationale_tags(
+            base_tags=(),
+            plan=plan,
+            extra_parts=tuple(rationale_parts),
+            section_tags=tuple(section_tags),
+        )
         return AgentResponse(
             text=text,
             regime_id=regime_id,
             abstract_action=abstract_action,
             rationale=rationale,
+            rationale_tags=merged_tags,
         )
 
     def _read_vitals_snapshot(self) -> VitalsSnapshot | None:
@@ -206,6 +219,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         plan: PromptPlan,
         vitals: VitalsSnapshot | None = None,
         interlocutor_state: InterlocutorState | None = None,
+        section_tags: list[str] | None = None,
     ) -> str:
         sentences: list[str] = []
         for section in plan.sections:
@@ -216,6 +230,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 plan=plan,
                 vitals=vitals,
                 interlocutor_state=interlocutor_state,
+                section_tags=section_tags,
             )
             if rendered:
                 sentences.append(rendered)
@@ -230,29 +245,50 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         plan: PromptPlan,
         vitals: VitalsSnapshot | None = None,
         interlocutor_state: InterlocutorState | None = None,
+        section_tags: list[str] | None = None,
     ) -> str:
+        repair_alpha_active = _plan_uses_repair_alpha(plan)
         if section is SectionId.ACKNOWLEDGE_PRESSURE:
-            return self._render_acknowledge(
+            text, variant = self._render_acknowledge(
                 context=context,
                 assembly=assembly,
+                repair_alpha_active=repair_alpha_active,
                 interlocutor_state=interlocutor_state,
             )
+            if section_tags is not None and variant:
+                section_tags.append(f"acknowledge_section={variant}")
+            return text
         if section is SectionId.REGIME_FRAME:
-            return self._render_regime_frame(
+            text, variant = self._render_regime_frame(
                 context=context,
                 assembly=assembly,
+                repair_alpha_active=repair_alpha_active,
                 interlocutor_state=interlocutor_state,
             )
+            if section_tags is not None and variant:
+                section_tags.append(f"regime_frame_section={variant}")
+            return text
         if section is SectionId.OPEN_LOOP_HANDOFF:
-            return self._render_open_loop(context=context, assembly=assembly)
+            text, variant = self._render_open_loop(
+                context=context,
+                assembly=assembly,
+                repair_alpha_active=repair_alpha_active,
+            )
+            if section_tags is not None and variant:
+                section_tags.append(f"open_loop_section={variant}")
+            return text
         if section is SectionId.CLARIFICATION:
             return self._render_clarification(context=context, assembly=assembly, plan=plan)
         if section is SectionId.NEXT_STEP:
-            return self._render_next_step(
+            text, variant = self._render_next_step(
                 context=context,
                 assembly=assembly,
+                repair_alpha_active=repair_alpha_active,
                 interlocutor_state=interlocutor_state,
             )
+            if section_tags is not None and variant:
+                section_tags.append(f"next_step_section={variant}")
+            return text
         if section is SectionId.BOUNDARY_DISCLAIMER:
             return self._render_boundary(context=context, assembly=assembly)
         if section is SectionId.REFLECTION_HOOK:
@@ -272,63 +308,114 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         *,
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot,
+        repair_alpha_active: bool = False,
         interlocutor_state: InterlocutorState | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
+        if repair_alpha_active and context.repair_advisory is not None:
+            label = _repair_kind_label(context.repair_advisory.rupture_kind)
+            return (
+                f"I hear that this landed as {label}. I am going to pause "
+                "the optimizing frame instead of pushing through it."
+            ), "repair_alpha"
         if context.regime_id == "repair_and_deescalation":
             return (
                 "I want to slow this down so we can stay grounded together. "
                 "I am not going to push past what just happened."
-            )
+            ), "repair_regime"
         if _state_indicates_repair(interlocutor_state):
-            return "You are right to slow the pace; I do not want to turn you into a project."
+            return (
+                "You are right to slow the pace; I do not want to turn you into a project."
+            ), "interlocutor_repair"
         if _state_indicates_direct_task(interlocutor_state):
-            return "I can keep this practical and bounded without turning it into a full analysis."
+            return (
+                "I can keep this practical and bounded without turning it into a full analysis."
+            ), "interlocutor_direct_task"
         if _state_indicates_emotional_weight(interlocutor_state):
-            return "There is some weight here, so I want to stay close to what you are actually feeling."
+            return (
+                "There is some weight here, so I want to stay close to what you are actually feeling."
+            ), "interlocutor_emotional"
         if context.regime_id == "emotional_support":
-            return "I am hearing weight in this and I want to stay with it before we move."
+            return (
+                "I am hearing weight in this and I want to stay with it before we move."
+            ), "emotional_support_regime"
         if assembly.continuum_target_position >= 0.7:
-            return "I want to acknowledge the pressure here before we narrow anything."
-        return "I am not going to rush past what you just said."
+            return (
+                "I want to acknowledge the pressure here before we narrow anything."
+            ), "continuum_high"
+        return "I am not going to rush past what you just said.", "default"
 
     @staticmethod
     def _render_regime_frame(
         *,
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot,
+        repair_alpha_active: bool = False,
         interlocutor_state: InterlocutorState | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
+        if repair_alpha_active and context.repair_advisory is not None:
+            return (
+                "The repair is the frame now: name what went wrong, lower "
+                "pressure, and make the next move reversible."
+            ), "repair_alpha"
         regime = assembly.regime_id or context.regime_id or ""
         if regime == "emotional_support":
-            return "I will stay supportive first and not jump into solving."
+            return (
+                "I will stay supportive first and not jump into solving."
+            ), "emotional_support"
         if regime == "guided_exploration":
             if _state_indicates_repair(interlocutor_state):
-                return "Let's reset the pace and make the next move feel chosen, not imposed."
+                return (
+                    "Let's reset the pace and make the next move feel chosen, not imposed."
+                ), "guided_exploration_repair"
             if _state_indicates_direct_task(interlocutor_state):
-                return "I will give one concrete step and keep the reasoning visible."
+                return (
+                    "I will give one concrete step and keep the reasoning visible."
+                ), "guided_exploration_direct"
             if _state_indicates_emotional_weight(interlocutor_state):
-                return "We can sort the feeling first, then decide whether a step is needed."
-            return "I would rather explore this with you step by step than guess at one answer."
+                return (
+                    "We can sort the feeling first, then decide whether a step is needed."
+                ), "guided_exploration_emotional"
+            return (
+                "I would rather explore this with you step by step than guess at one answer."
+            ), "guided_exploration"
         if regime == "problem_solving":
-            return "I see a structured path here we can walk together."
+            return (
+                "I see a structured path here we can walk together."
+            ), "problem_solving"
         if regime == "repair_and_deescalation":
-            return "I will keep my responses steady and avoid escalating tone."
+            return (
+                "I will keep my responses steady and avoid escalating tone."
+            ), "repair_and_deescalation"
         if regime == "acquaintance_building":
-            return "I want to keep this warm rather than transactional."
+            return (
+                "I want to keep this warm rather than transactional."
+            ), "acquaintance_building"
         if regime == "casual_social":
-            return "I can stay in steady, low-pressure mode."
-        return "I will stay context-aware and keep usefulness and continuity in view."
+            return "I can stay in steady, low-pressure mode.", "casual_social"
+        return (
+            "I will stay context-aware and keep usefulness and continuity in view."
+        ), "default"
 
     @staticmethod
     def _render_open_loop(
-        *, context: ResponseContext, assembly: ResponseAssemblySnapshot
-    ) -> str:
+        *,
+        context: ResponseContext,
+        assembly: ResponseAssemblySnapshot,
+        repair_alpha_active: bool = False,
+    ) -> tuple[str, str]:
+        if repair_alpha_active and context.repair_advisory is not None:
+            return (
+                "I will carry this rupture forward as something to repair, "
+                "not as a task thread to solve."
+            ), "repair_alpha"
         if assembly.case_hit_count or assembly.playbook_rule_count:
             return (
                 "There is at least one thread we left open before; I will "
                 "thread it forward instead of restarting from scratch."
-            )
-        return "I will keep prior open threads in view rather than dropping them."
+            ), "case_or_playbook"
+        return (
+            "I will keep prior open threads in view rather than dropping them."
+        ), "default"
 
     @staticmethod
     def _render_clarification(
@@ -346,22 +433,44 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         *,
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot,
+        repair_alpha_active: bool = False,
         interlocutor_state: InterlocutorState | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
+        if repair_alpha_active and context.repair_advisory is not None:
+            return (
+                "A reversible adjustment: I will stay with what you meant "
+                "before offering structure, and you can stop or redirect me "
+                "if I start turning it into a workflow again."
+            ), "repair_alpha"
         regime = assembly.regime_id or context.regime_id or ""
         if regime in {"emotional_support", "repair_and_deescalation"}:
-            return "We can stay here together, and when you are ready, name one small next step that would feel manageable."
+            return (
+                "We can stay here together, and when you are ready, name one "
+                "small next step that would feel manageable."
+            ), "support_or_repair"
         if regime == "problem_solving":
-            return "Concretely, the smallest useful next step is to name the constraint that matters most."
+            return (
+                "Concretely, the smallest useful next step is to name the constraint that matters most."
+            ), "problem_solving"
         if regime == "guided_exploration":
             if _state_indicates_repair(interlocutor_state):
-                return "A good next move is to name what felt off, then choose one gentler thread to continue."
+                return (
+                    "A good next move is to name what felt off, then choose one gentler thread to continue."
+                ), "guided_exploration_repair"
             if _state_indicates_direct_task(interlocutor_state):
-                return "One concrete next step: choose the smallest reversible action, then stop and reassess."
+                return (
+                    "One concrete next step: choose the smallest reversible action, then stop and reassess."
+                ), "guided_exploration_direct"
             if _state_indicates_emotional_weight(interlocutor_state):
-                return "Start by naming the heaviest part in one sentence; we can decide after that."
-            return "Pick one of the threads we just surfaced and we can go a little deeper on it."
-        return "From here we can take one small, concrete step that keeps things moving without forcing the pace."
+                return (
+                    "Start by naming the heaviest part in one sentence; we can decide after that."
+                ), "guided_exploration_emotional"
+            return (
+                "Pick one of the threads we just surfaced and we can go a little deeper on it."
+            ), "guided_exploration"
+        return (
+            "From here we can take one small, concrete step that keeps things moving without forcing the pace."
+        ), "default"
 
     @staticmethod
     def _render_boundary(
@@ -384,11 +493,18 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     @staticmethod
     def _render_reflection(*, context: ResponseContext) -> str:
         if context.reflection_writeback_applied:
-            return f"I am also carrying forward {context.reflection_lesson_count} reflected lesson(s) from the slow loop."
+            return (
+                f"I am also carrying forward {context.reflection_lesson_count} "
+                "reflected lesson(s) from the slow loop."
+            )
         if context.primary_reflection_lesson is not None:
-            return "I am letting the slower reflective layer shape this rather than treating it as a no-op."
+            hint = reflection_lesson_hint(context.primary_reflection_lesson)
+            if hint:
+                return hint
         if context.primary_reflection_tension is not None:
-            return "I am keeping an eye on the tension that is still open instead of smoothing past it."
+            hint = reflection_tension_hint(context.primary_reflection_tension)
+            if hint:
+                return hint
         return ""
 
     @staticmethod
@@ -441,30 +557,36 @@ def _dedupe_sentences(sentences: Iterable[str]) -> list[str]:
 
 
 def _state_indicates_repair(state: InterlocutorState | None) -> bool:
-    return (
-        state is not None
-        and state.readout_confidence >= 0.30
-        and (state.resistance_level >= 0.30 or state.trust_signal <= 0.05)
-    )
+    """Wave 2: read the typed ``repair_zone`` bool the owner already
+    classified, instead of re-applying numeric thresholds. Zone
+    definitions live ONCE in
+    ``volvence_zero.interlocutor.contracts.compute_zones``.
+    """
+    return state is not None and state.repair_zone
 
 
 def _state_indicates_direct_task(state: InterlocutorState | None) -> bool:
-    return (
-        state is not None
-        and state.readout_confidence >= 0.30
-        and state.task_focus_level >= 0.685
-        and state.directness >= 0.58
-        and state.emotional_weight <= 0.58
-    )
+    return state is not None and state.direct_task_zone
 
 
 def _state_indicates_emotional_weight(state: InterlocutorState | None) -> bool:
-    return (
-        state is not None
-        and state.readout_confidence >= 0.30
-        and state.emotional_weight >= 0.56
-        and state.self_disclosure_level >= 0.65
-    )
+    return state is not None and state.emotional_render_zone
+
+
+def _repair_kind_label(kind: str) -> str:
+    labels = {
+        "misread": "a misread",
+        "over_directive": "over-directive",
+        "pushed_too_fast": "pushed too fast",
+        "cold": "cold or not heard",
+        "unsafe": "unsafe",
+        "abandoned": "abandoned",
+    }
+    return labels[kind] if kind in labels else kind.replace("_", " ")
+
+
+def _plan_uses_repair_alpha(plan: PromptPlan) -> bool:
+    return any(tag.startswith("repair_alpha=") for tag in plan.rationale_tags)
 
 
 def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentResponse:
@@ -490,15 +612,66 @@ def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentRe
         tag for tag in plan.rationale_tags
         if tag.startswith("vitals_pressure=")
         or tag.startswith("interlocutor_conf=")
+        or tag.startswith("repair_alpha=")
+        or tag.startswith("repair_confidence=")
         or tag.startswith("il_")
     ]
     extra = (" " + " ".join(extra_tags) + ".") if extra_tags else ""
+    merged_tags = _merge_rationale_tags(
+        base_tags=response.rationale_tags,
+        plan=plan,
+        extra_parts=(),
+        section_tags=(),
+    )
     return AgentResponse(
         text=response.text,
         regime_id=response.regime_id,
         abstract_action=response.abstract_action,
         rationale=(rationale + plan_tag + extra).strip(),
+        rationale_tags=merged_tags,
     )
+
+
+def _merge_rationale_tags(
+    *,
+    base_tags: tuple[str, ...],
+    plan: PromptPlan,
+    extra_parts: tuple[str, ...],
+    section_tags: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Merge typed rationale tags from multiple sources, preserving order
+    and deduplicating. Order priority: base (kernel) -> extra parts
+    (synthesizer rationale_parts) -> plan (planner) -> section variant
+    tags (renderer). Always emits a ``plan=intent:sections:q`` summary
+    tag so downstream consumers can find the plan signature without
+    parsing rationale text.
+    """
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    def _add(tag: str) -> None:
+        if not tag:
+            return
+        if tag in seen:
+            return
+        seen.add(tag)
+        merged.append(tag)
+
+    for tag in base_tags:
+        _add(tag)
+    for tag in extra_parts:
+        _add(tag)
+    for tag in plan.rationale_tags:
+        _add(tag)
+    for tag in section_tags:
+        _add(tag)
+    _add(
+        "plan="
+        f"intent:{plan.intent.value};"
+        f"sections:{','.join(s.value for s in plan.sections)};"
+        f"q:{plan.question_budget}"
+    )
+    return tuple(merged)
 
 
 def _build_rationale(
@@ -510,7 +683,7 @@ def _build_rationale(
     assembly: ResponseAssemblySnapshot,
     plan: PromptPlan,
     vitals: VitalsSnapshot | None = None,
-) -> str:
+) -> tuple[str, list[str]]:
     parts: list[str] = [f"regime={regime_id or 'none'}"]
     if abstract_action:
         parts.append(f"temporal={abstract_action}")
@@ -535,6 +708,16 @@ def _build_rationale(
     # Forward Gap 9 slice 2c interlocutor-state tags so reflection /
     # evaluation can audit which user-state axes shaped this turn.
     for tag in plan.rationale_tags:
-        if tag.startswith("interlocutor_conf=") or tag.startswith("il_"):
+        if (
+            tag.startswith("interlocutor_conf=")
+            or tag.startswith("repair_alpha=")
+            or tag.startswith("repair_confidence=")
+            or tag.startswith("il_")
+        ):
             parts.append(tag)
-    return f"GroundedResponseSynthesizer from {regime_name}; " + ", ".join(parts) + "."
+    rationale = (
+        f"GroundedResponseSynthesizer from {regime_name}; "
+        + ", ".join(parts)
+        + "."
+    )
+    return rationale, parts

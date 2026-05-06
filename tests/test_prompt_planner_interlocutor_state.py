@@ -18,14 +18,12 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pytest
-
 from lifeform_expression.prompt_planner import (
     PromptPlanner,
     SectionId,
     TurnIntent,
 )
-from volvence_zero.agent.response import ResponseContext
+from volvence_zero.agent.response import RepairExpressionAdvisory, ResponseContext
 from volvence_zero.interlocutor import InterlocutorState
 
 
@@ -45,6 +43,15 @@ def _context(regime_id: str = "emotional_support") -> ResponseContext:
         primary_reflection_tension=None,
         joint_schedule_action="idle",
         user_input="",
+    )
+
+
+def _repair_advisory(*, confidence: float = 0.67) -> RepairExpressionAdvisory:
+    return RepairExpressionAdvisory(
+        rupture_kind="over_directive",
+        confidence=confidence,
+        signal_strength=0.95,
+        description="Rupture kind=over_directive strength=0.95 confidence=0.67.",
     )
 
 
@@ -92,6 +99,62 @@ def test_low_confidence_readout_is_a_noop() -> None:
         context=_context(), assembly=None, interlocutor_state=cold_state
     )
     assert cold_plan.sections == baseline.sections
+
+
+# ---------------------------------------------------------------------------
+# Repair alpha advisory: typed advisory only, default off
+# ---------------------------------------------------------------------------
+
+
+def test_repair_advisory_is_noop_when_alpha_disabled() -> None:
+    planner = PromptPlanner()
+    context = replace(_context(regime_id="acquaintance_building"), repair_advisory=_repair_advisory())
+
+    plan = planner.plan(context=context, assembly=None)
+
+    assert plan.intent is TurnIntent.WARMTH_FIRST
+    assert not any(tag.startswith("repair_alpha=") for tag in plan.rationale_tags)
+
+
+def test_repair_advisory_forces_repair_first_when_alpha_enabled() -> None:
+    planner = PromptPlanner(repair_alpha_enabled=True)
+    context = replace(_context(regime_id="acquaintance_building"), repair_advisory=_repair_advisory())
+
+    plan = planner.plan(context=context, assembly=None)
+
+    assert plan.intent is TurnIntent.REPAIR_FIRST
+    assert plan.sections[:2] == (
+        SectionId.ACKNOWLEDGE_PRESSURE,
+        SectionId.REGIME_FRAME,
+    )
+    assert plan.question_budget == 0
+    assert "repair_alpha=over_directive" in plan.rationale_tags
+
+
+def test_low_confidence_repair_advisory_is_noop() -> None:
+    planner = PromptPlanner(repair_alpha_enabled=True)
+    context = replace(
+        _context(regime_id="acquaintance_building"),
+        repair_advisory=_repair_advisory(confidence=0.20),
+    )
+
+    plan = planner.plan(context=context, assembly=None)
+
+    assert plan.intent is TurnIntent.WARMTH_FIRST
+    assert not any(tag.startswith("repair_alpha=") for tag in plan.rationale_tags)
+
+
+def test_repair_alpha_does_not_use_raw_user_text() -> None:
+    planner = PromptPlanner(repair_alpha_enabled=True)
+    context = replace(
+        _context(regime_id="acquaintance_building"),
+        user_input="That felt over-directive and optimized.",
+        repair_advisory=None,
+    )
+
+    plan = planner.plan(context=context, assembly=None)
+
+    assert plan.intent is TurnIntent.WARMTH_FIRST
 
 
 # ---------------------------------------------------------------------------

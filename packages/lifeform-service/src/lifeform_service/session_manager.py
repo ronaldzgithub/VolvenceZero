@@ -38,8 +38,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform, LifeformSession
+from lifeform_service.alpha import AlphaIdentityProvider
 
 if TYPE_CHECKING:
+    from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
 
@@ -56,6 +58,13 @@ class SessionManager:
         self,
         *,
         lifeform_factory: Callable[["OpenWeightResidualRuntime | None"], Lifeform],
+        alpha_lifeform_factory: Callable[
+            ["OpenWeightResidualRuntime | None", "IdentityProvider", str | None],
+            Lifeform,
+        ]
+        | None = None,
+        alpha_identity_provider: AlphaIdentityProvider | None = None,
+        alpha_memory_scope_root_dir: str | None = None,
         vertical_name: str,
         max_sessions: int = 256,
         idle_eviction_seconds: float | None = 60 * 30,
@@ -63,6 +72,9 @@ class SessionManager:
         substrate_runtime: "OpenWeightResidualRuntime | None" = None,
     ) -> None:
         self._factory = lifeform_factory
+        self._alpha_factory = alpha_lifeform_factory
+        self._alpha_identity_provider = alpha_identity_provider
+        self._alpha_memory_scope_root_dir = alpha_memory_scope_root_dir
         self._vertical_name = vertical_name
         self._max_sessions = max_sessions
         self._idle_eviction_seconds = idle_eviction_seconds
@@ -86,11 +98,37 @@ class SessionManager:
     def session_count(self) -> int:
         return len(self._sessions)
 
+    async def session_summaries(self) -> tuple[dict[str, object], ...]:
+        async with self._lock:
+            self._evict_idle_locked()
+            return tuple(
+                {
+                    "session_id": sid,
+                    "turn_count": len(entry.session.turn_summaries),
+                    "user_id": (
+                        self._alpha_identity_provider.user_for_session(sid)
+                        if self._alpha_identity_provider is not None
+                        else None
+                    ),
+                    "last_active_at": entry.last_active_at,
+                }
+                for sid, entry in self._sessions.items()
+            )
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def create_session(self, *, session_id: str | None = None) -> LifeformSession:
+    @property
+    def alpha_identity_provider(self) -> AlphaIdentityProvider | None:
+        return self._alpha_identity_provider
+
+    async def create_session(
+        self,
+        *,
+        session_id: str | None = None,
+        user_id: str | None = None,
+    ) -> LifeformSession:
         async with self._lock:
             self._evict_idle_locked()
             self._evict_lru_to_capacity_locked(needed=1)
@@ -98,7 +136,22 @@ class SessionManager:
             sid = session_id or self._fresh_session_id()
             if sid in self._sessions:
                 raise SessionAlreadyExistsError(sid)
-            life = self._factory(self._substrate_runtime)
+            if self._alpha_identity_provider is not None:
+                if user_id is None:
+                    raise ValueError("alpha sessions require user_id")
+                self._alpha_identity_provider.bind_session(
+                    session_id=sid,
+                    user_id=user_id,
+                )
+                if self._alpha_factory is None:
+                    raise ValueError("vertical does not support alpha identity")
+                life = self._alpha_factory(
+                    self._substrate_runtime,
+                    self._alpha_identity_provider,
+                    self._alpha_memory_scope_root_dir,
+                )
+            else:
+                life = self._factory(self._substrate_runtime)
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,

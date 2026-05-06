@@ -35,6 +35,11 @@ from lifeform_evolution.companion_evidence import (
     run_companion_evidence,
     run_companion_evidence_async,
 )
+from lifeform_evolution.closed_alpha_preflight import (
+    ClosedAlphaPreflightReport,
+    format_closed_alpha_preflight_report,
+    run_closed_alpha_preflight,
+)
 from lifeform_evolution.family_report import (
     FamilyEvaluation,
     FamilyId,
@@ -77,6 +82,13 @@ from lifeform_evolution.regime_io import (
     load_regime_bootstrap,
     load_regime_bootstrap_only,
     save_regime_bootstrap,
+)
+from lifeform_evolution.relationship_repair_alpha_gate import (
+    RepairAlphaArmReport,
+    RepairAlphaGateReport,
+    format_relationship_repair_alpha_report,
+    run_relationship_repair_alpha_gate,
+    run_relationship_repair_alpha_gate_async,
 )
 from lifeform_evolution.social_cognition_evidence import (
     SocialCognitionEvidenceGate,
@@ -123,6 +135,7 @@ __all__ = (
     "BenchmarkReport",
     "CompanionEvidenceGate",
     "CompanionEvidenceReport",
+    "ClosedAlphaPreflightReport",
     "DistributionSnapshot",
     "FamilyEvaluation",
     "FamilyId",
@@ -133,6 +146,8 @@ __all__ = (
     "RegimeBootstrapArtifact",
     "RegimeCalibrationReport",
     "RegimeCalibrationRoundReport",
+    "RepairAlphaArmReport",
+    "RepairAlphaGateReport",
     "RoundDeltaVsBaseline",
     "RoundQualityMetrics",
     "RoundReport",
@@ -159,9 +174,11 @@ __all__ = (
     "family_report_to_dict",
     "format_family_report",
     "format_companion_evidence_report",
+    "format_closed_alpha_preflight_report",
     "format_learning_loop_report",
     "format_multi_round_report",
     "format_regime_calibration_report",
+    "format_relationship_repair_alpha_report",
     "format_report",
     "format_social_cognition_evidence_report",
     "format_ssl_demo_report",
@@ -178,12 +195,15 @@ __all__ = (
     "run_benchmark_async",
     "run_companion_evidence",
     "run_companion_evidence_async",
+    "run_closed_alpha_preflight",
     "run_learning_loop",
     "run_learning_loop_async",
     "run_multi_round_loop",
     "run_multi_round_loop_async",
     "run_regime_calibrator",
     "run_regime_calibrator_async",
+    "run_relationship_repair_alpha_gate",
+    "run_relationship_repair_alpha_gate_async",
     "run_social_cognition_evidence",
     "run_social_cognition_evidence_async",
     "run_ssl_demo",

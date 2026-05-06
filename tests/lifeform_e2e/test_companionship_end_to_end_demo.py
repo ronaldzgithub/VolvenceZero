@@ -5,6 +5,8 @@ Mirrors the discipline of ``test_coding_end_to_end_demo.py``:
 * The demo runs to completion without raising.
 * Audit counters match the scripted shape (5 natural turns +
   some ingestion turns).
+* The scripted rupture is submitted through the public lifeform
+  external-outcome API and observed through SHADOW diagnostics.
 * Discipline guards: no ``volvence_zero.*`` (kernel) imports;
   only ``lifeform-*`` wheels + a small stdlib whitelist.
 
@@ -56,6 +58,12 @@ async def test_companionship_end_to_end_demo_runs_cleanly() -> None:
     assert audit.natural_turns == 5
     # Background memo splits into >= 1 ingestion chunk + turn.
     assert audit.ingestion_turns >= 1
+    # The rupture/repair diagnostic path should use typed external
+    # outcome intake rather than keyword parsing in the demo.
+    assert audit.external_outcomes_submitted == 1
+    assert audit.ruptures_observed >= 1
+    assert "pause the optimizing frame" in audit.repair_alpha_response
+    assert "repair_alpha=over_directive" in audit.repair_alpha_rationale
     # Trajectory snapshots: after-ingest, 5 turns, after-close = 7
     # rows minimum.
     assert len(audit.trajectory) >= 7
@@ -66,6 +74,25 @@ async def test_companionship_end_to_end_demo_runs_cleanly() -> None:
             f"trajectory row {record.label!r} has empty regime tag; "
             f"snapshot reading broken"
         )
+
+
+async def test_companionship_repair_alpha_matched_control() -> None:
+    demo = _load_demo_module()
+    treatment = await demo.main(repair_alpha_enabled=True)
+    control = await demo.main(repair_alpha_enabled=False)
+
+    # Same scripted external rupture path in both arms.
+    assert treatment.external_outcomes_submitted == 1
+    assert control.external_outcomes_submitted == 1
+    assert treatment.ruptures_observed >= 1
+    assert control.ruptures_observed >= 1
+
+    # Only the alpha-enabled arm may turn the typed rupture advisory
+    # into explicit repair-alpha expression evidence.
+    assert "repair_alpha=over_directive" in treatment.repair_alpha_rationale
+    assert "repair_alpha=over_directive" not in control.repair_alpha_rationale
+    assert "pause the optimizing frame" in treatment.repair_alpha_response
+    assert "pause the optimizing frame" not in control.repair_alpha_response
 
 
 # ---------------------------------------------------------------------------

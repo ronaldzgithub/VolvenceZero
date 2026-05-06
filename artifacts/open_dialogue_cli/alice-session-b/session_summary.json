@@ -1,0 +1,29 @@
+{
+  "external_outcomes": {},
+  "extra_metadata": {},
+  "regime": {},
+  "rupture_repair_memory": {
+    "count": 1,
+    "kinds": {
+      "misread": 1
+    },
+    "outcomes": {
+      "pending": 1
+    },
+    "per_scope": {
+      "alice": 1
+    }
+  },
+  "rupture_state": {},
+  "schema_version": 1,
+  "session_id": "alice-session-b",
+  "session_post_queue": {
+    "completed": 1,
+    "last_completed_context_session_id": "alice-session-b:context-1",
+    "last_completed_job_id": "alice-session-b:context-1:slow-loop:1",
+    "pending": 0,
+    "running": 0
+  },
+  "turn_count": 1,
+  "user_scope": "alice"
+}

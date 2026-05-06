@@ -36,6 +36,10 @@ class CMSBandState:
     update_summary: str = ""
     mode: str = "vector"
     mlp_param_count: int = 0
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    # See docs/specs/cms-atlas-titans-uplift.md §6 for semantics.
+    replay_window_size: int = 0
+    pe_feature_summary: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,10 @@ class CMSState:
     continuum_profile: CMSContinuumProfile | None = None
     update_rule_state: LearnedUpdateRuleState | None = None
     hope_self_modification_state: CMSHopeSelfModificationState | None = None
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    atlas_replay_active: bool = False
+    titans_pe_gate_active: bool = False
+    replay_window_sizes: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -140,6 +148,10 @@ class CMSCheckpointState:
     tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
     update_rule_state: LearnedUpdateRuleState | None = None
     hope_self_modification_state: CMSHopeSelfModificationState | None = None
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    atlas_replay_active: bool = False
+    titans_pe_gate_active: bool = False
+    replay_window_sizes: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)

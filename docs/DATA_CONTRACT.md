@@ -686,6 +686,10 @@ class CMSBandState:
     update_summary: str = ""
     mode: str = "vector"              # "vector" | "mlp"
     mlp_param_count: int = 0          # 0 for vector mode
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    # See docs/specs/cms-atlas-titans-uplift.md §6.
+    replay_window_size: int = 0                # 0 when uplift disabled, else current K for this band
+    pe_feature_summary: tuple[float, ...] = ()  # last PE feature 4-tuple fed to the rule for this band
 
 @dataclass(frozen=True)
 class CMSTowerLevelState:
@@ -762,6 +766,10 @@ class CMSState:
     continuum_profile: CMSContinuumProfile | None = None
     update_rule_state: LearnedUpdateRuleState | None = None
     hope_self_modification_state: CMSHopeSelfModificationState | None = None
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    atlas_replay_active: bool = False                   # True when ATLAS past-aware joint-optimization is on
+    titans_pe_gate_active: bool = False                 # True when Titans PE-driven write gating is on
+    replay_window_sizes: tuple[tuple[str, int], ...] = ()  # (band_id, configured K) pairs
 
 @dataclass(frozen=True)
 class CMSCheckpointState:
@@ -782,6 +790,10 @@ class CMSCheckpointState:
     tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...] = ()
     update_rule_state: LearnedUpdateRuleState | None = None
     hope_self_modification_state: CMSHopeSelfModificationState | None = None
+    # ATLAS / Titans uplift readouts (additive, frozen).
+    atlas_replay_active: bool = False
+    titans_pe_gate_active: bool = False
+    replay_window_sizes: tuple[tuple[str, int], ...] = ()
 
 @dataclass(frozen=True)
 class MemorySnapshot:
@@ -1394,12 +1406,15 @@ reflection ──────────────→ proposals; runtime invo
 | `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
 | `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
+| `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
 **`dialogue_external_outcome` 契约语义**：这是**外部 outcome 进入内核的唯一 snapshot 通道**。`submit_dialogue_outcome(...)` 只向该 slot 的 owner 追加 typed evidence；它**不**直接写 memory / regime / PE 内部状态。`PredictionErrorModule` 在自身 `derive_actual_outcome(...)` 内消费该 snapshot，`RegimeModule` 在自身 `process(...)` 内根据该 snapshot 创建 `PendingRegimeOutcome` 行。这样保持 `_pending_outcomes` / `ActualOutcome` 的单写者不变量（R8）。
 
 **`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
+
+**`interlocutor_state` 契约语义**（W2 ssot-cleanup-p0-p4）：12-axis 连续读出（`engagement_intensity`, `emotional_weight`, `resistance_level`, `trust_signal`, `pace_pressure`, … 共 12 维），由 `InterlocutorStateModule` 从六个上游 snapshot（`regime` / `dual_track` / `evaluation` / `prediction_error` / `memory` / `commitment`）派生。snapshot 自身发布**typed zone bool**（`acknowledge_pressure_zone` / `repair_zone` / `direct_task_zone` / `emotional_render_zone` / `pace_pressure_zone` / `cold_rapport_zone` / `low_directness_zone` 等），消费者读 zone bool 即可，**不得**重新应用数值阈值。阈值常量集中在 `volvence_zero.interlocutor.contracts.InterlocutorThresholds`，是该 owner 的 SSOT。详见 [`docs/specs/interlocutor-state.md`](./specs/interlocutor-state.md)。
 
 ### 6.1A Semantic Owner Emotional Decision Readouts
 

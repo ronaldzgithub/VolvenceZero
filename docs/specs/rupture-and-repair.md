@@ -176,6 +176,33 @@ rupture-repair 变成承重能力，**post-v0 迁移路径**是在 vz-memory 引
 - 跨用户自动学习（属于 post-v0 M12，需要人工 review）；
 - 把 human review 变成 reward（永远禁止）。
 
+## Closed Alpha: Expression Advisory
+
+Closed alpha 允许在**内部脚本 / demo / tests** 中让 `rupture_state`
+影响下一轮表达，但只能通过一次性的 typed advisory：
+
+1. `RuptureStateModule` 仍然是 rupture 的唯一 owner，`rupture_state`
+   仍默认 SHADOW；
+2. runtime 编排层可在 propagate 后读取 `rupture_state`，派生
+   `RepairExpressionAdvisory` 并放入 `ResponseContext`；
+3. expression planner 只能消费该 advisory，不能 import
+   `RuptureStateSnapshot`、不能读取 SHADOW snapshot、不能从 raw user text
+   重新判断 rupture、不能持久化 repair 状态；
+4. durable rupture-repair memory 仍只能由 `ReflectionEngine.apply(...)`
+   写入。
+
+这个路径是 R15 的可回滚 alpha 开关：默认关闭，只在明确启用的
+internal companion demo / tests 中用于验证关系修复表达是否可见。
+alpha gate 必须包含 matched control：同一 typed external rupture 在
+advisory 表达开关关闭时仍可被 `rupture_state` 观察，但不得产生
+`repair_alpha=<kind>` 表达 rationale。
+`lifeform_evolution.relationship_repair_alpha_gate` 是当前内部 gate
+入口，会产出 treatment/control 结构化 report。treatment 还必须在
+repair expression 后通过 typed positive outcome 形成至少一条
+`repair_outcome:observed` durable rupture-repair memory；control 不得产生
+observed repair memory。treatment 还必须证明同一 user scope 的新 session
+可读取该 durable memory，且不同 user scope 读取不到。
+
 ## 变更日志
 
 - 2026-05-05: 初稿（M0）。

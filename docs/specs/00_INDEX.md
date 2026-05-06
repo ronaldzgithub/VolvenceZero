@@ -70,11 +70,13 @@
 | Spec | 内容 |
 |------|------|
 | [continuum-memory.md](./continuum-memory.md) | 多层记忆设计（瞬态/情景/持久/派生）、更新频率、提升/衰减规则、异步慢反思路径 |
+| [cms-atlas-titans-uplift.md](./cms-atlas-titans-uplift.md) | Tier 2 改动：CMS 内部接入 ATLAS past-aware joint optimization 与 Titans PE-driven 写入门控；SHADOW/ACTIVE 协议、回滚契约、向后兼容法则 |
 
 **核心不变量**：
 - 记忆是连续谱，不是二元短期/长期分割
 - 记忆写入通过正式 owner 和 API，不可绕过
 - 慢反思产出两类产物：记忆沉淀 + 策略沉淀
+- ATLAS / Titans uplift 不创造与 CMS 并列的第二个 memory owner；更新规则不被外置 LLM curator 替代
 
 ---
 
@@ -378,6 +380,43 @@
 - `submit_dialogue_outcome` 不直接写 memory/regime/PE 内部状态；只发布 `dialogue_external_outcome` snapshot
 - rupture-repair durable 写入仅通过 `ReflectionEngine.apply(...)`
 - LLM proposal 默认禁用；启用后也只能低置信度 proposal
+
+---
+
+### 17B. Expression Layer (rationale_tags + reflection-hint SSOT)
+
+**对应需求**：R4（内部控制在 token 之上）、R8（契约优先）、R11（内部状态可发布）
+
+| Spec | 内容 |
+|------|------|
+| [expression-layer.md](./expression-layer.md) | `AgentResponse.rationale_tags` typed audit surface；`ReflectionLessonId` / `ReflectionTensionId` enum；UX hint 文案归 `lifeform-expression`；render-section variant tag |
+
+**核心不变量**：
+
+- 下游 gate / 评估 / reflection 必须读 typed `rationale_tags`，禁止 substring 匹配 `rationale` / `text`
+- reflection lesson / tension id 是 enum，新增 id 必须先加 enum 成员
+- per-id UX 文案在 lifeform-expression 单一来源，kernel 不再持有 hint_map
+
+来源：W1 (P0) of `docs/known-debts.md` SSOT cleanup 2026-05-06。
+
+---
+
+### 17C. Interlocutor State (12-axis SHADOW owner)
+
+**对应需求**：R8（契约优先 / 快照优先）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [interlocutor-state.md](./interlocutor-state.md) | `InterlocutorStateModule` SHADOW owner；12-axis state；10 个 typed zone bool；`InterlocutorThresholds` 单一阈值源 |
+
+**核心不变量**：
+
+- `InterlocutorStateModule` 是 12-axis readout 的唯一所有者；planner / synthesizer / lifeform-core 都读 snapshot
+- 阈值常量住在 `InterlocutorThresholds` 一处；消费者读 zone bool，禁止重新算阈值
+- `InterlocutorState.__post_init__` 总是用 `compute_zones()` 重写 zone bool；构造时传错的 bool 会被覆盖
+- `readout_confidence < 0.30` 时所有 zone False（冷启动安全）
+
+来源：W2 (P1+B) of `docs/known-debts.md` SSOT cleanup 2026-05-06。同时关闭 known-debt #1（interlocutor duck-typed multi-owner reconstruction）。
 
 ---
 

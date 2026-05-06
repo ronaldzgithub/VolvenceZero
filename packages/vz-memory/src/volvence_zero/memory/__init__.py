@@ -31,6 +31,7 @@ from volvence_zero.memory.persistence import (
     deserialize_checkpoint,
     serialize_checkpoint,
 )
+from volvence_zero.memory.contracts import MemoryAttributeReadout
 from volvence_zero.memory.store import (
     build_default_memory_store,
     MemoryEntry,
@@ -76,6 +77,7 @@ __all__ = [
     "scoped_memory_dir",
     "serialize_checkpoint",
     "build_default_memory_store",
+    "MemoryAttributeReadout",
     "MemoryEntry",
     "MemoryModule",
     "MemoryStoreCheckpoint",

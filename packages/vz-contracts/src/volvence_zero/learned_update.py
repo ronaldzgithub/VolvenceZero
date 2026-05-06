@@ -60,6 +60,25 @@ def _init_weight(size: int, *, scale: float, seed: int) -> tuple[float, ...]:
     )
 
 
+# Feature layout used by ATLAS / Titans uplift in vz-memory CMS.
+# See docs/specs/cms-atlas-titans-uplift.md §4 / §5.
+#
+# - BASE_FEATURE_DIM (12): legacy CMS decision features (current/target/delta
+#   norms, hyperparameters). Pre-uplift LearnedUpdateRuleState has these only.
+# - PE_FEATURE_DIM (4): added by Titans surprise gating
+#   (|task_error|, |relationship_error|, |regime_error|, |action_error|).
+#
+# A rule whose feature_dim >= BASE + PE is treated as PE-aware on restore: the
+# trailing PE_FEATURE_DIM columns are zero-padded when an older
+# (feature_version=1) state is loaded, to preserve numerical equivalence with
+# pre-uplift behavior whenever PE inputs are zero.
+LEARNED_UPDATE_BASE_FEATURE_DIM = 12
+LEARNED_UPDATE_PE_FEATURE_DIM = 4
+LEARNED_UPDATE_PE_AWARE_FEATURE_DIM = (
+    LEARNED_UPDATE_BASE_FEATURE_DIM + LEARNED_UPDATE_PE_FEATURE_DIM
+)
+
+
 @dataclass(frozen=True)
 class LearnedUpdateDecision:
     target_id: str
@@ -100,6 +119,11 @@ class LearnedUpdateRuleState:
     last_reset_mix: float = 0.0
     last_confidence: float = 0.0
     description: str = ""
+    # ATLAS / Titans uplift: feature layout version.
+    # 1 = legacy (no PE features in trailing 4 columns).
+    # 2 = PE-aware (trailing 4 columns are PE magnitudes when feature_dim >= 16).
+    # Default 1 keeps legacy serialized states deserializable as-is.
+    feature_version: int = 1
 
 
 class LearnedUpdateRule:
@@ -148,8 +172,25 @@ class LearnedUpdateRule:
     def feature_dim(self) -> int:
         return self._feature_dim
 
+    def zero_input_columns(self, *, start: int, end: int) -> None:
+        """Reset input_projection columns ``[start:end)`` to zero.
+
+        Used by callers that semantically partition the input feature space
+        (e.g. CMS's ATLAS/Titans uplift, where columns reserved for PE
+        features must start clean when restoring a legacy state).
+        """
+        if start < 0 or end <= start or start >= self._feature_dim:
+            return
+        end = min(end, self._feature_dim)
+        self._input_projection = tuple(
+            tuple(
+                0.0 if start <= index < end else value
+                for index, value in enumerate(row)
+            )
+            for row in self._input_projection
+        )
+
     def restore_state(self, state: LearnedUpdateRuleState) -> None:
-        input_projection = state.input_projection
         if state.feature_dim != self._feature_dim or state.hidden_dim != self._hidden_dim:
             input_projection = tuple(
                 tuple(
@@ -180,6 +221,7 @@ class LearnedUpdateRule:
                 )
             )
         else:
+            input_projection = state.input_projection
             hidden_bias = state.hidden_bias
             output_projection = state.output_projection
         self._input_projection = input_projection
@@ -230,6 +272,14 @@ class LearnedUpdateRule:
                 f"updates={self._update_count} improvement={self._last_improvement:.3f} "
                 f"eff_lr={self._last_effective_learning_rate:.3f} reward={self._last_reward:.3f} "
                 f"guard={self._last_guard_reason or 'clear'}."
+            ),
+            # New rules write feature_version=2 only when they use the
+            # canonical PE-aware feature layout (16 dims, trailing 4 reserved
+            # for PE). Other rules (e.g. metacontroller) keep version=1.
+            feature_version=(
+                2
+                if self._feature_dim == LEARNED_UPDATE_PE_AWARE_FEATURE_DIM
+                else 1
             ),
         )
 

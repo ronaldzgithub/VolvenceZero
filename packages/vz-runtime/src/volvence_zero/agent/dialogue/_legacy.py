@@ -589,6 +589,18 @@ def default_dialogue_comprehensive_profiles() -> tuple[str, ...]:
     )
 
 
+def default_dialogue_atlas_titans_uplift_profiles() -> tuple[str, ...]:
+    """Profile pair for the SHADOW-evidence ATLAS / Titans CMS uplift.
+
+    See ``docs/specs/cms-atlas-titans-uplift.md`` §7. ``pe-eta`` is the
+    canonical baseline; ``atlas-titans-cms-uplift`` runs the same scenario
+    with the CMS uplift flags on. Acceptance is evidence-only and does
+    not enter default ``paper-suite-*`` runs unless the caller passes
+    this list explicitly.
+    """
+    return ("pe-eta", "atlas-titans-cms-uplift")
+
+
 def build_dialogue_paper_suite_manifest(
     *,
     suite_tier: str = "paper-suite-small",
@@ -7854,6 +7866,23 @@ def build_standard_dialogue_runner(
     if profile_label == "pe-eta":
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
+            default_residual_runtime=residual_runtime,
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
+        )
+    if profile_label == "atlas-titans-cms-uplift":
+        # SHADOW-evidence-only profile: same wiring as ``pe-eta`` but with
+        # the CMS ATLAS / Titans uplift flags turned on. Acceptance is
+        # evidence-only; see docs/specs/cms-atlas-titans-uplift.md §7.
+        temporal_policy = FullLearnedTemporalPolicy()
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            temporal_policy=temporal_policy,
+            memory_store=build_default_memory_store(
+                latent_dim=temporal_policy.parameter_store.n_z,
+                cms_pe_features_enabled=True,
+                cms_replay_window_size=8,
+            ),
             default_residual_runtime=residual_runtime,
             joint_schedule=_benchmark_joint_schedule(),
             allow_live_substrate_mutation=True,

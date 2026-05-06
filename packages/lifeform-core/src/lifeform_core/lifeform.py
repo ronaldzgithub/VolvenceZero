@@ -412,6 +412,7 @@ class LifeformSession:
         # Re-publish snapshot fields after every turn so consumers can see
         # the cross-cutting lifeform state without poking at internals.
         self._latest_active_snapshots: dict[str, Any] = {}
+        self._latest_shadow_snapshots: dict[str, Any] = {}
         self._latest_response_text: str = ""
         # Gap 4 slice 2a observability: last scene-end case-memory
         # reconcile result, if any. Typed ``Any`` here to avoid a hard
@@ -474,6 +475,16 @@ class LifeformSession:
         return dict(self._latest_active_snapshots)
 
     @property
+    def latest_shadow_snapshots(self) -> dict[str, Any]:
+        """Return SHADOW snapshots from the latest kernel turn.
+
+        This is an observability surface only. Product behavior should not
+        depend on SHADOW owners until their wiring is intentionally promoted.
+        """
+
+        return dict(self._latest_shadow_snapshots)
+
+    @property
     def latest_response_text(self) -> str:
         return self._latest_response_text
 
@@ -517,31 +528,46 @@ class LifeformSession:
 
     @property
     def interlocutor_state(self) -> Any:
-        """Gap 9 slice 1: 12-axis readout of the current interlocutor.
+        """Wave 2: read the SHADOW ``interlocutor_state`` snapshot.
 
-        Derived at read time from the latest kernel snapshots
-        (``regime`` / ``dual_track`` / ``evaluation`` /
-        ``prediction_error`` / ``memory`` / ``commitment``) via
-        the pure-function readout in ``volvence_zero.interlocutor``.
-        Returns a default ``InterlocutorState`` (neutral mid-point
-        + low ``readout_confidence``) when no turn has run yet.
+        Before W2 this property duck-typed-rebuilt the 12-axis readout
+        from six upstream snapshots at every read - a parallel
+        consumer of state already owned by ``InterlocutorStateModule``.
+        Now it just reads the SHADOW snapshot the kernel publishes,
+        falling back to the same pure readout function on the
+        upstream snapshots when the SHADOW slot is missing (e.g. in
+        legacy tests that build a brain without
+        ``InterlocutorStateModule`` wired).
 
-        The readout is **not** a kernel owner; it's a continuous
-        view computed at consumer time, same pattern as
-        ``latest_thinking_artifacts_by_consumer``. Downstream
-        product code that wants to style its response against
-        the interlocutor's resistance / openness / rapport should
-        read this property + gate on ``readout_confidence``.
+        Returns an :class:`InterlocutorState` (the 12-axis dataclass
+        that the planner and renderer consume) - either the
+        ``state`` field of the SHADOW snapshot, or a freshly-computed
+        readout in the fallback path. ``readout_confidence`` stays
+        the gate so cold-start sessions still see a low-confidence
+        neutral readout.
         """
-        # Local import to keep the module load graph thin; the
-        # readout is pure + stateless, so per-call import is cheap
-        # after the first.
+
         from volvence_zero.interlocutor import (
+            InterlocutorStateSnapshot,
             build_interlocutor_readout_context_from_snapshots,
             readout_interlocutor_state,
         )
 
-        snaps = self._latest_active_snapshots
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("interlocutor_state") or shadow.get(
+            "interlocutor_state"
+        )
+        if published is not None and isinstance(
+            published.value, InterlocutorStateSnapshot
+        ):
+            return published.value.state
+        # Fallback for legacy/test sessions that did not register
+        # ``InterlocutorStateModule``: compute the readout from the
+        # same upstream snapshots the owner would have consumed.
+        # The owner is the canonical producer; this branch exists
+        # only so existing tests continue to work without rewiring.
+        snaps = active
         context = build_interlocutor_readout_context_from_snapshots(
             regime_snapshot=snaps.get("regime"),
             dual_track_snapshot=snaps.get("dual_track"),
@@ -713,6 +739,7 @@ class LifeformSession:
 
         scene = self._scene.record_turn(current_tick=self._tick.tick_index)
         self._latest_active_snapshots = dict(result.active_snapshots)
+        self._latest_shadow_snapshots = dict(result.shadow_snapshots)
         self._latest_response_text = result.response.text
 
         open_loops_snapshot = result.active_snapshots.get("open_loop")

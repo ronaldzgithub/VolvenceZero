@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, TYPE_CHECKING
 
 from volvence_zero.memory.contracts import MemoryEntry
+
+if TYPE_CHECKING:
+    from volvence_zero.substrate import FeatureSignal
 
 
 def _clamp_strength(value: float) -> float:
@@ -55,6 +58,42 @@ def _semantic_embedding(*, text: str, tags: tuple[str, ...], dim: int = 6) -> tu
     if norm <= 1e-6:
         return tuple(0.0 for _ in range(dim))
     return tuple(value / norm for value in vector)
+
+
+def _substrate_embedding(
+    *,
+    feature_surface: tuple["FeatureSignal", ...],
+    dim: int,
+) -> tuple[float, ...]:
+    """Phase 1.C: build a dense embedding from substrate feature signals.
+
+    NL alignment (R8 + retrieval-from-substrate): retrieval should be a
+    downstream readout of the substrate's feature_surface, not a parallel
+    character-hash space. We concatenate the published per-signal value
+    tuples in stable name order, L2-normalize, then truncate / zero-pad
+    to ``dim`` so retrieval cosine math is unchanged.
+
+    Returns an empty tuple of length ``dim`` (zero vector) when no signal
+    contributes any value, so the caller can detect the "no substrate"
+    case and fall back to ``_semantic_embedding``.
+    """
+
+    if not feature_surface or dim <= 0:
+        return tuple(0.0 for _ in range(dim))
+    ordered = sorted(feature_surface, key=lambda signal: signal.name)
+    flat: list[float] = []
+    for signal in ordered:
+        for value in signal.values:
+            flat.append(float(value))
+    if not flat:
+        return tuple(0.0 for _ in range(dim))
+    norm = math.sqrt(sum(value * value for value in flat))
+    if norm <= 1e-9:
+        return tuple(0.0 for _ in range(dim))
+    flat = [value / norm for value in flat]
+    if len(flat) >= dim:
+        return tuple(flat[:dim])
+    return tuple(flat + [0.0] * (dim - len(flat)))
 
 
 def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:

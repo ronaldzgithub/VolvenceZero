@@ -96,9 +96,24 @@ def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentRe
         f" sections={','.join(s.value for s in plan.sections)};"
         f" q={plan.question_budget}."
     )
+    merged: list[str] = []
+    seen: set[str] = set()
+    for tag in tuple(response.rationale_tags) + tuple(plan.rationale_tags):
+        if tag and tag not in seen:
+            seen.add(tag)
+            merged.append(tag)
+    plan_summary_tag = (
+        "plan="
+        f"intent:{plan.intent.value};"
+        f"sections:{','.join(s.value for s in plan.sections)};"
+        f"q:{plan.question_budget}"
+    )
+    if plan_summary_tag not in seen:
+        merged.append(plan_summary_tag)
     return AgentResponse(
         text=response.text,
         regime_id=response.regime_id,
         abstract_action=response.abstract_action,
         rationale=(rationale + plan_tag).strip(),
+        rationale_tags=tuple(merged),
     )

@@ -25,6 +25,10 @@ from lifeform_evolution.companion_evidence import (
     format_companion_evidence_report,
     run_companion_evidence,
 )
+from lifeform_evolution.closed_alpha_preflight import (
+    format_closed_alpha_preflight_report,
+    run_closed_alpha_preflight,
+)
 from lifeform_evolution.social_cognition_evidence import (
     format_social_cognition_evidence_report,
     run_social_cognition_evidence,
@@ -47,13 +51,15 @@ from lifeform_evolution.regime_io import (
     load_regime_bootstrap_only,
     save_regime_bootstrap,
 )
+from lifeform_evolution.relationship_repair_alpha_gate import (
+    format_relationship_repair_alpha_report,
+    run_relationship_repair_alpha_gate,
+)
 from lifeform_evolution.super_loop import (
     format_super_loop_report,
     run_super_loop,
 )
 from lifeform_evolution.snapshot_io import (
-    SnapshotArtifact,
-    load_snapshot,
     load_snapshot_only,
     save_snapshot,
 )
@@ -1117,6 +1123,100 @@ def main_super_loop(argv: list[str] | None = None) -> int:
     if args.require_trajectory_passes and not report.trajectory_passes():
         return 1
     return 0
+
+
+# ---------------------------------------------------------------------------
+# lifeform-repair-alpha-gate — closed-alpha repair evidence
+# ---------------------------------------------------------------------------
+
+
+def _build_repair_alpha_gate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="lifeform-repair-alpha-gate",
+        description=(
+            "Run the closed-alpha relationship repair matched-control gate. "
+            "The report verifies typed rupture observation, repair-alpha "
+            "expression, observed repair memory, same-user recall, and "
+            "cross-user isolation."
+        ),
+    )
+    parser.add_argument(
+        "--out",
+        default="artifacts/relationship_repair_alpha_gate/report.json",
+        help="Path to write the JSON gate report.",
+    )
+    parser.add_argument(
+        "--scope-root",
+        default="artifacts/relationship_repair_alpha_gate/scope",
+        help="Filesystem root for scoped memory stores used by the gate.",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the human-readable summary; JSON is still written.",
+    )
+    return parser
+
+
+def main_repair_alpha_gate(argv: list[str] | None = None) -> int:
+    parser = _build_repair_alpha_gate_parser()
+    args = parser.parse_args(argv)
+    report = run_relationship_repair_alpha_gate(
+        out_path=args.out,
+        scope_root_dir=args.scope_root,
+    )
+    if not args.quiet:
+        print(format_relationship_repair_alpha_report(report))
+        print(f"[repair-alpha-gate] wrote report to {args.out}")
+    return 0 if report.passed else 1
+
+
+# ---------------------------------------------------------------------------
+# lifeform-alpha-preflight — aggregate closed-alpha gates
+# ---------------------------------------------------------------------------
+
+
+def _build_alpha_preflight_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="lifeform-alpha-preflight",
+        description=(
+            "Run closed-alpha preflight gates and write a single manifest. "
+            "Currently includes the open-dialogue v0 gate and the "
+            "relationship repair alpha gate."
+        ),
+    )
+    parser.add_argument(
+        "--artifacts-dir",
+        default="artifacts/closed_alpha_preflight",
+        help="Directory where gate artifacts and the preflight report are written.",
+    )
+    parser.add_argument(
+        "--scope-root",
+        default="artifacts/closed_alpha_preflight_scope",
+        help="Filesystem root for scoped memory stores used by gates.",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress human-readable summary; JSON artifacts are still written.",
+    )
+    return parser
+
+
+def main_alpha_preflight(argv: list[str] | None = None) -> int:
+    parser = _build_alpha_preflight_parser()
+    args = parser.parse_args(argv)
+    report = run_closed_alpha_preflight(
+        artifacts_dir=args.artifacts_dir,
+        scope_root_dir=args.scope_root,
+    )
+    if not args.quiet:
+        print(format_closed_alpha_preflight_report(report))
+        print(
+            "[alpha-preflight] wrote report to "
+            f"{args.artifacts_dir}/closed_alpha_preflight_report.json"
+        )
+    return 0 if report.passed else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

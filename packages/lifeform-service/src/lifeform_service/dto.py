@@ -25,6 +25,10 @@ class CreateSessionResponse:
     vertical: str
     has_temporal_bootstrap: bool
     has_regime_bootstrap: bool
+    user_id: str | None = None
+    service_version: str = ""
+    policy_version: str = ""
+    alpha_disclaimer: str = ""
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -32,6 +36,10 @@ class CreateSessionResponse:
             "vertical": self.vertical,
             "has_temporal_bootstrap": self.has_temporal_bootstrap,
             "has_regime_bootstrap": self.has_regime_bootstrap,
+            "user_id": self.user_id,
+            "service_version": self.service_version,
+            "policy_version": self.policy_version,
+            "alpha_disclaimer": self.alpha_disclaimer,
         }
 
 
@@ -59,6 +67,8 @@ class TurnResponse:
     pe_magnitude: float
     open_loop_count: int
     commitment_count: int
+    response_rationale_tags: tuple[str, ...] = ()
+    safety: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -72,6 +82,8 @@ class TurnResponse:
             "pe_magnitude": self.pe_magnitude,
             "open_loop_count": self.open_loop_count,
             "commitment_count": self.commitment_count,
+            "response_rationale_tags": list(self.response_rationale_tags),
+            "safety": self.safety,
         }
 
 
@@ -80,12 +92,14 @@ class EndSceneResponse:
     session_id: str
     closed_scene_id: str | None
     slow_loop_drained: bool
+    evidence_artifact_ref: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
             "closed_scene_id": self.closed_scene_id,
             "slow_loop_drained": self.slow_loop_drained,
+            "evidence_artifact_ref": self.evidence_artifact_ref,
         }
 
 
@@ -141,6 +155,7 @@ class ServiceInfoResponse:
     substrate_shared: bool
     substrate_model_id: str | None
     substrate_runtime_origin: str | None
+    alpha: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -152,6 +167,7 @@ class ServiceInfoResponse:
             "substrate_shared": self.substrate_shared,
             "substrate_model_id": self.substrate_model_id,
             "substrate_runtime_origin": self.substrate_runtime_origin,
+            "alpha": self.alpha,
         }
 
 

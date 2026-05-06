@@ -11,8 +11,13 @@ to work without changes.
 from __future__ import annotations
 
 import math
+from collections import deque
+from typing import TYPE_CHECKING, Mapping
 
 from volvence_zero.learned_update import (
+    LEARNED_UPDATE_BASE_FEATURE_DIM,
+    LEARNED_UPDATE_PE_AWARE_FEATURE_DIM,
+    LEARNED_UPDATE_PE_FEATURE_DIM,
     LearnedUpdateDecision,
     LearnedUpdateRule,
     LearnedUpdateRuleState,
@@ -34,6 +39,25 @@ from volvence_zero.memory.cms_contracts import (
 from volvence_zero.memory.cms_math import _clamp, _init_weight, _matvec
 from volvence_zero.memory.runtime_evidence import build_runtime_backbone_evidence
 from volvence_zero.substrate import SubstrateSnapshot
+
+if TYPE_CHECKING:
+    from volvence_zero.prediction.error import PredictionErrorSnapshot
+
+
+# ATLAS / Titans uplift defaults (see docs/specs/cms-atlas-titans-uplift.md).
+# When ``replay_window_sizes`` is None, replay is disabled (K=1 path used,
+# numerically equivalent to the pre-uplift CMS).
+_REPLAY_DEFAULT_K: dict[str, int] = {
+    "online-fast": 8,
+    "session-medium": 4,
+    "background-slow": 2,
+}
+_REPLAY_DEFAULT_GAMMA: dict[str, float] = {
+    "online-fast": 0.6,
+    "session-medium": 0.7,
+    "background-slow": 0.8,
+}
+_REPLAY_HARD_CAP_K: int = 32
 
 
 class CMSMemoryCore:
@@ -62,6 +86,11 @@ class CMSMemoryCore:
         background_lr: float = 0.1,
         momentum_beta: float = 0.9,
         anti_forgetting: float = 0.1,
+        # ATLAS / Titans uplift flags (see docs/specs/cms-atlas-titans-uplift.md).
+        # Defaults preserve canonical (pre-uplift) behavior so existing wiring
+        # is unchanged. SHADOW path turns these on; ACTIVE follows acceptance.
+        pe_features_enabled: bool = False,
+        replay_window_sizes: Mapping[str, int] | None = None,
     ) -> None:
         if mode not in ("vector", "mlp"):
             raise ValueError(f"mode must be 'vector' or 'mlp', got {mode!r}")
@@ -74,11 +103,45 @@ class CMSMemoryCore:
         self._background_lr = background_lr
         self._momentum_beta = momentum_beta
         self._anti_forgetting = anti_forgetting
+        self._pe_features_enabled = bool(pe_features_enabled)
+        # ATLAS / Titans uplift: feature_dim depends on the PE-gating flag.
+        # pe_off keeps the legacy ``max(12, d_in)`` layout so the canonical
+        # CMS path is bit-equal to pre-uplift behavior. pe_on uses the
+        # canonical PE-aware layout (12 base + 4 PE) so the rule learns
+        # weights specific to the PE input semantic.
+        rule_feature_dim = (
+            LEARNED_UPDATE_PE_AWARE_FEATURE_DIM
+            if self._pe_features_enabled
+            else max(LEARNED_UPDATE_BASE_FEATURE_DIM, d_in if mode == "mlp" else dim)
+        )
         self._update_rule = LearnedUpdateRule(
             rule_id="cms-update",
-            feature_dim=max(12, d_in if mode == "mlp" else dim),
+            feature_dim=rule_feature_dim,
             hidden_dim=max(8, (d_hidden // 2) if mode == "mlp" else dim + 2),
         )
+        # Replay window per band. ``None`` disables replay entirely; otherwise
+        # missing bands fall back to ``_REPLAY_DEFAULT_K`` and unknown band
+        # ids are ignored.
+        self._atlas_replay_active = replay_window_sizes is not None
+        configured_replay = dict(replay_window_sizes or {})
+        self._replay_window_sizes: dict[str, int] = {}
+        for band_id, default_k in _REPLAY_DEFAULT_K.items():
+            requested = configured_replay.get(band_id, default_k if self._atlas_replay_active else 1)
+            self._replay_window_sizes[band_id] = max(1, min(int(requested), _REPLAY_HARD_CAP_K))
+        self._replay_buffers: dict[str, deque[tuple[float, ...]]] = {
+            band_id: deque(maxlen=self._replay_window_sizes[band_id])
+            for band_id in _REPLAY_DEFAULT_K
+        }
+        self._latest_replay_window_size: dict[str, int] = {
+            band_id: 0 for band_id in _REPLAY_DEFAULT_K
+        }
+        self._latest_pe_features: tuple[float, ...] = tuple(
+            0.0 for _ in range(LEARNED_UPDATE_PE_FEATURE_DIM)
+        )
+        self._latest_pe_features_by_band: dict[str, tuple[float, ...]] = {
+            band_id: tuple(0.0 for _ in range(LEARNED_UPDATE_PE_FEATURE_DIM))
+            for band_id in _REPLAY_DEFAULT_K
+        }
         self._latest_update_rule_state: LearnedUpdateRuleState = self._update_rule.export_state()
         self._latest_band_decisions: dict[str, LearnedUpdateDecision] = {}
         self._hope_update_count = 0
@@ -155,7 +218,19 @@ class CMSMemoryCore:
             background_lr=self._background_lr,
             momentum_beta=self._momentum_beta,
             anti_forgetting=self._anti_forgetting,
+            pe_features_enabled=self._pe_features_enabled,
+            replay_window_sizes=(
+                dict(self._replay_window_sizes) if self._atlas_replay_active else None
+            ),
         )
+
+    @property
+    def pe_features_enabled(self) -> bool:
+        return self._pe_features_enabled
+
+    @property
+    def atlas_replay_active(self) -> bool:
+        return self._atlas_replay_active
 
     def _mean_distance(self, left: tuple[float, ...], right: tuple[float, ...]) -> float:
         if not left or not right:
@@ -183,7 +258,8 @@ class CMSMemoryCore:
         pending_norm = self._mean_distance(pending_signal, tuple(0.0 for _ in range(self._dim)))
         source_norm = self._mean_distance(source_signal, tuple(0.0 for _ in range(self._dim)))
         cadence_pressure = observations_since_update / max(cadence_interval, 1)
-        return (
+        # Base 12 features (legacy layout).
+        base = (
             current_norm,
             target_norm,
             delta_norm,
@@ -196,6 +272,109 @@ class CMSMemoryCore:
             _clamp(self._background_lr),
             _clamp(self._momentum_beta),
             1.0 if self._variant is CMSVariant.NESTED else 0.0,
+        )
+        assert len(base) == LEARNED_UPDATE_BASE_FEATURE_DIM
+        # ATLAS / Titans uplift: append PE magnitudes only when the flag is
+        # on. When pe_features_enabled is False, return the legacy 12-tuple
+        # so the rule sees exactly the pre-uplift feature layout. The rule's
+        # ``_align_features`` will modulo-extend it to its own feature_dim
+        # (which equals the legacy ``max(12, d_in)`` in this mode), keeping
+        # canonical behavior numerically identical to pre-uplift.
+        if self._pe_features_enabled:
+            return base + tuple(self._latest_pe_features)
+        return base
+
+    @staticmethod
+    def _pe_features_from_snapshot(
+        prediction_error: "PredictionErrorSnapshot | None",
+    ) -> tuple[float, ...]:
+        """Extract a 4-tuple of PE magnitudes for the LearnedUpdateRule.
+
+        Order: ``(|task_error|, |relationship_error|, |regime_error|,
+        |action_error|)``. Returns all-zero when prediction error is missing
+        or the turn is bootstrap (no usable signal).
+        """
+        if prediction_error is None or prediction_error.bootstrap:
+            return tuple(0.0 for _ in range(LEARNED_UPDATE_PE_FEATURE_DIM))
+        error = prediction_error.error
+        return (
+            _clamp(abs(error.task_error)),
+            _clamp(abs(error.relationship_error)),
+            _clamp(abs(error.regime_error)),
+            _clamp(abs(error.action_error)),
+        )
+
+    def _set_latest_pe_features(
+        self,
+        prediction_error: "PredictionErrorSnapshot | None",
+    ) -> None:
+        if self._pe_features_enabled:
+            self._latest_pe_features = self._pe_features_from_snapshot(prediction_error)
+        else:
+            self._latest_pe_features = tuple(
+                0.0 for _ in range(LEARNED_UPDATE_PE_FEATURE_DIM)
+            )
+
+    def _record_pe_features_for_band(self, band_id: str) -> None:
+        if band_id in self._latest_pe_features_by_band:
+            self._latest_pe_features_by_band[band_id] = tuple(self._latest_pe_features)
+
+    def _replay_targets_for_band(
+        self,
+        band_id: str,
+        *,
+        current_target: tuple[float, ...],
+    ) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...]]:
+        """Return (targets, weights) for a replay update on this band.
+
+        When replay is disabled or the band has no buffer, returns a
+        single-target window with weight 1.0, which makes
+        ``CMSBandMLP.update_with_replay`` numerically equivalent to the
+        legacy ``update`` call.
+        """
+        normalized = tuple(float(value) for value in current_target)
+        if not self._atlas_replay_active or band_id not in self._replay_buffers:
+            self._latest_replay_window_size[band_id] = 1
+            return ((normalized,), (1.0,))
+        buffer = self._replay_buffers[band_id]
+        buffer.append(normalized)
+        gamma = _REPLAY_DEFAULT_GAMMA.get(band_id, 0.7)
+        targets = tuple(buffer)
+        K = len(targets)
+        weights = tuple(
+            gamma ** (K - 1 - index) for index in range(K)
+        )
+        self._latest_replay_window_size[band_id] = K
+        return (targets, weights)
+
+    def _zero_pad_pe_columns_after_restore(self) -> None:
+        """Reset PE feature columns of the LearnedUpdateRule projection.
+
+        See ``CMSMemoryCore.restore_state`` for the invariant this protects.
+        """
+        self._update_rule.zero_input_columns(
+            start=LEARNED_UPDATE_BASE_FEATURE_DIM,
+            end=LEARNED_UPDATE_PE_AWARE_FEATURE_DIM,
+        )
+        self._latest_update_rule_state = self._update_rule.export_state()
+
+    def _band_mlp_update(
+        self,
+        *,
+        band_id: str,
+        mlp: CMSBandMLP,
+        target: tuple[float, ...],
+        decision: LearnedUpdateDecision,
+    ) -> None:
+        targets, weights = self._replay_targets_for_band(
+            band_id,
+            current_target=target,
+        )
+        mlp.update_with_replay(
+            targets=targets,
+            weights=weights,
+            lr_scale=max(0.05, decision.step_scale),
+            momentum_gate=decision.momentum_gate,
         )
 
     def _decide_band_update(
@@ -220,6 +399,10 @@ class CMSMemoryCore:
         decision = self._update_rule.decide(target_id=band_id, features=features)
         self._latest_band_decisions[band_id] = decision
         self._latest_update_rule_state = self._update_rule.export_state()
+        # Record the PE features active during this band's decision so the
+        # snapshot can publish band-level Titans gating evidence (see
+        # ``CMSBandState.pe_feature_summary``).
+        self._record_pe_features_for_band(band_id)
         return decision, features
 
     def _learn_from_band_update(
@@ -286,7 +469,14 @@ class CMSMemoryCore:
     # observe_substrate
     # ------------------------------------------------------------------
 
-    def observe_substrate(self, *, substrate_snapshot: SubstrateSnapshot | None, timestamp_ms: int) -> None:
+    def observe_substrate(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot | None,
+        timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
+    ) -> None:
+        self._set_latest_pe_features(prediction_error)
         signal = self._signal_from_substrate(substrate_snapshot)
         self._total_observations += 1
 
@@ -302,10 +492,11 @@ class CMSMemoryCore:
                 source_signal=signal,
             )
             online_target = self._blend_signal(online_before, signal, rate=online_decision.write_gate)
-            self._online_mlp.update(
+            self._band_mlp_update(
+                band_id="online-fast",
+                mlp=self._online_mlp,
                 target=online_target,
-                lr_scale=max(0.05, online_decision.step_scale),
-                momentum_gate=online_decision.momentum_gate,
+                decision=online_decision,
             )
             self._learn_from_band_update(
                 decision=online_decision,
@@ -425,8 +616,10 @@ class CMSMemoryCore:
         *,
         encoder_signal: tuple[float, ...],
         timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
         """Accept metacontroller encoder output as an additional observation."""
+        self._set_latest_pe_features(prediction_error)
         if len(encoder_signal) != self._dim:
             projected: tuple[float, ...] = (
                 tuple(encoder_signal[i % len(encoder_signal)] for i in range(self._dim))
@@ -448,10 +641,11 @@ class CMSMemoryCore:
                 source_signal=projected,
             )
             online_target = self._blend_signal(online_before, projected, rate=online_decision.write_gate)
-            self._online_mlp.update(
+            self._band_mlp_update(
+                band_id="online-fast",
+                mlp=self._online_mlp,
                 target=online_target,
-                lr_scale=max(0.05, online_decision.step_scale),
-                momentum_gate=online_decision.momentum_gate,
+                decision=online_decision,
             )
             self._learn_from_band_update(
                 decision=online_decision,
@@ -511,11 +705,13 @@ class CMSMemoryCore:
         *,
         signal: tuple[float, ...],
         timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
         """Accept substrate fast-memory signal as another learned update source."""
         self.observe_encoder_feedback(
             encoder_signal=signal,
             timestamp_ms=timestamp_ms,
+            prediction_error=prediction_error,
         )
 
     # ------------------------------------------------------------------
@@ -681,6 +877,10 @@ class CMSMemoryCore:
     # ------------------------------------------------------------------
 
     def export_state(self) -> CMSCheckpointState:
+        replay_window_sizes = tuple(
+            (band_id, int(self._replay_window_sizes.get(band_id, 1)))
+            for band_id in _REPLAY_DEFAULT_K
+        )
         if self._mode == "mlp":
             return CMSCheckpointState(
                 online_fast=self._online_mlp.representation_vector(),
@@ -704,6 +904,9 @@ class CMSMemoryCore:
                 ),
                 update_rule_state=self._latest_update_rule_state,
                 hope_self_modification_state=self._hope_state(),
+                atlas_replay_active=self._atlas_replay_active,
+                titans_pe_gate_active=self._pe_features_enabled,
+                replay_window_sizes=replay_window_sizes,
             )
         return CMSCheckpointState(
             online_fast=self._online_fast,
@@ -719,6 +922,9 @@ class CMSMemoryCore:
             tower_meta_levels=self._export_tower_meta_levels(),
             update_rule_state=self._latest_update_rule_state,
             hope_self_modification_state=self._hope_state(),
+            atlas_replay_active=self._atlas_replay_active,
+            titans_pe_gate_active=self._pe_features_enabled,
+            replay_window_sizes=replay_window_sizes,
         )
 
     def restore_state(self, state: CMSCheckpointState) -> None:
@@ -732,6 +938,18 @@ class CMSMemoryCore:
         if state.update_rule_state is not None:
             self._update_rule.restore_state(state.update_rule_state)
             self._latest_update_rule_state = state.update_rule_state
+            # ATLAS / Titans uplift: when restoring a legacy
+            # (feature_version=1) state into a PE-aware CMS, the rule's
+            # input_projection columns reserved for PE features still carry
+            # weights trained for non-PE semantics (modulo-extended legacy
+            # features). Reset those columns so the rule starts clean on
+            # the PE-gated path. See docs/specs/cms-atlas-titans-uplift.md §5.
+            if (
+                self._pe_features_enabled
+                and state.update_rule_state.feature_version <= 1
+                and self._update_rule.feature_dim == LEARNED_UPDATE_PE_AWARE_FEATURE_DIM
+            ):
+                self._zero_pad_pe_columns_after_restore()
         if state.hope_self_modification_state is not None:
             self._restore_hope_state(state.hope_self_modification_state)
         else:
@@ -774,6 +992,26 @@ class CMSMemoryCore:
             return self._snapshot_mlp()
         return self._snapshot_vector()
 
+    def _snapshot_state_extras(self) -> dict[str, object]:
+        """Top-level CMSState fields added by the ATLAS / Titans uplift."""
+        return {
+            "atlas_replay_active": self._atlas_replay_active,
+            "titans_pe_gate_active": self._pe_features_enabled,
+            "replay_window_sizes": tuple(
+                (band_id, int(self._replay_window_sizes.get(band_id, 1)))
+                for band_id in _REPLAY_DEFAULT_K
+            ),
+        }
+
+    def _snapshot_band_extras(self, band_id: str) -> dict[str, object]:
+        """Per-band CMSBandState fields added by the ATLAS / Titans uplift."""
+        return {
+            "replay_window_size": int(self._latest_replay_window_size.get(band_id, 0)),
+            "pe_feature_summary": tuple(
+                self._latest_pe_features_by_band.get(band_id, ())
+            ),
+        }
+
     def _snapshot_vector(self) -> CMSState:
         tower_profile = self._build_tower_profile(
             online_vector=self._online_fast,
@@ -798,6 +1036,7 @@ class CMSMemoryCore:
                 reset_mix=self._decision_for("online-fast").reset_mix if self._decision_for("online-fast") else 0.0,
                 confidence=self._decision_for("online-fast").confidence if self._decision_for("online-fast") else 0.0,
                 update_summary=self._decision_for("online-fast").description if self._decision_for("online-fast") else "",
+                **self._snapshot_band_extras("online-fast"),
             ),
             session_medium=CMSBandState(
                 name="session-medium",
@@ -816,6 +1055,7 @@ class CMSMemoryCore:
                 reset_mix=self._decision_for("session-medium").reset_mix if self._decision_for("session-medium") else 0.0,
                 confidence=self._decision_for("session-medium").confidence if self._decision_for("session-medium") else 0.0,
                 update_summary=self._decision_for("session-medium").description if self._decision_for("session-medium") else "",
+                **self._snapshot_band_extras("session-medium"),
             ),
             background_slow=CMSBandState(
                 name="background-slow",
@@ -834,6 +1074,7 @@ class CMSMemoryCore:
                 reset_mix=self._decision_for("background-slow").reset_mix if self._decision_for("background-slow") else 0.0,
                 confidence=self._decision_for("background-slow").confidence if self._decision_for("background-slow") else 0.0,
                 update_summary=self._decision_for("background-slow").description if self._decision_for("background-slow") else "",
+                **self._snapshot_band_extras("background-slow"),
             ),
             total_observations=self._total_observations,
             total_reflections=self._total_reflections,
@@ -847,6 +1088,7 @@ class CMSMemoryCore:
             continuum_profile=self._build_continuum_profile(tower_profile),
             update_rule_state=self._latest_update_rule_state,
             hope_self_modification_state=self._hope_state(),
+            **self._snapshot_state_extras(),
         )
 
     def _snapshot_mlp(self) -> CMSState:
@@ -879,6 +1121,7 @@ class CMSMemoryCore:
                 update_summary=self._decision_for("online-fast").description if self._decision_for("online-fast") else "",
                 mode="mlp",
                 mlp_param_count=pc,
+                **self._snapshot_band_extras("online-fast"),
             ),
             session_medium=CMSBandState(
                 name="session-medium",
@@ -899,6 +1142,7 @@ class CMSMemoryCore:
                 update_summary=self._decision_for("session-medium").description if self._decision_for("session-medium") else "",
                 mode="mlp",
                 mlp_param_count=pc,
+                **self._snapshot_band_extras("session-medium"),
             ),
             background_slow=CMSBandState(
                 name="background-slow",
@@ -919,6 +1163,7 @@ class CMSMemoryCore:
                 update_summary=self._decision_for("background-slow").description if self._decision_for("background-slow") else "",
                 mode="mlp",
                 mlp_param_count=pc,
+                **self._snapshot_band_extras("background-slow"),
             ),
             total_observations=self._total_observations,
             total_reflections=self._total_reflections,
@@ -934,6 +1179,7 @@ class CMSMemoryCore:
             continuum_profile=self._build_continuum_profile(tower_profile),
             update_rule_state=self._latest_update_rule_state,
             hope_self_modification_state=self._hope_state(),
+            **self._snapshot_state_extras(),
         )
 
     def _hope_state(self) -> CMSHopeSelfModificationState:
@@ -1653,10 +1899,11 @@ class CMSMemoryCore:
             source_signal=signal,
         )
         target = self._blend_signal(current_vector, next_pending, rate=decision.write_gate)
-        mlp.update(
+        self._band_mlp_update(
+            band_id=band_id,
+            mlp=mlp,
             target=target,
-            lr_scale=max(0.05, decision.step_scale),
-            momentum_gate=decision.momentum_gate,
+            decision=decision,
         )
         self._learn_from_band_update(
             decision=decision,

@@ -1,0 +1,46 @@
+{
+  "artifacts_dir": "artifacts\\open_dialogue_cli",
+  "description": "v0 gate report for Real Open Dialogue Learning Loop. PASSED.",
+  "gate_items": [
+    {
+      "detail": "alice scoped store carries 1 rupture_repair entries after session B.",
+      "item": "treatment_produces_durable_rupture_repair",
+      "passed": true
+    },
+    {
+      "detail": "anon session B sees 0 rupture_repair entries (expected 0).",
+      "item": "matched_control_has_no_durable_rupture_repair",
+      "passed": true
+    },
+    {
+      "detail": "alice-from-bob=0 bob-from-alice=0 (both must be 0).",
+      "item": "cross_user_leakage_absent",
+      "passed": true
+    },
+    {
+      "detail": "no-signal run produced 0 rupture_repair entries (expected 0).",
+      "item": "no_external_signal_produces_no_durable_entry",
+      "passed": true
+    }
+  ],
+  "leakage_alice_viewed_from_bob": 0,
+  "leakage_bob_viewed_from_alice": 0,
+  "matched_control": {
+    "durable_rupture_repair_count": 0,
+    "rupture_kinds": [],
+    "scenario": "matched_control_no_shared_memory",
+    "turn_count": 1,
+    "user_scope": "anonymous"
+  },
+  "negative_invariant_rupture_repair_count": 0,
+  "passed": true,
+  "treatment": {
+    "durable_rupture_repair_count": 1,
+    "rupture_kinds": [
+      "misread"
+    ],
+    "scenario": "treatment",
+    "turn_count": 1,
+    "user_scope": "alice"
+  }
+}
