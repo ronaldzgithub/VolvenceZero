@@ -84,6 +84,33 @@ RUPTURE_KIND_SEVERITY: dict[RuptureKind, int] = {
 }
 
 
+# W3 of ssot-cleanup-p0-p4: human-readable phrase per RuptureKind. The
+# rupture_state owner publishes ``kind_label`` from this single source so
+# the lifeform expression layer does not maintain a duplicate dict.
+RUPTURE_KIND_LABEL: dict[RuptureKind, str] = {
+    RuptureKind.MISREAD: "a misread",
+    RuptureKind.OVER_DIRECTIVE: "over-directive",
+    RuptureKind.PUSHED_TOO_FAST: "pushed too fast",
+    RuptureKind.COLD: "cold or not heard",
+    RuptureKind.UNSAFE: "unsafe",
+    RuptureKind.ABANDONED: "abandoned",
+}
+
+
+def rupture_kind_label(kind: RuptureKind | None) -> str:
+    """Return the canonical human-readable phrase for a RuptureKind.
+
+    Returns an empty string when ``kind`` is None. Adding a new kind
+    requires landing a member in ``RUPTURE_KIND_LABEL`` (a contract
+    test enforces 1:1 coverage in
+    ``tests/contracts/test_rupture_state_contract.py``).
+    """
+
+    if kind is None:
+        return ""
+    return RUPTURE_KIND_LABEL[kind]
+
+
 @dataclass(frozen=True)
 class RuptureContributingSignal:
     """Single typed signal contribution to this turn's rupture readout.
@@ -111,6 +138,10 @@ class RuptureStateSnapshot:
     * ``evidence_sources`` lists every source present in
       ``contributing_signals`` (de-duplicated, order-preserving).
     * ``rupture_signal_strength`` and ``confidence`` are both in ``[0, 1]``.
+    * ``kind_label`` is the owner-published human-readable phrase for
+      ``rupture_kind`` (empty string when ``rupture_kind is None``);
+      consumers MUST read this field instead of maintaining their own
+      RuptureKind -> string dict (W3 SSOT cleanup).
     """
 
     rupture_signal_strength: float
@@ -120,6 +151,7 @@ class RuptureStateSnapshot:
     evidence_sources: tuple[RuptureEvidenceSource, ...]
     contributing_signals: tuple[RuptureContributingSignal, ...]
     description: str
+    kind_label: str = ""
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.rupture_signal_strength <= 1.0:
@@ -156,6 +188,11 @@ class RuptureStateSnapshot:
             raise ValueError(
                 "contributing_signals sources must match evidence_sources set."
             )
+        # W3 SSOT: kind_label is always derived from rupture_kind via the
+        # canonical map so consumers cannot drift the label by hand.
+        canonical = rupture_kind_label(self.rupture_kind)
+        if self.kind_label != canonical:
+            object.__setattr__(self, "kind_label", canonical)
 
 
 def _bootstrap_rupture_snapshot() -> RuptureStateSnapshot:
@@ -174,10 +211,12 @@ def _bootstrap_rupture_snapshot() -> RuptureStateSnapshot:
 
 __all__ = [
     "EXTERNAL_OUTCOME_TO_RUPTURE_KIND",
+    "RUPTURE_KIND_LABEL",
     "RUPTURE_KIND_SEVERITY",
     "RuptureContributingSignal",
     "RuptureEvidenceSource",
     "RuptureKind",
     "RuptureStateSnapshot",
     "_bootstrap_rupture_snapshot",
+    "rupture_kind_label",
 ]

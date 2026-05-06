@@ -84,14 +84,14 @@ class ApplicationPriorProposalBuilder:
                         user_state_pattern="slow-loop-promoted",
                         risk_markers=inputs.case_risk_markers,
                         track_tags=("self",)
-                        if inputs.regime_id in {"emotional_support", "repair_and_deescalation"}
+                        if _brief_is_self_track(inputs.regime_id)
                         else ("world",),
                         regime_tags=(inputs.regime_id,) if inputs.regime_id is not None else (),
                         intervention_ordering=ordering,
                         outcome_label=outcome_label,
                         delayed_signal_count=max(inputs.case_hit_count, 1),
                         escalation_observed="refer-out-required" in inputs.boundary_trigger_reasons,
-                        repair_observed=inputs.regime_id == "repair_and_deescalation",
+                        repair_observed=_brief_is_repair(inputs.regime_id),
                         confidence=_clamp(0.52 + inputs.mean_experience_quality * 0.36),
                         relevance_score=_clamp(0.48 + inputs.mean_experience_quality * 0.42),
                         description=(
@@ -298,19 +298,60 @@ class ApplicationPriorProposalBuilder:
         problem_pattern: str,
         regime_id: str | None,
     ) -> tuple[str, ...]:
+        # W4 SSOT: read structured decision_kind_hint from the
+        # ApplicationBrief instead of regime-id strings.
+        from volvence_zero.regime import application_brief_for_regime
+
+        decision_kind = application_brief_for_regime(regime_id).decision_kind_hint
         if problem_pattern == "family-transition-high-emotion":
             return ("stabilize", "split_axes", "smallest_next_step")
-        if problem_pattern == "relational-repair" or regime_id == "repair_and_deescalation":
+        if problem_pattern == "relational-repair" or decision_kind == "repair-first":
             return ("acknowledge", "deescalate", "repair-next-step")
-        if problem_pattern == "structured-decision-overwhelm" or regime_id == "problem_solving":
+        if (
+            problem_pattern == "structured-decision-overwhelm"
+            or decision_kind == "structure-first"
+        ):
             return ("narrow_scope", "option_compare", "smallest_next_step")
-        if regime_id == "emotional_support":
+        if decision_kind == "support-first":
             return ("acknowledge", "stabilize", "smallest_next_step")
         return ("acknowledge", "smallest_next_step")
 
     def _application_pacing_for_regime(self, regime_id: str | None) -> str:
-        if regime_id in {"emotional_support", "repair_and_deescalation"}:
+        from volvence_zero.regime import application_brief_for_regime
+
+        brief = application_brief_for_regime(regime_id)
+        if _brief_is_self_track_brief(brief):
             return "gradual"
-        if regime_id == "problem_solving":
+        if brief.decision_kind_hint == "structure-first":
             return "structured"
         return "balanced"
+
+
+def _brief_is_self_track(regime_id: str | None) -> bool:
+    """Wave 4 SSOT: a regime is "self-track-leaning" when the brief
+    publishes elevated support_focus or repair_focus.
+
+    Replaces ``regime_id in {"emotional_support", "repair_and_deescalation"}``.
+    Anywhere this used to be true now corresponds to either
+    ``brief.support_focus >= 0.6`` (emotional_support is 0.85) or
+    ``brief.repair_focus >= 0.4`` (repair_and_deescalation is 0.85).
+    """
+
+    from volvence_zero.regime import application_brief_for_regime
+
+    return _brief_is_self_track_brief(application_brief_for_regime(regime_id))
+
+
+def _brief_is_self_track_brief(brief) -> bool:
+    return brief.support_focus >= 0.6 or brief.repair_focus >= 0.4
+
+
+def _brief_is_repair(regime_id: str | None) -> bool:
+    """Wave 4 SSOT: a regime is "repair-shaped" iff the brief
+    publishes elevated repair_focus. Replaces ``regime_id ==
+    "repair_and_deescalation"``.
+    """
+
+    from volvence_zero.regime import application_brief_for_regime
+
+    return application_brief_for_regime(regime_id).repair_focus >= 0.4

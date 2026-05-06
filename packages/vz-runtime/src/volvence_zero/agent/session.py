@@ -255,171 +255,27 @@ class AgentTurnResult:
     online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
 
 
-def _repair_expression_advisory_from_snapshots(
-    shadow_snapshots: dict[str, Snapshot[Any]],
-) -> RepairExpressionAdvisory | None:
-    rupture_snapshot = shadow_snapshots.get("rupture_state")
-    if (
-        rupture_snapshot is None
-        or not isinstance(rupture_snapshot.value, RuptureStateSnapshot)
-    ):
-        return None
-    rupture = rupture_snapshot.value
-    if rupture.rupture_kind is None or rupture.internal_suspected_only:
-        return None
-    return RepairExpressionAdvisory(
-        rupture_kind=rupture.rupture_kind.value,
-        confidence=rupture.confidence,
-        signal_strength=rupture.rupture_signal_strength,
-        description=rupture.description,
-    )
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
-def _application_outcome_score(
-    *,
-    reward: float,
-    magnitude: float,
-    relationship_error: float,
-) -> float:
-    magnitude_term = 1.0 - min(max(magnitude, 0.0) / 4.0, 1.0)
-    relationship_term = 1.0 - min(abs(relationship_error), 1.0)
-    return _clamp(0.45 + reward * 0.30 + magnitude_term * 0.15 + relationship_term * 0.10)
-
-
-def _retrieval_mix_alignment(
-    *,
-    regime_id: str | None,
-    knowledge_weight: float,
-    experience_weight: float,
-) -> float:
-    if regime_id == "problem_solving":
-        return _clamp(0.5 + (knowledge_weight - experience_weight) * 0.5)
-    if regime_id in {"emotional_support", "repair_and_deescalation"}:
-        return _clamp(0.5 + (experience_weight - knowledge_weight) * 0.5)
-    return _clamp(1.0 - abs(knowledge_weight - experience_weight))
-
-
-def _regime_alignment(
-    *,
-    regime_id: str | None,
-    outcome_score: float,
-    relationship_error: float,
-    regime_error: float,
-    magnitude: float,
-) -> float:
-    if regime_id in {"emotional_support", "repair_and_deescalation"}:
-        contextual_fit = 1.0 - min(abs(relationship_error), 1.0)
-    elif regime_id == "problem_solving":
-        contextual_fit = 1.0 - min(abs(regime_error), 1.0)
-    else:
-        contextual_fit = 1.0 - min(max(magnitude, 0.0) / 4.0, 1.0)
-    return _clamp(outcome_score * 0.65 + contextual_fit * 0.35)
-
-
-def _abstract_action_alignment(
-    *,
-    regime_id: str | None,
-    abstract_action: str | None,
-    action_family_version: int,
-    outcome_score: float,
-) -> float:
-    if abstract_action is None:
-        family_bonus = min(max(action_family_version, 0), 4) / 4.0
-        return _clamp(outcome_score * 0.78 + family_bonus * 0.22)
-    action_label = abstract_action.lower()
-    if action_label.startswith("latent-family-v"):
-        family_bonus = min(max(action_family_version, 0), 4) / 4.0
-        return _clamp(outcome_score * 0.72 + (0.5 + family_bonus * 0.5) * 0.28)
-    if regime_id == "problem_solving":
-        action_bias = 1.0 if "task_controller" in action_label else 0.45
-    elif regime_id == "repair_and_deescalation":
-        action_bias = 1.0 if "repair_controller" in action_label else 0.45
-    elif regime_id == "emotional_support":
-        action_bias = 1.0 if "stabilize_controller" in action_label else 0.45
-    elif regime_id == "guided_exploration":
-        action_bias = 1.0 if "exploration_controller" in action_label else 0.45
-    else:
-        action_bias = 0.65
-    return _clamp(outcome_score * 0.65 + action_bias * 0.35)
+# W5 of ssot-cleanup-p0-p4: pure helper functions extracted to
+# ``agent/session_helpers.py``. The legacy private names are kept here
+# as aliases for backward compat (any code that imported the leading-
+# underscore symbols directly continues to work). New code should
+# import the public names from ``volvence_zero.agent.session_helpers``.
+from volvence_zero.agent.session_helpers import (
+    abstract_action_alignment as _abstract_action_alignment,
+    application_outcome_score as _application_outcome_score,
+    clamp01 as _clamp,
+    regime_alignment as _regime_alignment,
+    repair_expression_advisory_from_snapshots as _repair_expression_advisory_from_snapshots,
+    retrieval_mix_alignment as _retrieval_mix_alignment,
+)
 
 
 _APPLICATION_PRIOR_PROPOSAL_BUILDER = ApplicationPriorProposalBuilder()
 
 
-def _experience_deltas_from_prior_update(
-    *,
-    prior_update: ApplicationPriorUpdate | None,
-    blocked_targets: tuple[str, ...],
-) -> tuple[ExperienceDelta, ...]:
-    if prior_update is None:
-        return ()
-    blocked_target_set = set(blocked_targets)
-    deltas: list[ExperienceDelta] = []
-    for update in prior_update.case_memory_updates:
-        deltas.append(
-            ExperienceDelta(
-                delta_id=update.update_id,
-                delta_type="case-promotion",
-                target_slot="case_memory",
-                summary=update.description,
-                confidence=update.confidence,
-                blocked=update.target in blocked_target_set,
-                description=update.record.description,
-            )
-        )
-    for update in prior_update.strategy_playbook_updates:
-        deltas.append(
-            ExperienceDelta(
-                delta_id=update.update_id,
-                delta_type="playbook-delta",
-                target_slot="strategy_playbook",
-                summary=update.description,
-                confidence=update.confidence,
-                blocked=update.target in blocked_target_set,
-                description=update.rule.description,
-            )
-        )
-    for update in prior_update.boundary_policy_updates:
-        deltas.append(
-            ExperienceDelta(
-                delta_id=update.update_id,
-                delta_type="boundary-delta",
-                target_slot="boundary_policy",
-                summary=update.description,
-                confidence=update.confidence,
-                blocked=update.target in blocked_target_set,
-                description=update.hint.description,
-            )
-        )
-    for update in prior_update.domain_knowledge_updates:
-        deltas.append(
-            ExperienceDelta(
-                delta_id=update.update_id,
-                delta_type="knowledge-promotion",
-                target_slot="domain_knowledge",
-                summary=update.description,
-                confidence=update.confidence,
-                blocked=update.target in blocked_target_set,
-                description=update.record.summary,
-            )
-        )
-    for update in prior_update.retrieval_readout_updates:
-        deltas.append(
-            ExperienceDelta(
-                delta_id=update.update_id,
-                delta_type="retrieval-readout-delta",
-                target_slot="retrieval_policy",
-                summary=update.description,
-                confidence=update.confidence,
-                blocked=update.target in blocked_target_set,
-                description=update.checkpoint.description,
-            )
-        )
-    return tuple(deltas)
+from volvence_zero.agent.session_helpers import (
+    experience_deltas_from_prior_update as _experience_deltas_from_prior_update,
+)
 
 
 @dataclass(frozen=True)
@@ -3456,12 +3312,26 @@ class AgentSessionRunner:
         repair_advisory = _repair_expression_advisory_from_snapshots(
             integration_result.shadow_snapshots
         )
+        # W3 SSOT: per-regime expression brief is owned by the
+        # regime module (RegimeIdentity.expression_brief). The
+        # synthesizer reads context.regime_expression_brief to pick
+        # variant prose instead of branching on regime_id strings.
+        if regime_snapshot is not None and isinstance(
+            regime_snapshot.value, RegimeSnapshot
+        ):
+            regime_value = regime_snapshot.value
+            regime_name_value = regime_value.active_regime.name
+            regime_expression_brief = regime_value.active_regime.expression_brief
+        else:
+            from volvence_zero.regime import (
+                ExpressionBrief as _ExpressionBriefDefault,
+            )
+            regime_name_value = "current context"
+            regime_expression_brief = _ExpressionBriefDefault()
         response = self._response_synthesizer.synthesize(
             context=ResponseContext(
                 regime_id=active_regime,
-                regime_name=regime_snapshot.value.active_regime.name
-                if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
-                else "current context",
+                regime_name=regime_name_value,
                 regime_switched=regime_switched,
                 abstract_action=active_abstract_action,
                 alert_count=len(evaluation_alerts),
@@ -3482,6 +3352,7 @@ class AgentSessionRunner:
                 subject_ids=subject_ids,
                 audience_ids=audience_ids,
                 repair_advisory=repair_advisory,
+                regime_expression_brief=regime_expression_brief,
             ),
             assembly=response_assembly,
         )

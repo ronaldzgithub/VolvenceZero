@@ -16,11 +16,13 @@ from __future__ import annotations
 
 from volvence_zero.rupture_state.contracts import (
     EXTERNAL_OUTCOME_TO_RUPTURE_KIND,
+    RUPTURE_KIND_LABEL,
     RUPTURE_KIND_SEVERITY,
     RuptureContributingSignal,
     RuptureEvidenceSource,
     RuptureKind,
     RuptureStateSnapshot,
+    rupture_kind_label,
 )
 from volvence_zero.rupture_state.detection import (
     behavioral_signal,
@@ -33,6 +35,7 @@ from volvence_zero.rupture_state.owner import RuptureStateModule
 
 __all__ = [
     "EXTERNAL_OUTCOME_TO_RUPTURE_KIND",
+    "RUPTURE_KIND_LABEL",
     "RUPTURE_KIND_SEVERITY",
     "RuptureContributingSignal",
     "RuptureEvidenceSource",
@@ -44,4 +47,5 @@ __all__ = [
     "llm_proposal_signal",
     "pe_spike_signal",
     "self_check_signal",
+    "rupture_kind_label",
 ]

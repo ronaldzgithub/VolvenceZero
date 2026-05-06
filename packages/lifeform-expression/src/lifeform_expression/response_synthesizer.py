@@ -311,17 +311,27 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         repair_alpha_active: bool = False,
         interlocutor_state: InterlocutorState | None = None,
     ) -> tuple[str, str]:
+        # Variant order matters:
+        # 1. repair_alpha advisory (cross-regime, takes priority)
+        # 2. regime expression_brief.acknowledge_hint (W3 SSOT)
+        # 3. interlocutor state zones (W2 SSOT)
+        # 4. continuum-target fallback
+        # 5. default
         if repair_alpha_active and context.repair_advisory is not None:
-            label = _repair_kind_label(context.repair_advisory.rupture_kind)
+            # ``kind_label`` is the rupture_state-owned phrase (W3 SSOT);
+            # fall back to the rupture_kind enum value only when running
+            # against an older runtime that has not been updated to
+            # populate the label field.
+            advisory = context.repair_advisory
+            label = advisory.kind_label or advisory.rupture_kind.replace("_", " ")
             return (
                 f"I hear that this landed as {label}. I am going to pause "
                 "the optimizing frame instead of pushing through it."
             ), "repair_alpha"
-        if context.regime_id == "repair_and_deescalation":
-            return (
-                "I want to slow this down so we can stay grounded together. "
-                "I am not going to push past what just happened."
-            ), "repair_regime"
+        brief_hint = context.regime_expression_brief.acknowledge_hint
+        text = _ACKNOWLEDGE_TEMPLATES.get(brief_hint, "")
+        if text:
+            return text, brief_hint
         if _state_indicates_repair(interlocutor_state):
             return (
                 "You are right to slow the pace; I do not want to turn you into a project."
@@ -334,10 +344,6 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return (
                 "There is some weight here, so I want to stay close to what you are actually feeling."
             ), "interlocutor_emotional"
-        if context.regime_id == "emotional_support":
-            return (
-                "I am hearing weight in this and I want to stay with it before we move."
-            ), "emotional_support_regime"
         if assembly.continuum_target_position >= 0.7:
             return (
                 "I want to acknowledge the pressure here before we narrow anything."
@@ -357,12 +363,11 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 "The repair is the frame now: name what went wrong, lower "
                 "pressure, and make the next move reversible."
             ), "repair_alpha"
-        regime = assembly.regime_id or context.regime_id or ""
-        if regime == "emotional_support":
-            return (
-                "I will stay supportive first and not jump into solving."
-            ), "emotional_support"
-        if regime == "guided_exploration":
+        # Guided-exploration is the only regime whose frame is
+        # interlocutor-state-modulated; we surface variants by zone
+        # before falling back to the brief's static hint.
+        brief_hint = context.regime_expression_brief.frame_hint
+        if brief_hint == "guided_exploration":
             if _state_indicates_repair(interlocutor_state):
                 return (
                     "Let's reset the pace and make the next move feel chosen, not imposed."
@@ -375,23 +380,9 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 return (
                     "We can sort the feeling first, then decide whether a step is needed."
                 ), "guided_exploration_emotional"
-            return (
-                "I would rather explore this with you step by step than guess at one answer."
-            ), "guided_exploration"
-        if regime == "problem_solving":
-            return (
-                "I see a structured path here we can walk together."
-            ), "problem_solving"
-        if regime == "repair_and_deescalation":
-            return (
-                "I will keep my responses steady and avoid escalating tone."
-            ), "repair_and_deescalation"
-        if regime == "acquaintance_building":
-            return (
-                "I want to keep this warm rather than transactional."
-            ), "acquaintance_building"
-        if regime == "casual_social":
-            return "I can stay in steady, low-pressure mode.", "casual_social"
+        text = _FRAME_TEMPLATES.get(brief_hint, "")
+        if text:
+            return text, brief_hint
         return (
             "I will stay context-aware and keep usefulness and continuity in view."
         ), "default"
@@ -442,17 +433,10 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 "before offering structure, and you can stop or redirect me "
                 "if I start turning it into a workflow again."
             ), "repair_alpha"
-        regime = assembly.regime_id or context.regime_id or ""
-        if regime in {"emotional_support", "repair_and_deescalation"}:
-            return (
-                "We can stay here together, and when you are ready, name one "
-                "small next step that would feel manageable."
-            ), "support_or_repair"
-        if regime == "problem_solving":
-            return (
-                "Concretely, the smallest useful next step is to name the constraint that matters most."
-            ), "problem_solving"
-        if regime == "guided_exploration":
+        brief_hint = context.regime_expression_brief.next_step_hint
+        # Guided-exploration is the only next-step variant that
+        # depends on interlocutor zone; surface that branch first.
+        if brief_hint == "guided_exploration":
             if _state_indicates_repair(interlocutor_state):
                 return (
                     "A good next move is to name what felt off, then choose one gentler thread to continue."
@@ -465,9 +449,9 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 return (
                     "Start by naming the heaviest part in one sentence; we can decide after that."
                 ), "guided_exploration_emotional"
-            return (
-                "Pick one of the threads we just surfaced and we can go a little deeper on it."
-            ), "guided_exploration"
+        text = _NEXT_STEP_TEMPLATES.get(brief_hint, "")
+        if text:
+            return text, brief_hint
         return (
             "From here we can take one small, concrete step that keeps things moving without forcing the pace."
         ), "default"
@@ -556,6 +540,52 @@ def _dedupe_sentences(sentences: Iterable[str]) -> list[str]:
     return out
 
 
+_ACKNOWLEDGE_TEMPLATES: dict[str, str] = {
+    "repair_regime": (
+        "I want to slow this down so we can stay grounded together. "
+        "I am not going to push past what just happened."
+    ),
+    "emotional_support": (
+        "I am hearing weight in this and I want to stay with it before we move."
+    ),
+    "warmth_first": (
+        "I want to honour what you just shared before I move toward anything practical."
+    ),
+}
+
+
+_FRAME_TEMPLATES: dict[str, str] = {
+    "emotional_support": "I will stay supportive first and not jump into solving.",
+    "problem_solving": "I see a structured path here we can walk together.",
+    "repair_and_deescalation": (
+        "I will keep my responses steady and avoid escalating tone."
+    ),
+    "acquaintance_building": "I want to keep this warm rather than transactional.",
+    "casual_social": "I can stay in steady, low-pressure mode.",
+    "guided_exploration": (
+        "I would rather explore this with you step by step than guess at one answer."
+    ),
+}
+
+
+_NEXT_STEP_TEMPLATES: dict[str, str] = {
+    "support_or_repair": (
+        "We can stay here together, and when you are ready, name one "
+        "small next step that would feel manageable."
+    ),
+    "problem_solving": (
+        "Concretely, the smallest useful next step is to name the constraint that matters most."
+    ),
+    "guided_exploration": (
+        "Pick one of the threads we just surfaced and we can go a little deeper on it."
+    ),
+    "acquaintance_building": (
+        "We can move at whatever pace feels right; there is no rush."
+    ),
+    "casual_social": "We can keep things easy and continuous from here.",
+}
+
+
 def _state_indicates_repair(state: InterlocutorState | None) -> bool:
     """Wave 2: read the typed ``repair_zone`` bool the owner already
     classified, instead of re-applying numeric thresholds. Zone
@@ -571,18 +601,6 @@ def _state_indicates_direct_task(state: InterlocutorState | None) -> bool:
 
 def _state_indicates_emotional_weight(state: InterlocutorState | None) -> bool:
     return state is not None and state.emotional_render_zone
-
-
-def _repair_kind_label(kind: str) -> str:
-    labels = {
-        "misread": "a misread",
-        "over_directive": "over-directive",
-        "pushed_too_fast": "pushed too fast",
-        "cold": "cold or not heard",
-        "unsafe": "unsafe",
-        "abandoned": "abandoned",
-    }
-    return labels[kind] if kind in labels else kind.replace("_", " ")
 
 
 def _plan_uses_repair_alpha(plan: PromptPlan) -> bool:

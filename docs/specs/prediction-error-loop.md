@@ -49,6 +49,7 @@
   - `error`
   - `turn_index`
   - `bootstrap`
+  - `pe_decomposition`（optional, Phase 1.B）：`PEDecomposition` 或 `None`
 
 **当前实现口径**：
 
@@ -67,6 +68,28 @@
 - 当前 proof harness 允许显式区分两层含义：一层是 **PE publication/readout**（slot + evaluation evidence 仍存在），另一层是 **PE primary dominance**（是否直接主导 joint-loop schedule 与 RL reward）。`pe-eta-pe-readout-only` 用于只保留前者
 - `bootstrap=True` 表示当前 turn 尚无可结算的上一轮 prediction；下游不应把这类快照当作真实 learning evidence
 - live runtime 中，部分 consumer 会把 `prediction_error` 当作“上一轮结算出的 carryover signal”，以维持单轮 DAG 和 owner 边界
+
+### Curiosity-Critic PE 分解（Phase 1.B, running-stats）
+
+来源：Aubret et al., "Curiosity-Critic: Cumulative Prediction Error Improvement"（`arXiv:2604.18701`）。核心命题：把瞬时 PE 替换为 PE 的"可改进部分"，把 epistemic（可学）与 aleatoric（不可学）分离，避免噪声驱动 memory writes / regime switching / metacontroller 行为。
+
+落点：`vz-cognition/prediction/error.py` 内 owner-internal `_PECriticHead` + `_AxisRunningStats`；新 frozen `PEDecomposition` dataclass；`PredictionErrorSnapshot.pe_decomposition: PEDecomposition | None`。
+
+机制（**lightweight, 不训练 critic head**）：
+
+- 每个 (axis, bucket_key) 维护一个 EMA mean / EMA variance；bucket_key = `regime:<regime_id>` / `segment:<segment_id>` / `action:<abstract_action_id>` / `default`。
+- 每轮 `compute_error` 后，对每条轴 `|axis_error|` 更新对应 bucket。
+- aleatoric_magnitude := `sqrt(EMA_variance)`，clamp 到 `[0, 1]`，代表噪声底；epistemic_magnitude := `max(0, |error| − aleatoric)` 的轴聚合，clamp 到 `[0, 1]`，代表"系统能学下去的部分"。
+- per_axis 列出每条轴的 (axis_name, aleatoric, epistemic)。
+- decay 默认 `0.9`，由 `PredictionErrorModule(pe_critic_decay=...)` 注入，避免硬编码。
+
+接入点：
+
+- `PredictionErrorSnapshot.pe_decomposition` 在 bootstrap turn 时为 `None`，正常 turn 由 owner 内部 `_PECriticHead.update(...)` 填充；现有 consumer 仍只读 `error.magnitude` / 轴 error / `signed_reward`，向后兼容。
+- `evaluation/backbone.py::_prediction_error_scores` 新增两个 metric：`pe_aleatoric_magnitude`、`pe_epistemic_magnitude`，**严格 report-only**，不进入任何 acceptance gate；目的是避免把"分离"反过来训练成第二套 reward。
+- `vz-memory/memory/store.py` 在 PE 写入路径里把 `epistemic_magnitude` / `aleatoric_magnitude` 直接写入 owner-internal `MemoryAttributeReadout`（Phase 1.C），让陪伴向"哪条 PE 是可学的"成为可观察 readout。
+
+**Phase 2.B uplift（不在本次实现）**：在 PE owner 内加 learned critic head（小型回归头：substrate feature + action_context → 预测 PE 期望，improvement-PE = actual − critic-prediction），需要 checkpoint / capacity cap / rollback evidence，纳入 `ModificationGate` 准入，已登记于 `docs/known-debts.md`。
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.9 节
 
@@ -87,6 +110,7 @@
 
 ## 变更日志
 
+- 2026-05-06: Phase 1.B 上线 owner-internal Curiosity-Critic running-stats 分解（`PEDecomposition` + `_PECriticHead`）；`PredictionErrorSnapshot.pe_decomposition` 为 optional 字段，bootstrap 时为 `None`；`evaluation` 新增 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 两个 report-only metric。Phase 2.B learned critic head 登记为后续 uplift。
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：PE 消费 temporal segment closure 与可观察 outcome context，不新增 trace owner 或 learning primitive
 - 2026-04-22: 补充 `pe-eta-pe-readout-only` proof 口径，明确区分 PE publication/readout 与 PE primary dominance
 - 2026-04-22: 当前实现口径补充单一 owner-side mapper/head、confidence-aware calibrated error weighting，以及 evaluation 只发布 PE-owner readout 的边界

@@ -817,6 +817,18 @@ class MemorySnapshot:
     suppressed_cross_scope_entries: tuple[MemoryEntry, ...] = ()  # 被 multi-party scope 过滤掉的检索结果（owner 自报，不是消费者推算）
     active_subject_scope: tuple[str, ...] = ()  # 本轮 retrieval 真正使用的 active subject scope
     social_pe_signals: tuple[MemorySocialPESignal, ...] = ()  # owner 自身发布的 typed social PE signals；社交 prediction / error owner 只做契约级 lift，不重建
+    attribute_summary: tuple[MemoryAttributeReadout, ...] = ()  # Phase 1.C owner-internal 卡片属性读出（PE intensity + primary axis + regime + substrate digest + epistemic/aleatoric），capped 16 条；不写 checkpoint，重启后由 PE / substrate 自然回填
+
+@dataclass(frozen=True)
+class MemoryAttributeReadout:
+    entry_id: str
+    pe_intensity: float                              # 来自 PredictionError.magnitude
+    pe_primary_axis: str                             # 来自 PE 主导轴
+    regime_id: str                                   # 来自 PE action_context
+    substrate_feature_digest: tuple[float, ...]      # 截短 _substrate_embedding，dim ≤ 8
+    epistemic_magnitude: float                       # 来自 PEDecomposition.epistemic_magnitude（缺失则 0）
+    aleatoric_magnitude: float                       # 来自 PEDecomposition.aleatoric_magnitude（缺失则 0）
+    timestamp_ms: int
 ```
 
 **owner 规则**：
@@ -955,6 +967,8 @@ class CreditSnapshot:
     cumulative_credit_by_level: tuple[tuple[str, float], ...]  # (level, sum) pairs
     description: str
 ```
+
+**`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）。
 
 **当前实现口径**：
 
@@ -1190,6 +1204,13 @@ class PredictionError:
     description: str
 
 @dataclass(frozen=True)
+class PEDecomposition:
+    aleatoric_magnitude: float                # variance floor (sqrt of EMA variance), [0, 1]
+    epistemic_magnitude: float                # 可学的部分（|error| - aleatoric 的轴聚合）, [0, 1]
+    per_axis: tuple[tuple[str, float, float], ...]  # (axis_name, aleatoric, epistemic)
+    description: str = ""
+
+@dataclass(frozen=True)
 class PredictionErrorSnapshot:
     evaluated_prediction: PredictedOutcome | None
     actual_outcome: ActualOutcome
@@ -1199,6 +1220,7 @@ class PredictionErrorSnapshot:
     bootstrap: bool
     description: str
     memory_retrieval_facets: tuple[str, ...] = ()  # PE owner 自报的 memory retrieval facets
+    pe_decomposition: PEDecomposition | None = None  # Phase 1.B Curiosity-Critic readout；bootstrap 时为 None
 ```
 
 **当前实现口径**：
@@ -1412,9 +1434,13 @@ reflection ──────────────→ proposals; runtime invo
 
 **`dialogue_external_outcome` 契约语义**：这是**外部 outcome 进入内核的唯一 snapshot 通道**。`submit_dialogue_outcome(...)` 只向该 slot 的 owner 追加 typed evidence；它**不**直接写 memory / regime / PE 内部状态。`PredictionErrorModule` 在自身 `derive_actual_outcome(...)` 内消费该 snapshot，`RegimeModule` 在自身 `process(...)` 内根据该 snapshot 创建 `PendingRegimeOutcome` 行。这样保持 `_pending_outcomes` / `ActualOutcome` 的单写者不变量（R8）。
 
-**`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
+**`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。snapshot 还发布 `kind_label`（W3 SSOT），是 `RuptureKind` 的人类可读短语，由 owner 从 `RUPTURE_KIND_LABEL` 一处生成；下游表达层不维护重复字典。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
 
 **`interlocutor_state` 契约语义**（W2 ssot-cleanup-p0-p4）：12-axis 连续读出（`engagement_intensity`, `emotional_weight`, `resistance_level`, `trust_signal`, `pace_pressure`, … 共 12 维），由 `InterlocutorStateModule` 从六个上游 snapshot（`regime` / `dual_track` / `evaluation` / `prediction_error` / `memory` / `commitment`）派生。snapshot 自身发布**typed zone bool**（`acknowledge_pressure_zone` / `repair_zone` / `direct_task_zone` / `emotional_render_zone` / `pace_pressure_zone` / `cold_rapport_zone` / `low_directness_zone` 等），消费者读 zone bool 即可，**不得**重新应用数值阈值。阈值常量集中在 `volvence_zero.interlocutor.contracts.InterlocutorThresholds`，是该 owner 的 SSOT。详见 [`docs/specs/interlocutor-state.md`](./specs/interlocutor-state.md)。
+
+**`RegimeIdentity.expression_brief` / `application_brief` 契约语义**（W3+W4 ssot-cleanup-p0-p4）：每个 regime 的 `RegimeIdentity` 携带两个 typed brief：
+- `expression_brief: ExpressionBrief` — `lifeform-expression` 渲染层读取，把 `acknowledge_hint` / `frame_hint` / `next_step_hint` / `open_loop_hint` / `continuity_hint` 五个语义占位符当 lookup key，渲染最终 prose。
+- `application_brief: ApplicationBrief` — `vz-application` 读取，包含 `task_focus / support_focus / repair_focus / exploration_focus`（连续 0..1 mode 强度）、`domain_affinity`（per-domain 加分表，替代 `_regime_bonus(regime_id, {...})`）、`continuum_target_position`、`decision_kind_hint`、`support_decision_threshold`、`knowledge_weight_nudge`。`vz-application` 模块**不得**直接 branch 在 regime_id 字符串字面量上；contract test `tests/contracts/test_application_no_regime_id_branching.py` 守门。新增 regime 只需在 `volvence_zero.regime.templates.REGIME_TEMPLATES` 加一行 brief，application 自动 pickup。
 
 ### 6.1A Semantic Owner Emotional Decision Readouts
 

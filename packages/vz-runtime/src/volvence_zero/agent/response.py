@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
+from volvence_zero.regime.contracts import ExpressionBrief
 from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 
 
@@ -36,12 +37,18 @@ class RepairExpressionAdvisory:
     This is not a new rupture owner. Runtime builds it from the owner
     snapshot after propagation so expression can adjust wording without
     reading SHADOW snapshots or re-interpreting rupture evidence.
+
+    ``kind_label`` is the canonical human-readable phrase published by
+    ``rupture_state`` (single source of truth, W3 SSOT). The lifeform
+    expression layer renders this verbatim; it does NOT maintain a
+    parallel RuptureKind -> string map.
     """
 
     rupture_kind: str
     confidence: float
     signal_strength: float
     description: str
+    kind_label: str = ""
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,12 @@ class ResponseContext:
     subject_ids: tuple[str, ...] = (PRIMARY_INTERLOCUTOR_ID,)
     audience_ids: tuple[str, ...] = (SELF_INTERLOCUTOR_ID,)
     repair_advisory: RepairExpressionAdvisory | None = None
+    # W3 of ssot-cleanup-p0-p4: per-regime expression brief threaded
+    # from ``RegimeIdentity.expression_brief`` so the synthesizer
+    # does not branch on ``regime_id`` to pick variant text.
+    regime_expression_brief: ExpressionBrief = field(
+        default_factory=ExpressionBrief
+    )
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ from volvence_zero.regime.hint_readout import (
     readout_cognitive_depth_hint,
     readout_participation_hint,
 )
+from volvence_zero.regime.contracts import ApplicationBrief, ExpressionBrief
 from volvence_zero.regime.identity import (
     CognitiveDepth,
     CognitiveDepthHint,
@@ -26,10 +27,16 @@ from volvence_zero.regime.identity import (
     derive_participation_hint,
     score_regimes,
 )
+from volvence_zero.regime.templates import (
+    application_brief_for_regime,
+    expression_brief_for_regime,
+)
 
 __all__ = [
+    "ApplicationBrief",
     "CognitiveDepth",
     "CognitiveDepthHint",
+    "ExpressionBrief",
     "HintReadoutContext",
     "REGIME_TEMPLATES",
     "DelayedOutcomeAttribution",
@@ -45,10 +52,12 @@ __all__ = [
     "RegimeSelectionWeights",
     "RegimeSequencePayoff",
     "RegimeSnapshot",
+    "application_brief_for_regime",
     "build_hint_readout_context",
     "build_regime_identity",
     "derive_cognitive_depth_hint",
     "derive_participation_hint",
+    "expression_brief_for_regime",
     "readout_cognitive_depth_hint",
     "readout_participation_hint",
     "score_regimes",

@@ -514,10 +514,20 @@ class RetrievalControlReadoutStrategy:
         )
 
     def _extract_features(self, inputs: RetrievalControlReadoutInputs) -> RetrievalReadoutFeatures:
+        # W4 of ssot-cleanup-p0-p4: read regime mode features from
+        # ApplicationBrief.task_focus / .support_focus / .repair_focus
+        # rather than one-hot ``regime_id == 'X'`` checks. The brief
+        # values are continuous (0..1) so a learned regime can express
+        # mixed modes; the historical hard one-hot kept regime_id ==
+        # "X" -> 1.0, which is the special case
+        # ``brief.task_focus >= 0.85`` etc.
+        from volvence_zero.regime import application_brief_for_regime
+
         action_label = (inputs.abstract_action or "").lower()
-        problem_solving_mode = 1.0 if inputs.regime_id == "problem_solving" else 0.0
-        support_mode = 1.0 if inputs.regime_id == "emotional_support" else 0.0
-        repair_mode = 1.0 if inputs.regime_id == "repair_and_deescalation" else 0.0
+        brief = application_brief_for_regime(inputs.regime_id)
+        problem_solving_mode = brief.task_focus
+        support_mode = brief.support_focus
+        repair_mode = brief.repair_focus
         return RetrievalReadoutFeatures(
             problem_solving_mode=problem_solving_mode,
             support_mode=support_mode,

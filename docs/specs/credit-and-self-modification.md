@@ -48,6 +48,29 @@
 
 通过时间抽象将有效时间范围从 token 级压缩到抽象动作级。每个抽象动作对应一段完整的子目标执行，奖励可直接归因到抽象动作级别。
 
+### Counterfactual Contribution（COCOA, lightweight, Phase 1.A）
+
+来源：Meulemans et al., "Would I have gotten that reward? Long-term credit assignment by counterfactual contribution analysis", NeurIPS 2023 spotlight (`arXiv:2306.16803`)。同一脉的 ETA 作者线。
+
+落点：`vz-cognition/credit/gate.py` 中新增 `derive_counterfactual_contribution_records(...)` helper + `record_nstep_outcomes_from_segment_closure(...)` helper。最终编排在 `final_wiring.py` 的 credit-merge 区块内调用，与 `derive_delayed_attribution_credit_records` / `derive_prediction_error_credit_records` 串行追加。
+
+机制（**lightweight, 不训练 rewarding-state head**）：
+
+- baseline = Σ_i normalized_w_i × historical_payoff_i，其中：
+  - `normalized_w_i` 来自 `RegimeSnapshot.selection_weights.weights`（缺失则回退到 `candidate_regimes`）；
+  - `historical_payoff_i` 来自 `RegimeSnapshot.delayed_payoffs.rolling_payoff`，优先匹配 (regime_id, abstract_action) 二元 key，否则匹配 regime_id。
+- contribution := actual − baseline，其中 actual 来自 `PredictionErrorSnapshot.error.signed_reward`。
+- 输出 `CreditRecord(level="counterfactual_contribution", track=Track.SHARED, source_event="cocoa:<regime>:<segment>:<action>", credit_value=contribution, context="baseline=...; actual=...; contributors=...")`。
+- 缺少 PE / regime / payoff / 权重时返回空 tuple，主链行为不变。
+- `record_nstep_outcomes_from_segment_closure(...)` 复活了 dormant 的 `CreditLedger.record_nstep_outcome` 路径，把已闭合 segment 的 outcome 追加到 `_nstep_ledger`，使 `delayed_ledger_size` 反映真实 segment 闭合次数；为 Phase 2.A full COCOA 提供 outcome trajectory 基底。
+
+下游兼容性：
+
+- `recent_credits` 消费者（`reflection/writeback.py`、`temporal/interface.py::_build_family_outcome_feedback`、`agent/session.py` action-replay）按 `level` 过滤，新 level 自动被忽略，不影响现有读出。
+- 不进入任何 acceptance gate；与 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 一样为 readout-only。
+
+**Phase 2.A uplift（不在本次实现）**：在 credit owner 内部加学到的 rewarding-state head（小型回归头），把 baseline 从历史均值改为 contextual prediction，更贴近论文。需要 checkpoint / capacity cap / rollback evidence，纳入 `ModificationGate` 准入，已登记于 `docs/known-debts.md`。
+
 ### Delta 动量选择性遗忘（NL 附录 A.3）
 
 通过梯度依赖的衰减实现选择性遗忘，避免无关梯度干扰信用分配。
@@ -112,6 +135,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 ## 变更日志
 
+- 2026-05-06: Phase 1.A 上线 lightweight COCOA-style `derive_counterfactual_contribution_records` + `record_nstep_outcomes_from_segment_closure`；新 `CreditRecord.level="counterfactual_contribution"`，readout-only，不入 acceptance gate。Phase 2.A full rewarding-state head 登记为后续 uplift。
 - 2026-05-05: ModificationGate 加入 validation margin + capacity cap + rollback evidence 三类 fail-closed 准入证据，并把 block 原因写入 gate audit；用于加固 self-modification / artifact refresh / controller update，而不改变主学习链路
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的协作口径：segment/action credit 仅由 enriched PE snapshot 派生，不引入 trace owner
 - 2026-04-25: 补充 `CreditModule` 默认 `SHADOW` 接线与 PE-first 派生路径说明，避免把 credit owner 误读为直接在线自修改执行者

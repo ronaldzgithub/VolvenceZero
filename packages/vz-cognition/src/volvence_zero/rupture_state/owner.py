@@ -189,9 +189,11 @@ class RuptureStateModule(RuntimeModule[RuptureStateSnapshot]):
         # rule in v0; it is encoded here once, in a named owner, as
         # documented in the spec.
         if misread_seen and relationship_state_value is not None:
-            repair_pressure = float(
-                getattr(relationship_state_value, "repair_pressure", 0.0)
-            )
+            # ``RelationshipStateSnapshot`` is a typed dataclass; access
+            # the field directly so a future schema rename / removal
+            # fails loudly rather than silently producing degraded
+            # cold-composition behaviour (W3 SSOT typed-access fix).
+            repair_pressure = float(relationship_state_value.repair_pressure)
             if repair_pressure >= _COLD_COMPOSITION_REPAIR_PRESSURE_THRESHOLD:
                 candidates.append(RuptureKind.COLD)
         if not candidates:

@@ -440,5 +440,7 @@ def build_regime_identity(
                 entry_conditions=template.entry_conditions,
                 exit_conditions=template.exit_conditions,
                 historical_effectiveness=historical_effectiveness.get(regime_id, 0.5),
+                expression_brief=template.expression_brief,
+                application_brief=template.application_brief,
             )
     raise KeyError(f"Unknown regime_id: {regime_id}")

@@ -36,8 +36,7 @@ if TYPE_CHECKING:
     from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
+from volvence_zero.application.scoring_helpers import clamp01 as _clamp
 
 
 # Slice C (2026-05-03): the application-tier snapshot dataclasses live
@@ -671,15 +670,9 @@ class ApplicationRareHeavyCheckpoint:
     retrieval_readout_checkpoint: RetrievalReadoutCheckpoint | None = None
 
 
-def _dedupe(items: tuple[str, ...]) -> tuple[str, ...]:
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        ordered.append(item)
-    return tuple(ordered)
+from volvence_zero.application.scoring_helpers import (
+    dedupe as _dedupe,
+)
 
 
 def _memory_text(memory_snapshot: MemorySnapshot | None) -> str:
@@ -825,58 +818,17 @@ def _continuum_location_from_record(record: CaseMemoryRecord) -> ContinuumLocati
     )
 
 
-def _semantic_tokens(text: str) -> tuple[str, ...]:
-    tokens: list[str] = []
-    ascii_buffer: list[str] = []
-    compact = "".join(char for char in text.lower() if not char.isspace())
-    for char in text.lower():
-        if char.isascii() and char.isalnum():
-            ascii_buffer.append(char)
-            continue
-        if ascii_buffer:
-            tokens.append("".join(ascii_buffer))
-            ascii_buffer.clear()
-        if not char.isspace():
-            tokens.append(char)
-    if ascii_buffer:
-        tokens.append("".join(ascii_buffer))
-    tokens.extend(compact[index : index + 2] for index in range(len(compact) - 1))
-    return tuple(tokens)
-
-
-def _semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
-    tokens = _semantic_tokens(text)
-    if not tokens:
-        return tuple(0.0 for _ in range(dim))
-    vector = [0.0 for _ in range(dim)]
-    for token in tokens:
-        token_scale = max(len(token), 1)
-        for index, char in enumerate(token):
-            vector[(index + len(token)) % dim] += (ord(char) % 37) / 37.0 / token_scale
-    norm = math.sqrt(sum(value * value for value in vector))
-    if norm <= 1e-6:
-        return tuple(0.0 for _ in range(dim))
-    return tuple(value / norm for value in vector)
-
-
-def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    if not left or not right:
-        return 0.0
-    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
-
-
-def _semantic_similarity(text: str, prototype_text: str) -> float:
-    embedding = _semantic_embedding(text)
-    prototype = _semantic_embedding(prototype_text)
-    return _clamp((_cosine_similarity(embedding, prototype) + 1.0) / 2.0)
-
-
-def _signed_centered(score: float) -> float:
-    return (score - 0.5) * 2.0
-
-
-def _clamp_signed(value: float, *, magnitude: float = 0.25) -> float:
-    return max(-magnitude, min(magnitude, value))
+# W5 of ssot-cleanup-p0-p4: pure helpers extracted to
+# ``application/scoring_helpers.py``. Legacy private aliases kept so
+# any existing imports continue to work.
+from volvence_zero.application.scoring_helpers import (
+    clamp_signed as _clamp_signed,
+    cosine_similarity as _cosine_similarity,
+    semantic_embedding as _semantic_embedding,
+    semantic_similarity as _semantic_similarity,
+    semantic_tokens as _semantic_tokens,
+    signed_centered as _signed_centered,
+)
 
 
 TASK_PRESSURE_PROTOTYPE = (
@@ -953,25 +905,39 @@ OUTCOME_LABEL_ANCHORS: tuple[tuple[ExperienceOutcomeLabel, float], ...] = (
 
 
 def _regime_bonus(regime_id: str | None, bonuses: Mapping[str, float]) -> float:
+    """Legacy regime-id-keyed bonus lookup.
+
+    DEPRECATED in W4 of ssot-cleanup-p0-p4. New code MUST read the
+    domain bonus from ``ApplicationBrief.domain_bonus(domain)``;
+    this helper is preserved only for sites the cutover has not
+    yet reached, and a static contract test counts remaining
+    callers to track the cleanup.
+    """
+
     if regime_id is None:
         return 0.0
     return bonuses.get(regime_id, 0.0)
 
 
-def _nearest_anchor_value(score: float, anchors: tuple[tuple[Any, float], ...]) -> Any:
-    return min(anchors, key=lambda item: abs(score - item[1]))[0]
+def _application_brief(regime_id: str | None):
+    """Return the ``ApplicationBrief`` for ``regime_id``.
+
+    Lazy import keeps ``vz-application`` from a hard dependency on
+    ``vz-cognition`` at module load. The brief is the SSOT for
+    regime-keyed application semantics; new code should read the
+    brief instead of branching on regime id strings.
+    """
+
+    from volvence_zero.regime import application_brief_for_regime
+
+    return application_brief_for_regime(regime_id)
 
 
-def _truncate_text(text: str, *, max_chars: int = 96) -> str:
-    compact = " ".join(part for part in text.split() if part)
-    if len(compact) <= max_chars:
-        return compact
-    return compact[: max_chars - 3].rstrip() + "..."
-
-
-def _ranked_labels(score_map: Mapping[str, float], *, max_count: int) -> tuple[str, ...]:
-    ranked = sorted(score_map.items(), key=lambda item: (-item[1], item[0]))
-    return tuple(label for label, _ in ranked[:max_count])
+from volvence_zero.application.scoring_helpers import (
+    nearest_anchor_value as _nearest_anchor_value,
+    ranked_labels as _ranked_labels,
+    truncate_text as _truncate_text,
+)
 
 
 def _infer_track_weights(dual_track_snapshot: DualTrackSnapshot | None) -> tuple[float, float]:
@@ -996,17 +962,15 @@ def _risk_band_from_state(
         else 0.0
     )
     regime_id = regime_snapshot.active_regime.regime_id if regime_snapshot is not None else None
+    # W4 SSOT: risk-band severity bonus is published as a typed
+    # ``risk_severity_bonus`` domain entry so consumers do not embed
+    # regime-id dicts. The default 0.0 means: regimes that do not
+    # care about risk-band severity contribute nothing here.
+    brief = _application_brief(regime_id)
     severity = _clamp(
         cross_track_tension * 0.56
         + switch_gate * 0.26
-        + _regime_bonus(
-            regime_id,
-            {
-                "repair_and_deescalation": 0.24,
-                "emotional_support": 0.07,
-                "problem_solving": 0.03,
-            },
-        )
+        + brief.domain_bonus("risk_severity")
     )
     return _nearest_anchor_value(severity, RISK_BAND_ANCHORS)
 
@@ -1019,6 +983,9 @@ def _knowledge_domains(
     self_weight: float,
     abstract_action: str | None,
 ) -> tuple[str, ...]:
+    # W4 of ssot-cleanup-p0-p4: read regime-specific domain bonuses
+    # from ApplicationBrief instead of inline regime-id dicts.
+    brief = _application_brief(regime_id)
     world_goals = " ".join(dual_track_snapshot.world_track.active_goals) if dual_track_snapshot is not None else ""
     self_goals = " ".join(dual_track_snapshot.self_track.active_goals) if dual_track_snapshot is not None else ""
     abstract_action_text = abstract_action or ""
@@ -1043,34 +1010,34 @@ def _knowledge_domains(
             + family_transition_pull * 0.18
             + task_pull * 0.10
             + world_weight * 0.14
-            + _regime_bonus(regime_id, {"problem_solving": 0.08, "guided_exploration": 0.04})
+            + brief.domain_bonus("professional_process")
         ),
         "career_decision": _clamp(
             career_pull * 0.60
             + task_pull * 0.14
             + world_weight * 0.16
-            + _regime_bonus(regime_id, {"problem_solving": 0.08, "guided_exploration": 0.05})
+            + brief.domain_bonus("career_decision")
         ),
         "structured_decision_support": _clamp(
             task_pull * 0.38
             + world_weight * 0.32
             + professional_process_pull * 0.08
             + career_pull * 0.08
-            + _regime_bonus(regime_id, {"problem_solving": 0.12, "guided_exploration": 0.08})
+            + brief.domain_bonus("structured_decision_support")
         ),
         "emotional_support_basics": _clamp(
             support_pull * 0.42
             + self_weight * 0.26
             + repair_pull * 0.10
             + family_transition_pull * 0.06
-            + _regime_bonus(regime_id, {"emotional_support": 0.12, "repair_and_deescalation": 0.08})
+            + brief.domain_bonus("emotional_support_basics")
         ),
         "relational_repair": _clamp(
             repair_pull * 0.46
             + cross_track_tension * 0.18
             + support_pull * 0.10
             + self_weight * 0.08
-            + _regime_bonus(regime_id, {"repair_and_deescalation": 0.16})
+            + brief.domain_bonus("relational_repair")
         ),
     }
     score_map["general_support_guidance"] = _clamp(0.18 + (1.0 - max(score_map.values(), default=0.0)) * 0.55)
@@ -1078,9 +1045,11 @@ def _knowledge_domains(
 
 
 def _experience_domains(*, regime_id: str | None, self_weight: float, world_weight: float) -> tuple[str, ...]:
-    task_bias = _clamp(world_weight * 0.78 + _regime_bonus(regime_id, {"problem_solving": 0.18, "guided_exploration": 0.08}))
-    support_bias = _clamp(self_weight * 0.76 + _regime_bonus(regime_id, {"emotional_support": 0.18, "repair_and_deescalation": 0.06}))
-    repair_bias = _clamp(self_weight * 0.32 + _regime_bonus(regime_id, {"repair_and_deescalation": 0.34}))
+    # W4 SSOT: read experience-domain bonuses from ApplicationBrief.
+    brief = _application_brief(regime_id)
+    task_bias = _clamp(world_weight * 0.78 + brief.domain_bonus("structured_decision_patterns"))
+    support_bias = _clamp(self_weight * 0.76 + brief.domain_bonus("stabilization_patterns"))
+    repair_bias = _clamp(self_weight * 0.32 + brief.domain_bonus("repair_patterns"))
     score_map = {
         "structured_decision_patterns": task_bias,
         "repair_patterns": repair_bias,
@@ -1091,16 +1060,11 @@ def _experience_domains(*, regime_id: str | None, self_weight: float, world_weig
 
 
 def _knowledge_weight(*, regime_id: str | None, world_weight: float, self_weight: float) -> float:
+    # W4 SSOT: knowledge-vs-experience weight nudge is published by
+    # the regime as ApplicationBrief.knowledge_weight_nudge.
+    brief = _application_brief(regime_id)
     base = 0.5 + (world_weight - self_weight) * 0.35
-    base += _regime_bonus(
-        regime_id,
-        {
-            "problem_solving": 0.18,
-            "guided_exploration": 0.05,
-            "emotional_support": -0.18,
-            "repair_and_deescalation": -0.22,
-        },
-    )
+    base += brief.knowledge_weight_nudge
     return _clamp(base)
 
 
@@ -1202,15 +1166,34 @@ def _continuum_target_position(
     world_weight: float,
     self_weight: float,
 ) -> float:
-    if regime_id == "repair_and_deescalation":
-        return 0.82
-    if regime_id == "emotional_support":
-        return 0.72
-    if regime_id == "guided_exploration":
-        return 0.56
-    if regime_id == "problem_solving":
-        return 0.44
+    # W4 of ssot-cleanup-p0-p4: read the regime-published target
+    # position from ``ApplicationBrief.continuum_target_position``
+    # instead of an if/elif chain on regime_id strings. New regimes
+    # only need to land an ``ApplicationBrief`` in
+    # ``volvence_zero.regime.templates``.
+    brief = _application_brief(regime_id)
+    if regime_id is not None and regime_id in {
+        template.regime_id for template in _known_regime_ids()
+    }:
+        return brief.continuum_target_position
     return _clamp(0.35 + self_weight * 0.35 + (1.0 - world_weight) * 0.12)
+
+
+def _known_regime_ids():
+    """Cached lookup of known regime template ids.
+
+    Used by W4 cutover sites that need to fall back to the freeform
+    formula when ``regime_id`` is unknown / None. The brief always
+    has a default ``continuum_target_position=0.5`` for unknown
+    regimes; the freeform fallback is preserved here only because
+    the historical behaviour for None / unknown blends ``self_weight``
+    + ``world_weight`` continuously, and W4 chooses to keep that for
+    backward-compat rather than collapse to 0.5.
+    """
+
+    from volvence_zero.regime.templates import REGIME_TEMPLATES
+
+    return REGIME_TEMPLATES
 
 
 def _continuum_source_bonus(source: str) -> float:
@@ -1246,15 +1229,22 @@ def _case_hit_playbook_score(
         position_alignment = _clamp(1.0 - abs(hit.continuum_location.position - target_position))
         source_bonus = _continuum_source_bonus(hit.continuum_location.reconstruction_source)
         role_bonus = 0.0
-        if regime_id in {"emotional_support", "repair_and_deescalation"} and hit.continuum_location.band_role in {
-            "slow-band",
-            "meta-init",
-        }:
+        # W4 SSOT: read self-track / world-track focus from the brief.
+        # ``self-track-leaning`` regimes (high support_focus or
+        # repair_focus) prefer slow-band / meta-init case hits;
+        # ``world-track-leaning`` regimes prefer session-band /
+        # readout case hits. Adding a regime only requires updating
+        # its ApplicationBrief.
+        case_brief = _application_brief(regime_id)
+        if (
+            (case_brief.support_focus >= 0.6 or case_brief.repair_focus >= 0.4)
+            and hit.continuum_location.band_role in {"slow-band", "meta-init"}
+        ):
             role_bonus += 0.08
-        if regime_id in {"problem_solving", "guided_exploration"} and hit.continuum_location.band_role in {
-            "session-band",
-            "readout",
-        }:
+        if (
+            case_brief.task_focus >= 0.40
+            and hit.continuum_location.band_role in {"session-band", "readout"}
+        ):
             role_bonus += 0.08
     ordering_bonus = 0.08 if _case_hit_ordering(hit) else 0.0
     return _clamp(
@@ -1276,20 +1266,15 @@ def _retrieval_depth(
     continuum_reconstruction_pressure: float = 0.0,
 ) -> KnowledgeDepth:
     switch_gate = temporal_snapshot.controller_state.switch_gate if temporal_snapshot is not None else 0.0
+    # W4 SSOT: retrieval-depth nudge is published as a typed
+    # ``retrieval_depth`` domain in ApplicationBrief.
+    brief = _application_brief(regime_id)
     depth_score = _clamp(
         knowledge_weight * 0.58
         + switch_gate * 0.28
         + continuum_position * 0.10
         + continuum_reconstruction_pressure * 0.10
-        + _regime_bonus(
-            regime_id,
-            {
-                "problem_solving": 0.14,
-                "guided_exploration": 0.05,
-                "emotional_support": -0.04,
-                "repair_and_deescalation": -0.02,
-            },
-        )
+        + brief.domain_bonus("retrieval_depth")
     )
     return _nearest_anchor_value(depth_score, KNOWLEDGE_DEPTH_ANCHORS)
 
@@ -1488,7 +1473,10 @@ def _playbook_template(
             "slow",
             ("defensive-argumentation",),
         )
-    if regime_id == "problem_solving" or world_weight >= self_weight:
+    if (
+        _application_brief(regime_id).decision_kind_hint == "structure-first"
+        or world_weight >= self_weight
+    ):
         return (
             ("clarify_goal", "structure_options", "commit_next_step"),
             "structured",
@@ -1570,7 +1558,11 @@ def _response_mode_without_boundary(
             return ResponseMode.STRUCTURE
         if retrieval_policy_snapshot.response_mode_hint == "support":
             return ResponseMode.SUPPORT
-    if regime_id in {"problem_solving", "guided_exploration"}:
+    # W4 SSOT: task-focused regimes default to STRUCTURE response
+    # mode; everyone else defaults to SUPPORT. The threshold matches
+    # ``ApplicationBrief.task_focus`` for problem_solving (0.85) /
+    # guided_exploration (0.40).
+    if _application_brief(regime_id).task_focus >= 0.40:
         return ResponseMode.STRUCTURE
     return ResponseMode.SUPPORT
 
@@ -1640,26 +1632,33 @@ def _response_target_position(
 ) -> float:
     if response_mode is ResponseMode.REFER_OUT:
         return 0.88
+    # W4 SSOT: read regime-published continuum target from
+    # ApplicationBrief instead of inline regime-id chain.
+    brief = _application_brief(regime_id)
     if response_mode is ResponseMode.CLARIFY:
-        if regime_id in {"emotional_support", "repair_and_deescalation"}:
+        # Repair- and support-leaning regimes need higher continuum
+        # targets even on clarify turns; thresholded on support_focus
+        # / repair_focus rather than on regime-id strings.
+        if brief.repair_focus >= 0.4 or brief.support_focus >= 0.6:
             return 0.74
         case_position = case_memory_snapshot.mean_continuum_position if case_memory_snapshot is not None else 0.0
         if case_position >= 0.68:
             return 0.74
         return 0.58
-    if regime_id == "repair_and_deescalation":
-        return 0.82
-    if regime_id == "emotional_support":
-        return 0.72
-    if regime_id == "guided_exploration":
-        return 0.56
-    if regime_id == "problem_solving":
+    # problem_solving has a special "playbook-anchored" calculation;
+    # we keep that branch but key it on the typed decision_kind_hint
+    # ("structure-first") rather than the regime_id string.
+    if brief.decision_kind_hint == "structure-first":
         playbook_position = (
             max((rule.mean_continuum_position for rule in strategy_playbook_snapshot.matched_rules), default=0.0)
             if strategy_playbook_snapshot is not None
             else 0.0
         )
         return _clamp(max(0.36, min(0.52, playbook_position or 0.42)))
+    if regime_id is not None and any(
+        template.regime_id == regime_id for template in _known_regime_ids()
+    ):
+        return brief.continuum_target_position
     return 0.5
 
 
@@ -1931,12 +1930,23 @@ def _response_expression_intent(
     )
     strong_semantic = semantic_control_signal >= 0.32
 
-    support_decision_regime = regime_id in {
-        "guided_exploration",
-        "problem_solving",
-        "emotional_support",
-    }
-    support_decision_threshold = 0.36 if regime_id == "guided_exploration" else 0.44
+    # W4 of ssot-cleanup-p0-p4: read regime defaults from the
+    # ApplicationBrief instead of branching on regime_id strings.
+    brief = _application_brief(regime_id)
+    decision_kind_hint = brief.decision_kind_hint
+    support_decision_threshold = brief.support_decision_threshold
+
+    # W4 SSOT: a regime is "support-decision-shaped" iff its
+    # ``ApplicationBrief.support_decision_threshold`` was lowered
+    # below the default 0.44 (guided_exploration: 0.36) OR it has
+    # task_focus >= 0.40 (problem_solving) OR support_focus >= 0.6
+    # (emotional_support). The threshold itself is read from the
+    # brief above so the gate stays a single source of truth.
+    support_decision_regime = (
+        brief.support_decision_threshold < 0.44
+        or brief.task_focus >= 0.40
+        or brief.support_focus >= 0.6
+    )
     support_decision_active = (
         support_decision_regime
         and support_before_decision_pressure >= support_decision_threshold
@@ -1946,14 +1956,20 @@ def _response_expression_intent(
             return "support-before-decision", ()
         return "clarify-first", ()
 
-    if support_decision_active and regime_id in {"guided_exploration", "problem_solving"}:
+    if support_decision_active and brief.task_focus >= 0.40:
+        # guided_exploration / problem_solving both have task_focus>=0.40
         return "support-before-decision", ()
-    if support_decision_active and regime_id == "emotional_support" and strong_temporal:
+    if (
+        support_decision_active
+        and brief.support_focus >= 0.6
+        and strong_temporal
+    ):
+        # emotional_support's brief publishes support_focus=0.85
         return "support-before-decision", ()
 
-    if regime_id == "guided_exploration" or strong_temporal or strong_semantic:
+    if decision_kind_hint == "judgment-process" or strong_temporal or strong_semantic:
         focus: list[str] = []
-        if regime_id == "guided_exploration":
+        if decision_kind_hint == "judgment-process":
             focus.extend(
                 [
                     "what cue in the user's message is driving the reply",
@@ -1971,19 +1987,24 @@ def _response_expression_intent(
             focus.append("why this turn deviates from the regime's default shape")
         return "judgment-process", _dedupe(tuple(focus))
 
-    if regime_id == "emotional_support":
+    # Map the brief's decision_kind_hint directly to the typed kind label.
+    # New regimes only need to land an ApplicationBrief; this if/else is
+    # intentionally short and only covers the known canonical kinds so a
+    # regime publishing an unknown hint falls through to "direct-answer"
+    # instead of accidentally hijacking another renderer.
+    if decision_kind_hint == "support-first":
         return "support-first", ()
-    if regime_id == "repair_and_deescalation":
+    if decision_kind_hint == "repair-first":
         return "repair-first", ()
-    if regime_id == "problem_solving":
+    if decision_kind_hint == "structure-first":
         return "structure-first", ()
-    if regime_id == "acquaintance_building":
+    if decision_kind_hint == "warmth-first":
         return "warmth-first", ()
-    if regime_id == "casual_social":
+    if decision_kind_hint == "direct-answer":
         return "direct-answer", ()
 
-    # Unknown regime falls through to a neutral shape rather than secretly
-    # going judgment-process again.
+    # Unknown / missing brief falls through to a neutral shape rather than
+    # secretly going judgment-process again.
     return "direct-answer", ()
 
 
@@ -3438,13 +3459,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
             effective_risk_score * 0.74
             + clarification_score * 0.16
             + retrieval_policy.refer_out_bias * 0.16
-            + _regime_bonus(
-                retrieval_policy.regime_id,
-                {
-                    "repair_and_deescalation": 0.10,
-                    "emotional_support": 0.04,
-                },
-            )
+            + _application_brief(retrieval_policy.regime_id).domain_bonus("refer_out")
         )
         refer_out_required = refer_out_score >= 0.84
         if refer_out_required:
@@ -3463,14 +3478,7 @@ class BoundaryPolicyModule(RuntimeModule[BoundaryPolicySnapshot]):
             + clarification_score * 0.30
             + (1.0 if citation_required else 0.0) * 0.24
             + retrieval_policy.answer_depth_bias * 0.18
-            + _regime_bonus(
-                retrieval_policy.regime_id,
-                {
-                    "emotional_support": -0.10,
-                    "repair_and_deescalation": -0.08,
-                    "problem_solving": 0.05,
-                },
-            )
+            + _application_brief(retrieval_policy.regime_id).domain_bonus("answer_depth")
         )
         answer_depth_limit = _nearest_anchor_value(answer_depth_score, ANSWER_DEPTH_ANCHORS)
         professional_scope = (

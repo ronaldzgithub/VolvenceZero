@@ -1,43 +1,25 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-05
+> Last updated: 2026-05-06 (post ssot-cleanup-p0-p4)
 
 本文档记录已知但暂不处理的架构债。每条都经过评估：**不处理短期不会导致系统行为错误**，但**中长期会影响可演化性或可调试性**。新增条目时参照相同格式：路径 / 问题 / 风险 / 触发条件 / 推荐修法。
 
+> 2026-05-06 update: ssot-cleanup-p0-p4 五个 wave 全部 land。debts #1 / #2 已关闭；debt #3 缩窄到一个文件（已抽 `application/scoring_helpers.py`，剩 `vz-cognition` 的两个 fork 留给 future 收敛）；新增 #9（god 文件结构债，从 W5 部分切分中产生）。
+
 ---
 
-## 1. `interlocutor/__init__.py` duck-typed 多 owner 重建
+## 3. 三套语义 embedding stub 分叉（**部分已收敛**）
 
-- **路径**：`packages/vz-cognition/src/volvence_zero/interlocutor/__init__.py`
-- **问题**：大量 `getattr` / duck typing 从 `regime / dual_track / evaluation / memory / commitment / PE` 快照里拼 `InterlocutorReadoutContext`。消费者在重建多个 owner 的状态摘要。
-- **违反**：R8（"谁拥有数据谁描述"，消费者不重建生产者内部状态）
-- **短期风险**：低。当前上游 snapshot 字段稳定时不会出错。
-- **触发条件**：某个上游 owner 改字段名或字段语义 → interlocutor 会静默降级到默认值，社交 / 对话 readout 看起来还能跑，但上下文会读错，关系状态和表达策略逐渐漂。
-- **推荐修法**：各 owner 发布自己的 compact interlocutor readout 字段；或设一个明确的 `InterlocutorContextModule` owner，不再在下游猜字段。
-- **优先级**：**剩余债务中最高**。
-
-## 2. `application/runtime.py` 硬编码 regime id 语义映射
-
-- **路径**：`packages/vz-application/src/volvence_zero/application/runtime.py`
-- **问题**：`_regime_bonus(regime_id, {"repair_and_deescalation": ..., "emotional_support": ..., "problem_solving": ...})` 等处把 regime id 映射成 risk / domain scoring bonus。application 层成了 regime 语义的第二解释者。
-- **违反**：R8 + `no-keyword-matching-hacks`（用字符串字典驱动逻辑）
-- **短期风险**：低-中。regime 集合稳定时不会爆。
-- **触发条件**：regime 模板改名、新增或删除 regime → application 静默失配，行为漂移且不易发现。
-- **推荐修法**：`RegimeSnapshot` 发布 application-facing hints（`risk_bonus / domain_bonus`），或 regime 包内提供单一 readout / mapping；application 只消费。
-- **优先级**：中。
-
-## 3. 三套语义 embedding stub 分叉
-
-- **路径**：
+- **路径**（W5 后剩余两处）：
   - `packages/vz-cognition/src/volvence_zero/dual_track/core.py`（`_semantic_embedding`，`% 37`）
   - `packages/vz-cognition/src/volvence_zero/evaluation/semantic_readouts.py`（`% 41`）
-  - `packages/vz-application/src/volvence_zero/application/runtime.py`（`_semantic_embedding`，`dim=8`）
-- **问题**：三套字符级 token + hash embedding，modulus / dim / prototype 字符串都不一致。同一句用户文本在不同模块得到**不可比**的语义压力分数。
+  - ~~`packages/vz-application/src/volvence_zero/application/runtime.py`~~（已抽到 `application/scoring_helpers.py`，是 W5 之后唯一剩下的 application-side fork）
+- **问题**：三套字符级 token + hash embedding，modulus / dim / prototype 字符串都不一致。W5 把 application-tier 的 fork 抽出独立 module，但 vz-cognition 仍有两份不一致的实现。
 - **违反**：SSOT（同一概念多处实现，不一致）
 - **短期风险**：低。单模块内部一致，不崩。
 - **触发条件**：跨模块联调 / 评估分数联立分析时 → 分数不可比，容易误判。
-- **推荐修法**：抽一个 shared `semantic_embedding_stub`（或放进 `vz-contracts`），三处只引用同一函数；或升级为真正的 embedding 并单一缓存。
+- **推荐修法**：把 `volvence_zero.application.scoring_helpers.semantic_embedding` 提升到 `vz-contracts`，三处都引用同一函数；或升级为真正的 embedding 并单一缓存。
 - **优先级**：中-低。
 
 ## 4. `EvaluationBackbone` 类型入口不干净
@@ -50,7 +32,31 @@
 - **推荐修法**：机械收敛：把所有 `from volvence_zero.evaluation.backbone import <type>` 改为 `from volvence_zero.evaluation.types import <type>` 或 `from volvence_zero.evaluation import <type>`。
 - **优先级**：低（纯维护性）。
 
-## 5. `joint_loop` 与 runtime 主链共享 owner 实例
+## 6. Phase 2.A — Full COCOA rewarding-state head（uplift 候选）
+
+- **路径**：`packages/vz-cognition/src/volvence_zero/credit/gate.py`（`derive_counterfactual_contribution_records` 当前 lightweight 实现）
+- **问题**：当前 baseline 走 regime selection_weights × delayed_payoffs 的历史均值，是 owner 既有读出的简单加权。COCOA 论文（NeurIPS 2023, `arXiv:2306.16803`）的 full 版本要求一个学到的 *rewarding-state representation*，在该表征空间下计算 contribution，可显著降低 long-horizon credit 估计的方差。
+- **违反**：无（lightweight 版本是 NL-对齐的 owner-internal 算法），但论文承诺的 lower-variance / 反事实精确度尚未取得。
+- **短期风险**：低。lightweight 版本在 `recent_credits` 中以 `level="counterfactual_contribution"` 附加 readout-only 信号；下游 consumer 全部按 level 过滤，新条目自动忽略。Phase 1 主链不依赖它。
+- **触发条件（必须升级）**：
+  1. 陪伴向 benchmark 出现 long-horizon (≥ 5 turn) 的 credit 估计高方差 / 低稳定性，导致 ETA family payoff 排序震荡；或
+  2. `delayed_ledger_size` 在真实 open-dialogue session 中长期低于 segment 实际闭合数（说明 lightweight baseline 无法承载更长 horizon）。
+- **推荐修法**：在 `credit` owner 内部增加小型回归头（substrate feature digest + action_context → expected outcome），训练状态走 `LearnedUpdateRule` / 类 Hope 路径，新增字段必须进 checkpoint，并通过 `ModificationGate` 准入（`validation_delta` / `capacity_cost` / `rollback_evidence` 三件套）。**禁止**把 head 拆出 `vz-cognition/credit` 包，避免触发"消费者重建生产者状态"反模式。
+- **优先级**：中。等 Phase 1.A 在真实数据上跑过一轮再决定。
+
+## 7. Phase 2.B — Learned PE critic head（uplift 候选）
+
+- **路径**：`packages/vz-cognition/src/volvence_zero/prediction/error.py`（`_PECriticHead` 当前 running-stats 实现）
+- **问题**：当前 PE 分解走 per-axis × per-(regime|segment) 的 EMA mean / variance；这是统计 critic，不是学到的 critic。Curiosity-Critic 论文（`arXiv:2604.18701`）指出 improvement-PE = `actual − critic-prediction`，要求 critic 有 contextual feature 输入，对 epistemic 与 aleatoric 的分离更精确。
+- **违反**：无（running-stats 版本是 NL-对齐 owner-internal）；但分解粒度与抗噪能力受限于 EMA decay。
+- **短期风险**：低。`pe_decomposition` 是 optional 字段，bootstrap 时为 `None`；evaluation 中 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 已严格 report-only。
+- **触发条件（必须升级）**：
+  1. `apply_prediction_error_signal` 把 epistemic/aleatoric 写入 memory `MemoryAttributeReadout` 后，开始有下游 consumer (memory / temporal / regime) 实际依赖它做决策；此时 EMA-only 的精度不够；或
+  2. 真实 open-dialogue session 中观察到 epistemic 持续高于阈值但学习信号不收敛（说明 EMA 把可学的部分误判进 aleatoric 噪声底）。
+- **推荐修法**：在 `_PECriticHead` 内部增加小型回归头，输入为 `SubstrateSnapshot.feature_surface` digest + `PredictionActionContext`，输出为 expected `|axis_error|`；improvement = `|actual| − critic-pred`。需要 checkpoint，触发 `ModificationGate` 准入；critic head 训练状态进 `learned_update_rule` 路径。**禁止**让 critic head 直接写 evaluation acceptance gate（仍保持 readout-only 红线）。
+- **优先级**：中。先观察 Phase 1.B 在 real-open-dialogue trace 上的 readout 行为。
+
+## 8. `joint_loop` 与 runtime 主链共享 owner 实例
 
 - **路径**：
   - 生产者：`packages/vz-runtime/src/volvence_zero/agent/session.py`（`AgentSessionRunner.__init__`）
@@ -62,11 +68,23 @@
 - **推荐修法**：彻底方案是把 joint-loop post-propagate 的 owner writeback 搬到 runtime 编排层，joint-loop 只发 `JointCycleReport` typed proposals。这会破坏当前"在线 adaptation 立刻生效"的 pattern，需要重新设计 apply phase。不建议在产品迭代压力下做，等 NL 多时间尺度 apply phase 需要重新规划时一并做。
 - **优先级**：低（已有契约测试兜底，边际收益低于成本）。
 
+## 9. `agent/session.py` 与 `application/runtime.py` 仍是 god 文件（W5 残留）
+
+- **路径**：
+  - `packages/vz-runtime/src/volvence_zero/agent/session.py`（W5 后约 3825 行）
+  - `packages/vz-application/src/volvence_zero/application/runtime.py`（W5 后约 3936 行）
+- **问题**：W5 of ssot-cleanup-p0-p4 抽出 `session_helpers.py` (260 行) 与 `application/scoring_helpers.py` (139 行) 的纯函数，但 `AgentSessionRunner` / `ResponseAssemblyModule` 等核心 class 仍住在单文件里，单文件 ≥ 3800 行。
+- **违反**：可演化性 / 可读性，非 R8 硬违反。
+- **短期风险**：低。功能与 SSOT 都已经齐了；纯文件结构债。
+- **触发条件**：再有一个大型 feature 落到 `AgentSessionRunner` / `ResponseAssemblyModule` 上时 → 单文件超过 4500 行，新人 onboarding 成本飙升；新功能与既有 phase 边界混淆。
+- **推荐修法**：W5 plan 描述的物理切分（`agent/session/{lifecycle,writeback_phase,training_phase,observation}.py` + `application/{response_assembly,retrieval_policy,decision_kind,scoring}.py`）。需要先在 `AgentSessionRunner` 上引入 mixin / 服务对象重组，再做物理切分。预计 2-3 天工作量；建议在主路径稳定 + 没有并行重构压力时一并做。
+- **优先级**：低。等 W6+ wave 时一起做。
+
 ---
 
 ## 已关闭的债务（参考）
 
-这些在 2026-05-04 至 2026-05-05 的 SSOT 收敛中已修完，留作对照：
+这些在 2026-05-04 至 2026-05-06 的 SSOT 收敛中已修完，留作对照：
 
 - ~~`credit/gate.py -> temporal_types` 上游边界未声明~~
 - ~~`SEMANTIC_OWNER_SLOTS` 在 `dual_track` 和 `semantic_state` 双源（dual_track 漏 `open_loop`）~~
@@ -75,6 +93,13 @@
 - ~~`EvaluationSnapshot.alerts` 文本子串驱动 regime / reflection / credit gate 控制逻辑~~
 - ~~regime scoring 在 stable task opener 被 `guided_exploration` 抢占~~
 - ~~super-loop diversity penalty 单峰不收敛 + `xfail` 的 `coding-regime.bs`~~
+- ~~Debt #1: `interlocutor/__init__.py` duck-typed 多 owner 重建~~ —— W2 of ssot-cleanup-p0-p4 关闭：`InterlocutorStateModule` 是 SHADOW owner，下游 (`prompt_planner` / `response_synthesizer` / `LifeformSession.interlocutor_state`) 都读发布的 snapshot；`InterlocutorThresholds` 为唯一阈值源；`compute_zones` 自动同步 zone bool。详见 [`docs/specs/interlocutor-state.md`](specs/interlocutor-state.md) + 契约测试 [`tests/contracts/test_interlocutor_state_contract.py`](../tests/contracts/test_interlocutor_state_contract.py)。
+- ~~Debt #2: `application/runtime.py` 硬编码 regime id 语义映射~~ —— W4 of ssot-cleanup-p0-p4 关闭：`RegimeIdentity.application_brief: ApplicationBrief` 发布 `task_focus / support_focus / repair_focus / exploration_focus / domain_affinity / continuum_target_position / decision_kind_hint / support_decision_threshold / knowledge_weight_nudge`；`vz-application` 全部 18+ regime-id branch 已切换；契约测试 [`tests/contracts/test_application_no_regime_id_branching.py`](../tests/contracts/test_application_no_regime_id_branching.py) 静态守门。新增 regime 只需在 `volvence_zero.regime.templates.REGIME_TEMPLATES` 加一行。
+- ~~`relationship_repair_alpha_gate.py` substring 匹配 `result.response.rationale` 当 alpha-gate 契约~~ —— W1 of ssot-cleanup-p0-p4 关闭：`AgentResponse.rationale_tags: tuple[str, ...]` typed 字段；synthesizer 渲染时发 `acknowledge_section=repair_alpha` / `intent=repair-first` typed tag；gate 读 typed tag。
+- ~~kernel `vz-runtime/agent/response.py` 维护 `lesson_hint_map` / `tension_hint_map` UX 文本~~ —— W1 of ssot-cleanup-p0-p4 关闭：UX 文本搬到 `lifeform-expression.reflection_hints`，kernel 不再持有；`ReflectionLessonId` / `ReflectionTensionId` 是 enum SSOT；contract test [`tests/test_reflection_hints.py`](../tests/test_reflection_hints.py) 强制 1:1 hint 覆盖。
+- ~~`prompt_planner` / `response_synthesizer` 重复阈值 (0.55 vs 0.56 等)~~ —— W2 of ssot-cleanup-p0-p4 关闭：所有阈值集中在 `InterlocutorThresholds`，consumer 读 zone bool。
+- ~~`response_synthesizer._repair_kind_label` 重复 RuptureKind→string 字典 + `getattr(rupture, "repair_pressure", 0.0)` duck-type~~ —— W3 of ssot-cleanup-p0-p4 关闭：`RuptureStateSnapshot.kind_label` 由 owner 从 `RUPTURE_KIND_LABEL` SSOT 派生；`rupture_state.owner.py` 改为 typed `relationship_state_value.repair_pressure` 访问。
+- ~~`response_synthesizer` 三个 `_render_*` 函数的 `if regime == "..."` 分支链~~ —— W3 of ssot-cleanup-p0-p4 关闭：`RegimeIdentity.expression_brief.acknowledge_hint / frame_hint / next_step_hint / open_loop_hint / continuity_hint` 是渲染 lookup key；新 regime 只需更新 `regime/templates.py` 的 brief。
 
 ---
 

@@ -89,6 +89,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
+            # interlocutor SHADOW owner (W2 of ssot-cleanup-p0-p4) is
+            # registered into the runtime so consumers read one snapshot.
+            "interlocutor",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",

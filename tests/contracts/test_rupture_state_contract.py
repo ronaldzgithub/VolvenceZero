@@ -34,12 +34,14 @@ from volvence_zero.dialogue_trace import (
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.rupture_state import (
     EXTERNAL_OUTCOME_TO_RUPTURE_KIND,
+    RUPTURE_KIND_LABEL,
     RUPTURE_KIND_SEVERITY,
     RuptureContributingSignal,
     RuptureEvidenceSource,
     RuptureKind,
     RuptureStateModule,
     RuptureStateSnapshot,
+    rupture_kind_label,
 )
 
 
@@ -145,6 +147,103 @@ def test_rupture_kind_severity_covers_all_kinds_uniquely() -> None:
     assert len(set(severities)) == len(severities), (
         "RUPTURE_KIND_SEVERITY must assign a unique severity to each kind."
     )
+
+
+def test_rupture_kind_label_covers_every_kind() -> None:
+    """W3 SSOT: every RuptureKind has a canonical human-readable label
+    in ``RUPTURE_KIND_LABEL``. Adding a new kind without a label
+    fails this test before the synthesizer silently falls back to the
+    enum value.
+    """
+
+    assert set(RUPTURE_KIND_LABEL.keys()) == set(RuptureKind), (
+        "RUPTURE_KIND_LABEL must cover every RuptureKind. "
+        f"Missing: {set(RuptureKind) - set(RUPTURE_KIND_LABEL.keys())}; "
+        f"unexpected: {set(RUPTURE_KIND_LABEL.keys()) - set(RuptureKind)}"
+    )
+    for kind in RuptureKind:
+        assert rupture_kind_label(kind), f"empty label for {kind!r}"
+    assert rupture_kind_label(None) == ""
+
+
+def test_rupture_state_snapshot_publishes_kind_label() -> None:
+    """The snapshot publishes ``kind_label`` derived from the
+    canonical label map; consumers do not maintain a parallel dict.
+    """
+
+    pe_signal = RuptureContributingSignal(
+        source=RuptureEvidenceSource.INTERNAL_PE,
+        signal_strength=0.4,
+        confidence=0.5,
+        kind_hint=None,
+        detail="pe",
+    )
+    external_signal = RuptureContributingSignal(
+        source=RuptureEvidenceSource.EXTERNAL_USER,
+        signal_strength=0.9,
+        confidence=0.95,
+        kind_hint=RuptureKind.OVER_DIRECTIVE,
+        detail="user signal",
+    )
+    snapshot = RuptureStateSnapshot(
+        rupture_signal_strength=0.9,
+        rupture_kind=RuptureKind.OVER_DIRECTIVE,
+        confidence=0.7,
+        internal_suspected_only=False,
+        evidence_sources=(
+            RuptureEvidenceSource.INTERNAL_PE,
+            RuptureEvidenceSource.EXTERNAL_USER,
+        ),
+        contributing_signals=(pe_signal, external_signal),
+        description="rupture",
+    )
+    assert snapshot.kind_label == "over-directive"
+    # And the bootstrap (no rupture) snapshot has empty label.
+    bootstrap = RuptureStateSnapshot(
+        rupture_signal_strength=0.0,
+        rupture_kind=None,
+        confidence=0.0,
+        internal_suspected_only=False,
+        evidence_sources=(),
+        contributing_signals=(),
+        description="no rupture",
+    )
+    assert bootstrap.kind_label == ""
+
+
+def test_rupture_state_snapshot_overwrites_caller_supplied_label() -> None:
+    """A caller cannot drift the label by hand; ``__post_init__`` always
+    rewrites it to the canonical value.
+    """
+
+    pe_signal = RuptureContributingSignal(
+        source=RuptureEvidenceSource.INTERNAL_PE,
+        signal_strength=0.4,
+        confidence=0.5,
+        kind_hint=None,
+        detail="pe",
+    )
+    external_signal = RuptureContributingSignal(
+        source=RuptureEvidenceSource.EXTERNAL_USER,
+        signal_strength=0.9,
+        confidence=0.95,
+        kind_hint=RuptureKind.MISREAD,
+        detail="user signal",
+    )
+    snapshot = RuptureStateSnapshot(
+        rupture_signal_strength=0.9,
+        rupture_kind=RuptureKind.MISREAD,
+        confidence=0.7,
+        internal_suspected_only=False,
+        evidence_sources=(
+            RuptureEvidenceSource.INTERNAL_PE,
+            RuptureEvidenceSource.EXTERNAL_USER,
+        ),
+        contributing_signals=(pe_signal, external_signal),
+        description="rupture",
+        kind_label="WRONG LABEL",
+    )
+    assert snapshot.kind_label == "a misread"
 
 
 def test_rupture_state_snapshot_is_frozen() -> None:
