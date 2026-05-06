@@ -558,7 +558,13 @@ class ReflectionEngine:
             prediction_error_snapshot=prediction_error_snapshot,
         )
         pe_tensions = _prediction_error_tensions(prediction_error_snapshot)
-        tensions = self._tensions(dual_track_snapshot=dual_track_snapshot, evaluation_snapshot=evaluation_snapshot) + pe_tensions
+        tensions = (
+            self._tensions(
+                dual_track_snapshot=dual_track_snapshot,
+                evaluation_snapshot=evaluation_snapshot,
+            )
+            + pe_tensions
+        )
         lessons = self._lessons(
             memory_consolidation=memory_consolidation,
             policy_consolidation=policy_consolidation,
@@ -616,8 +622,46 @@ class ReflectionEngine:
             record.decision is GateDecision.BLOCK for record in credit_snapshot.recent_modifications
         ):
             blocked_targets = tuple(
-                record.target for record in credit_snapshot.recent_modifications if record.decision is GateDecision.BLOCK
+                record.target
+                for record in credit_snapshot.recent_modifications
+                if record.decision is GateDecision.BLOCK
             )
+            rupture_repair_entries = tuple(
+                entry
+                for entry in reflection_snapshot.memory_consolidation.new_durable_entries
+                if "rupture_repair" in entry.tags
+            )
+            if rupture_repair_entries:
+                memory_checkpoint = memory_store.create_checkpoint(
+                    checkpoint_id=checkpoint_id
+                )
+                applied_operations = memory_store.apply_reflection_consolidation(
+                    new_durable_entries=rupture_repair_entries,
+                    promoted_entries=(),
+                    decayed_entries=(),
+                    beliefs_updated=(),
+                    promotion_boost=0.0,
+                    decay_scale=0.0,
+                    lesson_count=0,
+                    timestamp_ms=max(
+                        (entry.created_at_ms for entry in rupture_repair_entries),
+                        default=1,
+                    ),
+                )
+                checkpoint = WritebackCheckpoint(
+                    checkpoint_id=memory_checkpoint.checkpoint_id,
+                    memory_checkpoint=memory_checkpoint,
+                )
+                return WritebackResult(
+                    applied_operations=applied_operations,
+                    blocked_operations=("credit-gate-block",),
+                    checkpoint=checkpoint,
+                    description=(
+                        "Credit gate blocked general reflection writeback, "
+                        "but externally confirmed rupture_repair memory was applied for "
+                        f"{', '.join(blocked_targets) if blocked_targets else 'unknown-target'}."
+                    ),
+                )
             return WritebackResult(
                 applied_operations=(),
                 blocked_operations=("credit-gate-block",),
@@ -708,8 +752,14 @@ class ReflectionEngine:
                             decayed_entries.append(candidate.entry_id)
                             decay_candidates.remove(candidate)
                             break
-        if regime_snapshot is not None and regime_snapshot.delayed_outcomes and regime_snapshot.identity_hints:
-            delayed_score = sum(score for _, score in regime_snapshot.delayed_outcomes) / len(regime_snapshot.delayed_outcomes)
+        if (
+            regime_snapshot is not None
+            and regime_snapshot.delayed_outcomes
+            and regime_snapshot.identity_hints
+        ):
+            delayed_score = sum(
+                score for _, score in regime_snapshot.delayed_outcomes
+            ) / len(regime_snapshot.delayed_outcomes)
             if delayed_score >= 0.55:
                 for hint in regime_snapshot.identity_hints[:2]:
                     track = Track.SELF if hint.startswith("identity:relationship:") else Track.SHARED
@@ -809,9 +859,16 @@ class ReflectionEngine:
             elif dual_track_snapshot.world_track.tension_level > 0 and consolidation_score.strategy_gain >= 0.03:
                 strategy_priors_updated.append("increase_world_track_priority")
 
-        if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap and regime_snapshot is not None:
+        if (
+            prediction_error_snapshot is not None
+            and not prediction_error_snapshot.bootstrap
+            and regime_snapshot is not None
+        ):
             regime_effectiveness_updated.append(
-                (regime_snapshot.active_regime.regime_id, _clamp(0.5 + prediction_error_snapshot.error.regime_error))
+                (
+                    regime_snapshot.active_regime.regime_id,
+                    _clamp(0.5 + prediction_error_snapshot.error.regime_error),
+                )
             )
         elif evaluation_snapshot is not None:
             for score in evaluation_snapshot.session_scores[:4]:
@@ -914,7 +971,9 @@ class ReflectionEngine:
             structure_bundle=structure_bundle,
             description=(
                 f"Temporal prior update from reflection confidence={consolidation_score.confidence:.2f}, "
-                f"cross_tension={cross_tension:.2f}, world_tension={world_tension:.2f}, self_tension={self_tension:.2f}, "
+                f"cross_tension={cross_tension:.2f}, "
+                f"world_tension={world_tension:.2f}, "
+                f"self_tension={self_tension:.2f}, "
                 f"groups={tuple(dict.fromkeys(target_groups))}."
             ),
         )
@@ -1021,7 +1080,11 @@ class ReflectionEngine:
                         proposal_type="prune",
                         family_id=attribution.abstract_action,
                         related_family_id=None,
-                        confidence=_clamp(0.45 + (0.35 - attribution.outcome_score) + consolidation_score.confidence * 0.15),
+                        confidence=_clamp(
+                            0.45
+                            + (0.35 - attribution.outcome_score)
+                            + consolidation_score.confidence * 0.15
+                        ),
                         justification=(
                             f"Prune weak family after delayed outcome {attribution.outcome_score:.3f} "
                             f"from {attribution.source_wave_id}."
@@ -1118,7 +1181,12 @@ class ReflectionEngine:
         if prediction_error_snapshot is not None:
             pe_penalty = min(prediction_error_snapshot.error.magnitude / 4.0, 1.0)
         promotion_score = _clamp(
-            0.35 + memory_pressure * 0.25 + positive_credit * 0.40 + session_bonus - cross_tension * 0.15 - pe_penalty * 0.12
+            0.35
+            + memory_pressure * 0.25
+            + positive_credit * 0.40
+            + session_bonus
+            - cross_tension * 0.15
+            - pe_penalty * 0.12
         )
         decay_score = _clamp(0.10 + negative_credit * 0.75 + alert_pressure * 0.2 + pe_penalty * 0.15)
         threshold_delta = max(-0.05, min(0.05, (cross_tension + alert_pressure - promotion_score) * 0.04))

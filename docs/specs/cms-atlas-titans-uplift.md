@@ -1,6 +1,6 @@
 # CMS ATLAS + Titans Update Rule Uplift
 
-> Status: SHADOW-only first; ACTIVE gated by acceptance ladder.
+> Status: ACTIVE by default after SHADOW validation passed on 2026-05-06.
 > Owner: `vz-memory.CMSMemoryCore` (memory owner internals only).
 > Tier: 2 (substrate-internal learnable layer; base LLM untouched).
 
@@ -141,10 +141,19 @@ Two new construction-time flags on `CMSMemoryCore`:
 
 `build_default_memory_store(...)` exposes:
 
-- `cms_pe_features_enabled: bool = False`
-- `cms_replay_window_size: int | None = None` — if set, applies `{online: K, session: max(2, K//2), background: max(2, K//4)}`.
+- `cms_pe_features_enabled: bool = True`
+- `cms_replay_window_size: int | None = 8` — applies `{online: K, session: max(2, K//2), background: max(2, K//4)}`.
 
-The defaults preserve canonical behavior. Turning either flag on activates the uplift path.
+The default factory is ACTIVE. Rollback is explicit and local:
+
+```python
+build_default_memory_store(
+    cms_pe_features_enabled=False,
+    cms_replay_window_size=None,
+)
+```
+
+Direct `CMSMemoryCore(...)` construction still defaults to the canonical off path so unit tests and low-level A/B setups can instantiate either side without going through the runtime factory.
 
 ### 7.2 SHADOW vs ACTIVE comparison
 
@@ -154,11 +163,11 @@ The dialogue paper-suite gains a new profile label `atlas-titans-cms-uplift`. It
 - the uplift profile must not regress ETA strong-proof `statistical-batch-evidence` below the canonical baseline minus 5%;
 - the uplift profile may report higher `slow-shapes-fast` and `rare-heavy-net-benefit`; this is reported but does not count as retain-class success without separate review.
 
-If the SHADOW evidence holds for N >= 20 sessions across paper-suite-small, the team may flip default factory wiring to enable the uplift. **The flip is a config change, not a code change.**
+The SHADOW evidence held across the local validation ladder documented in `cms-atlas-titans-uplift-shadow-evidence-2026-05-06.md`; the default factory wiring is now ACTIVE.
 
 ### 7.3 Rollback
 
-Disable both flags. CMS reverts to legacy behavior. Old/new checkpoints remain interoperable per Section 5.
+Pass `cms_pe_features_enabled=False, cms_replay_window_size=None` to `build_default_memory_store(...)` or construct `CMSMemoryCore(...)` directly with the default off flags. CMS reverts to legacy behavior. Old/new checkpoints remain interoperable per Section 5.
 
 ## 8. Acceptance ladder (must pass in order)
 
@@ -171,7 +180,7 @@ Disable both flags. CMS reverts to legacy behavior. Old/new checkpoints remain i
 7. dialogue paper-suite-small: `atlas-titans-cms-uplift` does not regress NL essence default gates by more than 5%.
 8. ETA strong-proof: `statistical-batch-evidence` does not regress by more than 5%.
 
-Only after 1–8 pass is the uplift considered a candidate for default wiring.
+Steps 1–8 passed on 2026-05-06; the uplift is default-ACTIVE via `build_default_memory_store(...)`.
 
 ## 9. Out of scope
 

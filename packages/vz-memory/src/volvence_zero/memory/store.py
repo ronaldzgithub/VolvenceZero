@@ -73,13 +73,16 @@ def build_default_memory_store(
     *,
     latent_dim: int = 8,
     nested_profile: bool = True,
-    cms_pe_features_enabled: bool = False,
-    cms_replay_window_size: int | None = None,
+    cms_pe_features_enabled: bool = True,
+    cms_replay_window_size: int | None = 8,
 ) -> "MemoryStore":
-    """Build a default :class:`MemoryStore` with optional ATLAS / Titans uplift.
+    """Build a default :class:`MemoryStore` with ATLAS / Titans CMS uplift.
 
-    Defaults preserve canonical (pre-uplift) CMS behavior. SHADOW evaluation
-    turns the two flags on:
+    The uplift is ACTIVE by default after the SHADOW validation ladder in
+    ``docs/specs/cms-atlas-titans-uplift-shadow-evidence-2026-05-06.md``
+    passed steps 1-8. Rollback is still explicit and local: pass
+    ``cms_pe_features_enabled=False`` and ``cms_replay_window_size=None``
+    to recover the pre-uplift CMS behavior.
 
     - ``cms_pe_features_enabled`` activates Titans-style PE-driven write
       gating in the CMS ``LearnedUpdateRule``.

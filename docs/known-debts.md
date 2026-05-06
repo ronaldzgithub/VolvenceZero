@@ -32,29 +32,21 @@
 - **推荐修法**：机械收敛：把所有 `from volvence_zero.evaluation.backbone import <type>` 改为 `from volvence_zero.evaluation.types import <type>` 或 `from volvence_zero.evaluation import <type>`。
 - **优先级**：低（纯维护性）。
 
-## 6. Phase 2.A — Full COCOA rewarding-state head（uplift 候选）
+## 6. Phase 2.A — Full COCOA rewarding-state head（已落地，SHADOW/readout 默认）
 
 - **路径**：`packages/vz-cognition/src/volvence_zero/credit/gate.py`（`derive_counterfactual_contribution_records` 当前 lightweight 实现）
-- **问题**：当前 baseline 走 regime selection_weights × delayed_payoffs 的历史均值，是 owner 既有读出的简单加权。COCOA 论文（NeurIPS 2023, `arXiv:2306.16803`）的 full 版本要求一个学到的 *rewarding-state representation*，在该表征空间下计算 contribution，可显著降低 long-horizon credit 估计的方差。
-- **违反**：无（lightweight 版本是 NL-对齐的 owner-internal 算法），但论文承诺的 lower-variance / 反事实精确度尚未取得。
-- **短期风险**：低。lightweight 版本在 `recent_credits` 中以 `level="counterfactual_contribution"` 附加 readout-only 信号；下游 consumer 全部按 level 过滤，新条目自动忽略。Phase 1 主链不依赖它。
-- **触发条件（必须升级）**：
-  1. 陪伴向 benchmark 出现 long-horizon (≥ 5 turn) 的 credit 估计高方差 / 低稳定性，导致 ETA family payoff 排序震荡；或
-  2. `delayed_ledger_size` 在真实 open-dialogue session 中长期低于 segment 实际闭合数（说明 lightweight baseline 无法承载更长 horizon）。
-- **推荐修法**：在 `credit` owner 内部增加小型回归头（substrate feature digest + action_context → expected outcome），训练状态走 `LearnedUpdateRule` / 类 Hope 路径，新增字段必须进 checkpoint，并通过 `ModificationGate` 准入（`validation_delta` / `capacity_cost` / `rollback_evidence` 三件套）。**禁止**把 head 拆出 `vz-cognition/credit` 包，避免触发"消费者重建生产者状态"反模式。
-- **优先级**：中。等 Phase 1.A 在真实数据上跑过一轮再决定。
+- **状态**：Phase 2.A 已实现为 `CreditLedger` owner-internal `RewardingStateHeadState`。`final_wiring.py` 通过 credit owner 入口生成 historical 与 learned 两条 readout，不在编排层重建 baseline。
+- **剩余风险**：中低。默认仍是 readout / SHADOW 对比；`counterfactual_contribution_learned` 不进入现有 acceptance gate。真实 open-dialogue 数据上仍需观察 learned baseline 是否降低 long-horizon 方差。
+- **保留退出条件**：若 learned baseline 在真实 trace 上长期不优于 historical baseline，保留 Phase 1.A historical record 作为 fallback，并可通过 checkpoint 恢复 head state。
+- **后续观察项**：跟踪 `counterfactual_readouts.validation_delta`、`recent_modifications` 中 `credit.rewarding_state_head` 的 block/allow 比例，以及 `delayed_ledger_size` 与 segment closure 的一致性。
 
-## 7. Phase 2.B — Learned PE critic head（uplift 候选）
+## 7. Phase 2.B — Learned PE critic head（已落地，report-only 默认）
 
 - **路径**：`packages/vz-cognition/src/volvence_zero/prediction/error.py`（`_PECriticHead` 当前 running-stats 实现）
-- **问题**：当前 PE 分解走 per-axis × per-(regime|segment) 的 EMA mean / variance；这是统计 critic，不是学到的 critic。Curiosity-Critic 论文（`arXiv:2604.18701`）指出 improvement-PE = `actual − critic-prediction`，要求 critic 有 contextual feature 输入，对 epistemic 与 aleatoric 的分离更精确。
-- **违反**：无（running-stats 版本是 NL-对齐 owner-internal）；但分解粒度与抗噪能力受限于 EMA decay。
-- **短期风险**：低。`pe_decomposition` 是 optional 字段，bootstrap 时为 `None`；evaluation 中 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 已严格 report-only。
-- **触发条件（必须升级）**：
-  1. `apply_prediction_error_signal` 把 epistemic/aleatoric 写入 memory `MemoryAttributeReadout` 后，开始有下游 consumer (memory / temporal / regime) 实际依赖它做决策；此时 EMA-only 的精度不够；或
-  2. 真实 open-dialogue session 中观察到 epistemic 持续高于阈值但学习信号不收敛（说明 EMA 把可学的部分误判进 aleatoric 噪声底）。
-- **推荐修法**：在 `_PECriticHead` 内部增加小型回归头，输入为 `SubstrateSnapshot.feature_surface` digest + `PredictionActionContext`，输出为 expected `|axis_error|`；improvement = `|actual| − critic-pred`。需要 checkpoint，触发 `ModificationGate` 准入；critic head 训练状态进 `learned_update_rule` 路径。**禁止**让 critic head 直接写 evaluation acceptance gate（仍保持 readout-only 红线）。
-- **优先级**：中。先观察 Phase 1.B 在 real-open-dialogue trace 上的 readout 行为。
+- **状态**：Phase 2.B 已在 `_PECriticHead` 内实现 learned contextual critic，输入为 `SubstrateSnapshot.feature_surface` digest + `PredictionActionContext`，输出 expected `|axis_error|`。`PEDecomposition` append-only 发布 critic prediction、improvement、checkpoint id、gate decision。
+- **剩余风险**：低。`pe_decomposition` 仍是 optional，bootstrap 时为 `None`；evaluation 的 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 继续严格 report-only，不进入 acceptance gate。
+- **保留退出条件**：如果真实 session 中 learned critic 造成 epistemic readout 过早归零，可恢复 running-stats-only 语义，或只消费 `critic_predicted_magnitude` 作为诊断字段。
+- **后续观察项**：跟踪 `critic_update_count`、`critic_gate_decision`、`improvement_magnitude` 与 memory `MemoryAttributeReadout.epistemic_magnitude` 的一致性。
 
 ## 8. `joint_loop` 与 runtime 主链共享 owner 实例
 

@@ -14,16 +14,15 @@ contracts, not paper-replication.
 from __future__ import annotations
 
 from volvence_zero.prediction import (
-    ActualOutcome,
     PEDecomposition,
-    PredictedOutcome,
+    PECriticHeadState,
     PredictionActionContext,
     PredictionError,
     PredictionErrorModule,
-    PredictionErrorSnapshot,
 )
 from volvence_zero.prediction.error import _PECriticHead
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 
 
 def _make_error(*, value: float, signed: float | None = None) -> PredictionError:
@@ -36,6 +35,31 @@ def _make_error(*, value: float, signed: float | None = None) -> PredictionError
         magnitude=abs(value),
         signed_reward=s,
         description="test",
+    )
+
+
+def _make_substrate(*, value: float, model_id: str = "m") -> SubstrateSnapshot:
+    return SubstrateSnapshot(
+        model_id=model_id,
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(
+                name="semantic_task_pull",
+                values=(value, 1.0 - value),
+                source="test",
+            ),
+            FeatureSignal(
+                name="semantic_support_pull",
+                values=(value * 0.5,),
+                source="test",
+            ),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="test substrate",
     )
 
 
@@ -141,6 +165,67 @@ def test_critic_falls_back_to_default_bucket_when_action_context_empty():
         action_context=PredictionActionContext(),
     )
     assert "default" in decomposition.description
+
+
+def test_learned_critic_uses_context_to_drive_improvement_pe_down():
+    critic = _PECriticHead(decay=0.9)
+    critic.update(
+        error=_make_error(value=0.6),
+        action_context=PredictionActionContext(regime_id="comfort", abstract_action_id="a"),
+        substrate_snapshot=_make_substrate(value=0.2),
+        timestamp_ms=1,
+    )
+    first = critic.update(
+        error=_make_error(value=0.6),
+        action_context=PredictionActionContext(regime_id="comfort", abstract_action_id="a"),
+        substrate_snapshot=_make_substrate(value=0.2),
+        timestamp_ms=2,
+    )
+    last = first
+    for index in range(3, 18):
+        last = critic.update(
+            error=_make_error(value=0.6),
+            action_context=PredictionActionContext(regime_id="comfort", abstract_action_id="a"),
+            substrate_snapshot=_make_substrate(value=0.2),
+            timestamp_ms=index,
+        )
+
+    assert last.critic_update_count > first.critic_update_count
+    assert last.critic_predicted_magnitude > first.critic_predicted_magnitude
+    assert last.improvement_magnitude < first.improvement_magnitude
+    assert last.critic_gate_decision == "allow"
+    assert last.critic_checkpoint_id
+
+
+def test_learned_critic_checkpoint_restore_preserves_prediction_surface():
+    critic = _PECriticHead(decay=0.9)
+    context = PredictionActionContext(regime_id="comfort", abstract_action_id="a")
+    substrate = _make_substrate(value=0.3)
+    for index in range(8):
+        critic.update(
+            error=_make_error(value=0.4),
+            action_context=context,
+            substrate_snapshot=substrate,
+            timestamp_ms=index,
+        )
+    state = critic.export_state()
+    assert isinstance(state, PECriticHeadState)
+
+    restored = _PECriticHead(decay=0.9)
+    restored.restore_state(state)
+    original = critic.update(
+        error=_make_error(value=0.4),
+        action_context=context,
+        substrate_snapshot=substrate,
+        timestamp_ms=20,
+    )
+    restored_result = restored.update(
+        error=_make_error(value=0.4),
+        action_context=context,
+        substrate_snapshot=substrate,
+        timestamp_ms=20,
+    )
+    assert restored_result.critic_predicted_magnitude == original.critic_predicted_magnitude
 
 
 def test_pe_owner_publishes_decomposition_after_first_evaluated_turn():

@@ -1197,6 +1197,11 @@ def _profile_allows_interval_carryover_credit(profile_label: str) -> bool:
         "pe-eta-no-writeback",
         "pe-eta-no-rare-heavy",
         "timescale-off",
+        # ATLAS / Titans CMS uplift is a pe-eta sibling: full PE drive,
+        # full ETA, only differs in CMS-internal update rule. It must be
+        # treated like ``pe-eta`` for interval carryover credit. See
+        # docs/specs/cms-atlas-titans-uplift-shadow-evidence-2026-05-06.md.
+        "atlas-titans-cms-uplift",
     }
 
 

@@ -11,9 +11,11 @@ from __future__ import annotations
 from volvence_zero.credit import (
     CreditLedger,
     CreditRecord,
+    GateDecision,
     derive_counterfactual_contribution_records,
     record_nstep_outcomes_from_segment_closure,
 )
+from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.prediction import (
     ActualOutcome,
     PredictedOutcome,
@@ -22,7 +24,6 @@ from volvence_zero.prediction import (
     PredictionErrorSnapshot,
 )
 from volvence_zero.regime import (
-    DelayedOutcomeAttribution,
     DelayedOutcomePayoff,
     RegimeIdentity,
     RegimeSelectionWeights,
@@ -151,6 +152,24 @@ def _make_temporal_snapshot(
         description="temporal",
         action_family_version=1,
         closed_segments=closures,
+    )
+
+
+def _safe_evaluation_snapshot() -> EvaluationSnapshot:
+    return EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(),
+        alerts=(),
+        description="safe evaluation",
+    )
+
+
+def _blocked_evaluation_snapshot() -> EvaluationSnapshot:
+    return EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(),
+        alerts=("CRITICAL: blocking condition",),
+        description="blocked evaluation",
     )
 
 
@@ -433,3 +452,87 @@ def test_cocoa_records_have_no_effect_on_legacy_consumers():
     assert abstract_filter == ()
     assert session_filter == ()
     assert turn_filter == ()
+
+
+def test_learned_cocoa_head_converges_and_publishes_shadow_readout():
+    ledger = CreditLedger()
+    regime = _make_regime_snapshot(
+        weights=(("comfort", 1.0),),
+        payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="comfort",
+                abstract_action="action_a",
+                action_family_version=1,
+                sample_count=4,
+                rolling_payoff=0.0,
+                latest_outcome=0.0,
+                last_source_wave_id="w-old",
+            ),
+        ),
+    )
+    temporal = _make_temporal_snapshot(segment_id="seg-1", abstract_action_id="action_a")
+    first_value = None
+    last_value = None
+    for index in range(12):
+        records = ledger.derive_learned_counterfactual_contribution_records(
+            regime_snapshot=regime,
+            temporal_snapshot=temporal,
+            prediction_error_snapshot=_make_pe_snapshot(signed_reward=0.6),
+            evaluation_snapshot=_safe_evaluation_snapshot(),
+            timestamp_ms=100 + index,
+            include_historical=False,
+        )
+        assert len(records) == 1
+        if first_value is None:
+            first_value = records[0].credit_value
+        last_value = records[0].credit_value
+
+    snapshot = ledger.snapshot()
+    assert snapshot.rewarding_state_head is not None
+    assert snapshot.rewarding_state_head.update_count > 0
+    assert snapshot.counterfactual_readouts
+    assert snapshot.counterfactual_readouts[-1].gate_decision is GateDecision.ALLOW
+    assert first_value is not None and last_value is not None
+    assert abs(last_value) < abs(first_value)
+
+
+def test_learned_cocoa_head_gate_block_preserves_checkpointed_state():
+    ledger = CreditLedger()
+    regime = _make_regime_snapshot(
+        weights=(("comfort", 1.0),),
+        payoffs=(
+            DelayedOutcomePayoff(
+                regime_id="comfort",
+                abstract_action="action_a",
+                action_family_version=1,
+                sample_count=4,
+                rolling_payoff=0.0,
+                latest_outcome=0.0,
+                last_source_wave_id="w-old",
+            ),
+        ),
+    )
+    temporal = _make_temporal_snapshot(segment_id="seg-1", abstract_action_id="action_a")
+    ledger.derive_learned_counterfactual_contribution_records(
+        regime_snapshot=regime,
+        temporal_snapshot=temporal,
+        prediction_error_snapshot=_make_pe_snapshot(signed_reward=0.5),
+        evaluation_snapshot=_safe_evaluation_snapshot(),
+        timestamp_ms=1,
+        include_historical=False,
+    )
+    before = ledger.snapshot().rewarding_state_head
+    assert before is not None
+
+    ledger.derive_learned_counterfactual_contribution_records(
+        regime_snapshot=regime,
+        temporal_snapshot=temporal,
+        prediction_error_snapshot=_make_pe_snapshot(signed_reward=0.9),
+        evaluation_snapshot=_blocked_evaluation_snapshot(),
+        timestamp_ms=2,
+        include_historical=False,
+    )
+    after = ledger.snapshot().rewarding_state_head
+    assert after is not None
+    assert after.update_count == before.update_count
+    assert ledger.recent_modifications[-1].decision is GateDecision.BLOCK

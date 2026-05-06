@@ -44,7 +44,6 @@ from volvence_zero.credit.gate import (
     ModificationGate,
     ModificationProposal,
     SelfModificationRecord,
-    derive_counterfactual_contribution_records,
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     derive_prediction_error_credit_records,
@@ -1056,6 +1055,21 @@ def _prediction_action_context_from_upstream(
         else None
     )
     segment = next(iter(temporal_value.closed_segments), None) if temporal_value else None
+    regime_snapshot = (
+        upstream_snapshots.get("regime")
+        if upstream_snapshots is not None
+        else None
+    )
+    regime_value = (
+        regime_snapshot.value
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
+        else None
+    )
+    regime_id = (
+        regime_value.active_regime.regime_id
+        if regime_value is not None and regime_value.active_regime is not None
+        else ""
+    )
     return PredictionActionContext(
         segment_id=segment.segment_id if segment is not None else "",
         abstract_action_id=(
@@ -1064,7 +1078,7 @@ def _prediction_action_context_from_upstream(
             else (temporal_value.active_abstract_action if temporal_value is not None else "")
         ),
         z_t_digest=segment.z_t_digest if segment is not None else (),
-        regime_id="",
+        regime_id=regime_id,
         affordance_name=(segment.affordance_name or "") if segment is not None else "",
         environment_event_id=environment_event.event_id if environment_event is not None else "",
         environment_outcome_id=environment_outcome_id,
@@ -1731,19 +1745,20 @@ async def run_final_wiring_turn(
                     prediction_error=prediction_snapshot_value.error,
                     timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
                 )
-            # Phase 1.A: append COCOA-style counterfactual contribution
-            # credit (no-op when regime payoffs / weights / PE context
-            # are insufficient; see derive_counterfactual_contribution_records).
+            # Phase 2.A: ask the credit owner to append historical and
+            # learned COCOA readouts. The owner owns the learned baseline,
+            # checkpoint evidence, and gate audit.
             temporal_snapshot_value_for_credit = None
             temporal_snapshot_for_credit = active_snapshots.get("temporal_abstraction")
             if temporal_snapshot_for_credit is not None and isinstance(
                 temporal_snapshot_for_credit.value, TemporalAbstractionSnapshot
             ):
                 temporal_snapshot_value_for_credit = temporal_snapshot_for_credit.value
-            counterfactual_credits = derive_counterfactual_contribution_records(
+            counterfactual_credits = credit_module.ledger.derive_learned_counterfactual_contribution_records(
                 regime_snapshot=regime_snapshot_value_for_credit,
                 temporal_snapshot=temporal_snapshot_value_for_credit,
                 prediction_error_snapshot=prediction_snapshot_value,
+                evaluation_snapshot=enriched_evaluation,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 5,
             )
             extra_credits = extra_credits + counterfactual_credits
