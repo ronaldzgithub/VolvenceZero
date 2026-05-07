@@ -1,0 +1,158 @@
+{
+  "scenario_id": "long-form-life-arc",
+  "description": "Phase 2 W4 long-form mechanism-validation scenario. Single-session arc covering rapport (1-6), low-mood disclosure (7-12), guided exploration (13-20), rupture (21-25), repair (26-32), and continuity check (33-38). Used by artifacts/eq_uplift/probe_pe_window_long_form.py to verify PE distribution window mechanism in a session long enough to fill min_window=16 + vitals warmup=5.",
+  "turns": [
+    {
+      "user_input": "Hey, hope I am not catching you at a bad time. I have been meaning to chat for a while.",
+      "expected_regime_in": ["acquaintance_building", "casual_social", "first_encounter"]
+    },
+    {
+      "user_input": "I am not sure where to start. I guess I just wanted someone to talk to.",
+      "expected_regime_in": ["acquaintance_building", "emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Tell me a bit about yourself first, what kinds of conversations are you good with?",
+      "expected_regime_in": ["acquaintance_building", "casual_social", "first_encounter"]
+    },
+    {
+      "user_input": "That is reassuring, thanks. Most of my friends are too busy to listen these days.",
+      "expected_regime_in": ["acquaintance_building", "emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Anyway, the weather has been weird here. Cold mornings and warm afternoons.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "I noticed I have been drinking way too much coffee lately. Probably not great.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "Honestly, the coffee is just covering up that I have not been sleeping well.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "I have been waking up at 3am with my chest tight and just lying there.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "Work has been heavy. Or maybe it is not work, I cannot tell anymore.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "It feels like I am running on empty even on weekends.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "And the worst part is I do not even know what I am sad about.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "I keep telling myself it could be worse, which is probably not helping.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Maybe you can help me figure out where this fog is coming from.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "If I had to pick one piece, I think it is that I have lost a sense of direction at work.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "I used to know what I was building toward and now everything feels random.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Probably I should look at how I spend a typical week, where the energy actually goes.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Mornings are mostly meetings, afternoons are small fires, evenings are drained.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "So the deep work I actually like has nowhere to live in that schedule.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "What would a small experiment look like that protects an hour or two for thinking?",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Block 9 to 10:30 for two weeks, no calendar invites, just one priority. That sounds doable.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Wait, that just sounds like every productivity tip I have ever ignored. This is not actually helping.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "I came here because I felt like crap and you turned it into a calendar exercise.",
+      "expected_regime_in": ["repair_and_deescalation"]
+    },
+    {
+      "user_input": "I do not need another tip. I needed someone to acknowledge that this is hard.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "I guess I should have said clearly what I needed instead of expecting you to read it.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Sorry for snapping. The frustration was real but it was not really about you.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "That actually helped. Hearing that it sounded heavier than I let on, that landed.",
+      "expected_regime_in": ["emotional_support", "repair_and_deescalation"]
+    },
+    {
+      "user_input": "I think the real fear is that I have lost the thread of who I want to be.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "When I was younger I had this picture: build something useful, be present with people I love.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Right now I am not sure I am doing either. That is what is heavy.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I am not asking you to fix it. Just naming it out loud already feels different.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "Thank you for staying with me on this. I was not expecting it to go this deep.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Maybe later this week we can come back to the schedule thing, but with this context underneath it.",
+      "expected_regime_in": ["emotional_support", "guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Coming back to it. So we said: protect deep-work mornings, but also leave space for emotional check-ins.",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "emotional_support"]
+    },
+    {
+      "user_input": "I tried it for two days. Mornings worked, evenings still messy.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "What stuck though was knowing I could come back here when it gets heavy again.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "And I did not feel judged for the snap from earlier this week. That mattered.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "I think the real progress is that I am not pretending I am fine anymore.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Okay, that is enough deep stuff for today. Tell me something light to wrap up.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    }
+  ]
+}

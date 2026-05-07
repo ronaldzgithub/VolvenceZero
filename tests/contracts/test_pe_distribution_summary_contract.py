@@ -60,18 +60,20 @@ def test_distribution_summary_axis_lookup_handles_missing_axis() -> None:
 
 
 def test_distribution_window_returns_none_below_min_window() -> None:
-    window = _PEDistributionWindow(min_window=16, max_window=64)
+    """Production default ``min_window=8`` (post debt #11 close-out)."""
+    window = _PEDistributionWindow(min_window=8, max_window=64)
     assert window.summarise() is None
-    for i in range(15):
+    for i in range(7):
         window.update(
             _make_error(task=0.1, relationship=0.0, regime=0.0, action=0.0)
         )
-    assert window.summarise() is None, "still below min_window=16"
+    assert window.summarise() is None, "still below min_window=8"
 
 
 def test_distribution_window_emits_summary_at_min_window() -> None:
-    window = _PEDistributionWindow(min_window=16, max_window=64)
-    for i in range(16):
+    """Production default ``min_window=8`` (post debt #11 close-out)."""
+    window = _PEDistributionWindow(min_window=8, max_window=64)
+    for i in range(8):
         window.update(
             _make_error(
                 task=0.1 if i % 2 == 0 else -0.1,
@@ -82,7 +84,7 @@ def test_distribution_window_emits_summary_at_min_window() -> None:
         )
     summary = window.summarise()
     assert summary is not None
-    assert summary.window_size == 16
+    assert summary.window_size == 8
     # All four axes present in all three statistics.
     iqr_axes = {name for name, _ in summary.iqr}
     entropy_axes = {name for name, _ in summary.entropy}
@@ -201,3 +203,85 @@ def test_distribution_summary_asymmetry_clamped_to_unit_interval() -> None:
     asymmetry = summary.axis_asymmetry("task")
     assert asymmetry is not None
     assert -1.0 <= asymmetry <= 1.0
+
+
+def test_distribution_window_iqr_stable_at_min_window_n8() -> None:
+    """Phase 2 W4 (debt #11 close-out): n=8 IQR is statistically usable.
+
+    Replays a deterministic stream of 32 samples drawn from a bounded
+    uniform distribution into two windows: one capped at 8, one
+    capped at 32. Asserts the per-axis IQR ratio (n=8 / n=32) stays
+    within ``[0.4, 2.5]`` — i.e. the 8-sample IQR estimate is within
+    roughly a factor of 2 of the 32-sample reference. The band is
+    asymmetric on purpose: the IQR's sampling distribution at small n
+    is right-skewed (more frequent under-estimation, occasional
+    large over-estimation), and the canonical SE-of-IQR result
+    ``SE(IQR) ~= 1.36 * sigma / sqrt(n)`` predicts roughly 2x more
+    variability at n=8 vs n=32. The band reflects that statistical
+    truth without becoming a free pass — a 5x or 10x ratio would
+    still trip.
+
+    Two windows are independent ``_PEDistributionWindow`` instances,
+    not the same instance summarised at two checkpoints, so the test
+    captures "8 freshly-collected samples" vs "32 freshly-collected
+    samples" — the failure mode that matters operationally (a
+    real session may only ever see 8 turns).
+
+    Pins the statistical justification for the production default
+    ``min_window=8`` chosen during the debt #11 close-out, evidenced
+    by ``artifacts/eq_uplift/pe_window_long_form.json``.
+    """
+    rng_a = random.Random(99)
+    rng_b = random.Random(99)
+    window_n8 = _PEDistributionWindow(min_window=8, max_window=8)
+    window_n32 = _PEDistributionWindow(min_window=32, max_window=32)
+
+    # Same deterministic stream into both windows. n8 holds last 8;
+    # n32 holds all 32. After 32 samples the overlap is the most
+    # recent 8 — the question is "are the 8-sample stats usable".
+    for _ in range(32):
+        err_a = _make_error(
+            task=rng_a.uniform(-0.3, 0.3),
+            relationship=rng_a.uniform(-0.5, 0.5),
+            regime=rng_a.uniform(-0.2, 0.2),
+            action=rng_a.uniform(-0.4, 0.4),
+        )
+        # Identical samples via paired RNG seed (rng_b advances in
+        # lockstep below). Avoids relying on PredictionError __eq__.
+        err_b = _make_error(
+            task=rng_b.uniform(-0.3, 0.3),
+            relationship=rng_b.uniform(-0.5, 0.5),
+            regime=rng_b.uniform(-0.2, 0.2),
+            action=rng_b.uniform(-0.4, 0.4),
+        )
+        window_n8.update(err_a)
+        window_n32.update(err_b)
+
+    summary_n8 = window_n8.summarise()
+    summary_n32 = window_n32.summarise()
+    assert summary_n8 is not None
+    assert summary_n32 is not None
+    assert summary_n8.window_size == 8
+    assert summary_n32.window_size == 32
+
+    for axis in ("task", "relationship", "regime", "action"):
+        iqr_n8 = summary_n8.axis_iqr(axis)
+        iqr_n32 = summary_n32.axis_iqr(axis)
+        assert iqr_n8 is not None
+        assert iqr_n32 is not None
+        # If the 32-sample IQR is essentially zero, the 8-sample IQR
+        # should also be essentially zero (otherwise the n=8 window is
+        # picking up artificial spread). Use absolute tolerance.
+        if iqr_n32 < 1e-3:
+            assert iqr_n8 < 5e-3, (
+                f"axis={axis} n8 IQR={iqr_n8:.4f} should be near-zero "
+                f"when n32 IQR={iqr_n32:.4f}"
+            )
+            continue
+        ratio = iqr_n8 / iqr_n32
+        assert 0.4 <= ratio <= 2.5, (
+            f"axis={axis} iqr_n8/iqr_n32={ratio:.3f} (n8={iqr_n8:.4f} "
+            f"n32={iqr_n32:.4f}) outside stability band [0.4, 2.5]; "
+            "8-sample IQR is too noisy to back the production "
+            "min_window=8 default"
+        )

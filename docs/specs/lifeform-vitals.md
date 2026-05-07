@@ -112,7 +112,7 @@ Threshold `1.0`, cooldown `60` ticks. `build_companion_lifeform()` enables this 
 
 Mechanism:
 
-- The first `_BASELINE_WARMUP_OBSERVATIONS = 5` non-None summaries observed are averaged per axis to form a **frozen baseline** in `_iqr_baseline`. Subsequent observations only update `_last_distribution_summary`.
+- The first `_BASELINE_WARMUP_OBSERVATIONS = 5` non-None summaries observed are averaged per axis to form a **frozen baseline** in `_iqr_baseline`. Subsequent observations only update `_last_distribution_summary`. With the kernel's PE `min_window=8` (post debt #11 close-out 2026-05-08), the first non-None summary arrives around turn ~9 of a benchmark scenario, so the baseline freezes around turn ~13 — already inside typical 5-15 turn scenarios. Lowering warmup to 3 was considered and rejected: the noisier baseline (SEM ratio sqrt(5/3) ~= 1.29 worse) outweighs the 2-turn savings.
 - `current_snapshot()` computes `drift = (current_iqr - baseline_iqr) / max(|baseline_iqr|, eps)` per axis, clamped to `[-1, 1]`.
 - Apprentice / ingestion override suppresses the readout (`distributional_drift_axes = ()`), mirroring how it suppresses `pe_contribution` so operator-supplied turns do not pollute the lifeform's emotional drift signal.
 

@@ -91,6 +91,22 @@ class LongitudinalFamilyReport:
     il_rapport_trend_pos: bool = False
     per_round_il_trust: tuple[float | None, ...] = ()
     per_round_il_rapport: tuple[float | None, ...] = ()
+    # Phase 2 W2.0c (debt #10B closure) — EQ owner activation
+    # diagnostics carried across rounds. The longitudinal aggregator
+    # surfaces these so an artifact reader can answer "did the LLM
+    # semantic runtime stay wired across all rounds?" by inspecting
+    # the per-round arrays. They are READ-ONLY diagnostics and do
+    # NOT participate in the ``passed`` gate — under the default
+    # NoOpSemanticProposalRuntime they legitimately stay at 0 across
+    # every round.
+    tom_records_total_first: int | None = None
+    tom_records_total_last: int | None = None
+    tom_records_total_trend: int = 0
+    common_ground_dyad_atoms_total_first: int | None = None
+    common_ground_dyad_atoms_total_last: int | None = None
+    common_ground_dyad_atoms_total_trend: int = 0
+    per_round_tom_records_total: tuple[int | None, ...] = ()
+    per_round_common_ground_dyad_atoms_total: tuple[int | None, ...] = ()
 
     @property
     def passed(self) -> bool:
@@ -159,6 +175,22 @@ def _il_axis_metric(report: FamilyReport, metric_id: str) -> float | None:
     return None
 
 
+def _eq_count_metric(report: FamilyReport, metric_id: str) -> int | None:
+    """Pull an EQ owner activation count metric (e.g. ``f3.tom_records_total``).
+
+    Returns ``None`` when the metric is absent — happens with
+    pre-W2.0c ``BenchmarkReport`` instances built without the new
+    diagnostic fields. The value is rounded to ``int`` because the
+    underlying ``BenchmarkReport`` field is ``int`` even though
+    ``FamilyMetric.value`` is ``float``.
+    """
+    fam = report.family(FamilyId.F3_RELATIONSHIP_CONTINUITY)
+    for metric in fam.metrics:
+        if metric.metric_id == metric_id:
+            return int(round(metric.value))
+    return None
+
+
 def compute_longitudinal_family_report(
     reports: tuple[FamilyReport, ...],
 ) -> LongitudinalFamilyReport:
@@ -222,12 +254,38 @@ def compute_longitudinal_family_report(
         and il_rapport_trend >= _IL_RAPPORT_TREND_MIN
     )
 
+    # Phase 2 W2.0c (debt #10B closure): EQ owner activation counts
+    # carried across rounds. Pure diagnostics, never gates.
+    per_round_tom = tuple(
+        _eq_count_metric(report, "f3.tom_records_total") for report in reports
+    )
+    per_round_cg = tuple(
+        _eq_count_metric(report, "f3.common_ground_dyad_atoms_total")
+        for report in reports
+    )
+    tom_first = per_round_tom[0] if per_round_tom else None
+    tom_last = per_round_tom[-1] if per_round_tom else None
+    tom_trend = (
+        0
+        if tom_first is None or tom_last is None
+        else int(tom_last) - int(tom_first)
+    )
+    cg_first = per_round_cg[0] if per_round_cg else None
+    cg_last = per_round_cg[-1] if per_round_cg else None
+    cg_trend = (
+        0
+        if cg_first is None or cg_last is None
+        else int(cg_last) - int(cg_first)
+    )
+
     description = (
         f"Longitudinal F3 over {rounds} round(s): "
         f"closed_scenes_total={closed_total} "
         f"bond_warmth first={bond_first} last={bond_last} trend={bond_trend:+.3f} "
         f"il_rapport first={il_rapport_first} last={il_rapport_last} "
         f"trend={il_rapport_trend:+.4f} pos={il_rapport_trend_pos} "
+        f"tom_records first={tom_first} last={tom_last} trend={tom_trend:+d} "
+        f"cg_dyad_atoms first={cg_first} last={cg_last} trend={cg_trend:+d} "
         f"trust_no_drift={trust_no_drift} continuity_improved={continuity_improved}"
     )
     return LongitudinalFamilyReport(
@@ -251,6 +309,14 @@ def compute_longitudinal_family_report(
         il_rapport_trend_pos=il_rapport_trend_pos,
         per_round_il_trust=per_round_il_trust,
         per_round_il_rapport=per_round_il_rapport,
+        tom_records_total_first=tom_first,
+        tom_records_total_last=tom_last,
+        tom_records_total_trend=tom_trend,
+        common_ground_dyad_atoms_total_first=cg_first,
+        common_ground_dyad_atoms_total_last=cg_last,
+        common_ground_dyad_atoms_total_trend=cg_trend,
+        per_round_tom_records_total=per_round_tom,
+        per_round_common_ground_dyad_atoms_total=per_round_cg,
     )
 
 
@@ -268,6 +334,12 @@ def format_longitudinal_family_report(report: LongitudinalFamilyReport) -> str:
         f"il_rapport_first={report.il_rapport_first}",
         f"il_rapport_last={report.il_rapport_last}",
         f"il_rapport_trend={report.il_rapport_trend:+.4f}",
+        f"tom_records_first={report.tom_records_total_first}",
+        f"tom_records_last={report.tom_records_total_last}",
+        f"tom_records_trend={report.tom_records_total_trend:+d}",
+        f"cg_dyad_atoms_first={report.common_ground_dyad_atoms_total_first}",
+        f"cg_dyad_atoms_last={report.common_ground_dyad_atoms_total_last}",
+        f"cg_dyad_atoms_trend={report.common_ground_dyad_atoms_total_trend:+d}",
         f"trust_no_drift                   = {'PASS' if report.trust_no_drift else 'FAIL'}",
         f"continuity_improved_vs_baseline  = "
         f"{'PASS' if report.continuity_improved_vs_baseline else 'FAIL'}",
@@ -290,6 +362,16 @@ def format_longitudinal_family_report(report: LongitudinalFamilyReport) -> str:
         + ", ".join(
             f"{level:.3f}" if level is not None else "None"
             for level in report.per_round_il_rapport
+        ),
+        "per-round tom_records   : "
+        + ", ".join(
+            str(count) if count is not None else "None"
+            for count in report.per_round_tom_records_total
+        ),
+        "per-round cg_dyad_atoms : "
+        + ", ".join(
+            str(count) if count is not None else "None"
+            for count in report.per_round_common_ground_dyad_atoms_total
         ),
     ]
     return "\n".join(lines)
@@ -314,11 +396,27 @@ def longitudinal_family_report_to_dict(
         "il_rapport_last": report.il_rapport_last,
         "il_rapport_trend": report.il_rapport_trend,
         "il_rapport_trend_pos": report.il_rapport_trend_pos,
+        "tom_records_total_first": report.tom_records_total_first,
+        "tom_records_total_last": report.tom_records_total_last,
+        "tom_records_total_trend": report.tom_records_total_trend,
+        "common_ground_dyad_atoms_total_first": (
+            report.common_ground_dyad_atoms_total_first
+        ),
+        "common_ground_dyad_atoms_total_last": (
+            report.common_ground_dyad_atoms_total_last
+        ),
+        "common_ground_dyad_atoms_total_trend": (
+            report.common_ground_dyad_atoms_total_trend
+        ),
         "passed": report.passed,
         "per_round_closed_scene_count": list(report.per_round_closed_scene_count),
         "per_round_bond_warmth": list(report.per_round_bond_warmth),
         "per_round_il_trust": list(report.per_round_il_trust),
         "per_round_il_rapport": list(report.per_round_il_rapport),
+        "per_round_tom_records_total": list(report.per_round_tom_records_total),
+        "per_round_common_ground_dyad_atoms_total": list(
+            report.per_round_common_ground_dyad_atoms_total
+        ),
         "description": report.description,
     }
 

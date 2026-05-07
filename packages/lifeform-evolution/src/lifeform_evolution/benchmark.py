@@ -478,6 +478,8 @@ async def run_benchmark_async(
         pending_followup_count=pending_followup_count,
         proactive_followup_count=proactive_followup_count,
         final_interlocutor_axes=final_interlocutor_axes,
+        tom_records_total=tom_records_total,
+        common_ground_dyad_atoms_total=common_ground_dyad_atoms_total,
     )
 
 

@@ -209,6 +209,15 @@ class VitalsModule:
     # what the Botvinick 2025 distributional-coding analogue cares
     # about. EMA semantics would create the "tracker follows current"
     # bug where drift trends toward zero by construction.
+    #
+    # ``_BASELINE_WARMUP_OBSERVATIONS = 5`` retained after debt #11
+    # close-out (2026-05-08): with PE owner ``min_window=8`` the
+    # first non-None summary arrives around turn ~9, so a 5-observation
+    # baseline freezes around turn ~13 — already inside the typical
+    # 5-15 turn benchmark scenario range. Lowering to 3 would save
+    # two turns at the cost of a noisier baseline (5 samples gives
+    # SEM/sqrt(5) ~= 0.45 stdev shrink vs. 0.58 at n=3); the benefit
+    # is marginal vs. the stability cost.
     _BASELINE_WARMUP_OBSERVATIONS: int = 5
     _DRIFT_CLAMP: float = 1.0
     _DRIFT_EPSILON: float = 1e-4

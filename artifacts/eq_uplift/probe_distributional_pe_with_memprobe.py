@@ -1,12 +1,12 @@
-"""Phase 2 W3.1 joint evidence probe: DM-1 (distributional PE) + CMA-2.
+﻿"""Phase 2 W3.1 joint evidence probe: DM-1 (distributional PE) + CMA-2.
 
 Extends ``probe_cross_session.py`` with the new W1/W2 surfaces:
 
-* W1 (DM-1) — per round, capture
+* W1 (DM-1) 鈥?per round, capture
   ``prediction_error.value.error.distribution_summary`` per axis
   (IQR / entropy / asymmetry) and the corresponding
   ``vitals.distributional_drift_axes`` (computed by VitalsModule).
-* W2 (CMA-2) — after the cross-session multi-round pass, run all four
+* W2 (CMA-2) 鈥?after the cross-session multi-round pass, run all four
   ``mp.*`` probes against the SAME shared memory_store the rounds
   used and record their PASS / FAIL / XFAIL status.
 * Side-by-side: per-scenario ``il_rapport`` / ``il_trust`` deltas
@@ -41,13 +41,21 @@ from volvence_zero.memory.contracts import (
 
 
 _PROBE_SCENARIOS: tuple[str, ...] = (
+    # Existing short cross-session scenarios (3-5 turns each) - useful
+    # for il_rapport / CMA-2 evidence, but structurally too short to
+    # ever fill the PE distribution window even at min_window=8.
     "cross-session-emotional-followup",
     "cross-session-revisit-decision",
     "trust-rupture-repair",
     "low-mood-disclosure",
     "guided-life-decision",
-    "first-encounter-rapport",
-    "career-direction-coaching",
+    # Phase 2 W4 (debt #11 close-out 2026-05-08): single-session 38-turn
+    # long-form arc designed to exercise the PE distribution window
+    # mechanism end-to-end. With min_window=8, summaries surface
+    # around turn 9; vitals drift surfaces around turn 13-14. This
+    # is the only existing scenario long enough to produce non-None
+    # distributional evidence in real benchmark runs.
+    "long-form-life-arc",
 )
 
 

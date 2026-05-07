@@ -543,11 +543,18 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # Phase 2 W1.2 (DM-1): owner-internal per-axis distribution window.
         # Owner-internal constants only; downstream consumers MUST NOT
         # depend on min/max sizes (the public contract is the published
-        # ``DistributionSummary`` payload). Set to 16/64: 16 keeps cold
-        # start short enough for benchmarks (closes within first scene)
-        # while 64 caps memory at 4*64 = 256 floats per session.
+        # ``DistributionSummary`` payload). 8/64 chosen post Wave A
+        # mechanism validation (debt #11 close-out 2026-05-08):
+        # ``artifacts/eq_uplift/pe_window_long_form.json`` shows the
+        # 8-sample IQR estimate converges to the 16-sample IQR within
+        # ratio 1.0 across all four axes once both windows are warm,
+        # so 8 produces statistically usable distribution shape with
+        # 50% less cold-start cost. min_window=8 lets typical 8-15
+        # turn benchmark scenarios surface non-None summaries (W3.1
+        # probe previously got 0/5 with min_window=16). max_window=64
+        # caps memory at 4 * 64 = 256 floats per session.
         self._distribution_window = _PEDistributionWindow(
-            min_window=16,
+            min_window=8,
             max_window=64,
         )
 

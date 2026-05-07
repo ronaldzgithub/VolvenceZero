@@ -289,6 +289,158 @@
       "delta_il_pace_pressure": 0.0036999999999999256,
       "delta_il_emotional": -0.00010000000000010001,
       "delta_il_resistance": -0.00030000000000002247
+    },
+    {
+      "scenario_id": "long-form-life-arc",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 1.0,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1453,
+          "il_rapport": 0.8426,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7442,
+          "il_emotional": 0.6782,
+          "il_resistance": 0.2707,
+          "pe_distribution_summary": {
+            "window_size": 37,
+            "iqr": {
+              "task": 0.0944,
+              "relationship": 0.0379,
+              "regime": 0.0033,
+              "action": 0.0418
+            },
+            "entropy": {
+              "task": 0.0,
+              "relationship": 0.0,
+              "regime": 0.0,
+              "action": 0.0
+            },
+            "asymmetry": {
+              "task": 0.0748,
+              "relationship": -0.007,
+              "regime": 0.1849,
+              "action": 0.0733
+            }
+          },
+          "vitals_distributional_drift_axes": {
+            "task": -0.0286,
+            "relationship": -0.1943,
+            "regime": -0.1451,
+            "action": -0.0849
+          },
+          "round": 0
+        },
+        {
+          "bond_warmth": 1.0,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1455,
+          "il_rapport": 0.843,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7458,
+          "il_emotional": 0.6781,
+          "il_resistance": 0.2703,
+          "pe_distribution_summary": {
+            "window_size": 37,
+            "iqr": {
+              "task": 0.0946,
+              "relationship": 0.0411,
+              "regime": 0.0031,
+              "action": 0.0418
+            },
+            "entropy": {
+              "task": 0.0,
+              "relationship": 0.0,
+              "regime": 0.0,
+              "action": 0.0
+            },
+            "asymmetry": {
+              "task": 0.0731,
+              "relationship": 0.006,
+              "regime": 0.2222,
+              "action": 0.0646
+            }
+          },
+          "vitals_distributional_drift_axes": {
+            "task": -0.0372,
+            "relationship": -0.1263,
+            "regime": -0.1969,
+            "action": -0.0825
+          },
+          "round": 1
+        },
+        {
+          "bond_warmth": 1.0,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1455,
+          "il_rapport": 0.843,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7456,
+          "il_emotional": 0.6781,
+          "il_resistance": 0.2703,
+          "pe_distribution_summary": {
+            "window_size": 37,
+            "iqr": {
+              "task": 0.0944,
+              "relationship": 0.0411,
+              "regime": 0.0037,
+              "action": 0.0418
+            },
+            "entropy": {
+              "task": 0.0,
+              "relationship": 0.0,
+              "regime": 0.0,
+              "action": 0.0
+            },
+            "asymmetry": {
+              "task": 0.0717,
+              "relationship": 0.0062,
+              "regime": 0.2132,
+              "action": 0.0637
+            }
+          },
+          "vitals_distributional_drift_axes": {
+            "task": -0.0416,
+            "relationship": -0.1263,
+            "regime": -0.0212,
+            "action": -0.0821
+          },
+          "round": 2
+        }
+      ],
+      "distribution_deltas": {
+        "iqr": {
+          "task": 0.0,
+          "relationship": 0.0031999999999999945,
+          "regime": 0.0004000000000000002,
+          "action": 0.0
+        },
+        "entropy": {
+          "task": 0.0,
+          "relationship": 0.0,
+          "regime": 0.0,
+          "action": 0.0
+        },
+        "asymmetry": {
+          "task": -0.0031000000000000055,
+          "relationship": 0.0132,
+          "regime": 0.028299999999999992,
+          "action": -0.009599999999999997
+        }
+      },
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 0.00019999999999997797,
+      "delta_il_rapport": 0.00039999999999995595,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": 0.0014000000000000679,
+      "delta_il_emotional": -9.999999999998899e-05,
+      "delta_il_resistance": -0.00040000000000001146
     }
   ],
   "cma2_probes": [
@@ -317,30 +469,30 @@
     }
   ],
   "summary": {
-    "scenarios_count": 5,
+    "scenarios_count": 6,
     "rounds_per_scenario": 3,
     "cma2_probes_pass_count": 3,
     "cma2_probes_total": 4,
     "il_rapport_delta": {
-      "count": 5,
-      "mean": 0.0017600000000000283,
-      "stdev": 0.0022041778512633566,
-      "snr": 0.7984836609220344
+      "count": 6,
+      "mean": 0.0015333333333333494,
+      "stdev": 0.002074983266331451,
+      "snr": 0.7389617825903082
     },
     "iqr_task_delta": {
-      "count": 0,
+      "count": 1,
       "mean": 0.0,
       "stdev": 0.0,
       "snr": 0.0
     },
     "iqr_relationship_delta": {
-      "count": 0,
-      "mean": 0.0,
+      "count": 1,
+      "mean": 0.0031999999999999945,
       "stdev": 0.0,
       "snr": 0.0
     },
     "entropy_relationship_delta": {
-      "count": 0,
+      "count": 1,
       "mean": 0.0,
       "stdev": 0.0,
       "snr": 0.0

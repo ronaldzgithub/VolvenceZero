@@ -106,11 +106,25 @@
 
 - `_PEDistributionWindow` 维护 4 axis × `max_window=64` 的 bounded 滑动窗口，记录每轴 signed PE 样本。
 - 每轮 `_advance` 在 alignment overlay 完成后把最终 `error` 推入窗口（bootstrap turn 跳过，避免初始零噪声污染）。
-- 窗口未满 `min_window=16` 时返回 `None`（cold-start safety）；满后计算三个 owner-internal 统计：
+- 窗口未满 `min_window=8` 时返回 `None`（cold-start safety）；满后计算三个 owner-internal 统计：
   - `iqr`：`Q3(|axis|) - Q1(|axis|)`，clamp 到 `[0, 1]`，代表分布宽度（窄分布 = 塌缩信号）。
   - `entropy`：`|axis|` 在 5-bin 等宽 histogram 上的 Shannon entropy（nats），clamp 到 `[0, log(5)]`，代表分布均匀度（低 entropy + 非零 IQR = 单 mode 锁定）。
   - `asymmetry`：`(mean - median) / (iqr + eps)`，signed，clamp 到 `[-1, 1]`，代表分布偏侧方向（+ = 右尾长 / 偶发大正误差；- = 左尾长 / 偶发大负误差）。
 - `min_window` / `max_window` / 5-bin 是 owner-internal 常量，下游 consumer 不应依赖。
+
+#### `min_window=8` 的证据来源（Phase 2 W4 / debt #11 close-out, 2026-05-08）
+
+最初设计 `min_window=16` 是「保守的 IQR 估计样本量」假设。Wave 3 联合证据 run（[`artifacts/eq_uplift/distributional_evidence.json`](../../artifacts/eq_uplift/distributional_evidence.json)）显示，在 5-15 turn 的真实 benchmark scenario 下窗口永远填不满，DM-1 在线上无可观察 evidence —— 形成 debt #11。
+
+debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifeform-domain-emogpt/.../scenarios/long-form-life-arc.json`](../../packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenarios/long-form-life-arc.json)）跑 [`artifacts/eq_uplift/probe_pe_window_long_form.py`](../../artifacts/eq_uplift/probe_pe_window_long_form.py)，输出 [`artifacts/eq_uplift/pe_window_long_form.json`](../../artifacts/eq_uplift/pe_window_long_form.json)。Validation verdict：
+
+- `first_summary_turn=17`（窗口在 16 个非 bootstrap turn 后填满，符合设计）
+- `first_drift_turn=21`（vitals warmup 5 个观察后产 drift，符合设计）
+- `iqr_8_over_iqr_16` 4 个 axis 全部 `STABLE`（统计 sanity）
+
+→ mechanism 通过；`min_window=8` 把窗口冷启动从 turn 17 降到 turn 9，让 5-15 turn benchmark scenario 也能产出 distributional evidence。统计 sanity 由 [`tests/contracts/test_pe_distribution_summary_contract.py:test_distribution_window_iqr_stable_at_min_window_n8`](../../tests/contracts/test_pe_distribution_summary_contract.py) 守门（n=8 vs n=32 IQR 比值在 `[0.4, 2.5]`）。
+
+未来若证据要求更紧 IQR 估计（如 ModificationGate 想消费分布形状），可重新评估 min_window 的取值；任何变更必须先重跑 `pe_window_long_form` 探针，再调 contract test。
 
 三条不变量：
 

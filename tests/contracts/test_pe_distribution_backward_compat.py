@@ -124,8 +124,10 @@ def _run_single_turn_with_synthetic_summary() -> dict[str, Snapshot[Any]]:
     We pre-fill the owner-internal window with synthetic samples so the
     very first ``process()`` call publishes a non-None summary. This
     is the only way to exercise the "non-None" branch without running
-    16+ real turns (which would also exercise per-turn vitals state
-    drift, polluting the comparison).
+    8+ real turns (which would also exercise per-turn vitals state
+    drift, polluting the comparison). The fill count is auto-derived
+    from ``pe_module._distribution_window._min_window`` so the fixture
+    follows any future debt-driven tuning of the production default.
     """
     pe_module = PredictionErrorModule()
     # Pre-fill the owner-internal window with deterministic samples.
@@ -135,7 +137,8 @@ def _run_single_turn_with_synthetic_summary() -> dict[str, Snapshot[Any]]:
     fill_window: _PEDistributionWindow = pe_module._distribution_window  # type: ignore[attr-defined]
     from volvence_zero.prediction.error import PredictionError
 
-    for index in range(16):
+    fill_count = fill_window._min_window  # type: ignore[attr-defined]
+    for index in range(fill_count):
         fill_window.update(
             PredictionError(
                 task_error=0.05 if index % 2 == 0 else -0.05,

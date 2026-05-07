@@ -1,0 +1,931 @@
+{
+  "scenario_id": "long-form-life-arc",
+  "total_turns": 38,
+  "first_summary_turn": 17,
+  "first_drift_turn": 21,
+  "final_distribution_summary": {
+    "window_size": 37,
+    "iqr": {
+      "task": 0.0944,
+      "relationship": 0.0379,
+      "regime": 0.0033,
+      "action": 0.0418
+    },
+    "entropy": {
+      "task": 0.0,
+      "relationship": 0.0,
+      "regime": 0.0,
+      "action": 0.0
+    },
+    "asymmetry": {
+      "task": 0.0748,
+      "relationship": -0.007,
+      "regime": 0.1849,
+      "action": 0.0733
+    }
+  },
+  "per_turn": [
+    {
+      "turn": 1,
+      "raw": {
+        "task": 0.0,
+        "relationship": 0.0,
+        "regime": 0.0,
+        "action": 0.0,
+        "magnitude": 0.0,
+        "bootstrap": true
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 2,
+      "raw": {
+        "task": -0.1265480792358012,
+        "relationship": -0.027489533824877177,
+        "regime": 0.00359230197254147,
+        "action": -0.04838718450264734,
+        "magnitude": 0.1991,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 3,
+      "raw": {
+        "task": 0.1823454638452881,
+        "relationship": -0.08618441479588346,
+        "regime": -0.0010504069104300962,
+        "action": 0.1056385986675113,
+        "magnitude": 0.3697,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 4,
+      "raw": {
+        "task": -0.09239388531772469,
+        "relationship": 0.06916102203658658,
+        "regime": 0.022976388409663928,
+        "action": -0.02619875427336288,
+        "magnitude": 0.2064,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 5,
+      "raw": {
+        "task": 0.13203282340777434,
+        "relationship": -0.011196128740107225,
+        "regime": -0.009743021138067798,
+        "action": 0.0888945411139333,
+        "magnitude": 0.242,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 6,
+      "raw": {
+        "task": 0.00460195201954644,
+        "relationship": -0.007404477291553246,
+        "regime": 0.004487424582670596,
+        "action": 0.013572244519355514,
+        "magnitude": 0.0298,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 7,
+      "raw": {
+        "task": 0.03644660553566981,
+        "relationship": 0.008122906199088509,
+        "regime": -0.0024852742155844487,
+        "action": -0.016739583750365827,
+        "magnitude": 0.0629,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 8,
+      "raw": {
+        "task": 0.02963613363757789,
+        "relationship": 0.014238892007091941,
+        "regime": -0.0060877264757475125,
+        "action": 0.03796015050954182,
+        "magnitude": 0.087,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 9,
+      "raw": {
+        "task": -0.02081592542736338,
+        "relationship": 0.007017608469335523,
+        "regime": 0.0003546926433862785,
+        "action": 0.010694124262832394,
+        "magnitude": 0.0381,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 10,
+      "raw": {
+        "task": 0.1246484981753021,
+        "relationship": -0.0316130245720751,
+        "regime": -0.004921326202245613,
+        "action": 0.034816782795546175,
+        "magnitude": 0.1933,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 11,
+      "raw": {
+        "task": -0.10090802540291355,
+        "relationship": 0.08601813662217994,
+        "regime": -0.005836125498246775,
+        "action": -0.005596524060340613,
+        "magnitude": 0.1913,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 12,
+      "raw": {
+        "task": 0.15396050885051354,
+        "relationship": -0.11027281046851334,
+        "regime": -0.0027460110867500304,
+        "action": 0.14755121318481945,
+        "magnitude": 0.4055,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 13,
+      "raw": {
+        "task": -0.030503272284860328,
+        "relationship": 0.046921640713843304,
+        "regime": 0.00921686055300959,
+        "action": -0.0840216950232267,
+        "magnitude": 0.1657,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 14,
+      "raw": {
+        "task": -0.0026770513141975427,
+        "relationship": -0.042702603157380115,
+        "regime": 0.002711913240054986,
+        "action": 0.008478483693147021,
+        "magnitude": 0.0541,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 15,
+      "raw": {
+        "task": 0.016014274910736925,
+        "relationship": 0.09078306715199413,
+        "regime": -0.0022830017076877485,
+        "action": 0.009533656565496484,
+        "magnitude": 0.114,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 16,
+      "raw": {
+        "task": 0.14535525879116035,
+        "relationship": -0.05230076756435559,
+        "regime": -0.004200117765904177,
+        "action": -0.012995560031234255,
+        "magnitude": 0.211,
+        "bootstrap": false
+      },
+      "pe_summary_present": false,
+      "pe_summary_window_size": null,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 17,
+      "raw": {
+        "task": 0.02425415626198657,
+        "relationship": -0.023422453087469097,
+        "regime": 0.005846440014140086,
+        "action": 0.03226560445649018,
+        "magnitude": 0.0842,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 16,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 18,
+      "raw": {
+        "task": -0.09797546073541541,
+        "relationship": 0.06594155367646842,
+        "regime": -0.004352404083893202,
+        "action": 0.03007511330207191,
+        "magnitude": 0.1919,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 17,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 19,
+      "raw": {
+        "task": 0.04396936324573669,
+        "relationship": -0.040775010633970876,
+        "regime": 0.0029480777147360415,
+        "action": 0.030640770740472445,
+        "magnitude": 0.1153,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 18,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 20,
+      "raw": {
+        "task": 0.11821329716931872,
+        "relationship": 0.0004286173002606697,
+        "regime": 0.0004768574006701609,
+        "action": -0.003191274766648766,
+        "magnitude": 0.1213,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 19,
+      "drift_axes_present": false,
+      "drift_axes": {}
+    },
+    {
+      "turn": 21,
+      "raw": {
+        "task": -0.042445657713617024,
+        "relationship": 0.04909186357989315,
+        "regime": -0.0017124945780953582,
+        "action": 0.056927134890711495,
+        "magnitude": 0.1463,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 20,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0374,
+        "relationship": -0.0299,
+        "regime": 0.0559,
+        "action": 0.045
+      }
+    },
+    {
+      "turn": 22,
+      "raw": {
+        "task": 0.01797155398228345,
+        "relationship": -0.047301676559228845,
+        "regime": 0.002248386634500249,
+        "action": 0.015155824363693726,
+        "magnitude": 0.0796,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 21,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0016,
+        "relationship": -0.059,
+        "regime": 0.118,
+        "action": -0.0291
+      }
+    },
+    {
+      "turn": 23,
+      "raw": {
+        "task": -0.023203049687858024,
+        "relationship": 0.05483326496334229,
+        "regime": -0.006361835695789575,
+        "action": -0.0047383646346343955,
+        "magnitude": 0.0863,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 22,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0095,
+        "relationship": -0.1518,
+        "regime": 0.087,
+        "action": -0.0538
+      }
+    },
+    {
+      "turn": 24,
+      "raw": {
+        "task": 0.06165279450313138,
+        "relationship": -0.04780183373936847,
+        "regime": 0.004581460945833504,
+        "action": -0.02367574907533232,
+        "magnitude": 0.1347,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 23,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0284,
+        "relationship": -0.2428,
+        "regime": 0.087,
+        "action": -0.1415
+      }
+    },
+    {
+      "turn": 25,
+      "raw": {
+        "task": 0.17499614218638465,
+        "relationship": 0.006577553057444785,
+        "regime": -0.00017731989967822992,
+        "action": 0.026302707874107933,
+        "magnitude": 0.2062,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 24,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": 0.0054,
+        "relationship": -0.1973,
+        "regime": 0.118,
+        "action": -0.2293
+      }
+    },
+    {
+      "turn": 26,
+      "raw": {
+        "task": -0.09728996169377013,
+        "relationship": 0.04229210263010641,
+        "regime": -0.001987029372754273,
+        "action": 0.10254659503022895,
+        "magnitude": 0.2387,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 25,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0016,
+        "relationship": -0.261,
+        "regime": 0.118,
+        "action": -0.0291
+      }
+    },
+    {
+      "turn": 27,
+      "raw": {
+        "task": -0.017247721150997375,
+        "relationship": 0.00030760295241660796,
+        "regime": 0.005609075160719845,
+        "action": -0.04966354072280038,
+        "magnitude": 0.0721,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 26,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0095,
+        "relationship": -0.2319,
+        "regime": 0.087,
+        "action": -0.0071
+      }
+    },
+    {
+      "turn": 28,
+      "raw": {
+        "task": 0.1329032959027323,
+        "relationship": -0.006432215619307846,
+        "regime": -0.0016400820064070842,
+        "action": 0.026547421535977,
+        "magnitude": 0.1673,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 27,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": 0.0133,
+        "relationship": -0.2009,
+        "regime": 0.118,
+        "action": -0.0208
+      }
+    },
+    {
+      "turn": 29,
+      "raw": {
+        "task": -0.0604943655654091,
+        "relationship": -0.015123358812209109,
+        "regime": -0.0004240223769103324,
+        "action": 0.09197819360913456,
+        "magnitude": 0.1657,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 28,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": 0.0054,
+        "relationship": -0.2264,
+        "regime": 0.1491,
+        "action": 0.045
+      }
+    },
+    {
+      "turn": 30,
+      "raw": {
+        "task": 0.15746890155292215,
+        "relationship": -0.019928688514121162,
+        "regime": -0.004636851230209682,
+        "action": -0.045999483645790096,
+        "magnitude": 0.2267,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 29,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": 0.0173,
+        "relationship": -0.2519,
+        "regime": 0.118,
+        "action": -0.0099
+      }
+    },
+    {
+      "turn": 31,
+      "raw": {
+        "task": -0.07644602083439239,
+        "relationship": 0.003467390298363293,
+        "regime": 0.0012857541350702884,
+        "action": 0.10637009293199723,
+        "magnitude": 0.1845,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 30,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0006,
+        "relationship": -0.2246,
+        "regime": 0.1491,
+        "action": 0.1273
+      }
+    },
+    {
+      "turn": 32,
+      "raw": {
+        "task": 0.08347945862321171,
+        "relationship": -0.02942464003431111,
+        "regime": 0.0016518934154160225,
+        "action": 0.0409795171476649,
+        "magnitude": 0.1526,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 31,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0185,
+        "relationship": -0.2537,
+        "regime": 0.118,
+        "action": 0.0669
+      }
+    },
+    {
+      "turn": 33,
+      "raw": {
+        "task": 0.06549592101850754,
+        "relationship": 0.059089898076117586,
+        "regime": -0.005304157287758349,
+        "action": -0.10935220316027155,
+        "magnitude": 0.2323,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 32,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0374,
+        "relationship": -0.2264,
+        "regime": 0.1491,
+        "action": 0.3412
+      }
+    },
+    {
+      "turn": 34,
+      "raw": {
+        "task": -0.023240305276511886,
+        "relationship": 3.4476105810865576e-05,
+        "regime": 0.009008551926694586,
+        "action": 0.001747246317024831,
+        "magnitude": 0.0342,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 33,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0016,
+        "relationship": -0.1955,
+        "regime": 0.2112,
+        "action": 0.1903
+      }
+    },
+    {
+      "turn": 35,
+      "raw": {
+        "task": -0.023793272407869714,
+        "relationship": 0.03151044023807059,
+        "regime": -0.0029321881446233433,
+        "action": 0.02025197086363628,
+        "magnitude": 0.0763,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 34,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0145,
+        "relationship": -0.2246,
+        "regime": 0.1801,
+        "action": 0.1273
+      }
+    },
+    {
+      "turn": 36,
+      "raw": {
+        "task": 0.030181142930845895,
+        "relationship": -0.038856992464989026,
+        "regime": -0.0019908241484727085,
+        "action": 0.12992574087462044,
+        "magnitude": 0.1975,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 35,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0314,
+        "relationship": -0.2537,
+        "regime": 0.118,
+        "action": 0.5387
+      }
+    },
+    {
+      "turn": 37,
+      "raw": {
+        "task": 0.08008169042309166,
+        "relationship": 0.021414060940156077,
+        "regime": 0.0051385412728992275,
+        "action": -0.0457682433614604,
+        "magnitude": 0.1501,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 36,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0483,
+        "relationship": -0.281,
+        "regime": 0.087,
+        "action": 0.3412
+      }
+    },
+    {
+      "turn": 38,
+      "raw": {
+        "task": -0.017742001822474263,
+        "relationship": -0.034128817234711395,
+        "regime": -0.0038209276721208885,
+        "action": -0.04198379051178014,
+        "magnitude": 0.0952,
+        "bootstrap": false
+      },
+      "pe_summary_present": true,
+      "pe_summary_window_size": 37,
+      "drift_axes_present": true,
+      "drift_axes": {
+        "task": -0.0613,
+        "relationship": -0.3102,
+        "regime": 0.0248,
+        "action": 0.1465
+      }
+    }
+  ],
+  "simulated_min_window_curves": {
+    "captures": {
+      "6": {
+        "25": {
+          "window_size": 24,
+          "iqr": {
+            "task": 0.1011,
+            "relationship": 0.0441,
+            "regime": 0.0036,
+            "action": 0.0281
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0638,
+            "relationship": 0.0255,
+            "regime": 0.126,
+            "action": 0.1361
+          }
+        },
+        "final": {
+          "window_size": 37,
+          "iqr": {
+            "task": 0.0944,
+            "relationship": 0.0379,
+            "regime": 0.0033,
+            "action": 0.0418
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0748,
+            "relationship": -0.007,
+            "regime": 0.1849,
+            "action": 0.0733
+          }
+        }
+      },
+      "8": {
+        "25": {
+          "window_size": 24,
+          "iqr": {
+            "task": 0.1011,
+            "relationship": 0.0441,
+            "regime": 0.0036,
+            "action": 0.0281
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0638,
+            "relationship": 0.0255,
+            "regime": 0.126,
+            "action": 0.1361
+          }
+        },
+        "final": {
+          "window_size": 37,
+          "iqr": {
+            "task": 0.0944,
+            "relationship": 0.0379,
+            "regime": 0.0033,
+            "action": 0.0418
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0748,
+            "relationship": -0.007,
+            "regime": 0.1849,
+            "action": 0.0733
+          }
+        }
+      },
+      "10": {
+        "25": {
+          "window_size": 24,
+          "iqr": {
+            "task": 0.1011,
+            "relationship": 0.0441,
+            "regime": 0.0036,
+            "action": 0.0281
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0638,
+            "relationship": 0.0255,
+            "regime": 0.126,
+            "action": 0.1361
+          }
+        },
+        "final": {
+          "window_size": 37,
+          "iqr": {
+            "task": 0.0944,
+            "relationship": 0.0379,
+            "regime": 0.0033,
+            "action": 0.0418
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0748,
+            "relationship": -0.007,
+            "regime": 0.1849,
+            "action": 0.0733
+          }
+        }
+      },
+      "12": {
+        "25": {
+          "window_size": 24,
+          "iqr": {
+            "task": 0.1011,
+            "relationship": 0.0441,
+            "regime": 0.0036,
+            "action": 0.0281
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0638,
+            "relationship": 0.0255,
+            "regime": 0.126,
+            "action": 0.1361
+          }
+        },
+        "final": {
+          "window_size": 37,
+          "iqr": {
+            "task": 0.0944,
+            "relationship": 0.0379,
+            "regime": 0.0033,
+            "action": 0.0418
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0748,
+            "relationship": -0.007,
+            "regime": 0.1849,
+            "action": 0.0733
+          }
+        }
+      },
+      "16": {
+        "25": {
+          "window_size": 24,
+          "iqr": {
+            "task": 0.1011,
+            "relationship": 0.0441,
+            "regime": 0.0036,
+            "action": 0.0281
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0638,
+            "relationship": 0.0255,
+            "regime": 0.126,
+            "action": 0.1361
+          }
+        },
+        "final": {
+          "window_size": 37,
+          "iqr": {
+            "task": 0.0944,
+            "relationship": 0.0379,
+            "regime": 0.0033,
+            "action": 0.0418
+          },
+          "entropy": {
+            "task": 0.0,
+            "relationship": 0.0,
+            "regime": 0.0,
+            "action": 0.0
+          },
+          "asymmetry": {
+            "task": 0.0748,
+            "relationship": -0.007,
+            "regime": 0.1849,
+            "action": 0.0733
+          }
+        }
+      }
+    },
+    "iqr_8_over_iqr_16_final": {
+      "task": 1.0,
+      "relationship": 1.0,
+      "regime": 1.0,
+      "action": 1.0
+    },
+    "stability_judgement": {
+      "task": "STABLE",
+      "relationship": "STABLE",
+      "regime": "STABLE",
+      "action": "STABLE"
+    }
+  },
+  "verdict": {
+    "first_summary_turn_le_18": true,
+    "first_drift_turn_le_23": true,
+    "all_axes_stable_n8_vs_n16": true,
+    "overall_pass": true
+  }
+}

@@ -381,6 +381,45 @@ def _compute_f3(
                 note=note,
             )
         )
+    # Phase 2 W2.0c (debt #10B closure): EQ owner activation diagnostics.
+    # Both metrics are threshold=None so they are reported but do not
+    # gate the family pass — under the default NoOpSemanticProposalRuntime
+    # they legitimately stay at 0, and we must not flip an entire
+    # vertical's F3 family to FAIL just for omitting an LLM runtime.
+    # The signal value lives in their 0 -> > 0 transition under
+    # ``--use-llm-semantic-runtime``.
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.tom_records_total",
+            name="ToM records total (belief+intent+feeling+preference)",
+            value=float(bench.tom_records_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "End-of-scenario sum of records across the four "
+                "about-other ToM owners. 0 means the EQ owner chain "
+                "did not activate this scenario; LLMSemanticProposalRuntime "
+                "(or another typed proposal source) must be wired for "
+                "records to appear. See debt #10B."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.common_ground_dyad_atoms_total",
+            name="common ground dyad atoms total",
+            value=float(bench.common_ground_dyad_atoms_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "End-of-scenario count of dyad atoms in the "
+                "common_ground snapshot. 0 means no shared dyad "
+                "context was inferred this scenario; the LLM "
+                "common-ground proposal runtime is fail-closed without "
+                "an LLMSemanticProposalRuntime upstream. See debt #10B."
+            ),
+        )
+    )
     return FamilyEvaluation(
         family_id=FamilyId.F3_RELATIONSHIP_CONTINUITY,
         family_name=_FAMILY_NAMES[FamilyId.F3_RELATIONSHIP_CONTINUITY],
