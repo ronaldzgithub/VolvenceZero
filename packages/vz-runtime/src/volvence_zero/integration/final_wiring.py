@@ -122,6 +122,7 @@ from volvence_zero.semantic_state import (
     UserModelSnapshot,
     build_semantic_modules,
 )
+from volvence_zero.semantic_state.llm_runtime import LLMSemanticProposalRuntime
 from volvence_zero.social import (
     BeliefAboutOtherModule,
     CommonGroundModule,
@@ -130,6 +131,7 @@ from volvence_zero.social import (
     GroupModule,
     IntentAboutOtherModule,
     LLMCommonGroundProposalRuntime,
+    LLMToMProposalRuntime,
     MultiPartyIdentityModule,
     PreferenceAboutOtherModule,
     SocialPredictionAggregateModule,
@@ -176,7 +178,15 @@ class FinalRolloutConfig:
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
     eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
-    session_post_slow_loop: WiringLevel = WiringLevel.SHADOW
+    # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
+    # ACTIVE by default. The module's own ``default_wiring_level`` is
+    # already ACTIVE; the previous SHADOW override was a treatment-mode
+    # default for the rollout. Promotion guarded by
+    # ``tests/contracts/test_session_post_slow_loop_active_matched_control.py``.
+    # ``experience_consolidation`` remains the consolidated public
+    # surface; ``session_post_slow_loop`` exposes the deferred-job
+    # queue state.
+    session_post_slow_loop: WiringLevel = WiringLevel.ACTIVE
     experience_consolidation: WiringLevel = WiringLevel.ACTIVE
     plan_intent: WiringLevel = WiringLevel.ACTIVE
     commitment: WiringLevel = WiringLevel.ACTIVE
@@ -191,18 +201,52 @@ class FinalRolloutConfig:
     social_prediction: WiringLevel = WiringLevel.ACTIVE
     social_prediction_error: WiringLevel = WiringLevel.ACTIVE
     conversational_role: WiringLevel = WiringLevel.ACTIVE
-    common_ground: WiringLevel = WiringLevel.SHADOW
+    # Phase 1 W1.F of the EQ-owner uplift: common_ground is now ACTIVE
+    # by default. The owner consumes its declared dependencies
+    # (conversational_role + belief_about_other) directly to derive
+    # dyad atoms; the optional LLM proposal runtime is an additive
+    # source on top. Promotion guarded by
+    # ``tests/contracts/test_common_ground_active_matched_control.py``.
+    common_ground: WiringLevel = WiringLevel.ACTIVE
     groups: WiringLevel = WiringLevel.SHADOW
-    belief_about_other: WiringLevel = WiringLevel.SHADOW
-    intent_about_other: WiringLevel = WiringLevel.SHADOW
-    feeling_about_other: WiringLevel = WiringLevel.SHADOW
-    preference_about_other: WiringLevel = WiringLevel.SHADOW
-    # Rupture-and-repair v0 (F1 / F2): rupture_state is SHADOW only.
-    # dialogue_external_outcome is ACTIVE because it is the single legal
-    # snapshot channel for external outcomes into the kernel; disabling
-    # it would silently lose any submitted evidence.
+    # Phase 2 W2.A of the EQ-owner uplift: belief / intent / preference
+    # about-other ToM owners are now ACTIVE by default. The lifeform
+    # ``GroundedResponseSynthesizer`` reads each typed snapshot through
+    # its own per-session provider and emits observation-only rationale
+    # tags (``framing=belief_observed`` / ``intent=expectation_observed`` /
+    # ``preference=style_observed``). Empty / cold-start records are
+    # no-ops. Promotion guarded by
+    # ``tests/contracts/test_three_tom_owners_active_matched_control.py``.
+    belief_about_other: WiringLevel = WiringLevel.ACTIVE
+    intent_about_other: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.D of the EQ-owner uplift: feeling_about_other is the
+    # typed Theory-of-Mind FEELING owner. Promotion guarded by
+    # ``tests/contracts/test_feeling_about_other_active_matched_control.py``.
+    # The lifeform-side ``GroundedResponseSynthesizer`` reads the snapshot
+    # via ``feeling_about_other_provider`` and emits typed
+    # ``feeling=observed(...)`` rationale tags + may add ACKNOWLEDGE_PRESSURE
+    # when control_signal is high. Empty / SHADOW snapshots are no-ops.
+    feeling_about_other: WiringLevel = WiringLevel.ACTIVE
+    preference_about_other: WiringLevel = WiringLevel.ACTIVE
+    # Rupture-and-repair: dialogue_external_outcome is ACTIVE because
+    # it is the single legal snapshot channel for external outcomes
+    # into the kernel; disabling it would silently lose any submitted
+    # evidence.
     dialogue_external_outcome: WiringLevel = WiringLevel.ACTIVE
-    rupture_state: WiringLevel = WiringLevel.SHADOW
+    # Phase 1 W1.B of the EQ-owner uplift: rupture_state is now ACTIVE
+    # by default. ReflectionModule consumes the typed snapshot through
+    # the propagate path; the post-propagate
+    # ``enrich_reflection_snapshot_with_rupture_repair`` helper remains
+    # as an idempotent SHADOW-mode backstop (entry_id dedup prevents
+    # double-write). Promotion guarded by
+    # ``tests/contracts/test_rupture_state_active_no_double_writeback.py``.
+    rupture_state: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.A of the EQ-owner uplift: interlocutor_state is the
+    # 12-axis readout owner. Promotion guarded by
+    # ``tests/contracts/test_interlocutor_state_active_matched_control.py``
+    # which proves that flipping SHADOW -> ACTIVE only changes
+    # visibility and does not disturb any other slot's value.
+    interlocutor_state: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -250,6 +294,7 @@ class FinalRolloutConfig:
             "preference_about_other": self.preference_about_other,
             "dialogue_external_outcome": self.dialogue_external_outcome,
             "rupture_state": self.rupture_state,
+            "interlocutor_state": self.interlocutor_state,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -1146,6 +1191,32 @@ def build_final_runtime_modules(
         resolved_self_temporal_policy = resolved_world_temporal_policy
     semantic_store = semantic_state_store or SemanticStateStore()
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+    # Phase 1 W1.C of the EQ-owner uplift: when an explicit
+    # ``tom_proposal_runtime`` is not provided AND the semantic runtime
+    # is LLM-backed, share its text provider so the four ToM owners
+    # produce non-empty SHADOW snapshots by default. NoOp / scripted
+    # semantic runtimes do not expose a provider, so this default is
+    # fail-closed: when no LLM is wired the ToM owners stay empty
+    # (existing behaviour for unit tests / offline harnesses).
+    if tom_proposal_runtime is None and isinstance(
+        semantic_runtime, LLMSemanticProposalRuntime
+    ):
+        tom_proposal_runtime = LLMToMProposalRuntime(
+            provider=semantic_runtime.text_provider
+        )
+    # Phase 1 W1.E EQ-owner uplift: same fail-closed pattern for the
+    # common-ground LLM proposal runtime. The CommonGroundModule also
+    # consumes typed upstream (conversational_role +
+    # belief_about_other) directly, so when no LLM is wired the owner
+    # still produces atoms whenever upstream evidence exists; this
+    # default just adds an LLM proposal source on top when one is
+    # available.
+    if common_ground_proposal_runtime is None and isinstance(
+        semantic_runtime, LLMSemanticProposalRuntime
+    ):
+        common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
+            provider=semantic_runtime.text_provider
+        )
     if prediction_module is not None:
         prediction_module.set_action_context(prediction_action_context)
     # Dialogue external outcome and rupture_state are wired alongside
@@ -1163,17 +1234,20 @@ def build_final_runtime_modules(
     )
     dialogue_external_outcome_owner.set_turn_index(turn_index)
     rupture_state_owner = rupture_state_module or RuptureStateModule(
-        wiring_level=config.level_for("rupture_state", WiringLevel.SHADOW),
+        wiring_level=config.level_for("rupture_state", WiringLevel.ACTIVE),
     )
-    # Wave 2 SSOT cleanup: interlocutor_state owner is the single
-    # producer of the 12-axis readout. Default SHADOW so consumers
-    # can read it without changing active behaviour; promotion to
-    # ACTIVE is gated on validating that the planner / synthesizer
-    # produce the same plan when reading the snapshot vs. the
-    # historical re-built readout (matched-control verified by
-    # ``tests/test_prompt_planner_interlocutor_state.py``).
+    # Phase 1 W1.A (EQ-owner uplift): interlocutor_state is the single
+    # producer of the 12-axis readout and was promoted SHADOW -> ACTIVE
+    # after the matched-control gate in
+    # ``tests/contracts/test_interlocutor_state_active_matched_control.py``
+    # confirmed promotion is a pure visibility change (no kernel
+    # module declares ``interlocutor_state`` as a dependency). The
+    # 12-axis readout is now visible to ``LifeformSession`` and any
+    # downstream consumer through ``active_snapshots``; the legacy
+    # fallback in ``LifeformSession.interlocutor_state`` continues to
+    # work for tests that build a session without the owner wired.
     interlocutor_state_owner = InterlocutorStateModule(
-        wiring_level=config.level_for("interlocutor_state", WiringLevel.SHADOW),
+        wiring_level=config.level_for("interlocutor_state", WiringLevel.ACTIVE),
     )
     return [
         # dialogue_external_outcome must be published before PE and
@@ -1213,31 +1287,31 @@ def build_final_runtime_modules(
             environment_event=environment_event,
         ),
         BeliefAboutOtherModule(
-            wiring_level=config.level_for("belief_about_other", WiringLevel.SHADOW),
+            wiring_level=config.level_for("belief_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
         ),
         IntentAboutOtherModule(
-            wiring_level=config.level_for("intent_about_other", WiringLevel.SHADOW),
+            wiring_level=config.level_for("intent_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
         ),
         FeelingAboutOtherModule(
-            wiring_level=config.level_for("feeling_about_other", WiringLevel.SHADOW),
+            wiring_level=config.level_for("feeling_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
         ),
         PreferenceAboutOtherModule(
-            wiring_level=config.level_for("preference_about_other", WiringLevel.SHADOW),
+            wiring_level=config.level_for("preference_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
         ),
         CommonGroundModule(
-            wiring_level=config.level_for("common_ground", WiringLevel.SHADOW),
+            wiring_level=config.level_for("common_ground", WiringLevel.ACTIVE),
             dyad_atoms=common_ground_dyad_atoms,
             group_atoms=common_ground_group_atoms,
             proposal_runtime=common_ground_proposal_runtime,
@@ -1463,6 +1537,16 @@ async def run_final_wiring_turn(
                 shadow_snapshots.pop(slot_name, None)
             elif resolved_level is WiringLevel.SHADOW:
                 shadow_snapshots.setdefault(slot_name, upstream_snapshot)
+                # Phase 2 W2.B EQ-owner uplift: ``propagate`` seeds
+                # ``active_snapshots`` from the entire upstream dict
+                # (kernel.py line ~558), so feeding the runner's
+                # ``upstream_snapshots`` would otherwise leak the
+                # ``session_post_slow_loop`` snapshot into the active
+                # set even when wiring resolves to SHADOW. Pop it
+                # back out so the SHADOW path stays observable as
+                # SHADOW only. (No-op for slots not present in
+                # ``active_snapshots``.)
+                active_snapshots.pop(slot_name, None)
     writeback_result: WritebackResult | None = None
     writeback_source: str | None = None
     reflection_module = next((module for module in modules if isinstance(module, ReflectionModule)), None)
@@ -1791,23 +1875,31 @@ async def run_final_wiring_turn(
                 credit_module.ledger.record_credits(extra_credits)
             active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
             credit_snapshot = active_snapshots.get("credit")
-    # Rupture-and-Repair M3: ReflectionModule runs during propagate and
-    # only sees ACTIVE upstream snapshots; rupture_state is SHADOW in
-    # v0, so the reflection snapshot built inside propagate does not
-    # carry rupture-repair memory entries. Post-propagate, we read the
-    # shadow snapshot and enrich the reflection snapshot so the
-    # session-post apply path writes the durable entry through
-    # ``ReflectionEngine.apply`` -> ``memory_store`` (the only legal
-    # rupture_repair write path, see docs/specs/rupture-and-repair.md).
+    # Rupture-and-Repair M3 + Phase 1 W1.B: ReflectionModule's
+    # ``UpstreamView`` only exposes ACTIVE snapshots. When
+    # ``rupture_state`` is ACTIVE (the default after W1.B) the
+    # propagate-internal path inside ``ReflectionEngine.reflect``
+    # already builds rupture-repair memory entries. When ``rupture_state``
+    # is explicitly SHADOW (back-compat / experimental wiring), the
+    # propagate path sees a placeholder and the post-propagate
+    # enrichment below fills the gap by reading the shadow snapshot.
+    # ``enrich_reflection_snapshot_with_rupture_repair`` is idempotent
+    # via ``MemoryEntry.entry_id`` deduplication so calling it under
+    # both wiring levels never double-writes the same durable entry.
+    # The single legal rupture_repair write path remains
+    # ``ReflectionEngine.apply`` -> ``memory_store`` (see
+    # docs/specs/rupture-and-repair.md).
     if (
         reflection_snapshot is not None
         and isinstance(reflection_snapshot.value, ReflectionSnapshot)
     ):
+        rupture_active = active_snapshots.get("rupture_state")
         rupture_shadow = shadow_snapshots.get("rupture_state")
+        rupture_carrier = rupture_active or rupture_shadow
         rupture_value = (
-            rupture_shadow.value
-            if rupture_shadow is not None
-            and isinstance(rupture_shadow.value, RuptureStateSnapshot)
+            rupture_carrier.value
+            if rupture_carrier is not None
+            and isinstance(rupture_carrier.value, RuptureStateSnapshot)
             else None
         )
         external_outcome_snapshot_for_reflection = active_snapshots.get(

@@ -476,30 +476,38 @@ def test_final_wiring_social_prediction_kill_switch_rolls_back_to_disabled():
     assert "social_prediction_error" not in result.shadow_snapshots
 
 
-def test_final_wiring_publishes_empty_tom_owner_shadow_scaffolds():
+def test_final_wiring_publishes_empty_tom_owner_scaffolds():
+    """All four ToM owners publish empty-records scaffolds when no
+    proposal runtime is wired.
+
+    Phase 2 W2.A EQ-owner uplift: all four ToM about-other owners
+    (belief / intent / feeling / preference) are ACTIVE by default
+    and land in ``active_snapshots``. The records / control_signal /
+    description contract is the same in all branches.
+    """
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
-                model_id="tom-shadow-model",
+                model_id="tom-active-model",
                 feature_surface=(
                     FeatureSignal(name="tom_context", values=(0.5,), source="adapter"),
                 ),
             ),
-            session_id="tom-shadow-session",
-            wave_id="tom-shadow-wave",
+            session_id="tom-active-session",
+            wave_id="tom-active-wave",
         )
     )
 
-    expected = {
+    active_owners = {
         "belief_about_other": BeliefAboutOtherSnapshot,
         "intent_about_other": IntentAboutOtherSnapshot,
         "feeling_about_other": FeelingAboutOtherSnapshot,
         "preference_about_other": PreferenceAboutOtherSnapshot,
     }
-    for slot_name, expected_type in expected.items():
-        assert slot_name not in result.active_snapshots
-        value = result.shadow_snapshots[slot_name].value
+    for slot_name, expected_type in active_owners.items():
+        assert slot_name not in result.shadow_snapshots
+        value = result.active_snapshots[slot_name].value
         assert isinstance(value, expected_type)
         assert value.records == ()
         assert value.active_predictions == ()
@@ -641,23 +649,27 @@ def test_response_assembly_surfaces_conversational_role_prediction_count_diagnos
     assert response_assembly.expression_intent
 
 
-def test_final_wiring_publishes_common_ground_shadow_scaffold():
+def test_final_wiring_publishes_common_ground_active_scaffold():
+    """Phase 1 W1.F EQ-owner uplift: ``common_ground`` is ACTIVE by
+    default and publishes an empty-atom scaffold when no upstream
+    BELIEF records or proposal runtime are available.
+    """
     result = asyncio.run(
         run_final_wiring_turn(
             config=FinalRolloutConfig(),
             substrate_adapter=FeatureSurfaceSubstrateAdapter(
-                model_id="common-ground-shadow-model",
+                model_id="common-ground-active-model",
                 feature_surface=(
                     FeatureSignal(name="common_ground_context", values=(0.5,), source="adapter"),
                 ),
             ),
-            session_id="common-ground-shadow-session",
-            wave_id="common-ground-shadow-wave",
+            session_id="common-ground-active-session",
+            wave_id="common-ground-active-wave",
         )
     )
 
-    assert "common_ground" not in result.active_snapshots
-    value = result.shadow_snapshots["common_ground"].value
+    assert "common_ground" not in result.shadow_snapshots
+    value = result.active_snapshots["common_ground"].value
     assert isinstance(value, CommonGroundSnapshot)
     assert value.dyad_atoms == ()
     assert value.group_atoms == ()

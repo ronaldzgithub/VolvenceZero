@@ -1,7 +1,11 @@
 """Common-ground owner + structured LLM proposal runtime (R19).
 
-Slice 2 publishes an empty SHADOW snapshot. Later slices will consume
-role, identity, memory, and ToM state to build dyad/group common ground.
+Phase 1 W1.E of the EQ-owner uplift: ``CommonGroundModule.process``
+now consumes its declared dependencies (``conversational_role`` +
+``belief_about_other``) to derive dyad common-ground atoms from typed
+Theory-of-Mind BELIEF records. Before W1.E the owner declared the
+dependencies but discarded the upstream view (``del upstream``); the
+only path to atoms was an explicit ``proposal_runtime`` injection.
 
 The structured LLM proposal runtime is a collaborator of
 ``CommonGroundModule`` and lives in this same file rather than in a
@@ -19,14 +23,55 @@ from typing import Any, Mapping, Protocol
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     MAX_COMMON_GROUND_RECURSION_DEPTH,
+    BeliefAboutOtherSnapshot,
     CommonGroundAtom,
     CommonGroundSnapshot,
+    ConversationalRoleSnapshot,
     SocialScopeKind,
 )
 
 
 _MIN_COMMON_GROUND_CONFIDENCE = 0.50
 _VALID_SCOPE_KINDS = {SocialScopeKind.DYAD.value, SocialScopeKind.GROUP.value}
+# Confidence floor on ``ConversationalRoleSnapshot.role_confidence``
+# below which we suppress the typed-derived dyad atoms. The default
+# kernel publishes a low-confidence cold-start role each turn; we
+# only build common-ground atoms when the role is meaningfully
+# confident (mirrors ``InterlocutorThresholds.min_confidence`` on
+# the interlocutor-state owner).
+_ROLE_CONFIDENCE_FLOOR = 0.30
+
+
+def _typed_snapshot(
+    snapshot: Snapshot[Any] | None, expected_type: type
+) -> Any:
+    """Return ``snapshot.value`` only when it matches ``expected_type``.
+
+    Upstream slots that are SHADOW or DISABLED surface as placeholder
+    snapshots whose ``value`` is NOT a typed ``*Snapshot`` instance.
+    The owner reads typed fields, so we narrow the type before
+    consuming. Missing / placeholder slots yield ``None`` and the
+    caller treats that as "no upstream evidence".
+    """
+    if snapshot is None:
+        return None
+    if not isinstance(snapshot.value, expected_type):
+        return None
+    return snapshot.value
+
+
+def _dyad_scope_id(*, speaker: str, addressee: str) -> str:
+    """Return a stable dyad scope identifier ordered by participant id.
+
+    Two participants always produce the same scope_id regardless of
+    whose turn it is (the speaker / addressee swap on the next user
+    turn must not split the dyad). Falls back to ``speaker+addressee``
+    when both are equal (single-actor pseudo-dyad).
+    """
+    if speaker == addressee:
+        return f"{speaker}+{addressee}"
+    a, b = sorted((speaker, addressee))
+    return f"{a}+{b}"
 
 
 class _GenerateProtocol(Protocol):
@@ -86,17 +131,27 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[CommonGroundSnapshot]:
-        del upstream
+        role_snapshot = _typed_snapshot(
+            upstream.get("conversational_role"), ConversationalRoleSnapshot
+        )
+        belief_snapshot = _typed_snapshot(
+            upstream.get("belief_about_other"), BeliefAboutOtherSnapshot
+        )
+        upstream_atoms = self._derive_upstream_dyad_atoms(
+            role_snapshot=role_snapshot,
+            belief_snapshot=belief_snapshot,
+        )
         runtime_atoms = self._runtime_atoms()
         dyad_atoms = (
             *self._dyad_atoms,
+            *upstream_atoms,
             *(atom for atom in runtime_atoms if atom.scope_kind.value == "dyad"),
         )
         group_atoms = (
             *self._group_atoms,
             *(atom for atom in runtime_atoms if atom.scope_kind.value == "group"),
         )
-        control_signal = _mean_confidence(runtime_atoms)
+        control_signal = _mean_confidence(upstream_atoms + runtime_atoms)
         return self.publish(
             CommonGroundSnapshot(
                 dyad_atoms=dyad_atoms,
@@ -109,6 +164,65 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
                 ),
             )
         )
+
+    def _derive_upstream_dyad_atoms(
+        self,
+        *,
+        role_snapshot: ConversationalRoleSnapshot | None,
+        belief_snapshot: BeliefAboutOtherSnapshot | None,
+    ) -> tuple[CommonGroundAtom, ...]:
+        """Derive typed dyad common-ground atoms from upstream snapshots.
+
+        Phase 1 W1.E of the EQ-owner uplift. The owner consumes:
+
+        * ``conversational_role`` for the canonical dyad framing
+          (``active_speaker_id`` + single addressee). When the
+          conversation is multi-addressee or the role view is
+          missing / low-confidence, no upstream atoms are emitted
+          (group-level atoms are still spec-future-work).
+        * ``belief_about_other`` for typed BELIEF records the kernel
+          has accumulated about the addressee. Each high-confidence
+          record becomes one dyad atom whose ``accepted_by_ids`` is
+          the (speaker, addressee) tuple and whose ``recursion_depth``
+          is 1 ("we know that they hold this belief").
+
+        Empty / missing snapshots produce no atoms. The proposal
+        runtime path remains additive on top of this typed derivation,
+        so explicit proposals continue to work as before.
+        """
+        if role_snapshot is None:
+            return ()
+        if role_snapshot.role_confidence < _ROLE_CONFIDENCE_FLOOR:
+            return ()
+        if len(role_snapshot.addressee_ids) != 1:
+            return ()
+        if belief_snapshot is None or not belief_snapshot.records:
+            return ()
+        speaker = role_snapshot.active_speaker_id
+        addressee = role_snapshot.addressee_ids[0]
+        scope_id = _dyad_scope_id(speaker=speaker, addressee=addressee)
+        accepted = (speaker, addressee)
+        atoms: list[CommonGroundAtom] = []
+        for index, record in enumerate(belief_snapshot.records):
+            if record.confidence < _MIN_COMMON_GROUND_CONFIDENCE:
+                continue
+            evidence = (record.evidence.strip(),) if record.evidence.strip() else ()
+            atoms.append(
+                CommonGroundAtom(
+                    atom_id=(
+                        f"cg:dyad:{scope_id}:belief:{record.record_id}:{self._turn_index}"
+                    ),
+                    scope_id=scope_id,
+                    scope_kind=SocialScopeKind.DYAD,
+                    summary=record.summary[:240],
+                    recursion_depth=1,
+                    confidence=record.confidence,
+                    accepted_by_ids=accepted,
+                    evidence=evidence,
+                )
+            )
+            del index
+        return tuple(atoms)
 
     def _runtime_atoms(self) -> tuple[CommonGroundAtom, ...]:
         if self._proposal_runtime is None:

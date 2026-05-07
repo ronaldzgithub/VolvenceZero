@@ -1537,15 +1537,30 @@ def enrich_reflection_snapshot_with_rupture_repair(
 ) -> ReflectionSnapshot:
     """Append rupture-repair durable entries to a reflection snapshot.
 
-    Used by ``run_final_wiring_turn`` to merge SHADOW rupture_state into
-    the reflection snapshot that feeds the session-post slow loop. The
-    underlying ``ReflectionModule`` runs during propagate and at that
-    point only sees ACTIVE upstream snapshots; SHADOW rupture_state is
-    not in that view. Post-propagate enrichment reads the shadow
-    snapshot and splices the rupture-repair memory entry into
-    ``memory_consolidation.new_durable_entries`` so
-    ``ReflectionEngine.apply`` can write it durably through the usual
-    checkpoint path.
+    Two callers feed this helper:
+
+    * Pre-Phase-1-W1.B: ``rupture_state`` was SHADOW-only;
+      ``ReflectionModule.process`` could not see it through
+      ``UpstreamView`` (which only exposes ACTIVE snapshots), so the
+      reflection snapshot built inside propagate did NOT carry
+      rupture-repair entries. ``run_final_wiring_turn`` then read
+      ``shadow_snapshots["rupture_state"]`` and called this helper to
+      splice the memory entry into
+      ``memory_consolidation.new_durable_entries`` so
+      ``ReflectionEngine.apply`` could write it through the usual
+      checkpoint path.
+    * Post-Phase-1-W1.B: ``rupture_state`` is ACTIVE by default;
+      ``ReflectionModule.process`` already feeds the typed snapshot
+      into ``ReflectionEngine.reflect``, which calls
+      :func:`rupture_repair_memory_entries` itself. ``run_final_wiring_turn``
+      still calls this helper as a defensive backstop in case the
+      caller explicitly downgrades ``rupture_state`` to SHADOW.
+
+    To keep the two paths from double-writing the same memory entry,
+    we deduplicate by ``MemoryEntry.entry_id`` (which is deterministic
+    over ``(user_scope, source_wave_id, rupture_kind, repair_outcome)``).
+    Adding new typed signal sources upstream MUST keep entry_id
+    determinism so this guard stays meaningful.
     """
 
     from dataclasses import replace
@@ -1559,9 +1574,18 @@ def enrich_reflection_snapshot_with_rupture_repair(
     )
     if not entries:
         return reflection_snapshot
+    existing_ids = {
+        entry.entry_id
+        for entry in reflection_snapshot.memory_consolidation.new_durable_entries
+    }
+    deduped_entries = tuple(
+        entry for entry in entries if entry.entry_id not in existing_ids
+    )
+    if not deduped_entries:
+        return reflection_snapshot
     enriched_memory = MemoryConsolidation(
         new_durable_entries=reflection_snapshot.memory_consolidation.new_durable_entries
-        + entries,
+        + deduped_entries,
         promoted_entries=reflection_snapshot.memory_consolidation.promoted_entries,
         decayed_entries=reflection_snapshot.memory_consolidation.decayed_entries,
         beliefs_updated=reflection_snapshot.memory_consolidation.beliefs_updated,

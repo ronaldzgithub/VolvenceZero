@@ -31,6 +31,13 @@ from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.interlocutor import InterlocutorState
 from volvence_zero.regime import ParticipationHint, ParticipationLevel
+from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
+    PreferenceAboutOtherSnapshot,
+)
 
 
 class SectionId(str, Enum):
@@ -160,6 +167,11 @@ class PromptPlanner:
         vitals: VitalsSnapshot | None = None,
         participation_hint: ParticipationHint | None = None,
         interlocutor_state: InterlocutorState | None = None,
+        feeling_snapshot: FeelingAboutOtherSnapshot | None = None,
+        common_ground_snapshot: CommonGroundSnapshot | None = None,
+        belief_snapshot: BeliefAboutOtherSnapshot | None = None,
+        intent_snapshot: IntentAboutOtherSnapshot | None = None,
+        preference_snapshot: PreferenceAboutOtherSnapshot | None = None,
     ) -> PromptPlan:
         """Build a frozen ``PromptPlan``.
 
@@ -178,6 +190,17 @@ class PromptPlanner:
         kernel signals into the 12 typed axes. ``None`` and the
         cold-start case (low confidence) are no-ops, so this hook
         is fully backwards-compatible.
+
+        ``feeling_snapshot`` (Phase 1 W1.D EQ-owner uplift) is the
+        typed Theory-of-Mind FEELING readout for the active
+        interlocutor. When present and the records carry a typed
+        signal (records non-empty AND max-record confidence above the
+        owner floor) the planner emits a ``feeling=observed(...)``
+        rationale tag and may add ``ACKNOWLEDGE_PRESSURE`` when the
+        FEELING owner reports a high control_signal but the 12-axis
+        zones did not fire (i.e. typed feeling evidence outside the
+        zone-bool view). NEVER via keyword matches; only the typed
+        snapshot fields are read.
         """
         intent = self._pick_intent(context=context, assembly=assembly)
         sections = self._pick_sections(
@@ -188,6 +211,17 @@ class PromptPlanner:
         )
         sections, il_rationale = self._apply_interlocutor_state(
             sections=sections, interlocutor_state=interlocutor_state
+        )
+        sections, feeling_rationale = self._apply_feeling_snapshot(
+            sections=sections, feeling_snapshot=feeling_snapshot
+        )
+        sections, common_ground_rationale = self._apply_common_ground_snapshot(
+            sections=sections, common_ground_snapshot=common_ground_snapshot
+        )
+        tom_rationale = self._tom_rationale_tags(
+            belief_snapshot=belief_snapshot,
+            intent_snapshot=intent_snapshot,
+            preference_snapshot=preference_snapshot,
         )
         budget = self._build_section_budget(sections=sections, intent=intent)
         question_budget = self._pick_question_budget(
@@ -207,6 +241,9 @@ class PromptPlanner:
             hint_rationale=hint_rationale,
             interlocutor_state=interlocutor_state,
             il_rationale=il_rationale,
+            feeling_rationale=feeling_rationale,
+            common_ground_rationale=common_ground_rationale,
+            tom_rationale=tom_rationale,
         )
         return PromptPlan(
             intent=intent,
@@ -515,6 +552,188 @@ class PromptPlanner:
             )
         return new_sections, tuple(rationale)
 
+    # ------------------------------------------------------------------
+    # Phase 1 W1.D EQ-owner uplift: FEELING-about-other modulation.
+    # Reads the typed Theory-of-Mind FEELING snapshot's records and
+    # snapshot-level control_signal; never inspects user text.
+    # ------------------------------------------------------------------
+
+    _FEELING_RECORDS_MIN_CONFIDENCE: ClassVar[float] = 0.50
+    _FEELING_ACK_PRESSURE_CONTROL_SIGNAL: ClassVar[float] = 0.40
+
+    def _apply_feeling_snapshot(
+        self,
+        *,
+        sections: list[SectionId],
+        feeling_snapshot: FeelingAboutOtherSnapshot | None,
+    ) -> tuple[list[SectionId], tuple[str, ...]]:
+        """Modulate sections based on the typed FEELING snapshot.
+
+        Returns ``(possibly_modified_sections, rationale_tags)``.
+        Conservative behaviour, mirroring ``_apply_interlocutor_state``:
+
+        * SHADOW or DISABLED wiring on the kernel side surfaces here as
+          ``feeling_snapshot=None`` (lifeform provider returns ``None``
+          when the slot is not in ``active_snapshots``); the planner
+          treats that as a no-op.
+        * Empty records OR all records below the typed confidence floor
+          (the ToM owner's own ``min_proposal_confidence``, mirrored
+          here as ``_FEELING_RECORDS_MIN_CONFIDENCE``) is also a no-op.
+        * When non-empty AND control_signal is high enough, ADD
+          ``ACKNOWLEDGE_PRESSURE`` so the planner reflects "we have a
+          typed FEELING reading on the user this turn" even if the
+          12-axis zone bools did not fire. We never DROP a section on
+          feeling alone; the InterlocutorState owner remains the
+          dominant section gate.
+        """
+        if feeling_snapshot is None:
+            return sections, ()
+        records = feeling_snapshot.records
+        if not records:
+            return sections, ()
+        max_confidence = max(record.confidence for record in records)
+        if max_confidence < self._FEELING_RECORDS_MIN_CONFIDENCE:
+            return sections, ()
+        control_signal = float(feeling_snapshot.control_signal)
+        rationale: list[str] = [
+            (
+                f"feeling=observed(count={len(records)},"
+                f"max_conf={max_confidence:.2f},sig={control_signal:.2f})"
+            )
+        ]
+        new_sections = list(sections)
+        if (
+            control_signal >= self._FEELING_ACK_PRESSURE_CONTROL_SIGNAL
+            and SectionId.ACKNOWLEDGE_PRESSURE not in new_sections
+        ):
+            new_sections.insert(0, SectionId.ACKNOWLEDGE_PRESSURE)
+            rationale.append(
+                "feeling_add=acknowledge_pressure("
+                f"sig={control_signal:.2f})"
+            )
+        return new_sections, tuple(rationale)
+
+    # ------------------------------------------------------------------
+    # Phase 1 W1.F EQ-owner uplift: COMMON-GROUND modulation. Reads
+    # the typed dyad atom set from the published CommonGroundSnapshot;
+    # never inspects user text.
+    # ------------------------------------------------------------------
+
+    _COMMON_GROUND_ATOM_MIN_CONFIDENCE: ClassVar[float] = 0.50
+    _COMMON_GROUND_CONTINUITY_DYAD_FLOOR: ClassVar[int] = 1
+
+    def _apply_common_ground_snapshot(
+        self,
+        *,
+        sections: list[SectionId],
+        common_ground_snapshot: CommonGroundSnapshot | None,
+    ) -> tuple[list[SectionId], tuple[str, ...]]:
+        """Modulate sections based on the typed common-ground snapshot.
+
+        When the ``CommonGroundModule`` reports at least one dyad atom
+        whose ``confidence`` is above the typed floor, the planner
+        emits a typed ``common_ground=observed(dyads=N,max_conf=X)``
+        rationale tag and ADDs ``CONTINUITY_NOTE`` to the section list
+        if it is not already present, marking that the response should
+        thread shared dyad context (e.g. "as we mentioned earlier"
+        framing). The planner never DROPS a section on common-ground
+        evidence alone, and all signals come from typed atom fields;
+        no user text is inspected.
+        """
+        if common_ground_snapshot is None:
+            return sections, ()
+        atoms = common_ground_snapshot.dyad_atoms
+        if not atoms:
+            return sections, ()
+        confident_atoms = tuple(
+            atom
+            for atom in atoms
+            if atom.confidence >= self._COMMON_GROUND_ATOM_MIN_CONFIDENCE
+        )
+        if len(confident_atoms) < self._COMMON_GROUND_CONTINUITY_DYAD_FLOOR:
+            return sections, ()
+        max_confidence = max(atom.confidence for atom in confident_atoms)
+        rationale: list[str] = [
+            (
+                f"common_ground=observed(dyads={len(confident_atoms)},"
+                f"max_conf={max_confidence:.2f})"
+            )
+        ]
+        new_sections = list(sections)
+        if SectionId.CONTINUITY_NOTE not in new_sections:
+            new_sections.append(SectionId.CONTINUITY_NOTE)
+            rationale.append(
+                "common_ground_add=continuity_note("
+                f"dyads={len(confident_atoms)})"
+            )
+        return new_sections, tuple(rationale)
+
+    # ------------------------------------------------------------------
+    # Phase 2 W2.A EQ-owner uplift: typed Theory-of-Mind rationale tags
+    # for BELIEF / INTENT / PREFERENCE about-other owners. These three
+    # snapshots influence FRAMING / EXPECTATION / STYLE downstream
+    # without re-deriving sections (they are observation-only signals
+    # the planner surfaces for evaluation / reflection / human audit).
+    # Section additions remain governed by FEELING + InterlocutorState
+    # so promotion stays minimally invasive on the section graph.
+    # ------------------------------------------------------------------
+
+    _TOM_RECORDS_MIN_CONFIDENCE: ClassVar[float] = 0.50
+
+    def _tom_rationale_tags(
+        self,
+        *,
+        belief_snapshot: BeliefAboutOtherSnapshot | None,
+        intent_snapshot: IntentAboutOtherSnapshot | None,
+        preference_snapshot: PreferenceAboutOtherSnapshot | None,
+    ) -> tuple[str, ...]:
+        """Surface typed observation tags for the three remaining
+        ToM about-other owners.
+
+        Each tag carries the record count, max confidence, and snapshot
+        control_signal. Empty / low-confidence snapshots are no-ops.
+        """
+        tags: list[str] = []
+        for prefix, snapshot in (
+            ("framing=belief_observed", belief_snapshot),
+            ("intent=expectation_observed", intent_snapshot),
+            ("preference=style_observed", preference_snapshot),
+        ):
+            tag = self._tom_rationale_for(prefix=prefix, snapshot=snapshot)
+            if tag is not None:
+                tags.append(tag)
+        return tuple(tags)
+
+    def _tom_rationale_for(
+        self,
+        *,
+        prefix: str,
+        snapshot: BeliefAboutOtherSnapshot
+        | IntentAboutOtherSnapshot
+        | PreferenceAboutOtherSnapshot
+        | None,
+    ) -> str | None:
+        """Build the rationale tag for one ToM about-other snapshot.
+
+        All three about-other snapshot types share the
+        ``records`` / ``control_signal`` shape (verified by the
+        ``social_cognition`` contract dataclasses). We type-narrow on
+        ``None`` and otherwise read fields directly; no ``getattr``
+        defensive defaults to avoid masking schema drift.
+        """
+        if snapshot is None:
+            return None
+        if not snapshot.records:
+            return None
+        max_confidence = max(record.confidence for record in snapshot.records)
+        if max_confidence < self._TOM_RECORDS_MIN_CONFIDENCE:
+            return None
+        control_signal = float(snapshot.control_signal)
+        return (
+            f"{prefix}(count={len(snapshot.records)},"
+            f"max_conf={max_confidence:.2f},sig={control_signal:.2f})"
+        )
+
     def _build_section_budget(
         self,
         *,
@@ -578,6 +797,9 @@ class PromptPlanner:
         hint_rationale: tuple[str, ...] = (),
         interlocutor_state: InterlocutorState | None = None,
         il_rationale: tuple[str, ...] = (),
+        feeling_rationale: tuple[str, ...] = (),
+        common_ground_rationale: tuple[str, ...] = (),
+        tom_rationale: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         tags: list[str] = [f"intent={intent.value}"]
         regime_id = (
@@ -634,6 +856,25 @@ class PromptPlanner:
             )
             for rationale in il_rationale:
                 tags.append(rationale)
+        # Phase 1 W1.D EQ-owner uplift: surface FEELING-about-other
+        # rationale tags emitted by ``_apply_feeling_snapshot``. The
+        # tags are typed records-derived signals (count / max
+        # confidence / control_signal); no user text is read.
+        for rationale in feeling_rationale:
+            tags.append(rationale)
+        # Phase 1 W1.F EQ-owner uplift: surface common-ground rationale
+        # tags emitted by ``_apply_common_ground_snapshot``. The tags
+        # are typed atom-derived signals (dyad count, max confidence);
+        # no user text is read.
+        for rationale in common_ground_rationale:
+            tags.append(rationale)
+        # Phase 2 W2.A EQ-owner uplift: surface typed observation tags
+        # for BELIEF / INTENT / PREFERENCE about-other ToM snapshots.
+        # These are observation-only audit signals; they do NOT modify
+        # sections (FEELING + InterlocutorState remain the dominant
+        # section gates).
+        for rationale in tom_rationale:
+            tags.append(rationale)
         return tuple(tags)
 
     def _repair_advisory_active(self, context: ResponseContext) -> bool:

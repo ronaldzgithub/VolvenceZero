@@ -303,16 +303,44 @@ class Lifeform:
             sess = session_holder.session
             return sess.interlocutor_state if sess is not None else None
 
+        def _feeling_about_other_provider() -> Any:
+            sess = session_holder.session
+            return sess.feeling_about_other if sess is not None else None
+
+        def _common_ground_provider() -> Any:
+            sess = session_holder.session
+            return sess.common_ground_snapshot if sess is not None else None
+
+        def _belief_about_other_provider() -> Any:
+            sess = session_holder.session
+            return sess.belief_about_other if sess is not None else None
+
+        def _intent_about_other_provider() -> Any:
+            sess = session_holder.session
+            return sess.intent_about_other if sess is not None else None
+
+        def _preference_about_other_provider() -> Any:
+            sess = session_holder.session
+            return sess.preference_about_other if sess is not None else None
+
         # Per-session synthesizer when vitals are wired AND/OR the
         # brain-level synthesizer can be cloned with a vitals
-        # / interlocutor provider. We deliberately NEVER mutate the
-        # Brain's own synthesizer \u2014 we only construct session-local
-        # clones whose closures capture THIS session's state. That
-        # preserves single-ownership for the brain default while
-        # still letting drives + 12-axis readouts reach the planner.
+        # / interlocutor / feeling / common-ground / 3 ToM-about-other
+        # providers. We deliberately NEVER mutate the Brain's own
+        # synthesizer \u2014 we only construct session-local clones whose
+        # closures capture THIS session's state. That preserves
+        # single-ownership for the brain default while still letting
+        # drives + 12-axis readouts + ToM FEELING / BELIEF / INTENT /
+        # PREFERENCE records + dyad common-ground atoms reach the
+        # planner.
         session_synthesizer = self._maybe_clone_synthesizer_for_session(
             vitals=vitals,
             interlocutor_provider=_interlocutor_provider,
+            feeling_about_other_provider=_feeling_about_other_provider,
+            common_ground_provider=_common_ground_provider,
+            belief_about_other_provider=_belief_about_other_provider,
+            intent_about_other_provider=_intent_about_other_provider,
+            preference_about_other_provider=_preference_about_other_provider,
         )
         brain_session = self._brain.create_session(
             session_id=session_id,
@@ -340,17 +368,26 @@ class Lifeform:
         *,
         vitals: VitalsModule | None,
         interlocutor_provider: Callable[[], Any],
+        feeling_about_other_provider: Callable[[], Any] | None = None,
+        common_ground_provider: Callable[[], Any] | None = None,
+        belief_about_other_provider: Callable[[], Any] | None = None,
+        intent_about_other_provider: Callable[[], Any] | None = None,
+        preference_about_other_provider: Callable[[], Any] | None = None,
     ) -> ResponseSynthesizer | None:
         """Return a per-session synthesizer clone bound to this session's state.
 
-        Two providers are wired in one place because both are
-        session-scoped and both target ``GroundedResponseSynthesizer``:
+        Three providers are wired in one place because all three are
+        session-scoped and all three target ``GroundedResponseSynthesizer``:
 
         * ``vitals.current_snapshot`` \u2014 always available when
           ``vitals`` is non-None;
         * ``interlocutor_provider`` \u2014 a late-bound closure that
           reads ``LifeformSession.interlocutor_state`` after the
-          session is constructed.
+          session is constructed;
+        * ``feeling_about_other_provider`` (Phase 1 W1.D EQ-owner
+          uplift) \u2014 a late-bound closure that reads
+          ``LifeformSession.feeling_about_other`` so the planner can
+          consume the typed Theory-of-Mind FEELING records.
 
         Returns ``None`` (i.e. fall back to the Brain's default) when:
 
@@ -384,6 +421,24 @@ class Lifeform:
         if vitals is not None:
             cloned = cloned.with_vitals_provider(vitals.current_snapshot)
         cloned = cloned.with_interlocutor_provider(interlocutor_provider)
+        if feeling_about_other_provider is not None:
+            cloned = cloned.with_feeling_about_other_provider(
+                feeling_about_other_provider
+            )
+        if common_ground_provider is not None:
+            cloned = cloned.with_common_ground_provider(common_ground_provider)
+        if belief_about_other_provider is not None:
+            cloned = cloned.with_belief_about_other_provider(
+                belief_about_other_provider
+            )
+        if intent_about_other_provider is not None:
+            cloned = cloned.with_intent_about_other_provider(
+                intent_about_other_provider
+            )
+        if preference_about_other_provider is not None:
+            cloned = cloned.with_preference_about_other_provider(
+                preference_about_other_provider
+            )
         return cloned
 
 
@@ -577,6 +632,104 @@ class LifeformSession:
             commitment_snapshot=snaps.get("commitment"),
         )
         return readout_interlocutor_state(context)
+
+    @property
+    def feeling_about_other(self) -> Any:
+        """Phase 1 W1.D: read the typed ``feeling_about_other`` snapshot.
+
+        Returns the latest ``FeelingAboutOtherSnapshot`` published by
+        ``FeelingAboutOtherModule``, preferring the active slot but
+        accepting a SHADOW publication so an explicit SHADOW
+        configuration still drives the planner. Returns ``None``
+        when neither active nor shadow has the slot (cold start /
+        DISABLED wiring) so the lifeform-expression provider can
+        treat that as a no-op.
+        """
+        from volvence_zero.social_cognition import FeelingAboutOtherSnapshot
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("feeling_about_other") or shadow.get(
+            "feeling_about_other"
+        )
+        if published is None:
+            return None
+        if isinstance(published.value, FeelingAboutOtherSnapshot):
+            return published.value
+        return None
+
+    @property
+    def common_ground_snapshot(self) -> Any:
+        """Phase 1 W1.F: read the typed ``common_ground`` snapshot.
+
+        Returns the latest ``CommonGroundSnapshot`` published by
+        ``CommonGroundModule``, preferring the active slot but
+        accepting a SHADOW publication so an explicit SHADOW
+        configuration still drives the planner. Returns ``None``
+        when neither active nor shadow has the slot.
+        """
+        from volvence_zero.social_cognition import CommonGroundSnapshot
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("common_ground") or shadow.get("common_ground")
+        if published is None:
+            return None
+        if isinstance(published.value, CommonGroundSnapshot):
+            return published.value
+        return None
+
+    @property
+    def belief_about_other(self) -> Any:
+        """Phase 2 W2.A: read the typed ``belief_about_other`` snapshot."""
+        from volvence_zero.social_cognition import BeliefAboutOtherSnapshot
+
+        return self._read_other_mind_snapshot(
+            slot_name="belief_about_other",
+            expected_type=BeliefAboutOtherSnapshot,
+        )
+
+    @property
+    def intent_about_other(self) -> Any:
+        """Phase 2 W2.A: read the typed ``intent_about_other`` snapshot."""
+        from volvence_zero.social_cognition import IntentAboutOtherSnapshot
+
+        return self._read_other_mind_snapshot(
+            slot_name="intent_about_other",
+            expected_type=IntentAboutOtherSnapshot,
+        )
+
+    @property
+    def preference_about_other(self) -> Any:
+        """Phase 2 W2.A: read the typed ``preference_about_other`` snapshot."""
+        from volvence_zero.social_cognition import PreferenceAboutOtherSnapshot
+
+        return self._read_other_mind_snapshot(
+            slot_name="preference_about_other",
+            expected_type=PreferenceAboutOtherSnapshot,
+        )
+
+    def _read_other_mind_snapshot(
+        self,
+        *,
+        slot_name: str,
+        expected_type: type,
+    ) -> Any:
+        """Shared accessor for the three about-other ToM owners.
+
+        Mirrors the ``feeling_about_other`` / ``common_ground_snapshot``
+        property pattern: prefer the active publication, fall back to
+        the SHADOW one for back-compat configs, return ``None`` when
+        neither exposes the slot.
+        """
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get(slot_name) or shadow.get(slot_name)
+        if published is None:
+            return None
+        if isinstance(published.value, expected_type):
+            return published.value
+        return None
 
     @property
     def latest_thinking_artifacts_by_consumer(self) -> Mapping[str, Any]:

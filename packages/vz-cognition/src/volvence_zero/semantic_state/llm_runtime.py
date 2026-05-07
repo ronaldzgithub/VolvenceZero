@@ -389,6 +389,20 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         self._commitment_slot_id = commitment_slot_id
         self._max_new_tokens = max_new_tokens
 
+    @property
+    def text_provider(self) -> _GenerateProtocol:
+        """Public accessor for the underlying text-generation provider.
+
+        Phase 1 W1.C of the EQ-owner uplift: kernels that wire this
+        runtime can share the same provider with sibling LLM-driven
+        runtimes (e.g. ``LLMToMProposalRuntime``,
+        ``LLMCommonGroundProposalRuntime``) without re-loading model
+        weights. The accessor is the typed kernel-level handle for
+        provider sharing; downstream code MUST NOT reach for the
+        private ``_provider`` attribute.
+        """
+        return self._provider
+
     def propose(
         self,
         *,

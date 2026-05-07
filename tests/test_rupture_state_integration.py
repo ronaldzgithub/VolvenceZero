@@ -2,8 +2,9 @@
 
 These tests run the full ``run_final_wiring_turn`` path to prove that:
 
-* ``rupture_state`` is published as a SHADOW snapshot every turn;
-* the SHADOW snapshot does not leak into ``active_snapshots`` (R8 / M1);
+* ``rupture_state`` is published every turn (ACTIVE by default after
+  Phase 1 W1.B of the EQ-owner uplift; the SHADOW back-compat surface
+  is exercised by ``tests/contracts/test_rupture_state_active_no_double_writeback.py``);
 * ``dialogue_external_outcome`` is published as an ACTIVE snapshot;
 * ``rupture_state`` sees non-empty evidence when an external MISSED
   entry is appended via ``DialogueExternalOutcomeModule.append_evidence``.
@@ -41,8 +42,50 @@ def _substrate_adapter() -> FeatureSurfaceSubstrateAdapter:
     )
 
 
-def test_rupture_state_publishes_shadow_each_turn() -> None:
+def test_rupture_state_publishes_active_each_turn() -> None:
+    """Default config: ``rupture_state`` is ACTIVE (Phase 1 W1.B) and
+    every turn produces a typed snapshot regardless of whether
+    contributing signals fire.
+    """
     config = FinalRolloutConfig()
+    adapter = _substrate_adapter()
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=config,
+            substrate_adapter=adapter,
+            user_input="hi there",
+            session_id="sess-rupture-active",
+            wave_id="wave-0",
+            turn_index=0,
+            apply_slow_writeback=False,
+        )
+    )
+
+    shadow = result.shadow_snapshots
+    active = result.active_snapshots
+    assert "rupture_state" in active, (
+        "rupture_state must publish to active_snapshots under the default "
+        "(post-W1.B) ACTIVE wiring"
+    )
+    assert "rupture_state" not in shadow, (
+        "rupture_state ACTIVE must NOT also publish to shadow_snapshots"
+    )
+    snapshot = active["rupture_state"].value
+    assert isinstance(snapshot, RuptureStateSnapshot)
+    # Initial turn: no external signal and bootstrap PE; no rupture.
+    assert snapshot.rupture_kind is None
+    assert snapshot.internal_suspected_only in (True, False)
+    # dialogue_external_outcome is ACTIVE — the single legal channel.
+    assert "dialogue_external_outcome" in active
+
+
+def test_rupture_state_explicit_shadow_back_compat_publishes_shadow() -> None:
+    """Explicit ``rupture_state=SHADOW`` config must still publish to
+    ``shadow_snapshots`` for back-compat with experimental / test
+    setups. ACTIVE is the default but SHADOW remains a supported
+    wiring level.
+    """
+    config = FinalRolloutConfig(rupture_state=WiringLevel.SHADOW)
     adapter = _substrate_adapter()
     result = asyncio.run(
         run_final_wiring_turn(
@@ -56,21 +99,11 @@ def test_rupture_state_publishes_shadow_each_turn() -> None:
         )
     )
 
-    shadow = result.shadow_snapshots
-    active = result.active_snapshots
-    assert "rupture_state" in shadow, (
-        "rupture_state must publish a SHADOW snapshot every turn"
-    )
-    assert "rupture_state" not in active, (
-        "rupture_state is SHADOW-only in v0; it must NOT leak into active_snapshots"
-    )
-    snapshot = shadow["rupture_state"].value
+    assert "rupture_state" in result.shadow_snapshots
+    assert "rupture_state" not in result.active_snapshots
+    snapshot = result.shadow_snapshots["rupture_state"].value
     assert isinstance(snapshot, RuptureStateSnapshot)
-    # Initial turn: no external signal and bootstrap PE; no rupture.
     assert snapshot.rupture_kind is None
-    assert snapshot.internal_suspected_only in (True, False)
-    # dialogue_external_outcome is ACTIVE — the single legal channel.
-    assert "dialogue_external_outcome" in active
 
 
 def test_external_missed_flows_into_shadow_rupture_state() -> None:

@@ -34,6 +34,13 @@ from volvence_zero.agent.response import (
 )
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.interlocutor import InterlocutorState
+from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
+    PreferenceAboutOtherSnapshot,
+)
 
 from lifeform_expression.prompt_planner import (
     PromptPlan,
@@ -49,6 +56,11 @@ from lifeform_expression.reflection_hints import (
 
 VitalsSnapshotProvider = Callable[[], VitalsSnapshot | None]
 InterlocutorStateProvider = Callable[[], InterlocutorState | None]
+FeelingAboutOtherProvider = Callable[[], FeelingAboutOtherSnapshot | None]
+CommonGroundSnapshotProvider = Callable[[], CommonGroundSnapshot | None]
+BeliefAboutOtherProvider = Callable[[], BeliefAboutOtherSnapshot | None]
+IntentAboutOtherProvider = Callable[[], IntentAboutOtherSnapshot | None]
+PreferenceAboutOtherProvider = Callable[[], PreferenceAboutOtherSnapshot | None]
 
 
 class GroundedResponseSynthesizer(ResponseSynthesizer):
@@ -70,10 +82,20 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         planner: PromptPlanner | None = None,
         vitals_snapshot_provider: VitalsSnapshotProvider | None = None,
         interlocutor_state_provider: InterlocutorStateProvider | None = None,
+        feeling_about_other_provider: FeelingAboutOtherProvider | None = None,
+        common_ground_snapshot_provider: CommonGroundSnapshotProvider | None = None,
+        belief_about_other_provider: BeliefAboutOtherProvider | None = None,
+        intent_about_other_provider: IntentAboutOtherProvider | None = None,
+        preference_about_other_provider: PreferenceAboutOtherProvider | None = None,
     ) -> None:
         self._planner = planner or PromptPlanner()
         self._vitals_snapshot_provider = vitals_snapshot_provider
         self._interlocutor_state_provider = interlocutor_state_provider
+        self._feeling_about_other_provider = feeling_about_other_provider
+        self._common_ground_snapshot_provider = common_ground_snapshot_provider
+        self._belief_about_other_provider = belief_about_other_provider
+        self._intent_about_other_provider = intent_about_other_provider
+        self._preference_about_other_provider = preference_about_other_provider
 
     @property
     def planner(self) -> PromptPlanner:
@@ -87,6 +109,80 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     def interlocutor_state_provider(self) -> InterlocutorStateProvider | None:
         return self._interlocutor_state_provider
 
+    @property
+    def feeling_about_other_provider(self) -> FeelingAboutOtherProvider | None:
+        return self._feeling_about_other_provider
+
+    @property
+    def common_ground_snapshot_provider(self) -> CommonGroundSnapshotProvider | None:
+        return self._common_ground_snapshot_provider
+
+    @property
+    def belief_about_other_provider(self) -> BeliefAboutOtherProvider | None:
+        return self._belief_about_other_provider
+
+    @property
+    def intent_about_other_provider(self) -> IntentAboutOtherProvider | None:
+        return self._intent_about_other_provider
+
+    @property
+    def preference_about_other_provider(self) -> PreferenceAboutOtherProvider | None:
+        return self._preference_about_other_provider
+
+    def _clone(
+        self,
+        *,
+        vitals: VitalsSnapshotProvider | None = None,
+        interlocutor: InterlocutorStateProvider | None = None,
+        feeling: FeelingAboutOtherProvider | None = None,
+        common_ground: CommonGroundSnapshotProvider | None = None,
+        belief: BeliefAboutOtherProvider | None = None,
+        intent: IntentAboutOtherProvider | None = None,
+        preference: PreferenceAboutOtherProvider | None = None,
+        replace_vitals: bool = False,
+        replace_interlocutor: bool = False,
+        replace_feeling: bool = False,
+        replace_common_ground: bool = False,
+        replace_belief: bool = False,
+        replace_intent: bool = False,
+        replace_preference: bool = False,
+    ) -> "GroundedResponseSynthesizer":
+        """Internal helper that constructs a new synthesizer preserving
+        all existing providers except the ones explicitly replaced.
+
+        Centralising the clone construction keeps the seven ``with_*``
+        public methods symmetric and adding more providers in future
+        waves only touches this method.
+        """
+        return GroundedResponseSynthesizer(
+            planner=self._planner,
+            vitals_snapshot_provider=(
+                vitals if replace_vitals else self._vitals_snapshot_provider
+            ),
+            interlocutor_state_provider=(
+                interlocutor if replace_interlocutor else self._interlocutor_state_provider
+            ),
+            feeling_about_other_provider=(
+                feeling if replace_feeling else self._feeling_about_other_provider
+            ),
+            common_ground_snapshot_provider=(
+                common_ground
+                if replace_common_ground
+                else self._common_ground_snapshot_provider
+            ),
+            belief_about_other_provider=(
+                belief if replace_belief else self._belief_about_other_provider
+            ),
+            intent_about_other_provider=(
+                intent if replace_intent else self._intent_about_other_provider
+            ),
+            preference_about_other_provider=(
+                preference
+                if replace_preference
+                else self._preference_about_other_provider
+            ),
+        )
+
     def with_vitals_provider(
         self, provider: VitalsSnapshotProvider | None
     ) -> "GroundedResponseSynthesizer":
@@ -96,13 +192,10 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         session has its own synthesizer instance reading its own
         ``VitalsModule``. The original synthesizer (and its planner) are
         kept intact so the Brain-level default does not get mutated.
-        Existing interlocutor provider (if any) is preserved.
+        Existing interlocutor / feeling / common-ground providers (if
+        any) are preserved.
         """
-        return GroundedResponseSynthesizer(
-            planner=self._planner,
-            vitals_snapshot_provider=provider,
-            interlocutor_state_provider=self._interlocutor_state_provider,
-        )
+        return self._clone(vitals=provider, replace_vitals=True)
 
     def with_interlocutor_provider(
         self, provider: InterlocutorStateProvider | None
@@ -112,14 +205,68 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         Mirrors ``with_vitals_provider``: the lifeform layer wires
         a per-session closure to ``LifeformSession.interlocutor_state``
         so the planner sees fresh 12-axis readouts every turn. The
-        Brain-level default synthesizer is untouched. Existing
-        vitals provider (if any) is preserved on the clone.
+        Brain-level default synthesizer is untouched. Other existing
+        providers are preserved on the clone.
         """
-        return GroundedResponseSynthesizer(
-            planner=self._planner,
-            vitals_snapshot_provider=self._vitals_snapshot_provider,
-            interlocutor_state_provider=provider,
-        )
+        return self._clone(interlocutor=provider, replace_interlocutor=True)
+
+    def with_feeling_about_other_provider(
+        self, provider: FeelingAboutOtherProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Return a clone bound to a typed ``feeling_about_other`` provider.
+
+        Phase 1 W1.D of the EQ-owner uplift: the lifeform layer wires
+        a per-session closure to ``LifeformSession.feeling_about_other``
+        so the planner sees the latest typed Theory-of-Mind FEELING
+        readout each turn. The closure returns ``None`` when the
+        snapshot is missing (cold-start / SHADOW wiring); the planner
+        treats that as a no-op.
+        """
+        return self._clone(feeling=provider, replace_feeling=True)
+
+    def with_common_ground_provider(
+        self, provider: CommonGroundSnapshotProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Return a clone bound to a typed ``common_ground`` provider.
+
+        Phase 1 W1.F of the EQ-owner uplift: the lifeform layer wires
+        a per-session closure to ``LifeformSession.common_ground`` so
+        the planner sees the typed dyad / group atoms each turn and
+        can emit ``common_ground=observed(...)`` rationale tags +
+        add a ``CONTINUITY_NOTE`` section when shared dyad context is
+        available. ``None`` collapses to a no-op.
+        """
+        return self._clone(common_ground=provider, replace_common_ground=True)
+
+    def with_belief_about_other_provider(
+        self, provider: BeliefAboutOtherProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Phase 2 W2.A: bind a typed ``belief_about_other`` provider.
+
+        Records influence FRAMING (``framing=belief_observed(...)``);
+        do not REPLACE the planner's intent.
+        """
+        return self._clone(belief=provider, replace_belief=True)
+
+    def with_intent_about_other_provider(
+        self, provider: IntentAboutOtherProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Phase 2 W2.A: bind a typed ``intent_about_other`` provider.
+
+        Records influence EXPECTATION ALIGNMENT
+        (``intent=expectation_observed(...)``).
+        """
+        return self._clone(intent=provider, replace_intent=True)
+
+    def with_preference_about_other_provider(
+        self, provider: PreferenceAboutOtherProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """Phase 2 W2.A: bind a typed ``preference_about_other`` provider.
+
+        Records influence STYLE / TONE selection
+        (``preference=style_observed(...)``).
+        """
+        return self._clone(preference=provider, replace_preference=True)
 
     # Intents we delegate to the base kernel renderer. Judgment-process is
     # rendered locally now: the base template was too repetitive for
@@ -138,11 +285,21 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     ) -> AgentResponse:
         vitals = self._read_vitals_snapshot()
         interlocutor_state = self._read_interlocutor_state()
+        feeling_snapshot = self._read_feeling_about_other()
+        common_ground_snapshot = self._read_common_ground_snapshot()
+        belief_snapshot = self._read_belief_about_other()
+        intent_snapshot = self._read_intent_about_other()
+        preference_snapshot = self._read_preference_about_other()
         plan = self._planner.plan(
             context=context,
             assembly=assembly,
             vitals=vitals,
             interlocutor_state=interlocutor_state,
+            feeling_snapshot=feeling_snapshot,
+            common_ground_snapshot=common_ground_snapshot,
+            belief_snapshot=belief_snapshot,
+            intent_snapshot=intent_snapshot,
+            preference_snapshot=preference_snapshot,
         )
 
         if plan.intent in self._DELEGATE_TO_BASE or assembly is None:
@@ -206,6 +363,47 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         if self._interlocutor_state_provider is None:
             return None
         return self._interlocutor_state_provider()
+
+    def _read_feeling_about_other(self) -> FeelingAboutOtherSnapshot | None:
+        """Pull the current FEELING-about-other ToM snapshot (None when unbound).
+
+        Phase 1 W1.D: the lifeform-side provider returns the active
+        ``feeling_about_other`` snapshot when ``feeling_about_other``
+        is ACTIVE on the kernel turn. SHADOW / DISABLED / cold-start
+        all collapse to ``None`` and the planner treats that as "no
+        modulation". Records-level interpretation lives in the planner;
+        this method only forwards.
+        """
+        if self._feeling_about_other_provider is None:
+            return None
+        return self._feeling_about_other_provider()
+
+    def _read_common_ground_snapshot(self) -> CommonGroundSnapshot | None:
+        """Pull the current ``common_ground`` snapshot (None when unbound).
+
+        Phase 1 W1.F: the provider returns the active common-ground
+        snapshot when the kernel publishes one. SHADOW / DISABLED /
+        cold-start collapse to ``None``; the planner treats ``None``
+        and an empty atom list identically as "no modulation".
+        """
+        if self._common_ground_snapshot_provider is None:
+            return None
+        return self._common_ground_snapshot_provider()
+
+    def _read_belief_about_other(self) -> BeliefAboutOtherSnapshot | None:
+        if self._belief_about_other_provider is None:
+            return None
+        return self._belief_about_other_provider()
+
+    def _read_intent_about_other(self) -> IntentAboutOtherSnapshot | None:
+        if self._intent_about_other_provider is None:
+            return None
+        return self._intent_about_other_provider()
+
+    def _read_preference_about_other(self) -> PreferenceAboutOtherSnapshot | None:
+        if self._preference_about_other_provider is None:
+            return None
+        return self._preference_about_other_provider()
 
     # ------------------------------------------------------------------
     # Rendering hooks — subclass to swap in an LLM

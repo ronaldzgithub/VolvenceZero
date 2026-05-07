@@ -96,8 +96,8 @@ def test_agent_session_runner_executes_single_turn():
     assert "strategy_playbook" in result.active_snapshots
     assert "experience_fast_prior" in result.active_snapshots
     assert "experience_consolidation" in result.active_snapshots
-    assert "session_post_slow_loop" in result.shadow_snapshots
-    assert result.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
+    assert "session_post_slow_loop" in result.active_snapshots
+    assert result.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
 
 def test_agent_session_runner_exposes_primary_social_scope_from_active_owner():
@@ -365,7 +365,7 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
     boundary_ops = runner.begin_new_context(reason="test-boundary")
 
     assert first.bounded_writeback_applied is False
-    assert first.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
+    assert first.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
     assert any(op.startswith("session-post-slow-loop:enqueued:") for op in boundary_ops)
     assert runner.session_post_snapshot is not None
     assert runner.session_post_snapshot.value.queue_state.pending_job_count == 1
@@ -383,7 +383,7 @@ def test_agent_session_runner_defers_slow_writeback_until_context_boundary():
     second = asyncio.run(runner.run_turn("Continue in the next context."))
 
     assert second.session_post_completed_job_count >= 1
-    assert second.shadow_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
+    assert second.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count >= 1
 
 
 def test_agent_session_runner_publishes_experience_consolidation_after_session_post_completion():

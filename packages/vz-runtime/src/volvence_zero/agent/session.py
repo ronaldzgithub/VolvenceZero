@@ -604,7 +604,7 @@ class AgentSessionRunner:
         self._session_post_lock = asyncio.Lock()
         self._session_post_queue = SessionPostSlowLoopQueue(worker=self._run_session_post_slow_loop_job)
         self._session_post_module = SessionPostSlowLoopModule(
-            wiring_level=self._config.level_for("session_post_slow_loop", WiringLevel.SHADOW),
+            wiring_level=self._config.level_for("session_post_slow_loop", WiringLevel.ACTIVE),
         )
         self._session_post_snapshot: Snapshot[SessionPostSlowLoopSnapshot] | None = None
         self._experience_consolidation_module = ExperienceConsolidationModule(

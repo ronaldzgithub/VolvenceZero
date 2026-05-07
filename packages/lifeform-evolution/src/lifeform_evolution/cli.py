@@ -16,9 +16,15 @@ from lifeform_evolution.benchmark import (
     trust_rupture_repair_scenario,
 )
 from lifeform_evolution.family_report import (
+    FamilyReport,
     compute_family_report,
     family_report_to_dict,
     format_family_report,
+)
+from lifeform_evolution.longitudinal_family_report import (
+    compute_longitudinal_family_report,
+    format_longitudinal_family_report,
+    longitudinal_family_report_to_dict,
 )
 from lifeform_evolution.companion_evidence import (
     companion_evidence_report_to_dict,
@@ -266,6 +272,48 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--longitudinal-rounds",
+        type=int,
+        default=0,
+        help=(
+            "Phase 2 W2.C cross-session evidence. Run every selected "
+            "scenario N times sequentially against the SAME lifeform "
+            "instance so memory + session-post slow loop carry forward "
+            "across rounds. After all rounds, aggregate the per-round "
+            "F3 metrics into a longitudinal report. 0 (default) "
+            "disables the longitudinal pass; 3 to 5 is the recommended "
+            "minimum for meaningful trend evidence. Requires "
+            "--vertical (the longitudinal pass needs a stable Lifeform "
+            "instance to share memory across rounds)."
+        ),
+    )
+    parser.add_argument(
+        "--longitudinal-report",
+        action="store_true",
+        help=(
+            "Print the longitudinal family report after running "
+            "--longitudinal-rounds. Implies --family-report."
+        ),
+    )
+    parser.add_argument(
+        "--longitudinal-json",
+        default=None,
+        help=(
+            "Optional path to write the longitudinal report as JSON. "
+            "Implies --longitudinal-report."
+        ),
+    )
+    parser.add_argument(
+        "--require-longitudinal-pass",
+        action="store_true",
+        help=(
+            "Exit non-zero if the longitudinal acceptance gate "
+            "(``trust_no_drift`` AND ``continuity_improved_vs_baseline``) "
+            "fails. Implies --longitudinal-report and "
+            "--longitudinal-rounds > 0."
+        ),
+    )
+    parser.add_argument(
         "--companion-evidence-report",
         action="store_true",
         help=(
@@ -369,7 +417,31 @@ def main(argv: list[str] | None = None) -> int:
         args.family_report
         or args.family_report_json is not None
         or args.require_family_pass
+        # Phase 2 W2.C: the longitudinal pass aggregates per-round
+        # FamilyReport instances, so it implicitly needs the family
+        # report to be computed each round.
+        or args.longitudinal_rounds > 0
+        or args.longitudinal_report
+        or args.longitudinal_json is not None
+        or args.require_longitudinal_pass
     )
+    want_longitudinal_report = (
+        args.longitudinal_rounds > 0
+        or args.longitudinal_report
+        or args.longitudinal_json is not None
+        or args.require_longitudinal_pass
+    )
+    if want_longitudinal_report and args.longitudinal_rounds <= 0:
+        parser.error(
+            "--longitudinal-report / --longitudinal-json / "
+            "--require-longitudinal-pass require --longitudinal-rounds > 0"
+        )
+    if want_longitudinal_report and vertical_lifeform is None:
+        parser.error(
+            "longitudinal pass needs --vertical so the same Lifeform "
+            "instance can be reused across rounds (memory + session-post "
+            "slow loop carry forward only on a shared Lifeform)."
+        )
     want_companion_evidence = (
         args.companion_evidence_report or args.companion_evidence_json is not None
     )
@@ -417,6 +489,44 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"[bench] wrote family report artifact to {path}")
 
+    longitudinal_pass = True
+    longitudinal_artifacts: list[dict[str, object]] = []
+    if want_longitudinal_report:
+        for scenario in scenarios:
+            per_round_reports: list[FamilyReport] = []
+            for round_index in range(args.longitudinal_rounds):
+                report = _run_with_lifeform(
+                    scenario=scenario, lifeform=vertical_lifeform
+                )
+                per_round_reports.append(compute_family_report(bench=report))
+                print(
+                    f"[bench] longitudinal round {round_index + 1}/"
+                    f"{args.longitudinal_rounds} for scenario "
+                    f"{scenario.scenario_id}: "
+                    f"closed_scenes={report.closed_scene_count}"
+                )
+            longitudinal = compute_longitudinal_family_report(
+                tuple(per_round_reports)
+            )
+            print(format_longitudinal_family_report(longitudinal))
+            longitudinal_artifacts.append(
+                longitudinal_family_report_to_dict(longitudinal)
+            )
+            if not longitudinal.passed:
+                longitudinal_pass = False
+
+    if args.longitudinal_json:
+        import json
+        import pathlib
+
+        path = pathlib.Path(args.longitudinal_json).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"scenarios": longitudinal_artifacts}, indent=2),
+            encoding="utf-8",
+        )
+        print(f"[bench] wrote longitudinal report artifact to {path}")
+
     if want_companion_evidence:
         if args.vertical not in (None, "companion"):
             parser.error("--companion-evidence-report is only valid for the companion vertical")
@@ -458,6 +568,8 @@ def main(argv: list[str] | None = None) -> int:
         ok = _run_eta_open_weight_paper_suite_from_bench(args=args) and ok
 
     if args.require_family_pass and not family_pass:
+        return 1
+    if args.require_longitudinal_pass and not longitudinal_pass:
         return 1
     return 0 if ok else 1
 
