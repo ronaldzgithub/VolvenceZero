@@ -5,8 +5,8 @@
 # for a larger Qwen checkpoint when the machine has enough memory.
 #
 # Usage:
-#   bash scripts/start_browser_chat_qwen.sh
-#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash scripts/start_browser_chat_qwen.sh
+#   bash start_browser_chat_qwen.sh
+#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
 #
 # Useful env:
 #   HOST=127.0.0.1
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="${PYTHON:-python}"
 
 export HOST="${HOST:-127.0.0.1}"
