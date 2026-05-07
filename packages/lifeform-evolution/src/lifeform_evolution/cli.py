@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 
 from lifeform_evolution.benchmark import (
     ScriptedScenario,
@@ -372,6 +373,19 @@ def _build_bench_parser() -> argparse.ArgumentParser:
             "only be combined with paper-suite-small or paper-suite-full."
         ),
     )
+    parser.add_argument(
+        "--require-sparse-reward-heldout",
+        action="store_true",
+        help=(
+            "Phase 2 W2.D acceptance gate. Exit non-zero unless the ETA "
+            "open-weight paper suite produced a 'retain' verdict for "
+            "``claim_eta_internal_rl_sparse_reward_advantage`` (held-out "
+            "sparse-reward success above matched controls). Implies "
+            "--eta-open-weight-paper-suite. The verdict surfaces the "
+            "F4 (learning quality) acceptance question 'does the system "
+            "improve from sparse, delayed signal?'."
+        ),
+    )
     return parser
 
 
@@ -564,17 +578,55 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[bench] wrote social cognition evidence artifact to {path}")
         ok = ok and social_cognition_evidence.passed
 
+    sparse_reward_retain = False
+    if args.require_sparse_reward_heldout and not args.eta_open_weight_paper_suite:
+        parser.error(
+            "--require-sparse-reward-heldout implies "
+            "--eta-open-weight-paper-suite (the gate reads the paper "
+            "suite's claim verdicts)."
+        )
     if args.eta_open_weight_paper_suite:
-        ok = _run_eta_open_weight_paper_suite_from_bench(args=args) and ok
+        eta_result = _run_eta_open_weight_paper_suite_from_bench(args=args)
+        ok = eta_result.passed and ok
+        sparse_reward_retain = eta_result.sparse_reward_advantage_retain
+        if args.require_sparse_reward_heldout:
+            print(
+                "[bench] sparse-reward held-out gate: "
+                f"status={eta_result.sparse_reward_advantage_status} "
+                f"retain={sparse_reward_retain}"
+            )
 
     if args.require_family_pass and not family_pass:
         return 1
     if args.require_longitudinal_pass and not longitudinal_pass:
         return 1
+    if args.require_sparse_reward_heldout and not sparse_reward_retain:
+        return 1
     return 0 if ok else 1
 
 
-def _run_eta_open_weight_paper_suite_from_bench(*, args: argparse.Namespace) -> bool:
+@dataclass(frozen=True)
+class _EtaPaperSuiteRunResult:
+    """Outcome of one ``--eta-open-weight-paper-suite`` invocation.
+
+    Two views:
+
+    * ``passed`` — the historical bool the CLI used to gate the
+      overall exit code. ``--eta-open-weight-require-retain`` flips
+      this to False when the real residual claim is not retain.
+    * ``sparse_reward_advantage_*`` — typed surface for the Phase 2
+      W2.D ``--require-sparse-reward-heldout`` gate. The CLI reads
+      these without re-parsing the artifact bundle.
+    """
+
+    passed: bool
+    sparse_reward_advantage_status: str
+    sparse_reward_advantage_retain: bool
+
+
+def _run_eta_open_weight_paper_suite_from_bench(
+    *, args: argparse.Namespace
+) -> _EtaPaperSuiteRunResult:
     import json
     import pathlib
 
@@ -651,6 +703,22 @@ def _run_eta_open_weight_paper_suite_from_bench(*, args: argparse.Namespace) -> 
         f"[bench] runtime provenance written to {runtime_provenance_path}"
     )
 
+    sparse_reward_claim = next(
+        (
+            verdict
+            for verdict in report.claim_verdicts
+            if verdict.claim_id == "claim_eta_internal_rl_sparse_reward_advantage"
+        ),
+        None,
+    )
+    sparse_reward_status = (
+        sparse_reward_claim.status if sparse_reward_claim is not None else "missing"
+    )
+    sparse_reward_retain = (
+        sparse_reward_claim is not None and sparse_reward_claim.status == "retain"
+    )
+
+    overall_passed = True
     if args.eta_open_weight_require_retain:
         if real_claim is None or real_claim.status != "retain":
             status = "missing" if real_claim is None else real_claim.status
@@ -658,8 +726,12 @@ def _run_eta_open_weight_paper_suite_from_bench(*, args: argparse.Namespace) -> 
                 f"[bench] ERROR: --eta-open-weight-require-retain set, "
                 f"but claim status is {status} (need retain)."
             )
-            return False
-    return True
+            overall_passed = False
+    return _EtaPaperSuiteRunResult(
+        passed=overall_passed,
+        sparse_reward_advantage_status=sparse_reward_status,
+        sparse_reward_advantage_retain=sparse_reward_retain,
+    )
 
 
 # ---------------------------------------------------------------------------
