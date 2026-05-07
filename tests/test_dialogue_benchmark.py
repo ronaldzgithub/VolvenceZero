@@ -99,7 +99,7 @@ from volvence_zero.agent import (
     export_dialogue_paper_suite_artifact_bundle,
 )
 from volvence_zero.joint_loop import JointLoopSchedule
-from volvence_zero.evaluation.backbone import CrossSessionGrowthReport, MetricIntervalSummary, PairwiseMetricEffect
+from volvence_zero.evaluation import CrossSessionGrowthReport, MetricIntervalSummary, PairwiseMetricEffect
 from volvence_zero.semantic_state import SemanticProposalOperation
 from volvence_zero.semantic_state.quality import (
     SemanticProposalQualityCaseResult,
@@ -353,7 +353,7 @@ def _synthetic_comprehensive_report_for_dashboard():
         OpenDialogueBenchmarkReport,
         _empty_emergence_dashboard,
     )
-    from volvence_zero.evaluation.backbone import CrossSessionGrowthReport
+    from volvence_zero.evaluation import CrossSessionGrowthReport
 
     case = ScriptedDialogueCase(
         case_id="synthetic-dashboard",

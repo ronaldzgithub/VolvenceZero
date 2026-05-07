@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-import math
 from typing import Iterable
 
 from volvence_zero.memory import (
@@ -10,6 +9,10 @@ from volvence_zero.memory import (
     PersistenceBackend,
     deserialize_checkpoint,
     serialize_checkpoint,
+)
+from volvence_zero.semantic_embedding import (
+    stub_cosine_similarity as _cosine_similarity,
+    stub_semantic_embedding as _semantic_embedding,
 )
 
 
@@ -46,47 +49,6 @@ class CaseLifecycle(str, Enum):
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
-
-
-def _tokenize(text: str) -> set[str]:
-    tokens: set[str] = set()
-    ascii_buffer: list[str] = []
-    compact = "".join(char for char in text.lower() if not char.isspace())
-    for char in text.lower():
-        if char.isascii() and char.isalnum():
-            ascii_buffer.append(char)
-            continue
-        if ascii_buffer:
-            tokens.add("".join(ascii_buffer))
-            ascii_buffer.clear()
-        if not char.isspace():
-            tokens.add(char)
-    if ascii_buffer:
-        tokens.add("".join(ascii_buffer))
-    for index in range(len(compact) - 1):
-        tokens.add(compact[index : index + 2])
-    return tokens
-
-
-def _semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
-    tokens = tuple(_tokenize(text))
-    if not tokens:
-        return tuple(0.0 for _ in range(dim))
-    vector = [0.0 for _ in range(dim)]
-    for token in tokens:
-        token_scale = max(len(token), 1)
-        for index, char in enumerate(token):
-            vector[(index + len(token)) % dim] += (ord(char) % 37) / 37.0 / token_scale
-    norm = math.sqrt(sum(value * value for value in vector))
-    if norm <= 1e-6:
-        return tuple(0.0 for _ in range(dim))
-    return tuple(value / norm for value in vector)
-
-
-def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    if not left or not right:
-        return 0.0
-    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
 
 
 @dataclass(frozen=True)

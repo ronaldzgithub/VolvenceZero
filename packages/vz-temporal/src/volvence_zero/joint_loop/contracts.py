@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from volvence_zero.application.runtime import ApplicationRareHeavyCheckpoint
-from volvence_zero.evaluation.backbone import EvaluationScore, EvolutionJudgement
+from volvence_zero.evaluation import EvaluationScore, EvolutionJudgement
 from volvence_zero.internal_rl import CausalPolicyCheckpoint
 from volvence_zero.memory import MemoryStoreCheckpoint
 from volvence_zero.substrate import SubstrateOnlineFastCheckpoint, SubstrateRareHeavyCheckpoint

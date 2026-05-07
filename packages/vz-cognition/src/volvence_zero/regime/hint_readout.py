@@ -64,7 +64,7 @@ from volvence_zero.regime.identity import (
 
 if TYPE_CHECKING:
     from volvence_zero.dual_track import DualTrackSnapshot
-    from volvence_zero.evaluation.backbone import EvaluationSnapshot
+    from volvence_zero.evaluation import EvaluationSnapshot
     from volvence_zero.memory import MemorySnapshot
     from volvence_zero.prediction.error import PredictionErrorSnapshot
 

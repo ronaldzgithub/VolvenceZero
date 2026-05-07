@@ -36,7 +36,7 @@ from volvence_zero.dialogue_trace import (
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop import JointLoopSchedule, PipelineConfig
-from volvence_zero.evaluation.backbone import EvolutionDecision, EvolutionJudgement, JudgementCategory
+from volvence_zero.evaluation import EvolutionDecision, EvolutionJudgement, JudgementCategory
 from volvence_zero.prediction import PredictionError
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.agent.session import RareHeavyPreImportEvaluation

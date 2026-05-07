@@ -52,7 +52,7 @@ from volvence_zero.agent.dialogue.types import (
     OpenDialogueEpisodeState,
     OpenDialogueScenario,
 )
-from volvence_zero.evaluation.backbone import (
+from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
     EvaluationReport,

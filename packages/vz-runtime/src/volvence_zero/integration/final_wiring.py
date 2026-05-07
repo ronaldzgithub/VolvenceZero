@@ -52,7 +52,7 @@ from volvence_zero.credit.gate import (
     record_nstep_outcomes_from_segment_closure,
 )
 from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
-from volvence_zero.evaluation.backbone import (
+from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
     EvaluationReport,

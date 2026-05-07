@@ -15,7 +15,7 @@ from volvence_zero.agent.paper_suite import (
     collect_paper_suite_provenance,
     export_json_artifact,
 )
-from volvence_zero.evaluation.backbone import (
+from volvence_zero.evaluation import (
     MetricIntervalSummary,
     PairwiseMetricEffect,
     build_pairwise_metric_effect,

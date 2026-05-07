@@ -25,7 +25,7 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.dual_track.core import DualTrackSnapshot, TrackState
-from volvence_zero.evaluation.backbone import EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.memory.store import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.prediction.error import PredictedOutcome, ActualOutcome, PredictionError, PredictionErrorSnapshot
 from volvence_zero.regime import (

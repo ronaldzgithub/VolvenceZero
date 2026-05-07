@@ -30,7 +30,7 @@ from lifeform_core.followup_manager import FollowupManager
 from lifeform_core.types import FollowupItem
 
 from volvence_zero.dual_track import DualTrackSnapshot, TrackState
-from volvence_zero.evaluation.backbone import EvaluationScore, EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.memory import Track
 from volvence_zero.prediction.error import PredictionErrorModule, PredictionErrorSnapshot
 from volvence_zero.regime.identity import RegimeIdentity, RegimeSnapshot

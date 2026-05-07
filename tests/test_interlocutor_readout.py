@@ -354,7 +354,7 @@ def test_builder_none_inputs_return_low_evidence() -> None:
 
 def test_builder_extracts_from_real_kernel_snapshots() -> None:
     from volvence_zero.dual_track.core import DualTrackSnapshot, TrackState
-    from volvence_zero.evaluation.backbone import EvaluationScore, EvaluationSnapshot
+    from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
     from volvence_zero.memory.store import MemoryEntry, MemorySnapshot, Track
     from volvence_zero.prediction.error import (
         ActualOutcome,

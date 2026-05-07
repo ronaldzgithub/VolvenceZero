@@ -1840,7 +1840,7 @@ def test_final_wiring_can_apply_bounded_writeback_from_shadow_reflection():
 
 
 def test_session_post_writeback_keeps_memory_consolidation_when_structure_is_judge_blocked():
-    from volvence_zero.evaluation.backbone import EvaluationReport
+    from volvence_zero.evaluation import EvaluationReport
     from volvence_zero.integration import SessionPostWritebackRequest, apply_session_post_writeback_request
     from volvence_zero.reflection import (
         ConsolidationScore,

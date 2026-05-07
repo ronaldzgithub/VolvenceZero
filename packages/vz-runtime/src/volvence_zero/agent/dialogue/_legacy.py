@@ -22,7 +22,7 @@ from volvence_zero.agent.paper_suite import (
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
-from volvence_zero.evaluation.backbone import (
+from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
     EvaluationReport,

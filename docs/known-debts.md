@@ -1,36 +1,15 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-06 (post ssot-cleanup-p0-p4)
+> Last updated: 2026-05-07 (post ssot-cleanup-p5)
 
 本文档记录已知但暂不处理的架构债。每条都经过评估：**不处理短期不会导致系统行为错误**，但**中长期会影响可演化性或可调试性**。新增条目时参照相同格式：路径 / 问题 / 风险 / 触发条件 / 推荐修法。
 
 > 2026-05-06 update: ssot-cleanup-p0-p4 五个 wave 全部 land。debts #1 / #2 已关闭；debt #3 缩窄到一个文件（已抽 `application/scoring_helpers.py`，剩 `vz-cognition` 的两个 fork 留给 future 收敛）；新增 #9（god 文件结构债，从 W5 部分切分中产生）。
+>
+> 2026-05-07 update: ssot-cleanup-p5 land。debts #3 / #4 已关闭：#3 把 `stub_semantic_embedding` 提升到 `vz-contracts.semantic_embedding`，原四处 fork（`application/scoring_helpers` / `dual_track/core` / `evaluation/semantic_readouts` / `application/storage`，known-debts 原列表漏掉了 storage 那一份）全部改为 thin re-export，canonical modulus 统一为 65537（与常用 dim 互质），契约测试 [`tests/contracts/test_semantic_embedding_ssot.py`](../tests/contracts/test_semantic_embedding_ssot.py) 守门；#4 17 个 prod / 测试文件的纯类型 import 收敛到 `volvence_zero.evaluation` facade，[`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 静态拒绝从 `evaluation.backbone` 拉纯类型。
 
 ---
-
-## 3. 三套语义 embedding stub 分叉（**部分已收敛**）
-
-- **路径**（W5 后剩余两处）：
-  - `packages/vz-cognition/src/volvence_zero/dual_track/core.py`（`_semantic_embedding`，`% 37`）
-  - `packages/vz-cognition/src/volvence_zero/evaluation/semantic_readouts.py`（`% 41`）
-  - ~~`packages/vz-application/src/volvence_zero/application/runtime.py`~~（已抽到 `application/scoring_helpers.py`，是 W5 之后唯一剩下的 application-side fork）
-- **问题**：三套字符级 token + hash embedding，modulus / dim / prototype 字符串都不一致。W5 把 application-tier 的 fork 抽出独立 module，但 vz-cognition 仍有两份不一致的实现。
-- **违反**：SSOT（同一概念多处实现，不一致）
-- **短期风险**：低。单模块内部一致，不崩。
-- **触发条件**：跨模块联调 / 评估分数联立分析时 → 分数不可比，容易误判。
-- **推荐修法**：把 `volvence_zero.application.scoring_helpers.semantic_embedding` 提升到 `vz-contracts`，三处都引用同一函数；或升级为真正的 embedding 并单一缓存。
-- **优先级**：中-低。
-
-## 4. `EvaluationBackbone` 类型入口不干净
-
-- **路径**：大量文件从 `volvence_zero.evaluation.backbone` 引入纯类型（`EvaluationSnapshot` / `EvaluationScore` 等），而 SSOT 已在 `evaluation/types.py`
-- **问题**：consumer 只需要类型却绑定到含整棵 `EvaluationBackbone` 实现的模块，扩大加载图。
-- **违反**：简洁性，非 R8 硬违反。
-- **短期风险**：低。功能正常。
-- **触发条件**：后续再拆分 evaluation 内部时易造成循环 import。
-- **推荐修法**：机械收敛：把所有 `from volvence_zero.evaluation.backbone import <type>` 改为 `from volvence_zero.evaluation.types import <type>` 或 `from volvence_zero.evaluation import <type>`。
-- **优先级**：低（纯维护性）。
 
 ## 6. Phase 2.A — Full COCOA rewarding-state head（已落地，SHADOW/readout 默认）
 
@@ -92,6 +71,8 @@
 - ~~`prompt_planner` / `response_synthesizer` 重复阈值 (0.55 vs 0.56 等)~~ —— W2 of ssot-cleanup-p0-p4 关闭：所有阈值集中在 `InterlocutorThresholds`，consumer 读 zone bool。
 - ~~`response_synthesizer._repair_kind_label` 重复 RuptureKind→string 字典 + `getattr(rupture, "repair_pressure", 0.0)` duck-type~~ —— W3 of ssot-cleanup-p0-p4 关闭：`RuptureStateSnapshot.kind_label` 由 owner 从 `RUPTURE_KIND_LABEL` SSOT 派生；`rupture_state.owner.py` 改为 typed `relationship_state_value.repair_pressure` 访问。
 - ~~`response_synthesizer` 三个 `_render_*` 函数的 `if regime == "..."` 分支链~~ —— W3 of ssot-cleanup-p0-p4 关闭：`RegimeIdentity.expression_brief.acknowledge_hint / frame_hint / next_step_hint / open_loop_hint / continuity_hint` 是渲染 lookup key；新 regime 只需更新 `regime/templates.py` 的 brief。
+- ~~Debt #3: 三套语义 embedding stub 分叉（实际为四处：`application/scoring_helpers` / `dual_track/core` / `evaluation/semantic_readouts` / `application/storage`，known-debts 原列表漏掉了 storage 那一份）~~ —— ssot-cleanup-p5 关闭：canonical SSOT 落到 `volvence_zero.semantic_embedding`（`stub_semantic_embedding` / `stub_semantic_tokens` / `stub_cosine_similarity`），`CANONICAL_MODULUS = 65537`（与 dim 4/6/8/16/32/64/128/256 互质），四处 fork 全部改为 thin re-export，原 mod 37 / 41 不一致已消除。契约测试 [`tests/contracts/test_semantic_embedding_ssot.py`](../tests/contracts/test_semantic_embedding_ssot.py) 通过 identity 检查（三处 `is` 同一函数）+ AST 扫描禁止新增 `def _semantic_embedding`（白名单仅 `memory/retrieval` 的 dim=6/tags 签名与 `substrate/adapter` 的 dim=256 残差投影）。
+- ~~Debt #4: `EvaluationBackbone` 类型入口不干净（17 个文件从 `evaluation.backbone` 拉纯类型）~~ —— ssot-cleanup-p5 关闭：所有纯类型 import 改走 `volvence_zero.evaluation` facade（`evaluation/__init__.py` 已经 re-export）；只有 `EvaluationBackbone` / `EvaluationModule` / `_feature_surface_snapshot`（实现 + 内部 hook）保留 backbone 路径。契约测试 [`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 新增 `test_kernel_imports_evaluation_types_via_facade` 静态守门，AST 扫描全部 prod 代码强制此分层。
 
 ---
 

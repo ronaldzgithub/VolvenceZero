@@ -15,7 +15,7 @@ from volvence_zero.application.runtime import (
     ExperienceDelta,
     KnowledgeHit,
 )
-from volvence_zero.evaluation.backbone import EvaluationReport
+from volvence_zero.evaluation import EvaluationReport
 from volvence_zero.integration import SessionPostWritebackRequest
 from volvence_zero.credit.gate import SelfModificationRecord
 from volvence_zero.reflection import WritebackResult

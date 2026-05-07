@@ -59,6 +59,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # DialogueExternalOutcomeModule. The snapshot type itself lives
             # in vz-contracts' dialogue_trace module.
             "dialogue_trace",
+            # Stub semantic embedding SSOT (known-debts #3 closure):
+            # dual_track / evaluation consume the canonical character-level
+            # token+hash embedding from vz-contracts.
+            "semantic_embedding",
         }
     ),
     "vz-application": frozenset(
@@ -69,6 +73,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "reflection", "semantic_state", "rupture_state",
             "social", "social_cognition", "environment",
             "dialogue_trace",
+            # Stub semantic embedding SSOT (known-debts #3 closure).
+            "semantic_embedding",
         }
     ),
     "vz-temporal": frozenset(
@@ -329,6 +335,67 @@ def test_consumers_do_not_synthesize_disabled_temporal_placeholders() -> None:
     ).read_text(encoding="utf-8")
     assert "temporal-disabled-placeholder" not in source
     assert "fell back to placeholder temporal state" not in source
+
+
+_EVALUATION_BACKBONE_ALLOWED_SYMBOLS: frozenset[str] = frozenset(
+    {"EvaluationBackbone", "EvaluationModule", "_feature_surface_snapshot"}
+)
+
+
+def _find_evaluation_backbone_typed_imports(py_file: pathlib.Path) -> list[tuple[int, str]]:
+    """Return ``(lineno, name)`` pairs that violate known-debts #4 closure.
+
+    A violation is any ``from volvence_zero.evaluation.backbone import <name>``
+    where ``<name>`` is not in ``_EVALUATION_BACKBONE_ALLOWED_SYMBOLS``. Pure
+    types must be imported from the ``volvence_zero.evaluation`` facade
+    instead, so the implementation module ``backbone.py`` is only loaded
+    when consumers actually need its concrete classes.
+    """
+    source = py_file.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source, filename=str(py_file))
+    except SyntaxError as exc:  # pragma: no cover
+        pytest.fail(f"Cannot parse {py_file}: {exc}")
+    violations: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.module != "volvence_zero.evaluation.backbone":
+            continue
+        for alias in node.names:
+            if alias.name in _EVALUATION_BACKBONE_ALLOWED_SYMBOLS:
+                continue
+            violations.append((node.lineno, alias.name))
+    return violations
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_kernel_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_kernel_imports_evaluation_types_via_facade(wheel: str, py_file: pathlib.Path) -> None:
+    """Pure evaluation types must come from the ``evaluation`` facade.
+
+    Closes known-debts #4: pure type consumers should not bind to
+    ``evaluation.backbone`` (which carries the full ``EvaluationBackbone``
+    implementation). Only the implementation symbols
+    (``EvaluationBackbone`` / ``EvaluationModule``) and the internal hook
+    ``_feature_surface_snapshot`` may import from that path directly.
+    """
+    if py_file.name == "__init__.py" and py_file.parent.name == "evaluation":
+        return  # facade itself re-exports the implementations
+    violations = _find_evaluation_backbone_typed_imports(py_file)
+    if not violations:
+        return
+    rendered = ", ".join(f"{name}@L{lineno}" for lineno, name in violations)
+    pytest.fail(
+        f"{py_file.relative_to(REPO_ROOT)} imports type(s) [{rendered}] from "
+        f"volvence_zero.evaluation.backbone. Pure evaluation types must be "
+        f"imported from volvence_zero.evaluation (facade) instead. "
+        f"Only {sorted(_EVALUATION_BACKBONE_ALLOWED_SYMBOLS)} may use the "
+        f"backbone path. See known-debts.md #4."
+    )
 
 
 def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:

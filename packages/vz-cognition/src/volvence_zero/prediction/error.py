@@ -10,7 +10,7 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeSnapshot,
 )
 from volvence_zero.dual_track import DualTrackSnapshot
-from volvence_zero.evaluation.backbone import EvaluationSnapshot
+from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import CommitmentSnapshot
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
