@@ -1585,8 +1585,13 @@ def _boundary_constraints_expression_relevant(
     if not (decision.clarification_required or decision.citation_required or decision.required_disclaimers):
         return False
     if retrieval_policy_snapshot is None:
-        return True
-    return retrieval_policy_snapshot.knowledge_weight >= 0.38
+        return decision.citation_required
+    if decision.citation_required:
+        return retrieval_policy_snapshot.knowledge_weight >= 0.55
+    return (
+        decision.risk_band is not RiskBand.LOW
+        and retrieval_policy_snapshot.knowledge_weight >= 0.62
+    )
 
 
 def _required_disclaimer_phrase(disclaimer: str) -> str | None:

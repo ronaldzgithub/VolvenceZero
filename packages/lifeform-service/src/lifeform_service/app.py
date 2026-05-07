@@ -812,7 +812,10 @@ _CHAT_UI_HTML = r"""<!doctype html>
     </section>
   </main>
   <script>
-    const state = { sessionId: null };
+    const state = {
+      sessionId: null,
+      debug: new URLSearchParams(window.location.search).get("debug") === "1",
+    };
     const statusEl = document.getElementById("status");
     const logEl = document.getElementById("log");
     const inputEl = document.getElementById("input");
@@ -886,12 +889,14 @@ _CHAT_UI_HTML = r"""<!doctype html>
           body: JSON.stringify({ user_input: text }),
         });
         addMessage("bot", payload.response_text || "(empty response)");
-        const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
-          ? ` | tags=${payload.response_rationale_tags.join(",")}`
-          : "";
-        const meta = `turn=${payload.turn_index} | regime=${payload.active_regime || "none"} `
-          + `| intent=${payload.expression_intent || "none"}${tags}`;
-        addMessage("system", meta);
+        if (state.debug) {
+          const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
+            ? ` | tags=${payload.response_rationale_tags.join(",")}`
+            : "";
+          const meta = `turn=${payload.turn_index} | regime=${payload.active_regime || "none"} `
+            + `| intent=${payload.expression_intent || "none"}${tags}`;
+          addMessage("system", meta);
+        }
       } catch (err) {
         addMessage("system", `Turn failed: ${err.message}`);
       } finally {

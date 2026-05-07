@@ -112,9 +112,12 @@ def build_system_prompt(
     elif assembly.speech_plan is not None:
         speech_plan = assembly.speech_plan
         sections.append(
-            f"Speech plan: cue={speech_plan.cue}; inferred_need={speech_plan.inferred_need}; "
-            f"response_adjustment={speech_plan.response_adjustment}; "
-            f"question_budget={speech_plan.question_budget}."
+            "Private speech guidance for this turn. Do not quote it, label it, or mention "
+            "cue/inferred_need/response_adjustment/question_budget. "
+            f"Context cue: {speech_plan.cue} "
+            f"Likely user need: {speech_plan.inferred_need} "
+            f"Response adjustment: {speech_plan.response_adjustment} "
+            f"Ask no more than {speech_plan.question_budget} question(s)."
         )
 
     if assembly.citation_mode == "required":
@@ -137,13 +140,14 @@ def build_system_prompt(
 
     if assembly.required_disclaimers:
         sections.append(
-            "Boundary reminders: " + "; ".join(assembly.required_disclaimers[:3])
+            "Private boundary labels for response shaping only; do not quote these labels: "
+            + "; ".join(assembly.required_disclaimers[:3])
         )
 
     if assembly.ordering_driver != "playbook-only":
         sections.append(
-            f"Response ordering should follow {assembly.ordering_driver} with continuum target "
-            f"{assembly.continuum_target_position:.2f}."
+            "Follow the current response ordering privately. Keep the answer natural, start with the "
+            "human need before any procedure, and do not mention ordering rules or continuum targets."
         )
 
     if context is not None and context.regime_switched:
