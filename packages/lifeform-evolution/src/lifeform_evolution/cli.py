@@ -161,7 +161,13 @@ def _build_vertical_lifeform(name: str | None) -> object | None:
     raise SystemExit(f"Unknown vertical {name!r}.")
 
 
-def _build_vertical_lifeform_with_shared_store(name: str | None) -> object | None:
+def _build_vertical_lifeform_with_shared_store(
+    name: str | None,
+    *,
+    use_llm_semantic_runtime: bool = False,
+    llm_model_source: str | None = None,
+    llm_torch_dtype: str | None = None,
+) -> object | None:
     """Phase 2 W2.0 (debt #10A): vertical lifeform bound to a shared
     in-memory ``MemoryStore`` so subsequent ``create_session(...)`` calls
     on the same Lifeform reuse the SAME store across rounds.
@@ -170,6 +176,20 @@ def _build_vertical_lifeform_with_shared_store(name: str | None) -> object | Non
     ``lifeform-bench`` mode keeps the per-Lifeform default behaviour
     (each session gets its own fresh store) so unrelated benchmark
     semantics don't change.
+
+    When ``use_llm_semantic_runtime=True`` (companion vertical only):
+    routes through ``build_companion_lifeform_with_real_substrate(...)``
+    which loads Qwen ONCE and shares it between
+    ``TransformersOpenWeightResidualRuntime`` (residual capture) and
+    ``HFTextGenerationProvider`` + ``LLMSemanticProposalRuntime``
+    (commitment / ToM / common-ground typed proposals). The same
+    ``shared_store`` is forwarded so cross-round memory still
+    accumulates. ``fallback_to_builtin=False`` so HF load failures
+    surface loudly rather than silently dropping back to random
+    weights (which would defeat the purpose of an evidence run).
+    Caller is responsible for argparse-level validation that the
+    flag combo is supported (companion only at present); see
+    ``main()``.
 
     Returns ``None`` when ``name`` is unset (no vertical specified);
     raises ``SystemExit`` for unknown names so the failure is loud.
@@ -184,6 +204,23 @@ def _build_vertical_lifeform_with_shared_store(name: str | None) -> object | Non
 
     shared_store = build_default_memory_store()
     if name == "companion":
+        if use_llm_semantic_runtime:
+            from lifeform_domain_emogpt import (
+                DEFAULT_REAL_MODEL_SOURCE,
+                build_companion_lifeform_with_real_substrate,
+            )
+
+            bundle = build_companion_lifeform_with_real_substrate(
+                model_source=llm_model_source or DEFAULT_REAL_MODEL_SOURCE,
+                torch_dtype=llm_torch_dtype or "bfloat16",
+                use_llm_semantic_runtime=True,
+                fallback_to_builtin=False,
+                memory_store=shared_store,
+            )
+            print(
+                f"[bench] longitudinal companion lifeform: {bundle.status_label}"
+            )
+            return bundle.lifeform
         from lifeform_domain_emogpt import build_companion_lifeform
 
         return build_companion_lifeform(memory_store=shared_store)
@@ -356,6 +393,43 @@ def _build_bench_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--use-llm-semantic-runtime",
+        action="store_true",
+        help=(
+            "Phase 2 W2.0c (debt #10B closure): route the longitudinal "
+            "companion lifeform through "
+            "``build_companion_lifeform_with_real_substrate("
+            "use_llm_semantic_runtime=True, ...)`` so the LLM-backed "
+            "``SemanticProposalRuntime`` (and the auto-derived ToM / "
+            "common-ground proposal runtimes) are wired in. Without "
+            "this flag, the longitudinal pass uses ``NoOpSemanticProposalRuntime`` "
+            "and ToM / common-ground owner records stay empty (visible "
+            "as f3.tom_records_total = 0 in the family report). Loads "
+            "Qwen 2.5 1.5B Instruct ONCE, shared between residual "
+            "capture + LLM proposal generation. Implies "
+            "--longitudinal-rounds > 0 and --vertical companion."
+        ),
+    )
+    parser.add_argument(
+        "--llm-model-source",
+        default=None,
+        help=(
+            "HuggingFace model source for --use-llm-semantic-runtime. "
+            "Default: Qwen/Qwen2.5-1.5B-Instruct (matches "
+            "lifeform_domain_emogpt.DEFAULT_REAL_MODEL_SOURCE). "
+            "Override for ablations / smaller models on RAM-tight hosts."
+        ),
+    )
+    parser.add_argument(
+        "--llm-torch-dtype",
+        choices=("bfloat16", "float16", "float32"),
+        default="bfloat16",
+        help=(
+            "Torch dtype for the LLM model under --use-llm-semantic-runtime. "
+            "Default bfloat16 keeps Qwen 1.5B under ~3 GB RAM."
+        ),
+    )
+    parser.add_argument(
         "--companion-evidence-report",
         action="store_true",
         help=(
@@ -497,6 +571,21 @@ def main(argv: list[str] | None = None) -> int:
             "instance can be reused across rounds (memory + session-post "
             "slow loop carry forward only on a shared Lifeform)."
         )
+    if args.use_llm_semantic_runtime:
+        if args.longitudinal_rounds <= 0:
+            parser.error(
+                "--use-llm-semantic-runtime requires --longitudinal-rounds > 0; "
+                "the LLM-backed runtime is only wired into the longitudinal "
+                "evidence path (debt #10B). Use "
+                "examples/companion_verify_llm_semantic_runtime.py for "
+                "single-session diagnostics."
+            )
+        if args.vertical != "companion":
+            parser.error(
+                "--use-llm-semantic-runtime currently supports only "
+                "--vertical companion (debt #10A's coding follow-up "
+                "blocks coding from this path)."
+            )
     want_companion_evidence = (
         args.companion_evidence_report or args.companion_evidence_json is not None
     )
@@ -554,7 +643,10 @@ def main(argv: list[str] | None = None) -> int:
         # pass above) keeps the per-session-fresh-store semantics so
         # unrelated benchmark modes are unchanged.
         longitudinal_lifeform = _build_vertical_lifeform_with_shared_store(
-            args.vertical
+            args.vertical,
+            use_llm_semantic_runtime=args.use_llm_semantic_runtime,
+            llm_model_source=args.llm_model_source,
+            llm_torch_dtype=args.llm_torch_dtype,
         )
         if longitudinal_lifeform is None:  # pragma: no cover - guarded by parser earlier
             parser.error(

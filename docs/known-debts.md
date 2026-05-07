@@ -1,7 +1,7 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-08 (post EQ-owner-uplift Phase 1 + 2)
+> Last updated: 2026-05-08 (post DM-1 + CMA-2 Wave 3 evidence run)
 
 本文档记录已知但暂不处理的架构债。每条都经过评估：**不处理短期不会导致系统行为错误**，但**中长期会影响可演化性或可调试性**。新增条目时参照相同格式：路径 / 问题 / 风险 / 触发条件 / 推荐修法。
 
@@ -9,7 +9,9 @@
 >
 > 2026-05-07 update: ssot-cleanup-p5 land。debts #3 / #4 已关闭：#3 把 `stub_semantic_embedding` 提升到 `vz-contracts.semantic_embedding`，原四处 fork（`application/scoring_helpers` / `dual_track/core` / `evaluation/semantic_readouts` / `application/storage`，known-debts 原列表漏掉了 storage 那一份）全部改为 thin re-export，canonical modulus 统一为 65537（与常用 dim 互质），契约测试 [`tests/contracts/test_semantic_embedding_ssot.py`](../tests/contracts/test_semantic_embedding_ssot.py) 守门；#4 17 个 prod / 测试文件的纯类型 import 收敛到 `volvence_zero.evaluation` facade，[`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 静态拒绝从 `evaluation.backbone` 拉纯类型。
 >
-> 2026-05-08 update: EQ-owner uplift Phase 1 (W1.A-F) + Phase 2 (W2.A-D) land：7 个 SHADOW EQ owner（interlocutor / rupture / 4 ToM about-other / common_ground / session_post_slow_loop）promote 到 ACTIVE，wiring 完整，830 个 contract / unit test 通过；W2.C longitudinal aggregator + W2.D sparse-reward 接线 ready。但**实测发现这条 evidence 链整体不通**：默认 benchmark 没共享 memory + 没接 LLM proposal runtime → ToM owner records 始终为空 + 跨 session 学习信号弱到 0.001-0.006 量级。详见新 debt #10。
+> 2026-05-08 update: EQ-owner uplift Phase 1 (W1.A-F) + Phase 2 (W2.A-D) land：7 个 SHADOW EQ owner（interlocutor / rupture / 4 ToM about-other / common_ground / session_post_slow_loop）promote 到 ACTIVE，wiring 完整，830 个 contract / unit test 通过；W2.C longitudinal aggregator + W2.D sparse-reward 接线 ready。但**实测发现这条 evidence 链整体不通**：默认 benchmark 没共享 memory + 没接 LLM proposal runtime → ToM owner records 始终为空 + 跨 session 学习信号弱到 0.001-0.006 量级。详见 debt #10。
+>
+> 2026-05-08 update (later): DM-1 distributional PE + CMA-2 VZ-MemProbe 三 wave 全部 land。W1: `PredictionError.distribution_summary` + `_PEDistributionWindow` + `VitalsSnapshot.distributional_drift_axes` + 10 contract test 全绿。W2: `lifeform-bench --longitudinal-rounds N` 现在共享 `MemoryStore`（**debt #10A 关闭**）+ `BenchmarkReport.final_interlocutor_axes` + `LongitudinalFamilyReport.il_rapport_trend_pos` 新 acceptance gate；4 个 VZ-MemProbe（`tests/longitudinal/test_vz_memprobe_*.py`）3/4 PASS, 1 XFAIL（context disambiguation）。W3 联合 evidence run（`artifacts/eq_uplift/distributional_evidence.json`）暴露两个新发现：(a) **debt #11**: PE 分布窗口在典型 5-15 turn benchmark session 下永不填满（min_window=16 > 默认 scene 长度），W1.3 vitals drift 在真实 benchmark 中始终为空；(b) **debt #10D**: `RetrievalQuery.facets` 在 `_score_entry` 评分中权重不足以 disambiguate top-1（context 探针 XFAIL 的根因）。debt #10C 状态保留：实测 il_rapport delta mean=+0.0018 / SNR≈0.80，信号方向正确但仍弱，前置依赖 #10B（LLM runtime 接入）；本 wave 未触动 #10B / #10C，只把 #10A 关闭并把 evidence 链补完。
 
 ---
 
@@ -57,26 +59,9 @@
 
 > 这一条是**三个相互关联但需要分别修**的 sub-issue。架构通了、契约测试通了，但实测发现真实 benchmark 跑不出 evidence。诊断 artifact 在 [`artifacts/eq_uplift/cross_session_probe.json`](../artifacts/eq_uplift/cross_session_probe.json)、跑分日志在 `artifacts/eq_uplift/longitudinal*.{log,json}`。
 
-### 10A. `lifeform-bench --longitudinal-rounds N` 不共享 memory store，每轮是独立 session
+### ~~10A. `lifeform-bench --longitudinal-rounds N` 不共享 memory store，每轮是独立 session~~ —— 2026-05-08 关闭
 
-- **路径**：
-  - `packages/lifeform-evolution/src/lifeform_evolution/cli.py`（longitudinal pass 调 `_run_with_lifeform`）
-  - `packages/lifeform-evolution/src/lifeform_evolution/benchmark.py:300`（`run_benchmark_async` 每轮 `lifeform.create_session(...)`）
-  - `packages/vz-runtime/src/volvence_zero/brain.py:475`（`session_memory_store: MemoryStore | None = self._memory_store`，默认 `None`）
-- **问题**：W2.C 的 `--longitudinal-rounds N` 名义上是「跨 N 个 session 跑同一 scenario，让 memory carry forward」。实测：
-  - `Brain._memory_store` 默认 `None` → 每个 session 拿到一个**全新 in-memory store**
-  - `_case_memory_store` / 各 owner 内部 store 也是 per-runner 创建
-  - 唯一跨 session 共享的是 `Lifeform` 实例本身（含 bootstrap、应用经验包），但**会话内学到的东西不会写回到 Lifeform**
-  - 结果：跑 3 rounds 的 longitudinal 报告，bond_warmth_first / bond_warmth_last 永远相等，trend = 0.0 是**测量正确的零信号**，不是「关系没漂移」
-- **诊断证据**：[`artifacts/eq_uplift/cross_session_probe.json`](../artifacts/eq_uplift/cross_session_probe.json) 显示，**手动构造 `build_default_memory_store()` 显式注入**给 `build_companion_lifeform(memory_store=...)` 后，`il_trust` / `il_rapport` 跨 round 出现 +0.001 ~ +0.006 的非零 delta（弱但真）；不注入时 delta = 0
-- **风险**：中。现有的 [`tests/contracts/test_longitudinal_family_report.py`](../tests/contracts/test_longitudinal_family_report.py) 7 个 unit test 依然正确（aggregator 数学没问题），但任何引用「F3 longitudinal PASS」当**关系连续性 evidence**的 PR / report 都是误读
-- **触发条件**：(a) 有人 cite W2.C 的 longitudinal 报告作为「跨 session 关系成长」evidence；(b) F3 的 `continuity_improved_vs_baseline` gate 进生产 acceptance pipeline 之前
-- **推荐修法**：
-  1. `lifeform-bench --longitudinal-rounds N` 默认在 round 循环外构造一个 `MemoryStore`，传给 vertical lifeform builder（`build_companion_lifeform(memory_store=...)`）
-  2. `BenchmarkReport` 增加 `final_interlocutor_axes: tuple[tuple[str, float], ...]`（含 `il_trust` / `il_rapport` / `il_conf` / `il_pace_pressure` / `il_emotional` / `il_resistance`）
-  3. `LongitudinalFamilyReport` 增加 `il_trust_first/last/trend` + `il_rapport_first/last/trend` 字段；保留 `bond_warmth_*` 但加 note：「饱和 drive，跨 session 通常 trend=0；用 il_* 看跨 session 信号」
-  4. 现有 7 个 longitudinal aggregator unit test 保留（仍正确），增加 1 个 e2e 测试断言「shared memory_store + cross-session-emotional-followup scenario → il_rapport_trend > 0」
-- **优先级**：中（影响 evidence 解读，修法不大；估计 4-6 小时含测试）
+DM-1 + CMA-2 Wave 2 关闭。`lifeform-evolution/cli.py` 新加 `_build_vertical_lifeform_with_shared_store(name)` helper，在 longitudinal pass 进入 round 循环之前构造一个 `build_default_memory_store()` 实例并通过 `build_companion_lifeform(memory_store=...)` 注入；`BenchmarkReport.final_interlocutor_axes` 增加 6 个 il 轴；`_compute_f3` 把它们包装成 `f3.il_trust_final` / `f3.il_rapport_final` 等 metric；`LongitudinalFamilyReport` 增加 `il_trust_first/last/trend` + `il_rapport_first/last/trend` + 新 acceptance gate `il_rapport_trend_pos`（threshold 0.005）。新增 4 个 unit test（`test_il_axes_absent_falls_back_to_legacy_gate` / `test_il_rapport_trend_pos_blocks_passed_when_below_threshold` / `test_il_rapport_trend_pos_passes_when_above_threshold` / `test_il_axes_dict_round_trips`）。原 `bond_warmth_*` 保留作为 backward-compat 但 docstring 注明「饱和 drive，跨 session 通常 trend=0；用 il_* 看跨 session 信号」。Coding vertical 回退到 per-session store 直到 `build_coding_lifeform` 接 `memory_store=` kwarg。
 
 ### 10B. W1 EQ owner records 在默认 NoOp semantic runtime 下永远为空
 
@@ -98,6 +83,22 @@
   3. （评估侧）跑一次 `build_companion_lifeform_with_real_substrate(use_llm_semantic_runtime=True)` + cross-session probe，把结果存到 `artifacts/eq_uplift/cross_session_probe_llm.json` 作为「W1 EQ owner 真激活」的证据 baseline。预计需 30-60 分钟 CPU + Qwen 1.5B 模型已下载
 - **优先级**：中。架构正确，但 evidence 缺失，影响 PRD 的 EQ 能力宣称
 
+### 10D. `RetrievalQuery.facets` 在 `_score_entry` 中权重不足以驱动 regime 级 disambiguation（2026-05-08 新增 / VZ-MemProbe Context XFAIL）
+
+- **路径**：
+  - `packages/vz-memory/src/volvence_zero/memory/store.py:840`（`_score_entry`）
+  - `packages/vz-memory/src/volvence_zero/memory/store.py:894`（`_query_base_signal` 把 `query.facets` 喂进 `_owner_signal` tags 通道）
+  - `tests/longitudinal/test_vz_memprobe_context.py:test_mp_context_regime_facet_disambiguates_both_directions`（XFAIL `strict=True`）
+- **问题**：CMA-2 Context 探针构造两个共享关键词 "review"、但属于不同 regime 的 entry（一个 `regime:problem_solving` PR review、一个 `regime:casual_social` restaurant review），用 `RetrievalQuery(text="user review", facets=("regime:problem_solving",))` 期望把 PR review 排到 top-1。实测：facet 权重不足 → 两个 entry 在 lexical + semantic score 上几乎并列，recency 决定胜负 → 更晚写入的 restaurant entry 在两个方向都赢，无法 disambiguate
+- **诊断证据**：[`artifacts/eq_uplift/distributional_evidence.json`](../artifacts/eq_uplift/distributional_evidence.json) 的 `cma2_probes` 块 `mp.context.regime_match_symmetric` 状态为 XFAIL，附 `engineering_top_is_pr=False` / `social_top_is_restaurant=True` 字段（recency-driven 的不对称失败模式）
+- **风险**：中。`docs/specs/multi-timescale-learning.md` 与 `docs/specs/regime/persistent-identity.md` 假设 regime context 可影响 retrieval；当前实现只是把 regime tag 放到 entry tags 但 retrieval 端没有强加权 → 同 keyword 跨 regime 串扰
+- **触发条件**：高 EQ 场景下用户在不同 regime 上下文使用同一关键词（如 "review" / "schedule" / "feedback"），系统给的回应取决于哪条 entry 写得最晚而不是当前 regime
+- **推荐修法**（择一）：
+  1. **简单**：在 `_score_entry` 里给「entry tag 命中 query facet」加显式 boost（如 +5），让 regime-match 在 lexical tie 中决定胜负
+  2. **彻底**：retrieval 加一条 "facet hard filter" 选项 — 当 `RetrievalQuery.facets` 有 `regime:*` prefix 时，先按 facet 过滤再排序；不匹配的进入 `suppressed_cross_scope_entries`
+  3. 任意修法 land 后，把 `test_mp_context_regime_facet_disambiguates_both_directions` 的 `pytest.mark.xfail(strict=True)` 摘掉，CI 应自动转 PASS
+- **优先级**：中（影响 high-EQ regime fidelity，修法 #1 是 1-2 小时工作）
+
 ### 10C. 跨 session 学习信号在 shared memory + NoOp runtime 下幅度过弱（0.001-0.006）
 
 - **路径**：诊断点散布于 `interlocutor/readout.py`、`vitals` 各 drive 的 recharge 公式
@@ -112,6 +113,25 @@
   1. （等 10A/10B 完成再决定）让 `InterlocutorReadoutContext` 增加显式 cumulative 字段（如 `cumulative_emotional_disclosure_count` / `cumulative_repair_count`），从 `MemoryStore` 跨 session 累积取
   2. 或者把 ToM `OtherMindRecord` 的高 confidence 持久 records 喂进 `interlocutor_state` 的 readout 作为「关系深度」proxy
 - **优先级**：低（前置依赖 10A + 10B，目前无法直接 actionable）
+
+## 11. PE distribution window 是 per-session 私有，benchmark 永不填满（2026-05-08 新增 / DM-1 Wave 3 evidence run）
+
+- **路径**：
+  - `packages/vz-cognition/src/volvence_zero/prediction/error.py:_PEDistributionWindow`（owner-internal min_window=16, max_window=64）
+  - `packages/vz-cognition/src/volvence_zero/prediction/error.py:PredictionErrorModule.__init__`（`self._distribution_window = _PEDistributionWindow(...)` per-instance）
+  - `packages/vz-runtime/src/volvence_zero/integration/final_wiring.py`（`run_final_wiring_turn` 每个 turn 构造一次 `PredictionErrorModule()`；W3.1 probe 显示每个 lifeform session 也是 fresh 实例）
+- **问题**：W1.2 设计 `_PEDistributionWindow` 时使用 `min_window=16`，需要 16 个非 bootstrap turn 后才发布 `DistributionSummary`。这在 unit test 下没问题（`test_pe_distribution_summary_contract.py` 直接喂 16 个样本），但**在真实 benchmark scenario 下永不达到**：
+  - W3.1 probe 跑 7 scenario × 3 round × 5-15 turn/scenario，结果 5/5 scenario 的 `pe_distribution_summary = None` 持续到最后一 round
+  - 原因：每个 scenario 跑 5-15 turn < 16 min_window，且每个 round 共享 memory_store 但**不共享 PE 窗口**（PE owner 是 per-session 内部状态，新 session 重新创建空窗口）
+  - 副作用：`VitalsModule.observe_pe_distribution` 永远收 None → `distributional_drift_axes` 永远空 → DM-1 在真实 benchmark 中**完全没有可观察的 evidence**，只在 contract test 下激活
+- **诊断证据**：[`artifacts/eq_uplift/distributional_evidence.json`](../artifacts/eq_uplift/distributional_evidence.json) 的 `summary` 块 `iqr_task_delta.count = 0` / `iqr_relationship_delta.count = 0` / `entropy_relationship_delta.count = 0` —— 5 个 scenario 没有任何一个产出过非 None 的 distribution_summary
+- **风险**：中。架构通了、契约测试通了，但**实际 benchmark 拿不到 distributional 信号**就等于白做了 W1。任何 cite「DM-1 distributional readout enables Botvinick-style mode-collapse detection」的 PR / paper 都需要先解决这条
+- **触发条件**：(a) demo / paper / family-report 里 cite 「distributional drift 是 health signal」时；(b) 当某个下游消费者（regime calibrator / ReflectionEngine）开始要读 `vitals.distributional_drift_axes`，会发现它在线上始终是 `()`
+- **推荐修法**（择一或组合）：
+  1. **简单 / Wave 4**：把 `_PEDistributionWindow.min_window` 从 16 降到 8（保留 max_window=64）。8 个样本仍能产生稳定 IQR / entropy 估计（boxplot lit 标准 n≥5 即可），但能在 8-turn scenario 中激活；contract test 同步 follow
+  2. **彻底**：把 PE 分布窗口提升为 **lifeform-level shared state**（同 memory_store 的共享模式）。让 `Brain` / `Lifeform` 持有一份 `_PEDistributionWindow`，每个 session 创建 `PredictionErrorModule` 时把 shared 窗口注入进去；window state 跨 session 累积
+  3. **方法学**：写一个 long-form scenario（30-50 turn 单 session），跑一次 distributional probe 验证窗口能填满 → 证明 mechanism 正确 → 再决定 (1) 还是 (2)
+- **优先级**：中。前两条修法都是 < 半天工作；如果 (3) 验证 mechanism 正确，(1) 是最小入侵改动
 
 ---
 

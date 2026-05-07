@@ -83,6 +83,21 @@ class BenchmarkReport:
     # ``il_trust`` / ``il_rapport`` / ``il_conf`` /
     # ``il_pace_pressure`` / ``il_emotional`` / ``il_resistance``.
     final_interlocutor_axes: tuple[tuple[str, float], ...] = ()
+    # Phase 2 W2.0c (debt #10B closure): end-of-scenario activation
+    # diagnostics for the EQ owner chain. ``tom_records_total`` is
+    # the sum of ``.records`` length across the four about-other
+    # ToM owners (belief / intent / feeling / preference);
+    # ``common_ground_dyad_atoms_total`` is the count of dyad atoms
+    # in the ``common_ground`` snapshot. Both stay 0 under the
+    # default ``NoOpSemanticProposalRuntime`` because the ToM /
+    # common-ground proposal runtimes are fail-closed (see
+    # ``volvence_zero.integration.final_wiring`` lines 1201-1219).
+    # Wiring an ``LLMSemanticProposalRuntime`` (e.g. via
+    # ``--use-llm-semantic-runtime``) flips them positive: that
+    # 0 -> > 0 transition is the load-bearing observable for
+    # known-debt #10B item 2.
+    tom_records_total: int = 0
+    common_ground_dyad_atoms_total: int = 0
 
     def passed(self, *, min_regime_match_rate: float = 0.5, min_response_non_empty: float = 1.0) -> bool:
         return (
@@ -411,6 +426,36 @@ async def run_benchmark_async(
             ("il_pace_pressure", float(interlocutor_state.pace_pressure)),
             ("il_emotional", float(interlocutor_state.emotional_weight)),
             ("il_resistance", float(interlocutor_state.resistance_level)),
+        )
+    # Phase 2 W2.0c (debt #10B closure): end-of-scenario EQ owner
+    # activation counts. We read from ``latest_active_snapshots``
+    # first then fall back to ``latest_shadow_snapshots`` so the
+    # counters work in both ACTIVE and SHADOW wiring; missing
+    # snapshots collapse to 0. Each ToM about-other owner publishes
+    # ``records`` (tuple of ``OtherMindRecord``); ``common_ground``
+    # publishes ``dyad_atoms``. We deliberately do NOT include
+    # ``group_atoms`` because group cognition is still SHADOW by
+    # default and would inflate the number with zero-confidence
+    # readings on companion runs.
+    tom_records_total = 0
+    common_ground_dyad_atoms_total = 0
+    active_snaps = session.latest_active_snapshots
+    shadow_snaps = session.latest_shadow_snapshots
+    for slot in (
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
+    ):
+        snap = active_snaps.get(slot) or shadow_snaps.get(slot)
+        if snap is None:
+            continue
+        records = getattr(snap.value, "records", ())
+        tom_records_total += len(records)
+    cg_snap = active_snaps.get("common_ground") or shadow_snaps.get("common_ground")
+    if cg_snap is not None:
+        common_ground_dyad_atoms_total = len(
+            getattr(cg_snap.value, "dyad_atoms", ())
         )
     pending = session.followup_manager.pending
     pending_followup_count = len(pending)

@@ -236,6 +236,7 @@ def build_companion_lifeform_with_real_substrate(
     torch_dtype: str | None = "bfloat16",
     local_files_only: bool = False,
     config: Any = None,
+    memory_store: Any = None,
 ) -> CompanionLifeformBundle:
     """Build a companion lifeform backed by a real HF transformer.
 
@@ -267,9 +268,17 @@ def build_companion_lifeform_with_real_substrate(
     ``"auto"``); the runtime forwards it to the underlying torch
     model.
 
-    Lifeform-construction kwargs (``use_*_bootstrap``, ``config``)
-    are forwarded to ``build_companion_lifeform`` so callers don't
-    have to chain two factories.
+    Lifeform-construction kwargs (``use_*_bootstrap``, ``config``,
+    ``memory_store``) are forwarded to ``build_companion_lifeform``
+    so callers don't have to chain two factories.
+
+    ``memory_store`` is the single hand-in point for the longitudinal
+    cross-session evidence path (debt #10A): when callers pass a
+    pre-built ``MemoryStore`` the resulting bundle's ``Lifeform``
+    creates every ``BrainSession`` with that store, so round 2
+    sees what round 1 wrote. Default ``None`` preserves the legacy
+    per-session-fresh-store behaviour for unit tests / single-session
+    demos.
     """
     from lifeform_domain_emogpt import build_companion_lifeform
 
@@ -292,6 +301,7 @@ def build_companion_lifeform_with_real_substrate(
         use_vitals_bootstrap=use_vitals_bootstrap,
         substrate_runtime=runtime,
         semantic_proposal_runtime=llm_semantic_runtime,
+        memory_store=memory_store,
     )
     return CompanionLifeformBundle(
         lifeform=lifeform,
