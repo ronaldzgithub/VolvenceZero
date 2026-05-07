@@ -1,0 +1,259 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "cross-session-emotional-followup",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1646,
+          "il_rapport": 0.7976,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7575,
+          "il_emotional": 0.7155,
+          "il_resistance": 0.3389,
+          "round": 0
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1676,
+          "il_rapport": 0.8039,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7573,
+          "il_emotional": 0.7129,
+          "il_resistance": 0.3315,
+          "round": 1
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1675,
+          "il_rapport": 0.8037,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7572,
+          "il_emotional": 0.713,
+          "il_resistance": 0.3318,
+          "round": 2
+        }
+      ],
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 0.0029000000000000137,
+      "delta_il_rapport": 0.006099999999999994,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": -0.00029999999999996696,
+      "delta_il_emotional": -0.0025000000000000577,
+      "delta_il_resistance": -0.007099999999999995
+    },
+    {
+      "scenario_id": "cross-session-revisit-decision",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.151,
+          "il_rapport": 0.8335,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7502,
+          "il_emotional": 0.6836,
+          "il_resistance": 0.2877,
+          "round": 0
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.151,
+          "il_rapport": 0.8335,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7499,
+          "il_emotional": 0.6835,
+          "il_resistance": 0.2876,
+          "round": 1
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.151,
+          "il_rapport": 0.8335,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7497,
+          "il_emotional": 0.6835,
+          "il_resistance": 0.2876,
+          "round": 2
+        }
+      ],
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 0.0,
+      "delta_il_rapport": 0.0,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": -0.0004999999999999449,
+      "delta_il_emotional": -9.999999999998899e-05,
+      "delta_il_resistance": -9.999999999998899e-05
+    },
+    {
+      "scenario_id": "trust-rupture-repair",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 0.94,
+          "engagement": 1.0,
+          "continuity": 0.9500000000000001,
+          "il_trust": 0.1664,
+          "il_rapport": 0.8734,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7908,
+          "il_emotional": 0.6934,
+          "il_resistance": 0.2684,
+          "round": 0
+        },
+        {
+          "bond_warmth": 0.94,
+          "engagement": 1.0,
+          "continuity": 0.9500000000000001,
+          "il_trust": 0.1666,
+          "il_rapport": 0.8742,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.795,
+          "il_emotional": 0.6933,
+          "il_resistance": 0.2681,
+          "round": 1
+        },
+        {
+          "bond_warmth": 0.94,
+          "engagement": 1.0,
+          "continuity": 0.9500000000000001,
+          "il_trust": 0.1666,
+          "il_rapport": 0.8746,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7968,
+          "il_emotional": 0.6932,
+          "il_resistance": 0.2679,
+          "round": 2
+        }
+      ],
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 0.00020000000000000573,
+      "delta_il_rapport": 0.0012000000000000899,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": 0.006000000000000005,
+      "delta_il_emotional": -0.00019999999999997797,
+      "delta_il_resistance": -0.0005000000000000004
+    },
+    {
+      "scenario_id": "low-mood-disclosure",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 0.78,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1552,
+          "il_rapport": 0.8922,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7369,
+          "il_emotional": 0.6917,
+          "il_resistance": 0.2998,
+          "round": 0
+        },
+        {
+          "bond_warmth": 0.78,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1553,
+          "il_rapport": 0.8925,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7389,
+          "il_emotional": 0.6918,
+          "il_resistance": 0.2997,
+          "round": 1
+        },
+        {
+          "bond_warmth": 0.78,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1553,
+          "il_rapport": 0.8929,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7406,
+          "il_emotional": 0.6918,
+          "il_resistance": 0.2996,
+          "round": 2
+        }
+      ],
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 9.999999999998899e-05,
+      "delta_il_rapport": 0.0007000000000000339,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": 0.0037000000000000366,
+      "delta_il_emotional": 9.999999999998899e-05,
+      "delta_il_resistance": -0.00020000000000003348
+    },
+    {
+      "scenario_id": "guided-life-decision",
+      "rounds": 3,
+      "per_round": [
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.174,
+          "il_rapport": 0.848,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7123,
+          "il_emotional": 0.6991,
+          "il_resistance": 0.3311,
+          "round": 0
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1741,
+          "il_rapport": 0.8484,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.7143,
+          "il_emotional": 0.6991,
+          "il_resistance": 0.3309,
+          "round": 1
+        },
+        {
+          "bond_warmth": 0.8,
+          "engagement": 1.0,
+          "continuity": 1.0,
+          "il_trust": 0.1741,
+          "il_rapport": 0.8488,
+          "il_conf": 0.865,
+          "il_pace_pressure": 0.716,
+          "il_emotional": 0.699,
+          "il_resistance": 0.3308,
+          "round": 2
+        }
+      ],
+      "delta_bond_warmth": 0.0,
+      "delta_engagement": 0.0,
+      "delta_continuity": 0.0,
+      "delta_il_trust": 0.00010000000000001674,
+      "delta_il_rapport": 0.0008000000000000229,
+      "delta_il_conf": 0.0,
+      "delta_il_pace_pressure": 0.0036999999999999256,
+      "delta_il_emotional": -0.00010000000000010001,
+      "delta_il_resistance": -0.00030000000000002247
+    }
+  ]
+}

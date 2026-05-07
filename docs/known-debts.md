@@ -1,13 +1,15 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-07 (post ssot-cleanup-p5)
+> Last updated: 2026-05-08 (post EQ-owner-uplift Phase 1 + 2)
 
 本文档记录已知但暂不处理的架构债。每条都经过评估：**不处理短期不会导致系统行为错误**，但**中长期会影响可演化性或可调试性**。新增条目时参照相同格式：路径 / 问题 / 风险 / 触发条件 / 推荐修法。
 
 > 2026-05-06 update: ssot-cleanup-p0-p4 五个 wave 全部 land。debts #1 / #2 已关闭；debt #3 缩窄到一个文件（已抽 `application/scoring_helpers.py`，剩 `vz-cognition` 的两个 fork 留给 future 收敛）；新增 #9（god 文件结构债，从 W5 部分切分中产生）。
 >
 > 2026-05-07 update: ssot-cleanup-p5 land。debts #3 / #4 已关闭：#3 把 `stub_semantic_embedding` 提升到 `vz-contracts.semantic_embedding`，原四处 fork（`application/scoring_helpers` / `dual_track/core` / `evaluation/semantic_readouts` / `application/storage`，known-debts 原列表漏掉了 storage 那一份）全部改为 thin re-export，canonical modulus 统一为 65537（与常用 dim 互质），契约测试 [`tests/contracts/test_semantic_embedding_ssot.py`](../tests/contracts/test_semantic_embedding_ssot.py) 守门；#4 17 个 prod / 测试文件的纯类型 import 收敛到 `volvence_zero.evaluation` facade，[`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 静态拒绝从 `evaluation.backbone` 拉纯类型。
+>
+> 2026-05-08 update: EQ-owner uplift Phase 1 (W1.A-F) + Phase 2 (W2.A-D) land：7 个 SHADOW EQ owner（interlocutor / rupture / 4 ToM about-other / common_ground / session_post_slow_loop）promote 到 ACTIVE，wiring 完整，830 个 contract / unit test 通过；W2.C longitudinal aggregator + W2.D sparse-reward 接线 ready。但**实测发现这条 evidence 链整体不通**：默认 benchmark 没共享 memory + 没接 LLM proposal runtime → ToM owner records 始终为空 + 跨 session 学习信号弱到 0.001-0.006 量级。详见新 debt #10。
 
 ---
 
@@ -50,6 +52,66 @@
 - **触发条件**：再有一个大型 feature 落到 `AgentSessionRunner` / `ResponseAssemblyModule` 上时 → 单文件超过 4500 行，新人 onboarding 成本飙升；新功能与既有 phase 边界混淆。
 - **推荐修法**：W5 plan 描述的物理切分（`agent/session/{lifecycle,writeback_phase,training_phase,observation}.py` + `application/{response_assembly,retrieval_policy,decision_kind,scoring}.py`）。需要先在 `AgentSessionRunner` 上引入 mixin / 服务对象重组，再做物理切分。预计 2-3 天工作量；建议在主路径稳定 + 没有并行重构压力时一并做。
 - **优先级**：低。等 W6+ wave 时一起做。
+
+## 10. EQ-owner uplift Phase 1+2 后 cross-session evidence 链断裂（W2.C / W1.C/D/E/F / W2.A）
+
+> 这一条是**三个相互关联但需要分别修**的 sub-issue。架构通了、契约测试通了，但实测发现真实 benchmark 跑不出 evidence。诊断 artifact 在 [`artifacts/eq_uplift/cross_session_probe.json`](../artifacts/eq_uplift/cross_session_probe.json)、跑分日志在 `artifacts/eq_uplift/longitudinal*.{log,json}`。
+
+### 10A. `lifeform-bench --longitudinal-rounds N` 不共享 memory store，每轮是独立 session
+
+- **路径**：
+  - `packages/lifeform-evolution/src/lifeform_evolution/cli.py`（longitudinal pass 调 `_run_with_lifeform`）
+  - `packages/lifeform-evolution/src/lifeform_evolution/benchmark.py:300`（`run_benchmark_async` 每轮 `lifeform.create_session(...)`）
+  - `packages/vz-runtime/src/volvence_zero/brain.py:475`（`session_memory_store: MemoryStore | None = self._memory_store`，默认 `None`）
+- **问题**：W2.C 的 `--longitudinal-rounds N` 名义上是「跨 N 个 session 跑同一 scenario，让 memory carry forward」。实测：
+  - `Brain._memory_store` 默认 `None` → 每个 session 拿到一个**全新 in-memory store**
+  - `_case_memory_store` / 各 owner 内部 store 也是 per-runner 创建
+  - 唯一跨 session 共享的是 `Lifeform` 实例本身（含 bootstrap、应用经验包），但**会话内学到的东西不会写回到 Lifeform**
+  - 结果：跑 3 rounds 的 longitudinal 报告，bond_warmth_first / bond_warmth_last 永远相等，trend = 0.0 是**测量正确的零信号**，不是「关系没漂移」
+- **诊断证据**：[`artifacts/eq_uplift/cross_session_probe.json`](../artifacts/eq_uplift/cross_session_probe.json) 显示，**手动构造 `build_default_memory_store()` 显式注入**给 `build_companion_lifeform(memory_store=...)` 后，`il_trust` / `il_rapport` 跨 round 出现 +0.001 ~ +0.006 的非零 delta（弱但真）；不注入时 delta = 0
+- **风险**：中。现有的 [`tests/contracts/test_longitudinal_family_report.py`](../tests/contracts/test_longitudinal_family_report.py) 7 个 unit test 依然正确（aggregator 数学没问题），但任何引用「F3 longitudinal PASS」当**关系连续性 evidence**的 PR / report 都是误读
+- **触发条件**：(a) 有人 cite W2.C 的 longitudinal 报告作为「跨 session 关系成长」evidence；(b) F3 的 `continuity_improved_vs_baseline` gate 进生产 acceptance pipeline 之前
+- **推荐修法**：
+  1. `lifeform-bench --longitudinal-rounds N` 默认在 round 循环外构造一个 `MemoryStore`，传给 vertical lifeform builder（`build_companion_lifeform(memory_store=...)`）
+  2. `BenchmarkReport` 增加 `final_interlocutor_axes: tuple[tuple[str, float], ...]`（含 `il_trust` / `il_rapport` / `il_conf` / `il_pace_pressure` / `il_emotional` / `il_resistance`）
+  3. `LongitudinalFamilyReport` 增加 `il_trust_first/last/trend` + `il_rapport_first/last/trend` 字段；保留 `bond_warmth_*` 但加 note：「饱和 drive，跨 session 通常 trend=0；用 il_* 看跨 session 信号」
+  4. 现有 7 个 longitudinal aggregator unit test 保留（仍正确），增加 1 个 e2e 测试断言「shared memory_store + cross-session-emotional-followup scenario → il_rapport_trend > 0」
+- **优先级**：中（影响 evidence 解读，修法不大；估计 4-6 小时含测试）
+
+### 10B. W1 EQ owner records 在默认 NoOp semantic runtime 下永远为空
+
+- **路径**：
+  - `packages/vz-runtime/src/volvence_zero/integration/final_wiring.py:1164`（`semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()`）
+  - `packages/vz-runtime/src/volvence_zero/integration/final_wiring.py:1166-1190`（W1.C / W1.E fail-closed default：`isinstance(semantic_runtime, LLMSemanticProposalRuntime)` 才构造 ToM / common-ground proposal runtime）
+  - `packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/__init__.py:139`（`build_companion_lifeform` 默认 `semantic_proposal_runtime=None`）
+- **问题**：
+  - 默认 companion lifeform 用 `NoOpSemanticProposalRuntime`
+  - W1.C / W1.E 的 fail-closed 设计：没 LLM 时 `tom_proposal_runtime` / `common_ground_proposal_runtime` 都回退到 `None`
+  - 结果：`feeling_about_other.records = ()`、`belief_about_other.records = ()`、`intent_about_other.records = ()`、`preference_about_other.records = ()`、`common_ground.dyad_atoms = ()` —— **W1.C / D / E / F + W2.A 这 5 个 wave 拿到的全是空 snapshot**
+  - planner 的 `_apply_feeling_snapshot` / `_apply_common_ground_snapshot` / `_tom_rationale_tags` 在空 records 下都直接 no-op → **下游 rationale_tags 也不会出现 `feeling=observed` / `framing=belief_observed` 等 typed signal**
+  - 等于：默认 benchmark 跑下来，W1.C/D/E/F + W2.A 5 个 wave 的「promotion」对实际行为零影响
+- **风险**：中。架构正确（fail-closed 是设计决策），但**「EQ 信号链激活」只在带 LLM 的 lifeform 路径下成立**，文档没明确这一点；任何 demo / evaluation 跑默认 NoOp 路径都拿不到 EQ evidence
+- **触发条件**：(a) 演示 / 验证 EQ 能力时；(b) 任何用 NoOp 默认配置跑的 family-report 被 cite 作为「ToM owner 工作」evidence
+- **推荐修法**：
+  1. 加诊断指标进 `_compute_f3` 或新增一族：`f3.tom_records_total` / `f3.common_ground_dyad_atoms_total`（既有 `response_assembly.semantic_record_counts` 在 W1.C 之后已经会包含这些 count，提到 family report 即可）。空记录 = ToM 信号链未激活，应在 family report 显示 SKIPPED 而非静默 0
+  2. 在 `docs/specs/social_cognition/02_theory_of_mind.md` 显式记录：「ToM owner records 仅在 `LLMSemanticProposalRuntime`（含 `LLMToMProposalRuntime` 派生）wired 时产生；NoOp / fake runtime 下 records 永远为空」
+  3. （评估侧）跑一次 `build_companion_lifeform_with_real_substrate(use_llm_semantic_runtime=True)` + cross-session probe，把结果存到 `artifacts/eq_uplift/cross_session_probe_llm.json` 作为「W1 EQ owner 真激活」的证据 baseline。预计需 30-60 分钟 CPU + Qwen 1.5B 模型已下载
+- **优先级**：中。架构正确，但 evidence 缺失，影响 PRD 的 EQ 能力宣称
+
+### 10C. 跨 session 学习信号在 shared memory + NoOp runtime 下幅度过弱（0.001-0.006）
+
+- **路径**：诊断点散布于 `interlocutor/readout.py`、`vitals` 各 drive 的 recharge 公式
+- **问题**：即使补上 10A（共享 memory_store），实测 `il_trust` / `il_rapport` 跨 3 rounds 的 delta 仍只有 0.001-0.006。这低于一般 evidence 的最小可解释阈值
+- **根因（怀疑，未确认）**：
+  1. `interlocutor_state` 是从 6 个上游 owner 当 turn 重新派生的 readout，对 memory store 内容仅通过 `MemoryAttributeReadout` 间接读；多数 readout 输入是当前 turn 的 evidence，不是 cumulative history
+  2. `bond_warmth` 等 vitals drive 是 ceiling-saturated（ceiling 0.8-0.9 by recharge dynamics），跨 session 累积无空间
+  3. ToM records 空（10B 副作用）→ readout 无 ToM 输入 → 跨 session memory 进不到 interlocutor 派生
+- **风险**：中-低。如果 10A + 10B 都修了但 cross-session signal 还是 < 0.01，说明 readout 算法本身需要把 cumulative history 喂进去才能产生显著跨 session 漂移
+- **触发条件**：10A + 10B 修完后的回归测试 — 如果 `il_rapport_trend` 在 3-5 rounds 内仍 < 0.02，触发本债
+- **推荐修法**：
+  1. （等 10A/10B 完成再决定）让 `InterlocutorReadoutContext` 增加显式 cumulative 字段（如 `cumulative_emotional_disclosure_count` / `cumulative_repair_count`），从 `MemoryStore` 跨 session 累积取
+  2. 或者把 ToM `OtherMindRecord` 的高 confidence 持久 records 喂进 `interlocutor_state` 的 readout 作为「关系深度」proxy
+- **优先级**：低（前置依赖 10A + 10B，目前无法直接 actionable）
 
 ---
 

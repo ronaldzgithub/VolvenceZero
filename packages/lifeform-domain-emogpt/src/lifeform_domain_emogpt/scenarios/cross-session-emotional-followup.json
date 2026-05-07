@@ -1,0 +1,27 @@
+{
+  "scenario_id": "cross-session-emotional-followup",
+  "description": "User returns after a tough week to pick up an open emotional thread the lifeform witnessed previously. Prompt text explicitly references prior session (\"coming back\", \"we left off\", \"what we discussed last time\"). Strongly weighted toward emotional_support regime; designed to surface whether the lifeform's session-post slow loop + ToM-about-other (FEELING / BELIEF) records actually shorten time-to-attunement on round 2 vs round 1. Closing turn deliberately requests presence over plan, the typical late-relationship companion mode.",
+  "turns": [
+    {
+      "user_input": "Hi. Coming back after a tough week. I wanted to pick up where we left off when I shared about feeling stuck.",
+      "expected_regime_in": ["emotional_support", "acquaintance_building", "guided_exploration"],
+      "expected_min_pe_magnitude": 0.0
+    },
+    {
+      "user_input": "Things at work are slightly better but the home tension you helped me notice last time is sharper now.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I tried what we discussed - just naming the feeling without immediately fixing it. It helped, a little.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Can we just talk for a bit? I do not need a plan today, I just want to be heard.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "Yeah, just being heard is the thing I came here for. Thanks for sitting with me again.",
+      "expected_regime_in": ["emotional_support", "acquaintance_building", "casual_social"]
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+{
+  "scenarios": [
+    {
+      "rounds": 3,
+      "scenario_id": "acquaintance-introduction",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "acquaintance-shared-interest",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "casual-pet-talk",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "casual-social-checkin",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "guided-life-decision",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.8,
+      "bond_warmth_last": 0.8,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.8 last=0.8 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "low-mood-disclosure",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.78,
+      "bond_warmth_last": 0.78,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.78,
+        0.78,
+        0.78
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.78 last=0.78 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "task-edit-help",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.78,
+      "bond_warmth_last": 0.78,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.78,
+        0.78,
+        0.78
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.78 last=0.78 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "task-help-concrete",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "task-troubleshoot",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.76,
+      "bond_warmth_last": 0.76,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.76 last=0.76 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    },
+    {
+      "rounds": 3,
+      "scenario_id": "trust-rupture-repair",
+      "closed_scenes_total": 3,
+      "bond_warmth_first": 0.94,
+      "bond_warmth_last": 0.94,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "passed": true,
+      "per_round_closed_scene_count": [
+        1,
+        1,
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.94,
+        0.94,
+        0.94
+      ],
+      "description": "Longitudinal F3 over 3 round(s): closed_scenes_total=3 bond_warmth first=0.94 last=0.94 trend=+0.000 trust_no_drift=True continuity_improved=True"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "scenario_id": "cross-session-revisit-decision",
+  "description": "User returns to continue a decision thread the lifeform helped scaffold in a prior session. Prompt text explicitly references prior content (\"last time\", \"come back to\", \"that conversation\"). Tests whether the lifeform's case_memory + ToM-about-other owners carry user-specific framing across sessions. Round 1 vs round N differ only in internal memory state; identical script. End-state bond_warmth should track how reliably emotional_support / guided_exploration regimes are entered as memory accumulates.",
+  "turns": [
+    {
+      "user_input": "Hey, I wanted to come back to that decision we were chewing on - the one about whether to take the move.",
+      "expected_regime_in": ["acquaintance_building", "emotional_support", "guided_exploration"],
+      "expected_min_pe_magnitude": 0.0
+    },
+    {
+      "user_input": "Last time you helped me see I was conflating the career stuff with the family side. That actually stuck.",
+      "expected_regime_in": ["emotional_support", "guided_exploration", "acquaintance_building"]
+    },
+    {
+      "user_input": "I went home and talked to my parents. It was hard, but it cleared something up about what I actually owe them and what I owe myself.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I think I want to take the offer, but stay involved with them weekly. Does that feel like a real choice or am I rationalising?",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "emotional_support"]
+    },
+    {
+      "user_input": "Thanks for sitting with me on this again. I will let you know how the conversation with HR goes.",
+      "expected_regime_in": ["emotional_support", "acquaintance_building", "casual_social"]
+    }
+  ]
+}
