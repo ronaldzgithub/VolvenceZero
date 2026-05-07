@@ -294,8 +294,91 @@ def _compute_f3(
                 note=(
                     "Companion-vertical drive: warmth must not collapse "
                     "to zero by scenario end. Verticals without this drive "
-                    "skip this metric."
+                    "skip this metric. NOTE: vitals drive is "
+                    "ceiling-saturated within a session; cross-round "
+                    "trend is captured by the longitudinal "
+                    "f3.il_rapport_final metric instead."
                 ),
+            )
+        )
+    # Phase 2 W2.0b (debt #10A closure): surface the typed
+    # interlocutor 12-axis readout into F3 metrics so the longitudinal
+    # aggregator can read them via the standard FamilyReport surface
+    # without reaching into the BenchmarkReport directly. Only
+    # ``il_trust`` and ``il_rapport`` are gated/surfaced here; the
+    # other four axes are exposed but kept threshold-less to avoid
+    # pulling them into the strict pass/fail gate before they have
+    # cross-deployment baselines.
+    _IL_F3_FINALS: tuple[tuple[str, str, str, float | None, str], ...] = (
+        (
+            "il_trust",
+            "f3.il_trust_final",
+            "final il_trust signal",
+            None,
+            (
+                "End-of-scenario interlocutor trust signal in [-1, 1]. "
+                "Cross-round trend > 0 is the longitudinal acceptance "
+                "gate (debt #10A closure)."
+            ),
+        ),
+        (
+            "il_rapport",
+            "f3.il_rapport_final",
+            "final il_rapport (warmth)",
+            None,
+            (
+                "End-of-scenario rapport_warmth in [0, 1]. Cross-round "
+                "trend > 0 is the longitudinal acceptance gate (debt "
+                "#10A closure)."
+            ),
+        ),
+        (
+            "il_conf",
+            "f3.il_conf_final",
+            "final il readout confidence",
+            None,
+            (
+                "End-of-scenario interlocutor readout confidence; readout "
+                "only, not gated."
+            ),
+        ),
+        (
+            "il_pace_pressure",
+            "f3.il_pace_pressure_final",
+            "final il_pace_pressure",
+            None,
+            "End-of-scenario pace pressure; readout only.",
+        ),
+        (
+            "il_emotional",
+            "f3.il_emotional_final",
+            "final il_emotional weight",
+            None,
+            "End-of-scenario emotional weight; readout only.",
+        ),
+        (
+            "il_resistance",
+            "f3.il_resistance_final",
+            "final il_resistance level",
+            None,
+            "End-of-scenario resistance level; readout only.",
+        ),
+    )
+    for axis_key, metric_id, display_name, threshold, note in _IL_F3_FINALS:
+        value = next(
+            (v for n, v in bench.final_interlocutor_axes if n == axis_key),
+            None,
+        )
+        if value is None:
+            continue
+        metrics.append(
+            FamilyMetric(
+                metric_id=metric_id,
+                name=display_name,
+                value=float(value),
+                threshold=threshold,
+                higher_is_better=True,
+                note=note,
             )
         )
     return FamilyEvaluation(

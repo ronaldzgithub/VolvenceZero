@@ -243,16 +243,15 @@ def _print_observed_owners(session: Any, *, audit: CompanionAudit) -> None:
             f"relationship_state: stage={stage!s} trust_level={trust!s}"
         )
 
-    rupture_snap = session.latest_shadow_snapshots.get("rupture_state")
-    if rupture_snap is not None:
-        rupture = rupture_snap.value
+    rupture = session.rupture_state
+    if rupture is not None:
         rupture_kind = rupture.rupture_kind
         kind_text = rupture_kind.value if rupture_kind is not None else "<none>"
         sources = ",".join(source.value for source in rupture.evidence_sources)
         if rupture_kind is not None:
             audit.ruptures_observed += 1
         _print_bullet(
-            "rupture_state[shadow]: "
+            "rupture_state: "
             f"kind={kind_text} confidence={rupture.confidence:.2f} "
             f"signal={rupture.rupture_signal_strength:.2f} "
             f"internal_only={rupture.internal_suspected_only} "
@@ -538,7 +537,7 @@ def _phase_summary(audit: CompanionAudit) -> None:
     _print_section(
         "rupture",
         f"external_outcomes_submitted={audit.external_outcomes_submitted} "
-        f"shadow_ruptures_observed={audit.ruptures_observed}",
+        f"ruptures_observed={audit.ruptures_observed}",
     )
     _print_section(
         "repair_alpha",

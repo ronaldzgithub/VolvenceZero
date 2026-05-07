@@ -50,6 +50,14 @@ from lifeform_evolution.family_report import (
 
 
 _BOND_WARMTH_DRIFT_TOLERANCE: float = 0.10
+# Phase 2 W2.0b (debt #10A closure): minimum cross-round delta on
+# ``il_rapport`` for the longitudinal acceptance gate to consider the
+# rapport trend "positive". Set to 0.005 because the un-LLM probe runs
+# in artifacts/eq_uplift/cross_session_probe.json show 0.001-0.006
+# magnitudes — 0.005 is the high end of the empirically observed
+# range, so passing is meaningful but achievable without LLM runtime
+# wired (debt #10B). Tightened to 0.02 once #10B closes.
+_IL_RAPPORT_TREND_MIN: float = 0.005
 
 
 @dataclass(frozen=True)
@@ -67,16 +75,51 @@ class LongitudinalFamilyReport:
     per_round_closed_scene_count: tuple[int, ...]
     per_round_bond_warmth: tuple[float | None, ...]
     description: str
+    # Phase 2 W2.0b (debt #10A closure) — interlocutor 12-axis trend.
+    # When the F3 metrics include ``f3.il_trust_final`` /
+    # ``f3.il_rapport_final``, the aggregator extracts first/last/trend
+    # alongside per-round arrays. The new ``il_rapport_trend_pos`` gate
+    # replaces ``bond_warmth_trend`` as the primary cross-round signal
+    # because vitals drive is ceiling-saturated and bond_warmth_trend
+    # is structurally near-zero (see the debt #10A note).
+    il_trust_first: float | None = None
+    il_trust_last: float | None = None
+    il_trust_trend: float = 0.0
+    il_rapport_first: float | None = None
+    il_rapport_last: float | None = None
+    il_rapport_trend: float = 0.0
+    il_rapport_trend_pos: bool = False
+    per_round_il_trust: tuple[float | None, ...] = ()
+    per_round_il_rapport: tuple[float | None, ...] = ()
 
     @property
     def passed(self) -> bool:
         """The longitudinal acceptance gate.
 
-        A run passes when both ``trust_no_drift`` (no significant
-        warmth erosion) and ``continuity_improved_vs_baseline`` (the
-        strict every-round-closed + non-negative trend gate) hold.
+        A run passes when:
+
+        * ``trust_no_drift`` — no significant warmth erosion (legacy
+          bond_warmth-based check; preserved for backward compat).
+        * ``continuity_improved_vs_baseline`` — every round closes a
+          scene and the bond_warmth trend is non-negative.
+        * ``il_rapport_trend_pos`` — cross-round il_rapport trend
+          exceeds ``_IL_RAPPORT_TREND_MIN`` (Phase 2 W2.0b primary
+          gate). When ``il_rapport`` data is unavailable (legacy
+          BenchmarkReport synth without final_interlocutor_axes) this
+          condition is skipped to avoid breaking unit tests, but in
+          live longitudinal CLI runs the il axes are always populated.
         """
-        return self.trust_no_drift and self.continuity_improved_vs_baseline
+        if self.il_rapport_first is None:
+            # Legacy synth path with no interlocutor axes wired.
+            return (
+                self.trust_no_drift
+                and self.continuity_improved_vs_baseline
+            )
+        return (
+            self.trust_no_drift
+            and self.continuity_improved_vs_baseline
+            and self.il_rapport_trend_pos
+        )
 
 
 def _bond_warmth_metric(report: FamilyReport) -> float | None:
@@ -99,6 +142,21 @@ def _closed_scene_count(report: FamilyReport) -> int:
         if metric.metric_id == "f3.closed_scene_count":
             return int(metric.value)
     return 0
+
+
+def _il_axis_metric(report: FamilyReport, metric_id: str) -> float | None:
+    """Pull a typed F3 il axis metric (e.g. ``f3.il_trust_final``).
+
+    Returns ``None`` when the metric is absent — happens when the
+    underlying ``BenchmarkReport`` did not capture
+    ``final_interlocutor_axes`` (legacy synth path / pre-W2.0b
+    BenchmarkReport).
+    """
+    fam = report.family(FamilyId.F3_RELATIONSHIP_CONTINUITY)
+    for metric in fam.metrics:
+        if metric.metric_id == metric_id:
+            return float(metric.value)
+    return None
 
 
 def compute_longitudinal_family_report(
@@ -135,10 +193,41 @@ def compute_longitudinal_family_report(
         and bond_trend >= 0.0
     )
 
+    # Phase 2 W2.0b (debt #10A closure): pull per-round il_trust /
+    # il_rapport. ``None`` rounds are preserved (the legacy / synth
+    # FamilyReport path doesn't carry these metrics).
+    per_round_il_trust = tuple(
+        _il_axis_metric(report, "f3.il_trust_final") for report in reports
+    )
+    per_round_il_rapport = tuple(
+        _il_axis_metric(report, "f3.il_rapport_final") for report in reports
+    )
+    il_trust_first = per_round_il_trust[0] if per_round_il_trust else None
+    il_trust_last = per_round_il_trust[-1] if per_round_il_trust else None
+    il_trust_trend = (
+        0.0
+        if il_trust_first is None or il_trust_last is None
+        else float(il_trust_last) - float(il_trust_first)
+    )
+    il_rapport_first = per_round_il_rapport[0] if per_round_il_rapport else None
+    il_rapport_last = per_round_il_rapport[-1] if per_round_il_rapport else None
+    il_rapport_trend = (
+        0.0
+        if il_rapport_first is None or il_rapport_last is None
+        else float(il_rapport_last) - float(il_rapport_first)
+    )
+    il_rapport_trend_pos = (
+        il_rapport_first is not None
+        and il_rapport_last is not None
+        and il_rapport_trend >= _IL_RAPPORT_TREND_MIN
+    )
+
     description = (
         f"Longitudinal F3 over {rounds} round(s): "
         f"closed_scenes_total={closed_total} "
         f"bond_warmth first={bond_first} last={bond_last} trend={bond_trend:+.3f} "
+        f"il_rapport first={il_rapport_first} last={il_rapport_last} "
+        f"trend={il_rapport_trend:+.4f} pos={il_rapport_trend_pos} "
         f"trust_no_drift={trust_no_drift} continuity_improved={continuity_improved}"
     )
     return LongitudinalFamilyReport(
@@ -153,6 +242,15 @@ def compute_longitudinal_family_report(
         per_round_closed_scene_count=per_round_closed,
         per_round_bond_warmth=per_round_bond,
         description=description,
+        il_trust_first=il_trust_first,
+        il_trust_last=il_trust_last,
+        il_trust_trend=il_trust_trend,
+        il_rapport_first=il_rapport_first,
+        il_rapport_last=il_rapport_last,
+        il_rapport_trend=il_rapport_trend,
+        il_rapport_trend_pos=il_rapport_trend_pos,
+        per_round_il_trust=per_round_il_trust,
+        per_round_il_rapport=per_round_il_rapport,
     )
 
 
@@ -164,9 +262,17 @@ def format_longitudinal_family_report(report: LongitudinalFamilyReport) -> str:
         f"bond_warmth_first={report.bond_warmth_first}",
         f"bond_warmth_last={report.bond_warmth_last}",
         f"bond_warmth_trend={report.bond_warmth_trend:+.3f}",
+        f"il_trust_first={report.il_trust_first}",
+        f"il_trust_last={report.il_trust_last}",
+        f"il_trust_trend={report.il_trust_trend:+.4f}",
+        f"il_rapport_first={report.il_rapport_first}",
+        f"il_rapport_last={report.il_rapport_last}",
+        f"il_rapport_trend={report.il_rapport_trend:+.4f}",
         f"trust_no_drift                   = {'PASS' if report.trust_no_drift else 'FAIL'}",
         f"continuity_improved_vs_baseline  = "
         f"{'PASS' if report.continuity_improved_vs_baseline else 'FAIL'}",
+        f"il_rapport_trend_pos             = "
+        f"{'PASS' if report.il_rapport_trend_pos else 'FAIL'}",
         f"overall                          = {'PASS' if report.passed else 'FAIL'}",
         "per-round closed scenes : "
         + ", ".join(str(count) for count in report.per_round_closed_scene_count),
@@ -174,6 +280,16 @@ def format_longitudinal_family_report(report: LongitudinalFamilyReport) -> str:
         + ", ".join(
             f"{level:.3f}" if level is not None else "None"
             for level in report.per_round_bond_warmth
+        ),
+        "per-round il_trust      : "
+        + ", ".join(
+            f"{level:+.3f}" if level is not None else "None"
+            for level in report.per_round_il_trust
+        ),
+        "per-round il_rapport    : "
+        + ", ".join(
+            f"{level:.3f}" if level is not None else "None"
+            for level in report.per_round_il_rapport
         ),
     ]
     return "\n".join(lines)
@@ -191,9 +307,18 @@ def longitudinal_family_report_to_dict(
         "bond_warmth_trend": report.bond_warmth_trend,
         "trust_no_drift": report.trust_no_drift,
         "continuity_improved_vs_baseline": report.continuity_improved_vs_baseline,
+        "il_trust_first": report.il_trust_first,
+        "il_trust_last": report.il_trust_last,
+        "il_trust_trend": report.il_trust_trend,
+        "il_rapport_first": report.il_rapport_first,
+        "il_rapport_last": report.il_rapport_last,
+        "il_rapport_trend": report.il_rapport_trend,
+        "il_rapport_trend_pos": report.il_rapport_trend_pos,
         "passed": report.passed,
         "per_round_closed_scene_count": list(report.per_round_closed_scene_count),
         "per_round_bond_warmth": list(report.per_round_bond_warmth),
+        "per_round_il_trust": list(report.per_round_il_trust),
+        "per_round_il_rapport": list(report.per_round_il_rapport),
         "description": report.description,
     }
 

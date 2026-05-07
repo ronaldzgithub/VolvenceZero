@@ -60,6 +60,7 @@ VitalsSnapshot(
     total_pe: float,
     above_proactive_threshold: bool,
     last_proactive_at_tick: int | None,
+    distributional_drift_axes: tuple[tuple[str, float], ...] = (),  # W1.3 / DM-1
 )
 ```
 
@@ -105,8 +106,27 @@ Threshold `1.0`, cooldown `60` ticks. `build_companion_lifeform()` enables this 
 
 `build_coding_lifeform()` enables this by default; pass `use_vitals_bootstrap=False` for ablation. The two verticals coexist in one Python process with disjoint drive name sets — this is part of the proof for `SPLIT.md` trigger ②.
 
+## Distributional drift readout (Phase 2 W1.3 / DM-1)
+
+`VitalsSnapshot.distributional_drift_axes` carries a per-axis signed drift readout derived from the kernel's `PredictionError.distribution_summary`. The lifeform session feeds the latest PE summary to vitals after each turn via `VitalsModule.observe_pe_distribution(summary)`; vitals owns the cross-turn baseline and computes drift against it.
+
+Mechanism:
+
+- The first `_BASELINE_WARMUP_OBSERVATIONS = 5` non-None summaries observed are averaged per axis to form a **frozen baseline** in `_iqr_baseline`. Subsequent observations only update `_last_distribution_summary`.
+- `current_snapshot()` computes `drift = (current_iqr - baseline_iqr) / max(|baseline_iqr|, eps)` per axis, clamped to `[-1, 1]`.
+- Apprentice / ingestion override suppresses the readout (`distributional_drift_axes = ()`), mirroring how it suppresses `pe_contribution` so operator-supplied turns do not pollute the lifeform's emotional drift signal.
+
+Three invariants:
+
+1. **None safety.** `distributional_drift_axes = ()` until baseline warmup completes (5 non-None observations from kernel PE owner). Consumers MUST NOT synthesize fake drift values for the warmup window.
+2. **Read-only.** `distributional_drift_axes` is a slow-scale readout for evaluation / audit / regime-calibration consumers. It does **not** drive `consider_proactive_followup`; that gate stays anchored on `total_pe` + `proactive_pe_threshold` per the original v1 contract.
+3. **Owner-internal constants stable.** Warmup count / EMA shape are owner-internal. The public contract is the published per-axis tuple `(axis_name, drift)`; new axes can be added (when PE adds new axes) but the existing four (`task` / `relationship` / `regime` / `action`) are stable in name and `[-1, 1]` range.
+
+Why drift, not raw IQR: the absolute IQR depends on PE owner's window size and the scenario's intrinsic noise level, so it cannot be compared across deployments. Drift normalises against the lifeform's own early-phase baseline, giving a single dimensionless signal: positive = distribution widening (rare large errors emerging), negative = distribution narrowing (potential collapse / mode-locking, the depression-like analogue from Botvinick 2025).
+
 ## Open follow-ups
 
 * **Synthesizer-time vitals injection.** The kernel's `ResponseSynthesizer` ABC does not pass session context to `synthesize()`, so vitals currently reach the planner via direct `plan(..., vitals=...)` calls in tests but not through the kernel's call stack during `run_turn`. A clean fix is per-session synthesizers; tracked separately.
 * **Vitals-aware regime calibration.** `lifeform-evolution.regime_calibrator` could learn `recharge_per_regime` weights from traces. Today they are hand-tuned configuration.
 * **Reflection consumes vitals deviation history.** R6 says reflection should consolidate PE into policy. The slow-loop owner could read accumulated vitals PE and shape long-horizon strategy.
+* **Distributional drift entering regime calibration / reflection.** Currently W1.3 publishes drift as readout only. Future waves can let `regime_calibrator` use sustained negative `task` drift as evidence to lower `task_focus`-bonus regimes' weights, and `ReflectionEngine` can flag scenarios where multiple axes show synchronised collapse as candidate "rupture precursors". Both consumers must remain post-W1 and require their own evidence gates.

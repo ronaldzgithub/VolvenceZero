@@ -31,7 +31,6 @@ from volvence_zero.memory import (
     UserIdentity,
     list_durable_entries_for_scope,
 )
-from volvence_zero.rupture_state import RuptureStateSnapshot
 
 
 @dataclasses.dataclass(frozen=True)
@@ -147,15 +146,7 @@ async def _run_arm(
         "Can we back up and repair the tone before you suggest anything else?"
     )
 
-    rupture_snapshot = session.latest_shadow_snapshots.get("rupture_state")
-    rupture_value = rupture_snapshot.value if rupture_snapshot is not None else None
-    if rupture_value is not None and not isinstance(
-        rupture_value, RuptureStateSnapshot
-    ):
-        raise TypeError(
-            "rupture_state shadow snapshot has unexpected payload "
-            f"type {type(rupture_value).__name__}"
-        )
+    rupture_value = session.rupture_state
     if rupture_value is None:
         rupture_kind = ""
         rupture_confidence = 0.0

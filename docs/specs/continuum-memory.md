@@ -140,6 +140,33 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
 
 这里的 proof surface 依赖 owner 发布的 lifecycle telemetry 与 machine-readable tower profile，而不是仅凭文本输出推断。当前 benchmark 能证明“慢层影响快层的证据面已存在，而且 recall / consolidation 已经开始围绕统一 tower 组织”；同时，默认主证据已开始转向 runtime/backbone readout 与 fast-memory alignment，tower depth/alignment/consolidation 则退到辅助约束位。它仍不能被表述成论文级 distributed memory / self-modifying learner 的完整复现。
 
+### R5/R6 Behavioural Proof Surface (CMA-2 / Phase 2 W2.6)
+
+来源：Logan J. *Continuum Memory Architectures for Long-Horizon LLM Agents*. arXiv:2601.09913, 2026.
+
+上面的 proof surface 都是 **owner-internal lifecycle telemetry**——可以证明记忆 owner 在执行预定行为，但不能证明这些行为对外部观察者来说**真的有用**。CMA-2 加一层**行为级证据面**：4 个 deterministic probe，跨 N 个 simulated session 共享同一个 `MemoryStore`，断言 retrieval 端的「长时间窗连续性」。Probe 失败是 R5/R6 在长 horizon 上的真实违约信号，而不是 readout 缺失。
+
+| Probe | 文件 | 紧扣的不变量 | 当前状态 |
+|---|---|---|---|
+| Update | `tests/longitudinal/test_vz_memprobe_update.py` | 后续 belief override 在 retrieval rank 中胜过早期同主题 belief（不被 stale fact 主导） | PASS |
+| Temporal | `tests/longitudinal/test_vz_memprobe_temporal.py` | 给定 anchor event，其时间邻域（前后 turn）能被召回；topically-unrelated 邻居不会污染 anchor 查询 | PASS |
+| Assoc | `tests/longitudinal/test_vz_memprobe_assoc.py` | 跨 owner 的 3 跳 chain（user_model → relationship_state → boundary_consent）查询能完整覆盖；distal end (boundary_consent.granted) 不丢失 | PASS |
+| Context | `tests/longitudinal/test_vz_memprobe_context.py` | 同关键词在不同 regime 下，`RetrievalQuery.facets` 能 disambiguate top-1 | XFAIL（facet-driven disambiguation 当前未在 retrieval scoring 中生效，Wave 3 evidence 决定是否升级为 debt #11） |
+
+#### 与现有 owner-internal proof 的关系
+
+- 不替代上述 8 条 owner-internal proof，而是补它们看不到的「行为面」。owner 再合规，retrieval 出口端能不能撑住长 horizon 是另一回事。
+- 不调任何 LLM runtime（默认 `NoOpSemanticProposalRuntime` 路径）。这意味着 VZ-MemProbe 在 debt #10B 关闭之前就有意义，而不是和 ToM owner records 一起卡住。
+- ToM owner 的 records 本身需要 LLM runtime 才能写满；当 #10B 关闭后，VZ-MemProbe 的 setup 可以从「deterministic write 模拟 consolidation」切换到「真实 turn 流 + drain slow loop」，assertion 表面不变。
+
+#### Read-only invariant
+
+VZ-MemProbe 失败**只**作为长 horizon 连续性 evidence；R12 的「评估只读」在长 horizon 上仍然成立：
+
+- 失败**不**驱动 ModificationGate 决策。
+- 失败**不**反向更新 retrieval scoring 算法（owner 自己内部演化）。
+- 失败**先**写 known-debts，再考虑改 owner——R8 owner 边界优先于 evidence 修补。
+
 ### Substrate-feature retrieval & attribute readout（Phase 1.C, NL-aligned）
 
 NL-对齐裁判线（与 A-Mem 的对照）：

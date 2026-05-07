@@ -75,6 +75,14 @@ class BenchmarkReport:
     final_vitals_drive_levels: tuple[tuple[str, float], ...] = ()
     pending_followup_count: int = 0
     proactive_followup_count: int = 0
+    # Phase 2 W2.0b (debt #10A closure): end-of-scenario interlocutor
+    # state axes used by the longitudinal F3 aggregator. Empty tuple
+    # when the lifeform did not expose an interlocutor_state (e.g.
+    # legacy / non-companion verticals). Each entry is
+    # ``(axis_name, value)`` where axis_name is one of
+    # ``il_trust`` / ``il_rapport`` / ``il_conf`` /
+    # ``il_pace_pressure`` / ``il_emotional`` / ``il_resistance``.
+    final_interlocutor_axes: tuple[tuple[str, float], ...] = ()
 
     def passed(self, *, min_regime_match_rate: float = 0.5, min_response_non_empty: float = 1.0) -> bool:
         return (
@@ -385,6 +393,25 @@ async def run_benchmark_async(
         final_vitals_drive_levels = tuple(
             (d.name, d.level) for d in session.vitals_snapshot.drive_levels
         )
+    # Phase 2 W2.0b (debt #10A closure): capture the end-of-scenario
+    # interlocutor 12-axis readout so the longitudinal F3 aggregator
+    # can track ``il_trust`` / ``il_rapport`` cross-round trends.
+    # ``LifeformSession.interlocutor_state`` is the SHADOW-aware
+    # accessor: under explicit SHADOW wiring it falls back to the
+    # legacy duck-typed builder; under ACTIVE wiring it reads the
+    # owner snapshot. Either way we get an ``InterlocutorState``
+    # dataclass with the typed axes.
+    final_interlocutor_axes: tuple[tuple[str, float], ...] = ()
+    interlocutor_state = session.interlocutor_state
+    if interlocutor_state is not None:
+        final_interlocutor_axes = (
+            ("il_trust", float(interlocutor_state.trust_signal)),
+            ("il_rapport", float(interlocutor_state.rapport_warmth)),
+            ("il_conf", float(interlocutor_state.readout_confidence)),
+            ("il_pace_pressure", float(interlocutor_state.pace_pressure)),
+            ("il_emotional", float(interlocutor_state.emotional_weight)),
+            ("il_resistance", float(interlocutor_state.resistance_level)),
+        )
     pending = session.followup_manager.pending
     pending_followup_count = len(pending)
     proactive_followup_count = sum(
@@ -405,6 +432,7 @@ async def run_benchmark_async(
         final_vitals_drive_levels=final_vitals_drive_levels,
         pending_followup_count=pending_followup_count,
         proactive_followup_count=proactive_followup_count,
+        final_interlocutor_axes=final_interlocutor_axes,
     )
 
 

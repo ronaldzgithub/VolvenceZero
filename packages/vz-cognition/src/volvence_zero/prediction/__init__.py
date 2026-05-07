@@ -1,3 +1,4 @@
+from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.prediction.error import (
     ActualOutcome,
     PEDecomposition,
@@ -13,6 +14,7 @@ from volvence_zero.prediction.error import (
 
 __all__ = [
     "ActualOutcome",
+    "DistributionSummary",
     "PEDecomposition",
     "PECriticHeadState",
     "PredictedOutcome",

@@ -161,6 +161,47 @@ def _build_vertical_lifeform(name: str | None) -> object | None:
     raise SystemExit(f"Unknown vertical {name!r}.")
 
 
+def _build_vertical_lifeform_with_shared_store(name: str | None) -> object | None:
+    """Phase 2 W2.0 (debt #10A): vertical lifeform bound to a shared
+    in-memory ``MemoryStore`` so subsequent ``create_session(...)`` calls
+    on the same Lifeform reuse the SAME store across rounds.
+
+    Used only by the longitudinal benchmark pass — every other
+    ``lifeform-bench`` mode keeps the per-Lifeform default behaviour
+    (each session gets its own fresh store) so unrelated benchmark
+    semantics don't change.
+
+    Returns ``None`` when ``name`` is unset (no vertical specified);
+    raises ``SystemExit`` for unknown names so the failure is loud.
+
+    The shared store is constructed via ``build_default_memory_store``
+    (vz-memory) so the on-disk path / contract matches what
+    ``Brain.create_session`` would have built per session anyway.
+    """
+    if not name:
+        return None
+    from volvence_zero.memory import build_default_memory_store
+
+    shared_store = build_default_memory_store()
+    if name == "companion":
+        from lifeform_domain_emogpt import build_companion_lifeform
+
+        return build_companion_lifeform(memory_store=shared_store)
+    if name == "coding":
+        # ``build_coding_lifeform`` does not currently accept a
+        # ``memory_store`` kwarg; the longitudinal pass requires
+        # cross-session memory sharing, so for now coding falls back
+        # to per-session stores via the standard builder. This means
+        # debt #10A is fixed for the companion vertical only — coding
+        # vertical needs a parallel fix in build_coding_lifeform
+        # before its longitudinal evidence can mean cross-session
+        # learning.
+        from lifeform_domain_coding import build_coding_lifeform
+
+        return build_coding_lifeform()
+    raise SystemExit(f"Unknown vertical {name!r}.")
+
+
 def _run_with_lifeform(
     *, scenario: ScriptedScenario, lifeform: object
 ) -> object:
@@ -506,11 +547,25 @@ def main(argv: list[str] | None = None) -> int:
     longitudinal_pass = True
     longitudinal_artifacts: list[dict[str, object]] = []
     if want_longitudinal_report:
+        # Phase 2 W2.0 (debt #10A): build a SEPARATE Lifeform whose
+        # Brain shares one ``MemoryStore`` across every session it
+        # creates, so round 2 / round 3 see what round 1 wrote. The
+        # historical ``vertical_lifeform`` (used for the single-scenario
+        # pass above) keeps the per-session-fresh-store semantics so
+        # unrelated benchmark modes are unchanged.
+        longitudinal_lifeform = _build_vertical_lifeform_with_shared_store(
+            args.vertical
+        )
+        if longitudinal_lifeform is None:  # pragma: no cover - guarded by parser earlier
+            parser.error(
+                "longitudinal pass requires --vertical to resolve the "
+                "shared-store builder."
+            )
         for scenario in scenarios:
             per_round_reports: list[FamilyReport] = []
             for round_index in range(args.longitudinal_rounds):
                 report = _run_with_lifeform(
-                    scenario=scenario, lifeform=vertical_lifeform
+                    scenario=scenario, lifeform=longitudinal_lifeform
                 )
                 per_round_reports.append(compute_family_report(bench=report))
                 print(

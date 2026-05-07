@@ -11,6 +11,7 @@ from volvence_zero.dialogue_trace import (
 )
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import CommitmentSnapshot
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
@@ -93,6 +94,14 @@ class PredictionError:
     magnitude: float
     signed_reward: float
     description: str
+    # Phase 2 W1.1 (DM-1) — optional per-axis distribution shape descriptor
+    # over a recent PE window. ``None`` until the PE owner has observed
+    # the minimum window of samples (cold-start safety). Read-only for
+    # downstream consumers; only ``vitals`` and audit / evaluation
+    # surfaces are intended readers in Wave 1. Existing scalar fields
+    # above remain the canonical inputs for credit gate / regime scoring
+    # / ModificationGate.
+    distribution_summary: DistributionSummary | None = None
 
 
 @dataclass(frozen=True)
@@ -531,6 +540,16 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # Decay is the EMA retention factor; pe_critic_decay = 0.9 means
         # each new sample contributes 10% to the EMA mean / variance.
         self._critic = _PECriticHead(decay=pe_critic_decay)
+        # Phase 2 W1.2 (DM-1): owner-internal per-axis distribution window.
+        # Owner-internal constants only; downstream consumers MUST NOT
+        # depend on min/max sizes (the public contract is the published
+        # ``DistributionSummary`` payload). Set to 16/64: 16 keeps cold
+        # start short enough for benchmarks (closes within first scene)
+        # while 64 caps memory at 4*64 = 256 floats per session.
+        self._distribution_window = _PEDistributionWindow(
+            min_window=16,
+            max_window=64,
+        )
 
     def set_action_context(self, action_context: PredictionActionContext | None) -> None:
         """Set the current-turn action context without resetting prediction state."""
@@ -830,6 +849,27 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 action_context=self._action_context,
                 substrate_snapshot=substrate_snapshot,
                 timestamp_ms=turn_index,
+            )
+        # Phase 2 W1.2 (DM-1): push the finalised PE into the rolling
+        # distribution window AFTER alignment overlay so the window
+        # tracks the same per-axis errors downstream consumers see on
+        # ``error``. ``DistributionSummary`` returns ``None`` until the
+        # window holds at least ``min_window`` samples (cold-start
+        # safety). Bootstrap turns SKIP the update so the very first
+        # turn's all-zero error does not pollute the window.
+        if not bootstrap:
+            self._distribution_window.update(error)
+        distribution_summary = self._distribution_window.summarise()
+        if distribution_summary is not None:
+            error = PredictionError(
+                task_error=error.task_error,
+                relationship_error=error.relationship_error,
+                regime_error=error.regime_error,
+                action_error=error.action_error,
+                magnitude=error.magnitude,
+                signed_reward=error.signed_reward,
+                description=error.description,
+                distribution_summary=distribution_summary,
             )
         return PredictionErrorSnapshot(
             evaluated_prediction=evaluated_prediction,
@@ -1323,6 +1363,167 @@ class _PELearnedCritic:
         if len(features) >= self._FEATURE_DIM:
             return tuple(_clamp_signed(features[index]) for index in range(self._FEATURE_DIM))
         return tuple(_clamp_signed(features[index % len(features)]) for index in range(self._FEATURE_DIM))
+
+
+class _PEDistributionWindow:
+    """Owner-internal per-axis rolling window for PE distribution shape.
+
+    Phase 2 W1.2 (DM-1). Maintains 4 axis bounded deques over the most
+    recent ``max_window`` PE samples and computes IQR / entropy /
+    asymmetry on demand. Used by ``PredictionErrorModule._advance`` to
+    fill the optional ``DistributionSummary`` slot on
+    :class:`PredictionError`.
+
+    Cold-start safety: returns ``None`` until at least ``min_window``
+    samples have been observed on EVERY axis, so consumers never see
+    a partial / single-sample summary.
+
+    Owner-internal constants only. Other modules MUST NOT depend on
+    ``min_window`` / ``max_window`` / bin count; the public contract
+    is the published :class:`DistributionSummary`.
+    """
+
+    _AXES: tuple[str, ...] = ("task", "relationship", "regime", "action")
+    # Number of equal-width bins over [0, 1] (we bin |axis_error|) used
+    # to compute Shannon entropy. 5 bins gives a stable estimate from
+    # the smallest legal window (16 samples) without saturating.
+    _ENTROPY_BIN_COUNT: int = 5
+
+    def __init__(self, *, min_window: int = 16, max_window: int = 64) -> None:
+        if min_window < 4:
+            raise ValueError("min_window must be >= 4 for IQR to be defined")
+        if max_window < min_window:
+            raise ValueError("max_window must be >= min_window")
+        self._min_window = int(min_window)
+        self._max_window = int(max_window)
+        self._samples: dict[str, list[float]] = {axis: [] for axis in self._AXES}
+
+    def update(self, error: PredictionError) -> None:
+        """Append one PE sample (4 axes) to the rolling window."""
+        per_axis = (
+            ("task", float(error.task_error)),
+            ("relationship", float(error.relationship_error)),
+            ("regime", float(error.regime_error)),
+            ("action", float(error.action_error)),
+        )
+        for axis, value in per_axis:
+            buffer = self._samples[axis]
+            buffer.append(value)
+            if len(buffer) > self._max_window:
+                # Drop the oldest sample so the window stays bounded.
+                del buffer[0]
+
+    def summarise(self) -> DistributionSummary | None:
+        """Compute the current per-axis summary or ``None`` if cold."""
+        sizes = [len(self._samples[axis]) for axis in self._AXES]
+        window_size = min(sizes) if sizes else 0
+        if window_size < self._min_window:
+            return None
+        iqr_pairs: list[tuple[str, float]] = []
+        entropy_pairs: list[tuple[str, float]] = []
+        asymmetry_pairs: list[tuple[str, float]] = []
+        for axis in self._AXES:
+            values = tuple(self._samples[axis])
+            iqr_pairs.append((axis, _iqr_of_abs(values)))
+            entropy_pairs.append(
+                (axis, _binned_entropy(values, bins=self._ENTROPY_BIN_COUNT))
+            )
+            asymmetry_pairs.append((axis, _asymmetry(values)))
+        return DistributionSummary(
+            window_size=window_size,
+            iqr=tuple(iqr_pairs),
+            entropy=tuple(entropy_pairs),
+            asymmetry=tuple(asymmetry_pairs),
+            description=(
+                f"PE distribution window={window_size} bins={self._ENTROPY_BIN_COUNT}"
+            ),
+        )
+
+
+def _iqr_of_abs(values: tuple[float, ...]) -> float:
+    """Return Q3 - Q1 of |values|, clamped to ``[0, 1]``.
+
+    Computed on absolute values so the IQR captures distribution width
+    independent of sign (signed drift is captured separately by
+    ``_asymmetry``).
+    """
+    if not values:
+        return 0.0
+    sorted_abs = sorted(abs(v) for v in values)
+    q1 = _percentile(sorted_abs, 0.25)
+    q3 = _percentile(sorted_abs, 0.75)
+    iqr = max(0.0, q3 - q1)
+    return round(min(iqr, 1.0), 4)
+
+
+def _binned_entropy(values: tuple[float, ...], *, bins: int) -> float:
+    """Shannon entropy of ``|values|`` discretised into ``bins`` bins.
+
+    Bins are equal-width over ``[0, 1]``. Returned in nats and clamped
+    to ``[0, log(bins)]`` (the maximum possible entropy for a uniform
+    distribution over ``bins`` bins).
+    """
+    if not values or bins <= 1:
+        return 0.0
+    counts = [0] * bins
+    for value in values:
+        magnitude = min(1.0, max(0.0, abs(value)))
+        index = min(bins - 1, int(magnitude * bins))
+        counts[index] += 1
+    total = float(sum(counts))
+    if total <= 0.0:
+        return 0.0
+    entropy = 0.0
+    for count in counts:
+        if count == 0:
+            continue
+        p = count / total
+        entropy -= p * math.log(p)
+    return round(min(entropy, math.log(bins)), 4)
+
+
+def _asymmetry(values: tuple[float, ...]) -> float:
+    """Signed skew proxy ``(mean - median) / (iqr + eps)``, clamped to ``[-1, 1]``.
+
+    Computed on signed values (NOT absolute), so positive output means
+    the distribution leans toward larger positive errors and negative
+    output means it leans toward larger negative errors.
+    """
+    if not values:
+        return 0.0
+    sorted_signed = sorted(values)
+    mean = sum(sorted_signed) / len(sorted_signed)
+    median = _percentile(sorted_signed, 0.5)
+    spread = _iqr_of_signed(sorted_signed)
+    asymmetry = (mean - median) / (spread + 1e-6)
+    return round(max(-1.0, min(1.0, asymmetry)), 4)
+
+
+def _iqr_of_signed(sorted_signed: list[float]) -> float:
+    """Q3 - Q1 of already-sorted SIGNED values.
+
+    Used internally by ``_asymmetry`` to keep the asymmetry denominator
+    in the same units as the numerator.
+    """
+    q1 = _percentile(sorted_signed, 0.25)
+    q3 = _percentile(sorted_signed, 0.75)
+    return max(0.0, q3 - q1)
+
+
+def _percentile(sorted_values: list[float], q: float) -> float:
+    """Linear-interpolation percentile on a presorted list.
+
+    Cheap stand-in for numpy.percentile. ``q`` in ``[0, 1]``.
+    """
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    index = q * (len(sorted_values) - 1)
+    lower = int(index)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    fraction = index - lower
+    return sorted_values[lower] + (sorted_values[upper] - sorted_values[lower]) * fraction
 
 
 class _PECriticHead:

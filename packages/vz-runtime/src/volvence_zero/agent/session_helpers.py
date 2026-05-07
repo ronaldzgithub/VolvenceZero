@@ -44,13 +44,24 @@ from volvence_zero.agent.response import RepairExpressionAdvisory
 
 def repair_expression_advisory_from_snapshots(
     shadow_snapshots: dict[str, Snapshot[Any]],
+    *,
+    active_snapshots: dict[str, Snapshot[Any]] | None = None,
 ) -> RepairExpressionAdvisory | None:
-    """Build a typed repair-expression advisory from the rupture_state
-    SHADOW snapshot. Returns ``None`` when no externally-resolvable
-    rupture is present.
+    """Build a typed repair-expression advisory from the rupture_state snapshot.
+
+    After EQ-owner uplift Phase 1 W1.B the ``rupture_state`` owner is
+    ACTIVE by default, so the advisory must look at ``active_snapshots``
+    first and fall back to ``shadow_snapshots`` only for back-compat
+    SHADOW configurations. The legacy single-argument signature still
+    works (treated as shadow-only) so external callers keep building.
+    Returns ``None`` when no externally-resolvable rupture is present.
     """
 
-    rupture_snapshot = shadow_snapshots.get("rupture_state")
+    rupture_snapshot: Snapshot[Any] | None = None
+    if active_snapshots is not None:
+        rupture_snapshot = active_snapshots.get("rupture_state")
+    if rupture_snapshot is None:
+        rupture_snapshot = shadow_snapshots.get("rupture_state")
     if (
         rupture_snapshot is None
         or not isinstance(rupture_snapshot.value, RuptureStateSnapshot)

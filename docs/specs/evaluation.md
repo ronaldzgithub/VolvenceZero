@@ -49,6 +49,44 @@
 - **Cross-Session 级**：跨会话异步计算
 - **Longitudinal 级**：每周/每月离线批量计算
 
+### Long-Horizon Memory Probes（CMA-2 / Phase 2 W2.1）
+
+来源：Logan J. *Continuum Memory Architectures for Long-Horizon LLM Agents*. arXiv:2601.09913, 2026.
+
+R5 / R6 的「记忆连续谱 + 慢反思沉淀」需要长时间窗的**行为级证据**，而不是仅靠 spec 信念。CMA paper 的 4 个 probe（Knowledge Updates / Temporal Association / Associative Recall / Disambiguation）正好对应 VZ 记忆 owner 在跨 session 工作下的 4 类失败模式。
+
+VZ-MemProbe 把这 4 个 probe 落到 `tests/longitudinal/test_vz_memprobe_*.py`。每个 probe 跑 N=2-3 个 session 共享同一个 `MemoryStore`（debt #10A 的 W2.0 修法），用 deterministic contract assertion 而非 LLM judge——这意味着：
+
+- **不依赖 LLM runtime**。VZ-MemProbe 在默认 `NoOpSemanticProposalRuntime` 路径下也能跑出有意义的「记忆是否真的连续」证据，绕开 debt #10B 的 LLM-runtime 缺失瓶颈。
+- **Read-only**。VZ-MemProbe 失败是**记忆漂移 / 长期连续性 evidence**，但**不进 ModificationGate / credit gate / regime scoring**。R12 的"评估只读"原则在长时间窗上同样成立。
+- **跨 vertical 中性**。每个 probe 的契约只读 `MemoryStore.retrieve(...)` 与各 owner snapshot；不绑定 companion / coding 任一 vertical 的 drive 集合。
+
+#### Metric ID schema
+
+每个 probe 文件对应一族 `mp.<probe>.*` metric。为保留与 6 family 的解耦（VZ-MemProbe 不进入 family-report acceptance），probe metric 不挂在 F1-F6 之下，而是单独 expose：
+
+| Probe | metric_id 前缀 | 主断言 | Stratum 命中 |
+|---|---|---|---|
+| Update | `mp.update.*` | 后续 belief override 在 retrieval rank 中胜过早期同主题 belief | 持久语义记忆 + 派生索引 |
+| Temporal | `mp.temporal.*` | 给定 anchor event，其时间邻域（前后 turn）在 retrieval 中能被召回 | 会话情景状态 + 派生索引 |
+| Assoc | `mp.assoc.*` | 跨 owner 的多跳 chain（user_model → relationship_state → boundary_consent）在 retrieval 中保持完整 | 持久语义记忆 + 9 个语义 owner |
+| Context | `mp.context.*` | 同关键词在不同 regime 上下文下不互相污染 | 派生索引 + retrieval policy |
+
+#### 数据来源约束
+
+VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**」。Setup 阶段允许两条路径：
+
+1. **真实 turn 流**：通过 `LifeformSession.run_turn(...)` 让 session 把 belief / event 写入 store，再 `await session.end_scene(drain_slow_loop=True)` 让 session-post slow loop 落地。这条路径模拟真实使用，但**强依赖 LLM runtime**（默认 NoOp 路径下 ToM owners 不会产出 belief 记录——这是 debt #10B）。
+2. **直接 `memory_store.write(...)` 模拟 consolidation**（推荐用于 deterministic probe）。Setup 阶段直接写入 simulates "session-post slow loop 已经把场景压缩成这条 belief / event"。Probe **必须**用 public `memory_store.retrieve(...)` API 做断言，**禁止**直接窥探 `_artifact_store` 等 owner-internal 字段。
+
+第 2 条路径让 VZ-MemProbe 在 debt #10B 关闭之前就能跑出有意义的 retrieval-mechanism 证据；当 #10B 关闭、turn 流自动产出 belief 记录时，可以从 setup helper 切换到第 1 条路径而不改 assertion 表面。
+
+#### 与 6 family 的关系
+
+- F3（关系连续性）的 `f3.il_rapport_final` longitudinal trend 是**单 scenario 的跨 round** 信号；VZ-MemProbe 是**单 lifeform 跨 N session** 的固定行为断言——两者**互补不重叠**。
+- 跑 lifeform-bench 时只触发 6 family；跑 VZ-MemProbe 时只触发 `mp.*` 断言。Wave 3 的联合 evidence run 同时跑两者。
+- 任何 probe 失败必须**先**写 known-debts，**之后**才考虑改 owner——R8 owner 边界优先于 evidence。
+
 ### 评估信号回馈
 
 评估不是原始学习源。六族指标只能作为 PE-first 主链的观测层、门控上下文和 evidence widening：

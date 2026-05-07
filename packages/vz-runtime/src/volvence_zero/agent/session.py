@@ -3310,7 +3310,8 @@ class AgentSessionRunner:
             audience_ids = identity_scope.audience_ids
 
         repair_advisory = _repair_expression_advisory_from_snapshots(
-            integration_result.shadow_snapshots
+            integration_result.shadow_snapshots,
+            active_snapshots=integration_result.active_snapshots,
         )
         # W3 SSOT: per-regime expression brief is owned by the
         # regime module (RegimeIdentity.expression_brief). The

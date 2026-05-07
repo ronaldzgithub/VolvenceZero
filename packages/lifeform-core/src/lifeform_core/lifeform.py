@@ -680,6 +680,34 @@ class LifeformSession:
         return None
 
     @property
+    def rupture_state(self) -> Any:
+        """Phase 1 W1.B: read the typed ``rupture_state`` snapshot.
+
+        Returns the latest ``RuptureStateSnapshot`` published by
+        ``RuptureStateModule``, preferring the active slot but
+        accepting a SHADOW publication so explicit SHADOW
+        configurations (back-compat / experimental wiring) still
+        surface evidence to consumers. Returns ``None`` when neither
+        active nor shadow has the slot (cold start / DISABLED wiring).
+
+        After EQ-owner uplift Phase 1 W1.B the default wiring level
+        is ACTIVE, so reading from ``latest_shadow_snapshots`` alone
+        silently misses every rupture observation. Callers that need
+        rupture evidence (demos, evaluation gates) MUST go through
+        this helper rather than poking at the snapshot dicts.
+        """
+        from volvence_zero.rupture_state import RuptureStateSnapshot
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("rupture_state") or shadow.get("rupture_state")
+        if published is None:
+            return None
+        if isinstance(published.value, RuptureStateSnapshot):
+            return published.value
+        return None
+
+    @property
     def belief_about_other(self) -> Any:
         """Phase 2 W2.A: read the typed ``belief_about_other`` snapshot."""
         from volvence_zero.social_cognition import BeliefAboutOtherSnapshot
@@ -974,6 +1002,18 @@ class LifeformSession:
                 regime=result.active_regime,
                 user_input_present=not apprentice_turn,
             )
+            # Phase 2 W1.3 (DM-1): feed the kernel's PE distribution
+            # summary into vitals so ``distributional_drift_axes`` can
+            # surface IQR drift on the next ``current_snapshot()`` call.
+            # ``None`` is a no-op (kernel cold start / bootstrap turn /
+            # PE module disabled).
+            pe_snapshot = result.active_snapshots.get("prediction_error")
+            if pe_snapshot is not None:
+                pe_value = pe_snapshot.value
+                if pe_value is not None:
+                    self._vitals.observe_pe_distribution(
+                        pe_value.error.distribution_summary
+                    )
 
         # Gap 4 slice 2c: submit mid-reflection tasks with the
         # snapshots this kernel turn just produced. The adapter

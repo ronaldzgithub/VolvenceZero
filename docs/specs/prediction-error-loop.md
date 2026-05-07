@@ -94,6 +94,38 @@
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.9 节
 
+### PE Distributional Readout（Phase 2 W1.1-1.3 / DM-1）
+
+来源：Botvinick M, Kurth-Nelson Z, Muller T, Dabney W. *Depression as a disorder of distributional coding*. arXiv:2507.16598, 2025.
+
+核心命题：标量 mean PE 会在分布塌缩时丢失最关键的健康信号——价值分布从「健康宽分布」塌缩为「窄峰 + 偏侧」是 depression-like 状态的神经科学标志。把 PE 从单值升级为带分布形状的 readout，让下游可以观察「分布漂移」而非只能观察「均值漂移」。
+
+落点：`vz-cognition/prediction/distribution.py` 内 frozen `DistributionSummary` dataclass；`PredictionErrorModule` 内 owner-internal `_PEDistributionWindow`；`PredictionError.distribution_summary: DistributionSummary | None`。
+
+机制：
+
+- `_PEDistributionWindow` 维护 4 axis × `max_window=64` 的 bounded 滑动窗口，记录每轴 signed PE 样本。
+- 每轮 `_advance` 在 alignment overlay 完成后把最终 `error` 推入窗口（bootstrap turn 跳过，避免初始零噪声污染）。
+- 窗口未满 `min_window=16` 时返回 `None`（cold-start safety）；满后计算三个 owner-internal 统计：
+  - `iqr`：`Q3(|axis|) - Q1(|axis|)`，clamp 到 `[0, 1]`，代表分布宽度（窄分布 = 塌缩信号）。
+  - `entropy`：`|axis|` 在 5-bin 等宽 histogram 上的 Shannon entropy（nats），clamp 到 `[0, log(5)]`，代表分布均匀度（低 entropy + 非零 IQR = 单 mode 锁定）。
+  - `asymmetry`：`(mean - median) / (iqr + eps)`，signed，clamp 到 `[-1, 1]`，代表分布偏侧方向（+ = 右尾长 / 偶发大正误差；- = 左尾长 / 偶发大负误差）。
+- `min_window` / `max_window` / 5-bin 是 owner-internal 常量，下游 consumer 不应依赖。
+
+三条不变量：
+
+1. **None-safe 冷启动**：在 PE owner 观察到至少 `min_window` 个非 bootstrap 样本之前，`distribution_summary` 必须为 `None`。Consumer 看到 `None` 时不应合成代位值。
+2. **Read-only**：`distribution_summary` 是 readout，**不进入** ModificationGate / credit gate / regime scoring 等控制路径。Wave 1 唯一合法 downstream 是 `lifeform-vitals` 派生的 `distributional_drift_axes`（slow-scale），以及 audit / evaluation 面板。
+3. **Owner-internal 常量稳定**：`min_window` / `max_window` / bin 数 owner-internal；公开契约只是「per-axis 三统计 + window_size provenance」。
+
+接入点：
+
+- `PredictionErrorSnapshot.error.distribution_summary` 在 bootstrap turn 与窗口未满时为 `None`，下游若不读该字段则 byte-for-byte 兼容。
+- `vitals.py::VitalsModule.observe_pe_distribution(summary)` 是 W1.3 的 lifeform-side 桥接：lifeform session 在每个 user turn 完成后把 PE summary 喂给 vitals owner；vitals 内部维护 frozen baseline 并发布 `distributional_drift_axes`。
+- W1 的 evaluation / ModificationGate / credit / regime / memory 主链**完全不读** `distribution_summary`，确保 R-PE「PE 是原始信号」与 R8「snapshot 隔离」均不破。
+
+**快照 schema 扩展**：`PredictionError` append-only 新增 `distribution_summary: DistributionSummary | None`；`DistributionSummary` 字段 `(window_size, iqr, entropy, asymmetry, description)` 全部 frozen，未来扩展只能新增字段（不能改顺序 / 类型 / 单位）。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
