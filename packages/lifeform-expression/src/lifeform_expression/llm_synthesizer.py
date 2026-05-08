@@ -32,6 +32,8 @@ to ``Lifeform(response_synthesizer=...)``.
 
 from __future__ import annotations
 
+from collections import deque
+from dataclasses import replace
 from typing import Any
 
 from volvence_zero.agent.response import (
@@ -44,16 +46,34 @@ from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from lifeform_expression.prompt_planner import PromptPlan, PromptPlanner
 
 
+# Default conversation history budget. Six turns ≈ 12 chat messages,
+# which is small enough not to blow up the substrate context window
+# but large enough to give a 1-3B base model the raw cues a short
+# follow-up like "然后呢" or a single-token user utterance needs.
+_DEFAULT_HISTORY_TURNS = 6
+# Per-message character cap used when injecting prior turns. Long
+# assistant turns (e.g. structured replies) get trimmed in the middle
+# so that the head and tail are both visible to the model.
+_HISTORY_MESSAGE_CHAR_BUDGET = 600
+
+
 class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
-    """LLM synthesizer that records a structured plan per turn."""
+    """LLM synthesizer that records a structured plan per turn.
+
+    Per-instance state (``_history`` and ``_last_plan``) is **not**
+    safe to share across concurrent sessions. ``Lifeform`` clones
+    one synthesizer per session via :meth:`clone_for_session` so
+    each conversation gets its own ring buffer.
+    """
 
     def __init__(
         self,
         *,
         runtime: Any,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 512,
         temperature: float = 0.7,
         planner: PromptPlanner | None = None,
+        history_turns: int = _DEFAULT_HISTORY_TURNS,
     ) -> None:
         super().__init__(
             runtime=runtime,
@@ -62,6 +82,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         )
         self._planner = planner or PromptPlanner()
         self._last_plan: PromptPlan | None = None
+        self._history_turns = max(0, history_turns)
+        self._history: deque[tuple[str, str]] = deque(maxlen=self._history_turns)
 
     @property
     def planner(self) -> PromptPlanner:
@@ -75,6 +97,29 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         """
         return self._last_plan
 
+    @property
+    def history_turns(self) -> int:
+        return self._history_turns
+
+    def clone_for_session(self) -> "LifeformLLMResponseSynthesizer":
+        """Return a session-local clone with an empty history buffer.
+
+        ``runtime`` and ``planner`` are shared by reference (the
+        substrate runtime is intentionally process-wide; the planner
+        is stateless across turns). Only the ring buffer and the
+        ``last_plan`` cache are independent so concurrent sessions
+        do not see each other's turns.
+        """
+
+        clone = type(self)(
+            runtime=self._runtime,
+            max_new_tokens=self._max_new_tokens,
+            temperature=self._temperature,
+            planner=self._planner,
+            history_turns=self._history_turns,
+        )
+        return clone
+
     def synthesize(
         self,
         *,
@@ -83,8 +128,39 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     ) -> AgentResponse:
         plan = self._planner.plan(context=context, assembly=assembly)
         self._last_plan = plan
+        history_turns = self._snapshot_history()
+        if history_turns and not context.prior_turns:
+            context = replace(context, prior_turns=history_turns)
         response = super().synthesize(context=context, assembly=assembly)
+        self._record_turn(
+            user_text=context.user_input,
+            assistant_text=response.text,
+        )
         return _attach_plan_rationale(response, plan)
+
+    def _snapshot_history(self) -> tuple[tuple[str, str], ...]:
+        return tuple(self._history)
+
+    def _record_turn(self, *, user_text: str, assistant_text: str) -> None:
+        if self._history_turns <= 0:
+            return
+        if not user_text.strip() and not assistant_text.strip():
+            return
+        self._history.append(
+            (
+                _trim_history_message(user_text),
+                _trim_history_message(assistant_text),
+            )
+        )
+
+
+def _trim_history_message(text: str) -> str:
+    compact = text.strip()
+    if len(compact) <= _HISTORY_MESSAGE_CHAR_BUDGET:
+        return compact
+    head_budget = _HISTORY_MESSAGE_CHAR_BUDGET // 2
+    tail_budget = _HISTORY_MESSAGE_CHAR_BUDGET - head_budget - 5
+    return f"{compact[:head_budget]}…{compact[-tail_budget:]}"
 
 
 def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentResponse:

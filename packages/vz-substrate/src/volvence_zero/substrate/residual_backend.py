@@ -227,7 +227,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         prompt: str,
         system_context: str = "",
         chat_messages: tuple[tuple[str, str], ...] = (),
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 512,
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
@@ -239,9 +239,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         effective_top_p = 1.0
         if generation_constraints is not None:
             if generation_constraints.answer_depth_limit == "high-level-only":
-                effective_max_new_tokens = min(effective_max_new_tokens, 96)
+                effective_max_new_tokens = min(effective_max_new_tokens, 192)
             elif generation_constraints.answer_depth_limit == "support-first":
-                effective_max_new_tokens = min(effective_max_new_tokens, 128)
+                effective_max_new_tokens = min(effective_max_new_tokens, 256)
             if generation_constraints.response_mode in {"clarify", "refer-out"}:
                 effective_temperature = min(effective_temperature, 0.45)
             (
@@ -407,26 +407,26 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         effective_repetition_penalty = repetition_penalty
         effective_top_p = top_p
         if constraints.decoding_profile == "support-first":
-            effective_max_new_tokens = min(effective_max_new_tokens, 112)
+            effective_max_new_tokens = min(effective_max_new_tokens, 224)
             effective_temperature = min(effective_temperature, 0.42)
             effective_repetition_penalty = max(effective_repetition_penalty, 1.04)
             effective_top_p = min(effective_top_p, 0.92)
         elif constraints.decoding_profile == "clarify-first":
-            effective_max_new_tokens = min(effective_max_new_tokens, 84)
+            effective_max_new_tokens = min(effective_max_new_tokens, 168)
             effective_temperature = min(effective_temperature, 0.34)
             effective_repetition_penalty = max(effective_repetition_penalty, 1.06)
             effective_top_p = min(effective_top_p, 0.82)
         elif constraints.decoding_profile == "structure-first":
-            effective_max_new_tokens = min(effective_max_new_tokens, 176)
+            effective_max_new_tokens = min(effective_max_new_tokens, 352)
             effective_temperature = min(effective_temperature, 0.28)
             effective_repetition_penalty = max(effective_repetition_penalty, 1.10)
             effective_top_p = min(effective_top_p, 0.74)
 
         if target >= 0.75:
             effective_temperature = min(effective_temperature, 0.40)
-            effective_max_new_tokens = min(effective_max_new_tokens, 104)
+            effective_max_new_tokens = min(effective_max_new_tokens, 208)
         elif target < 0.42:
-            effective_max_new_tokens = min(effective_max_new_tokens, 168)
+            effective_max_new_tokens = min(effective_max_new_tokens, 336)
             effective_repetition_penalty = max(effective_repetition_penalty, 1.09)
 
         return (

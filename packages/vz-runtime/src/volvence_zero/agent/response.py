@@ -78,6 +78,13 @@ class ResponseContext:
     regime_expression_brief: ExpressionBrief = field(
         default_factory=ExpressionBrief
     )
+    # Optional prior conversational turns (oldest-first), each entry
+    # is a ``(user_text, assistant_text)`` pair. Expression layer is
+    # the owner; runtime / cognition modules MUST NOT consume this
+    # to reconstruct social facts or memory state. It exists purely
+    # so the LLM expression path can keep continuity for small
+    # base models that need raw chat context.
+    prior_turns: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -391,7 +398,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         self,
         *,
         runtime: object,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 512,
         temperature: float = 0.7,
     ) -> None:
         self._runtime = runtime

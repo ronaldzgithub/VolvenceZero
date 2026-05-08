@@ -410,11 +410,21 @@ class Lifeform:
         # constructed from lifeform-expression), so the import only
         # actually runs when the user opted into that synthesizer.
         try:
+            from lifeform_expression.llm_synthesizer import (
+                LifeformLLMResponseSynthesizer,
+            )
             from lifeform_expression.response_synthesizer import (
                 GroundedResponseSynthesizer,
             )
         except ImportError:
             return None
+        # ``LifeformLLMResponseSynthesizer`` carries a per-session
+        # conversation history ring buffer. We MUST clone it for each
+        # session so concurrent conversations do not bleed history
+        # into each other. The clone reuses the shared substrate
+        # runtime + planner, only the history buffer is independent.
+        if isinstance(synth, LifeformLLMResponseSynthesizer):
+            return synth.clone_for_session()
         if not isinstance(synth, GroundedResponseSynthesizer):
             return None
         cloned = synth

@@ -28,3 +28,4 @@ Thumbs.db
 # Transient agent / migration scripts (one-shot patches, commit messages, ...)
 .tmp_*
 *.log
+/tests/__pycache__

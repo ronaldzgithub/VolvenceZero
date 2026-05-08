@@ -169,9 +169,19 @@ def build_chat_messages(
         context=context,
     )
     user_input = context.user_input if context is not None else ""
+    prior_turns = context.prior_turns if context is not None else ()
+    history_messages: list[ChatMessage] = []
+    for prior_user, prior_assistant in prior_turns:
+        if prior_user.strip():
+            history_messages.append(("user", prior_user))
+        if prior_assistant.strip():
+            history_messages.append(("assistant", prior_assistant))
     if not user_input:
+        if history_messages:
+            return (("system", system_prompt), *history_messages)
         return (("system", system_prompt),)
     return (
         ("system", system_prompt),
+        *history_messages,
         ("user", user_input),
     )
