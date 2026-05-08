@@ -1,27 +1,60 @@
 #!/usr/bin/env bash
 # Start the browser chat service with a real Hugging Face Qwen substrate.
 #
-# Defaults target Qwen2.5-3B-Instruct as the smallest base model that
-# can both follow VZ's structured system prompt and keep multi-turn
-# coherence on short follow-ups (the 0.5B/1.5B variants tend to
-# collapse into single-character or off-topic replies under the
-# kernel's plan/ordering instructions).
+# Defaults target Qwen2.5-7B-Instruct: the smallest base model that
+# reliably follows VZ's structured system prompt AND keeps multi-turn
+# coherence on short follow-ups. The 0.5B / 1.5B / 3B variants tend
+# to collapse into single-character or off-topic replies once the
+# kernel's plan/ordering instructions are stacked on top of the user
+# turn.
 #
-# Model size sanity (FP16 weights, single device):
-#   * Qwen2.5-1.5B-Instruct  ~3 GB on disk, ~4 GB resident
-#   * Qwen2.5-3B-Instruct    ~6 GB on disk, ~8 GB resident   (default)
-#   * Qwen2.5-7B-Instruct   ~15 GB on disk, ~18 GB resident  (24 GB Mac OK if
-#                                                             the disk has it)
+# ---------------------------------------------------------------------
+# What you can actually run locally
+# ---------------------------------------------------------------------
+# Reference target: MacBook Air M4, 24 GB unified memory, ~30 GB free disk.
+# bf16 = transformers default, Q4 = GGUF / llama.cpp 4-bit quantization.
 #
-# Cross-session memory: ALPHA_MODE defaults to 1 so the kernel binds each
-# session to the ``userId`` typed in the chat UI (sent as X-Alpha-User) and
-# persists per-user durable memory under MEMORY_SCOPE_ROOT_DIR. Set
+#   Model                       bf16 RAM   Q4 RAM   Disk    Verdict on M4 24GB
+#   --------------------------- ---------- -------- ------- ------------------
+#   Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   too weak for VZ prompt
+#   Qwen2.5-3B-Instruct         ~ 8 GB     ~ 2 GB    6 GB   borderline coherent
+#   Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   recommended (default)
+#   Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 OK
+#   Qwen2.5-32B-Instruct        ~64 GB     ~18 GB   62 GB   bf16 NO; Q4 tight
+#   Qwen2.5-72B-Instruct       ~145 GB     ~40 GB  145 GB   NOT runnable locally
+#   Qwen3-235B-A22B (MoE)      ~470 GB    ~120 GB  470 GB   NOT runnable locally
+#   Qwen3-Coder-480B-A35B (MoE)~960 GB    ~150 GB  960 GB   NOT runnable locally
+#
+# So on this hardware the practical "biggest that still fits" is
+# Qwen2.5-32B-Instruct at Q4 (use a llama.cpp / mlx-lm runtime, not the
+# transformers backend). Anything bigger requires a cloud GPU box.
+#
+# ---------------------------------------------------------------------
+# Largest open Qwen models on Hugging Face (Qwen org, 2026-05)
+# ---------------------------------------------------------------------
+# Reference only — these CANNOT be served from this script directly.
+#   * Qwen/Qwen3-Coder-480B-A35B-Instruct      MoE, 480B total / 35B active, code
+#   * Qwen/Qwen3.5-397B-A17B                   MoE, 397B / 17B, general flagship
+#   * Qwen/Qwen3-VL-235B-A22B-Instruct         MoE, 235B / 22B, multimodal
+#   * Qwen/Qwen3-235B-A22B-Instruct-2507       MoE, 235B / 22B, general
+#   * Qwen/Qwen2.5-72B-Instruct                72B dense (largest dense Qwen)
+# Use these via remote inference endpoints (DashScope / vLLM cluster),
+# not on a 24 GB Mac.
+#
+# ---------------------------------------------------------------------
+# Cross-session memory
+# ---------------------------------------------------------------------
+# ALPHA_MODE defaults to 1 so the kernel binds each session to the
+# ``userId`` typed in the chat UI (sent as X-Alpha-User) and persists
+# per-user durable memory under MEMORY_SCOPE_ROOT_DIR. Set
 # ALPHA_MODE=0 to fall back to the previous anonymous, in-memory-only
 # behavior.
 #
-# Usage:
-#   bash start_browser_chat_qwen.sh
-#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
+# ---------------------------------------------------------------------
+# Usage
+# ---------------------------------------------------------------------
+#   bash start_browser_chat_qwen.sh                                # 7B default
+#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct bash start_browser_chat_qwen.sh
 #   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct bash start_browser_chat_qwen.sh
 #
 # If HuggingFace is slow / blocked, route through the mirror:
@@ -31,7 +64,7 @@
 # Useful env:
 #   HOST=127.0.0.1
 #   PORT=8765
-#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct
+#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct        # default; see sizing table above
 #   DEVICE=auto
 #   LOCAL_FILES_ONLY=0
 #   OPEN_BROWSER=1
