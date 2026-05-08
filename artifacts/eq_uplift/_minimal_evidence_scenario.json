@@ -1,0 +1,20 @@
+{
+  "scenario_id": "eq-evidence-minimal",
+  "description": "Two-turn EQ-evidence scenario.",
+  "turns": [
+    {
+      "user_input": "Hey, I have been feeling heavy lately and I just want to be heard before any plans.",
+      "expected_regime_in": [
+        "emotional_support",
+        "acquaintance_building"
+      ]
+    },
+    {
+      "user_input": "Can we slow down and stay with the feeling? We agreed last time that pace matters more than speed.",
+      "expected_regime_in": [
+        "emotional_support",
+        "guided_exploration"
+      ]
+    }
+  ]
+}

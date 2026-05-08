@@ -76,6 +76,7 @@ def _run_bench(
     artifact_path: pathlib.Path,
     model_source: str,
     torch_dtype: str,
+    scenarios_path: pathlib.Path | None,
     scenario: str,
     min_regime_match_rate: float,
 ) -> int:
@@ -83,6 +84,19 @@ def _run_bench(
 
     Returns the same exit code the CLI would surface; this script's
     own caller decides how to interpret it.
+
+    When ``scenarios_path`` is supplied it routes through the cli's
+    ``--scenarios PATH`` flag (single JSON file or directory of JSON
+    files). That flag takes precedence over ``--vertical`` /
+    ``--scenario`` for scenario selection but the longitudinal-pass
+    builder still keys off ``--vertical companion`` so we get the
+    LLM-backed lifeform with shared memory.
+
+    When ``scenarios_path`` is None the cli falls through to its
+    own scenario-resolution logic: ``--vertical companion`` always
+    wins and runs all 13 vertical scenarios (slow on Qwen). The
+    ``--scenario`` flag passed here is a no-op in that path; we
+    keep it for forwards-compat with future cli changes.
     """
     from lifeform_evolution.cli import main as bench_main
 
@@ -100,11 +114,13 @@ def _run_bench(
         model_source,
         "--llm-torch-dtype",
         torch_dtype,
-        "--scenario",
-        scenario,
         "--min-regime-match-rate",
         str(min_regime_match_rate),
     ]
+    if scenarios_path is not None:
+        argv.extend(["--scenarios", str(scenarios_path)])
+    else:
+        argv.extend(["--scenario", scenario])
     print(f"[probe] invoking lifeform-bench {' '.join(argv)}")
     return bench_main(argv)
 
@@ -222,9 +238,26 @@ def main(argv: list[str] | None = None) -> int:
         "--scenario",
         default="low-mood-disclosure",
         help=(
-            'Built-in scenario name (or "all"). Default: low-mood-disclosure '
-            '(single scenario keeps the run under 30 min on CPU). Use "all" '
-            "when capturing a full evidence baseline (~1+ hr CPU)."
+            'Built-in scenario name (only used when --scenarios-path is unset '
+            'AND --vertical is omitted). Default: low-mood-disclosure. '
+            "Note: when --vertical companion is set (which the LLM-runtime "
+            "path requires), the cli ignores --scenario and runs all 13 "
+            "vertical scenarios. Use --scenarios-path to restrict scope."
+        ),
+    )
+    parser.add_argument(
+        "--scenarios-path",
+        type=pathlib.Path,
+        default=None,
+        help=(
+            "Path to a single scenario JSON file (or directory of them). "
+            "When set, takes precedence over --scenario and over the "
+            "vertical's full scenario set, so the longitudinal pass runs "
+            "ONLY this scenario across N rounds. Recommended for the "
+            "evidence baseline run: point at "
+            "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+            "scenarios/cross-session-emotional-followup.json (the "
+            "scenario shipped explicitly for cross-session evidence)."
         ),
     )
     parser.add_argument(
@@ -277,6 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     print("  Cross-Session Probe (debt #10B item 3)")
     print("=" * 72)
     print(f"  rounds={args.rounds}  scenario={args.scenario!r}")
+    print(f"  scenarios_path={args.scenarios_path}")
     print(f"  model_source={args.model_source!r}  torch_dtype={args.torch_dtype}")
     print(f"  artifact_path={args.artifact_path}")
     print()
@@ -297,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         artifact_path=args.artifact_path,
         model_source=args.model_source,
         torch_dtype=args.torch_dtype,
+        scenarios_path=args.scenarios_path,
         scenario=args.scenario,
         min_regime_match_rate=args.min_regime_match_rate,
     )
