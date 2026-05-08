@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 # Start the browser chat service with a real Hugging Face Qwen substrate.
 #
-# Defaults target the model already validated in this repo. Override MODEL_ID
-# for a larger Qwen checkpoint when the machine has enough memory.
+# Defaults target Qwen2.5-3B-Instruct as the smallest base model that
+# can both follow VZ's structured system prompt and keep multi-turn
+# coherence on short follow-ups (the 0.5B/1.5B variants tend to
+# collapse into single-character or off-topic replies under the
+# kernel's plan/ordering instructions).
+#
+# Model size sanity (FP16 weights, single device):
+#   * Qwen2.5-1.5B-Instruct  ~3 GB on disk, ~4 GB resident
+#   * Qwen2.5-3B-Instruct    ~6 GB on disk, ~8 GB resident   (default)
+#   * Qwen2.5-7B-Instruct   ~15 GB on disk, ~18 GB resident  (24 GB Mac OK if
+#                                                             the disk has it)
 #
 # Usage:
 #   bash start_browser_chat_qwen.sh
 #   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
+#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct bash start_browser_chat_qwen.sh
+#
+# If HuggingFace is slow / blocked, route through the mirror:
+#   HF_ENDPOINT=https://hf-mirror.com bash start_browser_chat_qwen.sh
 #
 # Useful env:
 #   HOST=127.0.0.1
 #   PORT=8765
-#   MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct
+#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct
 #   DEVICE=auto
 #   LOCAL_FILES_ONLY=0
 #   OPEN_BROWSER=1
