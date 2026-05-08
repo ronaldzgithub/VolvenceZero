@@ -2,43 +2,46 @@
 
 All system prompts are assembled here from live snapshot data.
 Per llm-prompt-centralization rule: no inline prompt strings elsewhere.
+
+Per-regime steering prose is owned by ``vz-cognition.regime``
+(see ``RegimeIdentity.expression_brief.llm_guidance``); this
+module reads it from the snapshot rather than maintaining a
+parallel ``regime_id -> guidance`` table (R8 SSOT).
 """
 
 from __future__ import annotations
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.agent.response import ResponseContext
+from volvence_zero.regime import expression_brief_for_regime
 
 ChatMessage = tuple[str, str]
 
 
-REGIME_GUIDANCE = {
-    "repair_and_deescalation": (
-        "The interaction needs repair. Slow down, validate the other person's "
-        "experience, and de-escalate before solving anything. Prioritize safety "
-        "and emotional grounding over efficiency."
-    ),
-    "emotional_support": (
-        "The person is expressing emotional weight. Stay supportive and present. "
-        "Do not rush past feelings toward solutions. Acknowledge before acting."
-    ),
-    "problem_solving": (
-        "There is a concrete problem to solve. Be clear, structured, and actionable. "
-        "Keep the solution grounded and break it into steps when helpful."
-    ),
-    "guided_exploration": (
-        "This is an open-ended exploration, not a problem with a known answer. "
-        "Help narrow the space step by step. Ask clarifying questions when useful."
-    ),
-    "acquaintance_building": (
-        "Focus on building rapport and connection. Be warm and relational rather "
-        "than transactional. Show genuine interest."
-    ),
-    "casual_social": (
-        "Keep the tone natural and flowing. Do not over-formalize. "
-        "Match the conversational energy and stay useful without being stiff."
-    ),
-}
+def _resolve_llm_guidance(
+    *,
+    assembly: ResponseAssemblySnapshot,
+    context: ResponseContext | None,
+) -> str:
+    """Pull the regime-owned LLM steering prose for this turn.
+
+    Preferred path: read from the snapshot already plumbed through
+    the runner (``ResponseContext.regime_expression_brief``). When
+    no context is passed (e.g. unit tests that exercise prompt
+    assembly in isolation) fall back to a one-step lookup against
+    the regime template registry. As a final guard, fall back to
+    the ``casual_social`` regime's guidance so we always return a
+    non-empty string for the system prompt.
+    """
+
+    if context is not None:
+        guidance = context.regime_expression_brief.llm_guidance
+        if guidance:
+            return guidance
+    brief = expression_brief_for_regime(assembly.regime_id)
+    if brief.llm_guidance:
+        return brief.llm_guidance
+    return expression_brief_for_regime("casual_social").llm_guidance
 
 
 def build_system_prompt(
@@ -79,9 +82,8 @@ def build_system_prompt(
         "or other system bookkeeping unless the current boundary state below explicitly requires it."
     )
 
-    regime_id = assembly.regime_id or "casual_social"
     regime_name = assembly.regime_name
-    guidance = REGIME_GUIDANCE.get(regime_id, REGIME_GUIDANCE["casual_social"])
+    guidance = _resolve_llm_guidance(assembly=assembly, context=context)
     sections.append(f"Current mode: {regime_name}. {guidance}")
 
     if assembly.prompt_residue_summary and assembly.expression_intent != "judgment-process":

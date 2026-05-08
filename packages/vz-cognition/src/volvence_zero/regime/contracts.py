@@ -18,6 +18,15 @@ class ExpressionBrief:
     not the final UX text - the lifeform expression layer renders
     actual prose using the placeholder as a label.
 
+    The five ``*_hint`` fields are short string codes consumed by
+    the deterministic renderer in ``lifeform-expression`` as
+    template lookup keys. ``llm_guidance`` is the prose form
+    consumed by the LLM expression path (``vz-runtime/agent/prompts.py``)
+    so the system prompt does not have to hardcode a parallel
+    ``regime_id -> guidance`` dict outside the regime owner.
+    Both forms are owned by the regime module so a new regime
+    only needs one change in :mod:`volvence_zero.regime.templates`.
+
     Adding a new field requires updating the per-regime template
     table in :mod:`volvence_zero.regime.templates` and the spec at
     ``docs/specs/expression-layer.md``.
@@ -28,6 +37,7 @@ class ExpressionBrief:
     next_step_hint: str = "default"
     open_loop_hint: str = "default"
     continuity_hint: str = "default"
+    llm_guidance: str = ""
 
 
 @dataclass(frozen=True)

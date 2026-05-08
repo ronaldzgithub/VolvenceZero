@@ -307,6 +307,7 @@ class MemoryStore:
             score = self._score_entry(
                 entry,
                 query_tokens=tokens,
+                query_facets=query.facets,
                 query_embedding=query_embedding,
                 learned_recall=learned_recall,
             )
@@ -841,6 +842,7 @@ class MemoryStore:
         self,
         entry: MemoryEntry,
         query_tokens: set[str],
+        query_facets: tuple[str, ...],
         query_embedding: tuple[float, ...],
         learned_recall: LearnedMemoryRecall,
     ) -> float:
@@ -859,10 +861,26 @@ class MemoryStore:
             query_embedding=query_embedding,
         )
         learned_affinity = self._entry_learned_affinity(entry=entry, query_signal=learned_recall.query_signal)
+        # Phase 2 W4 (debt #10D close-out 2026-05-09): explicit facet boost.
+        # ``query.facets`` flow into ``_query_base_signal`` already, but
+        # the embedding contribution is dwarfed by lexical / recency
+        # tiebreaks in tightly-scored entries (e.g. two entries sharing
+        # the same surface keyword in different ``regime:*`` contexts).
+        # The boost gives facet-tag matches a strong tie-breaker without
+        # overriding genuine lexical / semantic signal: at +5 per match
+        # it sits above the lexical band (overlap-3 cap from a one-word
+        # match is 2.4 after the *0.8 weight) but below the dominant
+        # semantic / learned channels for a real content hit.
+        facet_score = 0.0
+        if query_facets:
+            facet_lower = {facet.lower() for facet in query_facets}
+            matched = len(facet_lower & tag_tokens)
+            facet_score = matched * 5.0
         return (
             learned_affinity * learned_recall.learned_weight
             + artifact_semantic_score * learned_recall.artifact_weight
             + lexical_score * 0.8
+            + facet_score
         )
 
     def _observe_artifact_entry(

@@ -31,6 +31,10 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="casual_social",
             open_loop_hint="casual_social",
             continuity_hint="casual_social",
+            llm_guidance=(
+                "Keep the tone natural and flowing. Do not over-formalize. "
+                "Match the conversational energy and stay useful without being stiff."
+            ),
         ),
         application_brief=ApplicationBrief(
             task_focus=0.20,
@@ -51,6 +55,10 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="acquaintance_building",
             open_loop_hint="acquaintance_building",
             continuity_hint="acquaintance_building",
+            llm_guidance=(
+                "Focus on building rapport and connection. Be warm and relational rather "
+                "than transactional. Show genuine interest."
+            ),
         ),
         application_brief=ApplicationBrief(
             support_focus=0.45,
@@ -71,6 +79,10 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="support_or_repair",
             open_loop_hint="default",
             continuity_hint="default",
+            llm_guidance=(
+                "The person is expressing emotional weight. Stay supportive and present. "
+                "Do not rush past feelings toward solutions. Acknowledge before acting."
+            ),
         ),
         application_brief=ApplicationBrief(
             support_focus=0.85,
@@ -100,6 +112,10 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="guided_exploration",
             open_loop_hint="default",
             continuity_hint="default",
+            llm_guidance=(
+                "This is an open-ended exploration, not a problem with a known answer. "
+                "Help narrow the space step by step. Ask clarifying questions when useful."
+            ),
         ),
         application_brief=ApplicationBrief(
             task_focus=0.40,
@@ -129,6 +145,10 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="problem_solving",
             open_loop_hint="default",
             continuity_hint="default",
+            llm_guidance=(
+                "There is a concrete problem to solve. Be clear, structured, and actionable. "
+                "Keep the solution grounded and break it into steps when helpful."
+            ),
         ),
         application_brief=ApplicationBrief(
             task_focus=0.85,
@@ -158,6 +178,11 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             next_step_hint="support_or_repair",
             open_loop_hint="default",
             continuity_hint="default",
+            llm_guidance=(
+                "The interaction needs repair. Slow down, validate the other person's "
+                "experience, and de-escalate before solving anything. Prioritize safety "
+                "and emotional grounding over efficiency."
+            ),
         ),
         application_brief=ApplicationBrief(
             support_focus=0.45,

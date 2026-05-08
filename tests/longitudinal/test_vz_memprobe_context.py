@@ -30,8 +30,6 @@ facets). Probe is deterministic and does NOT call any LLM runtime.
 
 from __future__ import annotations
 
-import pytest
-
 from volvence_zero.memory import build_default_memory_store
 from volvence_zero.memory.contracts import (
     MemoryStratum,
@@ -84,36 +82,20 @@ def _seed_two_regime_meanings() -> object:
     return store
 
 
-# NOTE — XFAIL with strict=True:
+# Phase 2 W4 (debt #10D close-out 2026-05-09):
+# Previously this test was ``xfail(strict=True)`` because
+# ``MemoryStore._score_entry`` had no explicit facet-match boost; the
+# embedding-only path was too weak to disambiguate two entries that
+# share a surface keyword in different ``regime:*`` contexts, so
+# recency dominated and the symmetric test (forcing both directions
+# to flip) correctly failed.
 #
-# The symmetric regime-disambiguation test below is expected-to-fail
-# under the current MemoryStore retrieval implementation. The lexical
-# / embedding score does not (yet) bias retrieval by
-# ``RetrievalQuery.facets`` strongly enough to flip top-1 between two
-# entries that share the same content keyword ("review") in different
-# regime contexts. The stronger signal in current scoring is recency,
-# so a single one-direction test would XPASS by accident; the
-# two-direction symmetric test correctly XFAILS and captures the
-# missing facet-driven disambiguation capability.
-#
-# This is a genuine Wave 3 evidence finding (CMA-2 "context probe"
-# fails on the live retrieval path), not a setup bug. We keep the
-# probe wired with clear assertions so the day the retrieval path
-# starts honouring facets the test will go green and the new
-# capability is detected automatically (``strict=True`` will then
-# fail the suite, forcing us to remove the xfail).
-#
-# When it goes green, remove the xfail marker and update
-# ``docs/known-debts.md`` to reflect the close-out (and add a
-# closure note here citing the closing PR).
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VZ-MemProbe Context: facet-driven regime disambiguation is "
-        "not yet honoured by MemoryStore.retrieve scoring path. "
-        "Tracked in known-debts as part of Wave 3 evidence run."
-    ),
-)
+# debt #10D fix: ``_score_entry`` now adds ``facet_score = matched
+# * 5.0`` for each ``query.facets`` element that matches an entry
+# tag. This sits above the lexical band but below dominant semantic
+# / learned channels, giving regime facets a real tie-breaker
+# without overriding genuine content signal. The test is now expected
+# to PASS in both directions.
 def test_mp_context_regime_facet_disambiguates_both_directions() -> None:
     """``mp.context.regime_match_symmetric`` — facet MUST flip top-1.
 

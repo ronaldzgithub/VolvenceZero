@@ -87,21 +87,27 @@ DM-1 + CMA-2 Wave 2 关闭。`lifeform-evolution/cli.py` 新加 `_build_vertical
   3. （评估侧）跑一次 `build_companion_lifeform_with_real_substrate(use_llm_semantic_runtime=True)` + cross-session probe，把结果存到 `artifacts/eq_uplift/cross_session_probe_llm.json` 作为「W1 EQ owner 真激活」的证据 baseline。预计需 30-60 分钟 CPU + Qwen 1.5B 模型已下载。`lifeform-bench` 已支持 `--use-llm-semantic-runtime` flag（item 1 落地的副产物，CLI 自动校验 `--vertical companion --longitudinal-rounds > 0`），运行入口由 [`examples/run_cross_session_probe_llm.py`](../examples/run_cross_session_probe_llm.py) 提供。real-Qwen 回归 smoke 在 [`tests/lifeform_e2e/test_longitudinal_with_llm_runtime_smoke.py`](../tests/lifeform_e2e/test_longitudinal_with_llm_runtime_smoke.py)，默认 skip，`VZ_RUN_LLM_SMOKE=1` 启用。
 - **优先级**：低。item 1 + 2 已 land；item 3 是一次性 evidence run（chunk 5）。运行后产生的 il_rapport_trend 若仍 < 0.02 转入 debt #10C 本身的范畴，不阻塞 10B 的关闭。
 
-### 10D. `RetrievalQuery.facets` 在 `_score_entry` 中权重不足以驱动 regime 级 disambiguation（2026-05-08 新增 / VZ-MemProbe Context XFAIL）
+### ~~10D. `RetrievalQuery.facets` 在 `_score_entry` 中权重不足以驱动 regime 级 disambiguation~~ —— 2026-05-09 关闭
 
-- **路径**：
-  - `packages/vz-memory/src/volvence_zero/memory/store.py:840`（`_score_entry`）
-  - `packages/vz-memory/src/volvence_zero/memory/store.py:894`（`_query_base_signal` 把 `query.facets` 喂进 `_owner_signal` tags 通道）
-  - `tests/longitudinal/test_vz_memprobe_context.py:test_mp_context_regime_facet_disambiguates_both_directions`（XFAIL `strict=True`）
-- **问题**：CMA-2 Context 探针构造两个共享关键词 "review"、但属于不同 regime 的 entry（一个 `regime:problem_solving` PR review、一个 `regime:casual_social` restaurant review），用 `RetrievalQuery(text="user review", facets=("regime:problem_solving",))` 期望把 PR review 排到 top-1。实测：facet 权重不足 → 两个 entry 在 lexical + semantic score 上几乎并列，recency 决定胜负 → 更晚写入的 restaurant entry 在两个方向都赢，无法 disambiguate
-- **诊断证据**：[`artifacts/eq_uplift/distributional_evidence.json`](../artifacts/eq_uplift/distributional_evidence.json) 的 `cma2_probes` 块 `mp.context.regime_match_symmetric` 状态为 XFAIL，附 `engineering_top_is_pr=False` / `social_top_is_restaurant=True` 字段（recency-driven 的不对称失败模式）
-- **风险**：中。`docs/specs/multi-timescale-learning.md` 与 `docs/specs/regime/persistent-identity.md` 假设 regime context 可影响 retrieval；当前实现只是把 regime tag 放到 entry tags 但 retrieval 端没有强加权 → 同 keyword 跨 regime 串扰
-- **触发条件**：高 EQ 场景下用户在不同 regime 上下文使用同一关键词（如 "review" / "schedule" / "feedback"），系统给的回应取决于哪条 entry 写得最晚而不是当前 regime
-- **推荐修法**（择一）：
-  1. **简单**：在 `_score_entry` 里给「entry tag 命中 query facet」加显式 boost（如 +5），让 regime-match 在 lexical tie 中决定胜负
-  2. **彻底**：retrieval 加一条 "facet hard filter" 选项 — 当 `RetrievalQuery.facets` 有 `regime:*` prefix 时，先按 facet 过滤再排序；不匹配的进入 `suppressed_cross_scope_entries`
-  3. 任意修法 land 后，把 `test_mp_context_regime_facet_disambiguates_both_directions` 的 `pytest.mark.xfail(strict=True)` 摘掉，CI 应自动转 PASS
-- **优先级**：中（影响 high-EQ regime fidelity，修法 #1 是 1-2 小时工作）
+按推荐修法 (1) 关闭。[`packages/vz-memory/src/volvence_zero/memory/store.py:_score_entry`](../packages/vz-memory/src/volvence_zero/memory/store.py) 加显式 facet boost：
+
+```python
+facet_score = 0.0
+if query_facets:
+    facet_lower = {facet.lower() for facet in query_facets}
+    matched = len(facet_lower & tag_tokens)
+    facet_score = matched * 5.0
+return (
+    learned_affinity * learned_recall.learned_weight
+    + artifact_semantic_score * learned_recall.artifact_weight
+    + lexical_score * 0.8
+    + facet_score
+)
+```
+
+`+5` per matched facet 落在 lexical band 之上、dominant semantic / learned 通道之下，给 regime facets 真实的 tie-breaker 权重而不掩盖内容信号。`_score_entry` signature 新增 `query_facets: tuple[str, ...]`；唯一调用点 [`store.py:307`](../packages/vz-memory/src/volvence_zero/memory/store.py) 跟随。
+
+[`tests/longitudinal/test_vz_memprobe_context.py:test_mp_context_regime_facet_disambiguates_both_directions`](../tests/longitudinal/test_vz_memprobe_context.py) 的 `pytest.mark.xfail(strict=True)` 装饰器 + `import pytest` 已摘除；该 symmetric test 现在两个方向（`regime:problem_solving` → PR review；`regime:casual_social` → restaurant review）都 PASS，无 xfail。spec 同步：[`docs/specs/continuum-memory.md`](specs/continuum-memory.md) "R5/R6 Behavioural Proof Surface (CMA-2)" 表格里 Context 行从 XFAIL 改 PASS；同文件 "接口契约 / 当前实现口径" 段落明确 `RetrievalQuery.facets` 走 `+5` per match 的 boost 通道，不只走 embedding。
 
 ### 10C. 跨 session 学习信号在 shared memory + NoOp runtime 下幅度过弱（0.001-0.006）
 
