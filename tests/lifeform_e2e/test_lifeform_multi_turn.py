@@ -455,12 +455,14 @@ def test_trace_collector_writes_all_built_in_scenarios(tmp_path):
 
     out = tmp_path / "trace-all.ndjson"
     collector = TraceCollector(output_path=out)
+    scenarios = all_built_in_scenarios()
+    assert scenarios, "all_built_in_scenarios() must publish at least one scenario"
     try:
-        reports = collector.collect_scenarios(all_built_in_scenarios())
+        reports = collector.collect_scenarios(scenarios)
     finally:
         collector.close()
 
-    assert len(reports) == 3
+    assert len(reports) == len(scenarios)
     total_rows = sum(r.record_count for r in reports)
     written = out.read_text(encoding="utf-8").splitlines()
     assert len(written) == total_rows

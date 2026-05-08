@@ -892,7 +892,18 @@ def test_agent_session_runner_partially_blocks_application_prior_by_credit_targe
         ),
     )
 
-    asyncio.run(runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first."))
+    first = asyncio.run(
+        runner.run_turn("I feel overwhelmed about divorce and need the smallest next step first.")
+    )
+
+    case_snapshot = first.active_snapshots["case_memory"].value
+    assert case_snapshot.active_problem_patterns, (
+        "case_memory snapshot must publish at least one active problem pattern "
+        "for the partial-block test to exercise the credit gate."
+    )
+    blocked_pattern = case_snapshot.active_problem_patterns[0]
+    blocked_strategy_target = f"application.strategy_playbook.rules.{blocked_pattern}"
+
     assert runner._last_session_post_writeback_request is not None
     runner._last_session_post_writeback_request = replace(
         runner._last_session_post_writeback_request,
@@ -901,7 +912,7 @@ def test_agent_session_runner_partially_blocks_application_prior_by_credit_targe
             recent_credits=(),
             recent_modifications=(
                 SelfModificationRecord(
-                    target="application.strategy_playbook.rules.family-transition-high-emotion",
+                    target=blocked_strategy_target,
                     gate=ModificationGate.BACKGROUND,
                     decision=GateDecision.BLOCK,
                     old_value_hash="before",
@@ -923,10 +934,14 @@ def test_agent_session_runner_partially_blocks_application_prior_by_credit_targe
     report = slow_loop_results[0].application_prior_writeback_report
     assert report is not None
     assert any(target.startswith("application.case_memory.records.") for target in report.applied_targets)
-    assert any(target.startswith("application.strategy_playbook.rules.") for target in report.blocked_targets)
+    assert blocked_strategy_target in report.blocked_targets, (
+        f"Expected the seeded strategy-playbook target {blocked_strategy_target!r} to be blocked; "
+        f"got blocked_targets={report.blocked_targets!r}."
+    )
     assert any(record.case_id.startswith("case:slow-loop:") for record in runner._case_memory_store.records)
+    blocked_rule_prefix = f"playbook:slow-loop:{blocked_pattern}:"
     assert not any(
-        rule.rule_id == "playbook:slow-loop:family-transition-high-emotion:1"
+        rule.rule_id.startswith(blocked_rule_prefix)
         for rule in runner._application_rare_heavy_state.distilled_playbook_rules
     )
 
