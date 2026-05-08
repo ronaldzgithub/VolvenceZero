@@ -595,14 +595,15 @@ def test_learning_loop_closes_end_to_end():
     """The headline R3/R4/R12 acceptance test: collect \u2192 SSL \u2192 reinject \u2192
     re-benchmark in one call, with all loop verdicts passing.
     """
-    from lifeform_evolution import run_learning_loop, format_learning_loop_report
+    from lifeform_evolution import (
+        all_built_in_scenarios,
+        format_learning_loop_report,
+        run_learning_loop,
+    )
 
     report = run_learning_loop()
-    assert report.scenarios == (
-        "low-mood-disclosure",
-        "trust-rupture-repair",
-        "casual-social-checkin",
-    )
+    expected_scenarios = tuple(s.scenario_id for s in all_built_in_scenarios())
+    assert report.scenarios == expected_scenarios
     # SSL ran on the trace volume.
     assert report.ssl.trained_step_count > 0
     # Both behavioural snapshots have content.
