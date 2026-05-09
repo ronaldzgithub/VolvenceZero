@@ -87,6 +87,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         belief_about_other_provider: BeliefAboutOtherProvider | None = None,
         intent_about_other_provider: IntentAboutOtherProvider | None = None,
         preference_about_other_provider: PreferenceAboutOtherProvider | None = None,
+        figure_bundle: object | None = None,
     ) -> None:
         self._planner = planner or PromptPlanner()
         self._vitals_snapshot_provider = vitals_snapshot_provider
@@ -96,6 +97,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         self._belief_about_other_provider = belief_about_other_provider
         self._intent_about_other_provider = intent_about_other_provider
         self._preference_about_other_provider = preference_about_other_provider
+        self._figure_bundle = figure_bundle
 
     @property
     def planner(self) -> PromptPlanner:
@@ -128,6 +130,28 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     @property
     def preference_about_other_provider(self) -> PreferenceAboutOtherProvider | None:
         return self._preference_about_other_provider
+
+    @property
+    def figure_bundle(self) -> object | None:
+        """The optional :class:`FigureArtifactBundle` attached to this synthesizer.
+
+        Returned by reference. The base ``GroundedResponseSynthesizer``
+        does not consume the bundle on its own (it renders a rule-
+        based response that does not call into the LLM); the bundle
+        is preserved here so the lifeform-service / DLaaS-launcher
+        adopt path can attach it via :meth:`with_figure_bundle` and
+        clones produced by :meth:`_clone` carry it forward without
+        the platform layer needing to re-attach.
+        """
+        return self._figure_bundle
+
+    def with_figure_bundle(
+        self, bundle: object | None
+    ) -> "GroundedResponseSynthesizer":
+        """Return a clone of this synthesizer carrying ``bundle``."""
+        clone = self._clone()
+        clone._figure_bundle = bundle  # noqa: SLF001 — internal reassignment
+        return clone
 
     def _clone(
         self,
@@ -181,6 +205,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 if replace_preference
                 else self._preference_about_other_provider
             ),
+            figure_bundle=self._figure_bundle,
         )
 
     def with_vitals_provider(

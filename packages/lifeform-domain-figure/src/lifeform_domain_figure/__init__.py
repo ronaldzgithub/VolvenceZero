@@ -60,6 +60,11 @@ from lifeform_domain_figure.figure_artifact import (
     bundle_id_from_hash,
     compute_bundle_integrity_hash,
 )
+from lifeform_domain_figure.lifeform_builder import (
+    FigureLifeformBundle,
+    build_einstein_lifeform,
+    build_figure_lifeform,
+)
 from lifeform_domain_figure.style_prior import (
     FigureStylePrior,
     build_figure_style_prior,
@@ -133,4 +138,8 @@ __all__ = [
     "build_figure_vitals_bootstrap",
     "bundle_id_from_hash",
     "compute_bundle_integrity_hash",
+    # Lifeform builder (P2.3 / P4.2)
+    "FigureLifeformBundle",
+    "build_einstein_lifeform",
+    "build_figure_lifeform",
 ]

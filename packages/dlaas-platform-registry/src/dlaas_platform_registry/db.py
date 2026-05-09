@@ -281,18 +281,47 @@ def open_connection(db_path: str | Path) -> sqlite3.Connection:
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
-    """Create tables if absent and stamp the schema version.
+    """Create tables if absent, apply forward migrations, and stamp version.
 
-    Idempotent — safe to call on every process start. Schema upgrades
-    are out of scope for Slice 3; when we need them we add a
-    ``migrations`` table here and apply forward-only deltas.
+    Idempotent — safe to call on every process start. Forward
+    migrations are applied **only** for databases that already exist
+    at an earlier schema version; fresh databases get the latest
+    columns from the ``CREATE TABLE`` definition above. Each
+    migration step is wrapped in a try/except so a column that has
+    already been added by a previous run is a no-op.
     """
     for stmt in _SCHEMA_SQL:
         conn.execute(stmt)
+    _apply_forward_migrations(conn)
     conn.execute(
         "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
         ("schema_version", str(SCHEMA_VERSION)),
     )
+
+
+def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
+    """Apply forward-only ALTER TABLE deltas for existing databases.
+
+    SQLite's ``ALTER TABLE ... ADD COLUMN`` lacks ``IF NOT EXISTS``,
+    so we catch the duplicate-column error and treat it as a no-op.
+    Any other ``OperationalError`` is re-raised so contract drift is
+    visible immediately rather than masked.
+    """
+
+    schema_v2_columns = (
+        ("figure_artifact_id", "TEXT NOT NULL DEFAULT ''"),
+        ("citation_policy", "TEXT NOT NULL DEFAULT 'disabled'"),
+        ("coverage_policy", "TEXT NOT NULL DEFAULT 'passthrough'"),
+        ("figure_time_window", "TEXT NOT NULL DEFAULT ''"),
+    )
+    for column, column_type in schema_v2_columns:
+        try:
+            conn.execute(
+                f"ALTER TABLE templates ADD COLUMN {column} {column_type}"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
 
 
 class Registry:

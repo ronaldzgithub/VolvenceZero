@@ -335,11 +335,99 @@ def _try_zhang_wuji() -> VerticalSpec | None:
     )
 
 
+def _try_einstein() -> VerticalSpec | None:
+    """Real-person figure vertical: Albert Einstein (synthetic placeholder corpus).
+
+    Builds an Einstein lifeform that combines the existing
+    domain-experience compilation path (knowledge / cases / playbook /
+    boundaries) with the figure-vertical's runtime artifact bundle
+    (retrieval index, coverage map, style prior). The bundle is
+    attached to the LLM expression synthesizer via
+    :meth:`LifeformLLMResponseSynthesizer.with_figure_bundle` so the
+    L1 / L3 / L4 enforcement layers (style injector, grounded
+    decoder, scope refuser) can consume it on each turn.
+
+    Steering (F5) and persona LoRA (F6) are not yet wired by default
+    — those packets will populate ``bundle.steering`` /
+    ``bundle.lora`` and the synthesizer side will pick them up
+    through the same hook without further changes here.
+    """
+
+    try:
+        from lifeform_core import LifeformConfig
+        from lifeform_domain_figure import build_einstein_lifeform
+    except ImportError:
+        return None
+
+    def _attach_bundle(synthesizer, bundle):
+        attach = getattr(synthesizer, "with_figure_bundle", None)
+        if callable(attach):
+            return attach(bundle)
+        return synthesizer
+
+    def factory(runtime):
+        base_synthesizer = _expression_synthesizer_for_runtime(runtime)
+        # Build with a placeholder synthesizer first so we can read
+        # the resulting artifact_bundle, then re-bind the same
+        # synthesizer with the bundle attached. The lifeform's
+        # response_synthesizer is mutable via Lifeform.with_*
+        # only at construction; we bind once here and pass it in.
+        # Steps: build bundle (no synthesizer wired yet), bind
+        # synthesizer to bundle, then construct lifeform.
+        bundle = build_einstein_lifeform(
+            substrate_runtime=runtime,
+        )
+        bound_synthesizer = _attach_bundle(
+            base_synthesizer, bundle.artifact_bundle
+        )
+        rebound = build_einstein_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=bound_synthesizer,
+        )
+        return rebound.lifeform
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir
+            )
+        )
+        base_synthesizer = _expression_synthesizer_for_runtime(
+            runtime, repair_alpha_enabled=True
+        )
+        bundle = build_einstein_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+        )
+        bound_synthesizer = _attach_bundle(
+            base_synthesizer, bundle.artifact_bundle
+        )
+        rebound = build_einstein_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            response_synthesizer=bound_synthesizer,
+            identity_provider=identity_provider,
+        )
+        return rebound.lifeform
+
+    return VerticalSpec(
+        name="einstein",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
 _BUILDERS = (
     _try_companion,
     _try_uncalibrated_companion,
     _try_coding,
     _try_zhang_wuji,
+    _try_einstein,
 )
 
 

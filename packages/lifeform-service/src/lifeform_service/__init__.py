@@ -29,6 +29,12 @@ from __future__ import annotations
 
 from lifeform_service.app import create_app
 from lifeform_service.cli import main
+from lifeform_service.figure_bundle_store import (
+    FigureBundleNotFound,
+    FigureBundleStore,
+    default_store as default_figure_bundle_store,
+    lookup_bundle as lookup_figure_bundle,
+)
 from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
     SessionManager,
@@ -41,12 +47,16 @@ from lifeform_service.verticals import (
 )
 
 __all__ = (
+    "FigureBundleNotFound",
+    "FigureBundleStore",
     "SessionAlreadyExistsError",
     "SessionManager",
     "SessionNotFoundError",
     "VerticalSpec",
     "create_app",
+    "default_figure_bundle_store",
     "default_vertical_name",
     "discover_verticals",
+    "lookup_figure_bundle",
     "main",
 )

@@ -15,6 +15,7 @@ dependencies = [
     "lifeform-core==0.1.*",
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
+    "lifeform-domain-figure==0.1.*",
     "aiohttp>=3.9",
 ]
 

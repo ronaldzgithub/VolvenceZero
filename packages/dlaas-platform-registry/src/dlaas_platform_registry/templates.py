@@ -20,6 +20,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from dlaas_platform_contracts import (
+    CitationPolicy,
+    CoveragePolicy,
     TemplateActivationStatus,
     TemplateSpec,
     TemplateStatus,
@@ -61,6 +63,10 @@ class TemplateStore:
         persona_spec: Mapping[str, Any] | None = None,
         seed_config: Mapping[str, Any] | None = None,
         template_id: str | None = None,
+        figure_artifact_id: str = "",
+        citation_policy: CitationPolicy = CitationPolicy.DISABLED,
+        coverage_policy: CoveragePolicy = CoveragePolicy.PASSTHROUGH,
+        figure_time_window: str = "",
     ) -> TemplateSpec:
         template_id = template_id or _fresh_template_id()
         created_at_ms = int(time.time() * 1000.0)
@@ -73,8 +79,10 @@ class TemplateStore:
                     current_version, activation_status,
                     base_persona_json, persona_spec_json,
                     seed_config_json, activation_stats_json,
-                    created_at_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at_ms,
+                    figure_artifact_id, citation_policy,
+                    coverage_policy, figure_time_window
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     template_id,
@@ -91,6 +99,10 @@ class TemplateStore:
                     json.dumps(dict(seed_config or {})),
                     json.dumps({}),
                     created_at_ms,
+                    figure_artifact_id,
+                    citation_policy.value,
+                    coverage_policy.value,
+                    figure_time_window,
                 ),
             )
         spec = TemplateSpec(
@@ -108,6 +120,10 @@ class TemplateStore:
             seed_config=dict(seed_config or {}),
             activation_stats={},
             created_at_ms=created_at_ms,
+            figure_artifact_id=figure_artifact_id,
+            citation_policy=citation_policy,
+            coverage_policy=coverage_policy,
+            figure_time_window=figure_time_window,
         )
         # Snapshot version 1 immediately so adoption / readiness can refer to it.
         await self._snapshot_locked(spec=spec, version_note="initial")
@@ -141,6 +157,10 @@ class TemplateStore:
         base_persona: Mapping[str, Any] | None = None,
         persona_spec: Mapping[str, Any] | None = None,
         seed_config: Mapping[str, Any] | None = None,
+        figure_artifact_id: str | None = None,
+        citation_policy: CitationPolicy | None = None,
+        coverage_policy: CoveragePolicy | None = None,
+        figure_time_window: str | None = None,
         version_note: str = "",
     ) -> TemplateSpec:
         """Apply field updates and create a new immutable version.
@@ -180,6 +200,26 @@ class TemplateStore:
                 if seed_config is not None
                 else dict(current.seed_config)
             )
+            new_figure_artifact_id = (
+                figure_artifact_id
+                if figure_artifact_id is not None
+                else current.figure_artifact_id
+            )
+            new_citation_policy = (
+                citation_policy
+                if citation_policy is not None
+                else current.citation_policy
+            )
+            new_coverage_policy = (
+                coverage_policy
+                if coverage_policy is not None
+                else current.coverage_policy
+            )
+            new_figure_time_window = (
+                figure_time_window
+                if figure_time_window is not None
+                else current.figure_time_window
+            )
             if new_status is TemplateStatus.PUBLISHED:
                 if not new_runtime_template_id.strip():
                     raise ValueError(
@@ -203,7 +243,11 @@ class TemplateStore:
                     current_version = ?,
                     base_persona_json = ?,
                     persona_spec_json = ?,
-                    seed_config_json = ?
+                    seed_config_json = ?,
+                    figure_artifact_id = ?,
+                    citation_policy = ?,
+                    coverage_policy = ?,
+                    figure_time_window = ?
                 WHERE template_id = ?
                 """,
                 (
@@ -216,6 +260,10 @@ class TemplateStore:
                     json.dumps(new_base_persona),
                     json.dumps(new_persona_spec),
                     json.dumps(new_seed_config),
+                    new_figure_artifact_id,
+                    new_citation_policy.value,
+                    new_coverage_policy.value,
+                    new_figure_time_window,
                     template_id,
                 ),
             )
@@ -234,6 +282,10 @@ class TemplateStore:
             seed_config=new_seed_config,
             activation_stats=dict(current.activation_stats),
             created_at_ms=current.created_at_ms,
+            figure_artifact_id=new_figure_artifact_id,
+            citation_policy=new_citation_policy,
+            coverage_policy=new_coverage_policy,
+            figure_time_window=new_figure_time_window,
         )
         await self._snapshot_locked(spec=new_spec, version_note=version_note)
         return new_spec
@@ -339,6 +391,21 @@ class TemplateStore:
 
 
 def _row_to_spec(row) -> TemplateSpec:
+    keys = row.keys() if hasattr(row, "keys") else ()
+    figure_artifact_id = row["figure_artifact_id"] if "figure_artifact_id" in keys else ""
+    citation_policy_raw = (
+        row["citation_policy"]
+        if "citation_policy" in keys
+        else CitationPolicy.DISABLED.value
+    )
+    coverage_policy_raw = (
+        row["coverage_policy"]
+        if "coverage_policy" in keys
+        else CoveragePolicy.PASSTHROUGH.value
+    )
+    figure_time_window = (
+        row["figure_time_window"] if "figure_time_window" in keys else ""
+    )
     return TemplateSpec(
         template_id=row["template_id"],
         tenant_id=row["tenant_id"],
@@ -354,6 +421,14 @@ def _row_to_spec(row) -> TemplateSpec:
         seed_config=json.loads(row["seed_config_json"] or "{}"),
         activation_stats=json.loads(row["activation_stats_json"] or "{}"),
         created_at_ms=int(row["created_at_ms"]),
+        figure_artifact_id=figure_artifact_id or "",
+        citation_policy=CitationPolicy(
+            citation_policy_raw or CitationPolicy.DISABLED.value
+        ),
+        coverage_policy=CoveragePolicy(
+            coverage_policy_raw or CoveragePolicy.PASSTHROUGH.value
+        ),
+        figure_time_window=figure_time_window or "",
     )
 
 
