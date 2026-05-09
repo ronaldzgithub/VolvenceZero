@@ -34,6 +34,8 @@ PACKAGES=(
   packages/lifeform-domain-coding
   packages/lifeform-service
   packages/lifeform-evolution
+  packages/dlaas-platform-contracts
+  packages/dlaas-platform-api
 )
 
 for pkg in "${PACKAGES[@]}"; do

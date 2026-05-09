@@ -26,16 +26,31 @@
   vz-cognition). Owner code lives in ``vz-application`` and depends on
   vz-cognition for those type definitions plus DualTrackSnapshot etc.
 
-This monorepo houses two architecturally distinct concerns that share a single
+This monorepo houses three architecturally distinct concerns that share a single
 git history **on purpose**, with a written exit plan:
 
 | Concern | Wheel prefix | Owns |
 |---|---|---|
 | **Brain kernel** | `vz-*` | NL+ETA contracts, owners, learning loops; zero product knowledge |
 | **Digital lifeform** | `lifeform-*` | Tick engine, expression layer, vertical packs, services, evolution |
+| **DLaaS platform** | `dlaas-platform-*` | Multi-tenant governance (tenant / shell / asset / template / contract), `InteractionEnvelope` dispatch, ops (pause / handoff / SSE), eval gate (audience / exam / license). See `docs/specs/dlaas-platform.md`. |
 
 Repository boundary `≠` module boundary. The wheels are already split; the
 git boundary is on standby.
+
+**Tier dependency direction (one-way only)**:
+
+```
+dlaas-platform-*  →  lifeform-*  →  vz-*
+        (governance)   (adapters)    (kernel)
+```
+
+- `vz-*` never imports `lifeform-*` or `dlaas-platform-*` (CI enforced).
+- `lifeform-*` never imports `dlaas-platform-*` (CI enforced once Phase 1 packet 1.3 lands).
+- `dlaas-platform-*` only enters the kernel through `vz-contracts` snapshot types,
+  `lifeform-core.Lifeform` facade, and `lifeform-service` HTTP surface. Direct
+  imports of `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`
+  are forbidden.
 
 ## Phase 1 — Now (single monorepo, multi-wheel)
 

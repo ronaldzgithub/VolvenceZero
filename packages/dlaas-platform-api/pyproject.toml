@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlaas-platform-api"
+version = "0.1.0"
+description = "DLaaS platform-tier aiohttp /dlaas/* router. Hosts the typed InteractionEnvelope dispatch + OutputAct packaging + three auth-header middleware. Entry-point only; no cognitive state. See docs/specs/dlaas-platform.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "dlaas-platform-contracts==0.1.*",
+    # The api wheel composes a ``LifeformSession`` instance via the
+    # public lifeform-service surface. lifeform-service provides the
+    # SessionManager + create_app facade used by the dispatch handler.
+    "lifeform-service==0.1.*",
+    "aiohttp>=3.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dlaas_platform_api*"]

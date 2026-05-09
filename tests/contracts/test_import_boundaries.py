@@ -224,6 +224,81 @@ def _all_lifeform_files() -> list[tuple[str, pathlib.Path]]:
     return out
 
 
+def _all_dlaas_platform_files() -> list[tuple[str, pathlib.Path]]:
+    out: list[tuple[str, pathlib.Path]] = []
+    for wheel_dir in sorted(PACKAGES_ROOT.glob("dlaas-platform-*")):
+        for py in _python_files(wheel_dir / "src"):
+            out.append((wheel_dir.name, py))
+    return out
+
+
+# DLaaS platform tier may consume only these kernel/lifeform surfaces. The
+# list is deliberately tiny: the platform is meant to talk to the kernel
+# exclusively through `vz-contracts` snapshot types, the
+# `lifeform-core.Lifeform` facade, the `lifeform-service` HTTP / SessionManager
+# surface, and (later) the `lifeform-affordance` / `lifeform-ingestion` /
+# `lifeform-evolution` public modules.
+#
+# Any import path under ``volvence_zero.{cognition,memory,temporal,
+# substrate,application,runtime}`` is forbidden — those are kernel
+# internals. ``vz-contracts`` lives under ``volvence_zero`` but only its
+# top-level facade is allowed.
+DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES: frozenset[str] = frozenset(
+    {
+        # vz-contracts top-level facade only. Sub-packages like
+        # ``volvence_zero.runtime.kernel`` are kernel internals.
+        "volvence_zero",
+        "volvence_zero.thinking",  # vz-contracts subpackage (frozen task/artifact types)
+        "volvence_zero.affordance",  # vz-contracts subpackage (descriptor schema)
+        "volvence_zero.environment",  # vz-contracts subpackage (event/outcome contracts)
+        "volvence_zero.social_cognition",  # vz-contracts subpackage (typed snapshots)
+        "volvence_zero.semantic_embedding",  # vz-contracts subpackage (stub embedding)
+        "volvence_zero.dialogue_trace",  # vz-contracts subpackage (typed outcome enums)
+        "volvence_zero.temporal_types",  # vz-contracts subpackage (controller types)
+        "volvence_zero.application_readouts",  # vz-contracts subpackage (typed protocol)
+        "volvence_zero.learned_update",  # vz-contracts subpackage (typed proposal)
+        "volvence_zero.llm_proposal_diagnostics",  # vz-contracts subpackage
+    }
+)
+DLAAS_PLATFORM_FORBIDDEN_VZ_SUBPACKAGES: frozenset[str] = frozenset(
+    {
+        "cognition",
+        "memory",
+        "temporal",
+        "substrate",
+        "application",
+        "runtime",
+        "agent",
+        "credit",
+        "dual_track",
+        "evaluation",
+        "regime",
+        "prediction",
+        "reflection",
+        "semantic_state",
+        "rupture_state",
+        "interlocutor",
+        "social",
+        "brain",
+        "integration",
+        "internal_rl",
+        "joint_loop",
+        "planning",
+    }
+)
+DLAAS_PLATFORM_ALLOWED_LIFEFORM_PREFIXES: frozenset[str] = frozenset(
+    {
+        "lifeform_core",
+        "lifeform_service",
+        "lifeform_affordance",
+        "lifeform_ingestion",
+        "lifeform_evolution",
+        "lifeform_expression",
+        "lifeform_thinking",
+    }
+)
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -422,3 +497,129 @@ def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:
     assert "open_hidden_label_leak_count == 0" not in source
     assert "marker in response" not in source
     assert '"repair" in (turn.active_abstract_action or "")' not in source
+
+
+# ---------------------------------------------------------------------------
+# DLaaS platform-tier boundary tests (third tier; see docs/specs/dlaas-platform.md)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_dlaas_platform_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_dlaas_platform_does_not_import_kernel_internals(
+    wheel: str, py_file: pathlib.Path,
+) -> None:
+    """Platform tier may only consume public kernel facade + vz-contracts.
+
+    The forbidden list is the union of every kernel sub-package that
+    holds cognitive / memory / temporal state. Allowed paths are the
+    typed contract surfaces under ``vz-contracts``.
+
+    Why this matters (R8 + the dlaas-platform.md invariants): if the
+    platform tier reaches into ``volvence_zero.cognition.regime`` it
+    becomes a second owner of that state, and the "vz-* diff = 0"
+    promise made to integrators stops being checkable.
+    """
+    for module in _module_level_imports(py_file):
+        sub = _vz_subpackage(module)
+        if sub is None:
+            continue
+        # Allow the bare facade and the explicit vz-contracts subpackages.
+        if module in DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES:
+            continue
+        # Allow deeper paths under those facades (e.g.
+        # ``volvence_zero.thinking.models``).
+        if any(
+            module.startswith(prefix + ".")
+            for prefix in DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES
+            if prefix != "volvence_zero"
+        ):
+            continue
+        if sub in DLAAS_PLATFORM_FORBIDDEN_VZ_SUBPACKAGES:
+            pytest.fail(
+                f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+                f"dlaas-platform tier may not depend on kernel sub-package "
+                f"'volvence_zero.{sub}'. Use vz-contracts snapshot types or "
+                f"the lifeform-core / lifeform-service public facade instead. "
+                f"See docs/specs/dlaas-platform.md (invariants 1-2)."
+            )
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_dlaas_platform_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_dlaas_platform_does_not_import_lifeform_domain_internals(
+    wheel: str, py_file: pathlib.Path,
+) -> None:
+    """Platform may only consume the small allowlist of lifeform public surfaces.
+
+    Domain wheels (``lifeform_domain_emogpt`` / ``lifeform_domain_coding``
+    / ``lifeform_domain_character``) are vertical-specific implementation
+    details: the platform tier resolves a vertical via
+    ``lifeform-service.verticals`` (which itself imports them through a
+    lazy registry). Direct imports from the platform tier would couple
+    multi-tenant routing to one vertical and break the "vz-* diff = 0,
+    domain wheels untouched" promise.
+    """
+    for module in _module_level_imports(py_file):
+        if not module.startswith("lifeform_") and module != "lifeform":
+            continue
+        # Top-level allowlist hit.
+        if module in DLAAS_PLATFORM_ALLOWED_LIFEFORM_PREFIXES:
+            continue
+        # Sub-module under an allowed top-level package.
+        if any(
+            module.startswith(prefix + ".")
+            for prefix in DLAAS_PLATFORM_ALLOWED_LIFEFORM_PREFIXES
+        ):
+            continue
+        pytest.fail(
+            f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+            f"dlaas-platform tier may only consume the public lifeform "
+            f"surfaces {sorted(DLAAS_PLATFORM_ALLOWED_LIFEFORM_PREFIXES)}. "
+            f"Domain-specific wheels (lifeform_domain_*) must go through "
+            f"the lifeform-service vertical registry. See "
+            f"docs/specs/dlaas-platform.md (invariant 3)."
+        )
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_kernel_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_kernel_does_not_import_dlaas_platform(
+    wheel: str, py_file: pathlib.Path,
+) -> None:
+    """Kernel must never import platform tier (one-way dependency)."""
+    for module in _module_level_imports(py_file):
+        if module.startswith("dlaas_platform_") or module == "dlaas_platform":
+            pytest.fail(
+                f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+                f"kernel wheel '{wheel}' must not depend on the dlaas-platform "
+                f"tier. The dependency direction is one-way (platform → "
+                f"lifeform → kernel)."
+            )
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_lifeform_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_lifeform_does_not_import_dlaas_platform(
+    wheel: str, py_file: pathlib.Path,
+) -> None:
+    """Lifeform tier must never import platform tier (one-way dependency)."""
+    for module in _module_level_imports(py_file):
+        if module.startswith("dlaas_platform_") or module == "dlaas_platform":
+            pytest.fail(
+                f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+                f"lifeform wheel '{wheel}' must not depend on the dlaas-platform "
+                f"tier. Platform composes lifeform, not the reverse."
+            )

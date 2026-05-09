@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlaas-platform-contracts"
+version = "0.1.0"
+description = "DLaaS platform-tier typed dataclass: InteractionEnvelope / OutputAct / TenantSpec / ShellSpec / AssetSpec / TemplateSpec / ContractSpec / FocusPersonSpec / IdentityLinkSpec / HandoffTicketSpec. Foundation wheel for the dlaas-platform-* tier; zero vz-* / lifeform-* imports. See docs/specs/dlaas-platform.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Foundation wheel: zero upstream dependencies, mirrors vz-contracts
+    # discipline. The platform tier owns its own typed surface and never
+    # leaks vz-* internals into wire formats.
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dlaas_platform_contracts*"]

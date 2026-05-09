@@ -29,7 +29,9 @@ $Packages = @(
     "packages\lifeform-domain-emogpt",
     "packages\lifeform-domain-coding",
     "packages\lifeform-service",
-    "packages\lifeform-evolution"
+    "packages\lifeform-evolution",
+    "packages\dlaas-platform-contracts",
+    "packages\dlaas-platform-api"
 )
 
 foreach ($pkg in $Packages) {

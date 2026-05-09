@@ -440,6 +440,26 @@
 
 ---
 
+### 19. DLaaS Platform Layer（治理 / 编排基底，新增第三层 wheel 前缀）
+
+**对应需求**：R2（稳定基底 + 自适应控制器）、R4（控制不在 token 空间）、R8（快照优先 / 单一所有者）、R11（内部状态可发布）、R15（迁移可解释性 + 可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [dlaas-platform.md](./dlaas-platform.md) | 6 个 `dlaas-platform-*` wheel 切分（contracts / registry / launcher / api / ops / eval）；typed `InteractionEnvelope` 路由表（chat/observe/feedback/teach/task/report/command）；`OutputAct` 包装；platform 不持有任何 cognitive state |
+
+**核心不变量**：
+- `vz-*` 内核 7 个 wheel diff = 0 行（仅 substrate streaming additive 接口可例外，单独 review）
+- `dlaas-platform-*` 不允许 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*` 内部
+- `interaction_type` 必须 typed enum dispatch，禁止从 `human_brief` 等自然语言字段关键词推断
+- focus_persons / identity_links 不创建第二 owner；写入只走 `submit_profile_event`，scope_key 拼接 `UserIdentity`
+- handoff trigger = 平台读 `rupture_state` 快照决定阈值；不在 kernel 加 handoff owner
+- exam / audience / license 的 LLM judge 仅 readout，不反向写 reward / Face 梯度
+
+来源：`docs/api/DLAAS_README.md`（EmoGPT DLaaS 公共 API 形状）；落地路线见 `docs/moving forward/dlaas-platform-rollout.md`。
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |

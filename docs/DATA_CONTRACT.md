@@ -1564,6 +1564,25 @@ reflection ──────────────→ proposals; runtime invo
 - 不可作为 kernel owner 间 propagate 的输入；只能被 lifeform 层（含 expression / service）消费
 - 副作用如果要进入 kernel，**必须**走已有公共入口（`BrainSession.submit_*` / `LifeformSession.run_turn`），不可旁路
 
+### 6.1B Platform-side Slots（DLaaS 控制平面，不进入 kernel slot 注册表）
+
+下表 slot 由新增的 `dlaas-platform-*` wheel 拥有，承担多租户治理与 ops 状态。它们**不**进入 kernel propagate 顺序，**不**被任何 `vz-*` wheel 读取。详见 [`docs/specs/dlaas-platform.md`](./specs/dlaas-platform.md)。
+
+| Slot Name | Owner 模块 | Wheel | Value 类型 | 默认接线 | 发布频率 | 消费者 |
+|-----------|-----------|-------|-----------|----------|----------|--------|
+| `tenant_state` | TenantRegistry | `dlaas-platform-registry`（**Phase 1 占位**） | TenantState | DISABLED → SHADOW | CRUD 时 | `dlaas-platform-api` auth 中间件、`dlaas-platform-launcher` quota 检查 |
+| `contract_state` | ContractRegistry | `dlaas-platform-registry`（**Phase 1 占位**） | ContractState | DISABLED → SHADOW | CRUD 时 / lifecycle 切换 | `dlaas-platform-launcher`（adopt / awake）、`dlaas-platform-api`（runtime 路由） |
+| `instance_status` | InstanceManager | `dlaas-platform-launcher`（**Phase 1 占位**） | InstanceStatus | DISABLED → SHADOW | adopt / awake / sleep / evict | `dlaas-platform-api`、`dlaas-platform-ops` |
+| `handoff_ticket_state` | HandoffQueue | `dlaas-platform-ops`（**Phase 1 占位**） | HandoffTicketState | DISABLED → SHADOW | rupture_state 快照触发 / 操作员手动 | `dlaas-platform-api`、admin SSE stream |
+
+**platform-side slot 不变量**：
+
+- **绝对禁止**任何 `vz-*` wheel 直接或间接读这些 slot；CI 由 `tests/contracts/test_import_boundaries.py` 中针对 `dlaas-platform-*` 的反向 import 规则强制
+- 平台 owner 把 kernel 视为单向调用对象（`lifeform-core.Lifeform` facade + `lifeform-service` HTTP），从不让 kernel 知道 platform 存在
+- handoff_ticket_state 的触发证据来自**读** `vz-cognition.rupture_state.RuptureStateSnapshot`，平台不在 kernel 里加任何 handoff owner
+- focus_person 写入路径只走 `BrainSession.submit_profile_event`；platform 只持有 `(ai_id, person_id)` 索引，**不**持有 person belief / preference / role 副本
+- identity_link 只是把 `(tenant_id, ai_id, canonical_end_user_ref)` 拼成 `volvence_zero.memory.UserIdentity.scope_key` 字符串，0 改 vz-memory schema
+
 ### 6.2 Owner 字段扩展（stable readouts + migration log mirror）
 
 下列字段是在 spec 中冻结、Phase 1+ 逐步实施的 owner 字段扩展。它们**不**新增 slot，只在现有 owner 的 `value` dataclass 上加字段。

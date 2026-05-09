@@ -40,6 +40,12 @@ boundary is not the module boundary; wheel boundary is.
 | `vz-temporal` | metacontroller, `beta_t` segment closure, internal RL on `z_t` | Owns temporal abstraction and controller state |
 | `vz-runtime` | orchestration and stable `Brain` / `BrainSession` facade | The only kernel wheel allowed to compose all business wheels |
 | `lifeform-*` | product / lifeform adapters, vitals, expression, vertical packages, services, evolution loops | May depend on kernel facade and contracts; kernel must not import lifeform |
+| `dlaas-platform-contracts` | DLaaS typed dataclass: `InteractionEnvelope` / `OutputAct` / `TenantSpec` / `ShellSpec` / `AssetSpec` / `TemplateSpec` / `ContractSpec` / `FocusPersonSpec` / `IdentityLinkSpec` / `HandoffTicketSpec` | Foundation for the platform tier; zero `vz-*` / `lifeform-*` imports |
+| `dlaas-platform-registry` | Multi-tenant resource SSOT (tenants / shells / assets / templates / contracts / focus_persons / identity_links); SQLite-backed CRUD + auth | Talks to no kernel; surfaces `tenant_state` / `contract_state` |
+| `dlaas-platform-launcher` | `InstanceManager`: `{ai_id → Lifeform}`, shared substrate, awake/sleep/LRU; surfaces `instance_status` | Composes `lifeform-core.Lifeform` facade + `lifeform-service.SessionManager`; never imports kernel internals |
+| `dlaas-platform-api` | aiohttp `/dlaas/*` router + three auth-header middleware (`X-Tenant-Api-Key/Secret`, `X-Control-Plane-Secret`, `X-Service-Secret`); typed `InteractionEnvelope` dispatch + `OutputAct` packaging | Pure HTTP boundary; no cognitive state |
+| `dlaas-platform-ops` | pause / resume / operator-message / handoff queue / SSE conversations stream; ledger; surfaces `handoff_ticket_state` | Reads `rupture_state` snapshot via `lifeform-service` to drive handoff; never adds kernel owners |
+| `dlaas-platform-eval` | audience analysis / exam questions+runs / launch license gate; LLM judge as readout only | Reuses `lifeform-evolution.closed_alpha_preflight` framework; never writes kernel learning state |
 
 Historical capability names such as `vz-pe-credit`, `vz-self-model`, or
 `vz-evaluation` are not current wheel names. In this repository they are owned by
@@ -60,6 +66,9 @@ Each boundary exists to protect one invariant, not to mirror a directory layout:
 - R8/R15: `vz-contracts` and the contract tests make cross-wheel exchange explicit.
 - Product variability stays in `lifeform-*` and vertical packages, not in kernel
   owners.
+- DLaaS multi-tenant governance + runtime envelope translation + ops + eval gate
+  stay in `dlaas-platform-*` (third tier); they never become kernel owners and
+  never add cognitive state. See `docs/specs/dlaas-platform.md`.
 
 ## Migration Rules
 
