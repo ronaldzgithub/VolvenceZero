@@ -98,6 +98,61 @@ class BenchmarkReport:
     # known-debt #10B item 2.
     tom_records_total: int = 0
     common_ground_dyad_atoms_total: int = 0
+    # Wave E1 (debt #10B item 3): typed diagnostic counters for the
+    # ToM and common-ground LLM proposal runtimes. These advance
+    # whenever the runtime invokes its provider, regardless of
+    # whether the parse succeeded. They let us distinguish "ToM
+    # records empty because no LLM call happened" from "LLM was
+    # called but parse failed" without enabling
+    # ``VZ_LLM_PROPOSAL_DEBUG_LOG``.
+    #
+    # All four ToM owners share one ``LLMToMProposalRuntime``
+    # instance under the default auto-wire, so per-owner counters
+    # are identical; we aggregate by ``max`` to keep semantics
+    # accurate even when a custom configuration wires distinct
+    # runtimes per slot.
+    tom_proposal_attempts_total: int = 0
+    tom_proposal_parsed_ok_total: int = 0
+    tom_proposal_parse_errors_total: int = 0
+    tom_proposal_schema_mismatches_total: int = 0
+    tom_proposal_emitted_total: int = 0
+    tom_proposal_last_parse_status: str = "no_call"
+    common_ground_proposal_attempts_total: int = 0
+    common_ground_proposal_parsed_ok_total: int = 0
+    common_ground_proposal_parse_errors_total: int = 0
+    common_ground_proposal_schema_mismatches_total: int = 0
+    common_ground_proposal_emitted_total: int = 0
+    common_ground_proposal_last_parse_status: str = "no_call"
+    # Wave E2 (debt #11 follow-up): True iff at least one turn in
+    # the scenario produced a non-None
+    # ``PredictionErrorSnapshot.error.distribution_summary``. This
+    # is the signal that the PE distribution window
+    # (``min_window=8`` + vitals warmup=5 = 13 turns minimum)
+    # actually filled within the session. Short scenarios
+    # structurally cannot fill it; long-form scenarios can. The
+    # cross-scenario ratio of this field is the
+    # ``pe_window_filled_scenario_ratio`` acceptance metric
+    # surfaced at the cli level.
+    pe_distribution_window_filled: bool = False
+    pe_distribution_window_filled_first_turn: int | None = None
+    # Wave E4 (multi-party SHADOW evidence faceting).
+    #
+    # ``per_interlocutor_record_counts`` is a tuple of
+    # ``(interlocutor_id, record_count)`` pairs where the count is the
+    # sum of ``OtherMindRecord.records`` length across the four
+    # about-other ToM owners, keyed by ``record.interlocutor_id``. This
+    # lets a 3-party scenario verify that user A's records do not
+    # cross-contaminate user B's bucket.
+    #
+    # ``wrong_person_pe_events_total`` counts cumulative
+    # ``SocialPredictionError`` events with
+    # ``kind == IDENTITY_ATTRIBUTION`` or
+    # ``RELATIONSHIP_ATTRIBUTION`` over the scenario. > 0 in a
+    # deliberate-misattribution segment means the PE chain reacted
+    # correctly; staying at 0 there means the system did not notice
+    # the wrong person.
+    per_interlocutor_record_counts: tuple[tuple[str, int], ...] = ()
+    wrong_person_pe_events_total: int = 0
 
     def passed(self, *, min_regime_match_rate: float = 0.5, min_response_non_empty: float = 1.0) -> bool:
         return (
@@ -323,8 +378,30 @@ async def run_benchmark_async(
     session = lifeform.create_session(session_id=f"benchmark-{chosen.scenario_id}")
 
     turn_reports: list[TurnReport] = []
+    pe_distribution_window_filled = False
+    pe_distribution_window_filled_first_turn: int | None = None
+    # Wave E4 multi-party SHADOW evidence: track cumulative
+    # wrong-person social PE events across the scenario; the per-
+    # interlocutor record counts are aggregated from the final
+    # snapshot at end-of-scenario (we don't need a per-turn time
+    # series for the SHADOW probe).
+    wrong_person_pe_events_total = 0
     for index, turn in enumerate(chosen.turns, start=1):
         result = await session.run_turn(turn.user_input)
+        # Wave E4: count social PE events whose typed
+        # ``SocialPredictionKind`` is identity / relationship
+        # attribution. We count events at the per-turn level because
+        # the social PE snapshot is fresh each turn.
+        social_pe_snap = result.active_snapshots.get("social_prediction_error")
+        if social_pe_snap is not None:
+            errors = getattr(social_pe_snap.value, "errors", ()) or ()
+            for error in errors:
+                kind_value = getattr(getattr(error, "kind", None), "value", None)
+                if kind_value in {
+                    "identity_attribution",
+                    "relationship_attribution",
+                }:
+                    wrong_person_pe_events_total += 1
 
         regime_match = bool(
             not turn.expected_regime_in
@@ -336,6 +413,17 @@ async def run_benchmark_async(
             error = getattr(pe_snapshot.value, "error", None)
             if error is not None:
                 pe_magnitude = float(getattr(error, "magnitude", 0.0))
+                # Wave E2 (debt #11 follow-up): track when the PE
+                # distribution window starts filling. ``error`` is
+                # a ``PredictionError`` and exposes
+                # ``distribution_summary`` (None until min_window
+                # samples accumulate; non-None thereafter).
+                if (
+                    not pe_distribution_window_filled
+                    and getattr(error, "distribution_summary", None) is not None
+                ):
+                    pe_distribution_window_filled = True
+                    pe_distribution_window_filled_first_turn = index
         pe_threshold_met = (
             turn.expected_min_pe_magnitude is None
             or pe_magnitude >= turn.expected_min_pe_magnitude
@@ -439,6 +527,25 @@ async def run_benchmark_async(
     # readings on companion runs.
     tom_records_total = 0
     common_ground_dyad_atoms_total = 0
+    # Wave E4: per-interlocutor record bucket. We aggregate
+    # ``OtherMindRecord.interlocutor_id`` across the four ToM owners
+    # so a 3-party scenario can verify keying separation
+    # (user A bucket has > 0; user B bucket has > 0; no record
+    # leaks into a primary catch-all bucket if the scenario uses
+    # explicit ids).
+    per_interlocutor_counts: dict[str, int] = {}
+    tom_proposal_attempts = 0
+    tom_proposal_parsed_ok = 0
+    tom_proposal_parse_errors = 0
+    tom_proposal_schema_mismatches = 0
+    tom_proposal_emitted = 0
+    tom_proposal_last_parse_status = "no_call"
+    common_ground_proposal_attempts = 0
+    common_ground_proposal_parsed_ok = 0
+    common_ground_proposal_parse_errors = 0
+    common_ground_proposal_schema_mismatches = 0
+    common_ground_proposal_emitted = 0
+    common_ground_proposal_last_parse_status = "no_call"
     active_snaps = session.latest_active_snapshots
     shadow_snaps = session.latest_shadow_snapshots
     for slot in (
@@ -452,11 +559,59 @@ async def run_benchmark_async(
             continue
         records = getattr(snap.value, "records", ())
         tom_records_total += len(records)
+        for record in records:
+            interlocutor_id = getattr(record, "interlocutor_id", None)
+            if isinstance(interlocutor_id, str) and interlocutor_id:
+                per_interlocutor_counts[interlocutor_id] = (
+                    per_interlocutor_counts.get(interlocutor_id, 0) + 1
+                )
+        diagnostics = getattr(snap.value, "proposal_diagnostics", None)
+        if diagnostics is not None:
+            # Aggregate by ``max`` because all four ToM owners share a
+            # single runtime instance under the default auto-wire, so
+            # per-owner counters are identical, not additive.
+            tom_proposal_attempts = max(
+                tom_proposal_attempts, diagnostics.proposals_received_total
+            )
+            tom_proposal_parsed_ok = max(
+                tom_proposal_parsed_ok, diagnostics.proposals_parsed_ok
+            )
+            tom_proposal_parse_errors = max(
+                tom_proposal_parse_errors,
+                diagnostics.proposals_rejected_malformed_json,
+            )
+            tom_proposal_schema_mismatches = max(
+                tom_proposal_schema_mismatches,
+                diagnostics.proposals_rejected_schema_mismatch,
+            )
+            tom_proposal_emitted = max(
+                tom_proposal_emitted, diagnostics.proposals_emitted_total
+            )
+            if diagnostics.last_parse_status != "no_call":
+                tom_proposal_last_parse_status = diagnostics.last_parse_status
     cg_snap = active_snaps.get("common_ground") or shadow_snaps.get("common_ground")
     if cg_snap is not None:
         common_ground_dyad_atoms_total = len(
             getattr(cg_snap.value, "dyad_atoms", ())
         )
+        cg_diagnostics = getattr(cg_snap.value, "proposal_diagnostics", None)
+        if cg_diagnostics is not None:
+            common_ground_proposal_attempts = (
+                cg_diagnostics.proposals_received_total
+            )
+            common_ground_proposal_parsed_ok = cg_diagnostics.proposals_parsed_ok
+            common_ground_proposal_parse_errors = (
+                cg_diagnostics.proposals_rejected_malformed_json
+            )
+            common_ground_proposal_schema_mismatches = (
+                cg_diagnostics.proposals_rejected_schema_mismatch
+            )
+            common_ground_proposal_emitted = (
+                cg_diagnostics.proposals_emitted_total
+            )
+            common_ground_proposal_last_parse_status = (
+                cg_diagnostics.last_parse_status
+            )
     pending = session.followup_manager.pending
     pending_followup_count = len(pending)
     proactive_followup_count = sum(
@@ -480,6 +635,32 @@ async def run_benchmark_async(
         final_interlocutor_axes=final_interlocutor_axes,
         tom_records_total=tom_records_total,
         common_ground_dyad_atoms_total=common_ground_dyad_atoms_total,
+        tom_proposal_attempts_total=tom_proposal_attempts,
+        tom_proposal_parsed_ok_total=tom_proposal_parsed_ok,
+        tom_proposal_parse_errors_total=tom_proposal_parse_errors,
+        tom_proposal_schema_mismatches_total=tom_proposal_schema_mismatches,
+        tom_proposal_emitted_total=tom_proposal_emitted,
+        tom_proposal_last_parse_status=tom_proposal_last_parse_status,
+        common_ground_proposal_attempts_total=common_ground_proposal_attempts,
+        common_ground_proposal_parsed_ok_total=common_ground_proposal_parsed_ok,
+        common_ground_proposal_parse_errors_total=(
+            common_ground_proposal_parse_errors
+        ),
+        common_ground_proposal_schema_mismatches_total=(
+            common_ground_proposal_schema_mismatches
+        ),
+        common_ground_proposal_emitted_total=common_ground_proposal_emitted,
+        common_ground_proposal_last_parse_status=(
+            common_ground_proposal_last_parse_status
+        ),
+        pe_distribution_window_filled=pe_distribution_window_filled,
+        pe_distribution_window_filled_first_turn=(
+            pe_distribution_window_filled_first_turn
+        ),
+        per_interlocutor_record_counts=tuple(
+            sorted(per_interlocutor_counts.items(), key=lambda item: item[0])
+        ),
+        wrong_person_pe_events_total=wrong_person_pe_events_total,
     )
 
 

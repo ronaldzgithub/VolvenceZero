@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -1198,11 +1199,35 @@ def build_final_runtime_modules(
     # semantic runtimes do not expose a provider, so this default is
     # fail-closed: when no LLM is wired the ToM owners stay empty
     # (existing behaviour for unit tests / offline harnesses).
+    #
+    # Wave E1 (debt #10B item-3 hypothesis-2): a wrapper around
+    # ``LLMSemanticProposalRuntime`` that exposes ``text_provider`` but
+    # fails the strict ``isinstance`` check would silently fall back
+    # to the fail-closed branch, so a real LLM call still emits
+    # 0 ToM / common-ground records. We emit a one-shot
+    # ``UserWarning`` for that case so the wrapper situation surfaces
+    # in any default test runner output instead of staying silent.
     if tom_proposal_runtime is None and isinstance(
         semantic_runtime, LLMSemanticProposalRuntime
     ):
         tom_proposal_runtime = LLMToMProposalRuntime(
             provider=semantic_runtime.text_provider
+        )
+    elif (
+        tom_proposal_runtime is None
+        and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
+        and hasattr(semantic_runtime, "text_provider")
+    ):
+        warnings.warn(
+            "build_final_runtime_modules: semantic_proposal_runtime exposes "
+            "`text_provider` but is not an LLMSemanticProposalRuntime "
+            f"instance (type={type(semantic_runtime).__name__!r}); the "
+            "default ToM proposal runtime auto-wire is FAIL-CLOSED in this "
+            "case so ToM owners will publish empty records even with an "
+            "LLM provider attached. Pass an explicit `tom_proposal_runtime` "
+            "to override, or unwrap the runtime so isinstance() succeeds.",
+            UserWarning,
+            stacklevel=2,
         )
     # Phase 1 W1.E EQ-owner uplift: same fail-closed pattern for the
     # common-ground LLM proposal runtime. The CommonGroundModule also
@@ -1216,6 +1241,24 @@ def build_final_runtime_modules(
     ):
         common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
             provider=semantic_runtime.text_provider
+        )
+    elif (
+        common_ground_proposal_runtime is None
+        and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
+        and hasattr(semantic_runtime, "text_provider")
+    ):
+        warnings.warn(
+            "build_final_runtime_modules: semantic_proposal_runtime exposes "
+            "`text_provider` but is not an LLMSemanticProposalRuntime "
+            f"instance (type={type(semantic_runtime).__name__!r}); the "
+            "default common-ground proposal runtime auto-wire is "
+            "FAIL-CLOSED in this case so common-ground owners will "
+            "publish only typed-upstream atoms (no LLM proposal atoms) "
+            "even with an LLM provider attached. Pass an explicit "
+            "`common_ground_proposal_runtime` to override, or unwrap the "
+            "runtime so isinstance() succeeds.",
+            UserWarning,
+            stacklevel=2,
         )
     if prediction_module is not None:
         prediction_module.set_action_context(prediction_action_context)

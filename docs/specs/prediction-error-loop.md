@@ -92,6 +92,22 @@
 - `vz-memory/memory/store.py` 在 PE 写入路径里把 `epistemic_magnitude` / `aleatoric_magnitude` 直接写入 owner-internal `MemoryAttributeReadout`（Phase 1.C），让陪伴向"哪条 PE 是可学的"成为可观察 readout。
 - learned critic 的 state 由 PE owner 自己 export / restore；checkpoint id 与 capacity/validation readout 只用于审计，禁止让 critic 直接写 evaluation acceptance gate。
 
+#### Wave E3 promotion criteria（debt #7 闭合候选）
+
+learned PE critic head 何时可以从 readout-only 升级为 acceptance gate 的输入：
+
+| 升级阶段 | 准入条件 | 退出 / 回滚条件 |
+|---|---|---|
+| `readout-only`（当前默认） | 不需要任何门槛；纯诊断 | — |
+| `readout-with-acceptance`（建议下一阶段） | 在 ≥ 200 turn 真 trace 上 `improvement_magnitude` mean ≥ running-stats baseline RMSE 改善 ≥ 0.02；`PEDecomposition.critic_gate_decision` ≠ `block` 占比 ≥ 0.95 | improvement_magnitude mean 退到 < 0 持续 ≥ 50 turn → 退回 readout-only |
+| `acceptance gate`（终态） | 在 ≥ 500 turn 真 trace 上 RMSE 改善 ≥ 0.05；rollback drill 通过；`epistemic_magnitude` 不出现塌缩到 0 持续 ≥ 100 turn 的退化 | 一次 rollback drill 失败 → 退回 `readout-with-acceptance` |
+
+实施约束：
+
+- 与 counterfactual rewarding-state head 升级（`docs/specs/credit-and-self-modification.md` Wave E3 段）使用相同的 SHADOW → ACTIVE 三态 + `WiringLevel` 协议。
+- rollback drill 测试：`tests/contracts/test_learned_baseline_rollback_drill.py`。
+- 升级修改了 evaluation acceptance gate 的输入面，但 `PEDecomposition` schema 不变；现有 consumer 仍按 typed 字段读取，向后兼容。
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.9 节
 
 ### PE Distributional Readout（Phase 2 W1.1-1.3 / DM-1）

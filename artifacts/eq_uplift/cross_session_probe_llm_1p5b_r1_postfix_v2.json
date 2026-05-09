@@ -1,0 +1,71 @@
+{
+  "scenarios": [
+    {
+      "rounds": 1,
+      "scenario_id": "cross-session-emotional-followup",
+      "closed_scenes_total": 1,
+      "bond_warmth_first": 0.8,
+      "bond_warmth_last": 0.8,
+      "bond_warmth_trend": 0.0,
+      "trust_no_drift": true,
+      "continuity_improved_vs_baseline": true,
+      "il_trust_first": 0.1632,
+      "il_trust_last": 0.1632,
+      "il_trust_trend": 0.0,
+      "il_rapport_first": 0.8324,
+      "il_rapport_last": 0.8324,
+      "il_rapport_trend": 0.0,
+      "il_rapport_trend_pos": false,
+      "tom_records_total_first": 0,
+      "tom_records_total_last": 0,
+      "tom_records_total_trend": 0,
+      "common_ground_dyad_atoms_total_first": 0,
+      "common_ground_dyad_atoms_total_last": 0,
+      "common_ground_dyad_atoms_total_trend": 0,
+      "passed": false,
+      "per_round_closed_scene_count": [
+        1
+      ],
+      "per_round_bond_warmth": [
+        0.8
+      ],
+      "per_round_il_trust": [
+        0.1632
+      ],
+      "per_round_il_rapport": [
+        0.8324
+      ],
+      "per_round_tom_records_total": [
+        0
+      ],
+      "per_round_common_ground_dyad_atoms_total": [
+        0
+      ],
+      "per_round_tom_proposal_attempts_total": [
+        1
+      ],
+      "per_round_tom_proposal_parsed_ok_total": [
+        0
+      ],
+      "per_round_tom_proposal_parse_errors_total": [
+        0
+      ],
+      "per_round_tom_proposal_schema_mismatches_total": [
+        1
+      ],
+      "per_round_common_ground_proposal_attempts_total": [
+        1
+      ],
+      "per_round_common_ground_proposal_parsed_ok_total": [
+        0
+      ],
+      "per_round_common_ground_proposal_parse_errors_total": [
+        0
+      ],
+      "per_round_common_ground_proposal_schema_mismatches_total": [
+        1
+      ],
+      "description": "Longitudinal F3 over 1 round(s): closed_scenes_total=1 bond_warmth first=0.8 last=0.8 trend=+0.000 il_rapport first=0.8324 last=0.8324 trend=+0.0000 pos=False tom_records first=0 last=0 trend=+0 cg_dyad_atoms first=0 last=0 trend=+0 trust_no_drift=True continuity_improved=True"
+    }
+  ]
+}

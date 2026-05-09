@@ -44,7 +44,9 @@ PACKAGES_ROOT = REPO_ROOT / "packages"
 ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
     "vz-substrate": frozenset({"runtime", "learned_update"}),
-    "vz-memory": frozenset({"runtime", "learned_update", "substrate", "social_cognition"}),
+    "vz-memory": frozenset(
+        {"runtime", "learned_update", "substrate", "social_cognition"}
+    ),
     # Slice C (2026-05-03): vz-cognition no longer hosts application-tier
     # dataclasses. The ``evaluation`` layer consumes a structural
     # ``Protocol`` surface (``volvence_zero.application_readouts`` in
@@ -63,6 +65,12 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # dual_track / evaluation consume the canonical character-level
             # token+hash embedding from vz-contracts.
             "semantic_embedding",
+            # Wave E1 (debt #10B item 3): typed counters for LLM-backed
+            # proposal runtimes. The immutable
+            # :class:`LLMProposalAttemptCounters` lives in vz-contracts so
+            # ToM / common-ground owner snapshots in vz-cognition can
+            # surface it without a circular dependency on lifeform layers.
+            "llm_proposal_diagnostics",
         }
     ),
     "vz-application": frozenset(

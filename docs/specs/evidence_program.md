@@ -372,8 +372,44 @@
 - CLI stdout: `lifeform-bench --social-cognition-evidence-report`
 - JSON artifact: `lifeform-bench --social-cognition-evidence-report --social-cognition-evidence-json social_cognition_evidence_report.json`
 
+## EQ Evidence-Chain Closure Bundle (Wave E1-E5)
+
+Wave E1-E5 把 `default NoOp` 路径下不出 evidence 的链路打通；所有面都通过单一 manifest 暴露，下游 cite 按 `evidence_bundle.json` gate 读，不再各家拼装。
+
+**单命令入口**：`scripts/run_eq_evidence_bundle.sh [ROUNDS] [BUNDLE_DIR]`
+
+**Bundle 装配器**：`python -m lifeform_evolution.evidence_bundle assemble --bundle-dir <dir> --output <path>`
+
+### Gates
+
+| Gate id | 关闭条件 | 关联 debt |
+|---|---|---|
+| `debt_10b_item3` | 至少一个 long-form scenario 的 `tom_records_total_last > 0` 且 `common_ground_dyad_atoms_total_last > 0`（必须用真 LLM proposal runtime） | #10B item 3 |
+| `debt_10c_il_rapport_snr` | 跨 scenario 的 `cross_scenario_summary.il_rapport_trend_snr_mean ≥ 1.5` | #10C |
+| `debt_11_long_form_coverage` | 至少一次 bundle 报告 `pe_window_filled_scenario_ratio ≥ 0.5` | #11 follow-up |
+| `wave_e4_multi_party_keying` | 3-party scenario artifact 存在；F3 facets 由 `tests/contracts/test_multi_party_shadow_evidence.py` 静态守门 | — |
+| `debt_6_rewarding_state_head_promotion` | rollback drill test 存在且通过；promotion 仍需真 trace evidence | #6 |
+| `debt_7_pe_critic_head_promotion` | rollback drill test 存在且通过；promotion 仍需真 trace evidence | #7 |
+
+### Required artifacts
+
+bundle dir 中必须有：
+
+- `<scenario_id>_longitudinal.json` × 4（4 个 long-form scenario）
+- `long-form-three-party-arc_longitudinal.json`（multi-party SHADOW probe）
+- 装配器自动产 `evidence_bundle.json`
+
+每个 artifact 的 SHA-256 + 大小记录在 `evidence_bundle.json.artifact_provenance` 内，外部审阅可通过 sha256 验真。
+
+### 不变量
+
+- 所有 evidence gate 必须 typed JSON readout，不允许从文本输出推断（`no-keyword-matching-hacks` rule）
+- bundle 装配器是纯只读脚本，不 mutate 任何 owner / runtime；它只读 artifact 并写 manifest
+- 每个 gate 的 `passed` 字段必须能从 typed metric 读出，不依赖人工判读
+
 ## 变更日志
 
+- 2026-05-09: Wave E5 (Evidence-Chain Closure milestone) 落地 EQ Evidence-Chain Closure Bundle 段：单命令入口 `scripts/run_eq_evidence_bundle.sh`、装配器 `python -m lifeform_evolution.evidence_bundle assemble`、6 条 typed gate verdict、artifact provenance（sha256 + size）。E1-E4 落地的所有 owner / family / longitudinal 字段已通过 bundle 暴露，外部 cite 可通过单一 `evidence_bundle.json` 路径读取所有 verdict。
 - 2026-05-02: Social Cognition evidence report 增加 R16A active identity memory scope gate，覆盖 EnvironmentEvent frame → ACTIVE multi_party_identity → memory subject/audience scope 链路
 - 2026-05-02: Social Cognition evidence report 增加 R16B active social PE memory visibility gate，覆盖 ACTIVE social_prediction/social_prediction_error → memory visibility PE → negative credit 链路
 - 2026-05-02: 强化 `claim_beyond_scripted_canonical`，新增 hidden perturbation label non-leak、repair observable 与 runtime adaptation evidence 条件，仍复用现有 dialogue benchmark / paper-suite / evidence bundle

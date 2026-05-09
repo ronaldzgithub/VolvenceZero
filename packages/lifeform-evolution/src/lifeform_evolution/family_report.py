@@ -420,6 +420,171 @@ def _compute_f3(
             ),
         )
     )
+    # Wave E1 (debt #10B item 3) diagnostic counters. These let an
+    # evidence run distinguish "ToM records empty because the LLM
+    # runtime was not wired" from "LLM was called but every payload
+    # failed to parse". Both are threshold=None readouts; their value
+    # is in the comparison against ``f3.tom_records_total`` and
+    # ``f3.common_ground_dyad_atoms_total``.
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.tom_proposal_attempts_total",
+            name="ToM LLM proposal attempts total",
+            value=float(bench.tom_proposal_attempts_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "End-of-scenario cumulative count of ToM LLM provider "
+                "calls. 0 means no LLM call happened (no LLM runtime "
+                "wired or no user input passed the gate); > 0 with "
+                "tom_records_total == 0 means parse failures or owner-"
+                "side filtering rejected every typed proposal. Pair "
+                "with f3.tom_proposal_parse_errors_total / "
+                "f3.tom_proposal_schema_mismatches_total to localise."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.tom_proposal_parsed_ok_total",
+            name="ToM LLM proposal calls with parse-ok",
+            value=float(bench.tom_proposal_parsed_ok_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "Subset of f3.tom_proposal_attempts_total where the "
+                "strict JSON schema validated and yielded >= 1 typed "
+                "proposal."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.tom_proposal_parse_errors_total",
+            name="ToM LLM proposal calls with malformed JSON",
+            value=float(bench.tom_proposal_parse_errors_total),
+            threshold=None,
+            higher_is_better=False,
+            note=(
+                "Cumulative count of ToM LLM calls where the provider "
+                "output failed JSON parsing. High values usually mean "
+                "the model is too small for structured output (e.g. "
+                "Qwen 0.5B); 1.5B+ is the spec-recommended baseline."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.tom_proposal_schema_mismatches_total",
+            name="ToM LLM proposal calls with valid JSON but no typed item",
+            value=float(bench.tom_proposal_schema_mismatches_total),
+            threshold=None,
+            higher_is_better=False,
+            note=(
+                "Cumulative count of ToM LLM calls that produced "
+                "well-formed JSON but no item survived schema and "
+                "confidence validation. High values mean the model "
+                "hallucinated fields or scored too low confidence."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.common_ground_proposal_attempts_total",
+            name="Common-ground LLM proposal attempts total",
+            value=float(bench.common_ground_proposal_attempts_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "End-of-scenario cumulative count of common-ground "
+                "LLM provider calls. Same diagnostic role as "
+                "f3.tom_proposal_attempts_total but for the common-"
+                "ground runtime."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.common_ground_proposal_parsed_ok_total",
+            name="Common-ground LLM proposal calls with parse-ok",
+            value=float(bench.common_ground_proposal_parsed_ok_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "Subset of f3.common_ground_proposal_attempts_total "
+                "where the strict JSON schema validated and yielded "
+                ">= 1 typed proposal."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.common_ground_proposal_parse_errors_total",
+            name="Common-ground LLM proposal calls with malformed JSON",
+            value=float(bench.common_ground_proposal_parse_errors_total),
+            threshold=None,
+            higher_is_better=False,
+            note=(
+                "Cumulative count of common-ground LLM calls where "
+                "the provider output failed JSON parsing. Same "
+                "diagnostic role as f3.tom_proposal_parse_errors_total."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.common_ground_proposal_schema_mismatches_total",
+            name="Common-ground LLM proposal calls with valid JSON but no typed item",
+            value=float(bench.common_ground_proposal_schema_mismatches_total),
+            threshold=None,
+            higher_is_better=False,
+            note=(
+                "Cumulative count of common-ground LLM calls that "
+                "produced well-formed JSON but no item survived schema "
+                "and confidence validation."
+            ),
+        )
+    )
+    # Wave E4 (multi-party SHADOW evidence faceting). Threshold None
+    # everywhere; the per-interlocutor count tuple is surfaced as a
+    # text note while the wrong-person PE event count is a typed
+    # numeric metric so downstream evidence assembly can read both
+    # without re-deriving from snapshots.
+    interlocutor_count_summary = ", ".join(
+        f"{iid}={count}"
+        for iid, count in bench.per_interlocutor_record_counts
+    ) or "(none)"
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.distinct_interlocutor_count",
+            name="distinct interlocutor ids in ToM owner records",
+            value=float(len(bench.per_interlocutor_record_counts)),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                f"per-interlocutor record counts: {interlocutor_count_summary}. "
+                "Wave E4 SHADOW evidence: a 3-party scenario should "
+                "produce at least 2 distinct interlocutor ids without "
+                "cross-contamination."
+            ),
+        )
+    )
+    metrics.append(
+        FamilyMetric(
+            metric_id="f3.wrong_person_pe_events_total",
+            name="wrong-person attribution PE events total",
+            value=float(bench.wrong_person_pe_events_total),
+            threshold=None,
+            higher_is_better=True,
+            note=(
+                "Cumulative SocialPredictionError events with kind in "
+                "{identity_attribution, relationship_attribution}. > 0 "
+                "in a deliberate-misattribution segment proves the PE "
+                "chain reacts to wrong-person events; staying at 0 "
+                "there is the SHADOW evidence regression signal."
+            ),
+        )
+    )
     return FamilyEvaluation(
         family_id=FamilyId.F3_RELATIONSHIP_CONTINUITY,
         family_name=_FAMILY_NAMES[FamilyId.F3_RELATIONSHIP_CONTINUITY],
@@ -487,6 +652,39 @@ def _compute_f4(
                     "Positive = system steadied as the scenario progressed. "
                     "Acceptance question #12 wants high PE \u2192 controller "
                     "change \u2192 later improvement."
+                ),
+            ),
+            # Wave E2 (debt #11 follow-up): per-scenario indicator
+            # of whether the PE distribution window filled
+            # (``min_window=8`` + vitals warmup=5 = 13 turns floor).
+            # Threshold None at family level; the cross-scenario
+            # ratio is the acceptance metric, surfaced at the cli /
+            # bundle layer.
+            FamilyMetric(
+                metric_id="f4.pe_distribution_window_filled",
+                name="PE distribution window filled (1 = yes, 0 = no)",
+                value=1.0 if bench.pe_distribution_window_filled else 0.0,
+                threshold=None,
+                higher_is_better=True,
+                note=(
+                    "1 if at least one turn published a non-None "
+                    "PredictionError.distribution_summary; 0 otherwise. "
+                    "Short scenarios structurally cannot fill (the "
+                    "PE distribution window needs ~13 turns minimum)."
+                ),
+            ),
+            FamilyMetric(
+                metric_id="f4.pe_distribution_window_filled_first_turn",
+                name="first turn at which PE distribution window filled",
+                value=float(
+                    bench.pe_distribution_window_filled_first_turn or 0
+                ),
+                threshold=None,
+                higher_is_better=False,
+                note=(
+                    "Turn index (1-based) at which the PE distribution "
+                    "summary first became non-None; 0 when the window "
+                    "never filled. Lower is better when > 0."
                 ),
             ),
         ),

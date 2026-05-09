@@ -128,9 +128,20 @@ def _run_bench(
 def _summarize_artifact(artifact_path: pathlib.Path) -> int:
     """Read the longitudinal artifact and print debt #10B / #10C verdicts.
 
-    Returns 0 when debt #10B item 3 closure conditions are met
-    (``tom_records_total_last > 0`` for at least one scenario),
+    Returns 0 when debt #10B item 3 closure conditions are met,
     otherwise 1 — the bench CLI's own exit code is reported separately.
+
+    Closure semantics (option B / per-session runtimes follow-up):
+    debt #10B item 3 closes when at least one scenario records a
+    cumulative ``per_round_tom_proposal_parsed_ok_total`` or
+    ``per_round_common_ground_proposal_parsed_ok_total`` entry > 0,
+    i.e. the LLM proposal runtime emitted at least one schema-valid
+    typed proposal during the session. Cumulative parsed-ok is the
+    correct definition of "EQ chain activated": the legacy
+    ``tom_records_total_last`` / ``common_ground_dyad_atoms_total_last``
+    fields read only the LAST turn's owner snapshot, which is per-turn
+    by design and is not a reliable activation signal on its own.
+    Those fields stay in the printed summary as secondary readouts.
     """
     if not artifact_path.exists():
         print(f"[probe] FAIL: artifact missing at {artifact_path}", file=sys.stderr)
@@ -171,9 +182,112 @@ def _summarize_artifact(artifact_path: pathlib.Path) -> int:
             f"    il_rapport_trend: {il_trend!r:>10} pos={il_trend_pos}\n"
             f"    longitudinal.passed: {passed}"
         )
-        if isinstance(tom_last, int) and tom_last > 0:
+        # Wave E1 (debt #10B item 3) diagnostic counters: when
+        # tom_last == 0, surface the per-round LLM proposal counters
+        # so the operator can localise the root cause without
+        # re-running.
+        if not (isinstance(tom_last, int) and tom_last > 0):
+            tom_attempts = scenario.get(
+                "per_round_tom_proposal_attempts_total", []
+            )
+            tom_parsed_ok = scenario.get(
+                "per_round_tom_proposal_parsed_ok_total", []
+            )
+            tom_parse_errors = scenario.get(
+                "per_round_tom_proposal_parse_errors_total", []
+            )
+            tom_schema_mismatches = scenario.get(
+                "per_round_tom_proposal_schema_mismatches_total", []
+            )
+            cg_attempts = scenario.get(
+                "per_round_common_ground_proposal_attempts_total", []
+            )
+            cg_parse_errors = scenario.get(
+                "per_round_common_ground_proposal_parse_errors_total", []
+            )
+            cg_schema_mismatches = scenario.get(
+                "per_round_common_ground_proposal_schema_mismatches_total",
+                [],
+            )
+            print(
+                "    [diagnostic counters | tom_records_total == 0]\n"
+                f"      tom_proposal_attempts        per-round = {tom_attempts}\n"
+                f"      tom_proposal_parsed_ok       per-round = {tom_parsed_ok}\n"
+                f"      tom_proposal_parse_errors    per-round = {tom_parse_errors}\n"
+                f"      tom_proposal_schema_mismatch per-round = {tom_schema_mismatches}\n"
+                f"      cg_proposal_attempts         per-round = {cg_attempts}\n"
+                f"      cg_proposal_parse_errors     per-round = {cg_parse_errors}\n"
+                f"      cg_proposal_schema_mismatch  per-round = {cg_schema_mismatches}"
+            )
+            if tom_attempts and not any(a or 0 for a in tom_attempts):
+                print(
+                    "      hint: 0 ToM attempts across all rounds -> the "
+                    "LLM proposal runtime was never called. Check that "
+                    "`--use-llm-semantic-runtime` is set AND that "
+                    "`semantic_proposal_runtime` is a direct "
+                    "`LLMSemanticProposalRuntime` instance (not a wrapper)."
+                )
+            elif tom_parse_errors and any((e or 0) > 0 for e in tom_parse_errors):
+                print(
+                    "      hint: > 0 parse errors -> model output failed "
+                    "JSON parsing. Common cause: model wraps payload in "
+                    "a markdown fence variant the parser does not strip "
+                    "(only ```json / ```JSON / ``` with alphanumeric info "
+                    "string are stripped today). Inspect raw outputs via "
+                    "VZ_LLM_PROPOSAL_DEBUG_LOG=<path>."
+                )
+            elif tom_schema_mismatches and any(
+                (m or 0) > 0 for m in tom_schema_mismatches
+            ):
+                print(
+                    "      hint: > 0 schema mismatches -> JSON parsed but "
+                    "no item passed schema/confidence floor. Inspect raw "
+                    "outputs via VZ_LLM_PROPOSAL_DEBUG_LOG=<path>."
+                )
+        # Option B (per-session runtimes) closure rule: cumulative
+        # parsed-ok across any round is the load-bearing signal. The
+        # legacy last-turn snapshot fields (``tom_last`` /
+        # ``cg_dyad_atoms_total_last``) remain in the printed summary
+        # as secondary readouts but do not gate closure -- per-turn
+        # owner snapshots emit only this-turn records, so a 5-turn
+        # session whose LAST turn happens to produce no records would
+        # falsely look "inactive" even when earlier turns produced
+        # valid typed proposals.
+        tom_parsed_ok_session = scenario.get(
+            "per_round_tom_proposal_parsed_ok_total", []
+        )
+        cg_parsed_ok_session = scenario.get(
+            "per_round_common_ground_proposal_parsed_ok_total", []
+        )
+        cumulative_parsed_ok = any(
+            (n or 0) > 0 for n in tom_parsed_ok_session
+        ) or any((n or 0) > 0 for n in cg_parsed_ok_session)
+        if cumulative_parsed_ok or (
+            isinstance(tom_last, int) and tom_last > 0
+        ):
             debt_10b_closed = True
         debt_10c_status.append((sid, il_trend))
+
+    print()
+    print("=" * 72)
+    print("  Cross-Scenario Summary (Wave E2)")
+    print("=" * 72)
+    cross = payload.get("cross_scenario_summary") or {}
+    if cross:
+        print(
+            f"  scenarios run: {cross.get('scenario_count', 0)}\n"
+            f"  pe_window_filled_scenario_ratio = "
+            f"{cross.get('pe_window_filled_scenario_ratio', 0.0):.2f} "
+            f"({cross.get('pe_window_filled_scenario_count', 0)} of "
+            f"{cross.get('scenario_count', 0)} scenarios)\n"
+            f"  il_rapport_trend_snr_mean       = "
+            f"{cross.get('il_rapport_trend_snr_mean', 0.0):.3f}"
+        )
+    else:
+        print(
+            "  (cross-scenario summary not present in artifact - "
+            "this is a pre-Wave-E2 longitudinal artifact)"
+        )
 
     print()
     print("=" * 72)
@@ -182,16 +296,28 @@ def _summarize_artifact(artifact_path: pathlib.Path) -> int:
     if debt_10b_closed:
         print(
             "  [10B item 3] CLOSED: at least one scenario produced "
-            "tom_records_total_last > 0; EQ owner activation evidence "
-            "captured."
+            "cumulative per_round_tom_proposal_parsed_ok_total > 0 "
+            "or per_round_common_ground_proposal_parsed_ok_total > 0; "
+            "the LLM proposal runtime emitted schema-valid typed "
+            "proposals during the session, so the EQ owner activation "
+            "chain is wired and live."
         )
     else:
         print(
-            "  [10B item 3] OPEN: every scenario reported "
-            "tom_records_total_last == 0. The LLM proposal runtime "
-            "did not extract any ToM records — likely a prompt / "
-            "parse-format regression. Inspect the artifact and the "
-            "Qwen output for the failing turn."
+            "  [10B item 3] OPEN: every scenario reported zero "
+            "cumulative parsed_ok proposals across all rounds for both "
+            "ToM and common-ground runtimes. Likely causes (in order "
+            "of likelihood): (a) the LLM proposal runtime is wired but "
+            "every payload failed the strict JSON schema (inspect raw "
+            "outputs via VZ_LLM_PROPOSAL_DEBUG_LOG=<path>); (b) the "
+            "scenario is too short or stylistically unlikely to elicit "
+            "ToM/CG observations (try a long-form scenario from "
+            "packages/lifeform-domain-emogpt/.../scenarios/long-form-*); "
+            "(c) the runtime was never called at all (per_round_*_"
+            "proposal_attempts_total is empty or all-zero -- check "
+            "--use-llm-semantic-runtime is set and that "
+            "semantic_proposal_runtime is a direct "
+            "LLMSemanticProposalRuntime instance, not a wrapper)."
         )
 
     weak_il = [

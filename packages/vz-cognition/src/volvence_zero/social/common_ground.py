@@ -20,6 +20,7 @@ import json
 from json import JSONDecodeError
 from typing import Any, Mapping, Protocol
 
+from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
     MAX_COMMON_GROUND_RECURSION_DEPTH,
@@ -29,6 +30,13 @@ from volvence_zero.social_cognition import (
     ConversationalRoleSnapshot,
     SocialScopeKind,
 )
+
+from volvence_zero.semantic_state._llm_proposal_counters import (
+    LLMProposalAttemptAccumulator,
+)
+
+from ._llm_debug import log_proposal_attempt, make_attempt_logger
+from ._llm_parsing import strip_code_fence
 
 
 _MIN_COMMON_GROUND_CONFIDENCE = 0.50
@@ -152,6 +160,7 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
             *(atom for atom in runtime_atoms if atom.scope_kind.value == "group"),
         )
         control_signal = _mean_confidence(upstream_atoms + runtime_atoms)
+        proposal_diagnostics = self._extract_proposal_diagnostics()
         return self.publish(
             CommonGroundSnapshot(
                 dyad_atoms=dyad_atoms,
@@ -162,8 +171,25 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
                     "R19 SHADOW scaffold: "
                     f"dyad_atoms={len(dyad_atoms)} group_atoms={len(group_atoms)}."
                 ),
+                proposal_diagnostics=proposal_diagnostics,
             )
         )
+
+    def _extract_proposal_diagnostics(self) -> LLMProposalAttemptCounters | None:
+        """Return the wired runtime's typed counters when available.
+
+        Returns ``None`` when no runtime is wired or when the wired
+        runtime is not LLM-backed (no ``attempt_counters`` attribute).
+        Duck-typed on the attribute name to remain agnostic to
+        future LLM-backed runtime variants.
+        """
+        runtime = self._proposal_runtime
+        if runtime is None:
+            return None
+        counters = getattr(runtime, "attempt_counters", None)
+        if isinstance(counters, LLMProposalAttemptCounters):
+            return counters
+        return None
 
     def _derive_upstream_dyad_atoms(
         self,
@@ -304,6 +330,25 @@ class LLMCommonGroundProposalRuntime:
     ) -> None:
         self._provider = provider
         self._max_new_tokens = max_new_tokens
+        # Opt-in diagnostic sink. ``None`` (the default) means the hot
+        # path stays zero-overhead; setting ``VZ_LLM_PROPOSAL_DEBUG_LOG``
+        # before host construction binds a JSONL append callable so a
+        # diagnostic run can capture raw provider output + parse outcome
+        # without changing constructor surface.
+        self._debug_logger = make_attempt_logger()
+        # Always-on typed counters (Wave E1). Owners read
+        # ``attempt_counters`` and surface it on their snapshot so a
+        # 0-records evidence run can be diagnosed without env vars.
+        self._counters = LLMProposalAttemptAccumulator()
+
+    @property
+    def attempt_counters(self) -> LLMProposalAttemptCounters:
+        """Return an immutable snapshot of cumulative LLM call counters.
+
+        Owner modules read this each turn and republish on the
+        ``CommonGroundSnapshot.proposal_diagnostics`` field.
+        """
+        return self._counters.snapshot()
 
     def propose(
         self,
@@ -323,30 +368,68 @@ class LLMCommonGroundProposalRuntime:
             max_new_tokens=self._max_new_tokens,
             temperature=0.0,
         )
-        proposals = _parse_common_ground_proposals(raw)
+        proposals, parse_status, parse_error = _parse_common_ground_proposals_with_diag(raw)
+        log_proposal_attempt(
+            self._debug_logger,
+            runtime_id=self.runtime_id,
+            target_slot=None,
+            turn_index=turn_index,
+            prompt=prompt,
+            raw_output=raw,
+            parsed_count=len(proposals),
+            parse_status=parse_status,
+            parse_error=parse_error,
+        )
+        self._counters.record_attempt(
+            parse_status=parse_status,
+            parse_error=parse_error,
+            parsed_count=len(proposals),
+            emitted_count=len(proposals),
+        )
         return CommonGroundProposalBatch(
-            proposals=proposals or (),
+            proposals=proposals,
             runtime_id=self.runtime_id,
             description=(
                 f"Structured common-ground runtime emitted "
-                f"{len(proposals or ())} proposal(s) at turn {turn_index}."
+                f"{len(proposals)} proposal(s) at turn {turn_index}."
             ),
         )
 
 
 def _parse_common_ground_proposals(text: str) -> tuple[CommonGroundProposal, ...] | None:
+    proposals, status, _ = _parse_common_ground_proposals_with_diag(text)
+    if status == "parse_error":
+        return None
+    return proposals
+
+
+def _parse_common_ground_proposals_with_diag(
+    text: str,
+) -> tuple[tuple[CommonGroundProposal, ...], str, str | None]:
+    """Parse with diagnostic categories; never raises.
+
+    Returns ``(proposals, status, parse_error)`` where ``status`` is
+    one of ``"ok"`` / ``"parse_error"`` / ``"empty_or_rejected"`` and
+    ``parse_error`` is the JSONDecodeError message when applicable.
+    Used by both the production parser
+    (``_parse_common_ground_proposals``) and the diagnostic sink in
+    ``LLMCommonGroundProposalRuntime``.
+    """
+    cleaned = strip_code_fence(text)
     try:
-        payload = json.loads(text.strip())
-    except JSONDecodeError:
-        return None
+        payload = json.loads(cleaned.strip())
+    except JSONDecodeError as exc:
+        return ((), "parse_error", str(exc))
     if not isinstance(payload, list):
-        return None
+        return ((), "parse_error", f"top-level not a list: {type(payload).__name__}")
     proposals: list[CommonGroundProposal] = []
     for item in payload:
         proposal = _parse_common_ground_proposal(item)
         if proposal is not None:
             proposals.append(proposal)
-    return tuple(proposals)
+    if not proposals:
+        return ((), "empty_or_rejected", None)
+    return (tuple(proposals), "ok", None)
 
 
 def _parse_common_ground_proposal(item: object) -> CommonGroundProposal | None:

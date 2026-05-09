@@ -139,6 +139,11 @@ from volvence_zero.semantic_state import (
     SemanticProposalRuntime,
     SemanticStateStore,
 )
+from volvence_zero.semantic_state.llm_runtime import LLMSemanticProposalRuntime
+from volvence_zero.social import (
+    LLMCommonGroundProposalRuntime,
+    LLMToMProposalRuntime,
+)
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
@@ -176,6 +181,18 @@ from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopResult,
     SessionPostSlowLoopSnapshot,
 )
+# Debt #9 wave 1: ``AgentSessionRunner`` is composed from four
+# phase-grouped mixins. The mixins host the bulk of method bodies so
+# this file shrinks to instance setup (``__init__``), the public
+# property surface, the ``run_turn`` orchestrator, and the module-
+# level factories. Each mixin is a pure container of methods that
+# read ``self._*`` attributes set by ``__init__``; MRO order matches
+# the W5 logical phase order so any future cross-mixin ``super()``
+# call resolves predictably.
+from volvence_zero.agent.session_lifecycle import SessionLifecycleMixin
+from volvence_zero.agent.session_observation import SessionObservationMixin
+from volvence_zero.agent.session_training_phase import SessionTrainingPhaseMixin
+from volvence_zero.agent.session_writeback_phase import SessionWritebackPhaseMixin
 
 
 @dataclass(frozen=True)
@@ -270,12 +287,10 @@ from volvence_zero.agent.session_helpers import (
 )
 
 
-_APPLICATION_PRIOR_PROPOSAL_BUILDER = ApplicationPriorProposalBuilder()
-
-
-from volvence_zero.agent.session_helpers import (
-    experience_deltas_from_prior_update as _experience_deltas_from_prior_update,
-)
+# Debt #9 wave 1: ``_APPLICATION_PRIOR_PROPOSAL_BUILDER`` and the
+# ``_experience_deltas_from_prior_update`` alias were moved to
+# ``session_writeback_phase.py`` together with the methods that use
+# them; nothing left in ``session.py`` references either symbol.
 
 
 @dataclass(frozen=True)
@@ -403,8 +418,19 @@ class MultiPathBenchmarkReport:
     description: str
 
 
-class AgentSessionRunner:
-    """Minimal session runner over the final wiring graph."""
+class AgentSessionRunner(
+    SessionLifecycleMixin,
+    SessionWritebackPhaseMixin,
+    SessionTrainingPhaseMixin,
+    SessionObservationMixin,
+):
+    """Minimal session runner over the final wiring graph.
+
+    Implementation surface is split across four phase-grouped mixins
+    (debt #9 wave 1). The MRO is ``AgentSessionRunner ->
+    SessionLifecycleMixin -> SessionWritebackPhaseMixin ->
+    SessionTrainingPhaseMixin -> SessionObservationMixin -> object``.
+    """
 
     def __init__(
         self,
@@ -526,6 +552,29 @@ class AgentSessionRunner:
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._semantic_state_store = SemanticStateStore()
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+        # Wave E1 follow-up (option B / debt #10B item 3): when the
+        # session is wired with an LLM-backed semantic runtime, derive
+        # the ToM and common-ground LLM proposal runtimes ONCE here so
+        # their typed ``LLMProposalAttemptAccumulator`` accumulates
+        # across every turn of the session. The default-construction
+        # branch inside ``build_final_runtime_modules`` runs per turn
+        # and would otherwise reset the counters every turn (visible
+        # in ``per_round_*_proposal_attempts_total = [1]`` even after
+        # a 5-turn session). Constructing from the unwrapped runtime
+        # here also avoids the latent secondary regression where
+        # ``AdapterSemanticProposalRuntime`` (added per turn when
+        # external semantic events fire) fails the strict isinstance
+        # check inside ``build_final_runtime_modules`` and silently
+        # fail-closes the ToM / common-ground LLM auto-wire.
+        self._tom_proposal_runtime: SemanticProposalRuntime | None = None
+        self._common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None
+        if isinstance(self._semantic_proposal_runtime, LLMSemanticProposalRuntime):
+            self._tom_proposal_runtime = LLMToMProposalRuntime(
+                provider=self._semantic_proposal_runtime.text_provider
+            )
+            self._common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
+                provider=self._semantic_proposal_runtime.text_provider
+            )
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
         self._pending_environment_outcome_id: str = ""
         self._dialogue_trace_store = DialogueTraceStore()
@@ -652,200 +701,19 @@ class AgentSessionRunner:
     def dialogue_trace_snapshot(self) -> DialogueTraceSnapshot:
         return self._dialogue_trace_store.snapshot()
 
-    def export_dialogue_trace_replay_artifact(self) -> dict[str, object]:
-        return self._dialogue_trace_store.export_replay_artifact()
-
-    def export_snapshot_replay_artifact(self) -> dict[str, object]:
-        snapshots = tuple(
-            {
-                "slot_name": slot_name,
-                "owner": snapshot.owner,
-                "version": snapshot.version,
-                "description": getattr(snapshot.value, "description", ""),
-            }
-            for slot_name, snapshot in sorted(self._upstream_snapshots.items())
-        )
-        prediction_snapshot = self._upstream_snapshots.get("prediction_error")
-        prediction_value = (
-            prediction_snapshot.value
-            if prediction_snapshot is not None
-            and isinstance(prediction_snapshot.value, PredictionErrorSnapshot)
-            else None
-        )
-        temporal_snapshot = self._upstream_snapshots.get("temporal_abstraction")
-        temporal_value = (
-            temporal_snapshot.value
-            if temporal_snapshot is not None
-            and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
-            else None
-        )
-        credit_snapshot = self._upstream_snapshots.get("credit")
-        credit_value = (
-            credit_snapshot.value
-            if credit_snapshot is not None
-            and isinstance(credit_snapshot.value, CreditSnapshot)
-            else None
-        )
-        action_context = (
-            prediction_value.action_context if prediction_value is not None else None
-        )
-        action_replay = {
-            "prediction_error": (
-                {
-                    "turn_index": prediction_value.turn_index,
-                    "bootstrap": prediction_value.bootstrap,
-                    "task_error": prediction_value.error.task_error,
-                    "relationship_error": prediction_value.error.relationship_error,
-                    "regime_error": prediction_value.error.regime_error,
-                    "action_error": prediction_value.error.action_error,
-                    "magnitude": prediction_value.error.magnitude,
-                    "signed_reward": prediction_value.error.signed_reward,
-                    "description": prediction_value.description,
-                }
-                if prediction_value is not None
-                else None
-            ),
-            "action_context": (
-                {
-                    "segment_id": action_context.segment_id,
-                    "abstract_action_id": action_context.abstract_action_id,
-                    "z_t_digest": action_context.z_t_digest,
-                    "regime_id": action_context.regime_id,
-                    "affordance_name": action_context.affordance_name,
-                    "environment_event_id": action_context.environment_event_id,
-                    "environment_outcome_id": action_context.environment_outcome_id,
-                }
-                if action_context is not None
-                else None
-            ),
-            "closed_segments": (
-                tuple(
-                    {
-                        "segment_id": segment.segment_id,
-                        "open_turn_index": segment.open_turn_index,
-                        "close_turn_index": segment.close_turn_index,
-                        "abstract_action_id": segment.abstract_action_id,
-                        "z_t_digest": segment.z_t_digest,
-                        "affordance_name": segment.affordance_name,
-                    }
-                    for segment in temporal_value.closed_segments
-                )
-                if temporal_value is not None
-                else ()
-            ),
-            "credit_records": (
-                tuple(
-                    {
-                        "level": record.level,
-                        "track": record.track.value,
-                        "source_event": record.source_event,
-                        "credit_value": record.credit_value,
-                        "context": record.context,
-                    }
-                    for record in credit_value.recent_credits
-                )
-                if credit_value is not None
-                else ()
-            ),
-            "description": (
-                "Action replay evidence exported from existing prediction_error, "
-                "temporal_abstraction, and credit snapshots."
-            ),
-        }
-        return {
-            "session_id": self.active_context_session_id,
-            "snapshot_count": len(snapshots),
-            "snapshots": snapshots,
-            "action_replay": action_replay,
-            "dialogue_trace": self.export_dialogue_trace_replay_artifact(),
-            "description": (
-                "Snapshot replay artifact exported from existing runtime "
-                "snapshots; no trace-specific runtime schema was introduced."
-            ),
-        }
-
-    def attach_dialogue_outcome_evidence(
-        self,
-        evidence: tuple[DialogueOutcomeEvidence, ...],
-    ) -> DialogueOutcomeResolution | None:
-        return self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(evidence)
-
-    def submit_dialogue_outcome(
-        self,
-        *,
-        kind: DialogueExternalOutcomeKind,
-        source: DialogueExternalOutcomeEvidenceSource = DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
-        confidence: float = 0.9,
-        turn_index: int | None = None,
-        evidence_ref: str | None = None,
-        description: str = "",
-    ) -> DialogueExternalOutcomeEvidence:
-        """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
-
-        This is the single legal entry point for external dialogue
-        outcomes (user explicit feedback, environment outcomes, human
-        review, or gated LLM proposals). It:
-
-        * appends a ``DialogueExternalOutcomeEvidence`` to the
-          ``DialogueExternalOutcomeModule`` buffer — the only path into
-          the ``dialogue_external_outcome`` snapshot slot;
-        * attaches a *structural* ``DialogueOutcomeEvidence`` to the
-          most recent dialogue trace via the existing trace-resolution
-          path, so replay artifacts also see the outcome;
-        * does NOT write memory, regime, or PE state directly. All
-          downstream effects arise from PE / regime / rupture_state
-          consuming the published snapshot on the next turn (R8).
-
-        ``turn_index`` defaults to the current turn index, which is
-        correct for outcomes attached to the turn that just finished
-        (or is about to run when ``submit`` is called before
-        ``run_turn``). Pass an explicit value when an external reviewer
-        retrospectively scores a past turn.
-        """
-
-        resolved_turn = int(turn_index) if turn_index is not None else max(
-            0, int(self._turn_index)
-        )
-        ref = evidence_ref or f"{source.value}:{kind.value}:turn-{resolved_turn}"
-        evidence = DialogueExternalOutcomeEvidence(
-            evidence_id=f"external:{source.value}:{kind.value}:{resolved_turn}:{ref}",
-            turn_index=resolved_turn,
-            kind=kind,
-            source=source,
-            confidence=float(confidence),
-            evidence_ref=ref,
-            description=description,
-        )
-        self._dialogue_external_outcome_module.append_evidence(evidence)
-        structural = structural_outcome_evidence_from_external(evidence)
-        if structural is not None:
-            self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(
-                (structural,)
-            )
-        return evidence
-
-    def enqueue_semantic_events(
-        self,
-        events: ExternalSemanticEventBatch | tuple[ExternalSemanticEvent, ...],
-    ) -> tuple[str, ...]:
-        event_tuple = events.events if isinstance(events, ExternalSemanticEventBatch) else events
-        self._pending_semantic_events.extend(event_tuple)
-        if len(self._pending_semantic_events) > 64:
-            del self._pending_semantic_events[:-64]
-        return tuple(event.event_id for event in event_tuple)
-
-    def _drain_pending_semantic_events(self) -> tuple[ExternalSemanticEvent, ...]:
-        events = tuple(self._pending_semantic_events)
-        self._pending_semantic_events.clear()
-        return events
-
-    def remember_environment_outcome(self, outcome_id: str) -> None:
-        self._pending_environment_outcome_id = outcome_id
-
-    def _consume_pending_environment_outcome_id(self) -> str:
-        outcome_id = self._pending_environment_outcome_id
-        self._pending_environment_outcome_id = ""
-        return outcome_id
+    # ----- session lifecycle / dialogue trace export / dialogue outcome
+    # submission / semantic event enqueue / environment outcome stash /
+    # context lifecycle / public rare-heavy artifact API -----
+    # Implementations live in ``SessionLifecycleMixin``
+    # (``session_lifecycle.py``). The methods that previously sat
+    # here -- ``export_dialogue_trace_replay_artifact``,
+    # ``export_snapshot_replay_artifact``,
+    # ``attach_dialogue_outcome_evidence``, ``submit_dialogue_outcome``,
+    # ``enqueue_semantic_events``,
+    # ``_drain_pending_semantic_events``,
+    # ``remember_environment_outcome``, and
+    # ``_consume_pending_environment_outcome_id`` -- were moved
+    # verbatim to the lifecycle mixin during the wave-1 split.
 
     @property
     def session_post_queue_state(self) -> SessionPostSlowLoopQueueState:
@@ -1894,6 +1762,8 @@ class AgentSessionRunner:
                 memory_store=self._memory_store,
                 semantic_state_store=self._semantic_state_store,
                 semantic_proposal_runtime=active_semantic_runtime,
+                tom_proposal_runtime=self._tom_proposal_runtime,
+                common_ground_proposal_runtime=self._common_ground_proposal_runtime,
                 evaluation_backbone=self._evaluation_backbone,
                 prior_session_reports=self.completed_session_reports,
                 upstream_snapshots=self._upstream_snapshots,

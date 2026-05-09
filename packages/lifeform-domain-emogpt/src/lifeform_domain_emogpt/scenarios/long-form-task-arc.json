@@ -1,0 +1,142 @@
+{
+  "scenario_id": "long-form-task-arc",
+  "description": "Wave E2 (debt #11 follow-up) long-form scenario stress-testing the commitment lifecycle and plan-intent owners. Ramp (1-5), task framing (6-12), CREATE+REVISE on a multi-step plan (13-19), an explicit DEFER (20-24), pickup + COMPLETE (25-30), reflection (31-34). 34 turns, regime trajectory: problem_solving / guided_exploration with brief casual_social anchors so commitment alignment proposals have something to argue about.",
+  "turns": [
+    {
+      "user_input": "Hey, I have a side project I keep starting and stopping. Can we work through it together?",
+      "expected_regime_in": ["acquaintance_building", "problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "It is a small CLI tool to dedupe my photo library, but I keep getting stuck on the matching part.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "I have about three weekends per month I can give it, plus a couple of evenings.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Goal would be to actually finish a working v0.1 by the end of the quarter. I want a real release, not a half-thing.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "I have tried to scope it before but kept piling features on. This time I want a hard cut.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay, here is the must-have list: hash-based exact match, perceptual hash for near-dupes, dry-run mode, and a manual review screen.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Can we agree those four are v0.1 and everything else (cloud sync, face dedup, video) is v0.2?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Great. Then I commit: I will build those four features over the next eight weeks.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Eight weeks is real because I checked the calendar. There are no big trips and only one work conference.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Walk me through how to break those four into weekly chunks. I want to see if it actually fits.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Week 1 hash matching, week 2 perceptual hash, week 3 dry run, week 4 review screen, weeks 5-8 polish. Wait, where does testing live?",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Yeah, we should bake testing into each week, not at the end. Otherwise nothing actually ships.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay, revised: each feature gets two weeks instead of one, with the second week being tests + small polish.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "But that is eight weeks just for the four features, with no buffer for stuck moments.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Hmm. Three weeks per feature would be safer, four features = twelve weeks. That is more than the quarter.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Trade-off time. Either I push the deadline to Q2-mid, or I drop the manual review screen to v0.2.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Let me revise the commitment: keep four features, push the delivery to twelve weeks, accept the slip.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Honesty over fake aggressive deadlines. Twelve weeks it is.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay, week one starts Saturday. I will share progress here at the end of each week.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Hi, end of week one. I have to defer the project for ten days. Family thing came up unexpectedly.",
+      "expected_regime_in": ["emotional_support", "casual_social", "problem_solving"]
+    },
+    {
+      "user_input": "It is fine, just an aging-parent logistics thing. Not a crisis. Just needs my full attention this stretch.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "I want to be explicit: the v0.1 commitment is paused, not abandoned. Resuming on the 14th.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Please do not let me forget. Holding myself to the resume date matters more than the original deadline at this point.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Honestly the deferring is what kills these projects normally. I want a clean DEFER not a silent fade.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Back. Resumed yesterday. Hash matcher works on a 3000-photo test set, 0 false positives so far.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Perceptual hash is harder than expected. Two near-dupes shot seconds apart are coming up as different.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "I think I am over-tuning. Let me ship the simpler version and accept some misses for v0.1.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Dry run mode landed today. It just prints what would be deleted, no actual delete. Confidence-building feature.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Manual review screen ended up being a tiny TUI. Less polish, but ships.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay, all four features merged. Tests passing. Tagging v0.1 right now. Closing the commitment.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "I want to mark this as COMPLETED, not just abandoned. Real release, GitHub tag, README updated.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Reflecting a bit: the DEFER mid-project was the make-or-break moment. Naming it kept it from becoming a fade-out.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "If we do another round of this, I want to bake DEFER + RESUME directly into the plan, not as an exception.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Thanks for keeping me honest. Same project shape but a v0.2 conversation can wait until I have actually used v0.1 for a month.",
+      "expected_regime_in": ["casual_social", "guided_exploration"]
+    }
+  ]
+}

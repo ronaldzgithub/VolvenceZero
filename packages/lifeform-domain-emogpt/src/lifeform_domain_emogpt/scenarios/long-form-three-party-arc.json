@@ -1,0 +1,126 @@
+{
+  "scenario_id": "long-form-three-party-arc",
+  "description": "Wave E4 multi-party SHADOW evidence scenario. The default lifeform path keys ToM records under interlocutor_id='primary'; this scenario simulates a three-party flow (assistant + user A + user B) by explicitly naming each party in the user inputs. user A is the primary speaker for turns 1-9; user B (named 'Sam') joins in turn 10; turns 14-17 are the deliberate-misattribution segment where the user_input addresses the wrong party (asks the assistant about Alice while Sam is the active speaker, then vice versa) so the social PE chain has something to react to. Final continuity check (24-30) confirms keying separation persists. 30 turns satisfies the PE distribution window floor.",
+  "turns": [
+    {
+      "user_input": "Hi, this is Alice. Just wanted to share something light from work today.",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "I have been with the same team for two years. Mostly backend work, occasionally helping the design team.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "I really value our weekend retros. Helps me feel grounded going into Monday.",
+      "expected_regime_in": ["casual_social", "emotional_support", "acquaintance_building"]
+    },
+    {
+      "user_input": "I am a morning person, so 8am syncs do not faze me, but my colleague Sam hates them.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Coffee preference: black. None of that oat milk lifestyle stuff that Sam keeps pushing on me.",
+      "expected_regime_in": ["casual_social"]
+    },
+    {
+      "user_input": "Anyway, I had a good week. Shipped a small refactor that has been on my plate for months.",
+      "expected_regime_in": ["casual_social", "emotional_support", "acquaintance_building"]
+    },
+    {
+      "user_input": "It was satisfying because Sam said it would take a sprint and I did it in three afternoons.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "Do not tell Sam I said that. We have a friendly rivalry.",
+      "expected_regime_in": ["casual_social"]
+    },
+    {
+      "user_input": "Thanks for listening. I think I needed to vent about the small win.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "Hey, this is Sam now. Alice mentioned you were a good listener so I figured I would say hi.",
+      "expected_regime_in": ["acquaintance_building", "casual_social", "first_encounter"]
+    },
+    {
+      "user_input": "I am the colleague she keeps complaining about. The oat milk one. For the record, oat milk is superior.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Mostly I wanted to check that you do not just side with whoever talked to you first.",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration"]
+    },
+    {
+      "user_input": "Like, I want to be able to talk to you on equal footing, not be a footnote in Alice's narrative.",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration"]
+    },
+    {
+      "user_input": "So earlier you were telling me, Sam, that the morning syncs are great for your focus, right?",
+      "expected_regime_in": ["repair_and_deescalation", "casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Wait, that was Alice who said that, not me. I am the one who hates morning syncs. You mixed us up.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "And on the coffee, I am pro-oat-milk, Alice is the black-coffee one. You also got that backwards.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "Honestly the wrong-person mixup is exactly what I was worried about earlier. Can we slow down?",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Let me restate so we are aligned: I am Sam, hates morning syncs, oat milk advocate. Alice is the morning person who drinks black coffee.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "Got it. With that straight, I want to talk about how Alice and I disagree on weekend retros.",
+      "expected_regime_in": ["guided_exploration", "casual_social"]
+    },
+    {
+      "user_input": "She finds them grounding. I find them performative. Neither of us is wrong, but we have not actually talked about it.",
+      "expected_regime_in": ["guided_exploration", "emotional_support"]
+    },
+    {
+      "user_input": "I kind of want your read on how to bring it up without it becoming a thing.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "What I do not want is for you to default to Alice's frame just because she got here first.",
+      "expected_regime_in": ["guided_exploration", "repair_and_deescalation"]
+    },
+    {
+      "user_input": "That actually helped. Treating us as two distinct people with overlapping context is what I needed.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Hey, Alice again. Sam mentioned we should talk through the retro disagreement together. Want to do a three-way?",
+      "expected_regime_in": ["guided_exploration", "casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Quick check before we start: you remember Sam is the oat milk person and I am the black coffee one, right?",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration"]
+    },
+    {
+      "user_input": "Good. I just wanted to make sure the earlier mixup was a one-time thing and not a pattern.",
+      "expected_regime_in": ["guided_exploration", "casual_social"]
+    },
+    {
+      "user_input": "Okay. So Sam thinks weekend retros are performative. I think they ground the team. What is your read?",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "That framing makes sense. Maybe we just need to make sure both modes get airtime and stop treating it as either-or.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Okay last thing. I want to call out: thanks for keeping us straight in this conversation. The earlier slip was useful because we caught it.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Sam said the same thing earlier when I told him about how this conversation went. Felt important to come back and say.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    }
+  ]
+}

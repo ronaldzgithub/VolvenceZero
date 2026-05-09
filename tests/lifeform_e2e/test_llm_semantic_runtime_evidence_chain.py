@@ -204,6 +204,21 @@ def test_eq_owner_chain_inert_with_noop_semantic_runtime() -> None:
     assert tom_metric.threshold is None
     assert cg_metric.threshold is None
 
+    # Wave E1 (debt #10B item 3): NoOp semantic runtime ->
+    # ``proposal_attempts_total == 0``. The diagnostic counters
+    # distinguish "the LLM was never called" (this branch) from
+    # "the LLM was called but parse failed" (a real Qwen failure
+    # mode). Both surface as tom_records_total == 0 without these
+    # counters.
+    assert bench.tom_proposal_attempts_total == 0, (
+        "NoOp semantic runtime should not call any LLM provider; "
+        f"got tom_proposal_attempts_total="
+        f"{bench.tom_proposal_attempts_total}"
+    )
+    assert bench.common_ground_proposal_attempts_total == 0
+    assert bench.tom_proposal_last_parse_status == "no_call"
+    assert bench.common_ground_proposal_last_parse_status == "no_call"
+
 
 def test_eq_owner_chain_activates_with_llm_semantic_runtime() -> None:
     """Treatment arm: an ``LLMSemanticProposalRuntime`` (with a fake
@@ -251,6 +266,74 @@ def test_eq_owner_chain_activates_with_llm_semantic_runtime() -> None:
     )
     assert tom_metric.value == float(bench.tom_records_total)
     assert cg_metric.value == float(bench.common_ground_dyad_atoms_total)
+
+    # Wave E1 (debt #10B item 3) activation evidence #4: the typed
+    # diagnostic counters surface on the bench report and the
+    # family report. With a JSON-emitting fake provider, attempts
+    # > 0 AND parsed_ok > 0 AND parse_errors == 0 (the fake always
+    # returns well-formed JSON).
+    assert bench.tom_proposal_attempts_total > 0, (
+        "Diagnostic counter should record ToM LLM provider calls; "
+        f"got tom_proposal_attempts_total=0 with call_log={fake.call_log!r}"
+    )
+    assert bench.tom_proposal_parsed_ok_total > 0, (
+        "Diagnostic counter should record successful ToM parse "
+        f"calls; got tom_proposal_parsed_ok_total=0 with "
+        f"attempts_total={bench.tom_proposal_attempts_total}"
+    )
+    assert bench.tom_proposal_parse_errors_total == 0, (
+        "Fake provider always returns well-formed JSON; "
+        f"unexpected parse errors: {bench.tom_proposal_parse_errors_total}"
+    )
+    assert bench.common_ground_proposal_attempts_total > 0, (
+        "Diagnostic counter should record common-ground LLM provider "
+        f"calls; got common_ground_proposal_attempts_total=0 with "
+        f"call_log={fake.call_log!r}"
+    )
+    assert bench.tom_proposal_last_parse_status == "ok", (
+        "Last parse status should be ``ok`` with a JSON-emitting "
+        f"fake provider; got {bench.tom_proposal_last_parse_status!r}"
+    )
+
+    # Option B / debt #10B item 3 follow-up: Layer 1 (per-session
+    # runtimes) means the typed accumulator is monotonically
+    # cumulative across the 3 scripted turns of this scenario instead
+    # of resetting every turn under the old per-turn-rebuild path.
+    # Pre-fix this would be 1 (last turn only) for both attempts
+    # totals; post-fix it is exactly 3 (one provider call per turn,
+    # courtesy of the per-turn cache inside ``LLMToMProposalRuntime``
+    # / ``LLMCommonGroundProposalRuntime``).
+    expected_turns = len(_scenario().turns)
+    assert bench.tom_proposal_attempts_total == expected_turns, (
+        f"Layer 1 (per-session ToM runtime) should produce one call "
+        f"per turn cumulative; got {bench.tom_proposal_attempts_total} "
+        f"vs expected {expected_turns}. A value of 1 indicates a "
+        f"regression to the per-turn-rebuild path."
+    )
+    assert bench.common_ground_proposal_attempts_total == expected_turns, (
+        f"Layer 1 (per-session common-ground runtime) should produce "
+        f"one call per turn cumulative; got "
+        f"{bench.common_ground_proposal_attempts_total} vs expected "
+        f"{expected_turns}. A value of 1 indicates a regression to "
+        f"the per-turn-rebuild path."
+    )
+
+    tom_attempts_metric = next(
+        m for m in f3.metrics if m.metric_id == "f3.tom_proposal_attempts_total"
+    )
+    tom_parsed_ok_metric = next(
+        m for m in f3.metrics if m.metric_id == "f3.tom_proposal_parsed_ok_total"
+    )
+    cg_attempts_metric = next(
+        m
+        for m in f3.metrics
+        if m.metric_id == "f3.common_ground_proposal_attempts_total"
+    )
+    assert tom_attempts_metric.value == float(bench.tom_proposal_attempts_total)
+    assert tom_parsed_ok_metric.value == float(bench.tom_proposal_parsed_ok_total)
+    assert cg_attempts_metric.value == float(
+        bench.common_ground_proposal_attempts_total
+    )
 
     # Sanity: the fake provider was actually called for both ToM
     # and common-ground prompts. If only commitment prompts

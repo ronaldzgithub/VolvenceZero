@@ -39,6 +39,7 @@ import json
 from json import JSONDecodeError
 from typing import Protocol
 
+from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.semantic_state import (
     load_semantic_json_schema,
     load_semantic_prompt_template,
@@ -48,6 +49,9 @@ from volvence_zero.semantic_state import (
     SemanticProposalOperation,
     SemanticProposalRuntime,
     SemanticSnapshotValue,
+)
+from volvence_zero.semantic_state._llm_proposal_counters import (
+    LLMProposalAttemptAccumulator,
 )
 from volvence_zero.substrate import SubstrateSnapshot
 from volvence_zero.memory import MemorySnapshot
@@ -388,6 +392,23 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         self._base = base_runtime or NoOpSemanticProposalRuntime()
         self._commitment_slot_id = commitment_slot_id
         self._max_new_tokens = max_new_tokens
+        # Always-on typed counters (Wave E1). Owners that wire this
+        # runtime can read ``attempt_counters`` and surface it on the
+        # commitment / boundary_consent / goal_value snapshots so a
+        # 0-records evidence run is diagnosable without env vars.
+        self._counters = LLMProposalAttemptAccumulator()
+
+    @property
+    def attempt_counters(self) -> LLMProposalAttemptCounters:
+        """Return an immutable snapshot of cumulative LLM call counters.
+
+        Counters cover the commitment classifier path AND the generic
+        proposal path (``boundary_consent`` / ``goal_value``). Owner
+        modules that read this should pair each turn's counter delta
+        with their own emission count to differentiate
+        runtime-side parse failures from owner-side filtering.
+        """
+        return self._counters.snapshot()
 
     @property
     def text_provider(self) -> _GenerateProtocol:
@@ -448,6 +469,25 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         )
         decision = _parse_commitment_decision(raw)
         operation = decision.operation if decision is not None else None
+        # Diagnostic counter (Wave E1). The commitment classifier
+        # returns at most one typed proposal per call; we map the
+        # parse outcome onto the shared three-state vocabulary so the
+        # counter snapshot is comparable across all three LLM-backed
+        # proposal runtimes.
+        if operation is None:
+            self._counters.record_attempt(
+                parse_status="parse_error",
+                parse_error=f"unparseable commitment label: {raw[:120]!r}",
+                parsed_count=0,
+                emitted_count=0,
+            )
+        else:
+            self._counters.record_attempt(
+                parse_status="ok",
+                parse_error=None,
+                parsed_count=1,
+                emitted_count=1,
+            )
         # Structural guard: BLOCK / COMPLETE / DEFER only make sense
         # when there's a commitment to act on. Without an active
         # commitment in ``previous_snapshot`` we re-route them to
@@ -558,6 +598,12 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         )
         parsed = _parse_generic_proposals(raw, target_slot=target_slot)
         if parsed is None:
+            self._counters.record_attempt(
+                parse_status="parse_error",
+                parse_error=f"unparseable generic proposal payload: {raw[:120]!r}",
+                parsed_count=0,
+                emitted_count=0,
+            )
             base_batch = self._base_propose(
                 target_slot=target_slot,
                 user_input=user_input,
@@ -574,6 +620,20 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
                     f"LLM runtime fell back to base for {target_slot}; "
                     f"unparseable proposal payload \"{raw[:32]!r}\"."
                 ),
+            )
+        if not parsed:
+            self._counters.record_attempt(
+                parse_status="empty_or_rejected",
+                parse_error=None,
+                parsed_count=0,
+                emitted_count=0,
+            )
+        else:
+            self._counters.record_attempt(
+                parse_status="ok",
+                parse_error=None,
+                parsed_count=len(parsed),
+                emitted_count=len(parsed),
             )
         proposals = tuple(
             SemanticProposal(

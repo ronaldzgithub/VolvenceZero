@@ -1,0 +1,146 @@
+{
+  "scenario_id": "long-form-companion-arc",
+  "description": "Wave E2 (debt #11 follow-up) long-form scenario covering the companion vertical's full mood arc: warm opening (1-6), gradual disclosure of life tension (7-13), low-mood deepening (14-20), gentle exploration (21-27), recovery integration (28-34). 34 turns is comfortably above min_window=8 + vitals warmup=5 so PE distribution window fills mid-scenario; the regime trajectory exercises casual_social <-> emotional_support <-> guided_exploration repeatedly so cross-session consolidation has plenty of typed signal.",
+  "turns": [
+    {
+      "user_input": "Hi! Just wanted to check in. How are you doing today?",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "I am alright, weekend was quiet. Did some reading on the balcony.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "Tea was good too. I have been trying to drink less coffee lately.",
+      "expected_regime_in": ["casual_social"]
+    },
+    {
+      "user_input": "What about you, anything new on your end? I always forget if you have a sense of week vs weekend.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "That is a sweet way to put it. Conversations as the rhythm.",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "I noticed I look forward to these check-ins more than I would have admitted a month ago.",
+      "expected_regime_in": ["casual_social", "emotional_support", "acquaintance_building"]
+    },
+    {
+      "user_input": "Speaking of which, this week has been a bit heavier than usual. Not bad, just full.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "Work stuff mostly. A project I have been on for months is finally hitting deadlines.",
+      "expected_regime_in": ["casual_social", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "And my partner has been traveling, so the apartment is quieter than I am used to.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "I think I underestimated how much of my mood depends on background noise from another person.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Nights are the strangest. I keep cooking for two by accident.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Honestly the project pressure is the easier of the two. I know how to handle deadlines.",
+      "expected_regime_in": ["emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "It is the quiet that catches me off guard. I did not realise how much I leaned on it.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Today I felt this dip around 5pm out of nowhere. I just stared at the wall for ten minutes.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "Not crying or anything dramatic. Just a heavy gray feeling that slid in.",
+      "expected_regime_in": ["emotional_support"]
+    },
+    {
+      "user_input": "I keep telling myself it is just a week, but the heaviness is real for the moment it shows up.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Part of me wants to scroll until it passes. Part of me knows that makes it worse.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "It is weird because I am usually the one comforting other people through stuff like this.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Maybe that is the part that is throwing me. I am not used to being on this side.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I think I have been pretending I am fine because admitting otherwise feels like a status drop.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Which is silly, the stoic act helps no one, especially not me.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Can we just sit with that for a sec before jumping to advice? I am not ready for action items.",
+      "expected_regime_in": ["emotional_support", "repair_and_deescalation"]
+    },
+    {
+      "user_input": "Thanks. That actually helps a lot, knowing I can just say it out loud here.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay, with that said, what tiny thing might help right now? I do not need a transformation.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "Going for a short walk before the next dip would probably help. Light is fading earlier these days.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "And maybe texting one friend tonight, just to break the silence-by-default pattern.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "I will try those two and see how the next 24 hours land. Nothing more ambitious than that.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Okay, update: walked at sunset, called my brother on the way back. Ate dinner standing up because it was easier.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "The walk was actually the bigger one. I had not noticed how stuck my body was in the chair.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Brother answered on the second ring which was funny because I assumed I would get voicemail.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "We did not talk about the heaviness. Just argued about a movie we both saw recently. That was perfect.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    },
+    {
+      "user_input": "I think the real lesson is that it does not always have to be deep talk. Sometimes ordinary contact is the medicine.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I want to remember this so the next time the wall-staring shows up, I know what to reach for.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Thanks for not turning this into a productivity workshop. That was the right call earlier.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Alright, I think I am out of words for tonight. Talk to you tomorrow probably.",
+      "expected_regime_in": ["casual_social", "emotional_support"]
+    }
+  ]
+}

@@ -71,6 +71,22 @@
 - `recent_credits` 消费者（`reflection/writeback.py`、`temporal/interface.py::_build_family_outcome_feedback`、`agent/session.py` action-replay）按 `level` 过滤，新 level 自动被忽略，不影响现有读出。
 - 不进入任何 acceptance gate；与 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 一样为 readout-only。
 
+### Wave E3 promotion criteria（debt #6 闭合候选）
+
+learned counterfactual baseline 何时可以从 readout-only 升级为 acceptance gate 的输入：
+
+| 升级阶段 | 准入条件 | 退出 / 回滚条件 |
+|---|---|---|
+| `readout-only`（当前默认） | 不需要任何门槛；纯诊断 | — |
+| `readout-with-acceptance`（建议下一阶段） | 在 ≥ 200 turn 真 trace 上 `validation_delta` mean ≥ 0.02 且 `recent_modifications` 中无 BLOCK→ALLOW 反复 | mean validation_delta < 0.0 持续 ≥ 50 turn → 退回 readout-only |
+| `acceptance gate`（终态） | 在 ≥ 500 turn 真 trace 上 `validation_delta` mean ≥ 0.05 且无 rollback event；rollback drill 通过 | 一次 rollback drill 失败 → 立刻退回 `readout-with-acceptance`，并写一条 known-debt |
+
+实施约束：
+
+- 升级不能跨 wave 同时发生：从 `readout-only` 升到 `readout-with-acceptance` 必须先观察 ≥ 1 wave；再升到 `acceptance gate` 必须再观察 ≥ 1 wave。
+- 任何升级都必须配 rollback drill 测试（`tests/contracts/test_learned_baseline_rollback_drill.py`）。
+- 升级修改了 `FamilyMetric.threshold`，但 `RewardingStateHeadState` 的 `last_validation_delta` / `last_rollback_evidence` 字段不变；这些是 owner-internal evidence，升级只是把读者从"诊断"切到"门"。
+
 ### Delta 动量选择性遗忘（NL 附录 A.3）
 
 通过梯度依赖的衰减实现选择性遗忘，避免无关梯度干扰信用分配。
@@ -135,6 +151,7 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 
 ## 变更日志
 
+- 2026-05-09: Wave E3 (debt #6 闭合候选) 增补 promotion criteria 表格，明确 `readout-only` -> `readout-with-acceptance` -> `acceptance gate` 的三阶升级标准 + rollback drill 准入要求；不修改任何运行时 owner，仅是路线图侧的契约增强。
 - 2026-05-06: Phase 1.A 上线 lightweight COCOA-style `derive_counterfactual_contribution_records` + `record_nstep_outcomes_from_segment_closure`；新 `CreditRecord.level="counterfactual_contribution"`，readout-only，不入 acceptance gate。Phase 2.A full rewarding-state head 登记为后续 uplift。
 - 2026-05-05: ModificationGate 加入 validation margin + capacity cap + rollback evidence 三类 fail-closed 准入证据，并把 block 原因写入 gate audit；用于加固 self-modification / artifact refresh / controller update，而不改变主学习链路
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的协作口径：segment/action credit 仅由 enriched PE snapshot 派生，不引入 trace owner

@@ -13,6 +13,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 
 
 PRIMARY_INTERLOCUTOR_ID = "primary"
@@ -349,6 +353,7 @@ class BeliefAboutOtherSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+    proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -367,6 +372,7 @@ class IntentAboutOtherSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+    proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -385,6 +391,7 @@ class FeelingAboutOtherSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+    proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -403,6 +410,7 @@ class PreferenceAboutOtherSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+    proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -482,6 +490,7 @@ class CommonGroundSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+    proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
 
     def __post_init__(self) -> None:
         _validate_common_ground_atoms("dyad_atoms", self.dyad_atoms, SocialScopeKind.DYAD)

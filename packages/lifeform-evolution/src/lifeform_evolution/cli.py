@@ -682,11 +682,71 @@ def main(argv: list[str] | None = None) -> int:
 
         path = pathlib.Path(args.longitudinal_json).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Wave E2 (debt #11 follow-up): cross-scenario summary.
+        # ``pe_window_filled_scenario_ratio`` is the load-bearing
+        # acceptance metric (per-scenario ``True`` if any round
+        # filled the PE distribution window). The ratio across all
+        # scenarios in this benchmark run is the gate; a single
+        # scenario's filling does NOT qualify.
+        scenario_count = len(longitudinal_artifacts)
+        scenario_filled = 0
+        for scenario_dict in longitudinal_artifacts:
+            per_round = scenario_dict.get(
+                "per_round_pe_distribution_window_filled", []
+            )
+            if any(v == 1 for v in per_round):
+                scenario_filled += 1
+        pe_window_filled_scenario_ratio = (
+            scenario_filled / scenario_count if scenario_count else 0.0
+        )
+        # ``il_rapport_trend_snr`` is computed per-scenario as
+        # ``trend / std_dev_of_per_round_il_rapport`` and aggregated
+        # to a mean across scenarios. SNR is undefined (NaN) when
+        # std == 0 (single-round runs); we treat those as 0.0 to
+        # keep JSON parseable.
+        snr_values: list[float] = []
+        for scenario_dict in longitudinal_artifacts:
+            trend = scenario_dict.get("il_rapport_trend")
+            per_round_rapport = scenario_dict.get("per_round_il_rapport") or []
+            present = [r for r in per_round_rapport if r is not None]
+            if trend is None or len(present) < 2:
+                continue
+            mean = sum(present) / len(present)
+            var = sum((r - mean) ** 2 for r in present) / max(
+                1, len(present) - 1
+            )
+            std = var**0.5
+            if std == 0:
+                continue
+            snr_values.append(abs(float(trend)) / std)
+        il_rapport_trend_snr_mean = (
+            sum(snr_values) / len(snr_values) if snr_values else 0.0
+        )
         path.write_text(
-            json.dumps({"scenarios": longitudinal_artifacts}, indent=2),
+            json.dumps(
+                {
+                    "scenarios": longitudinal_artifacts,
+                    "cross_scenario_summary": {
+                        "scenario_count": scenario_count,
+                        "pe_window_filled_scenario_ratio": (
+                            pe_window_filled_scenario_ratio
+                        ),
+                        "pe_window_filled_scenario_count": scenario_filled,
+                        "il_rapport_trend_snr_mean": il_rapport_trend_snr_mean,
+                        "il_rapport_trend_snr_per_scenario": snr_values,
+                    },
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
         print(f"[bench] wrote longitudinal report artifact to {path}")
+        print(
+            f"[bench] cross-scenario: pe_window_filled_scenario_ratio="
+            f"{pe_window_filled_scenario_ratio:.2f} "
+            f"il_rapport_trend_snr_mean="
+            f"{il_rapport_trend_snr_mean:.3f}"
+        )
 
     if want_companion_evidence:
         if args.vertical not in (None, "companion"):

@@ -19,6 +19,7 @@ import json
 from json import JSONDecodeError
 from typing import Any, Mapping, Protocol
 
+from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
@@ -38,6 +39,13 @@ from volvence_zero.social_cognition import (
     PreferenceAboutOtherSnapshot,
 )
 from volvence_zero.substrate import SubstrateSnapshot
+
+from volvence_zero.semantic_state._llm_proposal_counters import (
+    LLMProposalAttemptAccumulator,
+)
+
+from ._llm_debug import log_proposal_attempt, make_attempt_logger
+from ._llm_parsing import strip_code_fence
 
 
 class _OtherMindOwnerModule(RuntimeModule[Any]):
@@ -102,13 +110,40 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 for proposal in proposals
             )
             control_signal = _mean_control_signal(proposals)
-        return self.publish(self._snapshot(records=records, control_signal=control_signal))
+        proposal_diagnostics = self._extract_proposal_diagnostics()
+        return self.publish(
+            self._snapshot(
+                records=records,
+                control_signal=control_signal,
+                proposal_diagnostics=proposal_diagnostics,
+            )
+        )
+
+    def _extract_proposal_diagnostics(self) -> LLMProposalAttemptCounters | None:
+        """Return the runtime's typed counters when available.
+
+        Returns ``None`` when:
+        * No proposal runtime is wired (NoOp / scaffold paths).
+        * The wired runtime is not LLM-backed (no ``attempt_counters``).
+          We duck-check on the attribute name rather than ``isinstance``
+          to keep this owner agnostic to which LLM-backed runtime
+          subclass is wired (e.g. test fakes or future variants that
+          implement the same counters protocol).
+        """
+        runtime = self._proposal_runtime
+        if runtime is None:
+            return None
+        counters = getattr(runtime, "attempt_counters", None)
+        if isinstance(counters, LLMProposalAttemptCounters):
+            return counters
+        return None
 
     def _snapshot(
         self,
         *,
         records: tuple[OtherMindRecord, ...],
         control_signal: float,
+        proposal_diagnostics: LLMProposalAttemptCounters | None,
     ) -> Any:
         return self.snapshot_type(
             records=records,
@@ -119,6 +154,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 if not records
                 else f"{self.owner} published explicit records={len(records)}."
             ),
+            proposal_diagnostics=proposal_diagnostics,
         )
 
 
@@ -257,6 +293,26 @@ class LLMToMProposalRuntime(SemanticProposalRuntime):
         self._max_new_tokens = max_new_tokens
         self._cache_key: tuple[str, int] | None = None
         self._cache_decisions: tuple[_ToMDecision, ...] | None = None
+        # Opt-in diagnostic sink. ``None`` (the default) means the hot
+        # path stays zero-overhead; setting ``VZ_LLM_PROPOSAL_DEBUG_LOG``
+        # before host construction binds a JSONL append callable so a
+        # diagnostic run can capture raw provider output + parse outcome
+        # without changing constructor surface.
+        self._debug_logger = make_attempt_logger()
+        # Always-on typed counters (Wave E1). Owners read
+        # ``attempt_counters`` and surface it on their snapshot so a
+        # 0-records evidence run can be diagnosed without env vars.
+        self._counters = LLMProposalAttemptAccumulator()
+
+    @property
+    def attempt_counters(self) -> LLMProposalAttemptCounters:
+        """Return an immutable snapshot of cumulative LLM call counters.
+
+        Owner modules read this each turn and republish on the typed
+        snapshot's ``proposal_diagnostics`` field. The returned value
+        is frozen; mutating callers must not assume identity.
+        """
+        return self._counters.snapshot()
 
     def propose(
         self,
@@ -318,27 +374,68 @@ class LLMToMProposalRuntime(SemanticProposalRuntime):
             max_new_tokens=self._max_new_tokens,
             temperature=0.0,
         )
-        decisions = _parse_tom_decisions(raw)
-        if decisions is None:
-            decisions = ()
+        decisions, parse_status, parse_error = _parse_tom_decisions_with_diag(raw)
+        log_proposal_attempt(
+            self._debug_logger,
+            runtime_id=self.runtime_id,
+            target_slot=None,
+            turn_index=turn_index,
+            prompt=prompt,
+            raw_output=raw,
+            parsed_count=len(decisions),
+            parse_status=parse_status,
+            parse_error=parse_error,
+        )
+        # ``parsed_count`` here is decisions surviving the strict schema
+        # parser. Owner-side ``min_proposal_confidence`` may further
+        # shrink the set; the runtime tracks the parse outcome and the
+        # owner reports its own emission count via a separate path
+        # (the snapshot still surfaces parse counters here so a parse
+        # failure is not hidden behind owner-side filtering).
+        self._counters.record_attempt(
+            parse_status=parse_status,
+            parse_error=parse_error,
+            parsed_count=len(decisions),
+            emitted_count=len(decisions),
+        )
         self._cache_key = cache_key
         self._cache_decisions = decisions
         return decisions
 
 
 def _parse_tom_decisions(text: str) -> tuple[_ToMDecision, ...] | None:
+    decisions, status, _ = _parse_tom_decisions_with_diag(text)
+    if status == "parse_error":
+        return None
+    return decisions
+
+
+def _parse_tom_decisions_with_diag(
+    text: str,
+) -> tuple[tuple[_ToMDecision, ...], str, str | None]:
+    """Parse with diagnostic categories; never raises.
+
+    Returns ``(decisions, status, parse_error)`` where ``status`` is one
+    of ``"ok"`` / ``"parse_error"`` / ``"empty_or_rejected"`` and
+    ``parse_error`` is the JSONDecodeError message when applicable. Used
+    by both the production parser (``_parse_tom_decisions``) and the
+    diagnostic sink in ``LLMToMProposalRuntime``.
+    """
+    cleaned = strip_code_fence(text)
     try:
-        payload = json.loads(text.strip())
-    except JSONDecodeError:
-        return None
+        payload = json.loads(cleaned.strip())
+    except JSONDecodeError as exc:
+        return ((), "parse_error", str(exc))
     if not isinstance(payload, list):
-        return None
+        return ((), "parse_error", f"top-level not a list: {type(payload).__name__}")
     decisions: list[_ToMDecision] = []
     for item in payload:
         decision = _parse_tom_decision(item)
         if decision is not None:
             decisions.append(decision)
-    return tuple(decisions)
+    if not decisions:
+        return ((), "empty_or_rejected", None)
+    return (tuple(decisions), "ok", None)
 
 
 def _parse_tom_decision(item: object) -> _ToMDecision | None:

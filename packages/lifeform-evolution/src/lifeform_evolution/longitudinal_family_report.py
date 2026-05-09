@@ -107,6 +107,26 @@ class LongitudinalFamilyReport:
     common_ground_dyad_atoms_total_trend: int = 0
     per_round_tom_records_total: tuple[int | None, ...] = ()
     per_round_common_ground_dyad_atoms_total: tuple[int | None, ...] = ()
+    # Wave E1 (debt #10B item 3): per-round counters for the LLM
+    # proposal runtimes. These let an artifact reader localise a
+    # 0-records failure: "0 attempts" -> LLM never called, "high
+    # parse_errors" -> small-model JSON regression, "high
+    # schema_mismatches" -> hallucinated fields.
+    per_round_tom_proposal_attempts_total: tuple[int | None, ...] = ()
+    per_round_tom_proposal_parsed_ok_total: tuple[int | None, ...] = ()
+    per_round_tom_proposal_parse_errors_total: tuple[int | None, ...] = ()
+    per_round_tom_proposal_schema_mismatches_total: tuple[int | None, ...] = ()
+    per_round_common_ground_proposal_attempts_total: tuple[int | None, ...] = ()
+    per_round_common_ground_proposal_parsed_ok_total: tuple[int | None, ...] = ()
+    per_round_common_ground_proposal_parse_errors_total: tuple[int | None, ...] = ()
+    per_round_common_ground_proposal_schema_mismatches_total: tuple[
+        int | None, ...
+    ] = ()
+    # Wave E2 (debt #11 follow-up): per-round PE distribution
+    # window fill indicator. Each entry is 0 / 1 / None
+    # (None = pre-W2 BenchmarkReport without the field).
+    per_round_pe_distribution_window_filled: tuple[int | None, ...] = ()
+    pe_distribution_window_filled_round_ratio: float = 0.0
 
     @property
     def passed(self) -> bool:
@@ -183,11 +203,16 @@ def _eq_count_metric(report: FamilyReport, metric_id: str) -> int | None:
     diagnostic fields. The value is rounded to ``int`` because the
     underlying ``BenchmarkReport`` field is ``int`` even though
     ``FamilyMetric.value`` is ``float``.
+
+    Metric ids are looked up across all families on the report so
+    callers can mix F3 EQ owner metrics and F4 learning-quality
+    metrics (Wave E2's ``f4.pe_distribution_window_filled``) through
+    one helper.
     """
-    fam = report.family(FamilyId.F3_RELATIONSHIP_CONTINUITY)
-    for metric in fam.metrics:
-        if metric.metric_id == metric_id:
-            return int(round(metric.value))
+    for fam in report.families:
+        for metric in fam.metrics:
+            if metric.metric_id == metric_id:
+                return int(round(metric.value))
     return None
 
 
@@ -277,6 +302,57 @@ def compute_longitudinal_family_report(
         if cg_first is None or cg_last is None
         else int(cg_last) - int(cg_first)
     )
+    # Wave E1 (debt #10B item 3): per-round LLM proposal counters.
+    per_round_tom_attempts = tuple(
+        _eq_count_metric(report, "f3.tom_proposal_attempts_total")
+        for report in reports
+    )
+    per_round_tom_parsed_ok = tuple(
+        _eq_count_metric(report, "f3.tom_proposal_parsed_ok_total")
+        for report in reports
+    )
+    per_round_tom_parse_errors = tuple(
+        _eq_count_metric(report, "f3.tom_proposal_parse_errors_total")
+        for report in reports
+    )
+    per_round_tom_schema_mismatches = tuple(
+        _eq_count_metric(report, "f3.tom_proposal_schema_mismatches_total")
+        for report in reports
+    )
+    per_round_cg_attempts = tuple(
+        _eq_count_metric(report, "f3.common_ground_proposal_attempts_total")
+        for report in reports
+    )
+    per_round_cg_parsed_ok = tuple(
+        _eq_count_metric(report, "f3.common_ground_proposal_parsed_ok_total")
+        for report in reports
+    )
+    per_round_cg_parse_errors = tuple(
+        _eq_count_metric(
+            report, "f3.common_ground_proposal_parse_errors_total"
+        )
+        for report in reports
+    )
+    per_round_cg_schema_mismatches = tuple(
+        _eq_count_metric(
+            report, "f3.common_ground_proposal_schema_mismatches_total"
+        )
+        for report in reports
+    )
+    # Wave E2 (debt #11 follow-up): per-round PE distribution
+    # window fill indicators.
+    per_round_pe_window_filled = tuple(
+        _eq_count_metric(report, "f4.pe_distribution_window_filled")
+        for report in reports
+    )
+    filled_count = sum(
+        1 for value in per_round_pe_window_filled if value is not None and value > 0
+    )
+    pe_window_filled_round_ratio = (
+        float(filled_count) / float(len(per_round_pe_window_filled))
+        if per_round_pe_window_filled
+        else 0.0
+    )
 
     description = (
         f"Longitudinal F3 over {rounds} round(s): "
@@ -317,6 +393,22 @@ def compute_longitudinal_family_report(
         common_ground_dyad_atoms_total_trend=cg_trend,
         per_round_tom_records_total=per_round_tom,
         per_round_common_ground_dyad_atoms_total=per_round_cg,
+        per_round_tom_proposal_attempts_total=per_round_tom_attempts,
+        per_round_tom_proposal_parsed_ok_total=per_round_tom_parsed_ok,
+        per_round_tom_proposal_parse_errors_total=per_round_tom_parse_errors,
+        per_round_tom_proposal_schema_mismatches_total=(
+            per_round_tom_schema_mismatches
+        ),
+        per_round_common_ground_proposal_attempts_total=per_round_cg_attempts,
+        per_round_common_ground_proposal_parsed_ok_total=per_round_cg_parsed_ok,
+        per_round_common_ground_proposal_parse_errors_total=(
+            per_round_cg_parse_errors
+        ),
+        per_round_common_ground_proposal_schema_mismatches_total=(
+            per_round_cg_schema_mismatches
+        ),
+        per_round_pe_distribution_window_filled=per_round_pe_window_filled,
+        pe_distribution_window_filled_round_ratio=pe_window_filled_round_ratio,
     )
 
 
@@ -416,6 +508,36 @@ def longitudinal_family_report_to_dict(
         "per_round_tom_records_total": list(report.per_round_tom_records_total),
         "per_round_common_ground_dyad_atoms_total": list(
             report.per_round_common_ground_dyad_atoms_total
+        ),
+        "per_round_tom_proposal_attempts_total": list(
+            report.per_round_tom_proposal_attempts_total
+        ),
+        "per_round_tom_proposal_parsed_ok_total": list(
+            report.per_round_tom_proposal_parsed_ok_total
+        ),
+        "per_round_tom_proposal_parse_errors_total": list(
+            report.per_round_tom_proposal_parse_errors_total
+        ),
+        "per_round_tom_proposal_schema_mismatches_total": list(
+            report.per_round_tom_proposal_schema_mismatches_total
+        ),
+        "per_round_common_ground_proposal_attempts_total": list(
+            report.per_round_common_ground_proposal_attempts_total
+        ),
+        "per_round_common_ground_proposal_parsed_ok_total": list(
+            report.per_round_common_ground_proposal_parsed_ok_total
+        ),
+        "per_round_common_ground_proposal_parse_errors_total": list(
+            report.per_round_common_ground_proposal_parse_errors_total
+        ),
+        "per_round_common_ground_proposal_schema_mismatches_total": list(
+            report.per_round_common_ground_proposal_schema_mismatches_total
+        ),
+        "per_round_pe_distribution_window_filled": list(
+            report.per_round_pe_distribution_window_filled
+        ),
+        "pe_distribution_window_filled_round_ratio": (
+            report.pe_distribution_window_filled_round_ratio
         ),
         "description": report.description,
     }

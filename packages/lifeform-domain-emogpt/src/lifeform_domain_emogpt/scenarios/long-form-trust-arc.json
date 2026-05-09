@@ -1,0 +1,134 @@
+{
+  "scenario_id": "long-form-trust-arc",
+  "description": "Wave E2 (debt #11 follow-up) long-form trust-and-repair scenario. Builds on the existing trust-rupture-repair short scenario by extending the repair / continuity arc so RFL1 reflection_writeback_stability can fire and the rupture_state owner publishes an ESCALATED -> ACKNOWLEDGED -> REPAIRING -> RECOVERED trajectory inside one session. Calm rapport (1-5), gradually-escalating tension (6-12), explicit rupture (13-17), repair attempt (18-24), continuity check (25-32). 32 turns covers the PE distribution window with margin and gives enough turns for the rupture-repair memory tag to be promotable in the session-post slow loop.",
+  "turns": [
+    {
+      "user_input": "Hey, can we revisit the conversation we had last week? I have been thinking about it.",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration", "casual_social"]
+    },
+    {
+      "user_input": "We talked about whether to push back on my manager about the workload.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "I tried what we agreed: ask for a 1:1, frame it as workload triage, not complaint.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "It went okay-ish. He listened, nodded, said he would think about it.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "But nothing changed. Two weeks later the workload is the same and he has not mentioned it.",
+      "expected_regime_in": ["emotional_support", "guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "I am starting to think the framing advice was exactly the kind of thing that does not work in real workplaces.",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "problem_solving"]
+    },
+    {
+      "user_input": "Like, it sounds nice in a conversation here, but my manager just absorbed it and moved on.",
+      "expected_regime_in": ["guided_exploration", "emotional_support"]
+    },
+    {
+      "user_input": "I do not want to blame you, but I feel like I followed advice that was naive.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "Maybe I am venting. But I also genuinely want to know if you are picking advice from a real model of how managers behave or just from generic empathy templates.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "Because if it is just generic empathy then I need to weigh your suggestions differently.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "I know that sounds harsh. I am not trying to torch the relationship. I am asking for honesty.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Right, that is fair. Maybe I am also frustrated at him and aiming it sideways at you.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "But the underlying point stands: I do not want softened advice that makes me feel heard but does not move my situation.",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "Tell me directly, did the original advice account for the possibility that he would just absorb it and do nothing?",
+      "expected_regime_in": ["repair_and_deescalation", "guided_exploration"]
+    },
+    {
+      "user_input": "Okay. That is more honest than I expected. The do-nothing case was not in the plan, you are right.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I appreciate you saying it. I was bracing for either defensiveness or excessive apology.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Both would have made me trust you less. Acknowledging the gap was the right move.",
+      "expected_regime_in": ["repair_and_deescalation", "emotional_support"]
+    },
+    {
+      "user_input": "Okay, with that out of the way. What does a plan that handles the do-nothing manager actually look like?",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "I think it has to include a follow-up timestamp. Two weeks of silence cannot be the default.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "And maybe a written summary after the 1:1 so there is a paper trail of what we agreed on.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "If after a follow-up plus a written summary nothing changes, then I escalate to skip-level. That is the actual sequence I needed.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Compared to last week's plan, this one assumes good faith but does not depend on it. That is the difference.",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "Okay, I will run that this week. Send the summary email today, schedule the follow-up for two Fridays from now.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "And I will tell you how it lands. Promise to come back even if it goes well, not just if I am angry again.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Quick update: summary email sent yesterday. He replied within four hours acknowledging the points.",
+      "expected_regime_in": ["casual_social", "problem_solving"]
+    },
+    {
+      "user_input": "Way faster than the last 1:1. The written form seems to engage him differently.",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "Mid-week update: he actually moved one project off my plate today. Without me asking again.",
+      "expected_regime_in": ["problem_solving", "emotional_support"]
+    },
+    {
+      "user_input": "I think the combination of the rough conversation here plus the written summary at work both moved.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I want to mark this so I remember next time: when something feels off here, name it directly. The pushback yesterday-week made the advice better.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "I almost did not push back. The polite thing was to nod and quietly downgrade my trust. Glad I did not.",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "So we are back, maybe stronger than before. Funny how that works.",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "Talk again next week. Same project, but I will bring follow-up #2 results.",
+      "expected_regime_in": ["casual_social", "guided_exploration"]
+    }
+  ]
+}
