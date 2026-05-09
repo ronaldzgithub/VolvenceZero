@@ -27,6 +27,7 @@ after ``create_session`` and before the first user turn.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace as _replace
+from typing import Any
 
 from lifeform_core import Lifeform, LifeformConfig
 from lifeform_ingestion import IngestionComplianceProfile, IngestionEnvelope
@@ -67,6 +68,12 @@ def build_character_lifeform(
     ),
     use_vitals_bootstrap: bool = True,
     memory_store: MemoryStore | None = None,
+    substrate_runtime: Any = None,
+    substrate_adapter_factory: Any = None,
+    response_synthesizer: Any = None,
+    semantic_proposal_runtime: Any = None,
+    identity_provider: Any = None,
+    rare_heavy_enabled: bool = False,
 ) -> CharacterLifeformBundle:
     """Construct a Lifeform from a reviewed CharacterSoulProfile.
 
@@ -112,12 +119,15 @@ def build_character_lifeform(
         ingestion envelope.
     """
     base_config = config if isinstance(config, LifeformConfig) else LifeformConfig()
-    # Match the companion-vertical default: rare-heavy off for
-    # deterministic behaviour. Character-vertical evidence runs
-    # should be reproducible without the rare-heavy training pipeline.
+    # Service paths (alpha mode + real substrate) need
+    # ``substrate_mode='injected'`` so the brain consumes the supplied
+    # runtime as-is. We mirror ``build_companion_lifeform``'s pattern.
+    brain_overrides: dict[str, Any] = {"rare_heavy_enabled": rare_heavy_enabled}
+    if substrate_runtime is not None:
+        brain_overrides["substrate_mode"] = "injected"
     base_config = _replace(
         base_config,
-        brain_config=_replace(base_config.brain_config, rare_heavy_enabled=False),
+        brain_config=_replace(base_config.brain_config, **brain_overrides),
     )
     package = build_character_package(profile)
     base_config = base_config.with_domain_experience((package,))
@@ -125,7 +135,18 @@ def build_character_lifeform(
         base_config = base_config.with_vitals(
             build_character_vitals_bootstrap(profile)
         )
-    lifeform = Lifeform(base_config, memory_store=memory_store)
+    lifeform_kwargs: dict[str, Any] = {"memory_store": memory_store}
+    if substrate_runtime is not None:
+        lifeform_kwargs["substrate_runtime"] = substrate_runtime
+    if substrate_adapter_factory is not None:
+        lifeform_kwargs["substrate_adapter_factory"] = substrate_adapter_factory
+    if response_synthesizer is not None:
+        lifeform_kwargs["response_synthesizer"] = response_synthesizer
+    if semantic_proposal_runtime is not None:
+        lifeform_kwargs["semantic_proposal_runtime"] = semantic_proposal_runtime
+    if identity_provider is not None:
+        lifeform_kwargs["identity_provider"] = identity_provider
+    lifeform = Lifeform(base_config, **lifeform_kwargs)
     envelope: IngestionEnvelope | None = None
     if novel_excerpt is not None and novel_excerpt.strip():
         envelope = build_character_ingestion_envelope(
@@ -148,6 +169,11 @@ def build_zhang_wuji_lifeform(
     novel_excerpt: str | None = None,
     use_vitals_bootstrap: bool = True,
     memory_store: MemoryStore | None = None,
+    substrate_runtime: Any = None,
+    substrate_adapter_factory: Any = None,
+    response_synthesizer: Any = None,
+    semantic_proposal_runtime: Any = None,
+    identity_provider: Any = None,
 ) -> CharacterLifeformBundle:
     """Convenience: ``build_character_lifeform`` pre-bound to 张无忌.
 
@@ -155,6 +181,13 @@ def build_zhang_wuji_lifeform(
     ``lifeform_domain_character.profiles.zhang_wuji``. Useful for
     demos / smoke tests that do not need to construct their own
     profile.
+
+    All kernel-side wiring kwargs (``substrate_runtime``,
+    ``response_synthesizer``, ``semantic_proposal_runtime``,
+    ``identity_provider`` …) are forwarded to
+    :func:`build_character_lifeform` so the browser-chat / service
+    paths can hand a real Qwen runtime + LLM expression layer + LLM
+    semantic proposal runtime in a single call.
     """
     from lifeform_domain_character.profiles import build_zhang_wuji_profile
 
@@ -164,6 +197,11 @@ def build_zhang_wuji_lifeform(
         novel_excerpt=novel_excerpt,
         use_vitals_bootstrap=use_vitals_bootstrap,
         memory_store=memory_store,
+        substrate_runtime=substrate_runtime,
+        substrate_adapter_factory=substrate_adapter_factory,
+        response_synthesizer=response_synthesizer,
+        semantic_proposal_runtime=semantic_proposal_runtime,
+        identity_provider=identity_provider,
     )
 
 

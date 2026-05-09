@@ -39,6 +39,10 @@ dependencies = [
     "lifeform-service==0.1.*",
     "lifeform-evolution==0.1.*",
     "dlaas-platform-contracts==0.1.*",
+    "dlaas-platform-registry==0.1.*",
+    "dlaas-platform-launcher==0.1.*",
+    "dlaas-platform-ops==0.1.*",
+    "dlaas-platform-eval==0.1.*",
     "dlaas-platform-api==0.1.*",
 ]
 
@@ -69,6 +73,10 @@ lifeform-domain-coding = { workspace = true }
 lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
 dlaas-platform-contracts = { workspace = true }
+dlaas-platform-registry = { workspace = true }
+dlaas-platform-launcher = { workspace = true }
+dlaas-platform-ops  = { workspace = true }
+dlaas-platform-eval = { workspace = true }
 dlaas-platform-api  = { workspace = true }
 
 [tool.uv.workspace]

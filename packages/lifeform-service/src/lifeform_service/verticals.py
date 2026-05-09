@@ -194,7 +194,153 @@ def _try_coding() -> VerticalSpec | None:
     )
 
 
-_BUILDERS = (_try_companion, _try_uncalibrated_companion, _try_coding)
+def _build_llm_semantic_runtime_from_runtime(runtime):
+    """Wrap a TransformersOpenWeightResidualRuntime's underlying HF
+    model + tokenizer in an :class:`LLMSemanticProposalRuntime`.
+
+    This is the bridge that activates the ToM, common-ground and
+    semantic-state owners (commitment / boundary / goal-value) on
+    the LLM expression path. Without it those owners stay in their
+    fail-closed empty state even when a real Qwen runtime is wired
+    behind the response synthesizer.
+
+    The runtime's HF objects are private (``_model`` / ``_tokenizer``);
+    we mirror the access pattern from
+    ``lifeform_domain_emogpt.real_substrate.build_companion_lifeform_with_real_substrate``
+    which constructs the same provider for the companion vertical.
+    Falls back to ``None`` (no LLM proposal runtime) when the runtime
+    does not expose HF internals — e.g. the builtin synthetic
+    fallback runtime, which would only emit theatre against random
+    weights.
+    """
+
+    if runtime is None:
+        return None
+    model = getattr(runtime, "_model", None)
+    tokenizer = getattr(runtime, "_tokenizer", None)
+    device = getattr(runtime, "_device", "cpu")
+    if model is None or tokenizer is None:
+        return None
+    from volvence_zero.semantic_state.llm_runtime import (
+        LLMSemanticProposalRuntime,
+    )
+    from volvence_zero.substrate.text_generation import (
+        HFTextGenerationProvider,
+    )
+
+    provider = HFTextGenerationProvider(
+        model=model, tokenizer=tokenizer, device=device
+    )
+    return LLMSemanticProposalRuntime(provider=provider)
+
+
+def _try_zhang_wuji() -> VerticalSpec | None:
+    """张无忌 character vertical.
+
+    Compiles the shipped reference profile into a Lifeform; when a
+    real substrate runtime is wired the LLM expression synthesizer
+    and the LLM semantic-proposal runtime are auto-attached so ToM
+    / common-ground / commitment / boundary / goal-value owners run
+    against the live Qwen weights.
+
+    Optional env-controlled rebirth: when ``ZHANG_WUJI_TEMPLATE_PATH``
+    is set to an existing JSON template file, the factory routes
+    through :func:`give_birth` instead of :func:`build_zhang_wuji_lifeform`,
+    so the served lifeform inherits the saved drive levels, memory
+    checkpoint, and (optionally) evolved profile from a prior
+    experiential-replay run.
+    """
+    try:
+        from lifeform_domain_character import (
+            build_zhang_wuji_lifeform,
+            give_birth,
+        )
+    except ImportError:
+        return None
+
+    import os
+    import pathlib
+
+    def _template_path() -> pathlib.Path | None:
+        raw = os.environ.get("ZHANG_WUJI_TEMPLATE_PATH", "").strip()
+        if not raw:
+            return None
+        path = pathlib.Path(raw)
+        return path if path.is_file() else None
+
+    def factory(runtime):
+        synthesizer = _expression_synthesizer_for_runtime(runtime)
+        semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
+        template_path = _template_path()
+        if template_path is not None:
+            bundle = give_birth(
+                template_path,
+                substrate_runtime=runtime,
+                response_synthesizer=synthesizer,
+                semantic_proposal_runtime=semantic_runtime,
+            )
+            return bundle.lifeform
+        return build_zhang_wuji_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=synthesizer,
+            semantic_proposal_runtime=semantic_runtime,
+        ).lifeform
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        synthesizer = _expression_synthesizer_for_runtime(
+            runtime, repair_alpha_enabled=True
+        )
+        semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
+        config = LifeformConfig(
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir
+            )
+        )
+        template_path = _template_path()
+        if template_path is not None:
+            # Alpha mode + saved template: keep the template's
+            # profile / drives / evolved profile as the "trained"
+            # base, but skip the template's frozen memory checkpoint
+            # so the alpha kernel can build a per-user
+            # filesystem-scoped store. Each user's chat then
+            # accumulates ON TOP of the saved drives instead of
+            # inheriting another user's lived memories.
+            bundle = give_birth(
+                template_path,
+                config=config,
+                substrate_runtime=runtime,
+                response_synthesizer=synthesizer,
+                semantic_proposal_runtime=semantic_runtime,
+                identity_provider=identity_provider,
+                skip_memory_restore=True,
+            )
+            return bundle.lifeform
+        return build_zhang_wuji_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            response_synthesizer=synthesizer,
+            semantic_proposal_runtime=semantic_runtime,
+            identity_provider=identity_provider,
+        ).lifeform
+
+    return VerticalSpec(
+        name="zhang_wuji",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
+_BUILDERS = (
+    _try_companion,
+    _try_uncalibrated_companion,
+    _try_coding,
+    _try_zhang_wuji,
+)
 
 
 def discover_verticals() -> dict[str, VerticalSpec]:

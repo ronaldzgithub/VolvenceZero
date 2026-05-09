@@ -1,40 +1,58 @@
-"""DLaaS aiohttp router and dispatch handler.
+"""DLaaS aiohttp router and dispatch entry point.
 
-This module owns the ``/dlaas/instances/{ai_id}/interactions`` route.
-It does NOT itself hold any cognitive state. The dispatch flow is:
+This module owns the ``/dlaas/instances/{ai_id}/interactions`` route
+plus the wiring to attach the control-plane CRUD surface (Slice 3 +
+4) and the multi-ai_id launcher.
 
-1. Parse the JSON body into a typed :class:`InteractionEnvelope`.
-2. Look up the target ``LifeformSession`` via ``lifeform-service``'s
-   ``SessionManager`` (Slice 1 uses the existing single-instance
-   manager; Slice 3 will introduce a per-``ai_id`` ``InstanceManager``
-   as a router in front of multiple session managers).
-3. Switch on :class:`InteractionType` and call the matching kernel
-   entry point (``run_turn`` for chat; later slices add the rest).
-4. Wrap the kernel response into one or more :class:`OutputAct`
-   objects per the DLaaS wire format.
+Dispatch flow:
 
-Slice 1 supports only ``InteractionType.CHAT``. Other types return
-``501 not_implemented`` with a clear pointer to which later slice will
-implement them. The router is deliberately registered alongside the
-existing ``/v1/sessions/...`` routes (NOT replacing them), so the
-service remains backwards compatible until the platform tier is fully
-ACTIVE.
+1. Parse the JSON body into a typed
+   :class:`dlaas_platform_contracts.InteractionEnvelope`.
+2. If the app carries an :class:`InstanceManager`, look up the
+   ``SessionManager`` for the path ``ai_id``. Fall back to the
+   single-instance ``app["session_manager"]`` (Slice 1) when no
+   launcher is bound or when the ``ai_id`` is not adopted yet.
+3. Hand off to :func:`dlaas_platform_api.dispatch.dispatch_envelope`,
+   which switches on :class:`InteractionType` and calls the matching
+   kernel sink.
+4. Serialise the resulting JSON body back to the client.
+
+The Slice 1 ``attach_dlaas_routes`` entry point continues to work
+without a registry — it pins every request to the single shared
+``SessionManager``. ``build_dlaas_app`` is the recommended Slice 3+
+entry point: it builds a registry, a launcher, and the full
+control-plane surface in one call.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
-from uuid import uuid4
 
 from aiohttp import web
 
-from dlaas_platform_contracts import (
-    DEFAULT_PROTOCOL_VERSION,
-    InteractionEnvelope,
-    InteractionType,
-    OutputAct,
+from dlaas_platform_contracts import InteractionEnvelope
+from dlaas_platform_launcher import (
+    INSTANCE_MANAGER_APP_KEY,
+    InstanceManager,
+    InstanceNotFound,
+)
+from dlaas_platform_launcher.instance_manager import default_vertical_resolver
+from dlaas_platform_eval import attach_eval_routes
+from dlaas_platform_ops import (
+    OPS_BUNDLE_APP_KEY,
+    OpsBundle,
+    attach_ops_routes,
+    operator_takeover_response_body,
+)
+from dlaas_platform_registry import (
+    PlatformAuthBundle,
+    PlatformAuthConfig,
+    REGISTRY_APP_KEY,
+    Registry,
+    TenantStore,
 )
 from lifeform_service.app import create_app as create_lifeform_app
 from lifeform_service.session_manager import (
@@ -43,15 +61,13 @@ from lifeform_service.session_manager import (
     SessionNotFoundError,
 )
 
+from dlaas_platform_api.control_plane import attach_control_plane_routes
+from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
+
 _LOG = logging.getLogger("dlaas_platform_api")
 
 DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
-"""App key under which the Slice 1 hardcoded ``ai_id`` is stored.
-
-Slice 3 replaces this with a real ``InstanceManager`` indexed by
-``ai_id``; until then we accept any path ``ai_id`` and serve it from a
-single shared ``SessionManager``.
-"""
+"""``app[DLAAS_APP_AI_ID_KEY]`` — Slice 1 hardcoded ``ai_id`` fallback."""
 
 
 def attach_dlaas_routes(
@@ -59,12 +75,13 @@ def attach_dlaas_routes(
     *,
     default_ai_id: str = "ai_default",
 ) -> web.Application:
-    """Register ``/dlaas/*`` routes on an existing aiohttp app.
+    """Register only the runtime ``/dlaas/instances/{ai_id}/interactions``.
 
-    The app MUST already have a ``session_manager`` set up by
-    ``lifeform_service.app.create_app`` — we read the existing manager
-    rather than building a parallel one, so the kernel only sees one
-    ``Lifeform`` per process during Slice 1.
+    Slice 1 entry point. The app MUST already have a
+    ``session_manager`` set up by ``lifeform_service.app.create_app``;
+    every request — regardless of the path ``ai_id`` — is served by
+    that single SessionManager. Suitable for dev / smoke testing
+    before the multi-tenant control plane is wired.
     """
     if "session_manager" not in app:
         raise ValueError(
@@ -79,30 +96,118 @@ def attach_dlaas_routes(
     return app
 
 
-def build_dlaas_app(*, default_ai_id: str = "ai_default", **service_kwargs: Any) -> web.Application:
-    """Build a lifeform-service app with DLaaS routes already attached.
+def attach_dlaas_full_stack(
+    app: web.Application,
+    *,
+    registry: Registry,
+    auth_config: PlatformAuthConfig,
+    instance_manager: InstanceManager,
+    default_ai_id: str = "ai_default",
+    platform_endpoint: str = "",
+) -> web.Application:
+    """Wire registry + launcher + control plane onto an aiohttp app.
+
+    Slice 3+ entry point. The app must already carry a
+    ``session_manager`` (the Slice 1 fallback the dispatch reaches
+    for when the path ``ai_id`` is not registered with the
+    launcher). After this call the app exposes the runtime
+    ``/dlaas/instances/{ai_id}/interactions`` route plus every
+    control-plane CRUD endpoint listed in
+    ``docs/specs/dlaas-platform.md``.
+    """
+    if "session_manager" not in app:
+        raise ValueError(
+            "attach_dlaas_full_stack requires an aiohttp app produced by "
+            "lifeform_service.app.create_app (session_manager missing)."
+        )
+    app[REGISTRY_APP_KEY] = PlatformAuthBundle(
+        tenant_store=TenantStore(registry),
+        auth_config=auth_config,
+    )
+    app[INSTANCE_MANAGER_APP_KEY] = instance_manager
+    app[DLAAS_APP_AI_ID_KEY] = default_ai_id
+    if platform_endpoint:
+        app["dlaas_platform_endpoint"] = platform_endpoint
+    app.router.add_post(
+        "/dlaas/instances/{ai_id}/interactions",
+        _handle_interaction,
+    )
+    attach_control_plane_routes(app, registry=registry)
+    attach_ops_routes(app, registry=registry)
+    attach_eval_routes(app, registry=registry)
+    return app
+
+
+def build_dlaas_app(
+    *,
+    db_path: str | os.PathLike[str] = ":memory:",
+    default_ai_id: str = "ai_default",
+    control_plane_secret: str | None = None,
+    service_secret: str | None = None,
+    platform_endpoint: str = "",
+    instance_manager: InstanceManager | None = None,
+    **service_kwargs: Any,
+) -> web.Application:
+    """Build a lifeform-service app with the full DLaaS surface attached.
 
     Equivalent to:
 
         app = lifeform_service.app.create_app(**service_kwargs)
-        attach_dlaas_routes(app, default_ai_id=...)
+        registry = Registry(db_path=db_path)
+        instance_manager = InstanceManager(
+            vertical_resolver=default_vertical_resolver(),
+            substrate_runtime=app["session_manager"].substrate_runtime,
+        )
+        attach_dlaas_full_stack(
+            app,
+            registry=registry,
+            auth_config=PlatformAuthConfig(...),
+            instance_manager=instance_manager,
+            ...
+        )
 
-    Used by the ``dlaas-serve`` CLI in Slice 3; in Slice 1 it lets
-    callers spin up the full surface in one call for smoke testing.
+    ``control_plane_secret`` / ``service_secret`` default to
+    ``$DLAAS_CONTROL_PLANE_SECRET`` / ``$DLAAS_SERVICE_SECRET``
+    when the caller does not supply them explicitly. An empty value
+    administratively disables that auth mode.
     """
     app = create_lifeform_app(**service_kwargs)
-    attach_dlaas_routes(app, default_ai_id=default_ai_id)
+    registry = Registry(db_path=str(db_path))
+    if instance_manager is None:
+        instance_manager = InstanceManager(
+            vertical_resolver=default_vertical_resolver(),
+            substrate_runtime=app["session_manager"].substrate_runtime,
+        )
+    auth_config = PlatformAuthConfig(
+        control_plane_secret=(
+            control_plane_secret
+            if control_plane_secret is not None
+            else os.environ.get("DLAAS_CONTROL_PLANE_SECRET", "")
+        ),
+        service_secret=(
+            service_secret
+            if service_secret is not None
+            else os.environ.get("DLAAS_SERVICE_SECRET", "")
+        ),
+    )
+    attach_dlaas_full_stack(
+        app,
+        registry=registry,
+        auth_config=auth_config,
+        instance_manager=instance_manager,
+        default_ai_id=default_ai_id,
+        platform_endpoint=platform_endpoint,
+    )
     return app
 
 
-async def _handle_interaction(request: web.Request) -> web.Response:
-    """Dispatch a typed ``InteractionEnvelope`` to the kernel.
+# ---------------------------------------------------------------------------
+# Runtime dispatch
+# ---------------------------------------------------------------------------
 
-    Slice 1: only ``InteractionType.CHAT`` is wired. Other types return
-    ``501 not_implemented`` with the slice name. The handler does NOT
-    inspect ``human_brief`` to guess the type — interaction_type is the
-    sole dispatch key.
-    """
+
+async def _handle_interaction(request: web.Request) -> web.Response:
+    """Adapt the HTTP request to a typed dispatch call."""
     try:
         envelope = await _parse_envelope(request)
     except _EnvelopeError as exc:
@@ -116,44 +221,75 @@ async def _handle_interaction(request: web.Request) -> web.Response:
             detail="ai_id path segment is required",
         )
 
-    manager: SessionManager = request.app["session_manager"]
+    ops_bundle = request.app.get(OPS_BUNDLE_APP_KEY)
+    if isinstance(ops_bundle, OpsBundle):
+        if await ops_bundle.pause_store.is_paused(
+            ai_id=ai_id, session_id=envelope.session_id
+        ):
+            body = operator_takeover_response_body(
+                ai_id=ai_id,
+                session_id=envelope.session_id,
+                contract_id=envelope.contract_id,
+                interaction_type=envelope.interaction_type.value,
+            )
+            return web.json_response(dict(body))
+
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(
+            status=404, error=exc.code, detail=exc.detail
+        )
+
     try:
         session = await _get_or_create_session(manager, envelope.session_id)
-    except SessionAlreadyExistsError as exc:  # pragma: no cover - racy, defensive
+    except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
         return _json_error(
-            status=409,
-            error="session_already_exists",
-            detail=str(exc),
+            status=409, error="session_already_exists", detail=str(exc)
         )
-    except SessionNotFoundError as exc:  # pragma: no cover - get-or-create above
+    except SessionNotFoundError as exc:  # pragma: no cover - get-or-create
         return _json_error(
-            status=404,
-            error="session_not_found",
-            detail=str(exc),
+            status=404, error="session_not_found", detail=str(exc)
         )
 
-    if envelope.interaction_type is InteractionType.CHAT:
-        return await _dispatch_chat(envelope=envelope, session=session, ai_id=ai_id)
+    try:
+        body = await dispatch_envelope(
+            envelope=envelope, session=session, ai_id=ai_id
+        )
+    except DispatchError as exc:
+        return _json_error(status=exc.status, error=exc.code, detail=exc.detail)
+    return web.json_response(body)
 
-    # Slice mapping for the remaining types (the responses make the
-    # implementation roadmap visible to integrators while the wheels
-    # are being built):
-    later_slice = {
-        InteractionType.FEEDBACK: "Slice 2.1",
-        InteractionType.OBSERVE: "Slice 2.2",
-        InteractionType.TEACH: "Slice 2.3",
-        InteractionType.TASK: "Slice 2.3",
-        InteractionType.REPORT: "Slice 2.4",
-        InteractionType.COMMAND: "Slice 2.4",
-    }[envelope.interaction_type]
-    return _json_error(
-        status=501,
-        error="not_implemented",
-        detail=(
-            f"interaction_type={envelope.interaction_type.value!r} "
-            f"is wired in {later_slice}; only 'chat' is live in Slice 1."
-        ),
-    )
+
+def _resolve_session_manager(
+    request: web.Request, ai_id: str
+) -> SessionManager:
+    """Pick the SessionManager for ``ai_id``.
+
+    Resolution order:
+
+    1. If the launcher is bound and knows ``ai_id`` → return the
+       launcher's per-ai_id ``SessionManager``.
+    2. Else if the launcher is bound but does NOT know ``ai_id`` →
+       reject with 404 ``ai_id_not_found``. This is the multi-tenant
+       path: every ai_id must be adopted before traffic flows.
+    3. Else (no launcher) fall back to ``app["session_manager"]``
+       (Slice 1 single-instance path).
+    """
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if isinstance(launcher, InstanceManager):
+        try:
+            return launcher.get(ai_id)
+        except InstanceNotFound as exc:
+            raise _AiIdNotFoundError(
+                code="ai_id_not_found",
+                detail=(
+                    f"ai_id={ai_id!r} is not adopted on this server. "
+                    "Call POST /dlaas/adopt with a published, activated "
+                    "template before sending interactions."
+                ),
+            ) from exc
+    return request.app["session_manager"]
 
 
 async def _parse_envelope(request: web.Request) -> InteractionEnvelope:
@@ -161,12 +297,16 @@ async def _parse_envelope(request: web.Request) -> InteractionEnvelope:
         raise _EnvelopeError("invalid_envelope", "Request body is required")
     try:
         text = await request.text()
-    except Exception as exc:
-        raise _EnvelopeError("invalid_body", f"Could not read body: {exc}") from exc
+    except (web.HTTPException, OSError) as exc:
+        raise _EnvelopeError(
+            "invalid_body", f"Could not read body: {exc}"
+        ) from exc
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise _EnvelopeError("invalid_json", f"Body is not valid JSON: {exc}") from exc
+        raise _EnvelopeError(
+            "invalid_json", f"Body is not valid JSON: {exc}"
+        ) from exc
     try:
         return InteractionEnvelope.from_json(data)
     except ValueError as exc:
@@ -174,57 +314,11 @@ async def _parse_envelope(request: web.Request) -> InteractionEnvelope:
 
 
 async def _get_or_create_session(manager: SessionManager, session_id: str):
-    """Reuse an existing session if present; otherwise create with that id.
-
-    DLaaS interactions are session-scoped from the client side — the
-    integrator picks ``session_id`` (e.g. ``sess_math_20260505_001``).
-    The platform reuses the session across turns and creates it lazily
-    on first contact so the integrator does not have to call a separate
-    bootstrap endpoint.
-    """
+    """Reuse an existing session if present; otherwise create with that id."""
     try:
         return await manager.get_session(session_id)
     except SessionNotFoundError:
         return await manager.create_session(session_id=session_id)
-
-
-async def _dispatch_chat(
-    *,
-    envelope: InteractionEnvelope,
-    session: Any,
-    ai_id: str,
-) -> web.Response:
-    if not envelope.human_brief.strip():
-        return _json_error(
-            status=400,
-            error="invalid_human_brief",
-            detail="interaction_type=chat requires a non-empty human_brief",
-        )
-    result = await session.run_turn(envelope.human_brief)
-    response_text = getattr(result.response, "text", "") or ""
-    rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
-
-    primary_act = OutputAct(
-        act_type="text",
-        capability="text_streaming",
-        payload={"content": response_text},
-        degraded=False,
-        original_capability="",
-    )
-    body: dict[str, Any] = {
-        "status": "ok",
-        "ai_id": ai_id,
-        "contract_id": envelope.contract_id,
-        "session_id": envelope.session_id,
-        "response_id": f"resp_{uuid4().hex[:12]}",
-        "protocol_version": envelope.protocol_version or DEFAULT_PROTOCOL_VERSION,
-        "interaction_type": envelope.interaction_type.value,
-        "output_acts": [primary_act.to_json()],
-        "active_regime": getattr(result, "active_regime", None),
-        "active_abstract_action": getattr(result, "active_abstract_action", None),
-        "rationale_tags": list(rationale_tags),
-    }
-    return web.json_response(body)
 
 
 def _json_error(
@@ -241,14 +335,27 @@ def _json_error(
 
 
 class _EnvelopeError(Exception):
-    """Raised by ``_parse_envelope`` for any 400-level parse failure.
-
-    Carries an ``code`` slug (e.g. ``invalid_envelope``) and a
-    human-readable ``detail`` string, matching the existing
-    ``lifeform-service`` error format.
-    """
+    """Raised by ``_parse_envelope`` for any 400-level parse failure."""
 
     def __init__(self, code: str, detail: str) -> None:
         super().__init__(detail)
         self.code = code
         self.detail = detail
+
+
+class _AiIdNotFoundError(Exception):
+    """Raised by :func:`_resolve_session_manager` when launcher is bound
+    but the ai_id is unknown."""
+
+    def __init__(self, *, code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+
+
+__all__ = [
+    "DLAAS_APP_AI_ID_KEY",
+    "attach_dlaas_full_stack",
+    "attach_dlaas_routes",
+    "build_dlaas_app",
+]

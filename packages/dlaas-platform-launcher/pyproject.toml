@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlaas-platform-launcher"
+version = "0.1.0"
+description = "DLaaS platform-tier instance launcher. Owns the {ai_id -> SessionManager} map, allocates ai_ids on adoption, resolves runtime_template_id to a registered lifeform-service vertical, and shares a single substrate runtime across instances. See docs/specs/dlaas-platform.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "dlaas-platform-contracts==0.1.*",
+    "dlaas-platform-registry==0.1.*",
+    # The launcher composes per-ai_id SessionManagers via the public
+    # lifeform-service surface (vertical registry + SessionManager
+    # constructor). It must NOT reach into kernel internals; the
+    # platform-tier import boundary test enforces this.
+    "lifeform-service==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dlaas_platform_launcher*"]

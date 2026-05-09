@@ -10,9 +10,15 @@ requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
-    # Foundation wheel: zero upstream dependencies, mirrors vz-contracts
-    # discipline. The platform tier owns its own typed surface and never
-    # leaks vz-* internals into wire formats.
+    # vz-contracts is the kernel-level foundation wheel: it carries the
+    # typed taxonomies (``DialogueExternalOutcomeKind`` and friends)
+    # that platform-tier wire-format enums must reference so wire
+    # values map deterministically to kernel kinds. Importing only
+    # ``volvence_zero.dialogue_trace`` keeps the platform contracts
+    # wheel decoupled from kernel runtime / cognition state — see
+    # ``tests/contracts/test_import_boundaries.py``
+    # ``DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES``.
+    "vz-contracts==0.1.*",
 ]
 
 [tool.setuptools.packages.find]

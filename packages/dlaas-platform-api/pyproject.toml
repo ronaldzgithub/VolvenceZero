@@ -11,10 +11,31 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "dlaas-platform-contracts==0.1.*",
+    # Slice 3 introduces persistent control-plane resources. The
+    # registry wheel owns the typed CRUD + three-mode auth surface;
+    # api routes only translate HTTP <-> registry calls.
+    "dlaas-platform-registry==0.1.*",
+    # Slice 3.5 adds the launcher: one Python process can host many
+    # ai_id instances, each backed by its own SessionManager but
+    # sharing a single substrate runtime.
+    "dlaas-platform-launcher==0.1.*",
+    # Slice 5 ops: pause/resume/operator-message + handoff queue +
+    # admin SSE conversations stream + rupture_state-driven handoff
+    # trigger evaluator.
+    "dlaas-platform-ops==0.1.*",
+    # Slice 6 eval gate: audience analysis, exam questions + runs,
+    # launch license. Strictly readouts (R12 / EVO-2 / OA-1).
+    "dlaas-platform-eval==0.1.*",
     # The api wheel composes a ``LifeformSession`` instance via the
     # public lifeform-service surface. lifeform-service provides the
     # SessionManager + create_app facade used by the dispatch handler.
     "lifeform-service==0.1.*",
+    # The Slice 2.2 observe handler routes CORPUS_INGEST envelopes
+    # through the public ``IngestionPipeline`` so multi-channel
+    # corpus material reaches the kernel via the same path as PDF /
+    # DOCX adapters. lifeform-ingestion is on the platform-tier
+    # allowlist (see tests/contracts/test_import_boundaries.py).
+    "lifeform-ingestion==0.1.*",
     "aiohttp>=3.9",
 ]
 

@@ -48,8 +48,11 @@ _ALLOWED_HARDCODED_HITS: set[tuple[str, str]] = {
     # describe a structural property (a regime that supports
     # support-before-decision lifecycle) rather than an arbitrary
     # text mapping. Future cleanup welcome but not blocking W4.
+    #
+    # Wave 2 of debt #9 split: this hit moved from ``runtime.py`` to
+    # ``runtime_helpers.py`` with the helper functions that house it.
     (
-        "runtime.py",
+        "runtime_helpers.py",
         'regime_id in {"guided_exploration", "problem_solving", "emotional_support"}',
     ),
 }
@@ -99,7 +102,16 @@ def _is_string_set(node: ast.AST) -> bool:
 
 @pytest.mark.parametrize(
     "module_filename",
-    sorted(p.name for p in _APPLICATION_ROOT.glob("*.py")),
+    sorted(
+        # Wave 2 of debt #9 split: walk recursively so the new
+        # ``modules/`` subpackage is also scanned for hardcoded
+        # regime-id branching. Each entry is the path RELATIVE to
+        # ``_APPLICATION_ROOT`` so the allow-list keys (which list
+        # ``runtime_helpers.py`` etc.) line up with what the test
+        # parametrizes on.
+        str(p.relative_to(_APPLICATION_ROOT)).replace("\\", "/")
+        for p in _APPLICATION_ROOT.rglob("*.py")
+    ),
 )
 def test_no_hardcoded_regime_id_branching(module_filename: str) -> None:
     """The application module must not branch on ``regime_id``
@@ -134,10 +146,16 @@ def test_application_brief_helper_is_imported_in_runtime_modules() -> None:
     ``application_brief_for_regime``. If a module has zero brief
     references but still does regime-flavoured work, it is a sign
     the cutover is not yet complete.
+
+    Wave 2 of debt #9 split: ``runtime.py`` is now a thin re-export
+    shell; the regime-keyed scoring helper ``_application_brief``
+    lives in ``runtime_helpers.py``. The expected-files set tracks
+    that move so the SSOT pin still fails when a future regression
+    deletes the helper or stops referencing it.
     """
 
     expected_briefed_modules = {
-        "runtime.py",
+        "runtime_helpers.py",
         "experience_layers.py",
         "retrieval_readout.py",
     }

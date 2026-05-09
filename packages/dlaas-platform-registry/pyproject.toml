@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlaas-platform-registry"
+version = "0.1.0"
+description = "DLaaS platform-tier multi-tenant control-plane registry. SQLite-backed CRUD over typed resource specs (Tenant / Shell / Asset / Template / Contract / FocusPerson / IdentityLink / HandoffTicket) plus three auth-header middleware. Owner of all governance state; no cognitive state. See docs/specs/dlaas-platform.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "dlaas-platform-contracts==0.1.*",
+    # aiohttp middleware integration is optional but the registry's
+    # auth middleware lives in this wheel so it can read the secret
+    # store directly. The wheel can still be used as a pure CRUD
+    # library without aiohttp by importing only the *_store modules.
+    "aiohttp>=3.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dlaas_platform_registry*"]

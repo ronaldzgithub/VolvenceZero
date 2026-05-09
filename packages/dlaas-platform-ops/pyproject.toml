@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlaas-platform-ops"
+version = "0.1.0"
+description = "DLaaS platform-tier operations: per-session pause state, operator messaging, handoff queue + tickets, conversation ledger, and the admin SSE conversations stream. Reads rupture_state via the kernel's public snapshot surface only — no kernel internals. See docs/specs/dlaas-platform.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "dlaas-platform-contracts==0.1.*",
+    "dlaas-platform-registry==0.1.*",
+    "dlaas-platform-launcher==0.1.*",
+    "aiohttp>=3.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dlaas_platform_ops*"]

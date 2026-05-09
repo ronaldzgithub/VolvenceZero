@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import pathlib
 from dataclasses import dataclass, replace as _replace
+from typing import Any
 
 from lifeform_core import DriveSpec, Lifeform, LifeformConfig, VitalsBootstrap
 from volvence_zero.application.storage import (
@@ -73,6 +74,15 @@ def give_birth(
     template: LifeformTemplate | pathlib.Path,
     *,
     verify_integrity: bool = True,
+    substrate_runtime: Any = None,
+    substrate_adapter_factory: Any = None,
+    response_synthesizer: Any = None,
+    semantic_proposal_runtime: Any = None,
+    identity_provider: Any = None,
+    memory_store: MemoryStore | None = None,
+    skip_memory_restore: bool = False,
+    config: LifeformConfig | None = None,
+    rare_heavy_enabled: bool = False,
 ) -> RebirthBundle:
     """Construct a fresh :class:`Lifeform` from a saved template.
 
@@ -148,22 +158,41 @@ def give_birth(
             vitals_bootstrap, saved_levels
         )
 
-    # Construct LifeformConfig with rare-heavy disabled (matches
-    # build_character_lifeform's pattern; tests / demos run on
-    # synthetic substrate).
-    base_config = LifeformConfig()
+    # Construct LifeformConfig. Caller may pass an override (e.g.
+    # alpha service path with ``BrainConfig.memory_scope_root_dir``
+    # set). When omitted we default to a fresh ``LifeformConfig()``.
+    # ``rare_heavy_enabled`` defaults to False (offline / demo
+    # path). Service paths (alpha mode + real substrate) need
+    # ``substrate_mode='injected'`` so the brain consumes the
+    # supplied runtime as-is.
+    base_config = config if isinstance(config, LifeformConfig) else LifeformConfig()
+    brain_overrides: dict[str, Any] = {"rare_heavy_enabled": rare_heavy_enabled}
+    if substrate_runtime is not None:
+        brain_overrides["substrate_mode"] = "injected"
     base_config = _replace(
         base_config,
-        brain_config=_replace(
-            base_config.brain_config, rare_heavy_enabled=False
-        ),
+        brain_config=_replace(base_config.brain_config, **brain_overrides),
     )
     base_config = base_config.with_domain_experience((package,))
     base_config = base_config.with_vitals(vitals_bootstrap)
 
-    # Restore memory store. If the template carried no checkpoint
-    # (ablation save) we just create a fresh default store.
-    memory_store = _restore_memory_store(inflated)
+    # Memory-store policy:
+    # 1. ``memory_store`` injected by caller → use it as-is.
+    # 2. ``skip_memory_restore=True`` → leave memory_store=None so
+    #    the kernel auto-builds a per-session store from
+    #    ``BrainConfig.memory_scope_root_dir + IdentityProvider``
+    #    (this is the alpha service path: per-user disk persistence
+    #    starts fresh and accumulates on top of the saved drives /
+    #    profile, rather than baking the template's frozen memory
+    #    snapshot into every user's account).
+    # 3. Otherwise → reconstruct from the template checkpoint, the
+    #    canonical "fully reincarnated" path.
+    if memory_store is not None:
+        active_memory_store: MemoryStore | None = memory_store
+    elif skip_memory_restore:
+        active_memory_store = None
+    else:
+        active_memory_store = _restore_memory_store(inflated)
 
     # Restore application owner stores; these are passed into the
     # Lifeform implicitly through the kernel's package application
@@ -180,13 +209,26 @@ def give_birth(
             inflated.application_state.case_memory_checkpoint
         )
 
-    lifeform = Lifeform(base_config, memory_store=memory_store)
+    lifeform_kwargs: dict[str, Any] = {}
+    if active_memory_store is not None:
+        lifeform_kwargs["memory_store"] = active_memory_store
+    if substrate_runtime is not None:
+        lifeform_kwargs["substrate_runtime"] = substrate_runtime
+    if substrate_adapter_factory is not None:
+        lifeform_kwargs["substrate_adapter_factory"] = substrate_adapter_factory
+    if response_synthesizer is not None:
+        lifeform_kwargs["response_synthesizer"] = response_synthesizer
+    if semantic_proposal_runtime is not None:
+        lifeform_kwargs["semantic_proposal_runtime"] = semantic_proposal_runtime
+    if identity_provider is not None:
+        lifeform_kwargs["identity_provider"] = identity_provider
+    lifeform = Lifeform(base_config, **lifeform_kwargs)
 
     return RebirthBundle(
         lifeform=lifeform,
         profile=chosen_profile,
         template=inflated,
-        memory_store=memory_store,
+        memory_store=active_memory_store,
         domain_knowledge_store=domain_store,
         case_memory_store=case_store,
     )
