@@ -500,6 +500,78 @@ def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Lifeform vertical isolation
+#
+# Verticals (`lifeform-domain-*`) compile reviewed structured artifacts into
+# existing kernel application owners. Two parallel verticals that do not
+# share a parent vertical wheel must not import each other directly, or the
+# "compiler is the only writer of this vertical's bundle" invariant breaks
+# (R8 SSOT). For now this is enforced for the figure / character pair; the
+# helper below extends to any newly-added pair.
+# ---------------------------------------------------------------------------
+
+
+PARALLEL_VERTICAL_PAIRS: tuple[tuple[str, str], ...] = (
+    ("lifeform-domain-figure", "lifeform-domain-character"),
+)
+
+
+@pytest.mark.parametrize(("vertical_a", "vertical_b"), PARALLEL_VERTICAL_PAIRS)
+def test_parallel_verticals_do_not_cross_import(
+    vertical_a: str, vertical_b: str,
+) -> None:
+    """Parallel verticals must not import each other.
+
+    Each vertical owns its own reviewed bundle (CharacterSoulProfile /
+    DomainExperiencePackage for character, FigureArtifactBundle for
+    figure). Cross-importing would create a second owner of the bundle's
+    schema and break the rollback story.
+    """
+    package_a_root = PACKAGES_ROOT / vertical_a / "src"
+    package_b_root = PACKAGES_ROOT / vertical_b / "src"
+    if not package_a_root.exists():
+        pytest.skip(f"vertical {vertical_a} has not landed yet")
+    if not package_b_root.exists():
+        pytest.skip(f"vertical {vertical_b} has not landed yet")
+    pkg_a_module = vertical_a.replace("-", "_")
+    pkg_b_module = vertical_b.replace("-", "_")
+
+    def _check(src_root: pathlib.Path, forbidden_module: str, forbidden_wheel: str) -> None:
+        for py_file in _python_files(src_root):
+            for module in _module_level_imports(py_file):
+                if module == forbidden_module or module.startswith(f"{forbidden_module}."):
+                    pytest.fail(
+                        f"{py_file.relative_to(REPO_ROOT)} imports "
+                        f"'{module}': vertical wheel must not import "
+                        f"parallel vertical '{forbidden_wheel}' (R8 SSOT)."
+                    )
+
+    _check(package_a_root, pkg_b_module, vertical_b)
+    _check(package_b_root, pkg_a_module, vertical_a)
+
+
+def test_figure_vertical_does_not_import_dlaas_platform() -> None:
+    """The figure vertical must not import dlaas-platform-* internals.
+
+    DLaaS sits above the lifeform tier and consumes the vertical's
+    bundle through public symbols. The vertical's own modules must
+    not reach upward into the platform tier — that would invert the
+    dependency direction encoded in the wheel layering.
+    """
+    figure_src = PACKAGES_ROOT / "lifeform-domain-figure" / "src"
+    if not figure_src.exists():
+        pytest.skip("lifeform-domain-figure has not landed yet")
+    for py_file in _python_files(figure_src):
+        for module in _module_level_imports(py_file):
+            if module.startswith("dlaas_platform_") or module == "dlaas_platform":
+                pytest.fail(
+                    f"{py_file.relative_to(REPO_ROOT)} imports "
+                    f"'{module}': lifeform-domain-figure must not "
+                    f"depend on the platform tier."
+                )
+
+
+# ---------------------------------------------------------------------------
 # DLaaS platform-tier boundary tests (third tier; see docs/specs/dlaas-platform.md)
 # ---------------------------------------------------------------------------
 

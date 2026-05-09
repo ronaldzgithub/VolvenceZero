@@ -525,6 +525,34 @@ vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t
 
 详见 `docs/specs/domain-experience-layer.md`。
 
+### 2.15 Figure Artifact Bundle（真实人物 vertical 不可变 artifact）
+
+**所在 wheel**：`lifeform-domain-figure`（schema + 编译流水线）
+
+`FigureArtifactBundle` 是 [`lifeform-domain-figure`](../packages/lifeform-domain-figure/) vertical 的**不可变快照**，承载一个真实人物的全部 runtime artifact。它由该 vertical 唯一拥有 (R8)，跨 wheel 只读消费；**不**新增 kernel runtime owner。
+
+| bundle 字段 | 服务的保真层 | 运行时消费者 |
+|---|---|---|
+| `retrieval_index: FigureRetrievalIndex` | L3 引证保真 | `lifeform-expression.GroundedDecoder` |
+| `coverage_map: FigureCoverageMap` | L4 不知拒答 | `lifeform-expression.ScopeRefuser` |
+| `style_prior: FigureStylePrior` | L1 语气保真 | `lifeform-expression.StylePriorInjector` |
+| `steering: FigureSteeringSet \| None` | L2 立场保真 | `vz-substrate.SubstrateDeltaAdapterLayer`（常量 delta） |
+| `lora: FigureLoRAArtifact \| None` | L1 + L2 强化 | `vz-substrate.PersonaLoRAPool` |
+| `domain_package: DomainExperiencePackage` | 知识 / 案例 / 策略 / 边界 | 既有 application owner（不新增） |
+| `vitals_bootstrap: VitalsBootstrap` | drives | `lifeform-core.VitalsModule`（既有 owner） |
+| `integrity_hash: str` | bundle 完整性 | DLaaS / rollback drill |
+| `version_window: tuple[int, int]` | 时间分层（早 vs 晚期） | DLaaS template `figure_time_window` 字段 |
+
+**Figure bundle 不变量**：
+
+- 整个 bundle 是 frozen dataclass；任何字段修改只能通过 `dataclasses.replace()` 产出新 bundle，不允许原地修改（R8）
+- bundle 的运行时消费链路全部通过快照只读，**不**有人 import `lifeform_domain_figure` 内部模块（除 vertical 自己 + DLaaS adopt 加载点）
+- `FigureSteeringSet` / `FigureLoRAArtifact` 进入 bundle 前必须过 `ModificationGate.OFFLINE`（R10），强制 `validation_delta ≥ 0.05` + `is_reversible=True` + 非空 `rollback_evidence`
+- bundle 默认 `WiringLevel.SHADOW`；ACTIVE 切换需要 evaluation 6 族证据 + DLaaS template 显式 wiring（R15）
+- 跨 vertical 隔离：`lifeform-domain-figure` 不 import `lifeform-domain-character`，反之亦然；CI 由 [`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 强制
+
+详见 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md)。
+
 ---
 
 ## 3. 模块快照契约

@@ -131,12 +131,14 @@ async def test_unknown_interaction_type_returns_typed_400(dlaas_client):
     assert payload["error"] == "invalid_envelope"
 
 
-async def test_non_chat_types_return_501_with_slice_pointer(dlaas_client):
-    """Slice 1 only wires chat; the other 6 types must respond ``501`` with
-    a clear pointer to the slice that will implement them.
+async def test_non_chat_types_validate_their_typed_contract(dlaas_client):
+    """After Slice 2 every non-chat ``interaction_type`` is wired but
+    each one validates its own typed contract surface. Sending a bare
+    ``human_brief`` is no longer enough — the dispatcher refuses to
+    fall through to the kernel without the typed payload.
 
-    This keeps Slice 1 behaviour predictable for integrators trying every
-    interaction_type during early integration.
+    This is the canonical Slice 2 invariant: typed dispatch never
+    silently uses defaults, so missing fields surface as typed 400s.
     """
     body_template = {
         "contract_id": "ctr_smoke_004",
@@ -144,13 +146,22 @@ async def test_non_chat_types_return_501_with_slice_pointer(dlaas_client):
         "end_user_ref": "user_smoke",
         "human_brief": "x",
     }
-    for kind in ("feedback", "observe", "teach", "task", "report", "command"):
+    expected_codes = {
+        "feedback": "missing_feedback_payload",
+        "observe": "missing_observation_type",
+        "command": "invalid_command",
+    }
+    for kind, code in expected_codes.items():
         payload_in = dict(body_template, interaction_type=kind)
         resp = await dlaas_client.post(
             "/dlaas/instances/ai_smoke/interactions",
             json=payload_in,
         )
-        assert resp.status == 501, await resp.text()
+        assert resp.status == 400, await resp.text()
         payload = await resp.json()
-        assert payload["error"] == "not_implemented"
-        assert "Slice" in payload["detail"]
+        assert payload["error"] == code, payload
+    # ``teach`` / ``task`` accept the same ``human_brief`` as chat — they
+    # reach the kernel and produce an OutputAct under the apprentice
+    # trigger. ``report`` accepts an empty body and returns the drained
+    # scaffold. We don't exercise those here; the Slice 7 contract
+    # suite covers them with typed assertions.
