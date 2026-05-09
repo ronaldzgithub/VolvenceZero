@@ -231,10 +231,32 @@ def compute_template_integrity_hash(
 ) -> str:
     """Return the SHA-256 hex digest used as ``integrity_hash``.
 
-    The hash covers every field the template carries except
-    ``integrity_hash`` itself (logically: hash over the template
-    with that field set to the empty string).
+    Coverage: deterministic identity fields only — manifest (minus
+    ``integrity_hash``), profile, evolved_profile, vitals_bootstrap,
+    vitals_drive_levels, and application_state.
+
+    Why ``memory_checkpoint`` and ``replay_report`` are NOT in the hash:
+
+    * ``MemoryStoreCheckpoint`` carries dynamic ids (each save mints
+      a new ``checkpoint_id``) so its serialized form is not stable
+      across save+load. Its integrity is independently enforced by
+      ``serialize_checkpoint`` / ``deserialize_checkpoint``'s own
+      ``_schema_version`` check on load.
+    * ``ReplayReport`` similarly contains floating-point drive
+      levels that may suffer round-trip noise; its integrity is
+      enforced by the typed schema.
+
+    The hash therefore proves *the character's identity payload was
+    not tampered with*; the runtime state (memory + replay history)
+    has its own schema-versioned integrity. Both layers must
+    validate before ``give_birth`` accepts a template.
+
+    ``memory_checkpoint`` and ``replay_report`` parameters are kept
+    on the signature for forward-compatibility; future schema
+    revisions can fold them in if a stable canonicalization is
+    introduced.
     """
+    del memory_checkpoint, replay_report  # not in the v1 hash, see docstring
     placeholder_manifest = {
         "template_id": template_id,
         "schema_version": schema_version,
@@ -248,11 +270,9 @@ def compute_template_integrity_hash(
         "manifest": placeholder_manifest,
         "profile": _to_serializable(profile),
         "evolved_profile": _to_serializable(evolved_profile),
-        "memory_checkpoint": _to_serializable(memory_checkpoint),
         "vitals_bootstrap": _to_serializable(vitals_bootstrap),
         "vitals_drive_levels": _to_serializable(vitals_drive_levels),
         "application_state": _to_serializable(application_state),
-        "replay_report": _to_serializable(replay_report),
     }
     canonical = json.dumps(
         payload, ensure_ascii=False, indent=None, sort_keys=True

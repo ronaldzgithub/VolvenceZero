@@ -45,6 +45,29 @@ from lifeform_domain_character.template import (
     compute_template_integrity_hash,
     utc_iso_now,
 )
+from lifeform_domain_character.evolution import (
+    DriveShapeEvolution,
+    DriveSpecDelta,
+    compute_drive_shape_evolution,
+)
+from lifeform_domain_character.rare_heavy_apply import (
+    DriveEvolutionApplyResult,
+    GatedDriveSpecDelta,
+    apply_drive_evolution_through_gate,
+    invert_delta,
+)
+from lifeform_domain_character.extraction import (
+    NarrativeArcCandidate,
+    ReviewedProfileCandidate,
+    extract_arc_candidate,
+    extract_profile_candidate,
+    review_arc_candidate,
+    review_profile_candidate,
+)
+from lifeform_domain_character.template_load import (
+    RebirthBundle,
+    give_birth,
+)
 from lifeform_domain_character.template_save import (
     SaveLifeformTemplateResult,
     save_lifeform_template,
@@ -96,4 +119,23 @@ __all__ = [
     "SaveLifeformTemplateResult",
     "save_lifeform_template",
     "vitals_drive_levels_from_session",
+    # Template load / give_birth (Wave T6)
+    "RebirthBundle",
+    "give_birth",
+    # LLM extraction (Wave T7 + T8)
+    "NarrativeArcCandidate",
+    "ReviewedProfileCandidate",
+    "extract_arc_candidate",
+    "extract_profile_candidate",
+    "review_arc_candidate",
+    "review_profile_candidate",
+    # Drive evolution (Wave T9)
+    "DriveShapeEvolution",
+    "DriveSpecDelta",
+    "compute_drive_shape_evolution",
+    # Rare-heavy apply (Wave T10)
+    "DriveEvolutionApplyResult",
+    "GatedDriveSpecDelta",
+    "apply_drive_evolution_through_gate",
+    "invert_delta",
 ]
