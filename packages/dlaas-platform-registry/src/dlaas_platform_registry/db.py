@@ -26,7 +26,7 @@ import asyncio
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 _SCHEMA_SQL = (
@@ -94,6 +94,10 @@ _SCHEMA_SQL = (
         seed_config_json TEXT NOT NULL DEFAULT '{}',
         activation_stats_json TEXT NOT NULL DEFAULT '{}',
         created_at_ms INTEGER NOT NULL,
+        figure_artifact_id TEXT NOT NULL DEFAULT '',
+        citation_policy TEXT NOT NULL DEFAULT 'disabled',
+        coverage_policy TEXT NOT NULL DEFAULT 'passthrough',
+        figure_time_window TEXT NOT NULL DEFAULT '',
         FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id)
     );
     """,
