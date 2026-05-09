@@ -5,6 +5,7 @@ import types
 from dataclasses import replace
 
 import volvence_zero.agent.session as agent_session_module
+import volvence_zero.agent.session_training_phase as agent_session_training_phase_module
 from volvence_zero.agent import (
     AgentSessionRunner,
     MultiPathBenchmarkReport,
@@ -1212,6 +1213,17 @@ def test_agent_session_runner_rejects_rare_heavy_candidate_when_preimport_replay
 
 
 def test_agent_session_runner_applies_online_fast_substrate_self_mod_in_experimental_lane(monkeypatch):
+    # Debt #9 wave 1: ``_maybe_apply_online_fast_substrate_self_mod``
+    # moved into ``SessionTrainingPhaseMixin``; monkeypatch the
+    # ``evaluate_gate`` lookup at the new module's globals so the
+    # call site resolves to our ALLOW lambda. The legacy
+    # ``agent_session_module.evaluate_gate`` patch is also kept for
+    # any helper that still resolves through ``session.py``.
+    monkeypatch.setattr(
+        agent_session_training_phase_module,
+        "evaluate_gate",
+        lambda *, proposal, evaluation_snapshot: GateDecision.ALLOW,
+    )
     monkeypatch.setattr(
         agent_session_module,
         "evaluate_gate",
@@ -1357,6 +1369,13 @@ def test_agent_session_runner_keeps_rare_heavy_review_only_when_explicitly_froze
 
 
 def test_agent_session_runner_rolls_back_online_fast_substrate_after_delayed_alert(monkeypatch):
+    # Debt #9 wave 1: see the parallel test above for why both module
+    # surfaces get patched after the training-phase mixin extraction.
+    monkeypatch.setattr(
+        agent_session_training_phase_module,
+        "evaluate_gate",
+        lambda *, proposal, evaluation_snapshot: GateDecision.ALLOW,
+    )
     monkeypatch.setattr(
         agent_session_module,
         "evaluate_gate",

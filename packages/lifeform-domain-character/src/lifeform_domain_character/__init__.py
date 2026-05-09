@@ -20,6 +20,11 @@ from lifeform_domain_character.compiler import (
     build_character_package,
     build_character_vitals_bootstrap,
 )
+from lifeform_domain_character.lifeform_builder import (
+    CharacterLifeformBundle,
+    build_character_lifeform,
+    build_zhang_wuji_lifeform,
+)
 from lifeform_domain_character.profile import (
     CharacterBoundaryPrior,
     CharacterDrivePrior,
@@ -28,15 +33,22 @@ from lifeform_domain_character.profile import (
     CharacterSoulProfile,
     CharacterStrategyPrior,
 )
+from lifeform_domain_character.profiles import build_zhang_wuji_profile
+from lifeform_domain_character.sample_excerpts import zhang_wuji_long_arc_excerpt
 
 __all__ = [
     "CharacterBoundaryPrior",
     "CharacterDrivePrior",
     "CharacterKnowledgeSeed",
+    "CharacterLifeformBundle",
     "CharacterSignatureCase",
     "CharacterSoulProfile",
     "CharacterStrategyPrior",
     "build_character_ingestion_envelope",
+    "build_character_lifeform",
     "build_character_package",
     "build_character_vitals_bootstrap",
+    "build_zhang_wuji_lifeform",
+    "build_zhang_wuji_profile",
+    "zhang_wuji_long_arc_excerpt",
 ]
