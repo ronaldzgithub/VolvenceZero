@@ -16,6 +16,10 @@ from volvence_zero.substrate.adapter import (
     UnavailableField,
     semantic_feature_surface_from_text,
 )
+from volvence_zero.substrate.grounded_decode_hook import (
+    GroundedDecodeHook,
+    GroundingVerdict,
+)
 from volvence_zero.substrate.residual_backend import (
     build_builtin_transformers_runtime,
     build_transformers_runtime_with_fallback,
@@ -66,6 +70,8 @@ __all__ = [
     "feature_signal_value",
     "FeatureSurfaceSubstrateAdapter",
     "GenerationResult",
+    "GroundedDecodeHook",
+    "GroundingVerdict",
     "HFTextGenerationProvider",
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",

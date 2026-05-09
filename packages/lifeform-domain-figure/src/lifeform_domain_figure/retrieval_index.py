@@ -48,6 +48,29 @@ _BM25_B = 0.75
 # "...in 2024" cannot spike BM25 on the word "in" alone in a small
 # corpus where IDF damping is otherwise insufficient.
 _BM25_IDF_FLOOR = 0.30
+# Hard stopword list for English function words. With small corpora
+# the IDF floor alone is not enough to suppress "with" / "and" /
+# "this" type words, because their document frequency is moderate
+# rather than universal. We drop them at *both* index and query
+# time so they never contribute to BM25 or to the hashing-embedding
+# cosine score. The list is intentionally short and conservative —
+# only words with no plausible content meaning. Future verticals
+# focused on Chinese / German / etc. should extend this with a
+# per-language list rather than rewrite the indexer.
+_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "the", "and", "for", "with", "that", "this", "these", "those",
+        "are", "was", "were", "been", "being", "have", "has", "had",
+        "not", "but", "any", "all", "some", "from", "which", "what",
+        "will", "would", "could", "should", "shall", "may", "might",
+        "you", "your", "yours", "they", "them", "their", "his", "her",
+        "him", "she", "our", "out", "into", "onto", "than", "then",
+        "there", "here", "where", "when", "such", "only", "even",
+        "also", "more", "most", "very", "much", "many", "few", "one",
+        "two", "three", "four", "five", "six", "seven", "eight",
+        "nine", "ten",
+    }
+)
 
 
 _MIN_TOKEN_LEN = 3
@@ -65,11 +88,15 @@ def _tokenize(text: str) -> tuple[str, ...]:
     bigrams while rejecting structural particles.
     """
 
-    return tuple(
-        token.lower()
-        for token in _WORD_RE.findall(text)
-        if len(token) >= _MIN_TOKEN_LEN
-    )
+    out: list[str] = []
+    for token in _WORD_RE.findall(text):
+        lowered = token.lower()
+        if len(lowered) < _MIN_TOKEN_LEN:
+            continue
+        if lowered in _STOPWORDS:
+            continue
+        out.append(lowered)
+    return tuple(out)
 
 
 def _hashing_embedding(tokens: tuple[str, ...], *, dim: int = _EMBEDDING_DIM) -> tuple[float, ...]:

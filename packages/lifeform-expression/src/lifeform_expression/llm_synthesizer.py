@@ -64,6 +64,15 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     safe to share across concurrent sessions. ``Lifeform`` clones
     one synthesizer per session via :meth:`clone_for_session` so
     each conversation gets its own ring buffer.
+
+    The optional ``figure_bundle`` parameter binds a frozen
+    :class:`lifeform_domain_figure.FigureArtifactBundle` to this
+    synthesizer. When set, the figure-vertical L1 / L3 / L4
+    enforcement layers (style prior injection, grounded decoding,
+    scope refusal) consume the bundle through the duck-typed
+    contract surface — the synthesizer itself never imports
+    ``lifeform_domain_figure``, so the wheel-boundary direction is
+    preserved.
     """
 
     def __init__(
@@ -74,6 +83,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         temperature: float = 0.7,
         planner: PromptPlanner | None = None,
         history_turns: int = _DEFAULT_HISTORY_TURNS,
+        figure_bundle: object | None = None,
     ) -> None:
         super().__init__(
             runtime=runtime,
@@ -84,6 +94,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         self._last_plan: PromptPlan | None = None
         self._history_turns = max(0, history_turns)
         self._history: deque[tuple[str, str]] = deque(maxlen=self._history_turns)
+        self._figure_bundle = figure_bundle
 
     @property
     def planner(self) -> PromptPlanner:
@@ -101,14 +112,33 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     def history_turns(self) -> int:
         return self._history_turns
 
+    @property
+    def figure_bundle(self) -> object | None:
+        return self._figure_bundle
+
+    def with_figure_bundle(
+        self, bundle: object | None
+    ) -> "LifeformLLMResponseSynthesizer":
+        """Return a clone bound to ``bundle`` (or unbound when ``None``).
+
+        The figure bundle is shared by reference across the clone —
+        it is frozen, so this is safe; new sessions get their own
+        history ring buffer through :meth:`clone_for_session`.
+        """
+
+        clone = self.clone_for_session()
+        clone._figure_bundle = bundle  # noqa: SLF001 — internal reassignment
+        return clone
+
     def clone_for_session(self) -> "LifeformLLMResponseSynthesizer":
         """Return a session-local clone with an empty history buffer.
 
         ``runtime`` and ``planner`` are shared by reference (the
         substrate runtime is intentionally process-wide; the planner
-        is stateless across turns). Only the ring buffer and the
-        ``last_plan`` cache are independent so concurrent sessions
-        do not see each other's turns.
+        is stateless across turns). The figure bundle is also shared
+        by reference because it is frozen. Only the ring buffer and
+        the ``last_plan`` cache are independent so concurrent
+        sessions do not see each other's turns.
         """
 
         clone = type(self)(
@@ -117,6 +147,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             temperature=self._temperature,
             planner=self._planner,
             history_turns=self._history_turns,
+            figure_bundle=self._figure_bundle,
         )
         return clone
 

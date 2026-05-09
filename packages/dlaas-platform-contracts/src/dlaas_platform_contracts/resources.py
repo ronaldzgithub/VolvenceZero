@@ -304,6 +304,35 @@ class TemplateActivationStatus(str, Enum):
     ACTIVATION_FAILED = "activation_failed"
 
 
+class CitationPolicy(str, Enum):
+    """How strictly the runtime enforces L3 grounded-decoding.
+
+    Mirrors the ``score_threshold`` / ``cosine_floor`` knobs the
+    figure vertical's ``GroundedDecoder`` consumes; the policy is
+    the templating-side dial that governs whether the runtime
+    refuses unsupported assertions, marks them, or passes through.
+    """
+
+    REQUIRED = "required"
+    PREFERRED = "preferred"
+    DISABLED = "disabled"
+
+
+class CoveragePolicy(str, Enum):
+    """How the runtime treats out-of-scope queries.
+
+    Mirrors :class:`lifeform_expression.CoveragePolicy`; redeclared
+    here so the platform tier does not import the lifeform layer.
+    Renaming or reordering values here MUST be reflected on the
+    expression-side enum (a contract test in P4.1 keeps the two
+    aligned).
+    """
+
+    STRICT_REFUSE = "strict_refuse"
+    SOFT_DISCLAIM = "soft_disclaim"
+    PASSTHROUGH = "passthrough"
+
+
 @dataclass(frozen=True)
 class TemplateSpec:
     """Template = persona + seed bundle.
@@ -311,6 +340,27 @@ class TemplateSpec:
     ``runtime_template_id`` bridges the control-plane template to a
     registered ``lifeform-service.verticals`` entry. Readiness gating
     requires it to be non-empty.
+
+    The four ``figure_*`` fields below are **optional** — they are
+    only populated for templates that carry a real-person figure
+    artifact bundle compiled by ``lifeform-domain-figure``:
+
+    * ``figure_artifact_id`` — opaque id of the registered
+      :class:`lifeform_domain_figure.FigureArtifactBundle`. The
+      runtime adopt path resolves the id to the actual frozen
+      bundle via the figure-vertical loader.
+    * ``citation_policy`` — :class:`CitationPolicy` controlling
+      L3 enforcement.
+    * ``coverage_policy`` — :class:`CoveragePolicy` controlling
+      L4 enforcement.
+    * ``figure_time_window`` — optional ``"window_id"`` selecting
+      a :class:`TimeWindowedView` on the underlying profile. Empty
+      string means "no window selected".
+
+    These fields default to safe-no-op values so existing templates
+    that do not opt into the figure vertical keep behaving exactly
+    as before (additive-by-default discipline; matches the
+    DLaaS-rollout slice 5.4 substrate streaming carve-out).
     """
 
     template_id: str
@@ -327,6 +377,10 @@ class TemplateSpec:
     seed_config: Mapping[str, Any] = field(default_factory=dict)
     activation_stats: Mapping[str, Any] = field(default_factory=dict)
     created_at_ms: int = 0
+    figure_artifact_id: str = ""
+    citation_policy: CitationPolicy = CitationPolicy.DISABLED
+    coverage_policy: CoveragePolicy = CoveragePolicy.PASSTHROUGH
+    figure_time_window: str = ""
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "TemplateSpec":
@@ -356,6 +410,28 @@ class TemplateSpec:
             raise ValueError(
                 f"TemplateSpec.activation_status must be one of: {allowed}"
             ) from exc
+        citation_raw = str(
+            data.get("citation_policy", CitationPolicy.DISABLED.value)
+            or CitationPolicy.DISABLED.value
+        ).lower()
+        try:
+            citation_policy = CitationPolicy(citation_raw)
+        except ValueError as exc:
+            allowed = ", ".join(p.value for p in CitationPolicy)
+            raise ValueError(
+                f"TemplateSpec.citation_policy must be one of: {allowed}"
+            ) from exc
+        coverage_raw = str(
+            data.get("coverage_policy", CoveragePolicy.PASSTHROUGH.value)
+            or CoveragePolicy.PASSTHROUGH.value
+        ).lower()
+        try:
+            coverage_policy = CoveragePolicy(coverage_raw)
+        except ValueError as exc:
+            allowed = ", ".join(p.value for p in CoveragePolicy)
+            raise ValueError(
+                f"TemplateSpec.coverage_policy must be one of: {allowed}"
+            ) from exc
         return cls(
             template_id=str(data.get("template_id", "") or ""),
             tenant_id=tenant_id,
@@ -371,6 +447,10 @@ class TemplateSpec:
             seed_config=dict(data.get("seed_config") or {}),
             activation_stats=dict(data.get("activation_stats") or {}),
             created_at_ms=int(data.get("created_at_ms", 0) or 0),
+            figure_artifact_id=str(data.get("figure_artifact_id", "") or ""),
+            citation_policy=citation_policy,
+            coverage_policy=coverage_policy,
+            figure_time_window=str(data.get("figure_time_window", "") or ""),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -389,7 +469,16 @@ class TemplateSpec:
             "seed_config": dict(self.seed_config),
             "activation_stats": dict(self.activation_stats),
             "created_at_ms": self.created_at_ms,
+            "figure_artifact_id": self.figure_artifact_id,
+            "citation_policy": self.citation_policy.value,
+            "coverage_policy": self.coverage_policy.value,
+            "figure_time_window": self.figure_time_window,
         }
+
+    @property
+    def has_figure_artifact(self) -> bool:
+        """Whether this template binds a figure artifact bundle."""
+        return bool(self.figure_artifact_id.strip())
 
 
 @dataclass(frozen=True)

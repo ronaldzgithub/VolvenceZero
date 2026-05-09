@@ -53,8 +53,10 @@ from dlaas_platform_contracts.eval import (
 )
 from dlaas_platform_contracts.resources import (
     AssetSpec,
+    CitationPolicy,
     ContractSpec,
     ContractStatus,
+    CoveragePolicy,
     FocusPersonSpec,
     HandoffStatus,
     HandoffTicketSpec,
@@ -73,9 +75,11 @@ from dlaas_platform_contracts.resources import (
 __all__ = (
     "AssetSpec",
     "AudienceProfileSpec",
+    "CitationPolicy",
     "CommandName",
     "ContractSpec",
     "ContractStatus",
+    "CoveragePolicy",
     "DEFAULT_PROTOCOL_VERSION",
     "ExamQuestionSpec",
     "ExamRunSpec",
