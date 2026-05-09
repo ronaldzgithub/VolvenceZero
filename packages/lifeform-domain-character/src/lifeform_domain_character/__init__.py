@@ -15,15 +15,40 @@ novel text.
 
 from __future__ import annotations
 
+from lifeform_domain_character.arcs import build_zhang_wuji_demo_arc
 from lifeform_domain_character.compiler import (
     build_character_ingestion_envelope,
     build_character_package,
     build_character_vitals_bootstrap,
 )
+from lifeform_domain_character.first_person import (
+    FirstPersonRewriteResult,
+    to_first_person,
+)
 from lifeform_domain_character.lifeform_builder import (
     CharacterLifeformBundle,
     build_character_lifeform,
     build_zhang_wuji_lifeform,
+)
+from lifeform_domain_character.narrative import NarrativeArc, NarrativeScene
+from lifeform_domain_character.replay import (
+    ExperientialReplayDriver,
+    ReplayReport,
+    SceneReplayRecord,
+)
+from lifeform_domain_character.template import (
+    ApplicationOwnerState,
+    IncompatibleTemplateVersion,
+    LifeformTemplate,
+    LifeformTemplateManifest,
+    SCHEMA_VERSION as TEMPLATE_SCHEMA_VERSION,
+    compute_template_integrity_hash,
+    utc_iso_now,
+)
+from lifeform_domain_character.template_save import (
+    SaveLifeformTemplateResult,
+    save_lifeform_template,
+    vitals_drive_levels_from_session,
 )
 from lifeform_domain_character.profile import (
     CharacterBoundaryPrior,
@@ -44,11 +69,31 @@ __all__ = [
     "CharacterSignatureCase",
     "CharacterSoulProfile",
     "CharacterStrategyPrior",
+    "ExperientialReplayDriver",
+    "FirstPersonRewriteResult",
+    "NarrativeArc",
+    "NarrativeScene",
+    "ReplayReport",
+    "SceneReplayRecord",
+    "to_first_person",
     "build_character_ingestion_envelope",
     "build_character_lifeform",
     "build_character_package",
     "build_character_vitals_bootstrap",
+    "build_zhang_wuji_demo_arc",
     "build_zhang_wuji_lifeform",
     "build_zhang_wuji_profile",
     "zhang_wuji_long_arc_excerpt",
+    # Template (Wave T4)
+    "ApplicationOwnerState",
+    "IncompatibleTemplateVersion",
+    "LifeformTemplate",
+    "LifeformTemplateManifest",
+    "TEMPLATE_SCHEMA_VERSION",
+    "compute_template_integrity_hash",
+    "utc_iso_now",
+    # Template save (Wave T5)
+    "SaveLifeformTemplateResult",
+    "save_lifeform_template",
+    "vitals_drive_levels_from_session",
 ]
