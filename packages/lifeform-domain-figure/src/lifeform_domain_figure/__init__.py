@@ -19,9 +19,8 @@ The wheel does NOT add a new kernel owner. Reviewed structured
 artifacts compile into existing Volvence Zero owners (domain
 knowledge, case memory, strategy playbook, boundary policy) just as
 ``lifeform-domain-character`` does, and additionally produce an
-immutable :class:`FigureCorpusBundle` (V1 data subset of the broader
-``FigureArtifactBundle`` planned for F2.3 / F5 / F6) consumed at
-runtime by the ``lifeform-expression`` enforcement layer.
+immutable :class:`FigureArtifactBundle` consumed at runtime by the
+``lifeform-expression`` enforcement layer.
 
 Public surface is added incrementally per the F1-F6 packet sequence
 (see ``docs/specs/figure-vertical.md``). Early imports are
@@ -31,21 +30,6 @@ here so consumers can pin against a stable namespace.
 
 from __future__ import annotations
 
-from lifeform_domain_figure.bundle import (
-    SCHEMA_VERSION as CORPUS_BUNDLE_SCHEMA_VERSION,
-    CorpusStatistics,
-    CoverageDecision,
-    CoverageEntry,
-    DocumentKind,
-    EvidenceStrength,
-    FigureCorpusBundle,
-    FigureCoverageMap,
-    LicenseSummary,
-    PrimarySource,
-    ReviewedContrastPair,
-    StanceTag,
-    TimeWindow,
-)
 from lifeform_domain_figure.corpus import (
     FigureLectureSource,
     FigureLetterSource,
@@ -56,14 +40,34 @@ from lifeform_domain_figure.corpus import (
     ingest_notebooks,
     ingest_papers,
 )
-from lifeform_domain_figure.curation import (
-    BuildBundleInputs,
+from lifeform_domain_figure.compiler import (
+    FigureBundleInputs,
+    attach_lora_to_bundle,
+    attach_steering_to_bundle,
+    build_figure_artifact_bundle,
+    build_figure_package,
+    build_figure_vitals_bootstrap,
+)
+from lifeform_domain_figure.coverage_map import (
+    CoverageClassification,
+    CoverageDecision,
+    FigureCoverageMap,
+    build_figure_coverage_map,
+)
+from lifeform_domain_figure.figure_artifact import (
+    SCHEMA_VERSION as FIGURE_BUNDLE_SCHEMA_VERSION,
+    FigureArtifactBundle,
     bundle_id_from_hash,
-    build_figure_corpus_bundle,
-    canonical_serialize,
-    compute_corpus_bundle_integrity_hash,
-    primary_source_from_envelope_chunk,
-    utc_iso_now,
+    compute_bundle_integrity_hash,
+)
+from lifeform_domain_figure.style_prior import (
+    FigureStylePrior,
+    build_figure_style_prior,
+)
+from lifeform_domain_figure.envelope_builder import (
+    FigureCorpusSourceBundle,
+    FigureIngestionEnvelopeSet,
+    build_figure_ingestion_envelope,
 )
 from lifeform_domain_figure.profile import (
     FigureBoundaryPrior,
@@ -75,10 +79,16 @@ from lifeform_domain_figure.profile import (
     TimeWindowedView,
 )
 from lifeform_domain_figure.profiles import build_einstein_profile
+from lifeform_domain_figure.retrieval_index import (
+    FigureRetrievalIndex,
+    RetrievalEvidence,
+    build_figure_retrieval_index,
+)
+from lifeform_domain_figure.sample_corpus import synthetic_einstein_corpus
 
 
 __all__ = [
-    # Profile schema (F1.1)
+    # Profile schema (P1.1)
     "FigureBoundaryPrior",
     "FigureDrivePrior",
     "FigureKnowledgeSeed",
@@ -87,35 +97,40 @@ __all__ = [
     "HistoricalFigureProfile",
     "TimeWindowedView",
     "build_einstein_profile",
-    # Corpus ingestion adapters (F1.2)
+    # Corpus ingestion (P1.2)
+    "FigureCorpusSourceBundle",
+    "FigureIngestionEnvelopeSet",
     "FigureLectureSource",
     "FigureLetterSource",
     "FigureNotebookSource",
     "FigurePaperSource",
+    "build_figure_ingestion_envelope",
     "ingest_lectures",
     "ingest_letters",
     "ingest_notebooks",
     "ingest_papers",
-    # Bundle schema (F1.3 / D1)
-    "CORPUS_BUNDLE_SCHEMA_VERSION",
-    "CorpusStatistics",
+    "synthetic_einstein_corpus",
+    # Retrieval index (P2.1)
+    "FigureRetrievalIndex",
+    "RetrievalEvidence",
+    "build_figure_retrieval_index",
+    # Coverage map (P2.2)
+    "CoverageClassification",
     "CoverageDecision",
-    "CoverageEntry",
-    "DocumentKind",
-    "EvidenceStrength",
-    "FigureCorpusBundle",
     "FigureCoverageMap",
-    "LicenseSummary",
-    "PrimarySource",
-    "ReviewedContrastPair",
-    "StanceTag",
-    "TimeWindow",
-    # Curation / freeze (F1.3 / D1)
-    "BuildBundleInputs",
+    "build_figure_coverage_map",
+    # Style prior (P2.3)
+    "FigureStylePrior",
+    "build_figure_style_prior",
+    # Bundle (P2.3)
+    "FIGURE_BUNDLE_SCHEMA_VERSION",
+    "FigureArtifactBundle",
+    "FigureBundleInputs",
+    "attach_lora_to_bundle",
+    "attach_steering_to_bundle",
+    "build_figure_artifact_bundle",
+    "build_figure_package",
+    "build_figure_vitals_bootstrap",
     "bundle_id_from_hash",
-    "build_figure_corpus_bundle",
-    "canonical_serialize",
-    "compute_corpus_bundle_integrity_hash",
-    "primary_source_from_envelope_chunk",
-    "utc_iso_now",
+    "compute_bundle_integrity_hash",
 ]

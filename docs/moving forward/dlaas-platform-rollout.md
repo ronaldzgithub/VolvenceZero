@@ -145,11 +145,11 @@ vz-* 内核 7 wheel diff 仍然是 **0 行**（承诺不破，包括 Slice 5.4 c
 
 ## DLaaS 平台后续可选演进
 
-不在当前 6 切片内、可作为后续 packet 单独推进：
+已转移到 [`docs/known-debts.md`](../known-debts.md) #12-#17 作为正式架构债，按现有节奏（路径/问题/风险/触发条件/推荐修法/优先级）维护：
 
-1. **Slice 5.4 真流式 SSE**：要求在 `vz-substrate` 加 additive `generate_async`；该 packet 是 6 切片中**唯一可能动到 vz-* 的位置**，需要单独 review。
-2. **真实 LLM judge 接入**：替换 `DefaultRubricGrader`（fail-closed）为 LLM-driven `RubricGrader` 实例；保持 R12 / EVO-2 readout-only 约束，不反向写回 reward。
-3. **Audience 真实分析 pipeline**：当前 audience 端点持久化占位 readout；接入 LLM 提取常见问题 / 沟通风格 / 情绪触发器 / 决策模式时，仍走 `IngestionPipeline → end_scene drain` + 结构化输出，不破 R8。
-4. **真实资产抓取**：Activate 当前用 persona_spec + seed_config 文本作为 ingestion 内容；接入 asset.uri 的真实 fetcher 后能跑更长的 R6 慢环。
-5. **`tool_policy_snapshot` 推到 `lifeform-affordance.AffordanceRegistry`**：Slice 6 之后接入运行时白名单——目前 contract 持有 snapshot 但还没绑定到 invoker。
-6. **多进程 / 多 GPU 部署模式**：当前 launcher 是单进程多 ai_id；多机部署需要 substrate runtime 的进程外共享层。
+- **#12** Slice 5.4 真流式 SSE（substrate streaming additive 接口；优先级低）
+- **#13** Eval gate 用 fail-closed `DefaultRubricGrader`，未接真实 LLM judge（优先级中）
+- **#14** Audience analysis 是占位 readout，未真正分析 corpus（优先级低）
+- **#15** Activate 用 persona/seed 文本，未真正抓 asset.uri（优先级中）
+- **#16** Contract.tool_policy_snapshot 未推到 AffordanceRegistry 运行时白名单（优先级中-高，生产化阻塞项）
+- **#17** 单进程多 ai_id 部署上限：跨进程 / 跨 GPU 共享 substrate 缺失（优先级低，SaaS 化阻塞项）

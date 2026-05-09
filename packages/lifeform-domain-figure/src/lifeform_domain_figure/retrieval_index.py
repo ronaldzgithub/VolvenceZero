@@ -50,8 +50,26 @@ _BM25_B = 0.75
 _BM25_IDF_FLOOR = 0.30
 
 
+_MIN_TOKEN_LEN = 3
+
+
 def _tokenize(text: str) -> tuple[str, ...]:
-    return tuple(token.lower() for token in _WORD_RE.findall(text))
+    """Tokenize for indexing / scoring.
+
+    Tokens shorter than :data:`_MIN_TOKEN_LEN` are dropped: across
+    every supported language the surviving function-word burden of
+    1-2 character tokens (English ``in / of / a / to``, German ``in /
+    zu``, French ``à / le``) introduces BM25 noise that swamps real
+    evidence in small corpora. The cutoff is chosen to still admit
+    short content words like ``why``, ``law``, ``one`` and Chinese
+    bigrams while rejecting structural particles.
+    """
+
+    return tuple(
+        token.lower()
+        for token in _WORD_RE.findall(text)
+        if len(token) >= _MIN_TOKEN_LEN
+    )
 
 
 def _hashing_embedding(tokens: tuple[str, ...], *, dim: int = _EMBEDDING_DIM) -> tuple[float, ...]:
@@ -206,6 +224,7 @@ class FigureRetrievalIndex:
         assertion: str,
         *,
         score_threshold: float = 0.18,
+        cosine_floor: float = 0.05,
         top_k: int = 3,
     ) -> tuple[RetrievalEvidence, ...]:
         """Return supporting evidence for an assertion, or empty if none.
@@ -215,10 +234,21 @@ class FigureRetrievalIndex:
         signal to fail loudly (refuse the assertion / regenerate /
         fall through to the scope refuser), per
         ``no-swallow-errors-no-hasattr-abuse.mdc``.
+
+        Both ``score_threshold`` (combined BM25+cosine) AND
+        ``cosine_floor`` (raw semantic alignment) must clear. The
+        cosine floor exists because, in small corpora, BM25 alone can
+        spike on a single term that survives IDF damping; requiring
+        a non-trivial semantic match prevents an off-topic assertion
+        from claiming evidence on a low-information word collision.
         """
 
         evidence = self.retrieve(assertion, top_k=top_k)
-        return tuple(item for item in evidence if item.score >= score_threshold)
+        return tuple(
+            item
+            for item in evidence
+            if item.score >= score_threshold and item.cosine_score >= cosine_floor
+        )
 
 
 def build_figure_retrieval_index(

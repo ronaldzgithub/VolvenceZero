@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-09 (Wave E1-E5 + post-E1 fence-strip diagnosis + option B per-session runtimes landed; debt #10B item 3 closure path now 2-layer)
+> Last updated: 2026-05-10 (DLaaS Slice 1 → 7 全套 land；新增 #12-#17 为 DLaaS 平台层未来可选演进)
+
+> 2026-05-10 update (DLaaS Slice 1 → 7): 6 个新 wheel `dlaas-platform-{contracts,registry,launcher,ops,eval,api}` + 一处 `lifeform-service` 路由扩展全部就位，控制面 + 多渠道 typed envelope + ops + eval gate 完整可演示。Slice 7 测试集中收口落地：`tests/contracts/test_dlaas_dispatch_contracts.py` (22) + `tests/service/test_dlaas_chat_smoke.py` (4) + `tests/service/test_dlaas_multi_tenant_persistence.py` (6) + `tests/service/test_dlaas_full_lifecycle.py` (3) + `tests/service/test_dlaas_backward_compat.py` (8) + `tests/contracts/test_import_boundaries.py` (865) = **908/908 全绿**；`git diff --stat HEAD -- packages/vz-* packages/lifeform-*` 输出**空**——R2/R4/R8 三条铁律的"vz-* / lifeform-* 不动"承诺在 git 层面可验证。Slice 5.4 真流式 SSE 在 rollout 阶段 cancel 以保护 `vz-substrate` 不被改；连同其他 5 条 DLaaS 平台层后续 evolution 沿 follow-up 节奏列入下方 #12-#17。详见 [`docs/specs/dlaas-platform.md`](specs/dlaas-platform.md) + [`docs/moving forward/dlaas-platform-rollout.md`](moving%20forward/dlaas-platform-rollout.md)。
 
 > 2026-05-09 update (option B / per-session LLM proposal runtimes): 上一条 update 列出的"第二个 sub-issue"（attempt counter / records-total 只反映 last-turn）按推荐修法 (2) 落地。**Layer 1**: `AgentSessionRunner.__init__` ([`packages/vz-runtime/src/volvence_zero/agent/session.py`](../packages/vz-runtime/src/volvence_zero/agent/session.py)) 在构造期从 unwrapped `_semantic_proposal_runtime` 派生 `_tom_proposal_runtime` + `_common_ground_proposal_runtime`（仅当上游是 `LLMSemanticProposalRuntime` 实例时；否则保持 `None` 维持 NoOp fail-closed 默认）；`run_final_wiring_turn(...)` 调用追加 `tom_proposal_runtime=self._tom_proposal_runtime, common_ground_proposal_runtime=self._common_ground_proposal_runtime`，绕开 `build_final_runtime_modules` 的 per-turn 默认构造分支，使两个 runtime 实例在整个 session 的所有 turn 复用，`LLMProposalAttemptAccumulator` 真正 session-cumulative。副带修一个 latent 二级 bug：当 `pending_semantic_events` 触发 `AdapterSemanticProposalRuntime` 包裹时，per-turn 路径的 strict `isinstance` 检查会失败并静默 fail-close ToM/CG 自动接线 —— 现在从 unwrapped runtime 一次性构造避开这条路径。**Layer 2**: [`examples/run_cross_session_probe_llm.py`](../examples/run_cross_session_probe_llm.py) `_summarize_artifact` 闭合判定从 `tom_records_total_last > 0`（last-turn owner snapshot；per-turn 设计，不是稳定的"激活"信号）改为 `any(per_round_tom_proposal_parsed_ok_total) > 0 OR any(per_round_common_ground_proposal_parsed_ok_total) > 0`（session-cumulative 类型化 schema 通过的 proposal 数；与 Layer 1 配合直接反映 session 级 EQ 链激活）；legacy last-turn 字段仍打印作为次要 readout 但不再 gate 闭合。**Layer 3**: 4 个新 unit test 在 [`tests/contracts/test_llm_proposal_runtime_session_persistence.py`](../tests/contracts/test_llm_proposal_runtime_session_persistence.py) 锁住 (a) LLMSemanticProposalRuntime → 两个派生 runtime 实例非 None；(b) NoOp → 都保持 None；(c) 同实例 3 次 propose → `proposals_received_total == 3` 且 `parsed_ok == 3`；(d) CG 同样累计；并在 [`tests/lifeform_e2e/test_llm_semantic_runtime_evidence_chain.py`](../tests/lifeform_e2e/test_llm_semantic_runtime_evidence_chain.py) 加 `bench.tom_proposal_attempts_total == len(scenario.turns)`（pre-fix 必为 1，post-fix == 3）的 cumulative-monotonic 断言，把 per-turn-rebuild 退化作为可观测的回归点固化。875 个相关 contract / e2e test 全绿（70 个新 + 修改测试 + 805 个未变更回归）。
 
@@ -227,6 +229,129 @@ return (
 **未启用修法 (2)**：lifeform-level 共享 PE 窗口（跨 session 累积分布形状）保留作为未来选项，**不开新 debt**——当前 evidence 显示 (1) 已足够让 8+ turn 场景拿到 evidence，(2) 的复杂度（`Brain` / `Lifeform` 多处接线、cross-session window state migration）与当下需求不匹配。
 
 **Methodology follow-up**（不开 debt）：scenario coverage 多样性是产品方向问题不是架构债。如果未来 evaluation 需要更多类型的 long-form distributional evidence vehicle，可以在 [`packages/lifeform-domain-emogpt/.../scenarios/`](../packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenarios/) 增加 30-50 turn 的多 vertical / 多 regime 长 scenario，按 long-form-life-arc 的格式即可。
+
+## 12. DLaaS Slice 5.4 真流式 SSE 未启用（substrate streaming additive 接口）
+
+- **路径**：
+  - 当前实现（一次性 JSON）：[`packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py)（chat / teach / task 三个 handler 直接 `await session.run_turn(...)` 后整段返回）
+  - 当前 SSE 仅在 admin ledger：[`packages/dlaas-platform-ops/src/dlaas_platform_ops/routes.py`](../packages/dlaas-platform-ops/src/dlaas_platform_ops/routes.py)（`_handle_conversations_stream`，是 ops 事件广播，不是 token-level 输出流）
+  - 缺位的 substrate hook：[`packages/vz-substrate/src/volvence_zero/substrate/`](../packages/vz-substrate/src/volvence_zero/substrate/)（`OpenWeightResidualRuntime.generate(...)` 是 sync block；没有 `generate_async` / `stream_tokens` 接口）
+- **问题**：DLaaS 公开 API 文档（`DLAAS_README.md` §"Send A Chat Interaction"）说返回可以是 SSE `event: ack/act/chunk/done`；当前实现只在 client `output_contract.stream=true` 时仍返回整段 JSON 一次性回复，未拆 token chunks。Slice 5.4 在 rollout 阶段 cancel 以保护 vz-* 不被动；该项是 DLaaS 6 切片中**唯一可能动 `vz-substrate` 的位置**。
+- **违反**：纯产品 UX 体验差，不违反 R2/R4/R8 任何铁律——cancel 的理由是"动 substrate 需要单独 review"，不是动了会出错。
+- **风险**：低-中。短期看 mobile / web shell 用户感受到的是"chat 必须等完整生成完才显示"，体验上比真流式差；某些 long-form 输出（report 生成 / 长解释）会让用户以为系统卡住。**不影响功能正确性**。
+- **触发条件**：(a) 第一个真实生产集成提出"必须 token-level 流式"的需求；(b) 某个 vertical 的 chat 平均生成时间稳定 > 5s；(c) 接 LLM judge 后发现 evaluation 端的 token 流也需要流式 readout（关联 #13）
+- **推荐修法**：
+  1. `vz-substrate` 加 additive `async def generate_async(self, prompt, *, on_chunk: Callable[[str], None]) -> str` 接口（不删 / 不改现有 `generate(...)`，新方法独立测试套）
+  2. `lifeform-expression.LifeformLLMResponseSynthesizer` 加 `synthesize_streaming(...)` 派生方法
+  3. `dlaas-platform-api/dispatch.py` 的 chat / teach / task handler 检测 `envelope.output_contract.stream=True` 时改走 SSE writer：`event: ack` → 多个 `event: chunk` → `event: act`（最终结构化结果）→ `event: done`
+  4. 单独 packet review，按 `cursor-convergence-workflow.mdc` 走 SHADOW → ACTIVE
+- **优先级**：低（产品 UX 优化；核心架构不依赖）
+
+## 13. DLaaS eval gate 用 fail-closed `DefaultRubricGrader` 占位，未接真实 LLM judge
+
+- **路径**：
+  - 占位实现：[`packages/dlaas-platform-eval/src/dlaas_platform_eval/grader.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/grader.py)（`DefaultRubricGrader.grade(...)` 给每个 criterion 打 `max_score * 0.5`；`RubricGrader` Protocol 是插件位）
+  - 消费者：[`packages/dlaas-platform-eval/src/dlaas_platform_eval/routes.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/routes.py)（`_finalize_run` 调 `bundle.grader.grade(...)` 计算 weighted_score）
+  - 公共契约：[`packages/dlaas-platform-contracts/src/dlaas_platform_contracts/eval.py`](../packages/dlaas-platform-contracts/src/dlaas_platform_contracts/eval.py)（`RubricEntry` / `ExamSubmissionScore.rubric_breakdown`）
+- **问题**：当前 grader 给所有非空响应打 50% × max_score。这意味着：
+  - 自动 `POST /dlaas/exam_runs/{id}/execute` 永远过不了 default `pass_threshold=0.6`，license 自动 `granted=False`
+  - 只有 `POST /dlaas/exam_runs/{id}/complete` 用 caller-supplied `ai_responses` + 操作员 / 真实 LLM judge 评分时才能 grant license
+  - 若未来生产 traffic 默认走 `execute` 路径而不是 `complete`，整个 license gate 形同虚设——整轮自动 exam 全部 0.5 evenly，gate threshold 调到 0.4 也只是把 "全 pass" 的伪装移到不同水位
+- **违反**：R12（evaluation 是 readout，不能是学习源）和 OA-1（LLM judge 不能反向写 reward）的精神保留——`DefaultRubricGrader` 是 readout，没有反向写回任何 owner。但其 readout 的**信息含量**（每个 criterion 都打 0.5）使得 license gate 的判别能力为零。
+- **风险**：中。架构正确（fail-closed），但**"license = 真实通过 exam evidence"承诺在 grader 接入前不成立**；任何把当前 license 当作"产品就绪"的 cite 都是误导。
+- **触发条件**：(a) 第一个 tenant 想跑 launch_gate 之前需要真自动评分；(b) 某个产品 SLO 与 license granted 比例挂钩（无意义指标因为现在永远 not-granted）；(c) 接 LLM judge 后想 cite "DLaaS 已具备 R12 readout-only eval"——必须先把 grader 实例化为真 LLM
+- **推荐修法**：
+  1. 在 `dlaas-platform-eval` 加 `LLMRubricGrader(provider, prompt_template, parse_strategy)` 实现 `RubricGrader` Protocol，输入 rubric + ai_response + reference_answer，调 LLM 产 per-criterion `score` + 自由文本 `rationale`，解析失败 fail-loud（不走 default 0.5）
+  2. `attach_eval_routes(app, *, registry, grader=...)` 在 `build_dlaas_app(...)` 入口暴露 `eval_grader: RubricGrader | None = None` 参数，默认仍是 `DefaultRubricGrader` 但生产部署传 `LLMRubricGrader`
+  3. 加诊断 metric：`exam_runs.grader_provider_label` （"default" / "llm:qwen-1.5b" / 等）字段进 `ExamRunSpec.submissions[].rubric_breakdown[i]['grader_label']`，让 license-evaluate 端点能区分"无 evidence 因为没 grader"vs"有 evidence 但 not granted"
+  4. 守 OA-1：grader 输出**不**反向写任何 kernel owner（`PERequest` / `RewardingState` / `Face` 等），加 `tests/contracts/test_dlaas_eval_no_kernel_writeback.py` 静态守门
+- **优先级**：中（首次想给 license gate "真实可信"语义时强行触发）
+
+## 14. DLaaS audience analysis 是占位 readout，未真正分析 corpus
+
+- **路径**：
+  - 占位实现：[`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py)（`_handle_audience_analyze` 持久化 `cohort_name` + `asset_ids` + 调用方传入的 `communication_style` / `emotion_triggers` / `decision_patterns`，**没真的从 asset 内容提取**任何字段，`evidence_stats` 仅记 `asset_count` + `default_grader=True`）
+  - 持久层：[`packages/dlaas-platform-registry/src/dlaas_platform_registry/eval_store.py`](../packages/dlaas-platform-registry/src/dlaas_platform_registry/eval_store.py)（`EvalStore.upsert_audience_profile`）
+  - 公共契约：[`packages/dlaas-platform-contracts/src/dlaas_platform_contracts/eval.py`](../packages/dlaas-platform-contracts/src/dlaas_platform_contracts/eval.py)（`AudienceProfileSpec`）
+- **问题**：DLaaS 公开 README §"Audience Analysis" 承诺 audience profile 包含从 asset corpus 提取的 `common_questions` / `communication_style` / `emotion_triggers` / `decision_patterns` + `evidence_stats`。当前实现：
+  - 不读 asset.uri 内容
+  - 不调任何 LLM / NLP 分析
+  - 只把 caller-supplied 字段原样存回（等于 caller 自己声明 cohort，不是平台分析）
+  - readiness gate 不依赖 audience profile，所以这个端点目前只是"声明 + 持久化"，对其他流程零影响
+- **违反**：R8 unchanged（profile 由 platform-registry 单独 owner），但**功能上**这个端点的语义没有 backed by evidence——它声明自己是 audience analysis 但其实只是表单。
+- **风险**：低。短期看不影响 lifecycle 任何下游环节；长期看任何 cite 这个端点为"DLaaS 已具备 audience 分析"的文档都是误导。
+- **触发条件**：(a) 第一个 vertical 想用 audience profile 的字段驱动 template patch / persona 调整时；(b) 接入 #13 LLM judge 后想统一 audience pipeline 与 grader 共用 LLM provider；(c) 跑产品 demo 时 stakeholder 问"这个 cohort 怎么算出来的"
+- **推荐修法**：
+  1. 在 `dlaas-platform-eval` 加 `AudienceAnalyzer(provider)` 协议；实现 default `NoOpAudienceAnalyzer`（return empty + `analyzer_label="noop"`）和 `LLMAudienceAnalyzer`（用 prompt 让 LLM 从 asset 内容抽 topics / styles / emotions / decision patterns）
+  2. `_handle_audience_analyze` 改为：(a) 解析 `asset_ids` → 从 `AssetStore.get(...)` 拿 asset.uri；(b) 用 `lifeform-ingestion.envelope_from_text(...)` 拉文本；(c) 调 `analyzer.analyze(corpus_chunks)` 拿结构化 profile；(d) 持久化时显式标 `evidence_stats['analyzer']` 字段
+  3. 守 R12：analyzer 输出**只**写 audience_profiles 表，**不**反向写 kernel；不接入任何 reward / Face 路径
+- **优先级**：低（独立产品功能；不阻塞 lifecycle 主路径）
+
+## 15. DLaaS Activate 用 persona/seed 文本作为 ingestion，未真正抓 asset.uri
+
+- **路径**：
+  - 占位实现：[`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py)（`_activation_text(template, seed_override)` 拼 persona_spec + seed_config 字段，**不读** linked asset.uri 内容）
+  - linked assets 的实际位置：[`packages/dlaas-platform-registry/src/dlaas_platform_registry/assets.py`](../packages/dlaas-platform-registry/src/dlaas_platform_registry/assets.py)（`AssetStore.list_template_links` 返回 `TemplateAssetLinkSpec`，asset.uri 在 `AssetStore.get(asset_id).uri`，但 activate 路径没用）
+  - 期望路径：sliding to multi-source `IngestionPipeline.process_envelope(envelope_from_text|pdf|docx|...)`
+- **问题**：当前 activate 只把 template 自己的 persona + seed 拼一段几百字的 corpus 喂给 IngestionPipeline。这意味着：
+  - readiness counters（`world_nodes` / `self_nodes` / `l2_cards`）反映的是 persona text + seed config 大小，而**不**是 tenant 上传的真实训练材料量
+  - tenant 把 100MB 训练 chatlog 链给 template，readiness 不会因此变化（除非内容真被 ingest）
+  - readiness gate 通过的 template，未必"真的吸收了" tenant 提供的 asset corpus
+- **违反**：DLaaS README 约定（asset 上传 + 链到 template + activate 应触发 ingestion）现在没兑现 asset 部分。R8 / R2 / R4 不违反（都是平台层内部行为）。
+- **风险**：低-中。lifecycle 走得通（test_full_lifecycle 全绿），但 readiness 信号失真——template 即使没 link 任何 asset 也能 activate 通过。任何 cite "readiness counter ≥ N 说明 corpus 已吸收"的 SLA 都不成立。
+- **触发条件**：(a) 第一个生产 tenant 上传 ≥ 10MB 的真实训练材料；(b) 用 readiness counter 作为"训练量计费"维度；(c) 接 #14 audience pipeline 后两套都需要 fetch asset.uri，应该统一抽 `AssetFetcher` 复用
+- **推荐修法**：
+  1. 在 `dlaas-platform-registry` 或新 `dlaas-platform-asset-fetcher` 模块加 `AssetFetcher` 协议；实现：
+     - `LocalFileAssetFetcher` (uri.startswith("file://"))
+     - `S3AssetFetcher` (uri.startswith("s3://")，可选依赖 boto3)
+     - `HttpAssetFetcher` (uri.startswith("http"))
+     - `InlineFetcher`（uri 是 `dlaas:` 开头的占位，从 source_meta 拿 inline_text，用于测试）
+  2. `_handle_activate_template` 改为：(a) `AssetStore.list_template_links(template_id)` → asset.id 列表；(b) `AssetStore.get(asset_id)` → uri 列表；(c) `AssetFetcher.fetch_text(uri)` → text；(d) 用 `envelope_from_text` 或 `envelope_from_pdf_*` 按 mime_type 派生 ingestion envelope；(e) 把 persona/seed text 作为 fallback / 补充 chunk 而不是 sole content
+  3. `activation_stats` 加 `assets_processed` / `bytes_ingested` / `chunks_total` 字段，让 readiness 真的反映 corpus 吸收量
+  4. 单独 packet；与 #14 audience analysis 复用 `AssetFetcher`
+- **优先级**：中（生产化阻塞项，但 demo / CI 可用 inline）
+
+## 16. DLaaS contract.tool_policy_snapshot 未推到 AffordanceRegistry 运行时白名单
+
+- **路径**：
+  - 持久层：[`packages/dlaas-platform-registry/src/dlaas_platform_registry/contracts.py`](../packages/dlaas-platform-registry/src/dlaas_platform_registry/contracts.py)（`ContractStore.set_ai_id(tool_policy_snapshot=...)` 写入 contracts 表）
+  - 计算 snapshot：[`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py)（`_compute_tool_policy_snapshot(engine_tools)` 派生 `enabled_capabilities` 列表）
+  - **缺位的消费者**：`lifeform-affordance.AffordanceRegistry` 应该在 dispatch 时查询 ai_id → contract → tool_policy_snapshot.enabled_capabilities，但当前 invoker 不读
+  - launcher 持有 SessionManager 但未注入 per-ai_id capability 白名单：[`packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py`](../packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py)
+- **问题**：当前 `POST /dlaas/adopt` 把 `engine_tools={"web_search": True, "data_query": {...}, ...}` 持久化到 contract.tool_policy_snapshot；但运行时 dispatch 一条 chat envelope 时，kernel 通过 `lifeform-affordance` 调工具的路径**不查 contract**。结果：
+  - 任何 vertical 启用了某 tool（如 `web_browse`）就会被所有 ai_id 共用，contract 里 `web_browse=False` 不起作用
+  - DLaaS README §"engine_tools / tool_policy_snapshot" 承诺的"per-tenant per-contract 工具白名单"现在只是声明性的，运行时不强制
+- **违反**：R8 不违反（platform 层是 SSOT），但**功能上**安全护栏未生效——能力降级 / safety 路径全失效
+- **风险**：中。如果 tenant A 的 contract 禁了 `web_browse` 但 vertical 默认开了，tenant A 实例仍能通过 affordance 触发外部访问——这是**信任边界违反**。短期 demo 看不出，但生产化前必修。
+- **触发条件**：(a) 第一个 tenant 要求"禁用某能力"且需要审计；(b) 同一进程里两个 tenant 的 contract tool policy 不同；(c) 出现 tool-call 引发的安全事件需要溯源
+- **推荐修法**：
+  1. `dlaas-platform-launcher.InstanceManager` 在 `acquire(ai_id, runtime_template_id, ...)` 时多收一个 `tool_policy_snapshot` 参数，构造 `SessionManager` 时 wrap `AffordanceRegistry` 加 capability 白名单 filter
+  2. `lifeform-affordance` 加 `AffordanceRegistry.with_allowlist(enabled_capabilities: tuple[str, ...])` 派生方法（additive，不改原 registry 行为）
+  3. `_handle_adopt` 在 `instance_manager.acquire(...)` 调用处把 `final_contract.tool_policy_snapshot["enabled_capabilities"]` 传下去
+  4. 运行时 `lifeform-affordance.invoker` 调用前检查 `capability not in allowlist → degrade to text + degraded=True + original_capability=cap`（现有 OutputAct degradation 路径已支持）
+  5. 合规审计层加 `tests/service/test_dlaas_tool_policy_enforcement.py`：tenant A 禁 `web_browse`，dispatch chat 时若 vertical 试图调 `web_browse` 必须 degrade
+- **优先级**：中-高（生产化阻塞项；同一进程多 tenant 时安全敏感）
+
+## 17. DLaaS 单进程多 ai_id 部署上限：跨进程 / 跨 GPU 共享 substrate 缺失
+
+- **路径**：
+  - 当前 launcher：[`packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py`](../packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py)（每个 ai_id 一个 SessionManager；所有 SessionManager 共享同一个 `OpenWeightResidualRuntime` 实例 = 同一 GPU 同一进程）
+  - 共享守门：[`packages/lifeform-service/src/lifeform_service/app.py`](../packages/lifeform-service/src/lifeform_service/app.py)（`_enforce_frozen_for_sharing`）已在 R2 边界校验"shared runtime 必须 frozen"
+  - 缺位：跨进程 substrate runtime 共享（IPC / RPC layer）；跨 GPU shard
+- **问题**：当前架构下："1 进程 1 substrate runtime + N ai_id" 是上限。这意味着：
+  - 单 GPU 容量决定能跑多少并发 ai_id（小模型可能 100+，大模型可能 < 10）
+  - 单进程崩溃时全部 ai_id 同时下线
+  - 不能用多张 GPU 跑同一 substrate（model parallelism 是 substrate 内部事，但**实例级**水平扩展不行）
+  - DLaaS README 没承诺多机部署，但任何 SaaS 化的产品最终需要
+- **违反**：不违反任何 R 铁律——单进程模型本身就是当前 substrate 的现实约束。
+- **风险**：低（开发期 / 小规模生产可接受），高（中大规模 SaaS 时硬上限）
+- **触发条件**：(a) 同一进程并发 ai_id 数 ≥ 50 且单 turn 平均 latency 超过 SLO；(b) 业务方要求 99.9% SLA（单进程崩溃 = 全 fleet 下线，违反）；(c) 单 GPU 显存装不下需要的 substrate 大小
+- **推荐修法**：
+  1. **第一阶段**（多进程 launcher）：launcher 升级为 controller，每个 ai_id 启动独立子进程跑 `lifeform-service` + 单 SessionManager；launcher 路由 HTTP；substrate runtime 仍是每个子进程一份（不共享，但能水平扩进程）
+  2. **第二阶段**（substrate IPC 共享）：`vz-substrate` 加 `RemoteResidualRuntime`，IPC 调本机 substrate server 进程；多 ai_id 进程共享同一 GPU 上的 substrate（避免重复加载模型）
+  3. **第三阶段**（多机）：substrate server 跨主机；HTTP / gRPC 协议；与 #16 tool policy 配合做 contract → physical instance 路由
+  4. 任何阶段不破 vz-* 内核 0 改动承诺；substrate streaming（#12）和这条 #17 在动 vz-substrate 时应统筹考虑（一次性 additive 改动比分多次 review 成本低）
+- **优先级**：低（开发期 / 内部 demo 阶段不阻塞；做 SaaS 时再上）
 
 ---
 
