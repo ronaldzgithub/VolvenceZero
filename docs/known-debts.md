@@ -75,17 +75,17 @@
 - **推荐修法**：彻底方案是把 joint-loop post-propagate 的 owner writeback 搬到 runtime 编排层，joint-loop 只发 `JointCycleReport` typed proposals。这会破坏当前"在线 adaptation 立刻生效"的 pattern，需要重新设计 apply phase。不建议在产品迭代压力下做，等 NL 多时间尺度 apply phase 需要重新规划时一并做。
 - **优先级**：低（已有契约测试兜底，边际收益低于成本）。
 
-## 9. ~~`agent/session.py`~~ wave-1 done / `application/runtime.py` deferred
+## ~~9. `agent/session.py` 与 `application/runtime.py` 仍是 god 文件（W5 残留）~~ —— 2026-05-09 关闭（wave-1 + wave-2 全部 land）
 
 - **路径**：
-  - ~~`packages/vz-runtime/src/volvence_zero/agent/session.py`（W5 后约 3825 行）~~ → wave-1 split landed 2026-05-09，详见下方 update
-  - `packages/vz-application/src/volvence_zero/application/runtime.py`（仍约 3941 行，wave-2 候选）
-- **问题**：W5 of ssot-cleanup-p0-p4 抽出 `session_helpers.py` (260 行) 与 `application/scoring_helpers.py` (139 行) 的纯函数，但 `AgentSessionRunner` / `ResponseAssemblyModule` 等核心 class 仍住在单文件里，单文件 ≥ 3800 行。
-- **违反**：可演化性 / 可读性，非 R8 硬违反。
-- **短期风险**：低。功能与 SSOT 都已经齐了；纯文件结构债。
-- **触发条件**：再有一个大型 feature 落到 `ResponseAssemblyModule` 上时 → 单文件超过 4500 行，新人 onboarding 成本飙升；新功能与既有 phase 边界混淆（`agent/session.py` 已通过 wave-1 收紧到 1132 行）。
-- **推荐修法**：W5 plan 描述的物理切分（`agent/session/{lifecycle,writeback_phase,training_phase,observation}.py` + `application/{response_assembly,retrieval_policy,decision_kind,scoring}.py`）。需要先在 `AgentSessionRunner` 上引入 mixin / 服务对象重组，再做物理切分。
-- **优先级**：wave-2 (`application/runtime.py`) 仍是低，等 W6+ wave 一起做。
+  - ~~`packages/vz-runtime/src/volvence_zero/agent/session.py`（W5 后约 3825 行）~~ → wave-1 split landed 2026-05-09 (mixin 拆分)，详见下方 update
+  - ~~`packages/vz-application/src/volvence_zero/application/runtime.py`（约 3941 行）~~ → wave-2 split landed 2026-05-09 (category 拆分 + re-export shell)，详见下方 update
+- **问题**（已解决）：W5 of ssot-cleanup-p0-p4 抽出 `session_helpers.py` (260 行) 与 `application/scoring_helpers.py` (139 行) 的纯函数，但 `AgentSessionRunner` / `ResponseAssemblyModule` 等核心 class 仍住在单文件里，单文件 ≥ 3800 行。
+- **违反**（已解决）：可演化性 / 可读性，非 R8 硬违反。
+- **短期风险**：~~低~~ → 已解决。
+- **触发条件**：~~再有一个大型 feature 落到 `AgentSessionRunner` / `ResponseAssemblyModule` 上时 → 单文件超过 4500 行~~ → 已通过两 wave 拆分提前消除。
+- **推荐修法**：~~mixin / 服务对象重组~~ → 已实施（wave-1 mixin、wave-2 category re-export shell）。
+- **优先级**：~~低，等 W6+ wave 一起做~~ → 已收尾。
 
 > **2026-05-09 update (wave-1 / `agent/session.py` mixin split)**：按计划实施 mixin 拆分，**flat sibling 布局**（`agent/session_lifecycle.py` 等同级文件）而非 W5 文档原写的 subpackage 布局，原因：维持现有 `from volvence_zero.agent.session import X` 导入路径零变更；`import volvence_zero.agent.session as agent_session_module` 在 [`tests/test_agent_session_runner.py`](../tests/test_agent_session_runner.py) 等仍解析为单一模块；git 历史归属 `session.py` 一个文件，不引入 file→folder 重命名歧义；rollback blast radius 最小。
 >
@@ -106,7 +106,25 @@
 >
 > **回归证据**：49/49 `tests/test_agent_session_runner.py`（在两半 batch 中跑全绿；连续单进程跑会触发 pre-existing 的 Windows + torch 2.11 累积 access violation 在第 ~25-30 个测试，与 wave-1 无关，已用 batch split 回避）+ 788/788 `tests/contracts/`（含本周 land 的 70 个 EQ owner / fence-strip / option B / Wave E1-E5 contract test）+ 60/60 focused `tests/lifeform_e2e/`（multi-turn / companion-regime / family-report / LLM evidence chain，覆盖 session.py 主路径）。
 >
-> **未做（wave-2 deferred）**：`application/runtime.py` (~3941 行) 是不同 shape——god FILE not god CLASS，含 ~50 dataclasses + ~80 helper functions + 8 owner Modules。物理切分按 category（dataclasses / Module classes / pure helpers）而不是 phase。等 W6+ wave 一起做。
+> ~~**未做（wave-2 deferred）**：`application/runtime.py` (~3941 行) 是不同 shape——god FILE not god CLASS~~ → 2026-05-09 同日完成，详见下面 wave-2 update。
+>
+> **2026-05-09 update (wave-2 / `application/runtime.py` category split)**：按 wave-2 plan 实施 category 拆分。这次的 shape 与 wave-1 不同——god FILE not god CLASS——所以用**re-export shell** 模式而不是 mixin 模式：原 `runtime.py` 替换为 ~34 行的 thin re-export shell（`from volvence_zero.application.modules import *`、`from volvence_zero.application.types import *` 等），保持 `from volvence_zero.application.runtime import X` 导入路径对所有 consumers（kernel、tests、lifeform-* packages、examples）零变更。
+>
+> **行数对比（wave-2）**：
+> - `application/runtime.py`：3941 → **34** 行（-3907，god 文件削减 ~99%；剩下的 34 行就是 re-export shell + module docstring）
+> - 新增 [`application/types.py`](../packages/vz-application/src/volvence_zero/application/types.py)：682 行（50 dataclasses + 9 enums，原 lines 55-676）
+> - 新增 [`application/runtime_helpers.py`](../packages/vz-application/src/volvence_zero/application/runtime_helpers.py)：1686 行（80+ helper functions + 12 module-level prototype constants，原 lines 678-2237。`__all__` 显式导出含 leading-underscore 的 private helpers 以让 modules/* 通过 `from runtime_helpers import *` 拿到 `_application_brief` / `_continuum_*` / `_case_*` / `_response_*` 等）
+> - 新增 [`application/rare_heavy_state.py`](../packages/vz-application/src/volvence_zero/application/rare_heavy_state.py)：187 行（`ApplicationRareHeavyState` class，原 lines 2240-2366）
+> - 新增 [`application/modules/`](../packages/vz-application/src/volvence_zero/application/modules/) 子包（27 行 `__init__.py` re-export + 8 个 sibling 文件，每个一个 owner Module）：
+>   - `experience_fast_prior.py` (265 行) / `retrieval_policy.py` (294 行) / `domain_knowledge.py` (196 行) / `case_memory.py` (330 行) / `strategy_playbook.py` (222 行) / `boundary_policy.py` (232 行) / `response_assembly.py` (339 行) / `experience_consolidation.py` (133 行)
+>
+> **副带闭合的 latent 问题**：原 `runtime.py` 有 4 处 inline `from volvence_zero.application.scoring_helpers import (...)` 散在 dataclass 段与 helper 段之间。slicer 把第一个 (dedupe) 块切到了 `types.py` 而 helper 段需要它——wave-2 中显式补回 `from volvence_zero.application.scoring_helpers import dedupe as _dedupe` 到 `runtime_helpers.py`，闭合一个会在 `_entry_risk_markers` / `_case_hit_ordering` 等少见 path 触发的 NameError 隐患。
+>
+> **Test 调整**：[`tests/contracts/test_application_no_regime_id_branching.py`](../tests/contracts/test_application_no_regime_id_branching.py) 两处更新：(a) `_ALLOWED_HARDCODED_HITS` 唯一一条 entry 从 `runtime.py` 改为 `runtime_helpers.py`（hit 跟着 helpers 一起搬家了）；(b) 测试 parametrize 从 `glob("*.py")` 改为 `rglob("*.py")` 并用 relative path，让新加的 `modules/*.py` 也被静态 SSOT 扫描覆盖（原本只扫顶层文件）。
+>
+> **回归证据**：1204/1204 `tests/contracts/`（包括新加进 rglob 扫描的 ~33 个新 module 文件 parametrize 用例）+ 67/67 `tests/test_application_storage.py` + `tests/test_domain_experience.py` + 4 个 focused `tests/lifeform_e2e/` 测试文件（multi-turn / companion-regime / family-report / LLM evidence chain，覆盖 application 模块在主路径上的全部使用点）。
+>
+> **未来工作**：runtime_helpers.py 仍是 1686 行，未来可以按 category（continuum / regime / knowledge / case / response）进一步细分；但当前没有触发条件（不是 god FILE），延迟到有需要时再做。
 
 ## 10. EQ-owner uplift Phase 1+2 后 cross-session evidence 链断裂（W2.C / W1.C/D/E/F / W2.A）
 

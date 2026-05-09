@@ -1,6 +1,6 @@
 # DLaaS Platform Rollout
 
-> Status: Slice 1 → 6 全部 wheel + 路由就位（行为层），Slice 7 测试集中收口未启动
+> Status: Slice 1 → 7 完成；6 wheel × 全套契约 / 多租户 / 完整生命周期 / 兼容 + smoke perf 测试 908 项绿色
 > Last updated: 2026-05-10
 > 来源 spec: [`docs/specs/dlaas-platform.md`](../specs/dlaas-platform.md)
 > 目标形状: [`docs/api/DLAAS_README.md`（EmoGPT 仓库）](../api/) — VZ 自身没有这份文档，参考路径以 EmoGPT 仓库为准
@@ -112,20 +112,25 @@ register tenant
 - [x] Packet 6.1 audience analysis（profile 持久化 + 占位 readout，待 LLM judge plugin 接入）
 - [x] Packet 6.2 exam questions + runs（typed RubricEntry；complete 用 caller-supplied ai_responses，execute 走 launcher 跑 apprentice turn；`DefaultRubricGrader` fail-closed）
 - [x] Packet 6.3 launch license gate（`/license/evaluate` 仅检查 passing exam_run；signoff 把 run.passed 写入 license。Adoption 已强制 PUBLISHED + ACTIVATED）
-- [ ] Packet 7.x 测试集中收口（next）
+- [x] Packet 7.1 envelope dispatch 契约套：`tests/contracts/test_dlaas_dispatch_contracts.py`（22 项；mock session、no kernel——证明 typed enum dispatch 的所有 7 类 + 各类 typed payload 验证）
+- [x] Packet 7.2 多租户隔离 + 持久化 e2e：`tests/service/test_dlaas_multi_tenant_persistence.py`（6 项；两租户互不可见 / 401-403 typed errors / 兼容 alias 头 / SQLite 跨进程持久）
+- [x] Packet 7.3 完整生命周期 e2e：`tests/service/test_dlaas_full_lifecycle.py`（3 项；register → asset → template → activate → publish → exam → license → adopt → identity_links → 4 类 interactions → pause/operator-message/resume → handoff CRUD + 失败 gate）
+- [x] Packet 7.4 向后兼容 + perf smoke：`tests/service/test_dlaas_backward_compat.py`（8 项；Slice 1 模式与全栈模式都保留 `/v1/sessions/...`；全栈拒绝未 adopted 的 ai_id；并发 5 路 dispatch 不死锁；10 turn ≤ 60s 上限）
 
-## 已知阻塞（不在 DLaaS 范围内）
+## 测试覆盖
 
-`packages/vz-application/src/volvence_zero/application/runtime_helpers.py` 第 38 行的 `from __future__ import annotations` 必须放在文件最顶（仅次于 docstring），但当前在另一个 `from volvence_zero.application.types import (...)` 之后，导致任何 `from volvence_zero.application.runtime import ...` 失败。这是 vz-application 内部正在进行的拆分（debt #9 wave 2，文件未 tracked / WIP），与 DLaaS 平台层无关；Slice 1 已通过的 chat smoke 测试 + Slice 7 全套契约测试需要在 vz-application 修复后才能再跑。
+```
+tests/contracts/test_import_boundaries.py             865 / 865  ✓ AST 守卫
+tests/contracts/test_dlaas_dispatch_contracts.py       22 / 22   ✓ Slice 7.1
+tests/service/test_dlaas_chat_smoke.py                  4 / 4    ✓ Slice 1 baseline (Slice 2 升级)
+tests/service/test_dlaas_multi_tenant_persistence.py    6 / 6    ✓ Slice 7.2
+tests/service/test_dlaas_full_lifecycle.py              3 / 3    ✓ Slice 7.3 (full happy path + 2 失败 gate)
+tests/service/test_dlaas_backward_compat.py             8 / 8    ✓ Slice 7.4
+                                                       ──────
+                                                      908 / 908
+```
 
-`tests/contracts/test_import_boundaries.py` 是纯 AST 边界守卫，**不依赖运行时 import**，全程绿色：
-- Slice 1 完成后：721 项
-- Slice 2 完成后：753 项
-- Slice 3 完成后：829 项
-- Slice 5 完成后：839 项
-- Slice 6 完成后：849 项
-
-vz-* 内核 7 wheel diff 仍然是 0 行（承诺不破）。
+vz-* 内核 7 wheel diff 仍然是 **0 行**（承诺不破，包括 Slice 5.4 cancel 保护了 vz-substrate）。`tests/contracts/test_import_boundaries.py` 持续守 6 类边界（kernel ↛ lifeform / kernel ↛ platform / lifeform ↛ platform / platform ↛ kernel internals / platform ↛ lifeform domain internals / 评估 backbone 类型门面）。
 
 ## Slice 1 → 6 wheel 总览（共 6 个新 wheel）
 
@@ -138,12 +143,13 @@ vz-* 内核 7 wheel diff 仍然是 0 行（承诺不破）。
 | `dlaas-platform-ops` | pause / resume / operator-message / handoff trigger / SSE ledger | 5 |
 | `dlaas-platform-eval` | audience / exam runs / launch license + DefaultRubricGrader | 6 |
 
-## Slice 7（待办）
+## DLaaS 平台后续可选演进
 
-按用户要求"先做完整套，再集中测试"：
-1. `tests/service/test_dlaas_chat_smoke.py` 等已有 Slice 1 smoke 升级为 Slice 7.1 contract 套（envelope routing / kernel isolation / paused short-circuit / no-keyword dispatch）
-2. 多租户隔离 e2e（Slice 7.2）
-3. 完整生命周期 e2e：register → asset → template → activate → publish → adopt → interactions → 必要时 pause/handoff（Slice 7.3）
-4. 向后兼容 + 性能 smoke（Slice 7.4）
+不在当前 6 切片内、可作为后续 packet 单独推进：
 
-执行前提：先修 vz-application 的 `runtime_helpers.py` `from __future__` 顺序（与 DLaaS 无关，但拦住运行时 import）。
+1. **Slice 5.4 真流式 SSE**：要求在 `vz-substrate` 加 additive `generate_async`；该 packet 是 6 切片中**唯一可能动到 vz-* 的位置**，需要单独 review。
+2. **真实 LLM judge 接入**：替换 `DefaultRubricGrader`（fail-closed）为 LLM-driven `RubricGrader` 实例；保持 R12 / EVO-2 readout-only 约束，不反向写回 reward。
+3. **Audience 真实分析 pipeline**：当前 audience 端点持久化占位 readout；接入 LLM 提取常见问题 / 沟通风格 / 情绪触发器 / 决策模式时，仍走 `IngestionPipeline → end_scene drain` + 结构化输出，不破 R8。
+4. **真实资产抓取**：Activate 当前用 persona_spec + seed_config 文本作为 ingestion 内容；接入 asset.uri 的真实 fetcher 后能跑更长的 R6 慢环。
+5. **`tool_policy_snapshot` 推到 `lifeform-affordance.AffordanceRegistry`**：Slice 6 之后接入运行时白名单——目前 contract 持有 snapshot 但还没绑定到 invoker。
+6. **多进程 / 多 GPU 部署模式**：当前 launcher 是单进程多 ai_id；多机部署需要 substrate runtime 的进程外共享层。
