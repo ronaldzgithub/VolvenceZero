@@ -35,6 +35,8 @@ from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform
 
+from lifeform_service.templates import VerticalTemplateAdapter
+
 if TYPE_CHECKING:
     from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
@@ -56,6 +58,20 @@ class VerticalSpec:
     bootstraps_dir: str | None = None
     scenarios_dir: str | None = None
     alpha_factory: AlphaVerticalFactory | None = None
+    # Template I/O is opt-in per vertical. When set, the chat-browser
+    # ``GET /v1/templates`` lists this vertical's templates,
+    # ``POST /v1/sessions`` accepts ``template_id`` to spawn from one,
+    # and ``POST /v1/sessions/{id}/save-as-template`` is enabled. A
+    # vertical that leaves ``template_adapter=None`` keeps the legacy
+    # factory-only behavior (no template selector in UI). See
+    # :mod:`lifeform_service.templates` for the Protocol contract.
+    template_adapter: VerticalTemplateAdapter | None = None
+    # Default sub-directory name (relative to the service-level
+    # templates root) that the adapter scans. ``None`` means use the
+    # vertical's own ``name`` as the sub-dir; a vertical that wants a
+    # different layout sets this explicitly. Absolute paths are NOT
+    # accepted here — the service-level root is the policy boundary.
+    template_subdir: str | None = None
 
 
 def _expression_synthesizer_for_runtime(
@@ -273,15 +289,21 @@ def _try_zhang_wuji() -> VerticalSpec | None:
     / common-ground / commitment / boundary / goal-value owners run
     against the live Qwen weights.
 
-    Optional env-controlled rebirth: when ``ZHANG_WUJI_TEMPLATE_PATH``
-    is set to an existing JSON template file, the factory routes
-    through :func:`give_birth` instead of :func:`build_zhang_wuji_lifeform`,
-    so the served lifeform inherits the saved drive levels, memory
-    checkpoint, and (optionally) evolved profile from a prior
-    experiential-replay run.
+    Template surface: this vertical registers a
+    :class:`CharacterTemplateAdapter` so the chat-browser UI can
+    list / load / save :class:`LifeformTemplate` JSON files. When a
+    user picks "no template" the adapter's
+    ``build_default_session_context`` builds the base 张无忌 profile;
+    when they pick a template id the adapter routes through
+    :func:`give_birth`. Save-as-Template captures the current
+    session's drives + memory back into a new template. The legacy
+    ``ZHANG_WUJI_TEMPLATE_PATH`` env var is still honored as a
+    one-shot startup default (useful for ``start_browser_chat_zhang_wuji.*``
+    convenience wrappers).
     """
     try:
         from lifeform_domain_character import (
+            build_character_template_adapter,
             build_zhang_wuji_lifeform,
             give_birth,
         )
@@ -291,7 +313,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
     import os
     import pathlib
 
-    def _template_path() -> pathlib.Path | None:
+    def _legacy_env_template_path() -> pathlib.Path | None:
         raw = os.environ.get("ZHANG_WUJI_TEMPLATE_PATH", "").strip()
         if not raw:
             return None
@@ -301,7 +323,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
     def factory(runtime):
         synthesizer = _expression_synthesizer_for_runtime(runtime)
         semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
-        template_path = _template_path()
+        template_path = _legacy_env_template_path()
         if template_path is not None:
             bundle = give_birth(
                 template_path,
@@ -329,7 +351,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
                 memory_scope_root_dir=memory_scope_root_dir
             )
         )
-        template_path = _template_path()
+        template_path = _legacy_env_template_path()
         if template_path is not None:
             # Alpha mode + saved template: keep the template's
             # profile / drives / evolved profile as the "trained"
@@ -356,12 +378,19 @@ def _try_zhang_wuji() -> VerticalSpec | None:
             identity_provider=identity_provider,
         ).lifeform
 
+    template_adapter = build_character_template_adapter(
+        response_synthesizer_factory=_expression_synthesizer_for_runtime,
+        semantic_proposal_runtime_factory=_build_llm_semantic_runtime_from_runtime,
+    )
+
     return VerticalSpec(
         name="zhang_wuji",
         factory=factory,
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,
         alpha_factory=alpha_factory,
+        template_adapter=template_adapter,
+        template_subdir="zhang_wuji",
     )
 
 

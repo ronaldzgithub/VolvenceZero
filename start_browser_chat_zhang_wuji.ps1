@@ -56,7 +56,7 @@ function Set-DefaultEnv {
 }
 
 Set-DefaultEnv 'VERTICAL'                 'zhang_wuji'
-Set-DefaultEnv 'ZHANG_WUJI_TEMPLATE_PATH' (Join-Path $RootDir 'artifacts\lifeform-templates\zhang-wuji-demo.json')
+Set-DefaultEnv 'ZHANG_WUJI_TEMPLATE_PATH' (Join-Path $RootDir 'artifacts\lifeform-templates\zhang_wuji\zhang-wuji-demo.json')
 
 if ($env:ZHANG_WUJI_SKIP_TEMPLATE -eq '1') {
     Write-Host "[start-browser-chat-zhang-wuji] ZHANG_WUJI_SKIP_TEMPLATE=1 - using base profile (no give_birth)."

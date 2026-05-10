@@ -45,6 +45,23 @@
 
 详见 `SPLIT.md` 与 `archetecture.md`。
 
+### 1.2 Figure cleaning vertical schema (non-runtime)
+
+`packages/lifeform-domain-figure/src/lifeform_domain_figure/cleaning/` 提供的 schema 是 **figure vertical 内部跨子模块共享**的 typed records，**不**进入 §6 runtime slot 注册表（不是 runtime owner，没有 module / `RuntimeModule` 包装，跨 wheel 也不消费）。它们登记在此处仅为 SSOT 完整性。来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）；spec：[`docs/specs/figure-corpus-cleaning.md`](specs/figure-corpus-cleaning.md)。
+
+| Type | 字段（关键） | 用途 |
+|------|--------------|------|
+| `RawDocument` | `text` / `parser_version` / `layout_quality` / `ocr_confidence` / `encoding_detected` / `language_detected` / `license_notice` / `raw_sha256` | 4 个 parser（CPAE PDF / Wikisource / Gutenberg / IA OCR JSON）的输出；中性，不绑定任何 archive 类型 |
+| `CleanedDocument` | `text` / `raw_sha256` / `cleaner_pipeline_version` / `cleaning_log: tuple[CleaningOpRecord, ...]` / `parser_version` | 6-op cleaner pipeline 的输出；同 raw 多版本（v1 / v2 / ...）共存 |
+| `CleaningOpRecord` | `op: CleaningOp` / `op_version` / `chars_before` / `chars_after`（`<=` chars_before） | 每个 cleaner op 的执行记录；orchestrator 自动记录，不可手填错乱 |
+| `CleaningOp` (enum) | `BOILERPLATE_STRIP` / `WHITESPACE_NORMALIZE` / `TYPOGRAPHY_NORMALIZE` / `DEDUPE_INTRA_DOC` / `PII_REDACT` / `PARAGRAPH_NORMALIZE` | 关闭枚举；新增需同步 spec + 子模块 + bump pipeline 版本 |
+
+**契约不变量**（详见 spec）：
+
+- `cleaning/` 子包**禁止** import `Figure*Source` typed records（必须经 `cleaning/bridging.py` 二段式）— `tests/contracts/test_cleaning_pipeline_versions.py` AST 静态守门
+- `cleaning/` 子包**禁止** import 任何 HTTP 客户端（cleaning 与 V2 fetcher 解耦）— 同上守门
+- raw bytes content-addressable by sha256；cleaner 版本目录永不覆盖
+
 ---
 
 ## 2. 基础类型

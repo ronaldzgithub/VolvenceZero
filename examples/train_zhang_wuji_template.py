@@ -204,10 +204,16 @@ def main() -> int:
     if args.output is not None:
         output_path = args.output
     else:
+        # Default layout matches what
+        # ``lifeform_service.app._resolve_templates_root`` expects: the
+        # service-level templates root has one subdir per vertical, and
+        # the chat UI's template <select> populates from the matching
+        # subdir. Putting trained templates under ``<root>/zhang_wuji/``
+        # makes them appear in the UI without extra wiring.
         base_dir = pathlib.Path(
             os.environ.get(
                 "VZ_DEMO_OUTPUT_DIR",
-                "artifacts/lifeform-templates",
+                "artifacts/lifeform-templates/zhang_wuji",
             )
         )
         output_path = base_dir / "zhang-wuji-demo.json"

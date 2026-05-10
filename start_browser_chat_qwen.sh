@@ -72,6 +72,9 @@
 #   MEMORY_SCOPE_ROOT_DIR=$ROOT_DIR/.local/browser_chat_memory
 #   ALPHA_USERS_FILE=                        # optional JSON allowlist
 #   EVIDENCE_ROOT_DIR=                       # optional alpha evidence dir
+#   TEMPLATES_ROOT_DIR=$ROOT_DIR/artifacts/lifeform-templates
+#                                            # chat UI lists/saves templates
+#                                            # under <root>/<vertical>/*.json
 
 set -euo pipefail
 
@@ -91,6 +94,12 @@ export ALPHA_MODE="${ALPHA_MODE:-1}"
 export MEMORY_SCOPE_ROOT_DIR="${MEMORY_SCOPE_ROOT_DIR:-${ROOT_DIR}/.local/browser_chat_memory}"
 export ALPHA_USERS_FILE="${ALPHA_USERS_FILE:-}"
 export EVIDENCE_ROOT_DIR="${EVIDENCE_ROOT_DIR:-}"
+# Template surface: when set, the chat UI's template <select> is
+# populated from <root>/<vertical_subdir>/*.json and "Save as Template"
+# writes back to that directory. Defaults to the same location used
+# by examples/train_zhang_wuji_template.py so existing zhang-wuji
+# templates show up automatically.
+export TEMPLATES_ROOT_DIR="${TEMPLATES_ROOT_DIR:-${ROOT_DIR}/artifacts/lifeform-templates}"
 
 cd "$ROOT_DIR"
 
@@ -220,12 +229,14 @@ def main() -> int:
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
+    templates_root_dir = _env_str_or_none("TEMPLATES_ROOT_DIR")
     app = create_app(
         vertical=verticals[vertical_name],
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
         substrate_runtime=runtime,
         alpha_config=alpha_config,
+        templates_root_dir=templates_root_dir,
     )
     if alpha_config.enabled:
         allowlist_size = len(alpha_config.alpha_users)
@@ -249,6 +260,18 @@ def main() -> int:
         print(
             "[start-browser-chat-qwen] anonymous mode (ALPHA_MODE=0); "
             "no cross-session memory, no per-user scope.",
+            flush=True,
+        )
+    if templates_root_dir is not None:
+        print(
+            "[start-browser-chat-qwen] templates ENABLED "
+            f"templates_root_dir={templates_root_dir}",
+            flush=True,
+        )
+    else:
+        print(
+            "[start-browser-chat-qwen] templates DISABLED "
+            "(set TEMPLATES_ROOT_DIR to enable list/save in chat UI)",
             flush=True,
         )
     print(

@@ -99,6 +99,22 @@ from lifeform_domain_figure.metadata import (
     wikidata_to_lifespan,
     wikidata_to_time_window_hints,
 )
+from lifeform_domain_figure.audit import (
+    AUDIT_SCHEMA_VERSION,
+    FigureBakeAction,
+    FigureBakeAuditRecord,
+    FigureGateDecisionLabel,
+    build_audit_record,
+    find_previous_audit_for_bundle,
+    read_audit_records,
+    write_audit,
+)
+from lifeform_domain_figure.bundle_io import (
+    BundleManifest,
+    list_figure_bundles,
+    load_figure_bundle,
+    save_figure_bundle,
+)
 from lifeform_domain_figure.compiler import (
     FigureBundleInputs,
     attach_lora_to_bundle,
@@ -344,4 +360,18 @@ __all__ = [
     "GatedPersonaLoRAProposal",
     "PersonaLoRAApplyResult",
     "apply_persona_lora_through_gate",
+    # Bundle persistence (#23 CLI)
+    "BundleManifest",
+    "list_figure_bundles",
+    "load_figure_bundle",
+    "save_figure_bundle",
+    # Bake / gate / rollback audit log (#23 CLI)
+    "AUDIT_SCHEMA_VERSION",
+    "FigureBakeAction",
+    "FigureBakeAuditRecord",
+    "FigureGateDecisionLabel",
+    "build_audit_record",
+    "find_previous_audit_for_bundle",
+    "read_audit_records",
+    "write_audit",
 ]

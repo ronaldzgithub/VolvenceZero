@@ -13,6 +13,13 @@ dependencies = [
     "vz-application==0.1.*",
     "lifeform-core==0.1.*",
     "lifeform-ingestion==0.1.*",
+    # template_adapter implements lifeform_service.templates.VerticalTemplateAdapter
+    # so the chat-browser surface can list/load/save character templates.
+    # No runtime cycle: lifeform-service imports this vertical lazily via
+    # discover_verticals(); declaring the dep this direction matches the
+    # actual call direction (service → vertical at runtime, vertical →
+    # service Protocol at build time).
+    "lifeform-service==0.1.*",
 ]
 
 [tool.setuptools.packages.find]

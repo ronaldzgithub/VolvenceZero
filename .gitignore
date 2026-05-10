@@ -29,3 +29,16 @@ Thumbs.db
 .tmp_*
 *.log
 /tests/__pycache__
+
+# Figure-vertical L1 cleaning store: raw bytes & cleaned text are
+# generated artefacts (debt #28 L1). The data/ directory itself is
+# tracked via a .gitkeep marker so the path is stable; subtrees are
+# not versioned.
+packages/lifeform-domain-figure/data/raw/
+packages/lifeform-domain-figure/data/cleaned/
+
+# Figure-vertical CLI bake / audit artefacts (debt #23 closure).
+# The CLI defaults persist bundles to data/figure_bundles/ and audit
+# rows to data/figure_audit/; both are runtime products, not source.
+data/figure_bundles/
+data/figure_audit/

@@ -73,6 +73,10 @@ from lifeform_domain_character.template_save import (
     save_lifeform_template,
     vitals_drive_levels_from_session,
 )
+from lifeform_domain_character.template_adapter import (
+    CharacterTemplateAdapter,
+    build_character_template_adapter,
+)
 from lifeform_domain_character.profile import (
     CharacterBoundaryPrior,
     CharacterDrivePrior,
@@ -122,6 +126,9 @@ __all__ = [
     # Template load / give_birth (Wave T6)
     "RebirthBundle",
     "give_birth",
+    # Browser-chat template adapter (chat-browser template surface)
+    "CharacterTemplateAdapter",
+    "build_character_template_adapter",
     # LLM extraction (Wave T7 + T8)
     "NarrativeArcCandidate",
     "ReviewedProfileCandidate",

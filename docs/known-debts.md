@@ -1,8 +1,10 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-10 (Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#23 为 figure F6 训练后端/数据/CLI/DLaaS hook，#24-#27 为本轮 D2/D3/D4/D7 数据管线层未串接缺口，#28 为完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层缺口)
+> Last updated: 2026-05-10 (Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#22 为 figure F6 训练后端/数据/DLaaS hook，~~#23~~ 已闭合（figure bake CLI + bundle 持久化 + audit log + rollback 全套 land），#24-#27 为本轮 D2/D3/D4/D7 数据管线层未串接缺口，#28 为完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层缺口；**#29-#30 为对外 benchmark 证据面缺口（融资尽调阻塞条件）**，配套对外 RFC 草案见 [`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)）
 
+> 2026-05-10 update (LSCB RFC + 对外 benchmark 证据债 #29-#30): 对外 benchmark / arena 评估面（业界正在快速成形的 EQ-Bench 3 / EmpathyBench / RP-Bench / Chatbot Arena 等）我们当前**完全缺位**——这条缺位本身既不影响系统运行也不违反 R 铁律，但对 **任何 fundraising 尽调和品类话语权竞争** 都是硬阻塞。本轮把 follow-up 拆成三轨：(轨 2) 已落地：[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md) 公布 LSCB (Long-Session Companion Benchmark) 公共 RFC v0.1，从中立角度定义 multi-session companion 评估方法学（A1–A6 六轴 + 六族 scenario），不暴露任何内部架构（NL/ETA/R-PE/regime/owner SSOT/family report 内部口径），目的是让公司在长会话陪伴评估这条赛道上**先于打榜成为 convener**；与 EQ-Bench 3 rubric 兼容以便他人系统已有信号可以转移；(轨 1) 列入 #29：把 substrate / lifeform 包一层 OpenAI-compatible API 提交 EQ-Bench 3 + EmpathyBench，拿一个**可被引用的客观分数**填上"投资人尽调时第一个 google 到的数字"这条空白；(轨 3) 列入 #30：在人评类 arena（RP-Bench / Chatbot Arena 公开 chat / 后续 LSCB 自研人评轨）建立可见 footprint，对齐"EQ > IQ"这条对外叙事。轨 2 不在 known-debts；轨 1/3 短期可推进、与代码层债项独立，写为 #29/#30 跟踪。
+>
 > 2026-05-10 update (Persona Figure 数据管线 V1 D2/D3/D4/D7): 在 #18-#23 已就位的 F6 训练后端骨架基础上，本轮新增 4 类纯数据策展层：(a) **D2** corpus 子目录加 typed `SourceProvenance` + `LegalClearance` + `compute_dedup_report` + `parse_locator` 三件 reviewer-facing helper（详见 [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/{provenance,dedupe,citation}.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/)）；(b) **D3** `corpus/archives/` 4 个 archive 适配器（CPAE / Wikisource / Gutenberg / Internet Archive）+ `ArchiveFetcher` Protocol + V1 offline 桩；(c) **D4** `metadata/` 子包给 OpenAlex / Wikidata / Crossref / SEP 4 个 metadata 来源加 typed payload + `*_to_*` 翻译器 + Protocol 客户端 + offline 桩 + `MetadataDigest` 指纹聚合 + `enrich_profile_with_metadata` 桥（**T3 严禁污染**：metadata 永不进 retrieval / LoRA training data）；(d) **D7** 鲁迅 reviewed `HistoricalFigureProfile` + Chinese Text Project archive 适配器（孔子等古典人物用）。150/150 figure tests + 91/91 figure-related import boundary tests 全绿。**4 块新缺口需要后续 follow-up（已开 debt）**：(i) D2 三件 helper 都是 pure 函数，未接进 `build_figure_artifact_bundle` / `build_figure_retrieval_index` 主管线，存在但不 load-bearing（→ #24）；(ii) `MetadataDigest.fingerprint` 未折进 `FigureArtifactBundle.integrity_hash`，metadata enrichment 之后 bundle 字节级回滚契约不闭合（→ #25）；(iii) D4 4 个 metadata client 全是 offline 桩 + `NotImplementedError`，与 #19 archive V2 fetcher 同构但是不同 client 集（→ #26）；(iv) 鲁迅 PoC 只到 `HistoricalFigureProfile`，缺 `synthetic_lu_xun_corpus()` / `build_lu_xun_lifeform()` / 鲁迅 e2e test / CTP curated 数据集（→ #27）。
 
 > 2026-05-10 update (Real-Person Figure Vertical F1-F6): 16 packets land；新 wheel `lifeform-domain-figure` + `vz-substrate` 一处 additive `persona_lora_pool.py` + `lifeform-expression` 三个 enforcer (`GroundedDecoder` / `ScopeRefuser` / `StylePriorInjector`) + `dlaas-platform-{contracts,registry}` 4 个 figure 字段 + `lifeform-service` `figure_bundle_store.py` 全套到位；L1 (style prior) / L3 (citation grounding) / L4 (scope refusal) 在零 GPU 训练下端到端可演示，L2 (steering) + L1+L2 (persona LoRA) 通过 OFFLINE `ModificationGate` 走 SHADOW。1063/1063 contract / smoke / e2e test 全绿，含 `test_full_chain_e2e_smoke.py` 一次性把 retrieval × coverage × style × steering × LoRA 在 Einstein bundle 上跑通；详见 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md) + [`docs/DATA_CONTRACT.md`](DATA_CONTRACT.md) §2.15。**遗留三块需要后续 follow-up（已开 debt）**：(a) F5 steering 用 CPU contrastive linear readout 在 hashing-embedding 坐标系（→ #21）+ F6 LoRA 用 deterministic synthetic backend（→ #18）；(b) 基础数据准备只到 V1 archive schema，没有 V2 HTTPArchiveFetcher、没有 PDF/HTML/wiki/OCR parser、没有 curated payload 数据集（→ #19）；(c) 训练管线 script 完全没有，所有 bake / gate apply / rollback 只是 Python 函数没 CLI（→ #23）。DLaaS adopt 主路径未自动 hook-in（→ #22）；PersonaLoRAPool 真热插未接（→ #20）。
@@ -473,37 +475,37 @@ return (
   5. 守 R8：adopt 只调 helper 公开 surface，不直接 import figure-vertical 内部模块
 - **优先级**：低-中（与 #16 / #20 同时做更高效）
 
-## 23. Figure vertical 训练管线 script 完全没有，所有 bake / gate apply 只是 Python 函数
+## ~~23. Figure vertical 训练管线 script 完全没有，所有 bake / gate apply 只是 Python 函数~~ —— 2026-05-10 关闭
 
-- **路径**：
-  - 现有 Python 函数（无 CLI 包装）：
-    - `build_figure_artifact_bundle(FigureBundleInputs(...))` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py))
-    - `bake_steering_set(plan)` + `apply_steering_through_gate(...)` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py))
-    - `SyntheticLoRABakeBackend().bake(plan)` + `apply_persona_lora_through_gate(...)` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py) + [`gate_apply.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/gate_apply.py))
-    - `register_bundle_persona_lora(bundle)` ([`packages/lifeform-service/src/lifeform_service/figure_bundle_store.py`](../packages/lifeform-service/src/lifeform_service/figure_bundle_store.py))
-  - **缺位的脚本**：`scripts/` / `examples/` 下没有 `figure` / `einstein` / `lora` / `steering` / `bake` 任何 CLI 入口；grep 结果空
-  - 唯一调动 bake / gate apply 的真实代码：[`packages/lifeform-domain-figure/tests/`](../packages/lifeform-domain-figure/tests/)（test fixture，不是产线 script）
-- **问题**：F5 / F6 plan 设计 OFFLINE-gated 训练 + 部署流程，但当前所有 bake / gate apply / pool register 步骤都只能在 Python REPL 或测试里跑。结果：
-  - 即便用户准备好真 Einstein corpus（前置 #19）、真 PEFT backend（前置 #18），也没有一个 one-shot CLI 跑完 `fetch corpus → ingest → bundle → steering bake → lora bake → gate apply → register in pool → save bundle to disk`
-  - 操作员要"重新 bake Einstein 的 LoRA"必须手写 Python；没有可记录、可 review、可 rerun 的 audit trail
-  - rollback 流程没有 CLI surface：`apply_*_through_gate` 返回 `previous_record_id` / `previous_artifact_id`，但没有 `--rollback-to=<id>` 这种操作员入口
-  - bundle 不会 persist 到 disk —— 当前 `FigureArtifactBundle` 只在内存；`figure_bundle_store` 是 process-level in-memory dict（重启进程就丢）；没有 `save_bundle(path)` / `load_bundle(path)` 也没有"bundle 仓库"概念
-  - 任何 evidence run 都得自己写 80-150 行 Python boilerplate 串起调用，跑出来的 artifact 在哪、用什么 corpus、用了哪个 backend、谁 review 过的——全凭 commit message
-- **违反**：不违反 R 铁律。F5 / F6 plan 接受"先把函数做对，CLI 是 ops 后续工作"；只是把"figure vertical 已可用"的解释门槛设在了"加上 #23 + #19 + #18 + #20 + #22"
-- **风险**：低-中。短期开发期 / 测试 fixture 跑得通，长期产品化时这是最贴近用户操作的一层，缺了等于 ops team 接不了手
-- **触发条件**：(a) 第一次想把 baked figure bundle 跑给非工程师 review；(b) #19 真 corpus 数据集落地后想跑端到端；(c) #18 PEFT backend 落地后想 audit "什么 plan + 什么 corpus + 什么 backend → 出了什么 bundle"；(d) 任何"重 bake → 走 OFFLINE gate → 替换 active artifact"流程需要可重复跑
-- **推荐修法**（按 minimum viable 顺序）：
-  1. **bundle 持久化**：`lifeform_domain_figure` 加 `bundle_io.py` —— `save_figure_bundle(bundle: FigureArtifactBundle, dir: pathlib.Path) -> pathlib.Path` / `load_figure_bundle(dir: pathlib.Path) -> FigureArtifactBundle`；用 frozen pickle 或 typed JSON + 整数化 hash 校验；落到 `data/bundles/{figure_id}/{bundle_id}/` 目录
-  2. **bake CLI**：`scripts/figure_bake.py`（或 `python -m lifeform_domain_figure.cli`）三个子命令：
-     - `bake-bundle --figure einstein --corpus-mode {synthetic,curated} --out data/bundles/einstein/`
-     - `bake-steering --figure einstein --bundle <bundle_id> --gate offline --rollback-evidence "<text>" --out data/bundles/einstein/{new_id}/`
-     - `bake-lora --figure einstein --bundle <bundle_id> --backend {synthetic,peft} --gate offline --rollback-evidence "<text>" --out data/bundles/einstein/{new_id}/`
-  3. **gate audit**：每条 bake 子命令完成后写 `data/audit/{timestamp}_{action}_{figure}.json`，含 `corpus_provenance` / `backend_id` / `validation_delta` / `capacity_cost` / `rollback_evidence` / `gate_decision` / `block_reasons`；和 `vz-cognition` 的 `RuntimeAdaptationAudit` 风格对齐
-  4. **rollback CLI**：`figure_bake rollback --figure einstein --to-bundle <previous_id>` —— 调 `figure_bundle_store.register(previous_bundle)` + `pool.deregister(current_record_id)` + `pool.register(...previous artifact...)` + 写 audit 记录
-  5. **一键端到端 demo**：`scripts/figure_demo_einstein.sh`（或 Python） —— synthetic corpus 路径下 bundle → steering → lora → register → 跑一句话 chat → 输出引证 + L4 refusal demo；和 `scripts/run_eq_evidence_bundle.sh` (#10B item 3 那条) 风格对齐
-  6. **守 R10 / R15**：CLI 不能 bypass `apply_*_through_gate`；任何 `--bake-and-apply` 都必须把 EvaluationSnapshot 路径走通（接受 `--evaluation-snapshot path/to/snapshot.json` 输入）；每次 apply 出 `applied / record_id / previous_record_id` 进 audit
-  7. 加 `tests/service/test_figure_bake_cli_smoke.py`：以 synthetic corpus + synthetic LoRA 跑过整条 CLI；audit 文件结构正确；rollback CLI 真换出 bundle
-- **优先级**：中（独立可做，不强依赖 #18 / #19；做完后这三件 + #22 一起把 figure vertical 从"函数齐了"推到"可以交给 ops"）
+> **2026-05-10 update (#23 closure)**：known-debts #23 推荐修法 7 项一次性 land 一个 packet。新增 `lifeform-domain-figure` wheel 内部模块 [`bundle_io.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/bundle_io.py)（pickle 持久化 + atomic write + integrity_hash 重验，沿用 [`lifeform_evolution.snapshot_io`](../packages/lifeform-evolution/src/lifeform_evolution/snapshot_io.py) 已有 magic-header 风格）+ [`audit.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/audit.py)（typed `FigureBakeAuditRecord` + 4-action enum + `find_previous_audit_for_bundle`，sha256 over payload 的 deterministic `audit_id`）；`cli/` 子包加 [`__init__.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/__init__.py) (argparse 顶层 + 5 子命令 dispatch) + [`__main__.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/__main__.py) + [`_commands.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py) (`bake-bundle` / `bake-steering` / `bake-lora` / `rollback` / `list` 5 个 handler，全部走 wheel `__init__.py` 公开 surface) + [`_eval_snapshot_loader.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_eval_snapshot_loader.py) (`--evaluation-snapshot path/to/file.json` 或 `default-clean` 字面量；后者作为开发期/demo 显式 opt-in，不会默默吃过生产门)；CLI entry point `figure-bake = "lifeform_domain_figure.cli:main"` 进 [`pyproject.toml`](../packages/lifeform-domain-figure/pyproject.toml)；[`scripts/figure_demo_einstein.sh`](../scripts/figure_demo_einstein.sh) 一键 4 步端到端跑通（base bundle → steering → lora → list），与 [`scripts/run_eq_evidence_bundle.sh`](../scripts/run_eq_evidence_bundle.sh) 风格对齐用 `python -m` 入口跨平台；`.gitignore` 加 `data/figure_bundles/` + `data/figure_audit/` 以让运行时产物不进 git。
+>
+> **退出码语义统一**：`0`=成功；`1`=CLI 参数错误；`2`=`GateDecision.BLOCK`（仍写 BLOCK audit + `block_reasons`，**不**静默吞）；`3`=I/O / schema 错误。`scripts/figure_demo_einstein.sh` 区分得清"开发期跑 demo 失败"vs"gate 故意拦截"。
+>
+> **守门契约**：
+> 1. R8 — 静态契约 [`tests/contracts/test_figure_cli_uses_only_public_surface.py`](../tests/contracts/test_figure_cli_uses_only_public_surface.py) AST 扫 `cli/` 4 个文件，禁止 `from lifeform_domain_figure.<internal_module>` 形式；只允许 `from lifeform_domain_figure import X` 公开 surface 与白名单内的 `cli.*` / `audit` 兄弟模块。allowlist tight test 让未来扩允许列表必须同时改测试 + 文档说明。
+> 2. R10 — `cmd_bake_steering` / `cmd_bake_lora` 的 wiring 只走 `apply_steering_through_gate(...)` / `apply_persona_lora_through_gate(...)`；CLI 不能构造 `FigureArtifactBundle` 直接 attach steering/lora 而绕过 OFFLINE gate；BLOCK 路径产 audit + 退出码 2 在 `test_cmd_blocked_gate_writes_audit_with_block_reasons_and_exits_2` 静态守门。
+> 3. R15 — `bundle.pickle` 落盘后 reload 必须重算 `compute_bundle_integrity_hash` 与原 `bundle.integrity_hash` byte-equal；`test_save_load_roundtrip_bundle_byte_equal` + `test_save_load_roundtrip_with_steering_and_lora` 守门；rollback 是 append-only（旧 bundle / audit 永不删，rollback 写新 audit 行）。
+>
+> **回归证据**：194/194 figure-domain tests 全绿（原 150 + 5 bundle_io smoke + 7 audit smoke + 5 cli smoke + 27 cleaning fixture from #28 work）；1452/1452 contracts 全绿（含 1023 figure 相关 import boundary parametrize 用例 + 2 个新 figure CLI surface 守门）；`bash scripts/figure_demo_einstein.sh` 退出码 0，`data/figure_bundles/einstein/<bundle_id>/manifest.json` 落盘 3 份（base/steering/lora），`data/figure_audit/` 3 条 audit JSON。
+>
+> **未做（已开新 debt）**：
+> - PEFT backend 真 GPU 训练（→ #18 unchanged）
+> - V2 archive fetcher + curated payload 数据集（→ #19 unchanged）
+> - PersonaLoRAPool 真 hot-swap（→ #20 unchanged）
+> - F5 steering 在真 substrate residual 流上抽方向（→ #21 unchanged）
+> - DLaaS adopt 主路径自动 hook `lookup_figure_bundle` + `register_bundle_persona_lora`（→ #22 unchanged）
+> - lu_xun corpus + e2e（→ #27 unchanged，CLI 占位 forward-compatible：`--figure lu_xun` 命中 `cmd_bake_bundle` 后 fail-loud 指向 #27）
+> - corpus crawl + clean + verify 三层（→ #28 unchanged）
+
+- ~~**路径**~~：
+  - ~~现有 Python 函数（无 CLI 包装）~~：→ 现已通过 `cli/_commands.py` 把 `build_figure_artifact_bundle` / `bake_steering_set` + `apply_steering_through_gate` / `SyntheticLoRABakeBackend().bake` + `apply_persona_lora_through_gate` / `register_bundle_persona_lora` 全部 wired 进 5 个子命令
+  - ~~缺位的脚本~~：→ 新增 `scripts/figure_demo_einstein.sh` + `python -m lifeform_domain_figure.cli`
+  - ~~唯一调动 bake / gate apply 的真实代码~~：→ test fixture + CLI 实现现都在
+- ~~**问题**~~：F5 / F6 OFFLINE-gated 训练流程现在通过 CLI + audit log + bundle 持久化全部可重复跑、可 review、可 rollback
+- ~~**风险**~~：闭环
+- ~~**触发条件**~~：闭环
+- ~~**推荐修法**（7 项 minimum viable）~~：全部 land
+- ~~**优先级**~~：闭环
 
 ## 24. Figure D2 三件 corpus helper（dedupe / provenance / citation parser）未接进 bundle 主管线
 
@@ -626,6 +628,8 @@ return (
 
 ## 28. 完整 webcrawl 编排 + 数据清洗管线 + 多源验证审计三层全未做（在 #15 / #19 / #26 单文档 fetcher 之上的整层缺口）
 
+> **进度（2026-05-10）**：✅ **L1 cleaning pipeline 已落地** —— 见 [`docs/specs/figure-corpus-cleaning.md`](specs/figure-corpus-cleaning.md)、`packages/lifeform-domain-figure/src/lifeform_domain_figure/cleaning/`、CLI `packages/lifeform-domain-figure/scripts/figure_clean.py`、契约测试 [`tests/contracts/test_cleaning_pipeline_versions.py`](../tests/contracts/test_cleaning_pipeline_versions.py)。包含 4 个真实 parser（CPAE PDF via pypdf / Wikisource HTML via bs4+mwparserfromhell / Gutenberg HTML+plain via bs4 / IA OCR JSON via stdlib）+ 6 个 cleaner op + content-addressable raw/cleaned store + cleaner 版本化（v1 + v2 共存）+ re-clean-all CLI + 桥接到既有 `*Payload`。本债保持**开放**：剩余 **L2 verification + audit** 与 **L0 crawler frontier** 仍是 follow-up packet（与 #19 V2 fetcher / #26 metadata client 一次性 review，沿用本 spec 立的 R8 不变量：fetcher 不直接产 typed source，cleaner 不发 HTTP，verifier/crawler 不写 kernel）。
+
 - **路径**：
   - 既有"单文档 fetcher 缺位"债（**只到"给一个 URL 拿一份"这一层**）：
     - DLaaS asset.uri：[`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py) `_handle_activate_template` 不读 asset.uri（→ #15）
@@ -681,6 +685,92 @@ return (
      - `tests/contracts/test_crawler_respects_robots.py` crawler 输出对每个 robots.txt 都遵守
 - **风险评估说明**：本债是 figure vertical "完整 webcrawl 及数据清洗验证" 的统称，规模显著大于 #15 / #19 / #26 三条单文档 fetcher 债之和。它直接决定 "Einstein 全集进去得到 Einstein 而不是被污染的脑" 这个产品命题能否兑现 —— 单文档 fetcher 是必要条件但远非充分条件
 - **优先级**：中（产品命题层硬阻塞，但需要先把更基础的 #18 / #19 / #20 / #22 / #23 推进；L1 cleaning 是性价比最高的入口，不依赖 V2 fetcher 就能做并立刻给 #19 / #26 用）
+
+## 29. 对外 EQ / 共情类 benchmark 提交完全缺位（融资尽调可被一条 Google 戳穿的证据空缺）
+
+- **路径**：
+  - 既有内部评估面（已就位但**仅内部可见**）：
+    - [`packages/lifeform-evolution`](../packages/lifeform-evolution/) 6 族 family report / multi-round delta-vs-baseline / longitudinal aggregator
+    - [`docs/specs/evidence_program.md`](specs/evidence_program.md) claim registry / blind packet / evidence bundle 全套
+    - [`docs/EVALUATION_SYSTEM.md`](EVALUATION_SYSTEM.md) 内部评估系统说明
+  - **缺位的对外面**：
+    - 没有任何公开 EQ-Bench 3 / EmpathyBench / RP-Bench / Chatbot Arena 提交记录 → google "VolvenceZero EQ benchmark" 一条结果都没有
+    - `lifeform-service` 的 `POST /v1/turns` 与 OpenAI Chat Completion API 不兼容（envelope shape / 字段名 / SSE 事件全不同）→ EQ-Bench 类 harness 不能直接打过来
+    - 没有 OpenAI-compatible 适配层 wheel；没有 submission 包（model card / system prompt / generation config 公开版）；没有跑分脚本
+- **问题**：业界 2026 年针对 chat / companion / EQ 类系统的可见评估面（按权重）：
+  1. **EQ-Bench 3**（[eqbench.com](https://eqbench.com/)）—— Claude Opus 4.6 当 judge 的 LLM-judged 8 维 EQ + 3-turn roleplay；Grok-4.1 Thinking 当前领先 Elo 1586；需要 HuggingFace 开源权重才上 leaderboard，但**任何能调的 chat endpoint 都能跑分留私本**
+  2. **EmpathyBench**（[empathybench.com](https://www.empathybench.com/)）—— 共情专项；Qwen3 VL 235B 当前 51.3% 领先；提交门槛比 EQ-Bench 3 低
+  3. **Chatbot Arena (LMSYS)** —— 600 万+真人盲评；GPT-5.2 Pro / Claude Opus 4.6 ~1400 Elo；商业 API 也可以提交
+  4. **RP-Bench / Roleplay-Bench**（HuggingFace）—— 社区人评 Elo；human preference 显著与 LLM-judge 分歧（Gemma 4 26B / Mistral Small Creative 在人评榜领先）
+  
+  这构成的事实是：**任何投资人尽调"这家陪伴 AI 公司的 EQ 评估面"时，第一个动作就是搜 EQ-Bench 和 Chatbot Arena**。我们当前的回答只能是"我们有内部 6 族评估"——这是**正确但不可验证**的回答，效力远低于一条可点击的 leaderboard 链接。具体后果：
+  - 尽调材料里"我们 EQ 强"的 claim 无外部数据支撑；任何竞品（哪怕是套壳 Claude）只要交一次 EQ-Bench 就能反超我们的 fundraising narrative
+  - 不交分 ≠ 我们打不过；frozen substrate 的分数大概率 ≈ 底层 LLM 的分数（这不是问题，但**不交就让对方猜**最糟糕）
+  - 业界已观察到 EQ-Bench 与 RP-Bench 人评分歧大（详见上）→ 我们若只盯 EQ-Bench 也错失"在人评类反超大模型"的窗口
+  - LSCB RFC（轨 2，[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)）正在做"**定义新评估范式**"的长期防御；轨 1 / 轨 3 是补"**短期防御**"——两者互不替代
+- **违反**：不违反 R 铁律。这是产品 / 商业层证据面债，与 vz-* / lifeform-* 内核架构正交。
+- **风险**：
+  - **短期（<3 月）低**：不交分系统不爆，CI 不挂
+  - **中期（3-12 月）高**：任何一次正式融资 / 战略合作尽调都会被一条公开 leaderboard 缺位卡住；竞品交了我们没交 → 对方拿"客观第三方分数高于 VolvenceZero"做谈判杠杆
+  - **长期（>12 月）决定品类话语权**：陪伴 AI 在 2026 年的话语权竞争里，"客观 EQ 强"+"养成式架构唯一"双叙事缺一不可；只讲架构不讲分数 = 学术 vibe，讲不动产业资本
+- **触发条件**：
+  - (a) 启动任何一轮融资（A 轮及以后）尽调材料准备
+  - (b) 与任何战略合作方（Cloud / 终端硬件 / 内容平台）做技术 due diligence
+  - (c) 上线公开 demo / API 后被技术媒体或竞品分析师 cited 时被问 "your EQ-Bench score?"
+  - (d) LSCB RFC v0.2 公开发布前（自己定义 benchmark 但自己不在他人 benchmark 上有分数 = 信誉漏洞）
+  - (e) 任何竞品交分进 EQ-Bench leaderboard top 20
+- **推荐修法**（按优先级，可独立推进）：
+  1. **OpenAI-compatible 适配 wheel**（~1 周）：新 `lifeform-openai-compat` 或 `lifeform-service.openai_adapter` 子包，暴露 `POST /v1/chat/completions`（OpenAI envelope）+ optional `metadata.session_id` / `metadata.user_id`（companion 模式启用 cross-session memory）。**不动 vz-* / lifeform-* 内核**，纯薄翻译层；contract test 静态守"openai_adapter 不直接 import vz-cognition / vz-temporal / vz-memory 内部模块，只能走 lifeform-service 的 facade"
+  2. **EQ-Bench 3 内部跑分**（$10-15 + 几小时）：用 `eqbench3` harness（[github.com/EQ-bench/eqbench3](https://github.com/EQ-bench/eqbench3)）打到适配 wheel 的 chat endpoint；产 `artifacts/external_bench/eqbench3_run_{timestamp}.json` + transcripts；**先内部跑、不立刻交**——拿到分数后判断
+     - 若分数 ≥ 行业均值 → 路径 (3) 公开提交，+ 同时挂在 [`docs/external/`](external/) 内
+     - 若分数 < 预期 → 不公开，留作内部 baseline，转路径 (4) 优先
+  3. **EmpathyBench + EQ-Bench 提交**（~$50 总，含人工 review）：填 model card / system prompt / generation config + 在 [`docs/external/`](external/) 留一份"我们的 EQ-Bench 跑分协议"公开说明；要求 marketing / 公关同步对接，**不在产品官网吹分数前先把 reproducibility 做对**
+  4. **跑分对照内部 6 族评估**：把 EQ-Bench 8 维 + EmpathyBench 维度 vs 我们 F2/F3 family 指标做 cross-walk（不暴露 F1-F6 内部 schema，只描述"对外 EQ-Bench 7 维都映射到 LSCB A2 子轴 8 项中的 7 项"）；产 `docs/external/lscb-eqbench-crosswalk.md`，给 LSCB RFC v0.2 做 evidence backing
+  5. **守红线**：
+     - openai_adapter 是 read-only facade；不允许任何外部调用反向写入 owner SSOT（与 #15 / #16 / #22 同 pattern；加 `tests/contracts/test_openai_adapter_no_kernel_writeback.py` 静态守门）
+     - 提交材料严禁泄露内部架构口径（NL/ETA/R-PE/regime/owner SSOT/F1-F6 内部分类名）；只发对外抽象（"long-context companion system with adaptive memory"等）
+     - 不在 system prompt 里塞 EQ-Bench / EmpathyBench / LSCB scenario derivative 文本（attestation 要求这条不能违反）
+- **优先级**：**中-高**（不阻塞代码运行，但阻塞融资节奏；建议在下一轮融资 kickoff 前 4-6 周启动）
+
+## 30. 人评类 chat arena（RP-Bench / Chatbot Arena / LSCB human track）参与 footprint 完全缺位
+
+- **路径**：
+  - 上游依赖：#29 OpenAI-compatible 适配 wheel（不先做 #29 的 (1)，本债的 (1)/(2)/(3) 都做不动）
+  - **缺位面**：
+    - 没有 [Chatbot Arena](https://lmarena.ai/) 入榜——任何 closed-API 系统都可以参与，我们的 lifeform-service / DLaaS chat endpoint 至今未提交
+    - 没有 [RP-Bench / Roleplay-Bench](https://huggingface.co/datasets/lazyweasel/roleplay-bench) 提交——这是**最贴近我们"EQ > IQ" 论点的人评 arena**（Gemma 4 26B / Mistral Small Creative 在人评榜领先大模型，正好对齐 small-but-relational > large-but-cold 的叙事）
+    - 没有 [`docs/external/`](external/) 之外的对外 channel（blog / arxiv preprint / huggingface space / demo space）让真实用户能"摸一下我们的 companion 模式"
+    - LSCB human track（[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md) §6.6）当前只是 RFC 中的 placeholder，没有 human annotator 招募协议 / 人评 UI / 人评数据 schema / 数据合规审查
+- **问题**：陪伴 AI 的产品命题——"系统让用户感觉到了什么"——本质上是 **subjective, human-rated, longitudinal** 的，正是 LLM-judge 类 benchmark 系统性测不准的部分。RP-Bench 的实证发现已经强证：**社区人评（Gemma 4 26B Elo 1535）系统性偏好"中型有人味"模型多于"大型大模型味"模型（GPT-4 / Claude 等）**，这恰好对齐我们的对外叙事。但我们没有任何人评 footprint：
+  - 没有 RP-Bench 提交 → "Volvence Zero 在 human-rated companion arena 排第几"是空白
+  - 没有 Chatbot Arena 入榜 → 600 万真人盲评的 reference 群体里我们不存在
+  - 没有 demo / preview channel → 即便投资人 / 媒体想"亲手试一下"，我们没有可指向的入口
+  - 没有自己的 human eval pipeline → LSCB human track 永远停留在"RFC 提议"阶段；任何竞品先建立 human-eval pipeline 就先占据"陪伴 AI 唯一有人评 footprint"的话语权
+- **违反**：不违反 R 铁律。与 #29 同属"对外证据面 + 商业话语权"债，与内核架构正交。
+- **风险**：
+  - **短期低**：不交人评不影响系统跑
+  - **中期高**：人评 arena 在 2026 年是"区分有人味系统 vs 套壳系统"的核心评估面；竞品（尤其是 character.ai / Replika 类）若先于我们建立人评 footprint，会拿走"唯一可证人味强"的话语
+  - **长期 = 品类定义权**：陪伴 AI 这条品类的话语权很可能不由"客观 EQ-Bench 第一"决定，而由"在人评类 arena 里实证 outperform 大模型"决定——RP-Bench 现状已经初步证明这条路径成立
+- **触发条件**：
+  - (a) 任何一次品牌侧 / PR 事件（产品发布会 / 媒体专访 / 行业大会演讲），需要"亲自试"入口
+  - (b) 战略合作方提出"先让我们的 PM / 设计师试 1 周再签 LOI"
+  - (c) 任何竞品（character.ai / Replika / 国产陪伴产品）先在 RP-Bench / Chatbot Arena 公开排名
+  - (d) #29 路径 (3) 公开提交跑分后，需要"客观 EQ-Bench 数字 + 人评 arena 排名"两手齐
+  - (e) LSCB RFC 进入 v0.2，需要对外能 cite 一份"已验证的 human-rating pipeline 实证 study"
+- **推荐修法**（依赖 #29 路径 (1)）：
+  1. **Chatbot Arena 提交**（~$0 + ~1 周对接）：基于 #29 (1) 的 OpenAI-compatible endpoint，按 [LMSYS submission docs](https://lmarena.ai/) 流程注册"VolvenceZero Companion Mode"——提交 model card 时**只描述外部能力**，不暴露内部架构；产 `docs/external/chatbot-arena-submission.md` 留 reproducibility note
+  2. **RP-Bench 跑分 + 提交**（~$50-100 + ~2 周）：跑 [HuggingFace lazyweasel/roleplay-bench](https://huggingface.co/datasets/lazyweasel/roleplay-bench) 的 1857 票 community 投票池；提交 prompt + config；**优先项**——这是与"EQ > IQ"叙事最对齐的 arena
+  3. **HuggingFace Space / Public demo**（~1-2 周）：在 hf.co/spaces 或自建 demo.volvencezero.ai 暴露 companion 模式的 limited-rate-public preview；要求 lifeform-service 加 demo-mode 限流 + 不持久化任何 user identity（隐私合规）
+  4. **LSCB human track 起步**（v0.3 时机）：
+     - 招募协议：用 Prolific / MTurk / Surge 招募 200+ annotator，时薪 ≥ 当地最低工资 1.5 倍；annotator 多样性约束（age / gender / native language）
+     - 人评 UI：开源 reference impl（Streamlit / Next.js），让 annotator 看 arc 录像 + 投 pairwise winner + 写 free-form rationale
+     - 数据合规：annotator 同意书 + IRB-equivalent review；评分数据匿名化；生成 training data 永远 forbidden（与 LSCB RFC §11 governance 对齐）
+     - 对外发布 first study：跑 ~10 个 reference systems（含我们自己的 anonymized variant + 几个 frontier 大模型 + 几个开源 small companion）→ 产业界第一份"长会话陪伴系统人评 study"
+  5. **守红线**：
+     - 所有对外 channel 严禁透露内部架构口径（与 #29 第 (5) 点同）；marketing 文本 review 流程加"内部架构术语黑名单"（NL/ETA/R-PE/regime/owner SSOT/F1-F6 等内部命名）
+     - 人评数据严禁回流任何 kernel owner 或 substrate training（避免把人评 arena 变成训练源 → 违反 R12 evaluation 单向性）
+     - 人评数据不构成 PII：annotator 个人信息单独存，与评分数据物理隔离
+- **优先级**：**中**（短期可独立推进 (1)/(2)/(3)；(4) 需要 LSCB RFC 进入 v0.3 才合时机；与 #29 互为前置/后置——两边都做才形成"客观分数 + 人评分数 + 自定 benchmark"三角防御）
 
 ---
 

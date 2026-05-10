@@ -39,6 +39,7 @@ dependencies = [
     "lifeform-domain-growth-advisor==0.1.*",
     "lifeform-service==0.1.*",
     "lifeform-evolution==0.1.*",
+    "lifeform-openai-compat==0.1.*",
     "dlaas-platform-contracts==0.1.*",
     "dlaas-platform-registry==0.1.*",
     "dlaas-platform-launcher==0.1.*",
@@ -74,6 +75,7 @@ lifeform-domain-coding = { workspace = true }
 lifeform-domain-growth-advisor = { workspace = true }
 lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
+lifeform-openai-compat = { workspace = true }
 dlaas-platform-contracts = { workspace = true }
 dlaas-platform-registry = { workspace = true }
 dlaas-platform-launcher = { workspace = true }

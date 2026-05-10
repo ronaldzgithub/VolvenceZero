@@ -112,6 +112,7 @@ Set-DefaultEnv 'ALPHA_MODE'            '1'
 Set-DefaultEnv 'MEMORY_SCOPE_ROOT_DIR' (Join-Path $RootDir '.local\browser_chat_memory')
 Set-DefaultEnv 'ALPHA_USERS_FILE'      ''
 Set-DefaultEnv 'EVIDENCE_ROOT_DIR'     ''
+Set-DefaultEnv 'TEMPLATES_ROOT_DIR'    (Join-Path $RootDir 'artifacts\lifeform-templates')
 
 Set-Location $RootDir
 
@@ -269,12 +270,14 @@ def main() -> int:
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
+    templates_root_dir = _env_str_or_none("TEMPLATES_ROOT_DIR")
     app = create_app(
         vertical=verticals[vertical_name],
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
         substrate_runtime=runtime,
         alpha_config=alpha_config,
+        templates_root_dir=templates_root_dir,
     )
     if alpha_config.enabled:
         allowlist_size = len(alpha_config.alpha_users)
@@ -298,6 +301,18 @@ def main() -> int:
         print(
             "[start-browser-chat-qwen] anonymous mode (ALPHA_MODE=0); "
             "no cross-session memory, no per-user scope.",
+            flush=True,
+        )
+    if templates_root_dir is not None:
+        print(
+            "[start-browser-chat-qwen] templates ENABLED "
+            f"templates_root_dir={templates_root_dir}",
+            flush=True,
+        )
+    else:
+        print(
+            "[start-browser-chat-qwen] templates DISABLED "
+            "(set TEMPLATES_ROOT_DIR to enable list/save in chat UI)",
             flush=True,
         )
     print(

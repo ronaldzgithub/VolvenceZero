@@ -13,7 +13,14 @@ dependencies = [
     "vz-application==0.1.*",
     "lifeform-core==0.1.*",
     "lifeform-ingestion==0.1.*",
+    "pypdf>=4.0",
+    "beautifulsoup4>=4.12",
+    "mwparserfromhell>=0.6",
+    "lxml>=5.0",
 ]
+
+[project.scripts]
+figure-bake = "lifeform_domain_figure.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

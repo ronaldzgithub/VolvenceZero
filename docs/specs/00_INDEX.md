@@ -420,6 +420,25 @@
 
 ---
 
+### 17D. Figure Corpus Cleaning Pipeline (L1)
+
+**对应需求**：R8（契约优先 / 快照优先）、R15（迁移可解释性 + 可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [figure-corpus-cleaning.md](./figure-corpus-cleaning.md) | `bytes -> RawDocument -> CleanedDocument` 全链；4 个 parser（CPAE PDF / Wikisource HTML / Project Gutenberg / Internet Archive OCR JSON）+ 6 个 cleaner op + content-addressable store + cleaner 版本化 + re-clean CLI + 桥接到既有 `*Payload` |
+
+**核心不变量**：
+
+- `cleaning/` 子包**禁止** import `Figure*Source` typed record（必须经 `cleaning/bridging.py` 二段式）
+- `cleaning/` 子包**禁止** import 任何 HTTP 客户端（cleaning 与 fetcher 解耦）
+- 每个 `CleaningOpRecord` 满足 `chars_after <= chars_before`（monotonically non-expanding）
+- raw bytes content-addressable by sha256；cleaner 版本目录（`v{N}/`）多版本共存，永不覆盖旧版
+
+来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）。本 spec 只覆盖 L1；L0 crawler frontier + L2 verification ledger 仍是 follow-up。
+
+---
+
 ### 18. Social Cognition Learning Layer
 
 **对应需求**：R16（多人身份学习）、R17（Theory of Mind owner 分解）、R18（会话角色学习）、R19（共同基础学习）、R20（群体实体学习）、R-PE、R1、R3/R4、R7、R8、R11、R14、R15

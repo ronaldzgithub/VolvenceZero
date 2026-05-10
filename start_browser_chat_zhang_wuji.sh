@@ -34,7 +34,7 @@ PYTHON_BIN="${PYTHON:-python}"
 
 # Honor existing env values; only set defaults when missing.
 export VERTICAL="${VERTICAL:-zhang_wuji}"
-export ZHANG_WUJI_TEMPLATE_PATH="${ZHANG_WUJI_TEMPLATE_PATH:-${ROOT_DIR}/artifacts/lifeform-templates/zhang-wuji-demo.json}"
+export ZHANG_WUJI_TEMPLATE_PATH="${ZHANG_WUJI_TEMPLATE_PATH:-${ROOT_DIR}/artifacts/lifeform-templates/zhang_wuji/zhang-wuji-demo.json}"
 
 if [[ "${ZHANG_WUJI_SKIP_TEMPLATE:-0}" == "1" ]]; then
   echo "[start-browser-chat-zhang-wuji] ZHANG_WUJI_SKIP_TEMPLATE=1 — using base profile (no give_birth)."

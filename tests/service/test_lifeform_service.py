@@ -86,6 +86,13 @@ async def test_chat_ui_is_served(client):
     assert "Volvence Zero Chat" in text
     assert "/v1/sessions" in text
     assert "dialogue-outcomes" in text
+    # Browser-chat template surface — dropdown + save-as-template button
+    # must be present so the UI can list/save templates without an
+    # extra deploy.
+    assert "templateSelect" in text
+    assert "saveTemplateBtn" in text
+    assert "/v1/templates" in text
+    assert "save-as-template" in text
 
 
 async def test_info_advertises_pre_trained_bootstraps(client):

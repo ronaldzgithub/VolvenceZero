@@ -56,6 +56,8 @@
 packages/lifeform-domain-figure/
 ```
 
+> **Corpus 字节流入口（debt #28 L1，2026-05-10 落地）**：当 V2 HTTPArchiveFetcher 接通真实字节流时，必须经 [`docs/specs/figure-corpus-cleaning.md`](./figure-corpus-cleaning.md) 描述的 L1 cleaning pipeline（`bytes -> RawDocument -> CleanedDocument` + content-addressable store）再经 `cleaning/bridging.py` 桥接到下表 P1.2 的 `FigureCorpusSource`。fetcher 不直接产 typed source；cleaner 不发 HTTP。
+
 公开 API（按 packet 渐进添加）：
 
 | Packet | 公开符号 |

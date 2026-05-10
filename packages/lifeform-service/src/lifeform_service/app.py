@@ -60,6 +60,7 @@ from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
+    TemplatesNotSupportedError,
 )
 from lifeform_service.verticals import VerticalSpec
 from volvence_zero.dialogue_trace import (
@@ -89,6 +90,7 @@ def create_app(
     idle_eviction_seconds: float | None = 60 * 30,
     substrate_runtime: "OpenWeightResidualRuntime | None" = None,
     alpha_config: AlphaServiceConfig | None = None,
+    templates_root_dir: str | None = None,
 ) -> web.Application:
     """Build the aiohttp Application that fronts a single vertical.
 
@@ -104,6 +106,12 @@ def create_app(
             When supplied, the runtime MUST be frozen
             (``supports_live_substrate_mutation == False``) \u2014 otherwise
             this constructor raises ``ValueError``.
+        templates_root_dir: filesystem root the chat-browser template
+            surface scans (``GET /v1/templates`` lists ``<root>/<vertical_subdir>/*.json``;
+            ``POST /v1/sessions`` accepts ``template_id``). ``None``
+            disables the template surface for this app instance even
+            if the vertical declares an adapter — useful for tests
+            that should not touch a shared on-disk template store.
     """
     if substrate_runtime is not None:
         _enforce_frozen_for_sharing(substrate_runtime)
@@ -113,8 +121,15 @@ def create_app(
         if alpha.enabled
         else None
     )
-    if alpha.enabled and vertical.alpha_factory is None:
-        raise ValueError(f"vertical {vertical.name!r} does not support alpha mode")
+    if alpha.enabled and vertical.alpha_factory is None and vertical.template_adapter is None:
+        raise ValueError(
+            f"vertical {vertical.name!r} does not support alpha mode "
+            "(no alpha_factory and no template_adapter)"
+        )
+    resolved_templates_root = _resolve_templates_root(
+        templates_root_dir=templates_root_dir,
+        vertical=vertical,
+    )
     manager = SessionManager(
         lifeform_factory=vertical.factory,
         alpha_lifeform_factory=vertical.alpha_factory if alpha.enabled else None,
@@ -124,16 +139,20 @@ def create_app(
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
         substrate_runtime=substrate_runtime,
+        template_adapter=vertical.template_adapter,
+        templates_root_dir=resolved_templates_root,
     )
     app = web.Application(middlewares=[_error_middleware])
     app["session_manager"] = manager
     app["vertical_spec"] = vertical
     app["substrate_runtime"] = substrate_runtime
     app["alpha_config"] = alpha
+    app["templates_root_dir"] = resolved_templates_root
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
     app.router.add_get("/v1/info", _handle_info)
+    app.router.add_get("/v1/templates", _handle_list_templates)
     app.router.add_post("/v1/sessions", _handle_create_session)
     app.router.add_delete("/v1/sessions/{session_id}", _handle_close_session)
     app.router.add_get("/v1/sessions/{session_id}/state", _handle_session_state)
@@ -144,6 +163,10 @@ def create_app(
     )
     app.router.add_post("/v1/sessions/{session_id}/pause", _handle_pause_session)
     app.router.add_post("/v1/sessions/{session_id}/end-scene", _handle_end_scene)
+    app.router.add_post(
+        "/v1/sessions/{session_id}/save-as-template",
+        _handle_save_as_template,
+    )
     app.router.add_get(
         "/v1/users/me/relationship-summary",
         _handle_relationship_summary,
@@ -155,6 +178,32 @@ def create_app(
     app.router.add_delete("/v1/users/me/memory", _handle_delete_user_memory)
     app.router.add_get("/v1/admin/weekly-report", _handle_admin_weekly_report)
     return app
+
+
+def _resolve_templates_root(
+    *,
+    templates_root_dir: str | None,
+    vertical: VerticalSpec,
+) -> Path | None:
+    """Compute the per-vertical templates directory.
+
+    Layout: ``<service_root>/<vertical_subdir>``. ``vertical_subdir``
+    defaults to ``vertical.name`` when ``vertical.template_subdir`` is
+    None; this gives every vertical a dedicated bucket so a future
+    multi-vertical service does not cross-list templates.
+
+    Returns ``None`` (template surface disabled) when either the
+    service-level root is unset or the vertical does not register a
+    template adapter.
+    """
+    if templates_root_dir is None or not templates_root_dir.strip():
+        return None
+    if vertical.template_adapter is None:
+        return None
+    subdir = (vertical.template_subdir or vertical.name).strip()
+    if not subdir:
+        return None
+    return Path(templates_root_dir).expanduser() / subdir
 
 
 def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
@@ -251,19 +300,47 @@ async def _handle_info(request: web.Request) -> web.Response:
 async def _handle_create_session(request: web.Request) -> web.Response:
     payload = await _maybe_json(request)
     requested_id = None
+    template_id: str | None = None
     if isinstance(payload, dict):
         raw = payload.get("session_id")
         if raw is not None and not isinstance(raw, str):
             raise _BadRequest("invalid_session_id", "session_id must be a string")
         if isinstance(raw, str):
             requested_id = raw
+        raw_tpl = payload.get("template_id")
+        if raw_tpl is not None and not isinstance(raw_tpl, str):
+            raise _BadRequest("invalid_template_id", "template_id must be a string")
+        if isinstance(raw_tpl, str) and raw_tpl.strip():
+            template_id = raw_tpl.strip()
     manager: SessionManager = request.app["session_manager"]
     spec: VerticalSpec = request.app["vertical_spec"]
     alpha: AlphaServiceConfig = request.app["alpha_config"]
     user_id = None
     if alpha.enabled:
         user_id = _alpha_user_id(request, payload)
-    session = await manager.create_session(session_id=requested_id, user_id=user_id)
+    try:
+        session = await manager.create_session(
+            session_id=requested_id,
+            user_id=user_id,
+            template_id=template_id,
+        )
+    except TemplatesNotSupportedError as exc:
+        return _json_error(
+            status=503, error="templates_not_supported", detail=str(exc)
+        )
+    except FileNotFoundError as exc:
+        return _json_error(
+            status=404, error="template_not_found", detail=str(exc)
+        )
+    except SessionAlreadyExistsError:
+        # Re-raise so the middleware's specific handler returns 409
+        # — SessionAlreadyExistsError extends ValueError so we MUST
+        # let it through before the generic ValueError catch below.
+        raise
+    except ValueError as exc:
+        return _json_error(
+            status=400, error="invalid_template_id", detail=str(exc)
+        )
     body = CreateSessionResponse(
         session_id=session.session_id,
         vertical=spec.name,
@@ -274,7 +351,108 @@ async def _handle_create_session(request: web.Request) -> web.Response:
         policy_version=alpha.policy_version if alpha.enabled else "",
         alpha_disclaimer=ALPHA_DISCLAIMER if alpha.enabled else "",
     )
-    return _json_ok(body.to_json(), status=201)
+    response_payload = body.to_json()
+    response_payload["template_id"] = template_id
+    return _json_ok(response_payload, status=201)
+
+
+async def _handle_list_templates(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    spec: VerticalSpec = request.app["vertical_spec"]
+    adapter = manager.template_adapter
+    root = manager.templates_root_dir
+    if adapter is None or root is None:
+        return _json_ok(
+            {
+                "vertical": spec.name,
+                "templates_supported": False,
+                "templates_root_dir": None,
+                "templates": [],
+            }
+        )
+    try:
+        items = adapter.list_templates(root)
+    except (NotADirectoryError, ValueError) as exc:
+        return _json_error(
+            status=500, error="templates_listing_failed", detail=str(exc)
+        )
+    return _json_ok(
+        {
+            "vertical": spec.name,
+            "templates_supported": True,
+            "templates_root_dir": str(root),
+            "templates": [item.to_json() for item in items],
+        }
+    )
+
+
+async def _handle_save_as_template(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    adapter = manager.template_adapter
+    root = manager.templates_root_dir
+    if adapter is None or root is None:
+        return _json_error(
+            status=503,
+            error="templates_not_supported",
+            detail=(
+                "vertical does not register a template adapter or service "
+                "has no templates_root_dir configured"
+            ),
+        )
+    payload = await _require_json(request)
+    raw_id = payload.get("template_id")
+    if not isinstance(raw_id, str) or not raw_id.strip():
+        raise _BadRequest(
+            "invalid_template_id", "template_id is required and must be a string"
+        )
+    template_id = raw_id.strip()
+    replay_provenance = payload.get("replay_provenance", "")
+    if not isinstance(replay_provenance, str):
+        raise _BadRequest(
+            "invalid_replay_provenance", "replay_provenance must be a string"
+        )
+    include_memory = payload.get("include_memory", True)
+    if not isinstance(include_memory, bool):
+        raise _BadRequest(
+            "invalid_include_memory", "include_memory must be a boolean"
+        )
+    overwrite_existing = payload.get("overwrite_existing", False)
+    if not isinstance(overwrite_existing, bool):
+        raise _BadRequest(
+            "invalid_overwrite_existing", "overwrite_existing must be a boolean"
+        )
+    session = await manager.get_session(session_id)
+    context = manager.template_context_for(session_id)
+    if context is None:
+        return _json_error(
+            status=409,
+            error="session_not_template_eligible",
+            detail=(
+                f"session {session_id!r} was created via the legacy factory "
+                "path and has no template context; recreate the session with "
+                "a template-aware vertical to enable save-as-template"
+            ),
+        )
+    try:
+        metadata = adapter.save_session_as_template(
+            session=session,
+            context=context,
+            root_dir=root,
+            template_id=template_id,
+            replay_provenance=replay_provenance,
+            include_memory=include_memory,
+            overwrite_existing=overwrite_existing,
+        )
+    except FileExistsError as exc:
+        return _json_error(
+            status=409, error="template_already_exists", detail=str(exc)
+        )
+    except (ValueError, TypeError) as exc:
+        return _json_error(
+            status=400, error="invalid_save_request", detail=str(exc)
+        )
+    return _json_ok({"saved": metadata.to_json()}, status=201)
 
 
 async def _handle_close_session(request: web.Request) -> web.Response:
@@ -762,6 +940,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
       background: #0f172a; color: #f9fafb;
     }
     input { padding: 8px 10px; min-width: 180px; }
+    select { padding: 8px 10px; min-width: 220px; }
     textarea { min-height: 64px; padding: 10px; resize: vertical; }
     button { padding: 8px 11px; cursor: pointer; background: #1d4ed8; border-color: #2563eb; }
     button.secondary { background: #111827; border-color: #4b5563; }
@@ -793,7 +972,11 @@ _CHAT_UI_HTML = r"""<!doctype html>
     <section class="bar">
       <input id="userId" placeholder="alpha user, e.g. alice">
       <input id="sessionId" placeholder="optional session_id">
+      <select id="templateSelect" title="Pick a saved lifeform template (optional)">
+        <option value="">no template (vertical default)</option>
+      </select>
       <button id="createBtn">Create Session</button>
+      <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
       <button id="endBtn" class="secondary" disabled>End Scene</button>
       <button id="clearBtn" class="secondary">Clear</button>
     </section>
@@ -814,6 +997,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
   <script>
     const state = {
       sessionId: null,
+      templatesSupported: false,
       debug: new URLSearchParams(window.location.search).get("debug") === "1",
     };
     const statusEl = document.getElementById("status");
@@ -821,10 +1005,12 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const inputEl = document.getElementById("input");
     const userIdEl = document.getElementById("userId");
     const sessionIdEl = document.getElementById("sessionId");
+    const templateSelectEl = document.getElementById("templateSelect");
     const createBtn = document.getElementById("createBtn");
     const sendBtn = document.getElementById("sendBtn");
     const endBtn = document.getElementById("endBtn");
     const clearBtn = document.getElementById("clearBtn");
+    const saveTemplateBtn = document.getElementById("saveTemplateBtn");
     const outcomeBtns = Array.from(document.querySelectorAll(".outcome"));
 
     function alphaHeaders() {
@@ -842,7 +1028,44 @@ _CHAT_UI_HTML = r"""<!doctype html>
       inputEl.disabled = !ready;
       sendBtn.disabled = !ready;
       endBtn.disabled = !ready;
+      saveTemplateBtn.disabled = !(ready && state.templatesSupported);
       outcomeBtns.forEach(btn => { btn.disabled = !ready; });
+    }
+    async function loadTemplates() {
+      try {
+        const payload = await requestJson("/v1/templates", { method: "GET" });
+        state.templatesSupported = Boolean(payload.templates_supported);
+        // Reset and refill the dropdown; preserve the leading "no template" option.
+        templateSelectEl.innerHTML = "";
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = state.templatesSupported
+          ? "no template (vertical default)"
+          : "templates not supported by this vertical";
+        templateSelectEl.appendChild(defaultOpt);
+        templateSelectEl.disabled = !state.templatesSupported;
+        if (!state.templatesSupported) return;
+        const items = Array.isArray(payload.templates) ? payload.templates : [];
+        for (const item of items) {
+          const opt = document.createElement("option");
+          opt.value = item.template_id;
+          const label = item.display_name && item.display_name.trim()
+            ? item.display_name
+            : item.template_id;
+          opt.textContent = item.description
+            ? `${item.template_id} — ${label} (${item.description})`
+            : `${item.template_id} — ${label}`;
+          templateSelectEl.appendChild(opt);
+        }
+        if (items.length === 0) {
+          addMessage(
+            "system",
+            `No templates found under ${payload.templates_root_dir || "<unset>"} — you can save the current session as one after a chat.`,
+          );
+        }
+      } catch (err) {
+        addMessage("system", `Failed to load templates: ${err.message}`);
+      }
     }
     async function requestJson(url, options = {}) {
       const response = await fetch(url, {
@@ -860,21 +1083,63 @@ _CHAT_UI_HTML = r"""<!doctype html>
       createBtn.disabled = true;
       try {
         const requested = sessionIdEl.value.trim();
-        const body = requested ? { session_id: requested } : {};
+        const templateId = templateSelectEl.value.trim();
+        const body = {};
+        if (requested) body.session_id = requested;
+        if (templateId) body.template_id = templateId;
         const payload = await requestJson(
           "/v1/sessions",
           { method: "POST", body: JSON.stringify(body) },
         );
         state.sessionId = payload.session_id;
-        statusEl.textContent = `Session ${state.sessionId} | vertical ${payload.vertical}`;
+        const templateLabel = payload.template_id ? ` | template ${payload.template_id}` : "";
+        statusEl.textContent = `Session ${state.sessionId} | vertical ${payload.vertical}${templateLabel}`;
         setReady(true);
-        addMessage("system", `Created session ${state.sessionId}`);
+        addMessage("system", `Created session ${state.sessionId}${templateLabel}`);
         if (payload.alpha_disclaimer) addMessage("system", payload.alpha_disclaimer);
         inputEl.focus();
       } catch (err) {
         addMessage("system", `Create failed: ${err.message}`);
       } finally {
         createBtn.disabled = false;
+      }
+    }
+    async function saveAsTemplate() {
+      if (!state.sessionId || !state.templatesSupported) return;
+      const defaultId = `chat-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const templateId = window.prompt(
+        "Save current session as template — enter a template id (filename, no extension):",
+        defaultId,
+      );
+      if (!templateId || !templateId.trim()) return;
+      const provenance = window.prompt(
+        "Optional: short provenance note (what was achieved in this chat?)",
+        "",
+      ) || "";
+      saveTemplateBtn.disabled = true;
+      try {
+        const payload = await requestJson(
+          `/v1/sessions/${encodeURIComponent(state.sessionId)}/save-as-template`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              template_id: templateId.trim(),
+              replay_provenance: provenance,
+              include_memory: true,
+              overwrite_existing: false,
+            }),
+          },
+        );
+        const saved = payload.saved || {};
+        addMessage(
+          "system",
+          `Saved template ${saved.template_id} -> ${saved.file_path}`,
+        );
+        await loadTemplates();
+      } catch (err) {
+        addMessage("system", `Save-as-template failed: ${err.message}`);
+      } finally {
+        saveTemplateBtn.disabled = !state.templatesSupported;
       }
     }
     async function sendTurn() {
@@ -938,6 +1203,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
     sendBtn.addEventListener("click", sendTurn);
     endBtn.addEventListener("click", endScene);
     clearBtn.addEventListener("click", () => { logEl.textContent = ""; });
+    saveTemplateBtn.addEventListener("click", saveAsTemplate);
     outcomeBtns.forEach(btn => btn.addEventListener("click", () => submitOutcome(btn.dataset.kind)));
     inputEl.addEventListener("keydown", event => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -945,6 +1211,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
         sendTurn();
       }
     });
+    loadTemplates();
   </script>
 </body>
 </html>
