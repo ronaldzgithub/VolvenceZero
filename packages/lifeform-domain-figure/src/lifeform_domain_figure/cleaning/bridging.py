@@ -20,11 +20,26 @@ The bridging functions are pure and own no state. They never touch
 the filesystem and never touch the cleaning store; the call site is
 expected to read the cleaned text from the store first (via
 ``CleaningStore.get_cleaned``) when they need persistence.
+
+Provenance bridge (debt #28 L2, recommendation 5)
+-------------------------------------------------
+
+In addition to the four ``cleaned_to_*_payload`` helpers, this
+module exposes :func:`cleaned_to_source_provenance` which propagates
+the L1 ``RawDocument.license_notice`` into the L2-facing
+:class:`SourceProvenance.license_label`. This is the single seam
+where parser-scraped license evidence flows into the verifier's
+input. The cleaned text's ``raw_sha256`` lands in
+:attr:`SourceProvenance.byte_sha256`, making the L1 / L2 chain
+content-addressable end-to-end.
 """
 
 from __future__ import annotations
 
-from lifeform_domain_figure.cleaning.raw_document import CleanedDocument
+from lifeform_domain_figure.cleaning.raw_document import (
+    CleanedDocument,
+    RawDocument,
+)
 from lifeform_domain_figure.corpus.archives.cpae import (
     CPAEDocumentKind,
     CPAEPayload,
@@ -34,6 +49,21 @@ from lifeform_domain_figure.corpus.archives.internet_archive import (
     InternetArchivePayload,
 )
 from lifeform_domain_figure.corpus.archives.wikisource import WikisourcePayload
+from lifeform_domain_figure.corpus.provenance import (
+    CaptureMethod,
+    LegalClearance,
+    SourceProvenance,
+)
+
+
+L1_LICENSE_SENTINEL = "(no license notice scraped)"
+"""Sentinel string written to ``SourceProvenance.license_label`` when
+neither the L1 parser scraped a license_notice nor the curator
+supplied a ``license_label_override``. The L2
+``LICENSE_PAGE_LEVEL`` verifier recognises this exact string and
+emits ``NEEDS_REVIEW`` so the bundle gate refuses the source under
+``require_verification_pass=True`` until a curator supplies a real
+label."""
 
 
 def cleaned_to_cpae_payload(
@@ -157,9 +187,74 @@ def cleaned_to_internet_archive_payload(
     )
 
 
+def cleaned_to_source_provenance(
+    cleaned: CleanedDocument,
+    raw: RawDocument,
+    *,
+    source_id: str,
+    figure_id: str,
+    source_url: str,
+    legal_clearance: LegalClearance,
+    capture_method: CaptureMethod,
+    captured_by: str,
+    captured_at_iso: str,
+    provenance_note: str,
+    license_label_override: str = "",
+    jurisdiction_hint: str = "",
+) -> SourceProvenance:
+    """Wrap a cleaned/raw pair as a :class:`SourceProvenance` for L2.
+
+    Forwards the L1 anchor ``raw.raw_sha256`` into
+    :attr:`SourceProvenance.byte_sha256` so the L1 cleaning store
+    and the L2 verification ledger share the same content-addressable
+    key for one source.
+
+    The ``license_label`` field resolves with priority:
+
+    1. ``license_label_override`` (curator-supplied; wins),
+    2. ``raw.license_notice`` (L1 parser-scraped; default),
+    3. :data:`L1_LICENSE_SENTINEL` (when neither is present; the
+       L2 ``LICENSE_PAGE_LEVEL`` verifier reads this sentinel and
+       returns ``NEEDS_REVIEW`` so the gate fails loudly).
+
+    The cleaned/raw mismatch in ``raw_sha256`` is also enforced so
+    callers cannot accidentally pair a ``CleanedDocument`` with a
+    ``RawDocument`` from a different source.
+    """
+
+    if cleaned.raw_sha256 != raw.raw_sha256:
+        raise ValueError(
+            f"cleaned_to_source_provenance: cleaned.raw_sha256 "
+            f"({cleaned.raw_sha256!r}) does not match raw.raw_sha256 "
+            f"({raw.raw_sha256!r}); refusing to fabricate a provenance "
+            f"record for mismatched cleaning anchors."
+        )
+    if license_label_override.strip():
+        license_label = license_label_override
+    elif raw.license_notice.strip():
+        license_label = raw.license_notice
+    else:
+        license_label = L1_LICENSE_SENTINEL
+    return SourceProvenance(
+        source_id=source_id,
+        figure_id=figure_id,
+        source_url=source_url,
+        license_label=license_label,
+        legal_clearance=legal_clearance,
+        capture_method=capture_method,
+        captured_by=captured_by,
+        captured_at_iso=captured_at_iso,
+        byte_sha256=raw.raw_sha256,
+        provenance_note=provenance_note,
+        jurisdiction_hint=jurisdiction_hint,
+    )
+
+
 __all__ = [
+    "L1_LICENSE_SENTINEL",
     "cleaned_to_cpae_payload",
     "cleaned_to_gutenberg_payload",
     "cleaned_to_internet_archive_payload",
+    "cleaned_to_source_provenance",
     "cleaned_to_wikisource_payload",
 ]

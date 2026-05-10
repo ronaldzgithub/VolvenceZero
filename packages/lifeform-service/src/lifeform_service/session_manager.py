@@ -40,10 +40,20 @@ from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform, LifeformSession
 from lifeform_service.alpha import AlphaIdentityProvider
+from lifeform_service.substrate_registry import (
+    SubstrateRuntimeProvider,
+    fixed_provider_from_runtime,
+)
 from lifeform_service.templates import (
     TemplateContext,
     VerticalTemplateAdapter,
 )
+from lifeform_service.vertical_registry import (
+    UnknownVerticalError,
+    VerticalNotAlphaCapableError,
+    VerticalRegistry,
+)
+from lifeform_service.verticals import VerticalSpec
 
 if TYPE_CHECKING:
     from volvence_zero.memory import IdentityProvider
@@ -54,6 +64,13 @@ if TYPE_CHECKING:
 class _SessionEntry:
     session: LifeformSession
     last_active_at: float
+    # Records which vertical built this session's lifeform. Save-as-
+    # template, listing handlers, and ops dashboards consult this so
+    # they route through the right vertical's template adapter rather
+    # than the service-level default. Empty string means a session
+    # created via the legacy single-factory ctor path (DLaaS launcher),
+    # in which case the manager's default vertical applies.
+    vertical_name: str = ""
     # Optional per-session payload produced by the vertical's template
     # adapter when this session was created via ``build_*_session_context``.
     # Sessions created via the legacy ``factory`` / ``alpha_factory`` path
@@ -67,7 +84,8 @@ class SessionManager:
     def __init__(
         self,
         *,
-        lifeform_factory: Callable[["OpenWeightResidualRuntime | None"], Lifeform],
+        lifeform_factory: Callable[["OpenWeightResidualRuntime | None"], Lifeform]
+        | None = None,
         alpha_lifeform_factory: Callable[
             ["OpenWeightResidualRuntime | None", "IdentityProvider", str | None],
             Lifeform,
@@ -75,35 +93,92 @@ class SessionManager:
         | None = None,
         alpha_identity_provider: AlphaIdentityProvider | None = None,
         alpha_memory_scope_root_dir: str | None = None,
-        vertical_name: str,
+        vertical_name: str | None = None,
         max_sessions: int = 256,
         idle_eviction_seconds: float | None = 60 * 30,
         clock: Callable[[], float] = time.monotonic,
         substrate_runtime: "OpenWeightResidualRuntime | None" = None,
+        substrate_provider: SubstrateRuntimeProvider | None = None,
         template_adapter: VerticalTemplateAdapter | None = None,
         templates_root_dir: pathlib.Path | None = None,
+        vertical_registry: VerticalRegistry | None = None,
     ) -> None:
-        self._factory = lifeform_factory
-        self._alpha_factory = alpha_lifeform_factory
+        """Construct a multi-vertical session manager.
+
+        Two construction shapes are accepted:
+
+        * **Multi-vertical (preferred)**: pass ``vertical_registry``.
+          ``create_session(vertical_name=...)`` then resolves the
+          factory per-call from the registry. The ``templates_root_dir``
+          is the *service-level* root (e.g. ``artifacts/lifeform-templates``);
+          per-vertical sub-directories are computed at call time
+          from each vertical's ``template_subdir`` field.
+        * **Single-vertical (legacy)**: pass ``lifeform_factory``,
+          ``alpha_lifeform_factory``, ``vertical_name``,
+          ``template_adapter`` and ``templates_root_dir`` (where
+          the latter is already vertical-resolved). This is the
+          shape ``dlaas-platform-launcher.InstanceManager`` uses;
+          the constructor synthesises a one-entry registry under
+          the hood so the rest of the class stays uniform.
+        """
+        if substrate_runtime is not None and substrate_provider is not None:
+            raise ValueError(
+                "SessionManager: pass substrate_runtime OR substrate_provider, not both"
+            )
+        if substrate_provider is None and substrate_runtime is not None:
+            # Back-compat shim for callers that still pass a single
+            # frozen runtime (notably ``dlaas-platform-launcher``'s
+            # ``InstanceManager``). Wraps the runtime in a fixed
+            # (non-swappable) provider so the rest of this class can
+            # uniformly consume a provider.
+            substrate_provider = fixed_provider_from_runtime(substrate_runtime)
+        self._registry, self._templates_root_dir = _resolve_registry_and_templates_root(
+            vertical_registry=vertical_registry,
+            lifeform_factory=lifeform_factory,
+            alpha_lifeform_factory=alpha_lifeform_factory,
+            vertical_name=vertical_name,
+            template_adapter=template_adapter,
+            templates_root_dir=templates_root_dir,
+            alpha_enabled=alpha_identity_provider is not None,
+        )
         self._alpha_identity_provider = alpha_identity_provider
         self._alpha_memory_scope_root_dir = alpha_memory_scope_root_dir
-        self._vertical_name = vertical_name
         self._max_sessions = max_sessions
         self._idle_eviction_seconds = idle_eviction_seconds
         self._clock = clock
-        self._substrate_runtime = substrate_runtime
-        self._template_adapter = template_adapter
-        self._templates_root_dir = templates_root_dir
+        self._substrate_provider = substrate_provider
         self._sessions: dict[str, _SessionEntry] = {}
         self._lock = asyncio.Lock()
 
     @property
+    def vertical_registry(self) -> VerticalRegistry:
+        return self._registry
+
+    @property
     def substrate_runtime(self) -> "OpenWeightResidualRuntime | None":
-        return self._substrate_runtime
+        """Return the *current* shared substrate runtime, if any.
+
+        Reads through the substrate provider on every access so
+        callers (notably ``dlaas-platform-launcher.InstanceManager``)
+        always see the post-swap runtime. We deliberately do NOT
+        cache the runtime locally — caching would re-introduce the
+        "second owner" anti-pattern the provider was built to avoid.
+        """
+        if self._substrate_provider is None:
+            return None
+        return self._substrate_provider.current_runtime
+
+    @property
+    def substrate_provider(self) -> SubstrateRuntimeProvider | None:
+        return self._substrate_provider
 
     @property
     def vertical_name(self) -> str:
-        return self._vertical_name
+        """Default vertical name. Per-session vertical lives on
+        :class:`_SessionEntry.vertical_name`; this property is only
+        the service-level default for routes / clients that don't
+        carry a session id."""
+        return self._registry.default_name
 
     @property
     def max_sessions(self) -> int:
@@ -139,11 +214,59 @@ class SessionManager:
 
     @property
     def template_adapter(self) -> VerticalTemplateAdapter | None:
-        return self._template_adapter
+        """Default vertical's template adapter (or None).
+
+        Per-session lookups should go through
+        :meth:`template_adapter_for` so save-as-template lands in
+        the right vertical's adapter even when sessions were
+        created against a non-default vertical.
+        """
+        return self._registry.default.template_adapter
 
     @property
     def templates_root_dir(self) -> pathlib.Path | None:
-        return self._templates_root_dir
+        """Default vertical's resolved templates directory (or None).
+
+        Returns the *per-vertical* path (service root + vertical
+        subdir). Per-session lookups should call
+        :meth:`templates_dir_for` instead.
+        """
+        return self.templates_dir_for(self._registry.default_name)
+
+    def template_adapter_for(
+        self, vertical_name: str
+    ) -> VerticalTemplateAdapter | None:
+        """Return the template adapter for ``vertical_name``, if any."""
+        spec = self._registry.get(vertical_name)
+        return spec.template_adapter if spec is not None else None
+
+    def templates_dir_for(self, vertical_name: str) -> pathlib.Path | None:
+        """Return the per-vertical templates directory.
+
+        Layout: ``<service_root>/<vertical.template_subdir or vertical.name>``.
+        Returns ``None`` when either the service has no templates
+        root configured or the vertical does not register a
+        template adapter.
+
+        Special case for legacy single-vertical construction: when
+        ``vertical.template_subdir`` is the empty string (set by
+        :func:`_resolve_registry_and_templates_root` when the caller
+        passed an already-resolved per-vertical root), this returns
+        the service-level root verbatim instead of appending an
+        empty path component.
+        """
+        if self._templates_root_dir is None:
+            return None
+        spec = self._registry.get(vertical_name)
+        if spec is None or spec.template_adapter is None:
+            return None
+        if spec.template_subdir == "":
+            # Legacy resolved-root path; return as-is.
+            return self._templates_root_dir
+        subdir = (spec.template_subdir or spec.name).strip()
+        if not subdir:
+            return None
+        return self._templates_root_dir / subdir
 
     def template_context_for(self, session_id: str) -> TemplateContext | None:
         """Return the per-session template context, if any.
@@ -156,30 +279,40 @@ class SessionManager:
             raise SessionNotFoundError(session_id)
         return entry.template_context
 
+    def vertical_name_for(self, session_id: str) -> str:
+        """Return which vertical built the session's lifeform.
+
+        Falls back to the registry's default for legacy sessions
+        whose entry didn't record a vertical (DLaaS path).
+        """
+        entry = self._sessions.get(session_id)
+        if entry is None:
+            raise SessionNotFoundError(session_id)
+        return entry.vertical_name or self._registry.default_name
+
     async def create_session(
         self,
         *,
         session_id: str | None = None,
         user_id: str | None = None,
         template_id: str | None = None,
+        vertical_name: str | None = None,
     ) -> LifeformSession:
         """Mint a new live session.
 
-        ``template_id`` selects how the underlying Lifeform is built:
+        ``vertical_name`` selects which vertical's factory builds
+        the underlying Lifeform; ``None`` means use the registry's
+        default. Unknown / alpha-incompatible verticals raise
+        typed exceptions the route layer maps to HTTP 422.
 
-        * ``None`` (default) — use the vertical's legacy
-          ``factory`` / ``alpha_factory``. No save-as-template
-          context is captured for this session.
+        ``template_id`` selects how the Lifeform is built:
+
+        * ``None`` (default) — adapter-aware default path when the
+          chosen vertical has a template adapter (so save-as-template
+          remains possible); otherwise the vertical's legacy factory.
         * non-empty + adapter present — route through
           ``adapter.build_session_context_from_template`` so the
-          session inherits the saved profile / drives, and a
-          :class:`TemplateContext` is stashed for save-back.
-
-        Sessions whose vertical declares a ``template_adapter`` AND
-        no ``template_id`` was passed go through
-        ``adapter.build_default_session_context`` so save-as-template
-        works even for "fresh start" sessions. Verticals without an
-        adapter always go through the legacy factory path.
+          session inherits the saved profile / drives.
         """
         async with self._lock:
             self._evict_idle_locked()
@@ -188,60 +321,86 @@ class SessionManager:
             sid = session_id or self._fresh_session_id()
             if sid in self._sessions:
                 raise SessionAlreadyExistsError(sid)
+
+            chosen_name = (vertical_name or self._registry.default_name).strip()
+            chosen_spec = self._registry.require(chosen_name)
             alpha_enabled = self._alpha_identity_provider is not None
             identity_provider: "IdentityProvider | None" = None
             if alpha_enabled:
                 if user_id is None:
                     raise ValueError("alpha sessions require user_id")
+                if (
+                    chosen_spec.alpha_factory is None
+                    and chosen_spec.template_adapter is None
+                ):
+                    raise VerticalNotAlphaCapableError(
+                        f"vertical {chosen_name!r} has no alpha_factory or "
+                        "template_adapter; pick a different vertical or "
+                        "disable alpha mode"
+                    )
                 self._alpha_identity_provider.bind_session(
                     session_id=sid,
                     user_id=user_id,
                 )
                 identity_provider = self._alpha_identity_provider
-                if self._alpha_factory is None and self._template_adapter is None:
-                    raise ValueError("vertical does not support alpha identity")
+
+            # Resolve runtime via the provider so post-swap session
+            # creation always lands on the current model. Reading inside
+            # the lock keeps concurrent swap attempts ordered relative
+            # to session creation: a swap that holds the provider's
+            # internal lock blocks here only if it was already
+            # mid-flight.
+            runtime = (
+                self._substrate_provider.current_runtime
+                if self._substrate_provider is not None
+                else None
+            )
+
+            adapter = chosen_spec.template_adapter
+            adapter_dir = self.templates_dir_for(chosen_name)
 
             template_context: TemplateContext | None = None
             if template_id is not None and template_id.strip():
-                if self._template_adapter is None:
+                if adapter is None or adapter_dir is None:
                     raise TemplatesNotSupportedError(
-                        f"vertical {self._vertical_name!r} does not support "
-                        "templates (no adapter registered)"
+                        f"vertical {chosen_name!r} does not support "
+                        "templates (no adapter or no templates_root_dir)"
                     )
-                if self._templates_root_dir is None:
-                    raise TemplatesNotSupportedError(
-                        "service has no templates_root_dir configured"
-                    )
-                life, template_context = self._template_adapter.build_session_context_from_template(
-                    root_dir=self._templates_root_dir,
+                life, template_context = adapter.build_session_context_from_template(
+                    root_dir=adapter_dir,
                     template_id=template_id.strip(),
-                    runtime=self._substrate_runtime,
+                    runtime=runtime,
                     identity_provider=identity_provider,
                     memory_scope_root_dir=self._alpha_memory_scope_root_dir,
                     alpha_enabled=alpha_enabled,
                 )
-            elif self._template_adapter is not None and self._templates_root_dir is not None:
+            elif adapter is not None and adapter_dir is not None:
                 # Adapter-aware default path so save-as-template can capture
                 # this session even though it started from the vertical
                 # default profile.
-                life, template_context = self._template_adapter.build_default_session_context(
-                    runtime=self._substrate_runtime,
+                life, template_context = adapter.build_default_session_context(
+                    runtime=runtime,
                     identity_provider=identity_provider,
                     memory_scope_root_dir=self._alpha_memory_scope_root_dir,
                     alpha_enabled=alpha_enabled,
                 )
             elif alpha_enabled:
-                life = self._alpha_factory(
-                    self._substrate_runtime,
+                if chosen_spec.alpha_factory is None:
+                    raise VerticalNotAlphaCapableError(
+                        f"vertical {chosen_name!r} has no alpha_factory"
+                    )
+                life = chosen_spec.alpha_factory(
+                    runtime,
                     self._alpha_identity_provider,
                     self._alpha_memory_scope_root_dir,
                 )
             else:
-                life = self._factory(self._substrate_runtime)
+                life = chosen_spec.factory(runtime)
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,
                 last_active_at=self._clock(),
+                vertical_name=chosen_name,
                 template_context=template_context,
             )
             return session
@@ -263,6 +422,36 @@ class SessionManager:
     async def has_session(self, session_id: str) -> bool:
         async with self._lock:
             return session_id in self._sessions
+
+    def close_all_sessions_sync(self) -> int:
+        """Drop every live session, returning the count.
+
+        Wired as the substrate provider's pre-swap callback. Must be
+        synchronous because :meth:`SubstrateRuntimeProvider.swap`
+        runs the callback inside its own ``asyncio.Lock``-guarded
+        critical section and does not await it.
+
+        Important: we deliberately do **not** acquire ``self._lock``
+        here. The provider's swap path serialises swaps, so we are
+        already in a single-flight context; acquiring the manager
+        lock from a non-async function would deadlock if any
+        concurrent ``create_session`` is mid-flight on the same
+        loop. The session dict mutation is a constant-time Python
+        operation that releases the GIL only at well-defined
+        boundaries — safe to perform from the swap caller.
+
+        In-flight HTTP turns that already hold a reference to a
+        session continue running against the (now-unreferenced)
+        session object until they complete; their substrate
+        reference points at the OLD runtime which Python's GC keeps
+        alive until the last reference drops. Subsequent requests
+        for a closed ``session_id`` raise ``SessionNotFoundError``.
+        """
+        count = len(self._sessions)
+        if self._alpha_identity_provider is not None:
+            self._alpha_identity_provider.clear_all_sessions()
+        self._sessions.clear()
+        return count
 
     # ------------------------------------------------------------------
     # Internals
@@ -309,3 +498,70 @@ class SessionAlreadyExistsError(ValueError):
 class TemplatesNotSupportedError(LookupError):
     """Raised when a template operation is requested on a vertical that
     does not register a :class:`VerticalTemplateAdapter`."""
+
+
+def _resolve_registry_and_templates_root(
+    *,
+    vertical_registry: VerticalRegistry | None,
+    lifeform_factory: Callable[..., Lifeform] | None,
+    alpha_lifeform_factory: Callable[..., Lifeform] | None,
+    vertical_name: str | None,
+    template_adapter: VerticalTemplateAdapter | None,
+    templates_root_dir: pathlib.Path | None,
+    alpha_enabled: bool,
+) -> tuple[VerticalRegistry, pathlib.Path | None]:
+    """Resolve the constructor's two shapes into a registry + root.
+
+    The new shape (preferred) passes ``vertical_registry`` directly
+    plus an *unresolved* service-level ``templates_root_dir``;
+    per-vertical sub-dir computation lives in
+    :meth:`SessionManager.templates_dir_for`.
+
+    The legacy shape (DLaaS launcher / single-vertical tests) passes
+    explicit ``lifeform_factory`` / ``alpha_lifeform_factory`` /
+    ``vertical_name`` / ``template_adapter`` / ``templates_root_dir``
+    where ``templates_root_dir`` may already be the per-vertical
+    resolved path. We synthesise a one-entry registry with an empty
+    ``template_subdir`` so :meth:`templates_dir_for` returns the
+    legacy path verbatim instead of double-appending.
+    """
+    if vertical_registry is not None:
+        if any(
+            arg is not None
+            for arg in (
+                lifeform_factory,
+                alpha_lifeform_factory,
+                vertical_name,
+                template_adapter,
+            )
+        ):
+            raise ValueError(
+                "SessionManager: vertical_registry is mutually exclusive "
+                "with lifeform_factory / alpha_lifeform_factory / "
+                "vertical_name / template_adapter (the legacy single-"
+                "vertical args)"
+            )
+        return vertical_registry, templates_root_dir
+    if lifeform_factory is None or vertical_name is None:
+        raise ValueError(
+            "SessionManager requires either vertical_registry OR "
+            "(lifeform_factory + vertical_name)"
+        )
+    legacy_spec = VerticalSpec(
+        name=vertical_name,
+        factory=lifeform_factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_lifeform_factory,
+        template_adapter=template_adapter,
+        # Empty subdir: the caller already resolved the per-vertical
+        # path into ``templates_root_dir`` (this is how DLaaS launcher
+        # and single-vertical tests have always passed it). Empty
+        # subdir tells :meth:`templates_dir_for` to return the root
+        # verbatim instead of joining a sub-directory.
+        template_subdir="",
+    )
+    return (
+        VerticalRegistry.single(legacy_spec, alpha_enabled=alpha_enabled),
+        templates_root_dir,
+    )

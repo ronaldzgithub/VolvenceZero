@@ -35,10 +35,12 @@ from volvence_zero.application import (
     PlaybookRule,
 )
 
+from lifeform_domain_figure.corpus.provenance import SourceProvenance
 from lifeform_domain_figure.coverage_map import (
     FigureCoverageMap,
     build_figure_coverage_map,
 )
+from lifeform_domain_figure.metadata.records import MetadataDigest
 from lifeform_domain_figure.figure_artifact import (
     FigureArtifactBundle,
     SCHEMA_VERSION,
@@ -59,6 +61,11 @@ from lifeform_domain_figure.retrieval_index import (
 from lifeform_domain_figure.style_prior import (
     FigureStylePrior,
     build_figure_style_prior,
+)
+from lifeform_domain_figure.verification import (
+    VerificationGateError,
+    VerificationLedger,
+    assert_all_provenances_pass,
 )
 
 
@@ -141,6 +148,19 @@ class FigureBundleInputs:
     LoRA artifacts: callers populate the optional fields when those
     artifacts have been baked, and the builder re-uses the same hash
     discipline.
+
+    L2 verification gate (debt #28 L2 first batch):
+
+    * ``provenance_records`` — tuple of :class:`SourceProvenance`
+      records the curator declares cover every shipped source. The
+      gate iterates these (not the envelopes) because provenance is
+      the audit-bearing record.
+    * ``verification_ledger`` — content-addressable
+      :class:`VerificationLedger` of past verifier verdicts.
+    * ``require_verification_pass`` — when ``True``, the builder
+      calls :func:`assert_all_provenances_pass` before assembling
+      anything; ``False`` (default) leaves all existing callers
+      unaffected.
     """
 
     profile: HistoricalFigureProfile
@@ -149,6 +169,10 @@ class FigureBundleInputs:
     time_window_id: str | None = None
     steering: object | None = None
     lora: object | None = None
+    provenance_records: tuple[SourceProvenance, ...] = ()
+    verification_ledger: VerificationLedger | None = None
+    require_verification_pass: bool = False
+    metadata_digest: MetadataDigest | None = None
 
 
 def build_figure_artifact_bundle(
@@ -158,6 +182,12 @@ def build_figure_artifact_bundle(
 
     Steps:
 
+    0. (L2 gate, debt #28) When
+       ``inputs.require_verification_pass`` is ``True``, refuse to
+       proceed unless every supplied :class:`SourceProvenance` has
+       all-PASS verdicts in :class:`VerificationLedger` for every
+       :data:`IMPLEMENTED_CHECK_KINDS`. Raises
+       :class:`VerificationGateError` with the full failure manifest.
     1. Apply the optional time window selection on the profile.
     2. Build the :class:`DomainExperiencePackage` + ``VitalsBootstrap``.
     3. Build the F2 artifacts (retrieval / coverage / style) from the
@@ -165,6 +195,20 @@ def build_figure_artifact_bundle(
     4. Compute the deterministic integrity hash and bundle id.
     """
 
+    if inputs.require_verification_pass:
+        if inputs.verification_ledger is None:
+            raise VerificationGateError(
+                "build_figure_artifact_bundle: require_verification_pass=True "
+                "but verification_ledger is None; cannot consult ledger."
+            )
+        if not inputs.provenance_records:
+            raise VerificationGateError(
+                "build_figure_artifact_bundle: require_verification_pass=True "
+                "but provenance_records is empty; nothing to gate."
+            )
+        assert_all_provenances_pass(
+            inputs.provenance_records, inputs.verification_ledger
+        )
     selected = inputs.profile.select_window(inputs.time_window_id)
     domain_package = build_figure_package(selected)
     vitals_bootstrap = build_figure_vitals_bootstrap(selected)
@@ -185,6 +229,9 @@ def build_figure_artifact_bundle(
     version_window = _resolve_version_window(selected, inputs.time_window_id)
     steering_integrity = _artifact_integrity(inputs.steering)
     lora_integrity = _artifact_integrity(inputs.lora)
+    metadata_digest_fingerprint = (
+        inputs.metadata_digest.fingerprint if inputs.metadata_digest is not None else ""
+    )
     integrity_hash = compute_bundle_integrity_hash(
         figure_id=selected.profile_id,
         profile_version=selected.version,
@@ -194,6 +241,7 @@ def build_figure_artifact_bundle(
         style_integrity=style_prior.integrity_hash,
         steering_integrity=steering_integrity,
         lora_integrity=lora_integrity,
+        metadata_digest_fingerprint=metadata_digest_fingerprint,
     )
     return FigureArtifactBundle(
         schema_version=SCHEMA_VERSION,
@@ -210,6 +258,7 @@ def build_figure_artifact_bundle(
         steering=inputs.steering,
         lora=inputs.lora,
         integrity_hash=integrity_hash,
+        metadata_digest_fingerprint=metadata_digest_fingerprint,
     )
 
 
@@ -236,6 +285,7 @@ def attach_steering_to_bundle(
         style_integrity=bundle.style_prior.integrity_hash,
         steering_integrity=steering_integrity,
         lora_integrity=_artifact_integrity(bundle.lora),
+        metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
     )
     return _replace(
         bundle,
@@ -262,6 +312,7 @@ def attach_lora_to_bundle(
         style_integrity=bundle.style_prior.integrity_hash,
         steering_integrity=_artifact_integrity(bundle.steering),
         lora_integrity=lora_integrity,
+        metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
     )
     return _replace(
         bundle,

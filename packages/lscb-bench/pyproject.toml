@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lscb-bench"
+version = "1.0.0a0"
+description = "Long-Session Companion Benchmark (LSCB) reference implementation. Evaluates any OpenAI-compatible chat endpoint on multi-session companion arcs across six axes (continuity, repair, personalization, long-absence, boundary, goal-drift). See docs/external/lscb-rfc-v0.md for the methodology RFC."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "LSCB Contributors" }]
+keywords = ["benchmark", "evaluation", "companion-ai", "long-session", "lscb"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "pyyaml>=6.0",
+    "trueskill>=0.4.5",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+lscb-bench = "lscb_bench.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lscb_bench*"]
+
+[tool.setuptools.package-data]
+lscb_bench = ["scenarios/public/*.yaml", "scenarios/public/**/*.yaml"]

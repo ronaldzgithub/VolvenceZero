@@ -72,6 +72,16 @@
       MEMORY_SCOPE_ROOT_DIR=<repo>\.local\browser_chat_memory
       ALPHA_USERS_FILE=                        # optional JSON allowlist
       EVIDENCE_ROOT_DIR=                       # optional alpha evidence dir
+      HF_HOME=<repo>\.local\hf-cache           # where HuggingFace caches model
+                                               # weights (15+ GB per 7B Qwen).
+                                               # Defaults to a per-repo cache so
+                                               # downloads land on whichever
+                                               # drive the checkout sits on; on
+                                               # this machine the repo lives on
+                                               # D so the cache also goes to D.
+                                               # Set $env:HF_HOME='' to fall
+                                               # back to the system default at
+                                               # ~\.cache\huggingface.
       PYTHON=python                            # interpreter to use
 #>
 
@@ -113,6 +123,21 @@ Set-DefaultEnv 'MEMORY_SCOPE_ROOT_DIR' (Join-Path $RootDir '.local\browser_chat_
 Set-DefaultEnv 'ALPHA_USERS_FILE'      ''
 Set-DefaultEnv 'EVIDENCE_ROOT_DIR'     ''
 Set-DefaultEnv 'TEMPLATES_ROOT_DIR'    (Join-Path $RootDir 'artifacts\lifeform-templates')
+Set-DefaultEnv 'MODEL_ID_ALLOWLIST'    ''
+
+# HuggingFace cache directory. We distinguish "unset" from "empty" so
+# the operator can opt into the system default (~\.cache\huggingface)
+# by setting $env:HF_HOME='' explicitly. Default = per-repo cache,
+# which puts model weights on the same drive as the checkout. The
+# Set-DefaultEnv helper above does NOT distinguish unset/empty, so
+# we hand-roll the check here.
+$existingHfHome = [Environment]::GetEnvironmentVariable('HF_HOME', 'Process')
+if ($null -eq $existingHfHome) {
+    $env:HF_HOME = Join-Path $RootDir '.local\hf-cache'
+}
+if (-not [string]::IsNullOrEmpty($env:HF_HOME)) {
+    New-Item -ItemType Directory -Path $env:HF_HOME -Force | Out-Null
+}
 
 Set-Location $RootDir
 
@@ -151,6 +176,8 @@ $chatUrl = "http://$($env:HOST):$($env:PORT)/chat"
 
 Write-Host "[start-browser-chat-qwen] model=$($env:MODEL_ID)"
 Write-Host "[start-browser-chat-qwen] device=$($env:DEVICE) local_files_only=$($env:LOCAL_FILES_ONLY)"
+$hfHomeLabel = if ([string]::IsNullOrEmpty($env:HF_HOME)) { '<system default>' } else { $env:HF_HOME }
+Write-Host "[start-browser-chat-qwen] hf_home=$hfHomeLabel"
 Write-Host "[start-browser-chat-qwen] url=$chatUrl"
 
 if ($env:OPEN_BROWSER -eq '1') {
@@ -179,6 +206,10 @@ from lifeform_service.alpha import (
     load_alpha_users,
 )
 from lifeform_service.app import create_app
+from lifeform_service.substrate_registry import (
+    build_qwen_runtime_loader,
+    build_substrate_provider_from_env,
+)
 from lifeform_service.verticals import default_vertical_name, discover_verticals
 from volvence_zero.substrate import SubstrateFallbackMode, build_transformers_runtime_with_fallback
 
@@ -244,16 +275,19 @@ def main() -> int:
         )
         return 1
 
-    vertical_name = requested_vertical or default_vertical_name()
-    if vertical_name not in verticals:
-        print(f"Unknown vertical {vertical_name!r}. Available: {sorted(verticals)}", file=sys.stderr)
+    default_vertical = requested_vertical or default_vertical_name()
+    if default_vertical not in verticals:
+        print(
+            f"Unknown VERTICAL={default_vertical!r}. Available: {sorted(verticals)}",
+            file=sys.stderr,
+        )
         return 1
 
     alpha_config = _build_alpha_config()
-    if alpha_config.enabled and verticals[vertical_name].alpha_factory is None:
+    if alpha_config.enabled and verticals[default_vertical].alpha_factory is None:
         print(
-            f"vertical {vertical_name!r} does not support alpha mode; "
-            "set ALPHA_MODE=0 to fall back to anonymous in-memory sessions.",
+            f"default vertical {default_vertical!r} does not support alpha mode; "
+            "pick a different VERTICAL or set ALPHA_MODE=0.",
             file=sys.stderr,
         )
         return 1
@@ -270,12 +304,25 @@ def main() -> int:
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
+    runtime_loader = build_qwen_runtime_loader(
+        device=device,
+        local_files_only=local_files_only,
+        fallback_mode=SubstrateFallbackMode.DENY,
+    )
+    substrate_provider = build_substrate_provider_from_env(
+        initial_runtime=runtime,
+        initial_model_id=model_id,
+        runtime_loader=runtime_loader,
+        allowlist_env=_env_str_or_none("MODEL_ID_ALLOWLIST"),
+    )
+
     templates_root_dir = _env_str_or_none("TEMPLATES_ROOT_DIR")
     app = create_app(
-        vertical=verticals[vertical_name],
+        verticals=verticals,
+        default_vertical=default_vertical,
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
-        substrate_runtime=runtime,
+        substrate_provider=substrate_provider,
         alpha_config=alpha_config,
         templates_root_dir=templates_root_dir,
     )
@@ -315,9 +362,21 @@ def main() -> int:
             "(set TEMPLATES_ROOT_DIR to enable list/save in chat UI)",
             flush=True,
         )
+    available_models = ", ".join(
+        spec.model_id for spec in substrate_provider.available
+    )
+    print(
+        "[start-browser-chat-qwen] substrate-swap ENABLED "
+        f"current={substrate_provider.current_model_id} "
+        f"allowlist=[{available_models}]",
+        flush=True,
+    )
+    available_verticals = ", ".join(sorted(verticals))
     print(
         "[start-browser-chat-qwen] ready "
-        f"vertical={vertical_name} model_id={model_id} runtime_origin={runtime_origin}",
+        f"default_vertical={default_vertical} "
+        f"verticals=[{available_verticals}] "
+        f"model_id={model_id} runtime_origin={runtime_origin}",
         flush=True,
     )
     print(f"[start-browser-chat-qwen] listening on http://{host}:{port}/chat", flush=True)

@@ -75,6 +75,18 @@
 #   TEMPLATES_ROOT_DIR=$ROOT_DIR/artifacts/lifeform-templates
 #                                            # chat UI lists/saves templates
 #                                            # under <root>/<vertical>/*.json
+#   MODEL_ID_ALLOWLIST=                      # comma-separated extra Qwen ids
+#                                            # for the chat UI's "Switch Model"
+#                                            # dropdown; empty = curated default
+#   HF_HOME=$ROOT_DIR/.local/hf-cache        # where HuggingFace caches model
+#                                            # weights / tokenizers / datasets.
+#                                            # Default lives next to the repo so
+#                                            # the cache lands on whichever drive
+#                                            # the checkout sits on (15+ GB per
+#                                            # 7B Qwen — set this to a drive
+#                                            # with headroom). Set HF_HOME=""
+#                                            # to fall back to the system default
+#                                            # (~/.cache/huggingface).
 
 set -euo pipefail
 
@@ -100,6 +112,25 @@ export EVIDENCE_ROOT_DIR="${EVIDENCE_ROOT_DIR:-}"
 # by examples/train_zhang_wuji_template.py so existing zhang-wuji
 # templates show up automatically.
 export TEMPLATES_ROOT_DIR="${TEMPLATES_ROOT_DIR:-${ROOT_DIR}/artifacts/lifeform-templates}"
+# Substrate hot-swap: comma-separated list of additional Qwen variants
+# the chat UI's "Switch Model" dropdown advertises. Empty = the
+# curated default lineup (1.5B / 3B / 7B / 14B Qwen2.5 Instruct).
+# MODEL_ID is always added in addition to this list so the startup
+# model is never locked out of its own dropdown.
+export MODEL_ID_ALLOWLIST="${MODEL_ID_ALLOWLIST:-}"
+
+# HuggingFace cache location. Default to a per-repo cache so model
+# weights land on whatever drive the checkout sits on (typical 7B
+# Qwen download is ~15 GB). Setting HF_HOME="" explicitly opts into
+# the system default (``~/.cache/huggingface``); leaving it unset
+# uses our per-repo default below. ``HF_HUB_CACHE`` is derived from
+# ``HF_HOME`` automatically by huggingface_hub.
+if [[ -z "${HF_HOME+x}" ]]; then
+  export HF_HOME="${ROOT_DIR}/.local/hf-cache"
+fi
+if [[ -n "${HF_HOME}" ]]; then
+  mkdir -p "${HF_HOME}"
+fi
 
 cd "$ROOT_DIR"
 
@@ -119,6 +150,7 @@ CHAT_URL="http://${HOST}:${PORT}/chat"
 
 echo "[start-browser-chat-qwen] model=${MODEL_ID}"
 echo "[start-browser-chat-qwen] device=${DEVICE} local_files_only=${LOCAL_FILES_ONLY}"
+echo "[start-browser-chat-qwen] hf_home=${HF_HOME:-<system default>}"
 echo "[start-browser-chat-qwen] url=${CHAT_URL}"
 
 if [[ "$OPEN_BROWSER" == "1" ]] && command -v open >/dev/null 2>&1; then
@@ -138,6 +170,10 @@ from lifeform_service.alpha import (
     load_alpha_users,
 )
 from lifeform_service.app import create_app
+from lifeform_service.substrate_registry import (
+    build_qwen_runtime_loader,
+    build_substrate_provider_from_env,
+)
 from lifeform_service.verticals import default_vertical_name, discover_verticals
 from volvence_zero.substrate import SubstrateFallbackMode, build_transformers_runtime_with_fallback
 
@@ -203,16 +239,19 @@ def main() -> int:
         )
         return 1
 
-    vertical_name = requested_vertical or default_vertical_name()
-    if vertical_name not in verticals:
-        print(f"Unknown vertical {vertical_name!r}. Available: {sorted(verticals)}", file=sys.stderr)
+    default_vertical = requested_vertical or default_vertical_name()
+    if default_vertical not in verticals:
+        print(
+            f"Unknown VERTICAL={default_vertical!r}. Available: {sorted(verticals)}",
+            file=sys.stderr,
+        )
         return 1
 
     alpha_config = _build_alpha_config()
-    if alpha_config.enabled and verticals[vertical_name].alpha_factory is None:
+    if alpha_config.enabled and verticals[default_vertical].alpha_factory is None:
         print(
-            f"vertical {vertical_name!r} does not support alpha mode; "
-            "set ALPHA_MODE=0 to fall back to anonymous in-memory sessions.",
+            f"default vertical {default_vertical!r} does not support alpha mode; "
+            "pick a different VERTICAL or set ALPHA_MODE=0.",
             file=sys.stderr,
         )
         return 1
@@ -229,12 +268,29 @@ def main() -> int:
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
+    # Hot-swap-capable provider so the chat UI can switch Qwen
+    # variants at runtime. The loader closure captures device /
+    # local-files / fallback-mode once so swap requests don't need
+    # to re-thread those parameters.
+    runtime_loader = build_qwen_runtime_loader(
+        device=device,
+        local_files_only=local_files_only,
+        fallback_mode=SubstrateFallbackMode.DENY,
+    )
+    substrate_provider = build_substrate_provider_from_env(
+        initial_runtime=runtime,
+        initial_model_id=model_id,
+        runtime_loader=runtime_loader,
+        allowlist_env=_env_str_or_none("MODEL_ID_ALLOWLIST"),
+    )
+
     templates_root_dir = _env_str_or_none("TEMPLATES_ROOT_DIR")
     app = create_app(
-        vertical=verticals[vertical_name],
+        verticals=verticals,
+        default_vertical=default_vertical,
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
-        substrate_runtime=runtime,
+        substrate_provider=substrate_provider,
         alpha_config=alpha_config,
         templates_root_dir=templates_root_dir,
     )
@@ -274,9 +330,21 @@ def main() -> int:
             "(set TEMPLATES_ROOT_DIR to enable list/save in chat UI)",
             flush=True,
         )
+    available_models = ", ".join(
+        spec.model_id for spec in substrate_provider.available
+    )
+    print(
+        "[start-browser-chat-qwen] substrate-swap ENABLED "
+        f"current={substrate_provider.current_model_id} "
+        f"allowlist=[{available_models}]",
+        flush=True,
+    )
+    available_verticals = ", ".join(sorted(verticals))
     print(
         "[start-browser-chat-qwen] ready "
-        f"vertical={vertical_name} model_id={model_id} runtime_origin={runtime_origin}",
+        f"default_vertical={default_vertical} "
+        f"verticals=[{available_verticals}] "
+        f"model_id={model_id} runtime_origin={runtime_origin}",
         flush=True,
     )
     print(f"[start-browser-chat-qwen] listening on http://{host}:{port}/chat", flush=True)

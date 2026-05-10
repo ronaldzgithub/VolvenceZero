@@ -16,6 +16,7 @@ htmlcov/
 # Editor
 .vscode/
 .idea/
+./local
 
 # OS
 .DS_Store
@@ -37,8 +38,41 @@ Thumbs.db
 packages/lifeform-domain-figure/data/raw/
 packages/lifeform-domain-figure/data/cleaned/
 
+# Figure-vertical L2 verification ledger: per-anchor checks.jsonl is a
+# generated audit artefact (debt #28 L2). Same treatment as L1 raw/
+# cleaned trees.
+packages/lifeform-domain-figure/data/verification/
+
+# Figure-vertical L0 crawler frontier + results: per-run queue.jsonl /
+# visited.jsonl / results.jsonl are generated artefacts (debt #28 L0).
+packages/lifeform-domain-figure/data/crawl/
+
 # Figure-vertical CLI bake / audit artefacts (debt #23 closure).
 # The CLI defaults persist bundles to data/figure_bundles/ and audit
 # rows to data/figure_audit/; both are runtime products, not source.
 data/figure_bundles/
 data/figure_audit/
+
+# External benchmark harnesses + their run artefacts (debt #29).
+# The eqbench3 / empathybench harnesses are cloned (or git-submoduled
+# in a future packet) into external/<harness>/ so we keep our
+# adapter clean and let upstream evolve. Their checkouts and the
+# scoring outputs do not belong in our git history. The parent
+# directories are tracked via .gitkeep so the paths are stable in
+# fresh clones.
+external/eqbench3/
+external/empathybench/
+artifacts/external_bench/*
+!artifacts/external_bench/.gitkeep
+
+# LSCB held-out scenarios live in a SEPARATE private repository
+# (`VolvenceZero/lscb-heldout`) and are pulled in as a git submodule
+# at external/lscb-heldout/. The public monorepo MUST NOT see the
+# held-out YAML in any commit diff (RFC §3 P3, §8.6). The .gitmodules
+# entry references the private repo; the actual checkout is gitignored
+# so accidental file drops never enter the public history.
+external/lscb-heldout/
+artifacts/lscb/*
+!artifacts/lscb/.gitkeep
+/.local
+/.local

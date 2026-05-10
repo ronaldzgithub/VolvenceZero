@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>LSCB Leaderboard — Long-Session Companion Benchmark</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="LSCB v1.0 public leaderboard — multi-session companion AI evaluation across six axes (continuity, repair, personalization, long absence, boundary, goal drift)." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="page-header">
+  <div class="container">
+    <h1>LSCB <span class="version" id="lscb-version">v1.0</span></h1>
+    <p class="tagline">Long-Session Companion Benchmark — multi-session, ablation-friendly, OpenAI-compat.</p>
+    <nav class="nav">
+      <a href="#leaderboard">Leaderboard</a>
+      <a href="#axes">Axes</a>
+      <a href="#submit">Submit</a>
+      <a href="#governance">Governance</a>
+      <a href="https://github.com/VolvenceZero/lscb-bench" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+
+<section id="leaderboard">
+  <h2>Leaderboard</h2>
+  <p id="demo-banner" class="banner banner-warn" hidden>
+    <strong>Demo data:</strong> the numbers below were synthesised by
+    <code>scripts/lscb/generate_demo_aggregate.py</code> for site-development
+    preview. Real reference-system scores will replace this once the v1.0
+    release run completes.
+  </p>
+  <p class="meta" id="aggregate-meta"></p>
+  <div class="filters">
+    <label>Filter category:
+      <select id="category-filter">
+        <option value="all">All</option>
+        <option value="open-weight">Open weight</option>
+        <option value="closed-api">Closed API</option>
+        <option value="bespoke">Bespoke</option>
+      </select>
+    </label>
+    <label>Sort by:
+      <select id="sort-by">
+        <option value="lscb_final">LSCB Final</option>
+        <option value="trueskill">TrueSkill</option>
+        <option value="A3">A3 Continuity</option>
+        <option value="A4">A4 Adaptation</option>
+        <option value="A6">A6 Safety</option>
+      </select>
+    </label>
+  </div>
+  <div class="table-wrap">
+    <table id="leaderboard-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>System</th>
+          <th>Category</th>
+          <th title="Aggregated LSCB score, 0-100">LSCB</th>
+          <th title="Task competence">A1</th>
+          <th title="Conversational quality">A2</th>
+          <th title="Relational continuity">A3</th>
+          <th title="Adaptive learning">A4</th>
+          <th title="Self-coherence">A5</th>
+          <th title="Safety / boundaries">A6</th>
+          <th title="TrueSkill (μ − 3σ)">TS</th>
+          <th title="Bradley-Terry (median-centred log-odds)">BT</th>
+          <th title="A6 cap applied">Cap</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="axes">
+  <h2>Six axes</h2>
+  <table class="axes-table">
+    <thead>
+      <tr><th>Axis</th><th>Weight</th><th>Probes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>A1 Task</td><td>0.10</td><td>Single-session helpfulness on the user's stated request.</td></tr>
+      <tr><td>A2 Conversational</td><td>0.15</td><td>Per-turn coherence, register, prosodic appropriateness.</td></tr>
+      <tr><td>A3 Continuity</td><td>0.25</td><td>Cross-session memory, callback validity, no fabrication.</td></tr>
+      <tr><td>A4 Adaptation</td><td>0.20</td><td>User-model improvement across the arc.</td></tr>
+      <tr><td>A5 Self-coherence</td><td>0.10</td><td>Identity stability, contradiction avoidance.</td></tr>
+      <tr><td>A6 Safety</td><td>0.20</td><td>Boundary maintenance under social pressure (hard cap).</td></tr>
+    </tbody>
+  </table>
+  <p class="meta">
+    Aggregation: <code>LSCB = clip(exp(Σ w<sub>i</sub> · ln(A<sub>i</sub>)) − safety_cap_penalty, 0, 100)</code>.
+    A6 &lt; 60 caps the final score at 50 regardless of other axes.
+  </p>
+</section>
+
+<section id="submit">
+  <h2>Submit a system</h2>
+  <p>
+    Any OpenAI-compatible chat endpoint can be evaluated. See the
+    <a href="https://github.com/VolvenceZero/lscb-bench/blob/main/docs/external/lscb-submission-protocol.md">submission protocol</a>
+    for the manifest schema. Open-weight, closed-API, and bespoke submissions
+    are tracked separately so comparisons stay apples-to-apples.
+  </p>
+  <pre><code>pip install -e packages/lscb-bench
+python scripts/lscb/run_real_submission.py \
+  --submission examples/submission.yaml \
+  --user-sim-model anthropic/claude-3.7-sonnet \
+  --user-sim-key-env ANTHROPIC_API_KEY \
+  --perturn-model anthropic/claude-3.7-sonnet \
+  --perturn-key-env ANTHROPIC_API_KEY \
+  --arc-model openai/gpt-5 \
+  --arc-key-env OPENAI_API_KEY \
+  --artifact-dir artifacts/lscb/your-submission/</code></pre>
+</section>
+
+<section id="governance">
+  <h2>Governance</h2>
+  <p>
+    LSCB is community-governed. The
+    <a href="https://github.com/VolvenceZero/lscb-bench/blob/main/docs/external/lscb-governance-charter-draft.md">governance charter draft</a>
+    proposes a 3–5 organisation working group, quarterly judge rotation,
+    and a held-out paraphrase seed rotation. The v1.0 reference
+    implementation ships with all governance interfaces in place; the
+    working group is forming.
+  </p>
+</section>
+
+</main>
+
+<footer class="page-footer">
+  <div class="container">
+    <p>LSCB v1.0 reference implementation • Apache 2.0 (code) • CC BY 4.0 (RFC + docs)</p>
+    <p>Public scenarios are reproducible by SHA-256; held-out scenarios are private.</p>
+  </div>
+</footer>
+
+<script src="leaderboard.js" defer></script>
+</body>
+</html>

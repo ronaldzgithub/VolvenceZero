@@ -93,6 +93,15 @@ async def test_chat_ui_is_served(client):
     assert "saveTemplateBtn" in text
     assert "/v1/templates" in text
     assert "save-as-template" in text
+    # Substrate hot-swap surface — model dropdown + Switch button +
+    # /v1/models call must be present.
+    assert "modelSelect" in text
+    assert "switchModelBtn" in text
+    assert "/v1/models" in text
+    assert "/v1/admin/substrate" in text
+    # Multi-vertical surface — vertical dropdown + /v1/verticals call.
+    assert "verticalSelect" in text
+    assert "/v1/verticals" in text
 
 
 async def test_info_advertises_pre_trained_bootstraps(client):

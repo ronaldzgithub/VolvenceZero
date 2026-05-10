@@ -1,0 +1,24 @@
+# Example submission manifest (RFC §7.2).
+#
+# Copy this file, fill in your system's details, and submit it to the
+# leaderboard. The four attestation fields must all be ``true`` —
+# the LSCB harness refuses to score a submission with any of them
+# unaffirmed.
+
+submission_id: example-2026-q2
+system_name: ExampleCompanion
+model_identifier: example/companion-v1
+base_url: https://api.example.com/v1
+api_key_env: EXAMPLE_API_KEY
+system_prompt: |
+  You are a long-running companion AI. Maintain a stable persona and
+  reference past sessions when relevant.
+generation_config:
+  temperature: 0.0
+  max_tokens: 512
+attestation:
+  no_lscb_derivative_in_training: true
+  no_scenario_specific_prompt: true
+  no_public_test_set_tuning: true
+  cross_user_memory_isolation: true
+leaderboard_category: closed-api  # one of: open-weight, closed-api, bespoke
