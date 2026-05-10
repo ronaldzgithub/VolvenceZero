@@ -343,11 +343,18 @@ def _count_error_driven_lessons(lessons: tuple[str, ...]) -> int:
 
 # Positive external outcome kinds that resolve a rupture-repair as observed
 # (i.e. "the repair landed"). Negative kinds keep the pair as "pending".
+# W3-A LTV outcomes (PURCHASE_CONFIRMED / REPURCHASE) ALSO confirm a repair
+# landed in business-event terms; they are stronger than HELPED/FELT_HEARD
+# since they include downstream behavioural evidence. LEAD_QUALIFIED /
+# RECOMMENDATION_MADE are intermediate funnel steps and are NOT counted as
+# repair-resolving on their own — they don't prove the user came back.
 _REPAIR_POSITIVE_KINDS: frozenset[DialogueExternalOutcomeKind] = frozenset(
     {
         DialogueExternalOutcomeKind.HELPED,
         DialogueExternalOutcomeKind.FELT_HEARD,
         DialogueExternalOutcomeKind.DECISION_CLEARER,
+        DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
+        DialogueExternalOutcomeKind.REPURCHASE,
     }
 )
 

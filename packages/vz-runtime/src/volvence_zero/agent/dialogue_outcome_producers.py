@@ -207,6 +207,17 @@ _EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME: dict[
     DialogueExternalOutcomeKind.OVER_DIRECTIVE: DialogueOutcomeKind.CORRECTED,
     DialogueExternalOutcomeKind.UNSAFE: DialogueOutcomeKind.REJECTED,
     DialogueExternalOutcomeKind.ABANDONED: DialogueOutcomeKind.REJECTED,
+    # W3-A LTV outcomes. Conversion-funnel events are projected into the
+    # structural-replay vocabulary so dialogue-trace consumers (replay /
+    # evidence reports) see them as ordinary outcomes; the authoritative
+    # business signal stays on the dialogue_external_outcome snapshot.
+    DialogueExternalOutcomeKind.LEAD_QUALIFIED: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.RECOMMENDATION_MADE: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.PURCHASE_CONFIRMED: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.REPURCHASE: DialogueOutcomeKind.CLARIFIED,
+    # CHURNED is structurally a long-horizon REJECTED — the relationship
+    # ended without recovery despite repair attempts.
+    DialogueExternalOutcomeKind.CHURNED: DialogueOutcomeKind.REJECTED,
 }
 
 

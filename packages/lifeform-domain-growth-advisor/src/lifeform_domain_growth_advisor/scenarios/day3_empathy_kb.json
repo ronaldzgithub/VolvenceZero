@@ -1,0 +1,18 @@
+{
+  "scenario_id": "growth-advisor-day3-empathy-kb",
+  "description": "Day 3 of the 7-day playbook. Advisor opens with empathy for the working parent's load and shares one age-appropriate micro tip with a one-sentence rationale. No lecture, no embedded promo. Emotional_support dominant, acquaintance_building tolerable.",
+  "turns": [
+    {
+      "user_input": "今天上班好累，娃又闹。",
+      "expected_regime_in": ["emotional_support", "acquaintance_building"]
+    },
+    {
+      "user_input": "嗯，我知道户外活动有用，但是我们没什么时间。",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    },
+    {
+      "user_input": "晚上睡得也不太规律。",
+      "expected_regime_in": ["emotional_support", "guided_exploration"]
+    }
+  ]
+}

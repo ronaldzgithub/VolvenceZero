@@ -553,6 +553,29 @@ vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t
 
 详见 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md)。
 
+### 2.16 Growth-Advisor Profile（LTV 私域运营 vertical 不可变 reviewed artifact）
+
+**所在 wheel**：`lifeform-domain-growth-advisor`（schema + 编译流水线）
+
+`GrowthAdvisorProfile` 是 [`lifeform-domain-growth-advisor`](../packages/lifeform-domain-growth-advisor/) vertical 的**不可变 reviewed artifact**，承载长程私域运营成长规划师人设的全部 runtime 种子。它由该 vertical 唯一拥有 (R8)，跨 wheel 只读消费；**不**新增 kernel runtime owner。
+
+| profile 字段 | 编译目标 | 运行时消费者 |
+|---|---|---|
+| `knowledge_seeds: tuple[GrowthAdvisorKnowledgeSeed, ...]` | `DomainKnowledgeRecord` | `vz-application` `domain_knowledge` owner |
+| `signature_cases: tuple[GrowthAdvisorSignatureCase, ...]` | `CaseMemoryRecord` | `vz-application` `case_memory` owner |
+| `strategy_priors: tuple[GrowthAdvisorStrategyPrior, ...]` | `PlaybookRule` (with `applicability_scope`) | `vz-application` `strategy_playbook` owner |
+| `boundary_priors: tuple[GrowthAdvisorBoundaryPrior, ...]` | `BoundaryPriorHint` | `vz-application` `boundary_policy` owner |
+| `drive_priors: tuple[GrowthAdvisorDrivePrior, ...]` | `DriveSpec` (via `VitalsBootstrap`) | `lifeform-core.VitalsModule`（既有 owner） |
+
+**Growth-advisor profile 不变量**：
+
+- profile 是 frozen dataclass；`__post_init__` 强制 `boundary_priors` 非空 — LTV 档案不允许在没有显式 anti-sales / anti-overclaim / anti-flooding / anti-judgmental 边界的情况下存在
+- 4 条 anchoring boundary id 必须包含 `bp-no-hard-sell` / `bp-no-overclaim` / `bp-no-flooding` / `bp-no-judgmental`；前两条结构性地阻止该 vertical 退化成普通销售 bot
+- 7-day playbook 通过 `CharacterStrategyPrior.applicability_scope=("growth_advisor:dayN", ...)` 实现跨多日的行为差异，**不**通过用户原文关键词匹配
+- 4 大需求挖掘 funnel（height / immunity / nutrition / vision-brain）通过 `applicability_scope=("funnel:X", ...)` 编码，下游 owner 通过 scope 匹配做 turn-级路由
+- 跨 vertical 隔离：`lifeform-domain-growth-advisor` 不 import `lifeform-domain-character` / `lifeform-domain-figure`，反之亦然；CI 由 [`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 三对 parallel pair 强制
+- `lifeform-service.verticals.discover_verticals()` 通过 `_try_growth_advisor` 软发现，未安装 wheel 时静默跳过，已安装时暴露为 `name="growth_advisor"`
+
 ---
 
 ## 3. 模块快照契约

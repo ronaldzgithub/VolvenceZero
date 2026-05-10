@@ -832,3 +832,246 @@ def test_reviewed_knowledge_adapter_updates_belief_without_domain_write() -> Non
     assert goal_value.explicit_goals
     assert open_loop.unresolved_loops
     assert not any(hit.hit_id == "knowledge:external:1" for hit in domain_knowledge.hits)
+
+
+# ---------------------------------------------------------------------------
+# W2-A: RelationshipStateSnapshot enriched LTV readouts
+# (cumulative_trust_level / relationship_age_turns / funnel_stage).
+# ---------------------------------------------------------------------------
+
+
+def _build_relationship_module_with_history(
+    *,
+    rapport_turns: int,
+    blocked_at_turn: int | None = None,
+    repaired_at_turn: int | None = None,
+    final_turn: int,
+):
+    """Helper: build a RelationshipStateModule with a record history.
+
+    Drives the store directly so the test does not depend on the full
+    integration runtime; the module is reconstructed at the final turn
+    so its ``_build_snapshot`` sees both the current proposal and the
+    accumulated history via ``store.records_for(slot)``.
+    """
+    from volvence_zero.semantic_state.owners import RelationshipStateModule
+
+    store = SemanticStateStore()
+    for turn in range(1, rapport_turns + 1):
+        store.apply(
+            slot="relationship_state",
+            proposals=(
+                SemanticProposal(
+                    proposal_id=f"relationship:rapport:{turn}",
+                    target_slot="relationship_state",
+                    operation=SemanticProposalOperation.OBSERVE,
+                    summary=f"calm collaboration turn {turn}",
+                    detail="rapport accumulating",
+                    confidence=0.80,
+                    evidence="typed rapport evidence",
+                    control_signal=0.20,
+                ),
+            ),
+            turn_index=turn,
+        )
+    if blocked_at_turn is not None:
+        store.apply(
+            slot="relationship_state",
+            proposals=(
+                SemanticProposal(
+                    proposal_id=f"relationship:tension:{blocked_at_turn}",
+                    target_slot="relationship_state",
+                    operation=SemanticProposalOperation.BLOCK,
+                    summary="unresolved friction",
+                    detail="tension surfaced",
+                    confidence=0.70,
+                    evidence="typed tension evidence",
+                    control_signal=0.75,
+                ),
+            ),
+            turn_index=blocked_at_turn,
+        )
+    if repaired_at_turn is not None:
+        store.apply(
+            slot="relationship_state",
+            proposals=(
+                SemanticProposal(
+                    proposal_id=f"relationship:repair:{repaired_at_turn}",
+                    target_slot="relationship_state",
+                    operation=SemanticProposalOperation.CLOSE,
+                    summary="repair completed",
+                    detail="misunderstanding repaired",
+                    confidence=0.88,
+                    evidence="typed repair evidence",
+                    control_signal=0.20,
+                ),
+            ),
+            turn_index=repaired_at_turn,
+        )
+    return RelationshipStateModule(
+        store=store,
+        proposal_runtime=NoOpSemanticProposalRuntime(),
+        turn_index=final_turn,
+    )
+
+
+def test_relationship_state_funnel_stage_default_is_unknown_without_records() -> None:
+    """An unused owner publishes funnel_stage='unknown' (R8 fail-safe).
+
+    A consumer that looks at the snapshot before any record has been
+    accepted should see ``"unknown"`` rather than a misleading
+    ``"prospecting"`` label.
+    """
+    from volvence_zero.semantic_state.owners import RelationshipStateModule
+
+    module = RelationshipStateModule(
+        store=SemanticStateStore(),
+        proposal_runtime=NoOpSemanticProposalRuntime(),
+        turn_index=0,
+    )
+    snapshot = module._build_snapshot(
+        records=(),
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    assert isinstance(snapshot, RelationshipStateSnapshot)
+    assert snapshot.funnel_stage == "unknown"
+    assert snapshot.relationship_age_turns == 0
+    assert snapshot.cumulative_trust_level == 0.0
+
+
+def test_relationship_state_age_turns_grows_with_history() -> None:
+    """relationship_age_turns equals current_turn - first_record_turn."""
+    module = _build_relationship_module_with_history(
+        rapport_turns=3,  # records at turns 1, 2, 3
+        final_turn=10,
+    )
+    records = module._store.records_for("relationship_state")
+    snapshot = module._build_snapshot(
+        records=records,
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    # First record is at turn 1; current is 10 -> age = 9.
+    assert snapshot.relationship_age_turns == 9
+
+
+def test_relationship_state_funnel_stage_progression_with_trust() -> None:
+    """Funnel stage advances as cumulative_trust + age cross thresholds.
+
+    Walks the relationship through turn counts that exercise three
+    representative stage labels, asserting monotonic progression.
+    """
+    early = _build_relationship_module_with_history(
+        rapport_turns=1,
+        final_turn=1,
+    )
+    early_snapshot = early._build_snapshot(
+        records=early._store.records_for("relationship_state"),
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    # Single rapport record at turn 1, age=0: should be discovery (age>=2 not yet but cumulative_trust may cross 0.18).
+    assert early_snapshot.funnel_stage in {"prospecting", "discovery"}
+
+    mid = _build_relationship_module_with_history(
+        rapport_turns=8,
+        final_turn=8,
+    )
+    mid_snapshot = mid._build_snapshot(
+        records=mid._store.records_for("relationship_state"),
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    # Substantial rapport accumulation should be in nurturing or
+    # recommending territory.
+    assert mid_snapshot.funnel_stage in {
+        "nurturing",
+        "recommending",
+        "converting",
+    }
+
+    # Cumulative trust must be strictly higher in the mid stage than
+    # in the early stage (the integral grows).
+    assert mid_snapshot.cumulative_trust_level > early_snapshot.cumulative_trust_level
+
+
+def test_relationship_state_tension_pulls_funnel_stage_back() -> None:
+    """A live tension reduces cumulative_trust and the funnel stage.
+
+    Two histories are compared: same number of rapport turns, but one
+    with an active tension at the latest turn. The tensioned variant
+    must publish a strictly lower cumulative_trust_level.
+    """
+    healthy = _build_relationship_module_with_history(
+        rapport_turns=5,
+        final_turn=5,
+    )
+    healthy_snapshot = healthy._build_snapshot(
+        records=healthy._store.records_for("relationship_state"),
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    tensioned = _build_relationship_module_with_history(
+        rapport_turns=5,
+        blocked_at_turn=5,
+        final_turn=5,
+    )
+    tensioned_snapshot = tensioned._build_snapshot(
+        records=tensioned._store.records_for("relationship_state"),
+        batch=SemanticProposalBatch(
+            proposals=(),
+            runtime_id="test",
+            schema_version=1,
+            description="empty",
+        ),
+    )
+    assert (
+        tensioned_snapshot.cumulative_trust_level
+        < healthy_snapshot.cumulative_trust_level
+    ), "active tension must reduce cumulative_trust_level"
+
+
+def test_relationship_state_funnel_stage_label_is_in_allowed_vocabulary() -> None:
+    """Owner only ever publishes labels from ALLOWED_FUNNEL_STAGES."""
+    from volvence_zero.semantic_state.contracts import ALLOWED_FUNNEL_STAGES
+
+    for rapport_turns in (0, 1, 3, 8, 20):
+        module = _build_relationship_module_with_history(
+            rapport_turns=rapport_turns,
+            final_turn=max(rapport_turns, 1),
+        )
+        records = module._store.records_for("relationship_state")
+        snapshot = module._build_snapshot(
+            records=records,
+            batch=SemanticProposalBatch(
+                proposals=(),
+                runtime_id="test",
+                schema_version=1,
+                description="empty",
+            ),
+        )
+        assert snapshot.funnel_stage in ALLOWED_FUNNEL_STAGES, (
+            f"funnel_stage must be in {ALLOWED_FUNNEL_STAGES!r}, "
+            f"got {snapshot.funnel_stage!r}"
+        )

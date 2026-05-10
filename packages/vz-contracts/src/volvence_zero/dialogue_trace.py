@@ -48,10 +48,19 @@ class DialogueExternalOutcomeKind(str, Enum):
     * ``DialogueOutcomeKind`` is the structural replay taxonomy used by the
       dialogue trace store (e.g. ``CONTINUED``, ``REJECTED``, ``SCENE_CLOSED``).
     * ``DialogueExternalOutcomeKind`` is the *external-signal* taxonomy used
-      by rupture / repair evidence (e.g. ``MISSED``, ``DECISION_CLEARER``).
+      by rupture / repair evidence (e.g. ``MISSED``, ``DECISION_CLEARER``)
+      and (since W3-A) by LTV / private-domain conversion-funnel evidence
+      (e.g. ``PURCHASE_CONFIRMED``, ``CHURNED``).
 
     Adding a new value requires a typed evidence source capable of producing
     it; free-text inference is not a typed source.
+
+    The conversion-funnel block (W3-A) is fed by external CRM / payments
+    integrations through the typed feedback envelope; the platform never
+    infers these labels from chat text. ``submit_dialogue_outcome`` accepts
+    them, the four downstream mapping tables (PE bias, regime score,
+    structural projection, rupture mapping) carry explicit semantics for
+    each new value.
     """
 
     HELPED = "helped"
@@ -62,6 +71,15 @@ class DialogueExternalOutcomeKind(str, Enum):
     COME_BACK = "come_back"
     UNSAFE = "unsafe"
     ABANDONED = "abandoned"
+    # ------------------------------------------------------------------
+    # W3-A conversion / LTV vocabulary. Sourced from external CRM /
+    # payments / human-review evidence; never inferred from chat text.
+    # ------------------------------------------------------------------
+    LEAD_QUALIFIED = "lead_qualified"
+    RECOMMENDATION_MADE = "recommendation_made"
+    PURCHASE_CONFIRMED = "purchase_confirmed"
+    REPURCHASE = "repurchase"
+    CHURNED = "churned"
 
 
 class DialogueExternalOutcomeEvidenceSource(str, Enum):

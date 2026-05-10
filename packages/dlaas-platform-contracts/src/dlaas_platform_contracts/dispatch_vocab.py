@@ -68,6 +68,19 @@ class FeedbackValence(str, Enum):
     COME_BACK = "come_back"
     UNSAFE = "unsafe"
     ABANDONED = "abandoned"
+    # ------------------------------------------------------------------
+    # W3-A LTV / conversion-funnel valences. These mirror
+    # ``DialogueExternalOutcomeKind`` so an external CRM / payments
+    # integration can report a confirmed business event through the
+    # same DLaaS feedback envelope (``interaction_type=feedback``,
+    # ``feedback.valence="purchase_confirmed"``) without an out-of-band
+    # channel.
+    # ------------------------------------------------------------------
+    LEAD_QUALIFIED = "lead_qualified"
+    RECOMMENDATION_MADE = "recommendation_made"
+    PURCHASE_CONFIRMED = "purchase_confirmed"
+    REPURCHASE = "repurchase"
+    CHURNED = "churned"
 
 
 _FEEDBACK_VALENCE_TO_KIND: Final[dict[FeedbackValence, DialogueExternalOutcomeKind]] = {
@@ -81,6 +94,12 @@ _FEEDBACK_VALENCE_TO_KIND: Final[dict[FeedbackValence, DialogueExternalOutcomeKi
     FeedbackValence.COME_BACK: DialogueExternalOutcomeKind.COME_BACK,
     FeedbackValence.UNSAFE: DialogueExternalOutcomeKind.UNSAFE,
     FeedbackValence.ABANDONED: DialogueExternalOutcomeKind.ABANDONED,
+    # W3-A conversion-funnel valences -> kernel outcome kinds (1:1).
+    FeedbackValence.LEAD_QUALIFIED: DialogueExternalOutcomeKind.LEAD_QUALIFIED,
+    FeedbackValence.RECOMMENDATION_MADE: DialogueExternalOutcomeKind.RECOMMENDATION_MADE,
+    FeedbackValence.PURCHASE_CONFIRMED: DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
+    FeedbackValence.REPURCHASE: DialogueExternalOutcomeKind.REPURCHASE,
+    FeedbackValence.CHURNED: DialogueExternalOutcomeKind.CHURNED,
 }
 
 
@@ -153,12 +172,21 @@ class CommandName(str, Enum):
       placeholders. Slice 5.1 wires these to the platform-ops
       pause-state machine. In Slice 2.4 they short-circuit to a
       typed ``OutputAct`` that announces the pending implementation.
+    * ``INITIATE_PROACTIVE_FOLLOWUP`` (W3-B) — trigger an outbound
+      followup turn. Source: ``dlaas-platform-ops.OutboundScheduler``
+      after evaluating ``relationship_state`` snapshot + cadence
+      config. The dispatcher converts it into a kernel turn under
+      :class:`TurnTriggerKind.APPRENTICE` (so vitals apprentice
+      override is on and the proactive followup does not pollute
+      slow-scale PE). The reason text travels in
+      ``structured_context.followup_brief``.
     """
 
     REFRESH_PERSON_CONTEXT = "refresh_person_context"
     END_SCENE = "end_scene"
     PAUSE_SESSION = "pause_session"
     RESUME_SESSION = "resume_session"
+    INITIATE_PROACTIVE_FOLLOWUP = "initiate_proactive_followup"
 
 
 __all__ = [

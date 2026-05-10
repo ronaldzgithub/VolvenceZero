@@ -1,0 +1,18 @@
+{
+  "scenario_id": "growth-advisor-day4-pain-mining",
+  "description": "Day 4 of the 7-day playbook. Advisor naturally mines pain along the four funnels (height / immunity / nutrition / vision-brain) by following the parent's lead, never directly asking buy/no-buy. Guided_exploration primary, emotional_support tolerable.",
+  "turns": [
+    {
+      "user_input": "他平时挺挑食的，肉蛋奶都不太爱吃。",
+      "expected_regime_in": ["guided_exploration", "emotional_support"]
+    },
+    {
+      "user_input": "换季的时候特别容易感冒，几乎一变天就中招。",
+      "expected_regime_in": ["guided_exploration", "emotional_support"]
+    },
+    {
+      "user_input": "我现在该不该给他买点补的呀？",
+      "expected_regime_in": ["guided_exploration", "problem_solving", "repair_and_deescalation"]
+    }
+  ]
+}

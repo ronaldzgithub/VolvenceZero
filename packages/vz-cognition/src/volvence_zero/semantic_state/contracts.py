@@ -501,6 +501,41 @@ class BeliefAssumptionSnapshot:
     description: str
 
 
+# ---------------------------------------------------------------------------
+# Funnel stage vocabulary for ``RelationshipStateSnapshot.funnel_stage``.
+#
+# These labels describe a generic long-horizon relationship progression
+# axis. The vocabulary is deliberately small and lowercase so consumers
+# can match on the exact string (``snapshot.funnel_stage == "nurturing"``)
+# without doing case-folding or fuzzy matching, which would slip back
+# toward keyword-driven dispatch.
+#
+# The order matches the natural progression: ``unknown`` -> early
+# (``prospecting`` / ``discovery``) -> mid (``nurturing``) -> late
+# (``recommending`` / ``converting`` / ``repurchasing``). LTV / private-
+# domain operations verticals consume this directly; companion / coding
+# verticals see ``"unknown"`` and ignore the field.
+# ---------------------------------------------------------------------------
+
+FUNNEL_STAGE_UNKNOWN = "unknown"
+FUNNEL_STAGE_PROSPECTING = "prospecting"
+FUNNEL_STAGE_DISCOVERY = "discovery"
+FUNNEL_STAGE_NURTURING = "nurturing"
+FUNNEL_STAGE_RECOMMENDING = "recommending"
+FUNNEL_STAGE_CONVERTING = "converting"
+FUNNEL_STAGE_REPURCHASING = "repurchasing"
+
+ALLOWED_FUNNEL_STAGES: tuple[str, ...] = (
+    FUNNEL_STAGE_UNKNOWN,
+    FUNNEL_STAGE_PROSPECTING,
+    FUNNEL_STAGE_DISCOVERY,
+    FUNNEL_STAGE_NURTURING,
+    FUNNEL_STAGE_RECOMMENDING,
+    FUNNEL_STAGE_CONVERTING,
+    FUNNEL_STAGE_REPURCHASING,
+)
+
+
 @dataclass(frozen=True)
 class RelationshipStateSnapshot:
     trust_level: float
@@ -520,6 +555,35 @@ class RelationshipStateSnapshot:
     attunement_trend: float = 0.0
     trust_recovery_signal: float = 0.0
     relationship_continuity_score: float = 0.0
+    # ------------------------------------------------------------------
+    # W2-A enriched readouts: long-horizon owner readouts that LTV /
+    # private-domain verticals consume to make multi-day pacing
+    # decisions without the consumer re-deriving them from raw records
+    # (R8 SSOT: the owner that owns the data also owns the description).
+    #
+    # ``cumulative_trust_level`` is a long-horizon analogue of
+    # ``trust_level``: the latter is a per-turn instantaneous estimate
+    # that swings with the current record set, while the former
+    # accumulates across turns by integrating per-turn trust against
+    # tension counters and relationship age. Both stay clamped to
+    # [0, 1].
+    #
+    # ``relationship_age_turns`` is the number of turns elapsed since
+    # the owner first recorded a record (``current_turn - first_turn``,
+    # never negative). Verticals can derive a coarse "campaign day" by
+    # mapping turns -> wall-clock at consumption time; the owner does
+    # not assume any wall-clock. Stays 0 when the owner has not yet
+    # accepted any records.
+    #
+    # ``funnel_stage`` is a typed string label (lowercase) chosen from
+    # a small fixed vocabulary so consumers can switch behaviour by
+    # scope tag (e.g. ``funnel_stage="recommending"``) instead of
+    # re-running the (cumulative_trust, age) heuristic. The default
+    # ``"unknown"`` keeps every existing consumer behaviourally
+    # backwards compatible.
+    cumulative_trust_level: float = 0.0
+    relationship_age_turns: int = 0
+    funnel_stage: str = "unknown"
 
 
 @dataclass(frozen=True)

@@ -943,6 +943,17 @@ _EXTERNAL_OUTCOME_AXIS_BIAS: dict[
     DialogueExternalOutcomeKind.OVER_DIRECTIVE: (0.0, -0.40, -0.10, -0.30),
     DialogueExternalOutcomeKind.UNSAFE: (0.0, -0.70, -0.30, -0.50),
     DialogueExternalOutcomeKind.ABANDONED: (-0.40, -0.60, 0.0, -0.40),
+    # ------------------------------------------------------------------
+    # W3-A LTV / conversion-funnel outcomes. Magnitudes reflect that
+    # purchase / repurchase signals are stronger evidence of action
+    # payoff than any single dialogue-level signal, and that churn is
+    # a relationship-axis catastrophe that must visibly drive PE.
+    # ------------------------------------------------------------------
+    DialogueExternalOutcomeKind.LEAD_QUALIFIED: (+0.20, +0.30, 0.0, +0.20),
+    DialogueExternalOutcomeKind.RECOMMENDATION_MADE: (+0.30, 0.0, 0.0, +0.30),
+    DialogueExternalOutcomeKind.PURCHASE_CONFIRMED: (+0.50, +0.40, 0.0, +0.50),
+    DialogueExternalOutcomeKind.REPURCHASE: (+0.60, +0.50, 0.0, +0.60),
+    DialogueExternalOutcomeKind.CHURNED: (-0.30, -0.60, -0.10, -0.40),
 }
 
 

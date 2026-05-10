@@ -1,0 +1,18 @@
+{
+  "scenario_id": "growth-advisor-day5-rapport",
+  "description": "Day 5 of the 7-day playbook. Non-product rapport cycle. Weekend / household / venting topics; advisor listens more than advises. No advice pivots, no product. Casual_social primary, emotional_support tolerable.",
+  "turns": [
+    {
+      "user_input": "周末打算带他去公园转转。",
+      "expected_regime_in": ["casual_social", "acquaintance_building"]
+    },
+    {
+      "user_input": "和老人家在带娃的事情上有点意见不一致。",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    },
+    {
+      "user_input": "其实有时候真的觉得带娃比上班还累。",
+      "expected_regime_in": ["emotional_support", "casual_social"]
+    }
+  ]
+}

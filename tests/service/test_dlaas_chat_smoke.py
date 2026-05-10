@@ -44,6 +44,29 @@ async def dlaas_client(aiohttp_client):
     return await aiohttp_client(app)
 
 
+@pytest.fixture
+async def dlaas_client_growth_advisor(aiohttp_client):
+    """A lifeform-service app with the growth_advisor vertical wired in.
+
+    Mirrors the companion fixture but routes
+    ``runtime_template_id`` -> the LTV / private-domain growth-advisor
+    vertical (``lifeform-domain-growth-advisor``). The smoke proves the
+    vertical is reachable end-to-end through the DLaaS chat envelope
+    path with no kernel diff.
+    """
+    from dlaas_platform_api import attach_dlaas_routes
+    from lifeform_service.app import create_app
+    from lifeform_service.verticals import discover_verticals
+
+    discovered = discover_verticals()
+    if "growth_advisor" not in discovered:
+        pytest.skip("lifeform-domain-growth-advisor wheel not installed")
+    spec = discovered["growth_advisor"]
+    app = create_app(vertical=spec, max_sessions=4, idle_eviction_seconds=None)
+    attach_dlaas_routes(app, default_ai_id="ai_smoke_growth_advisor")
+    return await aiohttp_client(app)
+
+
 async def test_chat_envelope_dispatches_to_kernel_and_returns_output_act(
     dlaas_client,
 ):
@@ -129,6 +152,48 @@ async def test_unknown_interaction_type_returns_typed_400(dlaas_client):
     assert resp.status == 400
     payload = await resp.json()
     assert payload["error"] == "invalid_envelope"
+
+
+async def test_chat_envelope_dispatches_to_growth_advisor_vertical(
+    dlaas_client_growth_advisor,
+):
+    """A chat envelope reaches the growth-advisor vertical end-to-end.
+
+    Asserts the LTV vertical is wired through the same DLaaS dispatch
+    path as the companion vertical: the typed envelope is parsed, the
+    router dispatches on ``interaction_type``, ``LifeformSession.run_turn``
+    executes a real kernel turn, and the response uses the canonical
+    DLaaS wire format.
+
+    Together with the companion smoke this is the structural guarantee
+    that "DLaaS adopt -> growth_advisor template -> chat" is reachable
+    once the platform-tier ``runtime_template_id`` -> vertical mapping
+    is wired in (Wave 2).
+    """
+    body = {
+        "contract_id": "ctr_smoke_growth_001",
+        "protocol_version": "dlaas/v1",
+        "session_id": "sess_smoke_growth_001",
+        "end_user_ref": "user_smoke_mom",
+        "interaction_type": "chat",
+        "mode": "live",
+        "human_brief": "你好，我家娃今年5岁，男孩。",
+        "structured_context": {"target_person_ids": []},
+        "lang": "cn",
+    }
+    resp = await dlaas_client_growth_advisor.post(
+        "/dlaas/instances/ai_smoke_growth_advisor/interactions",
+        json=body,
+    )
+    assert resp.status == 200, await resp.text()
+    payload = await resp.json()
+    assert payload["status"] == "ok"
+    assert payload["ai_id"] == "ai_smoke_growth_advisor"
+    assert payload["interaction_type"] == "chat"
+    assert isinstance(payload["output_acts"], list) and payload["output_acts"]
+    primary = payload["output_acts"][0]
+    assert primary["act_type"] == "text"
+    assert isinstance(primary["payload"]["content"], str)
 
 
 async def test_non_chat_types_validate_their_typed_contract(dlaas_client):

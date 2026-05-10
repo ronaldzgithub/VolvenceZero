@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-domain-growth-advisor"
+version = "0.1.0"
+description = "Lifeform vertical: long-term growth-advisor companion for child-nutrition private-domain operations (LTV path)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-application==0.1.*",
+    "lifeform-core==0.1.*",
+    "lifeform-ingestion==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_domain_growth_advisor*"]
+
+[tool.setuptools.package-data]
+"lifeform_domain_growth_advisor" = [
+    "scenarios/*.json",
+]

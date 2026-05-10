@@ -34,6 +34,7 @@ from lifeform_service.figure_bundle_store import (
     FigureBundleStore,
     default_store as default_figure_bundle_store,
     lookup_bundle as lookup_figure_bundle,
+    register_bundle_persona_lora,
 )
 from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
@@ -59,4 +60,5 @@ __all__ = (
     "discover_verticals",
     "lookup_figure_bundle",
     "main",
+    "register_bundle_persona_lora",
 )

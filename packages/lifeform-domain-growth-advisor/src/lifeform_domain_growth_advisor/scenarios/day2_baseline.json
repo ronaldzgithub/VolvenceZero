@@ -1,0 +1,18 @@
+{
+  "scenario_id": "growth-advisor-day2-baseline",
+  "description": "Day 2 of the 7-day playbook. Advisor collects an approximate height baseline and places the child in / near / below age band calmly. No alarm, no jump to product. Acquaintance_building primary, guided_exploration tolerable for the data-collection probe.",
+  "turns": [
+    {
+      "user_input": "宝妈好。",
+      "expected_regime_in": ["acquaintance_building", "casual_social"]
+    },
+    {
+      "user_input": "大概一米一出头吧，没有特别精确量过。",
+      "expected_regime_in": ["acquaintance_building", "guided_exploration"]
+    },
+    {
+      "user_input": "这个高度算正常吗？我有点担心。",
+      "expected_regime_in": ["guided_exploration", "emotional_support", "acquaintance_building"]
+    }
+  ]
+}

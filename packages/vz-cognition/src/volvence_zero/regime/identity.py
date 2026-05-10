@@ -73,6 +73,16 @@ _EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
     DialogueExternalOutcomeKind.OVER_DIRECTIVE: 0.15,
     DialogueExternalOutcomeKind.UNSAFE: 0.05,
     DialogueExternalOutcomeKind.ABANDONED: 0.05,
+    # W3-A conversion outcomes: business-event evidence of regime
+    # appropriateness. Purchase / repurchase score very high (the
+    # current regime policy produced a confirmed downstream win);
+    # CHURNED is comparable to ABANDONED (regime failed at long
+    # horizon).
+    DialogueExternalOutcomeKind.LEAD_QUALIFIED: 0.75,
+    DialogueExternalOutcomeKind.RECOMMENDATION_MADE: 0.65,
+    DialogueExternalOutcomeKind.PURCHASE_CONFIRMED: 0.92,
+    DialogueExternalOutcomeKind.REPURCHASE: 0.95,
+    DialogueExternalOutcomeKind.CHURNED: 0.05,
 }
 
 

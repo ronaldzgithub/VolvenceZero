@@ -1,0 +1,18 @@
+{
+  "scenario_id": "growth-advisor-day6-targeted-advice",
+  "description": "Day 6 of the 7-day playbook. Advisor connects priors collected over Day 1-5 and gives a category-level direction (e.g. calcium absorption + steady DHA) without naming a brand. Invites more information before specifics. Problem_solving primary, guided_exploration tolerable.",
+  "turns": [
+    {
+      "user_input": "前面跟你聊的那些情况，你建议我怎么做呀？",
+      "expected_regime_in": ["problem_solving", "guided_exploration"]
+    },
+    {
+      "user_input": "现在喝的奶粉是某品牌的，配料表我可以拍给你看一下。",
+      "expected_regime_in": ["guided_exploration", "problem_solving"]
+    },
+    {
+      "user_input": "那你直接告诉我买哪款吧。",
+      "expected_regime_in": ["guided_exploration", "repair_and_deescalation", "problem_solving"]
+    }
+  ]
+}

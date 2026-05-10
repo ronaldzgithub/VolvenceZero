@@ -31,14 +31,73 @@ here so consumers can pin against a stable namespace.
 from __future__ import annotations
 
 from lifeform_domain_figure.corpus import (
+    CaptureMethod,
+    DedupReport,
+    DuplicateGroup,
     FigureLectureSource,
     FigureLetterSource,
     FigureNotebookSource,
     FigurePaperSource,
+    LegalClearance,
+    LocatorKind,
+    LocatorOffset,
+    ParsedLocator,
+    SourceProvenance,
+    compute_dedup_report,
+    fingerprint_provenance,
     ingest_lectures,
     ingest_letters,
     ingest_notebooks,
     ingest_papers,
+    parse_locator,
+)
+from lifeform_domain_figure.corpus.archives import (
+    ArchiveFetcher,
+    ArchiveFetchResult,
+    CPAEDocumentKind,
+    CPAEPayload,
+    CTPPayload,
+    GutenbergPayload,
+    InternetArchivePayload,
+    WikisourcePayload,
+    cpae_to_letter_source,
+    cpae_to_paper_source,
+    ctp_to_paper_source,
+    gutenberg_to_paper_source,
+    internet_archive_to_lecture_source,
+    internet_archive_to_paper_source,
+    offline_archive_fetcher,
+    wikisource_to_lecture_source,
+    wikisource_to_paper_source,
+)
+from lifeform_domain_figure.metadata import (
+    AuthoredWorkSummary,
+    CrossrefClient,
+    CrossrefWorkPayload,
+    DomainCoverageHint,
+    FigureLifespan,
+    MetadataDigest,
+    MetadataSource,
+    OpenAlexClient,
+    OpenAlexWorkPayload,
+    SEPClient,
+    SEPEntryPayload,
+    TimeWindowHint,
+    WikidataClient,
+    WikidataPersonPayload,
+    aggregate_metadata,
+    build_time_window_hints_from_lifespan,
+    crossref_to_authored_work,
+    enrich_profile_with_metadata,
+    offline_crossref_client,
+    offline_openalex_client,
+    offline_sep_client,
+    offline_wikidata_client,
+    openalex_to_authored_work,
+    openalex_to_domain_hints,
+    sep_to_domain_hints,
+    wikidata_to_lifespan,
+    wikidata_to_time_window_hints,
 )
 from lifeform_domain_figure.compiler import (
     FigureBundleInputs,
@@ -47,6 +106,11 @@ from lifeform_domain_figure.compiler import (
     build_figure_artifact_bundle,
     build_figure_package,
     build_figure_vitals_bootstrap,
+)
+from lifeform_domain_figure.contrast_set import (
+    FigureContrastPair,
+    FigureContrastSet,
+    build_einstein_contrast_set,
 )
 from lifeform_domain_figure.coverage_map import (
     CoverageClassification,
@@ -64,6 +128,30 @@ from lifeform_domain_figure.lifeform_builder import (
     FigureLifeformBundle,
     build_einstein_lifeform,
     build_figure_lifeform,
+)
+from lifeform_domain_figure.gate_apply import (
+    GatedPersonaLoRAProposal,
+    PersonaLoRAApplyResult,
+    apply_persona_lora_through_gate,
+)
+from lifeform_domain_figure.lora_artifact import (
+    SCHEMA_VERSION as LORA_ARTIFACT_SCHEMA_VERSION,
+    FigureLoRAArtifact,
+    LoRABakeBackend,
+    compute_lora_integrity_hash,
+)
+from lifeform_domain_figure.lora_bake_peft import PEFTLoRABakeBackend
+from lifeform_domain_figure.lora_bake_synthetic import (
+    SyntheticLoRABakeBackend,
+    attach_baked_lora,
+)
+from lifeform_domain_figure.lora_data_prep import (
+    SCHEMA_VERSION as LORA_TRAINING_PLAN_SCHEMA_VERSION,
+    LoRATrainingExample,
+    LoRATrainingPlan,
+    PersonaLoRAProposal,
+    build_lora_training_plan,
+    build_persona_lora_proposal,
 )
 from lifeform_domain_figure.style_prior import (
     FigureStylePrior,
@@ -83,13 +171,32 @@ from lifeform_domain_figure.profile import (
     HistoricalFigureProfile,
     TimeWindowedView,
 )
-from lifeform_domain_figure.profiles import build_einstein_profile
+from lifeform_domain_figure.profiles import (
+    build_einstein_profile,
+    build_lu_xun_profile,
+)
 from lifeform_domain_figure.retrieval_index import (
     FigureRetrievalIndex,
     RetrievalEvidence,
     build_figure_retrieval_index,
 )
 from lifeform_domain_figure.sample_corpus import synthetic_einstein_corpus
+from lifeform_domain_figure.steering_bake import (
+    SCHEMA_VERSION as STEERING_SET_SCHEMA_VERSION,
+    FigureSteeringSet,
+    GatedSteeringProposal,
+    SteeringApplyResult,
+    SteeringVector,
+    apply_steering_through_gate,
+    attach_baked_steering,
+    bake_steering_set,
+)
+from lifeform_domain_figure.steering_data_prep import (
+    SCHEMA_VERSION as STEERING_PLAN_SCHEMA_VERSION,
+    FigureSteeringTrainingPlan,
+    SteeringTrainingPair,
+    build_steering_training_plan,
+)
 
 
 __all__ = [
@@ -102,6 +209,7 @@ __all__ = [
     "HistoricalFigureProfile",
     "TimeWindowedView",
     "build_einstein_profile",
+    "build_lu_xun_profile",
     # Corpus ingestion (P1.2)
     "FigureCorpusSourceBundle",
     "FigureIngestionEnvelopeSet",
@@ -115,6 +223,64 @@ __all__ = [
     "ingest_notebooks",
     "ingest_papers",
     "synthetic_einstein_corpus",
+    # D2 provenance / dedupe / citation parser
+    "CaptureMethod",
+    "LegalClearance",
+    "SourceProvenance",
+    "fingerprint_provenance",
+    "DedupReport",
+    "DuplicateGroup",
+    "compute_dedup_report",
+    "LocatorKind",
+    "LocatorOffset",
+    "ParsedLocator",
+    "parse_locator",
+    # D3 archive adapter facades
+    "ArchiveFetcher",
+    "ArchiveFetchResult",
+    "CPAEDocumentKind",
+    "CPAEPayload",
+    "GutenbergPayload",
+    "InternetArchivePayload",
+    "WikisourcePayload",
+    "CTPPayload",
+    "cpae_to_letter_source",
+    "cpae_to_paper_source",
+    "ctp_to_paper_source",
+    "gutenberg_to_paper_source",
+    "internet_archive_to_lecture_source",
+    "internet_archive_to_paper_source",
+    "offline_archive_fetcher",
+    "wikisource_to_lecture_source",
+    "wikisource_to_paper_source",
+    # D4 metadata adapters
+    "AuthoredWorkSummary",
+    "CrossrefClient",
+    "CrossrefWorkPayload",
+    "DomainCoverageHint",
+    "FigureLifespan",
+    "MetadataDigest",
+    "MetadataSource",
+    "OpenAlexClient",
+    "OpenAlexWorkPayload",
+    "SEPClient",
+    "SEPEntryPayload",
+    "TimeWindowHint",
+    "WikidataClient",
+    "WikidataPersonPayload",
+    "aggregate_metadata",
+    "build_time_window_hints_from_lifespan",
+    "crossref_to_authored_work",
+    "enrich_profile_with_metadata",
+    "offline_crossref_client",
+    "offline_openalex_client",
+    "offline_sep_client",
+    "offline_wikidata_client",
+    "openalex_to_authored_work",
+    "openalex_to_domain_hints",
+    "sep_to_domain_hints",
+    "wikidata_to_lifespan",
+    "wikidata_to_time_window_hints",
     # Retrieval index (P2.1)
     "FigureRetrievalIndex",
     "RetrievalEvidence",
@@ -142,4 +308,40 @@ __all__ = [
     "FigureLifeformBundle",
     "build_einstein_lifeform",
     "build_figure_lifeform",
+    # Contrast set + steering data prep (P5.1)
+    "FigureContrastPair",
+    "FigureContrastSet",
+    "FigureSteeringTrainingPlan",
+    "STEERING_PLAN_SCHEMA_VERSION",
+    "SteeringTrainingPair",
+    "build_einstein_contrast_set",
+    "build_steering_training_plan",
+    # Steering bake (P5.2)
+    "FigureSteeringSet",
+    "GatedSteeringProposal",
+    "STEERING_SET_SCHEMA_VERSION",
+    "SteeringApplyResult",
+    "SteeringVector",
+    "apply_steering_through_gate",
+    "attach_baked_steering",
+    "bake_steering_set",
+    # LoRA data prep + proposal (P6.1)
+    "LORA_TRAINING_PLAN_SCHEMA_VERSION",
+    "LoRATrainingExample",
+    "LoRATrainingPlan",
+    "PersonaLoRAProposal",
+    "build_lora_training_plan",
+    "build_persona_lora_proposal",
+    # LoRA artifact + bake backends (P6.2)
+    "FigureLoRAArtifact",
+    "LORA_ARTIFACT_SCHEMA_VERSION",
+    "LoRABakeBackend",
+    "PEFTLoRABakeBackend",
+    "SyntheticLoRABakeBackend",
+    "attach_baked_lora",
+    "compute_lora_integrity_hash",
+    # Persona LoRA gate apply (P6.3)
+    "GatedPersonaLoRAProposal",
+    "PersonaLoRAApplyResult",
+    "apply_persona_lora_through_gate",
 ]

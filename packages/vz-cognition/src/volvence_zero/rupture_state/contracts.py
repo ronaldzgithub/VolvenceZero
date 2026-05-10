@@ -60,6 +60,11 @@ class RuptureEvidenceSource(str, Enum):
 # Kinds missing from this table (HELPED, FELT_HEARD, DECISION_CLEARER) do not
 # produce rupture evidence by themselves; they are positive / neutral
 # external outcomes and are handled by PE / regime as positive signals.
+# Likewise the W3-A positive conversion outcomes (LEAD_QUALIFIED /
+# RECOMMENDATION_MADE / PURCHASE_CONFIRMED / REPURCHASE) are NOT in this
+# table; they do not produce rupture evidence. CHURNED is a long-horizon
+# rupture-equivalent and maps to ABANDONED — a persistent disengagement
+# despite repair attempts.
 # COLD is not in this table because it requires a compositional trigger
 # (MISSED + relationship_pressure), handled inside the owner aggregator.
 EXTERNAL_OUTCOME_TO_RUPTURE_KIND: dict[DialogueExternalOutcomeKind, RuptureKind] = {
@@ -68,6 +73,7 @@ EXTERNAL_OUTCOME_TO_RUPTURE_KIND: dict[DialogueExternalOutcomeKind, RuptureKind]
     DialogueExternalOutcomeKind.COME_BACK: RuptureKind.PUSHED_TOO_FAST,
     DialogueExternalOutcomeKind.UNSAFE: RuptureKind.UNSAFE,
     DialogueExternalOutcomeKind.ABANDONED: RuptureKind.ABANDONED,
+    DialogueExternalOutcomeKind.CHURNED: RuptureKind.ABANDONED,
 }
 
 

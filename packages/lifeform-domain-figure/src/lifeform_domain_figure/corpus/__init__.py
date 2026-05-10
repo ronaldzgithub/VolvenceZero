@@ -16,6 +16,16 @@ grounding contract demands a canonical citation per chunk so the
 runtime ``GroundedDecoder`` can produce reviewable evidence pointers
 back to the underlying primary source.
 
+D2 helpers (``provenance`` / ``dedupe`` / ``citation``) layer on top
+of the four adapters:
+
+* :mod:`lifeform_domain_figure.corpus.provenance` — typed
+  :class:`SourceProvenance` record + fingerprint.
+* :mod:`lifeform_domain_figure.corpus.dedupe` — cross-envelope
+  byte-level deduplication report.
+* :mod:`lifeform_domain_figure.corpus.citation` — strict typed parser
+  for the four locator formats above.
+
 All adapters fail loudly on empty / whitespace-only inputs (mirroring
 ``lifeform-ingestion`` discipline). None of them branch on text
 content (``no-keyword-matching-hacks.mdc``).
@@ -23,6 +33,17 @@ content (``no-keyword-matching-hacks.mdc``).
 
 from __future__ import annotations
 
+from lifeform_domain_figure.corpus.citation import (
+    LocatorKind,
+    LocatorOffset,
+    ParsedLocator,
+    parse_locator,
+)
+from lifeform_domain_figure.corpus.dedupe import (
+    DedupReport,
+    DuplicateGroup,
+    compute_dedup_report,
+)
 from lifeform_domain_figure.corpus.ingest_letters import (
     FigureLetterSource,
     ingest_letters,
@@ -39,9 +60,16 @@ from lifeform_domain_figure.corpus.ingest_papers import (
     FigurePaperSource,
     ingest_papers,
 )
+from lifeform_domain_figure.corpus.provenance import (
+    CaptureMethod,
+    LegalClearance,
+    SourceProvenance,
+    fingerprint_provenance,
+)
 
 
 __all__ = [
+    # F1.2 source adapters
     "FigureLectureSource",
     "FigureLetterSource",
     "FigureNotebookSource",
@@ -50,4 +78,18 @@ __all__ = [
     "ingest_letters",
     "ingest_notebooks",
     "ingest_papers",
+    # D2 provenance
+    "CaptureMethod",
+    "LegalClearance",
+    "SourceProvenance",
+    "fingerprint_provenance",
+    # D2 dedupe
+    "DedupReport",
+    "DuplicateGroup",
+    "compute_dedup_report",
+    # D2 citation parser
+    "LocatorKind",
+    "LocatorOffset",
+    "ParsedLocator",
+    "parse_locator",
 ]

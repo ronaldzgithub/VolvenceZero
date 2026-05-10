@@ -36,6 +36,7 @@ dependencies = [
     "lifeform-domain-character==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-coding==0.1.*",
+    "lifeform-domain-growth-advisor==0.1.*",
     "lifeform-service==0.1.*",
     "lifeform-evolution==0.1.*",
     "dlaas-platform-contracts==0.1.*",
@@ -70,6 +71,7 @@ lifeform-expression = { workspace = true }
 lifeform-domain-character = { workspace = true }
 lifeform-domain-emogpt = { workspace = true }
 lifeform-domain-coding = { workspace = true }
+lifeform-domain-growth-advisor = { workspace = true }
 lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
 dlaas-platform-contracts = { workspace = true }

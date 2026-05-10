@@ -186,9 +186,61 @@ def lookup_bundle(default: Any = None, *, bundle_id: str) -> object:
     return default_store().lookup(bundle_id)
 
 
+def register_bundle_persona_lora(
+    bundle: object,
+    *,
+    pool: object | None = None,
+) -> str | None:
+    """Register a bundle's baked LoRA artifact in a :class:`PersonaLoRAPool`.
+
+    Called from the DLaaS adopt path right after :func:`lookup_bundle`
+    resolves a ``figure_artifact_id``. When the bundle's ``lora`` slot
+    is populated (i.e. F6 has run + the OFFLINE gate has approved
+    via ``apply_persona_lora_through_gate``), the artifact's
+    ``adapter_layers`` are registered in the supplied (or default)
+    persona pool so the runtime can hot-swap by ``figure_id``.
+
+    Returns the pool record id when a registration happened, or
+    ``None`` when the bundle has no LoRA slot to register.
+    Pass ``pool=None`` to use the process-wide default pool.
+
+    The function reads the artifact through documented public
+    fields (``figure_id`` / ``backend_id`` / ``training_plan_hash``
+    / ``adapter_layers`` / ``parameter_count`` / ``description``);
+    a missing field is the intended fail-loud signal that someone
+    stuffed a different shape into the ``lora`` slot.
+    """
+
+    artifact = getattr(bundle, "lora", None)
+    if artifact is None:
+        return None
+    bundle_id = getattr(bundle, "bundle_id", "")
+    if not isinstance(bundle_id, str) or not bundle_id.strip():
+        raise ValueError(
+            "register_bundle_persona_lora: bundle.bundle_id must be a "
+            "non-empty string"
+        )
+    if pool is None:
+        from volvence_zero.substrate import default_persona_lora_pool
+
+        target_pool = default_persona_lora_pool()
+    else:
+        target_pool = pool
+    return target_pool.register(
+        figure_id=artifact.figure_id,
+        source_bundle_id=bundle_id,
+        backend_id=artifact.backend_id,
+        training_plan_hash=artifact.training_plan_hash,
+        adapter_layers=artifact.adapter_layers,
+        parameter_count=artifact.parameter_count,
+        description=artifact.description,
+    )
+
+
 __all__ = [
     "FigureBundleNotFound",
     "FigureBundleStore",
     "default_store",
     "lookup_bundle",
+    "register_bundle_persona_lora",
 ]

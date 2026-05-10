@@ -237,6 +237,100 @@ def test_runtime_emits_goal_value_typed_proposal_from_schema_payload() -> None:
     assert proposal.confidence == 0.71
 
 
+def test_runtime_emits_relationship_state_typed_proposal_from_schema_payload() -> None:
+    """W2-B: relationship_state is now part of the generic LLM slot set.
+
+    Verifies the runtime classifies a relational signal through the
+    same JSON schema path that ``boundary_consent`` / ``goal_value``
+    use, and that the typed proposal carries the LTV-relevant
+    ``observe`` operation with non-zero confidence.
+    """
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "rapport", '
+            '"proposals": [{"proposal_id": "ignored", "target_slot": "relationship_state", '
+            '"operation": "observe", "summary": "user shared parental fatigue", '
+            '"detail": "User mentioned exhausting day balancing work and child.", '
+            '"confidence": 0.68, '
+            '"evidence": "today work and the kid wore me out", "control_signal": 0.32}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="relationship_state",
+        user_input="Today work and the kid wore me out.",
+        turn_index=7,
+    )
+
+    assert batch.proposals, "relationship_state generic path must emit a proposal"
+    proposal = batch.proposals[0]
+    assert proposal.target_slot == "relationship_state"
+    assert proposal.operation is SemanticProposalOperation.OBSERVE
+    assert proposal.proposal_id == "relationship_state:llm-observe:7:0"
+    assert proposal.confidence == 0.68
+
+
+def test_runtime_emits_user_model_typed_proposal_from_schema_payload() -> None:
+    """W2-B: user_model is now part of the generic LLM slot set.
+
+    Verifies a ``create`` operation flows through the schema path so a
+    vertical can drive durable user-model updates (preferences /
+    archetype tags) from typed LLM extraction without the kernel
+    growing a vertical-specific schema.
+    """
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "user-model", '
+            '"proposals": [{"proposal_id": "ignored", "target_slot": "user_model", '
+            '"operation": "create", "summary": "user prefers concise category-level advice", '
+            '"detail": "User asked for direct answers without deep clinical detail.", '
+            '"confidence": 0.74, '
+            '"evidence": "just tell me what category to look at", "control_signal": 0.40}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="user_model",
+        user_input="Just tell me what category to look at.",
+        turn_index=8,
+    )
+
+    assert batch.proposals, "user_model generic path must emit a proposal"
+    proposal = batch.proposals[0]
+    assert proposal.target_slot == "user_model"
+    assert proposal.operation is SemanticProposalOperation.CREATE
+    assert proposal.proposal_id == "user_model:llm-create:8:0"
+    assert proposal.confidence == 0.74
+
+
+def test_runtime_falls_back_to_base_for_other_slots() -> None:
+    """Slots NOT in the generic allowlist still delegate to base.
+
+    Spot-checks that the W2-B extension only widened the allowlist and
+    did not silently route every slot through the generic path. The
+    test uses ``plan_intent`` (out of scope for this wave) and
+    asserts the runtime did not call the LLM at all.
+    """
+    provider = _ScriptedProvider([])  # any call would explode
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="plan_intent",
+        user_input="I want to plan something.",
+        turn_index=9,
+    )
+
+    assert provider.prompts == [], (
+        "plan_intent must not invoke the LLM; it should fall through to base"
+    )
+    assert batch.runtime_id == NoOpSemanticProposalRuntime.runtime_id
+
+
 def test_runtime_generic_payload_target_mismatch_falls_back() -> None:
     provider = _ScriptedProvider([
         (

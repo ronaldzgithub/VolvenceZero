@@ -107,7 +107,21 @@ _COMMITMENT_PROMPT = (
 
 _MIN_STRUCTURED_COMMITMENT_CONFIDENCE = 0.40
 _MIN_GENERIC_PROPOSAL_CONFIDENCE = 0.35
-_GENERIC_LLM_SLOT_IDS = frozenset({"boundary_consent", "goal_value"})
+# W2-B: extended to ``relationship_state`` and ``user_model`` so verticals
+# that need typed relational signals (LTV / private-domain ops, EQ
+# companion under stress) can drive these owners through the same JSON-
+# schema generic path that ``boundary_consent`` / ``goal_value`` use.
+# The shared schema (``schemas/proposal.schema.json``) is target_slot-
+# agnostic so no schema change is required; the prompt template
+# (``prompts/extraction.md``) is also slot-generic. Owners that opt into
+# this path inherit the same fail-loud parsing + fallback-to-base
+# behaviour used by the original two slots.
+_GENERIC_LLM_SLOT_IDS = frozenset({
+    "boundary_consent",
+    "goal_value",
+    "relationship_state",
+    "user_model",
+})
 
 
 def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:

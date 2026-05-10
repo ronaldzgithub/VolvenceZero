@@ -21,6 +21,13 @@ from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
+    FUNNEL_STAGE_CONVERTING,
+    FUNNEL_STAGE_DISCOVERY,
+    FUNNEL_STAGE_NURTURING,
+    FUNNEL_STAGE_PROSPECTING,
+    FUNNEL_STAGE_RECOMMENDING,
+    FUNNEL_STAGE_REPURCHASING,
+    FUNNEL_STAGE_UNKNOWN,
     SEMANTIC_OWNER_SLOTS,
     AdvocacyState,
     AlignmentState,
@@ -69,6 +76,47 @@ def _mean_record_confidence(records: tuple[SemanticRecord, ...]) -> float:
     if not records:
         return 0.0
     return _clamp(sum(record.confidence for record in records) / len(records))
+
+
+def _classify_funnel_stage(
+    *,
+    cumulative_trust: float,
+    relationship_age_turns: int,
+    has_records: bool,
+) -> str:
+    """Map (cumulative_trust, age) to a funnel-stage label.
+
+    Used by ``RelationshipStateModule`` to publish ``funnel_stage`` on
+    its snapshot. The vocabulary is documented in
+    :mod:`volvence_zero.semantic_state.contracts`
+    (``FUNNEL_STAGE_*`` constants); the rule below is the *only* place
+    that maps the two raw signals to a label, so a change to the rule
+    is also a contract change and surfaces through the snapshot
+    description.
+
+    The boundaries are deliberately loose so the label sequence is
+    monotonic in trust + age: a relationship that gains trust over
+    time progresses through prospecting -> discovery -> nurturing ->
+    recommending -> converting -> repurchasing without skipping
+    backwards under transient PE noise.
+
+    Returns ``FUNNEL_STAGE_UNKNOWN`` until the owner has accepted at
+    least one record so default-init owners do not surface a misleading
+    "prospecting" label before any data has flowed.
+    """
+    if not has_records:
+        return FUNNEL_STAGE_UNKNOWN
+    if cumulative_trust >= 0.85 and relationship_age_turns >= 25:
+        return FUNNEL_STAGE_REPURCHASING
+    if cumulative_trust >= 0.70 and relationship_age_turns >= 8:
+        return FUNNEL_STAGE_CONVERTING
+    if cumulative_trust >= 0.55 and relationship_age_turns >= 5:
+        return FUNNEL_STAGE_RECOMMENDING
+    if cumulative_trust >= 0.40 and relationship_age_turns >= 3:
+        return FUNNEL_STAGE_NURTURING
+    if cumulative_trust >= 0.18 or relationship_age_turns >= 2:
+        return FUNNEL_STAGE_DISCOVERY
+    return FUNNEL_STAGE_PROSPECTING
 
 
 class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
@@ -574,6 +622,20 @@ class RelationshipStateModule(SemanticOwnerModule):
             + trust_recovery_signal * 0.20
             - min(unresolved_tension_count / 4.0, 1.0) * 0.15
         )
+        relationship_age_turns = self._compute_relationship_age_turns(records)
+        cumulative_trust_level = self._compute_cumulative_trust(
+            instantaneous_trust=trust_level,
+            relationship_age_turns=relationship_age_turns,
+            unresolved_tensions=unresolved_tension_count,
+            recent_repair_count=recent_repair_count,
+            has_records=bool(records)
+            or bool(self._store.records_for(self.slot_name)),
+        )
+        funnel_stage = _classify_funnel_stage(
+            cumulative_trust=cumulative_trust_level,
+            relationship_age_turns=relationship_age_turns,
+            has_records=bool(records),
+        )
         return RelationshipStateSnapshot(
             trust_level=trust_level,
             continuity_level=continuity_level,
@@ -585,7 +647,9 @@ class RelationshipStateModule(SemanticOwnerModule):
                 f"Relationship-state owner published continuity={len(records)} tensions={len(tensions)} "
                 f"emotional_load={emotional_load:.2f} repair_need={repair_need:.2f} "
                 f"stabilization_need={stabilization_need:.2f} "
-                f"repair_count={recent_repair_count} continuity_score={relationship_continuity_score:.2f}."
+                f"repair_count={recent_repair_count} continuity_score={relationship_continuity_score:.2f} "
+                f"age_turns={relationship_age_turns} cumulative_trust={cumulative_trust_level:.2f} "
+                f"funnel_stage={funnel_stage}."
             ),
             emotional_load=emotional_load,
             repair_need=repair_need,
@@ -597,6 +661,61 @@ class RelationshipStateModule(SemanticOwnerModule):
             attunement_trend=attunement_trend,
             trust_recovery_signal=trust_recovery_signal,
             relationship_continuity_score=relationship_continuity_score,
+            cumulative_trust_level=cumulative_trust_level,
+            relationship_age_turns=relationship_age_turns,
+            funnel_stage=funnel_stage,
+        )
+
+    def _compute_relationship_age_turns(
+        self, records: tuple[SemanticRecord, ...]
+    ) -> int:
+        """Number of turns elapsed since the first record this owner saw.
+
+        Returns 0 when the owner has not yet accepted any record. The
+        store is the single source of truth for ``source_turn``; we
+        scan every record this slot owns (not just the current
+        turn-touched subset) so the age survives quiet turns where the
+        owner publishes a snapshot without absorbing new proposals.
+        """
+        all_records = self._store.records_for(self.slot_name)
+        if not all_records:
+            return 0
+        first_turn = min(record.source_turn for record in all_records)
+        return max(0, self._turn_index - first_turn)
+
+    def _compute_cumulative_trust(
+        self,
+        *,
+        instantaneous_trust: float,
+        relationship_age_turns: int,
+        unresolved_tensions: int,
+        recent_repair_count: int,
+        has_records: bool,
+    ) -> float:
+        """Long-horizon trust level integrating over the relationship.
+
+        We do not maintain a per-owner running accumulator (the owner
+        is reconstructed each turn in the runtime path); instead we
+        approximate the integral by combining (a) the current
+        instantaneous trust level, (b) a relationship-age depth
+        multiplier saturating around 20 turns, (c) a tension penalty,
+        and (d) a repair bonus. Stays clamped to [0, 1].
+
+        Returns 0.0 when the owner has not yet accepted any record so
+        consumers can fail-fast on "no relationship history" without
+        seeing a misleading non-zero baseline (the instantaneous
+        ``trust_level`` carries a 0.45 baseline by design).
+        """
+        if not has_records:
+            return 0.0
+        depth = min(relationship_age_turns / 20.0, 1.0)
+        tension_penalty = min(unresolved_tensions / 4.0, 1.0) * 0.15
+        repair_bonus = min(recent_repair_count / 4.0, 1.0) * 0.10
+        return _clamp(
+            instantaneous_trust * 0.50
+            + depth * instantaneous_trust * 0.50
+            + repair_bonus
+            - tension_penalty
         )
 
 

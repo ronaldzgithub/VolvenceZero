@@ -513,6 +513,8 @@ def test_benchmark_release_gates_do_not_use_text_keyword_heuristics() -> None:
 
 PARALLEL_VERTICAL_PAIRS: tuple[tuple[str, str], ...] = (
     ("lifeform-domain-figure", "lifeform-domain-character"),
+    ("lifeform-domain-growth-advisor", "lifeform-domain-character"),
+    ("lifeform-domain-growth-advisor", "lifeform-domain-figure"),
 )
 
 
@@ -568,6 +570,27 @@ def test_figure_vertical_does_not_import_dlaas_platform() -> None:
                     f"{py_file.relative_to(REPO_ROOT)} imports "
                     f"'{module}': lifeform-domain-figure must not "
                     f"depend on the platform tier."
+                )
+
+
+def test_growth_advisor_vertical_does_not_import_dlaas_platform() -> None:
+    """The growth-advisor vertical must not import dlaas-platform-* internals.
+
+    Same invariant as the figure vertical: the vertical's modules
+    compile reviewed structured artifacts into existing kernel
+    application owners; reaching upward into the platform tier
+    inverts the dependency direction encoded in the wheel layering.
+    """
+    advisor_src = PACKAGES_ROOT / "lifeform-domain-growth-advisor" / "src"
+    if not advisor_src.exists():
+        pytest.skip("lifeform-domain-growth-advisor has not landed yet")
+    for py_file in _python_files(advisor_src):
+        for module in _module_level_imports(py_file):
+            if module.startswith("dlaas_platform_") or module == "dlaas_platform":
+                pytest.fail(
+                    f"{py_file.relative_to(REPO_ROOT)} imports "
+                    f"'{module}': lifeform-domain-growth-advisor must "
+                    f"not depend on the platform tier."
                 )
 
 

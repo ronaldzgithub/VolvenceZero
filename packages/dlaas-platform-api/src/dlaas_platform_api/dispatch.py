@@ -655,6 +655,45 @@ async def _handle_command(
             extra={"command": cmd.value, "ops_pending": "Slice 5.1"},
         )
 
+    if cmd is CommandName.INITIATE_PROACTIVE_FOLLOWUP:
+        followup_brief = _optional_str(ctx, "followup_brief", default="").strip()
+        if not followup_brief:
+            raise DispatchError(
+                code="missing_followup_brief",
+                detail=(
+                    "command=initiate_proactive_followup requires "
+                    "structured_context.followup_brief (the message the "
+                    "lifeform should send to the user). The brief is "
+                    "produced by the platform-ops OutboundScheduler "
+                    "from a vertical-supplied template; the kernel does "
+                    "not infer it from chat text."
+                ),
+            )
+        followup_evidence = _optional_str(ctx, "followup_evidence_ref", default="")
+        result = await session.run_turn(
+            followup_brief, trigger_kind=TurnTriggerKind.APPRENTICE
+        )
+        response_text = getattr(result.response, "text", "") or ""
+        rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(text_act(response_text),),
+            protocol_version=envelope.protocol_version,
+            extra={
+                "command": cmd.value,
+                "trigger_kind": TurnTriggerKind.APPRENTICE.value,
+                "active_regime": getattr(result, "active_regime", None),
+                "active_abstract_action": getattr(
+                    result, "active_abstract_action", None
+                ),
+                "rationale_tags": list(rationale_tags),
+                "followup_evidence_ref": followup_evidence,
+            },
+        )
+
     raise DispatchError(  # pragma: no cover - exhaustive
         code="unsupported_command",
         detail=f"command={cmd!r} has no handler.",

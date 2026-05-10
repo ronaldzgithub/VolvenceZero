@@ -20,6 +20,12 @@ from volvence_zero.substrate.grounded_decode_hook import (
     GroundedDecodeHook,
     GroundingVerdict,
 )
+from volvence_zero.substrate.persona_lora_pool import (
+    PersonaLoRANotFound,
+    PersonaLoRAPool,
+    PersonaLoRARecord,
+    default_pool as default_persona_lora_pool,
+)
 from volvence_zero.substrate.residual_backend import (
     build_builtin_transformers_runtime,
     build_transformers_runtime_with_fallback,
@@ -82,6 +88,9 @@ __all__ = [
     "OpenWeightResidualRuntime",
     "OpenWeightResidualStreamSubstrateAdapter",
     "OpenWeightRuntimeCapture",
+    "PersonaLoRANotFound",
+    "PersonaLoRAPool",
+    "PersonaLoRARecord",
     "SubstrateDeltaAdapterLayer",
     "SubstrateOnlineFastCheckpoint",
     "SubstrateRareHeavyCheckpoint",
@@ -116,6 +125,7 @@ __all__ = [
     "build_training_trace",
     "build_builtin_transformers_runtime",
     "build_transformers_runtime_with_fallback",
+    "default_persona_lora_pool",
     "run_hook_layer_calibration",
     "probe_local_model_compatibility",
     "resolve_substrate_fallback_mode",

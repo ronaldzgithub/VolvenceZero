@@ -16,6 +16,14 @@ Capability-domain files:
 from __future__ import annotations
 
 from volvence_zero.semantic_state.contracts import (
+    ALLOWED_FUNNEL_STAGES,
+    FUNNEL_STAGE_CONVERTING,
+    FUNNEL_STAGE_DISCOVERY,
+    FUNNEL_STAGE_NURTURING,
+    FUNNEL_STAGE_PROSPECTING,
+    FUNNEL_STAGE_RECOMMENDING,
+    FUNNEL_STAGE_REPURCHASING,
+    FUNNEL_STAGE_UNKNOWN,
     SEMANTIC_OWNER_SLOTS,
     SELF_SEMANTIC_OWNER_SLOTS,
     WORLD_SEMANTIC_OWNER_SLOTS,
@@ -96,6 +104,7 @@ from volvence_zero.semantic_state.owners import (
 )
 
 __all__ = [
+    "ALLOWED_FUNNEL_STAGES",
     "AdapterSemanticProposalRuntime",
     "AdvocacyState",
     "AlignmentState",
@@ -103,6 +112,13 @@ __all__ = [
     "BeliefAssumptionSnapshot",
     "BoundaryConsentModule",
     "BoundaryConsentSnapshot",
+    "FUNNEL_STAGE_CONVERTING",
+    "FUNNEL_STAGE_DISCOVERY",
+    "FUNNEL_STAGE_NURTURING",
+    "FUNNEL_STAGE_PROSPECTING",
+    "FUNNEL_STAGE_RECOMMENDING",
+    "FUNNEL_STAGE_REPURCHASING",
+    "FUNNEL_STAGE_UNKNOWN",
     "CommitmentLifecycleEntry",
     "CommitmentModule",
     "CommitmentOutcomeKind",

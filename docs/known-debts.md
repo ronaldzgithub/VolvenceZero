@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-10 (DLaaS Slice 1 → 7 全套 land；新增 #12-#17 为 DLaaS 平台层未来可选演进)
+> Last updated: 2026-05-10 (Real-Person Figure Vertical F1-F6 全套 land；新增 #18-#23 为 figure-vertical 训练数据 / 训练管线 / DLaaS adopt 接线层未来工作)
+
+> 2026-05-10 update (Real-Person Figure Vertical F1-F6): 16 packets land；新 wheel `lifeform-domain-figure` + `vz-substrate` 一处 additive `persona_lora_pool.py` + `lifeform-expression` 三个 enforcer (`GroundedDecoder` / `ScopeRefuser` / `StylePriorInjector`) + `dlaas-platform-{contracts,registry}` 4 个 figure 字段 + `lifeform-service` `figure_bundle_store.py` 全套到位；L1 (style prior) / L3 (citation grounding) / L4 (scope refusal) 在零 GPU 训练下端到端可演示，L2 (steering) + L1+L2 (persona LoRA) 通过 OFFLINE `ModificationGate` 走 SHADOW。1063/1063 contract / smoke / e2e test 全绿，含 `test_full_chain_e2e_smoke.py` 一次性把 retrieval × coverage × style × steering × LoRA 在 Einstein bundle 上跑通；详见 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md) + [`docs/DATA_CONTRACT.md`](DATA_CONTRACT.md) §2.15。**遗留三块需要后续 follow-up（已开 debt）**：(a) F5 steering 用 CPU contrastive linear readout 在 hashing-embedding 坐标系（→ #21）+ F6 LoRA 用 deterministic synthetic backend（→ #18）；(b) 基础数据准备只到 V1 archive schema，没有 V2 HTTPArchiveFetcher、没有 PDF/HTML/wiki/OCR parser、没有 curated payload 数据集（→ #19）；(c) 训练管线 script 完全没有，所有 bake / gate apply / rollback 只是 Python 函数没 CLI（→ #23）。DLaaS adopt 主路径未自动 hook-in（→ #22）；PersonaLoRAPool 真热插未接（→ #20）。
 
 > 2026-05-10 update (DLaaS Slice 1 → 7): 6 个新 wheel `dlaas-platform-{contracts,registry,launcher,ops,eval,api}` + 一处 `lifeform-service` 路由扩展全部就位，控制面 + 多渠道 typed envelope + ops + eval gate 完整可演示。Slice 7 测试集中收口落地：`tests/contracts/test_dlaas_dispatch_contracts.py` (22) + `tests/service/test_dlaas_chat_smoke.py` (4) + `tests/service/test_dlaas_multi_tenant_persistence.py` (6) + `tests/service/test_dlaas_full_lifecycle.py` (3) + `tests/service/test_dlaas_backward_compat.py` (8) + `tests/contracts/test_import_boundaries.py` (865) = **908/908 全绿**；`git diff --stat HEAD -- packages/vz-* packages/lifeform-*` 输出**空**——R2/R4/R8 三条铁律的"vz-* / lifeform-* 不动"承诺在 git 层面可验证。Slice 5.4 真流式 SSE 在 rollout 阶段 cancel 以保护 `vz-substrate` 不被改；连同其他 5 条 DLaaS 平台层后续 evolution 沿 follow-up 节奏列入下方 #12-#17。详见 [`docs/specs/dlaas-platform.md`](specs/dlaas-platform.md) + [`docs/moving forward/dlaas-platform-rollout.md`](moving%20forward/dlaas-platform-rollout.md)。
 
@@ -352,6 +354,154 @@ return (
   3. **第三阶段**（多机）：substrate server 跨主机；HTTP / gRPC 协议；与 #16 tool policy 配合做 contract → physical instance 路由
   4. 任何阶段不破 vz-* 内核 0 改动承诺；substrate streaming（#12）和这条 #17 在动 vz-substrate 时应统筹考虑（一次性 additive 改动比分多次 review 成本低）
 - **优先级**：低（开发期 / 内部 demo 阶段不阻塞；做 SaaS 时再上）
+
+## 18. Figure F6 PEFT LoRA bake backend 是 stub，真 GPU 训练未接
+
+- **路径**：
+  - 接口空壳：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py)（`PEFTLoRABakeBackend.bake(...)` 直接 raise `NotImplementedError("future F6.X packet")`）
+  - 当前实际跑的 backend：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py)（`SyntheticLoRABakeBackend` 用 SHAKE-256 hash 派生 deterministic delta）
+  - 公共契约：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_artifact.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_artifact.py)（`LoRABakeBackend` ABC + `FigureLoRAArtifact`）
+- **问题**：F6 plan 明文承诺 hybrid 后端：synthetic-first 给 SHADOW + 测试用，PEFT-backed 给真生产用。当前只有 synthetic 真跑，PEFT 是签名 + docstring 钉死的空壳。这意味着：
+  - 任何 cite "figure 已能内化语气 / 立场" 的文档只能引用 synthetic 路径，synthetic delta 数学上和原始 corpus 没有 learned 关系（只是 hash 派生的 stable noise，结构上和 substrate adapter 同形但内容不是从训练数据学到的）
+  - 上线 1.5B+ Qwen 真训练时会发现 PEFT 接口的 `model_id` / `peft_config` / `runtime_device` / `checkpoint_dir` 字段全是占位 docstring，需要重新 review 一次接口形状
+  - 现有 `apply_persona_lora_through_gate` + `PersonaLoRAPool` 接线全部以 synthetic backend 为参照设计；real PEFT 落地时若 adapter 形状（`tuple[float, ...]` 长度 / 数量）变化，pool 与 substrate adapter 的兼容性需要重新验证
+- **违反**：不违反 R 铁律。F6 plan 接受 synthetic-first 作为 hybrid 路径之一；PEFT 是边际能力增强，不是必需。
+- **风险**：低-中。短期 SHADOW + demo 看不出，长期当 tenant 要"真按 X 人物的语气说话"时 synthetic delta 没有 learned 关系会被识破——synthetic backend 只能保证 layer shape 兼容 + 整体可路由，不能保证 representation drift 真朝 X 的风格走
+- **触发条件**：(a) 第一个 tenant / vertical 想从 corpus 真学到 persona representation；(b) GPU 资源就绪 + HuggingFace PEFT 库可装（>= 1× 16GB GPU）；(c) 接 #13 LLM judge 后想跑 "synthetic vs PEFT" 对比 evidence
+- **推荐修法**：
+  1. 在 `lifeform_domain_figure.lora_bake_peft` 加 `_PEFT_AVAILABLE = importlib.util.find_spec("peft") is not None`，sentinel 后再实例化真训练循环
+  2. `PEFTLoRABakeBackend` 加 typed fields `model_id: str` / `peft_config: PEFTLoRAConfig` (新 frozen dataclass) / `runtime_device: Literal["cpu","cuda"]` / `checkpoint_dir: pathlib.Path`；`bake(...)` 用 `peft.LoraConfig` + HF Trainer 跑短 epoch；输出抽 trained adapter weights → `SubstrateDeltaAdapterLayer` tuple；保留 `training_plan_hash` 绑定
+  3. 守 R10：bake 完仍要走 `apply_persona_lora_through_gate` 的 OFFLINE gate，不能 bypass；`validation_delta` 与 `capacity_cost` 用真训练 loss / parameter 范数算，而不是默认 0.05 / 0.30
+  4. 加 `tests/contracts/test_figure_persona_lora_synthetic_vs_peft_shape.py`：synthetic 与 PEFT backend 的输出 layer 数 / vector_dim / mean_abs_delta 量级应该兼容 pool 的同一 `register(...)` 调用形状（不要求数值一致，只要求 schema 一致）
+  5. 单独 packet review，按 `cursor-convergence-workflow.mdc` 走 SHADOW → ACTIVE
+- **优先级**：低-中（GPU + corpus license 是前置硬约束，不是软件本身阻塞）
+
+## 19. Figure vertical 默认 corpus 是 reviewer-paraphrased synthetic，archive V2 fetcher + 真 payload 数据集 + parser 三件未做
+
+- **路径**：
+  - synthetic 占位语料：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/sample_corpus.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/sample_corpus.py)（`synthetic_einstein_corpus()` 含一个合成 paper / letter / lecture / notebook，明文标注 "synthetic original, not derived from any published primary source"）
+  - corpus source adapters：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/)（`ingest_papers.py` / `ingest_letters.py` / `ingest_lectures.py` / `ingest_notebooks.py` —— typed source 转 `IngestionEnvelope`）
+  - **archive V1 schema 已就位**：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/) —— CPAE / Wikisource / Gutenberg / Internet Archive 4 个 archive 的 typed `*Payload` dataclass + `*_to_paper_source` / `*_to_letter_source` / `*_to_lecture_source` 翻译函数齐全；`ArchiveFetcher` Protocol + `_OfflineArchiveFetcher` 占位明文写"V1 不发 HTTP，V2 packet 接 HTTP fetcher"
+  - DLaaS adopt 默认种子：[`packages/lifeform-service/src/lifeform_service/figure_bundle_store.py`](../packages/lifeform-service/src/lifeform_service/figure_bundle_store.py) (`_seed_default_store` 直接调 `synthetic_einstein_corpus()`)
+- **问题**：`docs/specs/figure-vertical.md` 承诺 L1 (语气保真) / L3 (引证保真) / L4 (不知拒答) 阶梯靠"全部一手资料"撑起。当前断点分三段：
+  1. **没有 V2 HTTPArchiveFetcher** —— archive V1 schema 是"curator 手动喂 pre-downloaded `*Payload`"，4 个 archive 的 `_OfflineArchiveFetcher.fetch(...)` 全部 raise NotImplementedError；任何 URL → bytes 这一步都得手做
+  2. **没有 source bytes → cleaned text parser** —— `*Payload.body` 字段假设是已 cleaned 的 plain text，但 Princeton CPAE 是 PDF / facsimile，Wikisource 是 MediaWiki template，Project Gutenberg 是粗糙 HTML，Internet Archive 是 OCR 后 JSON——四种格式各自的 parser / boilerplate-stripper 都不存在
+  3. **没有 curated payload 数据集** —— `packages/lifeform-domain-figure/data/` 不存在；没有 `data/cpae/vol{N}-doc{M}.json` 这种预下载 + 反复用的 payload 仓库；想跑真 Einstein 的人现在唯一能做的是手抄进 `CPAEPayload(...)` Python 字面量
+  4. 结果：retrieval index / coverage map / style prior 的整体辨识度上限被 corpus 大小拖住——4 个 chunk 的 BM25 + 256-dim hashing embedding 在 in-corpus vs out-of-corpus 边界附近会 noisy（实测 e2e test 必须挑专门的 in-corpus tokens，普通问题命中率低）
+  5. 任何"figure 已经能引用 Einstein 论文"的 demo cite 都是把 reviewer paraphrase 当 Einstein 自己的话——和 #14 audience analysis 的"声明 vs evidence"差距同构
+  6. asset fetcher (#15) 是 DLaaS 平台层的通用 corpus 抓取模块；figure 的 archive fetcher 与它要么共用要么至少风格统一，目前两条都没接
+- **违反**：不违反 R 铁律。corpus 选择是产品 / 法律 / IP 决策，架构上正确：archive payload → typed source → ingestion envelope → retrieval/coverage/style 链路是清的；缺的是 source 来源端 + parser + 实际数据
+- **风险**：中。短期 demo / 内部 evidence 没问题（synthetic 文本足够覆盖测试 + 端到端流程），长期要外部 cite 时 synthetic 标注会被发现
+- **触发条件**：(a) 第一个 tenant 想用真 figure（活人授权 / 已逝公共领域人物）的 corpus；(b) 对外 demo 时 stakeholder 问 "这是 Einstein 真说过的话吗"；(c) #15 asset fetcher 落地后想统一 figure 与其他 vertical 的 corpus 入口；(d) #23 训练管线 script 落地时发现没有真 payload 数据可跑
+- **推荐修法**（按依赖顺序）：
+  1. **V2 archive fetcher**：在 `lifeform-domain-figure/corpus/archives/` 下加 `HTTPArchiveFetcher`（CPAE / Wikisource / Gutenberg / Internet Archive 各一个），共用一份 SSRF allowlist + content-type 嗅探（沿用 `lifeform-ingestion` slice 2b 的纪律，与 #15 `AssetFetcher` 接口对齐或共用）
+  2. **parser 套件**：`corpus/parsers/` 子模块加 `parse_cpae_pdf` / `parse_wikisource_html` / `parse_gutenberg_html` / `parse_archive_org_ocr_json`；输入 raw bytes + content-type，输出 cleaned plain text（boilerplate stripped），失败 fail-loud
+  3. **数据仓库**：在 `packages/lifeform-domain-figure/data/{archive}/` 下放 reviewer 已 curated 的 `*Payload` JSON 序列（先放 10-20 份高优先级 Einstein CPAE 文档作为 minimum viable real corpus），加 `corpus/loaders/load_curated_payloads(archive: str, figure_id: str) -> tuple[*Payload, ...]` loader
+  4. `figure_bundle_store._seed_default_store` 加 `corpus_mode: Literal["synthetic", "curated"] = "synthetic"` 参数：synthetic 走当前路径（dev / CI 默认），curated 走 loader → archive translator → bundle compilation；`build_dlaas_app(...)` 入口暴露
+  5. **provenance 标记**：加 `figure_corpus_provenance` 字段进 `FigureArtifactBundle`（`Literal["synthetic-placeholder", "curated-primary-source", "scraped-archive-v2"]`），渲染到 grounded decoder 的 evidence pointer + L4 拒答模板里，让用户能区分不同 corpus 来源的 bundle
+  6. 守 R8：corpus loader / parser / fetcher 只产 envelope，不直接写 retrieval index / coverage map / style prior；现有 `build_figure_artifact_bundle(FigureBundleInputs(envelopes=...))` 是唯一编译入口
+  7. 守 R12：corpus provenance 只读，不反向写 reward / Face；和 #13 / #14 一起在 `tests/contracts/test_dlaas_figure_corpus_no_kernel_writeback.py` 静态守门
+- **优先级**：中（产品 / 法律决策是前置；架构上 V1 schema ready，V2 fetcher + parser + 数据三件齐才算 corpus 准备真到位）
+
+## 20. PersonaLoRAPool.activate 是 in-memory passthrough，未接真 GPU 多 LoRA 热插
+
+- **路径**：
+  - 当前 pool：[`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py)（`PersonaLoRAPool.activate(...)` 实现是 `return self.lookup(...)`——只查不动）
+  - LoRA artifact 形态：`SubstrateDeltaAdapterLayer` tuple，shape 与 vz-substrate 现有 rare-heavy / online-fast checkpoint 输出兼容
+  - DLaaS adopt 接线（缺位）：[`packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py`](../packages/dlaas-platform-launcher/src/dlaas_platform_launcher/instance_manager.py) 现在不调 `pool.activate(...)`，也没在 `OpenWeightResidualRuntime` 上下文里把激活的 LoRA 推到模型权重
+- **问题**：F6 plan 写 "PersonaLoRAPool 同一冻结基底上热插 N 个 LoRA"。当前实现只完成"N 个 LoRA 在内存"，"热插"那一半（即真把选中的 adapter delta 加到 GPU-resident frozen base 的 forward 上）只在 docstring 里描述为 future S-LoRA / vLLM multi-LoRA 兑现。意味着：
+  - 即便 `apply_persona_lora_through_gate` 走完 OFFLINE gate + 把 artifact 注册进 pool，runtime 实际生成时**还是用裸 frozen base**（没有 LoRA delta 影响 forward）
+  - 当前 pool 的价值是"artifact 寿命管理 + 跨 ai_id 隔离 + 审计 record id"——这是必要的 prerequisite，但不是 F6 plan 完整意图
+  - 与 #17 cross-process / cross-GPU substrate 共享强相关：那条债的"第二阶段 RemoteResidualRuntime"和这条的"真热插"应该一次设计完
+- **违反**：不违反 R 铁律。Plan 明文允许"接口与 S-LoRA / vLLM multi-LoRA 兑现留 docstring"
+- **风险**：中。短期 SHADOW + demo 看不到差别（synthetic LoRA delta 反正也不影响真行为），长期接 PEFT (#18) 后会发现 baked LoRA 没生效——产品上"两个 ai_id 在同一进程跑出不同 persona"的承诺要靠这一段才能落地
+- **触发条件**：(a) #18 PEFT backend 落地后第一次想看 baked LoRA 真改变 substrate 输出；(b) 同一进程并发 ≥ 2 个 ai_id 且各自有不同 persona LoRA；(c) #17 cross-GPU 共享 substrate 的设计开始
+- **推荐修法**：
+  1. `vz-substrate` 加 `LoRAAwareResidualRuntime` Protocol：`activate_lora(layers: tuple[SubstrateDeltaAdapterLayer, ...]) -> contextlib.AbstractContextManager`；上下文进出时把 layers 加到 / 撤出 frozen base 的对应 attention block
+  2. `OpenWeightResidualRuntime` 与 `TransformersOpenWeightResidualRuntime` 实现该 Protocol（小模型直接 monkey-patch forward；大模型走 vLLM multi-LoRA / S-LoRA 路径）
+  3. `PersonaLoRAPool.activate(...)` 改为：(a) 查 record；(b) 调上游 runtime 的 `activate_lora(record.adapter_layers)`；(c) return AsyncContextManager that auto-deactivates on exit
+  4. `dlaas-platform-launcher.InstanceManager` 在 `acquire(ai_id, ...)` 时把 ai_id → figure_id 映射加进 SessionManager；session.run_turn(...) 进入前 `with pool.activate(figure_id):` 包一层
+  5. 与 #17 第二阶段（substrate IPC 共享）统筹设计；与 #16 tool_policy_snapshot 接线类似，都是 launcher 把 contract / ai_id 维度的策略推到 runtime
+  6. 守 R2：activate 改的是 controller 层 adapter delta，frozen base 不动；测试套加 "activate 前后 base model state_dict hash 不变"
+- **优先级**：中（与 #17 / #18 强耦合；单独做收益小，统筹做一次性 review 成本低）
+
+## 21. F5 Steering bake 在 hashing-embedding 坐标系，未在 substrate 真残差流上提取方向
+
+- **路径**：
+  - 当前 bake：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py)（`_direction_for_pairs` 算 `weighted_mean(positive - negative)` → unit-norm，全在 256-dim hashing embedding 坐标系里）
+  - 数据 prep：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_data_prep.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_data_prep.py)（`_pair_to_training_pair` 用 `lifeform_domain_figure.retrieval_index._hashing_embedding`——和检索同坐标系，是有意为之）
+  - 缺位：`vz-substrate` 真 residual stream 抽取 + LDA / CCS-style readout 直接在 model hidden states 上学方向
+- **问题**：plan 写 "real CPU backend"——当前实现是 mathematically real CPU contrastive readout（带 reviewer confidence weighting + cosine margin scale），但坐标系是 hashing embedding 而不是真 substrate 残差流。这意味着：
+  - 拿到的 steering vector 在 hashing embedding 空间里有定向意义（positive paraphrase vs negative paraphrase 真分开），**但**这个空间和 substrate 内部 residual stream 之间没有学到的映射关系
+  - `to_substrate_adapter_layers(...)` 把 vector 包成 `SubstrateDeltaAdapterLayer` 时，layer.delta_vector 和 substrate 真实 residual stream 的对齐关系靠 `vector_dim` 的隐式假设；当 #20 真 hot-swap 路径上线时，如果 substrate 的实际残差维度不是 256，这条路径会失配
+  - 真正"按 Einstein vs Bohr 倾向"的表征应该从 substrate 在 positive / negative paraphrase 上的真 hidden states 抽差异，而不是从 reviewer text 的 hashing 抽差异——这是 contrastive activation steering 的标准做法（Anthropic CAA / RepE 等论文）
+- **违反**：不违反 R 铁律。Plan 接受这条路径作为 hybrid 后端的 "CPU 可跑"分支；只是把"steering 真生效"门槛设在了"plus #20 hot-swap"+"plus #18 真 PEFT"两个前置后
+- **风险**：中。短期 SHADOW 看不出（synthetic LoRA + 不真热插，所以 steering vector 也只是 schema 占位），长期当 #18 + #20 都 ready 时会发现 steering layer 的 delta 量级 / 方向都不真起作用
+- **触发条件**：(a) #18 PEFT backend + #20 真热插同时 ready；(b) 想跑 contrastive steering vs LoRA 的对比 evidence；(c) 想 cite "figure 立场已被 steering 校准"
+- **推荐修法**：
+  1. 在 `vz-substrate` 加 `extract_residual_for_text(text: str, layer_indices: tuple[int, ...]) -> dict[int, tuple[float, ...]]` additive 接口（与 #12 streaming / #20 hot-swap 一起 review）
+  2. 在 `lifeform_domain_figure.steering_data_prep` 加 `RealResidualSteeringDataPrep` 派生：`build_steering_training_plan(..., residual_extractor: ResidualExtractor)`；`_pair_to_training_pair` 改走 `extractor.extract(pair.figure_stance)` 而不是 `_hashing_embedding(...)`
+  3. 在 `lifeform_domain_figure.steering_bake` 加 `RealResidualSteeringBakeBackend` 派生（沿用 `bake_steering_set` 的 contrastive readout 算法，但坐标系是真 residual）；保留 hashing-embedding 路径作为 SHADOW + 测试 fallback
+  4. 守 R8：steering bake 输出仍是 `FigureSteeringSet` + `SubstrateDeltaAdapterLayer` tuple；上下游接口不变
+  5. 加 `tests/contracts/test_steering_real_vs_hashing_shape.py`：两条路径输出的 set 必须可互换 plug 进 `attach_baked_steering(...)`（schema 一致），不要求数值一致
+- **优先级**：低-中（前置依赖 #18 + #20）
+
+## 22. DLaaS adopt 主路径未自动 hook `lookup_figure_bundle` + `register_bundle_persona_lora`
+
+- **路径**：
+  - 助手函数已就位：[`packages/lifeform-service/src/lifeform_service/figure_bundle_store.py`](../packages/lifeform-service/src/lifeform_service/figure_bundle_store.py)（`lookup_bundle(default=None, *, bundle_id=...)` 与 `register_bundle_persona_lora(bundle, *, pool=None)`）
+  - 公开 surface：[`packages/lifeform-service/src/lifeform_service/__init__.py`](../packages/lifeform-service/src/lifeform_service/__init__.py)（两个 helper 都已 re-export 为 `lookup_figure_bundle` / `register_bundle_persona_lora`）
+  - **缺位的调用点**：DLaaS adopt route handler（应该在 `dlaas-platform-api` 的 adopt 路径或 `dlaas-platform-launcher.InstanceManager.acquire(...)` 入口）调 `lookup_figure_bundle(bundle_id=template.figure_artifact_id)` + `register_bundle_persona_lora(bundle)`，但当前 grep 显示这两个 helper 只在 [`tests/test_einstein_vertical_smoke.py`](../packages/lifeform-service/tests/test_einstein_vertical_smoke.py) 与本身的 docstring / 公开 surface 里出现，DLaaS 主路径上没人调
+  - vertical 自带的 bundle 注入路径：[`packages/lifeform-service/src/lifeform_service/verticals.py`](../packages/lifeform-service/src/lifeform_service/verticals.py) `_try_einstein` 工厂直接构造 bundle + 注入 synthesizer，不走 figure_bundle_store
+- **问题**：F4.2 + F6.3 plan 承诺 DLaaS adopt 应该：(a) 读 `template.figure_artifact_id`；(b) `lookup_figure_bundle` 拿 bundle；(c) 注入到 LifeformLLMResponseSynthesizer（已实现）；(d) `register_bundle_persona_lora(bundle)` 把 bundle.lora 推进 PersonaLoRAPool（**未实现**）。当前现实：
+  - vertical Einstein 工厂自己构造 bundle，不读 template.figure_artifact_id；template 加这字段只是 schema 占位，没 wiring 真消费
+  - bundle.lora 即便走完 `apply_persona_lora_through_gate`，DLaaS adopt 也不会自动登记到 PersonaLoRAPool；要靠测试 / 显式脚本调用
+  - 任何 cite "DLaaS adopt 已能加载 figure persona LoRA" 的文档都是把"接口齐了"当成"线接通了"
+- **违反**：不违反 R 铁律。R8 / R15 / R10 都允许这层是手动 wiring；只是 plan 的 P4.2 + P6.3 完成度被高估
+- **风险**：低-中。短期 SHADOW + e2e 测试都用直接 invocation 路径，看不到差别；长期 tenant 上 figure_artifact_id 后会发现 template 字段不生效——和 #16 tool_policy_snapshot 同构（持久化了但运行时不读）
+- **触发条件**：(a) 第一个 tenant 在 template 里设 `figure_artifact_id` 期望 adopt 自动加载；(b) 第一个 tenant 想看到 baked persona LoRA 在 chat 时真生效；(c) 接 #15 asset fetcher 后 figure corpus 产 bundle → bundle 进 store → adopt 自动 hook 这条链需要闭合
+- **推荐修法**：
+  1. 在 `dlaas-platform-launcher.InstanceManager.acquire(...)` 或 `dlaas-platform-api.control_plane._handle_adopt(...)` 加：
+     - `if final_template.figure_artifact_id: bundle = lookup_figure_bundle(bundle_id=final_template.figure_artifact_id)`
+     - `synthesizer.with_figure_bundle(bundle)`（已支持）
+     - `if bundle is not None: register_bundle_persona_lora(bundle)`（pool 默认走进程级 `default_persona_lora_pool()`）
+  2. 与 #20 真 hot-swap 一起设计：register 完后 `pool.activate(figure_id)` 进 SessionManager 上下文，否则注册了也没生效
+  3. 与 #16 tool_policy_snapshot 接线统筹：都是 "template.X 字段在运行时被消费" 的同构问题，可以一次性补全
+  4. 加 `tests/service/test_dlaas_adopt_loads_figure_bundle.py`：template 含 figure_artifact_id → adopt → instance 的 synthesizer.figure_bundle 非 None；template 含的 bundle.lora 非 None → 默认 pool.has(figure_id) 为 True
+  5. 守 R8：adopt 只调 helper 公开 surface，不直接 import figure-vertical 内部模块
+- **优先级**：低-中（与 #16 / #20 同时做更高效）
+
+## 23. Figure vertical 训练管线 script 完全没有，所有 bake / gate apply 只是 Python 函数
+
+- **路径**：
+  - 现有 Python 函数（无 CLI 包装）：
+    - `build_figure_artifact_bundle(FigureBundleInputs(...))` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py))
+    - `bake_steering_set(plan)` + `apply_steering_through_gate(...)` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py))
+    - `SyntheticLoRABakeBackend().bake(plan)` + `apply_persona_lora_through_gate(...)` ([`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_synthetic.py) + [`gate_apply.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/gate_apply.py))
+    - `register_bundle_persona_lora(bundle)` ([`packages/lifeform-service/src/lifeform_service/figure_bundle_store.py`](../packages/lifeform-service/src/lifeform_service/figure_bundle_store.py))
+  - **缺位的脚本**：`scripts/` / `examples/` 下没有 `figure` / `einstein` / `lora` / `steering` / `bake` 任何 CLI 入口；grep 结果空
+  - 唯一调动 bake / gate apply 的真实代码：[`packages/lifeform-domain-figure/tests/`](../packages/lifeform-domain-figure/tests/)（test fixture，不是产线 script）
+- **问题**：F5 / F6 plan 设计 OFFLINE-gated 训练 + 部署流程，但当前所有 bake / gate apply / pool register 步骤都只能在 Python REPL 或测试里跑。结果：
+  - 即便用户准备好真 Einstein corpus（前置 #19）、真 PEFT backend（前置 #18），也没有一个 one-shot CLI 跑完 `fetch corpus → ingest → bundle → steering bake → lora bake → gate apply → register in pool → save bundle to disk`
+  - 操作员要"重新 bake Einstein 的 LoRA"必须手写 Python；没有可记录、可 review、可 rerun 的 audit trail
+  - rollback 流程没有 CLI surface：`apply_*_through_gate` 返回 `previous_record_id` / `previous_artifact_id`，但没有 `--rollback-to=<id>` 这种操作员入口
+  - bundle 不会 persist 到 disk —— 当前 `FigureArtifactBundle` 只在内存；`figure_bundle_store` 是 process-level in-memory dict（重启进程就丢）；没有 `save_bundle(path)` / `load_bundle(path)` 也没有"bundle 仓库"概念
+  - 任何 evidence run 都得自己写 80-150 行 Python boilerplate 串起调用，跑出来的 artifact 在哪、用什么 corpus、用了哪个 backend、谁 review 过的——全凭 commit message
+- **违反**：不违反 R 铁律。F5 / F6 plan 接受"先把函数做对，CLI 是 ops 后续工作"；只是把"figure vertical 已可用"的解释门槛设在了"加上 #23 + #19 + #18 + #20 + #22"
+- **风险**：低-中。短期开发期 / 测试 fixture 跑得通，长期产品化时这是最贴近用户操作的一层，缺了等于 ops team 接不了手
+- **触发条件**：(a) 第一次想把 baked figure bundle 跑给非工程师 review；(b) #19 真 corpus 数据集落地后想跑端到端；(c) #18 PEFT backend 落地后想 audit "什么 plan + 什么 corpus + 什么 backend → 出了什么 bundle"；(d) 任何"重 bake → 走 OFFLINE gate → 替换 active artifact"流程需要可重复跑
+- **推荐修法**（按 minimum viable 顺序）：
+  1. **bundle 持久化**：`lifeform_domain_figure` 加 `bundle_io.py` —— `save_figure_bundle(bundle: FigureArtifactBundle, dir: pathlib.Path) -> pathlib.Path` / `load_figure_bundle(dir: pathlib.Path) -> FigureArtifactBundle`；用 frozen pickle 或 typed JSON + 整数化 hash 校验；落到 `data/bundles/{figure_id}/{bundle_id}/` 目录
+  2. **bake CLI**：`scripts/figure_bake.py`（或 `python -m lifeform_domain_figure.cli`）三个子命令：
+     - `bake-bundle --figure einstein --corpus-mode {synthetic,curated} --out data/bundles/einstein/`
+     - `bake-steering --figure einstein --bundle <bundle_id> --gate offline --rollback-evidence "<text>" --out data/bundles/einstein/{new_id}/`
+     - `bake-lora --figure einstein --bundle <bundle_id> --backend {synthetic,peft} --gate offline --rollback-evidence "<text>" --out data/bundles/einstein/{new_id}/`
+  3. **gate audit**：每条 bake 子命令完成后写 `data/audit/{timestamp}_{action}_{figure}.json`，含 `corpus_provenance` / `backend_id` / `validation_delta` / `capacity_cost` / `rollback_evidence` / `gate_decision` / `block_reasons`；和 `vz-cognition` 的 `RuntimeAdaptationAudit` 风格对齐
+  4. **rollback CLI**：`figure_bake rollback --figure einstein --to-bundle <previous_id>` —— 调 `figure_bundle_store.register(previous_bundle)` + `pool.deregister(current_record_id)` + `pool.register(...previous artifact...)` + 写 audit 记录
+  5. **一键端到端 demo**：`scripts/figure_demo_einstein.sh`（或 Python） —— synthetic corpus 路径下 bundle → steering → lora → register → 跑一句话 chat → 输出引证 + L4 refusal demo；和 `scripts/run_eq_evidence_bundle.sh` (#10B item 3 那条) 风格对齐
+  6. **守 R10 / R15**：CLI 不能 bypass `apply_*_through_gate`；任何 `--bake-and-apply` 都必须把 EvaluationSnapshot 路径走通（接受 `--evaluation-snapshot path/to/snapshot.json` 输入）；每次 apply 出 `applied / record_id / previous_record_id` 进 audit
+  7. 加 `tests/service/test_figure_bake_cli_smoke.py`：以 synthetic corpus + synthetic LoRA 跑过整条 CLI；audit 文件结构正确；rollback CLI 真换出 bundle
+- **优先级**：中（独立可做，不强依赖 #18 / #19；做完后这三件 + #22 一起把 figure vertical 从"函数齐了"推到"可以交给 ops"）
 
 ---
 

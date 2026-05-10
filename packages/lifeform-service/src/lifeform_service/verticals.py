@@ -194,6 +194,36 @@ def _try_coding() -> VerticalSpec | None:
     )
 
 
+def _try_growth_advisor() -> VerticalSpec | None:
+    """Long-term private-domain growth-advisor vertical (LTV path).
+
+    Compiles the shipped Cheng Laoshi reference profile into a
+    Lifeform; the vertical does not yet ship pre-trained
+    metacontroller / regime bootstraps, so a fresh session starts
+    from the kernel's flat defaults plus the reviewed profile-derived
+    seeds (knowledge / cases / playbook / boundaries / drives).
+    """
+    try:
+        from lifeform_domain_growth_advisor import (
+            build_growth_advisor_lifeform,
+            scenarios_dir,
+        )
+    except ImportError:
+        return None
+
+    sdir = scenarios_dir()
+    return VerticalSpec(
+        name="growth_advisor",
+        factory=lambda runtime: build_growth_advisor_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        ).lifeform,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        scenarios_dir=str(sdir) if sdir.is_dir() else None,
+    )
+
+
 def _build_llm_semantic_runtime_from_runtime(runtime):
     """Wrap a TransformersOpenWeightResidualRuntime's underlying HF
     model + tokenizer in an :class:`LLMSemanticProposalRuntime`.
@@ -428,6 +458,7 @@ _BUILDERS = (
     _try_coding,
     _try_zhang_wuji,
     _try_einstein,
+    _try_growth_advisor,
 )
 
 
