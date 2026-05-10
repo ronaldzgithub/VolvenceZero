@@ -1,7 +1,7 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-10 (LSCB v1.0 reference impl land + Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#22 为 figure F6 训练后端/数据/DLaaS hook，~~#23~~ 已闭合（figure bake CLI + bundle 持久化 + audit log + rollback 全套 land），#24-#27 为本轮 D2/D3/D4/D7 数据管线层未串接缺口，#28 为完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层缺口；**#29-#30 为对外 benchmark 证据面缺口（融资尽调阻塞条件）**，#29 P1-P9 已 land、P10 公开提交 gate 在真实 ablation verdict 后；**#31 OpenAI-compat 适配 wheel 流式 SSE 未实现**；**#29 轨 2 LSCB v1.0 reference impl 已 land**：`packages/lscb-bench/` Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 站点 + 4 个 CI workflow；LSCB v1.0 launch 路径未启动追踪在 **#32**（governance / 真 reference 跑分 / DNS / submission queue），human-eval 轨道 0% 追踪在 **#33**（RFC §6.6），harness 性能 / async / staged executor 追踪在 **#34**，季度 rotation 自动化（held-out / lexicon / judge）追踪在 **#35**，v2.x 长尾（multi-modal / EQ-Bench 1:1 prompt / 加密 attestation / transcript 脱敏）追踪在 **#36**——配套对外 RFC 见 [`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)，配套 OpenAI-compat 适配层位于 `packages/lifeform-openai-compat/`）
+> Last updated: 2026-05-10 (LSCB v1.0 reference impl land + Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#22 为 figure F6 训练后端/数据/DLaaS hook，~~#23~~ 已闭合（figure bake CLI + bundle 持久化 + audit log + rollback 全套 land），~~#19~~ 部分闭合（V2 fetcher + parser 落地）、~~#25~~ 闭合（metadata fingerprint folded into bundle hash）、~~#26~~ 闭合（4 V2 metadata clients + cache + role gate）；#28 完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层（L0+L1+L2 first batch+L2 second batch）**架构层完全 land**，剩余只是 curated 数据集 / reviewer workflow 类工作；#24/#27 为本轮 D2/D7 数据管线层未串接缺口；**#29-#30 为对外 benchmark 证据面缺口（融资尽调阻塞条件）**，#29 P1-P9 已 land、P10 公开提交 gate 在真实 ablation verdict 后；**#31 OpenAI-compat 适配 wheel 流式 SSE 未实现**；**#29 轨 2 LSCB v1.0 reference impl 已 land**：`packages/lscb-bench/` Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 站点 + 4 个 CI workflow；LSCB v1.0 launch 路径未启动追踪在 **#32**（governance / 真 reference 跑分 / DNS / submission queue），human-eval 轨道 0% 追踪在 **#33**（RFC §6.6），harness 性能 / async / staged executor 追踪在 **#34**，季度 rotation 自动化（held-out / lexicon / judge）追踪在 **#35**，v2.x 长尾（multi-modal / EQ-Bench 1:1 prompt / 加密 attestation / transcript 脱敏）追踪在 **#36**——配套对外 RFC 见 [`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)，配套 OpenAI-compat 适配层位于 `packages/lifeform-openai-compat/`）
 
 > 2026-05-10 update (LSCB v1.0 reference impl land — debt #29 轨 2 推进): RFC 文档级 v0.1 → 工程级 v1.0 全套就位。新 wheel [`packages/lscb-bench/`](../packages/lscb-bench/) Apache 2.0 隔离许可，13 模块 + 144 单元测试全绿（包括 `tests/contracts/test_lscb_bench_no_internal_imports.py` 静态守 lscb-bench 不 import vz-* / lifeform-*，匹配 RFC §3 P4 outcome-level 评估契约）。**Held-out 治理**：96 scenario 走 git submodule + private repo `VolvenceZero/lscb-heldout`（[`.gitmodules`](../.gitmodules) + [`docs/external/lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 一次性 organiser bootstrap），公仓 PR 永不见 held-out body；CI release-tier 用 deploy key 拉取，PR / open-source clones 自动跳过。**Public scenarios**：24 个完全 in-repo（6 family × 4），hash 表落 [`docs/external/lscb-public-scenario-hashes.txt`](external/lscb-public-scenario-hashes.txt) 由 [`scripts/lscb/emit_scenario_hashes.py`](../scripts/lscb/emit_scenario_hashes.py) 重生成。**Public leaderboard 静态站**：`site/leaderboard/` 纯 HTML + vanilla JS，[`scripts/lscb/generate_demo_aggregate.py`](../scripts/lscb/generate_demo_aggregate.py) 给出 demo 渲染数据（10 系统 placeholder），真 reference 跑分入口 [`scripts/lscb/score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) 跑通即替换。**4 个 CI workflow**：`lscb-ci-smoke`（PR gate, 公开） / `lscb-paper-suite-small`（nightly $200-400） / `lscb-paper-suite-full`（release $5-15k, 拉 held-out） / `lscb-leaderboard-publish`（GitHub Pages）。**4 个 shell 脚本**：`run_lscb_ci_smoke.sh` / `run_lscb_paper_suite_small.sh` / `run_lscb_paper_suite_full.sh` / `build_leaderboard_site.sh`。**5 个 governance 文档**：[`lscb-submission-protocol.md`](external/lscb-submission-protocol.md) / [`lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) / [`lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) / [`lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) / [`docs/specs/lscb-bench.md`](specs/lscb-bench.md)。**仍未做（组织层 / 预算层 follow-up，不是代码层债）**：(a) working group 形成（RFC §11，依赖外部第二个组织接入，charter draft 已就位）；(b) 真 10 reference systems 跑分（$5-15k API 预算，scripts 已就位等批准）；(c) 真域名 `lscb-bench.volvencezero.org` DNS + GitHub Pages CNAME 配置；(d) v1.1 quarterly held-out paraphrase rotation。这四项都不阻塞 v1.0 reference impl 的工程交付。
 
@@ -551,7 +551,17 @@ return (
   4. 守 R8：三件 helper 的所有调用都从 `build_*` 入口走，consumer 不直接 import 内部模块；contract test 静态守门
 - **优先级**：低-中（独立可做，不强依赖 #19 但 #19 落地后会从"可选优化"升为"硬要"）
 
-## 25. Figure D4 metadata digest fingerprint 未折进 `FigureArtifactBundle.integrity_hash`
+## ~~25. Figure D4 metadata digest fingerprint 未折进 `FigureArtifactBundle.integrity_hash`~~ —— 2026-05-10 关闭
+
+> **关闭说明（2026-05-10）**：随 debt #26 V2 metadata client 一并 land 完成 R15 字节级回滚契约的最后一环。具体实现见 [`docs/DATA_CONTRACT.md`](DATA_CONTRACT.md) §1.6 和契约测试 [`tests/contracts/test_figure_bundle_metadata_fingerprint.py`](../tests/contracts/test_figure_bundle_metadata_fingerprint.py)：
+>
+> - `FigureBundleInputs.metadata_digest: MetadataDigest | None = None`（默认 None 向后兼容）
+> - `FigureArtifactBundle.metadata_digest_fingerprint: str = ""`（默认空向后兼容；`MetadataDigest.fingerprint` 透传）
+> - `compute_bundle_integrity_hash(..., metadata_digest_fingerprint="")` 默认空时**不折入** hash → 既有 bundle 字节级稳定；非空时折入 → 不同 digest 产不同 bundle id
+> - `attach_steering_to_bundle` / `attach_lora_to_bundle` 重算 hash 时保留 metadata_digest_fingerprint（防止 LoRA/steering bake 后丢失 metadata 审计链）
+> - 5 个 per-package case + 4 个 contract case 全绿
+>
+> _（保留下方原始描述以便 audit。）_
 
 - **路径**：
   - metadata 富集入口（已就位）：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/coverage_enrichment.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/coverage_enrichment.py) `enrich_profile_with_metadata(profile, digest) -> HistoricalFigureProfile` 把 `MetadataDigest.coverage_hints` 折进 `domain_coverage_seed` + 把 `lifespan.death_year` 折进 `boundary_priors`
@@ -579,7 +589,27 @@ return (
   6. 加 contract test `tests/contracts/test_figure_bundle_metadata_fingerprint.py`：(a) 同 profile 同 digest → 同 hash；(b) 同 profile 不同 digest → 不同 hash；(c) digest=None → fingerprint 字段为空字符串 + bundle 整体仍按现有路径产生稳定 hash
 - **优先级**：低（独立可做；现在 metadata 路径仍可用，只是 audit 闭合缺最后一环）
 
-## 26. Figure D4 metadata 4 个 client（OpenAlex / Wikidata / Crossref / SEP）V2 live HTTP 未做（与 #19 同构）
+## ~~26. Figure D4 metadata 4 个 client（OpenAlex / Wikidata / Crossref / SEP）V2 live HTTP 未做（与 #19 同构）~~ —— 2026-05-10 关闭
+
+> **关闭说明（2026-05-10）**：4 个 V2 live metadata client 全部 land，与 L0 corpus crawler stack 共用 `BaseHTTPClient` + `ScopePolicy`（debt #28 L0 packet 引入），通过新增的 `ScopeRole` 标签机制做 cross-role SSRF 防御。详见 [`docs/DATA_CONTRACT.md`](DATA_CONTRACT.md) §1.5 + [`docs/specs/figure-corpus-crawl.md`](specs/figure-corpus-crawl.md) §"Metadata HTTP backbone"：
+>
+> - **共用 HTTP layer (修法 1)**：`MetadataHTTPClient` 在 `metadata/http_client.py`，wrap `BaseHTTPClient` 强制 `required_role=ScopeRole.METADATA_FETCH`；SSRF 5 重门继承自 L0
+> - **4 个 live client (修法 2)**：
+>   - `live_openalex_client(...)` → `api.openalex.org/works?filter=author.id:{id}` cursor 分页
+>   - `live_wikidata_client(...)` → `Special:EntityData/{qid}.json` claims (P569/P570/P106/P101) 解析
+>   - `live_crossref_client(...)` → `api.crossref.org/works/{doi}` + `fetch_raw_message(doi)` 给 verifier 直接读 relation/translator
+>   - `live_sep_client(...)` → `plato.stanford.edu/entries/{slug}/` HTML via bs4
+> - **共享 cache (修法 3)**：`MetadataCache` content-addressable on-disk JSON cache `data/metadata_cache/{provider}/{key_sha256}/`，TTL 默认 24h，支持 TTL=0 关闭过期
+> - **守 R12 (修法 4)**：metadata clients **禁止** import `Figure*Source` typed records / kernel modules；contract test [`tests/contracts/test_verification_module_boundaries.py`](../tests/contracts/test_verification_module_boundaries.py) AST 守门
+> - **新增 `ScopeRole` (CORPUS_FETCH / METADATA_FETCH)**：在 `crawl/scope_policy.py`；`ScopePolicy.host_roles` per-host 标签；`BaseHTTPClient.get(..., required_role=...)` 跨角色 SSRF 拒收。L0 fetcher 全部传 CORPUS_FETCH，metadata client 全部传 METADATA_FETCH
+> - **3 个 default factory**：`default_scope_policy(...)` (corpus only) / `default_metadata_scope_policy(...)` (metadata only) / `default_combined_scope_policy(...)` (两者，分别打 role)
+> - **同步关闭 #28 L2 second batch**：4 个 metadata-依赖 verifier (IDENTITY_DISAMBIGUATION / AUTHORSHIP_ATTRIBUTION / VERSION_RECONCILIATION / TRANSLATION_LINEAGE) 真实现，全 backed by 这些 V2 client；详见 #28 progress 行
+> - **同步关闭 #25**：metadata digest fingerprint 折入 bundle integrity hash
+> - 21 个 per-package case (5 件 smoke test + verifier 4 件) + 4 个 contract case 全绿；既有 figure tests 零回归；ruff 新文件全绿
+>
+> **剩余 follow-up**：与 #15 DLaaS asset.uri fetcher 共用 `BaseHTTPClient` 仍未做（DLaaS 平台层独立工作；L0/L2 现在已是参考实现）。
+>
+> _（保留下方原始描述以便 audit。）_
 
 - **路径**：
   - 4 个 client Protocol + offline 桩（已就位）：
@@ -651,7 +681,9 @@ return (
 >
 > ✅ **L0 crawler frontier 已落地（同时关闭 debt #19 V2 archive fetcher）** —— 见 [`docs/specs/figure-corpus-crawl.md`](specs/figure-corpus-crawl.md)、`packages/lifeform-domain-figure/src/lifeform_domain_figure/crawl/`、CLI `packages/lifeform-domain-figure/scripts/figure_crawl.py`、契约测试 [`tests/contracts/test_crawler_module_boundaries.py`](../tests/contracts/test_crawler_module_boundaries.py) + [`tests/contracts/test_crawler_respects_robots.py`](../tests/contracts/test_crawler_respects_robots.py) + [`tests/contracts/test_crawler_uses_l1_cleaning_store.py`](../tests/contracts/test_crawler_uses_l1_cleaning_store.py)。包含：(a) `CrawlStatus` (7 enum) + `CrawlRequest` / `CrawlResult` / `ScopePolicy` 不可变 schema；(b) `BaseHTTPClient` SSRF 5 重门（scheme + host + path-prefix + redirect-1-hop-rescope + body-cap）+ retry + 304 sentinel；(c) `RobotsRegistry` per-host 缓存 + TTL + fail-closed；(d) `TokenBucketRateLimiter` per-host 默认 0.5 req/s + burst 5；(e) `CrawlFrontier` 内存+磁盘双层 + dedup + `resume_from_disk`；(f) 5 个 fetcher（generic + cpae + wikisource (action=raw 优先) + gutenberg (.txt 优先) + internet_archive (metadata API → OCR JSON)）；(g) `CrawlSink` 直写 L1 `CleaningStore.put_raw`，建立 `raw_sha256` anchor；(h) `CrawlScheduler` 端到端 orchestrator (scope → robots → rate → dispatch → fetch → sink)；(i) `live_archive_fetcher(fetch_kind, ...)` 工厂关闭 debt #19 V2，返回 `LiveFetchedBytes` raw_payload，既有 `offline_archive_fetcher()` 行为不变；(j) 5 子命令 CLI；(k) `requests` 是新 dep；(l) 73 个新 test case 全绿，零回归。
 >
-> 本债保持**开放**：剩余 **L2 second batch（4 个 metadata-依赖 verifier：IDENTITY_DISAMBIGUATION / AUTHORSHIP_ATTRIBUTION / VERSION_RECONCILIATION / TRANSLATION_LINEAGE）** 仍是 follow-up packet（与 #26 metadata client 一次性 review；沿用 L1 / L2 / L0 立的 R8 不变量：fetcher 不直接产 typed source，cleaner 不发 HTTP，verifier 不写 kernel owner）。
+> ✅ **L2 second batch（4 个 metadata-依赖 verifier）已落地（同时关闭 debt #26 + debt #25）** —— 4 个 verifier 真实现，全 backed by V2 metadata clients；`IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 启用。详细：(a) `verify_identity_disambiguation`（Wikidata QID + 生年 ±1 容差 + 职业重叠）；(b) `verify_authorship_attribution`（OpenAlex author works + co-author overlap 边缘启发）；(c) `verify_version_reconciliation`（Crossref relation map：is-version-of / replaces / is-translation-of 等 7 类）；(d) `verify_translation_lineage`（Crossref translator × language match 启发，识别翻译血缘）；(e) `MetadataDependentVerifierContext` typed bundle 让 batch CLI 一次注入所有客户端 + figure 上下文；(f) 21 个 per-package case + 4 个 contract case 全绿；(g) bundle gate 现要求每条 source 7 axes 全 PASS（NEEDS_REVIEW 转 PASS 必经 human override）。
+>
+> 本债**完全闭合**：L0 + L1 + L2（first + second batch）+ #19 + #25 + #26 全部 land。剩余只是数据层工作（curated payload 数据集、reviewer 抽样人审 CLI、license 显式 surface 等），不再是架构缺位。
 
 - **路径**：
   - 既有"单文档 fetcher 缺位"债（**只到"给一个 URL 拿一份"这一层**）：

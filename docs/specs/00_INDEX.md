@@ -455,7 +455,7 @@
 - Ledger append-only；override 通过 append 一条 `human:` check 实现；`latest_per_kind` 取每 kind 最新一条作为生效 verdict
 - Bundle gate 阶段性放行：只检查 `IMPLEMENTED_CHECK_KINDS` 全 PASS（本 packet = 3 个）；新 kind 实现时必须同步加入 frozenset，contract test 自动 surface 缺失覆盖
 
-来源：`docs/known-debts.md` debt #28 L2 first batch（2026-05-10）。本 spec 覆盖 first batch；L2 second batch（4 个 metadata-依赖 verifier）仍是 follow-up；L0 已落地，见 17F。
+来源：`docs/known-debts.md` debt #28 L2 first batch (2026-05-10) + L2 second batch (2026-05-10, debt #26 closure)。**全 7 个 verifier 已实现**；bundle gate 现要求 `IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 PASS。L0 已落地见 17F；metadata client V2 + bundle metadata fingerprint 折入也于本轮落地。
 
 ---
 

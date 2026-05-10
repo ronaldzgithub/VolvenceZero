@@ -1,6 +1,6 @@
 # Figure Corpus Verification + Audit (L2) Spec
 
-> Status: draft (first batch landed)
+> Status: full set landed (first batch + second batch)
 > Last updated: 2026-05-10
 > 对应需求: R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
 
@@ -42,11 +42,12 @@ class CheckKind(str, Enum):
     VERSION_RECONCILIATION = "version_reconciliation"   # batch 2 (deferred)
     TRANSLATION_LINEAGE = "translation_lineage"         # batch 2 (deferred)
 
-IMPLEMENTED_CHECK_KINDS: frozenset[CheckKind] = frozenset({
-    CheckKind.DATE_PLAUSIBILITY,
-    CheckKind.LICENSE_PAGE_LEVEL,
-    CheckKind.CROSS_SOURCE_BYTE,
-})
+IMPLEMENTED_CHECK_KINDS: frozenset[CheckKind] = frozenset(CheckKind)
+# All 7 kinds implemented as of debt #28 L2 second batch (2026-05-10):
+# - first batch: DATE_PLAUSIBILITY, LICENSE_PAGE_LEVEL, CROSS_SOURCE_BYTE
+# - second batch (metadata-dependent, depend on debt #26 V2 clients):
+#   IDENTITY_DISAMBIGUATION, AUTHORSHIP_ATTRIBUTION,
+#   VERSION_RECONCILIATION, TRANSLATION_LINEAGE
 
 class Verdict(str, Enum):
     PASS = "pass"
@@ -70,10 +71,10 @@ class VerificationCheck:
 | 1 | `DATE_PLAUSIBILITY` | **impl** | `(provenance, document_year, figure_lifespan)` | `birth <= year <= death`（含端点）→ PASS；外面 → FAIL；`birth > death` → NEEDS_REVIEW（拒判 ill-formed lifespan） |
 | 2 | `LICENSE_PAGE_LEVEL` | **impl** | `(provenance)` | `legal_clearance == TENANT_DECLARED` → PASS；`license_label` 含 hard-conflict 短语（"all rights reserved" / "copyright (c)" / "©"）且 clearance 是 PUBLIC_DOMAIN_* → FAIL；含 allowlist 短语 → PASS；空 / sentinel / 都不命中 → NEEDS_REVIEW |
 | 3 | `CROSS_SOURCE_BYTE` | **impl** | `(group: tuple[SourceProvenance, ...], document_group_key)` | 单源组 → PASS；同组 byte_sha256 全相同 → 全员 PASS；不同 → 全员 NEEDS_REVIEW + evidence 列冲突 |
-| 4 | `IDENTITY_DISAMBIGUATION` | deferred (#26) | metadata client 接通后再做：判断 OpenAlex / Wikidata 上的"Albert Einstein"是否同一人 | NotImplementedError stub |
-| 5 | `AUTHORSHIP_ATTRIBUTION` | deferred (#26) | 这段是否真由该 figure 所写，不是 quote / 弟子转述 / 编辑增补 | NotImplementedError stub |
-| 6 | `VERSION_RECONCILIATION` | deferred (#26) | 同一文献多次出版，哪版 canonical | NotImplementedError stub |
-| 7 | `TRANSLATION_LINEAGE` | deferred (#26) | 翻译血缘 / 译者偏移 | NotImplementedError stub |
+| 4 | `IDENTITY_DISAMBIGUATION` | **impl (2026-05-10)** | `(provenance, wikidata_client, expected_qid, expected_birth_year, expected_occupations)` | Wikidata QID single-lookup → birth year cross-check (`±1` tolerance) → FAIL on mismatch；occupation overlap zero with non-empty expected → NEEDS_REVIEW；fetch failure → NEEDS_REVIEW；else PASS |
+| 5 | `AUTHORSHIP_ATTRIBUTION` | **impl (2026-05-10)** | `(provenance, openalex_client, expected_openalex_author_id, candidate_work_id, coauthor_anchor_works, candidate_coauthor_openalex_ids)` | OpenAlex author works lookup → direct work-id match → PASS；no match + coauthor overlap data → NEEDS_REVIEW；no match + no overlap data → FAIL；fetch failure → NEEDS_REVIEW |
+| 6 | `VERSION_RECONCILIATION` | **impl (2026-05-10)** | `(provenance, crossref_client, source_doi, canonical_doi_hint)` | Crossref `relation` map check (`is-version-of` / `replaces` / `replaced-by` / `is-preprint-of` / `has-preprint` / `is-translation-of` / `has-translation`) → empty → PASS；non-empty + canonical_doi_hint matches → PASS；non-empty + canonical mismatch → NEEDS_REVIEW |
+| 7 | `TRANSLATION_LINEAGE` | **impl (2026-05-10)** | `(provenance, crossref_client, source_doi, source_language, figure_native_languages, work_of_qid)` | Crossref `translator` field × language match heuristic：lang-differ + translator-present → PASS；lang-differ + translator-empty → NEEDS_REVIEW；lang-match + translator-empty → PASS；lang-match + translator-present → NEEDS_REVIEW |
 
 ## Storage layout
 
@@ -217,3 +218,4 @@ flowchart LR
 ## 变更日志
 
 - 2026-05-10 — 初版落地（debt #28 L2 first batch）。3 / 7 verifier 真实现（DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）；4 deferred kinds schema 立 + NotImplementedError stub；ledger + gate + CLI + L1 接线 + 9 个测试套（55 case）。
+- 2026-05-10 — second batch land（debt #28 L2 second batch + debt #26 closure）。剩余 4 / 7 verifier 真实现（IDENTITY_DISAMBIGUATION / AUTHORSHIP_ATTRIBUTION / VERSION_RECONCILIATION / TRANSLATION_LINEAGE），全 backed by V2 metadata clients (Wikidata / OpenAlex / Crossref)。`IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 启用；bundle gate 现要求每条 source 的 7 axes 全 PASS（含 NEEDS_REVIEW 转 PASS 必经 human override）。新增 `MetadataDependentVerifierContext` typed bundle 让 batch CLI 一次注入所有客户端 + 图灵 figure 上下文（QID / OpenAlex author id / native langs / co-author anchors）。新增 21 个 per-package case + 4 个 contract case（含 `test_figure_bundle_metadata_fingerprint` 跨切 #25 R15 byte-level 回滚契约）。

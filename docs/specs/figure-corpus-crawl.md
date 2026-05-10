@@ -71,23 +71,43 @@ class CrawlResult:
     last_modified: str = ""
     error: str = ""
 
+class ScopeRole(str, Enum):
+    CORPUS_FETCH = "corpus_fetch"
+    METADATA_FETCH = "metadata_fetch"
+
 @dataclass(frozen=True)
 class ScopePolicy:
     allowed_hosts: frozenset[str]                              # SSRF allowlist (non-empty)
     user_agent: str
     allowed_path_prefixes: dict[str, tuple[str, ...]] = {}    # default ("/",) per host
+    host_roles: dict[str, frozenset[ScopeRole]] = {}          # per-host role tags (debt #26)
     max_pages_per_host: int = 500
     max_body_bytes: int = 50 * 1024 * 1024
     incremental: bool = True
 
-DEFAULT_HOSTS = frozenset({
+DEFAULT_CORPUS_HOSTS = frozenset({
     "einsteinpapers.press.princeton.edu",
     "en.wikisource.org", "de.wikisource.org", "fr.wikisource.org", "zh.wikisource.org",
     "www.gutenberg.org", "gutenberg.org",
     "archive.org", "ia801.us.archive.org", "ia902.us.archive.org",
     "ctext.org",
 })
+DEFAULT_METADATA_HOSTS = frozenset({
+    "api.openalex.org",
+    "www.wikidata.org", "query.wikidata.org",
+    "api.crossref.org",
+    "plato.stanford.edu",
+})
+DEFAULT_HOSTS = DEFAULT_CORPUS_HOSTS | DEFAULT_METADATA_HOSTS  # combined allowlist
 ```
+
+**ScopeRole tagging (debt #26 closure)**: each host carries a frozenset of roles. `BaseHTTPClient.get(url, *, required_role=...)` enforces the role match; absent role on host → `ScopeRejection` with `"missing required_role"` reason. The factory functions:
+
+* `default_scope_policy(user_agent)` — corpus hosts only, all tagged `CORPUS_FETCH`.
+* `default_metadata_scope_policy(user_agent)` — metadata hosts only, all tagged `METADATA_FETCH`.
+* `default_combined_scope_policy(user_agent)` — both host families, each tagged with its own role; useful for callers (e.g., L2 verifier driver) that need both layers in one HTTP client.
+
+L0 fetchers always pass `required_role=ScopeRole.CORPUS_FETCH`; metadata clients (in `lifeform_domain_figure.metadata.http_client`) always pass `required_role=ScopeRole.METADATA_FETCH`. Cross-role SSRF is rejected at gate 2 + the new role gate.
 
 ## 5 SSRF Gates (in `BaseHTTPClient.get`)
 
@@ -270,3 +290,4 @@ flowchart LR
 ## 变更日志
 
 - 2026-05-10 — 初版落地（debt #28 L0 first batch + debt #19 closure）。10 个 crawl 子模块 + 5 fetcher + CLI + 14 个测试套（73 case）+ `live_archive_fetcher` 工厂。`requests` 是新依赖。
+- 2026-05-10 — `ScopePolicy` 加 `host_roles` 字段 + `ScopeRole` enum (debt #26 closure)；`BaseHTTPClient.get` 加 `required_role` 参数；新增 `DEFAULT_METADATA_HOSTS` + `default_metadata_scope_policy()` + `default_combined_scope_policy()`；L0 fetchers 全部传 `required_role=ScopeRole.CORPUS_FETCH`；既有 caller 传 `required_role=None` 行为不变。新增 13 case (`test_scope_policy_role_smoke` + `test_http_client_role_smoke`)。

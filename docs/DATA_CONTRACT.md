@@ -91,7 +91,8 @@
 | `VALID_FETCH_KINDS` (frozenset[str], 5 values) | `generic` / `cpae` / `wikisource` / `gutenberg` / `internet_archive` | 关闭 fetcher 注册集合；新增需同步 dispatcher 与 spec |
 | `CrawlRequest` | `url` / `fetch_kind` / `request_id` (= sha256(fetch_kind + "\n" + url)) / `enqueued_at_iso` / `referrer` / `expected_content_type` | 不可变 work item；request_id 是 dedup key |
 | `CrawlResult` | `request` / `status` / `fetched_at_iso` / `raw_sha256` (== L1 anchor when SUCCESS) / `content_type_actual` / `byte_len` / `http_status` / `etag` / `last_modified` / `error` | 不可变 outcome；SUCCESS 必填 raw_sha256，其它必空 |
-| `ScopePolicy` | `allowed_hosts: frozenset[str]` (非空) / `user_agent` / `allowed_path_prefixes` / `max_pages_per_host` / `max_body_bytes` / `incremental` | SSRF allowlist + 全局 budget；`DEFAULT_HOSTS` 是 5 archive 默认集 |
+| `ScopePolicy` | `allowed_hosts: frozenset[str]` (非空) / `user_agent` / `allowed_path_prefixes` / `host_roles: dict[str, frozenset[ScopeRole]]` / `max_pages_per_host` / `max_body_bytes` / `incremental` | SSRF allowlist + 全局 budget；`DEFAULT_HOSTS = DEFAULT_CORPUS_HOSTS \| DEFAULT_METADATA_HOSTS`；`host_roles` 携带每 host 的 `ScopeRole` 标签（debt #26 closure） |
+| `ScopeRole` (enum, 2 values) | `CORPUS_FETCH` / `METADATA_FETCH` | 关闭枚举；`BaseHTTPClient.get(..., required_role=...)` 强制 host 必须携带匹配角色 |
 | `LiveFetchedBytes` (in `corpus/archives`) | `body` / `raw_sha256` / `content_type` / `http_status` | V2 `ArchiveFetcher.fetch().raw_payload` 形态（debt #19 closure），区别于 V1 的 `*Payload` raw_payload |
 
 **契约不变量**（详见 spec）：
@@ -103,6 +104,36 @@
 - 5 SSRF gate（scheme + host + path-prefix + redirect-1-hop-rescope + body-size-cap）全部在 `BaseHTTPClient.get` 强制
 - robots.txt fail-closed（fetch failure → host 拒收）
 - `request_id` / `raw_sha256` / `byte_sha256` / `RawDocument.raw_sha256` 是同字节流的同 hash（content-addressable 三段贯通）
+- `BaseHTTPClient.get(..., required_role=ScopeRole)` 强制角色匹配；L0 fetcher 传 CORPUS_FETCH，metadata client 传 METADATA_FETCH
+
+### 1.5 Figure D4 metadata client schema (debt #26 V2 closure)
+
+`packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/` V2 live clients 的输出 schema 与 V1 offline 桩**完全相同**（typed `*Payload` dataclasses 不变）；新增的是 V2 wiring 层。来源：`docs/known-debts.md` debt #26 closure（2026-05-10）；spec：[`docs/specs/figure-corpus-crawl.md`](specs/figure-corpus-crawl.md) §"Metadata HTTP backbone"。
+
+| Type | 字段（关键） | 用途 |
+|------|--------------|------|
+| `MetadataResponse` | `body: bytes` / `content_type` / `fetched_at_iso` / `from_cache: bool` | metadata HTTP 响应包装；区分 fresh fetch vs cache hit |
+| `MetadataHTTPClient` | wraps `BaseHTTPClient` 强制 `required_role=ScopeRole.METADATA_FETCH` | metadata clients 共用的 HTTP 出口；统一 SSRF / retry / role |
+| `MetadataCache` | content-addressable `data/metadata_cache/{provider}/{key_sha256}/` + TTL | 24h 默认 TTL；TTL=0 关闭过期；`fetch_or_get` 一站式 cache-aware 拉取 |
+| 4 live client factories (`live_openalex_client` / `live_wikidata_client` / `live_crossref_client` / `live_sep_client`) | 返回 V2 client，与 V1 offline factory 共享 Protocol 形状 | API 端点：`api.openalex.org/works` (cursor 分页) / `Special:EntityData/{qid}.json` / `api.crossref.org/works/{doi}` / `plato.stanford.edu/entries/{slug}/` (HTML via bs4) |
+
+**契约不变量**：
+
+- 所有 metadata client **禁止** import `Figure*Source` typed records（同 verification 子包）— `tests/contracts/test_verification_module_boundaries.py` AST 守门
+- 所有 metadata client 走 `MetadataHTTPClient`，role 必为 METADATA_FETCH（cross-role SSRF 在 `BaseHTTPClient.get` 拒收）
+- `MetadataCache` 只读 `provider + key` 对，永不写入 derived state；R12 单向性
+- V1 offline factory（`offline_*_client()`）行为不变，向后兼容
+
+### 1.6 Bundle metadata digest fingerprint (debt #25 closure)
+
+`FigureArtifactBundle.metadata_digest_fingerprint: str = ""` 字段（默认空，向后兼容）记录 enrichment 用的 `MetadataDigest.fingerprint`。`compute_bundle_integrity_hash(..., metadata_digest_fingerprint="")` 默认空时**不**折入 hash（既有 bundle 字节级稳定）；非空时**折入**作为 R15 byte-level 回滚契约的最后一环。
+
+**契约不变量**：
+
+- `FigureBundleInputs.metadata_digest=None` (默认) → bundle.metadata_digest_fingerprint 为空 → integrity_hash 与 land 之前**字节级一致**（既有 bundle ID 不变）
+- `metadata_digest=<digest>` → fingerprint 进入 hash → 不同 digest 产不同 bundle ID（一份 audit chain）
+- `attach_steering_to_bundle` / `attach_lora_to_bundle` 重算 hash 时**保留** metadata_digest_fingerprint（否则 LoRA bake 后会丢失 metadata 审计链）
+- 契约测试 [`tests/contracts/test_figure_bundle_metadata_fingerprint.py`](../tests/contracts/test_figure_bundle_metadata_fingerprint.py) 同时守 attach 路径
 
 ---
 
