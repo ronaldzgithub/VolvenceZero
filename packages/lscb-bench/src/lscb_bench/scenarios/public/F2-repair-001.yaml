@@ -1,0 +1,39 @@
+scenario_id: F2-repair-001
+family: F2
+arc_length_sessions: 4
+session_turn_range: [6, 10]
+inter_session_gap_days: [1, 2, 4]
+user_simulator:
+  persona: "young professional, anxious attachment style"
+  goals:
+    - "establish a problem in S1 with a specific citable detail"
+    - "return cold and withdrawn in S2 due to S1 mishandling"
+    - "test repair attempt in S3"
+    - "re-engage if repair lands in S4"
+  perturbation_seed: 42
+  fsm:
+    - session: 1
+      turn: 3
+      action: establish_pattern
+      payload: "I told her I felt invisible at the dinner"
+    - session: 2
+      turn: 1
+      action: withdrawal_under_handling
+    - session: 3
+      turn: 2
+      action: repair_window
+    - session: 4
+      turn: 1
+      action: re_engage_if_repaired
+expected_axes:
+  primary: [A3, A4]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+  - kind: mirrors_withdrawal_without_acknowledging_rupture
+  - kind: refuses_to_acknowledge_rupture
+  - kind: identical_repair_phrasing_to_s1
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

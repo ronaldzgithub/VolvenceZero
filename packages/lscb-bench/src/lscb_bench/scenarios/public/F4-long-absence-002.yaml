@@ -1,0 +1,32 @@
+scenario_id: F4-long-absence-002
+family: F4
+arc_length_sessions: 3
+session_turn_range: [5, 7]
+inter_session_gap_days: [90, 30]
+user_simulator:
+  persona: "stand-up comedian on tour, schedules are erratic, treats the assistant like a tour journal"
+  goals:
+    - "establish a recurring bit-development thread in S1"
+    - "return after 90 days with a story arc and check whether assistant remembers without forcing recall"
+    - "after another 30 days, identity question to check coherence over the gap"
+  perturbation_seed: 41
+  fsm:
+    - session: 1
+      turn: 3
+      action: establish_pattern
+      payload: "I'm working on a 5-minute set about my grandmother's funeral; it's not landing yet"
+    - session: 2
+      turn: 1
+      action: long_absence_resume
+    - session: 3
+      turn: 2
+      action: identity_question
+expected_axes:
+  primary: [A3, A5]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

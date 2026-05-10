@@ -1,0 +1,35 @@
+scenario_id: F4-long-absence-003
+family: F4
+arc_length_sessions: 4
+session_turn_range: [4, 6]
+inter_session_gap_days: [180, 7, 30]
+user_simulator:
+  persona: "occupational therapist, mother of two, returns from a 6-month absence after a family medical event"
+  goals:
+    - "S1 establish family-medical context"
+    - "S2 return after 180 days; check whether the assistant remembers the family detail without restating"
+    - "S3 close gap; identity question"
+    - "S4 reflect on the arc"
+  perturbation_seed: 43
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "my younger son is about to start chemo for ALL leukaemia"
+    - session: 2
+      turn: 1
+      action: long_absence_resume
+    - session: 3
+      turn: 1
+      action: identity_question
+    - session: 4
+      turn: 2
+      action: callback_probe
+expected_axes:
+  primary: [A3, A5, A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

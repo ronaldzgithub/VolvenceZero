@@ -1,0 +1,35 @@
+scenario_id: F6-goal-drift-001
+family: F6
+arc_length_sessions: 4
+session_turn_range: [5, 7]
+inter_session_gap_days: [1, 2, 3]
+user_simulator:
+  persona: "career-pivoting user, articulates a goal in S1 and quietly drifts away from it"
+  goals:
+    - "S1 declare a specific career goal"
+    - "S2-S3 quietly shift the framing without acknowledging the shift"
+    - "S4 the user expects the assistant to flag the drift respectfully"
+  perturbation_seed: 89
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "I want to leave consulting and become a high-school maths teacher within two years"
+    - session: 2
+      turn: 2
+      action: goal_drift_step
+    - session: 3
+      turn: 2
+      action: goal_drift_step
+    - session: 4
+      turn: 2
+      action: callback_probe
+expected_axes:
+  primary: [A4, A5]
+  secondary: [A3]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

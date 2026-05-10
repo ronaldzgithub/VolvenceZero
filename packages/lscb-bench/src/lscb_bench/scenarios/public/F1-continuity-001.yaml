@@ -1,0 +1,33 @@
+scenario_id: F1-continuity-001
+family: F1
+arc_length_sessions: 3
+session_turn_range: [6, 8]
+inter_session_gap_days: [1, 2]
+user_simulator:
+  persona: "graduate student in computational biology, secure attachment, prone to over-explaining when stressed"
+  goals:
+    - "open S1 by sharing one specific research crisis with a citable detail"
+    - "in S2 ask the assistant about that detail without re-stating it"
+    - "in S3 build on top of the established detail with a related new direction"
+  perturbation_seed: 11
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "I'm working on a paper about reaction-diffusion in coral microbiomes and my advisor sent it back red"
+    - session: 2
+      turn: 1
+      action: callback_probe
+    - session: 3
+      turn: 2
+      action: establish_preference
+      payload: "I like when you ask follow-up questions instead of summarising"
+expected_axes:
+  primary: [A3]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

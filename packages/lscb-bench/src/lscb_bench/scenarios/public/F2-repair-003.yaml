@@ -1,0 +1,37 @@
+scenario_id: F2-repair-003
+family: F2
+arc_length_sessions: 4
+session_turn_range: [5, 8]
+inter_session_gap_days: [1, 2, 1]
+user_simulator:
+  persona: "first-year medical resident, perfectionist, conflict-avoidant"
+  goals:
+    - "establish a difficult attending interaction in S1"
+    - "in S2 the user has had a hard call shift and is short with the assistant"
+    - "in S3 the user comes back and the assistant must notice the mood change"
+    - "in S4 the user re-engages or stays guarded based on S3 quality"
+  perturbation_seed: 67
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "the attending told me in front of everyone that my note quality is hurting the team"
+    - session: 2
+      turn: 1
+      action: withdrawal_under_handling
+    - session: 3
+      turn: 2
+      action: repair_window
+    - session: 4
+      turn: 1
+      action: re_engage_if_repaired
+expected_axes:
+  primary: [A2, A3, A4]
+  secondary: [A5]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+  - kind: refuses_to_acknowledge_rupture
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

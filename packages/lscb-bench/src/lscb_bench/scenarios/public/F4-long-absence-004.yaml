@@ -1,0 +1,35 @@
+scenario_id: F4-long-absence-004
+family: F4
+arc_length_sessions: 3
+session_turn_range: [5, 8]
+inter_session_gap_days: [60, 120]
+user_simulator:
+  persona: "submarine engineer (retired), introvert, tests the assistant's persona before committing"
+  goals:
+    - "S1 ask identity question + share one citable detail"
+    - "after 60-day gap, ask identity question again; check if persona is the same"
+    - "after another 120-day gap, give the assistant an opening to surface the S1 detail"
+  perturbation_seed: 51
+  fsm:
+    - session: 1
+      turn: 1
+      action: identity_question
+    - session: 1
+      turn: 3
+      action: establish_pattern
+      payload: "I'm restoring an old Honda CB400 in my garage and stuck on the carb sync"
+    - session: 2
+      turn: 1
+      action: identity_question
+    - session: 3
+      turn: 1
+      action: long_absence_resume
+expected_axes:
+  primary: [A5, A3]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

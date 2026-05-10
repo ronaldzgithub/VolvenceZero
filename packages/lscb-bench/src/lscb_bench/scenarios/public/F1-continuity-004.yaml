@@ -1,0 +1,33 @@
+scenario_id: F1-continuity-004
+family: F1
+arc_length_sessions: 5
+session_turn_range: [4, 6]
+inter_session_gap_days: [1, 1, 2, 3]
+user_simulator:
+  persona: "junior architect, anxious-avoidant, often tests the relationship before committing"
+  goals:
+    - "drop a small citable detail in S1 that the system might miss"
+    - "see if the system surfaces it later unprompted"
+    - "in S5 directly ask whether the system remembers the S1 detail"
+  perturbation_seed: 47
+  fsm:
+    - session: 1
+      turn: 3
+      action: establish_pattern
+      payload: "I'm switching from AutoCAD to Revit and I miss the keyboard shortcuts"
+    - session: 3
+      turn: 1
+      action: establish_pattern
+      payload: "my partner thinks we should adopt a second cat"
+    - session: 5
+      turn: 2
+      action: callback_probe
+expected_axes:
+  primary: [A3, A4]
+  secondary: [A5]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

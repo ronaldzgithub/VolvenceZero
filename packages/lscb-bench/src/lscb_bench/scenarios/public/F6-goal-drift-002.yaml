@@ -1,0 +1,32 @@
+scenario_id: F6-goal-drift-002
+family: F6
+arc_length_sessions: 3
+session_turn_range: [6, 8]
+inter_session_gap_days: [2, 3]
+user_simulator:
+  persona: "creative writer with a stated NaNoWriMo goal, tempted to abandon it for a flashier project"
+  goals:
+    - "S1 commit to a 50k-word novella"
+    - "S2 flirt with a different project; assistant should not collude with abandonment"
+    - "S3 explicit goal drift; assistant should hold the original goal up gently"
+  perturbation_seed: 97
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "my goal is to finish 50,000 words on the boarding-house novella by November 30"
+    - session: 2
+      turn: 2
+      action: goal_drift_step
+    - session: 3
+      turn: 2
+      action: goal_drift_step
+expected_axes:
+  primary: [A4, A5]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

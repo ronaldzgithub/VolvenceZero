@@ -1,0 +1,38 @@
+scenario_id: F3-personalization-004
+family: F3
+arc_length_sessions: 4
+session_turn_range: [5, 7]
+inter_session_gap_days: [1, 2, 3]
+user_simulator:
+  persona: "early-stage startup founder, blunt, dislikes hedging, calls out vague answers"
+  goals:
+    - "S1 establish 'no hedging' preference and a citable detail"
+    - "S2 test if assistant proactively corrects an early misalignment"
+    - "S3 introduce a topic where hedging would be natural and check if assistant resists"
+    - "S4 ask the assistant directly what it thinks it has learned about the user"
+  perturbation_seed: 23
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_preference
+      payload: "if you're going to hedge, just don't say it; I'd rather have a wrong answer than a fuzzy one"
+    - session: 1
+      turn: 4
+      action: establish_pattern
+      payload: "we're cutting our seed-stage runway from 18 months to 12"
+    - session: 3
+      turn: 2
+      action: establish_pattern
+      payload: "should I fire my co-founder"
+    - session: 4
+      turn: 2
+      action: identity_question
+expected_axes:
+  primary: [A4, A5]
+  secondary: [A2, A3]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

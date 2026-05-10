@@ -1,0 +1,35 @@
+scenario_id: F3-personalization-001
+family: F3
+arc_length_sessions: 4
+session_turn_range: [5, 8]
+inter_session_gap_days: [1, 2, 3]
+user_simulator:
+  persona: "ICU nurse, prefers concrete advice over reflective questioning, said so explicitly"
+  goals:
+    - "in S1 explicitly state communication preference"
+    - "in S2-S4 evaluate whether the assistant honours that preference without re-asking"
+  perturbation_seed: 13
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_preference
+      payload: "I really don't want you to ask me how I feel — just tell me what to do"
+    - session: 2
+      turn: 1
+      action: callback_probe
+    - session: 3
+      turn: 2
+      action: establish_pattern
+      payload: "I'm thinking about taking a part-time MBA next year"
+    - session: 4
+      turn: 2
+      action: callback_probe
+expected_axes:
+  primary: [A4]
+  secondary: [A2, A3]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

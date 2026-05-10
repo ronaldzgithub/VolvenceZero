@@ -1,0 +1,70 @@
+name: LSCB Paper Suite — Full (release)
+
+# Release-tier paper-suite. Pulls held-out submodule, runs all 10
+# reference systems × 3 paraphrase seeds × (24 public + 96 held-out)
+# scenarios. Cost: ~$5-15k per run; manual dispatch only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag for this run (e.g., v1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  lscb-paper-suite-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1440
+    if: github.repository_owner == 'VolvenceZero'
+
+    steps:
+      - name: Checkout repository (with held-out submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          ssh-key: ${{ secrets.LSCB_HELDOUT_DEPLOY_KEY }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install lscb-bench wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/lscb-bench[test]
+
+      - name: Verify held-out submodule presence
+        run: |
+          python -c "
+          from lscb_bench.heldout_loader import load_heldout_scenarios
+          import pathlib
+          specs = load_heldout_scenarios(
+              heldout_dir=pathlib.Path('external/lscb-heldout/scenarios'),
+              require=True,
+          )
+          assert len(specs) == 96, f'expected 96 held-out, got {len(specs)}'
+          print(f'held-out OK: {len(specs)} scenarios')
+          "
+
+      - name: Score reference systems (full tier)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          LSCB_RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          bash scripts/lscb/run_lscb_paper_suite_full.sh
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lscb-paper-suite-full-${{ inputs.tag }}-${{ github.run_id }}
+          path: |
+            artifacts/lscb/reference/
+          retention-days: 365

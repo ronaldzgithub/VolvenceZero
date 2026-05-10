@@ -1,0 +1,36 @@
+scenario_id: F1-continuity-003
+family: F1
+arc_length_sessions: 3
+session_turn_range: [5, 7]
+inter_session_gap_days: [2, 4]
+user_simulator:
+  persona: "small-business owner running a bookshop, mid-50s, dry humour, often deflects with jokes"
+  goals:
+    - "share three distinct concrete details in S1 (a financial decision, a personal habit, a relationship event)"
+    - "in S2 see whether the assistant remembers all three or only one"
+    - "in S3 introduce a fourth detail and check whether prior three still hold"
+  perturbation_seed: 31
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "I sold off the old children's section to make room for a coffee bar"
+    - session: 1
+      turn: 4
+      action: establish_pattern
+      payload: "I started doing tai chi in the park before opening at 9"
+    - session: 2
+      turn: 1
+      action: callback_probe
+    - session: 3
+      turn: 2
+      action: callback_probe
+expected_axes:
+  primary: [A3]
+  secondary: [A2, A5]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3
