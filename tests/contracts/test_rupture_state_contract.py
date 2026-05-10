@@ -45,11 +45,33 @@ from volvence_zero.rupture_state import (
 )
 
 
+# External outcomes that never produce a turn-level rupture.
+#
+# Three groups live here:
+#
+# 1. Positive in-turn signals (``HELPED`` / ``FELT_HEARD`` /
+#    ``DECISION_CLEARER``) — by definition not rupture-producing.
+# 2. W3-A positive LTV funnel events (``LEAD_QUALIFIED`` /
+#    ``RECOMMENDATION_MADE`` / ``PURCHASE_CONFIRMED`` / ``REPURCHASE``)
+#    — confirmed business wins; PE / regime treat them as positive.
+# 3. ``CHURNED`` — negative but long-horizon. The user has already
+#    disengaged, so there is no current turn to anchor a rupture to;
+#    the damage is captured by W3-A's negative PE bias + low regime
+#    score, and a typed "churn rupture" RuptureKind is intentionally
+#    deferred (see the comment in ``EXTERNAL_OUTCOME_TO_RUPTURE_KIND``).
+#
+# The set name is historical ("positive") but the meaning is
+# precisely "non-rupture-producing"; the test below relies on it.
 _POSITIVE_EXTERNAL_KINDS: frozenset[DialogueExternalOutcomeKind] = frozenset(
     {
         DialogueExternalOutcomeKind.HELPED,
         DialogueExternalOutcomeKind.FELT_HEARD,
         DialogueExternalOutcomeKind.DECISION_CLEARER,
+        DialogueExternalOutcomeKind.LEAD_QUALIFIED,
+        DialogueExternalOutcomeKind.RECOMMENDATION_MADE,
+        DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
+        DialogueExternalOutcomeKind.REPURCHASE,
+        DialogueExternalOutcomeKind.CHURNED,
     }
 )
 
@@ -77,6 +99,16 @@ def test_rupture_evidence_source_enum_is_closed() -> None:
 
 
 def test_dialogue_external_outcome_kind_enum_is_closed() -> None:
+    """Lock the ``DialogueExternalOutcomeKind`` vocabulary.
+
+    Adding a new value here is a contract change — it MUST come with
+    explicit downstream mappings in PE bias, regime score, structural
+    projection, and rupture mapping (or a documented opt-out). The
+    W3-A LTV block was added to support conversion-funnel evidence
+    (CRM / payments) flowing through ``submit_dialogue_outcome`` via
+    typed ``FeedbackValence`` — see
+    ``packages/dlaas-platform-contracts/src/dlaas_platform_contracts/dispatch_vocab.py``.
+    """
     assert set(DialogueExternalOutcomeKind) == {
         DialogueExternalOutcomeKind.HELPED,
         DialogueExternalOutcomeKind.FELT_HEARD,
@@ -86,6 +118,12 @@ def test_dialogue_external_outcome_kind_enum_is_closed() -> None:
         DialogueExternalOutcomeKind.COME_BACK,
         DialogueExternalOutcomeKind.UNSAFE,
         DialogueExternalOutcomeKind.ABANDONED,
+        # W3-A LTV / conversion-funnel block.
+        DialogueExternalOutcomeKind.LEAD_QUALIFIED,
+        DialogueExternalOutcomeKind.RECOMMENDATION_MADE,
+        DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
+        DialogueExternalOutcomeKind.REPURCHASE,
+        DialogueExternalOutcomeKind.CHURNED,
     }
 
 

@@ -140,8 +140,28 @@ vz-* 内核 7 wheel diff 仍然是 **0 行**（承诺不破，包括 Slice 5.4 c
 | `dlaas-platform-api` | aiohttp router + 7-类 dispatch + 控制面整合 | 1 起 + Slice 2 dispatch + Slice 3+ full stack |
 | `dlaas-platform-registry` | SQLite-backed CRUD + 3 auth；tenants / shells / assets / templates / contracts / focus_persons / identity_links / handoff_tickets / audience_profiles / exam_questions / exam_runs / launch_licenses | 3 / 4 / 5 / 6 |
 | `dlaas-platform-launcher` | `{ai_id → SessionManager}` + 共享 substrate；vertical 解析 | 3.5 |
-| `dlaas-platform-ops` | pause / resume / operator-message / handoff trigger / SSE ledger | 5 |
+| `dlaas-platform-ops` | pause / resume / operator-message / handoff trigger / SSE ledger / OutboundScheduler (W3-B) | 5 + W3-B |
 | `dlaas-platform-eval` | audience / exam runs / launch license + DefaultRubricGrader | 6 |
+
+## Growth-Advisor 落地补记（Wave 1 → W3-B）
+
+LTV / 私域运营路线已分四块落地，全部端到端可测：
+
+| Wave | 内容 | 影响范围 | 测试 |
+|---|---|---|---|
+| **Wave 1** | `lifeform-domain-growth-advisor` vertical + 谌老师 profile + 7-Day playbook + 4 boundary priors + 4 drives + scenarios + DLaaS adopt 端到端 smoke | 0 行 vz-* 改动；新 wheel + verticals.py 注册 | 13 wheel + 4 import_boundaries + 1 dlaas smoke |
+| **W2-A** | `RelationshipStateSnapshot` 加 `cumulative_trust_level` / `relationship_age_turns` / `funnel_stage`（typed string vocabulary，default `"unknown"` backward-compat），由 `RelationshipStateModule` 在 `_build_snapshot` 内部计算；`_classify_funnel_stage` 是唯一映射规则 | `vz-cognition.semantic_state.contracts` + `owners.py` | 6 新增 + 17 既有 |
+| **W2-B** | `LLMSemanticProposalRuntime._GENERIC_LLM_SLOT_IDS` 加 `relationship_state` + `user_model`，沿用现有 `proposal.schema.json` + `extraction.md` 通用 prompt（slot-agnostic），无需新 schema | `vz-cognition.semantic_state.llm_runtime` | 3 新增 + 32 既有 |
+| **W3-A** | `DialogueExternalOutcomeKind` 加 5 个 LTV outcome（`LEAD_QUALIFIED` / `RECOMMENDATION_MADE` / `PURCHASE_CONFIRMED` / `REPURCHASE` / `CHURNED`）+ `FeedbackValence` 镜像 + 四张下游表显式映射（PE bias / regime score / 结构投影 / reflection writeback） | `vz-contracts.dialogue_trace` + `dlaas-platform-contracts.dispatch_vocab` + `vz-cognition.prediction/regime/reflection` + `vz-runtime.dialogue_outcome_producers` | 5 dispatch + 1 enum + 19 rupture |
+| **W3-B** | `dlaas-platform-ops.OutboundScheduler` (pure decision producer) + `OutboundCadenceConfig` + `OutboundLedger` + `OutboundFollowupRequest` + `OutboundDecision` + typed `CommandName.INITIATE_PROACTIVE_FOLLOWUP` + dispatcher branch 走 APPRENTICE turn | `dlaas-platform-ops.outbound_scheduler` (新文件) + `dispatch_vocab` + `dlaas-platform-api.dispatch` | 16 scheduler + 2 dispatcher |
+
+**结构性不变量保留**：
+- 跨模块只走 snapshot：`OutboundScheduler` 通过 `runner.active_snapshots()` 读 `relationship_state`，不 import kernel internals（与 `handoff_trigger` 同模式）。
+- `funnel_stage` 是字符串 vocabulary，由 owner 内的 `_classify_funnel_stage` 单点决定 — 改规则即改契约（snapshot description 同步反映）。
+- W3-A 新 enum 全部走外部 typed evidence（CRM / payments / 人工 review），**禁止**从 chat text 推断；下游四张表的 1:1 / 1:N 关系由 `tests/contracts/test_rupture_state_contract.py::test_external_to_rupture_mapping_is_one_to_one_on_rupture_producing_kinds` 守门。
+- W3-B `INITIATE_PROACTIVE_FOLLOWUP` 走 APPRENTICE trigger，vitals apprentice override on，proactive 主动消息**不**污染 slow-scale PE。
+
+**测试矩阵当前规模**：约 1230+ 项绿色（contracts + service + cognition + growth-advisor wheel）。
 
 ## DLaaS 平台后续可选演进
 

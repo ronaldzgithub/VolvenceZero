@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-10 (Real-Person Figure Vertical F1-F6 全套 land；新增 #18-#23 为 figure-vertical 训练数据 / 训练管线 / DLaaS adopt 接线层未来工作)
+> Last updated: 2026-05-10 (Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#23 为 figure F6 训练后端/数据/CLI/DLaaS hook，#24-#27 为本轮 D2/D3/D4/D7 数据管线层未串接缺口，#28 为完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层缺口)
+
+> 2026-05-10 update (Persona Figure 数据管线 V1 D2/D3/D4/D7): 在 #18-#23 已就位的 F6 训练后端骨架基础上，本轮新增 4 类纯数据策展层：(a) **D2** corpus 子目录加 typed `SourceProvenance` + `LegalClearance` + `compute_dedup_report` + `parse_locator` 三件 reviewer-facing helper（详见 [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/{provenance,dedupe,citation}.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/)）；(b) **D3** `corpus/archives/` 4 个 archive 适配器（CPAE / Wikisource / Gutenberg / Internet Archive）+ `ArchiveFetcher` Protocol + V1 offline 桩；(c) **D4** `metadata/` 子包给 OpenAlex / Wikidata / Crossref / SEP 4 个 metadata 来源加 typed payload + `*_to_*` 翻译器 + Protocol 客户端 + offline 桩 + `MetadataDigest` 指纹聚合 + `enrich_profile_with_metadata` 桥（**T3 严禁污染**：metadata 永不进 retrieval / LoRA training data）；(d) **D7** 鲁迅 reviewed `HistoricalFigureProfile` + Chinese Text Project archive 适配器（孔子等古典人物用）。150/150 figure tests + 91/91 figure-related import boundary tests 全绿。**4 块新缺口需要后续 follow-up（已开 debt）**：(i) D2 三件 helper 都是 pure 函数，未接进 `build_figure_artifact_bundle` / `build_figure_retrieval_index` 主管线，存在但不 load-bearing（→ #24）；(ii) `MetadataDigest.fingerprint` 未折进 `FigureArtifactBundle.integrity_hash`，metadata enrichment 之后 bundle 字节级回滚契约不闭合（→ #25）；(iii) D4 4 个 metadata client 全是 offline 桩 + `NotImplementedError`，与 #19 archive V2 fetcher 同构但是不同 client 集（→ #26）；(iv) 鲁迅 PoC 只到 `HistoricalFigureProfile`，缺 `synthetic_lu_xun_corpus()` / `build_lu_xun_lifeform()` / 鲁迅 e2e test / CTP curated 数据集（→ #27）。
 
 > 2026-05-10 update (Real-Person Figure Vertical F1-F6): 16 packets land；新 wheel `lifeform-domain-figure` + `vz-substrate` 一处 additive `persona_lora_pool.py` + `lifeform-expression` 三个 enforcer (`GroundedDecoder` / `ScopeRefuser` / `StylePriorInjector`) + `dlaas-platform-{contracts,registry}` 4 个 figure 字段 + `lifeform-service` `figure_bundle_store.py` 全套到位；L1 (style prior) / L3 (citation grounding) / L4 (scope refusal) 在零 GPU 训练下端到端可演示，L2 (steering) + L1+L2 (persona LoRA) 通过 OFFLINE `ModificationGate` 走 SHADOW。1063/1063 contract / smoke / e2e test 全绿，含 `test_full_chain_e2e_smoke.py` 一次性把 retrieval × coverage × style × steering × LoRA 在 Einstein bundle 上跑通；详见 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md) + [`docs/DATA_CONTRACT.md`](DATA_CONTRACT.md) §2.15。**遗留三块需要后续 follow-up（已开 debt）**：(a) F5 steering 用 CPU contrastive linear readout 在 hashing-embedding 坐标系（→ #21）+ F6 LoRA 用 deterministic synthetic backend（→ #18）；(b) 基础数据准备只到 V1 archive schema，没有 V2 HTTPArchiveFetcher、没有 PDF/HTML/wiki/OCR parser、没有 curated payload 数据集（→ #19）；(c) 训练管线 script 完全没有，所有 bake / gate apply / rollback 只是 Python 函数没 CLI（→ #23）。DLaaS adopt 主路径未自动 hook-in（→ #22）；PersonaLoRAPool 真热插未接（→ #20）。
 
@@ -502,6 +504,183 @@ return (
   6. **守 R10 / R15**：CLI 不能 bypass `apply_*_through_gate`；任何 `--bake-and-apply` 都必须把 EvaluationSnapshot 路径走通（接受 `--evaluation-snapshot path/to/snapshot.json` 输入）；每次 apply 出 `applied / record_id / previous_record_id` 进 audit
   7. 加 `tests/service/test_figure_bake_cli_smoke.py`：以 synthetic corpus + synthetic LoRA 跑过整条 CLI；audit 文件结构正确；rollback CLI 真换出 bundle
 - **优先级**：中（独立可做，不强依赖 #18 / #19；做完后这三件 + #22 一起把 figure vertical 从"函数齐了"推到"可以交给 ops"）
+
+## 24. Figure D2 三件 corpus helper（dedupe / provenance / citation parser）未接进 bundle 主管线
+
+- **路径**：
+  - 三件 helper 模块（已就位）：
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/dedupe.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/dedupe.py)（`compute_dedup_report` + `DedupReport` + `DuplicateGroup`，跨 envelope sha256 折叠 + 高信度 source kind 优先）
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/provenance.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/provenance.py)（`SourceProvenance` + `LegalClearance` + `CaptureMethod` + `fingerprint_provenance`）
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/citation.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/citation.py)（`parse_locator` + `ParsedLocator`，4 种 locator 字符串严格 typed parser）
+  - **缺位的调用点**：
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/retrieval_index.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/retrieval_index.py) `build_figure_retrieval_index(...)` 不调 `compute_dedup_report` 过滤 canonical chunks
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py) `FigureBundleInputs` 没有 `provenance_records: tuple[SourceProvenance, ...]` 字段；`compute_bundle_integrity_hash` 不折进 `fingerprint_provenance`
+    - [`packages/lifeform-expression/`](../packages/lifeform-expression/) `GroundedDecoder` 在 surfacing evidence pointer 时把 locator 当 opaque string 透传，未调 `parse_locator(...)` 派生结构化 citation 字段
+- **问题**：D2 三件 helper 是 reviewer-facing pure 函数，schema + 测试都齐（20 个 smoke test 全绿），但**没人调** —— 它们存在但不 load-bearing。具体表现：
+  - retrieval index 在 synthetic einstein corpus 上实测出 3 个跨 envelope dup（`_HEADER_NOTE` 横在 4 个 source kind 上），如果走 `compute_dedup_report` 过滤就只有 12 个 chunk 进 BM25；当前不过滤，15 个 chunk 都进，给重复 header 加权 → BM25 在 boilerplate 上 spike
+  - `SourceProvenance` 是显式 license / `LegalClearance` / `CaptureMethod` 的 audit 入口，但 `FigureArtifactBundle.integrity_hash` 不依赖它 —— curator 改了一份 source 的 license 字段，bundle 还是同一个 hash，rollback 契约对 license 漂移盲
+  - `parse_locator` 是 typed citation 渲染的前提（`ParsedLocator.sender_id` / `.date_iso` / `.venue_id` 等），但 grounded decoder 仍然只把 raw 字符串塞进 evidence pointer，下游审计 dashboard / 引证语义分组没法用结构化字段
+- **违反**：不违反 R 铁律。三件 helper 的存在是为了让 reviewer 能查 / 审 / 去重，不是 runtime 必经。但 docstring 与 plan 都暗示它们会被 bundle 主管线消费，当前差一步串接。
+- **风险**：低-中。短期看 e2e 测试都过（dedup 只多算一些重复，retrieval 仍能 top-k；provenance 是审计层不影响生成；locator 透传不影响 L3 grounding 决定）；长期当 #19 V2 archive fetcher 接入真 PDF/OCR 数据时，跨 archive 重复（同一文档在 CPAE 又在 Internet Archive 各扫一遍）会让 retrieval 重复加权严重，那时这条债会从"可演化性"变成"功能正确性"。
+- **触发条件**：(a) #19 真 archive fetcher 接入后跨 archive 抓同一 figure 的同一文档；(b) tenant 要求"基于 license 字段过滤训练数据"；(c) 接入审计 dashboard 想按 sender / venue / date 分组引证；(d) curator 改了某 source 的 license 但 bundle hash 不变被 ops 发现
+- **推荐修法**：
+  1. **dedup integration**：`build_figure_retrieval_index(figure_id, envelopes, *, dedup_canonical_only: bool = False)` 加 kwarg；当 True 时先调 `compute_dedup_report(envelopes)`，按 `report.canonical_chunk_ids` 过滤进入索引的 chunk；默认 False 保持向后兼容
+  2. **provenance integration**：
+     - `FigureBundleInputs` 加 `provenance_records: tuple[SourceProvenance, ...] = ()` 字段（默认空允许向后兼容）
+     - `compute_bundle_integrity_hash(...)` 多收一个 `provenance_fingerprint: str = ""` 参数，append 到 hash payload
+     - `build_figure_artifact_bundle(...)` 把 `fingerprint_provenance(inputs.provenance_records)` 折进 integrity hash
+     - 加 contract test：相同 envelope + 不同 license 的 provenance records → 不同 bundle_id
+  3. **citation parser integration**：
+     - `lifeform-expression.GroundedDecoder` 在构造 evidence pointer 时调 `parse_locator(...)`；保留 raw 字符串作 fallback；加 typed `ParsedCitation` 字段进 `EvidencePointer`（已有的话扩展，没有就新增 frozen dataclass）
+     - 加 contract test：letter locator → evidence pointer 必须 surface `sender_id` / `recipient_id` / `date_iso`
+  4. 守 R8：三件 helper 的所有调用都从 `build_*` 入口走，consumer 不直接 import 内部模块；contract test 静态守门
+- **优先级**：低-中（独立可做，不强依赖 #19 但 #19 落地后会从"可选优化"升为"硬要"）
+
+## 25. Figure D4 metadata digest fingerprint 未折进 `FigureArtifactBundle.integrity_hash`
+
+- **路径**：
+  - metadata 富集入口（已就位）：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/coverage_enrichment.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/coverage_enrichment.py) `enrich_profile_with_metadata(profile, digest) -> HistoricalFigureProfile` 把 `MetadataDigest.coverage_hints` 折进 `domain_coverage_seed` + 把 `lifespan.death_year` 折进 `boundary_priors`
+  - metadata 聚合入口：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/records.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/records.py) `aggregate_metadata(...)` 产 `MetadataDigest.fingerprint`（sha256 over identity-bearing fields）
+  - **缺位的串接**：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py) `FigureBundleInputs` 没有 `metadata_digest: MetadataDigest | None = None` 字段；`compute_bundle_integrity_hash(...)` 不读 metadata fingerprint
+- **问题**：D4 的 enrichment 路径设计是：
+  ```
+  raw API payload → typed metadata record → MetadataDigest (fingerprinted) →
+    enrich_profile_with_metadata(profile, digest) → enriched profile →
+      build_figure_artifact_bundle(FigureBundleInputs(profile=enriched, ...)) → bundle
+  ```
+  但**最后一步丢了 fingerprint** —— `build_figure_artifact_bundle` 只看 `profile`（已经 fold-in 部分 hint 到 `domain_coverage_seed` / `boundary_priors`）+ retrieval / coverage / style / steering / lora 的 integrity hash。结果：
+  - 同一份 profile 经过两次 enrichment（hint 集合不同，但都被合并去重到 profile 后表面看不出来），可能产生不同的下游 coverage map → 不同的 bundle hash —— 但**没法从 bundle 直接审计"这是用了哪份 metadata digest 富集出来的"**
+  - 富集后 enriched.version 字段拼了 `+metadata:{fingerprint[:8]}` 作为 audit hint，但这是字符串前缀不是 hash 输入；ops 想验证"这个 bundle 是用 OpenAlex 2026-05 版本 + Wikidata Q937 还是别的"，只能比对 version 字符串，没有 byte-level 的 R15 回滚契约
+  - DATA_CONTRACT 2.15 列了 `version_window` / `integrity_hash` 但没列 metadata digest fingerprint，schema 上也没承诺 ——是设计的盲区
+- **违反**：不违反 R 铁律，但**违反 R15 byte-level 回滚契约的精神** —— "任何字节级输入变化产生不同 bundle_id" 这条，如果只看 enrichment 的 hash 输入是不成立的（hint 合并去重后看不到差异）。
+- **风险**：低-中。短期看 demo 用一份 metadata 跑一份 bundle，单跑没问题；长期当 tenant 要"换一组 OpenAlex topic 重 bake bundle 跑对比"时，会发现两份 bundle 的 hash 不一定不同（取决于 hint 是否新进了 seed 集合）；audit 找不到"这是哪份 digest 烤出来的"。
+- **触发条件**：(a) 第一个 tenant 拿同一 profile 跑两组不同 metadata digest 想对比；(b) ops 审计某 bundle 想反查"这是用 Wikidata 哪天的快照富集的"；(c) #19 V2 fetcher 接入后 metadata 也 V2，需要 trace metadata 数据漂移到 bundle hash
+- **推荐修法**：
+  1. `FigureBundleInputs` 加 `metadata_digest: MetadataDigest | None = None`（默认 None 保持向后兼容；非 None 时 fingerprint 进 hash）
+  2. `compute_bundle_integrity_hash(...)` 加 `metadata_digest_fingerprint: str = ""` 入参，append 进 payload tuple
+  3. `build_figure_artifact_bundle(inputs)` 把 `inputs.metadata_digest.fingerprint if inputs.metadata_digest else ""` 喂进上述参数
+  4. `FigureArtifactBundle` 加 `metadata_digest_fingerprint: str = ""` 字段（默认空保持向后兼容；非空则 audit 时可反查）
+  5. DATA_CONTRACT 2.15 表格加 `metadata_digest_fingerprint` 字段说明，明确"非空表示 bundle 经 D4 metadata enrichment，可凭 fingerprint 反查 digest"
+  6. 加 contract test `tests/contracts/test_figure_bundle_metadata_fingerprint.py`：(a) 同 profile 同 digest → 同 hash；(b) 同 profile 不同 digest → 不同 hash；(c) digest=None → fingerprint 字段为空字符串 + bundle 整体仍按现有路径产生稳定 hash
+- **优先级**：低（独立可做；现在 metadata 路径仍可用，只是 audit 闭合缺最后一环）
+
+## 26. Figure D4 metadata 4 个 client（OpenAlex / Wikidata / Crossref / SEP）V2 live HTTP 未做（与 #19 同构）
+
+- **路径**：
+  - 4 个 client Protocol + offline 桩（已就位）：
+    - [`metadata/openalex.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/openalex.py) `OpenAlexClient` Protocol + `_OfflineOpenAlexClient.fetch_author_works(...)` raise `NotImplementedError`
+    - [`metadata/wikidata.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/wikidata.py) `WikidataClient` Protocol + `_OfflineWikidataClient.fetch_person(qid=...)` raise
+    - [`metadata/crossref.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/crossref.py) `CrossrefClient` Protocol + `_OfflineCrossrefClient.fetch_work(doi=...)` raise
+    - [`metadata/sep.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/sep.py) `SEPClient` Protocol + `_OfflineSEPClient.fetch_entry(slug=...)` raise
+  - **缺位的实现**：4 个对应的 live HTTP client 都不存在；与 #19 archive V2 fetcher 缺位完全同构
+- **问题**：D4 metadata 4 个来源的 typed payload schema + `*_to_*` 翻译器 + Protocol 客户端齐全（20 个 smoke test 全绿），但 V1 一律 offline-only —— 任何想跑真 OpenAlex / Wikidata / Crossref / SEP 拉数据的 user 都得手抄 JSON 进 `OpenAlexWorkPayload(...)` Python 字面量。具体后果：
+  - 跟 #19 archive fetcher 缺位是同样的"schema ready, V2 fetcher 未做"模式；用户得手写 80-150 行 boilerplate 把每份 metadata 转成 typed payload
+  - 与 #15 DLaaS asset fetcher 也是同构问题：都缺一份 SSRF allowlist + content-type 嗅探 + retry policy 的共用 HTTP layer
+  - 4 个 metadata 来源 + 4 个 archive 来源（#19）+ DLaaS asset.uri (#15) = **9 个 V2 HTTP fetcher 未做**，统筹设计 / 复用基础设施会比每个独立写省一半工作量
+- **违反**：不违反 R 铁律。Protocol + offline 桩本身是合法的 V1 设计（与 D3 archive `_OfflineArchiveFetcher` 同纪律），与 `lifeform-ingestion` "web sources are slice 2b territory" 一致。
+- **风险**：低（短期 demo / 内部 evidence 用 hardcoded payload 仍可跑），中（外部用户 onboard 阻塞 —— 没人会手抄 50 篇 OpenAlex 论文 metadata）
+- **触发条件**：(a) 第一个 tenant 想自动从 OpenAlex 抓某 author 的全部 works；(b) #19 archive V2 fetcher 落地后想统一抽 `BaseHTTPClient`；(c) #15 DLaaS asset fetcher 设计阶段想 6-9 个 HTTP fetcher 一次性做完
+- **推荐修法**：
+  1. **共用 HTTP layer**（与 #19 / #15 一起设计）：在 `lifeform-ingestion` 或新 `vz-net` 加 `BaseHTTPClient` —— SSRF allowlist + content-type 嗅探 + 速率限制 + 重试 policy + cache 层（沿用 ingestion slice 2b 纪律）
+  2. **4 个 live client**：
+     - `LiveOpenAlexClient(BaseHTTPClient).fetch_author_works(*, openalex_author_id) -> tuple[OpenAlexWorkPayload, ...]`：调 `https://api.openalex.org/works?filter=author.id:{id}&per-page=200` + paginate + 解析 JSON → typed payload
+     - `LiveWikidataClient(BaseHTTPClient).fetch_person(*, qid) -> WikidataPersonPayload`：调 SPARQL `SELECT ... WHERE { wd:{qid} ... }` + 解析 → typed payload
+     - `LiveCrossrefClient(BaseHTTPClient).fetch_work(*, doi) -> CrossrefWorkPayload`：调 `https://api.crossref.org/works/{doi}` + 解析
+     - `LiveSEPClient(BaseHTTPClient).fetch_entry(*, slug) -> SEPEntryPayload`：调 `https://plato.stanford.edu/entries/{slug}/` + HTML 解析（节选 `<h2>` 节标题 + summary）
+  3. **共享 cache**：metadata 通常很稳定（人物 lifespan / DOI metadata 不常变），加 `data/metadata_cache/{provider}/{key}.json` 落盘 + ttl，避免每次 build bundle 都重抓
+  4. 守 R12：metadata 4 个 client **不**反向写任何 kernel owner；都是 readout；加 `tests/contracts/test_figure_metadata_no_kernel_writeback.py` 静态守门（与 #13 / #14 同 pattern）
+  5. 与 #19 archive fetcher 落地一起做 review，单独 packet review 走 `cursor-convergence-workflow.mdc`
+- **优先级**：低（与 #19 / #15 同时做更高效；当前 offline 桩对内部 evidence 路径不阻塞）
+
+## 27. Figure D7 鲁迅 PoC 半完成：缺 sample corpus / lifeform builder / e2e test / CTP curated 数据
+
+- **路径**：
+  - 已就位：
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/profiles/lu_xun.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/profiles/lu_xun.py) reviewed `HistoricalFigureProfile`（6 knowledge seeds / 4 cases / 3 strategies / 3 boundaries / 5 drives / 3 time windows + post-1936 absolute boundary）
+    - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/chinese_text_project.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/chinese_text_project.py) `CTPPayload` + `ctp_to_paper_source` 翻译器（古典中文人物如孔子用）
+    - [`packages/lifeform-domain-figure/tests/test_chinese_figure_smoke.py`](../packages/lifeform-domain-figure/tests/test_chinese_figure_smoke.py) 7 个 PoC 测试（profile build / boundary / CTP adapter / 单段 corpus 跑 retrieval+coverage / Wikidata 富集）
+  - **缺位**：
+    - 没有 `synthetic_lu_xun_corpus()` —— [`sample_corpus.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/sample_corpus.py) 只有 `synthetic_einstein_corpus()`；想跑 鲁迅 e2e demo 必须每次手工写 `FigurePaperSource(...)` 字面量
+    - 没有 `build_lu_xun_lifeform()` —— [`lifeform_builder.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lifeform_builder.py) 只有 `build_einstein_lifeform()`；DLaaS adopt + verticals 工厂没有鲁迅入口
+    - 没有 `lifeform-service.verticals._try_lu_xun` 工厂 —— [`packages/lifeform-service/src/lifeform_service/verticals.py`](../packages/lifeform-service/src/lifeform_service/verticals.py) 只有 `_try_einstein`
+    - 没有鲁迅 e2e test —— `test_full_chain_e2e_smoke.py` 只跑 Einstein bundle 的 retrieval × coverage × style × steering × LoRA 全链路；中文 figure 链路没覆盖
+    - 没有 CTP curated 数据集 —— `packages/lifeform-domain-figure/data/ctext/` 不存在；想跑孔子的 demo 必须手抄 `CTPPayload(...)`
+    - 没有 CTP HTTP fetcher（与 #19 / #26 同构 V2 缺口）
+- **问题**：D7 PoC 验证了"中文 figure 走得通 schema"（鲁迅 profile 通过所有 validator + 单段 corpus 能跑 retrieval+coverage+Wikidata 富集），但**与 Einstein 路径相比缺 5 个对称模块**：sample corpus / lifeform builder / verticals 工厂 / 全链路 e2e test / CTP curated 数据集。具体后果：
+  - 任何 cite "figure vertical 已支持中文人物" 的文档只能引用 PoC test，不能引用 demo 路径
+  - DLaaS adopt 接入鲁迅需要 tenant 自己提供 corpus + lifeform builder，平台层"开箱即用"承诺只在 Einstein 上成立
+  - F5 / F6 的 steering / LoRA 训练管线在中文 corpus + 鲁迅 profile 上**没跑过一次** —— 不知道 hashing embedding 在中文 token 下表现如何（`_WORD_RE` 已含中文 unicode 范围，但实际 token 化质量没在中文 e2e 验证）
+  - 与 #19 / #26 / #23 都强相关：CTP 数据集 + V2 HTTP fetcher + bake CLI 都得在中文场景再跑一次才能算"对中文人物可用"
+- **违反**：不违反 R 铁律。D7 plan 标注"（可选）中文人物 PoC"，PoC 完成本身是合规的；只是从"PoC"到"与 Einstein 路径对等"还有一段。
+- **风险**：低（短期 PoC 测试覆盖）—— 中（被引用为"已支持中文" / 第一个中文 tenant onboard 时硬要）
+- **触发条件**：(a) 第一个 tenant 想做中文 figure（鲁迅 / 孔子 / 老子 / 苏轼 等）；(b) 想跑"中文人物 figure vertical 端到端"对外 demo；(c) #19 V2 fetcher / #23 bake CLI 落地后想验证"中文路径同等覆盖"；(d) F5 contrast set 想加中文 vs 中文 stance pair（如鲁迅 vs 林语堂 vs 胡适）做 steering 训练
+- **推荐修法**（按依赖顺序）：
+  1. **sample corpus**：在 `sample_corpus.py` 加 `synthetic_lu_xun_corpus() -> tuple[FigurePaperSource, FigureLetterSource, FigureLectureSource, FigureNotebookSource]`，paragraph 体例与 `synthetic_einstein_corpus` 对称（每段都是 reviewer paraphrase + 明文标 synthetic）；语种 zh，长度对等
+  2. **lifeform builder**：在 `lifeform_builder.py` 加 `build_lu_xun_lifeform(...) -> FigureLifeformBundle`，参数对称 `build_einstein_lifeform`；wheel `__init__.py` 公开
+  3. **verticals 工厂**：在 `lifeform-service.verticals` 加 `_try_lu_xun(name)` 工厂；`build_dlaas_app(...)` 路径上鲁迅可被 adopt
+  4. **e2e test**：加 `tests/test_lu_xun_full_chain_e2e_smoke.py`：同 `test_full_chain_e2e_smoke.py` 结构，跑鲁迅 retrieval × coverage × style；steering / LoRA 用 synthetic 后端跑通；与 Einstein 测试结构对称
+  5. **CTP curated 数据集**：`packages/lifeform-domain-figure/data/ctext/` 加 reviewer 已 curated 的孔子 / 老子 `CTPPayload` JSON 序列（`论语` 20 篇 + `道德经` 81 章 minimum viable real corpus）；`corpus/loaders/load_curated_ctp_payloads(figure_id) -> tuple[CTPPayload, ...]` loader
+  6. **CTP V2 fetcher**：与 #19 / #26 一起设计 `LiveCTPFetcher(BaseHTTPClient)`；ctext.org 是公共 API 友好，allowlist 简单
+  7. **守 R8**：所有 builder / 工厂 / loader 只产 envelope / bundle 公开 surface，不直接 import 内部模块；contract test 静态守门（同 verticals 现有 pattern）
+- **优先级**：低-中（独立可做，不强依赖；做完后 figure vertical 才算"对中英文人物对等覆盖"）
+
+## 28. 完整 webcrawl 编排 + 数据清洗管线 + 多源验证审计三层全未做（在 #15 / #19 / #26 单文档 fetcher 之上的整层缺口）
+
+- **路径**：
+  - 既有"单文档 fetcher 缺位"债（**只到"给一个 URL 拿一份"这一层**）：
+    - DLaaS asset.uri：[`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py) `_handle_activate_template` 不读 asset.uri（→ #15）
+    - figure 4 archive：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/) 4 个 `_OfflineArchiveFetcher.fetch(...)` raise（→ #19）
+    - figure 4 metadata：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/metadata/) 4 个 `_OfflineXClient.fetch_*(...)` raise（→ #26）
+  - **本债覆盖的三层 = 即便上面 9 个 fetcher 全部 V2 接通，仍未做的内容**：
+    - **L0 crawl 编排**：URL 发现 / 链接遍历 / robots.txt / 速率限制 / crawl frontier / 增量重抓 / scope policy / 并发与队列
+    - **L1 清洗管线**：format 解析（PDF / HTML / MediaWiki / OCR JSON）+ boilerplate 剥离 + 编码归一 + 语种检测 + 排版标准化 + 段内去重 + PII 屏蔽 + 质量评分（OCR 置信度 / 版式完整度）+ 文档级 license notice 抽取 + cleaning pipeline 版本化（同份原始字节，新版 cleaner 重跑产新文本而不丢旧版）
+    - **L2 多源验证**：跨源 corroboration（同一封信 CPAE 与 Wikisource 字节是否一致）+ 身份消歧（OpenAlex 这个 "Albert Einstein" 是不是同一人）+ 日期合理性（落在 figure_lifespan 内）+ 作者归属验证（这段确实由该 figure 所写，不是 quote / 弟子转述 / 编辑增补）+ 多版本协调（letter 多次出版的差异、哪版 canonical）+ 翻译血缘（哪个译者 / 译本偏移）+ reviewer audit trail（谁审过 / 何时审 / 接受与否的依据）+ 抽样人审（auto-fetched 的 N% reviewer spot-check）
+  - **缺位的存储 / 血缘层**：
+    - `packages/lifeform-domain-figure/data/` 不存在
+    - 没有 raw bytes content-addressable archive（按 sha256 命名的不可变层）
+    - 没有 cleaned text 版本流（`{sha256}/cleaned-v{N}.txt`）
+    - 没有 cleaning pipeline 版本号 → 重跑工作流（升级 parser 后批量重跑 + 输出 diff）
+    - 没有 verification verdict 持久层（每条源 → tuple[VerificationCheck, ...] → reviewer 决议）
+- **问题**：当前架构上**对一份 source 的处理止于 `FigurePaperSource.body: str`**，假设这段 body 已经是 cleaned + verified 的 plain text。但从 "URL → bytes → text → 进 bundle" 的真实管线，需要至少三层独立机制：
+  - 没有 L0：tenant 想自动跟踪某个 archive 的新文档（CPAE 每年更新 1-2 卷），没有 incremental crawl；想批量处理 1000 篇 OpenAlex works，没有任务队列 / retry / 失败聚合
+  - 没有 L1：`*Payload.body` 假设输入已 cleaned，但 PDF / HTML / MediaWiki / OCR JSON 的实际字节流远不是 plain text；任何 V2 fetcher 一接通，body 字段就要么塞进未清洗的脏文本（污染 retrieval index），要么 fetcher 内部偷偷做 cleaning（违反单一职责 + 没法 audit cleaning 版本）
+  - 没有 L2：synthetic einstein corpus 是 reviewer 手写的所以"100% 对"，但真 corpus 里 Einstein 的同一封信可能在 CPAE / Wikisource / Internet Archive 各有不同字节版本（拼写矫正 / 标点 / 段落分割差异），没有 corroboration → bundle 选了哪个版本完全靠 fetcher 顺序运气；OpenAlex 上重名 author（Einstein 不只一个，全球同名学者很多）没有身份消歧，会把别人的论文塞给 figure
+  - 加在一起：**如果今天有人接通 #15 / #19 / #26 的 9 个 V2 fetcher 直接跑生产 corpus，bundle 里很可能混入：(i) 别人写的（重名）；(ii) 弟子 / 编辑替写的（attribution 错）；(iii) 同一文档的脏版本（OCR 错乱 / 编码错乱）；(iv) 后世翻译者带偏的版本；(v) 来源 license 实际上不是 public domain 的（fetcher 没读 page-level license notice）**
+  - 这才是真正阻塞 "Einstein 全集放进去能得到 Einstein 而不是被污染的 Bohr+Einstein 大脑" 的层 —— 不是模型层，是数据层
+- **违反**：不违反 R 铁律，但**违反 Persona Figure 数据管线 V1 plan 第 0 节工作假设**："V1 手工 feed → V2 半自动 archive URL → V3 学术 API metadata"——V2/V3 一旦想从 V1 的"手工已 cleaned"模式升档到自动化，必须把 L0/L1/L2 三层立出来。当前 plan 隐含假设这三层会随 V2 fetcher 一并到位，实际它们是独立工作量，比 fetcher 本身大数倍
+- **风险**：
+  - **短期低**：synthetic corpus + 单 figure manual feed 模式跑 demo / e2e 不受影响
+  - **中期中-高**：第一个 tenant 想批量自动 onboard 真 corpus 时硬阻塞，且不阻塞地强行接通会把脏数据 / 错归属内容塞进 bundle（"figure 模仿 Einstein 但其实学了 OpenAlex 重名作者的论文" 的灾难场景）
+  - **长期决定项目可信度**：figure vertical 的 L1/L2/L3/L4 全四档保真度都建立在 "primary corpus 真是该 figure 写的" 这条前提上。L2 验证层缺位 = 整个保真阶梯地基松动
+- **触发条件**：(a) 第一次想自动从 archive 抓 ≥ 100 篇文档；(b) 第一次发现两个 source 的 body 不一致需要选 canonical；(c) 第一次发现 OpenAlex / Wikidata 上的"Albert Einstein"/"Lu Xun" 实际是同名不同人；(d) 第一次有 reviewer 想审 "这批 200 个 chunk 是怎么来的"；(e) #19 archive V2 fetcher 接通后第一次跑出 PDF body；(f) 任何外部第三方质疑"你这个 figure 里有多少是真它写的"
+- **推荐修法**（按依赖顺序，三层各立独立 packet）：
+  1. **L1 cleaning pipeline 先做**（不依赖 V2 fetcher，可独立验证）：
+     - 新 wheel `lifeform-corpus-cleaning` 或 `lifeform-domain-figure/cleaning/` 子包
+     - `parsers/`：`parse_cpae_pdf` / `parse_wikisource_html` / `parse_gutenberg_html` / `parse_archive_org_ocr_json` / `parse_ctext_html` 各一个，输入 `(bytes, content_type, source_url)`，输出 `RawDocument(text, layout_quality, ocr_confidence, encoding_detected, language_detected, license_notice, parser_version)`
+     - `cleaners/`：boilerplate strip / 段落归一 / 排版标准化 / PII 屏蔽 / 段内 dedup；输入 `RawDocument`，输出 `CleanedDocument(text, cleaner_version, cleaning_log: tuple[CleaningOp, ...])`
+     - **版本化**：raw bytes / cleaned text 全部 content-addressable 存到 `data/raw/{sha256}/` 与 `data/cleaned/{raw_sha256}/v{cleaner_version}/`；cleaner 升级后 `re-clean-all` 命令批量重跑出新 `v{N+1}` 版，与旧版 diff 进 audit
+     - 守 R8：cleaner / parser 不直接产 `FigurePaperSource`；产中性 `CleanedDocument`，再用 D3 archive 适配器翻译进 typed source
+     - 加 `tests/contracts/test_cleaning_pipeline_versions.py`：cleaner v1 vs v2 对同一 raw 产不同 cleaned；raw sha256 不变；cleaned 文件按 cleaner 版本号目录隔离
+  2. **L2 verification + audit 第二做**（依赖 L1 输出）：
+     - `lifeform-corpus-verification` 子包
+     - `VerificationCheck` 不可变记录：`check_kind` enum（CROSS_SOURCE_BYTE / IDENTITY_DISAMBIGUATION / DATE_PLAUSIBILITY / AUTHORSHIP_ATTRIBUTION / VERSION_RECONCILIATION / TRANSLATION_LINEAGE / LICENSE_PAGE_LEVEL）+ `verdict` enum（PASS / FAIL / NEEDS_REVIEW）+ `evidence: tuple[str, ...]` + `reviewer_id` + `reviewed_at_iso`
+     - `VerificationLedger` 持久层：每条 source → tuple[VerificationCheck, ...]；落到 `data/verification/{source_sha256}/checks.jsonl`
+     - **gate**：`build_figure_artifact_bundle(...)` 加 `require_verification_pass: bool = False` 默认开关；非 None 时拒绝把 verdict 不全 PASS 的 source 入 bundle
+     - 抽样人审入口：`scripts/figure_verify.py review --figure einstein --sample 10`，CLI 抽 10 个 random source 给 reviewer，确认通过 / 拒绝 / 标 NEEDS_REVIEW
+     - 与 #18 / #19 / #20 / #22 / #23 都强相关：bake CLI 完成后的 audit trail (#23) 应自然 surface verification ledger
+  3. **L0 crawl 编排最后做**（依赖 L1 + L2，否则 crawl 出来的脏数据没法处理）：
+     - `lifeform-corpus-crawler` 或与 `lifeform-ingestion` 合并：crawler frontier / 调度器 / robots.txt 服从 / 速率限制 / 失败重试 / scope policy / incremental 重跑
+     - 与 #15 / #19 / #26 的 V2 fetcher 在同一 review 里设计：crawler 是 fetcher 的 orchestration 层，fetcher 是 crawler 的 leaf node
+     - 共用 `BaseHTTPClient`（与 #26 推荐修法 1 同）：SSRF / content-type / 重试 / cache 全在一处
+  4. **守红线全程**：L0/L1/L2 任一层都不能反向写 kernel owner（R8 / R12）；所有 cleaner / verifier / crawler 输出都是 readout / artifact，进 bundle 只通过 `build_figure_artifact_bundle` 一个入口（与 #19 推荐修法 6 同口径）
+  5. **守 license**：L1 cleaner 抽 page-level license notice → `SourceProvenance.license_label`（D2 已有 schema）；L2 verifier 把 page license 与 reviewer-declared `LegalClearance` 对齐失败时拒绝入 bundle
+  6. **共用基础设施**：与 #15 (DLaaS asset fetcher) / #19 (archive fetcher) / #26 (metadata fetcher) 一次性 review；6-9 个独立 fetcher + crawl + clean + verify 加起来是 1-2 季度的工作量，但分散来做要 3-4 季度，且共用基础设施缺位时各自重造轮子
+  7. **加守门契约**：
+     - `tests/contracts/test_corpus_cleaning_pipeline_no_kernel_writeback.py` 静态守 cleaner / verifier 不写 kernel
+     - `tests/contracts/test_bundle_admits_only_verified_sources.py` 当 `require_verification_pass=True` 时，未 PASS 的 source 不进 bundle
+     - `tests/contracts/test_crawler_respects_robots.py` crawler 输出对每个 robots.txt 都遵守
+- **风险评估说明**：本债是 figure vertical "完整 webcrawl 及数据清洗验证" 的统称，规模显著大于 #15 / #19 / #26 三条单文档 fetcher 债之和。它直接决定 "Einstein 全集进去得到 Einstein 而不是被污染的脑" 这个产品命题能否兑现 —— 单文档 fetcher 是必要条件但远非充分条件
+- **优先级**：中（产品命题层硬阻塞，但需要先把更基础的 #18 / #19 / #20 / #22 / #23 推进；L1 cleaning 是性价比最高的入口，不依赖 V2 fetcher 就能做并立刻给 #19 / #26 用）
 
 ---
 

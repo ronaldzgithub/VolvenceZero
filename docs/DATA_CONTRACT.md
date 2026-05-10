@@ -1540,6 +1540,19 @@ reflection ──────────────→ proposals; runtime invo
 
 **`dialogue_external_outcome` 契约语义**：这是**外部 outcome 进入内核的唯一 snapshot 通道**。`submit_dialogue_outcome(...)` 只向该 slot 的 owner 追加 typed evidence；它**不**直接写 memory / regime / PE 内部状态。`PredictionErrorModule` 在自身 `derive_actual_outcome(...)` 内消费该 snapshot，`RegimeModule` 在自身 `process(...)` 内根据该 snapshot 创建 `PendingRegimeOutcome` 行。这样保持 `_pending_outcomes` / `ActualOutcome` 的单写者不变量（R8）。
 
+**`DialogueExternalOutcomeKind` vocabulary（W3-A 扩展）**：闭合 enum，分两组：
+
+- **In-turn group（v0）**：`HELPED` / `FELT_HEARD` / `MISSED` / `OVER_DIRECTIVE` / `DECISION_CLEARER` / `COME_BACK` / `UNSAFE` / `ABANDONED` —— 单 turn 的对话级反馈，由用户显式表态 / 人工 review / 环境观测产生。
+- **LTV / 转化漏斗 group（W3-A）**：`LEAD_QUALIFIED` / `RECOMMENDATION_MADE` / `PURCHASE_CONFIRMED` / `REPURCHASE` / `CHURNED` —— 长程业务事件，**只能**由外部 CRM / payments / 人工 review 注入（不允许从 chat text 推断）。每个值在四张下游表里都有显式 mapping：
+  - `_EXTERNAL_OUTCOME_AXIS_BIAS`（PE bias）— `(task, relationship, regime, action)` deltas
+  - `_EXTERNAL_OUTCOME_REGIME_SCORE`（regime delayed-outcome 评分）
+  - `_EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME`（dialogue_trace 结构投影）
+  - `_REPAIR_POSITIVE_KINDS`（reflection writeback；`PURCHASE_CONFIRMED` / `REPURCHASE` 是仅有的两个 LTV 算 repair-resolved 的；`LEAD_QUALIFIED` / `RECOMMENDATION_MADE` 是中间漏斗步，单独不算 repair landed）
+
+`CHURNED` **不**进入 `EXTERNAL_OUTCOME_TO_RUPTURE_KIND`：它是长程脱落事件，损害已经由 PE bias + regime score 全额捕获，且当前 turn 已无法 anchor rupture 修复。如果未来需要 typed "long-horizon churn rupture"，必须先增 `RuptureKind` 值。
+
+`FeedbackValence`（[`packages/dlaas-platform-contracts/src/dlaas_platform_contracts/dispatch_vocab.py`](../packages/dlaas-platform-contracts/src/dlaas_platform_contracts/dispatch_vocab.py)）镜像了这两组，让外部 CRM / payments 集成可以走 DLaaS feedback envelope（`interaction_type=feedback`，`feedback.valence="purchase_confirmed"` 等）报送；platform-api 在 edge 处典型化为 typed enum，kernel 永远不见 raw string。
+
 **`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。snapshot 还发布 `kind_label`（W3 SSOT），是 `RuptureKind` 的人类可读短语，由 owner 从 `RUPTURE_KIND_LABEL` 一处生成；下游表达层不维护重复字典。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
 
 **`interlocutor_state` 契约语义**（W2 ssot-cleanup-p0-p4）：12-axis 连续读出（`engagement_intensity`, `emotional_weight`, `resistance_level`, `trust_signal`, `pace_pressure`, … 共 12 维），由 `InterlocutorStateModule` 从六个上游 snapshot（`regime` / `dual_track` / `evaluation` / `prediction_error` / `memory` / `commitment`）派生。snapshot 自身发布**typed zone bool**（`acknowledge_pressure_zone` / `repair_zone` / `direct_task_zone` / `emotional_render_zone` / `pace_pressure_zone` / `cold_rapport_zone` / `low_directness_zone` 等），消费者读 zone bool 即可，**不得**重新应用数值阈值。阈值常量集中在 `volvence_zero.interlocutor.contracts.InterlocutorThresholds`，是该 owner 的 SSOT。详见 [`docs/specs/interlocutor-state.md`](./specs/interlocutor-state.md)。
@@ -1557,7 +1570,7 @@ reflection ──────────────→ proposals; runtime invo
 | `UserModelSnapshot` | `preferred_support_pacing`, `decision_style`, `overwhelm_pattern_strength`, `durable_goals` | dual_track, response_assembly, evaluation |
 | `CommitmentSnapshot` | `due_followup_count`, `stalled_commitment_count`, `recent_completion_count` | followup, response_assembly, evaluation |
 | `OpenLoopSnapshot` | `oldest_open_turn`, `stale_loop_count`, `confirmation_debt_count`, `closure_readiness` | response_assembly, evaluation, session-post evidence |
-| `RelationshipStateSnapshot` | `emotional_load`, `repair_need`, `trust_delta`, `attunement_gap`, `stabilization_need`, `recent_repair_count`, `unresolved_tension_count`, `attunement_trend`, `trust_recovery_signal`, `relationship_continuity_score` | dual_track, response_assembly, evaluation |
+| `RelationshipStateSnapshot` | `emotional_load`, `repair_need`, `trust_delta`, `attunement_gap`, `stabilization_need`, `recent_repair_count`, `unresolved_tension_count`, `attunement_trend`, `trust_recovery_signal`, `relationship_continuity_score`, **W2-A**: `cumulative_trust_level` (long-horizon integrated trust 0-1), `relationship_age_turns` (current_turn − first_record_turn), `funnel_stage` (typed string label: `unknown` / `prospecting` / `discovery` / `nurturing` / `recommending` / `converting` / `repurchasing`; vocabulary in [`packages/vz-cognition/src/volvence_zero/semantic_state/contracts.py`](../packages/vz-cognition/src/volvence_zero/semantic_state/contracts.py) `FUNNEL_STAGE_*` constants) | dual_track, response_assembly, evaluation, dlaas-platform-ops.OutboundScheduler |
 | `GoalValueSnapshot` | `value_conflict`, `decision_readiness`, `active_tradeoff_count`, `reversibility_need`, `goal_shift_pressure`, `active_goal_count`, `deferred_goal_count`, `conflicted_goal_count`, `resolved_goal_refs`, `goal_continuity_score` | dual_track, response_assembly, evaluation |
 | `BoundaryConsentSnapshot` | `autonomy_risk`, `consent_clarity`, `professional_scope_pressure`, `overreach_risk`, `active_scope_count`, `denial_count`, `revocation_count`, `external_action_blocked`, `memory_scope_status` | boundary_policy, response_assembly, evaluation |
 

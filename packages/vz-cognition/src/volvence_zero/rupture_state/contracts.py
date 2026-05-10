@@ -60,11 +60,21 @@ class RuptureEvidenceSource(str, Enum):
 # Kinds missing from this table (HELPED, FELT_HEARD, DECISION_CLEARER) do not
 # produce rupture evidence by themselves; they are positive / neutral
 # external outcomes and are handled by PE / regime as positive signals.
-# Likewise the W3-A positive conversion outcomes (LEAD_QUALIFIED /
-# RECOMMENDATION_MADE / PURCHASE_CONFIRMED / REPURCHASE) are NOT in this
-# table; they do not produce rupture evidence. CHURNED is a long-horizon
-# rupture-equivalent and maps to ABANDONED — a persistent disengagement
-# despite repair attempts.
+# Likewise the W3-A LTV outcomes (LEAD_QUALIFIED / RECOMMENDATION_MADE /
+# PURCHASE_CONFIRMED / REPURCHASE / CHURNED) are NOT in this table:
+#
+# * The four positive funnel events (lead/recommendation/purchase/repurchase)
+#   are positive signals, captured by PE / regime as positive payoff.
+# * CHURNED is a long-horizon disengagement event whose damage is fully
+#   captured by negative PE bias + low regime score (see the W3-A entries
+#   in ``_EXTERNAL_OUTCOME_AXIS_BIAS`` and ``_EXTERNAL_OUTCOME_REGIME_SCORE``).
+#   We deliberately do NOT add it here because (1) the relationship has
+#   already ended — there is no repair turn to anchor the rupture to; and
+#   (2) the closed 1:1 invariant on this table (asserted by
+#   ``test_external_to_rupture_mapping_is_one_to_one_on_rupture_producing_kinds``)
+#   forbids a second source mapping to the same RuptureKind. If a future
+#   packet wants a typed "long-horizon churn rupture", add a new
+#   ``RuptureKind`` value first.
 # COLD is not in this table because it requires a compositional trigger
 # (MISSED + relationship_pressure), handled inside the owner aggregator.
 EXTERNAL_OUTCOME_TO_RUPTURE_KIND: dict[DialogueExternalOutcomeKind, RuptureKind] = {
@@ -73,7 +83,6 @@ EXTERNAL_OUTCOME_TO_RUPTURE_KIND: dict[DialogueExternalOutcomeKind, RuptureKind]
     DialogueExternalOutcomeKind.COME_BACK: RuptureKind.PUSHED_TOO_FAST,
     DialogueExternalOutcomeKind.UNSAFE: RuptureKind.UNSAFE,
     DialogueExternalOutcomeKind.ABANDONED: RuptureKind.ABANDONED,
-    DialogueExternalOutcomeKind.CHURNED: RuptureKind.ABANDONED,
 }
 
 
