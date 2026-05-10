@@ -435,7 +435,50 @@
 - 每个 `CleaningOpRecord` 满足 `chars_after <= chars_before`（monotonically non-expanding）
 - raw bytes content-addressable by sha256；cleaner 版本目录（`v{N}/`）多版本共存，永不覆盖旧版
 
-来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）。本 spec 只覆盖 L1；L0 crawler frontier + L2 verification ledger 仍是 follow-up。
+来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）。本 spec 只覆盖 L1；L0 crawler frontier 仍是 follow-up；L2 verification 见 17E。
+
+---
+
+### 17E. Figure Corpus Verification + Audit (L2)
+
+**对应需求**：R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [figure-corpus-verification.md](./figure-corpus-verification.md) | 7 `CheckKind` 关闭枚举（3 first batch impl + 4 deferred 至 #26）+ append-only `VerificationLedger`（`data/verification/{byte_sha256}/checks.jsonl`）+ `build_figure_artifact_bundle` 的 `require_verification_pass` gate + L1 → L2 的 `cleaned_to_source_provenance` 接线（修法 5）+ 抽样 / 人审 / 列表 CLI |
+
+**核心不变量**：
+
+- `verification/` 子包**禁止** import `Figure*Source` typed records / HTTP 客户端 / 任何 `volvence_zero.{cognition,temporal,memory,substrate,application,runtime}.*` 内核模块（contract test AST 三类静态守门）
+- `VerificationCheck` 不可变；`reviewer_id` 必须形如 `auto:<verifier_id>:<int>` 或 `human:<reviewer-id>`
+- Anchor key = `source_byte_sha256` = `SourceProvenance.byte_sha256` = L1 `RawDocument.raw_sha256`（content-addressable 三段贯通）
+- Ledger append-only；override 通过 append 一条 `human:` check 实现；`latest_per_kind` 取每 kind 最新一条作为生效 verdict
+- Bundle gate 阶段性放行：只检查 `IMPLEMENTED_CHECK_KINDS` 全 PASS（本 packet = 3 个）；新 kind 实现时必须同步加入 frozenset，contract test 自动 surface 缺失覆盖
+
+来源：`docs/known-debts.md` debt #28 L2 first batch（2026-05-10）。本 spec 覆盖 first batch；L2 second batch（4 个 metadata-依赖 verifier）仍是 follow-up；L0 已落地，见 17F。
+
+---
+
+### 17F. Figure Corpus Crawler (L0)
+
+**对应需求**：R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [figure-corpus-crawl.md](./figure-corpus-crawl.md) | L0 编排：5 SSRF gate + robots.txt + per-host token bucket + ETag/Last-Modified incremental + 持久化 frontier + 5 archive-aware fetcher（generic / cpae / wikisource / gutenberg / internet_archive）+ CrawlSink 写入 L1 CleaningStore + CLI；同时关闭 debt #19 via `live_archive_fetcher(...)` 工厂 |
+
+**核心不变量**：
+
+- `crawl/` 子包**允许** import `requests` / `urllib.robotparser` / `urllib.parse`（figure-vertical 唯一 HTTP 出口）
+- `crawl/` 子包**禁止** import `Figure*Source` typed records / kernel modules / `lifeform_domain_figure.verification.*`（contract test AST 三类静态守门）
+- 5 SSRF gate（scheme / host / path-prefix / redirect-1-hop-rescope / body-size-cap）全部在 `BaseHTTPClient.get` 强制
+- robots.txt fail-closed（fetch failure → host 拒收）
+- per-host token bucket 默认 0.5 req/s + burst 5
+- frontier append-only + dedup by `request_id` (sha256(fetch_kind + url))；可 `resume_from_disk`
+- `request_id` / `raw_sha256` / `byte_sha256` / `RawDocument.raw_sha256` 同字节流 = 同 hash（content-addressable 三段贯通）
+- `live_archive_fetcher(...)` 返回 `LiveFetchedBytes` raw_payload（V2）；`offline_archive_fetcher()` 行为不变（V1 向后兼容）
+
+来源：`docs/known-debts.md` debt #28 L0 + debt #19 V2 closure（2026-05-10）。`requests` 是新依赖。
 
 ---
 

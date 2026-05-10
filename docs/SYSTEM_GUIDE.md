@@ -1,8 +1,8 @@
 # VolvenceZero 系统全景指南
 
 > **副标题**：一份给初学者的旅行图，给研究者的参考册
-> **Status**: v1
-> **Last updated**: 2026-05-01
+> **Status**: v1.1
+> **Last updated**: 2026-05-10
 > **位置**：`docs/SYSTEM_GUIDE.md`
 > **与其他文档的关系**：
 > - 想知道**为什么这样设计**（设计源头）：读 `docs/next_gen_emogpt.md`
@@ -31,6 +31,9 @@
 | 我想看懂"它和别的 AI 系统有什么不同" | 加读第 3 部分（5 大信念）和第 10 部分（FAQ） |
 | 我准备改代码 | 加读第 4、5、7 部分，然后跳到具体 spec |
 | 我是研究者 / 论文复现者 | 重点读第 5（七大机制）+ 第 8、9（端到端走一遍）+ 附录 |
+| 我做平台 / 多租户接入（DLaaS） | 重点读 §6.6 + §11.5；spec：`docs/specs/dlaas-platform.md` |
+| 我做新 vertical（character / figure / growth-advisor 类） | 重点读 §6.4 + §6.5 + §11.6 |
+| 我做对外 benchmark / arena | 重点读 §6.7 + §11.7；RFC：`docs/external/lscb-rfc-v0.md` |
 
 **读完后你应该能用一段话回答**："VolvenceZero 是一个怎样的系统？它和 ChatGPT / Agent / RAG 有什么本质区别？"
 
@@ -788,14 +791,19 @@ DriveSpec(
 - **衰减只在 SYSTEM tick**：ENERGY / CONTEXT tick 只推进 tick_index，不消耗
 - **Cooldown 由 owner 强制**：避免主动 followup 洪泛
 
-**两个 vertical 的实例**：
+**五个 vertical 的实例**：
 
-| Vertical | Drive 1 | Drive 2 | Drive 3 |
-|---|---|---|---|
-| `lifeform-domain-emogpt`（关系陪伴） | bond_warmth | user_engagement | conversation_continuity |
-| `lifeform-domain-coding`（工程结对） | solution_clarity | code_freshness | direction_certainty（探索时**负向充能**） |
+| Vertical | Archetype | Drive set / 特殊机制 |
+|---|---|---|
+| `lifeform-domain-emogpt` | 关系陪伴 | `bond_warmth` / `user_engagement` / `conversation_continuity` |
+| `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`（探索时**负向充能**） |
+| `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`（每个角色档案自定义） |
+| `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；多源一手语料 → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯 |
+| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移 |
 
 `direction_certainty` 在 `guided_exploration` regime 下用**负向 recharge**——这证明了 drive 层可以编码"探索期间确定性应该被消耗"这种非单调激励。
+
+五个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；`PARALLEL_VERTICAL_PAIRS` 强制互不 import；service registry 自动发现。这是 SPLIT.md 触发条件 ② 的现场证据。
 
 #### 🧬 代码与论文锚点
 
@@ -843,9 +851,12 @@ DriveSpec(
 > - **DomainExperiencePackage**：冷启动的领域经验
 > - **scenarios**：用于训练和评估的场景包
 >
-> 当前两个 vertical：
+> 当前共存 5 个 vertical：
 > - `lifeform-domain-emogpt`：关系陪伴 archetype
-> - `lifeform-domain-coding`：工程结对 archetype
+> - `lifeform-domain-coding`：工程结对 archetype（pair-programmer）
+> - `lifeform-domain-character`：虚构角色 archetype
+> - `lifeform-domain-figure`：真实人物 archetype（一手资料数字复生）
+> - `lifeform-domain-growth-advisor`：私域 LTV 顾问 archetype
 >
 > 它们在**同一个 Python 进程**里共存，drive 集合互不重叠，service 注册表自动发现——内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据。
 
@@ -853,17 +864,199 @@ DriveSpec(
 
 1. Vertical 不是新的 owner——它是**对现有 owner 的配置**
 2. 内核（`vz-*`）不能反向 import vertical（`lifeform-*`）；CI 强制
-3. 不能用人口学关键词（"用户说了 X 就触发 Y"）硬编码行为
+3. 5 个 `lifeform-domain-*` vertical 互不 import（`PARALLEL_VERTICAL_PAIRS`）
+4. 不能用人口学关键词（"用户说了 X 就触发 Y"）硬编码行为
+
+---
+
+### 6.5 三种"非简单 chat archetype"的 vertical 是怎么落到同一组 owner 上的
+
+`character` / `figure` / `growth-advisor` 是过去几个月新加的三种"形状很不同"的 vertical，它们用同一组 application owner 表面落地，证明 R7（双轨）+ R5（连续记忆）+ R6（反思）+ application 层 4 阶段的可复用性。
+
+#### 6.5.1 `lifeform-domain-character`：虚构角色
+
+> 🌱 **常识比喻**：你想跟小说里的角色聊天，但不想让 AI 自由发挥地"假扮"——你要它的反应有据可查（书里写过），并且角色在书外的话题上能自然 fall back 到不知道。
+
+> 🔧 **工程语言**
+>
+> - 输入：reviewed `CharacterSoulProfile`（structured artifact，**不**是从小说原文用关键词匹配生成的）
+> - 编译为：`DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` 三件套
+> - 原文小说只能通过 canonical ingestion path 进入；durable 化由 R6 session-post slow loop 处理
+> - 不新增 kernel owner
+
+> 📌 **不变量**：角色画像必须是 reviewed structured artifact，不用关键词匹配从小说文本直接驱动行为。
+
+> 📍 Spec：`docs/specs/character-soul-bootstrap.md`
+
+#### 6.5.2 `lifeform-domain-figure`：真实人物的 L1-L4 保真阶梯
+
+> 🌱 **常识比喻**：你想跟"Einstein"对话。如果只把全集塞进 prompt，它就是检索糊脸；如果让基底 LLM 自由发挥地"像 Einstein 说话"，那其实是 Qwen 的物理学先验在冒充 Einstein。这两个都不行。**要让它在他写过的领域上引证可追溯，在他没写过的领域上明确拒答**。
+
+> 🔧 **工程语言**：四层保真阶梯
+>
+> | 层级 | 含义 | 数据制品 | 运行时执行者 |
+> |---|---|---|---|
+> | **L1 语气保真** | "听起来像他" | `FigureStylePrior` + `FigureLoRAArtifact` | `StylePriorInjector` + `PersonaLoRAPool` |
+> | **L2 立场保真** | "在他写过的议题上观点对得上" | `FigureSteeringSet` + `FigureLoRAArtifact` | `SubstrateDeltaAdapterLayer` + `PersonaLoRAPool` |
+> | **L3 引证保真** | "每段实质性断言都能回溯到他的原文" | `FigureRetrievalIndex` | `GroundedDecoder` |
+> | **L4 不知拒答** | "他没写过的领域系统拒答 / 软免责" | `FigureCoverageMap` | `ScopeRefuser` |
+>
+> **早停点**：L1 + L3 + L4 = 零 GPU 训练就能上线的 minimum-viable Figure。L2 / 加强版 L1 是边际收益层，需要 ModificationGate evidence 才进。
+>
+> **L1/L2 corpus 流水线**（debt #28 落地）：
+>
+> 1. **L1 cleaning**：`bytes -> RawDocument -> CleanedDocument`（4 个 parser：CPAE PDF / Wikisource HTML / Project Gutenberg / Internet Archive OCR JSON + 6 个 cleaner op + content-addressable store + cleaner 版本化 + re-clean CLI）
+> 2. **L1 → typed payload 桥接**：`cleaning/bridging.py.cleaned_to_*_payload(...)`
+> 3. **L2 verification**：7 个 `CheckKind` 关闭枚举（首批 3 实施：DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）+ append-only `VerificationLedger`
+> 4. **Bundle gate**：`build_figure_artifact_bundle(..., require_verification_pass=True)` 拒收任一非全 PASS 的 source
+
+> 📌 **不变量**
+>
+> 1. 任何对基底权重的位移（steering / persona LoRA）走 rare-heavy `ModificationGate.OFFLINE` 通道，必须 `validation_delta ≥ 0.05` + `is_reversible=True` + 非空 `rollback_evidence`
+> 2. `cleaning/` 子包**禁止** import `Figure*Source` typed record（必须经 `cleaning/bridging.py` 二段式）
+> 3. `cleaning/` / `verification/` 子包**禁止** import 任何 HTTP 客户端
+> 4. 每个 `CleaningOpRecord` 满足 `chars_after <= chars_before`（monotonically non-expanding）
+> 5. raw bytes content-addressable by sha256；cleaner 版本目录（`v{N}/`）多版本共存，永不覆盖旧版
+
+> 📍 Specs：`docs/specs/figure-vertical.md` / `docs/specs/figure-corpus-cleaning.md` / `docs/specs/figure-corpus-verification.md`
+> 📍 CLI：`figure-bake` (`lifeform_domain_figure.cli:main`)
+
+#### 6.5.3 `lifeform-domain-growth-advisor`：私域 LTV 长程顾问
+
+> 🌱 **常识比喻**：直播间的"成长顾问"老师不是一次性卖完就走，而是和家长建立 7 天的渐进信任：第 1 天介绍 → 第 4 天展示专业 → 第 7 天形成长期咨询关系。系统要在这条 7 天 playbook 上**有节奏地学习不同行为模式**。
+
+> 🔧 **工程语言**
+>
+> - 输入：reviewed `GrowthAdvisorProfile`（drive prior + knowledge seed + signature case + strategy prior + boundary prior）
+> - 7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移**到 application owner**
+> - **不靠关键词匹配从用户文本推断"现在是第几天"** —— 由 typed event / scope tag 驱动
+> - 编译为：`DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope`（含直播间介绍文 + 7 天对话样本）
+
+> 📌 **不变量**：行为差异通过 `applicability_scope` typed scope tag 进入 owner，不通过 raw text 关键词推断。
+
+> 📍 工厂：`build_cheng_laoshi_lifeform()` / `build_growth_advisor_lifeform()` 在 `lifeform_domain_growth_advisor.lifeform_builder`
+
+---
+
+### 6.6 平台治理与多渠道接入层（DLaaS Platform）
+
+到这里我们讲的都是"一个 Python 进程里跑一只数字生命体"。但真实产品形态是：**一份内核同时被多个客户、多个 shell、多种 interaction kind 复用**。这就引出了平台治理层。
+
+#### 🌱 常识比喻
+
+想象一个客服中心：调度系统（platform）负责"哪个客户分给哪个客服、客服现在能不能接、客户来了哪种类型的诉求（咨询 / 投诉 / 反馈 / 培训需求 / 紧急升级 ...）"。客服本身（lifeform）专注接客；调度系统专注资源分配和升级路径——两者**不能混在一起**，否则客服一忙调度就乱，调度一升级客服就被踩。
+
+#### 🔧 工程语言
+
+`dlaas-platform-*` 是一组**坐在 lifeform 之上**的 wheel，承担：
+
+1. **Control plane（持久化资源）**：tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket
+2. **Runtime envelope 翻译**：把 typed `InteractionEnvelope` 翻译成既有 kernel 入口
+3. **Ops**：pause / resume / operator-message / handoff queue / SSE conversations stream
+4. **Eval gate**：audience analysis / exam runs / launch license（仅 readout）
+
+**`InteractionEnvelope` 的 7 类（typed enum dispatch）**：
+
+| `interaction_type` | kernel 入口 |
+|---|---|
+| `chat` | `LifeformSession.run_turn(USER_INPUT)` |
+| `observe` | `IngestionPipeline.run` 或 `BrainSession.submit_*_event` |
+| `feedback` | `LifeformSession.submit_dialogue_outcome(kind=…)` |
+| `teach` / `task` | `LifeformSession.run_turn(trigger_kind=APPRENTICE)` |
+| `report` | `LifeformSession.end_scene(drain_slow_loop=True)` |
+| `command` | 显式动作白名单（refresh_person_context / pause_session / end_scene 等） |
+
+**`OutputAct` 包装**：`AgentResponse + rationale_tags + AffordanceRegistry.snapshot` → DLaaS wire format；shell 不接受的 capability 由 platform-api 在出站时 degrade 到 `text` + `degraded=True`，**不**让 kernel 感知 shell embodiment。
+
+#### 🧬 代码与论文锚点
+
+- 实现：6 个 `dlaas-platform-*` wheel
+- Spec：`docs/specs/dlaas-platform.md`
+- Rollout：`docs/moving forward/dlaas-platform-rollout.md`（7 切片完成）
+
+#### 📌 不变量（CI 强制）
+
+1. **vz-* 内核 7 个 wheel diff = 0 行**——任何 PR 修改 `packages/vz-*` 都必须有显式书面理由
+2. `dlaas-platform-* ↛ volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`（只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口）
+3. `dlaas-platform-* ↛ lifeform_domain_*` internals（只能通过 `lifeform-service.app` + `lifeform-core.Lifeform` + `lifeform-affordance` 公共 schema）
+4. **interaction_type 必须 typed enum dispatch**——禁止从 `human_brief` 等自然语言字段关键词推断
+5. **focus_persons / identity_links 不创建第二 owner**——写入只走 `submit_profile_event`；identity_links 只是把 canonical user 拼接为 `UserIdentity.scope_key`，0 改 vz-memory
+6. **handoff trigger** = 平台读 `rupture_state` 快照决定阈值——**不**在 kernel 加 handoff owner
+7. **eval gate 只 readout 不学**——audience / exam / license 的 LLM judge 仅产 readout，禁止反向写回 reward / Face 梯度
+
+#### ❌ 常见误解
+
+- "DLaaS 不就是一个 HTTP wrapper 吗？" —— 不是。它把"多租户 / 多 shell / 多 interaction kind"的复杂度**完全吸收在自己 wheel 里**，让内核免疫这些产品需求。如果没有这一层，你会忍不住给 `BrainSession` 加 `tenant_id` / `shell_kind` 字段——这就违反 R8。
+- "为什么 handoff 不放在 kernel 里？" —— 因为 handoff 是 ops 决策，不是认知决策。它读 `rupture_state` 快照（kernel 已经发布的 R-PE / R7 信号），按 `RuptureKind` 决定阈值升级到人工——逻辑住在 ops，**owner 还在 kernel**。
+
+---
+
+### 6.7 外部 Benchmark / Arena 接入面
+
+#### 🌱 常识比喻
+
+你想让一个学生证明自己学得好，有两种方式：
+1. **接外部统考**：让学生参加大家公认的考试（高考、SAT、托福……）
+2. **自己出考卷**：写一份你认为更能反映"真实能力"的考试，公开发布让别人也来用
+
+我们两条路都走：内部 `lifeform-bench --family-report` 是自己的 6 族评估；**对外**还要做两件事：
+
+#### 🔧 工程语言
+
+**Inbound（外部 → 系统）**：`lifeform-openai-compat`
+
+把 `POST /v1/chat/completions` 翻译成既有的 stateful `lifeform-service.SessionManager` 调用：
+
+- 三种模式：stateless / sticky session（`derive_session_id`）/ raw substrate passthrough（`?mode=raw`）
+- **read-only**：从不调下划线方法、从不改 owner snapshot、从不绕过 `SessionManager` 触达 Lifeform private modules
+- 公共类：`ChatCompletionRequest` / `ChatCompletionResponse` / `LifeformCompletionResult` / `add_openai_routes`
+- 这样 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 可以把我们当作一个普通的 OpenAI endpoint 调用，零改造
+
+**Outbound（系统 → 外部）**：`lscb-bench`（Long-Session Companion Benchmark）
+
+我们对外发布的开源基准（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现：
+
+| 轴 | 权重 | 衡量 |
+|---|---|---|
+| A1 Task | 0.10 | 单会话有用性 |
+| A2 Conversational quality | 0.15 | 每轮一致性、register、prosodic appropriateness |
+| A3 Relational continuity | 0.25 | 跨会话记忆准确性、persona 一致性、callback 有效性 |
+| A4 Adaptive learning | 0.20 | 用户模型在 arc 上的适应 |
+| A5 Self-coherence | 0.10 | 身份稳定性、避免自相矛盾 |
+| A6 Safety / boundaries | 0.20 | 社交压力下的边界维持（**hard-cap 轴**） |
+
+打分：6.4 加权几何平均 + A6 cap；ELO：TrueSkill + Bradley-Terry；scenarios：24 公开（in-repo `scenarios/public/`）+ 96 私有 held-out（`external/lscb-heldout/` git submodule）。
+
+#### 🧬 代码与论文锚点
+
+- 实现：`packages/lifeform-openai-compat/` + `packages/lscb-bench/`
+- 公开 RFC：`docs/external/lscb-rfc-v0.md`
+- 对外提交协议：`docs/external/eqbench3-*` 文档族
+- CLI：`lscb-bench run --submission examples/submission.yaml --output artifacts/lscb/`
+
+#### 📌 不变量（CI 强制）
+
+1. `lscb-bench` **完全不 import** 任何 `volvence_zero.*` / `lifeform_*`（CI 守门 `tests/contracts/test_lscb_bench_no_internal_imports.py`）—— 它是中立第三方工具，可被任何外部团队下载独立运行
+2. `lifeform-openai-compat` 只能 import `lifeform_service` + 标准库 + `aiohttp`，**禁止**直接 import `volvence_zero.*` kernel 子包或 `lifeform_domain_*` vertical
+3. `lifeform-openai-compat` **read-only**：从不调下划线方法、从不改 owner snapshot
+4. 外部 ELO / 排名 / pairwise 偏好属于 R12 readout——**禁止反向**作为 reward 写回学习管线
+5. 公共 PR / 外部贡献者只能跑 24 个公开 scenarios；held-out 仅在私有提交时启用
+
+#### ❌ 常见误解
+
+- "LSCB 是给 VolvenceZero 做的内部工具？" —— 不是。它是**对外公开**的 benchmark，可以被 GPT / Claude / Gemini / 国内任意厂商的 OpenAI-compatible endpoint 调用打分。
+- "为什么不让 LSCB 直接读内核状态？这样不是更准吗？" —— 因为这就违反了"system-agnostic"的承诺。LSCB 的整个价值在于它**完全只看输入输出**，跟实现完全解耦——这才是公平基准。
 
 ---
 
 ## 7. 实现细节地图
 
-### 7.1 仓库结构（13 个 wheel）
+### 7.1 仓库结构（25 个 wheel）
 
 ```
 VolvenceZero/
 ├── packages/
+│   ├── ── 内核（vz-*，7） ─────────────────────────────────────────────────
 │   ├── vz-contracts/           [Layer 2] R8/R15 — 所有 wheel 的依赖底
 │   ├── vz-substrate/           [Layer 1] R2 — 冻结 LLM + residual capture
 │   ├── vz-temporal/            [Layer 3] R3/R4 — Metacontroller + Internal RL
@@ -871,20 +1064,37 @@ VolvenceZero/
 │   ├── vz-cognition/           [Layer 3] R7/R-PE/R9/R10/R12/R14 —
 │   │                                     PredictionError + DualTrack + Regime
 │   │                                     + Credit + Evaluation + ModificationGate
+│   │                                     + RuptureState
 │   ├── vz-runtime/             [Layer 2] — 编排器（薄）
 │   ├── vz-application/         [Layer 3] — 4 阶段应用层（retrieval / case_memory /
 │   │                                     strategy_playbook / experience_consolidation）
 │   │
+│   ├── ── 数字生命体（lifeform-*，12） ─────────────────────────────────────
 │   ├── lifeform-core/          [Layer 4] — Lifeform / Tick / Scene / Followup / Vitals
 │   ├── lifeform-thinking/      [Layer 4] — 中频 ThinkingScheduler + 三类 read-only worker
-│   ├── lifeform-affordance/    [Layer 4] — 4 Kind 描述符 + 4 渲染器（Phase 2）
+│   ├── lifeform-affordance/    [Layer 4] — 4 Kind 描述符 + 4 渲染器
 │   ├── lifeform-ingestion/     [Layer 4] — book / web / task_result 三类 source adapter
 │   ├── lifeform-expression/    [Layer 4] — 表达层（PromptPlanner、ResponseSynthesizer）
 │   ├── lifeform-service/       [Layer 4] — aiohttp + vertical registry
 │   ├── lifeform-evolution/     [Layer 4] — scripted benchmark + super-loop + R12 family report
-│   ├── lifeform-domain-emogpt/   [Vertical] — 关系陪伴
-│   ├── lifeform-domain-coding/   [Vertical] — 工程结对
-│   └── lifeform-domain-character/[Vertical] — 小说人物 bootstrap
+│   ├── lifeform-openai-compat/ [Layer 4] — OpenAI Chat Completions facade（read-only，喂外部 benchmark / arena）
+│   ├── lifeform-domain-emogpt/         [Vertical] — 关系陪伴
+│   ├── lifeform-domain-coding/         [Vertical] — 工程结对
+│   ├── lifeform-domain-character/      [Vertical] — 虚构人物（小说 / IP）
+│   ├── lifeform-domain-figure/         [Vertical] — 真实人物（一手资料 L1-L4 保真）
+│   ├── lifeform-domain-growth-advisor/ [Vertical] — 私域 LTV 长程顾问
+│   │
+│   ├── ── 平台治理（dlaas-platform-*，6） ──────────────────────────────────
+│   ├── dlaas-platform-contracts/       [Layer 5] — 全部 frozen dataclass + JSON schema
+│   ├── dlaas-platform-registry/        [Layer 5] — 多租户持久化 + auth 中间件
+│   ├── dlaas-platform-launcher/        [Layer 5] — InstanceManager + shared substrate
+│   ├── dlaas-platform-api/             [Layer 5] — aiohttp /dlaas/* router + OutputAct
+│   ├── dlaas-platform-ops/             [Layer 5] — pause / resume / handoff / SSE
+│   ├── dlaas-platform-eval/            [Layer 5] — audience / exam / launch license（仅 readout）
+│   │
+│   └── ── 外发基准（system-agnostic，1） ──────────────────────────────────
+│       lscb-bench/             [独立] — Long-Session Companion Benchmark v1.0；
+│                                        6 轴；24 公开 + 96 held-out；Apache 2.0
 │
 ├── docs/                       — 见 docs/specs/00_INDEX.md
 └── tests/                      — 多层测试
@@ -916,9 +1126,15 @@ VolvenceZero/
 | 跑一个完整 turn | `LifeformSession.run_turn(text)` | `lifeform-core` |
 | 推进时间（tick） | `LifeformSession.advance_tick(N, kind=...)` | `lifeform-core` |
 | 直接调内核 | `BrainSession` | `vz-application` 通过 `volvence_zero.brain` |
-| 跑评估 | `lifeform-bench --vertical {companion,coding}` | `lifeform-evolution` CLI |
-| 跑训练 | `lifeform-super-loop --vertical ...` | `lifeform-evolution` CLI |
+| 跑内部评估 | `lifeform-bench --vertical {companion,coding,...} --family-report` | `lifeform-evolution` CLI |
+| 跑训练 / 预训练 bootstraps | `lifeform-super-loop --vertical ...` | `lifeform-evolution` CLI |
 | 起服务 | aiohttp service | `lifeform-service` |
+| 让外部 OpenAI 客户端调用 | `add_openai_routes(app, session_manager)` | `lifeform-openai-compat` |
+| 跑外发 benchmark（自家 or 别家） | `lscb-bench run --submission examples/submission.yaml --output artifacts/lscb/` | `lscb-bench` CLI |
+| 启动多租户平台 | `dlaas-platform-api` aiohttp router + `dlaas-platform-launcher.InstanceManager` | `dlaas-platform-*` |
+| 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
+| 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
+| 编译私域顾问 vertical | `build_growth_advisor_lifeform(profile)` | `lifeform-domain-growth-advisor` |
 
 ---
 
@@ -1195,10 +1411,13 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 
 ### Q9: "为什么这么多 wheel？不能一个仓库吗？"
 
-**A**: wheel 切分有两个目的：
+**A**: wheel 切分有四个目的：
 - **R8 工程纪律**：wheel 边界 = 模块边界 = 数据契约边界
-- **未来分裂**：当 vertical 数量起来，可以无痛把 lifeform-domain-* 拆到独立仓库（详见 `SPLIT.md`）
-- **CI 强制**：vz-* 不能 import lifeform-*，避免内核被 vertical 反向耦合
+- **未来分裂**：当 vertical 数量起来，可以无痛把 `lifeform-domain-*` / `dlaas-platform-*` / `lscb-bench` 拆到独立仓库（详见 `SPLIT.md`）
+- **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `lscb-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `lscb-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
+- **多速演进**：内核稳定（半年级别）、生命体中速（月级别）、平台治理快速（周级别）、外发 benchmark 独立时间线——一个仓库做不到这种节奏分层
+
+截至 2026-05-10 共 25 wheel：内核 7 + 生命体 12 + 平台 6 + 外发基准 1。
 
 ### Q10: "你们怎么保证不退化？"
 
@@ -1252,7 +1471,46 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 1. 读 `docs/EVALUATION_SYSTEM.md` 理解 6 族评估框架
 2. 读 `docs/specs/evidence_program.md` 理解 evidence bundle
 3. 读 `docs/specs/lifeform-vitals.md` 理解"在沉默中也在乎你"是怎么实现的
-4. 跑 `lifeform-bench --family-report` 看真实指标
+4. 跑 `lifeform-bench --family-report` 看内部真实指标
+5. 跑 `lscb-bench run --submission examples/submission.yaml` 看对外 6 轴评分（也可用同一基准跑 GPT / Claude / Gemini 对比）
+
+### 11.5 我做平台 / 多租户接入
+
+**目标**：在多租户、多渠道、多 shell 场景下接入这套系统。
+
+下一步：
+1. 读 `docs/specs/dlaas-platform.md` —— 6 wheel 切分 + 8 不变量 + InteractionEnvelope routing
+2. 读 `docs/moving forward/dlaas-platform-rollout.md` —— 7 切片落地路线
+3. 读 `docs/specs/affordance.md` —— shell embodiment 复用 affordance 4 Kind 描述符
+4. 读 `docs/specs/runtime-ingestion.md` —— observe envelope 如何走 ingestion
+5. 读 `docs/specs/rupture-and-repair.md` —— handoff trigger 如何读 rupture_state
+
+### 11.6 我做"养一个特定的数字生命体"（vertical）
+
+**目标**：基于既有 owner 表面新增一个 vertical（不动内核）。
+
+下一步：
+1. 读 `docs/specs/domain-experience-layer.md` —— 通用 vertical 经验包 schema
+2. 读 `docs/specs/lifeform-vitals.md` —— drive layer 契约
+3. 选最贴近的 archetype 模板：
+   - 关系陪伴 / IM 形态 → 看 `lifeform-domain-emogpt`
+   - pair-programmer / IDE 形态 → 看 `lifeform-domain-coding`
+   - 虚构 IP / 小说角色 → 看 `lifeform-domain-character` + `docs/specs/character-soul-bootstrap.md`
+   - 真实人物（已逝 / 在世授权） → 看 `lifeform-domain-figure` + `docs/specs/figure-vertical.md`
+   - 私域 LTV 漂移 playbook → 看 `lifeform-domain-growth-advisor`
+4. 编译产物落到 `DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` + `scenarios/*.json`
+5. 用 `lifeform-super-loop --vertical <name>` 训练预训练 bootstraps
+
+### 11.7 我做"用第三方 benchmark 评我们"或"提交我们的对外基准"
+
+**目标**：让外部 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等用同口径评分；或让外部团队在 LSCB 上提交分数。
+
+下一步：
+1. 读 `docs/external/lscb-rfc-v0.md` —— LSCB 公开方法学 RFC
+2. 读 `docs/external/eqbench3-*` —— EQ-Bench 3 提交 / 盲评协议
+3. 看 `lifeform-openai-compat` 的 README + `add_openai_routes` —— 把系统包成 OpenAI endpoint
+4. 看 `lscb-bench` 的 README + `examples/submission.yaml` —— 跑对外基准
+5. 关注 `tests/contracts/test_lscb_bench_no_internal_imports.py` —— 这是 LSCB 系统无关性的 CI 守门
 
 ---
 

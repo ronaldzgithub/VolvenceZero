@@ -1,8 +1,8 @@
 # EmoGPT Next-Gen — 产品需求文档 (PRD)
 
 > Status: draft
-> Version: 0.4
-> Last updated: 2026-04-29
+> Version: 0.5
+> Last updated: 2026-05-10
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
@@ -59,13 +59,21 @@
 | 问题解决 | 离婚法律、育儿困境、职场冲突 | 世界知识经验、路径规划          |
 | 危机干预 | 心理危机、自伤风险      | 安全门控、有界自修改           |
 | 工程结对 | bug 排查、重构、模糊需求澄清、安全代码评审 | 意图清晰度 drive、问题探索 / 解决 regime、refer-out 边界 |
+| 虚构角色养成 | 小说人物形象的可对话化身 | 角色档案 reviewed artifact、style fidelity、persona 一致性 |
+| 真实人物数字复生 | 已逝历史人物（Einstein 等）/ 在世授权人物 | 一手资料引证、覆盖图、不知拒答、style/stance 双层保真 |
+| 私域长程顾问 | 母婴 / 教育 / 健康等私域 LTV 路径 | 7 天 playbook 漂移、boundary policy、apprentice/teach 通道 |
 
-**当前已落地的两个垂直**：
+**当前已落地的五个垂直**：
 
-- `lifeform-domain-emogpt` —— 关系陪伴 archetype。drive set：`bond_warmth` / `user_engagement` / `conversation_continuity`。
-- `lifeform-domain-coding` —— 工程结对 archetype（pair-programmer engineering partner）。drive set：`solution_clarity` / `code_freshness` / `direction_certainty`，其中 `direction_certainty` 在 `guided_exploration` regime 下使用 **负向 recharge**，刻意让"探索阶段"消耗确定性，证明 drive 层支持非单调激励。
+| Vertical | Archetype | Drive set / 特殊机制 |
+|---|---|---|
+| `lifeform-domain-emogpt` | 关系陪伴 | `bond_warmth` / `user_engagement` / `conversation_continuity` |
+| `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`；`direction_certainty` 在 `guided_exploration` regime 下使用**负向 recharge**，证明 drive 层支持非单调激励 |
+| `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`；reviewed `CharacterSoulProfile` 编译为 `DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` |
+| `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；`HistoricalFigureProfile` + 多源 `FigureCorpusSource` (papers/letters/lectures/notebooks) → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯（语气 / 立场 / 引证 / 不知拒答） |
+| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移，不靠关键词匹配 |
 
-两个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
+五个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
 
 
 ## 4. 系统需求
@@ -490,10 +498,62 @@
 **当前已实现**：
 
 - `lifeform-core`：Tick/Scene/Followup 引擎 + Vitals always-on PE 源 + Lifeform/LifeformSession facade
-- `lifeform-domain-emogpt` / `lifeform-domain-coding`：两个共存 vertical，独立 drive 集合、独立 scenarios、独立预训练 artefacts
+- 五个 vertical 共存：`lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor`，独立 drive 集合、独立 scenarios、独立预训练 artefacts；通过 `tests/contracts/test_import_boundaries.py:PARALLEL_VERTICAL_PAIRS` 强制互不 import
 - `lifeform-evolution`：scripted benchmark + multi-round / regime-calibrator / super-loop 训练管线 + R12 family-report / 多轮 delta-vs-baseline acceptance
 - `lifeform-service`：aiohttp 服务 + vertical registry 自动发现 + 单 substrate 多 session 共享 + 冻结校验
 - `lifeform-expression`：prompt 渲染层（不是内核职责）
+- `lifeform-thinking`：中频 ThinkingScheduler + mid-reflection / active exploration / provisional case worker（思考循环不阻塞 turn 延迟）
+- `lifeform-affordance`：Tool / Action / Organ / Shell 4 Kind 描述符 + 注册表 + 4 渲染器 + metacontroller-aware scorer
+- `lifeform-ingestion`：book / web / task_result 三类 source adapter，统一走 `LifeformSession.run_turn(..., trigger_kind="ingestion")`
+
+### 5.10 平台接入与多渠道治理（R2, R4, R8, R11, R15）
+
+**要解决的问题**：把"内核稳定 + 多 vertical 共载"扩展到**多租户、多渠道、可治理**的平台形态——一份内核同时被多个客户、多个 shell embodiment、多种 interaction kind 复用，治理面（asset / template / contract / focus_persons / handoff / audience / exam / launch license）必须独立于 cognitive state。
+
+**工程挑战**：
+
+- 在 `vz-* / lifeform-*` 之上新增**多租户控制平面**：tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket 全套资源治理，**不允许** import 内核 cognitive 子包
+- 把客户端发来的 typed `InteractionEnvelope`（chat / observe / feedback / teach / task / report / command）映射到既有 kernel 入口（`LifeformSession.run_turn` / `submit_*_event` / `submit_dialogue_outcome` / `end_scene`），禁止从 `human_brief` 等自然语言字段用关键词推断 `interaction_type`
+- 把 `AgentResponse` 包成 `OutputAct`：当 shell embodiment 不支持原 capability 时（例如纯文本 shell 收到 image），平台层负责 **degrade**，不让 kernel 感知 shell 形态
+- **handoff trigger** 走读取 `rupture_state` 快照，**不**在 kernel 加 handoff owner
+- **focus_persons / identity_links** 不创建第二 owner：写入只走 `submit_profile_event`；identity_links 拼接为 `UserIdentity.scope_key`，0 改 vz-memory
+- **audience / exam / launch license** 是 R12 readout / launch gate，**禁止反向写回** reward / Face 梯度
+
+**关键不变量**：
+
+- 内核 7 个 wheel diff = 0 行（仅 substrate streaming additive 接口可例外，单独 review）
+- `dlaas-platform-*` 不允许 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`，只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口与内核交互
+- 所有 control-plane 资源是平台层 SSOT，其它任何 wheel 都只读它们发布的快照
+
+**当前已实现**：6 个 `dlaas-platform-*` wheel × 7 切片完成（spec 见 `docs/specs/dlaas-platform.md`，rollout 见 `docs/moving forward/dlaas-platform-rollout.md`）。
+
+| Wheel | 职责 |
+|---|---|
+| `dlaas-platform-contracts` | 全部 frozen dataclass + JSON schema：`InteractionEnvelope` / `OutputAct` / `TenantSpec` / `ShellSpec` / `AssetSpec` / `TemplateSpec` / `ContractSpec` / `FocusPersonSpec` / `IdentityLinkSpec` / `HandoffTicketSpec` |
+| `dlaas-platform-registry` | SQLite/Postgres-backed 持久化 + auth 中间件；唯一 owner of tenant / shell / asset / template / contract / focus_person / identity_link / handoff_ticket |
+| `dlaas-platform-launcher` | `InstanceManager`：管 `{ai_id → Lifeform}`，shared substrate，awake/sleep，LRU eviction |
+| `dlaas-platform-api` | aiohttp `/dlaas/*` router + 三种 auth header 中间件 + `OutputAct` 包装 |
+| `dlaas-platform-ops` | pause / resume / operator-message / handoff queue / SSE conversations stream；ledger |
+| `dlaas-platform-eval` | audience 分析 / exam runs / launch license gate（复用 `lifeform-evolution`，LLM judge 仅 readout） |
+
+### 5.11 外部 Benchmark / Arena 接入（R8, R12, R15）
+
+**要解决的问题**：内部 `lifeform-bench --family-report` 是 R12 6 族评估的 first-class 入口，但要让系统接受**外部第三方 benchmark / 竞技场**（EQ-Bench 3 / EmpathyBench / Chatbot Arena 等）的同口径评分，必须把它伪装成普通的 OpenAI Chat Completions endpoint，同时不让外部 harness 反向污染 kernel 状态。同时我们也对外发布**自己的开源 benchmark**：LSCB（Long-Session Companion Benchmark），评估任意 OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现，作为对外的客观证据。
+
+**工程挑战**：
+
+- **OpenAI 兼容 facade**（`lifeform-openai-compat`）：把 OpenAI `POST /v1/chat/completions` 翻译成既有的 stateful `POST /v1/sessions/{id}/turns`；提供 stateless / sticky session / raw substrate passthrough 三种模式；**read-only**——禁止调任何下划线方法、禁止改 owner snapshot
+- **外发 benchmark**（`lscb-bench`）：评估**任意** OpenAI-compatible chat endpoint，6 轴打分（A1 任务 / A2 交互质量 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 是 hard-cap 轴）；6.4 加权几何平均 + A6 cap；TrueSkill + Bradley-Terry elo；24 个公开 scenario + 96 个私有 held-out（git submodule）
+- **system-agnostic**：`lscb-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../../tests/contracts/test_lscb_bench_no_internal_imports.py) 中被 CI 强制不 import 任何 `volvence_zero.*` 或 `lifeform_*`——它是中立第三方工具
+
+**关键不变量**：
+
+- `lifeform-openai-compat` 只 import `lifeform_service` + 标准库 + `aiohttp`，**禁止**直接 import `volvence_zero.*` kernel 子包或 `lifeform_domain_*` vertical
+- `lifeform-openai-compat` read-only：从不调下划线方法、从不改 owner snapshot、从不绕过 `SessionManager` 触达 Lifeform private modules
+- `lscb-bench` 完全无 `volvence_zero.*` / `lifeform_*` import，可被任何外部团队下载独立运行
+- 外部 benchmark / arena 输出的 ELO / 排名 / pairwise 偏好属于 R12 readout，**禁止反向**作为 reward 写回学习管线
+
+**当前已实现**：`lscb-bench` v1.0 reference implementation（24 公开 scenarios + 14 模块，包含 user_simulator / arc_runner / callback_ledger / disqualifier / judge_perturn / judge_arc / aggregator / elo / verifier / cost / cli）；`lifeform-openai-compat` 4 packet 全到位（DTO / raw-substrate / session-bridge / `add_openai_routes`）。
 
 ## 6. 必要脚手架
 
@@ -533,23 +593,33 @@
 
 **为什么需要**：R15 要求"迁移可解释、可回滚"，R8 要求"每个区域有唯一 owner、跨域只走快照/契约"。当代码量与产品垂直层数量增加时，**仓库边界应当 = 代码边界**，否则 owner 隔离会被相对 import 偷偷溶解。
 
-**当前形态**：单 monorepo + 多 wheel（Phase 1）
+**当前形态**：单 monorepo + 多 wheel（Phase 1，25 wheel）
 
-| 类别 | wheel 前缀 | 内容 |
-|------|------------|------|
-| 内核 | `vz-*` | NL+ETA contracts、owners、学习循环；零产品知识 |
-| 数字生命体 | `lifeform-*` | tick / vitals / 表达层 / 垂直 vertical / 服务 / 进化（benchmark + 训练） |
+| 类别 | wheel 前缀 | 内容 | 数量 |
+|------|------------|------|------|
+| 内核 | `vz-*` | NL+ETA contracts、owners、学习循环；零产品知识 | 7 |
+| 数字生命体 | `lifeform-*` | tick / vitals / 表达 / 思考 / affordance / ingestion / 垂直 vertical / 服务 / 进化（benchmark + 训练）/ OpenAI 兼容 facade | 12 |
+| 平台治理与外部接入 | `dlaas-platform-*`、`lscb-bench` | 多租户控制平面 + 多渠道 envelope；外发 benchmark | 6 + 1 |
 
-具体 wheel：`vz-contracts` / `vz-substrate` / `vz-cognition` / `vz-temporal` / `vz-memory` / `vz-application` / `vz-runtime` 和 `lifeform-core` / `lifeform-expression` / `lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-service` / `lifeform-evolution`。
+具体 wheel：
+
+- **内核（`vz-*`，7）**：`vz-contracts` / `vz-substrate` / `vz-cognition` / `vz-temporal` / `vz-memory` / `vz-application` / `vz-runtime`
+- **数字生命体（`lifeform-*`，12）**：`lifeform-core` / `lifeform-expression` / `lifeform-thinking` / `lifeform-affordance` / `lifeform-ingestion` / `lifeform-service` / `lifeform-evolution` / `lifeform-openai-compat` / `lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor`（5 个并列 vertical + 7 个公共）
+- **平台治理（`dlaas-platform-*`，6）**：`dlaas-platform-contracts` / `dlaas-platform-registry` / `dlaas-platform-launcher` / `dlaas-platform-api` / `dlaas-platform-ops` / `dlaas-platform-eval`
+- **外发 benchmark（system-agnostic，1）**：`lscb-bench`
 
 **关键不变量**：
 
-- `vz-*` 不得 import `lifeform-*`，由 `tests/contracts/test_import_boundaries.py` 强制
+- `vz-*` 不得 import `lifeform-*` / `dlaas-platform-*` / `lscb-bench`，由 `tests/contracts/test_import_boundaries.py` 强制
+- `dlaas-platform-*` 不得 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*` 或 `lifeform_domain_*` 内部，只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口接入
+- `lifeform-openai-compat` 只能 import `lifeform_service` + stdlib + `aiohttp`；禁止下划线方法 / owner snapshot mutation
+- `lscb-bench` 不得 import 任何 `volvence_zero.*` / `lifeform_*`（system-agnostic 第三方工具）
+- 五个 `lifeform-domain-*` vertical 互不 import（`PARALLEL_VERTICAL_PAIRS`）
 - 跨 wheel 依赖必须同时在 `pyproject.toml` 与 `ALLOWED_VZ_UPSTREAM` 中声明
 - 不允许 `shared/` 目录；公共原语只能放在 `vz-contracts`
 - 顶层 `pyproject.toml` 是 workspace meta；根目录不放业务代码
 
-**Phase 2（仓库分裂）触发条件**与时间线见 `SPLIT.md`。截至 2026-04-29，触发条件 ② "第二个产品消费者" 已经 **MET**（`lifeform-domain-coding` 与 `lifeform-domain-emogpt` 在同一 monorepo 共存，service registry 自动发现，无须修改内核）；下一步关注的是触发条件 ① "契约表面稳定 ≥ 4 周"，由 `docs/specs/evaluation.md` 与 `docs/DATA_CONTRACT.md` 的演进节奏决定。
+**Phase 2（仓库分裂）触发条件**与时间线见 `SPLIT.md`。截至 2026-05-10，触发条件 ② "第二个产品消费者" 已经 **MET**（5 个并列 `lifeform-domain-*` vertical 共存）；同时新增的 `dlaas-platform-*` + `lscb-bench` 进一步压力测试了"内核 0 改动 + 平台 / 外发 benchmark 独立演进"。下一步关注的是触发条件 ① "契约表面稳定 ≥ 4 周"，由 `docs/specs/evaluation.md` 与 `docs/DATA_CONTRACT.md` 的演进节奏决定。
 
 ## 7. 算法基础映射
 
@@ -664,19 +734,48 @@
 
 **对应能力域**：5.7, 5.8
 
-### M7: Lifeform Layer + 双 Vertical 共存 ✅
+### M7: Lifeform Layer + 多 Vertical 共存 ✅
 
-**交付**：always-on tick / scene / vitals 引擎 + DomainExperiencePackage / VitalsBootstrap / scenarios 三件套 + 至少两个共存 vertical + 单 GPU 多 session 共享 substrate 的服务层
+**交付**：always-on tick / scene / vitals 引擎 + DomainExperiencePackage / VitalsBootstrap / scenarios 三件套 + 多个共存 vertical + 单 GPU 多 session 共享 substrate 的服务层
 
-**验证**：第二个 vertical 加载后内核未被改动；service registry 自动发现两个 vertical；两个 vertical 在同一进程内 drive 集合互不重叠；单 substrate runtime 共享时 fail-loud 校验冻结不变量
+**验证**：每新加一个 vertical 内核未被改动；service registry 自动发现所有 vertical；vertical 间 drive 集合互不重叠；单 substrate runtime 共享时 fail-loud 校验冻结不变量
 
-**当前状态**：已交付。`lifeform-domain-emogpt` 与 `lifeform-domain-coding` 共存；`lifeform-super-loop` 在两个 vertical 上分别产出预训练 bootstraps；`lifeform-service` 提供 aiohttp 服务并校验 substrate 共享不变量；`SPLIT.md` 触发条件 ② 在 2026-04-29 MET。
+**当前状态**：已交付。`lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor` 五个 vertical 共存；`lifeform-super-loop` 可在每个 vertical 上分别产出预训练 bootstraps；`lifeform-service` 提供 aiohttp 服务并校验 substrate 共享不变量；`PARALLEL_VERTICAL_PAIRS` 强制互不 import；`SPLIT.md` 触发条件 ② 在 2026-04-29 MET。
 
 **对应能力域**：5.9 + 跨域接入
 
-## 10.1 当前进展快照（2026-04-29）
+### M8: 平台接入 + 多渠道治理 ✅
 
-工程进展已经从 "8 个能力域的骨架" → "PE 进主链，多时间尺度证据链闭合" 推进到 **"内核稳定到可承载第二个产品 vertical，并用同一组 owner contract 同时承担两条产品线"** 的阶段。`SPLIT.md` 的触发条件 ② 在 2026-04-29 已经 MET。
+**交付**：`dlaas-platform-*` 6 wheel × 7 切片 —— typed `InteractionEnvelope` 7 类全 dispatch（chat / observe / feedback / teach / task / report / command）+ control plane 持久化（tenant / shell / asset / template / contract / focus_person / identity_link / handoff_ticket）+ ops（pause / resume / handoff / SSE）+ eval gate（audience / exam / launch license）+ `OutputAct` shell-aware degrade
+
+**验证**：
+- `git diff main packages/vz-*` 空（内核 0 改动）
+- 完整生命周期 e2e（register tenant → upload asset → create template → activate → readiness → publish → contract → adopt → 多渠道 interactions → 必要时 handoff）走通
+- 多租户隔离 + 持久化 + 兼容 + smoke perf 全套契约测试 908 项绿色
+- `interaction_type` 必须 typed enum dispatch，禁止从 `human_brief` 关键词推断（CI 强制）
+
+**当前状态**：已交付。spec 见 `docs/specs/dlaas-platform.md`，rollout 见 `docs/moving forward/dlaas-platform-rollout.md`。`/v1/sessions/...` 老端点保留 ≥ 1 个 release cycle 作向后兼容。
+
+**对应能力域**：5.10
+
+### M9: 外部 Benchmark / Arena 接入 + 自发 LSCB ✅
+
+**交付**：
+- `lifeform-openai-compat`：4 packet 全到位（DTO / raw-substrate / session-bridge / `add_openai_routes`），三种模式（stateless / sticky session / raw substrate passthrough）
+- `lscb-bench` v1.0 reference implementation：6 轴打分 + 6.4 加权几何平均 + A6 hard-cap + TrueSkill / BT elo + 24 公开 + 96 私有 held-out（git submodule）+ Apache 2.0 对外开源
+
+**验证**：
+- 系统能被 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等外部 harness 当成普通 OpenAI endpoint 调用
+- `lscb-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py) 强制零内核 import，可被任何外部团队下载独立运行
+- 外部 ELO / 排名 / pairwise 偏好不进 reward 路径（仅 R12 readout）
+
+**当前状态**：已交付。`lscb-bench` 已发布 1.0a0；`docs/external/lscb-rfc-v0.md` 是公开 RFC；`docs/external/eqbench3-*` 文档族提供对外提交与盲评协议。
+
+**对应能力域**：5.11
+
+## 10.1 当前进展快照（2026-05-10）
+
+工程进展已经从 "8 个能力域的骨架" → "PE 进主链，多时间尺度证据链闭合" → "内核稳定到可承载第二个产品 vertical" 推进到 **"五个 vertical 共载 + 多租户控制平面 + 外部 benchmark / arena 接入面，全部以内核 0 改动落地"** 的阶段。
 
 ### 内核（`vz-*`）已在主链生效
 
@@ -694,12 +793,20 @@
 
 - **Lifeform Layer**：tick / scene / followup / vitals 引擎，把 turn-driven 助手升级为 always-on 数字生命体；scene 闭合即调用 kernel `begin_new_context()`，挂上 R6 的 session-post slow loop。
 - **Vitals always-on PE 源**：drive level 偏离 homeostatic band 即慢尺度 prediction error；`pe_weight × deviation` 求和超过 `proactive_pe_threshold` 即触发 followup（受 owner 内部 cooldown 约束，永不洪泛）。decay 只在 SYSTEM tick 发生，ENERGY/CONTEXT tick 仅推进 tick_index。
-- **两个共存 vertical**：`lifeform-domain-emogpt`（companion）与 `lifeform-domain-coding`（pair-programmer engineering partner）在同一 Python 进程内共存，drive 集合互不重叠；service registry 通过 import 自动发现。
+- **五个共存 vertical**：`lifeform-domain-emogpt`（companion）/ `lifeform-domain-coding`（pair-programmer）/ `lifeform-domain-character`（虚构角色）/ `lifeform-domain-figure`（真实人物 L1-L4 保真）/ `lifeform-domain-growth-advisor`（私域 LTV 顾问）在同一 Python 进程内共存，drive 集合互不重叠；service registry 通过 import 自动发现；`PARALLEL_VERTICAL_PAIRS` 强制互不 import。
 - **vertical = data + light glue**：每个 vertical 是 `DomainExperiencePackage` + `VitalsBootstrap` + `scenarios/*.json`（+ 可选 `*-temporal.snap` / `*-regime.bs`），编译进既有 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / `rare-heavy application state`，**不**新增 runtime owner。
-- **预训练 bootstraps 跟随 vertical 发布**：`lifeform-super-loop --vertical {companion,coding}` 在每个 vertical 自己的 scenarios 上联合训练 `MetacontrollerParameterSnapshot`（β_t / z_t）+ `RegimeBootstrap`（regime selection_weights），结果以 magic-byte pickle envelope 作为 vertical wheel 的 package data 发布；`build_*_lifeform()` 默认加载，可通过 `use_*_bootstrap=False` 做 ablation。
+- **figure vertical 的 L1/L2 corpus 管线**：`bytes -> RawDocument -> CleanedDocument` 全链（4 个 parser：CPAE PDF / Wikisource HTML / Project Gutenberg / Internet Archive OCR JSON + 6 个 cleaner op + content-addressable store + 版本化 cleaner + re-clean CLI）；7 个 `CheckKind` 关闭枚举的 verification（首批 3 实施：DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）+ append-only `VerificationLedger`；bundle gate 拒收非全 PASS 的 source。
+- **预训练 bootstraps 跟随 vertical 发布**：`lifeform-super-loop --vertical {companion,coding,…}` 在每个 vertical 自己的 scenarios 上联合训练 `MetacontrollerParameterSnapshot`（β_t / z_t）+ `RegimeBootstrap`（regime selection_weights），结果以 magic-byte pickle envelope 作为 vertical wheel 的 package data 发布；`build_*_lifeform()` 默认加载，可通过 `use_*_bootstrap=False` 做 ablation。
 - **Service 层 `lifeform-service`**：aiohttp 服务，`POST /v1/sessions` / `POST /v1/turns` / `POST /v1/scenes/end` / `GET /v1/info`；vertical registry 自动发现；**单 GPU 多 session 共享同一 substrate runtime**，启动时 fail-loud 校验 `allow_live_substrate_mutation=False`。
-- **R12 6 族评估接到 lifeform CLI**：`lifeform-bench --family-report` / `--family-report-json` / `--require-family-pass` 把 `BenchmarkReport` 原始指标按 6 族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`--vertical {companion,coding}` 一键选择 vertical 的 scenarios + DomainExperiencePackage + 预训练 artefacts。
+- **R12 6 族评估接到 lifeform CLI**：`lifeform-bench --family-report` / `--family-report-json` / `--require-family-pass` 把 `BenchmarkReport` 原始指标按 6 族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`--vertical {companion,coding,…}` 一键选择 vertical 的 scenarios + DomainExperiencePackage + 预训练 artefacts。
 - **multi-round 加 delta-vs-baseline acceptance**：`run_multi_round_loop` 发布 `RoundQualityMetrics` + `RoundDeltaVsBaseline`，对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance verdict 与原有结构性 verdict 解耦；CLI 提供 `--require-improvement-vs-baseline` fail-closed gate。
+
+### 平台治理与外部接入层（`dlaas-platform-*` + `lscb-bench` + `lifeform-openai-compat`）已上线
+
+- **DLaaS 多渠道平台**：6 个 `dlaas-platform-*` wheel × 7 切片完成。typed `InteractionEnvelope` 7 类（chat / observe / feedback / teach / task / report / command）全 dispatch；control plane 持久化（tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket）；ops（pause / resume / operator-message / handoff queue / SSE conversations stream）；eval gate（audience / exam / launch license，仅 readout）；`OutputAct` shell-aware degrade。**vz-* 内核 7 个 wheel 全程零改动**。
+- **OpenAI 兼容 façade**：`lifeform-openai-compat` 把 `POST /v1/chat/completions` 翻译成既有 stateful `POST /v1/sessions/{id}/turns`；三种模式（stateless / sticky session / raw substrate passthrough）；read-only 不改 owner snapshot；可被 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 当作普通 OpenAI endpoint 使用。
+- **外发 LSCB 基准**：`lscb-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py)）。
+- **figure / character / growth-advisor 三个新 vertical 联动验证**：figure 的 L1/L2 corpus 管线 + character 的 reviewed `CharacterSoulProfile` + growth-advisor 的 7 天 playbook 漂移，三种"非简单 chat archetype"在同一组 application owner 表面落地，证明 vertical = data + light glue 在更广领域成立。
 
 ### 部分实现 / 仍受 gate 约束的部分
 
@@ -711,11 +818,15 @@
 ### 仍属目标态、尚未完全实现的部分
 
 - Titans / DGD 式 online-fast substrate 自修改不是默认 live 路径；repo 中存在 bounded substrate delta proposal machinery，但只在 review / rare-heavy / explicit experimental mode 中生效。
-- `rare-heavy` 还不是完整的基础模型持续预训练 / 蒸馏管线；当前是 owner-aware adapter-delta + offline pipeline。
+- `rare-heavy` 还不是完整的基础模型持续预训练 / 蒸馏管线；当前是 owner-aware adapter-delta + offline pipeline；figure vertical 的 persona LoRA 训练（F6 packet）要求 `validation_delta ≥ 0.05` + `is_reversible=True` + 非空 `rollback_evidence`，仍走 `ModificationGate.OFFLINE`。
 - 独立的 session-post async slow reflection worker / queue 已经是默认主路径，但跨 session 的长期 background daemon（机器级而非 session 级）尚未拉成默认形态。
-- `SPLIT.md` Phase 2（仓库分裂）尚未触发；当前仍是单 monorepo + 多 wheel，需要触发条件 ① 契约稳定 ≥ 4 周再走 mechanical split。
+- DLaaS 平台层：所有 packet 落地，但 `dlaas-platform-*` 端点目前默认 `SHADOW`，老 `/v1/sessions/...` 是 ACTIVE 主路径（保留 ≥ 1 个 release cycle）。
+- LSCB held-out 96 个 scenarios 在私有 git submodule (`external/lscb-heldout/`)，公开 PR / 外部贡献者只跑 24 个公开 scenarios。
+- `SPLIT.md` Phase 2（仓库分裂）尚未触发；当前仍是单 monorepo + 多 wheel（25 wheel），需要触发条件 ① 契约稳定 ≥ 4 周再走 mechanical split。
 
-## 11. 仓库结构与 wheel 边界
+## 11. 仓库结构与 wheel 边界（25 wheel）
+
+### 内核（`vz-*`，7）
 
 | 层 | wheel | 角色 |
 |----|-------|------|
@@ -723,18 +834,50 @@
 | 基底 | `vz-substrate` | 冻结 LLM + 残差捕获 + bounded adapter-delta |
 | 时间抽象 | `vz-temporal` | metacontroller (encoder + β_t + decoder) + Internal RL |
 | 记忆 | `vz-memory` | CMS 4 stratum + ReflectionEngine（background-slow） |
-| 认知 | `vz-cognition` | PE / credit / dual-track / regime / evaluation 等 owner |
+| 认知 | `vz-cognition` | PE / credit / dual-track / regime / evaluation / rupture_state 等 owner |
 | 应用 | `vz-application` | domain knowledge / case memory / playbook / boundary policy |
 | 编排 | `vz-runtime` | 薄编排，唯一可 import 其他业务 wheel 的 wheel |
-| 生命体核 | `lifeform-core` | tick / scene / followup / vitals + Lifeform facade |
-| 表达 | `lifeform-expression` | prompt / response 渲染 |
-| 垂直 vertical | `lifeform-domain-emogpt` / `lifeform-domain-coding` | 每个 vertical 自带 DomainExperiencePackage + VitalsBootstrap + scenarios + 预训练 bootstraps |
+
+### 数字生命体（`lifeform-*`，12）
+
+| 层 | wheel | 角色 |
+|----|-------|------|
+| 生命体核 | `lifeform-core` | tick / scene / followup / vitals + Lifeform/LifeformSession facade |
+| 表达 | `lifeform-expression` | prompt / response 渲染 + reflection-hint SSOT |
+| 思考 | `lifeform-thinking` | 中频 ThinkingScheduler + mid-reflection / active exploration / provisional case worker + fingerprint guard |
+| Affordance | `lifeform-affordance` | 4 Kind 描述符 + 注册表 + 4 渲染器 + metacontroller-aware scorer |
+| Ingestion | `lifeform-ingestion` | book / web / task_result 三类 source adapter，统一走 `run_turn(..., trigger_kind="ingestion")` |
 | 服务 | `lifeform-service` | aiohttp + vertical registry + 单 substrate 多 session 共享 |
 | 进化 | `lifeform-evolution` | scripted benchmark + super-loop 训练管线 + 6 族 family report + multi-round delta-vs-baseline |
+| OpenAI 兼容 | `lifeform-openai-compat` | `POST /v1/chat/completions` → `lifeform-service.SessionManager`；read-only facade，喂外部 EQ-Bench / EmpathyBench / Chatbot Arena |
+| 垂直（companion） | `lifeform-domain-emogpt` | 关系陪伴 archetype |
+| 垂直（pair-programmer） | `lifeform-domain-coding` | 工程结对 archetype（含负向 recharge） |
+| 垂直（虚构角色） | `lifeform-domain-character` | reviewed `CharacterSoulProfile` 编译为 standard vertical 输入 |
+| 垂直（真实人物） | `lifeform-domain-figure` | 一手资料 → `FigureArtifactBundle`；L1/L2 corpus cleaning + verification + L3/L4 retrieval / coverage |
+| 垂直（私域 LTV） | `lifeform-domain-growth-advisor` | reviewed `GrowthAdvisorProfile` + 7 天 playbook 漂移 |
 
-CI 强制 `vz-* ↛ lifeform-*`；跨 wheel 依赖必须同时在 `pyproject.toml` 与 `tests/contracts/test_import_boundaries.py:ALLOWED_VZ_UPSTREAM` 中声明。
+### 平台治理与外部接入（`dlaas-platform-*` + `lscb-bench`，6 + 1）
 
-`SPLIT.md` 详述 Phase 1（当前）与 Phase 2（仓库分裂）的触发条件、机械拆分流程，以及"过早分仓"与"永不分仓"两端的代价。
+| 层 | wheel | 角色 |
+|----|-------|------|
+| 平台契约 | `dlaas-platform-contracts` | `InteractionEnvelope` / `OutputAct` / 全套 control-plane spec frozen dataclass + JSON schema |
+| 平台注册表 | `dlaas-platform-registry` | 多租户持久化（tenant / shell / asset / template / contract / focus_person / identity_link / handoff_ticket） + 三种 auth 中间件 |
+| 实例管理 | `dlaas-platform-launcher` | `InstanceManager`：`{ai_id → Lifeform}`、shared substrate、awake/sleep、LRU eviction |
+| HTTP 入口 | `dlaas-platform-api` | aiohttp `/dlaas/*` router + `OutputAct` 包装 + shell embodiment-aware degrade |
+| Ops | `dlaas-platform-ops` | pause / resume / operator-message / handoff queue（读 `rupture_state`）/ SSE conversations stream |
+| Eval gate | `dlaas-platform-eval` | audience 分析 / exam runs / launch license（仅 readout） |
+| 外发基准 | `lscb-bench` | 系统无关的 6 轴 long-session companion benchmark（24 公开 + 96 私有 held-out）；Apache 2.0 |
+
+CI 强制四条边界：
+
+1. `vz-* ↛ lifeform-*`
+2. `vz-* ↛ dlaas-platform-*`
+3. `dlaas-platform-* ↛ volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`
+4. `lscb-bench` ↛ 任何 `volvence_zero.*` / `lifeform_*`
+
+跨 wheel 依赖必须同时在 `pyproject.toml` 与 `tests/contracts/test_import_boundaries.py:ALLOWED_VZ_UPSTREAM` 中声明。
+
+`SPLIT.md` 详述 Phase 1（当前 25 wheel）与 Phase 2（仓库分裂）的触发条件、机械拆分流程，以及"过早分仓"与"永不分仓"两端的代价。
 
 ## 12. 参考文档
 
@@ -747,8 +890,17 @@ CI 强制 `vz-* ↛ lifeform-*`；跨 wheel 依赖必须同时在 `pyproject.tom
 | `SPLIT.md`                | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 |
 | `docs/specs/lifeform-vitals.md` | always-on drive 层契约（R-PE 慢尺度源） |
 | `docs/specs/domain-experience-layer.md` | 通用 vertical 经验包 schema 与编译边界 |
+| `docs/specs/character-soul-bootstrap.md` | 虚构人物 vertical 编译契约 |
+| `docs/specs/figure-vertical.md` | 真实人物 vertical L1-L4 保真阶梯契约 |
+| `docs/specs/figure-corpus-cleaning.md` | figure L1：bytes → CleanedDocument 全链 |
+| `docs/specs/figure-corpus-verification.md` | figure L2：7 `CheckKind` 关闭枚举 + `VerificationLedger` |
+| `docs/specs/dlaas-platform.md` | DLaaS 多渠道控制平面 spec（6 wheel + 8 不变量） |
+| `docs/moving forward/dlaas-platform-rollout.md` | DLaaS 7 切片落地路线 |
+| `docs/external/lscb-rfc-v0.md` | LSCB v0 公开 RFC（6 轴方法学） |
+| `docs/external/eqbench3-*` | 对外 EQ-Bench 3 提交 / 盲评协议 |
 | `docs/specs/core-package-boundary.md` | volvence-zero core package 边界、stable Brain API、HF optional runtime |
 | `docs/SYSTEM_DESIGN.md`   | 系统架构、模块职责、数据流、迁移策略           |
+| `docs/SYSTEM_GUIDE.md`    | 系统全景指南：跨 spec 的"为什么"和"怎么连起来" |
 | `docs/DATA_CONTRACT.md`   | 快照 schema、Slot 注册表、依赖图、变更协议 |
 | `docs/EVALUATION_SYSTEM.md` | 6 族评估框架、双轨评估隔离、评估信号回馈机制    |
 | `docs/DEBUG_SYSTEM.md`    | 5 层可观测性、契约守卫、checkpoint / rollback  |

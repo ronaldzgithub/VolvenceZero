@@ -56,7 +56,18 @@
 packages/lifeform-domain-figure/
 ```
 
-> **Corpus 字节流入口（debt #28 L1，2026-05-10 落地）**：当 V2 HTTPArchiveFetcher 接通真实字节流时，必须经 [`docs/specs/figure-corpus-cleaning.md`](./figure-corpus-cleaning.md) 描述的 L1 cleaning pipeline（`bytes -> RawDocument -> CleanedDocument` + content-addressable store）再经 `cleaning/bridging.py` 桥接到下表 P1.2 的 `FigureCorpusSource`。fetcher 不直接产 typed source；cleaner 不发 HTTP。
+> **Corpus 字节流全链（debt #28 L0 + L1 + L2 first batch + debt #19，2026-05-10 全部落地）**：从一个 archive URL 开始，到 bundle gate 通过，完整 6 步：
+>
+> 1. **L0 crawl** — [`docs/specs/figure-corpus-crawl.md`](./figure-corpus-crawl.md)：`scripts/figure_crawl.py enqueue` + `run` → 5 SSRF gate + robots.txt + token-bucket rate limit + 5 archive-aware fetcher（generic / cpae / wikisource / gutenberg / internet_archive）→ `CrawlSink.consume_success` 把字节写入 L1 `CleaningStore.put_raw`，建立 `raw_sha256` anchor
+> 2. **L1 cleaning** — [`docs/specs/figure-corpus-cleaning.md`](./figure-corpus-cleaning.md)：`scripts/figure_clean.py clean` 用 `parse_by_content_type` + `clean_raw_document` 产 `RawDocument` / `CleanedDocument`；cleaner 不发 HTTP / 不直接产 typed source
+> 3. **L1 → L2 桥接** — `cleaning/bridging.py.cleaned_to_source_provenance(...)`：把 `raw.license_notice` 流到 `SourceProvenance.license_label`，把 `raw.raw_sha256` 流到 `byte_sha256`
+> 4. **L1 → typed payload 桥接** — `cleaning/bridging.py.cleaned_to_*_payload(...)` + 既有 `*_to_*_source(...)` → 下表 P1.2 的 `FigureCorpusSource`
+> 5. **L2 verification** — [`docs/specs/figure-corpus-verification.md`](./figure-corpus-verification.md)：`scripts/figure_verify.py run-batch` 跑已实现的 3 个 verifier（DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）落 `VerificationLedger`；verifier 不发 HTTP / 不写 kernel owner / 不直接产 typed source
+> 6. **Bundle gate** — `build_figure_artifact_bundle(FigureBundleInputs(..., require_verification_pass=True, provenance_records=..., verification_ledger=...))`：拒收任一非全 PASS 的 source
+>
+> 关键不变量（contract test AST 静态守门）：L0 是 figure-vertical **唯一**允许 HTTP 出口；L1 / L2 仍禁 HTTP；L0 / L2 禁直产 typed source；L0 / L2 禁写 kernel owner；L0 禁 import L2。
+>
+> `corpus.archives.live_archive_fetcher(fetch_kind, ...)` 工厂（debt #19 closure）封装 L0 crawler stack 为 V2 `ArchiveFetcher` Protocol，单 URL 模式（无 robots / 无 rate limit）；`offline_archive_fetcher()` 行为不变。
 
 公开 API（按 packet 渐进添加）：
 

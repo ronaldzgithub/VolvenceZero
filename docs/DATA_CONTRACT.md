@@ -62,6 +62,48 @@
 - `cleaning/` 子包**禁止** import 任何 HTTP 客户端（cleaning 与 V2 fetcher 解耦）— 同上守门
 - raw bytes content-addressable by sha256；cleaner 版本目录永不覆盖
 
+### 1.3 Figure verification vertical schema (non-runtime)
+
+`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/` 提供的 schema 是 **figure vertical 内部跨子模块共享**的 typed records，**不**进入 §6 runtime slot 注册表（不是 runtime owner）。来源：`docs/known-debts.md` debt #28 L2 first batch（2026-05-10）；spec：[`docs/specs/figure-corpus-verification.md`](specs/figure-corpus-verification.md)。
+
+| Type | 字段（关键） | 用途 |
+|------|--------------|------|
+| `CheckKind` (enum, 7 values) | `DATE_PLAUSIBILITY` / `LICENSE_PAGE_LEVEL` / `CROSS_SOURCE_BYTE` / `IDENTITY_DISAMBIGUATION` / `AUTHORSHIP_ATTRIBUTION` / `VERSION_RECONCILIATION` / `TRANSLATION_LINEAGE` | 关闭枚举；前 3 已实现，后 4 deferred 到 #26 metadata client |
+| `IMPLEMENTED_CHECK_KINDS: frozenset[CheckKind]` | bundle gate 强制全 PASS 的子集 | 新 verifier 实现时**必须**同步加入；contract test 自动 surface 缺失 |
+| `Verdict` (enum, 3 values) | `PASS` / `FAIL` / `NEEDS_REVIEW` | 关闭枚举 |
+| `VerificationCheck` | `check_kind` / `verdict` / `evidence: tuple[str, ...]` (非空) / `reviewer_id` (`auto:<id>:<int>` 或 `human:<id>`) / `reviewed_at_iso` / `source_byte_sha256` (64-char hex) | 一条 verifier verdict；不可变；anchor key 与 L1 `RawDocument.raw_sha256` / `SourceProvenance.byte_sha256` 同 hash |
+
+**契约不变量**（详见 spec）：
+
+- `verification/` 子包**禁止** import `Figure*Source` typed records — `tests/contracts/test_verification_module_boundaries.py` AST 静态守门
+- `verification/` 子包**禁止** import 任何 HTTP 客户端 — 同上守门
+- `verification/` 子包**禁止** import 任何 `volvence_zero.{cognition,temporal,memory,substrate,application,runtime}.*` 内核模块（verifier 是 readout / gate，绝不反向写 kernel；R12 evaluation 单向性）— 同上守门
+- `VerificationLedger` append-only；override 通过 append `human:` check 实现，`latest_per_kind` 取每 kind 最新一条作为生效 verdict
+- bundle gate 阶段性放行 `IMPLEMENTED_CHECK_KINDS`；新 kind 实现时同步更新
+
+### 1.4 Figure crawl vertical schema (non-runtime)
+
+`packages/lifeform-domain-figure/src/lifeform_domain_figure/crawl/` 提供的 schema 是 **figure vertical 内部跨子模块共享**的 typed records，**不**进入 §6 runtime slot 注册表。来源：`docs/known-debts.md` debt #28 L0 + debt #19 closure（2026-05-10）；spec：[`docs/specs/figure-corpus-crawl.md`](specs/figure-corpus-crawl.md)。
+
+| Type | 字段（关键） | 用途 |
+|------|--------------|------|
+| `CrawlStatus` (enum, 7 values) | `SUCCESS` / `FETCHED_NOT_MODIFIED` / `SKIPPED_ROBOTS` / `SKIPPED_SCOPE` / `SKIPPED_RATE` / `FAILED_HTTP` / `FAILED_PARSER_PRECHECK` | 关闭枚举 |
+| `VALID_FETCH_KINDS` (frozenset[str], 5 values) | `generic` / `cpae` / `wikisource` / `gutenberg` / `internet_archive` | 关闭 fetcher 注册集合；新增需同步 dispatcher 与 spec |
+| `CrawlRequest` | `url` / `fetch_kind` / `request_id` (= sha256(fetch_kind + "\n" + url)) / `enqueued_at_iso` / `referrer` / `expected_content_type` | 不可变 work item；request_id 是 dedup key |
+| `CrawlResult` | `request` / `status` / `fetched_at_iso` / `raw_sha256` (== L1 anchor when SUCCESS) / `content_type_actual` / `byte_len` / `http_status` / `etag` / `last_modified` / `error` | 不可变 outcome；SUCCESS 必填 raw_sha256，其它必空 |
+| `ScopePolicy` | `allowed_hosts: frozenset[str]` (非空) / `user_agent` / `allowed_path_prefixes` / `max_pages_per_host` / `max_body_bytes` / `incremental` | SSRF allowlist + 全局 budget；`DEFAULT_HOSTS` 是 5 archive 默认集 |
+| `LiveFetchedBytes` (in `corpus/archives`) | `body` / `raw_sha256` / `content_type` / `http_status` | V2 `ArchiveFetcher.fetch().raw_payload` 形态（debt #19 closure），区别于 V1 的 `*Payload` raw_payload |
+
+**契约不变量**（详见 spec）：
+
+- `crawl/` 子包**允许** import `requests` / `urllib.robotparser` / `urllib.parse`（figure vertical 唯一 HTTP 出口；与 L1 / L2 反转）
+- `crawl/` 子包**禁止** import `Figure*Source` typed records — `tests/contracts/test_crawler_module_boundaries.py` AST 静态守门
+- `crawl/` 子包**禁止** import 任何 `volvence_zero.{cognition,temporal,memory,substrate,application,runtime}.*` 内核模块 — 同上守门
+- `crawl/` 子包**禁止** import `lifeform_domain_figure.verification.*`（crawler 不感知 verifier）— 同上守门
+- 5 SSRF gate（scheme + host + path-prefix + redirect-1-hop-rescope + body-size-cap）全部在 `BaseHTTPClient.get` 强制
+- robots.txt fail-closed（fetch failure → host 拒收）
+- `request_id` / `raw_sha256` / `byte_sha256` / `RawDocument.raw_sha256` 是同字节流的同 hash（content-addressable 三段贯通）
+
 ---
 
 ## 2. 基础类型

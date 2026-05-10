@@ -8,7 +8,7 @@
 
 `docs/known-debts.md` debt #28 把 figure vertical 的 webcrawl + 数据清洗 + 多源验证拆成 L0 / L1 / L2 三层。本 spec 只覆盖 **L1 cleaning pipeline**：把一个具体的源字节流（PDF / MediaWiki HTML / Project Gutenberg HTML 或 plain text / Internet Archive OCR JSON）变成 cleaner 版本化、content-addressable、可重跑、可回滚的中性 cleaned text 制品，再桥接到既有的 `CPAEPayload` / `WikisourcePayload` / `GutenbergPayload` / `InternetArchivePayload`。
 
-L0（crawler frontier / robots.txt / 调度）与 L2（多源验证、身份消歧、抽样人审）**不在本 packet 范围**，仍是 follow-up。
+L2（多源验证、身份消歧、抽样人审）**first batch 已落地**于 [`docs/specs/figure-corpus-verification.md`](./figure-corpus-verification.md)（3 / 7 verifier + ledger + bundle gate + L1 → L2 接线 helper `cleaned_to_source_provenance`）。L0（crawler frontier / SSRF allowlist / robots.txt / rate limit）**已落地**于 [`docs/specs/figure-corpus-crawl.md`](./figure-corpus-crawl.md)（同时关闭 debt #19 V2 archive fetcher）。L2 second batch（剩余 4 个 metadata-依赖 verifier）仍是 follow-up（与 #26 metadata client 一起做）。
 
 为什么需要它：
 
@@ -141,9 +141,9 @@ python figure_clean.py list-versions --root <store-root>
 
 | Layer | Status | 与 L1 的关系 |
 |---|---|---|
-| L0 crawler frontier | follow-up packet | crawler 是 fetcher 的 orchestration 层；fetcher 是 crawler 的 leaf node。crawler 输出的字节流喂给 L1 cleaner。 |
-| V2 HTTPArchiveFetcher (debt #19 / #26) | follow-up packet | V2 fetcher 拿到 bytes 后调 `CleaningStore.put_raw` + `parse_by_content_type` + `clean_raw_document` + `cleaned_to_*_payload`。fetcher 不做 cleaning（违反 #28 不变量 1）。 |
-| L2 verification + audit | follow-up packet | verifier 读 `CleanedDocument` + `RawSidecar` + `cleaning_log.json` 判定 cross-source / identity-disambiguation / authorship 等；输出独立的 `VerificationLedger`。bundle 的 `require_verification_pass` gate 拒收 verdict 不全 PASS 的源。 |
+| L0 crawler frontier ([figure-corpus-crawl.md](./figure-corpus-crawl.md)) | **landed (2026-05-10)** | L0 crawler 调 `CleaningStore.put_raw` 写入字节后由 curator 跑 `figure_clean.py` 触发 L1 解析；CrawlSink 与 L1 store 通过 `raw_sha256` anchor 直连。 |
+| V2 HTTPArchiveFetcher (debt #19) | **landed (2026-05-10) via `live_archive_fetcher`** | `corpus.archives.live_archive_fetcher(fetch_kind, ...)` 工厂返回 V2 fetcher，`raw_payload` 为新 `LiveFetchedBytes`；既有 `offline_archive_fetcher()` 行为不变。debt #26 metadata client 仍 follow-up。 |
+| L2 verification + audit ([figure-corpus-verification.md](./figure-corpus-verification.md)) | **first batch landed (2026-05-10)** | L1 → L2 接线在 `cleaning/bridging.py` 的 `cleaned_to_source_provenance(...)` 完成（`raw.license_notice` → `SourceProvenance.license_label`；`raw.raw_sha256` → `SourceProvenance.byte_sha256`）。L2 的 3 个已实现 verifier（DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）+ `VerificationLedger` + bundle gate（`require_verification_pass`）已就位；剩余 4 个 metadata-依赖 verifier 仍 follow-up。 |
 
 ## 接口契约
 
