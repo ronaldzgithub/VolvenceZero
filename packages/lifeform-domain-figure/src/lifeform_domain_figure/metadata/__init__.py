@@ -59,12 +59,21 @@ from lifeform_domain_figure.metadata.coverage_enrichment import (
 from lifeform_domain_figure.metadata.crossref import (
     CrossrefClient,
     CrossrefWorkPayload,
+    crossref_relations,
     crossref_to_authored_work,
+    crossref_translator_names,
+    live_crossref_client,
     offline_crossref_client,
+)
+from lifeform_domain_figure.metadata.http_client import (
+    MetadataCache,
+    MetadataHTTPClient,
+    MetadataResponse,
 )
 from lifeform_domain_figure.metadata.openalex import (
     OpenAlexClient,
     OpenAlexWorkPayload,
+    live_openalex_client,
     offline_openalex_client,
     openalex_to_authored_work,
     openalex_to_domain_hints,
@@ -81,6 +90,7 @@ from lifeform_domain_figure.metadata.records import (
 from lifeform_domain_figure.metadata.sep import (
     SEPClient,
     SEPEntryPayload,
+    live_sep_client,
     offline_sep_client,
     sep_to_domain_hints,
 )
@@ -90,6 +100,7 @@ from lifeform_domain_figure.metadata.time_window_builder import (
 from lifeform_domain_figure.metadata.wikidata import (
     WikidataClient,
     WikidataPersonPayload,
+    live_wikidata_client,
     offline_wikidata_client,
     wikidata_to_lifespan,
     wikidata_to_time_window_hints,
@@ -105,26 +116,36 @@ __all__ = [
     "MetadataSource",
     "TimeWindowHint",
     "aggregate_metadata",
+    # HTTP backbone (V2)
+    "MetadataCache",
+    "MetadataHTTPClient",
+    "MetadataResponse",
     # OpenAlex
     "OpenAlexClient",
     "OpenAlexWorkPayload",
+    "live_openalex_client",
     "offline_openalex_client",
     "openalex_to_authored_work",
     "openalex_to_domain_hints",
     # Wikidata
     "WikidataClient",
     "WikidataPersonPayload",
+    "live_wikidata_client",
     "offline_wikidata_client",
     "wikidata_to_lifespan",
     "wikidata_to_time_window_hints",
     # Crossref
     "CrossrefClient",
     "CrossrefWorkPayload",
+    "crossref_relations",
     "crossref_to_authored_work",
+    "crossref_translator_names",
+    "live_crossref_client",
     "offline_crossref_client",
     # SEP
     "SEPClient",
     "SEPEntryPayload",
+    "live_sep_client",
     "offline_sep_client",
     "sep_to_domain_hints",
     # Builders

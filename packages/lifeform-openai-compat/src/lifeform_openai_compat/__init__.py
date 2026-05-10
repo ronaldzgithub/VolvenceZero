@@ -42,6 +42,22 @@ from lifeform_openai_compat.dto import (
     ChatMessage,
     GenerationConfig,
 )
+from lifeform_openai_compat.raw_substrate import (
+    RawSubstrateUnavailable,
+    SubstrateRuntimeProtocol,
+    estimate_prompt_tokens,
+    raw_substrate_complete,
+    split_messages,
+)
+from lifeform_openai_compat.router import add_openai_routes
+from lifeform_openai_compat.session_bridge import (
+    LifeformCompletionResult,
+    SessionResolution,
+    derive_session_id,
+    extract_user_input,
+    lifeform_complete,
+    reserved_metadata_keys,
+)
 
 __all__ = (
     "ChatCompletionChoice",
@@ -50,4 +66,16 @@ __all__ = (
     "ChatCompletionUsage",
     "ChatMessage",
     "GenerationConfig",
+    "LifeformCompletionResult",
+    "RawSubstrateUnavailable",
+    "SessionResolution",
+    "SubstrateRuntimeProtocol",
+    "add_openai_routes",
+    "derive_session_id",
+    "estimate_prompt_tokens",
+    "extract_user_input",
+    "lifeform_complete",
+    "raw_substrate_complete",
+    "reserved_metadata_keys",
+    "split_messages",
 )

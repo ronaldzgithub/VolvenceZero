@@ -61,6 +61,26 @@ class AlphaIdentityProvider:
         identity = self.resolve(session_id)
         return identity.user_id if identity is not None else None
 
+    def unbind_session(self, session_id: str) -> bool:
+        """Drop a session->identity mapping. Returns True if removed.
+
+        SessionManager calls this on session close so the
+        ``session_id -> UserIdentity`` map does not grow unboundedly
+        across long-lived processes (matters when the substrate
+        provider closes all sessions on a model swap).
+        """
+        return self._session_to_identity.pop(session_id, None) is not None
+
+    def clear_all_sessions(self) -> int:
+        """Remove every session->identity mapping. Returns the count.
+
+        Used by ``SessionManager.close_all_sessions_sync`` during a
+        substrate swap.
+        """
+        count = len(self._session_to_identity)
+        self._session_to_identity.clear()
+        return count
+
 
 def load_alpha_users(path: str | None) -> frozenset[str]:
     if path is None:

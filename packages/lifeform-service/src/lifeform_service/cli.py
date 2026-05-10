@@ -152,6 +152,21 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run closed-alpha preflight before binding the service.",
     )
+    parser.add_argument(
+        "--enable-openai-compat",
+        action="store_true",
+        help=(
+            "Mount the OpenAI Chat Completions compatible router "
+            "(POST /v1/chat/completions) on this app. The existing "
+            "/v1/models route is owned by lifeform-service and is "
+            "unaffected by this flag. Used by external benchmark "
+            "harnesses (EQ-Bench 3, EmpathyBench, OpenAI Python "
+            "client) — see lifeform-openai-compat wheel + "
+            "docs/external/. Requires the lifeform-openai-compat "
+            "wheel to be installed. Default: off (existing "
+            "/v1/sessions/{id}/turns API only)."
+        ),
+    )
     return parser
 
 
@@ -284,12 +299,28 @@ def main(argv: list[str] | None = None) -> int:
         substrate_runtime=substrate_runtime,
         alpha_config=alpha_config,
     )
+    if args.enable_openai_compat:
+        # Deferred import: keeps lifeform-openai-compat an optional dep
+        # (it is in the workspace but not in lifeform-service's pyproject
+        # dependencies — the inverse direction is correct).
+        try:
+            from lifeform_openai_compat import add_openai_routes
+        except ImportError as exc:
+            print(
+                f"--enable-openai-compat requires the lifeform-openai-compat "
+                f"wheel: {exc}\n"
+                f"Install with: pip install -e packages/lifeform-openai-compat",
+                file=sys.stderr,
+            )
+            return 1
+        add_openai_routes(app)
     print(
         f"[lifeform-serve] vertical={spec.name}  "
         f"temporal_bootstrap={spec.has_temporal_bootstrap}  "
         f"regime_bootstrap={spec.has_regime_bootstrap}  "
         f"substrate_mode={args.substrate_mode}"
         + (f"  alpha_enabled={args.alpha_enabled}" if args.alpha_enabled else "")
+        + (f"  openai_compat=on" if args.enable_openai_compat else "")
         + (
             f"  model_id={args.substrate_model_id}"
             if args.substrate_mode == "hf-shared"

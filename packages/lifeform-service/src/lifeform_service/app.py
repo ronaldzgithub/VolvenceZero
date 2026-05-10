@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import json
 import logging
+import pathlib
+from collections.abc import Mapping
 from uuid import uuid4
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -62,6 +64,17 @@ from lifeform_service.session_manager import (
     SessionNotFoundError,
     TemplatesNotSupportedError,
 )
+from lifeform_service.substrate_registry import (
+    SubstrateRuntimeProvider,
+    SubstrateSwapError,
+    UnknownSubstrateModelError,
+    fixed_provider_from_runtime,
+)
+from lifeform_service.vertical_registry import (
+    UnknownVerticalError,
+    VerticalNotAlphaCapableError,
+    VerticalRegistry,
+)
 from lifeform_service.verticals import VerticalSpec
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
@@ -85,73 +98,118 @@ _LOG = logging.getLogger("lifeform_service")
 
 def create_app(
     *,
-    vertical: VerticalSpec,
+    vertical: VerticalSpec | None = None,
+    verticals: Mapping[str, VerticalSpec] | None = None,
+    default_vertical: str | None = None,
     max_sessions: int = 256,
     idle_eviction_seconds: float | None = 60 * 30,
     substrate_runtime: "OpenWeightResidualRuntime | None" = None,
+    substrate_provider: SubstrateRuntimeProvider | None = None,
     alpha_config: AlphaServiceConfig | None = None,
     templates_root_dir: str | None = None,
 ) -> web.Application:
-    """Build the aiohttp Application that fronts a single vertical.
+    """Build the aiohttp Application.
+
+    Two ways to declare verticals:
+
+    * **Multi-vertical (preferred for browser-chat)**: pass
+      ``verticals={...}`` (the dict returned by
+      :func:`lifeform_service.verticals.discover_verticals`) plus
+      ``default_vertical=<name>``. Sessions can pick any registered
+      vertical at creation time via
+      ``POST /v1/sessions {"vertical": "..."}``; templates and
+      save-as-template are scoped per-session-vertical.
+    * **Single-vertical (legacy / DLaaS)**: pass ``vertical=<spec>``.
+      The service still publishes ``/v1/verticals`` (with one
+      entry) and accepts ``vertical=`` on session creation, but
+      only that one name is accepted.
 
     Args:
-        vertical: which vertical (and its factory) this service hosts.
-        max_sessions: cap on concurrently live sessions before LRU
-            eviction.
-        idle_eviction_seconds: auto-close sessions idle longer than this;
-            ``None`` disables idle eviction.
-        substrate_runtime: pre-built runtime shared across every session.
-            If ``None`` the vertical's factory builds a fresh runtime per
-            session (synthetic mode \u2014 fine for tests, wasteful for HF).
-            When supplied, the runtime MUST be frozen
-            (``supports_live_substrate_mutation == False``) \u2014 otherwise
-            this constructor raises ``ValueError``.
+        vertical: legacy single-vertical entry. Mutually exclusive
+            with ``verticals``.
+        verticals: name -> VerticalSpec map. Combined with
+            ``default_vertical`` to build the registry.
+        default_vertical: the vertical name used by sessions that
+            do not declare ``vertical`` in their request body.
+            Required when ``verticals`` is supplied; ignored when
+            ``vertical`` is supplied (the single vertical's name is
+            the default by definition).
         templates_root_dir: filesystem root the chat-browser template
-            surface scans (``GET /v1/templates`` lists ``<root>/<vertical_subdir>/*.json``;
-            ``POST /v1/sessions`` accepts ``template_id``). ``None``
-            disables the template surface for this app instance even
-            if the vertical declares an adapter — useful for tests
-            that should not touch a shared on-disk template store.
+            surface scans. ``GET /v1/templates`` lists
+            ``<root>/<vertical_subdir>/*.json`` filtered by the
+            ``?vertical=`` query (default = the registry's default
+            vertical). Save-as-template writes back into the
+            session's vertical subdir. ``None`` disables the
+            template surface entirely.
+
+    Substrate args (``substrate_runtime`` vs ``substrate_provider``,
+    plus the rest) are unchanged from the prior release.
     """
+    if substrate_runtime is not None and substrate_provider is not None:
+        raise ValueError(
+            "create_app: pass substrate_runtime OR substrate_provider, not both"
+        )
     if substrate_runtime is not None:
         _enforce_frozen_for_sharing(substrate_runtime)
+        substrate_provider = fixed_provider_from_runtime(substrate_runtime)
     alpha = alpha_config or AlphaServiceConfig()
     alpha_provider = (
         AlphaIdentityProvider(allowed_users=alpha.alpha_users)
         if alpha.enabled
         else None
     )
-    if alpha.enabled and vertical.alpha_factory is None and vertical.template_adapter is None:
-        raise ValueError(
-            f"vertical {vertical.name!r} does not support alpha mode "
-            "(no alpha_factory and no template_adapter)"
-        )
-    resolved_templates_root = _resolve_templates_root(
-        templates_root_dir=templates_root_dir,
+    registry = _build_vertical_registry(
         vertical=vertical,
+        verticals=verticals,
+        default_vertical=default_vertical,
+        alpha_enabled=alpha.enabled,
+    )
+    if alpha.enabled and registry.default.alpha_factory is None and registry.default.template_adapter is None:
+        raise ValueError(
+            f"default vertical {registry.default_name!r} does not support "
+            "alpha mode (no alpha_factory and no template_adapter)"
+        )
+    service_templates_root = (
+        pathlib.Path(templates_root_dir).expanduser()
+        if templates_root_dir and templates_root_dir.strip()
+        else None
     )
     manager = SessionManager(
-        lifeform_factory=vertical.factory,
-        alpha_lifeform_factory=vertical.alpha_factory if alpha.enabled else None,
+        vertical_registry=registry,
         alpha_identity_provider=alpha_provider,
         alpha_memory_scope_root_dir=alpha.memory_scope_root_dir,
-        vertical_name=vertical.name,
         max_sessions=max_sessions,
         idle_eviction_seconds=idle_eviction_seconds,
-        substrate_runtime=substrate_runtime,
-        template_adapter=vertical.template_adapter,
-        templates_root_dir=resolved_templates_root,
+        substrate_provider=substrate_provider,
+        templates_root_dir=service_templates_root,
     )
+    if substrate_provider is not None and substrate_provider.swap_supported:
+        # Wire the SessionManager's session-clearer as the swap
+        # pre-action so model-swap closes every active session before
+        # the new runtime loads. Set after manager construction
+        # because the callback is a bound method on the manager.
+        substrate_provider.set_pre_swap_callback(manager.close_all_sessions_sync)
     app = web.Application(middlewares=[_error_middleware])
     app["session_manager"] = manager
-    app["vertical_spec"] = vertical
-    app["substrate_runtime"] = substrate_runtime
+    # ``vertical_spec`` continues to point at the default vertical so
+    # existing routes (``_handle_info`` / ``_handle_health``) keep
+    # working unchanged. Per-request vertical lookups go through
+    # ``vertical_registry``.
+    app["vertical_spec"] = registry.default
+    app["vertical_registry"] = registry
+    app["substrate_provider"] = substrate_provider
+    app["substrate_runtime"] = (
+        substrate_provider.current_runtime if substrate_provider is not None else None
+    )
     app["alpha_config"] = alpha
-    app["templates_root_dir"] = resolved_templates_root
+    app["templates_root_dir"] = service_templates_root
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
     app.router.add_get("/v1/info", _handle_info)
+    app.router.add_get("/v1/verticals", _handle_list_verticals)
+    app.router.add_get("/v1/models", _handle_list_models)
+    app.router.add_post("/v1/admin/substrate", _handle_swap_substrate)
     app.router.add_get("/v1/templates", _handle_list_templates)
     app.router.add_post("/v1/sessions", _handle_create_session)
     app.router.add_delete("/v1/sessions/{session_id}", _handle_close_session)
@@ -180,30 +238,43 @@ def create_app(
     return app
 
 
-def _resolve_templates_root(
+def _build_vertical_registry(
     *,
-    templates_root_dir: str | None,
-    vertical: VerticalSpec,
-) -> Path | None:
-    """Compute the per-vertical templates directory.
+    vertical: VerticalSpec | None,
+    verticals: Mapping[str, VerticalSpec] | None,
+    default_vertical: str | None,
+    alpha_enabled: bool,
+) -> VerticalRegistry:
+    """Resolve the two ``create_app`` vertical-shape parameters.
 
-    Layout: ``<service_root>/<vertical_subdir>``. ``vertical_subdir``
-    defaults to ``vertical.name`` when ``vertical.template_subdir`` is
-    None; this gives every vertical a dedicated bucket so a future
-    multi-vertical service does not cross-list templates.
-
-    Returns ``None`` (template surface disabled) when either the
-    service-level root is unset or the vertical does not register a
-    template adapter.
+    * ``vertical=`` (legacy single-vertical) → 1-entry registry
+      with that vertical as default.
+    * ``verticals=`` + ``default_vertical=`` (multi-vertical) →
+      registry with the named default.
+    * Both / neither → ``ValueError``.
     """
-    if templates_root_dir is None or not templates_root_dir.strip():
-        return None
-    if vertical.template_adapter is None:
-        return None
-    subdir = (vertical.template_subdir or vertical.name).strip()
-    if not subdir:
-        return None
-    return Path(templates_root_dir).expanduser() / subdir
+    if vertical is not None and verticals is not None:
+        raise ValueError(
+            "create_app: pass `vertical=` (single) OR `verticals=` "
+            "(multi), not both"
+        )
+    if vertical is not None:
+        return VerticalRegistry.single(vertical, alpha_enabled=alpha_enabled)
+    if verticals is None or not verticals:
+        raise ValueError(
+            "create_app: at least one vertical is required (pass "
+            "`vertical=` or `verticals=` with `default_vertical=`)"
+        )
+    if default_vertical is None or not default_vertical.strip():
+        raise ValueError(
+            "create_app: `default_vertical=` is required when "
+            "`verticals=` is supplied"
+        )
+    return VerticalRegistry.from_mapping(
+        verticals,
+        default_name=default_vertical.strip(),
+        alpha_enabled=alpha_enabled,
+    )
 
 
 def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
@@ -282,7 +353,14 @@ async def _handle_health(request: web.Request) -> web.Response:
 
 async def _handle_info(request: web.Request) -> web.Response:
     spec: VerticalSpec = request.app["vertical_spec"]
-    runtime = request.app.get("substrate_runtime")
+    # Read through the provider so /v1/info reflects the current
+    # post-swap runtime. The launcher / startup-time cache in
+    # app["substrate_runtime"] is only the initial value and goes
+    # stale after the first swap.
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
+    runtime = (
+        provider.current_runtime if provider is not None else request.app.get("substrate_runtime")
+    )
     body = ServiceInfoResponse(
         vertical=spec.name,
         has_temporal_bootstrap=spec.has_temporal_bootstrap,
@@ -297,10 +375,30 @@ async def _handle_info(request: web.Request) -> web.Response:
     return _json_ok(body.to_json())
 
 
+async def _handle_list_verticals(request: web.Request) -> web.Response:
+    """Report the registry contents and capability flags.
+
+    Used by the chat UI's vertical dropdown. ``alpha_enabled`` is
+    surfaced separately so the UI can grey out alpha-incompatible
+    options when the service is running in alpha mode (rather than
+    duplicating the gate logic on the client).
+    """
+    registry: VerticalRegistry = request.app["vertical_registry"]
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    return _json_ok(
+        {
+            "default_vertical": registry.default_name,
+            "alpha_enabled": alpha.enabled,
+            "verticals": list(registry.summary_for_ui()),
+        }
+    )
+
+
 async def _handle_create_session(request: web.Request) -> web.Response:
     payload = await _maybe_json(request)
     requested_id = None
     template_id: str | None = None
+    requested_vertical: str | None = None
     if isinstance(payload, dict):
         raw = payload.get("session_id")
         if raw is not None and not isinstance(raw, str):
@@ -312,8 +410,12 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             raise _BadRequest("invalid_template_id", "template_id must be a string")
         if isinstance(raw_tpl, str) and raw_tpl.strip():
             template_id = raw_tpl.strip()
+        raw_vertical = payload.get("vertical")
+        if raw_vertical is not None and not isinstance(raw_vertical, str):
+            raise _BadRequest("invalid_vertical", "vertical must be a string")
+        if isinstance(raw_vertical, str) and raw_vertical.strip():
+            requested_vertical = raw_vertical.strip()
     manager: SessionManager = request.app["session_manager"]
-    spec: VerticalSpec = request.app["vertical_spec"]
     alpha: AlphaServiceConfig = request.app["alpha_config"]
     user_id = None
     if alpha.enabled:
@@ -323,6 +425,15 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             session_id=requested_id,
             user_id=user_id,
             template_id=template_id,
+            vertical_name=requested_vertical,
+        )
+    except UnknownVerticalError as exc:
+        return _json_error(
+            status=422, error="unknown_vertical", detail=str(exc)
+        )
+    except VerticalNotAlphaCapableError as exc:
+        return _json_error(
+            status=422, error="vertical_not_alpha_capable", detail=str(exc)
         )
     except TemplatesNotSupportedError as exc:
         return _json_error(
@@ -341,11 +452,15 @@ async def _handle_create_session(request: web.Request) -> web.Response:
         return _json_error(
             status=400, error="invalid_template_id", detail=str(exc)
         )
+    bound_vertical_name = manager.vertical_name_for(session.session_id)
+    bound_spec = manager.vertical_registry.get(bound_vertical_name)
+    if bound_spec is None:
+        bound_spec = manager.vertical_registry.default
     body = CreateSessionResponse(
         session_id=session.session_id,
-        vertical=spec.name,
-        has_temporal_bootstrap=spec.has_temporal_bootstrap,
-        has_regime_bootstrap=spec.has_regime_bootstrap,
+        vertical=bound_vertical_name,
+        has_temporal_bootstrap=bound_spec.has_temporal_bootstrap,
+        has_regime_bootstrap=bound_spec.has_regime_bootstrap,
         user_id=user_id,
         service_version=alpha.service_version if alpha.enabled else "",
         policy_version=alpha.policy_version if alpha.enabled else "",
@@ -356,15 +471,144 @@ async def _handle_create_session(request: web.Request) -> web.Response:
     return _json_ok(response_payload, status=201)
 
 
-async def _handle_list_templates(request: web.Request) -> web.Response:
-    manager: SessionManager = request.app["session_manager"]
+async def _handle_list_models(request: web.Request) -> web.Response:
+    """Report available substrate models + the current selection.
+
+    Always returns 200, even when the service has no provider — UI
+    consumers branch on ``swap_supported`` rather than hitting a
+    different status. The shape mirrors ``/v1/templates``: a tuple
+    of typed entries plus discoverable capability flags.
+    """
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
     spec: VerticalSpec = request.app["vertical_spec"]
-    adapter = manager.template_adapter
-    root = manager.templates_root_dir
-    if adapter is None or root is None:
+    if provider is None:
         return _json_ok(
             {
                 "vertical": spec.name,
+                "swap_supported": False,
+                "current_model_id": None,
+                "current_runtime_origin": None,
+                "swap_count": 0,
+                "last_swap_error": "",
+                "models": [],
+            }
+        )
+    runtime = provider.current_runtime
+    return _json_ok(
+        {
+            "vertical": spec.name,
+            "swap_supported": provider.swap_supported,
+            "current_model_id": provider.current_model_id or None,
+            "current_runtime_origin": (
+                getattr(runtime, "runtime_origin", None) if runtime is not None else None
+            ),
+            "swap_count": provider.swap_count,
+            "last_swap_error": provider.last_swap_error,
+            "models": [spec.to_json() for spec in provider.available],
+        }
+    )
+
+
+async def _handle_swap_substrate(request: web.Request) -> web.Response:
+    """Hot-swap the shared substrate runtime to a different model id.
+
+    Only available when the service was started with a swap-capable
+    :class:`SubstrateRuntimeProvider`. Production paths that pass a
+    fixed ``substrate_runtime`` (DLaaS) report ``503``: hot swapping
+    a multi-tenant deployment's base model from a single HTTP route
+    would violate the production contract that all tenants get the
+    same R2 substrate for the contract's lifetime.
+
+    The route is intentionally **not** behind alpha auth: the model
+    selector is a developer affordance on the local browser-chat
+    process. Multi-user deployments must keep this surface internal
+    (firewall / reverse-proxy ACL). We surface that posture in the
+    URL prefix (``/v1/admin/...``) so misuse is loud rather than
+    silent.
+    """
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
+    if provider is None or not provider.swap_supported:
+        return _json_error(
+            status=503,
+            error="substrate_swap_not_supported",
+            detail=(
+                "this service was started without a swap-capable substrate "
+                "provider (typical for DLaaS / fixed-runtime deployments)"
+            ),
+        )
+    payload = await _require_json(request)
+    raw = payload.get("model_id")
+    if not isinstance(raw, str) or not raw.strip():
+        raise _BadRequest(
+            "invalid_model_id", "model_id is required and must be a string"
+        )
+    model_id = raw.strip()
+    try:
+        result = await provider.swap(model_id)
+    except UnknownSubstrateModelError as exc:
+        return _json_error(
+            status=400, error="unknown_model_id", detail=str(exc)
+        )
+    except SubstrateSwapError as exc:
+        # Loader failure: respond 503 with the cause so the operator
+        # can decide whether to retry. Provider has already cleared
+        # the current runtime; UI must call swap again with a known-
+        # good model_id (or restart the service).
+        return _json_error(
+            status=503,
+            error="substrate_load_failed",
+            detail=str(exc),
+            extra={
+                "target_model_id": exc.target_model_id,
+                "previous_model_id": exc.previous_model_id,
+            },
+        )
+    # Swap succeeded. We deliberately do NOT mutate
+    # ``request.app["substrate_runtime"]`` here — aiohttp
+    # deprecates writing into a started app's state, and the right
+    # consumers (``/v1/info``, ``SessionManager.substrate_runtime``)
+    # already read through the provider so they see the new
+    # runtime without a mutable cache.
+    return _json_ok(
+        {
+            "swapped": True,
+            "model_id": result.model_id,
+            "previous_model_id": result.previous_model_id,
+            "runtime_origin": result.runtime_origin,
+            "closed_session_count": result.closed_session_count,
+            "duration_seconds": round(result.duration_seconds, 3),
+        }
+    )
+
+
+async def _handle_list_templates(request: web.Request) -> web.Response:
+    """List templates for a specific vertical.
+
+    Filtering rule: ``?vertical=<name>`` selects which vertical's
+    template subdirectory to scan; default = the registry's
+    default vertical. Unknown vertical names return 422 so the
+    UI can surface a typo / wrong-deployment error rather than
+    silently falling back to the default.
+    """
+    manager: SessionManager = request.app["session_manager"]
+    registry: VerticalRegistry = request.app["vertical_registry"]
+    requested = request.query.get("vertical", "").strip()
+    target_name = requested or registry.default_name
+    if registry.get(target_name) is None:
+        return _json_error(
+            status=422,
+            error="unknown_vertical",
+            detail=(
+                f"vertical {target_name!r} is not registered; available: "
+                f"{sorted(registry.names)!r}"
+            ),
+        )
+    adapter = manager.template_adapter_for(target_name)
+    root = manager.templates_dir_for(target_name)
+    if adapter is None or root is None:
+        return _json_ok(
+            {
+                "vertical": target_name,
                 "templates_supported": False,
                 "templates_root_dir": None,
                 "templates": [],
@@ -378,7 +622,7 @@ async def _handle_list_templates(request: web.Request) -> web.Response:
         )
     return _json_ok(
         {
-            "vertical": spec.name,
+            "vertical": target_name,
             "templates_supported": True,
             "templates_root_dir": str(root),
             "templates": [item.to_json() for item in items],
@@ -389,15 +633,23 @@ async def _handle_list_templates(request: web.Request) -> web.Response:
 async def _handle_save_as_template(request: web.Request) -> web.Response:
     manager: SessionManager = request.app["session_manager"]
     session_id = request.match_info["session_id"]
-    adapter = manager.template_adapter
-    root = manager.templates_root_dir
+    # Save into the SESSION's vertical subdir, not the service-level
+    # default vertical's. A session created with vertical=einstein
+    # must save under <root>/einstein/, regardless of which vertical
+    # the chat UI happens to be displaying right now.
+    try:
+        session_vertical = manager.vertical_name_for(session_id)
+    except SessionNotFoundError:
+        raise  # middleware → 404
+    adapter = manager.template_adapter_for(session_vertical)
+    root = manager.templates_dir_for(session_vertical)
     if adapter is None or root is None:
         return _json_error(
             status=503,
             error="templates_not_supported",
             detail=(
-                "vertical does not register a template adapter or service "
-                "has no templates_root_dir configured"
+                f"vertical {session_vertical!r} does not register a template "
+                "adapter or service has no templates_root_dir configured"
             ),
         )
     payload = await _require_json(request)
@@ -972,6 +1224,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
     <section class="bar">
       <input id="userId" placeholder="alpha user, e.g. alice">
       <input id="sessionId" placeholder="optional session_id">
+      <select id="verticalSelect" title="Pick which vertical (lifeform domain) builds the session"></select>
       <select id="templateSelect" title="Pick a saved lifeform template (optional)">
         <option value="">no template (vertical default)</option>
       </select>
@@ -979,6 +1232,11 @@ _CHAT_UI_HTML = r"""<!doctype html>
       <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
       <button id="endBtn" class="secondary" disabled>End Scene</button>
       <button id="clearBtn" class="secondary">Clear</button>
+    </section>
+    <section class="bar">
+      <span id="modelStatus" class="msg system" style="margin: 0; padding: 4px 8px;">substrate: loading...</span>
+      <select id="modelSelect" title="Switch the shared base model (closes all sessions)" disabled></select>
+      <button id="switchModelBtn" class="secondary" disabled>Switch Model</button>
     </section>
     <section class="bar">
       <button class="secondary outcome" data-kind="FELT_HEARD" disabled>Felt heard</button>
@@ -997,7 +1255,13 @@ _CHAT_UI_HTML = r"""<!doctype html>
   <script>
     const state = {
       sessionId: null,
+      sessionVertical: null,
       templatesSupported: false,
+      swapSupported: false,
+      currentModelId: null,
+      defaultVertical: null,
+      alphaEnabled: false,
+      verticalsByName: {},
       debug: new URLSearchParams(window.location.search).get("debug") === "1",
     };
     const statusEl = document.getElementById("status");
@@ -1005,12 +1269,16 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const inputEl = document.getElementById("input");
     const userIdEl = document.getElementById("userId");
     const sessionIdEl = document.getElementById("sessionId");
+    const verticalSelectEl = document.getElementById("verticalSelect");
     const templateSelectEl = document.getElementById("templateSelect");
     const createBtn = document.getElementById("createBtn");
     const sendBtn = document.getElementById("sendBtn");
     const endBtn = document.getElementById("endBtn");
     const clearBtn = document.getElementById("clearBtn");
     const saveTemplateBtn = document.getElementById("saveTemplateBtn");
+    const modelStatusEl = document.getElementById("modelStatus");
+    const modelSelectEl = document.getElementById("modelSelect");
+    const switchModelBtn = document.getElementById("switchModelBtn");
     const outcomeBtns = Array.from(document.querySelectorAll(".outcome"));
 
     function alphaHeaders() {
@@ -1031,9 +1299,127 @@ _CHAT_UI_HTML = r"""<!doctype html>
       saveTemplateBtn.disabled = !(ready && state.templatesSupported);
       outcomeBtns.forEach(btn => { btn.disabled = !ready; });
     }
-    async function loadTemplates() {
+    async function loadModels() {
       try {
-        const payload = await requestJson("/v1/templates", { method: "GET" });
+        const payload = await requestJson("/v1/models", { method: "GET" });
+        state.swapSupported = Boolean(payload.swap_supported);
+        state.currentModelId = payload.current_model_id || null;
+        modelSelectEl.innerHTML = "";
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        if (models.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "no models advertised";
+          modelSelectEl.appendChild(opt);
+        }
+        for (const item of models) {
+          const opt = document.createElement("option");
+          opt.value = item.model_id;
+          const sizeLabel = item.size_label ? ` (${item.size_label})` : "";
+          opt.textContent = item.display_name
+            ? `${item.display_name}${sizeLabel}`
+            : item.model_id;
+          if (item.notes) opt.title = item.notes;
+          if (item.model_id === state.currentModelId) opt.selected = true;
+          modelSelectEl.appendChild(opt);
+        }
+        modelSelectEl.disabled = !state.swapSupported || models.length === 0;
+        switchModelBtn.disabled = !state.swapSupported || models.length === 0;
+        const statusBits = [`substrate: ${state.currentModelId || "<none>"}`];
+        if (payload.current_runtime_origin) {
+          statusBits.push(payload.current_runtime_origin);
+        }
+        if (!state.swapSupported) statusBits.push("swap disabled");
+        if (payload.last_swap_error) {
+          statusBits.push(`last error: ${payload.last_swap_error}`);
+        }
+        modelStatusEl.textContent = statusBits.join(" | ");
+      } catch (err) {
+        modelStatusEl.textContent = `substrate: failed to load (${err.message})`;
+      }
+    }
+    async function switchModel() {
+      if (!state.swapSupported) return;
+      const targetId = modelSelectEl.value.trim();
+      if (!targetId) return;
+      if (targetId === state.currentModelId) {
+        addMessage("system", `Already running ${targetId}; nothing to do.`);
+        return;
+      }
+      const ok = window.confirm(
+        `Switch substrate to ${targetId}?\n\n`
+          + `This will close all active sessions and load the new model `
+          + `(may take 30s+ depending on size). Existing chats will be lost.`,
+      );
+      if (!ok) return;
+      switchModelBtn.disabled = true;
+      modelSelectEl.disabled = true;
+      const previousStatus = modelStatusEl.textContent;
+      modelStatusEl.textContent = `substrate: switching to ${targetId}...`;
+      try {
+        const payload = await requestJson("/v1/admin/substrate", {
+          method: "POST",
+          body: JSON.stringify({ model_id: targetId }),
+        });
+        addMessage(
+          "system",
+          `Substrate swapped: ${payload.previous_model_id || "(none)"} -> `
+            + `${payload.model_id} | closed ${payload.closed_session_count} sessions `
+            + `| ${payload.duration_seconds.toFixed(2)}s`,
+        );
+        // Active session was killed by the swap.
+        state.sessionId = null;
+        statusEl.textContent = `Substrate ${payload.model_id} ready. Create a new session.`;
+        setReady(false);
+        await loadModels();
+      } catch (err) {
+        addMessage("system", `Switch failed: ${err.message}`);
+        modelStatusEl.textContent = previousStatus;
+        modelSelectEl.disabled = false;
+        switchModelBtn.disabled = false;
+      }
+    }
+    async function loadVerticals() {
+      try {
+        const payload = await requestJson("/v1/verticals", { method: "GET" });
+        state.defaultVertical = payload.default_vertical || null;
+        state.alphaEnabled = Boolean(payload.alpha_enabled);
+        state.verticalsByName = {};
+        verticalSelectEl.innerHTML = "";
+        const items = Array.isArray(payload.verticals) ? payload.verticals : [];
+        for (const item of items) {
+          state.verticalsByName[item.name] = item;
+          const opt = document.createElement("option");
+          opt.value = item.name;
+          // Build label: name + alpha-incompat hint when applicable.
+          let label = item.name;
+          const tags = [];
+          if (item.is_default) tags.push("default");
+          if (item.templates_supported) tags.push("templates");
+          if (state.alphaEnabled && !item.alpha_supported) {
+            tags.push("no-alpha");
+            opt.disabled = true;
+          }
+          if (tags.length > 0) label += ` [${tags.join(", ")}]`;
+          opt.textContent = label;
+          if (item.is_default) opt.selected = true;
+          verticalSelectEl.appendChild(opt);
+        }
+        await loadTemplates();
+      } catch (err) {
+        addMessage("system", `Failed to load verticals: ${err.message}`);
+      }
+    }
+    function selectedVerticalName() {
+      return verticalSelectEl.value || state.defaultVertical || "";
+    }
+    async function loadTemplates() {
+      const vertical = selectedVerticalName();
+      try {
+        const url = vertical
+          ? `/v1/templates?vertical=${encodeURIComponent(vertical)}`
+          : "/v1/templates";
+        const payload = await requestJson(url, { method: "GET" });
         state.templatesSupported = Boolean(payload.templates_supported);
         // Reset and refill the dropdown; preserve the leading "no template" option.
         templateSelectEl.innerHTML = "";
@@ -1041,7 +1427,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
         defaultOpt.value = "";
         defaultOpt.textContent = state.templatesSupported
           ? "no template (vertical default)"
-          : "templates not supported by this vertical";
+          : `templates not supported by ${payload.vertical || "this vertical"}`;
         templateSelectEl.appendChild(defaultOpt);
         templateSelectEl.disabled = !state.templatesSupported;
         if (!state.templatesSupported) return;
@@ -1056,12 +1442,6 @@ _CHAT_UI_HTML = r"""<!doctype html>
             ? `${item.template_id} — ${label} (${item.description})`
             : `${item.template_id} — ${label}`;
           templateSelectEl.appendChild(opt);
-        }
-        if (items.length === 0) {
-          addMessage(
-            "system",
-            `No templates found under ${payload.templates_root_dir || "<unset>"} — you can save the current session as one after a chat.`,
-          );
         }
       } catch (err) {
         addMessage("system", `Failed to load templates: ${err.message}`);
@@ -1084,18 +1464,21 @@ _CHAT_UI_HTML = r"""<!doctype html>
       try {
         const requested = sessionIdEl.value.trim();
         const templateId = templateSelectEl.value.trim();
+        const verticalName = selectedVerticalName();
         const body = {};
         if (requested) body.session_id = requested;
         if (templateId) body.template_id = templateId;
+        if (verticalName) body.vertical = verticalName;
         const payload = await requestJson(
           "/v1/sessions",
           { method: "POST", body: JSON.stringify(body) },
         );
         state.sessionId = payload.session_id;
+        state.sessionVertical = payload.vertical;
         const templateLabel = payload.template_id ? ` | template ${payload.template_id}` : "";
         statusEl.textContent = `Session ${state.sessionId} | vertical ${payload.vertical}${templateLabel}`;
         setReady(true);
-        addMessage("system", `Created session ${state.sessionId}${templateLabel}`);
+        addMessage("system", `Created session ${state.sessionId} on vertical ${payload.vertical}${templateLabel}`);
         if (payload.alpha_disclaimer) addMessage("system", payload.alpha_disclaimer);
         inputEl.focus();
       } catch (err) {
@@ -1135,7 +1518,13 @@ _CHAT_UI_HTML = r"""<!doctype html>
           "system",
           `Saved template ${saved.template_id} -> ${saved.file_path}`,
         );
-        await loadTemplates();
+        // If the dropdown is currently pointing at the session's
+        // vertical, refresh; otherwise the new template lives in
+        // a different vertical's subdir and the operator can
+        // switch the dropdown to see it.
+        if (selectedVerticalName() === state.sessionVertical) {
+          await loadTemplates();
+        }
       } catch (err) {
         addMessage("system", `Save-as-template failed: ${err.message}`);
       } finally {
@@ -1204,6 +1593,8 @@ _CHAT_UI_HTML = r"""<!doctype html>
     endBtn.addEventListener("click", endScene);
     clearBtn.addEventListener("click", () => { logEl.textContent = ""; });
     saveTemplateBtn.addEventListener("click", saveAsTemplate);
+    switchModelBtn.addEventListener("click", switchModel);
+    verticalSelectEl.addEventListener("change", () => { loadTemplates(); });
     outcomeBtns.forEach(btn => btn.addEventListener("click", () => submitOutcome(btn.dataset.kind)));
     inputEl.addEventListener("keydown", event => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -1211,7 +1602,10 @@ _CHAT_UI_HTML = r"""<!doctype html>
         sendTurn();
       }
     });
-    loadTemplates();
+    loadModels();
+    // loadVerticals() chains into loadTemplates() so the template
+    // dropdown is filled for whatever vertical was auto-selected.
+    loadVerticals();
   </script>
 </body>
 </html>

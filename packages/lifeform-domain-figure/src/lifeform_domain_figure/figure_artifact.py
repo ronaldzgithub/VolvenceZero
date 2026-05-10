@@ -56,6 +56,13 @@ class FigureArtifactBundle:
 
     Construct only via :func:`lifeform_domain_figure.build_figure_artifact_bundle`
     so the integrity hash is computed in one place.
+
+    ``metadata_digest_fingerprint`` (debt #25 closure) is the
+    SHA-256 fingerprint of the optional :class:`MetadataDigest` that
+    enriched the profile prior to bundle compilation. Empty string
+    when no metadata enrichment was applied; non-empty when present
+    so an audit can reverse-look up which Wikidata / OpenAlex /
+    Crossref / SEP snapshot produced this bundle.
     """
 
     schema_version: int
@@ -72,6 +79,7 @@ class FigureArtifactBundle:
     steering: object | None
     lora: object | None
     integrity_hash: str
+    metadata_digest_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -120,15 +128,23 @@ def compute_bundle_integrity_hash(
     style_integrity: str,
     steering_integrity: str,
     lora_integrity: str,
+    metadata_digest_fingerprint: str = "",
 ) -> str:
     """Deterministic SHA-256 over the bundle's load-bearing identity fields.
 
     Excludes the bundle id (which is derived from this hash) and any
     per-process audit fields. Two bundles with identical inputs
     produce the same integrity hash byte-for-byte (R15).
+
+    ``metadata_digest_fingerprint`` (debt #25 closure) defaults to
+    ``""`` and is only folded into the hash when non-empty —
+    preserving byte-for-byte stability of existing bundles that did
+    not record metadata enrichment. Passing a non-empty fingerprint
+    yields a different bundle id (any metadata-snapshot change is
+    auditable through the bundle hash).
     """
 
-    payload = (
+    payload: tuple[object, ...] = (
         SCHEMA_VERSION,
         figure_id,
         profile_version,
@@ -139,6 +155,8 @@ def compute_bundle_integrity_hash(
         steering_integrity,
         lora_integrity,
     )
+    if metadata_digest_fingerprint:
+        payload = payload + (("metadata_digest", metadata_digest_fingerprint),)
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
 
