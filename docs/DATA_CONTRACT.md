@@ -104,7 +104,7 @@
 - 5 SSRF gate（scheme + host + path-prefix + redirect-1-hop-rescope + body-size-cap）全部在 `BaseHTTPClient.get` 强制
 - robots.txt fail-closed（fetch failure → host 拒收）
 - `request_id` / `raw_sha256` / `byte_sha256` / `RawDocument.raw_sha256` 是同字节流的同 hash（content-addressable 三段贯通）
-- `BaseHTTPClient.get(..., required_role=ScopeRole)` 强制角色匹配；L0 fetcher 传 CORPUS_FETCH，metadata client 传 METADATA_FETCH
+l- `BaseHTTPClient.get(..., required_role=ScopeRole)` 强制角色匹配；L0 fetcher 传 CORPUS_FETCH，metadata client 传 METADATA_FETCH
 
 ### 1.5 Figure D4 metadata client schema (debt #26 V2 closure)
 

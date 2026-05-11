@@ -112,7 +112,7 @@ function Set-DefaultEnv {
 Set-DefaultEnv 'HOST'                  '127.0.0.1'
 Set-DefaultEnv 'PORT'                  '8765'
 Set-DefaultEnv 'VERTICAL'              'companion'
-Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-7B-Instruct'
+Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-1.5B-Instruct'
 Set-DefaultEnv 'DEVICE'                'auto'
 Set-DefaultEnv 'LOCAL_FILES_ONLY'      '0'
 Set-DefaultEnv 'MAX_SESSIONS'          '256'
