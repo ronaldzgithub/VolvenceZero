@@ -281,9 +281,14 @@ def _run_eqbench3_harness(
         # CLI does not surface that — we therefore use the
         # ``mode=raw`` query param baked into the URL (the router
         # accepts both header and query param).
-        base_url = f"http://127.0.0.1:{port}/v1?mode=raw"
+        #
+        # eqbench3's APIClient (utils/api.py) expects TEST_API_URL to
+        # be the FULL chat-completions URL — it POSTs straight to
+        # TEST_API_URL and does not append /chat/completions itself.
+        # Append the path explicitly so the harness hits our router.
+        base_url = f"http://127.0.0.1:{port}/v1/chat/completions?mode=raw"
     else:
-        base_url = f"http://127.0.0.1:{port}/v1"
+        base_url = f"http://127.0.0.1:{port}/v1/chat/completions"
 
     test_model = track.model_id(args.substrate_model_id)
     cmd = [
