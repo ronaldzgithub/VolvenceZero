@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.semantic_embedding import (
@@ -28,6 +29,19 @@ class TrackState:
     abstract_action_hint: str | None = None
     action_family_version_hint: int = 0
     controller_source: str = "memory"
+    # Packet 1.3': stable identity descriptors that consumers (e.g.
+    # ``volvence_zero.protocol_runtime`` identity gate) can match
+    # against ``BehaviorProtocol.IdentityAssertion.requires_self_traits``
+    # / ``forbidden_self_traits``. Default empty preserves backwards
+    # compatibility for every TrackState constructed before the field
+    # was introduced. Populator (deriving traits from semantic owners /
+    # memory consolidation / persona seeds) is **deferred** to a future
+    # packet; until populated, the protocol identity gate stays
+    # SHADOW-permissive on the self-trait branch and logs that
+    # condition in audit reasons. See
+    # ``docs/specs/protocol-runtime.md`` §SHADOW → ACTIVE 升级
+    # checklist condition 1.
+    traits: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -209,6 +223,7 @@ def derive_track_state(
     substrate_snapshot: SubstrateSnapshot | None = None,
     semantic_owner_goals: tuple[str, ...] = (),
     semantic_owner_presence: float = 0.0,
+    identity_seed: IdentitySeed | None = None,
 ) -> TrackState:
     projected_shared_entries = _project_shared_entries(shared_entries, track=track)
     base_entries = memory_entries if memory_entries else projected_shared_entries[:3]
@@ -259,6 +274,13 @@ def derive_track_state(
             if controller_source == "memory"
             else f"{controller_source}+semantic-owner"
         )
+    # Packet 1.3'' populator: SELF track inherits the lifeform's
+    # identity traits from ``identity_seed`` (if provided). WORLD
+    # track stays empty — identity descriptors describe the
+    # lifeform itself, not the world it interacts with.
+    track_traits: tuple[str, ...] = ()
+    if identity_seed is not None and track is Track.SELF:
+        track_traits = identity_seed.traits
     return TrackState(
         track=track,
         active_goals=tuple(goals),
@@ -274,6 +296,7 @@ def derive_track_state(
         abstract_action_hint=abstract_action_hint,
         action_family_version_hint=action_family_version_hint,
         controller_source=controller_source,
+        traits=track_traits,
     )
 
 
@@ -339,6 +362,25 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
     )
     default_wiring_level = WiringLevel.SHADOW
 
+    def __init__(
+        self,
+        *,
+        wiring_level: WiringLevel | None = None,
+        identity_seed: IdentitySeed | None = None,
+    ) -> None:
+        # Packet 1.3'' populator: optional ``identity_seed`` flows
+        # the lifeform's identity traits into the SELF track.
+        # Default ``None`` preserves backwards compatibility — when
+        # no seed is wired, ``TrackState.traits`` stays empty and
+        # the protocol identity gate falls back to
+        # ``self_traits_populator_pending`` SHADOW-permissive.
+        super().__init__(wiring_level=wiring_level)
+        self._identity_seed = identity_seed
+
+    @property
+    def identity_seed(self) -> IdentitySeed | None:
+        return self._identity_seed
+
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[DualTrackSnapshot]:
         memory_snapshot = upstream["memory"]
         temporal_snapshot = upstream.get("temporal_abstraction")
@@ -372,6 +414,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 substrate_snapshot=substrate_value,
                 semantic_owner_goals=world_semantic_goals,
                 semantic_owner_presence=world_semantic_presence,
+                identity_seed=self._identity_seed,
             )
             self_track = derive_track_state(
                 track=Track.SELF,
@@ -381,6 +424,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 substrate_snapshot=substrate_value,
                 semantic_owner_goals=self_semantic_goals,
                 semantic_owner_presence=self_semantic_presence,
+                identity_seed=self._identity_seed,
             )
         else:
             world_entries = entries_by_track(memory_value, Track.WORLD)
@@ -395,6 +439,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 substrate_snapshot=substrate_value,
                 semantic_owner_goals=world_semantic_goals,
                 semantic_owner_presence=world_semantic_presence,
+                identity_seed=self._identity_seed,
             )
             self_track = derive_track_state(
                 track=Track.SELF,
@@ -405,6 +450,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 substrate_snapshot=substrate_value,
                 semantic_owner_goals=self_semantic_goals,
                 semantic_owner_presence=self_semantic_presence,
+                identity_seed=self._identity_seed,
             )
 
         cross_track_tension = derive_cross_track_tension(
@@ -471,6 +517,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
             semantic_owner_goals=world_semantic_goals,
             semantic_owner_presence=world_semantic_presence,
+            identity_seed=self._identity_seed,
         )
         self_track = derive_track_state(
             track=Track.SELF,
@@ -481,6 +528,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
             semantic_owner_goals=self_semantic_goals,
             semantic_owner_presence=self_semantic_presence,
+            identity_seed=self._identity_seed,
         )
         cross_track_tension = derive_cross_track_tension(
             world_track,

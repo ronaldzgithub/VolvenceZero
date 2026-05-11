@@ -92,6 +92,8 @@ from volvence_zero.rupture_state import (
     RuptureStateModule,
     RuptureStateSnapshot,
 )
+from volvence_zero.identity_seed import IdentitySeed
+from volvence_zero.protocol_runtime import ProtocolRegistryModule
 from volvence_zero.runtime import (
     EventRecorder,
     RuntimePlaceholderValue,
@@ -248,6 +250,12 @@ class FinalRolloutConfig:
     # which proves that flipping SHADOW -> ACTIVE only changes
     # visibility and does not disturb any other slot's value.
     interlocutor_state: WiringLevel = WiringLevel.ACTIVE
+    # Behavior Protocol Runtime packet 1.0: SHADOW publishes
+    # ``active_mixture`` snapshot with no consumer yet. Promotion to
+    # ACTIVE is gated on packet 1.2+ (boundary_policy first
+    # consumer SHADOW dual-run); see
+    # ``docs/specs/protocol-runtime.md`` migration §阶段 1.
+    protocol_runtime: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -296,6 +304,7 @@ class FinalRolloutConfig:
             "dialogue_external_outcome": self.dialogue_external_outcome,
             "rupture_state": self.rupture_state,
             "interlocutor_state": self.interlocutor_state,
+            "protocol_runtime": self.protocol_runtime,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -1172,6 +1181,8 @@ def build_final_runtime_modules(
     group_regime_id: str | None = None,
     dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
     rupture_state_module: RuptureStateModule | None = None,
+    protocol_registry_module: ProtocolRegistryModule | None = None,
+    identity_seed: IdentitySeed | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1292,6 +1303,35 @@ def build_final_runtime_modules(
     interlocutor_state_owner = InterlocutorStateModule(
         wiring_level=config.level_for("interlocutor_state", WiringLevel.ACTIVE),
     )
+    # Behavior Protocol Runtime packet 1.0 (SHADOW): publish the
+    # ``active_mixture`` snapshot each turn. No consumer reads the
+    # slot yet (packet 1.2+ wires boundary_policy first). The owner
+    # is constructed with an empty registry by default; FixtureUptake
+    # adapters in ``lifeform-domain-*`` wheels load protocols via
+    # ``module.registry.load(...)`` between turns. See
+    # ``docs/specs/protocol-runtime.md`` §五个机构.
+    # Behavior Protocol Runtime: when constructed with the application
+    # stores, ``ProtocolRegistryModule.load_protocol`` compiles protocol
+    # declarations into the canonical application owners.
+    # - packet 1.2: boundary_contracts → BoundaryPriorHint
+    #   (rare-heavy state)
+    # - packet 1.3b: strategy_priors → PlaybookRule (rare-heavy state)
+    # - packet 1.4a: knowledge_seeds → DomainKnowledgeRecord
+    #   (domain_knowledge_store)
+    # - packet 1.4b: signature_cases → CaseMemoryRecord
+    #   (case_memory_store)
+    # The application owners (``boundary_policy`` /
+    # ``strategy_playbook`` / ``domain_knowledge`` /
+    # ``case_memory``) remain the canonical writers of their own
+    # state; ProtocolRuntime only feeds them. See
+    # ``docs/specs/protocol-runtime.md`` §ProtocolRuntime 与 application
+    # owners 的内容边界.
+    protocol_registry_owner = protocol_registry_module or ProtocolRegistryModule(
+        wiring_level=config.level_for("protocol_runtime", WiringLevel.SHADOW),
+        application_rare_heavy_state=application_rare_heavy_state,
+        domain_knowledge_store=domain_knowledge_store,
+        case_memory_store=case_memory_store,
+    )
     return [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -1391,6 +1431,7 @@ def build_final_runtime_modules(
         ),
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
+            identity_seed=identity_seed,
         ),
         ExperienceFastPriorModule(
             wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),
@@ -1455,6 +1496,7 @@ def build_final_runtime_modules(
         ),
         rupture_state_owner,
         interlocutor_state_owner,
+        protocol_registry_owner,
     ]
 
 
@@ -1485,6 +1527,8 @@ async def run_final_wiring_turn(
     regime_module: RegimeModule | None = None,
     dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
     rupture_state_module: RuptureStateModule | None = None,
+    protocol_registry_module: ProtocolRegistryModule | None = None,
+    identity_seed: IdentitySeed | None = None,
     user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -1549,6 +1593,8 @@ async def run_final_wiring_turn(
         group_regime_id=group_regime_id,
         dialogue_external_outcome_module=dialogue_external_outcome_module,
         rupture_state_module=rupture_state_module,
+        protocol_registry_module=protocol_registry_module,
+        identity_seed=identity_seed,
     )
     if upstream_snapshots:
         for module in modules:

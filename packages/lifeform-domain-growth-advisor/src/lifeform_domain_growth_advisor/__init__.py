@@ -35,6 +35,12 @@ from lifeform_domain_growth_advisor.lifeform_builder import (
     build_cheng_laoshi_lifeform,
     build_growth_advisor_lifeform,
 )
+from lifeform_domain_growth_advisor.fixture_uptake import (
+    growth_advisor_profile_to_behavior_protocol,
+)
+from lifeform_domain_growth_advisor.identity_seed import (
+    build_growth_advisor_identity_seed,
+)
 from lifeform_domain_growth_advisor.profile import (
     GrowthAdvisorBoundaryPrior,
     GrowthAdvisorDrivePrior,
@@ -76,6 +82,10 @@ __all__ = [
     "build_growth_advisor_ingestion_envelope",
     "build_growth_advisor_package",
     "build_growth_advisor_vitals_bootstrap",
+    # Behavior Protocol Runtime fixture adapter (packet 1.0)
+    "growth_advisor_profile_to_behavior_protocol",
+    # Behavior Protocol Runtime identity seed (packet 1.3'')
+    "build_growth_advisor_identity_seed",
     # Factory
     "GrowthAdvisorLifeformBundle",
     "build_cheng_laoshi_lifeform",

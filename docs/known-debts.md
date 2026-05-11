@@ -1,15 +1,15 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-11 (EQ-Bench 3 wiring dry-run validated + LSCB v1.0 reference impl land + Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#22 为 figure F6 训练后端/数据/DLaaS hook，~~#23~~ 已闭合（figure bake CLI + bundle 持久化 + audit log + rollback 全套 land），~~#19~~ 部分闭合（V2 fetcher + parser 落地）、~~#25~~ 闭合（metadata fingerprint folded into bundle hash）、~~#26~~ 闭合（4 V2 metadata clients + cache + role gate）；#28 完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层（L0+L1+L2 first batch+L2 second batch）**架构层完全 land**，剩余只是 curated 数据集 / reviewer workflow 类工作；#24/#27 为本轮 D2/D7 数据管线层未串接缺口；**#29-#30 为对外 benchmark 证据面缺口（融资尽调阻塞条件）**，#29 P1-P9 已 land + **wiring 层已通过 dry-run 验证**（见 [`docs/external/eqbench3-wiring-evidence.md`](external/eqbench3-wiring-evidence.md)：synthetic vertical 上 45/45 scenarios 跑通 + 修复 2 个 URL bug），P10 actuation 仍 gate 在真实 ablation verdict 后（需 GPU + Anthropic key）；**#31 OpenAI-compat 适配 wheel 流式 SSE 未实现**；**#29 轨 2 LSCB v1.0 reference impl 已 land**：`packages/lscb-bench/` Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 站点 + 4 个 CI workflow；LSCB v1.0 launch 路径未启动追踪在 **#32**（governance / 真 reference 跑分 / DNS / submission queue），human-eval 轨道 0% 追踪在 **#33**（RFC §6.6），harness 性能 / async / staged executor 追踪在 **#34**，季度 rotation 自动化（held-out / lexicon / judge）追踪在 **#35**，v2.x 长尾（multi-modal / EQ-Bench 1:1 prompt / 加密 attestation / transcript 脱敏）追踪在 **#36**——配套对外 RFC 见 [`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)，配套 OpenAI-compat 适配层位于 `packages/lifeform-openai-compat/`）
+> Last updated: 2026-05-11 (EQ-Bench 3 wiring dry-run validated + Companion Bench v1.0 reference impl land + Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land；#18-#22 为 figure F6 训练后端/数据/DLaaS hook，~~#23~~ 已闭合（figure bake CLI + bundle 持久化 + audit log + rollback 全套 land），~~#19~~ 部分闭合（V2 fetcher + parser 落地）、~~#25~~ 闭合（metadata fingerprint folded into bundle hash）、~~#26~~ 闭合（4 V2 metadata clients + cache + role gate）；#28 完整 webcrawl 编排 + 清洗管线 + 多源验证审计三层（L0+L1+L2 first batch+L2 second batch）**架构层完全 land**，剩余只是 curated 数据集 / reviewer workflow 类工作；#24/#27 为本轮 D2/D7 数据管线层未串接缺口；**#29-#30 为对外 benchmark 证据面缺口（融资尽调阻塞条件）**，#29 P1-P9 已 land + **wiring 层已通过 dry-run 验证**（见 [`docs/external/eqbench3-wiring-evidence.md`](external/eqbench3-wiring-evidence.md)：synthetic vertical 上 45/45 scenarios 跑通 + 修复 2 个 URL bug），P10 actuation 仍 gate 在真实 ablation verdict 后（需 GPU + Anthropic key）；**#31 OpenAI-compat 适配 wheel 流式 SSE 未实现**；**#29 轨 2 Companion Bench v1.0 reference impl 已 land**：`packages/companion-bench/` Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 站点 + 4 个 CI workflow；Companion Bench v1.0 launch 路径未启动追踪在 **#32**（governance / 真 reference 跑分 / DNS / submission queue），human-eval 轨道 0% 追踪在 **#33**（RFC §6.6），harness 性能 / async / staged executor 追踪在 **#34**，季度 rotation 自动化（held-out / lexicon / judge）追踪在 **#35**，v2.x 长尾（multi-modal / EQ-Bench 1:1 prompt / 加密 attestation / transcript 脱敏）追踪在 **#36**——配套对外 RFC 见 [`docs/external/companion-bench-rfc-v0.md`](external/lscb-rfc-v0.md)，配套 OpenAI-compat 适配层位于 `packages/lifeform-openai-compat/`）
 
 > 2026-05-11 update (EQ-Bench 3 wiring dry-run validated): 把 #29 P1-P9 已交付的代码层从「unit tests + 文档」推进到「真 harness 端到端跑通」。Clone [`https://github.com/EQ-bench/eqbench3`](https://github.com/EQ-bench/eqbench3) 到 `external/eqbench3/`、装 9 个 light deps、boot `lifeform-serve --vertical companion --substrate-mode synthetic --enable-openai-compat`、配 `.env`、跑 `eqbench3.py --no-rubric --no-elo --ignore-canonical` 全 45 scenarios → 全部 `status: completed`、产 [`artifacts/external_bench/eqbench3_dry_run.runs.json`](../artifacts/external_bench/eqbench3_dry_run.runs.json) (1.17 MB)、26 debriefs 也全通过。**修复 2 个 URL bug**：(a) [`scripts/external_bench/.env.example`](../scripts/external_bench/.env.example) + [`run_eqbench3.py`](../scripts/external_bench/run_eqbench3.py) `TEST_API_URL` / `JUDGE_API_URL` 原本只写 `/v1` 但 eqbench3 `utils/api.py` 不会补 `/chat/completions` → 改为 full path，11 个 `test_run_eqbench3_smoke.py` 单元测试在 fix 后全绿；(b) PowerShell `Out-File -Encoding utf8` 默认带 BOM 破坏 dotenv 解析 → bootstrap note 写入 [`docs/external/eqbench3-wiring-evidence.md`](external/eqbench3-wiring-evidence.md)。Wallclock：synthetic CPU 单 track 14:42。**P10 actuation 仍 gate 在**：真 Qwen 1.5B substrate（GPU 或 hf-shared）+ 真 Anthropic `JUDGE_API_KEY` + 调用 `--with-elo` 跑 pairwise（增量 ~$10-20/track）+ 三轨 (`companion / companion-cold / raw`) 跑完产 `.summary.json` 后 [`compare_ablation.py`](../scripts/external_bench/compare_ablation.py) 取 verdict。完整 reproduction recipe 见 evidence 文档。这一步**把「实测前的所有未知」从 #29 的债务面剥离** — 接下来真跑分时只剩 substrate / judge 一类 known-unknown，adapter-side 隐藏 bug 已清零。
 
-> 2026-05-10 update (LSCB v1.0 reference impl land — debt #29 轨 2 推进): RFC 文档级 v0.1 → 工程级 v1.0 全套就位。新 wheel [`packages/lscb-bench/`](../packages/lscb-bench/) Apache 2.0 隔离许可，13 模块 + 144 单元测试全绿（包括 `tests/contracts/test_lscb_bench_no_internal_imports.py` 静态守 lscb-bench 不 import vz-* / lifeform-*，匹配 RFC §3 P4 outcome-level 评估契约）。**Held-out 治理**：96 scenario 走 git submodule + private repo `VolvenceZero/lscb-heldout`（[`.gitmodules`](../.gitmodules) + [`docs/external/lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 一次性 organiser bootstrap），公仓 PR 永不见 held-out body；CI release-tier 用 deploy key 拉取，PR / open-source clones 自动跳过。**Public scenarios**：24 个完全 in-repo（6 family × 4），hash 表落 [`docs/external/lscb-public-scenario-hashes.txt`](external/lscb-public-scenario-hashes.txt) 由 [`scripts/lscb/emit_scenario_hashes.py`](../scripts/lscb/emit_scenario_hashes.py) 重生成。**Public leaderboard 静态站**：`site/leaderboard/` 纯 HTML + vanilla JS，[`scripts/lscb/generate_demo_aggregate.py`](../scripts/lscb/generate_demo_aggregate.py) 给出 demo 渲染数据（10 系统 placeholder），真 reference 跑分入口 [`scripts/lscb/score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) 跑通即替换。**4 个 CI workflow**：`lscb-ci-smoke`（PR gate, 公开） / `lscb-paper-suite-small`（nightly $200-400） / `lscb-paper-suite-full`（release $5-15k, 拉 held-out） / `lscb-leaderboard-publish`（GitHub Pages）。**4 个 shell 脚本**：`run_lscb_ci_smoke.sh` / `run_lscb_paper_suite_small.sh` / `run_lscb_paper_suite_full.sh` / `build_leaderboard_site.sh`。**5 个 governance 文档**：[`lscb-submission-protocol.md`](external/lscb-submission-protocol.md) / [`lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) / [`lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) / [`lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) / [`docs/specs/lscb-bench.md`](specs/lscb-bench.md)。**仍未做（组织层 / 预算层 follow-up，不是代码层债）**：(a) working group 形成（RFC §11，依赖外部第二个组织接入，charter draft 已就位）；(b) 真 10 reference systems 跑分（$5-15k API 预算，scripts 已就位等批准）；(c) 真域名 `lscb-bench.volvencezero.org` DNS + GitHub Pages CNAME 配置；(d) v1.1 quarterly held-out paraphrase rotation。这四项都不阻塞 v1.0 reference impl 的工程交付。
+> 2026-05-10 update (Companion Bench v1.0 reference impl land — debt #29 轨 2 推进): RFC 文档级 v0.1 → 工程级 v1.0 全套就位。新 wheel [`packages/companion-bench/`](../packages/companion-bench/) Apache 2.0 隔离许可，13 模块 + 144 单元测试全绿（包括 `tests/contracts/test_lscb_bench_no_internal_imports.py` 静态守 lscb-bench 不 import vz-* / lifeform-*，匹配 RFC §3 P4 outcome-level 评估契约）。**Held-out 治理**：96 scenario 走 git submodule + private repo `VolvenceZero/lscb-heldout`（[`.gitmodules`](../.gitmodules) + [`docs/external/companion-bench-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 一次性 organiser bootstrap），公仓 PR 永不见 held-out body；CI release-tier 用 deploy key 拉取，PR / open-source clones 自动跳过。**Public scenarios**：24 个完全 in-repo（6 family × 4），hash 表落 [`docs/external/companion-bench-public-scenario-hashes.txt`](external/lscb-public-scenario-hashes.txt) 由 [`scripts/companion_bench/emit_scenario_hashes.py`](../scripts/companion_bench/emit_scenario_hashes.py) 重生成。**Public leaderboard 静态站**：`site/leaderboard/` 纯 HTML + vanilla JS，[`scripts/companion_bench/generate_demo_aggregate.py`](../scripts/companion_bench/generate_demo_aggregate.py) 给出 demo 渲染数据（10 系统 placeholder），真 reference 跑分入口 [`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) 跑通即替换。**4 个 CI workflow**：`lscb-ci-smoke`（PR gate, 公开） / `lscb-paper-suite-small`（nightly $200-400） / `lscb-paper-suite-full`（release $5-15k, 拉 held-out） / `lscb-leaderboard-publish`（GitHub Pages）。**4 个 shell 脚本**：`run_lscb_ci_smoke.sh` / `run_lscb_paper_suite_small.sh` / `run_lscb_paper_suite_full.sh` / `build_leaderboard_site.sh`。**5 个 governance 文档**：[`lscb-submission-protocol.md`](external/lscb-submission-protocol.md) / [`lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) / [`lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) / [`lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) / [`docs/specs/companion-bench.md`](specs/lscb-bench.md)。**仍未做（组织层 / 预算层 follow-up，不是代码层债）**：(a) working group 形成（RFC §11，依赖外部第二个组织接入，charter draft 已就位）；(b) 真 10 reference systems 跑分（$5-15k API 预算，scripts 已就位等批准）；(c) 真域名 `lscb-bench.volvencezero.org` DNS + GitHub Pages CNAME 配置；(d) v1.1 quarterly held-out paraphrase rotation。这四项都不阻塞 v1.0 reference impl 的工程交付。
 
-> 2026-05-10 update (debt #29 P1-P9 land + new debt #31 streaming SSE): 对外 EQ benchmark 提交全链路（debt #29 推荐修法 1-5）的代码层 + 文档层全部就位。新 wheel `lifeform-openai-compat` 暴露 `POST /v1/chat/completions`（OpenAI envelope）on top of `lifeform-service`，三轨 ablation 设计（companion / companion-cold / raw substrate）支持 EQ-Bench 3 一次跑出"系统 vs 裸 substrate"delta；`scripts/external_bench/run_eqbench3.py` + `compare_ablation.py` 提供 launcher + verdict 守门（红线 attestation 缺失则拒绝出 verdict）；`scripts/external_bench/run_empathybench.py` 提供同结构 generic harness（empathybench.com 闭源时支持 EmotionBench 等开源等价物）。文档层落 [`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md)（reproducibility 协议）+ [`docs/external/lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md)（LSCB↔EQ-Bench 跨 benchmark 映射，给 LSCB v0.2 evidence backing）+ [`docs/external/eqbench3-results-internal.md`](external/eqbench3-results-internal.md)（per-run verdict 模板）+ [`docs/external/eqbench3-public-submission-checklist.md`](external/eqbench3-public-submission-checklist.md)（P10 actuation gate）。**1048 import-boundary tests + 138 adapter unit/integration tests 全绿**，`vz-* / lifeform-* / lifeform-domain-*` 内核包**零修改**，唯一一处 lifeform-service 改动是 `cli.py` 加 `--enable-openai-compat` flag（默认 off，向后兼容）。守红线静态化：[`tests/contracts/test_openai_adapter_import_boundary.py`](../tests/contracts/test_openai_adapter_import_boundary.py) AST 守 adapter 不导内核；[`tests/contracts/test_openai_adapter_no_kernel_writeback.py`](../tests/contracts/test_openai_adapter_no_kernel_writeback.py) AST 守 adapter 不写 SessionManager / LifeformSession 私有状态；`compare_ablation.py` 程序化校验四条 #29 红线（frozen substrate / no kernel mod / no benchmark text in system prompt / no internal vocab in model card）后才发 verdict。**P10 公开提交仍 gate 在 verdict==go**，需要先用真实 GPU + Anthropic API key 跑一次 ablation 拿到分数 — 这一步不在代码 packet 范围。**新增 debt #31**：adapter 当前 `stream=true` 返 501，对 EQ-Bench 3 这种 single-shot harness 不影响，但任何 streaming 模式 harness（Chatbot Arena 实时投票通道、OpenAI Python SDK streaming chat）会因此被阻塞 — 与 #30 (Chatbot Arena 提交) 同时浮现，需要 SSE 落地。
+> 2026-05-10 update (debt #29 P1-P9 land + new debt #31 streaming SSE): 对外 EQ benchmark 提交全链路（debt #29 推荐修法 1-5）的代码层 + 文档层全部就位。新 wheel `lifeform-openai-compat` 暴露 `POST /v1/chat/completions`（OpenAI envelope）on top of `lifeform-service`，三轨 ablation 设计（companion / companion-cold / raw substrate）支持 EQ-Bench 3 一次跑出"系统 vs 裸 substrate"delta；`scripts/external_bench/run_eqbench3.py` + `compare_ablation.py` 提供 launcher + verdict 守门（红线 attestation 缺失则拒绝出 verdict）；`scripts/external_bench/run_empathybench.py` 提供同结构 generic harness（empathybench.com 闭源时支持 EmotionBench 等开源等价物）。文档层落 [`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md)（reproducibility 协议）+ [`docs/external/companion-bench-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md)（LSCB↔EQ-Bench 跨 benchmark 映射，给 Companion Bench v0.2 evidence backing）+ [`docs/external/eqbench3-results-internal.md`](external/eqbench3-results-internal.md)（per-run verdict 模板）+ [`docs/external/eqbench3-public-submission-checklist.md`](external/eqbench3-public-submission-checklist.md)（P10 actuation gate）。**1048 import-boundary tests + 138 adapter unit/integration tests 全绿**，`vz-* / lifeform-* / lifeform-domain-*` 内核包**零修改**，唯一一处 lifeform-service 改动是 `cli.py` 加 `--enable-openai-compat` flag（默认 off，向后兼容）。守红线静态化：[`tests/contracts/test_openai_adapter_import_boundary.py`](../tests/contracts/test_openai_adapter_import_boundary.py) AST 守 adapter 不导内核；[`tests/contracts/test_openai_adapter_no_kernel_writeback.py`](../tests/contracts/test_openai_adapter_no_kernel_writeback.py) AST 守 adapter 不写 SessionManager / LifeformSession 私有状态；`compare_ablation.py` 程序化校验四条 #29 红线（frozen substrate / no kernel mod / no benchmark text in system prompt / no internal vocab in model card）后才发 verdict。**P10 公开提交仍 gate 在 verdict==go**，需要先用真实 GPU + Anthropic API key 跑一次 ablation 拿到分数 — 这一步不在代码 packet 范围。**新增 debt #31**：adapter 当前 `stream=true` 返 501，对 EQ-Bench 3 这种 single-shot harness 不影响，但任何 streaming 模式 harness（Chatbot Arena 实时投票通道、OpenAI Python SDK streaming chat）会因此被阻塞 — 与 #30 (Chatbot Arena 提交) 同时浮现，需要 SSE 落地。
 >
-> 2026-05-10 update (LSCB RFC + 对外 benchmark 证据债 #29-#30): 对外 benchmark / arena 评估面（业界正在快速成形的 EQ-Bench 3 / EmpathyBench / RP-Bench / Chatbot Arena 等）我们当前**完全缺位**——这条缺位本身既不影响系统运行也不违反 R 铁律，但对 **任何 fundraising 尽调和品类话语权竞争** 都是硬阻塞。本轮把 follow-up 拆成三轨：(轨 2) 已落地：[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md) 公布 LSCB (Long-Session Companion Benchmark) 公共 RFC v0.1，从中立角度定义 multi-session companion 评估方法学（A1–A6 六轴 + 六族 scenario），不暴露任何内部架构（NL/ETA/R-PE/regime/owner SSOT/family report 内部口径），目的是让公司在长会话陪伴评估这条赛道上**先于打榜成为 convener**；与 EQ-Bench 3 rubric 兼容以便他人系统已有信号可以转移；(轨 1) 列入 #29：把 substrate / lifeform 包一层 OpenAI-compatible API 提交 EQ-Bench 3 + EmpathyBench，拿一个**可被引用的客观分数**填上"投资人尽调时第一个 google 到的数字"这条空白；(轨 3) 列入 #30：在人评类 arena（RP-Bench / Chatbot Arena 公开 chat / 后续 LSCB 自研人评轨）建立可见 footprint，对齐"EQ > IQ"这条对外叙事。轨 2 不在 known-debts；轨 1/3 短期可推进、与代码层债项独立，写为 #29/#30 跟踪。
+> 2026-05-10 update (LSCB RFC + 对外 benchmark 证据债 #29-#30): 对外 benchmark / arena 评估面（业界正在快速成形的 EQ-Bench 3 / EmpathyBench / RP-Bench / Chatbot Arena 等）我们当前**完全缺位**——这条缺位本身既不影响系统运行也不违反 R 铁律，但对 **任何 fundraising 尽调和品类话语权竞争** 都是硬阻塞。本轮把 follow-up 拆成三轨：(轨 2) 已落地：[`docs/external/companion-bench-rfc-v0.md`](external/lscb-rfc-v0.md) 公布 Companion Bench (Long-Session Companion Benchmark) 公共 RFC v0.1，从中立角度定义 multi-session companion 评估方法学（A1–A6 六轴 + 六族 scenario），不暴露任何内部架构（NL/ETA/R-PE/regime/owner SSOT/family report 内部口径），目的是让公司在长会话陪伴评估这条赛道上**先于打榜成为 convener**；与 EQ-Bench 3 rubric 兼容以便他人系统已有信号可以转移；(轨 1) 列入 #29：把 substrate / lifeform 包一层 OpenAI-compatible API 提交 EQ-Bench 3 + EmpathyBench，拿一个**可被引用的客观分数**填上"投资人尽调时第一个 google 到的数字"这条空白；(轨 3) 列入 #30：在人评类 arena（RP-Bench / Chatbot Arena 公开 chat / 后续 Companion Bench 自研人评轨）建立可见 footprint，对齐"EQ > IQ"这条对外叙事。轨 2 不在 known-debts；轨 1/3 短期可推进、与代码层债项独立，写为 #29/#30 跟踪。
 >
 > 2026-05-10 update (Persona Figure 数据管线 V1 D2/D3/D4/D7): 在 #18-#23 已就位的 F6 训练后端骨架基础上，本轮新增 4 类纯数据策展层：(a) **D2** corpus 子目录加 typed `SourceProvenance` + `LegalClearance` + `compute_dedup_report` + `parse_locator` 三件 reviewer-facing helper（详见 [`packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/{provenance,dedupe,citation}.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/)）；(b) **D3** `corpus/archives/` 4 个 archive 适配器（CPAE / Wikisource / Gutenberg / Internet Archive）+ `ArchiveFetcher` Protocol + V1 offline 桩；(c) **D4** `metadata/` 子包给 OpenAlex / Wikidata / Crossref / SEP 4 个 metadata 来源加 typed payload + `*_to_*` 翻译器 + Protocol 客户端 + offline 桩 + `MetadataDigest` 指纹聚合 + `enrich_profile_with_metadata` 桥（**T3 严禁污染**：metadata 永不进 retrieval / LoRA training data）；(d) **D7** 鲁迅 reviewed `HistoricalFigureProfile` + Chinese Text Project archive 适配器（孔子等古典人物用）。150/150 figure tests + 91/91 figure-related import boundary tests 全绿。**4 块新缺口需要后续 follow-up（已开 debt）**：(i) D2 三件 helper 都是 pure 函数，未接进 `build_figure_artifact_bundle` / `build_figure_retrieval_index` 主管线，存在但不 load-bearing（→ #24）；(ii) `MetadataDigest.fingerprint` 未折进 `FigureArtifactBundle.integrity_hash`，metadata enrichment 之后 bundle 字节级回滚契约不闭合（→ #25）；(iii) D4 4 个 metadata client 全是 offline 桩 + `NotImplementedError`，与 #19 archive V2 fetcher 同构但是不同 client 集（→ #26）；(iv) 鲁迅 PoC 只到 `HistoricalFigureProfile`，缺 `synthetic_lu_xun_corpus()` / `build_lu_xun_lifeform()` / 鲁迅 e2e test / CTP curated 数据集（→ #27）。
 
@@ -749,7 +749,7 @@ return (
 > - 适配 wheel：`packages/lifeform-openai-compat/` ([README](../packages/lifeform-openai-compat/))，红线静态守门 [tests/contracts/test_openai_adapter_import_boundary.py](../tests/contracts/test_openai_adapter_import_boundary.py) + [tests/contracts/test_openai_adapter_no_kernel_writeback.py](../tests/contracts/test_openai_adapter_no_kernel_writeback.py)
 > - 内核侧改动：1 行 — `lifeform-service/cli.py` 加 `--enable-openai-compat` flag（默认 off，向后兼容）
 > - 三轨 ablation launcher：[scripts/external_bench/run_eqbench3.py](../scripts/external_bench/run_eqbench3.py) + [scripts/external_bench/run_empathybench.py](../scripts/external_bench/run_empathybench.py) + [scripts/external_bench/compare_ablation.py](../scripts/external_bench/compare_ablation.py)（verdict 守门：四条红线 attestation 缺失则拒绝出 verdict）
-> - 公开文档：[`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md) + [`docs/external/lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md)
+> - 公开文档：[`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md) + [`docs/external/companion-bench-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md)
 > - 内部跟踪：[`docs/external/eqbench3-results-internal.md`](external/eqbench3-results-internal.md)（per-run verdict 模板）+ [`docs/external/eqbench3-public-submission-checklist.md`](external/eqbench3-public-submission-checklist.md)（Packet 10 actuation gate）
 > - 测试：1048 import-boundary + 138 adapter unit/integration tests 全绿；`vz-* / lifeform-domain-* / lifeform-core` **零 diff**
 > - 衍生 follow-up：**新增 [#31](#31)**（streaming SSE 未实现，#30 Chatbot Arena 提交前必须做）
@@ -773,7 +773,7 @@ return (
   - 尽调材料里"我们 EQ 强"的 claim 无外部数据支撑；任何竞品（哪怕是套壳 Claude）只要交一次 EQ-Bench 就能反超我们的 fundraising narrative
   - 不交分 ≠ 我们打不过；frozen substrate 的分数大概率 ≈ 底层 LLM 的分数（这不是问题，但**不交就让对方猜**最糟糕）
   - 业界已观察到 EQ-Bench 与 RP-Bench 人评分歧大（详见上）→ 我们若只盯 EQ-Bench 也错失"在人评类反超大模型"的窗口
-  - LSCB RFC（轨 2，[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md)）正在做"**定义新评估范式**"的长期防御；轨 1 / 轨 3 是补"**短期防御**"——两者互不替代
+  - Companion Bench RFC（轨 2，[`docs/external/companion-bench-rfc-v0.md`](external/lscb-rfc-v0.md)）正在做"**定义新评估范式**"的长期防御；轨 1 / 轨 3 是补"**短期防御**"——两者互不替代
 - **违反**：不违反 R 铁律。这是产品 / 商业层证据面债，与 vz-* / lifeform-* 内核架构正交。
 - **风险**：
   - **短期（<3 月）低**：不交分系统不爆，CI 不挂
@@ -783,7 +783,7 @@ return (
   - (a) 启动任何一轮融资（A 轮及以后）尽调材料准备
   - (b) 与任何战略合作方（Cloud / 终端硬件 / 内容平台）做技术 due diligence
   - (c) 上线公开 demo / API 后被技术媒体或竞品分析师 cited 时被问 "your EQ-Bench score?"
-  - (d) LSCB RFC v0.2 公开发布前（自己定义 benchmark 但自己不在他人 benchmark 上有分数 = 信誉漏洞）
+  - (d) Companion Bench RFC v0.2 公开发布前（自己定义 benchmark 但自己不在他人 benchmark 上有分数 = 信誉漏洞）
   - (e) 任何竞品交分进 EQ-Bench leaderboard top 20
 - **推荐修法**（按优先级，可独立推进）：
   1. **OpenAI-compatible 适配 wheel**（~1 周）：新 `lifeform-openai-compat` 或 `lifeform-service.openai_adapter` 子包，暴露 `POST /v1/chat/completions`（OpenAI envelope）+ optional `metadata.session_id` / `metadata.user_id`（companion 模式启用 cross-session memory）。**不动 vz-* / lifeform-* 内核**，纯薄翻译层；contract test 静态守"openai_adapter 不直接 import vz-cognition / vz-temporal / vz-memory 内部模块，只能走 lifeform-service 的 facade"
@@ -791,14 +791,14 @@ return (
      - 若分数 ≥ 行业均值 → 路径 (3) 公开提交，+ 同时挂在 [`docs/external/`](external/) 内
      - 若分数 < 预期 → 不公开，留作内部 baseline，转路径 (4) 优先
   3. **EmpathyBench + EQ-Bench 提交**（~$50 总，含人工 review）：填 model card / system prompt / generation config + 在 [`docs/external/`](external/) 留一份"我们的 EQ-Bench 跑分协议"公开说明；要求 marketing / 公关同步对接，**不在产品官网吹分数前先把 reproducibility 做对**
-  4. **跑分对照内部 6 族评估**：把 EQ-Bench 8 维 + EmpathyBench 维度 vs 我们 F2/F3 family 指标做 cross-walk（不暴露 F1-F6 内部 schema，只描述"对外 EQ-Bench 7 维都映射到 LSCB A2 子轴 8 项中的 7 项"）；产 `docs/external/lscb-eqbench-crosswalk.md`，给 LSCB RFC v0.2 做 evidence backing
+  4. **跑分对照内部 6 族评估**：把 EQ-Bench 8 维 + EmpathyBench 维度 vs 我们 F2/F3 family 指标做 cross-walk（不暴露 F1-F6 内部 schema，只描述"对外 EQ-Bench 7 维都映射到 Companion Bench A2 子轴 8 项中的 7 项"）；产 `docs/external/companion-bench-eqbench-crosswalk.md`，给 Companion Bench RFC v0.2 做 evidence backing
   5. **守红线**：
      - openai_adapter 是 read-only facade；不允许任何外部调用反向写入 owner SSOT（与 #15 / #16 / #22 同 pattern；加 `tests/contracts/test_openai_adapter_no_kernel_writeback.py` 静态守门）
      - 提交材料严禁泄露内部架构口径（NL/ETA/R-PE/regime/owner SSOT/F1-F6 内部分类名）；只发对外抽象（"long-context companion system with adaptive memory"等）
-     - 不在 system prompt 里塞 EQ-Bench / EmpathyBench / LSCB scenario derivative 文本（attestation 要求这条不能违反）
+     - 不在 system prompt 里塞 EQ-Bench / EmpathyBench / Companion Bench scenario derivative 文本（attestation 要求这条不能违反）
 - **优先级**：**中-高**（不阻塞代码运行，但阻塞融资节奏；建议在下一轮融资 kickoff 前 4-6 周启动）
 
-## 30. 人评类 chat arena（RP-Bench / Chatbot Arena / LSCB human track）参与 footprint 完全缺位
+## 30. 人评类 chat arena（RP-Bench / Chatbot Arena / Companion Bench human track）参与 footprint 完全缺位
 
 - **路径**：
   - 上游依赖：#29 OpenAI-compatible 适配 wheel（不先做 #29 的 (1)，本债的 (1)/(2)/(3) 都做不动）
@@ -806,12 +806,12 @@ return (
     - 没有 [Chatbot Arena](https://lmarena.ai/) 入榜——任何 closed-API 系统都可以参与，我们的 lifeform-service / DLaaS chat endpoint 至今未提交
     - 没有 [RP-Bench / Roleplay-Bench](https://huggingface.co/datasets/lazyweasel/roleplay-bench) 提交——这是**最贴近我们"EQ > IQ" 论点的人评 arena**（Gemma 4 26B / Mistral Small Creative 在人评榜领先大模型，正好对齐 small-but-relational > large-but-cold 的叙事）
     - 没有 [`docs/external/`](external/) 之外的对外 channel（blog / arxiv preprint / huggingface space / demo space）让真实用户能"摸一下我们的 companion 模式"
-    - LSCB human track（[`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md) §6.6）当前只是 RFC 中的 placeholder，没有 human annotator 招募协议 / 人评 UI / 人评数据 schema / 数据合规审查
+    - Companion Bench human track（[`docs/external/companion-bench-rfc-v0.md`](external/lscb-rfc-v0.md) §6.6）当前只是 RFC 中的 placeholder，没有 human annotator 招募协议 / 人评 UI / 人评数据 schema / 数据合规审查
 - **问题**：陪伴 AI 的产品命题——"系统让用户感觉到了什么"——本质上是 **subjective, human-rated, longitudinal** 的，正是 LLM-judge 类 benchmark 系统性测不准的部分。RP-Bench 的实证发现已经强证：**社区人评（Gemma 4 26B Elo 1535）系统性偏好"中型有人味"模型多于"大型大模型味"模型（GPT-4 / Claude 等）**，这恰好对齐我们的对外叙事。但我们没有任何人评 footprint：
   - 没有 RP-Bench 提交 → "Volvence Zero 在 human-rated companion arena 排第几"是空白
   - 没有 Chatbot Arena 入榜 → 600 万真人盲评的 reference 群体里我们不存在
   - 没有 demo / preview channel → 即便投资人 / 媒体想"亲手试一下"，我们没有可指向的入口
-  - 没有自己的 human eval pipeline → LSCB human track 永远停留在"RFC 提议"阶段；任何竞品先建立 human-eval pipeline 就先占据"陪伴 AI 唯一有人评 footprint"的话语权
+  - 没有自己的 human eval pipeline → Companion Bench human track 永远停留在"RFC 提议"阶段；任何竞品先建立 human-eval pipeline 就先占据"陪伴 AI 唯一有人评 footprint"的话语权
 - **违反**：不违反 R 铁律。与 #29 同属"对外证据面 + 商业话语权"债，与内核架构正交。
 - **风险**：
   - **短期低**：不交人评不影响系统跑
@@ -822,7 +822,7 @@ return (
   - (b) 战略合作方提出"先让我们的 PM / 设计师试 1 周再签 LOI"
   - (c) 任何竞品（character.ai / Replika / 国产陪伴产品）先在 RP-Bench / Chatbot Arena 公开排名
   - (d) #29 路径 (3) 公开提交跑分后，需要"客观 EQ-Bench 数字 + 人评 arena 排名"两手齐
-  - (e) LSCB RFC 进入 v0.2，需要对外能 cite 一份"已验证的 human-rating pipeline 实证 study"
+  - (e) Companion Bench RFC 进入 v0.2，需要对外能 cite 一份"已验证的 human-rating pipeline 实证 study"
 - **推荐修法**（依赖 #29 路径 (1)）：
   1. **Chatbot Arena 提交**（~$0 + ~1 周对接）：基于 #29 (1) 的 OpenAI-compatible endpoint，按 [LMSYS submission docs](https://lmarena.ai/) 流程注册"VolvenceZero Companion Mode"——提交 model card 时**只描述外部能力**，不暴露内部架构；产 `docs/external/chatbot-arena-submission.md` 留 reproducibility note
   2. **RP-Bench 跑分 + 提交**（~$50-100 + ~2 周）：跑 [HuggingFace lazyweasel/roleplay-bench](https://huggingface.co/datasets/lazyweasel/roleplay-bench) 的 1857 票 community 投票池；提交 prompt + config；**优先项**——这是与"EQ > IQ"叙事最对齐的 arena
@@ -830,13 +830,13 @@ return (
   4. **LSCB human track 起步**（v0.3 时机）：
      - 招募协议：用 Prolific / MTurk / Surge 招募 200+ annotator，时薪 ≥ 当地最低工资 1.5 倍；annotator 多样性约束（age / gender / native language）
      - 人评 UI：开源 reference impl（Streamlit / Next.js），让 annotator 看 arc 录像 + 投 pairwise winner + 写 free-form rationale
-     - 数据合规：annotator 同意书 + IRB-equivalent review；评分数据匿名化；生成 training data 永远 forbidden（与 LSCB RFC §11 governance 对齐）
+     - 数据合规：annotator 同意书 + IRB-equivalent review；评分数据匿名化；生成 training data 永远 forbidden（与 Companion Bench RFC §11 governance 对齐）
      - 对外发布 first study：跑 ~10 个 reference systems（含我们自己的 anonymized variant + 几个 frontier 大模型 + 几个开源 small companion）→ 产业界第一份"长会话陪伴系统人评 study"
   5. **守红线**：
      - 所有对外 channel 严禁透露内部架构口径（与 #29 第 (5) 点同）；marketing 文本 review 流程加"内部架构术语黑名单"（NL/ETA/R-PE/regime/owner SSOT/F1-F6 等内部命名）
      - 人评数据严禁回流任何 kernel owner 或 substrate training（避免把人评 arena 变成训练源 → 违反 R12 evaluation 单向性）
      - 人评数据不构成 PII：annotator 个人信息单独存，与评分数据物理隔离
-- **优先级**：**中**（短期可独立推进 (1)/(2)/(3)；(4) 需要 LSCB RFC 进入 v0.3 才合时机；与 #29 互为前置/后置——两边都做才形成"客观分数 + 人评分数 + 自定 benchmark"三角防御）
+- **优先级**：**中**（短期可独立推进 (1)/(2)/(3)；(4) 需要 Companion Bench RFC 进入 v0.3 才合时机；与 #29 互为前置/后置——两边都做才形成"客观分数 + 人评分数 + 自定 benchmark"三角防御）
 
 ## 31. OpenAI-compat 适配 wheel 流式 SSE 未实现（`stream=true` → 501）
 
@@ -870,46 +870,46 @@ return (
   4. **raw-mode streaming**：`raw_substrate_complete` 改为 streaming-aware 变体；`runtime.generate(...)` 已有 token-by-token capability（transformers 流式生成），暴露给 adapter
   5. **守红线**：streaming 路径**仍只走 SessionManager 公共方法**（与 [tests/contracts/test_openai_adapter_no_kernel_writeback.py](../tests/contracts/test_openai_adapter_no_kernel_writeback.py) 同口径）；新增 contract test `tests/contracts/test_openai_adapter_streaming_no_kernel_writeback.py` 守 SSE chunk producer 不能反向写 kernel；adapter 不持有任何 LifeformSession 引用 outside SessionManager 借出的范围
   6. **测试**：与 P4 chat completions integration test 同结构 — 用 fake SessionManager + fake runtime 测 SSE event 序列正确性（chunk shape / 终止序列 / cancel 路径）；不需要真 Qwen
-  7. **文档**：在 [`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md) 加一段说明 streaming 启用条件；在 [`docs/external/lscb-rfc-v0.md`](external/lscb-rfc-v0.md) Appendix A 同步注明 LSCB v0.1 不要求 streaming（保持 LSCB scope 干净）
+  7. **文档**：在 [`docs/external/eqbench3-submission-protocol.md`](external/eqbench3-submission-protocol.md) 加一段说明 streaming 启用条件；在 [`docs/external/companion-bench-rfc-v0.md`](external/lscb-rfc-v0.md) Appendix A 同步注明 Companion Bench v0.1 不要求 streaming（保持 Companion Bench scope 干净）
 - **优先级**：**中**（#29 P10 actuation 不需要；#30 修法 (1)/(3) 启动前必须做；建议在 Chatbot Arena 提交 packet 启动前 4-6 周开始）
 
-## 32. LSCB v1.0 工程已就绪但 launch 路径未启动（working group / reference 实跑 / DNS / submission queue）
+## 32. Companion Bench v1.0 工程已就绪但 launch 路径未启动（working group / reference 实跑 / DNS / submission queue）
 
 - **路径**：
-  - LSCB v1.0 reference impl 已 land：[`packages/lscb-bench/`](../packages/lscb-bench/) Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 静态站 + 4 个 CI workflow + 144/144 测试全绿
+  - Companion Bench v1.0 reference impl 已 land：[`packages/companion-bench/`](../packages/companion-bench/) Apache 2.0 wheel + 24 public + 96 held-out scenarios + 10 reference systems orchestrator + GitHub Pages 静态站 + 4 个 CI workflow + 144/144 测试全绿
   - **缺位面**（v1.0 launch 必须项，目前都是 placeholder）：
-    - **Working group 未形成**：[`docs/external/lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) 章程模板就位但「Chair-elect candidates」段是空表；RFC §11 要求 ≥ 3 个组织 / 不超过 1 票 / rotating chair / 每季度 review
-    - **`VolvenceZero/lscb-heldout` 私有 repo 未创建**：[`.gitmodules`](../.gitmodules) 引用了它但 repo 本身不存在；CI release-tier deploy key 未 provisioned；[`docs/external/lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 一次性 organiser 步骤未执行
-    - **真 10 reference systems 跑分未发生**：[`scripts/lscb/score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) + [`scripts/lscb/run_lscb_paper_suite_full.sh`](../scripts/lscb/run_lscb_paper_suite_full.sh) 已就位但需要 ~$5-15k API 预算 + 6 个 vendor API key 才能产生真数据；当前 [`site/leaderboard/data/aggregate_results.json`](../site/leaderboard/data/aggregate_results.json) 是 [`generate_demo_aggregate.py`](../scripts/lscb/generate_demo_aggregate.py) 合成的 placeholder（带 `demo: true` flag）
+    - **Working group 未形成**：[`docs/external/companion-bench-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) 章程模板就位但「Chair-elect candidates」段是空表；RFC §11 要求 ≥ 3 个组织 / 不超过 1 票 / rotating chair / 每季度 review
+    - **`VolvenceZero/lscb-heldout` 私有 repo 未创建**：[`.gitmodules`](../.gitmodules) 引用了它但 repo 本身不存在；CI release-tier deploy key 未 provisioned；[`docs/external/companion-bench-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 一次性 organiser 步骤未执行
+    - **真 10 reference systems 跑分未发生**：[`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) + [`scripts/companion_bench/run_lscb_paper_suite_full.sh`](../scripts/companion_bench/run_lscb_paper_suite_full.sh) 已就位但需要 ~$5-15k API 预算 + 6 个 vendor API key 才能产生真数据；当前 [`site/leaderboard/data/aggregate_results.json`](../site/leaderboard/data/aggregate_results.json) 是 [`generate_demo_aggregate.py`](../scripts/companion_bench/generate_demo_aggregate.py) 合成的 placeholder（带 `demo: true` flag）
     - **`lscb-bench.volvencezero.org` 域名 / GitHub Pages CNAME 未配置**：[`.github/workflows/lscb-leaderboard-publish.yml`](../.github/workflows/lscb-leaderboard-publish.yml) 部署到默认 `*.github.io` 路径；自定义域名需要 DNS + Pages 设置
-    - **Submission queue 未对外开放**：RFC §11 + [`docs/external/lscb-submission-protocol.md`](external/lscb-submission-protocol.md) §10 暂以「filed an issue on github.com/VolvenceZero/lscb-bench」为入口；该 repo 尚未独立出来（当前在 monorepo 内），没有 issue template / labels / triage workflow
-- **问题**：v1.0 reference impl 在 git 层完成了「方法学 + 代码 + 文档 + scenarios + scripts + CI」全套——但**「LSCB 是一个 live community benchmark」这件事**还没在外部世界发生。只要这些 placeholder 还在，对外说"LSCB v1.0 已发布"就是技术上正确、运营上空洞——任何记者 / 投资人 / 竞品研究员一搜到自定义域名 404、leaderboard 满是 demo 数据、charter draft 空候选人段，会立刻把 LSCB 归类为 vaporware vs 真 RFC convener。
+    - **Submission queue 未对外开放**：RFC §11 + [`docs/external/companion-bench-submission-protocol.md`](external/lscb-submission-protocol.md) §10 暂以「filed an issue on github.com/VolvenceZero/lscb-bench」为入口；该 repo 尚未独立出来（当前在 monorepo 内），没有 issue template / labels / triage workflow
+- **问题**：v1.0 reference impl 在 git 层完成了「方法学 + 代码 + 文档 + scenarios + scripts + CI」全套——但**「LSCB 是一个 live community benchmark」这件事**还没在外部世界发生。只要这些 placeholder 还在，对外说"Companion Bench v1.0 已发布"就是技术上正确、运营上空洞——任何记者 / 投资人 / 竞品研究员一搜到自定义域名 404、leaderboard 满是 demo 数据、charter draft 空候选人段，会立刻把 Companion Bench 归类为 vaporware vs 真 RFC convener。
 - **违反**：不违反 R 铁律。这是**运营 / 治理 / 预算 / 域名层**债，不是代码层债。
 - **风险**：
   - **短期低**：v1.0 reference impl 自身可被任何外部复用；任何团队都可以 clone repo 跑自己的 submission 拿自己的分数（RFC §3 P3 self-serve reproducibility 已成立）
   - **中期高**：[#29](#29) P10 actuation（EQ-Bench 公开提交）一旦完成、给我们留下「客观分数」之后，下一步 marketing / 战略合作 narrative 就会强 push「LSCB convener 身份」——本债不解决，convener 叙事就空了
-  - **长期决定品类话语权**：陪伴 AI 这个品类如果在 2026-2027 谁能定义 evaluation 范式很可能就是谁的话语权；working group 不形成 → LSCB 永远停留在 v0.x 学术草案；working group 形成 → 是 LSCB 还是某个竞品定义出的 benchmark 成为产业 reference 的关键
+  - **长期决定品类话语权**：陪伴 AI 这个品类如果在 2026-2027 谁能定义 evaluation 范式很可能就是谁的话语权；working group 不形成 → Companion Bench 永远停留在 v0.x 学术草案；working group 形成 → 是 Companion Bench 还是某个竞品定义出的 benchmark 成为产业 reference 的关键
 - **触发条件**：
   - (a) 任何一次正式融资尽调材料准备（投资人会问「你们提的 RFC 有谁在用」）
-  - (b) [#29](#29) P10 公开 EQ-Bench 提交后的市场推广窗口（48 小时内必须有 LSCB convener 故事跟上，否则只剩"我们在 EQ-Bench 第 N 名"这一条）
+  - (b) [#29](#29) P10 公开 EQ-Bench 提交后的市场推广窗口（48 小时内必须有 Companion Bench convener 故事跟上，否则只剩"我们在 EQ-Bench 第 N 名"这一条）
   - (c) 任何竞品（OpenAI / Anthropic / Meta / character.ai 类）发布自己的 long-session benchmark RFC（一旦发生，convener 窗口立即关闭）
   - (d) [#30](#30) Chatbot Arena 提交流程启动后需要一个对外 leaderboard URL 给 PR / 媒体引用
   - (e) 媒体 / 行业分析师专题（"How is companion AI evaluated?"）需要一个 live URL
 - **推荐修法**（5 个独立可推进 sub-track）：
-  1. **真 reference run**（~1 周 + 预算 approval）：BFC（Budget-First-Credible）—— 先批 ~$200-400 budget 跑 [`scripts/lscb/run_lscb_paper_suite_small.sh`](../scripts/lscb/run_lscb_paper_suite_small.sh)（公开 set + 1 paraphrase seed × ~5 reference systems），用 cost telemetry 校准 RFC §6.7 价格表后再决定是否批 release tier ~$5-15k；产物自动 push 到 [`site/leaderboard/data/aggregate_results.json`](../site/leaderboard/data/aggregate_results.json) 替换 demo
-  2. **Held-out repo 创建 + deploy key**（~半天）：跑 [`docs/external/lscb-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 步骤；在 GitHub 创建 `VolvenceZero/lscb-heldout` private repo + push 96 seed scenarios + 注册 deploy key；配 `LSCB_HELDOUT_DEPLOY_KEY` repo secret
-  3. **Working group 形成**（~3-6 个月，组织层 follow-up）：识别 ≥ 2 个外部 align 的组织（建议候选：EQ-Bench 维护者 / RP-Bench 维护者 / 一家学术 AI 安全 lab / 一家 companion-class 产品公司）；走 [`docs/external/lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) 的 chair-elect 流程；填空候选人段
+  1. **真 reference run**（~1 周 + 预算 approval）：BFC（Budget-First-Credible）—— 先批 ~$200-400 budget 跑 [`scripts/companion_bench/run_lscb_paper_suite_small.sh`](../scripts/companion_bench/run_lscb_paper_suite_small.sh)（公开 set + 1 paraphrase seed × ~5 reference systems），用 cost telemetry 校准 RFC §6.7 价格表后再决定是否批 release tier ~$5-15k；产物自动 push 到 [`site/leaderboard/data/aggregate_results.json`](../site/leaderboard/data/aggregate_results.json) 替换 demo
+  2. **Held-out repo 创建 + deploy key**（~半天）：跑 [`docs/external/companion-bench-heldout-bootstrap.md`](external/lscb-heldout-bootstrap.md) 步骤；在 GitHub 创建 `VolvenceZero/lscb-heldout` private repo + push 96 seed scenarios + 注册 deploy key；配 `LSCB_HELDOUT_DEPLOY_KEY` repo secret
+  3. **Working group 形成**（~3-6 个月，组织层 follow-up）：识别 ≥ 2 个外部 align 的组织（建议候选：EQ-Bench 维护者 / RP-Bench 维护者 / 一家学术 AI 安全 lab / 一家 companion-class 产品公司）；走 [`docs/external/companion-bench-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) 的 chair-elect 流程；填空候选人段
   4. **域名 + GitHub Pages CNAME**（~半天）：DNS 配 `lscb-bench.volvencezero.org` → `<org>.github.io`；GitHub Pages 设置自定义域名；HTTPS 自动 issue
-  5. **Submission queue infra**（~1 周）：把 lscb-bench 拆成独立 public repo（保留 monorepo 内的 dev 路径作为 internal mirror 或 archive）；加 GitHub issue template `submission.yml` / `comment-period.yml` / 定义 labels；接 GitHub Actions bot 自动 triage（manifest 校验 / attestation 校验）；submission 被 bot 接受后自动跑 [`scripts/lscb/run_real_submission.py`](../scripts/lscb/run_real_submission.py)（需要 self-hosted runner with API keys 或限速 cloud runner）
+  5. **Submission queue infra**（~1 周）：把 lscb-bench 拆成独立 public repo（保留 monorepo 内的 dev 路径作为 internal mirror 或 archive）；加 GitHub issue template `submission.yml` / `comment-period.yml` / 定义 labels；接 GitHub Actions bot 自动 triage（manifest 校验 / attestation 校验）；submission 被 bot 接受后自动跑 [`scripts/companion_bench/run_real_submission.py`](../scripts/companion_bench/run_real_submission.py)（需要 self-hosted runner with API keys 或限速 cloud runner）
 - **优先级**：**高**（不阻塞代码 land，但**直接阻塞** v1.0 → 真 launch 的转化；建议在 [#29](#29) P10 actuation 之后立即启动 sub-track 1+2+4，sub-track 3+5 与 [#30](#30) 推进节奏同步）
 
-## 33. LSCB human-eval 轨道（RFC §6.6 / §6.6 + §11 核心承诺）实现 0%
+## 33. Companion Bench human-eval 轨道（RFC §6.6 / §6.6 + §11 核心承诺）实现 0%
 
 - **路径**：
-  - RFC [`lscb-rfc-v0.md`](external/lscb-rfc-v0.md) §6.6 承诺一条 parallel human-eval track；RP-Bench 现状已经实证人评 Elo 与 LLM-judge Elo 系统性分歧 → 这条轨道是 LSCB 区分于 EQ-Bench 的最强承诺
+  - RFC [`lscb-rfc-v0.md`](external/lscb-rfc-v0.md) §6.6 承诺一条 parallel human-eval track；RP-Bench 现状已经实证人评 Elo 与 LLM-judge Elo 系统性分歧 → 这条轨道是 Companion Bench 区分于 EQ-Bench 的最强承诺
   - 当前实现层完全空白：没有 annotator 招募协议 / 没有人评 UI / 没有 IRB-equivalent review / 没有 pairwise 投票 schema / 没有 anonymisation 规范
-  - 与 [#30](#30) 修法 (4)（LSCB human track v0.3 起步）实质同一件事但视角不同：[#30](#30) 是**对外人评 footprint**，本债是**作为 LSCB benchmark 一部分的人评协议**
-- **问题**：LSCB v1.0 reference impl 全部 LLM-judged。RFC §8.1 列出 LLM-judge 的 family bias / verbosity bias / formatting bias 三类已知威胁；§6.6 明确说"following RP-Bench's finding that human and LLM-judge rankings can diverge meaningfully, we treat human Elo as an independent measurement, not as ground truth"——这意味着**没有 human Elo 列的 LSCB leaderboard 就缺了 RFC 承诺的一半**。当前 [`site/leaderboard/index.html`](../site/leaderboard/index.html) 表格已为 human Elo 留了 placeholder column 但内容永远空。
+  - 与 [#30](#30) 修法 (4)（LSCB human track v0.3 起步）实质同一件事但视角不同：[#30](#30) 是**对外人评 footprint**，本债是**作为 Companion Bench benchmark 一部分的人评协议**
+- **问题**：Companion Bench v1.0 reference impl 全部 LLM-judged。RFC §8.1 列出 LLM-judge 的 family bias / verbosity bias / formatting bias 三类已知威胁；§6.6 明确说"following RP-Bench's finding that human and LLM-judge rankings can diverge meaningfully, we treat human Elo as an independent measurement, not as ground truth"——这意味着**没有 human Elo 列的 Companion Bench leaderboard 就缺了 RFC 承诺的一半**。当前 [`site/leaderboard/index.html`](../site/leaderboard/index.html) 表格已为 human Elo 留了 placeholder column 但内容永远空。
 - **违反**：不违反 R 铁律。但**违反 RFC §6.6 自身的承诺**——v1.0 不实现等于 RFC 文本与 reference impl 不一致。
 - **风险**：
   - **短期低**：[#32](#32) sub-track 1（真 reference 跑分）跑完后 leaderboard 已经有可看的数；human Elo 缺失短期内不显眼
@@ -917,26 +917,26 @@ return (
   - **长期 = 品类定义权**：human-rated companion arena 在 2026-2027 是品类话语权的核心战场；不实现 = 永远把人评话语权留给 RP-Bench
 - **触发条件**：
   - (a) 任何竞品（character.ai / Replika 类）先建立 companion 类 human-eval pipeline
-  - (b) LSCB v0.3 → v1.0 release 节奏（RFC §9 "v1.0 by Q4 2026 if community engagement supports it"），release 时仍空着 §6.6 = 信誉漏洞
-  - (c) 学术 / 行业引用 LSCB RFC 时被问"你们 §6.6 是承诺还是 vaporware"
-  - (d) [#30](#30) 修法 (4) 招募 annotator 时如果跳过 LSCB-specific UI 直接复用通用 arena 也能跑——但产出的人评数据不能与 LSCB scenario hash 关联，无法回归到本 benchmark
+  - (b) Companion Bench v0.3 → v1.0 release 节奏（RFC §9 "v1.0 by Q4 2026 if community engagement supports it"），release 时仍空着 §6.6 = 信誉漏洞
+  - (c) 学术 / 行业引用 Companion Bench RFC 时被问"你们 §6.6 是承诺还是 vaporware"
+  - (d) [#30](#30) 修法 (4) 招募 annotator 时如果跳过 Companion-Bench-specific UI 直接复用通用 arena 也能跑——但产出的人评数据不能与 Companion Bench scenario hash 关联，无法回归到本 benchmark
 - **推荐修法**（按依赖顺序）：
   1. **annotator 招募协议**（~1 周文档 + 法务 review）：用 Prolific / MTurk / Surge 招募 200+ 多样化 annotator；时薪 ≥ 当地最低工资 1.5 倍；标注同意书 + IRB-equivalent review（哪怕公司没有正式 IRB，过一个独立伦理 review 流程）；标注数据**永远不能回流任何 substrate / kernel 训练**（与 RFC §11 governance 红线一致）
   2. **人评 UI（reference impl）**（~2 周）：开源 Streamlit / Next.js 站点；annotator 看一段 arc 录像（transcript playback）+ 投 pairwise winner + 写 free-form rationale；每 arc 至少 5 个独立 annotator；UI 必须**强制完整看完 arc 才能投票**（不允许 first-turn 偏好攻击）
-  3. **数据 schema**（~3 天）：`HumanEvalRecord` typed dataclass with `arc_id_a / arc_id_b / annotator_id_anonymised / pairwise_winner / rationale_text / time_seen_seconds / lexicon_version`；存储与 LSCB scenario hash 关联但与个人 PII 物理隔离
-  4. **TrueSkill / BT 求解器复用**（~1 天）：[`packages/lscb-bench/src/lscb_bench/elo.py`](../packages/lscb-bench/src/lscb_bench/elo.py) 已经有 `compute_trueskill` / `compute_bradley_terry`；用于 human Elo 列计算（参数与 LLM-judge 列保持一致以便对照）
-  5. **leaderboard human Elo 列填充**（~半天）：[`site/leaderboard/leaderboard.js`](../site/leaderboard/leaderboard.js) 已 query `row.human_elo`；只需要 [`scripts/lscb/score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) 输出包含该字段；从人评数据计算
-  6. **首次 study**（~1-2 月含 annotator 招募 + 标注期）：跑 ~10 个 reference systems × 全 24 public scenarios × 5 annotators / scenario，产出 LSCB v1.0 同步 first human-eval study 报告
+  3. **数据 schema**（~3 天）：`HumanEvalRecord` typed dataclass with `arc_id_a / arc_id_b / annotator_id_anonymised / pairwise_winner / rationale_text / time_seen_seconds / lexicon_version`；存储与 Companion Bench scenario hash 关联但与个人 PII 物理隔离
+  4. **TrueSkill / BT 求解器复用**（~1 天）：[`packages/companion-bench/src/lscb_bench/elo.py`](../packages/companion-bench/src/lscb_bench/elo.py) 已经有 `compute_trueskill` / `compute_bradley_terry`；用于 human Elo 列计算（参数与 LLM-judge 列保持一致以便对照）
+  5. **leaderboard human Elo 列填充**（~半天）：[`site/leaderboard/leaderboard.js`](../site/leaderboard/leaderboard.js) 已 query `row.human_elo`；只需要 [`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) 输出包含该字段；从人评数据计算
+  6. **首次 study**（~1-2 月含 annotator 招募 + 标注期）：跑 ~10 个 reference systems × 全 24 public scenarios × 5 annotators / scenario，产出 Companion Bench v1.0 同步 first human-eval study 报告
   7. **守红线**：人评数据严禁回流 substrate / kernel；annotator 个人信息单独存与评分数据物理隔离；LSCB 永不发布个体 annotator id（聚合统计 only）；annotator agreement 明文禁止 LLM 代标
-- **优先级**：**中-高**（不阻塞 v1.0 reference impl 的工程交付；但**阻塞** LSCB 长期作为「区分 LLM-judge / human-judge 的中立 convener」的核心叙事；建议与 [#30](#30) 修法 (4) 合并为一个 LSCB human-eval 工作组 sprint）
+- **优先级**：**中-高**（不阻塞 v1.0 reference impl 的工程交付；但**阻塞** Companion Bench 长期作为「区分 LLM-judge / human-judge 的中立 convener」的核心叙事；建议与 [#30](#30) 修法 (4) 合并为一个 Companion Bench human-eval 工作组 sprint）
 
-## 34. LSCB harness 性能 / 可扩展性 gap（顺序 SUT 调用 / 无 streaming / 无 retry / 无 staged executor）
+## 34. Companion Bench harness 性能 / 可扩展性 gap（顺序 SUT 调用 / 无 streaming / 无 retry / 无 staged executor）
 
 - **路径**：
-  - 当前 [`packages/lscb-bench/src/lscb_bench/sut_client.py`](../packages/lscb-bench/src/lscb_bench/sut_client.py) `OpenAIChatClient` 用 `urllib.request.urlopen` 同步调用，单次 timeout 默认 120s，无 retry / 无 backoff / 无 connection pool
-  - [`packages/lscb-bench/src/lscb_bench/arc_runner.py`](../packages/lscb-bench/src/lscb_bench/arc_runner.py) `run_arc` 完全顺序——session × turn 都串行，单 arc 跑完需要 N×M 次往返
-  - [`packages/lscb-bench/src/lscb_bench/submission.py`](../packages/lscb-bench/src/lscb_bench/submission.py) `run_submission` 顺序遍历 (specs × paraphrase_seeds)；24 × 3 = 72 arcs 串行
-  - [`scripts/lscb/score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) 顺序跑每个 reference system 的 subprocess（一次只一个）
+  - 当前 [`packages/companion-bench/src/lscb_bench/sut_client.py`](../packages/companion-bench/src/lscb_bench/sut_client.py) `OpenAIChatClient` 用 `urllib.request.urlopen` 同步调用，单次 timeout 默认 120s，无 retry / 无 backoff / 无 connection pool
+  - [`packages/companion-bench/src/lscb_bench/arc_runner.py`](../packages/companion-bench/src/lscb_bench/arc_runner.py) `run_arc` 完全顺序——session × turn 都串行，单 arc 跑完需要 N×M 次往返
+  - [`packages/companion-bench/src/lscb_bench/submission.py`](../packages/companion-bench/src/lscb_bench/submission.py) `run_submission` 顺序遍历 (specs × paraphrase_seeds)；24 × 3 = 72 arcs 串行
+  - [`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) 顺序跑每个 reference system 的 subprocess（一次只一个）
   - 没有 staged executor / checkpoint / resume：与 [`docs/implementation/10_pe_eta_dialogue_benchmark_harness.md`](implementation/10_pe_eta_dialogue_benchmark_harness.md) 中 `run_real_dialogue_pe_eta_comprehensive_benchmark_staged()` 的 phase-level checkpoint pattern 形成对比
 - **问题**：粗算 wallclock：
   - 单 arc：~25 turns × ~2s SUT + ~25 × 1s per-turn judge + 1 arc judge ~5s ≈ 80s
@@ -952,24 +952,24 @@ return (
   - **长期低**：CI runner / cloud GPU 时长便宜下来后压力会缓解，但当前 (2026-Q2) API 速率限制 + judge 模型族日均 token 配额都还紧
 - **触发条件**：
   - (a) [#32](#32) sub-track 1（small-tier real run）跑超过预期 wallclock
-  - (b) 任何 release-tier 跑（[`run_lscb_paper_suite_full.sh`](../scripts/lscb/run_lscb_paper_suite_full.sh)）启动
+  - (b) 任何 release-tier 跑（[`run_lscb_paper_suite_full.sh`](../scripts/companion_bench/run_lscb_paper_suite_full.sh)）启动
   - (c) GitHub Actions 24h timeout 第一次撞墙
   - (d) Submission queue（[#32](#32) sub-track 5）启动 → 大量并发 submission 涌入
 - **推荐修法**（按 ROI 排序）：
-  1. **Async + connection pool**（~1 周）：把 [`sut_client.py`](../packages/lscb-bench/src/lscb_bench/sut_client.py) 从 urllib 改 aiohttp（已是 wheel 依赖）；arc_runner 改 async；同 session 内 turn 仍串行（保 cross-session-session_id 语义）但 multi-arc 并发；retry + exponential backoff on 429 / 5xx；token-bucket 速率限制 per-judge-model
+  1. **Async + connection pool**（~1 周）：把 [`sut_client.py`](../packages/companion-bench/src/lscb_bench/sut_client.py) 从 urllib 改 aiohttp（已是 wheel 依赖）；arc_runner 改 async；同 session 内 turn 仍串行（保 cross-session-session_id 语义）但 multi-arc 并发；retry + exponential backoff on 429 / 5xx；token-bucket 速率限制 per-judge-model
   2. **Staged executor**（~3 天）：参 [`docs/implementation/10_pe_eta_dialogue_benchmark_harness.md`](implementation/10_pe_eta_dialogue_benchmark_harness.md) `run_real_dialogue_pe_eta_comprehensive_benchmark_staged` 模式；phase = (arc_run / callback_extract / perturn_judge / arc_judge / aggregate)；每 phase 落 manifest 到 `artifact_dir/manifest.json`；resume 时从已完成 phase 恢复
-  3. **跨 system 并行**（~3 天）：[`score_reference_systems.py`](../scripts/lscb/score_reference_systems.py) 用 `concurrent.futures.ProcessPoolExecutor` 并发跑多 system（非 thread，因为 each system 子进程已是 IO-bound async）；上限按 judge 模型 quota 推算
+  3. **跨 system 并行**（~3 天）：[`score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) 用 `concurrent.futures.ProcessPoolExecutor` 并发跑多 system（非 thread，因为 each system 子进程已是 IO-bound async）；上限按 judge 模型 quota 推算
   4. **SUT streaming**（与 [#31](#31) 同源）：lscb-bench 当前 sync `chat()` 接收完整 response；如果 SUT 只支持 streaming（一些 vendor 推自己 SDK 时强制 streaming），lscb-bench 直接断在 client 层。Adapter 改 streaming-aware 后，pre-emptively 解决这条路径
-  5. **Cost-aware scheduler**（~1 周，optional）：[`cost.py`](../packages/lscb-bench/src/lscb_bench/cost.py) 已统计每 system / 每 judge / 每 axis 成本；加 budget cap（"一旦累计超 $X 暂停并 manual approve"）；CI release-tier workflow 接 budget guard
+  5. **Cost-aware scheduler**（~1 周，optional）：[`cost.py`](../packages/companion-bench/src/lscb_bench/cost.py) 已统计每 system / 每 judge / 每 axis 成本；加 budget cap（"一旦累计超 $X 暂停并 manual approve"）；CI release-tier workflow 接 budget guard
   6. **Checkpoint restart 测试**：mock 中途 SIGKILL 测 staged executor 能从断点续跑；用 in-memory mock SUT 不烧 token
 - **优先级**：**中-高**（[#32](#32) sub-track 1 之后立刻启动；release tier 启动前必须做完 1+2+3）
 
-## 35. LSCB 季度治理自动化（held-out paraphrase rotation / lexicon rotation / judge family rotation log）
+## 35. Companion Bench 季度治理自动化（held-out paraphrase rotation / lexicon rotation / judge family rotation log）
 
 - **路径**：
-  - RFC §8.2 要求 held-out paraphrase seeds 季度 rotation；当前 [`scripts/lscb/generate_heldout_seeds.py`](../scripts/lscb/generate_heldout_seeds.py) 是 one-shot generator，没有 rotation salt 参数；同样的 input 永远产同样的 96 scenarios
-  - RFC §6.3 + §8.1 要求 judge model 季度 rotation；[`docs/external/lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) 引用了 `lscb-judge-rotation-log.md` 但**该文件未创建**；charter draft 引用了 `lscb-heldout-rotation-log.md` 也**未创建**；[`docs/external/lscb-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) §6 同样要求 hash-only 公开 diff 但格式未定
-  - [`packages/lscb-bench/src/lscb_bench/lexicon.py`](../packages/lscb-bench/src/lscb_bench/lexicon.py) `LEXICON_VERSION = "1.0.0"` 是 string 常量；版本 bump 没有自动化路径，bump 之后 scenario_hash 是否要重生成也未定（lexicon 仅 runtime 消费，不进 hash，所以理论上 lexicon bump 不变 hash——但需要明文说清楚）
+  - RFC §8.2 要求 held-out paraphrase seeds 季度 rotation；当前 [`scripts/companion_bench/generate_heldout_seeds.py`](../scripts/companion_bench/generate_heldout_seeds.py) 是 one-shot generator，没有 rotation salt 参数；同样的 input 永远产同样的 96 scenarios
+  - RFC §6.3 + §8.1 要求 judge model 季度 rotation；[`docs/external/companion-bench-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) 引用了 `lscb-judge-rotation-log.md` 但**该文件未创建**；charter draft 引用了 `lscb-heldout-rotation-log.md` 也**未创建**；[`docs/external/companion-bench-governance-charter-draft.md`](external/lscb-governance-charter-draft.md) §6 同样要求 hash-only 公开 diff 但格式未定
+  - [`packages/companion-bench/src/lscb_bench/lexicon.py`](../packages/companion-bench/src/lscb_bench/lexicon.py) `LEXICON_VERSION = "1.0.0"` 是 string 常量；版本 bump 没有自动化路径，bump 之后 scenario_hash 是否要重生成也未定（lexicon 仅 runtime 消费，不进 hash，所以理论上 lexicon bump 不变 hash——但需要明文说清楚）
 - **问题**：v1.0 reference impl 把"季度 rotation"作为承诺写入了 RFC 与 charter，但**实际执行链路 0%**。一旦 working group 形成（[#32](#32) sub-track 3），第一个季度 rotation due 时会发现：
   - 没人按过 rotation button
   - 没工具自动生成 rotation manifest
@@ -987,21 +987,21 @@ return (
   - (c) v1.1 release 节奏（quarterly cadence per RFC §9 implicit cadence）
 - **推荐修法**：
   1. **`generate_heldout_seeds.py` 加 `--variant-salt` / `--rotation-quarter` 参数**（~1 天）：当 salt 变化时变体的 surface form 改变（persona tone / payload prefix / FSM seed offset 都依赖 salt）；保证同一 quarter 内所有人产出 byte-identical
-  2. **rotation 自动化 GitHub Action**（~2 天）：`.github/workflows/lscb-quarterly-rotation.yml`，每季度 1 号 cron 触发；自动 (a) bump quarter salt (b) 重新生成 96 held-out scenarios 到 private submodule (c) push hash-only diff 到 `docs/external/lscb-heldout-rotation-log.md`（公仓）+ `external/lscb-heldout/HASHES.txt`（私仓）(d) open PR for chair sign-off (e) 不直接 merge——chair manual approve
-  3. **judge rotation log 文件 + 自动 entry**（~半天）：创建 [`docs/external/lscb-judge-rotation-log.md`](external/lscb-judge-rotation-log.md)；每季度 working group 决议后由 chair 加一行 entry；CI workflow 在 [`scripts/lscb/run_lscb_paper_suite_small.sh`](../scripts/lscb/run_lscb_paper_suite_small.sh) / `_full.sh` 启动时校验「当前 judge model 与 log 最新一行一致」否则拒绝跑（防止"workflow 用 GPT-4 但 log 还写 GPT-5"漂移）
-  4. **lexicon 版本协议**（~半天文档）：在 [`docs/specs/lscb-bench.md`](specs/lscb-bench.md) 加一节明确：lexicon bump 不影响 scenario_hash（已经如此）；lexicon bump 影响 identity slot 选择，但 [`draw_identity`](../packages/lscb-bench/src/lscb_bench/lexicon.py) 已经把 `LEXICON_VERSION` 包进 seed string 所以 paraphrase 仍 deterministic；新加 entries 是 backward-compatible，移除 entries 是 breaking
+  2. **rotation 自动化 GitHub Action**（~2 天）：`.github/workflows/lscb-quarterly-rotation.yml`，每季度 1 号 cron 触发；自动 (a) bump quarter salt (b) 重新生成 96 held-out scenarios 到 private submodule (c) push hash-only diff 到 `docs/external/lscb-heldout-rotation-log.md`（公仓）+ `external/companion-bench-heldout/HASHES.txt`（私仓）(d) open PR for chair sign-off (e) 不直接 merge——chair manual approve
+  3. **judge rotation log 文件 + 自动 entry**（~半天）：创建 [`docs/external/lscb-judge-rotation-log.md`](external/lscb-judge-rotation-log.md)；每季度 working group 决议后由 chair 加一行 entry；CI workflow 在 [`scripts/companion_bench/run_lscb_paper_suite_small.sh`](../scripts/companion_bench/run_lscb_paper_suite_small.sh) / `_full.sh` 启动时校验「当前 judge model 与 log 最新一行一致」否则拒绝跑（防止"workflow 用 GPT-4 但 log 还写 GPT-5"漂移）
+  4. **lexicon 版本协议**（~半天文档）：在 [`docs/specs/companion-bench.md`](specs/lscb-bench.md) 加一节明确：lexicon bump 不影响 scenario_hash（已经如此）；lexicon bump 影响 identity slot 选择，但 [`draw_identity`](../packages/companion-bench/src/lscb_bench/lexicon.py) 已经把 `LEXICON_VERSION` 包进 seed string 所以 paraphrase 仍 deterministic；新加 entries 是 backward-compatible，移除 entries 是 breaking
   5. **rotation log 模板**（~1 小时）：定义 `lscb-heldout-rotation-log.md` 与 `lscb-judge-rotation-log.md` 格式（quarter / chair-sig / hash diff / 96-count assertion）
 - **优先级**：**中**（v1.0 launch 时不需要；但**必须在 working group 形成的同一季度内** land sub-track 1+2+3，否则第一次 rotation due 时会非常尴尬）
 
-## 36. LSCB v2.x 长尾路径（multi-modal / EQ-Bench prompt 1:1 reuse / 加密 attestation / transcript 隐私）
+## 36. Companion Bench v2.x 长尾路径（multi-modal / EQ-Bench prompt 1:1 reuse / 加密 attestation / transcript 隐私）
 
-- **路径**：4 个低优先但实质性的工程债，都与 LSCB v1.0 reference impl 已交付的代码相关，但都是 v2.x roadmap：
-  - **(a) Multi-modal extension** — RFC §10 OQ4 明确"v0.1 is text-only. v2.x roadmap?"；当前 [`spec.py`](../packages/lscb-bench/src/lscb_bench/spec.py) `ScenarioSpec.user_simulator.fsm` 只发 `text` payload；voice / 表情 / 多模态 SUT 完全不支持
-  - **(b) EQ-Bench rubric prompt 1:1 reuse** — [`packages/lscb-bench/src/lscb_bench/judge_perturn.py`](../packages/lscb-bench/src/lscb_bench/judge_perturn.py) `_PROMPT_HEADER` 是我们改写的版本而非 EQ-Bench 3 上游 prompt 原文；RFC Appendix A 承诺"Criteria 1–7 are aligned with EQ-Bench 3 to enable cross-benchmark comparison"——技术上 criteria 名 + 含义对齐了，但 prompt 文本不是 byte-for-byte 一致，跨 benchmark 信号转移精度比理论值低
-  - **(c) Submission attestation 加密签名** — [`packages/lscb-bench/src/lscb_bench/submission.py`](../packages/lscb-bench/src/lscb_bench/submission.py) `SubmissionAttestation` 仅是 4 个 bool；submitter 把它们设 `true` 没有任何加密保证或时间戳；任何争议（"你们去年 12 月真的没用 LSCB derivative 训练吗"）无法事后审计
-  - **(d) Transcript 隐私 / leaderboard 发布脱敏** — `arc_runner.py` 写出的 [`{arc_id}.bundle.json`](../packages/lscb-bench/src/lscb_bench/arc_runner.py) 包含 `identity_slot.name / occupation / contextual_detail`（来自 lexicon）+ 完整 user/assistant transcript；release-tier workflow 把整个 `artifacts/lscb/reference/` 上传为 GitHub artifact；这些**虽然不是真人 PII**（lexicon 是合成的），但 SUT 的 response 可能 inadvertently 泄露 vendor system prompt / 内部 vocabulary——leaderboard publication 应该有审查环节
+- **路径**：4 个低优先但实质性的工程债，都与 Companion Bench v1.0 reference impl 已交付的代码相关，但都是 v2.x roadmap：
+  - **(a) Multi-modal extension** — RFC §10 OQ4 明确"v0.1 is text-only. v2.x roadmap?"；当前 [`spec.py`](../packages/companion-bench/src/lscb_bench/spec.py) `ScenarioSpec.user_simulator.fsm` 只发 `text` payload；voice / 表情 / 多模态 SUT 完全不支持
+  - **(b) EQ-Bench rubric prompt 1:1 reuse** — [`packages/companion-bench/src/lscb_bench/judge_perturn.py`](../packages/companion-bench/src/lscb_bench/judge_perturn.py) `_PROMPT_HEADER` 是我们改写的版本而非 EQ-Bench 3 上游 prompt 原文；RFC Appendix A 承诺"Criteria 1–7 are aligned with EQ-Bench 3 to enable cross-benchmark comparison"——技术上 criteria 名 + 含义对齐了，但 prompt 文本不是 byte-for-byte 一致，跨 benchmark 信号转移精度比理论值低
+  - **(c) Submission attestation 加密签名** — [`packages/companion-bench/src/lscb_bench/submission.py`](../packages/companion-bench/src/lscb_bench/submission.py) `SubmissionAttestation` 仅是 4 个 bool；submitter 把它们设 `true` 没有任何加密保证或时间戳；任何争议（"你们去年 12 月真的没用 Companion Bench derivative 训练吗"）无法事后审计
+  - **(d) Transcript 隐私 / leaderboard 发布脱敏** — `arc_runner.py` 写出的 [`{arc_id}.bundle.json`](../packages/companion-bench/src/lscb_bench/arc_runner.py) 包含 `identity_slot.name / occupation / contextual_detail`（来自 lexicon）+ 完整 user/assistant transcript；release-tier workflow 把整个 `artifacts/companion-bench/reference/` 上传为 GitHub artifact；这些**虽然不是真人 PII**（lexicon 是合成的），但 SUT 的 response 可能 inadvertently 泄露 vendor system prompt / 内部 vocabulary——leaderboard publication 应该有审查环节
 - **问题**：4 条路径在 v1.0 reference impl 时都被合理 deferred，但都是真实债务：
-  - (a) 不做 → LSCB 永远是 text-only benchmark，2027 年 multi-modal companion 成为主流时品类相关性下降
+  - (a) 不做 → Companion Bench 永远是 text-only benchmark，2027 年 multi-modal companion 成为主流时品类相关性下降
   - (b) 不做 → EQ-Bench 转移信号比 RFC 承诺的弱
   - (c) 不做 → 任何争议无审计依据；声誉风险随 leaderboard 长期使用复合
   - (d) 不做 → 第一次 release 公开后被审计出 SUT system prompt 泄露 → 信誉事件
@@ -1009,15 +1009,15 @@ return (
 - **风险**：
   - **短期低**：所有 4 条都不阻塞 v1.0 launch
   - **中期中**：(c) 与 (d) 在第一个争议事件时立刻浮现；建议在 [#32](#32) sub-track 5（submission queue）启动同时 land
-  - **长期高**：(a) 决定 LSCB 在 2027+ 是否仍是相关 benchmark；不做 = 把 multi-modal 评估这一片话语权让给后来者
+  - **长期高**：(a) 决定 Companion Bench 在 2027+ 是否仍是相关 benchmark；不做 = 把 multi-modal 评估这一片话语权让给后来者
 - **触发条件**：
   - (a) **multi-modal**：任何 multi-modal companion（语音 + 表情）成为产业默认 SUT；OpenAI / Anthropic 推出 streaming-voice + vision SDK 默认 surface
-  - (b) **EQ-Bench prompt reuse**：EQ-Bench 维护者公开质疑 LSCB §A 信号转移声明；学术论文用 LSCB 数据时发现 cross-benchmark 信号比预期弱
-  - (c) **加密 attestation**：第一次 leaderboard 争议（某 submitter 被指控 LSCB derivative training）
+  - (b) **EQ-Bench prompt reuse**：EQ-Bench 维护者公开质疑 Companion Bench §A 信号转移声明；学术论文用 Companion Bench 数据时发现 cross-benchmark 信号比预期弱
+  - (c) **加密 attestation**：第一次 leaderboard 争议（某 submitter 被指控 Companion Bench derivative training）
   - (d) **transcript 隐私**：第一次审计 / 第一次 vendor system prompt 在 leaderboard artifact 中被发现
 - **推荐修法**（按 v2.x packet 排序）：
   1. **(a) Multi-modal v2.0**（~3-6 月）：`ScenarioSpec.user_simulator.fsm[].payload` 从 `str` 升级为 typed `Payload` union (`TextPayload` / `AudioPayload` / `ImagePayload`)；判官层加 multi-modal scoring；与 RFC §10 OQ4 同步推进；这是大改 backward-compat 要谨慎（hash 算法需要扩展）
-  2. **(b) EQ-Bench prompt 1:1 reuse**（~1 天）：找 EQ-Bench 3 上游 rubric prompt 原文（Apache 2.0 / MIT 之类的兼容 license 下），把 [`judge_perturn.py`](../packages/lscb-bench/src/lscb_bench/judge_perturn.py) `_PROMPT_HEADER` 中前 7 个 criterion 的描述改为 EQ-Bench 3 verbatim；保留 LSCB 8th criterion（boundary_appropriateness）作为 LSCB 独有部分；在 [`docs/external/lscb-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) 注明"prompt verbatim reuse since v1.x"
+  2. **(b) EQ-Bench prompt 1:1 reuse**（~1 天）：找 EQ-Bench 3 上游 rubric prompt 原文（Apache 2.0 / MIT 之类的兼容 license 下），把 [`judge_perturn.py`](../packages/companion-bench/src/lscb_bench/judge_perturn.py) `_PROMPT_HEADER` 中前 7 个 criterion 的描述改为 EQ-Bench 3 verbatim；保留 Companion Bench 8th criterion（boundary_appropriateness）作为 Companion Bench 独有部分；在 [`docs/external/companion-bench-eqbench-crosswalk.md`](external/lscb-eqbench-crosswalk.md) 注明"prompt verbatim reuse since v1.x"
   3. **(c) Attestation signing**（~3 天）：`SubmissionManifest.attestation` 加 `signed_at: datetime` + `signature: str`（HMAC-SHA256 over manifest body 用 submitter 提供的 ed25519 key）；leaderboard 公开 submitter 的 public key 给 audit；争议时可加密验证 attestation 时间戳
   4. **(d) Transcript 隐私 review pipeline**（~1 周）：release-tier 把 `{arc_id}.bundle.json` 上传前先跑一个 anonymisation pass（去除任何疑似 system prompt 漏出 / 任何 PII-shaped 字符串）；leaderboard 公开版本只含 axis scores + scenario_hash，**不含** transcript body；transcript 留在 organiser 私有 storage（同 held-out 一样的治理）
 - **优先级**：**低-中**（4 条都是 v2.x；(c) (d) 在 [#32](#32) sub-track 5 启动同时建议 land；(b) 任何时候都可以；(a) 是真 v2.0 工作量，等 multi-modal 商业化稳定后启动）

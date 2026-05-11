@@ -1,0 +1,45 @@
+name: LSCB Leaderboard — Publish
+
+# Push site/leaderboard/ to GitHub Pages whenever data or site files
+# change on main. Pure static deploy; no build step.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/leaderboard/**"
+      - "docs/external/companion-bench-public-scenario-hashes.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: lscb-leaderboard-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'VolvenceZero'
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/leaderboard
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

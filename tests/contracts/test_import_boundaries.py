@@ -71,6 +71,11 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # ToM / common-ground owner snapshots in vz-cognition can
             # surface it without a circular dependency on lifeform layers.
             "llm_proposal_diagnostics",
+            # Behavior Protocol Runtime packet 1.3'': IdentitySeed lives
+            # in vz-contracts (cross-wheel) so DualTrackModule (vz-cognition)
+            # and vertical fixture builders (lifeform-domain-*) share the
+            # type without forcing a vz-cognition dep on lifeform-* wheels.
+            "identity_seed",
         }
     ),
     "vz-application": frozenset(
@@ -83,6 +88,24 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "dialogue_trace",
             # Stub semantic embedding SSOT (known-debts #3 closure).
             "semantic_embedding",
+            # Behavior Protocol Runtime packet 1.2: ``vz-application.protocol_runtime``
+            # is the application-tier owner of the ``active_mixture``
+            # slot. It consumes the cross-wheel ``BehaviorProtocol`` /
+            # ``ActiveMixtureSnapshot`` schema from
+            # ``vz-contracts.behavior_protocol``. (Originally placed in
+            # vz-cognition; moved here in packet 1.2 because the
+            # compile path produces application-tier
+            # ``BoundaryPriorHint`` / ``PlaybookRule`` artifacts and
+            # vz-cognition cannot import vz-application by tier order.)
+            "behavior_protocol",
+            # Behavior Protocol Runtime packet 1.5a: typed context_match
+            # scoring detector reads ``InterlocutorStateSnapshot`` to
+            # check whether any zone bool is active for the protocol's
+            # ``INTERLOCUTOR_ZONE_TRANSITION`` signals. Already an
+            # allowed kernel module (vz-cognition, lower tier);
+            # interlocutor was missing from this allow-list because
+            # nothing in vz-application had read it before packet 1.5a.
+            "interlocutor",
         }
     ),
     "vz-temporal": frozenset(
@@ -106,6 +129,16 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # interlocutor SHADOW owner (W2 of ssot-cleanup-p0-p4) is
             # registered into the runtime so consumers read one snapshot.
             "interlocutor",
+            # protocol_runtime SHADOW owner (Behavior Protocol Runtime
+            # packet 1.0) publishes the ``active_mixture`` slot. The
+            # owner lives in vz-cognition; vz-runtime registers it via
+            # ``build_final_runtime_modules``.
+            "protocol_runtime",
+            # IdentitySeed (Behavior Protocol Runtime packet 1.3'') —
+            # threaded through ``run_final_wiring_turn`` /
+            # ``build_final_runtime_modules`` and passed to
+            # ``DualTrackModule`` constructor.
+            "identity_seed",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",

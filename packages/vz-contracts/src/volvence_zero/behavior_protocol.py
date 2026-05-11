@@ -1,0 +1,855 @@
+"""Behavior Protocol Runtime — schema (packet 1.0).
+
+Cross-wheel immutable contracts for the Behavior Protocol Runtime
+described in ``docs/specs/protocol-runtime.md``. These envelopes are
+*data only* — no registry, no activation logic, no fixture
+adapters. The kernel-side owner is
+``volvence_zero.protocol_runtime.ProtocolRegistryModule`` (in
+``vz-cognition``); per-vertical fixture adapters live in each
+``lifeform-domain-*`` wheel.
+
+Why these live in ``vz-contracts`` (not in ``vz-cognition`` or some
+``lifeform-*`` wheel):
+
+* Boundary owners (``boundary_policy``), metacontroller, vitals, and
+  strategy_playbook are kernel modules. They will eventually consume
+  ``ActiveMixtureSnapshot`` directly. If the schema lived in
+  ``vz-cognition`` the cross-wheel imports would still work, but
+  ``vz-contracts`` is the canonical home for cross-wheel snapshot
+  shapes (mirrors ``thinking.py`` / ``dialogue_trace.py`` /
+  ``social_cognition.py``).
+* Lifeform-side adapters (FixtureUptake, future DocumentUptake) need
+  to construct ``BehaviorProtocol`` instances. They cannot import
+  from ``vz-cognition`` (``vz-* ↛ lifeform-*`` invariant + product
+  layer separation), so the constructible types must be in a
+  cross-tier home.
+
+Packet 1.0 scope:
+
+* All frozen dataclasses + closed enums declared.
+* Validation in ``__post_init__`` is *light*: id non-empty,
+  uniqueness inside collections, ``BehaviorProtocol`` requires at
+  least one success and one failure signal unless
+  ``legacy_fixture=True``.
+* No runtime-state fields. ``BehaviorProtocol`` is fully reviewed
+  data; the registry holds working state out-of-band.
+
+Fields that are spec-declared but unused by packet 1.0 (e.g. PE
+revision metadata on ``StrategyPrior``, full TemporalArc progression
+machinery, identity_gate machinery) are present in the schema so the
+shape is final, but downstream packets will be the first real
+consumers. Schema growth is preferred to schema churn — declare it
+once, light up consumption packet by packet.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+
+# ---------------------------------------------------------------------------
+# Closed enums
+# ---------------------------------------------------------------------------
+
+
+class BehaviorProtocolSignalSource(str, Enum):
+    """Closed vocabulary for ``SuccessSignal.measurable_via`` /
+    ``FailureSignal.measurable_via``.
+
+    Each member must correspond to a typed signal source already
+    owned somewhere in the system (or, for packet 1.0,
+    ``DRIVE_HOMEOSTASIS_*`` which derive from
+    ``lifeform_core.vitals.DriveLevel.out_of_band``). The closed-
+    enum invariant prevents fragmentation: extending the vocabulary
+    requires adding a member here AND wiring a typed source — same
+    pattern as ``RuptureKind``.
+
+    Packet 1.0 ships the six members below. Extensions in later
+    packets follow the same nuclear rule: PR adds enum member +
+    typed signal source + at least one consumer test.
+    """
+
+    DRIVE_HOMEOSTASIS_HOLD = "drive_homeostasis_hold"
+    DRIVE_HOMEOSTASIS_BREACH = "drive_homeostasis_breach"
+    BOUNDARY_VIOLATION_FIRED = "boundary_violation_fired"
+    RUPTURE_KIND_FIRED = "rupture_kind_fired"
+    INTERLOCUTOR_ZONE_TRANSITION = "interlocutor_zone_transition"
+    USER_DROPOUT_OBSERVED = "user_dropout_observed"
+
+
+class ReviewStatus(str, Enum):
+    """BehaviorProtocol lifecycle state (R10 ModificationGate gating)."""
+
+    DRAFT = "draft"
+    SHADOW = "shadow"
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class ReviewLevel(str, Enum):
+    """R10 ModificationGate review level required to mutate this field.
+
+    L1 = automated; L4 = human + admin. Spec ``§TaskUptake / Review
+    分级``. Packet 1.0 only honours these tags as audit metadata;
+    actual gate enforcement lights up in later packets.
+    """
+
+    L1 = "l1"
+    L2 = "l2"
+    L3 = "l3"
+    L4 = "l4"
+
+
+class BoundarySeverity(str, Enum):
+    """How a boundary contract enforces.
+
+    ``HARD_BLOCK``: block the action and downgrade.
+    ``SOFT_REMIND``: emit a reminder/disclaimer but allow.
+    ``ESCALATE_HUMAN``: pause and escalate (used for identity-level
+    violations).
+    """
+
+    SOFT_REMIND = "soft_remind"
+    HARD_BLOCK = "hard_block"
+    ESCALATE_HUMAN = "escalate_human"
+
+
+class ProtocolSourceKind(str, Enum):
+    """Where the BehaviorProtocol came from."""
+
+    FIXTURE = "fixture"
+    PDF_UPTAKE = "pdf_uptake"
+    TASK_DESCRIPTION = "task_description"
+    API_INJECTION = "api_injection"
+    DIRECTORY_SCAN = "directory_scan"
+
+
+class ActivationReasonKind(str, Enum):
+    """Which signal contributed to a protocol's activation weight."""
+
+    CONTEXT_MATCH = "context_match"
+    PE_HISTORY = "pe_history"
+    DRIVE_COUPLING = "drive_coupling"
+    IDENTITY_GATE = "identity_gate"
+    MINIMUM_FLOOR = "minimum_floor"
+    EQUAL_WEIGHT_FALLBACK = "equal_weight_fallback"
+
+
+# ---------------------------------------------------------------------------
+# Identity / boundaries / strategies
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class IdentityAssertion:
+    """Protocol's compatibility statement vs the lifeform Identity Core.
+
+    Read by ``ActivationController`` to compute ``identity_gate``.
+    Packet 1.0 ships the dataclass shape but ``identity_gate`` is
+    hard-coded to 1.0 in ``vz-cognition.protocol_runtime``; real
+    R7-Self / R14-regime cross-checks light up in later packets.
+    """
+
+    requires_self_traits: tuple[str, ...] = ()
+    forbidden_self_traits: tuple[str, ...] = ()
+    required_regime_compatibility: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class BoundaryContract:
+    """A single anti-pattern / hard-rule the protocol asserts.
+
+    Compiled (packet 1.2+) into the consumer-side ``BoundaryPolicy``
+    via ``compile_protocol_to_application_artifacts`` →
+    ``BoundaryPriorHint`` (in ``vz-application``).
+    ``trigger_reasons`` must reference typed signal sources, not
+    user-text keywords (no-keyword-matching-hacks invariant).
+
+    Schema relationship to ``BoundaryPriorHint`` (vz-application):
+
+    * Packet 1.0 fields shared 1:1: ``boundary_id`` (→ ``hint_id``
+      with namespace prefix), ``description``, ``trigger_reasons``,
+      ``blocked_topics``, ``required_disclaimers``,
+      ``refer_out_required``, ``confidence``.
+    * Packet 1.2 added (lossless conversion): ``regime_id``,
+      ``answer_depth_limit_hint``, ``clarification_required`` —
+      these mirror ``BoundaryPriorHint`` so reviewed verticals like
+      ``GrowthAdvisorBoundaryPrior`` pass through unchanged.
+    * Protocol-only metadata (NOT on ``BoundaryPriorHint``):
+      ``severity`` (used for downstream rendering hints) and
+      ``review_level`` (used by ``ModificationGate``); these stay
+      out of the application-side hint.
+    """
+
+    boundary_id: str
+    description: str
+    trigger_reasons: tuple[str, ...]
+    blocked_topics: tuple[str, ...] = ()
+    required_disclaimers: tuple[str, ...] = ()
+    refer_out_required: bool = False
+    regime_id: str | None = None
+    answer_depth_limit_hint: str = ""
+    clarification_required: bool = False
+    severity: BoundarySeverity = BoundarySeverity.HARD_BLOCK
+    review_level: ReviewLevel = ReviewLevel.L3
+    confidence: float = 0.9
+
+    def __post_init__(self) -> None:
+        if not self.boundary_id.strip():
+            raise ValueError("BoundaryContract.boundary_id must be non-empty")
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                f"BoundaryContract.confidence must be in [0, 1], "
+                f"got {self.confidence!r}"
+            )
+
+
+@dataclass(frozen=True)
+class StrategyPriorRevision:
+    """Append-only entry recording one PE-driven weight change."""
+
+    revision_id: str
+    revised_at_tick: int
+    delta: float
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.revision_id.strip():
+            raise ValueError(
+                "StrategyPriorRevision.revision_id must be non-empty"
+            )
+
+
+@dataclass(frozen=True)
+class StrategyPrior:
+    """A strategy / playbook prior with PE-revisable weight metadata.
+
+    Compiled (packet 1.3b+) into the consumer-side ``strategy_playbook``
+    via ``compile_protocol_to_application_artifacts`` →
+    ``PlaybookRule`` (in ``vz-application``).
+
+    Schema relationship to ``PlaybookRule`` (vz-application):
+
+    * Packet 1.0 fields shared 1:1 (modulo naming):
+      ``rule_id`` (→ namespaced ``PlaybookRule.rule_id``),
+      ``problem_pattern``, ``recommended_ordering``,
+      ``recommended_pacing``, ``avoid_patterns``, ``confidence``,
+      ``description``, ``applicability_phase`` (→
+      ``PlaybookRule.applicability_scope``; same role, different
+      historical name).
+    * Packet 1.3b added (lossless conversion to ``PlaybookRule``):
+      ``recommended_regime``, ``knowledge_weight_hint``,
+      ``experience_weight_hint`` — these mirror
+      ``PlaybookRule`` so reviewed verticals like
+      ``GrowthAdvisorStrategyPrior`` pass through unchanged.
+    * Protocol-only metadata (NOT on ``PlaybookRule``):
+      ``initial_weight`` / ``pe_decay_rate`` /
+      ``pe_reinforce_rate`` / ``minimum_weight_floor`` /
+      ``revision_history`` are PE-revision metadata consumed by
+      the future activation controller (packet 1.5+);
+      ``StrategyPlaybookModule`` does not read them, so they
+      stay out of ``PlaybookRule``.
+    * ``PlaybookRule`` has additional optional continuum fields
+      (``continuum_band_id`` / ``mean_continuum_position``) that
+      protocols don't seed; the compile uses ``PlaybookRule``
+      defaults.
+    """
+
+    rule_id: str
+    problem_pattern: str
+    recommended_ordering: tuple[str, ...]
+    recommended_pacing: str
+    avoid_patterns: tuple[str, ...] = ()
+    applicability_phase: tuple[str, ...] = ()
+    recommended_regime: str | None = None
+    knowledge_weight_hint: float = 0.45
+    experience_weight_hint: float = 0.65
+    initial_weight: float = 1.0
+    pe_decay_rate: float = 0.0
+    pe_reinforce_rate: float = 0.0
+    minimum_weight_floor: float = 0.0
+    revision_history: tuple[StrategyPriorRevision, ...] = ()
+    confidence: float = 0.85
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.rule_id.strip():
+            raise ValueError("StrategyPrior.rule_id must be non-empty")
+        if not 0.0 <= self.knowledge_weight_hint <= 1.0:
+            raise ValueError(
+                f"StrategyPrior.knowledge_weight_hint must be in [0, 1], "
+                f"got {self.knowledge_weight_hint!r}"
+            )
+        if not 0.0 <= self.experience_weight_hint <= 1.0:
+            raise ValueError(
+                f"StrategyPrior.experience_weight_hint must be in [0, 1], "
+                f"got {self.experience_weight_hint!r}"
+            )
+        if not 0.0 <= self.initial_weight <= 1.0:
+            raise ValueError(
+                f"StrategyPrior.initial_weight must be in [0, 1], "
+                f"got {self.initial_weight!r}"
+            )
+        if self.pe_decay_rate < 0.0:
+            raise ValueError(
+                f"StrategyPrior.pe_decay_rate must be >= 0, "
+                f"got {self.pe_decay_rate!r}"
+            )
+        if self.pe_reinforce_rate < 0.0:
+            raise ValueError(
+                f"StrategyPrior.pe_reinforce_rate must be >= 0, "
+                f"got {self.pe_reinforce_rate!r}"
+            )
+        if not 0.0 <= self.minimum_weight_floor <= self.initial_weight:
+            raise ValueError(
+                f"StrategyPrior.minimum_weight_floor must be in "
+                f"[0, initial_weight={self.initial_weight}], "
+                f"got {self.minimum_weight_floor!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Temporal arc (relationship-state-driven, not calendar-driven)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProgressionSignal:
+    """Signal that advances or retreats a TemporalArc phase pointer.
+
+    Packet 1.0 ships an empty placeholder shape (no driving logic).
+    Packet 1.4 will populate this with PE-driven entry/exit
+    conditions.
+    """
+
+    signal_id: str
+    measurable_via: BehaviorProtocolSignalSource
+    threshold: float = 0.0
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class DriveExpectation:
+    """Expected homeostatic state of a named drive in a phase."""
+
+    drive_name: str
+    expected_band: tuple[float, float]
+
+
+@dataclass(frozen=True)
+class TemporalPhase:
+    """One phase of the protocol's temporal arc."""
+
+    phase_id: str
+    description: str = ""
+    entry_conditions: tuple[ProgressionSignal, ...] = ()
+    exit_conditions: tuple[ProgressionSignal, ...] = ()
+    expected_drives_state: tuple[DriveExpectation, ...] = ()
+
+
+@dataclass(frozen=True)
+class TemporalArc:
+    """The protocol's full phase arc.
+
+    Packet 1.0 fixture conversion uses a single placeholder phase;
+    packet 1.4 will translate ``cheng_laoshi`` day-tag scopes into
+    real phases driven by ``ProgressionSignal``.
+    """
+
+    phases: tuple[TemporalPhase, ...] = ()
+
+    def __post_init__(self) -> None:
+        seen = set()
+        for phase in self.phases:
+            if phase.phase_id in seen:
+                raise ValueError(
+                    f"TemporalArc.phases.phase_id duplicate: "
+                    f"{phase.phase_id!r}"
+                )
+            seen.add(phase.phase_id)
+
+
+# ---------------------------------------------------------------------------
+# Activation conditions
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ContextMatchSignal:
+    """One typed signal that contributes to ``context_match``.
+
+    Packet 1.0 ships an empty placeholder shape.
+    """
+
+    signal_id: str
+    measurable_via: BehaviorProtocolSignalSource
+    weight: float = 1.0
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ActivationConditions:
+    """When this protocol matches and how it co-exists with others."""
+
+    context_match_signals: tuple[ContextMatchSignal, ...] = ()
+    co_activation_compatible: tuple[str, ...] = ()
+    co_activation_incompatible: tuple[str, ...] = ()
+    minimum_weight_floor: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.minimum_weight_floor <= 1.0:
+            raise ValueError(
+                f"ActivationConditions.minimum_weight_floor must be in "
+                f"[0, 1], got {self.minimum_weight_floor!r}"
+            )
+        overlap = set(self.co_activation_compatible) & set(
+            self.co_activation_incompatible
+        )
+        if overlap:
+            raise ValueError(
+                f"ActivationConditions: protocol ids cannot be both "
+                f"compatible AND incompatible: {sorted(overlap)!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# PE signal definitions (R-PE entry; required unless legacy_fixture)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SuccessSignal:
+    """Protocol-declared 'this is what working looks like' readout."""
+
+    signal_id: str
+    description: str
+    measurable_via: BehaviorProtocolSignalSource
+    expected_value_range: tuple[float, float] = (0.0, 1.0)
+    weight_in_pe: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.signal_id.strip():
+            raise ValueError("SuccessSignal.signal_id must be non-empty")
+        low, high = self.expected_value_range
+        if low > high:
+            raise ValueError(
+                f"SuccessSignal.expected_value_range must satisfy low<=high, "
+                f"got {self.expected_value_range!r}"
+            )
+        if self.weight_in_pe < 0.0:
+            raise ValueError(
+                f"SuccessSignal.weight_in_pe must be >= 0, "
+                f"got {self.weight_in_pe!r}"
+            )
+
+
+@dataclass(frozen=True)
+class FailureSignal:
+    """Protocol-declared 'this is what failing looks like' readout."""
+
+    signal_id: str
+    description: str
+    measurable_via: BehaviorProtocolSignalSource
+    threshold: float = 0.0
+    weight_in_pe: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.signal_id.strip():
+            raise ValueError("FailureSignal.signal_id must be non-empty")
+        if self.weight_in_pe < 0.0:
+            raise ValueError(
+                f"FailureSignal.weight_in_pe must be >= 0, "
+                f"got {self.weight_in_pe!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Signature cases (compile to vz-application CaseMemoryRecord; packet 1.4b)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SignatureCase:
+    """Reviewed (situation, action, outcome) episode carried by a protocol.
+
+    Compiled (packet 1.4b+) into the consumer-side ``case_memory``
+    store via ``compile_protocol_to_application_artifacts`` →
+    ``CaseMemoryRecord`` (in ``vz-application``).
+
+    Schema relationship to ``CaseMemoryRecord``:
+
+    * 1:1 lossless review-time fields: ``case_id`` (→ namespaced
+      ``case_id``), ``domain``, ``problem_pattern``,
+      ``user_state_pattern``, ``risk_markers``, ``track_tags``,
+      ``regime_tags``, ``intervention_ordering``, ``outcome_label``,
+      ``escalation_observed``, ``repair_observed``, ``confidence``,
+      ``relevance_score``, ``description``.
+    * Derived / compiler-side: ``delayed_signal_count`` and
+      ``reconstruction_source`` are protocol-level metadata
+      (FixtureUptake sets these to mirror the vertical's
+      hardcoded values).
+    * NOT carried at the protocol level (CaseMemoryRecord defaults):
+      ``continuum_*`` (continuum band positioning),
+      ``lifecycle`` / ``ttl_seconds`` / ``expires_at_tick`` /
+      ``provisional_origin`` (runtime-state-y; protocol seeds always
+      land as ``CaseLifecycle.VALIDATED``). If a future protocol
+      really needs to seed continuum-band cases, extend in a
+      separate packet — current protocols don't.
+    """
+
+    case_id: str
+    domain: str
+    problem_pattern: str
+    user_state_pattern: str
+    risk_markers: tuple[str, ...]
+    track_tags: tuple[str, ...]
+    regime_tags: tuple[str, ...]
+    intervention_ordering: tuple[str, ...]
+    outcome_label: str
+    confidence: float
+    description: str
+    relevance_score: float = 0.75
+    escalation_observed: bool = False
+    repair_observed: bool = False
+    delayed_signal_count: int = 0
+    reconstruction_source: str = "behavior-protocol"
+
+    def __post_init__(self) -> None:
+        if not self.case_id.strip():
+            raise ValueError("SignatureCase.case_id must be non-empty")
+        if not self.domain.strip():
+            raise ValueError("SignatureCase.domain must be non-empty")
+        if not self.intervention_ordering:
+            # Mirrors the application-side validator: a case without an
+            # intervention ordering has no semantic content for retrieval
+            # / planner consumption.
+            raise ValueError(
+                f"SignatureCase.intervention_ordering must be non-empty "
+                f"(case_id={self.case_id!r})"
+            )
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                f"SignatureCase.confidence must be in [0, 1], "
+                f"got {self.confidence!r}"
+            )
+        if not 0.0 <= self.relevance_score <= 1.0:
+            raise ValueError(
+                f"SignatureCase.relevance_score must be in [0, 1], "
+                f"got {self.relevance_score!r}"
+            )
+        if self.delayed_signal_count < 0:
+            raise ValueError(
+                f"SignatureCase.delayed_signal_count must be >= 0, "
+                f"got {self.delayed_signal_count!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Knowledge seeds (compile to vz-application DomainKnowledgeRecord; packet 1.4a)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class KnowledgeSeed:
+    """Reviewed knowledge / value / persona statement carried by a protocol.
+
+    Compiled (packet 1.4a+) into the consumer-side
+    ``domain_knowledge`` store via
+    ``compile_protocol_to_application_artifacts`` →
+    ``DomainKnowledgeRecord`` (in ``vz-application``).
+
+    Schema relationship to ``DomainKnowledgeRecord``:
+
+    * 1:1 lossless fields: ``domain``, ``title``, ``summary``,
+      ``snippet``, ``confidence``, ``evidence_strength``,
+      ``topic_tags``, ``source_type``, ``freshness_label``,
+      ``jurisdiction_tags``, ``conflict_markers``.
+    * Renames at compile time: ``seed_id`` → namespaced
+      ``record_id`` (``protocol:{protocol_id}:knowledge:{seed_id}``);
+      ``evidence_locator`` → ``locator`` (same role, vertical name).
+    * ``url``: derived from ``BehaviorProtocol.source_locator`` at
+      compile time (matches vertical's
+      ``DomainKnowledgeRecord.url = profile.source_uri`` choice).
+      ``KnowledgeSeed`` itself does NOT carry url; if a per-seed url
+      is needed, extend later (no current need).
+
+    Defaults align with ``GrowthAdvisorKnowledgeSeed`` so the
+    fixture conversion is lossless.
+    """
+
+    seed_id: str
+    domain: str
+    title: str
+    summary: str
+    snippet: str
+    evidence_locator: str
+    confidence: float
+    evidence_strength: str = "medium"
+    topic_tags: tuple[str, ...] = ()
+    source_type: str = "internal-guide"
+    freshness_label: str = "reviewed"
+    jurisdiction_tags: tuple[str, ...] = ()
+    conflict_markers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.seed_id.strip():
+            raise ValueError("KnowledgeSeed.seed_id must be non-empty")
+        if not self.domain.strip():
+            raise ValueError("KnowledgeSeed.domain must be non-empty")
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                f"KnowledgeSeed.confidence must be in [0, 1], "
+                f"got {self.confidence!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Protocol revision log
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProtocolRevision:
+    """Append-only record of one mutation to the protocol."""
+
+    revision_id: str
+    revised_at_tick: int
+    revised_by: str
+    description: str
+    affected_field: str
+
+    def __post_init__(self) -> None:
+        if not self.revision_id.strip():
+            raise ValueError("ProtocolRevision.revision_id must be non-empty")
+
+
+# ---------------------------------------------------------------------------
+# Top-level: BehaviorProtocol
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BehaviorProtocol:
+    """Reviewed, hot-loadable task configuration.
+
+    See ``docs/specs/protocol-runtime.md`` §BehaviorProtocol Schema.
+
+    Lifecycle: produced by a TaskUptake adapter (per-vertical
+    FixtureUptake in packet 1.0; lifeform-protocol-runtime
+    DocumentUptake in packet 1.1+); registered into
+    ``ProtocolRegistryModule`` via ``load_protocol``; published into
+    ``ActiveMixtureSnapshot`` each turn (SHADOW only in packet 1.0).
+
+    PE-signal invariant: every protocol must declare at least one
+    success and one failure signal so reflection / drives can learn
+    from it. Pure legacy fixtures with no drives may opt out via
+    ``legacy_fixture=True`` (packet 1.0 fixture conversion uses
+    drive-synthesis so this opt-out is rarely needed).
+    """
+
+    protocol_id: str
+    version: str
+    advisor_name: str
+    description: str
+    source_kind: ProtocolSourceKind
+    source_locator: str
+
+    identity_assertion: IdentityAssertion
+    boundary_contracts: tuple[BoundaryContract, ...]
+    activation_conditions: ActivationConditions
+    strategy_priors: tuple[StrategyPrior, ...]
+    temporal_arc: TemporalArc
+    success_signals: tuple[SuccessSignal, ...]
+    failure_signals: tuple[FailureSignal, ...]
+
+    knowledge_seeds: tuple[KnowledgeSeed, ...] = ()
+    signature_cases: tuple[SignatureCase, ...] = ()
+    parent_protocol_id: str | None = None
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    revision_log: tuple[ProtocolRevision, ...] = ()
+    legacy_fixture: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.protocol_id.strip():
+            raise ValueError("BehaviorProtocol.protocol_id must be non-empty")
+        if not self.version.strip():
+            raise ValueError("BehaviorProtocol.version must be non-empty")
+        if not self.advisor_name.strip():
+            raise ValueError("BehaviorProtocol.advisor_name must be non-empty")
+        if not self.source_locator.strip():
+            raise ValueError(
+                "BehaviorProtocol.source_locator must be non-empty"
+            )
+        _check_unique(
+            "boundary_contracts.boundary_id",
+            tuple(b.boundary_id for b in self.boundary_contracts),
+        )
+        _check_unique(
+            "strategy_priors.rule_id",
+            tuple(s.rule_id for s in self.strategy_priors),
+        )
+        _check_unique(
+            "success_signals.signal_id",
+            tuple(s.signal_id for s in self.success_signals),
+        )
+        _check_unique(
+            "failure_signals.signal_id",
+            tuple(s.signal_id for s in self.failure_signals),
+        )
+        _check_unique(
+            "knowledge_seeds.seed_id",
+            tuple(s.seed_id for s in self.knowledge_seeds),
+        )
+        _check_unique(
+            "signature_cases.case_id",
+            tuple(c.case_id for c in self.signature_cases),
+        )
+        _check_unique(
+            "revision_log.revision_id",
+            tuple(r.revision_id for r in self.revision_log),
+        )
+        if not self.legacy_fixture:
+            if not self.success_signals:
+                raise ValueError(
+                    "BehaviorProtocol.success_signals must be non-empty "
+                    "(set legacy_fixture=True to opt out for pure-legacy "
+                    "fixtures with no drives / no PE entry)."
+                )
+            if not self.failure_signals:
+                raise ValueError(
+                    "BehaviorProtocol.failure_signals must be non-empty "
+                    "(set legacy_fixture=True to opt out for pure-legacy "
+                    "fixtures with no drives / no PE entry)."
+                )
+
+
+# ---------------------------------------------------------------------------
+# Active mixture snapshot
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ActivationReason:
+    """Per-protocol breakdown of why this activation_weight was chosen."""
+
+    kind: ActivationReasonKind
+    contribution: float
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class ActiveProtocolEntry:
+    """One row of the ``ActiveMixtureSnapshot.active_protocols`` tuple."""
+
+    protocol_id: str
+    activation_weight: float
+    current_phase_id: str | None = None
+    activation_reasons: tuple[ActivationReason, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.protocol_id.strip():
+            raise ValueError(
+                "ActiveProtocolEntry.protocol_id must be non-empty"
+            )
+        if not 0.0 <= self.activation_weight <= 1.0:
+            raise ValueError(
+                f"ActiveProtocolEntry.activation_weight must be in [0, 1], "
+                f"got {self.activation_weight!r}"
+            )
+
+
+@dataclass(frozen=True)
+class ActiveMixtureSnapshot:
+    """Per-turn published value of the ``active_mixture`` slot.
+
+    Owner: ``volvence_zero.protocol_runtime.ProtocolRegistryModule``
+    in ``vz-cognition``. Default wiring level: SHADOW (packet 1.0 —
+    no consumer reads this slot yet).
+
+    Content vs config boundary (packet 1.2+ Choice A — locked in):
+
+    The snapshot publishes **IDs and weights only**, not boundary /
+    strategy / case content bodies. Canonical content lives in the
+    existing application owners (``boundary_policy`` /
+    ``strategy_playbook`` / ``case_memory`` / ``domain_knowledge``)
+    and is populated by the protocol load-time compile path
+    (see ``volvence_zero.protocol_runtime.compiler``). Consumers
+    treat ``active_mixture`` as a *configuration / weighting layer*
+    and read execution content from those existing owners. This
+    pins the R8 single-owner invariant: ProtocolRuntime is **not**
+    a second owner of boundary / strategy / case content.
+
+    Consumers (when wired in later packets):
+    - ``boundary_policy``: reads its own ``ApplicationRareHeavyState
+      .boundary_prior_hints`` (where the protocol compile path
+      pushed entries) — does NOT read ``active_mixture`` directly
+      for boundary content
+    - ``metacontroller`` (vz-temporal): reads
+      ``active_protocols[*].activation_weight`` → biases z_t
+      selection alongside strategy_priors content from
+      ``strategy_playbook``
+    - ``strategy_playbook``: receives compiled ``PlaybookRule``
+      entries (packet 1.3+); reads ``active_protocols[*]
+      .activation_weight`` → weights retrieval mix
+    - ``vitals``: reads ``active_protocols[*].current_phase_id`` →
+      adjusts drive expected_band per phase
+    """
+
+    active_protocols: tuple[ActiveProtocolEntry, ...]
+    boundary_union_ids: tuple[str, ...]
+    identity_gate_traits: tuple[str, ...] = ()
+    revision_fingerprint: str = ""
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        _check_unique(
+            "active_protocols.protocol_id",
+            tuple(a.protocol_id for a in self.active_protocols),
+        )
+        _check_unique(
+            "boundary_union_ids",
+            self.boundary_union_ids,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Helpers (private)
+# ---------------------------------------------------------------------------
+
+
+def _check_unique(field_name: str, values: tuple[str, ...]) -> None:
+    if len(set(values)) != len(values):
+        raise ValueError(
+            f"{field_name} values must be unique, got {values!r}"
+        )
+
+
+__all__ = [
+    "ActiveMixtureSnapshot",
+    "ActiveProtocolEntry",
+    "ActivationConditions",
+    "ActivationReason",
+    "ActivationReasonKind",
+    "BehaviorProtocol",
+    "BehaviorProtocolSignalSource",
+    "BoundaryContract",
+    "BoundarySeverity",
+    "ContextMatchSignal",
+    "DriveExpectation",
+    "FailureSignal",
+    "IdentityAssertion",
+    "KnowledgeSeed",
+    "ProgressionSignal",
+    "ProtocolRevision",
+    "ProtocolSourceKind",
+    "ReviewLevel",
+    "ReviewStatus",
+    "SignatureCase",
+    "StrategyPrior",
+    "StrategyPriorRevision",
+    "SuccessSignal",
+    "TemporalArc",
+    "TemporalPhase",
+]

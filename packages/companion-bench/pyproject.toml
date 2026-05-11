@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companion-bench"
+version = "1.0.0a0"
+description = "Companion Bench (Long-Session Companion Benchmark) reference implementation. Evaluates any OpenAI-compatible chat endpoint on multi-session companion arcs across six axes (continuity, repair, personalization, long-absence, boundary, goal-drift). Previously circulated as LSCB; see docs/external/companion-bench-rfc-v0.md for the methodology RFC."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Companion Bench Contributors" }]
+keywords = ["benchmark", "evaluation", "companion-ai", "long-session", "companion-bench", "lscb"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "pyyaml>=6.0",
+    "trueskill>=0.4.5",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+companion-bench = "companion_bench.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["companion_bench*"]
+
+[tool.setuptools.package-data]
+companion_bench = ["scenarios/public/*.yaml", "scenarios/public/**/*.yaml"]

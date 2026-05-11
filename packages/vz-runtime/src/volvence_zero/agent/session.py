@@ -128,6 +128,7 @@ from volvence_zero.prediction.error import (
     PredictionErrorSnapshot,
 )
 from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
+from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
 from volvence_zero.rupture_state import RuptureStateSnapshot
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -452,6 +453,7 @@ class AgentSessionRunner(
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         default_residual_runtime: OpenWeightResidualRuntime | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
+        identity_seed: IdentitySeed | None = None,
         substrate_model_id: str = "distilgpt2",
         substrate_model_source: str | None = None,
         substrate_device: str = "auto",
@@ -588,6 +590,12 @@ class AgentSessionRunner(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
             bootstrap=regime_bootstrap,
         )
+        # Behavior Protocol Runtime packet 1.3''' (production wiring of
+        # 1.3'' machinery): the identity seed flows through to
+        # ``run_final_wiring_turn`` each turn, populating
+        # ``DualTrackSnapshot.self_track.traits`` for the protocol
+        # identity gate.
+        self._identity_seed = identity_seed
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
         )
@@ -866,6 +874,7 @@ class AgentSessionRunner(
                 substrate_self_mod_pe_magnitude=self._previous_prediction_magnitude,
                 substrate_self_mod_pe_reward=self._previous_prediction_reward,
                 substrate_self_mod_pe_threshold=self._joint_schedule.pe_substrate_online_fast_threshold,
+                identity_seed=self._identity_seed,
             )
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
             self._upstream_snapshots = {

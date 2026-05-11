@@ -38,6 +38,9 @@ from lifeform_domain_growth_advisor.compiler import (
     build_growth_advisor_package,
     build_growth_advisor_vitals_bootstrap,
 )
+from lifeform_domain_growth_advisor.identity_seed import (
+    build_growth_advisor_identity_seed,
+)
 from lifeform_domain_growth_advisor.profile import GrowthAdvisorProfile
 
 
@@ -66,6 +69,7 @@ def build_growth_advisor_lifeform(
         IngestionComplianceProfile.FORCED
     ),
     use_vitals_bootstrap: bool = True,
+    use_identity_seed: bool = True,
     memory_store: MemoryStore | None = None,
     substrate_runtime: Any = None,
     substrate_adapter_factory: Any = None,
@@ -146,6 +150,16 @@ def build_growth_advisor_lifeform(
         base_config = base_config.with_vitals(
             build_growth_advisor_vitals_bootstrap(profile)
         )
+    if use_identity_seed:
+        # Behavior Protocol Runtime packet 1.3''': identity seed
+        # automatically threads through Lifeform → Brain →
+        # AgentSessionRunner → run_final_wiring_turn → DualTrackModule,
+        # so the protocol identity gate's self-trait branch (R7)
+        # actually fires for the canonical archetype traits without
+        # the user having to wire it manually.
+        base_config = base_config.with_identity_seed(
+            build_growth_advisor_identity_seed(profile)
+        )
     lifeform_kwargs: dict[str, Any] = {"memory_store": memory_store}
     if substrate_runtime is not None:
         lifeform_kwargs["substrate_runtime"] = substrate_runtime
@@ -179,6 +193,7 @@ def build_cheng_laoshi_lifeform(
     config: LifeformConfig | None = None,
     sample_excerpt: str | None = None,
     use_vitals_bootstrap: bool = True,
+    use_identity_seed: bool = True,
     memory_store: MemoryStore | None = None,
     substrate_runtime: Any = None,
     substrate_adapter_factory: Any = None,
@@ -205,6 +220,7 @@ def build_cheng_laoshi_lifeform(
         config=config,
         sample_excerpt=sample_excerpt,
         use_vitals_bootstrap=use_vitals_bootstrap,
+        use_identity_seed=use_identity_seed,
         memory_store=memory_store,
         substrate_runtime=substrate_runtime,
         substrate_adapter_factory=substrate_adapter_factory,

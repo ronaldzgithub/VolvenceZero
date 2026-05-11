@@ -33,7 +33,7 @@
 | 我是研究者 / 论文复现者 | 重点读第 5（七大机制）+ 第 8、9（端到端走一遍）+ 附录 |
 | 我做平台 / 多租户接入（DLaaS） | 重点读 §6.6 + §11.5；spec：`docs/specs/dlaas-platform.md` |
 | 我做新 vertical（character / figure / growth-advisor 类） | 重点读 §6.4 + §6.5 + §11.6 |
-| 我做对外 benchmark / arena | 重点读 §6.7 + §11.7；RFC：`docs/external/lscb-rfc-v0.md` |
+| 我做对外 benchmark / arena | 重点读 §6.7 + §11.7；RFC：`docs/external/companion-bench-rfc-v0.md` |
 
 **读完后你应该能用一段话回答**："VolvenceZero 是一个怎样的系统？它和 ChatGPT / Agent / RAG 有什么本质区别？"
 
@@ -1012,7 +1012,7 @@ DriveSpec(
 - 公共类：`ChatCompletionRequest` / `ChatCompletionResponse` / `LifeformCompletionResult` / `add_openai_routes`
 - 这样 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 可以把我们当作一个普通的 OpenAI endpoint 调用，零改造
 
-**Outbound（系统 → 外部）**：`lscb-bench`（Long-Session Companion Benchmark）
+**Outbound（系统 → 外部）**：`companion-bench`（Long-Session Companion Benchmark）
 
 我们对外发布的开源基准（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现：
 
@@ -1025,18 +1025,18 @@ DriveSpec(
 | A5 Self-coherence | 0.10 | 身份稳定性、避免自相矛盾 |
 | A6 Safety / boundaries | 0.20 | 社交压力下的边界维持（**hard-cap 轴**） |
 
-打分：6.4 加权几何平均 + A6 cap；ELO：TrueSkill + Bradley-Terry；scenarios：24 公开（in-repo `scenarios/public/`）+ 96 私有 held-out（`external/lscb-heldout/` git submodule）。
+打分：6.4 加权几何平均 + A6 cap；ELO：TrueSkill + Bradley-Terry；scenarios：24 公开（in-repo `scenarios/public/`）+ 96 私有 held-out（`external/companion-bench-heldout/` git submodule）。
 
 #### 🧬 代码与论文锚点
 
-- 实现：`packages/lifeform-openai-compat/` + `packages/lscb-bench/`
-- 公开 RFC：`docs/external/lscb-rfc-v0.md`
+- 实现：`packages/lifeform-openai-compat/` + `packages/companion-bench/`
+- 公开 RFC：`docs/external/companion-bench-rfc-v0.md`
 - 对外提交协议：`docs/external/eqbench3-*` 文档族
-- CLI：`lscb-bench run --submission examples/submission.yaml --output artifacts/lscb/`
+- CLI：`lscb-bench run --submission examples/submission.yaml --output artifacts/companion-bench/`
 
 #### 📌 不变量（CI 强制）
 
-1. `lscb-bench` **完全不 import** 任何 `volvence_zero.*` / `lifeform_*`（CI 守门 `tests/contracts/test_lscb_bench_no_internal_imports.py`）—— 它是中立第三方工具，可被任何外部团队下载独立运行
+1. `companion-bench` **完全不 import** 任何 `volvence_zero.*` / `lifeform_*`（CI 守门 `tests/contracts/test_lscb_bench_no_internal_imports.py`）—— 它是中立第三方工具，可被任何外部团队下载独立运行
 2. `lifeform-openai-compat` 只能 import `lifeform_service` + 标准库 + `aiohttp`，**禁止**直接 import `volvence_zero.*` kernel 子包或 `lifeform_domain_*` vertical
 3. `lifeform-openai-compat` **read-only**：从不调下划线方法、从不改 owner snapshot
 4. 外部 ELO / 排名 / pairwise 偏好属于 R12 readout——**禁止反向**作为 reward 写回学习管线
@@ -1045,7 +1045,7 @@ DriveSpec(
 #### ❌ 常见误解
 
 - "LSCB 是给 VolvenceZero 做的内部工具？" —— 不是。它是**对外公开**的 benchmark，可以被 GPT / Claude / Gemini / 国内任意厂商的 OpenAI-compatible endpoint 调用打分。
-- "为什么不让 LSCB 直接读内核状态？这样不是更准吗？" —— 因为这就违反了"system-agnostic"的承诺。LSCB 的整个价值在于它**完全只看输入输出**，跟实现完全解耦——这才是公平基准。
+- "为什么不让 Companion Bench 直接读内核状态？这样不是更准吗？" —— 因为这就违反了"system-agnostic"的承诺。LSCB 的整个价值在于它**完全只看输入输出**，跟实现完全解耦——这才是公平基准。
 
 ---
 
@@ -1130,7 +1130,7 @@ VolvenceZero/
 | 跑训练 / 预训练 bootstraps | `lifeform-super-loop --vertical ...` | `lifeform-evolution` CLI |
 | 起服务 | aiohttp service | `lifeform-service` |
 | 让外部 OpenAI 客户端调用 | `add_openai_routes(app, session_manager)` | `lifeform-openai-compat` |
-| 跑外发 benchmark（自家 or 别家） | `lscb-bench run --submission examples/submission.yaml --output artifacts/lscb/` | `lscb-bench` CLI |
+| 跑外发 benchmark（自家 or 别家） | `lscb-bench run --submission examples/submission.yaml --output artifacts/companion-bench/` | `companion-bench` CLI |
 | 启动多租户平台 | `dlaas-platform-api` aiohttp router + `dlaas-platform-launcher.InstanceManager` | `dlaas-platform-*` |
 | 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
 | 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
@@ -1413,8 +1413,8 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 
 **A**: wheel 切分有四个目的：
 - **R8 工程纪律**：wheel 边界 = 模块边界 = 数据契约边界
-- **未来分裂**：当 vertical 数量起来，可以无痛把 `lifeform-domain-*` / `dlaas-platform-*` / `lscb-bench` 拆到独立仓库（详见 `SPLIT.md`）
-- **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `lscb-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `lscb-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
+- **未来分裂**：当 vertical 数量起来，可以无痛把 `lifeform-domain-*` / `dlaas-platform-*` / `companion-bench` 拆到独立仓库（详见 `SPLIT.md`）
+- **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `companion-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `lscb-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
 - **多速演进**：内核稳定（半年级别）、生命体中速（月级别）、平台治理快速（周级别）、外发 benchmark 独立时间线——一个仓库做不到这种节奏分层
 
 截至 2026-05-10 共 25 wheel：内核 7 + 生命体 12 + 平台 6 + 外发基准 1。
@@ -1503,14 +1503,14 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 
 ### 11.7 我做"用第三方 benchmark 评我们"或"提交我们的对外基准"
 
-**目标**：让外部 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等用同口径评分；或让外部团队在 LSCB 上提交分数。
+**目标**：让外部 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等用同口径评分；或让外部团队在 Companion Bench 上提交分数。
 
 下一步：
-1. 读 `docs/external/lscb-rfc-v0.md` —— LSCB 公开方法学 RFC
+1. 读 `docs/external/companion-bench-rfc-v0.md` —— Companion Bench 公开方法学 RFC
 2. 读 `docs/external/eqbench3-*` —— EQ-Bench 3 提交 / 盲评协议
 3. 看 `lifeform-openai-compat` 的 README + `add_openai_routes` —— 把系统包成 OpenAI endpoint
-4. 看 `lscb-bench` 的 README + `examples/submission.yaml` —— 跑对外基准
-5. 关注 `tests/contracts/test_lscb_bench_no_internal_imports.py` —— 这是 LSCB 系统无关性的 CI 守门
+4. 看 `companion-bench` 的 README + `examples/submission.yaml` —— 跑对外基准
+5. 关注 `tests/contracts/test_lscb_bench_no_internal_imports.py` —— 这是 Companion Bench 系统无关性的 CI 守门
 
 ---
 

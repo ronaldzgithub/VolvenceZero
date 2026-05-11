@@ -543,17 +543,17 @@
 **工程挑战**：
 
 - **OpenAI 兼容 facade**（`lifeform-openai-compat`）：把 OpenAI `POST /v1/chat/completions` 翻译成既有的 stateful `POST /v1/sessions/{id}/turns`；提供 stateless / sticky session / raw substrate passthrough 三种模式；**read-only**——禁止调任何下划线方法、禁止改 owner snapshot
-- **外发 benchmark**（`lscb-bench`）：评估**任意** OpenAI-compatible chat endpoint，6 轴打分（A1 任务 / A2 交互质量 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 是 hard-cap 轴）；6.4 加权几何平均 + A6 cap；TrueSkill + Bradley-Terry elo；24 个公开 scenario + 96 个私有 held-out（git submodule）
-- **system-agnostic**：`lscb-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../../tests/contracts/test_lscb_bench_no_internal_imports.py) 中被 CI 强制不 import 任何 `volvence_zero.*` 或 `lifeform_*`——它是中立第三方工具
+- **外发 benchmark**（`companion-bench`）：评估**任意** OpenAI-compatible chat endpoint，6 轴打分（A1 任务 / A2 交互质量 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 是 hard-cap 轴）；6.4 加权几何平均 + A6 cap；TrueSkill + Bradley-Terry elo；24 个公开 scenario + 96 个私有 held-out（git submodule）
+- **system-agnostic**：`companion-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../../tests/contracts/test_lscb_bench_no_internal_imports.py) 中被 CI 强制不 import 任何 `volvence_zero.*` 或 `lifeform_*`——它是中立第三方工具
 
 **关键不变量**：
 
 - `lifeform-openai-compat` 只 import `lifeform_service` + 标准库 + `aiohttp`，**禁止**直接 import `volvence_zero.*` kernel 子包或 `lifeform_domain_*` vertical
 - `lifeform-openai-compat` read-only：从不调下划线方法、从不改 owner snapshot、从不绕过 `SessionManager` 触达 Lifeform private modules
-- `lscb-bench` 完全无 `volvence_zero.*` / `lifeform_*` import，可被任何外部团队下载独立运行
+- `companion-bench` 完全无 `volvence_zero.*` / `lifeform_*` import，可被任何外部团队下载独立运行
 - 外部 benchmark / arena 输出的 ELO / 排名 / pairwise 偏好属于 R12 readout，**禁止反向**作为 reward 写回学习管线
 
-**当前已实现**：`lscb-bench` v1.0 reference implementation（24 公开 scenarios + 14 模块，包含 user_simulator / arc_runner / callback_ledger / disqualifier / judge_perturn / judge_arc / aggregator / elo / verifier / cost / cli）；`lifeform-openai-compat` 4 packet 全到位（DTO / raw-substrate / session-bridge / `add_openai_routes`）。
+**当前已实现**：`companion-bench` v1.0 reference implementation（24 公开 scenarios + 14 模块，包含 user_simulator / arc_runner / callback_ledger / disqualifier / judge_perturn / judge_arc / aggregator / elo / verifier / cost / cli）；`lifeform-openai-compat` 4 packet 全到位（DTO / raw-substrate / session-bridge / `add_openai_routes`）。
 
 ## 6. 必要脚手架
 
@@ -599,27 +599,27 @@
 |------|------------|------|------|
 | 内核 | `vz-*` | NL+ETA contracts、owners、学习循环；零产品知识 | 7 |
 | 数字生命体 | `lifeform-*` | tick / vitals / 表达 / 思考 / affordance / ingestion / 垂直 vertical / 服务 / 进化（benchmark + 训练）/ OpenAI 兼容 facade | 12 |
-| 平台治理与外部接入 | `dlaas-platform-*`、`lscb-bench` | 多租户控制平面 + 多渠道 envelope；外发 benchmark | 6 + 1 |
+| 平台治理与外部接入 | `dlaas-platform-*`、`companion-bench` | 多租户控制平面 + 多渠道 envelope；外发 benchmark | 6 + 1 |
 
 具体 wheel：
 
 - **内核（`vz-*`，7）**：`vz-contracts` / `vz-substrate` / `vz-cognition` / `vz-temporal` / `vz-memory` / `vz-application` / `vz-runtime`
 - **数字生命体（`lifeform-*`，12）**：`lifeform-core` / `lifeform-expression` / `lifeform-thinking` / `lifeform-affordance` / `lifeform-ingestion` / `lifeform-service` / `lifeform-evolution` / `lifeform-openai-compat` / `lifeform-domain-emogpt` / `lifeform-domain-coding` / `lifeform-domain-character` / `lifeform-domain-figure` / `lifeform-domain-growth-advisor`（5 个并列 vertical + 7 个公共）
 - **平台治理（`dlaas-platform-*`，6）**：`dlaas-platform-contracts` / `dlaas-platform-registry` / `dlaas-platform-launcher` / `dlaas-platform-api` / `dlaas-platform-ops` / `dlaas-platform-eval`
-- **外发 benchmark（system-agnostic，1）**：`lscb-bench`
+- **外发 benchmark（system-agnostic，1）**：`companion-bench`
 
 **关键不变量**：
 
-- `vz-*` 不得 import `lifeform-*` / `dlaas-platform-*` / `lscb-bench`，由 `tests/contracts/test_import_boundaries.py` 强制
+- `vz-*` 不得 import `lifeform-*` / `dlaas-platform-*` / `companion-bench`，由 `tests/contracts/test_import_boundaries.py` 强制
 - `dlaas-platform-*` 不得 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*` 或 `lifeform_domain_*` 内部，只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口接入
 - `lifeform-openai-compat` 只能 import `lifeform_service` + stdlib + `aiohttp`；禁止下划线方法 / owner snapshot mutation
-- `lscb-bench` 不得 import 任何 `volvence_zero.*` / `lifeform_*`（system-agnostic 第三方工具）
+- `companion-bench` 不得 import 任何 `volvence_zero.*` / `lifeform_*`（system-agnostic 第三方工具）
 - 五个 `lifeform-domain-*` vertical 互不 import（`PARALLEL_VERTICAL_PAIRS`）
 - 跨 wheel 依赖必须同时在 `pyproject.toml` 与 `ALLOWED_VZ_UPSTREAM` 中声明
 - 不允许 `shared/` 目录；公共原语只能放在 `vz-contracts`
 - 顶层 `pyproject.toml` 是 workspace meta；根目录不放业务代码
 
-**Phase 2（仓库分裂）触发条件**与时间线见 `SPLIT.md`。截至 2026-05-10，触发条件 ② "第二个产品消费者" 已经 **MET**（5 个并列 `lifeform-domain-*` vertical 共存）；同时新增的 `dlaas-platform-*` + `lscb-bench` 进一步压力测试了"内核 0 改动 + 平台 / 外发 benchmark 独立演进"。下一步关注的是触发条件 ① "契约表面稳定 ≥ 4 周"，由 `docs/specs/evaluation.md` 与 `docs/DATA_CONTRACT.md` 的演进节奏决定。
+**Phase 2（仓库分裂）触发条件**与时间线见 `SPLIT.md`。截至 2026-05-10，触发条件 ② "第二个产品消费者" 已经 **MET**（5 个并列 `lifeform-domain-*` vertical 共存）；同时新增的 `dlaas-platform-*` + `companion-bench` 进一步压力测试了"内核 0 改动 + 平台 / 外发 benchmark 独立演进"。下一步关注的是触发条件 ① "契约表面稳定 ≥ 4 周"，由 `docs/specs/evaluation.md` 与 `docs/DATA_CONTRACT.md` 的演进节奏决定。
 
 ## 7. 算法基础映射
 
@@ -758,18 +758,18 @@
 
 **对应能力域**：5.10
 
-### M9: 外部 Benchmark / Arena 接入 + 自发 LSCB ✅
+### M9: 外部 Benchmark / Arena 接入 + 自发 Companion Bench ✅
 
 **交付**：
 - `lifeform-openai-compat`：4 packet 全到位（DTO / raw-substrate / session-bridge / `add_openai_routes`），三种模式（stateless / sticky session / raw substrate passthrough）
-- `lscb-bench` v1.0 reference implementation：6 轴打分 + 6.4 加权几何平均 + A6 hard-cap + TrueSkill / BT elo + 24 公开 + 96 私有 held-out（git submodule）+ Apache 2.0 对外开源
+- `companion-bench` v1.0 reference implementation：6 轴打分 + 6.4 加权几何平均 + A6 hard-cap + TrueSkill / BT elo + 24 公开 + 96 私有 held-out（git submodule）+ Apache 2.0 对外开源
 
 **验证**：
 - 系统能被 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等外部 harness 当成普通 OpenAI endpoint 调用
-- `lscb-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py) 强制零内核 import，可被任何外部团队下载独立运行
+- `companion-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py) 强制零内核 import，可被任何外部团队下载独立运行
 - 外部 ELO / 排名 / pairwise 偏好不进 reward 路径（仅 R12 readout）
 
-**当前状态**：已交付。`lscb-bench` 已发布 1.0a0；`docs/external/lscb-rfc-v0.md` 是公开 RFC；`docs/external/eqbench3-*` 文档族提供对外提交与盲评协议。
+**当前状态**：已交付。`companion-bench` 已发布 1.0a0；`docs/external/companion-bench-rfc-v0.md` 是公开 RFC；`docs/external/eqbench3-*` 文档族提供对外提交与盲评协议。
 
 **对应能力域**：5.11
 
@@ -801,11 +801,11 @@
 - **R12 6 族评估接到 lifeform CLI**：`lifeform-bench --family-report` / `--family-report-json` / `--require-family-pass` 把 `BenchmarkReport` 原始指标按 6 族（F1 任务 / F2 交互 / F3 关系 / F4 学习 / F5 抽象 / F6 安全）分组发布；`--vertical {companion,coding,…}` 一键选择 vertical 的 scenarios + DomainExperiencePackage + 预训练 artefacts。
 - **multi-round 加 delta-vs-baseline acceptance**：`run_multi_round_loop` 发布 `RoundQualityMetrics` + `RoundDeltaVsBaseline`，对 round 0（弱基线）发布显式 delta；新增 `improved_regime_match_vs_baseline` / `improved_pe_recovery_vs_baseline` / `found_pe_aligned_improvement_round` 三条 acceptance verdict 与原有结构性 verdict 解耦；CLI 提供 `--require-improvement-vs-baseline` fail-closed gate。
 
-### 平台治理与外部接入层（`dlaas-platform-*` + `lscb-bench` + `lifeform-openai-compat`）已上线
+### 平台治理与外部接入层（`dlaas-platform-*` + `companion-bench` + `lifeform-openai-compat`）已上线
 
 - **DLaaS 多渠道平台**：6 个 `dlaas-platform-*` wheel × 7 切片完成。typed `InteractionEnvelope` 7 类（chat / observe / feedback / teach / task / report / command）全 dispatch；control plane 持久化（tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket）；ops（pause / resume / operator-message / handoff queue / SSE conversations stream）；eval gate（audience / exam / launch license，仅 readout）；`OutputAct` shell-aware degrade。**vz-* 内核 7 个 wheel 全程零改动**。
 - **OpenAI 兼容 façade**：`lifeform-openai-compat` 把 `POST /v1/chat/completions` 翻译成既有 stateful `POST /v1/sessions/{id}/turns`；三种模式（stateless / sticky session / raw substrate passthrough）；read-only 不改 owner snapshot；可被 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 当作普通 OpenAI endpoint 使用。
-- **外发 LSCB 基准**：`lscb-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py)）。
+- **外发 Companion Bench 基准**：`companion-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py)）。
 - **figure / character / growth-advisor 三个新 vertical 联动验证**：figure 的 L1/L2 corpus 管线 + character 的 reviewed `CharacterSoulProfile` + growth-advisor 的 7 天 playbook 漂移，三种"非简单 chat archetype"在同一组 application owner 表面落地，证明 vertical = data + light glue 在更广领域成立。
 
 ### 部分实现 / 仍受 gate 约束的部分
@@ -821,7 +821,7 @@
 - `rare-heavy` 还不是完整的基础模型持续预训练 / 蒸馏管线；当前是 owner-aware adapter-delta + offline pipeline；figure vertical 的 persona LoRA 训练（F6 packet）要求 `validation_delta ≥ 0.05` + `is_reversible=True` + 非空 `rollback_evidence`，仍走 `ModificationGate.OFFLINE`。
 - 独立的 session-post async slow reflection worker / queue 已经是默认主路径，但跨 session 的长期 background daemon（机器级而非 session 级）尚未拉成默认形态。
 - DLaaS 平台层：所有 packet 落地，但 `dlaas-platform-*` 端点目前默认 `SHADOW`，老 `/v1/sessions/...` 是 ACTIVE 主路径（保留 ≥ 1 个 release cycle）。
-- LSCB held-out 96 个 scenarios 在私有 git submodule (`external/lscb-heldout/`)，公开 PR / 外部贡献者只跑 24 个公开 scenarios。
+- Companion Bench held-out 96 个 scenarios 在私有 git submodule (`external/companion-bench-heldout/`)，公开 PR / 外部贡献者只跑 24 个公开 scenarios。
 - `SPLIT.md` Phase 2（仓库分裂）尚未触发；当前仍是单 monorepo + 多 wheel（25 wheel），需要触发条件 ① 契约稳定 ≥ 4 周再走 mechanical split。
 
 ## 11. 仓库结构与 wheel 边界（25 wheel）
@@ -856,7 +856,7 @@
 | 垂直（真实人物） | `lifeform-domain-figure` | 一手资料 → `FigureArtifactBundle`；L1/L2 corpus cleaning + verification + L3/L4 retrieval / coverage |
 | 垂直（私域 LTV） | `lifeform-domain-growth-advisor` | reviewed `GrowthAdvisorProfile` + 7 天 playbook 漂移 |
 
-### 平台治理与外部接入（`dlaas-platform-*` + `lscb-bench`，6 + 1）
+### 平台治理与外部接入（`dlaas-platform-*` + `companion-bench`，6 + 1）
 
 | 层 | wheel | 角色 |
 |----|-------|------|
@@ -866,14 +866,14 @@
 | HTTP 入口 | `dlaas-platform-api` | aiohttp `/dlaas/*` router + `OutputAct` 包装 + shell embodiment-aware degrade |
 | Ops | `dlaas-platform-ops` | pause / resume / operator-message / handoff queue（读 `rupture_state`）/ SSE conversations stream |
 | Eval gate | `dlaas-platform-eval` | audience 分析 / exam runs / launch license（仅 readout） |
-| 外发基准 | `lscb-bench` | 系统无关的 6 轴 long-session companion benchmark（24 公开 + 96 私有 held-out）；Apache 2.0 |
+| 外发基准 | `companion-bench` | 系统无关的 6 轴 long-session companion benchmark（24 公开 + 96 私有 held-out）；Apache 2.0 |
 
 CI 强制四条边界：
 
 1. `vz-* ↛ lifeform-*`
 2. `vz-* ↛ dlaas-platform-*`
 3. `dlaas-platform-* ↛ volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`
-4. `lscb-bench` ↛ 任何 `volvence_zero.*` / `lifeform_*`
+4. `companion-bench` ↛ 任何 `volvence_zero.*` / `lifeform_*`
 
 跨 wheel 依赖必须同时在 `pyproject.toml` 与 `tests/contracts/test_import_boundaries.py:ALLOWED_VZ_UPSTREAM` 中声明。
 
@@ -896,7 +896,7 @@ CI 强制四条边界：
 | `docs/specs/figure-corpus-verification.md` | figure L2：7 `CheckKind` 关闭枚举 + `VerificationLedger` |
 | `docs/specs/dlaas-platform.md` | DLaaS 多渠道控制平面 spec（6 wheel + 8 不变量） |
 | `docs/moving forward/dlaas-platform-rollout.md` | DLaaS 7 切片落地路线 |
-| `docs/external/lscb-rfc-v0.md` | LSCB v0 公开 RFC（6 轴方法学） |
+| `docs/external/companion-bench-rfc-v0.md` | Companion Bench v0 公开 RFC（6 轴方法学） |
 | `docs/external/eqbench3-*` | 对外 EQ-Bench 3 提交 / 盲评协议 |
 | `docs/specs/core-package-boundary.md` | volvence-zero core package 边界、stable Brain API、HF optional runtime |
 | `docs/SYSTEM_DESIGN.md`   | 系统架构、模块职责、数据流、迁移策略           |

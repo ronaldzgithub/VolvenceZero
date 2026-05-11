@@ -27,6 +27,7 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentOutcome,
 )
+from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.memory import (
     AnonymousIdentityProvider,
@@ -355,6 +356,7 @@ class Brain:
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
+        identity_seed: IdentitySeed | None = None,
         memory_store: MemoryStore | None = None,
         identity_provider: IdentityProvider | None = None,
     ) -> None:
@@ -365,6 +367,7 @@ class Brain:
         self._semantic_proposal_runtime = semantic_proposal_runtime
         self._temporal_bootstrap = temporal_bootstrap
         self._regime_bootstrap = regime_bootstrap
+        self._identity_seed = identity_seed
         self._memory_store = memory_store
         # Rupture-and-Repair M4: identity provider resolves
         # ``session_id`` into an optional ``UserIdentity``. Default is
@@ -388,6 +391,17 @@ class Brain:
         """The calibrated regime selection-weights bootstrap, if injected."""
         return self._regime_bootstrap
 
+    @property
+    def identity_seed(self) -> IdentitySeed | None:
+        """Lifeform-level identity descriptors fed to ``DualTrackModule``.
+
+        See ``docs/specs/protocol-runtime.md`` checklist condition 1
+        and ``vz-contracts.identity_seed.IdentitySeed``. Pairs with
+        the protocol identity-gate's self-trait branch.
+        """
+
+        return self._identity_seed
+
     def _clone_kwargs(self) -> dict[str, object]:
         return {
             "substrate_runtime": self._injected_runtime,
@@ -396,6 +410,7 @@ class Brain:
             "semantic_proposal_runtime": self._semantic_proposal_runtime,
             "temporal_bootstrap": self._temporal_bootstrap,
             "regime_bootstrap": self._regime_bootstrap,
+            "identity_seed": self._identity_seed,
             "memory_store": self._memory_store,
             "identity_provider": self._identity_provider,
         }
@@ -434,6 +449,21 @@ class Brain:
         """
         kwargs = self._clone_kwargs()
         kwargs["regime_bootstrap"] = bootstrap
+        return Brain(self._config, **kwargs)
+
+    def with_identity_seed(
+        self,
+        seed: IdentitySeed | None,
+    ) -> Brain:
+        """Return a clone of this Brain with the given identity seed.
+
+        Pass ``None`` to drop the seed; sessions then publish empty
+        ``self_track.traits`` and the protocol identity gate falls
+        back to the populator-pending SHADOW path.
+        """
+
+        kwargs = self._clone_kwargs()
+        kwargs["identity_seed"] = seed
         return Brain(self._config, **kwargs)
 
     def create_session(
@@ -490,6 +520,7 @@ class Brain:
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
+            identity_seed=self._identity_seed,
             memory_store=session_memory_store,
             allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
             user_scope=user_scope,

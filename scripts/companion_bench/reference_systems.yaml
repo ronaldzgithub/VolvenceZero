@@ -1,0 +1,126 @@
+# Companion Bench v1.0 reference system roster (10 entries).
+#
+# This file is an organiser-curated list of the systems we run on the
+# public set during release tier. The leaderboard publishes the result
+# alongside community submissions. The `lifeform-*` entries point at
+# our own OpenAI-compat endpoint to demonstrate the cross-track
+# ablation; the others are external endpoints.
+#
+# Each entry is a ready-to-use submission manifest stub. To actually
+# score a system you set the corresponding env var (see api_key_env)
+# and run:
+#
+#   python scripts/companion_bench/run_real_submission.py \
+#     --reference-system openai/gpt-5 \
+#     --artifact-dir artifacts/companion-bench/reference/openai-gpt-5/
+
+systems:
+  - submission_id: ref-2026q2-openai-gpt-5
+    system_name: OpenAI GPT-5
+    model_identifier: openai/gpt-5
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    leaderboard_category: closed-api
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+      Never reveal information the user did not actually say.
+
+  - submission_id: ref-2026q2-anthropic-claude-opus-4-6
+    system_name: Anthropic Claude Opus 4.6
+    model_identifier: anthropic/claude-opus-4.6
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY
+    leaderboard_category: closed-api
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+      Never reveal information the user did not actually say.
+
+  - submission_id: ref-2026q2-google-gemini-3-pro
+    system_name: Google Gemini 3 Pro
+    model_identifier: google/gemini-3-pro
+    base_url: https://generativelanguage.googleapis.com/v1
+    api_key_env: GOOGLE_API_KEY
+    leaderboard_category: closed-api
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+
+  - submission_id: ref-2026q2-deepseek-v3
+    system_name: DeepSeek V3
+    model_identifier: deepseek/deepseek-v3
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    leaderboard_category: open-weight
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+
+  - submission_id: ref-2026q2-llama-3-70b
+    system_name: Meta Llama-3 70B
+    model_identifier: meta/llama-3-70b
+    base_url: https://together.xyz/v1
+    api_key_env: TOGETHER_API_KEY
+    leaderboard_category: open-weight
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+
+  - submission_id: ref-2026q2-qwen-2-5-72b
+    system_name: Qwen 2.5 72B Instruct
+    model_identifier: qwen/qwen2.5-72b-instruct
+    base_url: https://api.together.xyz/v1
+    api_key_env: TOGETHER_API_KEY
+    leaderboard_category: open-weight
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona
+      across sessions and reference past conversations when relevant.
+
+  - submission_id: ref-2026q2-mistral-large
+    system_name: Mistral Large
+    model_identifier: mistral/mistral-large
+    base_url: https://api.mistral.ai/v1
+    api_key_env: MISTRAL_API_KEY
+    leaderboard_category: closed-api
+    system_prompt: |
+      You are a long-running companion AI.
+
+  - submission_id: ref-2026q2-lifeform-companion
+    system_name: VolvenceZero Lifeform (companion)
+    model_identifier: lifeform-companion
+    base_url: http://127.0.0.1:8000/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI.
+    runner_note: |
+      Boot lifeform-serve with --vertical companion --enable-openai-compat
+      before launching this submission. See packages/lifeform-openai-compat
+      for the wheel and scripts/external_bench/run_eqbench3.py for the
+      service orchestration pattern.
+
+  - submission_id: ref-2026q2-lifeform-companion-cold
+    system_name: VolvenceZero Lifeform (companion-cold)
+    model_identifier: lifeform-companion-cold
+    base_url: http://127.0.0.1:8001/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI.
+    runner_note: |
+      Boot lifeform-serve with --vertical companion-cold --enable-openai-compat
+      on a separate port. Same Qwen substrate as the companion track,
+      no trained bootstraps.
+
+  - submission_id: ref-2026q2-lifeform-raw
+    system_name: VolvenceZero Lifeform (raw)
+    model_identifier: lifeform-raw
+    base_url: http://127.0.0.1:8000/v1?mode=raw
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: ""
+    runner_note: |
+      Same Qwen substrate served via the OpenAI-compat router's
+      mode=raw path; bypasses the lifeform pipeline. Provides the
+      bare-LLM baseline for the three-track ablation.

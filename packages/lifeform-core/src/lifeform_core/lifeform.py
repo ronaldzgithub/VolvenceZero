@@ -59,6 +59,7 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeKind,
 )
 from volvence_zero.environment import build_user_input_environment_event
+from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
@@ -121,6 +122,15 @@ class LifeformConfig:
     followup_default_due_delay_ticks: int = 90
     followup_max_pending: int = 32
     vitals_bootstrap: VitalsBootstrap | None = None
+    # Behavior Protocol Runtime packet 1.3''' (production wiring of
+    # 1.3'' machinery): lifeform-level identity descriptors; flow
+    # through Brain → BrainSession → run_final_wiring_turn →
+    # DualTrackModule → DualTrackSnapshot.self_track.traits, where
+    # the protocol-runtime identity gate matches them against
+    # ``BehaviorProtocol.IdentityAssertion.requires_self_traits`` /
+    # ``forbidden_self_traits``. See ``docs/specs/protocol-runtime.md``
+    # checklist condition 1.
+    identity_seed: IdentitySeed | None = None
 
     def with_domain_experience(
         self,
@@ -138,6 +148,20 @@ class LifeformConfig:
     def with_vitals(self, bootstrap: VitalsBootstrap | None) -> "LifeformConfig":
         from dataclasses import replace as _replace
         return _replace(self, vitals_bootstrap=bootstrap)
+
+    def with_identity_seed(
+        self, seed: IdentitySeed | None
+    ) -> "LifeformConfig":
+        """Attach a lifeform-level identity seed.
+
+        The seed is forwarded to ``DualTrackModule`` at session
+        construction time and read every turn to populate
+        ``DualTrackSnapshot.self_track.traits``. Pairs with the
+        protocol identity-gate's self-trait check.
+        """
+
+        from dataclasses import replace as _replace
+        return _replace(self, identity_seed=seed)
 
 
 class _LateBoundSessionHolder:
@@ -197,6 +221,7 @@ class Lifeform:
             semantic_proposal_runtime=semantic_proposal_runtime,
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
+            identity_seed=self._config.identity_seed,
             memory_store=memory_store,
             identity_provider=identity_provider,
         )

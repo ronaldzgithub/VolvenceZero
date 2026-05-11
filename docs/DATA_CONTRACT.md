@@ -1625,6 +1625,7 @@ reflection ──────────────→ proposals; runtime invo
 | `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 | `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
+| `active_mixture` | ProtocolRegistryModule | ActiveMixtureSnapshot | SHADOW | 每 turn | （packet 1.2+ 接入：boundary_policy / metacontroller / vitals / strategy_playbook 读 IDs+权重，不读内容本体） |
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
@@ -1646,6 +1647,25 @@ reflection ──────────────→ proposals; runtime invo
 **`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。snapshot 还发布 `kind_label`（W3 SSOT），是 `RuptureKind` 的人类可读短语，由 owner 从 `RUPTURE_KIND_LABEL` 一处生成；下游表达层不维护重复字典。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。
 
 **`interlocutor_state` 契约语义**（W2 ssot-cleanup-p0-p4）：12-axis 连续读出（`engagement_intensity`, `emotional_weight`, `resistance_level`, `trust_signal`, `pace_pressure`, … 共 12 维），由 `InterlocutorStateModule` 从六个上游 snapshot（`regime` / `dual_track` / `evaluation` / `prediction_error` / `memory` / `commitment`）派生。snapshot 自身发布**typed zone bool**（`acknowledge_pressure_zone` / `repair_zone` / `direct_task_zone` / `emotional_render_zone` / `pace_pressure_zone` / `cold_rapport_zone` / `low_directness_zone` 等），消费者读 zone bool 即可，**不得**重新应用数值阈值。阈值常量集中在 `volvence_zero.interlocutor.contracts.InterlocutorThresholds`，是该 owner 的 SSOT。详见 [`docs/specs/interlocutor-state.md`](./specs/interlocutor-state.md)。
+
+**`active_mixture` 契约语义**（Behavior Protocol Runtime packet 1.0+，SHADOW）：当前轮激活的 `BehaviorProtocol` 集合 + 各自的 `activation_weight` + 跨协议 `boundary_union_ids`（packet 1.2 起仅发布 IDs，不发布内容本体；canonical 内容由既有 application owners 持有）。owner 是 `vz-application.protocol_runtime.ProtocolRegistryModule`（packet 1.0 在 `vz-cognition` 立，packet 1.2 迁至 `vz-application` 因为 compile 路径产出 application 层 `BoundaryPriorHint`），`default_wiring_level=SHADOW`；ACTIVE 升级被 `FallbackActivationActiveError` fail-loud 守门（packet 1.0.1）。Packet 1.2 起 `load_protocol(bp)` 自动把 `bp.boundary_contracts` 编译为 `BoundaryPriorHint` 并 upsert 到 `ApplicationRareHeavyState`；hint id 用 namespace `protocol:{protocol_id}:boundary:{boundary_id}` 携带 lineage。
+
+**ProtocolRuntime 不是内容 owner**——这是 R8 SSOT 关键纪律：
+
+- ProtocolRuntime 持有的是**协议元数据**（id / version / source / activation_weight / phase_id）和**reviewed-prior 引用**（`BoundaryContract` / `StrategyPrior` / `TemporalArc`），不是 boundary / strategy / case / domain knowledge 的 canonical store。
+- canonical 内容仍由 `boundary_policy` / `strategy_playbook` / `case_memory` / `domain_knowledge` 拥有；`BehaviorProtocol` 通过 packet 1.2+ 引入的 **compile 路径**编译进这些既有 owner（与 `DomainExperiencePackage.compile_to_application_owners()` 同形）。
+- packet 1.0 SHADOW 期间 `ActiveMixtureSnapshot.boundary_union` 直接发布完整 `BoundaryContract` tuple，**仅供 SHADOW dual-run diff 测试**；packet 1.2 之前必须把消费者侧改为读 IDs + 权重 + reviewed-hint，让 canonical 内容仍走既有 owner。
+- **vitals 边界**：`drive_value` 信号源在 spec 里被 deferred；kernel `ProtocolRegistryModule` **不直接读 lifeform-side 的 `VitalsSnapshot`**（违反第 43 行的"vitals 不进入内核 §6 注册表"）。如果未来确实需要 drive coupling，需要新增一个 kernel-side 的 typed `DriveReadoutSnapshot` adapter 进入 propagate 图（owner 待定，需要 R8 review）。
+
+**SHADOW → ACTIVE 升级 checklist**（spec §packet 1.0 fallback）：当前 ActivationController 是 fallback 实现（`identity_gate=1.0` 硬编码 / equal-weight / lexicographic 仲裁）。promotion 必须：
+
+1. 接 R7 Self trait gate + R14 regime identity 真实交叉检查（packet 1.3+）
+2. 接 PE history utility（packet 1.5+）
+3. 接 typed context match signals（packet 1.5+）
+4. 替换 lexicographic 仲裁为 PE-driven 后验仲裁（packet 1.5+）
+5. 至少有一个 ACTIVE consumer 通过 matched-control dual-run 测试（packet 1.2+）
+
+详见 [`docs/specs/protocol-runtime.md`](./specs/protocol-runtime.md)。
 
 **`RegimeIdentity.expression_brief` / `application_brief` 契约语义**（W3+W4 ssot-cleanup-p0-p4）：每个 regime 的 `RegimeIdentity` 携带两个 typed brief：
 - `expression_brief: ExpressionBrief` — `lifeform-expression` 渲染层读取，把 `acknowledge_hint` / `frame_hint` / `next_step_hint` / `open_loop_hint` / `continuity_hint` 五个语义占位符当 lookup key，渲染最终 prose。
