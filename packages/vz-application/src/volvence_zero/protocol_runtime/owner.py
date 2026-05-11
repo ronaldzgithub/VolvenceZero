@@ -73,6 +73,7 @@ from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     BehaviorProtocol,
 )
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.runtime.kernel import ContractViolationError
 
@@ -84,6 +85,22 @@ from volvence_zero.protocol_runtime.compiler import (
     compile_protocol_to_application_artifacts,
 )
 from volvence_zero.protocol_runtime.registry import ProtocolRegistry
+
+
+# Packet 1.5b: per-protocol rolling PE EMA learning rate. The owner
+# updates ``pe_utility[i] ← (1-η) · pe_utility[i] + η · attributed_reward``
+# each turn for every protocol that was active in the previous turn.
+# η = 0.25 is a moderate setting: ~4 turns to converge to a step
+# response, conservative enough to not jitter. Hard-coded for
+# packet 1.5b; learned online in packet 1.5c (the metacontroller
+# learns α/β plus a per-protocol effective learning rate).
+_PE_HISTORY_LEARNING_RATE: float = 0.25
+
+# Bound the EMA to ``[-1, 1]`` mirroring ``signed_reward`` range.
+# Prevents pathological accumulation if the same protocol keeps
+# being attributed (small-eligibility regimes). Acts as a soft
+# saturation; real saturation comes from the EMA decay.
+_PE_UTILITY_CLAMP: float = 1.0
 
 
 class FallbackActivationActiveError(ContractViolationError):
@@ -113,8 +130,11 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
     # track + IdentitySeed traits) + ``regime`` (R14 RegimeIdentity).
     # context_match (packet 1.5a): ``interlocutor_state`` (zone
     # activity) + ``rupture_state`` (rupture_kind) + ``boundary_policy``
-    # (decision triggered). All upstream readers are
-    # SHADOW-tolerant — missing snapshots yield "no signal fires"
+    # (decision triggered).
+    # PE utility (packet 1.5b): ``prediction_error`` (signed_reward
+    # attributed to last-turn active mixture, EMA-accumulated
+    # internally). All upstream readers are SHADOW-tolerant —
+    # missing snapshots yield "no signal fires / no PE update"
     # rather than fail-loud, so SHADOW dual-runs work without full
     # graph wiring. ACTIVE wiring is gated separately by
     # ``FallbackActivationActiveError``.
@@ -124,6 +144,7 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         "interlocutor_state",
         "rupture_state",
         "boundary_policy",
+        "prediction_error",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -166,6 +187,27 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # Used by unload_protocol to fail-loud when artifacts can't be
         # cleanly removed (no per-key remove API on the stores today).
         self._applied_to_application_state: set[str] = set()
+
+        # Packet 1.5b: per-protocol rolling pe_utility (EMA of
+        # signed_reward attributed to last-turn weights). Lives
+        # inside the registry owner because protocol load/unload
+        # is the natural lifecycle anchor (unload → drop entry).
+        # An R8-clean split into a dedicated ``ProtocolPerformanceModule``
+        # owner is tracked for packet 1.5c when α/β learning lands;
+        # at that point the metacontroller becomes a 2nd reader and
+        # the SSOT pressure to extract grows. Until then keeping
+        # both responsibilities co-located avoids an extra slot
+        # without weakening any actual contract.
+        self._pe_utility: dict[str, float] = {}
+        # Last published mixture's per-protocol weights, used to
+        # attribute the current turn's signed_reward back to the
+        # protocols that were active when the action was taken (PE
+        # at turn t reflects outcome of turn t-1's action).
+        self._last_active_weights: dict[str, float] = {}
+        # Last seen prediction_error turn_index, so duplicate
+        # snapshots from the same turn (e.g. retries / replay)
+        # don't double-count attribution.
+        self._last_pe_turn_index: int | None = None
 
     @property
     def registry(self) -> ProtocolRegistry:
@@ -280,12 +322,104 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[ActiveMixtureSnapshot]:
+        # Packet 1.5b: PE attribution + rolling EMA update happens
+        # BEFORE computing this turn's mixture, so the current
+        # turn's mixture sees the freshly-updated pe_utility.
+        self._update_pe_history(upstream)
+
         loaded = self._registry.loaded()
         snapshot_value = compute_active_mixture(
             loaded_protocols=loaded,
             upstream=upstream,
+            pe_utility_by_id=self._pe_utility,
         )
+
+        # Cache this turn's published weights for the next turn's
+        # attribution step (PE at turn t+1 will reflect outcome of
+        # this turn's action).
+        self._last_active_weights = {
+            entry.protocol_id: entry.activation_weight
+            for entry in snapshot_value.active_protocols
+        }
         return self.publish(snapshot_value)
+
+    def _update_pe_history(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        """Attribute current turn's PE to last turn's active mixture.
+
+        Updates ``self._pe_utility`` in place. SHADOW-tolerant:
+        when ``prediction_error`` is missing from upstream (e.g.
+        partial-graph SHADOW dual-run, isolated tests calling the
+        owner directly without a full pipeline), the method
+        returns immediately without raising. When
+        ``_last_active_weights`` is empty (first turn / no
+        protocols active last turn), no attribution happens — the
+        EMA stays at its current values.
+
+        Per-protocol update rule:
+
+            Δ_i = signed_reward × last_weight_i
+            ema_i ← (1-η) · ema_i + η · Δ_i
+
+        η = ``_PE_HISTORY_LEARNING_RATE`` (0.25). Result clamped
+        to ``[-_PE_UTILITY_CLAMP, +_PE_UTILITY_CLAMP]``.
+        """
+
+        pe_snapshot = upstream.get("prediction_error")
+        if pe_snapshot is None:
+            return
+        pe_value = pe_snapshot.value
+        if not isinstance(pe_value, PredictionErrorSnapshot):
+            return
+        # Bootstrap turns produce a placeholder PE that the system
+        # (per ``PredictionErrorSnapshot.bootstrap=True`` path)
+        # treats as not-yet-actionable. Skip attribution to avoid
+        # baking placeholder noise into the EMA.
+        if pe_value.bootstrap:
+            return
+        # De-dup by turn_index so retries / replay don't
+        # double-attribute the same outcome.
+        if (
+            self._last_pe_turn_index is not None
+            and pe_value.turn_index <= self._last_pe_turn_index
+        ):
+            return
+        self._last_pe_turn_index = pe_value.turn_index
+
+        if not self._last_active_weights:
+            return
+
+        signed_reward = float(pe_value.error.signed_reward)
+        eta = _PE_HISTORY_LEARNING_RATE
+        # Decay every protocol's EMA toward 0 each PE turn (so
+        # protocols that haven't been active gradually forget),
+        # then add the per-protocol contribution for those that
+        # were active. Equivalent to ``ema ← (1-η)·ema + η·Δ``
+        # where Δ = signed_reward·weight (and Δ=0 for inactive).
+        for protocol_id in list(self._pe_utility.keys()):
+            self._pe_utility[protocol_id] = (
+                (1.0 - eta) * self._pe_utility[protocol_id]
+            )
+        for protocol_id, weight in self._last_active_weights.items():
+            attributed = signed_reward * weight
+            current = self._pe_utility.get(protocol_id, 0.0)
+            updated = current + eta * attributed
+            if updated > _PE_UTILITY_CLAMP:
+                updated = _PE_UTILITY_CLAMP
+            elif updated < -_PE_UTILITY_CLAMP:
+                updated = -_PE_UTILITY_CLAMP
+            self._pe_utility[protocol_id] = updated
+
+    @property
+    def pe_utility(self) -> Mapping[str, float]:
+        """Read-only view of current per-protocol pe_utility EMA.
+
+        Exposed for tests and audit. Mutation must go through
+        ``_update_pe_history``.
+        """
+
+        return dict(self._pe_utility)
 
 
 __all__ = ["FallbackActivationActiveError", "ProtocolRegistryModule"]

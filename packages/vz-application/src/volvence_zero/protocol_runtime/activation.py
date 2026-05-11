@@ -95,16 +95,17 @@ def is_fallback_mode() -> bool:
     is set only by future packets that have landed all required
     machinery (see module docstring).
 
-    Packet 1.3a/1.3'/1.3''/1.3''' state: ``identity_gate`` fully
-    real (R14 regime + R7 self-trait via
-    ``IdentitySeed`` populator). Packet 1.5a state: typed
-    ``context_match`` signal scoring partially real — 3 kernel-side
-    detectors (interlocutor zone / rupture state / boundary policy)
-    fire on real upstream snapshots; vitals-tied DRIVE detectors
-    deferred (vitals not in kernel propagate graph; see packet 1.0.1
-    decision). Still placeholder (packet 1.5b+/c+): PE history
-    utility, learned α/β, PE-driven arbitration. The aggregate flag
-    therefore stays True until those land.
+    Packet 1.3 series: ``identity_gate`` fully real. Packet 1.5a:
+    typed ``context_match`` partial (3 kernel-side detectors).
+    Packet 1.5b: ``pe_utility`` rolling EMA real (β=1 hard-coded).
+    Packet 1.5c-i: PE-history-driven incompatibility arbitration
+    real — A ↔ B drop decisions now favour the protocol with
+    higher ``pe_utility``, falling back to lexicographic only on
+    tie / cold start. Still placeholder (packet 1.5c-ii / 1.5c-iii):
+    learned α/β (currently α=β=1 fixed), R8-clean
+    ``ProtocolPerformanceModule`` split. DRIVE detectors permanently
+    deferred (vitals layering, packet 1.0.1). The aggregate flag
+    stays True until α/β learning lands.
     """
 
     return _ACTIVATION_CONTROLLER_FALLBACK_MODE
@@ -114,6 +115,7 @@ def compute_active_mixture(
     *,
     loaded_protocols: tuple[BehaviorProtocol, ...],
     upstream: Mapping[str, Snapshot[Any]],
+    pe_utility_by_id: Mapping[str, float] | None = None,
 ) -> ActiveMixtureSnapshot:
     """Build the per-turn ``ActiveMixtureSnapshot`` from the registry.
 
@@ -122,8 +124,18 @@ def compute_active_mixture(
             Ordering is registry-deterministic (sorted by id).
         upstream: Upstream snapshots available to the module.
             Packet 1.3a consumes ``dual_track`` and ``regime`` for
-            identity-gate evaluation. Other inputs (PE history,
-            typed context_match) land in packet 1.5+.
+            identity-gate evaluation. Packet 1.5a consumes
+            ``interlocutor_state`` / ``rupture_state`` /
+            ``boundary_policy`` for typed context_match scoring.
+            Packet 1.5b consumes ``prediction_error`` indirectly via
+            ``pe_utility_by_id`` (see below).
+        pe_utility_by_id: Per-protocol rolling PE utility provided
+            by the owner (``ProtocolRegistryModule``). Each entry
+            is a clamped EMA of attributed signed_reward in
+            ``[-1, 1]``. ``None`` (or missing key) → 0.0
+            contribution for that protocol. The owner is
+            responsible for accumulation; this function only does
+            the per-turn read-out into the activation formula.
 
     Returns:
         The ``ActiveMixtureSnapshot`` to publish into the
@@ -175,7 +187,16 @@ def compute_active_mixture(
             ),
         )
 
-    eligible = _resolve_co_activation_incompatibility(eligible_protocols)
+    # Packet 1.5c-i: PE-history-driven incompatibility tiebreak.
+    # ``pe_utility_by_id`` is the same mapping fed into the softmax
+    # below; passing it here means a protocol with stronger past
+    # performance wins the A ↔ B drop decision instead of the
+    # arbitrary lex order. Cold-start (empty EMA) and protocols with
+    # equal pe_utility fall back to lex, preserving determinism.
+    eligible = _resolve_co_activation_incompatibility(
+        eligible_protocols,
+        pe_utility_by_id=pe_utility_by_id,
+    )
 
     # Packet 1.5a: compute typed context_match scores per protocol.
     # When all scores are 0 (no signals in any protocol's
@@ -189,7 +210,7 @@ def compute_active_mixture(
     boundary_policy_snapshot = _read_boundary_policy_snapshot(upstream)
 
     context_results: list[tuple[float, tuple[str, ...]]] = []
-    max_score = 0.0
+    max_context_score = 0.0
     for protocol in eligible:
         score, reasons = _compute_context_match(
             protocol,
@@ -198,22 +219,46 @@ def compute_active_mixture(
             boundary_policy_snapshot=boundary_policy_snapshot,
         )
         context_results.append((score, reasons))
-        max_score = max(max_score, score)
+        max_context_score = max(max_context_score, score)
 
-    if max_score > 0.0:
-        weights = _softmax_weights_with_floor(eligible, context_results)
+    # Packet 1.5b: per-protocol rolling PE utility from owner-side
+    # accounting (signed_reward EMA). 0.0 by default → packet 1.5a
+    # behaviour preserved when the owner doesn't supply pe history
+    # (e.g. tests calling ``compute_active_mixture`` directly).
+    pe_lookup: Mapping[str, float] = pe_utility_by_id or {}
+    pe_utilities: list[float] = [
+        float(pe_lookup.get(p.protocol_id, 0.0)) for p in eligible
+    ]
+    max_abs_pe = max((abs(u) for u in pe_utilities), default=0.0)
+
+    # raw_score = α·context_match + β·pe_utility ; α=1, β=1 (1.5b).
+    # When all 4 components vanish (no signals fired AND no PE
+    # history) we fall back to equal-weight to preserve the
+    # cheng_laoshi default-shape contract pinned by packet 1.5a
+    # behaviour-preservation tests.
+    raw_scores = [
+        context_results[i][0] + pe_utilities[i] for i in range(len(eligible))
+    ]
+    has_signal = max_context_score > 0.0 or max_abs_pe > 0.0
+
+    if has_signal:
+        weights = _softmax_weights_with_floor(
+            eligible, [(s, ()) for s in raw_scores]
+        )
         weighting_kind = ActivationReasonKind.CONTEXT_MATCH
         weighting_detail_template = (
-            "packet 1.5a: softmax of context_match scores "
-            "(α=1, β=0; PE / α-β learning pending packet 1.5b+)"
+            "packet 1.5b: softmax(α·context_match + β·pe_utility), "
+            "α=1, β=1 (α/β learning + PE-driven arbitration pending "
+            "packet 1.5c)"
         )
     else:
         weights = _equal_weight_with_floor(eligible)
         weighting_kind = ActivationReasonKind.EQUAL_WEIGHT_FALLBACK
         weighting_detail_template = (
-            "no context_match signal fired; equal weight across "
-            "eligible protocols (PE / α-β / drive coupling pending "
-            "packet 1.5b+)"
+            "no context_match signal fired and no PE history; equal "
+            "weight across eligible protocols (α/β learning + "
+            "PE-driven arbitration pending packet 1.5c; drive "
+            "coupling permanently deferred per packet 1.0.1)"
         )
 
     active_entries: tuple[ActiveProtocolEntry, ...] = tuple(
@@ -238,6 +283,11 @@ def compute_active_mixture(
                             if context_results[idx][1]
                             else ""
                         )
+                        + (
+                            f"; pe_utility={pe_utilities[idx]:+.3f}"
+                            if pe_utilities[idx] != 0.0
+                            else ""
+                        )
                     ),
                 ),
             ),
@@ -251,7 +301,8 @@ def compute_active_mixture(
     description = (
         f"active mixture: {len(active_entries)} protocol(s); "
         f"{len(boundary_union_ids)} boundary id(s); "
-        f"max_context_score={max_score:.3f}"
+        f"max_context_score={max_context_score:.3f}; "
+        f"max_abs_pe_utility={max_abs_pe:.3f}"
     )
 
     return ActiveMixtureSnapshot(
@@ -628,23 +679,66 @@ def _read_regime_snapshot(
 
 def _resolve_co_activation_incompatibility(
     protocols: tuple[BehaviorProtocol, ...],
+    pe_utility_by_id: Mapping[str, float] | None = None,
 ) -> tuple[BehaviorProtocol, ...]:
     """Drop protocols that conflict with a higher-priority sibling.
 
-    Tiebreak: lexicographic ``protocol_id`` (lower id wins). Real
-    arbitration (PE history) lands in packet 1.5+.
+    Packet 1.5c-i: PE-history-driven arbitration. Given an
+    ``A ↔ B`` incompatibility (one declared on either side), keep
+    the protocol with the **higher** rolling ``pe_utility``
+    (signed_reward EMA from packet 1.5b). Ties resolve
+    lexicographically (lower ``protocol_id`` wins) to keep the
+    output deterministic — including the cold-start case where
+    every protocol's pe_utility is 0.
+
+    The tiebreak ladder is therefore:
+
+    1. ``pe_utility_a > pe_utility_b`` → keep A
+    2. ``pe_utility_a < pe_utility_b`` → keep B
+    3. Equal pe_utility → lexicographic ``protocol_id``
+
+    ``pe_utility_by_id`` defaults to an empty mapping; missing
+    entries read as 0.0. So tests / external callers can omit the
+    argument and get the legacy lex behaviour for free, and a
+    cold-start owner with empty EMA dict produces the same output
+    as packet 1.5a.
+
+    Note: the iteration order matters for asymmetric declarations.
+    The function consumes ``protocols`` in the registry-deterministic
+    sort (lex by id), so the **declaration owner** is whichever
+    side comes first in lex order. For an A ↔ B pair where only
+    A declares B incompatible, A is encountered first; we then
+    look up both A's and B's pe_utility to decide which to keep.
+    For an A ↔ B pair where both declare the other incompatible,
+    we hit the same ladder twice but the result is identical.
     """
 
+    pe_lookup: Mapping[str, float] = pe_utility_by_id or {}
     by_id = {p.protocol_id: p for p in protocols}
     drop: set[str] = set()
     for protocol in protocols:
         if protocol.protocol_id in drop:
             continue
         for other_id in protocol.activation_conditions.co_activation_incompatible:
-            if other_id in by_id and other_id not in drop:
-                # Keep the lexicographically smaller id; drop the larger.
+            if other_id not in by_id or other_id in drop:
+                continue
+            self_pe = float(pe_lookup.get(protocol.protocol_id, 0.0))
+            other_pe = float(pe_lookup.get(other_id, 0.0))
+            if self_pe > other_pe:
+                # Self has better PE history → drop the other.
+                loser = other_id
+            elif self_pe < other_pe:
+                # Other has better PE history → drop self.
+                loser = protocol.protocol_id
+            else:
+                # Equal pe_utility (incl. cold-start 0/0) → lex
+                # tiebreak: keep the smaller id.
                 loser = max(protocol.protocol_id, other_id)
-                drop.add(loser)
+            drop.add(loser)
+            if loser == protocol.protocol_id:
+                # We just dropped the one we were iterating; stop
+                # enumerating its other incompatibilities (it's gone).
+                break
     return tuple(p for p in protocols if p.protocol_id not in drop)
 
 

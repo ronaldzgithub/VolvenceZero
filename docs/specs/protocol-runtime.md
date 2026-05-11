@@ -354,16 +354,43 @@ weight_i = enforce_co_activation_constraints(base_weight, registry)
 - `minimum_weight_floor` 让"危机识别"这种长驻协议永远保持 ≥ 0.05 的警戒激活
 - `softmax` 而不是 `argmax`：默认是混合而不是单选；只有当某个协议 dominate（如 0.95+）时才接近 hard switch
 
-**Packet 1.5a partial 实现**：
+**Packet 1.5a 实现**（context_match）：
 
-- α 临时硬定 1.0，β 仍 0（α/β 学习留 packet 1.5b/c）
 - `context_match_i = Σ signal.weight × signal_is_firing(signal, upstream)`，3 个 kernel-side detector：
   - `INTERLOCUTOR_ZONE_TRANSITION`：interlocutor_state 任一 zone bool 为 True 时 fire
   - `RUPTURE_KIND_FIRED`：rupture_state 解析出非空 `rupture_kind` 时 fire
   - `BOUNDARY_VIOLATION_FIRED`：boundary_policy 决策含非空 `trigger_reasons` 时 fire
 - `USER_DROPOUT_OBSERVED` 占位返 False（待 1.5a' 接 dialogue_trace）
 - `DRIVE_HOMEOSTASIS_HOLD/BREACH` 永久 defer（vitals 跨层边界，packet 1.0.1）
-- 当所有 eligible 协议 `max(score) == 0`（cheng_laoshi 默认形态：`activation_conditions.context_match_signals` 为空），算法回落到 `equal_weight_with_floor`，`ActivationReason.kind = EQUAL_WEIGHT_FALLBACK`；任一 score > 0 → 切到 `softmax`，`kind = CONTEXT_MATCH`，`detail` 列出 `signals_fired=[...]` 用于审计
+
+**Packet 1.5b 实现**（pe_utility / β term）：
+
+- α=1, β=1 硬定（α/β 学习仍留 packet 1.5c）
+- `pe_utility_i` 由 `ProtocolRegistryModule` 内部维护：
+  - 每 turn 读 `prediction_error.error.signed_reward ∈ [-1, 1]`（kernel ACTIVE 上游）
+  - 把上一 turn 已发布的 `active_mixture` 每个 protocol 的 weight 缓存为 `_last_active_weights`
+  - 当本 turn 的 PE 到达，按 `Δ_i = signed_reward × last_weight_i` 把奖励 attribute 给上一 turn 的 active 协议
+  - EMA 更新：`pe_utility_i ← (1-η) · pe_utility_i + η · Δ_i`，η = 0.25
+  - 未参与上一 turn 的协议自然按 `Δ_i = 0` 衰减；`pe_utility_i` 钳位在 `[-1, +1]`
+- bootstrap PE（`PredictionErrorSnapshot.bootstrap=True`）跳过 attribution（占位 PE 不应污染 EMA）
+- 同 `turn_index` 重复 PE（replay / retry）通过 `_last_pe_turn_index` 去重
+- `pe_utility_by_id: Mapping[str, float]` 由 owner 传给 `compute_active_mixture`；测试或外部直调可不传，缺省全 0 → 1.5a 行为
+
+**调度逻辑（1.5b 后整合）**：
+
+- `raw_score_i = α · context_match_i + β · pe_utility_i` （α=1, β=1 硬定）
+- `has_signal = max(context_match) > 0 OR max|pe_utility| > 0`
+- `has_signal` → `softmax(raw_score)` + `minimum_weight_floor` enforcement，`ActivationReason.kind = CONTEXT_MATCH`，`detail` 携带 `signals_fired=[...]` 与 `pe_utility=±0.xxx`
+- `not has_signal`（cheng_laoshi 默认 + cold start）→ `equal_weight_with_floor`，`kind = EQUAL_WEIGHT_FALLBACK`
+
+**Packet 1.5c-i 实现**（PE-driven 互斥仲裁）：
+
+- `_resolve_co_activation_incompatibility` 在 softmax 之前先做硬过滤：每条 `co_activation_incompatible` 声明产生一对 A↔B 决策，drop 谁取决于 `pe_utility`：
+  1. `pe_utility(A) > pe_utility(B)` → drop B
+  2. `pe_utility(A) < pe_utility(B)` → drop A
+  3. 相等（含 cold-start 0/0）→ lex 兑现（保留较小 `protocol_id`）
+- 删除路径里若 self 被 drop，停止枚举 self 的剩余 incompatible 声明（self 已经不存在了）
+- `pe_utility_by_id` 是同一份 owner-side EMA dict，与 softmax 的 β 项共享数据源 — 互斥仲裁与软混合权重一致地反映"协议过往表现"，不会出现"PE 高的协议先被 lex 干掉再说"的悖论
 
 ### 不允许的优先级方式
 
@@ -797,9 +824,9 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
 | 条件 | 当前状态 | 满足 packet | 守门方式 |
 |---|---|---|---|
 | 1. `identity_gate` 接 R7 dual-track Self trait gate + R14 regime identity 真实交叉检查 | ✅ **完全闭合（packet 1.3a + 1.3' + 1.3'' + 1.3'''）**：1.3a R14 regime 真实化；1.3' self_traits 机器身；1.3'' populator + e2e 测试；**1.3''' production wiring**——`LifeformConfig.with_identity_seed` → `Lifeform` → `Brain` → `AgentSessionRunner` → `run_final_wiring_turn` → `DualTrackModule` 全自动透传。`build_cheng_laoshi_lifeform()` 默认 `use_identity_seed=True`，用户拿到的生命体自动带 traits，self_trait 过滤无需手动 wiring 即生效 | 1.3a–1.3''' 全部 | runtime fail-loud + e2e tests + production wiring tests |
-| 2. `α / β` 由 metacontroller 学（PE history 接入） | 全 0，等价于 α=1·context + β=0；context_match 已 partial 真实化（packet 1.5a），PE-utility 与 α/β 学习仍是 0 | 1.5b–c | runtime fail-loud |
-| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | 🟡 **partial（packet 1.5a）**：3 个 kernel-side detector 上线（`INTERLOCUTOR_ZONE_TRANSITION` / `RUPTURE_KIND_FIRED` / `BOUNDARY_VIOLATION_FIRED`），合成 `score = Σ weight × firing` 并参与 softmax；空信号集落回 equal-weight。`USER_DROPOUT_OBSERVED` 需 dialogue_trace inspection（待 1.5a' 接入）；`DRIVE_HOMEOSTASIS_*` 永久 deferred（vitals 不在 kernel 图里，packet 1.0.1 决议）。完全闭合还需补 retrieval-policy / regime-direct 信号源 + α 学习 | 1.5a → 1.5a' → 1.5b | runtime fail-loud |
-| 4. 互斥协议仲裁不再用 lexicographic id | 当前用 lexicographic（占位） | 1.5c | runtime fail-loud |
+| 2. `α / β` 由 metacontroller 学（PE history 接入） | 🟡 **partial（packet 1.5b）**：β·pe_utility 上线 — owner-side 滑动 EMA 把每 turn `signed_reward` 按上一 turn weight attribute 给协议；β=1 硬定。还欠：α/β 学习（α/β 仍 1/1 硬定）、PE-driven 仲裁。`signed_reward` 来自 `prediction_error.error.signed_reward`（kernel ACTIVE 上游），bootstrap PE 跳过，turn_index 去重防 replay 双计 | 1.5b → 1.5c | runtime fail-loud |
+| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | 🟡 **partial（packet 1.5a）**：3 个 kernel-side detector 上线（`INTERLOCUTOR_ZONE_TRANSITION` / `RUPTURE_KIND_FIRED` / `BOUNDARY_VIOLATION_FIRED`），合成 `score = Σ weight × firing` 并参与 softmax；空信号集落回 equal-weight。`USER_DROPOUT_OBSERVED` 需 dialogue_trace inspection（待 1.5a' 接入）；`DRIVE_HOMEOSTASIS_*` 永久 deferred（vitals 不在 kernel 图里，packet 1.0.1 决议）。完全闭合还需补 retrieval-policy / regime-direct 信号源 + α 学习 | 1.5a → 1.5a' → 1.5c | runtime fail-loud |
+| 4. 互斥协议仲裁不再用 lexicographic id | ✅ **完全闭合（packet 1.5c-i）**：A↔B drop 决策按 `pe_utility` 排序，pe_utility 高的留下；冷启动 / 平局走 lex 兑现保持确定性 | 1.5c-i | `_resolve_co_activation_incompatibility(pe_utility_by_id=...)` + `tests/contracts/test_protocol_pe_arbitration.py` |
 | 5. 至少 1 个下游 consumer 通过 matched-control dual-run 测试 | ✅ packet 1.2 后续：boundary 路径 matched-control（vertical compile vs protocol compile，hint 内容除 lineage 前缀外 byte-equivalent） | 1.2 后续 | `tests/contracts/test_protocol_boundary_matched_control.py` |
 | 6. `boundary_union` 字段定位明确（IDs vs 完整 contracts） | ✅ 1.2 锁定选择 A：`boundary_union_ids: tuple[str, ...]`（IDs only） | 1.2 | schema 决议 + contract test |
 | 7. `BehaviorProtocol → application owners` compile 路径打通 | ✅ 1.2 boundary + 1.3b strategy + 1.4a knowledge + 1.4b case（**全 4/4 完成**） | 1.2 / 1.3b / 1.4a / 1.4b | implementation + matched-control tests |
@@ -944,6 +971,33 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
   - 测试：扩展 `test_protocol_compile.py`（+7 knowledge 测试）/ `test_protocol_load_to_application_state.py`（+6 knowledge 测试）/ `test_growth_advisor_fixture_uptake.py`（+3 knowledge 字段测试）；新 `test_protocol_knowledge_matched_control.py` 7 测试镜像 boundary / strategy matched-control
   - cheng_laoshi 行为完全不变；packet 1.0/1.2/1.3 的 contract test 零修改
   - Checklist 进度：条目 7（compile 路径）✅ boundary + strategy + knowledge；待 packet 1.4b 落 case
+
+- 2026-05-11 (packet 1.5c-i)：PE-driven 互斥仲裁（checklist 条目 4 完全闭合）
+  - 来源：1.5b 让 β 项真实化、软混合权重跟随经验调整。但**硬过滤**（`_resolve_co_activation_incompatibility`）仍按 lex tiebreak — 一个协议虽然 PE 历史好，但 lex 序输了就被 drop，反而被 PE 历史差但 lex 序赢的协议干掉。这与 1.5b 的 β·pe_utility 软偏向逻辑相矛盾。1.5c-i 把这条数据通路统一：硬过滤和软混合都用 owner-side 同一份 `pe_utility` EMA
+  - 决策 1（同 source 共享）：`_resolve_co_activation_incompatibility` 增加 `pe_utility_by_id: Mapping[str, float] | None = None` 参数；`compute_active_mixture` 把已有的 `pe_utility_by_id` 透传过去。一份 EMA 同时驱动两条决策（硬 drop + 软权重），避免 SSOT 二份写
+  - 决策 2（tiebreak 阶梯）：先按 `pe_utility` 比，相等再按 lex。这意味着 cold start（owner 还没攒任何 PE 历史）和精确平局（极少见但确定会发生）都走 lex —— 测试 / 外部直调 `compute_active_mixture` 不传 `pe_utility_by_id` 时也走 lex，向后兼容 1.5b 之前所有 callers
+  - 决策 3（self-drop 提前 break）：iter 一个 protocol 的 incompatible list 时，若该 protocol 自己被 drop 了，立即 break。这避免"已经死掉的 A 还在替 B/C 安排殡仪"的语义混乱（A 已经不存在，无权再下达 drop 命令）
+  - 决策 4（fallback flag 不动）：`_ACTIVATION_CONTROLLER_FALLBACK_MODE` 仍 True；`is_fallback_mode()` docstring 升级到"PE 仲裁真实化"。runtime ACTIVE 入口仍由剩余条目（α/β 学习）守门
+  - 决策 5（不动 schema）：`BehaviorProtocol.ActivationConditions.co_activation_incompatible` schema 完全不变，仅 resolver 行为升级。所有现有 fixtures（cheng_laoshi 默认无 incompatible）行为字节级等价
+  - 测试：12 个新 `tests/contracts/test_protocol_pe_arbitration.py`：无 incompatible 全 pass / 冷启动 lex / 显式全 0 lex / 高 PE 战胜 lex / 低 PE 输给 lex 优势方 / 仅一方声明也工作 / 双向声明幂等 / 三向冲突 alpha 全胜 / 三向冲突 alpha 自损 stop iter / 平 PE 落 lex / `compute_active_mixture` e2e 切换 / cheng_laoshi e2e 字节级不变（无 incompatible 声明）
+  - cheng_laoshi 行为：`co_activation_incompatible = ()` → 永远不进 arbitration 路径 → 完全字节级等价（pin 在 `test_cheng_laoshi_e2e_unaffected_by_packet_1_5c_i`）
+  - **Checklist 进度**：条目 4 ⏳ → ✅ **完全闭合**；条目 2 仍 🟡 partial（α/β 学习留 1.5c-iii）；条目 3 仍 🟡 partial
+
+- 2026-05-11 (packet 1.5b)：PE history utility（β 真实化，checklist 条目 2 partial 闭合）
+  - 来源：1.5a 让 α 项真实化后，β 项还是 0；这意味着即使协议在 PE 历史上表现差也不会被降权。1.5b 的目的是让协议 weight 跟随经验自适应——这是用户最初提出"有内部机制把指导文档快速整合到行为，并积累经验"的核心机制
+  - 决策 1（owner-side 滑动 EMA）：per-protocol `pe_utility` 在 `ProtocolRegistryModule` 内部维护，不抽离独立 owner。理由：load/unload 协议是 EMA 条目的自然生命周期锚点；当前只有自己一个 reader；R8-clean split（拆 `ProtocolPerformanceModule`）留待 packet 1.5c 当 metacontroller 成为第二个 reader 时一起做。注释里显式标了这个 deferred 决策
+  - 决策 2（attribution 公式）：`Δ_i = signed_reward × last_weight_i`，`pe_utility_i ← (1-η) · pe_utility_i + η · Δ_i`，η=0.25。PE at turn t 反映 turn t-1 行动的后果，所以归因到 turn t-1 的 active mixture 而不是当前的（这意味着 turn 1 没有归因可做，是冷启动）。η=0.25 经验值，~4 turn 跟随阶跃响应；保守不抖动
+  - 决策 3（衰减+更新一遍历）：每 PE turn 先把 dict 里所有协议的 EMA 乘 (1-η)，再加上当 turn 活跃协议的 η·Δ。等价于"所有协议都有 sample，未活跃的 sample=0"。这样未活跃协议自然 forgetting，不会保留 stale 历史
+  - 决策 4（钳位 [-1, +1]）：防止小样本场景下持续累计溢出。η 衰减本身已经是软饱和，钳位是双重保险
+  - 决策 5（bootstrap 跳过）：`PredictionErrorSnapshot.bootstrap=True` 是 placeholder（系统刚启动还没真实预测），attribute 进 EMA 会污染。跳过
+  - 决策 6（turn_index 去重）：`_last_pe_turn_index` 记录上次处理过的 PE turn_index，重复或更早的 turn_index 直接 return。防 replay / retry 双计
+  - 决策 7（β=1 硬定）：α=1, β=1 在 raw_score 公式中硬定。纯靠 EMA 累计已经能实现 "好的协议被偏向"。α/β 学习留 packet 1.5c，不是 1.5b 范围
+  - 决策 8（fallback 触发条件扩展）：原来"`max(context_match) > 0` → softmax，否则 equal_weight"。1.5b 改为"`max(context_match) > 0 OR max|pe_utility| > 0` → softmax"。cheng_laoshi 默认形态（无 signals + 冷启动）仍走 EQUAL_WEIGHT_FALLBACK，但只要有过几 turn 真实 PE，就会切到 CONTEXT_MATCH 路径
+  - 决策 9（依赖扩张）：`ProtocolRegistryModule.dependencies` 加 `prediction_error`，从 6-tuple 扩到 7-tuple。`prediction_error` 是 ACTIVE kernel 上游（已经被 PredictionErrorModule 发布），SHADOW-tolerant 缺失不报错
+  - 决策 10（fallback flag 不动）：`_ACTIVATION_CONTROLLER_FALLBACK_MODE` 仍 True；`is_fallback_mode()` docstring 升级到"β 真实化，α/β 学习仍硬定"。runtime ACTIVE 入口仍由 `FallbackActivationActiveError` 守门
+  - 测试：13 个新 `tests/contracts/test_protocol_pe_utility.py`：cold start / SHADOW 缺上游 / 单 turn 归因 / 多 turn EMA 累积 / 负 PE 下降 / bootstrap 跳过 / turn_index 去重 / 差异化 softmax 权重 / pe_utility 出现在 audit detail / cheng_laoshi 单协议权重不变 / cheng_laoshi 默认 EQUAL_WEIGHT_FALLBACK 保留 / 未活跃协议衰减 / 钳位 saturate
+  - cheng_laoshi 行为：单协议 → softmax(任意值) = (1.0,) → weight=1.0 不变。无 PE 历史 + 无 signals → EQUAL_WEIGHT_FALLBACK 路径。default `build_cheng_laoshi_lifeform()` 拿到的生命体行为字节级等价（pin 在 `test_cheng_laoshi_singleton_weight_unchanged_under_pe_history` 和 `test_cheng_laoshi_default_path_under_packet_1_5b`）
+  - **Checklist 进度**：条目 2 ⏳ → 🟡 partial（β 真实化，α/β 学习留 1.5c）；条目 3 仍 🟡 partial（未变）；条目 4 仍 ⏳
 
 - 2026-05-11 (packet 1.5a)：typed context_match 计分框架（checklist 条目 3 partial 闭合）
   - 来源：1.3 系列把 identity_gate 完全真实化后，剩下的 ACTIVE checklist 条目 2/3/4 都围绕 activation formula 的另两个因子。1.5a 是最小可验证的一刀：把 `context_match` 从"空集，contribution = 0"升级到"3 个 kernel-side detector 真实参与 softmax"

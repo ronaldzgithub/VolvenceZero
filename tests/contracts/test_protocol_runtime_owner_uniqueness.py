@@ -74,10 +74,17 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
     "boundary_policy")`` for typed context_match scoring (3
     kernel-side detectors). DRIVE detectors stay deferred (vitals
     not in kernel propagate graph; packet 1.0.1 design).
+    Packet 1.5b: adds ``("prediction_error",)`` for owner-side
+    rolling pe_utility EMA. The owner attributes per-turn
+    ``signed_reward`` to last-turn's active mixture and feeds the
+    rolling EMA back into the next mixture's softmax (β·pe_utility
+    term).
 
-    Future packets that wire PE history utility / α-β learning are
-    expected to grow this tuple — and update this test in the same
-    PR. A change without test update is a contract drift.
+    Future packets (1.5c α/β learning) are expected to keep this
+    tuple stable but may add a metacontroller-style upstream
+    (e.g. ``activation_controller_state``). Change requires
+    updating this test in the same PR — a change without test
+    update is a contract drift.
     """
 
     modules = _build_modules()
@@ -88,6 +95,7 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
         "interlocutor_state",
         "rupture_state",
         "boundary_policy",
+        "prediction_error",
     ), owner.dependencies
 
 
