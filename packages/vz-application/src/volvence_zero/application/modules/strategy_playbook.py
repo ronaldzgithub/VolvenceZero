@@ -57,7 +57,19 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
     slot_name = "strategy_playbook"
     owner = "StrategyPlaybookModule"
     value_type = StrategyPlaybookSnapshot
-    dependencies = ("case_memory", "regime", "dual_track")
+    # Packet 5.1: declare active_mixture / protocol_phase as deps
+    # so a kernel module reads them and the consumer audit gate
+    # can pin a real ACTIVE-channel readiness signal. The reads
+    # themselves are SHADOW-tolerant; per-consumer behavior shift
+    # (e.g. weight rare_heavy rules by activation_weight) is a
+    # follow-up packet.
+    dependencies = (
+        "case_memory",
+        "regime",
+        "dual_track",
+        "active_mixture",
+        "protocol_phase",
+    )
     default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(
@@ -70,11 +82,32 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
         self._rare_heavy_state = rare_heavy_state
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[StrategyPlaybookSnapshot]:
+        from volvence_zero.behavior_protocol import (
+            ActiveMixtureSnapshot,
+            ProtocolPhaseSnapshot,
+        )
         from volvence_zero.regime import RegimeSnapshot
 
         case_memory_snapshot = upstream["case_memory"].value
         regime_snapshot = upstream["regime"].value
         dual_track_snapshot = upstream["dual_track"].value
+
+        # Packet 5.1: read active_mixture / protocol_phase
+        # SHADOW-tolerantly. Behavior unchanged; reads pin the
+        # consumer-audit ACTIVE-channel readiness check.
+        am_snap = upstream.get("active_mixture")
+        pp_snap = upstream.get("protocol_phase")
+        _active_mixture_value = (
+            am_snap.value
+            if am_snap is not None and isinstance(am_snap.value, ActiveMixtureSnapshot)
+            else None
+        )
+        _protocol_phase_value = (
+            pp_snap.value
+            if pp_snap is not None and isinstance(pp_snap.value, ProtocolPhaseSnapshot)
+            else None
+        )
+
         if not isinstance(case_memory_snapshot, CaseMemorySnapshot):
             raise TypeError("case_memory must publish CaseMemorySnapshot.")
         if not isinstance(regime_snapshot, RegimeSnapshot):

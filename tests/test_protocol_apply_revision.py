@@ -290,15 +290,22 @@ def test_apply_revision_unsupported_combo_raises() -> None:
         module.apply_revision(proposal)
 
 
-def test_checkout_revision_without_revisions_raises() -> None:
+def test_checkout_revision_without_revisions_returns_initial() -> None:
+    """Packet 6.3: rollback on a freshly-loaded protocol returns it unchanged."""
     module, _ = _build_module_with_cheng()
-    with pytest.raises(ValueError, match="no revisions"):
-        module.registry.checkout_revision("growth_advisor:cheng-laoshi")
+    bp_before = module.registry.get("growth_advisor:cheng-laoshi")
+    rolled_back = module.registry.checkout_revision(
+        "growth_advisor:cheng-laoshi"
+    )
+    assert rolled_back == bp_before
 
 
-def test_checkout_revision_content_rollback_deferred() -> None:
-    """Packet 3.3: content rollback is intentionally deferred."""
+def test_checkout_revision_restores_pre_mutation_state() -> None:
+    """Packet 6.3: rollback to None restores initial state before any revision."""
     module, _ = _build_module_with_cheng()
+    bp_initial = module.registry.get("growth_advisor:cheng-laoshi")
+    initial_strategies = tuple(s.rule_id for s in bp_initial.strategy_priors)
+
     proposal = ProtocolRevisionProposal(
         proposal_id="prop:test:rollback",
         target_protocol_id="growth_advisor:cheng-laoshi",
@@ -307,10 +314,74 @@ def test_checkout_revision_content_rollback_deferred() -> None:
         change_kind=ProtocolRevisionChangeKind.WEIGHT_DECAY,
         evidence=_evidence(),
     )
-    revised = module.apply_revision(proposal)
-    last_rev_id = revised.revision_log[-1].revision_id
+    module.apply_revision(proposal)
+    assert any(
+        s.initial_weight < bp_initial.strategy_priors[0].initial_weight
+        or s.revision_history
+        for s in module.registry.get(
+            "growth_advisor:cheng-laoshi"
+        ).strategy_priors
+    )
 
-    with pytest.raises(NotImplementedError, match="content rollback"):
+    rolled_back = module.checkout_revision("growth_advisor:cheng-laoshi")
+    rolled_strategies = tuple(s.rule_id for s in rolled_back.strategy_priors)
+    assert rolled_strategies == initial_strategies
+    # Initial strategies have no revision_history.
+    for s in rolled_back.strategy_priors:
+        assert s.revision_history == ()
+
+
+def test_checkout_revision_to_specific_revision_id() -> None:
+    """Apply 2 revisions; checkout to first → state after first only."""
+    module, _ = _build_module_with_cheng()
+    target = module.registry.get(
+        "growth_advisor:cheng-laoshi"
+    ).strategy_priors[0].rule_id
+
+    proposal_a = ProtocolRevisionProposal(
+        proposal_id="prop:rev-a",
+        target_protocol_id="growth_advisor:cheng-laoshi",
+        target_field=ProtocolRevisionTargetField.STRATEGY_PRIOR,
+        target_entry_id=target,
+        change_kind=ProtocolRevisionChangeKind.WEIGHT_DECAY,
+        evidence=_evidence(),
+        proposed_payload={"weight_multiplier": 0.5},
+    )
+    revised_a = module.apply_revision(proposal_a)
+    rev_a_id = revised_a.revision_log[-1].revision_id
+
+    proposal_b = ProtocolRevisionProposal(
+        proposal_id="prop:rev-b",
+        target_protocol_id="growth_advisor:cheng-laoshi",
+        target_field=ProtocolRevisionTargetField.STRATEGY_PRIOR,
+        target_entry_id=target,
+        change_kind=ProtocolRevisionChangeKind.WEIGHT_DECAY,
+        evidence=_evidence(),
+        proposed_payload={"weight_multiplier": 0.5},
+    )
+    module.apply_revision(proposal_b)
+
+    rolled_back = module.checkout_revision(
+        "growth_advisor:cheng-laoshi", rev_a_id
+    )
+    # After rolling back to rev_a, the revision_log should have
+    # exactly 1 entry (the rev_a one).
+    assert len(rolled_back.revision_log) == 1
+    assert rolled_back.revision_log[0].revision_id == rev_a_id
+
+
+def test_checkout_revision_unknown_revision_raises() -> None:
+    module, _ = _build_module_with_cheng()
+    proposal = ProtocolRevisionProposal(
+        proposal_id="prop:setup",
+        target_protocol_id="growth_advisor:cheng-laoshi",
+        target_field=ProtocolRevisionTargetField.STRATEGY_PRIOR,
+        target_entry_id="growth_advisor:cheng-laoshi",
+        change_kind=ProtocolRevisionChangeKind.WEIGHT_DECAY,
+        evidence=_evidence(),
+    )
+    module.apply_revision(proposal)
+    with pytest.raises(KeyError, match="no revision"):
         module.registry.checkout_revision(
-            "growth_advisor:cheng-laoshi", last_rev_id
+            "growth_advisor:cheng-laoshi", "nonexistent-rev"
         )

@@ -256,6 +256,10 @@ def compute_active_mixture(
     rupture_snapshot = _read_rupture_snapshot(upstream)
     boundary_policy_snapshot = _read_boundary_policy_snapshot(upstream)
     retrieval_policy_snapshot = _read_retrieval_policy_snapshot(upstream)
+    # Packet 7.0: optionally read commitment snapshot for COMMITMENT_*
+    # detectors. SHADOW-tolerant — duck-typed read.
+    commitment_snap = upstream.get("commitment")
+    commitment_state = commitment_snap.value if commitment_snap is not None else None
 
     context_results: list[tuple[float, tuple[str, ...]]] = []
     max_context_score = 0.0
@@ -267,6 +271,7 @@ def compute_active_mixture(
             boundary_policy_snapshot=boundary_policy_snapshot,
             regime_snapshot=regime_snapshot,
             retrieval_policy_snapshot=retrieval_policy_snapshot,
+            commitment_state=commitment_state,
         )
         context_results.append((score, reasons))
         max_context_score = max(max_context_score, score)
@@ -514,6 +519,7 @@ def _compute_context_match(
     boundary_policy_snapshot: BoundaryPolicySnapshot | None,
     regime_snapshot: RegimeSnapshot | None = None,
     retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
+    commitment_state: Any | None = None,
 ) -> tuple[float, tuple[str, ...]]:
     """Per-protocol context_match score from typed kernel-side signals.
 
@@ -564,6 +570,7 @@ def _compute_context_match(
             boundary_policy_snapshot=boundary_policy_snapshot,
             regime_snapshot=regime_snapshot,
             retrieval_policy_snapshot=retrieval_policy_snapshot,
+            commitment_state=commitment_state,
         )
         if firing:
             score += signal.weight * 1.0
@@ -579,7 +586,9 @@ def _signal_is_firing(
     boundary_policy_snapshot: BoundaryPolicySnapshot | None,
     regime_snapshot: RegimeSnapshot | None = None,
     retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
+    commitment_state: Any | None = None,
 ) -> bool:
+    interlocutor_state = interlocutor_snapshot
     """Dispatch detector by signal source.
 
     Unknown / unsupported sources return False; the protocol-level
@@ -599,6 +608,44 @@ def _signal_is_firing(
         return _user_dropout_observed(rupture_snapshot)
     if source is BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT:
         return _regime_transition_recent(regime_snapshot)
+    if source is BehaviorProtocolSignalSource.USER_REPLY_LATENCY:
+        # Proxy: low engagement_intensity AND low directness combined
+        # → user is replying slowly / hesitantly. Without a direct
+        # latency signal we use these as the closest available proxy.
+        if interlocutor_state is None:
+            return False
+        s = interlocutor_state.state
+        return bool(
+            s.engagement_intensity < 0.35 and s.directness < 0.45
+        )
+    if source is BehaviorProtocolSignalSource.USER_REPLY_LENGTH:
+        # Proxy: high engagement_intensity AND high self_disclosure
+        # → user is offering longer / richer reply.
+        if interlocutor_state is None:
+            return False
+        s = interlocutor_state.state
+        return bool(
+            s.engagement_intensity >= 0.7 and s.self_disclosure_level >= 0.5
+        )
+    if source is BehaviorProtocolSignalSource.USER_INITIATIVE_QUESTION:
+        # Proxy: high engagement + high directness + low resistance
+        # → user is leaning in and asking back.
+        if interlocutor_state is None:
+            return False
+        s = interlocutor_state.state
+        return bool(
+            s.engagement_intensity >= 0.7
+            and s.directness >= 0.6
+            and s.resistance_level < 0.4
+        )
+    if source is BehaviorProtocolSignalSource.COMMITMENT_FULFILLED:
+        if commitment_state is None:
+            return False
+        return bool(getattr(commitment_state, "honored_commitment_refs", ()))
+    if source is BehaviorProtocolSignalSource.COMMITMENT_BROKEN:
+        if commitment_state is None:
+            return False
+        return bool(getattr(commitment_state, "at_risk_commitments", ()))
     if source is BehaviorProtocolSignalSource.RETRIEVAL_HITS_PRESENT:
         return _retrieval_hits_present(retrieval_policy_snapshot)
     # DRIVE_HOMEOSTASIS_HOLD / DRIVE_HOMEOSTASIS_BREACH: permanently

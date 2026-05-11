@@ -62,6 +62,7 @@ See ``docs/specs/protocol-runtime.md`` for the full design.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping
 
 from volvence_zero.application.rare_heavy_state import ApplicationRareHeavyState
@@ -87,6 +88,7 @@ from volvence_zero.protocol_runtime.activation import (
 )
 from volvence_zero.protocol_runtime.compiler import (
     compile_protocol_to_application_artifacts,
+    merge_protocol_chain,
 )
 from volvence_zero.protocol_runtime.registry import ProtocolRegistry
 
@@ -187,6 +189,9 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         "prediction_error",
         "retrieval_policy",
         "protocol_phase",
+        # Packet 7.0: COMMITMENT_FULFILLED / COMMITMENT_BROKEN
+        # detectors read the typed commitment snapshot.
+        "commitment",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -280,9 +285,22 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
 
         return self._registry
 
-    def load_protocol(self, protocol: BehaviorProtocol) -> None:
+    def load_protocol(
+        self,
+        protocol: BehaviorProtocol,
+        *,
+        load_context: "LoadContext | None" = None,
+    ) -> None:
         """Register a protocol; if a rare-heavy state was injected,
         compile artifacts and apply to the application owners.
+
+        Packet 6.6: ``load_context`` may carry a reviewer-supplied
+        review level. If supplied, the engine asserts the level
+        is sufficient for the protocol's content (compares against
+        ``required_review_level`` derived from the protocol's
+        boundary / identity content). Missing context defaults to
+        the legacy "trust caller" path (used by FIXTURE loads and
+        tests).
 
         Order matters: registry first, application state second. If
         any application state apply step fails (e.g. application
@@ -296,6 +314,17 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         adds case / knowledge artifacts, follow the same pattern.
         """
 
+        if load_context is not None:
+            required = _required_review_level_for_protocol(protocol)
+            if not _review_level_sufficient(
+                load_context.reviewer_level, required
+            ):
+                raise PermissionError(
+                    f"protocol {protocol.protocol_id!r} requires "
+                    f"reviewer_level={required.value}; got "
+                    f"{load_context.reviewer_level.value} (reviewer_id="
+                    f"{load_context.reviewer_id!r})"
+                )
         self._registry.load(protocol)
         # Short-circuit: no application stores injected → registry-only.
         if (
@@ -305,7 +334,16 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         ):
             return
         try:
-            artifacts = compile_protocol_to_application_artifacts(protocol)
+            # Packet 6.5: if this protocol declares a parent_protocol_id,
+            # merge the chain into a flat protocol before compiling so
+            # parent boundary / strategy / knowledge / case content is
+            # also applied to application owners.
+            compile_target = protocol
+            if protocol.parent_protocol_id is not None:
+                compile_target = merge_protocol_chain(
+                    protocol, lookup=self._registry.get_optional
+                )
+            artifacts = compile_protocol_to_application_artifacts(compile_target)
             applied_anything = False
             if (
                 self._application_rare_heavy_state is not None
@@ -394,33 +432,49 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         self.load_protocol(candidate.protocol)
 
     def unload_protocol(self, protocol_id: str) -> bool:
-        """Convenience for adapters: equivalent to ``self.registry.unload(...)``.
+        """Packet 6.9: full unload — drops registry entry and
+        removes any protocol-prefixed entries from the injected
+        application stores.
 
-        Packet 1.2 deferral: when a protocol has artifacts already
-        applied to the application state, unload raises
-        ``NotImplementedError``. ``ApplicationRareHeavyState`` has
-        no per-key remove API today; clean unload requires either
-        extending the state with
-        ``remove_boundary_prior_hints_by_id_prefix`` or rebuilding
-        from a checkpoint without the protocol's entries. This
-        path will land alongside protocol revision (packet 1.6+)
-        and is intentionally fail-loud here so callers know the
-        operation is unsupported.
+        Returns True if the protocol was loaded and removed, False
+        if it wasn't loaded.
+
+        Cleanup uses the lineage prefix shape established by the
+        compile path:
+
+        * Boundary prior hints: ``protocol:{protocol_id}:boundary:{...}``
+        * Playbook rules: ``protocol:{protocol_id}:playbook:{...}``
+        * Domain knowledge records: ``protocol:{protocol_id}:knowledge:{...}``
+        * Case memory records: ``protocol:{protocol_id}:case:{...}``
+
+        Other vertical-driven entries (no ``protocol:`` prefix) are
+        untouched.
         """
 
         if protocol_id in self._applied_to_application_state:
-            raise NotImplementedError(
-                f"unload_protocol({protocol_id!r}) cannot remove "
-                "already-applied application artifacts (boundary, "
-                "playbook, domain-knowledge, or case-memory). "
-                "ApplicationRareHeavyState / ApplicationDomainKnowledgeStore / "
-                "ApplicationCaseMemoryStore lack per-key remove APIs. "
-                "Wait for packet 1.6+ or rebuild from a checkpoint "
-                "without this protocol's entries. See "
-                "docs/specs/protocol-runtime.md §packet 1.2 / 1.3b / 1.4a / "
-                "1.4b unload deferral."
-            )
+            self._unload_protocol_artifacts(protocol_id)
+            self._applied_to_application_state.discard(protocol_id)
         return self._registry.unload(protocol_id)
+
+    def _unload_protocol_artifacts(self, protocol_id: str) -> None:
+        """Drop application-store entries with the given protocol prefix."""
+
+        prefix = f"protocol:{protocol_id}:"
+        if self._application_rare_heavy_state is not None:
+            self._application_rare_heavy_state.remove_boundary_prior_hints_by_id_prefix(
+                f"{prefix}boundary:"
+            )
+            self._application_rare_heavy_state.remove_distilled_playbook_rules_by_id_prefix(
+                f"{prefix}playbook:"
+            )
+        if self._domain_knowledge_store is not None:
+            self._domain_knowledge_store.remove_records_by_id_prefix(
+                f"{prefix}knowledge:"
+            )
+        if self._case_memory_store is not None:
+            self._case_memory_store.remove_records_by_id_prefix(
+                f"{prefix}case:"
+            )
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
@@ -539,6 +593,63 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
             elif updated < -_PE_UTILITY_CLAMP:
                 updated = -_PE_UTILITY_CLAMP
             self._pe_utility[protocol_id] = updated
+
+    def checkout_revision(
+        self,
+        protocol_id: str,
+        revision_id: str | None = None,
+    ) -> BehaviorProtocol:
+        """Packet 6.3: roll a protocol back to an earlier revision.
+
+        Delegates to :meth:`ProtocolRegistry.checkout_revision` for
+        the in-memory state restore; then re-runs the compile path
+        against any injected application stores so the application
+        owners see the restored content (overwrite semantics —
+        same-id entries replace; entries that no longer exist in
+        the rolled-back state may persist as orphans until packet
+        6.9 adds full unload).
+        """
+
+        restored = self._registry.checkout_revision(
+            protocol_id, revision_id
+        )
+        if (
+            self._application_rare_heavy_state is None
+            and self._domain_knowledge_store is None
+            and self._case_memory_store is None
+        ):
+            return restored
+
+        artifacts = compile_protocol_to_application_artifacts(restored)
+        if (
+            self._application_rare_heavy_state is not None
+            and artifacts.boundary_prior_hints
+        ):
+            self._application_rare_heavy_state.upsert_boundary_prior_hints(
+                artifacts.boundary_prior_hints
+            )
+        if (
+            self._application_rare_heavy_state is not None
+            and artifacts.playbook_rules
+        ):
+            self._application_rare_heavy_state.upsert_distilled_playbook_rules(
+                artifacts.playbook_rules
+            )
+        if (
+            self._domain_knowledge_store is not None
+            and artifacts.domain_knowledge_records
+        ):
+            self._domain_knowledge_store.upsert_records(
+                artifacts.domain_knowledge_records
+            )
+        if (
+            self._case_memory_store is not None
+            and artifacts.case_memory_records
+        ):
+            self._case_memory_store.upsert_records(
+                artifacts.case_memory_records
+            )
+        return restored
 
     def apply_revision(
         self,
@@ -717,6 +828,66 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         self._beta = new_beta
 
 
+@dataclass(frozen=True)
+class LoadContext:
+    """Packet 6.6: reviewer authority context for protocol load.
+
+    Supplied by the caller when loading non-trivial protocols
+    (e.g. PDF-extracted candidates, API-injected protocols).
+    The engine compares ``reviewer_level`` against the protocol's
+    derived ``required_review_level`` and raises ``PermissionError``
+    if insufficient.
+    """
+
+    reviewer_id: str
+    reviewer_level: "ReviewLevel"
+    note: str = ""
+
+
+def _required_review_level_for_protocol(
+    protocol: BehaviorProtocol,
+) -> "ReviewLevel":
+    """Mirror of ``review.required_review_level`` for a fully-built
+    protocol (post-approval). Used by ``LoadContext`` enforcement.
+    """
+
+    from volvence_zero.behavior_protocol import (
+        BoundarySeverity,
+        ReviewLevel,
+    )
+
+    if any(
+        b.severity is BoundarySeverity.HARD_BLOCK
+        or b.severity is BoundarySeverity.ESCALATE_HUMAN
+        for b in protocol.boundary_contracts
+    ):
+        return ReviewLevel.L4
+    if (
+        protocol.identity_assertion.requires_self_traits
+        or protocol.identity_assertion.forbidden_self_traits
+    ):
+        return ReviewLevel.L3
+    if any(
+        b.severity is BoundarySeverity.SOFT_REMIND
+        for b in protocol.boundary_contracts
+    ):
+        return ReviewLevel.L2
+    return ReviewLevel.L1
+
+
+def _review_level_sufficient(
+    actual: "ReviewLevel", required: "ReviewLevel"
+) -> bool:
+    """Compare two ReviewLevel enums.
+
+    ``L4`` ≥ ``L3`` ≥ ``L2`` ≥ ``L1`` (numerically reversed so
+    ``L4`` is the highest authority).
+    """
+
+    order = {"L1": 1, "L2": 2, "L3": 3, "L4": 4}
+    return order[actual.name] >= order[required.name]
+
+
 def _read_phase_by_id(
     upstream: Mapping[str, Snapshot[Any]],
 ) -> dict[str, str] | None:
@@ -739,4 +910,8 @@ def _read_phase_by_id(
     }
 
 
-__all__ = ["FallbackActivationActiveError", "ProtocolRegistryModule"]
+__all__ = [
+    "FallbackActivationActiveError",
+    "LoadContext",
+    "ProtocolRegistryModule",
+]

@@ -58,6 +58,9 @@ What this module is NOT:
 
 from __future__ import annotations
 
+from dataclasses import replace as _replace
+from typing import Callable
+
 from dataclasses import dataclass
 
 from volvence_zero.application.storage import (
@@ -98,6 +101,111 @@ class ProtocolApplicationArtifacts:
     playbook_rules: tuple[PlaybookRule, ...] = ()
     domain_knowledge_records: tuple[DomainKnowledgeRecord, ...] = ()
     case_memory_records: tuple[CaseMemoryRecord, ...] = ()
+
+
+def merge_protocol_chain(
+    child: BehaviorProtocol,
+    *,
+    lookup: "Callable[[str], BehaviorProtocol | None]",
+) -> BehaviorProtocol:
+    """Packet 6.5: walk parent_protocol_id chain and merge content.
+
+    Merge semantics (Open Q1 resolve):
+
+    * ``boundary_contracts`` / ``strategy_priors`` / ``knowledge_seeds``
+      / ``signature_cases``: union by id; child entry overrides parent
+      with the same id.
+    * ``identity_assertion``: child overrides (treated as opaque).
+    * ``activation_conditions``: child overrides.
+    * ``temporal_arc``: child overrides (phase content is structural).
+    * ``success_signals`` / ``failure_signals``: union by signal_id;
+      child overrides.
+    * ``revision_log``: per-protocol per-lifeform — NOT merged
+      across chain. Child's own revision_log returned unchanged.
+    * Top-level metadata (protocol_id / version / advisor_name /
+      description / source_*): child wins.
+
+    Cycle protection: walks chain via ``lookup`` callable; if a
+    chain visits the same id twice, raises ValueError. Missing
+    parent (``lookup`` returns None) raises ValueError.
+
+    Returns a *new* ``BehaviorProtocol`` instance with the merged
+    content. Caller is expected to compile this merged protocol
+    (or load it as the canonical compiled form).
+    """
+
+    visited: set[str] = set()
+    chain: list[BehaviorProtocol] = []
+    cursor: BehaviorProtocol | None = child
+    while cursor is not None:
+        if cursor.protocol_id in visited:
+            raise ValueError(
+                f"protocol chain has a cycle at {cursor.protocol_id!r}"
+            )
+        visited.add(cursor.protocol_id)
+        chain.append(cursor)
+        if cursor.parent_protocol_id is None:
+            break
+        parent = lookup(cursor.parent_protocol_id)
+        if parent is None:
+            raise ValueError(
+                f"protocol {cursor.protocol_id!r} declares "
+                f"parent_protocol_id={cursor.parent_protocol_id!r} "
+                "but parent is not loaded in the registry"
+            )
+        cursor = parent
+
+    # chain is [child, parent, grandparent, ...] — merge from
+    # oldest to newest so child wins on conflicts.
+    chain_oldest_first = list(reversed(chain))
+
+    def _merge_by_id(
+        existing: tuple, incoming: tuple, key: str
+    ) -> tuple:
+        bucket: dict = {}
+        for entry in existing:
+            bucket[getattr(entry, key)] = entry
+        for entry in incoming:
+            bucket[getattr(entry, key)] = entry
+        return tuple(bucket.values())
+
+    base = chain_oldest_first[0]
+    boundary_contracts = base.boundary_contracts
+    strategy_priors = base.strategy_priors
+    knowledge_seeds = base.knowledge_seeds
+    signature_cases = base.signature_cases
+    success_signals = base.success_signals
+    failure_signals = base.failure_signals
+
+    for protocol in chain_oldest_first[1:]:
+        boundary_contracts = _merge_by_id(
+            boundary_contracts, protocol.boundary_contracts, "boundary_id"
+        )
+        strategy_priors = _merge_by_id(
+            strategy_priors, protocol.strategy_priors, "rule_id"
+        )
+        knowledge_seeds = _merge_by_id(
+            knowledge_seeds, protocol.knowledge_seeds, "seed_id"
+        )
+        signature_cases = _merge_by_id(
+            signature_cases, protocol.signature_cases, "case_id"
+        )
+        success_signals = _merge_by_id(
+            success_signals, protocol.success_signals, "signal_id"
+        )
+        failure_signals = _merge_by_id(
+            failure_signals, protocol.failure_signals, "signal_id"
+        )
+
+    return _replace(
+        child,
+        boundary_contracts=boundary_contracts,
+        strategy_priors=strategy_priors,
+        knowledge_seeds=knowledge_seeds,
+        signature_cases=signature_cases,
+        success_signals=success_signals,
+        failure_signals=failure_signals,
+    )
 
 
 def compile_protocol_to_application_artifacts(

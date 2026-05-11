@@ -63,6 +63,23 @@ def _direct_active_mixture_readers() -> list[str]:
     return readers
 
 
+def _direct_protocol_phase_readers() -> list[str]:
+    """List kernel modules whose ``dependencies`` include ``protocol_phase``."""
+
+    config = FinalRolloutConfig()
+    adapter = PlaceholderSubstrateAdapter(model_id="protocol-phase-audit")
+    modules = build_final_runtime_modules(
+        config=config,
+        substrate_adapter=adapter,
+    )
+    readers: list[str] = []
+    for module in modules:
+        deps = getattr(module, "dependencies", ())
+        if "protocol_phase" in deps:
+            readers.append(module.slot_name)
+    return readers
+
+
 def _protocol_lineage_in_application_owners() -> dict[str, list[str]]:
     """Run the protocol compile path and collect protocol-prefixed IDs.
 
@@ -157,3 +174,56 @@ def test_audit_documents_current_evidence_channel() -> None:
     )
     # Pure documentation; no assertion.
     assert True
+
+
+# ---------------------------------------------------------------------------
+# Packet 5.1 readiness: at least 2 ACTIVE consumers declare direct deps
+# ---------------------------------------------------------------------------
+
+
+def test_at_least_two_active_consumers_read_active_mixture_directly() -> None:
+    """Packet 5.1 raises the bar: ACTIVE wiring is no longer just
+    indirect-via-compile-path. At minimum 2 kernel ACTIVE consumers
+    must declare ``active_mixture`` as a typed upstream dependency
+    so the snapshot stream is read live, not just a compile-time
+    side-channel.
+    """
+
+    direct = _direct_active_mixture_readers()
+    assert len(direct) >= 2, (
+        f"only {len(direct)} kernel module(s) declare 'active_mixture' "
+        f"as a dependency: {direct}. Packet 5.1 requires at least 2 "
+        "ACTIVE consumers (response_assembly + strategy_playbook) to "
+        "read the slot directly."
+    )
+
+
+def test_at_least_two_active_consumers_read_protocol_phase_directly() -> None:
+    """Packet 5.0 published protocol_phase; packet 5.1 wires the
+    same two consumers to read it so phase information actually
+    flows past the registry."""
+
+    direct = _direct_protocol_phase_readers()
+    assert len(direct) >= 2, (
+        f"only {len(direct)} kernel module(s) declare 'protocol_phase' "
+        f"as a dependency: {direct}. Packet 5.1 requires at least 2 "
+        "ACTIVE consumers reading phase."
+    )
+
+
+def test_response_assembly_and_strategy_playbook_are_the_two_readers() -> None:
+    """Pin the canonical ACTIVE consumer set for packet 5.1.
+
+    Future packets that move readers (e.g. metacontroller) must
+    update this test in the same PR so the consumer set stays
+    auditable.
+    """
+
+    am_readers = set(_direct_active_mixture_readers())
+    pp_readers = set(_direct_protocol_phase_readers())
+    assert {"response_assembly", "strategy_playbook"}.issubset(am_readers), (
+        am_readers
+    )
+    assert {"response_assembly", "strategy_playbook"}.issubset(pp_readers), (
+        pp_readers
+    )

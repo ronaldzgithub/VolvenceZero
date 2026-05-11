@@ -320,6 +320,14 @@ class ApplicationDomainKnowledgeStore:
             if existing is None or record.confidence >= existing.confidence:
                 self._records[record.record_id] = record
 
+    def remove_records_by_id_prefix(self, prefix: str) -> int:
+        """Packet 6.9: drop records whose ``record_id`` starts with ``prefix``."""
+
+        to_remove = [rid for rid in self._records if rid.startswith(prefix)]
+        for rid in to_remove:
+            del self._records[rid]
+        return len(to_remove)
+
     def query(
         self,
         *,
@@ -457,6 +465,14 @@ class ApplicationCaseMemoryStore:
             existing = self._records.get(record.case_id)
             if existing is None or record.relevance_score >= existing.relevance_score:
                 self._records[record.case_id] = record
+
+    def remove_records_by_id_prefix(self, prefix: str) -> int:
+        """Packet 6.9: drop records whose ``case_id`` starts with ``prefix``."""
+
+        to_remove = [cid for cid in self._records if cid.startswith(prefix)]
+        for cid in to_remove:
+            del self._records[cid]
+        return len(to_remove)
 
     def query(
         self,

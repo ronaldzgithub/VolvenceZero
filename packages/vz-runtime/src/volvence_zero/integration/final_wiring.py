@@ -96,7 +96,9 @@ from volvence_zero.rupture_state import (
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.protocol_runtime import (
     ProtocolPhaseModule,
+    ProtocolRegistryIntrospectionModule,
     ProtocolRegistryModule,
+    ProtocolRevisionLogModule,
 )
 from volvence_zero.runtime import (
     EventRecorder,
@@ -1365,6 +1367,21 @@ def build_final_runtime_modules(
         ),
         registry=protocol_registry_owner.registry,
     )
+    # Packet 6.8: introspection sibling owners (registry summary +
+    # revision log). Both SHADOW by default; share the same registry
+    # handle as the active_mixture owner.
+    protocol_registry_introspection_owner = ProtocolRegistryIntrospectionModule(
+        wiring_level=config.level_for(
+            "protocol_registry", WiringLevel.SHADOW
+        ),
+        registry=protocol_registry_owner.registry,
+    )
+    protocol_revision_log_owner = ProtocolRevisionLogModule(
+        wiring_level=config.level_for(
+            "protocol_revision_log", WiringLevel.SHADOW
+        ),
+        registry=protocol_registry_owner.registry,
+    )
     return [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -1536,6 +1553,8 @@ def build_final_runtime_modules(
         interlocutor_state_owner,
         protocol_phase_owner,
         protocol_registry_owner,
+        protocol_registry_introspection_owner,
+        protocol_revision_log_owner,
     ]
 
 

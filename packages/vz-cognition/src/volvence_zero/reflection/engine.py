@@ -60,9 +60,15 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
     slot_name: ClassVar[str] = "protocol_reflection"
     owner: ClassVar[str] = "ProtocolReflectionEngine"
     value_type: ClassVar[type[Any]] = ProtocolReflectionSnapshot
+    # Packet 6.2: domain_knowledge / case_memory added so the
+    # archival rules can read hit_ids per turn without breaking
+    # the cognition→application import-boundary rule (snapshots
+    # are read duck-typedly via getattr, no concrete type import).
     dependencies: ClassVar[tuple[str, ...]] = (
         "prediction_error",
         "active_mixture",
+        "domain_knowledge",
+        "case_memory",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -91,6 +97,16 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         self._active_mixture_history: deque[ActiveMixtureSnapshot] = deque(
             maxlen=history_window
         )
+        # Packet 6.2: per-turn observed hit_id sets for archival rules.
+        # Duck-typed reads from domain_knowledge.hits[*].hit_id and
+        # case_memory.hits[*].case_id; rules use these to detect
+        # "this protocol's seed X never gets retrieved" patterns.
+        self._knowledge_hit_history: deque[tuple[str, ...]] = deque(
+            maxlen=history_window
+        )
+        self._case_hit_history: deque[tuple[str, ...]] = deque(
+            maxlen=history_window
+        )
         self._turns_since_last_scan: int = 0
         self._last_pe_turn_index: int | None = None
         self._last_proposals: tuple[ProtocolRevisionProposal, ...] = ()
@@ -116,6 +132,8 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         # upstream just means we don't append anything).
         self._ingest_pe(upstream)
         self._ingest_active_mixture(upstream)
+        self._ingest_knowledge_hits(upstream)
+        self._ingest_case_hits(upstream)
 
         self._turns_since_last_scan += 1
 
@@ -176,16 +194,59 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
             return
         self._active_mixture_history.append(value)
 
+    def _ingest_knowledge_hits(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        """Duck-typed read of domain_knowledge.hits[*].hit_id.
+
+        Reads via getattr to keep cognition tier free of vz-application
+        type imports. Missing snapshot / shape mismatch → empty tuple
+        appended (means "no hits this turn", not "skip turn").
+        """
+
+        snapshot = upstream.get("domain_knowledge")
+        if snapshot is None:
+            self._knowledge_hit_history.append(())
+            return
+        value = snapshot.value
+        hits = getattr(value, "hits", None)
+        if hits is None:
+            self._knowledge_hit_history.append(())
+            return
+        hit_ids = tuple(
+            getattr(h, "hit_id", "")
+            for h in hits
+            if getattr(h, "hit_id", "")
+        )
+        self._knowledge_hit_history.append(hit_ids)
+
+    def _ingest_case_hits(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        """Duck-typed read of case_memory.hits[*].case_id."""
+
+        snapshot = upstream.get("case_memory")
+        if snapshot is None:
+            self._case_hit_history.append(())
+            return
+        value = snapshot.value
+        hits = getattr(value, "hits", None)
+        if hits is None:
+            self._case_hit_history.append(())
+            return
+        case_ids = tuple(
+            getattr(h, "case_id", "")
+            for h in hits
+            if getattr(h, "case_id", "")
+        )
+        self._case_hit_history.append(case_ids)
+
     # ------------------------------------------------------------------
     # Rules dispatch (filled in by packet 3.2)
     # ------------------------------------------------------------------
 
     def _run_rules(self) -> tuple[ProtocolRevisionProposal, ...]:
-        """Run all reflection rules and return their merged proposals.
-
-        Packet 3.1 ships an empty rule set (returns ``()``).
-        Packet 3.2 wires the concrete rule functions.
-        """
+        """Run all reflection rules and return their merged proposals."""
 
         from volvence_zero.reflection.protocol_revision_rules import (
             run_all_protocol_revision_rules,
@@ -194,7 +255,17 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         return run_all_protocol_revision_rules(
             pe_history=tuple(self._pe_history),
             active_mixture_history=tuple(self._active_mixture_history),
+            knowledge_hit_history=tuple(self._knowledge_hit_history),
+            case_hit_history=tuple(self._case_hit_history),
         )
+
+    @property
+    def knowledge_hit_history(self) -> tuple[tuple[str, ...], ...]:
+        return tuple(self._knowledge_hit_history)
+
+    @property
+    def case_hit_history(self) -> tuple[tuple[str, ...], ...]:
+        return tuple(self._case_hit_history)
 
 
 __all__ = ["ProtocolReflectionEngine"]

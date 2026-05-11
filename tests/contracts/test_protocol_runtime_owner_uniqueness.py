@@ -81,12 +81,13 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
     Packet 1.5b: adds ``("prediction_error",)`` for owner-side
     rolling pe_utility EMA.
     Packet 1.5a': adds ``("retrieval_policy",)`` for the
-    ``RETRIEVAL_HITS_PRESENT`` detector. ``regime`` already in
-    the tuple is shared between identity_gate and the new
-    ``REGIME_TRANSITION_RECENT`` detector. ``rupture_state``
-    already in the tuple is shared between
-    ``RUPTURE_KIND_FIRED`` and the new
-    ``USER_DROPOUT_OBSERVED`` detector.
+    ``RETRIEVAL_HITS_PRESENT`` detector.
+    Packet 5.0: adds ``("protocol_phase",)`` so the owner can
+    consume PE-driven phase pointers from
+    ``ProtocolPhaseModule`` to populate
+    ``ActiveProtocolEntry.current_phase_id``.
+    Packet 7.0: adds ``("commitment",)`` for the
+    ``COMMITMENT_FULFILLED`` / ``COMMITMENT_BROKEN`` detectors.
 
     Future packets (e.g. metacontroller-driven α/β with a
     dedicated upstream slot) are expected to grow this tuple —
@@ -104,6 +105,8 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
         "boundary_policy",
         "prediction_error",
         "retrieval_policy",
+        "protocol_phase",
+        "commitment",
     ), owner.dependencies
 
 

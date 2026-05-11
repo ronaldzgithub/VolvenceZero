@@ -41,6 +41,8 @@ def test_engine_default_dependencies() -> None:
     assert ProtocolReflectionEngine.dependencies == (
         "prediction_error",
         "active_mixture",
+        "domain_knowledge",
+        "case_memory",
     )
 
 

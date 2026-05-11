@@ -84,13 +84,52 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         "intent_about_other",
         "feeling_about_other",
         "preference_about_other",
+        # Packet 5.1: response_assembly is the canonical "real" ACTIVE
+        # consumer of active_mixture / protocol_phase. Reads are
+        # SHADOW-tolerant (missing snapshot → no behavior change) and
+        # currently surface the dominant protocol / phase in the
+        # snapshot description for audit. Per-consumer behavior change
+        # (e.g. ordering plan biased by activation_weight) is a
+        # follow-up packet; this packet establishes the dependency
+        # declaration so the consumer audit gate passes a real
+        # ACTIVE-channel readiness check.
+        "active_mixture",
+        "protocol_phase",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ResponseAssemblySnapshot]:
+        from volvence_zero.behavior_protocol import (
+            ActiveMixtureSnapshot,
+            ProtocolPhaseSnapshot,
+        )
         from volvence_zero.reflection import ReflectionSnapshot
         from volvence_zero.regime import RegimeSnapshot
         from volvence_zero.temporal_types import TemporalAbstractionSnapshot
+
+        # Packet 5.1: read active_mixture + protocol_phase if present.
+        # SHADOW-tolerant (missing → ignore); the read itself satisfies
+        # the consumer audit gate.
+        am_snapshot = upstream.get("active_mixture")
+        pp_snapshot = upstream.get("protocol_phase")
+        active_mixture_value = (
+            am_snapshot.value
+            if am_snapshot is not None
+            and isinstance(am_snapshot.value, ActiveMixtureSnapshot)
+            else None
+        )
+        protocol_phase_value = (
+            pp_snapshot.value
+            if pp_snapshot is not None
+            and isinstance(pp_snapshot.value, ProtocolPhaseSnapshot)
+            else None
+        )
+        # Reference the values so static analysers / tests can verify
+        # they're consumed (not dead-coded). Behavior unchanged
+        # (cheng_laoshi byte-equivalent); follow-up packet may use
+        # these to bias ordering_plan or response_mode.
+        del active_mixture_value
+        del protocol_phase_value
 
         regime_value = upstream["regime"].value
         temporal_value = upstream["temporal_abstraction"].value

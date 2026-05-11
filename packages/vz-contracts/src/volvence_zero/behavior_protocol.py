@@ -93,6 +93,20 @@ class BehaviorProtocolSignalSource(str, Enum):
     # / case lookups this turn). Useful for protocols whose
     # strategies depend on retrieval-grounded answers.
     RETRIEVAL_HITS_PRESENT = "retrieval_hits_present"
+    # Packet 7.0: dialogue trace-derived sources (latency / length /
+    # initiative-question proxies). The detectors read these via
+    # ``dialogue_trace`` and ``interlocutor_state`` fields on the
+    # canonical kernel snapshots. New members require detector
+    # impl (see ``activation._signal_is_firing``) + at least one
+    # contract test.
+    USER_REPLY_LATENCY = "user_reply_latency"
+    USER_REPLY_LENGTH = "user_reply_length"
+    USER_INITIATIVE_QUESTION = "user_initiative_question"
+    # Packet 7.0: AAC commitment lifecycle — protocol-level signal
+    # for "user committed to next step" / "user broke a prior
+    # commitment". Reads from ``commitment`` snapshot.
+    COMMITMENT_FULFILLED = "commitment_fulfilled"
+    COMMITMENT_BROKEN = "commitment_broken"
 
 
 class ReviewStatus(str, Enum):
@@ -101,6 +115,9 @@ class ReviewStatus(str, Enum):
     DRAFT = "draft"
     SHADOW = "shadow"
     ACTIVE = "active"
+    # Packet 6.1 / 6.4: terminal lifecycle. RETIRED protocols are
+    # filtered from active_mixture but kept in registry for audit
+    # and R15 rollback.
     RETIRED = "retired"
 
 
@@ -370,12 +387,20 @@ class TemporalPhase:
 class TemporalArc:
     """The protocol's full phase arc.
 
-    Packet 1.0 fixture conversion uses a single placeholder phase;
-    packet 1.4 will translate ``cheng_laoshi`` day-tag scopes into
-    real phases driven by ``ProgressionSignal``.
+    Phase advancement is driven by typed
+    :class:`ProgressionSignal` evidence (see packet 5.0
+    ``ProtocolPhaseModule``); the calendar-tag fallback used in
+    packet 1.0 fixture conversion is a transition-period
+    placeholder, not the canonical mechanism.
+
+    ``progression_signals`` (packet 5.0) declares arc-level
+    signals applicable to any phase transition. Per-phase
+    ``entry_conditions`` / ``exit_conditions`` on
+    :class:`TemporalPhase` provide finer control.
     """
 
     phases: tuple[TemporalPhase, ...] = ()
+    progression_signals: tuple[ProgressionSignal, ...] = ()
 
     def __post_init__(self) -> None:
         seen = set()
@@ -386,6 +411,14 @@ class TemporalArc:
                     f"{phase.phase_id!r}"
                 )
             seen.add(phase.phase_id)
+        signal_ids = set()
+        for signal in self.progression_signals:
+            if signal.signal_id in signal_ids:
+                raise ValueError(
+                    f"TemporalArc.progression_signals.signal_id "
+                    f"duplicate: {signal.signal_id!r}"
+                )
+            signal_ids.add(signal.signal_id)
 
 
 # ---------------------------------------------------------------------------
@@ -853,6 +886,23 @@ class ProtocolRevisionChangeKind(str, Enum):
     DEACTIVATE = "deactivate"
     REPLACE_TEXT = "replace_text"
     ARCHIVE = "archive"
+    # Packet 5.2: reflection can propose adding a new strategy_prior
+    # (or, future, a new knowledge_seed / signature_case) when
+    # accumulated experience reveals a successful pattern not
+    # covered by any existing protocol entry.
+    ADD_STRATEGY = "add_strategy"
+    # Packet 6.1: symmetric to WEIGHT_DECAY — multiplier > 1.
+    WEIGHT_REINFORCE = "weight_reinforce"
+    # Packet 6.1: change a BoundaryContract's trigger_reasons /
+    # blocked_topics; review_level=L4 (admin sign-off required).
+    BOUNDARY_REFINEMENT = "boundary_refinement"
+    # Packet 6.1: edit identity_assertion (requires_self_traits /
+    # forbidden_self_traits / required_regime_compatibility);
+    # review_level=L4 fail-safe (ALWAYS queued).
+    IDENTITY_CLARIFICATION = "identity_clarification"
+    # Packet 6.1: mark protocol.review_status = RETIRED. Requires
+    # packet 6.4 RETIRED state. review_level=L3-L4.
+    PROTOCOL_RETIREMENT = "protocol_retirement"
 
 
 @dataclass(frozen=True)
@@ -879,6 +929,57 @@ class ProposalEvidence:
             raise ValueError(
                 "ProposalEvidence.summary must be non-empty"
             )
+
+
+@dataclass(frozen=True)
+class ProtocolRegistryEntry:
+    """Per-protocol summary published in
+    :class:`ProtocolRegistrySnapshot`. Surface for audit / CLI tools."""
+
+    protocol_id: str
+    version: str
+    advisor_name: str
+    review_status: "ReviewStatus"
+    parent_protocol_id: str | None
+    boundary_count: int
+    strategy_count: int
+    knowledge_seed_count: int
+    signature_case_count: int
+    revision_count: int
+
+
+@dataclass(frozen=True)
+class ProtocolRegistrySnapshot:
+    """Per-turn published value of the ``protocol_registry`` slot
+    (packet 6.8). Lets external auditors / CLI tools see the
+    contents of the registry without poking at owner internals."""
+
+    entries: tuple[ProtocolRegistryEntry, ...]
+    active_count: int
+    retired_count: int
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ProtocolRevisionLogEntry:
+    """Per-revision summary for the ``protocol_revision_log`` slot.
+
+    Field names mirror :class:`ProtocolRevision` (audit transparency)."""
+
+    protocol_id: str
+    revision_id: str
+    revised_at_tick: int
+    revised_by: str
+    description: str
+    affected_field: str
+
+
+@dataclass(frozen=True)
+class ProtocolRevisionLogSnapshot:
+    """Per-turn published view of all revisions across all protocols."""
+
+    entries: tuple[ProtocolRevisionLogEntry, ...]
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -1117,6 +1218,10 @@ __all__ = [
     "ProtocolPhaseSnapshot",
     "ProtocolProvenance",
     "ProtocolReflectionSnapshot",
+    "ProtocolRegistryEntry",
+    "ProtocolRegistrySnapshot",
+    "ProtocolRevisionLogEntry",
+    "ProtocolRevisionLogSnapshot",
     "ProtocolRevision",
     "ProtocolRevisionChangeKind",
     "ProtocolRevisionProposal",

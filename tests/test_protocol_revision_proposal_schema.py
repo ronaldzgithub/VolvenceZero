@@ -155,10 +155,16 @@ def test_target_field_enum_includes_expected_members() -> None:
 
 
 def test_change_kind_enum_includes_expected_members() -> None:
+    """Packet 5.2 + 6.1 closed-enum vocabulary."""
     members = {m.name for m in ProtocolRevisionChangeKind}
     assert members == {
         "WEIGHT_DECAY",
         "DEACTIVATE",
         "REPLACE_TEXT",
         "ARCHIVE",
+        "ADD_STRATEGY",
+        "WEIGHT_REINFORCE",
+        "BOUNDARY_REFINEMENT",
+        "IDENTITY_CLARIFICATION",
+        "PROTOCOL_RETIREMENT",
     }, members

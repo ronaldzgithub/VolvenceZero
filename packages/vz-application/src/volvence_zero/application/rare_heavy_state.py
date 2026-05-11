@@ -127,6 +127,31 @@ class ApplicationRareHeavyState:
             for hint in hints
         )
 
+    def remove_boundary_prior_hints_by_id_prefix(self, prefix: str) -> int:
+        """Packet 6.9: drop boundary hints whose ``hint_id`` starts with ``prefix``.
+
+        Returns the number of removed hints. Used by
+        ``ProtocolRegistryModule.unload_protocol`` to clean up
+        protocol-driven entries on unload / rollback.
+        """
+
+        before = len(self._boundary_prior_hints)
+        self._boundary_prior_hints = tuple(
+            h for h in self._boundary_prior_hints
+            if not h.hint_id.startswith(prefix)
+        )
+        return before - len(self._boundary_prior_hints)
+
+    def remove_distilled_playbook_rules_by_id_prefix(self, prefix: str) -> int:
+        """Packet 6.9: drop playbook rules whose ``rule_id`` starts with ``prefix``."""
+
+        before = len(self._distilled_playbook_rules)
+        self._distilled_playbook_rules = tuple(
+            r for r in self._distilled_playbook_rules
+            if not r.rule_id.startswith(prefix)
+        )
+        return before - len(self._distilled_playbook_rules)
+
     def apply_retrieval_readout_checkpoint(self, checkpoint: RetrievalReadoutCheckpoint) -> tuple[str, ...]:
         existing = self._retrieval_readout_checkpoint
         if existing is None or checkpoint.confidence >= existing.confidence:

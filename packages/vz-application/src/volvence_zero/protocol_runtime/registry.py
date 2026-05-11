@@ -31,6 +31,7 @@ from volvence_zero.behavior_protocol import (
     ProtocolRevisionProposal,
     ProtocolRevisionTargetField,
     ReviewStatus,
+    StrategyPrior,
     StrategyPriorRevision,
 )
 
@@ -51,9 +52,26 @@ class ProtocolRegistry:
     in-flight mutations.
     """
 
+    # Packet 6.7: hard upper bound on protocols counted as "active"
+    # (review_status in {SHADOW, ACTIVE}). DRAFT and RETIRED do not
+    # count. Loading an additional protocol when the count is already
+    # at the cap raises ProtocolLimitExceededError. This protects
+    # softmax-mixed activation from getting smeared across too many
+    # protocols (Open Q8 resolve).
+    ACTIVE_PROTOCOL_HARD_CAP: int = 8
+
     def __init__(self) -> None:
         self._lock = RLock()
         self._loaded: dict[str, BehaviorProtocol] = {}
+        # Packet 6.3: per-protocol revision snapshots for content
+        # rollback. Each entry is a list of (revision_id, post-apply-state)
+        # tuples in chronological order. The first entry is
+        # ("initial:<protocol_id>", original loaded state). Later
+        # revisions append. ``checkout_revision`` truncates back to
+        # any prior point.
+        self._revision_snapshots: dict[
+            str, list[tuple[str, BehaviorProtocol]]
+        ] = {}
 
     def load(self, protocol: BehaviorProtocol) -> None:
         """Register a protocol. Replaces an existing entry of the same id.
@@ -70,7 +88,36 @@ class ProtocolRegistry:
                 f"{type(protocol).__name__}"
             )
         with self._lock:
+            # Packet 6.7: enforce active-protocol cap (counts SHADOW
+            # + ACTIVE; DRAFT and RETIRED don't count). Re-loading
+            # an already-loaded protocol id is allowed (overwrite).
+            if protocol.protocol_id not in self._loaded:
+                active_count = sum(
+                    1
+                    for p in self._loaded.values()
+                    if p.review_status in {ReviewStatus.SHADOW, ReviewStatus.ACTIVE}
+                )
+                this_active = protocol.review_status in {
+                    ReviewStatus.SHADOW,
+                    ReviewStatus.ACTIVE,
+                }
+                if (
+                    this_active
+                    and active_count >= self.ACTIVE_PROTOCOL_HARD_CAP
+                ):
+                    raise ProtocolLimitExceededError(
+                        f"cannot load active protocol "
+                        f"{protocol.protocol_id!r}: "
+                        f"already at hard cap of "
+                        f"{self.ACTIVE_PROTOCOL_HARD_CAP} active protocols. "
+                        "Retire / unload one first."
+                    )
             self._loaded[protocol.protocol_id] = protocol
+            # Packet 6.3: stamp initial snapshot for rollback baseline.
+            initial_id = f"initial:{protocol.protocol_id}"
+            self._revision_snapshots[protocol.protocol_id] = [
+                (initial_id, protocol)
+            ]
 
     def unload(self, protocol_id: str) -> bool:
         """Remove a protocol; return True if it was present."""
@@ -99,6 +146,15 @@ class ProtocolRegistry:
             )
 
     def get(self, protocol_id: str) -> BehaviorProtocol | None:
+        with self._lock:
+            return self._loaded.get(protocol_id)
+
+    def get_optional(self, protocol_id: str) -> BehaviorProtocol | None:
+        """Alias for :meth:`get` (explicit None-tolerant signature).
+
+        Used by ``merge_protocol_chain`` to look up parents without
+        forcing the caller to handle KeyError vs None.
+        """
         with self._lock:
             return self._loaded.get(protocol_id)
 
@@ -171,6 +227,12 @@ class ProtocolRegistry:
                 revision_log=mutated.revision_log + (revision,),
             )
             self._loaded[proposal.target_protocol_id] = mutated
+            # Packet 6.3: stamp post-apply snapshot for rollback.
+            history = self._revision_snapshots.setdefault(
+                proposal.target_protocol_id,
+                [(f"initial:{proposal.target_protocol_id}", existing)],
+            )
+            history.append((revision.revision_id, mutated))
             return mutated
 
     def checkout_revision(
@@ -180,17 +242,19 @@ class ProtocolRegistry:
     ) -> BehaviorProtocol:
         """R15 rollback: restore a protocol from its revision history.
 
-        ``revision_id=None`` rolls back to before any revisions
-        (the original protocol shape); a specific ``revision_id``
-        rolls back to the state that existed *immediately after*
-        that revision was applied.
+        ``revision_id=None`` rolls back to the **initial** loaded
+        state (before any revision was applied); a specific
+        ``revision_id`` restores the state that existed *immediately
+        after* that revision was applied.
 
-        This is a forward-looking API: a full implementation
-        replays revisions from a checkpoint snapshot. Packet 3.3
-        ships a minimal version: it can only undo the LAST
-        revision (truncate ``revision_log[-1]``), which is enough
-        for "oops, that proposal was bad, roll back" emergency
-        flows. Full replay-from-checkpoint lands in a follow-up.
+        Packet 6.3 ships full content rollback by replaying from
+        per-revision content snapshots stored at apply time
+        (see ``_revision_snapshots``). After rollback the registry
+        entry is replaced and the revision_log is truncated to
+        match the restored state. The caller is expected to
+        re-run the compile path against application owners to
+        propagate the restored content; ``ProtocolRegistryModule.checkout_revision``
+        does this automatically.
         """
 
         with self._lock:
@@ -200,56 +264,60 @@ class ProtocolRegistry:
                     f"ProtocolRegistry.checkout_revision: no loaded "
                     f"protocol with id {protocol_id!r}"
                 )
-            if not existing.revision_log:
+            history = self._revision_snapshots.get(protocol_id) or []
+            if not history:
                 raise ValueError(
-                    f"protocol {protocol_id!r} has no revisions to roll back"
+                    f"protocol {protocol_id!r} has no revision snapshots"
                 )
-            if revision_id is not None:
-                # Truncate revision_log down to the one identified.
-                idx = next(
+
+            if revision_id is None:
+                # Restore initial loaded state (first entry).
+                target_idx = 0
+            else:
+                target_idx = next(
                     (
-                        i for i, r in enumerate(existing.revision_log)
-                        if r.revision_id == revision_id
+                        i for i, (rid, _) in enumerate(history)
+                        if rid == revision_id
                     ),
                     None,
                 )
-                if idx is None:
+                if target_idx is None:
                     raise KeyError(
                         f"protocol {protocol_id!r} has no revision "
                         f"with id {revision_id!r}"
                     )
-                if idx != len(existing.revision_log) - 1:
-                    # Multi-step rollback would need replay-from-checkpoint;
-                    # packet 3.3 only supports last-revision rollback.
-                    raise NotImplementedError(
-                        "multi-step rollback (non-last revision) is "
-                        "deferred; current packet supports only the "
-                        "most recent revision via revision_id=None"
-                    )
-            # Undo the last revision: truncate revision_log.
-            # NOTE: this preserves the *content* of the latest
-            # revision (the apply already mutated content
-            # in place via dataclass replace; the revision_log
-            # entry is only an audit record). A full content
-            # rollback requires the apply step to also store the
-            # pre-mutation content snapshot; this is captured
-            # inside the revision entry's ``description`` only at
-            # packet 3.3 — full content rollback is the deferred
-            # follow-up. Loud-fail any caller relying on content
-            # rollback today.
-            raise NotImplementedError(
-                "content rollback (replay-from-checkpoint) is "
-                "deferred to a follow-up packet. checkout_revision "
-                "validates the revision_id but cannot yet revert "
-                "content changes."
-            )
+
+            target_id, target_state = history[target_idx]
+            # Replace the live protocol with the target state.
+            self._loaded[protocol_id] = target_state
+            # Truncate history past the target so further rollbacks
+            # don't see undone revisions.
+            self._revision_snapshots[protocol_id] = history[: target_idx + 1]
+            return target_state
 
     def loaded(self) -> tuple[BehaviorProtocol, ...]:
-        """Return all currently-loaded protocols as an immutable tuple.
+        """Return active (non-RETIRED) protocols as an immutable tuple.
 
         Ordering is by ``protocol_id`` so snapshots are
         deterministic across runs (important for stable
         ``revision_fingerprint``).
+
+        Packet 6.4: protocols with ``review_status == RETIRED`` are
+        filtered out — they no longer participate in the active
+        mixture nor the compile path. Use :meth:`loaded_all` to
+        get the full set including RETIRED (audit / rollback paths).
+        """
+
+        with self._lock:
+            return tuple(
+                self._loaded[pid] for pid in sorted(self._loaded)
+                if self._loaded[pid].review_status is not ReviewStatus.RETIRED
+            )
+
+    def loaded_all(self) -> tuple[BehaviorProtocol, ...]:
+        """Return ALL loaded protocols including RETIRED ones.
+
+        Used by audit / R15 rollback / queue introspection.
         """
 
         with self._lock:
@@ -267,8 +335,74 @@ class ProtocolRegistry:
 # ---------------------------------------------------------------------------
 
 
+class ProtocolLimitExceededError(RuntimeError):
+    """Raised when loading a protocol would exceed
+    :attr:`ProtocolRegistry.ACTIVE_PROTOCOL_HARD_CAP`."""
+
+
 def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+
+
+def _build_strategy_from_payload(
+    payload: dict, target_entry_id: str
+) -> StrategyPrior:
+    """Construct a ``StrategyPrior`` from a proposal payload (packet 5.2).
+
+    Required keys: ``problem_pattern``, ``recommended_ordering``,
+    ``recommended_pacing``. Optional keys mirror StrategyPrior
+    defaults. ``target_entry_id`` is used as the new rule_id when
+    the payload doesn't supply one — keeps the proposal
+    self-identifying.
+    """
+
+    rule_id = (payload.get("rule_id") or target_entry_id).strip()
+    if not rule_id:
+        raise ValueError(
+            "ADD_STRATEGY payload must yield a non-empty rule_id "
+            "(via 'rule_id' key or target_entry_id)"
+        )
+    problem_pattern = (payload.get("problem_pattern") or "").strip()
+    if not problem_pattern:
+        raise ValueError(
+            f"ADD_STRATEGY payload for rule_id={rule_id!r} must have "
+            "'problem_pattern'"
+        )
+    ordering = tuple(
+        s for s in (payload.get("recommended_ordering") or ())
+        if isinstance(s, str) and s.strip()
+    )
+    if not ordering:
+        raise ValueError(
+            f"ADD_STRATEGY payload for rule_id={rule_id!r} must have "
+            "non-empty 'recommended_ordering'"
+        )
+    pacing = (payload.get("recommended_pacing") or "moderate").strip() or "moderate"
+
+    return StrategyPrior(
+        rule_id=rule_id,
+        problem_pattern=problem_pattern,
+        recommended_ordering=ordering,
+        recommended_pacing=pacing,
+        avoid_patterns=tuple(
+            p for p in (payload.get("avoid_patterns") or ())
+            if isinstance(p, str)
+        ),
+        applicability_phase=tuple(
+            p for p in (payload.get("applicability_phase") or ())
+            if isinstance(p, str)
+        ),
+        recommended_regime=payload.get("recommended_regime"),
+        knowledge_weight_hint=float(
+            payload.get("knowledge_weight_hint", 0.45)
+        ),
+        experience_weight_hint=float(
+            payload.get("experience_weight_hint", 0.65)
+        ),
+        initial_weight=float(payload.get("initial_weight", 1.0)),
+        confidence=float(payload.get("confidence", 0.7)),
+        description=(payload.get("description") or "").strip(),
+    )
 
 
 def _apply_change(
@@ -282,29 +416,44 @@ def _apply_change(
     target_entry_id = proposal.target_entry_id
 
     if field is ProtocolRevisionTargetField.STRATEGY_PRIOR:
+        if kind is ProtocolRevisionChangeKind.ADD_STRATEGY:
+            payload = proposal.proposed_payload or {}
+            new_prior = _build_strategy_from_payload(payload, target_entry_id)
+            # Skip if same rule_id already exists (idempotent).
+            if any(s.rule_id == new_prior.rule_id for s in protocol.strategy_priors):
+                return protocol
+            return _replace(
+                protocol,
+                strategy_priors=protocol.strategy_priors + (new_prior,),
+            )
         if kind in (
             ProtocolRevisionChangeKind.WEIGHT_DECAY,
             ProtocolRevisionChangeKind.DEACTIVATE,
+            ProtocolRevisionChangeKind.WEIGHT_REINFORCE,
         ):
-            multiplier = (
-                0.0
-                if kind is ProtocolRevisionChangeKind.DEACTIVATE
-                else (
-                    float((proposal.proposed_payload or {}).get(
-                        "weight_multiplier", 0.5
-                    ))
-                )
-            )
+            payload = proposal.proposed_payload or {}
+            if kind is ProtocolRevisionChangeKind.DEACTIVATE:
+                multiplier = 0.0
+            elif kind is ProtocolRevisionChangeKind.WEIGHT_REINFORCE:
+                multiplier = float(payload.get("weight_multiplier", 1.5))
+            else:
+                multiplier = float(payload.get("weight_multiplier", 0.5))
             new_strategies = []
             for strategy in protocol.strategy_priors:
                 if (
                     target_entry_id == protocol.protocol_id
                     or target_entry_id == strategy.rule_id
                 ):
+                    new_weight = strategy.initial_weight * multiplier
+                    # Clamp to schema-valid range [0, 1].
+                    if new_weight > 1.0:
+                        new_weight = 1.0
+                    elif new_weight < 0.0:
+                        new_weight = 0.0
                     history_entry = StrategyPriorRevision(
                         revision_id=f"{proposal.proposal_id}:{strategy.rule_id}",
                         revised_at_tick=0,
-                        delta=(multiplier - 1.0) * strategy.initial_weight,
+                        delta=new_weight - strategy.initial_weight,
                         reason=(
                             f"applied {kind.value} via reflection "
                             f"proposal {proposal.proposal_id}"
@@ -313,7 +462,7 @@ def _apply_change(
                     new_strategies.append(
                         _replace(
                             strategy,
-                            initial_weight=strategy.initial_weight * multiplier,
+                            initial_weight=new_weight,
                             revision_history=strategy.revision_history
                             + (history_entry,),
                         )
@@ -342,10 +491,113 @@ def _apply_change(
             )
             return _replace(protocol, signature_cases=kept)
 
+    if field is ProtocolRevisionTargetField.BOUNDARY_CONTRACT:
+        if kind is ProtocolRevisionChangeKind.BOUNDARY_REFINEMENT:
+            return _apply_boundary_refinement(
+                protocol, target_entry_id, proposal.proposed_payload or {}
+            )
+
+    if field is ProtocolRevisionTargetField.IDENTITY_ASSERTION:
+        if kind is ProtocolRevisionChangeKind.IDENTITY_CLARIFICATION:
+            return _apply_identity_clarification(
+                protocol, proposal.proposed_payload or {}
+            )
+
+    # PROTOCOL_RETIREMENT is field-agnostic — it changes review_status.
+    if kind is ProtocolRevisionChangeKind.PROTOCOL_RETIREMENT:
+        from volvence_zero.behavior_protocol import ReviewStatus
+        return _replace(protocol, review_status=ReviewStatus.RETIRED)
+
     raise NotImplementedError(
         f"apply_revision: change_kind={kind.value!r} on "
         f"target_field={field.value!r} is not yet supported"
     )
 
 
-__all__ = ["ProtocolRegistry"]
+def _apply_boundary_refinement(
+    protocol: BehaviorProtocol,
+    target_entry_id: str,
+    payload: dict,
+) -> BehaviorProtocol:
+    """Modify one BoundaryContract in protocol.boundary_contracts.
+
+    Payload keys (all optional; only supplied fields are updated):
+    ``trigger_reasons`` / ``blocked_topics`` / ``required_disclaimers``
+    / ``description`` / ``severity`` / ``refer_out_required``.
+    """
+
+    new_boundaries = []
+    found = False
+    for b in protocol.boundary_contracts:
+        if b.boundary_id != target_entry_id:
+            new_boundaries.append(b)
+            continue
+        found = True
+        kwargs: dict = {}
+        for field_name in (
+            "trigger_reasons",
+            "blocked_topics",
+            "required_disclaimers",
+            "description",
+        ):
+            if field_name in payload:
+                value = payload[field_name]
+                if field_name in ("trigger_reasons", "blocked_topics", "required_disclaimers"):
+                    kwargs[field_name] = tuple(
+                        v for v in value if isinstance(v, str)
+                    )
+                else:
+                    kwargs[field_name] = str(value)
+        if "refer_out_required" in payload:
+            kwargs["refer_out_required"] = bool(payload["refer_out_required"])
+        if "severity" in payload:
+            from volvence_zero.behavior_protocol import BoundarySeverity
+            sev = payload["severity"]
+            if isinstance(sev, BoundarySeverity):
+                kwargs["severity"] = sev
+            elif isinstance(sev, str):
+                # accept string form
+                for member in BoundarySeverity:
+                    if member.value == sev or member.name == sev:
+                        kwargs["severity"] = member
+                        break
+        if not kwargs:
+            new_boundaries.append(b)
+            continue
+        new_boundaries.append(_replace(b, **kwargs))
+    if not found:
+        return protocol
+    return _replace(protocol, boundary_contracts=tuple(new_boundaries))
+
+
+def _apply_identity_clarification(
+    protocol: BehaviorProtocol,
+    payload: dict,
+) -> BehaviorProtocol:
+    """Modify identity_assertion fields.
+
+    Payload keys: ``requires_self_traits`` / ``forbidden_self_traits``
+    / ``required_regime_compatibility`` (all optional, tuple-of-str).
+    """
+
+    from volvence_zero.behavior_protocol import IdentityAssertion
+
+    current = protocol.identity_assertion
+    kwargs: dict = {}
+    for field_name in (
+        "requires_self_traits",
+        "forbidden_self_traits",
+        "required_regime_compatibility",
+    ):
+        if field_name in payload:
+            value = payload[field_name]
+            kwargs[field_name] = tuple(
+                v for v in (value or ()) if isinstance(v, str)
+            )
+    if not kwargs:
+        return protocol
+    new_identity: IdentityAssertion = _replace(current, **kwargs)
+    return _replace(protocol, identity_assertion=new_identity)
+
+
+__all__ = ["ProtocolLimitExceededError", "ProtocolRegistry"]

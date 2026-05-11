@@ -1,10 +1,19 @@
 from volvence_zero.reflection.engine import ProtocolReflectionEngine
 from volvence_zero.reflection.protocol_revision_rules import (
+    ADD_STRATEGY_MIN_TURNS,
+    ADD_STRATEGY_SUCCESS_THRESHOLD,
+    PROTOCOL_RETIREMENT_MIN_TURNS,
+    PROTOCOL_RETIREMENT_PE_THRESHOLD,
     STRATEGY_DECAY_MIN_TURNS,
     STRATEGY_DECAY_PE_THRESHOLD,
+    STRATEGY_REINFORCE_MIN_TURNS,
+    STRATEGY_REINFORCE_PE_THRESHOLD,
     propose_case_archival,
     propose_knowledge_archival,
+    propose_protocol_retirement,
+    propose_strategy_addition,
     propose_strategy_decay,
+    propose_strategy_reinforce,
     run_all_protocol_revision_rules,
 )
 from volvence_zero.reflection.writeback import (
@@ -31,9 +40,15 @@ from volvence_zero.reflection.writeback import (
 )
 
 __all__ = [
+    "ADD_STRATEGY_MIN_TURNS",
+    "ADD_STRATEGY_SUCCESS_THRESHOLD",
     "PE_DERIVED_LESSON_IDS",
+    "PROTOCOL_RETIREMENT_MIN_TURNS",
+    "PROTOCOL_RETIREMENT_PE_THRESHOLD",
     "STRATEGY_DECAY_MIN_TURNS",
     "STRATEGY_DECAY_PE_THRESHOLD",
+    "STRATEGY_REINFORCE_MIN_TURNS",
+    "STRATEGY_REINFORCE_PE_THRESHOLD",
     "ConsolidationScore",
     "EvidencePack",
     "MemoryConsolidation",
@@ -55,7 +70,10 @@ __all__ = [
     "enrich_reflection_snapshot_with_rupture_repair",
     "propose_case_archival",
     "propose_knowledge_archival",
+    "propose_protocol_retirement",
+    "propose_strategy_addition",
     "propose_strategy_decay",
+    "propose_strategy_reinforce",
     "run_all_protocol_revision_rules",
     "rupture_repair_memory_entries",
 ]

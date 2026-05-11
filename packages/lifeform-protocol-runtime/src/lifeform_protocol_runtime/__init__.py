@@ -32,4 +32,38 @@ Import boundary (enforced by
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from lifeform_protocol_runtime.document_uptake import (
+    DocumentChunk,
+    DocumentText,
+    LlmJsonClient,
+    MockLlmJsonClient,
+    chunk_document,
+    extract_protocol_candidate,
+    read_markdown,
+    read_pdf,
+)
+from lifeform_protocol_runtime.api_injection_uptake import (
+    inject_protocol_from_payload,
+)
+from lifeform_protocol_runtime.directory_scan_uptake import (
+    DirectoryScanResult,
+    scan_directory_for_protocols,
+)
+from lifeform_protocol_runtime.task_description_uptake import (
+    extract_protocol_from_description,
+)
+
+__all__ = [
+    "DirectoryScanResult",
+    "DocumentChunk",
+    "DocumentText",
+    "LlmJsonClient",
+    "MockLlmJsonClient",
+    "chunk_document",
+    "extract_protocol_candidate",
+    "extract_protocol_from_description",
+    "inject_protocol_from_payload",
+    "read_markdown",
+    "read_pdf",
+    "scan_directory_for_protocols",
+]

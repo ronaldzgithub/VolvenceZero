@@ -46,13 +46,22 @@ from volvence_zero.protocol_runtime.activation import (
 from volvence_zero.protocol_runtime.compiler import (
     ProtocolApplicationArtifacts,
     compile_protocol_to_application_artifacts,
+    merge_protocol_chain,
+)
+from volvence_zero.protocol_runtime.introspection import (
+    ProtocolRegistryIntrospectionModule,
+    ProtocolRevisionLogModule,
 )
 from volvence_zero.protocol_runtime.owner import (
     FallbackActivationActiveError,
+    LoadContext,
     ProtocolRegistryModule,
 )
 from volvence_zero.protocol_runtime.phase_engine import ProtocolPhaseModule
-from volvence_zero.protocol_runtime.registry import ProtocolRegistry
+from volvence_zero.protocol_runtime.registry import (
+    ProtocolLimitExceededError,
+    ProtocolRegistry,
+)
 from volvence_zero.protocol_runtime.revision_queue import (
     ApprovalDecision,
     ApprovalOutcome,
@@ -64,13 +73,18 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalOutcome",
     "FallbackActivationActiveError",
+    "LoadContext",
     "ProtocolApplicationArtifacts",
+    "ProtocolLimitExceededError",
     "ProtocolPhaseModule",
     "ProtocolRegistry",
+    "ProtocolRegistryIntrospectionModule",
     "ProtocolRegistryModule",
+    "ProtocolRevisionLogModule",
     "RevisionQueue",
     "compile_protocol_to_application_artifacts",
     "compute_active_mixture",
     "evaluate_protocol_revision",
     "is_fallback_mode",
+    "merge_protocol_chain",
 ]
