@@ -1,7 +1,7 @@
 # Companion Bench Governance Charter — Draft v0.1
 
 > Status: Draft
-> RFC reference: [`lscb-rfc-v0.md`](lscb-rfc-v0.md) §11
+> RFC reference: [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md) §11
 > Last updated: 2026-05-10
 
 This document is the operational charter for the Companion Bench working group.
@@ -11,7 +11,7 @@ formation. **No single organisation has more than one voting seat.**
 
 ## 1. Purpose
 
-LSCB exists to evaluate long-running companion AI systems on
+Companion Bench exists to evaluate long-running companion AI systems on
 dimensions that single-turn benchmarks cannot probe (continuity,
 repair, personalization, long absence, boundary, goal drift). The
 working group exists to:
@@ -66,7 +66,7 @@ public comment period of ≥ 4 weeks. A breaking change is one of:
 * Change to the A6 hard-cap threshold or value.
 * Change to the per-turn rubric criteria set.
 
-Comment intake: GitHub issues on `VolvenceZero/lscb-bench` with the
+Comment intake: GitHub issues on `VolvenceZero/companion-bench` with the
 `comment-period` label. The chair compiles a comment summary that
 the working group references at the next quarterly meeting.
 
@@ -79,7 +79,7 @@ Governance constraints:
   PR diff, or working-group meeting minutes (only hashes).
 * Quarterly paraphrase-seed rotation is performed by the chair; a
   hash-only diff is published in
-  `docs/external/lscb-heldout-rotation-log.md`.
+  `docs/external/companion-bench-heldout-rotation-log.md`.
 * The deploy key is held by exactly one person at any time. On chair
   rotation the key is rotated; the outgoing chair attests to key
   destruction.
@@ -94,7 +94,7 @@ family bias. The working group selects:
 * The deterministic-fake judge for CI smoke.
 
 Rotation history is logged at
-`docs/external/lscb-judge-rotation-log.md`. The history file is
+`docs/external/companion-bench-judge-rotation-log.md`. The history file is
 public; the chair signs each rotation entry.
 
 ## 8. Conflict of interest

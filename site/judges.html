@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Judges — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Companion Bench judge calibration — quarterly rotation schedule, agreement rates, calibration scatter against human-eval golden set." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="judges">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container">
+    <h1 class="mt-0">Judges &amp; calibration</h1>
+    <p class="meta">
+      Per-turn and arc-level judges come from <em>different model families</em>
+      to reduce family bias. Selections rotate quarterly. Each rotation is
+      validated against a small human-eval golden set; agreement rates and
+      calibration scatter are published below.
+    </p>
+    <p id="judges-meta" class="meta"></p>
+  </section>
+
+  <section class="container">
+    <h2>Quarterly rotation</h2>
+    <div class="table-wrap">
+      <table id="rotation-table">
+        <thead>
+          <tr>
+            <th>Quarter</th>
+            <th>Per-turn judge</th>
+            <th>Arc judge</th>
+            <th>Chair sign-off</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="container two-col">
+    <div>
+      <h2>Agreement rates</h2>
+      <p class="meta">
+        Spearman ρ between judge axis score and human axis score on the
+        calibration golden set. Values below 0.6 trigger a re-rotation.
+      </p>
+      <div id="agreement-bars"></div>
+    </div>
+    <div>
+      <h2>Calibration scatter</h2>
+      <p class="meta">
+        Each point is one (judge, human) pair on a single arc-axis score.
+        Diagonal is perfect agreement.
+      </p>
+      <div id="calibration-scatter"></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/judges.js" defer></script>
+</body>
+</html>

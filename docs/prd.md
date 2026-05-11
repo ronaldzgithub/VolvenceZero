@@ -544,7 +544,7 @@
 
 - **OpenAI 兼容 facade**（`lifeform-openai-compat`）：把 OpenAI `POST /v1/chat/completions` 翻译成既有的 stateful `POST /v1/sessions/{id}/turns`；提供 stateless / sticky session / raw substrate passthrough 三种模式；**read-only**——禁止调任何下划线方法、禁止改 owner snapshot
 - **外发 benchmark**（`companion-bench`）：评估**任意** OpenAI-compatible chat endpoint，6 轴打分（A1 任务 / A2 交互质量 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 是 hard-cap 轴）；6.4 加权几何平均 + A6 cap；TrueSkill + Bradley-Terry elo；24 个公开 scenario + 96 个私有 held-out（git submodule）
-- **system-agnostic**：`companion-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../../tests/contracts/test_lscb_bench_no_internal_imports.py) 中被 CI 强制不 import 任何 `volvence_zero.*` 或 `lifeform_*`——它是中立第三方工具
+- **system-agnostic**：`companion-bench` 在 [`tests/contracts/test_companion_bench_no_internal_imports.py`](../../tests/contracts/test_companion_bench_no_internal_imports.py) 中被 CI 强制不 import 任何 `volvence_zero.*` 或 `lifeform_*`——它是中立第三方工具
 
 **关键不变量**：
 
@@ -766,7 +766,7 @@
 
 **验证**：
 - 系统能被 EQ-Bench 3 / EmpathyBench / Chatbot Arena 等外部 harness 当成普通 OpenAI endpoint 调用
-- `companion-bench` 在 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py) 强制零内核 import，可被任何外部团队下载独立运行
+- `companion-bench` 在 [`tests/contracts/test_companion_bench_no_internal_imports.py`](../tests/contracts/test_companion_bench_no_internal_imports.py) 强制零内核 import，可被任何外部团队下载独立运行
 - 外部 ELO / 排名 / pairwise 偏好不进 reward 路径（仅 R12 readout）
 
 **当前状态**：已交付。`companion-bench` 已发布 1.0a0；`docs/external/companion-bench-rfc-v0.md` 是公开 RFC；`docs/external/eqbench3-*` 文档族提供对外提交与盲评协议。
@@ -805,7 +805,7 @@
 
 - **DLaaS 多渠道平台**：6 个 `dlaas-platform-*` wheel × 7 切片完成。typed `InteractionEnvelope` 7 类（chat / observe / feedback / teach / task / report / command）全 dispatch；control plane 持久化（tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket）；ops（pause / resume / operator-message / handoff queue / SSE conversations stream）；eval gate（audience / exam / launch license，仅 readout）；`OutputAct` shell-aware degrade。**vz-* 内核 7 个 wheel 全程零改动**。
 - **OpenAI 兼容 façade**：`lifeform-openai-compat` 把 `POST /v1/chat/completions` 翻译成既有 stateful `POST /v1/sessions/{id}/turns`；三种模式（stateless / sticky session / raw substrate passthrough）；read-only 不改 owner snapshot；可被 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 当作普通 OpenAI endpoint 使用。
-- **外发 Companion Bench 基准**：`companion-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_lscb_bench_no_internal_imports.py`](../tests/contracts/test_lscb_bench_no_internal_imports.py)）。
+- **外发 Companion Bench 基准**：`companion-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_companion_bench_no_internal_imports.py`](../tests/contracts/test_companion_bench_no_internal_imports.py)）。
 - **figure / character / growth-advisor 三个新 vertical 联动验证**：figure 的 L1/L2 corpus 管线 + character 的 reviewed `CharacterSoulProfile` + growth-advisor 的 7 天 playbook 漂移，三种"非简单 chat archetype"在同一组 application owner 表面落地，证明 vertical = data + light glue 在更广领域成立。
 
 ### 部分实现 / 仍受 gate 约束的部分

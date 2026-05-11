@@ -91,7 +91,7 @@ just edit in a regular text editor) when adapting the template.
    (`companion / companion-cold / raw`). Each track spawns its own
    `lifeform-serve` process; total time ~3 × inference wallclock.
 
-P10 actuation cost (RFC §6.7 of LSCB applies here too, since the
+P10 actuation cost (RFC §6.7 of Companion Bench applies here too, since the
 same judge model is shared):
 
 | Component | Estimate |

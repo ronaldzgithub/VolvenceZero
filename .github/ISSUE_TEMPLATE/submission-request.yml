@@ -1,0 +1,103 @@
+name: Submission request — Companion Bench
+description: Request that organisers score your system on the Companion Bench leaderboard.
+title: "[Submission] <system name>"
+labels: ["submission", "companion-bench"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for submitting to **Companion Bench** (formerly LSCB)!
+
+        Use this template when you cannot run the harness directly against
+        your endpoint (e.g., closed-API key cannot be shared with public CI).
+        For self-hosted scoring, prefer opening a PR with your manifest under
+        `submissions/` instead — see the [submission protocol](https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-submission-protocol.md)
+        for the full schema + cost estimate ($40–115 per submission).
+
+        All four attestation flags must be set to true. Failing any of them
+        at run time is a disqualifier.
+
+  - type: input
+    id: system_name
+    attributes:
+      label: System name (display)
+      placeholder: "My Companion v1"
+    validations:
+      required: true
+
+  - type: input
+    id: submission_id
+    attributes:
+      label: Submission ID (URL-safe, unique)
+      placeholder: "my-team-2026-q2"
+    validations:
+      required: true
+
+  - type: input
+    id: model_identifier
+    attributes:
+      label: Model identifier
+      placeholder: "my-org/my-model-v1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: leaderboard_category
+    attributes:
+      label: Leaderboard category
+      options:
+        - "open-weight (weights public)"
+        - "closed-api (vendor API, public prompt+config)"
+        - "bespoke (composite system)"
+    validations:
+      required: true
+
+  - type: input
+    id: base_url
+    attributes:
+      label: OpenAI-compatible chat base URL
+      placeholder: "https://api.my-org.example/v1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: system_prompt
+    attributes:
+      label: System prompt (verbatim)
+      description: The exact system prompt you want scored. Must not contain scenario-specific content.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: generation_config
+    attributes:
+      label: Generation config (YAML / JSON)
+      description: temperature, top_p, max_tokens, etc.
+      placeholder: |
+        temperature: 0.7
+        top_p: 1.0
+        max_tokens: 512
+      render: yaml
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: attestations
+    attributes:
+      label: Attestations (all four required)
+      options:
+        - label: "no_companion_bench_derivative_in_training — no portion of Companion Bench scenarios or held-out data was used in training"
+          required: true
+        - label: "no_scenario_specific_prompt — system prompt does not include scenario-specific content"
+          required: true
+        - label: "no_public_test_set_tuning — system was not tuned on the public test set"
+          required: true
+        - label: "cross_user_memory_isolation — if the system has user-scoped memory, it is isolated per arc / per user"
+          required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes for the organisers (optional)
+      description: Anything we should know — runtime constraints, rate limits, paraphrase-seed budget preferences, etc.

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Companion Bench RFC discussion
+    url: https://github.com/VolvenceZero/companion-bench/discussions
+    about: General methodology questions, comment-period feedback, governance discussion.
+  - name: Methodology page
+    url: https://companion-bench.org/methodology.html
+    about: Read the six axes, scoring formula, and EQ-Bench crosswalk before filing.

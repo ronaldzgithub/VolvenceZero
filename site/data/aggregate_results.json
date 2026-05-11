@@ -1,0 +1,175 @@
+{
+  "companion_bench_version": "1.0.0",
+  "demo": true,
+  "generated_at": "2026-05-11T09:42:35.025808+00:00",
+  "weights": {
+    "A1": 0.1,
+    "A2": 0.15,
+    "A3": 0.25,
+    "A4": 0.2,
+    "A5": 0.1,
+    "A6": 0.2
+  },
+  "systems": [
+    {
+      "submission_id": "demo-2026q2-lifeform-companion",
+      "system_name": "VolvenceZero Lifeform companion (demo)",
+      "model_identifier": "lifeform-companion",
+      "leaderboard_category": "bespoke",
+      "lscb_final": 52.240613321738806,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 57.5,
+        "A2": 51.541666666666664,
+        "A3": 48.416666666666664,
+        "A4": 63.75,
+        "A5": 56.625,
+        "A6": 57.125
+      },
+      "trueskill_conservative": 22.25765241275681,
+      "bradley_terry_score": 0.13638421890814814,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-lifeform-raw",
+      "system_name": "VolvenceZero Lifeform raw (demo)",
+      "model_identifier": "lifeform-raw",
+      "leaderboard_category": "bespoke",
+      "lscb_final": 52.04141150703541,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 62.583333333333336,
+        "A2": 66.08333333333333,
+        "A3": 46.041666666666664,
+        "A4": 58.5,
+        "A5": 55.083333333333336,
+        "A6": 59.875
+      },
+      "trueskill_conservative": 23.23374792083242,
+      "bradley_terry_score": 0.3593125145611751,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-mistral-large",
+      "system_name": "Mistral Large (demo)",
+      "model_identifier": "mistral/mistral-large",
+      "leaderboard_category": "closed-api",
+      "lscb_final": 51.73733405786303,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 62.583333333333336,
+        "A2": 59.833333333333336,
+        "A3": 48.041666666666664,
+        "A4": 61.541666666666664,
+        "A5": 61.166666666666664,
+        "A6": 58.916666666666664
+      },
+      "trueskill_conservative": 22.161587707196464,
+      "bradley_terry_score": 0.14689944333612054,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-anthropic-claude-opus-4-6",
+      "system_name": "Anthropic Claude Opus 4.6 (demo)",
+      "model_identifier": "anthropic/claude-opus-4.6",
+      "leaderboard_category": "closed-api",
+      "lscb_final": 51.04091548505277,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 56.458333333333336,
+        "A2": 55.458333333333336,
+        "A3": 45.458333333333336,
+        "A4": 57.125,
+        "A5": 58.208333333333336,
+        "A6": 61.083333333333336
+      },
+      "trueskill_conservative": 20.972354899200514,
+      "bradley_terry_score": -0.09450894333090888,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-google-gemini-3-pro",
+      "system_name": "Google Gemini 3 Pro (demo)",
+      "model_identifier": "google/gemini-3-pro",
+      "leaderboard_category": "closed-api",
+      "lscb_final": 50.48083090386108,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 58.666666666666664,
+        "A2": 53.458333333333336,
+        "A3": 45.416666666666664,
+        "A4": 54.458333333333336,
+        "A5": 54.208333333333336,
+        "A6": 58.0
+      },
+      "trueskill_conservative": 20.842152895313717,
+      "bradley_terry_score": -0.03146766254177066,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-qwen-2-5-72b",
+      "system_name": "Qwen 2.5 72B Instruct (demo)",
+      "model_identifier": "qwen/qwen2.5-72b-instruct",
+      "leaderboard_category": "open-weight",
+      "lscb_final": 50.34623865979713,
+      "a6_cap_applied": true,
+      "axis_means": {
+        "A1": 58.625,
+        "A2": 60.375,
+        "A3": 45.5,
+        "A4": 55.125,
+        "A5": 58.625,
+        "A6": 55.916666666666664
+      },
+      "trueskill_conservative": 22.1662107651536,
+      "bradley_terry_score": 0.0,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-deepseek-v3",
+      "system_name": "DeepSeek V3 (demo)",
+      "model_identifier": "deepseek/deepseek-v3",
+      "leaderboard_category": "open-weight",
+      "lscb_final": 50.132663258697555,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 52.0,
+        "A2": 57.666666666666664,
+        "A3": 46.666666666666664,
+        "A4": 55.041666666666664,
+        "A5": 54.0,
+        "A6": 58.75
+      },
+      "trueskill_conservative": 21.07850083168137,
+      "bradley_terry_score": -0.1155708950569642,
+      "human_elo": null,
+      "arc_count": 24
+    },
+    {
+      "submission_id": "demo-2026q2-openai-gpt-5",
+      "system_name": "OpenAI GPT-5 (demo)",
+      "model_identifier": "openai/gpt-5",
+      "leaderboard_category": "closed-api",
+      "lscb_final": 49.0562606492928,
+      "a6_cap_applied": true,
+      "axis_means": {
+        "A1": 59.833333333333336,
+        "A2": 59.75,
+        "A3": 42.416666666666664,
+        "A4": 54.666666666666664,
+        "A5": 53.375,
+        "A6": 52.833333333333336
+      },
+      "trueskill_conservative": 21.12697975389587,
+      "bradley_terry_score": -0.14722493677968967,
+      "human_elo": null,
+      "arc_count": 24
+    }
+  ]
+}

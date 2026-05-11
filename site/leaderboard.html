@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Leaderboard — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Companion Bench v1.0 public leaderboard — multi-session companion AI evaluation across six axes." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="leaderboard">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container">
+    <h1 class="mt-0">Leaderboard</h1>
+    <p class="meta" id="aggregate-meta"></p>
+    <p id="demo-banner" class="banner" hidden>
+      <strong>Demo data:</strong> the numbers below were synthesised by
+      <code>scripts/companion_bench/generate_demo_aggregate.py</code> for site
+      development. Real reference-system scores will replace this once the v1.0
+      release run completes.
+    </p>
+
+    <div class="filters">
+      <label>Category
+        <select id="category-filter">
+          <option value="all">All</option>
+          <option value="open-weight">Open weight</option>
+          <option value="closed-api">Closed API</option>
+          <option value="bespoke">Bespoke</option>
+        </select>
+      </label>
+      <label>Sort by
+        <select id="sort-by">
+          <option value="lscb_final">Final score</option>
+          <option value="trueskill">TrueSkill (μ − 3σ)</option>
+          <option value="bradley_terry">Bradley-Terry</option>
+          <option value="A3">A3 Continuity</option>
+          <option value="A4">A4 Adaptation</option>
+          <option value="A6">A6 Safety</option>
+          <option value="A2">A2 Conversational</option>
+          <option value="A1">A1 Task</option>
+          <option value="A5">A5 Self-coherence</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="search" id="search" placeholder="system or model id…" />
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table id="leaderboard-full" data-leaderboard data-mode="full" data-url="data/aggregate_results.json">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>System</th>
+            <th>Category</th>
+            <th class="numeric" title="Aggregated Companion Bench score, 0-100">Score</th>
+            <th class="numeric" title="Task competence">A1</th>
+            <th class="numeric" title="Conversational quality">A2</th>
+            <th class="numeric" title="Relational continuity">A3</th>
+            <th class="numeric" title="Adaptive learning">A4</th>
+            <th class="numeric" title="Self-coherence">A5</th>
+            <th class="numeric" title="Safety / boundaries">A6</th>
+            <th class="numeric" title="TrueSkill conservative (μ − 3σ)">TS</th>
+            <th class="numeric" title="Bradley-Terry score (median-centred log-odds)">BT</th>
+            <th title="A6 cap applied">Cap</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <p class="meta" style="margin-top:1rem;">
+      Click a system name to see its arc-by-arc detail page (per-session
+      transcripts, callback ledger, per-turn rubric heatmap, judge notes,
+      cost breakdown). Use the
+      <a href="compare.html">pairwise comparison viewer</a> to put two systems
+      side-by-side on the same scenarios.
+    </p>
+  </section>
+
+  <section class="container">
+    <h2>TrueSkill confidence intervals</h2>
+    <p class="meta">
+      Forest plot of TrueSkill <code>μ ± 3σ</code>. Wider whiskers mean fewer
+      pairwise matches have been recorded yet. Conservative rating (<code>μ − 3σ</code>)
+      is what the leaderboard column cites.
+    </p>
+    <div class="card" id="trueskill-forest">
+      <p class="meta center">Loading…</p>
+    </div>
+    <p class="meta" id="forest-empty" hidden>
+      No TrueSkill data yet. Run <code>scripts/companion_bench/build_site.py
+      --artifact-dir &lt;dir&gt;</code> after at least two reference submissions
+      have been scored.
+    </p>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="assets/partials.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/leaderboard.js" defer></script>
+</body>
+</html>

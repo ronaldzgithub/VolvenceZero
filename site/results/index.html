@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Submission detail — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Companion Bench per-submission detail — axis breakdown, multi-session transcripts, callback ledger, per-turn rubric heatmap, judge notes, cost telemetry." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body data-page="results">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container">
+    <p id="loading" class="meta">Loading submission…</p>
+    <div id="detail-root" hidden>
+
+      <!-- Hero -->
+      <header id="hero">
+        <h1 class="mt-0" id="hero-name"></h1>
+        <p class="meta" id="hero-meta"></p>
+        <div class="two-col" style="align-items:start;">
+          <div>
+            <h2 class="mt-0">Score</h2>
+            <p style="font-size:2.4rem;font-family:'Lora',serif;color:var(--header-color);margin:0;">
+              <span id="hero-score"></span>
+              <span id="hero-cap" class="cap-tag" style="font-size:0.7rem;vertical-align:middle;display:none;">A6 cap</span>
+            </p>
+            <p class="meta" id="hero-aggregation"></p>
+          </div>
+          <div>
+            <h2 class="mt-0">Per-axis (mean across arcs)</h2>
+            <div id="hero-axis-bars"></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button data-tab="overview" class="active" type="button">Overview</button>
+        <button data-tab="axes" type="button">Per-axis</button>
+        <button data-tab="families" type="button">Per-family</button>
+        <button data-tab="scenarios" type="button">Per-scenario</button>
+        <button data-tab="cost" type="button">Cost</button>
+      </div>
+
+      <section class="tab-panel active" id="panel-overview">
+        <h2>Overview</h2>
+        <div class="two-col">
+          <div>
+            <h3 class="mt-0">Submission manifest</h3>
+            <dl id="manifest-dl"></dl>
+          </div>
+          <div>
+            <h3 class="mt-0">Reproducibility</h3>
+            <p>Verified by re-running one random arc; report
+              <span id="verify-state">—</span>.</p>
+            <p class="meta">
+              The verifier seed is derived deterministically from
+              <code>submission_id</code> so any third party can predict which
+              arc will be re-run and compare hashes upfront.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panel-axes">
+        <h2>Per-axis breakdown</h2>
+        <p class="meta">
+          Bars show mean across arcs with bootstrap 95% CI whiskers.
+        </p>
+        <div id="axes-detail"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-families">
+        <h2>Per-family breakdown</h2>
+        <p class="meta">
+          Six families (continuity, repair, personalisation, long-absence,
+          boundary pressure, goal drift). Bar position shows family-mean final
+          score; whisker shows bootstrap CI.
+        </p>
+        <div id="families-detail"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-scenarios">
+        <h2>Per-scenario transcripts</h2>
+        <p class="meta">
+          Click a scenario to expand its multi-session transcript with FSM
+          markers, callback ledger, and per-turn rubric heatmap.
+        </p>
+        <div class="filters">
+          <label>Family
+            <select id="scenario-family-filter">
+              <option value="all">All</option>
+              <option value="F1">F1</option><option value="F2">F2</option>
+              <option value="F3">F3</option><option value="F4">F4</option>
+              <option value="F5">F5</option><option value="F6">F6</option>
+            </select>
+          </label>
+          <label>Show only
+            <select id="scenario-issue-filter">
+              <option value="all">All arcs</option>
+              <option value="cap">A6-capped only</option>
+              <option value="fab">Fabrications only</option>
+            </select>
+          </label>
+        </div>
+        <div id="scenarios-detail"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-cost">
+        <h2>Cost telemetry</h2>
+        <p class="meta">
+          Token spend by phase, with per-model breakdown. Missing model entries
+          surface as <em>—</em> rather than silently billing $0.
+        </p>
+        <div id="cost-detail"></div>
+      </section>
+
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="../assets/partials.js" defer></script>
+<script src="../assets/charts.js" defer></script>
+<script src="../assets/detail-page.js" defer></script>
+</body>
+</html>

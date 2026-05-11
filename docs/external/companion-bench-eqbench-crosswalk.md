@@ -1,12 +1,12 @@
 # Companion Bench ↔ EQ-Bench 3 Crosswalk
 
 > Status: Public, normative for partial-signal transfer
-> RFC reference: [`lscb-rfc-v0.md`](lscb-rfc-v0.md) Appendix A
+> RFC reference: [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md) Appendix A
 > Last updated: 2026-05-10
 
-LSCB's per-turn rubric is a **strict superset** of the EQ-Bench 3
+Companion Bench's per-turn rubric is a **strict superset** of the EQ-Bench 3
 rubric. A system that has been scored on EQ-Bench 3 has measurable
-partial signal that transfers to LSCB's A2 axis (conversational
+partial signal that transfers to Companion Bench's A2 axis (conversational
 quality). This document is the operational mapping plus the
 caveats.
 
@@ -112,7 +112,7 @@ When citing partial signal transfer in papers or marketing:
 
 * Acceptable: "System X achieves 78 on EQ-Bench 3 (per-turn rubric);
   this corresponds to a partial signal on Companion Bench A2 only."
-* Acceptable: "LSCB A2 reuses 7 of 8 per-turn criteria from EQ-Bench
+* Acceptable: "Companion Bench A2 reuses 7 of 8 per-turn criteria from EQ-Bench
   3 (Appendix A)."
-* **Not acceptable**: "System X's high EQ-Bench score implies LSCB
+* **Not acceptable**: "System X's high EQ-Bench score implies Companion Bench
   performance." It does not.

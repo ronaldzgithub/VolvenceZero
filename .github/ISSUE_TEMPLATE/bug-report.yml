@@ -1,0 +1,52 @@
+name: Bug report — Companion Bench
+description: Report a bug in the Companion Bench harness, scenarios, or site.
+title: "[Bug] <short description>"
+labels: ["bug", "companion-bench"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in **Companion Bench**.
+        Please include enough context for us to reproduce the issue.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is affected?
+      options:
+        - "companion-bench Python wheel (harness)"
+        - "Public site (companion-bench.org)"
+        - "Scoring methodology / scenarios"
+        - "Documentation / RFC"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal commands or URLs that exhibit the bug.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment (Python version, OS, browser)
+      placeholder: "Python 3.13.0 on macOS 14.5"

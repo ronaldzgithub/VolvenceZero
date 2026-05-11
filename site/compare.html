@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Pairwise comparison — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Side-by-side multi-session comparison of two systems on the same Companion Bench scenarios." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="compare">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container">
+    <h1 class="mt-0">Pairwise comparison</h1>
+    <p class="meta" id="compare-meta">
+      Pick two systems to compare side-by-side on the scenarios both ran.
+      Per-axis margin bars highlight where each system won.
+    </p>
+    <div class="filters">
+      <label>System A
+        <select id="system-a"></select>
+      </label>
+      <label>System B
+        <select id="system-b"></select>
+      </label>
+      <label>Scenario
+        <select id="scenario-pick"></select>
+      </label>
+    </div>
+
+    <div id="compare-overview"></div>
+    <div id="compare-grid" class="compare-grid"></div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/compare.js" defer></script>
+</body>
+</html>

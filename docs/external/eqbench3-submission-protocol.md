@@ -3,7 +3,7 @@
 > Status: Public draft (debt #29 packet 9)
 > Last updated: 2026-05-10
 > License of this document: CC BY 4.0
-> Companion docs: [`eqbench3-results-internal.md`](eqbench3-results-internal.md), [`lscb-eqbench-crosswalk.md`](lscb-eqbench-crosswalk.md), [`lscb-rfc-v0.md`](lscb-rfc-v0.md)
+> Companion docs: [`eqbench3-results-internal.md`](eqbench3-results-internal.md), [`companion-bench-eqbench-crosswalk.md`](companion-bench-eqbench-crosswalk.md), [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md)
 
 This document describes how we run EQ-Bench 3 against our system and
 what we publish when (and only when) we submit to the public
@@ -209,6 +209,6 @@ checklist for (2).
 ## Cross-references
 
 * Internal verdict log per run: [`eqbench3-results-internal.md`](eqbench3-results-internal.md)
-* Mapping from EQ-Bench rubric onto LSCB axes: [`lscb-eqbench-crosswalk.md`](lscb-eqbench-crosswalk.md)
+* Mapping from EQ-Bench rubric onto Companion Bench axes: [`companion-bench-eqbench-crosswalk.md`](companion-bench-eqbench-crosswalk.md)
 * The benchmark we are building (multi-session companion eval that
-  EQ-Bench's 3-turn format does not cover): [`lscb-rfc-v0.md`](lscb-rfc-v0.md)
+  EQ-Bench's 3-turn format does not cover): [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md)

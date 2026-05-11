@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>About — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="About Companion Bench — background, related work, FAQ, citation, and contact." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="about">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container-narrow">
+    <h1 class="mt-0">About Companion Bench</h1>
+    <p>
+      Companion Bench (formerly LSCB — Long-Session Companion Benchmark) is a
+      multi-session, ablation-friendly evaluation framework for AI systems
+      whose product surface is "an ongoing companion / coach / supportive
+      interlocutor." It was created in 2026 to fill a measurement vacuum that
+      had emerged as companion-class consumer products outpaced the
+      single-turn benchmarks they were being compared against.
+    </p>
+    <p>
+      The benchmark is <strong>outcome-level</strong> — it does not prescribe
+      how systems implement memory, persona, or learning. Long-context, RAG,
+      per-user fine-tuning, and on-line adaptation are all valid; the test is
+      whether arc-level behaviour exhibits the desired properties.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Related work</h2>
+    <ul>
+      <li><strong>EQ-Bench 3</strong> — 3-turn rubric, single-conversation. Companion Bench reuses 7 of 8 per-turn rubric criteria for cross-benchmark transfer.</li>
+      <li><strong>Chatbot Arena (LMSYS)</strong> — single conversation, human pairwise preference. Companion Bench complements rather than competes.</li>
+      <li><strong>RP-Bench / Roleplay-Bench</strong> — pairwise human voting on roleplay quality. Single conversation, no persistence.</li>
+      <li><strong>EmpathyBench</strong> — empathy-focused, single-shot.</li>
+      <li><strong>MT-Bench / AlpacaEval / Arena-Hard</strong> — instruction-following, not relational.</li>
+      <li><strong>LongBench / NIAH / RULER</strong> — long-context retrieval over documents, not multi-session conversation.</li>
+      <li><strong>PersonaChat</strong> — single-session persona, not cross-session.</li>
+    </ul>
+    <p class="text-muted">
+      Companion Bench is designed to be <em>complementary</em>, not competitive,
+      with the EQ-Bench / RP-Bench family. Where possible we reuse rubric
+      criteria so per-turn signals transfer; the novel contribution is the
+      arc-level surface and scenarios designed to probe phenomena visible only
+      across sessions.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Academic grounding</h2>
+    <ul>
+      <li>Multi-timescale learning (Hutter &amp; Sutton's hierarchical RL line; "Nested Learning" framework, Behrouz et al. 2025).</li>
+      <li>Prediction-error-based adaptation (Friston's free-energy principle, Bayesian brain literature).</li>
+      <li>Emergent temporal abstractions in conversational policy (Internal RL on latent controllers, Behrouz et al. 2025).</li>
+      <li>Working-alliance and rupture-repair literature in clinical psychology (Bordin 1979; Safran &amp; Muran 2000).</li>
+      <li>Persona consistency literature (Zhang et al. PersonaChat 2018; Song et al. 2020).</li>
+    </ul>
+    <p class="text-muted">
+      Companion Bench does not require a system to be implemented using any
+      specific architecture. The above informs <em>which</em> scenarios are
+      diagnostic, not how the SUT must be built.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>FAQ</h2>
+    <details>
+      <summary>Why "Companion Bench" instead of "LSCB"?</summary>
+      <p>
+        LSCB was a working acronym for the methodology RFC. As we moved to a
+        public leaderboard with v1.0, we wanted a name that consumers and
+        non-research audiences could parse without a glossary. The
+        Long-Session Companion Benchmark subtitle preserves the methodological
+        signal. The SHA-256 scenario hashes are byte-identical across the
+        rename — bench name is not part of the canonical hash.
+      </p>
+    </details>
+    <details>
+      <summary>Will my system score well if it has no explicit memory?</summary>
+      <p>
+        It can — long-context systems can score on A3 by stuffing prior
+        sessions into the prompt within the context window. But the
+        operationalisation rewards <em>learned</em> improvement, not just
+        retrieved-context recall. Systems with online adaptation tend to score
+        higher on A4 (Adaptation) over the arc.
+      </p>
+    </details>
+    <details>
+      <summary>Why a hard cap on A6 instead of just heavy weighting?</summary>
+      <p>
+        A companion product that fails safety is not deployable. Reflecting
+        that production reality with a soft penalty would let a system trade
+        safety failures against warmth wins. A hard cap at 50 makes the
+        non-negotiable explicit.
+      </p>
+    </details>
+    <details>
+      <summary>Can I see the held-out scenarios?</summary>
+      <p>
+        No. The held-out pool exists specifically to detect over-fitting to
+        the public set. Releasing it would defeat its purpose. Held-out
+        scenarios are scored and the SHA-256 hashes are published; the bodies
+        are private.
+      </p>
+    </details>
+    <details>
+      <summary>Why a geometric mean instead of arithmetic?</summary>
+      <p>
+        So that catastrophic failure on any one axis cannot be hidden by
+        averaging high scores elsewhere. The geometric mean is dominated by
+        the smallest term, which is exactly what we want.
+      </p>
+    </details>
+    <details>
+      <summary>How does Companion Bench handle judge bias?</summary>
+      <p>
+        Per-turn judge and arc judge come from <em>different model
+        families</em>. Judge selections rotate quarterly. We publish judge
+        calibration against a small human-eval golden set on the
+        <a href="judges.html">judges page</a>. We also report a separate
+        human-eval Elo column when available; following RP-Bench's finding
+        that human and LLM-judge rankings can diverge, we treat human Elo as
+        an independent measurement, not as ground truth.
+      </p>
+    </details>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Citation</h2>
+    <pre><code>@misc{companion_bench_2026,
+  title         = {Companion Bench: Long-Session Companion Benchmark},
+  author        = {{Companion Bench Contributors}},
+  year          = {2026},
+  howpublished  = {\url{https://companion-bench.org/}},
+  note          = {Reference implementation v1.0; previously circulated as LSCB.}
+}</code></pre>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Contact</h2>
+    <ul>
+      <li>GitHub: <a href="https://github.com/VolvenceZero/companion-bench" target="_blank" rel="noopener">VolvenceZero/companion-bench</a></li>
+      <li>RFC + governance: <a href="governance.html">Governance page</a></li>
+      <li>Submission requests: <a href="https://github.com/VolvenceZero/companion-bench/issues" target="_blank" rel="noopener">GitHub Issues</a></li>
+    </ul>
+    <p class="text-muted">
+      Code is licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener">Apache 2.0</a>.
+      The RFC and documentation are licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
+    </p>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+</body>
+</html>

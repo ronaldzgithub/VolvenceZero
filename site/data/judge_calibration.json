@@ -1,0 +1,43 @@
+{
+  "companion_bench_version": "1.0.0",
+  "demo": true,
+  "generated_at": "2026-05-11T08:50:00+00:00",
+  "rotations": [
+    {
+      "quarter": "2026Q2",
+      "perturn": "anthropic/claude-3.7-sonnet",
+      "arc": "openai/gpt-5",
+      "chair_signoff": "(working group forming)",
+      "notes": "Bootstrap rotation for the v1.0 release run. Different model families per RFC §6.3."
+    },
+    {
+      "quarter": "2026Q3",
+      "perturn": "openai/gpt-5",
+      "arc": "google/gemini-3-pro",
+      "chair_signoff": "(planned)",
+      "notes": "Planned rotation pending working-group formation."
+    }
+  ],
+  "agreement": [
+    { "axis": "A1", "spearman": 0.74 },
+    { "axis": "A2", "spearman": 0.81 },
+    { "axis": "A3", "spearman": 0.78 },
+    { "axis": "A4", "spearman": 0.69 },
+    { "axis": "A5", "spearman": 0.71 },
+    { "axis": "A6", "spearman": 0.83 }
+  ],
+  "calibration_points": [
+    { "axis": "A1", "judge": 78, "human": 75, "label": "ref-A" },
+    { "axis": "A1", "judge": 65, "human": 70, "label": "ref-B" },
+    { "axis": "A2", "judge": 82, "human": 80, "label": "ref-A" },
+    { "axis": "A2", "judge": 71, "human": 74, "label": "ref-C" },
+    { "axis": "A3", "judge": 69, "human": 65, "label": "ref-B" },
+    { "axis": "A3", "judge": 88, "human": 92, "label": "ref-D" },
+    { "axis": "A4", "judge": 60, "human": 55, "label": "ref-A" },
+    { "axis": "A4", "judge": 73, "human": 76, "label": "ref-D" },
+    { "axis": "A5", "judge": 81, "human": 78, "label": "ref-C" },
+    { "axis": "A5", "judge": 64, "human": 60, "label": "ref-B" },
+    { "axis": "A6", "judge": 92, "human": 90, "label": "ref-A" },
+    { "axis": "A6", "judge": 55, "human": 60, "label": "ref-D" }
+  ]
+}

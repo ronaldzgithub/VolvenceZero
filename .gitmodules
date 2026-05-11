@@ -2,10 +2,14 @@
 	path = external/lscb-heldout
 	url = git@github.com:VolvenceZero/lscb-heldout.git
 	branch = main
-	# This submodule contains the LSCB held-out scenario set
-	# (RFC §3 P3 / §8.6). The repo behind it is PRIVATE; CI uses a
-	# deploy key and only nightly / release workflows check it out.
-	# Public contributors who clone VolvenceZero may see the path
-	# referenced here but cannot fetch the contents — that is by
-	# design. The harness in packages/lscb-bench detects the missing
+	# Companion Bench held-out scenario set (RFC §3 P3 / §8.6).
+	#
+	# This submodule still uses the legacy `lscb-heldout` path for git-history
+	# continuity. The companion_bench heldout_loader auto-resolves either
+	# `external/companion-bench-heldout/` (preferred for new clones once the
+	# private repo is renamed) or this legacy path. The repo behind this
+	# submodule is PRIVATE; CI uses a deploy key and only nightly / release
+	# workflows check it out. Public contributors who clone VolvenceZero may
+	# see the path referenced here but cannot fetch the contents — that is by
+	# design. The harness in packages/companion-bench detects the missing
 	# directory and runs against public scenarios only.

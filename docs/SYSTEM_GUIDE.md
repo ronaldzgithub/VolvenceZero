@@ -1032,11 +1032,11 @@ DriveSpec(
 - 实现：`packages/lifeform-openai-compat/` + `packages/companion-bench/`
 - 公开 RFC：`docs/external/companion-bench-rfc-v0.md`
 - 对外提交协议：`docs/external/eqbench3-*` 文档族
-- CLI：`lscb-bench run --submission examples/submission.yaml --output artifacts/companion-bench/`
+- CLI：`companion-bench run --submission examples/submission.yaml --output artifacts/companion-bench/`
 
 #### 📌 不变量（CI 强制）
 
-1. `companion-bench` **完全不 import** 任何 `volvence_zero.*` / `lifeform_*`（CI 守门 `tests/contracts/test_lscb_bench_no_internal_imports.py`）—— 它是中立第三方工具，可被任何外部团队下载独立运行
+1. `companion-bench` **完全不 import** 任何 `volvence_zero.*` / `lifeform_*`（CI 守门 `tests/contracts/test_companion_bench_no_internal_imports.py`）—— 它是中立第三方工具，可被任何外部团队下载独立运行
 2. `lifeform-openai-compat` 只能 import `lifeform_service` + 标准库 + `aiohttp`，**禁止**直接 import `volvence_zero.*` kernel 子包或 `lifeform_domain_*` vertical
 3. `lifeform-openai-compat` **read-only**：从不调下划线方法、从不改 owner snapshot
 4. 外部 ELO / 排名 / pairwise 偏好属于 R12 readout——**禁止反向**作为 reward 写回学习管线
@@ -1093,7 +1093,7 @@ VolvenceZero/
 │   ├── dlaas-platform-eval/            [Layer 5] — audience / exam / launch license（仅 readout）
 │   │
 │   └── ── 外发基准（system-agnostic，1） ──────────────────────────────────
-│       lscb-bench/             [独立] — Long-Session Companion Benchmark v1.0；
+│       companion-bench/        [独立] — Companion Bench (formerly LSCB) v1.0；
 │                                        6 轴；24 公开 + 96 held-out；Apache 2.0
 │
 ├── docs/                       — 见 docs/specs/00_INDEX.md
@@ -1130,7 +1130,7 @@ VolvenceZero/
 | 跑训练 / 预训练 bootstraps | `lifeform-super-loop --vertical ...` | `lifeform-evolution` CLI |
 | 起服务 | aiohttp service | `lifeform-service` |
 | 让外部 OpenAI 客户端调用 | `add_openai_routes(app, session_manager)` | `lifeform-openai-compat` |
-| 跑外发 benchmark（自家 or 别家） | `lscb-bench run --submission examples/submission.yaml --output artifacts/companion-bench/` | `companion-bench` CLI |
+| 跑外发 benchmark（自家 or 别家） | `companion-bench run --submission examples/submission.yaml --output artifacts/companion-bench/` | `companion-bench` CLI |
 | 启动多租户平台 | `dlaas-platform-api` aiohttp router + `dlaas-platform-launcher.InstanceManager` | `dlaas-platform-*` |
 | 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
 | 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
@@ -1414,7 +1414,7 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 **A**: wheel 切分有四个目的：
 - **R8 工程纪律**：wheel 边界 = 模块边界 = 数据契约边界
 - **未来分裂**：当 vertical 数量起来，可以无痛把 `lifeform-domain-*` / `dlaas-platform-*` / `companion-bench` 拆到独立仓库（详见 `SPLIT.md`）
-- **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `companion-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `lscb-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
+- **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `companion-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `companion-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
 - **多速演进**：内核稳定（半年级别）、生命体中速（月级别）、平台治理快速（周级别）、外发 benchmark 独立时间线——一个仓库做不到这种节奏分层
 
 截至 2026-05-10 共 25 wheel：内核 7 + 生命体 12 + 平台 6 + 外发基准 1。
@@ -1472,7 +1472,7 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 2. 读 `docs/specs/evidence_program.md` 理解 evidence bundle
 3. 读 `docs/specs/lifeform-vitals.md` 理解"在沉默中也在乎你"是怎么实现的
 4. 跑 `lifeform-bench --family-report` 看内部真实指标
-5. 跑 `lscb-bench run --submission examples/submission.yaml` 看对外 6 轴评分（也可用同一基准跑 GPT / Claude / Gemini 对比）
+5. 跑 `companion-bench run --submission examples/submission.yaml` 看对外 6 轴评分（也可用同一基准跑 GPT / Claude / Gemini 对比）
 
 ### 11.5 我做平台 / 多租户接入
 
@@ -1510,7 +1510,7 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 2. 读 `docs/external/eqbench3-*` —— EQ-Bench 3 提交 / 盲评协议
 3. 看 `lifeform-openai-compat` 的 README + `add_openai_routes` —— 把系统包成 OpenAI endpoint
 4. 看 `companion-bench` 的 README + `examples/submission.yaml` —— 跑对外基准
-5. 关注 `tests/contracts/test_lscb_bench_no_internal_imports.py` —— 这是 Companion Bench 系统无关性的 CI 守门
+5. 关注 `tests/contracts/test_companion_bench_no_internal_imports.py` —— 这是 Companion Bench 系统无关性的 CI 守门
 
 ---
 

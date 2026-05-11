@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Scenario browser — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Browse the 24 public Companion Bench scenarios — 6 families × 4 each, with FSM step viewer, axis hints, and stable SHA-256 hashes." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="scenarios">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container">
+    <h1 class="mt-0">Public scenario browser</h1>
+    <p class="meta">
+      24 public scenarios across 6 families × 4 each. Held-out scenarios
+      (96 total) are private and probe the same axes with different surface
+      form. Each scenario has a stable SHA-256 hash that the leaderboard cites
+      in audit trails — verifiable without re-sharing the YAML body.
+    </p>
+
+    <div class="filters">
+      <label>Family
+        <select id="family-filter">
+          <option value="all">All families</option>
+          <option value="F1">F1 — Continuity</option>
+          <option value="F2">F2 — Repair</option>
+          <option value="F3">F3 — Personalization</option>
+          <option value="F4">F4 — Long absence</option>
+          <option value="F5">F5 — Boundary pressure</option>
+          <option value="F6">F6 — Goal drift</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="search" id="scenario-search" placeholder="scenario id or persona…" />
+      </label>
+    </div>
+
+    <p class="meta" id="scenarios-meta"></p>
+
+    <div id="scenario-list"></div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+<script src="assets/scenarios.js" defer></script>
+</body>
+</html>

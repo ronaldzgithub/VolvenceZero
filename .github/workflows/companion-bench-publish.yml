@@ -1,14 +1,14 @@
-name: LSCB Leaderboard — Publish
+name: Companion Bench — Publish site
 
-# Push site/leaderboard/ to GitHub Pages whenever data or site files
-# change on main. Pure static deploy; no build step.
+# Push site/ to GitHub Pages whenever data or site files change on main.
+# Pure static deploy; no build step.
 
 on:
   push:
     branches:
       - main
     paths:
-      - "site/leaderboard/**"
+      - "site/**"
       - "docs/external/companion-bench-public-scenario-hashes.txt"
   workflow_dispatch:
 
@@ -18,7 +18,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: lscb-leaderboard-pages
+  group: companion-bench-pages
   cancel-in-progress: true
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site/leaderboard
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deploy

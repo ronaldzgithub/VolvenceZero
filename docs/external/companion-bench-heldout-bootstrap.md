@@ -4,7 +4,7 @@
 > Audience: Companion Bench working-group chair (or the org running the leaderboard)
 
 The held-out scenario set lives in a **separate private GitHub
-repository** at `VolvenceZero/lscb-heldout` (per RFC §3 P3 and §8.6).
+repository** at `VolvenceZero/companion-bench-heldout` (per RFC §3 P3 and §8.6).
 The public monorepo references it as a git submodule at
 `external/companion-bench-heldout/`, which is gitignored so the YAML body never
 enters the public history.
@@ -31,7 +31,7 @@ cd external/lscb-heldout
 git init -b main
 git add .
 git commit -m "lscb-heldout v1.0 seed (96 scenarios)"
-git remote add origin git@github.com:VolvenceZero/lscb-heldout.git
+git remote add origin git@github.com:VolvenceZero/companion-bench-heldout.git
 git push -u origin main
 ```
 
@@ -45,12 +45,12 @@ already. CI nightly + release tiers must check it out via deploy key:
 - uses: actions/checkout@v4
   with:
     submodules: true
-    ssh-key: ${{ secrets.LSCB_HELDOUT_DEPLOY_KEY }}
+    ssh-key: ${{ secrets.COMPANION_BENCH_HELDOUT_DEPLOY_KEY }}
 ```
 
 The deploy key is a read-only SSH key registered on the private
 `lscb-heldout` repo. The corresponding private key lives in the
-public monorepo's repository secrets as `LSCB_HELDOUT_DEPLOY_KEY`.
+public monorepo's repository secrets as `COMPANION_BENCH_HELDOUT_DEPLOY_KEY`.
 
 ## Public PRs
 
@@ -67,7 +67,7 @@ a new `--variant-salt` (parameter to be added in v1.1) and pushing
 the new tree to the private repo on a quarterly cadence. The hash
 manifest lives at `external/companion-bench-heldout/HASHES.txt` (private) and
 its rotation log on the public side at
-`docs/external/lscb-heldout-rotation-log.md` (just the dates and
+`docs/external/companion-bench-heldout-rotation-log.md` (just the dates and
 that a rotation occurred — never the hashes themselves).
 
 ## What never enters the public history

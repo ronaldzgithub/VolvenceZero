@@ -354,6 +354,17 @@ weight_i = enforce_co_activation_constraints(base_weight, registry)
 - `minimum_weight_floor` 让"危机识别"这种长驻协议永远保持 ≥ 0.05 的警戒激活
 - `softmax` 而不是 `argmax`：默认是混合而不是单选；只有当某个协议 dominate（如 0.95+）时才接近 hard switch
 
+**Packet 1.5a partial 实现**：
+
+- α 临时硬定 1.0，β 仍 0（α/β 学习留 packet 1.5b/c）
+- `context_match_i = Σ signal.weight × signal_is_firing(signal, upstream)`，3 个 kernel-side detector：
+  - `INTERLOCUTOR_ZONE_TRANSITION`：interlocutor_state 任一 zone bool 为 True 时 fire
+  - `RUPTURE_KIND_FIRED`：rupture_state 解析出非空 `rupture_kind` 时 fire
+  - `BOUNDARY_VIOLATION_FIRED`：boundary_policy 决策含非空 `trigger_reasons` 时 fire
+- `USER_DROPOUT_OBSERVED` 占位返 False（待 1.5a' 接 dialogue_trace）
+- `DRIVE_HOMEOSTASIS_HOLD/BREACH` 永久 defer（vitals 跨层边界，packet 1.0.1）
+- 当所有 eligible 协议 `max(score) == 0`（cheng_laoshi 默认形态：`activation_conditions.context_match_signals` 为空），算法回落到 `equal_weight_with_floor`，`ActivationReason.kind = EQUAL_WEIGHT_FALLBACK`；任一 score > 0 → 切到 `softmax`，`kind = CONTEXT_MATCH`，`detail` 列出 `signals_fired=[...]` 用于审计
+
 ### 不允许的优先级方式
 
 - ❌ 写死 priority list：`["谌老师", "通用陪伴", "危机识别"]`
@@ -786,9 +797,9 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
 | 条件 | 当前状态 | 满足 packet | 守门方式 |
 |---|---|---|---|
 | 1. `identity_gate` 接 R7 dual-track Self trait gate + R14 regime identity 真实交叉检查 | ✅ **完全闭合（packet 1.3a + 1.3' + 1.3'' + 1.3'''）**：1.3a R14 regime 真实化；1.3' self_traits 机器身；1.3'' populator + e2e 测试；**1.3''' production wiring**——`LifeformConfig.with_identity_seed` → `Lifeform` → `Brain` → `AgentSessionRunner` → `run_final_wiring_turn` → `DualTrackModule` 全自动透传。`build_cheng_laoshi_lifeform()` 默认 `use_identity_seed=True`，用户拿到的生命体自动带 traits，self_trait 过滤无需手动 wiring 即生效 | 1.3a–1.3''' 全部 | runtime fail-loud + e2e tests + production wiring tests |
-| 2. `α / β` 由 metacontroller 学（PE history 接入） | 全 0，equal weight | 1.5 | runtime fail-loud |
-| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | 空集，contribution = 0 | 1.5 | runtime fail-loud |
-| 4. 互斥协议仲裁不再用 lexicographic id | 当前用 lexicographic（占位） | 1.5 | runtime fail-loud |
+| 2. `α / β` 由 metacontroller 学（PE history 接入） | 全 0，等价于 α=1·context + β=0；context_match 已 partial 真实化（packet 1.5a），PE-utility 与 α/β 学习仍是 0 | 1.5b–c | runtime fail-loud |
+| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | 🟡 **partial（packet 1.5a）**：3 个 kernel-side detector 上线（`INTERLOCUTOR_ZONE_TRANSITION` / `RUPTURE_KIND_FIRED` / `BOUNDARY_VIOLATION_FIRED`），合成 `score = Σ weight × firing` 并参与 softmax；空信号集落回 equal-weight。`USER_DROPOUT_OBSERVED` 需 dialogue_trace inspection（待 1.5a' 接入）；`DRIVE_HOMEOSTASIS_*` 永久 deferred（vitals 不在 kernel 图里，packet 1.0.1 决议）。完全闭合还需补 retrieval-policy / regime-direct 信号源 + α 学习 | 1.5a → 1.5a' → 1.5b | runtime fail-loud |
+| 4. 互斥协议仲裁不再用 lexicographic id | 当前用 lexicographic（占位） | 1.5c | runtime fail-loud |
 | 5. 至少 1 个下游 consumer 通过 matched-control dual-run 测试 | ✅ packet 1.2 后续：boundary 路径 matched-control（vertical compile vs protocol compile，hint 内容除 lineage 前缀外 byte-equivalent） | 1.2 后续 | `tests/contracts/test_protocol_boundary_matched_control.py` |
 | 6. `boundary_union` 字段定位明确（IDs vs 完整 contracts） | ✅ 1.2 锁定选择 A：`boundary_union_ids: tuple[str, ...]`（IDs only） | 1.2 | schema 决议 + contract test |
 | 7. `BehaviorProtocol → application owners` compile 路径打通 | ✅ 1.2 boundary + 1.3b strategy + 1.4a knowledge + 1.4b case（**全 4/4 完成**） | 1.2 / 1.3b / 1.4a / 1.4b | implementation + matched-control tests |
@@ -933,6 +944,22 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
   - 测试：扩展 `test_protocol_compile.py`（+7 knowledge 测试）/ `test_protocol_load_to_application_state.py`（+6 knowledge 测试）/ `test_growth_advisor_fixture_uptake.py`（+3 knowledge 字段测试）；新 `test_protocol_knowledge_matched_control.py` 7 测试镜像 boundary / strategy matched-control
   - cheng_laoshi 行为完全不变；packet 1.0/1.2/1.3 的 contract test 零修改
   - Checklist 进度：条目 7（compile 路径）✅ boundary + strategy + knowledge；待 packet 1.4b 落 case
+
+- 2026-05-11 (packet 1.5a)：typed context_match 计分框架（checklist 条目 3 partial 闭合）
+  - 来源：1.3 系列把 identity_gate 完全真实化后，剩下的 ACTIVE checklist 条目 2/3/4 都围绕 activation formula 的另两个因子。1.5a 是最小可验证的一刀：把 `context_match` 从"空集，contribution = 0"升级到"3 个 kernel-side detector 真实参与 softmax"
+  - 决策 1（α=1, β=0 暂定）：把 formula 中 α 临时硬定为 1.0、β 仍 0；本 packet 不引入 PE history utility 也不接 metacontroller 学 α/β（留 packet 1.5b/c）。这样的拆分让 1.5a 自己就能产出可观测行为变化（"信号 fired → 权重升高"），不需要等 1.5b/c 才能验证
+  - 决策 2（3 detector 范围）：仅实现 3 个 kernel-readable 信号源：
+    - `INTERLOCUTOR_ZONE_TRANSITION` ← `interlocutor_state.state.*_zone` 任一 True → fire
+    - `RUPTURE_KIND_FIRED` ← `rupture_state.rupture_kind is not None` → fire
+    - `BOUNDARY_VIOLATION_FIRED` ← `boundary_policy.trigger_reasons` 非空 → fire
+  - 决策 3（DRIVE 永久 defer，USER_DROPOUT 推迟）：`DRIVE_HOMEOSTASIS_HOLD/BREACH` 永久 deferred（vitals 不在 kernel propagate 图里，packet 1.0.1 决议；通过 PE 主链回流而不是直读 vitals）。`USER_DROPOUT_OBSERVED` 推迟到 1.5a'（需要 dialogue_trace inspection 或 typed proxy slot）。两类信号的 detector 显式返回 False 而非 raise，让现有协议 schema 能继续声明这些信号但暂不影响计分
+  - 决策 4（softmax 触发条件）：当所有 eligible 协议 `max(score) == 0` 时回落到 `equal_weight_with_floor`（保 cheng_laoshi 默认形态：`activation_conditions.context_match_signals` 为空 → score 全 0 → 与 packet 1.4b 完全等价）。任一 score > 0 → 切到 numerically-stable softmax + per-protocol floor，`ActivationReason.kind = CONTEXT_MATCH`，`detail` 列出 `signals_fired=[...]` 用于审计
+  - 决策 5（依赖扩张）：`ProtocolRegistryModule.dependencies` 从 `("dual_track", "regime")` 扩到 `("dual_track", "regime", "interlocutor_state", "rupture_state", "boundary_policy")`。所有读路径 SHADOW-tolerant：缺 upstream → "信号不 fire" 而不是 fail-loud（ACTIVE 升级仍由 `FallbackActivationActiveError` + checklist 守门）
+  - 决策 6（import boundary 更新）：`vz-application` 的 `ALLOWED_VZ_UPSTREAM` 加 `interlocutor`（rupture_state / behavior_protocol 已在）；vz-application 的 pyproject.toml 已声明 vz-cognition 依赖，无需变动
+  - 决策 7（fallback flag 不动）：`_ACTIVATION_CONTROLLER_FALLBACK_MODE` 仍 True；`is_fallback_mode()` docstring 升级到"context_match partial 真实化，PE-utility / α-β 学习仍是 0"。runtime ACTIVE 入口（FallbackActivationActiveError）仍会在 ACTIVE 尝试时 fail-loud
+  - 测试：15 个新 `tests/contracts/test_protocol_context_match.py`：空信号集→score 0 / 3 detector 各自 fire+不 fire 6 case / DRIVE+USER_DROPOUT defer 2 case / 多信号聚合 / softmax 差异化权重 / cheng_laoshi e2e 行为在所有信号都 fire 的极端 fixture 下仍然 byte-equivalent；`test_protocol_runtime_owner_uniqueness` 的依赖断言扩 5-tuple
+  - cheng_laoshi 行为：`activation_conditions.context_match_signals = ()` → score 全 0 → 走 EQUAL_WEIGHT_FALLBACK 路径，`weight = 1.0`（单协议混合）；与 packet 1.4b 完全字节级等价。3 个 1.5a 测试明确 pin 这一保证
+  - **Checklist 进度**：条目 3 ⏳ → 🟡 partial（3 detector 上线，retrieval / regime-direct / α-β 学习留 1.5a' / 1.5b）；条目 2/4 仍 ⏳；条目 5/6/7 + 条目 1 仍 ✅
 
 - 2026-05-11 (packet 1.3''')：production wiring of identity seed (1.3 系列收尾)
   - 来源：1.3'' 完成机器身 + populator，但 cheng_laoshi 生命体的用户仍需手动调 `run_final_wiring_turn(identity_seed=...)` 才能让 trait 生效。1.3''' 把这条线接到 `LifeformConfig`，让 `build_cheng_laoshi_lifeform()` 自动带 seed

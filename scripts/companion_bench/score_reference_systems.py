@@ -42,8 +42,8 @@ import tempfile
 import yaml
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-ROSTER_PATH = REPO_ROOT / "scripts" / "lscb" / "reference_systems.yaml"
-RUNNER = REPO_ROOT / "scripts" / "lscb" / "run_real_submission.py"
+ROSTER_PATH = REPO_ROOT / "scripts" / "companion_bench" / "reference_systems.yaml"
+RUNNER = REPO_ROOT / "scripts" / "companion_bench" / "run_real_submission.py"
 
 _LOG = logging.getLogger("score_reference_systems")
 
@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     aggregate: dict = {"systems": []}
-    with tempfile.TemporaryDirectory(prefix="lscb-roster-") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="companion-bench-roster-") as tmpdir:
         tmp = pathlib.Path(tmpdir)
         for system in roster:
             manifest_path = _build_manifest(system, tmp)

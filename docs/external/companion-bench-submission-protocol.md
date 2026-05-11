@@ -1,7 +1,7 @@
 # Companion Bench Submission Protocol — v1.0
 
 > Status: Public, normative
-> RFC reference: [`lscb-rfc-v0.md`](lscb-rfc-v0.md) §7
+> RFC reference: [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md) §7
 > Last updated: 2026-05-10
 
 This document specifies how to submit a system to the Companion Bench
@@ -51,7 +51,7 @@ leaderboard_category: string          # one of: open-weight, closed-api, bespoke
 A reference manifest lives at
 [`packages/companion-bench/examples/submission.yaml`](../../packages/companion-bench/examples/submission.yaml).
 
-The harness (`lscb_bench.submission.load_manifest`) refuses to run any
+The harness (`companion_bench.submission.load_manifest`) refuses to run any
 submission whose four attestation fields are not all `true`. This is
 the operational enforcement of the RFC §3 P3 reproducibility
 contract.
@@ -134,7 +134,7 @@ Each `arc-*.bundle.json` contains:
 
 Per RFC §7.3, organisers re-run **one random public-test arc** per
 submission. The arc id is chosen via
-`lscb_bench.verifier.pick_verification_arc(submission_id, ...)` so it
+`companion_bench.verifier.pick_verification_arc(submission_id, ...)` so it
 is deterministic-but-uniform: submitters cannot pre-compute it before
 the public arc set is published, and organisers can audit the choice
 later.
@@ -190,6 +190,6 @@ detected:
 ## 10. Submission inquiries
 
 The v1.0 release ships without a working group. To submit, file an
-issue on `github.com/VolvenceZero/lscb-bench` with the manifest YAML
+issue on `github.com/VolvenceZero/companion-bench` with the manifest YAML
 attached. Once the working group forms (RFC §11), the submission
 queue will move to a dedicated workflow.

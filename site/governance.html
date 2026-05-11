@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Governance — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Companion Bench governance — community-governed working group, public comment periods, rotating chair, held-out paraphrase rotation." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="governance">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container-narrow">
+    <h1 class="mt-0">Governance</h1>
+    <p>
+      Companion Bench is intended to be community-governed. The bench is
+      published in good faith as a starting point; the proposing parties hold
+      no special authority over the final spec. Any organisation wishing to
+      submit feedback or join the working group is invited to do so via the
+      public repository.
+    </p>
+    <p>
+      Full charter draft:
+      <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-governance-charter-draft.md" target="_blank" rel="noopener">companion-bench-governance-charter-draft.md</a>.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Working group</h2>
+    <ul>
+      <li>3–5 organisations, with no single organisation holding more than 1 voting seat.</li>
+      <li>A steering committee election when the working group reaches 5 members.</li>
+      <li>A rotating chair who does not submit during their chair term.</li>
+      <li>Budgeted compute donations from member organisations to operate held-out runs.</li>
+    </ul>
+    <p class="text-muted">
+      The v1.0 reference implementation ships with all governance interfaces in
+      place; the working group is forming. Candidate organisations are listed
+      at the linked charter; submissions for membership are tracked as GitHub
+      issues with the <code>governance</code> label.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Change protocol</h2>
+    <p>
+      Public comment periods (≥ 4 weeks) precede any breaking change to scoring
+      methodology. The comment-period log lives at
+      <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-rfc-v0.md" target="_blank" rel="noopener">companion-bench-rfc-v0.md</a>
+      §9 (Roadmap). Non-breaking changes (new public scenarios, new judge
+      models within the same family) require chair sign-off but no public
+      comment period.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Held-out rotation</h2>
+    <p>
+      Paraphrase seeds for held-out scenarios rotate <strong>quarterly</strong>
+      to prevent slow leakage via leaderboard runs. The rotation log
+      (<code>companion-bench-heldout-rotation-log.md</code>) records each
+      quarter's chair signature, hash diff, and 96-count assertion. Held-out
+      scenario bodies are never published; only their SHA-256 hashes appear in
+      the public log.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Judge rotation</h2>
+    <p>
+      Per-turn judge and arc judge come from <em>different model families</em>
+      to reduce family bias. The judge selection rotates quarterly across
+      frontier models. See the
+      <a href="judges.html">judge calibration page</a> for the active rotation
+      schedule and per-judge agreement rates with the human-eval golden set.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>Validity threats &amp; mitigations</h2>
+    <p>
+      Companion Bench documents its validity threats explicitly in RFC §8:
+    </p>
+    <ul>
+      <li><strong>LLM-judge bias</strong> → judge family rotation, anonymised model identifiers in judge prompts, quarterly calibration against human-eval golden set.</li>
+      <li><strong>Memory cheating</strong> → held-out arc set, paraphrase seeds rotate quarterly, randomised user identity slots per arc.</li>
+      <li><strong>Sycophancy gaming</strong> → F5 boundary scenarios + F6 goal-drift scenarios explicitly punish unconditional agreement; A6 hard cap at 50.</li>
+      <li><strong>Persona-vs-system confusion</strong> → manifest declares model + system prompt + persona separately; leaderboard separates "model" and "system" columns.</li>
+      <li><strong>Cross-arc trajectory variance</strong> → 3 paraphrase seeds × 8 scenarios per family × 6 families = 144 arcs minimum; bootstrap CI reported alongside point scores.</li>
+      <li><strong>Cherry-picked checkpointing</strong> → held-out set never released; attestation required; reference probe scenarios designed to surface contamination.</li>
+    </ul>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+</body>
+</html>

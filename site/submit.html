@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<meta property="og:image" content="https://companion-bench.org/assets/og-image.svg" />
+<meta property="og:url" content="https://companion-bench.org/" />
+<meta property="og:site_name" content="Companion Bench" />
+<title>Submit a system — Companion Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Submit your OpenAI-compatible chat endpoint to the Companion Bench leaderboard. Open weight, closed API, and bespoke systems all eligible." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-page="submit">
+
+<div id="site-header"></div>
+
+<main>
+  <section class="container-narrow">
+    <h1 class="mt-0">Submit a system</h1>
+    <p>
+      Any system reachable via an <strong>OpenAI-compatible chat completion
+      endpoint</strong> can be evaluated. Closed commercial APIs and open-weight
+      models are both eligible. Companion Bench is system-agnostic by contract
+      — the harness never imports any vendor-specific package.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>1. Categories</h2>
+    <ul>
+      <li><strong>Open weight, fully reproducible</strong> — model weights, system prompt, harness config all public.</li>
+      <li><strong>Closed model, API-reproducible</strong> — vendor API, system prompt and config public, results re-runnable on the same API.</li>
+      <li><strong>Bespoke system</strong> — composite systems with proprietary memory / personalisation layers; reproducibility limited to the same vendor instance.</li>
+    </ul>
+    <p class="text-muted">
+      We do not collapse these into one column. Comparing a closed bespoke
+      system to an open-weight base model is not apples-to-apples.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>2. Manifest schema</h2>
+    <p>A submission is a single YAML manifest:</p>
+    <pre><code>submission_id: my-team-2026-q2
+system_name: My Companion v1
+model_identifier: my-org/my-model-v1
+base_url: https://api.my-org.example/v1
+api_key_env: MY_ORG_API_KEY
+system_prompt: |
+  You are a thoughtful, warm conversational companion…
+generation_config:
+  temperature: 0.7
+  top_p: 1.0
+  max_tokens: 512
+attestation:
+  no_public_test_set_tuning: true
+  no_scenario_specific_prompt: true
+  no_companion_bench_derivative_in_training: true
+  reproducible_endpoint: true
+leaderboard_category: closed-api</code></pre>
+    <p class="text-muted">
+      The full schema lives at
+      <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-submission-protocol.md" target="_blank" rel="noopener">companion-bench-submission-protocol.md</a>.
+      Attestation flags must all be true; failing any of them at run time is a
+      disqualifier.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>3. Run it</h2>
+    <pre><code>pip install companion-bench
+
+# Smoke first — uses fakes, no API spend.
+companion-bench smoke
+
+# Real submission against any OpenAI-compatible endpoint.
+python scripts/companion_bench/run_real_submission.py \
+  --submission examples/submission.yaml \
+  --user-sim-model anthropic/claude-3.7-sonnet \
+  --user-sim-key-env ANTHROPIC_API_KEY \
+  --perturn-model anthropic/claude-3.7-sonnet \
+  --perturn-key-env ANTHROPIC_API_KEY \
+  --arc-model openai/gpt-5 \
+  --arc-key-env OPENAI_API_KEY \
+  --artifact-dir artifacts/companion-bench/your-submission/</code></pre>
+
+    <h3>Cost estimate</h3>
+    <ul>
+      <li>Inference on submitted system: <strong>$10–60</strong> (system-dependent)</li>
+      <li>Per-turn rubric judge: <strong>$15–25</strong></li>
+      <li>Arc-level judge: <strong>$5–10</strong></li>
+      <li>Pairwise Elo (vs reference systems): <strong>$10–20</strong></li>
+      <li><strong>Total per submission: $40–115</strong></li>
+    </ul>
+    <p class="text-muted">
+      Compare: EQ-Bench 3 ≈ $10–15, MT-Bench ≈ $5. Neither covers multi-session.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>4. Verification</h2>
+    <p>
+      Organisers re-run one random public-test arc per submission to verify
+      reproducibility (RFC §7.3). Results that deviate beyond seed variance
+      (&gt; 5% per axis) are flagged. The verifier seed is derived from the
+      submission_id so any third party can predict which arc will be re-run
+      and compare hashes upfront.
+    </p>
+  </section>
+
+  <section class="container-narrow">
+    <h2>5. Submit</h2>
+    <p>
+      <strong>Public PR:</strong> open a pull request against
+      <a href="https://github.com/VolvenceZero/companion-bench" target="_blank" rel="noopener">VolvenceZero/companion-bench</a>
+      adding your manifest under <code>submissions/</code>. The CI workflow
+      validates schema + attestation; an organiser triggers the scoring run.
+    </p>
+    <p>
+      <strong>Issue tracker:</strong> if you cannot use a PR (e.g., closed-API
+      key cannot be shared with CI), file an issue with the
+      <a href="https://github.com/VolvenceZero/companion-bench/issues/new?template=submission-request.yml" target="_blank" rel="noopener">submission-request template</a>
+      and an organiser will run the scoring on a self-hosted runner with the
+      necessary keys.
+    </p>
+    <a class="btn" href="https://github.com/VolvenceZero/companion-bench/issues/new?template=submission-request.yml" target="_blank" rel="noopener">File submission request</a>
+  </section>
+
+  <section class="container-narrow">
+    <h2>6. What gets published</h2>
+    <ul>
+      <li>Per-axis 0–100 scores, final geometric-mean score, A6 cap status.</li>
+      <li>TrueSkill conservative rating (μ − 3σ) and Bradley-Terry score from pairwise comparisons.</li>
+      <li>Cost telemetry (tokens spent on SUT, per-turn judge, arc judge).</li>
+      <li>Per-submission detail page with full multi-session transcripts, callback ledger, per-turn rubric heatmap, and judge notes.</li>
+    </ul>
+    <p class="text-muted">
+      Held-out scenarios are scored but their bodies are never published — the
+      leaderboard cites them by SHA-256 hash only.
+    </p>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/partials.js" defer></script>
+</body>
+</html>
