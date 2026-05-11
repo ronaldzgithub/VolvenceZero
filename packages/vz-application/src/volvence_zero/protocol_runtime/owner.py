@@ -72,6 +72,9 @@ from volvence_zero.application.storage import (
 from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     BehaviorProtocol,
+    BehaviorProtocolCandidate,
+    ProtocolRevisionProposal,
+    ReviewStatus,
 )
 from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -103,6 +106,38 @@ _PE_HISTORY_LEARNING_RATE: float = 0.25
 _PE_UTILITY_CLAMP: float = 1.0
 
 
+# Packet 1.5c-iii: α / β online learning rate. The owner adjusts
+# the activation-formula coefficients each PE turn using a
+# REINFORCE-style proxy gradient:
+#
+#     α_grad = signed_reward × range(context_match across last actives)
+#     β_grad = signed_reward × range(pe_utility across last actives)
+#     α ← clamp(α + η_meta · α_grad, [α_min, α_max])
+#     β ← clamp(β + η_meta · β_grad, [α_min, α_max])
+#
+# Intuition: when one signal differentiated protocols sharply (large
+# range) and the outcome was positive (signed_reward > 0), the
+# decision was good and the differentiating signal was useful →
+# raise its coefficient. Negative reward inverts the sign.
+# Single-protocol mixtures have range = 0, so cheng_laoshi-shape
+# fixtures never trigger learning (cheng_laoshi byte-equivalence
+# preserved across this packet — pinned by tests).
+#
+# η_meta = 0.05 chosen ~5x slower than the pe_utility EMA's η = 0.25:
+# α / β are global hyperparameters that change the shape of every
+# decision, while pe_utility is per-protocol and self-localising.
+# Slow meta updates avoid jitter under noisy PE.
+_ALPHA_BETA_LEARNING_RATE: float = 0.05
+
+# Hard clamps on α / β to prevent collapse (toward 0, in which case
+# the corresponding signal is silently muted forever) or runaway
+# (which would saturate softmax to argmax). 0.1 is a soft floor
+# that still lets a signal contribute meaningfully; 5.0 is plenty
+# of dynamic range for differentiated mixtures.
+_ALPHA_BETA_MIN: float = 0.1
+_ALPHA_BETA_MAX: float = 5.0
+
+
 class FallbackActivationActiveError(ContractViolationError):
     """Raised when ``ProtocolRegistryModule`` is constructed at ACTIVE
     while the activation controller is still in fallback mode.
@@ -128,16 +163,20 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
     value_type: ClassVar[type[Any]] = ActiveMixtureSnapshot
     # Identity gate (packet 1.3a/1.3'): ``dual_track`` (R7 Self
     # track + IdentitySeed traits) + ``regime`` (R14 RegimeIdentity).
-    # context_match (packet 1.5a): ``interlocutor_state`` (zone
-    # activity) + ``rupture_state`` (rupture_kind) + ``boundary_policy``
-    # (decision triggered).
+    # context_match (packet 1.5a + 1.5a'): ``interlocutor_state``
+    # (zone activity) + ``rupture_state`` (rupture_kind /
+    # USER_DROPOUT_OBSERVED) + ``boundary_policy`` (decision
+    # triggered) + ``regime`` (REGIME_TRANSITION_RECENT, shared
+    # with identity_gate) + ``retrieval_policy``
+    # (RETRIEVAL_HITS_PRESENT).
     # PE utility (packet 1.5b): ``prediction_error`` (signed_reward
     # attributed to last-turn active mixture, EMA-accumulated
     # internally). All upstream readers are SHADOW-tolerant —
     # missing snapshots yield "no signal fires / no PE update"
-    # rather than fail-loud, so SHADOW dual-runs work without full
-    # graph wiring. ACTIVE wiring is gated separately by
-    # ``FallbackActivationActiveError``.
+    # rather than fail-loud. As of packet 1.5a' the activation
+    # controller is no longer in fallback mode, so ACTIVE wiring
+    # is legal (gated only by the runtime's normal owner-graph
+    # validation).
     dependencies: ClassVar[tuple[str, ...]] = (
         "dual_track",
         "regime",
@@ -145,6 +184,7 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         "rupture_state",
         "boundary_policy",
         "prediction_error",
+        "retrieval_policy",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -193,9 +233,7 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # inside the registry owner because protocol load/unload
         # is the natural lifecycle anchor (unload → drop entry).
         # An R8-clean split into a dedicated ``ProtocolPerformanceModule``
-        # owner is tracked for packet 1.5c when α/β learning lands;
-        # at that point the metacontroller becomes a 2nd reader and
-        # the SSOT pressure to extract grows. Until then keeping
+        # owner is tracked for packet 1.5c-ii. Until then keeping
         # both responsibilities co-located avoids an extra slot
         # without weakening any actual contract.
         self._pe_utility: dict[str, float] = {}
@@ -208,6 +246,26 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # snapshots from the same turn (e.g. retries / replay)
         # don't double-count attribution.
         self._last_pe_turn_index: int | None = None
+
+        # Packet 1.5c-iii: α / β online learning state.
+        # Initialised to 1.0 each — this matches packet 1.5b's
+        # hardcoded values, so cold-start behaviour is identical.
+        # Updated by ``_update_alpha_beta`` after every (non-bootstrap,
+        # non-duplicate) PE turn that has cached signal data from
+        # the previous turn.
+        self._alpha: float = 1.0
+        self._beta: float = 1.0
+        # Snapshots of last turn's per-protocol context_match and
+        # pe_utility values, used to compute ``range(signal)`` for
+        # the α / β gradient. context_scores capture the bare
+        # context_match per eligible protocol (not α·context_match).
+        self._last_context_scores: dict[str, float] = {}
+        # pe_utility snapshot at LAST turn's mixture-computation time
+        # (before this turn's pe_utility EMA update). Needed because
+        # ``self._pe_utility`` evolves on every turn; if we read it
+        # AFTER the EMA update we'd be using a different slice than
+        # what last turn's softmax actually saw.
+        self._last_pe_utilities: dict[str, float] = {}
 
     @property
     def registry(self) -> ProtocolRegistry:
@@ -290,6 +348,49 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
             self._registry.unload(protocol.protocol_id)
             raise
 
+    def load_protocol_candidate(
+        self,
+        candidate: BehaviorProtocolCandidate,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Packet 2.4: load a DocumentUptake-derived candidate.
+
+        Differs from :meth:`load_protocol` in that the candidate
+        carries a ``requires_review`` flag plus provenance audit.
+        Routing rules:
+
+        * ``candidate.requires_review=True`` (default for any
+          LLM-extracted candidate): reject unless the inner
+          protocol's ``review_status`` is ``SHADOW`` or ``ACTIVE``
+          (i.e. an external reviewer has already stamped it via
+          ``approve_candidate``). DRAFT candidates are blocked
+          unless ``force=True``.
+        * ``candidate.requires_review=False`` (trusted upstream
+          like API_INJECTION from a reviewed source): accepted
+          directly.
+        * ``force=True`` is an explicit override for emergency
+          paths (test fixtures, recovery). The override is logged
+          in the audit trail of any caller that uses it; the
+          schema does NOT trust ``force`` silently.
+
+        On accept, delegates to :meth:`load_protocol` so the
+        compile path runs uniformly for fixture / candidate
+        loads.
+        """
+
+        if (
+            candidate.requires_review
+            and not force
+            and candidate.protocol.review_status is ReviewStatus.DRAFT
+        ):
+            raise PermissionError(
+                f"candidate {candidate.protocol.protocol_id!r} requires "
+                f"review; got review_status=DRAFT. Run review.approve_candidate "
+                f"first or pass force=True if you have an explicit override."
+            )
+        self.load_protocol(candidate.protocol)
+
     def unload_protocol(self, protocol_id: str) -> bool:
         """Convenience for adapters: equivalent to ``self.registry.unload(...)``.
 
@@ -322,24 +423,43 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[ActiveMixtureSnapshot]:
-        # Packet 1.5b: PE attribution + rolling EMA update happens
-        # BEFORE computing this turn's mixture, so the current
-        # turn's mixture sees the freshly-updated pe_utility.
+        # Packet 1.5b/1.5c-iii: PE attribution + rolling EMA update
+        # for pe_utility AND α / β happens BEFORE computing this
+        # turn's mixture, so the current turn sees the freshly
+        # updated values. The order is important: α/β learning
+        # uses LAST turn's context_match / pe_utility snapshots,
+        # so it must run before this turn's mixture overwrites
+        # the caches.
         self._update_pe_history(upstream)
+        self._update_alpha_beta(upstream)
 
         loaded = self._registry.loaded()
+        # Capture this turn's per-eligible-protocol context_match
+        # scores via the audit out-param so we can use them in
+        # NEXT turn's α/β learning (range(context_match) needs
+        # them snapshot-aligned with the mixture they produced).
+        audit_context: dict[str, float] = {}
         snapshot_value = compute_active_mixture(
             loaded_protocols=loaded,
             upstream=upstream,
             pe_utility_by_id=self._pe_utility,
+            alpha=self._alpha,
+            beta=self._beta,
+            audit_context_scores=audit_context,
         )
 
-        # Cache this turn's published weights for the next turn's
-        # attribution step (PE at turn t+1 will reflect outcome of
-        # this turn's action).
+        # Cache this turn's published weights AND signal scores for
+        # the next turn's PE attribution + α/β gradient. The
+        # pe_utility snapshot mirrors the dict the softmax just
+        # consumed (not the freshly-updated post-attribution one).
         self._last_active_weights = {
             entry.protocol_id: entry.activation_weight
             for entry in snapshot_value.active_protocols
+        }
+        self._last_context_scores = audit_context
+        self._last_pe_utilities = {
+            protocol_id: self._pe_utility.get(protocol_id, 0.0)
+            for protocol_id in audit_context
         }
         return self.publish(snapshot_value)
 
@@ -411,6 +531,72 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
                 updated = -_PE_UTILITY_CLAMP
             self._pe_utility[protocol_id] = updated
 
+    def apply_revision(
+        self,
+        proposal: ProtocolRevisionProposal,
+        *,
+        revised_by: str = "ProtocolReflectionEngine",
+        revised_at_tick: int = 0,
+    ) -> BehaviorProtocol:
+        """Packet 3.3: apply an approved revision proposal.
+
+        Delegates to :meth:`ProtocolRegistry.apply_revision` for
+        the in-memory mutation, then re-runs the compile path
+        against any injected application state stores so
+        downstream owners see the new content.
+
+        The recompile is best-effort: if any of the upserts
+        fail, the registry mutation is *not* rolled back (the
+        revision is committed). Reviewers / orchestrators are
+        expected to handle partial failures by issuing another
+        revision (or invoking :meth:`ProtocolRegistry.checkout_revision`
+        once that lands).
+        """
+
+        revised = self._registry.apply_revision(
+            proposal,
+            revised_by=revised_by,
+            revised_at_tick=revised_at_tick,
+        )
+        # Re-run compile so application owners see the new content.
+        if (
+            self._application_rare_heavy_state is None
+            and self._domain_knowledge_store is None
+            and self._case_memory_store is None
+        ):
+            return revised
+
+        artifacts = compile_protocol_to_application_artifacts(revised)
+        if (
+            self._application_rare_heavy_state is not None
+            and artifacts.boundary_prior_hints
+        ):
+            self._application_rare_heavy_state.upsert_boundary_prior_hints(
+                artifacts.boundary_prior_hints
+            )
+        if (
+            self._application_rare_heavy_state is not None
+            and artifacts.playbook_rules
+        ):
+            self._application_rare_heavy_state.upsert_distilled_playbook_rules(
+                artifacts.playbook_rules
+            )
+        if (
+            self._domain_knowledge_store is not None
+            and artifacts.domain_knowledge_records
+        ):
+            self._domain_knowledge_store.upsert_records(
+                artifacts.domain_knowledge_records
+            )
+        if (
+            self._case_memory_store is not None
+            and artifacts.case_memory_records
+        ):
+            self._case_memory_store.upsert_records(
+                artifacts.case_memory_records
+            )
+        return revised
+
     @property
     def pe_utility(self) -> Mapping[str, float]:
         """Read-only view of current per-protocol pe_utility EMA.
@@ -420,6 +606,106 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         """
 
         return dict(self._pe_utility)
+
+    @property
+    def alpha(self) -> float:
+        """Current α (context_match coefficient). Updated each PE turn."""
+        return self._alpha
+
+    @property
+    def beta(self) -> float:
+        """Current β (pe_utility coefficient). Updated each PE turn."""
+        return self._beta
+
+    def _update_alpha_beta(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        """REINFORCE-style proxy gradient update for α / β.
+
+        Runs after ``_update_pe_history`` and uses LAST turn's
+        cached signal snapshots (``_last_context_scores`` /
+        ``_last_pe_utilities``) plus the current turn's
+        ``signed_reward``. Skips when:
+
+        * No PE this turn (SHADOW-tolerant; same condition as
+          ``_update_pe_history``).
+        * Bootstrap PE (placeholder, not actionable).
+        * Duplicate ``turn_index`` (replay / retry).
+        * Fewer than 2 cached protocols (no differential signal
+          to credit; cheng_laoshi-shape singleton mixtures).
+
+        Update rule:
+
+            α_grad = signed_reward × (max cm − min cm)
+            β_grad = signed_reward × (max pe_utility − min pe_utility)
+            α ← clamp(α + η_meta · α_grad, [α_min, α_max])
+            β ← clamp(β + η_meta · β_grad, [α_min, α_max])
+
+        Note: ``_update_pe_history`` already ran and may have
+        updated ``self._last_pe_turn_index``. We re-validate the
+        same conditions here independently — duplicate / bootstrap
+        gating is cheap, and the explicit re-check makes the
+        function safe to call standalone (e.g. in tests).
+        """
+
+        pe_snapshot = upstream.get("prediction_error")
+        if pe_snapshot is None:
+            return
+        pe_value = pe_snapshot.value
+        if not isinstance(pe_value, PredictionErrorSnapshot):
+            return
+        if pe_value.bootstrap:
+            return
+        # ``_update_pe_history`` advances ``_last_pe_turn_index`` on
+        # successful attribution. Re-check is therefore inverted:
+        # if last_pe_turn_index reflects a turn STRICTLY GREATER
+        # than ours, we're a duplicate / out-of-order PE → skip.
+        # When it equals ours, the pe_utility update DID run so we
+        # should run too. (Owner calls _update_alpha_beta after
+        # _update_pe_history, so the typical path is "_last_pe_turn_index
+        # equals current pe.turn_index", meaning attribution just
+        # happened on this turn.)
+        if (
+            self._last_pe_turn_index is not None
+            and pe_value.turn_index < self._last_pe_turn_index
+        ):
+            return
+
+        if len(self._last_context_scores) < 2:
+            # Singleton or empty mixture last turn → no differential
+            # signal to credit. (cheng_laoshi default-shape lands here.)
+            return
+
+        signed_reward = float(pe_value.error.signed_reward)
+        cm_values = list(self._last_context_scores.values())
+        pe_values = list(self._last_pe_utilities.values())
+        cm_range = max(cm_values) - min(cm_values)
+        pe_range = max(pe_values) - min(pe_values)
+
+        if cm_range == 0.0 and pe_range == 0.0:
+            # Last mixture had multiple protocols but zero signal
+            # differentiation (e.g. all signals 0, all pe history 0).
+            # No basis to credit either coefficient; skip to avoid
+            # accumulating numeric noise.
+            return
+
+        eta_meta = _ALPHA_BETA_LEARNING_RATE
+        alpha_grad = signed_reward * cm_range
+        beta_grad = signed_reward * pe_range
+
+        new_alpha = self._alpha + eta_meta * alpha_grad
+        new_beta = self._beta + eta_meta * beta_grad
+        if new_alpha < _ALPHA_BETA_MIN:
+            new_alpha = _ALPHA_BETA_MIN
+        elif new_alpha > _ALPHA_BETA_MAX:
+            new_alpha = _ALPHA_BETA_MAX
+        if new_beta < _ALPHA_BETA_MIN:
+            new_beta = _ALPHA_BETA_MIN
+        elif new_beta > _ALPHA_BETA_MAX:
+            new_beta = _ALPHA_BETA_MAX
+
+        self._alpha = new_alpha
+        self._beta = new_beta
 
 
 __all__ = ["FallbackActivationActiveError", "ProtocolRegistryModule"]

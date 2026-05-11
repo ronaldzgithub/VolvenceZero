@@ -66,9 +66,11 @@ class BehaviorProtocolSignalSource(str, Enum):
     requires adding a member here AND wiring a typed source — same
     pattern as ``RuptureKind``.
 
-    Packet 1.0 ships the six members below. Extensions in later
-    packets follow the same nuclear rule: PR adds enum member +
-    typed signal source + at least one consumer test.
+    Packet 1.0 ships the six members below. Packet 1.5a' adds two
+    more (regime / retrieval direct signals) and lights up the
+    ``USER_DROPOUT_OBSERVED`` detector. Extensions in later packets
+    follow the same nuclear rule: PR adds enum member + typed signal
+    source + at least one consumer test.
     """
 
     DRIVE_HOMEOSTASIS_HOLD = "drive_homeostasis_hold"
@@ -77,6 +79,20 @@ class BehaviorProtocolSignalSource(str, Enum):
     RUPTURE_KIND_FIRED = "rupture_kind_fired"
     INTERLOCUTOR_ZONE_TRANSITION = "interlocutor_zone_transition"
     USER_DROPOUT_OBSERVED = "user_dropout_observed"
+    # Packet 1.5a' (REGIME_TRANSITION_RECENT): fires when the
+    # active regime just changed this turn — i.e. the
+    # ``RegimeSnapshot.turns_in_current_regime`` is at its post-
+    # transition floor (1 by canonical convention; 0 also accepted
+    # for cold-start tolerance). Useful for protocols that want to
+    # weight more heavily during regime-change windows (e.g.
+    # crisis/repair protocols become more relevant at transitions).
+    REGIME_TRANSITION_RECENT = "regime_transition_recent"
+    # Packet 1.5a' (RETRIEVAL_HITS_PRESENT): fires when the
+    # ``RetrievalPolicySnapshot`` is requesting any knowledge
+    # domains (i.e. the retrieval policy expects relevant memory
+    # / case lookups this turn). Useful for protocols whose
+    # strategies depend on retrieval-grounded answers.
+    RETRIEVAL_HITS_PRESENT = "retrieval_hits_present"
 
 
 class ReviewStatus(str, Enum):
@@ -121,6 +137,7 @@ class ProtocolSourceKind(str, Enum):
 
     FIXTURE = "fixture"
     PDF_UPTAKE = "pdf_uptake"
+    MARKDOWN_UPTAKE = "markdown_uptake"
     TASK_DESCRIPTION = "task_description"
     API_INJECTION = "api_injection"
     DIRECTORY_SCAN = "directory_scan"
@@ -815,6 +832,226 @@ class ActiveMixtureSnapshot:
 
 
 # ---------------------------------------------------------------------------
+# Protocol revision proposals (packet 3.0)
+# ---------------------------------------------------------------------------
+
+
+class ProtocolRevisionTargetField(str, Enum):
+    """Which family of protocol content a revision proposal touches."""
+
+    STRATEGY_PRIOR = "strategy_prior"
+    KNOWLEDGE_SEED = "knowledge_seed"
+    SIGNATURE_CASE = "signature_case"
+    BOUNDARY_CONTRACT = "boundary_contract"
+    IDENTITY_ASSERTION = "identity_assertion"
+
+
+class ProtocolRevisionChangeKind(str, Enum):
+    """What kind of mutation the proposal is asking for."""
+
+    WEIGHT_DECAY = "weight_decay"
+    DEACTIVATE = "deactivate"
+    REPLACE_TEXT = "replace_text"
+    ARCHIVE = "archive"
+
+
+@dataclass(frozen=True)
+class ProposalEvidence:
+    """Background-slow evidence accompanying a ProtocolRevisionProposal.
+
+    Captures *why* the reflection layer wants this change so the
+    R10 ModificationGate can audit and (optionally) automate the
+    decision. All fields are owner-supplied summaries — the
+    proposal does not carry raw history.
+    """
+
+    observation_window_turns: int
+    pe_signature: str
+    summary: str
+
+    def __post_init__(self) -> None:
+        if self.observation_window_turns < 1:
+            raise ValueError(
+                "ProposalEvidence.observation_window_turns must be >= 1; "
+                f"got {self.observation_window_turns!r}"
+            )
+        if not self.summary.strip():
+            raise ValueError(
+                "ProposalEvidence.summary must be non-empty"
+            )
+
+
+@dataclass(frozen=True)
+class ProtocolReflectionSnapshot:
+    """Per-turn published value of the ``protocol_reflection`` slot.
+
+    Owner: ``vz-cognition.reflection.engine.ProtocolReflectionEngine``
+    (background-slow timescale; runs reflection rules every N turns
+    and otherwise re-publishes the previous snapshot).
+
+    Why a separate slot from ``reflection``: the existing
+    :class:`ReflectionModule` owns memory / policy consolidation
+    snapshots and has a different cadence + writeback pipeline.
+    Protocol-content reflection is its own R8 owner to keep the
+    SSOT clean.
+
+    Empty proposals tuple is the default ("no proposals this
+    cycle"); consumers must NOT treat empty as a failure mode.
+    """
+
+    protocol_revision_proposals: tuple["ProtocolRevisionProposal", ...]
+    observation_window_turns: int
+    turns_since_last_scan: int
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if self.observation_window_turns < 0:
+            raise ValueError(
+                "ProtocolReflectionSnapshot.observation_window_turns "
+                f"must be >= 0; got {self.observation_window_turns!r}"
+            )
+        if self.turns_since_last_scan < 0:
+            raise ValueError(
+                "ProtocolReflectionSnapshot.turns_since_last_scan "
+                f"must be >= 0; got {self.turns_since_last_scan!r}"
+            )
+        ids = tuple(p.proposal_id for p in self.protocol_revision_proposals)
+        _check_unique("protocol_revision_proposals.proposal_id", ids)
+
+
+@dataclass(frozen=True)
+class ProtocolRevisionProposal:
+    """A reflection-driven proposal to mutate one protocol entry.
+
+    Lifecycle:
+
+    * ReflectionEngine emits the proposal in
+      ``ReflectionSnapshot.protocol_revision_proposals``.
+    * R10 ModificationGate evaluates it (auto-approve at L1/L2,
+      gated at L3/L4).
+    * Approved proposals are applied by
+      ``ProtocolRegistry.apply_revision`` — this produces a
+      new ``BehaviorProtocol`` with the change recorded in
+      ``revision_log`` (R15 rollback path).
+
+    Note: the ``proposed_payload`` is intentionally a plain
+    dict so the schema can carry diverse change kinds. The
+    apply layer interprets the payload per ``change_kind``;
+    bad payloads fail the apply step (not the proposal step).
+    """
+
+    proposal_id: str
+    target_protocol_id: str
+    target_field: ProtocolRevisionTargetField
+    target_entry_id: str
+    change_kind: ProtocolRevisionChangeKind
+    evidence: ProposalEvidence
+    proposed_payload: dict | None = None
+    required_review_level: ReviewLevel = ReviewLevel.L3
+
+    def __post_init__(self) -> None:
+        if not self.proposal_id.strip():
+            raise ValueError(
+                "ProtocolRevisionProposal.proposal_id must be non-empty"
+            )
+        if not self.target_protocol_id.strip():
+            raise ValueError(
+                "ProtocolRevisionProposal.target_protocol_id must be non-empty"
+            )
+        if not self.target_entry_id.strip():
+            raise ValueError(
+                "ProtocolRevisionProposal.target_entry_id must be non-empty"
+            )
+
+
+# ---------------------------------------------------------------------------
+# DocumentUptake: candidate protocol + provenance (packet 2.0)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProtocolProvenance:
+    """Audit trail for a candidate protocol's origin.
+
+    Carries enough information for ``R10 ModificationGate`` review
+    + post-hoc audit: where did this protocol come from, what
+    extracted it, when, and how confident is the extractor in the
+    structured output.
+    """
+
+    source_kind: ProtocolSourceKind
+    source_locator: str
+    extracted_at_iso: str
+    extractor_id: str
+    confidence: float
+
+    def __post_init__(self) -> None:
+        if not self.source_locator.strip():
+            raise ValueError(
+                "ProtocolProvenance.source_locator must be non-empty"
+            )
+        if not self.extractor_id.strip():
+            raise ValueError(
+                "ProtocolProvenance.extractor_id must be non-empty"
+            )
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "ProtocolProvenance.confidence must be in [0, 1], "
+                f"got {self.confidence!r}"
+            )
+
+
+@dataclass(frozen=True)
+class BehaviorProtocolCandidate:
+    """A protocol freshly extracted from a non-fixture source.
+
+    Wraps a ``BehaviorProtocol`` plus the provenance + a
+    ``requires_review`` flag that the load path consults
+    (``ProtocolRegistryModule.load_protocol_candidate``):
+
+    * ``requires_review=True`` (default for any LLM/document-derived
+      candidate) → loaded into ``review_status=SHADOW`` and
+      flagged for human / automated review by R10 ModificationGate.
+      Cannot be promoted to ACTIVE without explicit approval.
+    * ``requires_review=False`` is reserved for already-reviewed
+      candidates (e.g. APIInjection from a trusted upstream
+      that itself ran review). Setting it manually for an
+      LLM-extracted candidate is a contract violation that the
+      review CLI / approval helpers MUST catch.
+
+    Frozen by construction; reviewers produce a *new* approved
+    ``BehaviorProtocol`` via the approval helper rather than
+    mutating the candidate in place (R15 audit trail).
+    """
+
+    protocol: "BehaviorProtocol"
+    provenance: ProtocolProvenance
+    requires_review: bool = True
+    review_evidence: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Sanity: provenance.source_kind must agree with the inner
+        # protocol's source_kind. If the candidate was extracted
+        # from a PDF, both fields must say PDF_UPTAKE; this
+        # prevents silent provenance drift between the wrapper
+        # and the inner field.
+        if self.protocol.source_kind is not self.provenance.source_kind:
+            raise ValueError(
+                "BehaviorProtocolCandidate.provenance.source_kind "
+                f"({self.provenance.source_kind!r}) must match the "
+                "inner BehaviorProtocol.source_kind "
+                f"({self.protocol.source_kind!r})"
+            )
+        if self.protocol.source_locator != self.provenance.source_locator:
+            raise ValueError(
+                "BehaviorProtocolCandidate.provenance.source_locator "
+                f"({self.provenance.source_locator!r}) must match the "
+                "inner BehaviorProtocol.source_locator "
+                f"({self.protocol.source_locator!r})"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Helpers (private)
 # ---------------------------------------------------------------------------
 
@@ -833,6 +1070,7 @@ __all__ = [
     "ActivationReason",
     "ActivationReasonKind",
     "BehaviorProtocol",
+    "BehaviorProtocolCandidate",
     "BehaviorProtocolSignalSource",
     "BoundaryContract",
     "BoundarySeverity",
@@ -842,7 +1080,13 @@ __all__ = [
     "IdentityAssertion",
     "KnowledgeSeed",
     "ProgressionSignal",
+    "ProposalEvidence",
+    "ProtocolProvenance",
+    "ProtocolReflectionSnapshot",
     "ProtocolRevision",
+    "ProtocolRevisionChangeKind",
+    "ProtocolRevisionProposal",
+    "ProtocolRevisionTargetField",
     "ProtocolSourceKind",
     "ReviewLevel",
     "ReviewStatus",

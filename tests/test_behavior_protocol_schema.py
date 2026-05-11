@@ -44,6 +44,7 @@ from volvence_zero.behavior_protocol import (
 )
 
 
+# Packet 1.0 vocabulary (preserved as a snapshot of what shipped first).
 _PACKET_1_0_SIGNAL_SOURCES = frozenset(
     {
         "DRIVE_HOMEOSTASIS_HOLD",
@@ -54,6 +55,18 @@ _PACKET_1_0_SIGNAL_SOURCES = frozenset(
         "USER_DROPOUT_OBSERVED",
     }
 )
+
+# Packet 1.5a' extensions: REGIME_TRANSITION_RECENT and
+# RETRIEVAL_HITS_PRESENT light up the regime / retrieval direct
+# context_match signal sources, fully closing ACTIVE checklist
+# condition 3. Adding more members to this expected set requires
+# adding a typed source AND a consumer test in the same PR (the
+# closed-enum invariant — see ``BehaviorProtocolSignalSource``
+# docstring).
+_EXPECTED_SIGNAL_SOURCES = _PACKET_1_0_SIGNAL_SOURCES | {
+    "REGIME_TRANSITION_RECENT",
+    "RETRIEVAL_HITS_PRESENT",
+}
 
 
 def _minimal_identity() -> IdentityAssertion:
@@ -131,10 +144,25 @@ def _minimal_protocol(
 
 def test_signal_source_enum_contains_expected_members() -> None:
     actual = {member.name for member in BehaviorProtocolSignalSource}
-    assert actual == _PACKET_1_0_SIGNAL_SOURCES, (
-        "BehaviorProtocolSignalSource diverged from packet-1.0 closed "
-        f"vocabulary; new members must add a typed signal source AND "
-        f"update this gate. Got: {sorted(actual)}"
+    assert actual == _EXPECTED_SIGNAL_SOURCES, (
+        "BehaviorProtocolSignalSource diverged from the expected "
+        "closed vocabulary; new members must add a typed signal "
+        "source AND update this gate (see closed-enum invariant in "
+        f"the enum docstring). Got: {sorted(actual)}"
+    )
+
+
+def test_packet_1_0_signal_sources_remain_present() -> None:
+    """Packet 1.5a' extends the vocabulary; it must NOT remove any
+    packet-1.0 member. This test pins backward compatibility for
+    the closed enum (any pre-existing protocol declaration with
+    ``DRIVE_HOMEOSTASIS_*`` etc. must still parse / validate)."""
+
+    actual = {member.name for member in BehaviorProtocolSignalSource}
+    missing = _PACKET_1_0_SIGNAL_SOURCES - actual
+    assert missing == set(), (
+        f"packet-1.0 signal sources removed: {sorted(missing)}; "
+        "removing a closed-enum member is a contract break."
     )
 
 

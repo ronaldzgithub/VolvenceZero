@@ -73,6 +73,7 @@ from volvence_zero.prediction.error import (
     PredictionErrorSnapshot,
 )
 from volvence_zero.reflection import (
+    ProtocolReflectionEngine,
     ReflectionEngine,
     ReflectionModule,
     ReflectionSnapshot,
@@ -250,12 +251,31 @@ class FinalRolloutConfig:
     # which proves that flipping SHADOW -> ACTIVE only changes
     # visibility and does not disturb any other slot's value.
     interlocutor_state: WiringLevel = WiringLevel.ACTIVE
-    # Behavior Protocol Runtime packet 1.0: SHADOW publishes
-    # ``active_mixture`` snapshot with no consumer yet. Promotion to
-    # ACTIVE is gated on packet 1.2+ (boundary_policy first
-    # consumer SHADOW dual-run); see
-    # ``docs/specs/protocol-runtime.md`` migration §阶段 1.
-    protocol_runtime: WiringLevel = WiringLevel.SHADOW
+    # Behavior Protocol Runtime packet 1.0 → 4.0:
+    # * Packets 1.0 / 1.2 / 1.3* / 1.4* / 1.5* shipped at SHADOW —
+    #   the activation controller was in fallback mode so ACTIVE
+    #   wiring was blocked by ``FallbackActivationActiveError``.
+    # * Packet 1.5a' flipped
+    #   ``_ACTIVATION_CONTROLLER_FALLBACK_MODE`` to False (all
+    #   ACTIVE-checklist conditions closed: identity_gate, learned
+    #   α/β, typed context_match, PE-driven arbitration, compile
+    #   path, matched-control consumer test).
+    # * Packet 4.0 (this default flip): now that ACTIVE is legal,
+    #   promote the default rollout so production lifeforms get
+    #   the protocol-driven path automatically. Without this flip
+    #   ``cheng_laoshi`` and friends only see protocol effects via
+    #   the compile path (``BoundaryPriorHint`` / ``PlaybookRule`` /
+    #   ``DomainKnowledgeRecord`` / ``CaseMemoryRecord`` upserted
+    #   into application owners during ``load_protocol``); the
+    #   ``ActiveMixtureSnapshot`` itself stayed in
+    #   ``shadow_snapshots`` only.
+    # Reverting (e.g. discovering a regression in 1.5* mechanisms)
+    # requires flipping back HERE and flipping
+    # ``_ACTIVATION_CONTROLLER_FALLBACK_MODE`` back to True. The
+    # active-gate guard test
+    # (``test_protocol_runtime_active_gate_guard.py``) covers
+    # both directions via monkeypatch defence-in-depth.
+    protocol_runtime: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -1483,6 +1503,11 @@ def build_final_runtime_modules(
         ReflectionModule(
             engine=ReflectionEngine(writeback_mode=reflection_mode),
             wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
+        ),
+        ProtocolReflectionEngine(
+            wiring_level=config.level_for(
+                "protocol_reflection", WiringLevel.SHADOW
+            ),
         ),
         TrackTemporalConsolidationModule(
             track=Track.WORLD,

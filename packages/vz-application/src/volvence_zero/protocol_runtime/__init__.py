@@ -52,13 +52,23 @@ from volvence_zero.protocol_runtime.owner import (
     ProtocolRegistryModule,
 )
 from volvence_zero.protocol_runtime.registry import ProtocolRegistry
+from volvence_zero.protocol_runtime.revision_queue import (
+    ApprovalDecision,
+    ApprovalOutcome,
+    RevisionQueue,
+    evaluate_protocol_revision,
+)
 
 __all__ = [
+    "ApprovalDecision",
+    "ApprovalOutcome",
     "FallbackActivationActiveError",
     "ProtocolApplicationArtifacts",
     "ProtocolRegistry",
     "ProtocolRegistryModule",
+    "RevisionQueue",
     "compile_protocol_to_application_artifacts",
     "compute_active_mixture",
+    "evaluate_protocol_revision",
     "is_fallback_mode",
 ]

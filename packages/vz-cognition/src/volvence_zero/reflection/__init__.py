@@ -1,3 +1,12 @@
+from volvence_zero.reflection.engine import ProtocolReflectionEngine
+from volvence_zero.reflection.protocol_revision_rules import (
+    STRATEGY_DECAY_MIN_TURNS,
+    STRATEGY_DECAY_PE_THRESHOLD,
+    propose_case_archival,
+    propose_knowledge_archival,
+    propose_strategy_decay,
+    run_all_protocol_revision_rules,
+)
 from volvence_zero.reflection.writeback import (
     PE_DERIVED_LESSON_IDS,
     ConsolidationScore,
@@ -23,12 +32,15 @@ from volvence_zero.reflection.writeback import (
 
 __all__ = [
     "PE_DERIVED_LESSON_IDS",
+    "STRATEGY_DECAY_MIN_TURNS",
+    "STRATEGY_DECAY_PE_THRESHOLD",
     "ConsolidationScore",
     "EvidencePack",
     "MemoryConsolidation",
     "PolicyConsolidation",
     "ProposalEvidencePack",
     "ProposalOutcomeEntry",
+    "ProtocolReflectionEngine",
     "ReflectionEngine",
     "ReflectionLessonId",
     "ReflectionModule",
@@ -41,5 +53,9 @@ __all__ = [
     "WritebackMode",
     "WritebackResult",
     "enrich_reflection_snapshot_with_rupture_repair",
+    "propose_case_archival",
+    "propose_knowledge_archival",
+    "propose_strategy_decay",
+    "run_all_protocol_revision_rules",
     "rupture_repair_memory_entries",
 ]

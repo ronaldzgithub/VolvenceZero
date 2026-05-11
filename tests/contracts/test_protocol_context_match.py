@@ -1,4 +1,4 @@
-"""Context match scoring (packet 1.5a): typed signals + softmax weighting.
+"""Context match scoring (packets 1.5a + 1.5a'): typed signals + softmax weighting.
 
 Asserts the contract for ``activation._compute_context_match`` and
 its integration into ``compute_active_mixture``:
@@ -6,26 +6,26 @@ its integration into ``compute_active_mixture``:
 * **Empty signal collapse**: when every eligible protocol has empty
   ``context_match_signals``, ``compute_active_mixture`` falls back
   to equal-weight (preserves cheng_laoshi shape across the packet
-  boundary; the existing ``EQUAL_WEIGHT_FALLBACK`` reason marker
-  still appears).
-* **Single-protocol detector firing**: each of the 3 kernel-side
-  detectors (interlocutor zone / rupture / boundary) maps a real
-  upstream snapshot to a non-zero context_match score.
+  boundary).
+* **Single-protocol detector firing**: each of the 6 kernel-side
+  detectors (interlocutor zone / rupture / boundary / user dropout
+  / regime transition / retrieval hits) maps a real upstream
+  snapshot to a non-zero context_match score.
 * **Differential weighting**: when one protocol's signals fire and
   another's do not, softmax produces strictly differential
   ``activation_weight``s and the activation reason marker switches
   to ``CONTEXT_MATCH``.
-* **Deferred detectors**: ``DRIVE_HOMEOSTASIS_*`` and
-  ``USER_DROPOUT_OBSERVED`` always score 0 (placeholder) — vitals
-  not in kernel graph (packet 1.0.1) and dialogue_trace
-  inspection deferred.
+* **Permanently deferred detectors**: ``DRIVE_HOMEOSTASIS_*``
+  always score 0 — vitals not in kernel propagate graph (packet
+  1.0.1 design decision).
 * **cheng_laoshi behaviour preserved**: the canonical fixture path
-  yields exactly the same ``active_protocols`` / ``boundary_union_ids``
-  / weight as before packet 1.5a (its ``activation_conditions``
-  has no signals).
+  yields exactly the same snapshot shape as before — ``activation_conditions``
+  is empty so no detector ever fires for it.
 
 These tests run on synthetic ``BehaviorProtocol`` fixtures so they
-do not depend on lifeform-specific signal vocabulary.
+do not depend on lifeform-specific signal vocabulary. Packet
+1.5a' added 3 new detectors (USER_DROPOUT_OBSERVED activated,
+REGIME_TRANSITION_RECENT new, RETRIEVAL_HITS_PRESENT new).
 """
 
 from __future__ import annotations
@@ -39,9 +39,12 @@ from lifeform_domain_growth_advisor import (
 from volvence_zero.application.types import (
     BoundaryDecision,
     BoundaryPolicySnapshot,
+    KnowledgeDepth,
     ProfessionalScope,
+    RetrievalPolicySnapshot,
     RiskBand,
 )
+from volvence_zero.regime.contracts import RegimeIdentity, RegimeSnapshot
 from volvence_zero.behavior_protocol import (
     ActivationConditions,
     ActivationReasonKind,
@@ -411,8 +414,88 @@ def test_drive_signals_score_zero_deferred() -> None:
     assert reasons == ()
 
 
-def test_user_dropout_signal_scores_zero_deferred() -> None:
-    """USER_DROPOUT_OBSERVED requires session-level dialogue_trace inspection."""
+# ---------------------------------------------------------------------------
+# _compute_context_match: USER_DROPOUT_OBSERVED detector (packet 1.5a')
+# ---------------------------------------------------------------------------
+
+
+def _make_abandoned_rupture_snapshot() -> Snapshot[RuptureStateSnapshot]:
+    """Build a rupture snapshot with ``rupture_kind == ABANDONED``."""
+
+    snapshot = RuptureStateSnapshot(
+        rupture_signal_strength=0.85,
+        rupture_kind=RuptureKind.ABANDONED,
+        confidence=0.9,
+        internal_suspected_only=False,
+        evidence_sources=(RuptureEvidenceSource.EXTERNAL_USER,),
+        contributing_signals=(
+            RuptureContributingSignal(
+                source=RuptureEvidenceSource.EXTERNAL_USER,
+                signal_strength=0.85,
+                confidence=0.9,
+                kind_hint=RuptureKind.ABANDONED,
+                detail="test abandoned",
+            ),
+        ),
+        description="test abandoned",
+    )
+    return Snapshot(
+        slot_name="rupture_state",
+        owner="RuptureStateModule",
+        version=1,
+        timestamp_ms=0,
+        value=snapshot,
+    )
+
+
+def test_user_dropout_signal_fires_on_abandoned_rupture() -> None:
+    """Packet 1.5a': USER_DROPOUT_OBSERVED reads rupture_state.ABANDONED."""
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="dropout_match",
+            measurable_via=BehaviorProtocolSignalSource.USER_DROPOUT_OBSERVED,
+            weight=1.5,
+        ),
+    )
+
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=_make_abandoned_rupture_snapshot().value,
+        boundary_policy_snapshot=None,
+    )
+
+    assert score == 1.5
+    assert reasons == ("dropout_match",)
+
+
+def test_user_dropout_signal_does_not_fire_on_other_rupture_kinds() -> None:
+    """RuptureKind.MISREAD shouldn't fire USER_DROPOUT (only ABANDONED does)."""
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="dropout_match",
+            measurable_via=BehaviorProtocolSignalSource.USER_DROPOUT_OBSERVED,
+            weight=1.0,
+        ),
+    )
+
+    misread_rupture = _make_rupture_snapshot(fire=True)
+    # Sanity: the existing helper produces MISREAD, not ABANDONED.
+    assert misread_rupture.value.rupture_kind is RuptureKind.MISREAD
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=misread_rupture.value,
+        boundary_policy_snapshot=None,
+    )
+
+    assert score == 0.0
+    assert reasons == ()
+
+
+def test_user_dropout_signal_does_not_fire_without_rupture() -> None:
     protocol = _retag_signals(
         _cheng_laoshi_protocol(),
         ContextMatchSignal(
@@ -431,6 +514,236 @@ def test_user_dropout_signal_scores_zero_deferred() -> None:
 
     assert score == 0.0
     assert reasons == ()
+
+
+# ---------------------------------------------------------------------------
+# _compute_context_match: REGIME_TRANSITION_RECENT detector (packet 1.5a')
+# ---------------------------------------------------------------------------
+
+
+def _make_regime_snapshot(
+    *, turns_in_current_regime: int
+) -> Snapshot[RegimeSnapshot]:
+    active = RegimeIdentity(
+        regime_id="test_regime",
+        name="test",
+        embedding=(0.0,),
+        entry_conditions="",
+        exit_conditions="",
+        historical_effectiveness=0.5,
+    )
+    snapshot_value = RegimeSnapshot(
+        active_regime=active,
+        previous_regime=None,
+        switch_reason="test",
+        candidate_regimes=(),
+        turns_in_current_regime=turns_in_current_regime,
+        description=f"turns={turns_in_current_regime}",
+    )
+    return Snapshot(
+        slot_name="regime",
+        owner="RegimeModule",
+        version=1,
+        timestamp_ms=0,
+        value=snapshot_value,
+    )
+
+
+def test_regime_transition_signal_fires_on_recent_transition() -> None:
+    """turns_in_current_regime <= 1 → fires."""
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="regime_match",
+            measurable_via=BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT,
+            weight=2.0,
+        ),
+    )
+
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        regime_snapshot=_make_regime_snapshot(
+            turns_in_current_regime=1
+        ).value,
+    )
+
+    assert score == 2.0
+    assert reasons == ("regime_match",)
+
+
+def test_regime_transition_signal_fires_at_turn_zero() -> None:
+    """turns_in_current_regime == 0 cold-start tolerance → fires."""
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="regime_match",
+            measurable_via=BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT,
+            weight=1.0,
+        ),
+    )
+
+    score, _ = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        regime_snapshot=_make_regime_snapshot(
+            turns_in_current_regime=0
+        ).value,
+    )
+
+    assert score == 1.0
+
+
+def test_regime_transition_signal_does_not_fire_for_settled_regime() -> None:
+    """turns_in_current_regime > 1 → no fire (settled regime)."""
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="regime_match",
+            measurable_via=BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT,
+            weight=1.0,
+        ),
+    )
+
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        regime_snapshot=_make_regime_snapshot(
+            turns_in_current_regime=5
+        ).value,
+    )
+
+    assert score == 0.0
+    assert reasons == ()
+
+
+def test_regime_transition_signal_does_not_fire_when_regime_missing() -> None:
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="regime_match",
+            measurable_via=BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT,
+            weight=1.0,
+        ),
+    )
+
+    score, _ = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        regime_snapshot=None,
+    )
+
+    assert score == 0.0
+
+
+# ---------------------------------------------------------------------------
+# _compute_context_match: RETRIEVAL_HITS_PRESENT detector (packet 1.5a')
+# ---------------------------------------------------------------------------
+
+
+def _make_retrieval_snapshot(
+    *, knowledge_domains: tuple[str, ...]
+) -> Snapshot[RetrievalPolicySnapshot]:
+    snapshot_value = RetrievalPolicySnapshot(
+        knowledge_domains=knowledge_domains,
+        experience_domains=(),
+        knowledge_weight=0.5,
+        experience_weight=0.5,
+        world_weight=0.5,
+        self_weight=0.5,
+        retrieval_depth=KnowledgeDepth.LIGHT,
+        citation_required=False,
+        jurisdiction_required=False,
+        risk_band=RiskBand.LOW,
+        regime_id=None,
+        abstract_action=None,
+        intent_description="test",
+        description="test retrieval",
+    )
+    return Snapshot(
+        slot_name="retrieval_policy",
+        owner="RetrievalPolicyModule",
+        version=1,
+        timestamp_ms=0,
+        value=snapshot_value,
+    )
+
+
+def test_retrieval_signal_fires_when_knowledge_domains_present() -> None:
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="retrieval_match",
+            measurable_via=BehaviorProtocolSignalSource.RETRIEVAL_HITS_PRESENT,
+            weight=1.5,
+        ),
+    )
+
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        retrieval_policy_snapshot=_make_retrieval_snapshot(
+            knowledge_domains=("private_domain_growth",)
+        ).value,
+    )
+
+    assert score == 1.5
+    assert reasons == ("retrieval_match",)
+
+
+def test_retrieval_signal_does_not_fire_with_empty_knowledge_domains() -> None:
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="retrieval_match",
+            measurable_via=BehaviorProtocolSignalSource.RETRIEVAL_HITS_PRESENT,
+            weight=1.5,
+        ),
+    )
+
+    score, reasons = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        retrieval_policy_snapshot=_make_retrieval_snapshot(
+            knowledge_domains=()
+        ).value,
+    )
+
+    assert score == 0.0
+    assert reasons == ()
+
+
+def test_retrieval_signal_does_not_fire_when_retrieval_missing() -> None:
+    protocol = _retag_signals(
+        _cheng_laoshi_protocol(),
+        ContextMatchSignal(
+            signal_id="retrieval_match",
+            measurable_via=BehaviorProtocolSignalSource.RETRIEVAL_HITS_PRESENT,
+            weight=1.0,
+        ),
+    )
+
+    score, _ = _compute_context_match(
+        protocol,
+        interlocutor_snapshot=None,
+        rupture_snapshot=None,
+        boundary_policy_snapshot=None,
+        retrieval_policy_snapshot=None,
+    )
+
+    assert score == 0.0
 
 
 # ---------------------------------------------------------------------------

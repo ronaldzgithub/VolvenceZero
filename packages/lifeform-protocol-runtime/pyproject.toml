@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-protocol-runtime"
+version = "0.1.0"
+description = "Lifeform-side TaskUptake adapters (DocumentUptake / TaskDescriptionUptake / DirectoryScanUptake) for the Behavior Protocol Runtime. Converts PDFs / Markdown / natural-language task descriptions into BehaviorProtocolCandidate via LLM JSON-mode extraction, gated by R10 ModificationGate review."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-contracts==0.1.*",
+    "vz-application==0.1.*",
+    "lifeform-openai-compat==0.1.*",
+    "pypdf>=4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_protocol_runtime*"]
+namespaces = true

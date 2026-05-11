@@ -1,29 +1,32 @@
-"""ACTIVE-gate guard contract (packet 1.0.1).
+"""ACTIVE-gate guard contract (packet 1.0.1 → flipped at 1.5a').
 
-Asserts that ``ProtocolRegistryModule`` refuses to be constructed at
-``WiringLevel.ACTIVE`` while ``activation.is_fallback_mode()`` is
-True. This pins the SHADOW → ACTIVE upgrade checklist as an
-*executable* contract rather than a docstring promise.
+Asserts the SHADOW → ACTIVE upgrade pathway as an *executable*
+contract. The original packet 1.0.1 invariant was:
 
-The guard is part of the packet 1.0.1 consolidation (external review
-follow-up). Future packets that land real activation machinery (real
-identity_gate at packet 1.3+, learned α/β + typed context_match + PE
-arbitration at packet 1.5+, first ACTIVE consumer at packet 1.2+)
-are expected to flip
-``volvence_zero.protocol_runtime.activation._ACTIVATION_CONTROLLER_FALLBACK_MODE``
-to False in the same landing PR; once that lands, the guard becomes
-unreachable and this test will need to be reframed (or deleted).
+    fallback mode True → ACTIVE construction must fail fast
+    with ``FallbackActivationActiveError``.
 
-What this test pins:
+After packet 1.5a' lands all condition-3 detectors
+(``USER_DROPOUT_OBSERVED`` / ``REGIME_TRANSITION_RECENT`` /
+``RETRIEVAL_HITS_PRESENT``), the activation controller is no
+longer in fallback mode and the contract inverts:
 
-* SHADOW construction always works (default + explicit).
-* ACTIVE construction fails with a typed
-  :class:`FallbackActivationActiveError` while fallback mode is on.
-* The error message references the spec checklist so on-call gets a
-  pointer instead of a generic stack trace.
-* The exception type is a subclass of ``ContractViolationError``
-  (the canonical kernel contract error) so any framework that
-  bundles contract violations catches it without special-casing.
+    fallback mode False → ACTIVE construction succeeds.
+
+This file pins both directions:
+
+* ``is_fallback_mode()`` returns False (current state).
+* ACTIVE construction succeeds (the guard does not fire).
+* SHADOW / DISABLED constructions still work.
+* The ``FallbackActivationActiveError`` class shape is preserved
+  — it remains a ``ContractViolationError`` subclass and would
+  fire if anyone reverted the flag (defence-in-depth in case a
+  future packet legitimately needs to revert).
+
+Reverting the flag back to True (e.g. discovering a regression in
+a 1.5* mechanism) would break the "ACTIVE construction succeeds"
+tests; that's the intended signal — anyone reverting must update
+this contract in the same PR and document why.
 """
 
 from __future__ import annotations
@@ -35,30 +38,28 @@ from volvence_zero.protocol_runtime import (
     ProtocolRegistryModule,
     is_fallback_mode,
 )
+from volvence_zero.protocol_runtime import activation as _activation
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.runtime.kernel import ContractViolationError
 
 
 # ---------------------------------------------------------------------------
-# Sanity: packet 1.0.1 ships fallback mode = True
+# Current state: fallback mode False (post packet 1.5a')
 # ---------------------------------------------------------------------------
 
 
-def test_activation_controller_is_in_fallback_mode_packet_1_0() -> None:
-    """Packet 1.0 ships fallback mode = True.
+def test_activation_controller_is_no_longer_in_fallback_mode() -> None:
+    """Packet 1.5a' flipped the flag.
 
-    When packet 1.5 lands the real activation machinery, this assert
-    will need to be inverted (or deleted with this test file). That
-    is intentional: failing this test is the signal that the
-    activation upgrade is being landed and the guard semantics need
-    revisiting.
+    Reverting this test (or the underlying flag) requires a
+    deliberate decision — see module docstring.
     """
 
-    assert is_fallback_mode() is True
+    assert is_fallback_mode() is False
 
 
 # ---------------------------------------------------------------------------
-# SHADOW construction is unaffected
+# SHADOW / DISABLED construction is always fine
 # ---------------------------------------------------------------------------
 
 
@@ -73,44 +74,62 @@ def test_shadow_explicit_construction_works() -> None:
 
 
 def test_disabled_explicit_construction_works() -> None:
-    """DISABLED is also fine — the slot is simply not published.
-
-    Only ACTIVE triggers the fallback guard.
-    """
-
     module = ProtocolRegistryModule(wiring_level=WiringLevel.DISABLED)
     assert module.wiring_level is WiringLevel.DISABLED
 
 
 # ---------------------------------------------------------------------------
-# ACTIVE construction during fallback fails fast
+# ACTIVE construction now succeeds
 # ---------------------------------------------------------------------------
 
 
-def test_active_construction_during_fallback_raises() -> None:
-    with pytest.raises(FallbackActivationActiveError):
-        ProtocolRegistryModule(wiring_level=WiringLevel.ACTIVE)
+def test_active_construction_now_succeeds() -> None:
+    """Post packet 1.5a': ACTIVE wiring is legal.
+
+    The construction returns a normal owner with
+    ``wiring_level=ACTIVE`` and no exception is raised. This is
+    the executable proof that the entire SHADOW → ACTIVE
+    checklist closed.
+    """
+
+    module = ProtocolRegistryModule(wiring_level=WiringLevel.ACTIVE)
+    assert module.wiring_level is WiringLevel.ACTIVE
 
 
-def test_fallback_active_error_inherits_contract_violation_error() -> None:
-    """Generic contract-violation handlers should catch this error.
+# ---------------------------------------------------------------------------
+# The guard class shape is preserved (defence-in-depth)
+# ---------------------------------------------------------------------------
 
-    The kernel uses ``ContractViolationError`` as the umbrella type
-    for all contract violations (ownership / dependency / schema /
-    immutability). Any framework that already catches
-    ``ContractViolationError`` (e.g. propagate / recorder /
-    promotion gates) should catch this without special-casing.
+
+def test_fallback_active_error_class_still_exists() -> None:
+    """The error class is preserved across the flag flip.
+
+    If a future packet legitimately needs to revert the flag
+    (e.g. a regression in α/β learning is discovered and we want
+    to gate ACTIVE again until it's fixed), the class is still
+    importable and ready to fire.
     """
 
     assert issubclass(FallbackActivationActiveError, ContractViolationError)
 
 
-def test_fallback_active_error_message_points_to_spec() -> None:
-    """The error message must surface the spec checklist as a pointer.
+def test_guard_fires_when_flag_is_temporarily_reverted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hard-revert the flag in-process and assert the guard still fires.
 
-    On-call should get a route to the canonical upgrade list, not
-    just a stack trace.
+    This is the defence-in-depth path: if a real reversion
+    scenario lands in the future, the guard is still wired and
+    will fail fast at construction. Uses ``monkeypatch`` so the
+    rest of the test session doesn't see the revert.
     """
+
+    monkeypatch.setattr(
+        _activation,
+        "_ACTIVATION_CONTROLLER_FALLBACK_MODE",
+        True,
+    )
+    assert is_fallback_mode() is True
 
     with pytest.raises(FallbackActivationActiveError) as exc_info:
         ProtocolRegistryModule(wiring_level=WiringLevel.ACTIVE)
@@ -118,32 +137,39 @@ def test_fallback_active_error_message_points_to_spec() -> None:
     message = str(exc_info.value)
     assert "protocol-runtime.md" in message, message
     assert "SHADOW" in message and "ACTIVE" in message, message
-    # Sanity: identifies which controller is in fallback
     assert "fallback" in message.lower(), message
 
 
 # ---------------------------------------------------------------------------
-# Final wiring respects the guard
+# Final wiring respects the new state
 # ---------------------------------------------------------------------------
 
 
-def test_final_wiring_default_protocol_runtime_is_shadow() -> None:
-    """The default rollout config keeps ``protocol_runtime`` at SHADOW.
+def test_final_wiring_default_protocol_runtime_is_active() -> None:
+    """Packet 4.0: ``FinalRolloutConfig`` default is now ACTIVE.
 
-    If the default were flipped to ACTIVE without flipping the
-    fallback flag, this test would fire.
+    Now that the entire SHADOW → ACTIVE checklist is closed
+    (1.5a' flipped ``_ACTIVATION_CONTROLLER_FALLBACK_MODE``),
+    the default rollout flips so every production lifeform sees
+    protocol-driven behaviour automatically. Reverting requires
+    flipping the default in
+    ``packages/vz-runtime/.../integration/final_wiring.py`` AND
+    re-enabling fallback mode (this test is the canary).
     """
 
     from volvence_zero.integration.final_wiring import FinalRolloutConfig
 
     config = FinalRolloutConfig()
-    assert config.protocol_runtime is WiringLevel.SHADOW
+    assert config.protocol_runtime is WiringLevel.ACTIVE
 
 
-def test_final_wiring_with_active_protocol_runtime_fails_construction() -> None:
-    """``FinalRolloutConfig(protocol_runtime=ACTIVE)`` + default
-    activation must fail at module construction time during
-    ``build_final_runtime_modules``, not silently.
+def test_final_wiring_with_active_protocol_runtime_now_succeeds() -> None:
+    """``FinalRolloutConfig(protocol_runtime=ACTIVE)`` builds cleanly.
+
+    Post packet 1.5a': flipping the rollout config to ACTIVE
+    produces a normal modules list with the protocol_runtime
+    owner at ACTIVE. Previously this raised
+    ``FallbackActivationActiveError``.
     """
 
     from volvence_zero.integration.final_wiring import (
@@ -154,8 +180,9 @@ def test_final_wiring_with_active_protocol_runtime_fails_construction() -> None:
 
     config = FinalRolloutConfig(protocol_runtime=WiringLevel.ACTIVE)
     adapter = PlaceholderSubstrateAdapter(model_id="active-gate-guard-test")
-    with pytest.raises(FallbackActivationActiveError):
-        build_final_runtime_modules(
-            config=config,
-            substrate_adapter=adapter,
-        )
+    modules = build_final_runtime_modules(
+        config=config,
+        substrate_adapter=adapter,
+    )
+    owner = next(m for m in modules if m.slot_name == "active_mixture")
+    assert owner.wiring_level is WiringLevel.ACTIVE

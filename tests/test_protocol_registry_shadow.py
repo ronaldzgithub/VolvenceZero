@@ -1,19 +1,23 @@
-"""SHADOW behaviour for ``ProtocolRegistryModule`` (packet 1.0).
+"""ACTIVE behaviour for ``ProtocolRegistryModule`` (packet 4.0).
 
-Asserts the SHADOW invariant for the ``active_mixture`` slot:
+Originally a SHADOW dual-run gate (packets 1.0–1.5a'), this file
+now pins the post-promotion invariants for the ``active_mixture``
+slot now that the default rollout flipped to ACTIVE:
 
-* ``active_mixture`` lives in ``shadow_snapshots`` and is absent
-  from ``active_snapshots`` when wiring level is SHADOW (default).
-* The published value's shape is correct (``ActiveMixtureSnapshot``).
-* Empty registry publishes empty snapshot; loaded fixture publishes
-  one ``ActiveProtocolEntry``.
-* Loading the cheng_laoshi fixture does not introduce new value
-  drift on any other active slot beyond the baseline drift inherent
-  in re-running the kernel turn (matched-control invariant).
+* ``active_mixture`` lives in ``active_snapshots`` (default).
+* Default config still produces a valid snapshot (empty registry
+  → empty mixture; loaded fixture → 1 entry, etc.).
+* Published value's shape is correct (``ActiveMixtureSnapshot``).
+* Loading a fixture does not widen *value* drift on any other
+  active slot beyond the baseline run-to-run drift (matched-control
+  invariant — proves no kernel module silently took
+  ``active_mixture`` as a dependency without a contract test).
 
-These tests are the SHADOW dual-run gate. Promotion to ACTIVE in
-packet 1.2+ requires passing this contract test plus a new
-matched-control test for each consumer.
+The SHADOW behaviour is still exercised explicitly by passing a
+``ProtocolRegistryModule(wiring_level=SHADOW)`` instance — see
+the ``test_shadow_*`` cases below — which preserves backwards
+compatibility for any caller that wants to keep ``protocol_runtime``
+quarantined.
 """
 
 from __future__ import annotations
@@ -67,19 +71,19 @@ def _active_mixture_snapshot(
 
 
 # ---------------------------------------------------------------------------
-# SHADOW publishing: shadow_snapshots only, never active_snapshots
+# ACTIVE publishing (packet 4.0 default): active_snapshots
 # ---------------------------------------------------------------------------
 
 
-def test_shadow_default_publishes_to_shadow_snapshots_only() -> None:
+def test_active_default_publishes_to_active_snapshots_only() -> None:
     snapshots = _run_turn()
-    assert "active_mixture" in snapshots["shadow"], list(snapshots["shadow"])
-    assert "active_mixture" not in snapshots["active"], list(snapshots["active"])
+    assert "active_mixture" in snapshots["active"], list(snapshots["active"])
+    assert "active_mixture" not in snapshots["shadow"], list(snapshots["shadow"])
 
 
-def test_shadow_published_value_is_active_mixture_snapshot() -> None:
+def test_active_published_value_is_active_mixture_snapshot() -> None:
     snapshots = _run_turn()
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     assert isinstance(am, ActiveMixtureSnapshot)
 
 
@@ -90,7 +94,7 @@ def test_shadow_published_value_is_active_mixture_snapshot() -> None:
 
 def test_empty_registry_publishes_empty_active_protocols() -> None:
     snapshots = _run_turn()
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     assert am.active_protocols == ()
     assert am.boundary_union_ids == ()
 
@@ -98,7 +102,7 @@ def test_empty_registry_publishes_empty_active_protocols() -> None:
 def test_empty_registry_fingerprint_is_empty_string() -> None:
     """Stable empty fingerprint so consumers can detect 'not loaded yet'."""
     snapshots = _run_turn()
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     assert am.revision_fingerprint == ""
 
 
@@ -108,7 +112,16 @@ def test_empty_registry_fingerprint_is_empty_string() -> None:
 
 
 def _build_module_with_cheng_laoshi() -> ProtocolRegistryModule:
-    module = ProtocolRegistryModule()
+    """Build an ACTIVE-wired module with cheng_laoshi pre-loaded.
+
+    Packet 4.0: explicitly request ACTIVE so the loaded mixture
+    appears in ``active_snapshots`` (matching the production
+    default rollout). The module's per-instance wiring_level
+    overrides the rollout config's default in
+    ``run_final_wiring_turn``.
+    """
+
+    module = ProtocolRegistryModule(wiring_level=WiringLevel.ACTIVE)
     bp = growth_advisor_profile_to_behavior_protocol(build_cheng_laoshi_profile())
     module.load_protocol(bp)
     return module
@@ -117,7 +130,7 @@ def _build_module_with_cheng_laoshi() -> ProtocolRegistryModule:
 def test_loaded_protocol_appears_in_active_mixture() -> None:
     module = _build_module_with_cheng_laoshi()
     snapshots = _run_turn(protocol_registry_module=module)
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     assert len(am.active_protocols) == 1
     entry = am.active_protocols[0]
     assert isinstance(entry, ActiveProtocolEntry)
@@ -136,7 +149,7 @@ def test_loaded_protocol_boundary_union_ids_match_protocol_boundaries() -> None:
     """
     module = _build_module_with_cheng_laoshi()
     snapshots = _run_turn(protocol_registry_module=module)
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     # cheng_laoshi has 4 boundary priors → 4 IDs in the union
     assert len(am.boundary_union_ids) == 4
     assert set(am.boundary_union_ids) == {
@@ -150,7 +163,7 @@ def test_loaded_protocol_boundary_union_ids_match_protocol_boundaries() -> None:
 def test_loaded_protocol_phase_id_is_placeholder() -> None:
     module = _build_module_with_cheng_laoshi()
     snapshots = _run_turn(protocol_registry_module=module)
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     entry = am.active_protocols[0]
     assert entry.current_phase_id == "long_term_companion"
 
@@ -158,9 +171,31 @@ def test_loaded_protocol_phase_id_is_placeholder() -> None:
 def test_loaded_protocol_fingerprint_is_nonempty() -> None:
     module = _build_module_with_cheng_laoshi()
     snapshots = _run_turn(protocol_registry_module=module)
-    am = _active_mixture_snapshot(snapshots["shadow"])
+    am = _active_mixture_snapshot(snapshots["active"])
     assert am.revision_fingerprint != ""
     assert len(am.revision_fingerprint) == 64  # sha256 hex digest
+
+
+# ---------------------------------------------------------------------------
+# Explicit SHADOW path still works (back-compat for opt-in callers)
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_shadow_module_still_publishes_to_shadow() -> None:
+    """A caller that explicitly constructs a SHADOW
+    ``ProtocolRegistryModule`` keeps the legacy quarantine.
+
+    Packet 4.0 promoted the *default* to ACTIVE but did not
+    remove SHADOW as a valid wiring level. Tests / dual-run
+    harnesses that want to keep ``active_mixture`` out of the
+    main snapshot stream can still pass an explicit SHADOW
+    module instance.
+    """
+
+    shadow_module = ProtocolRegistryModule(wiring_level=WiringLevel.SHADOW)
+    snapshots = _run_turn(protocol_registry_module=shadow_module)
+    assert "active_mixture" in snapshots["shadow"], list(snapshots["shadow"])
+    assert "active_mixture" not in snapshots["active"], list(snapshots["active"])
 
 
 # ---------------------------------------------------------------------------
@@ -176,13 +211,14 @@ def _drifted_slot_names(
 
 
 def test_loading_protocol_does_not_change_active_slot_set() -> None:
-    """Loading a fixture into the SHADOW owner must not move any
-    other slot from ``shadow`` to ``active`` or vice versa.
+    """Loading a fixture into the registry must not move any
+    OTHER slot's membership between active / shadow / disabled.
 
-    No kernel module currently declares ``active_mixture`` as a
-    dependency. This test pins that invariant: adding such a
-    dependency requires an explicit contract review (and a new
-    matched-control test for the consumer).
+    Post packet 4.0 ACTIVE default: ``active_mixture`` itself
+    appears in active for both empty and loaded runs (because
+    the owner is wired ACTIVE in both). The invariant that loading
+    a protocol doesn't *spread* ``active_mixture`` consumption to
+    new slots is what this test pins.
     """
 
     empty_run = _run_turn()
@@ -198,12 +234,16 @@ def test_loading_protocol_does_not_change_active_slot_set() -> None:
 
 def test_loading_protocol_does_not_widen_active_value_drift() -> None:
     """Loading a fixture must not introduce additional drift on
-    active slots beyond the baseline run-to-run drift inherent in
+    OTHER active slots beyond the baseline run-to-run drift inherent in
     timestamp / counter state.
 
-    If a kernel module silently took ``active_mixture`` as a
-    dependency, its slot would appear in the loaded-vs-empty drift
-    set but not in the empty-vs-empty baseline drift set.
+    Post packet 4.0 (ACTIVE default): ``active_mixture`` itself
+    legitimately drifts (empty → loaded). The matched-control
+    invariant we care about is that no OTHER slot silently took
+    ``active_mixture`` as a hidden dependency — which would show
+    up as that slot drifting in the loaded-vs-empty set but not
+    in baseline. We therefore exclude ``active_mixture`` itself
+    from the drift comparison.
     """
 
     baseline_a = _run_turn()
@@ -220,7 +260,7 @@ def test_loading_protocol_does_not_widen_active_value_drift() -> None:
         empty_run["active"], loaded_run["active"]
     )
 
-    new_drift = load_drift - baseline_drift
+    new_drift = (load_drift - baseline_drift) - {"active_mixture"}
     assert not new_drift, (
         "Loading a BehaviorProtocol introduced new drift on active "
         f"slots that are stable across baseline runs: {sorted(new_drift)}. "

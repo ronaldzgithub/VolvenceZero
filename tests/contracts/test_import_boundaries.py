@@ -76,6 +76,14 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # and vertical fixture builders (lifeform-domain-*) share the
             # type without forcing a vz-cognition dep on lifeform-* wheels.
             "identity_seed",
+            # Phase 3 packet 3.1: ProtocolReflectionEngine
+            # (in vz-cognition.reflection.engine) reads the cross-wheel
+            # ``BehaviorProtocol`` schema (ProtocolRevisionProposal +
+            # ActiveMixtureSnapshot + ProtocolReflectionSnapshot etc.).
+            # All these types live in vz-contracts.behavior_protocol
+            # so reflection logic (cognition tier) and the ProtocolRegistry
+            # owner (application tier) can share a single shape.
+            "behavior_protocol",
         }
     ),
     "vz-application": frozenset(
@@ -625,6 +633,62 @@ def test_growth_advisor_vertical_does_not_import_dlaas_platform() -> None:
                     f"'{module}': lifeform-domain-growth-advisor must "
                     f"not depend on the platform tier."
                 )
+
+
+def test_protocol_runtime_uptake_wheel_does_not_import_dlaas_platform() -> None:
+    """Packet 2.1: ``lifeform-protocol-runtime`` may not import dlaas-platform-*.
+
+    Same wheel-layering invariant as the verticals: this wheel
+    receives PDFs / Markdown / task descriptions and turns them
+    into ``BehaviorProtocolCandidate`` instances which the kernel
+    owner consumes. Reaching into the platform tier would invert
+    the dependency direction.
+    """
+
+    uptake_src = PACKAGES_ROOT / "lifeform-protocol-runtime" / "src"
+    if not uptake_src.exists():
+        pytest.skip("lifeform-protocol-runtime has not landed yet")
+    for py_file in _python_files(uptake_src):
+        for module in _module_level_imports(py_file):
+            if module.startswith("dlaas_platform_") or module == "dlaas_platform":
+                pytest.fail(
+                    f"{py_file.relative_to(REPO_ROOT)} imports "
+                    f"'{module}': lifeform-protocol-runtime must "
+                    f"not depend on the platform tier."
+                )
+
+
+def test_protocol_runtime_uptake_wheel_does_not_import_other_lifeform_domains() -> None:
+    """Packet 2.1: the uptake wheel must stay vertical-agnostic.
+
+    DocumentUptake operates on raw documents; it must not import
+    ``lifeform-domain-*`` (those are vertical specializations and
+    would make the uptake wheel coupled to a particular vertical's
+    schema). Allowed lifeform deps: ``lifeform-openai-compat``
+    (LLM client) only.
+    """
+
+    uptake_src = PACKAGES_ROOT / "lifeform-protocol-runtime" / "src"
+    if not uptake_src.exists():
+        pytest.skip("lifeform-protocol-runtime has not landed yet")
+    forbidden_prefixes = (
+        "lifeform_domain_",
+        "lifeform_core",
+        "lifeform_service",
+        "lifeform_evolution",
+        "lifeform_ingestion",
+        "lifeform_affordance",
+    )
+    for py_file in _python_files(uptake_src):
+        for module in _module_level_imports(py_file):
+            for prefix in forbidden_prefixes:
+                if module == prefix or module.startswith(prefix + "."):
+                    pytest.fail(
+                        f"{py_file.relative_to(REPO_ROOT)} imports "
+                        f"'{module}': lifeform-protocol-runtime must "
+                        f"stay vertical-agnostic. Allowed lifeform "
+                        f"deps: lifeform_openai_compat only."
+                    )
 
 
 # ---------------------------------------------------------------------------

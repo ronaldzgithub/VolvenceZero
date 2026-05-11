@@ -51,7 +51,10 @@ from __future__ import annotations
 from hashlib import sha256
 from typing import Any, Mapping
 
-from volvence_zero.application.types import BoundaryPolicySnapshot
+from volvence_zero.application.types import (
+    BoundaryPolicySnapshot,
+    RetrievalPolicySnapshot,
+)
 from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     ActiveProtocolEntry,
@@ -64,7 +67,7 @@ from volvence_zero.behavior_protocol import (
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.interlocutor import InterlocutorStateSnapshot
 from volvence_zero.regime import RegimeSnapshot
-from volvence_zero.rupture_state import RuptureStateSnapshot
+from volvence_zero.rupture_state import RuptureKind, RuptureStateSnapshot
 from volvence_zero.runtime import Snapshot
 
 
@@ -82,7 +85,7 @@ from volvence_zero.runtime import Snapshot
 #   - packet 1.5 lands α/β learned weights + typed context_match + PE arbitration
 # Any of those landing PRs MUST update this constant in the same PR
 # that introduces the real implementation, so the guard tracks reality.
-_ACTIVATION_CONTROLLER_FALLBACK_MODE: bool = True
+_ACTIVATION_CONTROLLER_FALLBACK_MODE: bool = False
 
 
 def is_fallback_mode() -> bool:
@@ -95,17 +98,39 @@ def is_fallback_mode() -> bool:
     is set only by future packets that have landed all required
     machinery (see module docstring).
 
-    Packet 1.3 series: ``identity_gate`` fully real. Packet 1.5a:
-    typed ``context_match`` partial (3 kernel-side detectors).
-    Packet 1.5b: ``pe_utility`` rolling EMA real (β=1 hard-coded).
-    Packet 1.5c-i: PE-history-driven incompatibility arbitration
-    real — A ↔ B drop decisions now favour the protocol with
-    higher ``pe_utility``, falling back to lexicographic only on
-    tie / cold start. Still placeholder (packet 1.5c-ii / 1.5c-iii):
-    learned α/β (currently α=β=1 fixed), R8-clean
-    ``ProtocolPerformanceModule`` split. DRIVE detectors permanently
-    deferred (vitals layering, packet 1.0.1). The aggregate flag
-    stays True until α/β learning lands.
+    History (in landing order):
+
+    * Packet 1.3 series: ``identity_gate`` fully real.
+    * Packet 1.5a: typed ``context_match`` partial (3 detectors).
+    * Packet 1.5b: ``pe_utility`` rolling EMA real.
+    * Packet 1.5c-i: PE-history-driven incompatibility arbitration.
+    * Packet 1.5c-iii: α/β online learning (REINFORCE-style proxy).
+    * **Packet 1.5a': flag flipped to False.** All ACTIVE-blocking
+      checklist items now closed:
+
+      * ``USER_DROPOUT_OBSERVED`` detector real (reads
+        ``rupture_state.rupture_kind == ABANDONED``).
+      * ``REGIME_TRANSITION_RECENT`` signal source added + detector
+        wired (reads ``regime.turns_in_current_regime``).
+      * ``RETRIEVAL_HITS_PRESENT`` signal source added + detector
+        wired (reads ``retrieval_policy.knowledge_domains``).
+
+    Remaining deferrals (NOT blockers, do not flip flag back):
+
+    * R8-clean ``ProtocolPerformanceModule`` split deferred —
+      ``_pe_utility`` and ``_alpha`` / ``_beta`` still co-located
+      with the registry (packet 1.5c-ii). This is a refactor and
+      cannot regress behaviour.
+    * DRIVE detectors permanently deferred (vitals layering,
+      packet 1.0.1). The DRIVE enum members remain in the schema
+      and detectors return False; protocols can still declare
+      them but they don't fire kernel-side.
+
+    With the flag False, ``ProtocolRegistryModule`` may be wired
+    at ``WiringLevel.ACTIVE``. Existing tests that previously
+    asserted the FallbackActivationActiveError fail-loud on
+    ACTIVE construction now assert the inverse — see
+    ``tests/contracts/test_protocol_runtime_active_gate_guard.py``.
     """
 
     return _ACTIVATION_CONTROLLER_FALLBACK_MODE
@@ -116,6 +141,9 @@ def compute_active_mixture(
     loaded_protocols: tuple[BehaviorProtocol, ...],
     upstream: Mapping[str, Snapshot[Any]],
     pe_utility_by_id: Mapping[str, float] | None = None,
+    alpha: float = 1.0,
+    beta: float = 1.0,
+    audit_context_scores: dict[str, float] | None = None,
 ) -> ActiveMixtureSnapshot:
     """Build the per-turn ``ActiveMixtureSnapshot`` from the registry.
 
@@ -136,6 +164,24 @@ def compute_active_mixture(
             contribution for that protocol. The owner is
             responsible for accumulation; this function only does
             the per-turn read-out into the activation formula.
+        alpha: Coefficient on ``context_match_i`` in the raw_score.
+            Packet 1.5c-iii: owner-side online learning makes this
+            evolve based on signed_reward × range(context_match)
+            across active protocols. Default ``1.0`` for backward
+            compatibility with packets 1.0–1.5b callers (and
+            tests / external callers that don't have α/β state).
+        beta: Coefficient on ``pe_utility_i``. Symmetric to alpha;
+            evolved by the owner from ``signed_reward ×
+            range(pe_utility)`` across active protocols.
+        audit_context_scores: Optional output dict; when supplied
+            the function populates it with
+            ``{protocol_id: context_match_score}`` for every
+            ELIGIBLE protocol (post identity-gate, post co-act
+            arbitration). The owner uses this snapshot in the
+            next turn's α/β learning step (the values are needed
+            to compute ``range(context_match)``). When ``None``
+            the function does not touch any side state, preserving
+            the legacy pure-function shape.
 
     Returns:
         The ``ActiveMixtureSnapshot`` to publish into the
@@ -198,16 +244,17 @@ def compute_active_mixture(
         pe_utility_by_id=pe_utility_by_id,
     )
 
-    # Packet 1.5a: compute typed context_match scores per protocol.
-    # When all scores are 0 (no signals in any protocol's
-    # activation_conditions, or no signals firing), the scoring step
-    # collapses to ``equal_weight_with_floor`` — preserving the
-    # packet 1.0+ uniform-weight contract for cheng_laoshi-shape
-    # protocols. When at least one score > 0, softmax of scores
-    # produces real differential weighting.
+    # Packet 1.5a / 1.5a': compute typed context_match scores per
+    # protocol. When all scores are 0 (no signals in any
+    # protocol's activation_conditions, or no signals firing), the
+    # scoring step collapses to ``equal_weight_with_floor`` —
+    # preserving the packet 1.0+ uniform-weight contract for
+    # cheng_laoshi-shape protocols. When at least one score > 0,
+    # softmax of scores produces real differential weighting.
     interlocutor_snapshot = _read_interlocutor_snapshot(upstream)
     rupture_snapshot = _read_rupture_snapshot(upstream)
     boundary_policy_snapshot = _read_boundary_policy_snapshot(upstream)
+    retrieval_policy_snapshot = _read_retrieval_policy_snapshot(upstream)
 
     context_results: list[tuple[float, tuple[str, ...]]] = []
     max_context_score = 0.0
@@ -217,6 +264,8 @@ def compute_active_mixture(
             interlocutor_snapshot=interlocutor_snapshot,
             rupture_snapshot=rupture_snapshot,
             boundary_policy_snapshot=boundary_policy_snapshot,
+            regime_snapshot=regime_snapshot,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
         )
         context_results.append((score, reasons))
         max_context_score = max(max_context_score, score)
@@ -231,13 +280,24 @@ def compute_active_mixture(
     ]
     max_abs_pe = max((abs(u) for u in pe_utilities), default=0.0)
 
-    # raw_score = α·context_match + β·pe_utility ; α=1, β=1 (1.5b).
-    # When all 4 components vanish (no signals fired AND no PE
-    # history) we fall back to equal-weight to preserve the
-    # cheng_laoshi default-shape contract pinned by packet 1.5a
-    # behaviour-preservation tests.
+    # Packet 1.5c-iii audit: when caller (owner) supplies a dict,
+    # snapshot the per-eligible-protocol context_match score so it
+    # can compute ``range(context_match)`` for the next turn's α
+    # learning step. Done before the raw_score combination so the
+    # captured value is the bare context_match, not α·context_match.
+    if audit_context_scores is not None:
+        for protocol, (score, _reasons) in zip(
+            eligible, context_results, strict=True
+        ):
+            audit_context_scores[protocol.protocol_id] = score
+
+    # Packet 1.5c-iii: raw_score uses owner-supplied α / β.
+    # Default α=β=1.0 reproduces packet 1.5b behaviour. The owner
+    # learns α / β online from PE feedback (REINFORCE-style proxy
+    # gradient over range(signal)) — see ``ProtocolRegistryModule._update_alpha_beta``.
     raw_scores = [
-        context_results[i][0] + pe_utilities[i] for i in range(len(eligible))
+        alpha * context_results[i][0] + beta * pe_utilities[i]
+        for i in range(len(eligible))
     ]
     has_signal = max_context_score > 0.0 or max_abs_pe > 0.0
 
@@ -247,18 +307,18 @@ def compute_active_mixture(
         )
         weighting_kind = ActivationReasonKind.CONTEXT_MATCH
         weighting_detail_template = (
-            "packet 1.5b: softmax(α·context_match + β·pe_utility), "
-            "α=1, β=1 (α/β learning + PE-driven arbitration pending "
-            "packet 1.5c)"
+            f"packet 1.5c-iii: softmax(α·context_match + β·pe_utility), "
+            f"α={alpha:.3f}, β={beta:.3f} (PE-driven incompatibility "
+            f"arbitration via packet 1.5c-i)"
         )
     else:
         weights = _equal_weight_with_floor(eligible)
         weighting_kind = ActivationReasonKind.EQUAL_WEIGHT_FALLBACK
         weighting_detail_template = (
             "no context_match signal fired and no PE history; equal "
-            "weight across eligible protocols (α/β learning + "
-            "PE-driven arbitration pending packet 1.5c; drive "
-            "coupling permanently deferred per packet 1.0.1)"
+            "weight across eligible protocols "
+            f"(current α={alpha:.3f}, β={beta:.3f}; drive coupling "
+            "permanently deferred per packet 1.0.1)"
         )
 
     active_entries: tuple[ActiveProtocolEntry, ...] = tuple(
@@ -449,6 +509,8 @@ def _compute_context_match(
     interlocutor_snapshot: InterlocutorStateSnapshot | None,
     rupture_snapshot: RuptureStateSnapshot | None,
     boundary_policy_snapshot: BoundaryPolicySnapshot | None,
+    regime_snapshot: RegimeSnapshot | None = None,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
 ) -> tuple[float, tuple[str, ...]]:
     """Per-protocol context_match score from typed kernel-side signals.
 
@@ -460,25 +522,29 @@ def _compute_context_match(
     ``0.0`` otherwise. Empty signal list → score 0 (caller falls
     back to equal-weight).
 
-    Detector coverage (packet 1.5a):
+    Detector coverage (packet 1.5a' — full closure of condition 3):
 
     * ``INTERLOCUTOR_ZONE_TRANSITION`` — fires when any zone bool on
-      the interlocutor snapshot is True (acknowledge_pressure,
-      repair, direct_task, emotional_render, pace_pressure,
-      cold_rapport, low_directness).
+      the interlocutor snapshot is True.
     * ``RUPTURE_KIND_FIRED`` — fires when rupture_state has a
-      non-empty ``rupture_kind`` (rupture detected by R8 evidence).
-    * ``BOUNDARY_VIOLATION_FIRED`` — fires when boundary_policy's
-      decision has a non-empty trigger_reasons list (boundary
-      filter activated).
-    * ``USER_DROPOUT_OBSERVED`` — placeholder (returns False);
-      requires session-level dialogue_trace inspection or a typed
-      proxy slot. Future packet.
+      non-empty ``rupture_kind``.
+    * ``BOUNDARY_VIOLATION_FIRED`` — fires when boundary_policy
+      decision has non-empty ``trigger_reasons``.
+    * ``USER_DROPOUT_OBSERVED`` (1.5a') — fires when
+      ``rupture_state.rupture_kind == ABANDONED`` (the canonical
+      typed evidence for user disengagement; mirrors
+      ``EXTERNAL_OUTCOME_TO_RUPTURE_KIND[ABANDONED]``).
+    * ``REGIME_TRANSITION_RECENT`` (1.5a') — fires when
+      ``regime.turns_in_current_regime <= 1`` (active regime
+      just transitioned this turn).
+    * ``RETRIEVAL_HITS_PRESENT`` (1.5a') — fires when
+      ``retrieval_policy.knowledge_domains`` is non-empty (the
+      retrieval policy is requesting any domain lookup).
     * ``DRIVE_HOMEOSTASIS_HOLD`` / ``DRIVE_HOMEOSTASIS_BREACH`` —
-      deferred: vitals lives in ``lifeform-core`` (not in kernel
-      propagate graph; packet 1.0.1 design). Returns False with
-      explicit ``vitals_not_kernel_accessible`` reason. Future
-      packet may add a kernel-side typed drive readout slot.
+      permanently deferred: vitals lives in ``lifeform-core`` (not
+      in kernel propagate graph; packet 1.0.1 design). Returns
+      False; protocols may still declare them but they don't
+      contribute kernel-side.
     """
 
     signals = protocol.activation_conditions.context_match_signals
@@ -493,6 +559,8 @@ def _compute_context_match(
             interlocutor_snapshot=interlocutor_snapshot,
             rupture_snapshot=rupture_snapshot,
             boundary_policy_snapshot=boundary_policy_snapshot,
+            regime_snapshot=regime_snapshot,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
         )
         if firing:
             score += signal.weight * 1.0
@@ -506,6 +574,8 @@ def _signal_is_firing(
     interlocutor_snapshot: InterlocutorStateSnapshot | None,
     rupture_snapshot: RuptureStateSnapshot | None,
     boundary_policy_snapshot: BoundaryPolicySnapshot | None,
+    regime_snapshot: RegimeSnapshot | None = None,
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None = None,
 ) -> bool:
     """Dispatch detector by signal source.
 
@@ -522,9 +592,15 @@ def _signal_is_firing(
         return _rupture_kind_present(rupture_snapshot)
     if source is BehaviorProtocolSignalSource.BOUNDARY_VIOLATION_FIRED:
         return _boundary_decision_triggered(boundary_policy_snapshot)
-    # USER_DROPOUT_OBSERVED: deferred; not yet wired
-    # DRIVE_HOMEOSTASIS_HOLD / DRIVE_HOMEOSTASIS_BREACH: deferred
-    # (vitals not in kernel propagate graph; see packet 1.0.1)
+    if source is BehaviorProtocolSignalSource.USER_DROPOUT_OBSERVED:
+        return _user_dropout_observed(rupture_snapshot)
+    if source is BehaviorProtocolSignalSource.REGIME_TRANSITION_RECENT:
+        return _regime_transition_recent(regime_snapshot)
+    if source is BehaviorProtocolSignalSource.RETRIEVAL_HITS_PRESENT:
+        return _retrieval_hits_present(retrieval_policy_snapshot)
+    # DRIVE_HOMEOSTASIS_HOLD / DRIVE_HOMEOSTASIS_BREACH: permanently
+    # deferred (vitals not in kernel propagate graph; see packet
+    # 1.0.1 design decision).
     return False
 
 
@@ -565,6 +641,56 @@ def _boundary_decision_triggered(
     if snapshot is None:
         return False
     return bool(snapshot.trigger_reasons)
+
+
+def _user_dropout_observed(
+    snapshot: RuptureStateSnapshot | None,
+) -> bool:
+    """``rupture_state.rupture_kind == ABANDONED`` → user dropped out.
+
+    Packet 1.5a' uses the existing rupture_state typed evidence as
+    the canonical signal. ``RuptureKind.ABANDONED`` is produced by
+    ``EXTERNAL_OUTCOME_TO_RUPTURE_KIND`` mapping
+    ``DialogueExternalOutcomeKind.ABANDONED`` (the upstream
+    rupture-state owner already does the typed inference). No new
+    snapshot read needed.
+    """
+
+    if snapshot is None:
+        return False
+    return snapshot.rupture_kind is RuptureKind.ABANDONED
+
+
+def _regime_transition_recent(
+    snapshot: RegimeSnapshot | None,
+) -> bool:
+    """Active regime just transitioned this turn (turns_in_current_regime ≤ 1).
+
+    The canonical "post-transition" floor is 1 — the new regime's
+    first turn after the switch — but we accept 0 too as a
+    cold-start tolerance (e.g. fresh session before any update).
+    """
+
+    if snapshot is None:
+        return False
+    return int(snapshot.turns_in_current_regime) <= 1
+
+
+def _retrieval_hits_present(
+    snapshot: RetrievalPolicySnapshot | None,
+) -> bool:
+    """Retrieval policy is requesting any knowledge domain lookup.
+
+    "Requesting" = ``knowledge_domains`` is non-empty. Whether
+    the actual domain_knowledge owner returns hits this turn is
+    a downstream concern; from the protocol's perspective the
+    relevance signal is "the retrieval layer thinks this is a
+    knowledge-grounded turn".
+    """
+
+    if snapshot is None:
+        return False
+    return bool(snapshot.knowledge_domains)
 
 
 def _softmax_weights_with_floor(
@@ -631,6 +757,17 @@ def _read_boundary_policy_snapshot(
     if snapshot is None:
         return None
     if not isinstance(snapshot.value, BoundaryPolicySnapshot):
+        return None
+    return snapshot.value
+
+
+def _read_retrieval_policy_snapshot(
+    upstream: Mapping[str, Snapshot[Any]],
+) -> RetrievalPolicySnapshot | None:
+    snapshot = upstream.get("retrieval_policy")
+    if snapshot is None:
+        return None
+    if not isinstance(snapshot.value, RetrievalPolicySnapshot):
         return None
     return snapshot.value
 

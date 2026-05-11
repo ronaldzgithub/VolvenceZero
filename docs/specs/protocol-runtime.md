@@ -354,14 +354,16 @@ weight_i = enforce_co_activation_constraints(base_weight, registry)
 - `minimum_weight_floor` 让"危机识别"这种长驻协议永远保持 ≥ 0.05 的警戒激活
 - `softmax` 而不是 `argmax`：默认是混合而不是单选；只有当某个协议 dominate（如 0.95+）时才接近 hard switch
 
-**Packet 1.5a 实现**（context_match）：
+**Packet 1.5a + 1.5a' 实现**（context_match — 6 个 kernel-side detector）：
 
-- `context_match_i = Σ signal.weight × signal_is_firing(signal, upstream)`，3 个 kernel-side detector：
-  - `INTERLOCUTOR_ZONE_TRANSITION`：interlocutor_state 任一 zone bool 为 True 时 fire
-  - `RUPTURE_KIND_FIRED`：rupture_state 解析出非空 `rupture_kind` 时 fire
-  - `BOUNDARY_VIOLATION_FIRED`：boundary_policy 决策含非空 `trigger_reasons` 时 fire
-- `USER_DROPOUT_OBSERVED` 占位返 False（待 1.5a' 接 dialogue_trace）
-- `DRIVE_HOMEOSTASIS_HOLD/BREACH` 永久 defer（vitals 跨层边界，packet 1.0.1）
+- `context_match_i = Σ signal.weight × signal_is_firing(signal, upstream)`：
+  - `INTERLOCUTOR_ZONE_TRANSITION`（1.5a）：interlocutor_state 任一 zone bool 为 True 时 fire
+  - `RUPTURE_KIND_FIRED`（1.5a）：rupture_state 解析出非空 `rupture_kind` 时 fire
+  - `BOUNDARY_VIOLATION_FIRED`（1.5a）：boundary_policy 决策含非空 `trigger_reasons` 时 fire
+  - `USER_DROPOUT_OBSERVED`（1.5a'）：rupture_state.rupture_kind == `ABANDONED` 时 fire（与 `EXTERNAL_OUTCOME_TO_RUPTURE_KIND[ABANDONED]` 同源）
+  - `REGIME_TRANSITION_RECENT`（1.5a'）：regime.turns_in_current_regime ≤ 1 时 fire（cold-start 容忍）
+  - `RETRIEVAL_HITS_PRESENT`（1.5a'）：retrieval_policy.knowledge_domains 非空时 fire
+- `DRIVE_HOMEOSTASIS_HOLD/BREACH` 永久 defer（vitals 跨层边界，packet 1.0.1）；保留枚举成员，detector 返 False，protocols 仍可声明但 kernel-side 不贡献
 
 **Packet 1.5b 实现**（pe_utility / β term）：
 
@@ -376,12 +378,25 @@ weight_i = enforce_co_activation_constraints(base_weight, registry)
 - 同 `turn_index` 重复 PE（replay / retry）通过 `_last_pe_turn_index` 去重
 - `pe_utility_by_id: Mapping[str, float]` 由 owner 传给 `compute_active_mixture`；测试或外部直调可不传，缺省全 0 → 1.5a 行为
 
-**调度逻辑（1.5b 后整合）**：
+**调度逻辑（1.5c-iii 后整合）**：
 
-- `raw_score_i = α · context_match_i + β · pe_utility_i` （α=1, β=1 硬定）
+- `raw_score_i = α · context_match_i + β · pe_utility_i`，α/β 由 owner 在线维护（不再硬定）
 - `has_signal = max(context_match) > 0 OR max|pe_utility| > 0`
-- `has_signal` → `softmax(raw_score)` + `minimum_weight_floor` enforcement，`ActivationReason.kind = CONTEXT_MATCH`，`detail` 携带 `signals_fired=[...]` 与 `pe_utility=±0.xxx`
-- `not has_signal`（cheng_laoshi 默认 + cold start）→ `equal_weight_with_floor`，`kind = EQUAL_WEIGHT_FALLBACK`
+- `has_signal` → `softmax(raw_score)` + `minimum_weight_floor` enforcement，`ActivationReason.kind = CONTEXT_MATCH`，`detail` 携带 `α=x.xxx, β=y.yyy` + `signals_fired=[...]` 与 `pe_utility=±0.xxx`
+- `not has_signal`（cheng_laoshi 默认 + cold start）→ `equal_weight_with_floor`，`kind = EQUAL_WEIGHT_FALLBACK`，`detail` 仍打印当前 α/β 用于审计
+
+**Packet 1.5c-iii 实现**（α/β 在线学习）：
+
+- α / β 不再硬定，是 `ProtocolRegistryModule` 内部 owner-side state，初值 1.0
+- 每 PE turn 在 `_update_pe_history` 之后调用 `_update_alpha_beta`：
+  - 计算 `cm_range = max(_last_context_scores.values) - min(...)`，对所有上一 turn eligible 的协议
+  - 同样的 `pe_range = max(_last_pe_utilities.values) - min(...)`
+  - REINFORCE-style 代理梯度：`α_grad = signed_reward · cm_range`，`β_grad = signed_reward · pe_range`
+  - 钳位更新：`α ← clamp(α + η_meta · α_grad, [0.1, 5.0])`，η_meta = 0.05
+  - 直觉：当某个信号在上一 turn 把协议区分得清楚（range 大）且结果好（signed_reward > 0），它就是有用的信号 → 提高它的系数
+- skip 条件：cold start（cache 空）/ bootstrap PE / 重复 turn_index / 单协议 mixture（`len(_last_context_scores) < 2`，cheng_laoshi 默认场景）/ `cm_range == 0 AND pe_range == 0`（无差异化信号）
+- `compute_active_mixture` 接 `alpha=1.0, beta=1.0` 默认参数 + `audit_context_scores: dict | None = None` 输出参数。owner 通过 audit_out 抓取本 turn 的 context_match 用于下 turn 学习；外部 / 测试直调可全部省略，向后兼容
+- η_meta = 0.05 比 pe_utility EMA 的 η = 0.25 慢 5 倍：α/β 是全局 hyperparameter（影响每个决策的形状），慢更新避免抖动；pe_utility 是协议级局部状态，可以更敏感
 
 **Packet 1.5c-i 实现**（PE-driven 互斥仲裁）：
 
@@ -824,14 +839,16 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
 | 条件 | 当前状态 | 满足 packet | 守门方式 |
 |---|---|---|---|
 | 1. `identity_gate` 接 R7 dual-track Self trait gate + R14 regime identity 真实交叉检查 | ✅ **完全闭合（packet 1.3a + 1.3' + 1.3'' + 1.3'''）**：1.3a R14 regime 真实化；1.3' self_traits 机器身；1.3'' populator + e2e 测试；**1.3''' production wiring**——`LifeformConfig.with_identity_seed` → `Lifeform` → `Brain` → `AgentSessionRunner` → `run_final_wiring_turn` → `DualTrackModule` 全自动透传。`build_cheng_laoshi_lifeform()` 默认 `use_identity_seed=True`，用户拿到的生命体自动带 traits，self_trait 过滤无需手动 wiring 即生效 | 1.3a–1.3''' 全部 | runtime fail-loud + e2e tests + production wiring tests |
-| 2. `α / β` 由 metacontroller 学（PE history 接入） | 🟡 **partial（packet 1.5b）**：β·pe_utility 上线 — owner-side 滑动 EMA 把每 turn `signed_reward` 按上一 turn weight attribute 给协议；β=1 硬定。还欠：α/β 学习（α/β 仍 1/1 硬定）、PE-driven 仲裁。`signed_reward` 来自 `prediction_error.error.signed_reward`（kernel ACTIVE 上游），bootstrap PE 跳过，turn_index 去重防 replay 双计 | 1.5b → 1.5c | runtime fail-loud |
-| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | 🟡 **partial（packet 1.5a）**：3 个 kernel-side detector 上线（`INTERLOCUTOR_ZONE_TRANSITION` / `RUPTURE_KIND_FIRED` / `BOUNDARY_VIOLATION_FIRED`），合成 `score = Σ weight × firing` 并参与 softmax；空信号集落回 equal-weight。`USER_DROPOUT_OBSERVED` 需 dialogue_trace inspection（待 1.5a' 接入）；`DRIVE_HOMEOSTASIS_*` 永久 deferred（vitals 不在 kernel 图里，packet 1.0.1 决议）。完全闭合还需补 retrieval-policy / regime-direct 信号源 + α 学习 | 1.5a → 1.5a' → 1.5c | runtime fail-loud |
+| 2. `α / β` 由 metacontroller 学（PE history 接入） | ✅ **完全闭合（packet 1.5b + 1.5c-iii）**：β·pe_utility 上线（1.5b — signed_reward EMA），α/β 在线学习（1.5c-iii — REINFORCE-style 代理梯度 `signed_reward × range(signal)`，clamped to [0.1, 5.0]）。owner-side state，每 PE turn 更新；bootstrap / 单协议 / range=0 都 no-op；cheng_laoshi 字节级不变。R8-clean 拆分（独立 `ProtocolPerformanceModule`）留 packet 1.5c-ii——对 ACTIVE 不是 blocker，是后续重构 | 1.5b + 1.5c-iii | `_update_alpha_beta` + `tests/contracts/test_protocol_alpha_beta_learning.py` |
+| 3. typed `context_match` 接入（interlocutor zone / regime / retrieval / PE） | ✅ **完全闭合（packet 1.5a + 1.5a'）**：6 个 kernel-side detector 上线 — interlocutor zone (1.5a) / rupture_kind (1.5a) / boundary_violation (1.5a) / **user_dropout** (1.5a' — 读 `rupture_kind == ABANDONED`) / **regime_transition_recent** (1.5a' — 读 `turns_in_current_regime ≤ 1`) / **retrieval_hits_present** (1.5a' — 读 `retrieval_policy.knowledge_domains` 非空)。`DRIVE_HOMEOSTASIS_*` 永久 deferred（vitals 跨层边界，packet 1.0.1 决议） | 1.5a + 1.5a' | `_compute_context_match` + `tests/contracts/test_protocol_context_match.py` |
 | 4. 互斥协议仲裁不再用 lexicographic id | ✅ **完全闭合（packet 1.5c-i）**：A↔B drop 决策按 `pe_utility` 排序，pe_utility 高的留下；冷启动 / 平局走 lex 兑现保持确定性 | 1.5c-i | `_resolve_co_activation_incompatibility(pe_utility_by_id=...)` + `tests/contracts/test_protocol_pe_arbitration.py` |
 | 5. 至少 1 个下游 consumer 通过 matched-control dual-run 测试 | ✅ packet 1.2 后续：boundary 路径 matched-control（vertical compile vs protocol compile，hint 内容除 lineage 前缀外 byte-equivalent） | 1.2 后续 | `tests/contracts/test_protocol_boundary_matched_control.py` |
 | 6. `boundary_union` 字段定位明确（IDs vs 完整 contracts） | ✅ 1.2 锁定选择 A：`boundary_union_ids: tuple[str, ...]`（IDs only） | 1.2 | schema 决议 + contract test |
 | 7. `BehaviorProtocol → application owners` compile 路径打通 | ✅ 1.2 boundary + 1.3b strategy + 1.4a knowledge + 1.4b case（**全 4/4 完成**） | 1.2 / 1.3b / 1.4a / 1.4b | implementation + matched-control tests |
 
-**Packet 1.0.1 引入 runtime guard**：`ProtocolRegistryModule.__init__` 检测 `wiring_level=ACTIVE` 时，若 ActivationController 仍在 fallback 模式（条件 1-4 任一未满足），构造时 `raise ContractViolationError`。这把 docstring 注释升级为可执行约束。
+**Packet 1.0.1 引入 runtime guard**：`ProtocolRegistryModule.__init__` 检测 `wiring_level=ACTIVE` 时，若 ActivationController 仍在 fallback 模式（条件 1-4 任一未满足），构造时 `raise FallbackActivationActiveError`（`ContractViolationError` 子类）。这把 docstring 注释升级为可执行约束。
+
+**Packet 1.5a' 翻 flag**：所有 ACTIVE-阻塞 checklist 条目（1/2/3/4/5/6/7）已闭合 → `_ACTIVATION_CONTROLLER_FALLBACK_MODE = False`；`is_fallback_mode()` 返 False；`ProtocolRegistryModule(wiring_level=ACTIVE)` 现在合法（不再 raise）；`FinalRolloutConfig(protocol_runtime=ACTIVE)` 也可以构建成功。Guard 机制本身保留：如果未来某个 packet 发现 1.5* 机制有回归，把 flag 翻回 True 即可立刻恢复 fail-loud 守门（`tests/contracts/test_protocol_runtime_active_gate_guard.py::test_guard_fires_when_flag_is_temporarily_reverted` 用 monkeypatch 验证 defence-in-depth）。
 
 ### 不允许的迁移路径
 
@@ -971,6 +988,112 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
   - 测试：扩展 `test_protocol_compile.py`（+7 knowledge 测试）/ `test_protocol_load_to_application_state.py`（+6 knowledge 测试）/ `test_growth_advisor_fixture_uptake.py`（+3 knowledge 字段测试）；新 `test_protocol_knowledge_matched_control.py` 7 测试镜像 boundary / strategy matched-control
   - cheng_laoshi 行为完全不变；packet 1.0/1.2/1.3 的 contract test 零修改
   - Checklist 进度：条目 7（compile 路径）✅ boundary + strategy + knowledge；待 packet 1.4b 落 case
+
+- 2026-05-11 (packet 4.3)：comprehensive soak — PDF + reflection + gate + revision 端到端
+  - 测试：`tests/integration/test_pdf_to_experience_full_loop.py` 2 个 e2e 通过；2101 broader contract/integration tests + 2 skipped (live-LLM env-gated)
+  - **Phase 4 + Phase 2 + Phase 3 全部完成**：原始用户需求"PDF → AI 学习 → 累积经验"4 个原子需求全部闭环
+
+- 2026-05-11 (packet 3.5)：reflection 真改协议 e2e
+  - `tests/integration/test_reflection_protocol_revision_e2e.py` 2 个测试：12 turn 负 PE → reflection 提议 WEIGHT_DECAY → gate 自动批准 → registry apply → loser 协议权重×0.5；L4 boundary 提议永远 queue 不自动应用
+
+- 2026-05-11 (packet 3.4)：ModificationGate evaluate_protocol_revision + RevisionQueue
+  - `tests/contracts/test_modification_gate_protocol_revision.py` 12 个测试。L1/L2 自动批；L3 evidence-window>=8 + 非空 pe_signature → 自动批，否则 queue；L4 fail-safe 永远 queue
+  - 新 `vz-application/.../protocol_runtime/revision_queue.py`：RevisionQueue（in-memory pending review）+ ApprovalDecision/Outcome enum
+
+- 2026-05-11 (packet 3.3)：ProtocolRegistry.apply_revision + R15 rollback
+  - `ProtocolRegistry.apply_revision`：纯函数 `_apply_change` 处理 WEIGHT_DECAY/DEACTIVATE on STRATEGY_PRIOR + ARCHIVE on KNOWLEDGE_SEED/SIGNATURE_CASE
+  - `ProtocolRegistryModule.apply_revision`：包装 + 重新 compile 应用到 application owners
+  - `checkout_revision`：内容回滚预留 NotImplementedError（packet 3.3 之后落地）
+  - 12 个测试通过
+
+- 2026-05-11 (packet 3.2)：reflection rules
+  - `vz-cognition/.../reflection/protocol_revision_rules.py` — `propose_strategy_decay` 上线（attribution-weighted PE 平均 < -0.3 持续 ≥ 5 turn → WEIGHT_DECAY 提议）；knowledge/case archival 占位
+  - 8 个 rule 单元测试通过
+
+- 2026-05-11 (packet 3.1)：ProtocolReflectionEngine RuntimeModule skeleton
+  - 新 `vz-cognition/.../reflection/engine.py` — `ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot])`，slot=`protocol_reflection`，dependencies=`("prediction_error", "active_mixture")`，default SHADOW，scan_period=10 turn
+  - 内部 deque 维持 PE + active_mixture 历史（窗口 100）；bootstrap PE 跳过；turn_index 去重
+  - 集成进 `final_wiring`；11 个测试通过
+
+- 2026-05-11 (packet 3.0)：ProtocolRevisionProposal schema
+  - `vz-contracts/behavior_protocol.py` 加 `ProtocolReflectionSnapshot` / `ProtocolRevisionProposal` / `ProposalEvidence` / `ProtocolRevisionTargetField` / `ProtocolRevisionChangeKind` 5 个类型
+  - 12 个 schema 测试通过
+
+- 2026-05-11 (packet 2.6)：matched-control DocumentUptake vs FixtureUptake
+  - `tests/contracts/test_pdf_extraction_matched_control.py` 4 个测试：boundary count ±1、strategy 类别覆盖（rapport + funnel）、identity_traits overlap、两条路径都 loadable
+
+- 2026-05-11 (packet 2.5)：PDF e2e — 私域运营规划.pdf
+  - `docs/fixtures/sample_protocols/private_domain_growth_advisor_guidance.pdf` (9 pages, 6309 chars) 复制进 repo
+  - `tests/integration/test_pdf_extraction_with_mock_llm.py` 1 个 mock e2e 测试（CI-friendly，无 LLM 依赖）
+  - `tests/integration/test_pdf_to_protocol_e2e.py` 5 个 env-gated 测试（OPENAI_API_KEY / VZ_DOCUMENT_UPTAKE_LIVE_LLM=1 启用）
+
+- 2026-05-11 (packet 2.4)：load_protocol_candidate + ModificationGate review level 分级
+  - `vz-application/.../protocol_runtime/owner.py::load_protocol_candidate` — DRAFT + requires_review=True 候选必须先经 review；force=True 紧急覆盖
+  - `lifeform-protocol-runtime/.../document_uptake/review.py` — required_review_level 推导 (boundary→L4 / strategy→L3 / knowledge|case→L2 / identity→L1)；approve_candidate / reject_candidate 带 audit
+  - 14 个测试通过
+
+- 2026-05-11 (packet 2.3)：LLM-driven JSON-mode 抽取
+  - `lifeform-protocol-runtime/.../document_uptake/extraction.py` — `extract_protocol_candidate(chunks, llm_client, ...)` walk → 3 个 prompt × N chunk → merge into BehaviorProtocolCandidate
+  - 集中化 prompt registry: `prompts.py` 三个 prompt（identity / boundary / strategy）
+  - `MockLlmJsonClient` 用于 unit test
+  - 13 个测试通过
+
+- 2026-05-11 (packet 2.2)：PDF / Markdown ingestion + chunking
+  - `lifeform-protocol-runtime/.../document_uptake/ingestion.py` — `read_pdf` (pypdf) / `read_markdown` / `chunk_document`（确定性、段落优先）
+  - 14 个测试通过
+
+- 2026-05-11 (packet 2.1)：lifeform-protocol-runtime wheel scaffolding
+  - 新 wheel `packages/lifeform-protocol-runtime/`：deps=`vz-contracts + vz-application + lifeform-openai-compat + pypdf`
+  - import boundary 强制：vz-* ↛ lifeform-protocol-runtime；lifeform-protocol-runtime ↛ dlaas_platform_*；lifeform-protocol-runtime ↛ 其他 lifeform-domain-*
+  - 2 个新 contract test 通过
+
+- 2026-05-11 (packet 2.0)：BehaviorProtocolCandidate / ProtocolProvenance schema
+  - `vz-contracts/behavior_protocol.py` 加 `BehaviorProtocolCandidate` (frozen, requires_review=True 默认) + `ProtocolProvenance` (source / extracted_at / confidence)
+  - `ProtocolSourceKind` 加 `MARKDOWN_UPTAKE` 成员
+  - 13 个 schema 测试通过
+
+- 2026-05-11 (packet 4.1)：matched-control 评估 harness
+  - `tests/integration/test_protocol_active_vs_legacy_ablation.py` 9 个测试：load vs no-load 对比，验证 4 个 application owner 家族（boundary/playbook/knowledge/case）在 load 路径下都获得 `protocol:cheng-laoshi:*` lineage
+  - `tests/integration/test_active_mixture_consumer_audit.py` 3 个测试：审计 active_mixture 至少有一个有效 consumer 通道（直读 deps OR 间接 lineage）
+
+- 2026-05-11 (packet 4.0)：promote `FinalRolloutConfig.protocol_runtime` 默认 ACTIVE
+  - 来源：1.5a' 翻 fallback flag 后 ACTIVE wiring 合法；但默认 rollout 还是 SHADOW，意味着所有现有 lifeform 实例（包括 cheng_laoshi）的 `active_mixture` snapshot 仍然只进 `shadow_snapshots`，下游 consumer 看不到。packet 4.0 翻默认让 1.x 系列在生产路径上真正生效
+  - 决策 1（直接 flip 默认值）：`FinalRolloutConfig.protocol_runtime: WiringLevel = WiringLevel.SHADOW` → `WiringLevel.ACTIVE`
+  - 决策 2（旧 SHADOW 测试反向断言）：`test_protocol_runtime_active_gate_guard.py::test_final_wiring_default_protocol_runtime_is_still_shadow` → `_is_active`；`test_protocol_runtime_owner_uniqueness.py::test_active_mixture_owner_default_wiring_is_shadow` → `_is_active`
+  - 决策 3（test_protocol_registry_shadow.py 大改）：原本通篇假设 SHADOW 默认。现在更名为"ACTIVE 行为 + 显式 SHADOW 仍可用"测试集；`_build_module_with_cheng_laoshi()` 显式指定 ACTIVE；shadow path 保留为 explicit-SHADOW 测试
+  - 决策 4（matched-control 调整）：`test_loading_protocol_does_not_widen_active_value_drift` 把 `active_mixture` 从 drift 比较中排除（它本身就是 packet under test）；其他活跃 slot 仍受 matched-control 守护
+  - 测试：1942 broader contract + final_wiring + protocol_runtime + protocol_load + behavior_protocol + growth_advisor + dual_track + lifeform_identity_seed 全过；无回归
+  - cheng_laoshi 行为：`build_cheng_laoshi_lifeform()` 默认走 ACTIVE 路径，`active_mixture` snapshot 进 `active_snapshots`；snapshot **value** 与 packet 1.5a' 完全等价（owner 内部状态 / 计算逻辑都没变）
+  - 显式 SHADOW 入口：`ProtocolRegistryModule(wiring_level=WiringLevel.SHADOW)` 仍可用（dual-run / 调试 / 回滚场景）
+
+- 2026-05-11 (packet 1.5a')：context_match 信号源补齐 + ACTIVE flag 翻转（**整个 ACTIVE checklist 完全闭合，protocol_runtime 可升 ACTIVE**）
+  - 来源：1.5a 留下了 condition 3 的 partial 状态：3 个 detector（interlocutor / rupture / boundary）已上线但 USER_DROPOUT_OBSERVED 还是占位返 False、retrieval 和 regime-direct 信号源类型甚至还没在 enum 里。1.5c-iii 让 α/β 也真实化后，剩下 condition 3 是唯一还没闭合的 ACTIVE 阻塞。1.5a' 一次补齐：3 个新 detector + flag 翻转 + 测试反向断言
+  - 决策 1（schema 扩展 BehaviorProtocolSignalSource）：加 `REGIME_TRANSITION_RECENT` 和 `RETRIEVAL_HITS_PRESENT` 两个新 enum 成员。`USER_DROPOUT_OBSERVED` 不需要新成员（packet 1.0 就在 enum 里，只是 detector 之前是占位）。新增成员遵循"closed-enum + 同 PR 加 detector + 至少一个测试"的原则
+  - 决策 2（USER_DROPOUT_OBSERVED 复用 rupture_state）：不引入 dialogue_trace 直读路径。`RuptureStateModule` 已经把 `DialogueExternalOutcomeKind.ABANDONED → RuptureKind.ABANDONED` 的映射做完了（`EXTERNAL_OUTCOME_TO_RUPTURE_KIND`），所以 `_user_dropout_observed` detector 就读 `rupture_state.rupture_kind == ABANDONED`。这避免了 protocol_runtime 重做一遍 dialogue 推断，是 R8 SSOT 的正确做法
+  - 决策 3（REGIME_TRANSITION_RECENT 阈值 ≤ 1）：`turns_in_current_regime == 1` 是规范的"刚切换的第一个 turn"；`== 0` 是 cold-start 容忍（fresh session 还没第一次更新）。> 1 不 fire（"已经稳定的 regime"）
+  - 决策 4（RETRIEVAL_HITS_PRESENT 读 knowledge_domains 非空）：fire 条件是"retrieval policy 想查任何 domain"，不是"实际有 hits"。理由：从 protocol 视角看，"这是一个需要知识检索的 turn"是与"实际命中了什么"分离的相关性维度；前者属于 retrieval policy 的决策，后者属于 domain knowledge 的命中
+  - 决策 5（依赖扩张：retrieval_policy）：`ProtocolRegistryModule.dependencies` 从 7-tuple 扩到 8-tuple（加 `retrieval_policy`）。regime 和 rupture_state 已在 tuple 里（之前的 packet 占好位），不需要重复声明。所有 reader 仍 SHADOW-tolerant
+  - 决策 6（向后兼容：detector 函数新参数加 default None）：`_compute_context_match` 和 `_signal_is_firing` 新增 `regime_snapshot` / `retrieval_policy_snapshot` 参数，给 default `None`。这避免了 packet 1.5a 的现有测试 callers 全要改签名
+  - 决策 7（**翻 fallback flag**）：`_ACTIVATION_CONTROLLER_FALLBACK_MODE: bool = False`。runtime ACTIVE 入口的 `FallbackActivationActiveError` 不再触发。`is_fallback_mode()` 现在返 False
+  - 决策 8（active gate test 反向重写 + defence-in-depth）：`test_protocol_runtime_active_gate_guard.py` 完全重写：核心断言变成"ACTIVE 构造现在成功"+"`is_fallback_mode()` 返 False"+"`FinalRolloutConfig(protocol_runtime=ACTIVE)` 构建成功"。但保留一个用 `monkeypatch` 临时把 flag 翻 True 的测试 — 如果未来某 packet 发现 1.5* 机制回归需要重新 gate，guard 仍能 fail-loud
+  - 决策 9（schema test：保 packet-1.0 + 加 1.5a'）：`test_behavior_protocol_schema.py` 把 `_PACKET_1_0_SIGNAL_SOURCES` 保留作 baseline，新增 `_EXPECTED_SIGNAL_SOURCES = baseline | {REGIME_TRANSITION_RECENT, RETRIEVAL_HITS_PRESENT}`。新增 `test_packet_1_0_signal_sources_remain_present` 防止后续 packet 删 packet-1.0 成员（closed-enum 向后兼容契约）
+  - 测试：9 个新 detector 测试拓展到 `tests/contracts/test_protocol_context_match.py`（USER_DROPOUT 3 个 / REGIME_TRANSITION 4 个 / RETRIEVAL 3 个）+ active_gate guard 9 个测试反向重写（含 1 个 monkeypatch defence-in-depth）+ `test_protocol_runtime_owner_uniqueness` dependency 断言扩 8-tuple + schema test 加 packet-1.5a' 期望集和 packet-1.0 baseline pin
+  - cheng_laoshi 行为：`activation_conditions.context_match_signals = ()` → 6 个 detector 都不读到任何信号 → score 全 0 → EQUAL_WEIGHT_FALLBACK 路径 → 单协议 weight=1.0，字节级不变（之前 packets 的 cheng_laoshi 字节级不变测试无需修改）
+  - **Checklist 进度**：条目 3 🟡 → ✅ **完全闭合**；条目 1/2/4/5/6/7 仍 ✅。**整个 ACTIVE checklist 全部 ✅**；`_ACTIVATION_CONTROLLER_FALLBACK_MODE` 翻为 False；`ProtocolRegistryModule` 可升 ACTIVE wiring。R8-clean `ProtocolPerformanceModule` 拆分（packet 1.5c-ii）和 metacontroller-driven α/β（包 1.5c-iv 假想）是后续 refactor / 增强，不再 ACTIVE 阻塞
+
+- 2026-05-11 (packet 1.5c-iii)：α/β 在线学习（checklist 条目 2 完全闭合）
+  - 来源：1.5b 让 β·pe_utility 真实，1.5c-i 让硬过滤 PE-driven，但 α/β 系数本身仍硬定 1/1。这意味着系统不能根据"context_match 还是 pe_utility 更预测下一步 PE"动态调整对二者的信任度。1.5c-iii 把 α/β 也变成 owner-side 在线学习状态，使 raw_score 公式真正自适应
+  - 决策 1（state 在 ProtocolRegistryModule）：α/β 与 pe_utility 同居一处。R8-clean 拆 `ProtocolPerformanceModule` 留 packet 1.5c-ii — 拆分本身是 refactor 不变行为，可以晚做。注释里显式标了这条路径
+  - 决策 2（梯度公式：REINFORCE-style 代理）：`α_grad = signed_reward × range(context_match across last actives)`，β 对称。直觉是："当 context_match 把协议拉开了，且决策结果好，就是 context_match 信号有效，提高 α"。负 PE 反向；range=0（单协议或无差异化）时不更新
+  - 决策 3（学习率 η_meta = 0.05）：比 pe_utility EMA 的 η = 0.25 慢 5×。α/β 全局 hyperparameter 影响每个决策，必须慢更新；pe_utility 协议级局部，可以快
+  - 决策 4（钳位 [0.1, 5.0]）：防止 α/β 塌缩到 0（信号被永久静音）或跑飞（softmax → argmax）。0.1 floor 让信号始终有最小贡献，5.0 ceiling 给充分动态范围
+  - 决策 5（skip 条件齐全）：cold start / bootstrap / 重复 turn_index / 单协议 / 全 0 range。每个 skip 都精确对应一个语义场景；cheng_laoshi 单协议默认场景刚好命中 `len < 2` 早 return，字节级行为保住
+  - 决策 6（API 形状：默认 + audit out）：`compute_active_mixture(alpha=1.0, beta=1.0, audit_context_scores=None)`。默认值匹配 1.5b 行为，所有现有 callers / tests 向后兼容；out param 用于 owner 抓取本 turn context_match 给下 turn 学习用，不动 snapshot schema
+  - 决策 7（双轨 cache 而非单一）：缓存 `_last_context_scores` 和 `_last_pe_utilities` 分别记录上 turn softmax 看见的 cm 和 pe（不是 α·cm 或 EMA-更新后的 pe）。否则会用错误的 slice 算 range
+  - 决策 8（fallback flag 不动）：`_ACTIVATION_CONTROLLER_FALLBACK_MODE` 仍 True；docstring 升级到"α/β 已在线学习；剩下 1.5a' 的 dropout/retrieval 信号源 + 1.5c-ii 的 R8 拆分 是 follow-up 不是 blocker"。明确指出**只要 1.5a' 落地，aggregate flag 即可翻 False**
+  - 测试：14 个新 `tests/contracts/test_protocol_alpha_beta_learning.py`：初值 1.0 / cold start 不变 / 缺上游不变 / 单协议永远不变（cheng_laoshi 保护）/ 多协议 + 正 PE + cm 差异 → α↑ / 多协议 + 正 PE + pe 差异 → β↑ / 负 PE 下降 / bootstrap 跳过 / 重复 turn_index 不崩 / 上钳位饱和 / 下钳位饱和 / α/β 影响 softmax 形状 / α/β 出现在 audit detail / cheng_laoshi 默认 e2e 字节级不变
+  - cheng_laoshi 行为：永远走 `len(_last_context_scores) < 2` 早 return → α/β 永远 1.0 → softmax(任意值) for 1 protocol = (1.0,) → 字节级等价。pin 在 `test_singleton_mixture_never_updates_alpha_beta` 和 `test_cheng_laoshi_default_e2e_unaffected_by_packet_1_5c_iii`
+  - **Checklist 进度**：条目 2 🟡 → ✅ **完全闭合**；条目 4 仍 ✅；条目 3 仍 🟡 partial（剩 1.5a' 的 dropout/retrieval/regime-direct 信号源）；剩余 ACTIVE 阻塞只有条目 3，落 1.5a' 即可解锁 ACTIVE wiring
 
 - 2026-05-11 (packet 1.5c-i)：PE-driven 互斥仲裁（checklist 条目 4 完全闭合）
   - 来源：1.5b 让 β 项真实化、软混合权重跟随经验调整。但**硬过滤**（`_resolve_co_activation_incompatibility`）仍按 lex tiebreak — 一个协议虽然 PE 历史好，但 lex 序输了就被 drop，反而被 PE 历史差但 lex 序赢的协议干掉。这与 1.5b 的 β·pe_utility 软偏向逻辑相矛盾。1.5c-i 把这条数据通路统一：硬过滤和软混合都用 owner-side 同一份 `pe_utility` EMA

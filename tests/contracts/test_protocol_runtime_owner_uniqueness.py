@@ -49,18 +49,22 @@ def test_active_mixture_owner_is_protocol_registry_module() -> None:
     assert isinstance(publishers[0], ProtocolRegistryModule)
 
 
-def test_active_mixture_owner_default_wiring_is_shadow() -> None:
-    """Default rollout keeps ``active_mixture`` at SHADOW.
+def test_active_mixture_owner_default_wiring_is_active() -> None:
+    """Packet 4.0: default rollout now wires ``active_mixture`` ACTIVE.
 
-    Promoting to ACTIVE is gated on packet 1.2+ (boundary_policy
-    becomes the first consumer) and must be done by flipping
-    ``FinalRolloutConfig.protocol_runtime`` explicitly. This test
-    pins the default so an accidental flip would fail CI.
+    All SHADOW → ACTIVE checklist conditions closed by packet
+    1.5a' (identity_gate, α/β learning, typed context_match,
+    PE-driven arbitration, matched-control consumer test). The
+    default flip in
+    ``packages/vz-runtime/.../integration/final_wiring.py`` makes
+    every production lifeform see protocol-driven behaviour
+    automatically. Reverting requires both flipping the default
+    back AND re-enabling fallback mode.
     """
 
     modules = _build_modules()
     owner = next(m for m in modules if m.slot_name == "active_mixture")
-    assert owner.wiring_level is WiringLevel.SHADOW
+    assert owner.wiring_level is WiringLevel.ACTIVE
 
 
 def test_active_mixture_owner_declares_expected_dependencies() -> None:
@@ -75,15 +79,18 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
     kernel-side detectors). DRIVE detectors stay deferred (vitals
     not in kernel propagate graph; packet 1.0.1 design).
     Packet 1.5b: adds ``("prediction_error",)`` for owner-side
-    rolling pe_utility EMA. The owner attributes per-turn
-    ``signed_reward`` to last-turn's active mixture and feeds the
-    rolling EMA back into the next mixture's softmax (β·pe_utility
-    term).
+    rolling pe_utility EMA.
+    Packet 1.5a': adds ``("retrieval_policy",)`` for the
+    ``RETRIEVAL_HITS_PRESENT`` detector. ``regime`` already in
+    the tuple is shared between identity_gate and the new
+    ``REGIME_TRANSITION_RECENT`` detector. ``rupture_state``
+    already in the tuple is shared between
+    ``RUPTURE_KIND_FIRED`` and the new
+    ``USER_DROPOUT_OBSERVED`` detector.
 
-    Future packets (1.5c α/β learning) are expected to keep this
-    tuple stable but may add a metacontroller-style upstream
-    (e.g. ``activation_controller_state``). Change requires
-    updating this test in the same PR — a change without test
+    Future packets (e.g. metacontroller-driven α/β with a
+    dedicated upstream slot) are expected to grow this tuple —
+    and update this test in the same PR. A change without test
     update is a contract drift.
     """
 
@@ -96,6 +103,7 @@ def test_active_mixture_owner_declares_expected_dependencies() -> None:
         "rupture_state",
         "boundary_policy",
         "prediction_error",
+        "retrieval_policy",
     ), owner.dependencies
 
 
