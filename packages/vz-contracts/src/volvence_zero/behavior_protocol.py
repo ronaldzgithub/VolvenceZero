@@ -882,6 +882,39 @@ class ProposalEvidence:
 
 
 @dataclass(frozen=True)
+class ProtocolPhaseSnapshot:
+    """Per-turn published value of the ``protocol_phase`` slot.
+
+    Owner: ``vz-application.protocol_runtime.phase_engine.ProtocolPhaseModule``.
+    The owner evaluates each loaded protocol's
+    :class:`TemporalArc.progression_signals` against typed
+    upstream snapshots (``prediction_error`` / ``interlocutor_state``
+    / ``regime`` / ``rupture_state``) and advances or retreats
+    the phase pointer accordingly. Protocols with empty
+    ``progression_signals`` (e.g. cheng_laoshi default fixture)
+    pin at the first phase forever — preserves backwards-compat.
+
+    ``ProtocolRegistryModule`` consumes this snapshot to populate
+    :attr:`ActiveProtocolEntry.current_phase_id`. Replaces the
+    static ``_default_phase_id`` placeholder used by packet 1.0.
+
+    Pinned R3 invariant (β_t learned, not calendar-tagged):
+    phase advances only fire from typed signal evidence, never
+    from "session_day == 3" string tags.
+    """
+
+    phase_by_protocol_id: tuple[tuple[str, str], ...]
+    turns_in_current_phase: tuple[tuple[str, int], ...]
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        ids = tuple(pid for pid, _ in self.phase_by_protocol_id)
+        _check_unique("phase_by_protocol_id.protocol_id", ids)
+        turn_ids = tuple(pid for pid, _ in self.turns_in_current_phase)
+        _check_unique("turns_in_current_phase.protocol_id", turn_ids)
+
+
+@dataclass(frozen=True)
 class ProtocolReflectionSnapshot:
     """Per-turn published value of the ``protocol_reflection`` slot.
 
@@ -1081,6 +1114,7 @@ __all__ = [
     "KnowledgeSeed",
     "ProgressionSignal",
     "ProposalEvidence",
+    "ProtocolPhaseSnapshot",
     "ProtocolProvenance",
     "ProtocolReflectionSnapshot",
     "ProtocolRevision",

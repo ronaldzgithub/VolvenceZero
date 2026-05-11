@@ -144,6 +144,7 @@ def compute_active_mixture(
     alpha: float = 1.0,
     beta: float = 1.0,
     audit_context_scores: dict[str, float] | None = None,
+    phase_by_id: Mapping[str, str] | None = None,
 ) -> ActiveMixtureSnapshot:
     """Build the per-turn ``ActiveMixtureSnapshot`` from the registry.
 
@@ -325,7 +326,9 @@ def compute_active_mixture(
         ActiveProtocolEntry(
             protocol_id=protocol.protocol_id,
             activation_weight=weight,
-            current_phase_id=_default_phase_id(protocol),
+            current_phase_id=_resolve_phase_id(
+                protocol, phase_by_id=phase_by_id
+            ),
             activation_reasons=(
                 ActivationReason(
                     kind=ActivationReasonKind.IDENTITY_GATE,
@@ -946,11 +949,38 @@ def _union_boundary_ids(
     return tuple(ids)
 
 
+def _resolve_phase_id(
+    protocol: BehaviorProtocol,
+    *,
+    phase_by_id: Mapping[str, str] | None,
+) -> str | None:
+    """Resolve the current phase id for this protocol.
+
+    Order of preference:
+
+    1. If ``phase_by_id`` is supplied (owner injects it from
+       ``protocol_phase`` upstream snapshot, packet 5.0+) and
+       it has an entry for this protocol, use that — this is
+       the PE-driven phase pointer.
+    2. Otherwise fall back to the first declared phase
+       (cheng_laoshi default-shape backwards compat for tests
+       that don't wire ProtocolPhaseModule).
+    3. If neither, return ``None``.
+    """
+
+    if phase_by_id is not None:
+        phase_id = phase_by_id.get(protocol.protocol_id)
+        if phase_id is not None:
+            return phase_id
+    return _default_phase_id(protocol)
+
+
 def _default_phase_id(protocol: BehaviorProtocol) -> str | None:
     """Pick the phase id to publish for this protocol.
 
     Packet 1.0: always the first phase if any, else None. Packet
-    1.4+ replaces this with PE-driven progression.
+    5.0+ uses ``_resolve_phase_id`` which falls back to this
+    when no ``protocol_phase`` snapshot is available.
     """
 
     if protocol.temporal_arc.phases:

@@ -73,6 +73,7 @@ from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     BehaviorProtocol,
     BehaviorProtocolCandidate,
+    ProtocolPhaseSnapshot,
     ProtocolRevisionProposal,
     ReviewStatus,
 )
@@ -185,6 +186,7 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         "boundary_policy",
         "prediction_error",
         "retrieval_policy",
+        "protocol_phase",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -439,6 +441,12 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # NEXT turn's α/β learning (range(context_match) needs
         # them snapshot-aligned with the mixture they produced).
         audit_context: dict[str, float] = {}
+        # Packet 5.0: read protocol_phase snapshot if present so
+        # ActiveProtocolEntry.current_phase_id reflects the
+        # PE-driven phase pointer maintained by ProtocolPhaseModule.
+        # SHADOW-tolerant: missing snapshot → fall back to first
+        # declared phase per protocol (cheng_laoshi default shape).
+        phase_by_id = _read_phase_by_id(upstream)
         snapshot_value = compute_active_mixture(
             loaded_protocols=loaded,
             upstream=upstream,
@@ -446,6 +454,7 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
             alpha=self._alpha,
             beta=self._beta,
             audit_context_scores=audit_context,
+            phase_by_id=phase_by_id,
         )
 
         # Cache this turn's published weights AND signal scores for
@@ -706,6 +715,28 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
 
         self._alpha = new_alpha
         self._beta = new_beta
+
+
+def _read_phase_by_id(
+    upstream: Mapping[str, Snapshot[Any]],
+) -> dict[str, str] | None:
+    """Read ``protocol_phase`` upstream into a flat dict.
+
+    Returns ``None`` when the slot is absent (packet 5.0 SHADOW
+    pre-rollout / tests that bypass the runtime). Returns an
+    empty dict when the slot is present but has no entries
+    (packet 5.0 first turn before any protocol is tracked).
+    """
+
+    snapshot = upstream.get("protocol_phase")
+    if snapshot is None:
+        return None
+    if not isinstance(snapshot.value, ProtocolPhaseSnapshot):
+        return None
+    return {
+        protocol_id: phase_id
+        for protocol_id, phase_id in snapshot.value.phase_by_protocol_id
+    }
 
 
 __all__ = ["FallbackActivationActiveError", "ProtocolRegistryModule"]

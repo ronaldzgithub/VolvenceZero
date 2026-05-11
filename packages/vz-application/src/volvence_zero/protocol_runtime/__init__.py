@@ -51,6 +51,7 @@ from volvence_zero.protocol_runtime.owner import (
     FallbackActivationActiveError,
     ProtocolRegistryModule,
 )
+from volvence_zero.protocol_runtime.phase_engine import ProtocolPhaseModule
 from volvence_zero.protocol_runtime.registry import ProtocolRegistry
 from volvence_zero.protocol_runtime.revision_queue import (
     ApprovalDecision,
@@ -64,6 +65,7 @@ __all__ = [
     "ApprovalOutcome",
     "FallbackActivationActiveError",
     "ProtocolApplicationArtifacts",
+    "ProtocolPhaseModule",
     "ProtocolRegistry",
     "ProtocolRegistryModule",
     "RevisionQueue",

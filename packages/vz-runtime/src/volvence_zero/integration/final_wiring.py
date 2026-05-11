@@ -94,7 +94,10 @@ from volvence_zero.rupture_state import (
     RuptureStateSnapshot,
 )
 from volvence_zero.identity_seed import IdentitySeed
-from volvence_zero.protocol_runtime import ProtocolRegistryModule
+from volvence_zero.protocol_runtime import (
+    ProtocolPhaseModule,
+    ProtocolRegistryModule,
+)
 from volvence_zero.runtime import (
     EventRecorder,
     RuntimePlaceholderValue,
@@ -1352,6 +1355,16 @@ def build_final_runtime_modules(
         domain_knowledge_store=domain_knowledge_store,
         case_memory_store=case_memory_store,
     )
+    # Packet 5.0: ProtocolPhaseModule is a sibling owner publishing
+    # the ``protocol_phase`` slot that the registry reads. Shares the
+    # same ProtocolRegistry instance via constructor injection so
+    # phase tracking sees the same loaded protocols.
+    protocol_phase_owner = ProtocolPhaseModule(
+        wiring_level=config.level_for(
+            "protocol_phase", WiringLevel.SHADOW
+        ),
+        registry=protocol_registry_owner.registry,
+    )
     return [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -1521,6 +1534,7 @@ def build_final_runtime_modules(
         ),
         rupture_state_owner,
         interlocutor_state_owner,
+        protocol_phase_owner,
         protocol_registry_owner,
     ]
 
