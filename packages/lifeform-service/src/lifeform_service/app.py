@@ -58,6 +58,7 @@ from lifeform_service.alpha import (
     AlphaServiceConfig,
     alpha_config_to_json,
 )
+from lifeform_core import LlmJsonClient
 from lifeform_service.protocol_routes import register_protocol_routes
 from lifeform_service.protocol_uptake import ProtocolUptakeService
 from lifeform_service.session_manager import (
@@ -110,6 +111,7 @@ def create_app(
     alpha_config: AlphaServiceConfig | None = None,
     templates_root_dir: str | None = None,
     protocol_uptake_service: ProtocolUptakeService | None = None,
+    external_llm_client: "LlmJsonClient | None" = None,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -206,6 +208,13 @@ def create_app(
     )
     app["alpha_config"] = alpha
     app["templates_root_dir"] = service_templates_root
+    # Shared external LLM client. Any vertical / route handler that
+    # wants LLM access reads ``app["external_llm_client"]`` (may be
+    # ``None`` when unconfigured). Same instance the protocol
+    # uptake routes use, so a single API key / quota covers all
+    # opt-in consumers. Verticals that don't need the LLM simply
+    # don't read this key — no behavior change.
+    app["external_llm_client"] = external_llm_client
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)

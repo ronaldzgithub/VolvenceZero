@@ -12,6 +12,7 @@ license = { text = "Proprietary" }
 dependencies = [
     "vz-contracts==0.1.*",
     "vz-application==0.1.*",
+    "lifeform-core==0.1.*",
     "lifeform-openai-compat==0.1.*",
     "pypdf>=4.0",
 ]

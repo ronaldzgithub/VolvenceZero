@@ -149,10 +149,40 @@ class SessionManager:
         self._substrate_provider = substrate_provider
         self._sessions: dict[str, _SessionEntry] = {}
         self._lock = asyncio.Lock()
+        # Optional figure-vertical bundle bound by the DLaaS adopt
+        # path (``manager.bind_figure_bundle(bundle)``). When set,
+        # every lifeform created by this manager has the bundle
+        # attached via :meth:`Lifeform.bind_figure_bundle` right
+        # after the vertical factory returns; the per-session
+        # synthesizer clone then carries the bundle through to L1
+        # / L3 / L4 enforcement (debt #22 closure).
+        self._figure_bundle: object | None = None
 
     @property
     def vertical_registry(self) -> VerticalRegistry:
         return self._registry
+
+    @property
+    def figure_bundle(self) -> object | None:
+        """The figure-vertical bundle bound to this manager (or None)."""
+        return self._figure_bundle
+
+    def bind_figure_bundle(self, bundle: object | None) -> None:
+        """Bind a figure-vertical artifact bundle for new sessions.
+
+        Called from the DLaaS adopt path after
+        ``lookup_figure_bundle(bundle_id=template.figure_artifact_id)``
+        resolves a bundle. The manager records it; every subsequent
+        lifeform created by :meth:`create_session` calls
+        :meth:`lifeform_core.Lifeform.bind_figure_bundle` so the
+        per-session synthesizer picks the bundle up at clone time.
+
+        Pass ``None`` to clear the binding (e.g. on contract
+        revocation). Existing sessions retain the bundle they were
+        created with — change-of-mind invalidates the entire
+        session, not the bundle on a live session.
+        """
+        self._figure_bundle = bundle
 
     @property
     def substrate_runtime(self) -> "OpenWeightResidualRuntime | None":
@@ -396,6 +426,10 @@ class SessionManager:
                 )
             else:
                 life = chosen_spec.factory(runtime)
+            if self._figure_bundle is not None:
+                bind = getattr(life, "bind_figure_bundle", None)
+                if callable(bind):
+                    bind(self._figure_bundle)
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,

@@ -237,6 +237,13 @@ class Lifeform:
             "thinking_adapter_factory": thinking_adapter_factory,
             "identity_provider": identity_provider,
         }
+        # Optional figure-vertical artifact bundle attached after
+        # construction (DLaaS adopt path: `manager.bind_figure_bundle(bundle)`).
+        # When set, every per-session synthesizer clone the lifeform
+        # produces is rebound to this bundle via
+        # `synthesizer.with_figure_bundle(bundle)` so the L1 / L3 / L4
+        # enforcement layers can consume it on each turn.
+        self._figure_bundle: Any = None
 
     @property
     def config(self) -> LifeformConfig:
@@ -253,6 +260,34 @@ class Lifeform:
     @property
     def regime_bootstrap(self) -> RegimeBootstrap | None:
         return self._brain.regime_bootstrap
+
+    @property
+    def figure_bundle(self) -> Any:
+        """The optional figure-vertical artifact bundle attached after construction.
+
+        Set via :meth:`bind_figure_bundle` (typically by the DLaaS
+        adopt path or a stand-alone vertical wrapper) so the
+        per-session synthesizer can pick up the bundle's L1 / L3 /
+        L4 contracts without the platform layer having to reach
+        into ``lifeform-domain-figure`` directly.
+        """
+        return self._figure_bundle
+
+    def bind_figure_bundle(self, bundle: Any) -> None:
+        """Attach a :class:`FigureArtifactBundle` to this lifeform.
+
+        The bundle is duck-typed (``Any``) so this module does not
+        depend on ``lifeform-domain-figure``. When non-None, every
+        per-session synthesizer clone produced by
+        :meth:`create_session` is rebound to the bundle via
+        ``synthesizer.with_figure_bundle(bundle)``; this is the
+        load-bearing wiring for Wave E (DLaaS adopt) so the L1 /
+        L3 / L4 enforcement layers consume the bundle on each
+        turn.
+
+        Pass ``None`` to clear the binding.
+        """
+        self._figure_bundle = bundle
 
     def with_domain_experience(
         self,
@@ -449,13 +484,20 @@ class Lifeform:
         # into each other. The clone reuses the shared substrate
         # runtime + planner, only the history buffer is independent.
         if isinstance(synth, LifeformLLMResponseSynthesizer):
-            return synth.clone_for_session()
+            cloned_llm = synth.clone_for_session()
+            if self._figure_bundle is not None:
+                cloned_llm = cloned_llm.with_figure_bundle(self._figure_bundle)
+            return cloned_llm
         if not isinstance(synth, GroundedResponseSynthesizer):
             return None
         cloned = synth
         if vitals is not None:
             cloned = cloned.with_vitals_provider(vitals.current_snapshot)
         cloned = cloned.with_interlocutor_provider(interlocutor_provider)
+        if self._figure_bundle is not None:
+            attach = getattr(cloned, "with_figure_bundle", None)
+            if callable(attach):
+                cloned = attach(self._figure_bundle)
         if feeling_about_other_provider is not None:
             cloned = cloned.with_feeling_about_other_provider(
                 feeling_about_other_provider

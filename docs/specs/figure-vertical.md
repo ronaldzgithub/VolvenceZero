@@ -41,12 +41,24 @@
 
 | 层级 | 含义 | 数据制品 | 运行时执行者 |
 |---|---|---|---|
-| **L1 语气保真** | "听起来像他" — 词汇 / 句法 / 常用类比 | `FigureStylePrior` (P2.3) + `FigureLoRAArtifact` (F6) | `StylePriorInjector` (P3.3) + `PersonaLoRAPool` (P6.3) |
-| **L2 立场保真** | "在他写过的议题上观点对得上" | `FigureSteeringSet` (F5) + `FigureLoRAArtifact` | `SubstrateDeltaAdapterLayer` 常量 delta + `PersonaLoRAPool` |
-| **L3 引证保真** | "每段实质性断言都能回溯到他的原文" | `FigureRetrievalIndex` (P2.1) | `GroundedDecoder` (P3.1) |
-| **L4 不知拒答** | "他没写过的领域系统拒答 / 软免责" | `FigureCoverageMap` (P2.2) | `ScopeRefuser` (P3.2) |
+| **L1 语气保真** | "听起来像他" — 词汇 / 句法 / 常用类比 | `FigureStylePrior` (P2.3) + `FigureLoRAArtifact` (F6) | `StylePriorInjector` (P3.3) + `PersonaLoRAPool` (P6.3) ✅ Wave F live in `LifeformLLMResponseSynthesizer.synthesize` |
+| **L2 立场保真** | "在他写过的议题上观点对得上" | `FigureSteeringSet` (F5, real residual) + `FigureLoRAArtifact` | `SubstrateDeltaAdapterLayer` + `PersonaLoRAPool` ✅ Wave D real hot-swap via `LoRAAwareResidualRuntime.activate_lora` |
+| **L3 引证保真** | "每段实质性断言都能回溯到他的原文" | `FigureRetrievalIndex` (P2.1) + `EvidencePointer` (Wave A) | `GroundedDecoder` (P3.1) ✅ Wave F invoked post-generation |
+| **L4 不知拒答** | "他没写过的领域系统拒答 / 软免责" | `FigureCoverageMap` (P2.2) | `ScopeRefuser` (P3.2) ✅ Wave F invoked pre-generation |
 
 **早停点**：L1 + L3 + L4 = **零 GPU 训练**就能上线的 minimum-viable Figure。L2 / 加强版 L1 是 F5 / F6 的边际收益层，需要 ModificationGate evidence 才进。
+
+**全链真接通（2026-05-12 Wave A-G land）**：
+
+* **Wave A** — D2 三件 helper（`compute_dedup_report` / `fingerprint_provenance` / `parse_locator`）真接进 `build_figure_artifact_bundle` 主管线 + `GroundedDecoder.verify_with_pointers` 暴露结构化 `EvidencePointer`（debt #24 closure）
+* **Wave B** — `PEFTLoRABakeBackend.bake` 真训练循环：`peft.LoraConfig` + HF 短 epoch + adapter export → `tuple[SubstrateDeltaAdapterLayer, ...]`；CLI `--backend peft`（debt #18 closure）
+* **Wave C** — `OpenWeightResidualRuntime.capture_for_contrastive(...)` 真 hidden-state 抽方向；`build_steering_training_plan(contrast_set, substrate_runtime=runtime, layer_index=...)` 退役 hashing-embedding 主路径，hashing 仅作 fallback（debt #21 closure）
+* **Wave D** — `LoRAAwareResidualRuntime` Protocol；`TransformersOpenWeightResidualRuntime.activate_lora` 真 forward-hook 加 delta；`PersonaLoRAPool.activate(figure_id, runtime=runtime)` context-manager 真改 forward + 出 context 字节级回滚（debt #20 closure）
+* **Wave E** — `_handle_adopt` 主路径自动 `lookup_figure_bundle(bundle_id=template.figure_artifact_id)` + `register_bundle_persona_lora(bundle)` + `manager.bind_figure_bundle(bundle)`；`Lifeform.bind_figure_bundle(bundle)` 透传到每个 session 的 synthesizer（debt #22 closure）
+* **Wave F** — `LifeformLLMResponseSynthesizer.synthesize` 真嵌入 ScopeRefuser pre-check（STRICT_REFUSE 短路）+ StylePriorInjector hint tag + `pool.activate(figure_id, runtime=runtime)` context wrapper + GroundedDecoder post-verify tag
+* **Wave G** — `test_full_chain_e2e_real_wiring.py` 一次性把 corpus → real residual steering → real PEFT LoRA → OFFLINE gate → pool register → activate over Transformers runtime → logit shift → byte-identical deactivate → enforcer wired 全部跑通
+
+**仍开放的 debt**：`#19`/`#27`/`#28` curated 真材料数据集（用户排除"真材料"范围）。
 
 ## 接口契约
 
@@ -109,30 +121,29 @@ packages/lifeform-domain-figure/
 ## 数据流
 
 ```mermaid
-flowchart LR
+flowchart TD
     Corpus["Primary-source corpus"] --> CorpusIngest["corpus.* adapters"]
     Profile["Reviewed HistoricalFigureProfile"] --> Compiler["figure compiler"]
     CorpusIngest --> CorpusEnvelope["IngestionEnvelope"]
-    CorpusEnvelope --> Retrieval["FigureRetrievalIndex (L3)"]
-    CorpusEnvelope --> Coverage["FigureCoverageMap (L4)"]
-    CorpusEnvelope --> Style["FigureStylePrior (L1)"]
-    CorpusEnvelope --> LoRAData["LoRATrainingPlan"]
-    Profile --> Compiler
-    ContrastSet["FigureContrastPair"] --> Steering["FigureSteeringSet (L2)"]
-    LoRAData --> LoRA["FigureLoRAArtifact (L1+L2)"]
+    Provenance["SourceProvenance + dedupe + parse_locator (Wave A)"] --> Compiler
     Compiler --> Bundle["FigureArtifactBundle"]
-    Retrieval --> Bundle
-    Coverage --> Bundle
-    Style --> Bundle
-    Steering --> Bundle
-    LoRA --> Bundle
-    Bundle --> GroundedDecoder["GroundedDecoder (L3)"]
-    Bundle --> ScopeRefuser["ScopeRefuser (L4)"]
-    Bundle --> StylePriorInjector["StylePriorInjector (L1)"]
-    Bundle --> Pool["PersonaLoRAPool"]
-    Pool --> SubstrateDelta["SubstrateDeltaAdapterLayer"]
-    Bundle --> Template["TemplateSpec.figure_artifact_id"]
-    Template --> Adopt["DLaaS adopt loads bundle"]
+    Bundle --> SteeringBake["build_steering_training_plan(runtime=...) (Wave C)"]
+    Runtime["OpenWeightResidualRuntime.capture_for_contrastive"] --> SteeringBake
+    SteeringBake -->|"OFFLINE gate"| BundleSteering["FigureArtifactBundle (with .steering)"]
+    BundleSteering --> PEFT["PEFTLoRABakeBackend.bake (Wave B)"]
+    Runtime --> PEFT
+    PEFT -->|"OFFLINE gate"| BundleLora["FigureArtifactBundle (with .lora)"]
+    BundleLora --> Store["FigureBundleStore"]
+    BundleLora -->|"register_bundle_persona_lora"| Pool["PersonaLoRAPool"]
+    Template["TemplateSpec.figure_artifact_id"] -->|"DLaaS _handle_adopt (Wave E)"| Store
+    Store -->|"manager.bind_figure_bundle"| Synth["LifeformLLMResponseSynthesizer (Wave F)"]
+    Store -->|"register_bundle_persona_lora"| Pool
+    Synth -->|"L4 ScopeRefuser pre-check"| L4["refuse if out-of-scope"]
+    Synth -->|"L1 StylePriorInjector hint"| L1Tag["rationale tag"]
+    Synth -->|"with pool.activate(figure_id, runtime=...)"| RuntimeForward["LoRA-mutated forward (Wave D)"]
+    Pool --> RuntimeForward
+    RuntimeForward --> Output["生成文本 (持久 / 真带 figure 风格)"]
+    Synth -->|"L3 GroundedDecoder post-verify"| L3Tag["evidence pointers tag"]
 ```
 
 ## 与其他能力域的关系
@@ -161,8 +172,9 @@ steering 和 persona LoRA 的 ModificationGate 集成 mirror [`packages/lifeform
 ## 后端形态（hybrid）
 
 * **F5 steering** — 真后端。CPU 可跑（量小、线性 readout / contrastive head）。
-* **F6 LoRA** — `SyntheticLoRABakeBackend` 优先（确定性合成 LoRA delta，与 `SubstrateDeltaAdapterLayer` 同形，用于 SHADOW / e2e 验证）；`PEFTLoRABakeBackend` 留接口空壳，真实 GPU 训练作为 future packet 单独接入。Mirror [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) 现有的 `SyntheticOpenWeightResidualRuntime` / `TransformersOpenWeightResidualRuntime` 双后端格局。
+* **F6 LoRA** — 双后端：`SyntheticLoRABakeBackend`（确定性合成 LoRA delta，CPU-only，SHADOW / 测试默认）+ `PEFTLoRABakeBackend`（真 PEFT 训练循环，opt-in via `vz-runtime[torch]`）。两者输出 `FigureLoRAArtifact.adapter_layers` 形状统一，`PersonaLoRAPool.register(...)` 接受任一 backend 的产物。Mirror [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) 现有的 `SyntheticOpenWeightResidualRuntime` / `TransformersOpenWeightResidualRuntime` 双后端格局。
 
 ## 变更日志
 
 - 2026-05-10: 初始版本。落地 vertical scaffold + L1/L2/L3/L4 阶梯定义 + F1-F6 packet 序列描述。
+- 2026-05-12: Wave A-G land — 全链真接通。debt #18 / #20 / #21 / #22 / #24 闭合；synthetic + PEFT 双 LoRA backend；real residual stream contrastive steering；`LoRAAwareResidualRuntime` Protocol + 真 forward-hook hot-swap；DLaaS adopt 主路径自动 hook；synthesizer 嵌入 L1 / L3 / L4 enforcement。剩余开放：debt #19 / #27 / #28 真材料（curated corpus 数据集）。

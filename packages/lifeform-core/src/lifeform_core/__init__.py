@@ -6,6 +6,11 @@ direction is enforced by ``tests/contracts/test_import_boundaries.py``.
 
 from __future__ import annotations
 
+from lifeform_core.external_llm import (
+    LlmJsonClient,
+    OpenAiCompatConfig,
+    OpenAiCompatJsonClient,
+)
 from lifeform_core.followup_manager import FollowupManager
 from lifeform_core.lifeform import Lifeform, LifeformConfig, LifeformSession
 from lifeform_core.scene_manager import SceneManager
@@ -43,6 +48,9 @@ __all__ = (
     "Lifeform",
     "LifeformConfig",
     "LifeformSession",
+    "LlmJsonClient",
+    "OpenAiCompatConfig",
+    "OpenAiCompatJsonClient",
     "Scene",
     "SceneManager",
     "SceneStatus",

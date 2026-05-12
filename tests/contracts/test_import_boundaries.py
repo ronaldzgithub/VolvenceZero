@@ -671,9 +671,12 @@ def test_protocol_runtime_uptake_wheel_does_not_import_other_lifeform_domains() 
     uptake_src = PACKAGES_ROOT / "lifeform-protocol-runtime" / "src"
     if not uptake_src.exists():
         pytest.skip("lifeform-protocol-runtime has not landed yet")
+    # ``lifeform_core`` IS allowed (it's the foundational lifeform-side
+    # tier — packet 9.x moved the external-LLM client there so any
+    # ``lifeform-*`` wheel can share it). Sibling vertical wheels and
+    # higher-tier deployment wheels remain forbidden.
     forbidden_prefixes = (
         "lifeform_domain_",
-        "lifeform_core",
         "lifeform_service",
         "lifeform_evolution",
         "lifeform_ingestion",
@@ -687,7 +690,7 @@ def test_protocol_runtime_uptake_wheel_does_not_import_other_lifeform_domains() 
                         f"{py_file.relative_to(REPO_ROOT)} imports "
                         f"'{module}': lifeform-protocol-runtime must "
                         f"stay vertical-agnostic. Allowed lifeform "
-                        f"deps: lifeform_openai_compat only."
+                        f"deps: lifeform_core, lifeform_openai_compat."
                     )
 
 

@@ -85,13 +85,21 @@
 #   PROTOCOL_AUTOLOAD_FORCE_APPROVE=0        # DEV: 1 = auto-approve scanned
 #                                            # candidates (skip review). Use only
 #                                            # for local dev / smoke tests.
-#   PROTOCOL_LLM_BASE_URL=                   # OpenAI-compatible endpoint for
-#                                            # protocol uptake LLM (PDF / MD /
-#                                            # description routes). Examples:
-#                                            #   https://api.openai.com/v1
-#                                            #   http://localhost:8000/v1 (vLLM)
-#   PROTOCOL_LLM_API_KEY=                    # API key for the above
-#   PROTOCOL_LLM_MODEL=gpt-4o-mini           # model_id for extraction calls
+#   PROTOCOL_LLM_PROVIDER=qwen               # provider preset for the uptake
+#                                            # LLM. Known: openai / qwen /
+#                                            # dashscope / vllm /
+#                                            # lifeform-openai-compat / custom.
+#                                            # Sets sensible default base_url
+#                                            # + model.
+#   PROTOCOL_LLM_BASE_URL=                   # explicit endpoint override
+#                                            # (default derived from provider)
+#   PROTOCOL_LLM_API_KEY=                    # API key (REQUIRED for
+#                                            # extraction routes; without it
+#                                            # the routes mount but PDF/MD/desc
+#                                            # return 503)
+#   PROTOCOL_LLM_MODEL=                      # explicit model override
+#                                            # (default: provider's default,
+#                                            # e.g. qwen-plus for qwen)
 #   PROTOCOL_LLM_TIMEOUT_SECONDS=60
 #   HF_HOME=$ROOT_DIR/.local/hf-cache        # where HuggingFace caches model
 #                                            # weights / tokenizers / datasets.
@@ -142,10 +150,23 @@ export MODEL_ID_ALLOWLIST="${MODEL_ID_ALLOWLIST:-}"
 # works.
 export PROTOCOL_AUTOLOAD_DIR="${PROTOCOL_AUTOLOAD_DIR:-}"
 export PROTOCOL_AUTOLOAD_FORCE_APPROVE="${PROTOCOL_AUTOLOAD_FORCE_APPROVE:-0}"
+export PROTOCOL_LLM_PROVIDER="${PROTOCOL_LLM_PROVIDER:-qwen}"
 export PROTOCOL_LLM_BASE_URL="${PROTOCOL_LLM_BASE_URL:-}"
 export PROTOCOL_LLM_API_KEY="${PROTOCOL_LLM_API_KEY:-}"
-export PROTOCOL_LLM_MODEL="${PROTOCOL_LLM_MODEL:-gpt-4o-mini}"
+export PROTOCOL_LLM_MODEL="${PROTOCOL_LLM_MODEL:-}"
 export PROTOCOL_LLM_TIMEOUT_SECONDS="${PROTOCOL_LLM_TIMEOUT_SECONDS:-60}"
+
+# Optional: source secrets from a non-committed .local/llm.env so
+# operators don't have to paste the API key every shell. .local/
+# is gitignored. Format:
+#   PROTOCOL_LLM_API_KEY=sk-...
+#   PROTOCOL_LLM_PROVIDER=qwen
+if [[ -f "${ROOT_DIR}/.local/llm.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${ROOT_DIR}/.local/llm.env"
+  set +a
+fi
 
 # HuggingFace cache location. Default to a per-repo cache so model
 # weights land on whatever drive the checkout sits on (typical 7B
@@ -198,7 +219,10 @@ from lifeform_service.alpha import (
     load_alpha_users,
 )
 from lifeform_service.app import create_app
-from lifeform_service.openai_compat_client import build_client_from_env
+from lifeform_service.openai_compat_client import (
+    build_client_from_env,
+    describe_active_provider,
+)
 from lifeform_service.protocol_uptake import (
     ProtocolUptakeConfig,
     ProtocolUptakeService,
@@ -321,11 +345,12 @@ def main() -> int:
 
     autoload_dir_raw = _env_str_or_none("PROTOCOL_AUTOLOAD_DIR")
     autoload_force_approve = _env_bool("PROTOCOL_AUTOLOAD_FORCE_APPROVE", default=False)
+    shared_llm_client = build_client_from_env()
     uptake_service = ProtocolUptakeService(
         config=ProtocolUptakeConfig(
             autoload_dir=Path(autoload_dir_raw) if autoload_dir_raw else None,
             autoload_force_approve=autoload_force_approve,
-            llm_client_factory=lambda: build_client_from_env(),
+            llm_client_factory=lambda: shared_llm_client,
         ),
     )
 
@@ -338,6 +363,7 @@ def main() -> int:
         alpha_config=alpha_config,
         templates_root_dir=templates_root_dir,
         protocol_uptake_service=uptake_service,
+        external_llm_client=shared_llm_client,
     )
 
     if uptake_service._config.autoload_dir is not None:
@@ -398,17 +424,22 @@ def main() -> int:
         f"allowlist=[{available_models}]",
         flush=True,
     )
+    provider_info = describe_active_provider()
     if uptake_service.llm_client is not None:
         print(
             "[start-browser-chat-qwen] protocol uptake routes ENABLED "
-            "(PDF / Markdown / task-description / API-injection)",
+            f"provider={provider_info['provider']} "
+            f"base_url={provider_info['base_url']} "
+            f"model={provider_info['model']}",
             flush=True,
         )
     else:
         print(
             "[start-browser-chat-qwen] protocol uptake routes mounted "
-            "but extraction is disabled (no PROTOCOL_LLM_BASE_URL / "
-            "PROTOCOL_LLM_API_KEY); from-payload route still works",
+            "but extraction is disabled "
+            f"(provider={provider_info['provider']}, api_key_present=no). "
+            "Set PROTOCOL_LLM_API_KEY to enable PDF/MD/description; "
+            "from-payload still works.",
             flush=True,
         )
     available_verticals = ", ".join(sorted(verticals))

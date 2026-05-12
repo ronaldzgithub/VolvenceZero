@@ -49,6 +49,10 @@ from lifeform_protocol_runtime.directory_scan_uptake import (
     DirectoryScanResult,
     scan_directory_for_protocols,
 )
+from lifeform_protocol_runtime.llm_clients import (
+    OpenAiCompatConfig,
+    OpenAiCompatJsonClient,
+)
 from lifeform_protocol_runtime.task_description_uptake import (
     extract_protocol_from_description,
 )
@@ -59,6 +63,8 @@ __all__ = [
     "DocumentText",
     "LlmJsonClient",
     "MockLlmJsonClient",
+    "OpenAiCompatConfig",
+    "OpenAiCompatJsonClient",
     "chunk_document",
     "extract_protocol_candidate",
     "extract_protocol_from_description",

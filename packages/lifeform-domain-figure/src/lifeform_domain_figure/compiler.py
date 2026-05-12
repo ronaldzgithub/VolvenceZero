@@ -393,7 +393,11 @@ def _knowledge_record(
         domain=seed.domain,
         topic_tags=seed.topic_tags,
         jurisdiction_tags=("real-person-figure",),
-        source_type="reviewed-primary-source",
+        # Map to the closest existing KnowledgeSourceType: reviewed
+        # paraphrases of primary-source material are reviewer-curated
+        # secondary records, which is exactly what REVIEWED_ARTICLE
+        # encodes in the application-tier enum.
+        source_type="reviewed-article",
         title=seed.title,
         locator=seed.evidence_locator,
         summary=seed.summary,

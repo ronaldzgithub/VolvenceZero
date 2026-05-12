@@ -32,6 +32,7 @@ to ``Lifeform(response_synthesizer=...)``.
 
 from __future__ import annotations
 
+import contextlib
 from collections import deque
 from dataclasses import replace
 from typing import Any
@@ -43,7 +44,17 @@ from volvence_zero.agent.response import (
 )
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 
+from lifeform_expression.grounded_decoder import (
+    GroundedDecoder,
+    GroundedDecoderConfig,
+)
 from lifeform_expression.prompt_planner import PromptPlan, PromptPlanner
+from lifeform_expression.scope_refuser import (
+    CoveragePolicy,
+    ScopeRefuser,
+    ScopeRefuserConfig,
+)
+from lifeform_expression.style_prior_injector import StylePriorInjector
 
 
 # Default conversation history budget. Six turns ≈ 12 chat messages,
@@ -162,12 +173,77 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         history_turns = self._snapshot_history()
         if history_turns and not context.prior_turns:
             context = replace(context, prior_turns=history_turns)
-        response = super().synthesize(context=context, assembly=assembly)
+
+        bundle = self._figure_bundle
+        # L4 (Wave F closure): pre-generation scope check. When the
+        # bundle has a coverage_map and the user query is out of
+        # scope (and policy is STRICT_REFUSE), short-circuit with
+        # the reviewer-curated refusal text and skip the LLM call
+        # entirely. SOFT_DISCLAIM emits a disclaimer that we add
+        # to the rationale and let the LLM run; PASSTHROUGH leaves
+        # everything unchanged.
+        scope_directive = _evaluate_scope(
+            bundle=bundle, query=context.user_input
+        )
+        if scope_directive is not None and scope_directive.should_refuse:
+            refusal = AgentResponse(
+                text=scope_directive.refusal_text,
+                regime_id=context.regime_id if hasattr(context, "regime_id") else "",
+                abstract_action="refuse_out_of_scope",
+                rationale=(
+                    f"L4 scope refusal: {scope_directive.coverage_decision}; "
+                    f"{scope_directive.rationale}"
+                ),
+                rationale_tags=("l4_scope_refusal",),
+            )
+            self._record_turn(
+                user_text=context.user_input,
+                assistant_text=refusal.text,
+            )
+            return _attach_plan_rationale(refusal, plan)
+
+        # L1 (Wave F closure): stash style-hint summary as a rationale
+        # tag so audit logs can see what voice prior the synthesizer
+        # was conditioned on. Real logit-bias plumbing requires a
+        # tokenizer adapter at the runtime layer; for now the rationale
+        # tag is the load-bearing surface that future runtime extensions
+        # (e.g., HF generate logit_bias=...) read.
+        style_tag = _style_hint_tag(bundle=bundle)
+
+        # Wave D + Wave F bridge: when the figure_id resolves to a
+        # registered persona LoRA in the default pool, activate it
+        # over the runtime forward path for the lifetime of the
+        # super().synthesize() call. The frozen base is never
+        # mutated; the activate context restores the pre-call
+        # forward state on exit (R2 + R15).
+        with _maybe_activate_persona_lora(
+            bundle=bundle, runtime=self._runtime
+        ):
+            response = super().synthesize(context=context, assembly=assembly)
+
+        # L3 (Wave F closure): post-generation grounding verify. The
+        # decoder reports unsupported assertions; we attach the
+        # verdict's rationale to the response audit trail. The
+        # synthesizer does NOT mutate the generated text — that's
+        # the synthesizer-vs-grounded-decoder boundary: text is the
+        # LLM's output; the verdict is metadata. Future packets can
+        # opt into hard refusal by raising at this point.
+        grounded_tag = _grounded_verify_tag(bundle=bundle, text=response.text)
+        scope_disclaimer_tag = _scope_disclaimer_tag(scope_directive)
+
         self._record_turn(
             user_text=context.user_input,
             assistant_text=response.text,
         )
-        return _attach_plan_rationale(response, plan)
+        enforced_response = _attach_enforcement_tags(
+            response,
+            tags=tuple(
+                tag
+                for tag in (style_tag, grounded_tag, scope_disclaimer_tag)
+                if tag
+            ),
+        )
+        return _attach_plan_rationale(enforced_response, plan)
 
     def _snapshot_history(self) -> tuple[tuple[str, str], ...]:
         return tuple(self._history)
@@ -192,6 +268,155 @@ def _trim_history_message(text: str) -> str:
     head_budget = _HISTORY_MESSAGE_CHAR_BUDGET // 2
     tail_budget = _HISTORY_MESSAGE_CHAR_BUDGET - head_budget - 5
     return f"{compact[:head_budget]}…{compact[-tail_budget:]}"
+
+
+def _evaluate_scope(*, bundle: Any, query: str):
+    """Run the L4 ScopeRefuser when the bundle has a coverage map.
+
+    Returns ``None`` when there is no bundle, the bundle has no
+    coverage map, or the query string is empty — keeping the legacy
+    behaviour for synthesizers without a figure bundle attached.
+    """
+
+    if bundle is None:
+        return None
+    coverage_map = getattr(bundle, "coverage_map", None)
+    if coverage_map is None or not query.strip():
+        return None
+    refuser = ScopeRefuser(
+        coverage_map,
+        config=ScopeRefuserConfig(policy=CoveragePolicy.STRICT_REFUSE),
+    )
+    return refuser.evaluate(query=query)
+
+
+def _style_hint_tag(*, bundle: Any) -> str:
+    """Return a single rationale tag summarising the L1 style prior.
+
+    Empty when no bundle / style prior is attached.
+    """
+
+    if bundle is None:
+        return ""
+    style_prior = getattr(bundle, "style_prior", None)
+    if style_prior is None:
+        return ""
+    injector = StylePriorInjector(style_prior)
+    hint = injector.style_hint()
+    if not hint.top_term_examples:
+        return f"l1_style_prior=figure:{hint.figure_id}"
+    sample = ",".join(hint.top_term_examples[:3])
+    return f"l1_style_prior=figure:{hint.figure_id};terms:{sample}"
+
+
+def _grounded_verify_tag(*, bundle: Any, text: str) -> str:
+    """Run the L3 GroundedDecoder against the generated text.
+
+    Returns a single rationale tag summarising the verdict
+    (``passed`` count + unsupported count). Empty when there is no
+    bundle, no retrieval index, or the text is empty.
+    """
+
+    if bundle is None or not text.strip():
+        return ""
+    retrieval_index = getattr(bundle, "retrieval_index", None)
+    if retrieval_index is None:
+        return ""
+    decoder = GroundedDecoder(
+        retrieval_index, config=GroundedDecoderConfig()
+    )
+    verdict = decoder.verify(text=text)
+    return (
+        f"l3_grounded_verify=passed:{int(verdict.passed)};"
+        f"unsupported:{len(verdict.unsupported_assertions)};"
+        f"evidence:{len(verdict.evidence_pointers)}"
+    )
+
+
+def _scope_disclaimer_tag(directive) -> str:
+    """Render a rationale tag for soft-disclaim scope verdicts.
+
+    Empty when the directive is None or carries no disclaimers.
+    """
+
+    if directive is None:
+        return ""
+    if directive.should_refuse:
+        # Already handled upstream via short-circuit refusal
+        return ""
+    if not directive.disclaimers:
+        return ""
+    return (
+        f"l4_scope_disclaimer={directive.coverage_decision};"
+        f"count:{len(directive.disclaimers)}"
+    )
+
+
+@contextlib.contextmanager
+def _maybe_activate_persona_lora(*, bundle: Any, runtime: Any):
+    """Activate the persona LoRA on ``runtime`` when the bundle pins one.
+
+    Looks up the figure_id in the process-wide default
+    :class:`PersonaLoRAPool`; when a record exists AND the runtime
+    is :class:`LoRAAwareResidualRuntime`, calls
+    ``pool.activate(figure_id, runtime=runtime)`` for the lifetime
+    of the context. Falls through (no-op) when:
+
+    * no bundle attached,
+    * bundle has no figure_id,
+    * pool has no record for figure_id,
+    * runtime does not satisfy the activation Protocol.
+
+    All four fallbacks preserve the legacy synthesize() behaviour
+    bit-identically — the activation is purely additive.
+    """
+
+    if bundle is None:
+        yield
+        return
+    figure_id = getattr(bundle, "figure_id", "") or ""
+    if not figure_id:
+        yield
+        return
+    try:
+        from volvence_zero.substrate import (
+            LoRAAwareResidualRuntime,
+            default_persona_lora_pool,
+        )
+    except ImportError:
+        yield
+        return
+    pool = default_persona_lora_pool()
+    if not pool.has(figure_id):
+        yield
+        return
+    if not isinstance(runtime, LoRAAwareResidualRuntime):
+        yield
+        return
+    with pool.activate(figure_id, runtime=runtime):
+        yield
+
+
+def _attach_enforcement_tags(
+    response: AgentResponse, *, tags: tuple[str, ...]
+) -> AgentResponse:
+    """Append L1 / L3 / L4 enforcement tags to a response's rationale tags."""
+
+    if not tags:
+        return response
+    merged = list(response.rationale_tags)
+    seen = set(merged)
+    for tag in tags:
+        if tag and tag not in seen:
+            merged.append(tag)
+            seen.add(tag)
+    return AgentResponse(
+        text=response.text,
+        regime_id=response.regime_id,
+        abstract_action=response.abstract_action,
+        rationale=response.rationale,
+        rationale_tags=tuple(merged),
+    )
 
 
 def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentResponse:

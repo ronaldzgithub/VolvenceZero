@@ -835,6 +835,36 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         )
         return _error(503, "vertical_not_registered", str(exc))
 
+    # Debt #22 closure: when the template names a figure_artifact_id,
+    # resolve it through the lifeform-service public surface and
+    # bind it to both the session manager (so subsequent sessions
+    # carry the bundle to their synthesizer) AND the persona LoRA
+    # pool (so the runtime can hot-swap the persona delta when
+    # generating). The two helpers are import-guarded so a
+    # platform install without the figure-vertical wheel still
+    # adopts non-figure templates without crashing.
+    figure_artifact_id = getattr(template, "figure_artifact_id", "") or ""
+    if figure_artifact_id:
+        try:
+            from lifeform_service import (
+                lookup_figure_bundle,
+                register_bundle_persona_lora,
+            )
+        except ImportError:
+            lookup_figure_bundle = None
+            register_bundle_persona_lora = None
+        if lookup_figure_bundle is not None:
+            bundle = lookup_figure_bundle(
+                default=None, bundle_id=figure_artifact_id
+            )
+            if bundle is not None:
+                manager = instance_manager.get(final_contract.ai_id)
+                bind = getattr(manager, "bind_figure_bundle", None)
+                if callable(bind):
+                    bind(bundle)
+                if register_bundle_persona_lora is not None:
+                    register_bundle_persona_lora(bundle)
+
     persons_registered: list[dict[str, Any]] = []
     for person_payload in data.get("focus_persons") or ():
         try:

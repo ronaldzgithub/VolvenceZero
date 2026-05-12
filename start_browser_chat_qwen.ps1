@@ -79,14 +79,24 @@
       PROTOCOL_AUTOLOAD_FORCE_APPROVE=0        # DEV: 1 = auto-approve scanned
                                                # candidates (skip review). Use
                                                # only on local dev / tests.
-      PROTOCOL_LLM_BASE_URL=                   # OpenAI-compatible endpoint for
-                                               # uptake LLM (required for
-                                               # PDF/MD/description routes).
-                                               # Examples:
-                                               #   https://api.openai.com/v1
-                                               #   http://localhost:8000/v1 (vLLM)
-      PROTOCOL_LLM_API_KEY=                    # API key for the above
-      PROTOCOL_LLM_MODEL=gpt-4o-mini           # model_id for extraction calls
+      PROTOCOL_LLM_PROVIDER=qwen               # provider preset for the uptake
+                                               # LLM. Known: openai / qwen /
+                                               # dashscope / vllm /
+                                               # lifeform-openai-compat / custom.
+                                               # Sets a sane default base_url +
+                                               # model. Override with
+                                               # PROTOCOL_LLM_BASE_URL /
+                                               # PROTOCOL_LLM_MODEL when needed.
+      PROTOCOL_LLM_BASE_URL=                   # explicit endpoint override
+                                               # (default: derived from provider)
+      PROTOCOL_LLM_API_KEY=                    # API key (REQUIRED for
+                                               # extraction routes; without it
+                                               # the uptake routes still mount
+                                               # but PDF/MD/description return
+                                               # 503)
+      PROTOCOL_LLM_MODEL=                      # explicit model override
+                                               # (default: provider's default,
+                                               # e.g. qwen-plus for qwen)
       PROTOCOL_LLM_TIMEOUT_SECONDS=60
       HF_HOME=<repo>\.local\hf-cache           # where HuggingFace caches model
                                                # weights (15+ GB per 7B Qwen).
@@ -142,9 +152,10 @@ Set-DefaultEnv 'TEMPLATES_ROOT_DIR'    (Join-Path $RootDir 'artifacts\lifeform-t
 Set-DefaultEnv 'MODEL_ID_ALLOWLIST'    ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_DIR'        ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_FORCE_APPROVE' '0'
+Set-DefaultEnv 'PROTOCOL_LLM_PROVIDER'        'qwen'
 Set-DefaultEnv 'PROTOCOL_LLM_BASE_URL'        ''
 Set-DefaultEnv 'PROTOCOL_LLM_API_KEY'         ''
-Set-DefaultEnv 'PROTOCOL_LLM_MODEL'           'gpt-4o-mini'
+Set-DefaultEnv 'PROTOCOL_LLM_MODEL'           ''
 Set-DefaultEnv 'PROTOCOL_LLM_TIMEOUT_SECONDS' '60'
 
 # HuggingFace cache directory. We distinguish "unset" from "empty" so
@@ -162,6 +173,17 @@ if (-not [string]::IsNullOrEmpty($env:HF_HOME)) {
 }
 
 Set-Location $RootDir
+
+# Optional: source secrets from a non-committed .local/llm.env.ps1
+# so operators don't have to paste the API key every shell. The
+# .local/ tree is gitignored. The script only reads it; it never
+# writes secrets back. Format inside the file:
+#   $env:PROTOCOL_LLM_API_KEY = 'sk-...'
+#   $env:PROTOCOL_LLM_PROVIDER = 'qwen'   # optional override
+$llmEnvFile = Join-Path $RootDir '.local\llm.env.ps1'
+if (Test-Path $llmEnvFile) {
+    . $llmEnvFile
+}
 
 # Build PYTHONPATH from packages\*\src — Windows uses ';' as the separator.
 $packageSrcs = Get-ChildItem -Path (Join-Path $RootDir 'packages') -Directory -ErrorAction Stop |
@@ -228,7 +250,10 @@ from lifeform_service.alpha import (
     load_alpha_users,
 )
 from lifeform_service.app import create_app
-from lifeform_service.openai_compat_client import build_client_from_env
+from lifeform_service.openai_compat_client import (
+    build_client_from_env,
+    describe_active_provider,
+)
 from lifeform_service.protocol_uptake import (
     ProtocolUptakeConfig,
     ProtocolUptakeService,
@@ -354,14 +379,18 @@ def main() -> int:
     autoload_dir_raw = _env_str_or_none("PROTOCOL_AUTOLOAD_DIR")
     autoload_force_approve = _env_bool("PROTOCOL_AUTOLOAD_FORCE_APPROVE", default=False)
 
-    def _llm_factory():
-        return build_client_from_env()
+    # ONE shared external-LLM client for all consumers
+    # (protocol uptake AND any vertical that opts in via
+    # app["external_llm_client"]). Same provider config / API key /
+    # quota across consumers — operators control external-LLM
+    # spend in one place.
+    shared_llm_client = build_client_from_env()
 
     uptake_service = ProtocolUptakeService(
         config=ProtocolUptakeConfig(
             autoload_dir=Path(autoload_dir_raw) if autoload_dir_raw else None,
             autoload_force_approve=autoload_force_approve,
-            llm_client_factory=_llm_factory,
+            llm_client_factory=lambda: shared_llm_client,
         ),
     )
 
@@ -374,6 +403,7 @@ def main() -> int:
         alpha_config=alpha_config,
         templates_root_dir=templates_root_dir,
         protocol_uptake_service=uptake_service,
+        external_llm_client=shared_llm_client,
     )
 
     if uptake_service._config.autoload_dir is not None:
@@ -434,17 +464,22 @@ def main() -> int:
         f"allowlist=[{available_models}]",
         flush=True,
     )
+    provider_info = describe_active_provider()
     if uptake_service.llm_client is not None:
         print(
             "[start-browser-chat-qwen] protocol uptake routes ENABLED "
-            "(PDF / Markdown / task-description / API-injection)",
+            f"provider={provider_info['provider']} "
+            f"base_url={provider_info['base_url']} "
+            f"model={provider_info['model']}",
             flush=True,
         )
     else:
         print(
             "[start-browser-chat-qwen] protocol uptake routes mounted "
-            "but extraction is disabled (no PROTOCOL_LLM_BASE_URL / "
-            "PROTOCOL_LLM_API_KEY); from-payload route still works",
+            "but extraction is disabled "
+            f"(provider={provider_info['provider']}, api_key_present=no). "
+            "Set PROTOCOL_LLM_API_KEY (and optionally PROTOCOL_LLM_PROVIDER) "
+            "to enable PDF/MD/description routes; from-payload still works.",
             flush=True,
         )
     available_verticals = ", ".join(sorted(verticals))

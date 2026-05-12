@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-11 (Companion Bench v1.0 public launch — LSCB → Companion Bench rename land + full eqbench-parity site + Real-Person Figure Vertical F1-F6 + Persona Figure 数据管线 V1 D2/D3/D4/D7 全套 land)
+> Last updated: 2026-05-12 (Figure-Vertical 全链路真接通 Wave A-G — debt #18 / #20 / #21 / #22 / #24 closed; PEFT real loop + LoRAAwareResidualRuntime hot-swap + DLaaS adopt auto-hook + L1/L3/L4 enforcer in synthesizer all live)
+
+> 2026-05-12 update (Figure-Vertical 全链路真接通 Wave A-G): 把 [`docs/specs/figure-vertical.md`](specs/figure-vertical.md) 描述的 L1 / L3 / L4 enforcement chain 从「class 在那里，运行时不调」推进到「synthesize() 真调用」。**Wave A** D2 三件 helper（`compute_dedup_report` / `fingerprint_provenance` / `parse_locator`）真接进 `build_figure_artifact_bundle` 主管线 + GroundedDecoder 暴露 typed `EvidencePointer`（debt #24 closure）；**Wave B** `PEFTLoRABakeBackend.bake` 真训练循环（peft + transformers + torch optional dep；CPU 短 epoch ~5s 跑通；artifact shape 与 synthetic backend 兼容）（debt #18 closure）；**Wave C** `OpenWeightResidualRuntime.capture_for_contrastive` + `build_steering_training_plan(substrate_runtime=...)` 真 hidden-state 抽方向，hashing 路径退役为 fallback（debt #21 closure）；**Wave D** 新 `LoRAAwareResidualRuntime` Protocol + `TransformersOpenWeightResidualRuntime.activate_lora` 真 forward-hook + `PersonaLoRAPool.activate(figure_id, runtime=runtime)` context-manager 真改 forward + 退出字节级回滚 + frozen base `state_dict_hash` 全程不变（R2 + R15 守门）（debt #20 closure）；**Wave E** `_handle_adopt` 主路径自动 `lookup_figure_bundle` + `register_bundle_persona_lora` + `manager.bind_figure_bundle` + `Lifeform.bind_figure_bundle` 透传到每个 session 的 synthesizer（debt #22 closure）；**Wave F** `LifeformLLMResponseSynthesizer.synthesize` 真嵌入 ScopeRefuser pre-check（STRICT_REFUSE 短路）+ StylePriorInjector hint tag + `pool.activate(figure_id, runtime=runtime)` context wrapper + GroundedDecoder post-verify tag；**Wave G** `test_full_chain_e2e_real_wiring.py` 一次性把 corpus → real residual steering → real PEFT LoRA → OFFLINE gate → pool register → activate over Transformers runtime → logit shift → byte-identical deactivate → enforcer wired 全链跑通。507 tests 全绿（含 `@pytest.mark.hf` 真 HF stack）。**仍开放**：debt #19（curated 真 corpus 数据集）/ #27（lu_xun corpus）/ #28（残余 reviewer 工艺）— 都是「真材料」类工作，本轮按用户范围排除。
 
 > 2026-05-11 update (Companion Bench v1.0 public launch — rename LSCB → Companion Bench + full site landed): #29 轨 2 跨过 reference-impl → public-launch 边界。**Code rename**：`packages/lscb-bench/` → `packages/companion-bench/`，Python module `lscb_bench` → `companion_bench`，CLI `lscb-bench` → `companion-bench`，所有 4 个 GitHub workflow rename 为 `companion-bench-*.yml`，`scripts/lscb/` → `scripts/companion_bench/`，contract test rename + 内部断言更新；145 个 unit + contract + pipeline test 全绿；24 个 SHA-256 scenario hash 经验证 byte-identical（bench name 不在 `ScenarioSpec.to_canonical()` 里，所以 RFC §3 P3 reproducibility 契约自动延续）。**Doc rebrand**：8 个 `docs/external/lscb-*.md` + `docs/specs/lscb-bench.md` rename + 内部 LSCB → Companion Bench 文案统一，旧路径留 5-line redirect stub（一发 release 后删）；`docs/specs/companion-bench.md` + RFC + governance / submission / crosswalk / heldout-bootstrap / hash-manifest 全部 sync。**Eqbench-parity site**：`site/leaderboard/` 单页 → `site/` 9 个 page（landing + leaderboard + methodology + scenarios + submit + governance + judges + compare + about）+ `site/results/?s=<id>` 单模板 detail page（per-axis bars + per-scenario transcripts + callback ledger + per-turn rubric heatmap + cost）+ `site/compare.html` pairwise side-by-side viewer（synced turn highlight + per-axis margin bars）+ `site/judges.html` quarterly rotation / Spearman agreement / calibration scatter；cozy light + dark theme（warm ivory `#fffbf8` / dark `#1f1b18`）+ `assets/theme.js` 持久 localStorage；inline-SVG charts (`assets/charts.js`：bar + forest + heatmap + scatter)，零外部 chart 库依赖。**build_site.py**：把 `artifact_dir/<submission_id>/{summary.json,*.bundle.json}` 编译成 `site/data/aggregate_results.json` + `site/data/submissions/<id>.json` + `site/data/pairwise.json`（TrueSkill + BT + per-arc winners） + `site/data/scenarios.json`；端到端测试 [`packages/companion-bench/tests/test_build_site_pipeline.py`](../packages/companion-bench/tests/test_build_site_pipeline.py) 用 deterministic-fake 跑两个 submission 验通。**Demo data**：[`scripts/companion_bench/populate_demo_site.py`](../scripts/companion_bench/populate_demo_site.py) 在没有真 API key 时用 deterministic-fake 跑 8 个 mock submission × 24 scenario × 1 seed = 192 arc 充满 site/data，标 `demo: true` 显 banner；真 reference 跑分用 `score_reference_systems.py`（unchanged orchestrator + new build_site 出口）。**Launch hardening**：`site/CNAME` → `companion-bench.org`、`site/robots.txt`、`site/sitemap.xml`、SVG favicon + og-image、`.github/ISSUE_TEMPLATE/{submission-request,bug-report,config}.yml`、citation/BibTeX in landing + about、Pages workflow `companion-bench-publish.yml` 改 `path: site` 部署整站。**仍未做（组织 / 预算 / 时机层 follow-up）**：(a) 真 10 reference systems 跑分（$500-3500 API 预算）— 入口已就位，等批准；(b) DNS / GitHub Pages CNAME 真生效（registry register `companion-bench.org` + DNS A record + Pages settings custom-domain 三步，~30 分钟）；(c) `VolvenceZero/companion-bench-heldout` private repo 创建 + deploy key（heldout_loader 已支持 legacy `external/lscb-heldout/` alias）；(d) working group 形成 / RFC v0.1 → v1.0 升级（~6 周公开评论期）；(e) 一发 release 后清掉 7 个 LSCB redirect stub。这五项均不阻塞 v1.0 站点上线，但都追踪在 #32（Companion Bench v1.0 launch path）。
 
@@ -369,7 +371,17 @@ return (
   4. 任何阶段不破 vz-* 内核 0 改动承诺；substrate streaming（#12）和这条 #17 在动 vz-substrate 时应统筹考虑（一次性 additive 改动比分多次 review 成本低）
 - **优先级**：低（开发期 / 内部 demo 阶段不阻塞；做 SaaS 时再上）
 
-## 18. Figure F6 PEFT LoRA bake backend 是 stub，真 GPU 训练未接
+## ~~18. Figure F6 PEFT LoRA bake backend 是 stub，真 GPU 训练未接~~ —— 2026-05-12 关闭
+
+> **关闭说明（2026-05-12，Wave B of "接通 Figure-Vertical 全链路（除真材料外）" packet）**：
+> - `peft>=0.11` 进 [`packages/vz-runtime/pyproject.toml`](../packages/vz-runtime/pyproject.toml) 的 `[project.optional-dependencies].torch` extra；`pip install vz-runtime[torch]` 一键启用。
+> - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py) `PEFTLoRABakeBackend.bake` 替换 `NotImplementedError`：HuggingFace 短 epoch + AdamW + 每 `target_module` 抽 LoRA A/B 矩阵 → `B @ A` 扁平化 + sign-preserving bucket pool 到 `delta_vector_dim` → `tuple[SubstrateDeltaAdapterLayer, ...]`，与 `SyntheticLoRABakeBackend` 输出 schema 兼容；`validation_delta = (init_loss − final_loss) / init_loss`、`capacity_cost = trainable / total params` 真值进 OFFLINE gate proposal。
+> - 新 `PEFTLoRAConfig` typed dataclass：`target_modules` / `rank` / `alpha` / `dropout`；`PEFTLoRABakeBackend` 加 `model_id` / `peft_config` / `runtime_device` / `max_steps` / `checkpoint_dir` / `delta_vector_dim` 字段。
+> - CLI [`packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py) 解除 `--backend != synthetic` 的 fail-loud；新增 `--peft-model-id` / `--peft-target-modules` / `--peft-alpha` / `--peft-dropout` / `--peft-max-steps` / `--peft-device`。`scripts/figure_demo_einstein.sh` 加 `BACKEND=peft` 一键切。
+> - 测试：`packages/lifeform-domain-figure/tests/test_lora_bake_smoke.py::test_peft_backend_bake_real_loop_smoke`（`@pytest.mark.hf`）+ `tests/contracts/test_figure_persona_lora_synthetic_vs_peft_shape.py` 双 backend shape 兼容契约（pool 同时接受两端）。CPU 短 epoch 在 `sshleifer/tiny-gpt2` 上 < 5s 跑通。
+> - 关键不变量：bake 完仍走 `apply_persona_lora_through_gate` 的 OFFLINE gate（R10 不变）；frozen base 在训练 / activation 全程不变（peft 在 deep-copy 模块上跑，原 model.state_dict() 字节稳定）。
+
+## ~~18. (closed)~~
 
 - **路径**：
   - 接口空壳：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora_bake_peft.py)（`PEFTLoRABakeBackend.bake(...)` 直接 raise `NotImplementedError("future F6.X packet")`）
@@ -426,7 +438,17 @@ return (
   7. 守 R12：corpus provenance 只读，不反向写 reward / Face；和 #13 / #14 一起在 `tests/contracts/test_dlaas_figure_corpus_no_kernel_writeback.py` 静态守门
 - **优先级**：中（产品 / 法律决策是前置；架构上 V1 schema ready，V2 fetcher + parser + 数据三件齐才算 corpus 准备真到位）
 
-## 20. PersonaLoRAPool.activate 是 in-memory passthrough，未接真 GPU 多 LoRA 热插
+## ~~20. PersonaLoRAPool.activate 是 in-memory passthrough，未接真 GPU 多 LoRA 热插~~ —— 2026-05-12 关闭
+
+> **关闭说明（2026-05-12，Wave D of "接通 Figure-Vertical 全链路（除真材料外）" packet）**：
+> - 新增 [`packages/vz-substrate/src/volvence_zero/substrate/lora_aware_runtime.py`](../packages/vz-substrate/src/volvence_zero/substrate/lora_aware_runtime.py)：`LoRAAwareResidualRuntime` Protocol（`activate_lora(layers) -> AbstractContextManager[None]`），结构化类型，任何 runtime 暴露此方法即满足。
+> - [`packages/vz-substrate/src/volvence_zero/substrate/residual_interfaces.py`](../packages/vz-substrate/src/volvence_zero/substrate/residual_interfaces.py) `OpenWeightResidualRuntime.activate_lora` 默认实现：no-op + 进出活动状态记账，禁嵌套（再入抛 `RuntimeError`），不污染 frozen base。`SyntheticOpenWeightResidualRuntime` 继承默认。
+> - [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) `TransformersOpenWeightResidualRuntime.activate_lora` 真 forward-hook 覆盖：在 `_block_modules[layer_index]` 上注册 `register_forward_hook`，把 `delta_vector` broadcast 加到该 attention block 的 residual 输出；context 出口移除 hook。Layer-index mismatch（baked 与 hooked 不一致）走 `min(hooked, key=abs(idx - normalised))` 就近映射，加性叠加而非静默丢弃。
+> - [`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py) `PersonaLoRAPool.activate(record_or_figure_id, *, runtime=None)` 改造为 context-manager：`runtime is None` → 维持 legacy passthrough；`runtime` 为 `LoRAAwareResidualRuntime` → 包装 `runtime.activate_lora(record.adapter_layers)` + yield record；`runtime` 不满足 Protocol → 抛 `TypeError` (fail loud)。
+> - 测试：`packages/vz-substrate/tests/test_lora_aware_runtime_smoke.py` 7 case：(a) Protocol 结构化类型识别；(b) pool.activate 双签名；(c) 嵌套抛错；(d) `@pytest.mark.hf` 真 Transformers runtime activate 改 logits + 退出字节级回滚；(e) frozen base `state_dict_hash` 在 activate 上下文进出时全程不变（R2 守门）。
+> - 与 R2 / R15 关系：activate 改的是 controller 层的 forward hook，base parameters 字节级不变；frozen base 在 activation 内/外/前 三次 hash 全相同；rollback = 退出 context 即可，append-only 跟 #23 持久化无冲突。
+
+## ~~20. (closed)~~
 
 - **路径**：
   - 当前 pool：[`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py)（`PersonaLoRAPool.activate(...)` 实现是 `return self.lookup(...)`——只查不动）
@@ -448,7 +470,16 @@ return (
   6. 守 R2：activate 改的是 controller 层 adapter delta，frozen base 不动；测试套加 "activate 前后 base model state_dict hash 不变"
 - **优先级**：中（与 #17 / #18 强耦合；单独做收益小，统筹做一次性 review 成本低）
 
-## 21. F5 Steering bake 在 hashing-embedding 坐标系，未在 substrate 真残差流上提取方向
+## ~~21. F5 Steering bake 在 hashing-embedding 坐标系，未在 substrate 真残差流上提取方向~~ —— 2026-05-12 关闭
+
+> **关闭说明（2026-05-12，Wave C of "接通 Figure-Vertical 全链路（除真材料外）" packet）**：
+> - [`packages/vz-substrate/src/volvence_zero/substrate/residual_interfaces.py`](../packages/vz-substrate/src/volvence_zero/substrate/residual_interfaces.py) 加 `OpenWeightResidualRuntime.capture_for_contrastive(positive_texts, negative_texts, *, layer_index)` 默认实现：走公开 `capture(source_text)` 抽指定 layer 的 `ResidualActivation.activation`，跨文本均值池化，返回两侧 `tuple[float, ...]` 同维度。
+> - [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) `TransformersOpenWeightResidualRuntime` 提供 `_mean_residual_at_layer` 批量 override：复用现有 `_capture_hidden_state_means`（已有的 per-layer hidden-state mean hook），CPU 上 ~2x 快。
+> - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_data_prep.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_data_prep.py) `build_steering_training_plan(contrast_set, *, substrate_runtime=None, layer_index=0)`：`substrate_runtime` 提供时走真 hidden-state 抽方向（per-pair `capture_for_contrastive` 一次），`embedding_dim = runtime hidden_size`；`substrate_runtime=None` 时仍是旧 256-dim hashing fallback（SHADOW-safe）。两个路径产出的 `integrity_hash` 不同，下游 OFFLINE gate 可凭此区分坐标系。
+> - CLI [`packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py) `cmd_bake_steering` 加 `--use-real-residual` / `--real-residual-model-id` / `--real-residual-layer-index`；audit log `backend_id` 在两条路径下分别为 `"steering-real-residual-v1"` / `"steering-cpu-contrastive-v1"`。
+> - 测试：`packages/lifeform-domain-figure/tests/test_steering_bake_real_residual_smoke.py` 6 case，含 `@pytest.mark.hf` 真 Transformers runtime + 假 runtime 双轨；assert positive vs negative 残差均值欧氏距离 > epsilon（不会塌缩为零向量）；hashing 路径 fallback 行为不变。
+
+## ~~21. (closed)~~
 
 - **路径**：
   - 当前 bake：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/steering_bake.py)（`_direction_for_pairs` 算 `weighted_mean(positive - negative)` → unit-norm，全在 256-dim hashing embedding 坐标系里）
@@ -469,7 +500,15 @@ return (
   5. 加 `tests/contracts/test_steering_real_vs_hashing_shape.py`：两条路径输出的 set 必须可互换 plug 进 `attach_baked_steering(...)`（schema 一致），不要求数值一致
 - **优先级**：低-中（前置依赖 #18 + #20）
 
-## 22. DLaaS adopt 主路径未自动 hook `lookup_figure_bundle` + `register_bundle_persona_lora`
+## ~~22. DLaaS adopt 主路径未自动 hook `lookup_figure_bundle` + `register_bundle_persona_lora`~~ —— 2026-05-12 关闭
+
+> **关闭说明（2026-05-12，Wave E of "接通 Figure-Vertical 全链路（除真材料外）" packet）**：
+> - [`packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py) `_handle_adopt` 在 `instance_manager.acquire(...)` 之后：(a) 读 `template.figure_artifact_id`；(b) 调 `lifeform_service.lookup_figure_bundle(default=None, bundle_id=...)`；(c) 调 `instance_manager.get(ai_id).bind_figure_bundle(bundle)`；(d) 调 `lifeform_service.register_bundle_persona_lora(bundle)`（pool 默认走进程级 `default_persona_lora_pool()`）。Import 是 try/except guarded 所以 platform-only 安装（无 figure wheel）不影响其他 vertical 的 adopt。
+> - [`packages/lifeform-service/src/lifeform_service/session_manager.py`](../packages/lifeform-service/src/lifeform_service/session_manager.py) 加 `SessionManager.bind_figure_bundle(bundle)` + `figure_bundle` 属性；`create_session` 在工厂返回 lifeform 后调 `lifeform.bind_figure_bundle(bundle)` 透传。
+> - [`packages/lifeform-core/src/lifeform_core/lifeform.py`](../packages/lifeform-core/src/lifeform_core/lifeform.py) 加 `Lifeform.bind_figure_bundle(bundle)` + `figure_bundle` 属性；`_maybe_clone_synthesizer_for_session` 在 clone 同步 `synthesizer.with_figure_bundle(bundle)`，所以 per-session synthesizer 真带 bundle。
+> - 测试：`tests/service/test_dlaas_adopt_loads_figure_bundle.py` 5 case：(a) `lookup_figure_bundle("einstein")` 命中默认 store；(b) bundle 无 lora → register 返回 None 且不污染 pool；(c) bundle 有 lora → register 推 adapter_layers 进 pool；(d) `manager.bind_figure_bundle(bundle)` → 后续 session 的 synthesizer.figure_bundle == bundle；(e) `register_bundle_persona_lora(bundle)`（不传 pool）→ 进程级 default pool 命中。
+
+## ~~22. (closed)~~
 
 - **路径**：
   - 助手函数已就位：[`packages/lifeform-service/src/lifeform_service/figure_bundle_store.py`](../packages/lifeform-service/src/lifeform_service/figure_bundle_store.py)（`lookup_bundle(default=None, *, bundle_id=...)` 与 `register_bundle_persona_lora(bundle, *, pool=None)`）
@@ -526,7 +565,16 @@ return (
 - ~~**推荐修法**（7 项 minimum viable）~~：全部 land
 - ~~**优先级**~~：闭环
 
-## 24. Figure D2 三件 corpus helper（dedupe / provenance / citation parser）未接进 bundle 主管线
+## ~~24. Figure D2 三件 corpus helper（dedupe / provenance / citation parser）未接进 bundle 主管线~~ —— 2026-05-12 关闭
+
+> **关闭说明（2026-05-12，Wave A of "接通 Figure-Vertical 全链路（除真材料外）" packet）**：
+> - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/retrieval_index.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/retrieval_index.py) `build_figure_retrieval_index` 加 `chunk_id_allowlist: frozenset[str] | None = None` 参数；`compiler.build_figure_artifact_bundle` 主路径调 `compute_dedup_report(envelopes)` 后把 canonical chunk ids 喂进去，跨 envelope 去重在 BM25 corpus 统计前生效。
+> - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/figure_artifact.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/figure_artifact.py) `FigureArtifactBundle` 加 `provenance_fingerprint: str = ""` 字段；`compute_bundle_integrity_hash` 的 payload 在非空时折入 `("provenance", fingerprint)`。同 profile + 不同 license 必产生不同 bundle hash（license-only 漂移在 R15 audit chain 上可见）。
+> - [`packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/compiler.py) `attach_steering_to_bundle` / `attach_lora_to_bundle` 把 `provenance_fingerprint` 传穿（rebake 不丢 audit chain）。
+> - [`packages/lifeform-expression/src/lifeform_expression/grounded_decoder.py`](../packages/lifeform-expression/src/lifeform_expression/grounded_decoder.py) 加 typed `EvidencePointer`：在 `verify_with_pointers` 返回路径上调 `lifeform_domain_figure.corpus.citation.parse_locator`（lazy import + ImportError 兜底），把 `sender_id` / `recipient_id` / `date_iso` / `venue_id` / `volume` / `page` / `paragraph_index` / `offset` 等结构化字段填到 pointer 上；`rendered` 给出比 raw locator 更可读的引证字符串（如 `letter[einstein->bohr@1935-04-12] | env_id`）。
+> - 测试：`tests/contracts/test_figure_bundle_dedup_and_provenance.py` 6 case：(a) 同 paragraph 出现在 paper + letter 两个 envelope → 过滤后只剩 paper 端 canonical 副本；(b) 同 profile + 不同 license_label → bundle hash 不同；(c) 空 provenance → fingerprint 空 + bundle hash 走 legacy 字节稳定路径；(d) GroundedDecoder evidence pointer 真带 parsed 结构化字段；(e) parse 失败 fallback 到 raw locator。
+
+## ~~24. (closed)~~
 
 - **路径**：
   - 三件 helper 模块（已就位）：
