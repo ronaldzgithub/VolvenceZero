@@ -1,0 +1,74 @@
+{
+  "figure_id": "einstein",
+  "bundle_id": "figure-bundle:einstein:61c93126a0b2e98c",
+  "persona_lora_record_id": "persona-lora:einstein:61c93126a0b2e98c",
+  "overall_passed": false,
+  "gates": [
+    {
+      "name": "gate_cognition_improves",
+      "passed": false,
+      "observed": 0.0,
+      "threshold": 0.05,
+      "rationale": "bundle.cognition - raw.cognition = 0.0000 - 0.0000 = 0.0000"
+    },
+    {
+      "name": "gate_voice_improves_with_lora",
+      "passed": false,
+      "observed": 0.0,
+      "threshold": 0.02,
+      "rationale": "bundle_lora.voice - bundle.voice = 0.2722 - 0.2722 = 0.0000"
+    },
+    {
+      "name": "gate_refusal_works",
+      "passed": false,
+      "observed": 0.6,
+      "threshold": 0.8,
+      "rationale": "bundle correctly refused 3/5 out-of-scope probes"
+    },
+    {
+      "name": "gate_evidence_emerges",
+      "passed": false,
+      "observed": 0.0,
+      "threshold": 1.0,
+      "rationale": "l3_evidence_count: bundle=0, bundle_lora=0"
+    }
+  ],
+  "condition_aggregates": [
+    {
+      "condition": "raw",
+      "voice_score": 0.4015000000000001,
+      "cognition_score": 0.0,
+      "in_corpus_question_count": 5,
+      "in_corpus_hit_count": 0,
+      "out_of_scope_refusal_rate": 0.0,
+      "out_of_scope_question_count": 5,
+      "l3_evidence_count": 0
+    },
+    {
+      "condition": "bundle",
+      "voice_score": 0.27220000000000005,
+      "cognition_score": 0.0,
+      "in_corpus_question_count": 5,
+      "in_corpus_hit_count": 0,
+      "out_of_scope_refusal_rate": 0.6,
+      "out_of_scope_question_count": 5,
+      "l3_evidence_count": 0
+    },
+    {
+      "condition": "bundle_lora",
+      "voice_score": 0.27220000000000005,
+      "cognition_score": 0.0,
+      "in_corpus_question_count": 5,
+      "in_corpus_hit_count": 0,
+      "out_of_scope_refusal_rate": 0.6,
+      "out_of_scope_question_count": 5,
+      "l3_evidence_count": 0
+    }
+  ],
+  "total_questions": 10,
+  "in_corpus_questions": 5,
+  "out_of_scope_questions": 5,
+  "notes": [
+    "persona LoRA auto-registered from bundle.lora (record_id=persona-lora:einstein:61c93126a0b2e98c)."
+  ]
+}

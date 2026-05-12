@@ -217,6 +217,50 @@ def _persona_lora_record_id(figure_id: str) -> str:
     return record.record_id
 
 
+def _ensure_pool_has_bundle_lora(*, bundle: Any) -> str:
+    """Auto-register the bundle's baked LoRA into the process pool.
+
+    ``default_persona_lora_pool()`` is process-local. The bake CLI
+    registers in its own process and then exits — fresh verify
+    processes start with an empty pool and would fall through the
+    BUNDLE_LORA path silently.
+
+    This helper reads the bundle's documented ``lora`` slot
+    (FigureLoRAArtifact) and registers it; no-op when the bundle
+    has no baked LoRA. Returns ``record_id`` or ``"absent"`` —
+    reviewers can spot the difference in the verdict notes.
+
+    The wheel-boundary direction is preserved: this lives inside
+    ``lifeform_domain_figure`` and only consumes
+    ``volvence_zero.substrate`` public surface (PersonaLoRAPool)
+    and ``lifeform_domain_figure`` public attrs (bundle.lora).
+    """
+
+    artifact = getattr(bundle, "lora", None)
+    if artifact is None:
+        return "absent"
+    from volvence_zero.substrate import default_persona_lora_pool
+    pool = default_persona_lora_pool()
+    figure_id = artifact.figure_id
+    bundle_id = bundle.bundle_id
+    if pool.has(figure_id):
+        existing = pool.lookup(figure_id)
+        if existing.source_bundle_id == bundle_id:
+            return existing.record_id
+        # Different bundle source — replace so the verify run reflects
+        # the bundle the CLI was actually pointed at.
+        pool.deregister(figure_id)
+    return pool.register(
+        figure_id=figure_id,
+        source_bundle_id=bundle_id,
+        backend_id=artifact.backend_id,
+        training_plan_hash=artifact.training_plan_hash,
+        adapter_layers=artifact.adapter_layers,
+        parameter_count=artifact.parameter_count,
+        description=artifact.description,
+    )
+
+
 def _load_or_generate_questions(
     *,
     bundle: Any,
@@ -388,6 +432,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"persona-verify: failed to build runtime: {exc}", file=sys.stderr)
         return EXIT_SETUP_ERROR
 
+    record_id_at_load = _ensure_pool_has_bundle_lora(bundle=bundle)
+
     questions = _load_or_generate_questions(bundle=bundle, args=args)
     if not questions:
         print(
@@ -427,9 +473,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     notes: tuple[str, ...] = ()
     if record_id == "absent" and PersonaCondition.BUNDLE_LORA in conditions:
         notes = (
-            "persona LoRA pool record absent at verify time; "
-            "BUNDLE_LORA condition fell through to BUNDLE behaviour. "
-            "Run scripts/figure_bake_einstein_persona_lora.sh first.",
+            "persona LoRA pool record absent at verify time AND bundle "
+            "carries no baked LoRA artifact; BUNDLE_LORA condition fell "
+            "through to BUNDLE behaviour. Run "
+            "scripts/figure_bake_einstein_persona_lora.sh first.",
+        )
+    elif (
+        record_id_at_load != "absent"
+        and record_id != "absent"
+        and PersonaCondition.BUNDLE_LORA in conditions
+    ):
+        notes = (
+            f"persona LoRA auto-registered from bundle.lora "
+            f"(record_id={record_id_at_load}).",
         )
 
     thresholds = VerdictThresholds(

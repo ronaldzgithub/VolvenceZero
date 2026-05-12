@@ -2,11 +2,16 @@
 
 > **目的**：把 [`探索方向.md`](./探索方向.md) 中 43+ 条研究借鉴方向，通过现状核查 + SHADOW 实验 + 数据驱动决策的方式，收敛为可进入主分支的候选。
 >
+> **配套文档**：
+> - [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md) — 阶段 A 现状核查 brief（每条候选的 owner / slot / 耦合分析）
+> - [`experiment-arch-uplift.md`](./experiment-arch-uplift.md) — 架构改造 spec（9 项 cross-cutting 基础设施改造：A1-A5 + B1-B4，必须先于业务 packet 推进）
+>
 > **修订历史**：
 > - v1（2026-05-12）— 初版分层规划：阶段 A 现状核查 / 阶段 B 基础设施 / 阶段 C 并行 SHADOW / 阶段 D 决策。
-> - **v2（2026-05-12）— 基于阶段 A 现状核查 brief 修订**：阶段 C 可并行 SHADOW 候选从 6 条收敛到 **4 条**（CMA-2 收编入 EVO-2 cascade；OA-4 改为阶段 B 双门延续 packet）；阶段 B 新增 **packet 0（DATA_CONTRACT §6 同步）** 作为整套规划启动的 prerequisite。详情见 [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md)。
+> - **v2（2026-05-12）— 基于阶段 A 现状核查 brief 修订**：阶段 C 可并行 SHADOW 候选从 6 条收敛到 **4 条**（CMA-2 收编入 EVO-2 cascade；OA-4 改为阶段 B 双门延续 packet）；阶段 B 新增 **packet 0（DATA_CONTRACT §6 同步）** 作为整套规划启动的 prerequisite。
+> - **v3（2026-05-12）— 拆出独立的架构改造 spec**：阶段 B/C 推进所需的 9 项 cross-cutting 基础设施改造（profile composition / evaluation cascade / capability-level wiring / audit owner 接口 等）拆到 [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)；本文档保持产品/规划视角。
 >
-> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ⏳ 待启动 / 阶段 C ⏸ 阻塞中 / 阶段 D ⏸ 阻塞中。
+> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ⏳ 待启动（需先做架构改造 A1-A5）/ 阶段 C ⏸ 阻塞中 / 阶段 D ⏸ 阻塞中。
 
 ---
 
@@ -81,6 +86,8 @@
 
 **阶段 B（接下来 3-5 周，单线串行）—— 裁判席先到位 + 双门治理 + 契约同步**
 
+> **v3 重要说明**：阶段 B 业务 packet 不能独立推进，必须先完成 [`experiment-arch-uplift.md`](./experiment-arch-uplift.md) 中的 **A1-A5 架构改造**（profile composition / evaluation cascade / capability-level wiring / DATA_CONTRACT SSOT / audit-evidence 接口）。架构改造是业务 packet 的硬 prerequisite——其中 A4 内含本节 packet 0，A2 内含本节 packet 1 (EVO-2 cascade) 的实现骨架，A5 内含本节 packet 4 (OA-4) 的接口决议。详细依赖图见架构 spec §4。
+
 按顺序、单线推进 5 个收敛包（v2 新增 packet 0 + packet 4）：
 
 0. **DATA_CONTRACT §6 同步**（v2 新增 packet）— 把 4 个 ToM slot、`conversational_role`、`multi_party_identity`、`social_prediction[_error]` 等已在 `final_wiring.py` 默认 ACTIVE 的 slot 在 `docs/DATA_CONTRACT.md` §6 中改为 ACTIVE 状态，消除 R8 spec 与代码偏离。**必须最先做**，否则后续 SHADOW profile 引用 slot 时会陷入"以 spec 为真还是以 wiring 为真"的混乱。工作量：S（纯 spec 同步）。
@@ -140,22 +147,24 @@ profile = pe-eta（baseline）
 
 ---
 
-## 6. 阶段状态与下一步候选动作（v2）
+## 6. 阶段状态与下一步候选动作（v3）
 
 ### 阶段状态
 
 | 阶段 | 状态 | 关键产出 / 阻塞 |
 |---|---|---|
 | 阶段 A — 现状核查矩阵 | ✅ 完成（2026-05-12） | [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md) |
-| 阶段 B — 裁判席 + 双门治理 + 契约同步 | ⏳ 待启动 | 5 个串行 packet（0→1→2→3→4→5）；packet 0 是整套规划的硬 prerequisite |
-| 阶段 C — 4 条 SHADOW profile 并行 | ⏸ 阻塞中 | 等阶段 B packet 0 完成（COG-3 还需 substrate hook 验证） |
+| **架构改造（A1-A5）** | ⏳ 待启动 | [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)；阶段 B 业务 packet 的硬 prerequisite |
+| 阶段 B — 裁判席 + 双门治理 + 契约同步 | ⏸ 阻塞中 | 等架构改造 A1-A5 完成；5 个串行业务 packet |
+| 阶段 C — 4 条 SHADOW profile 并行 | ⏸ 阻塞中 | 等架构改造 + 阶段 B packet 0 完成；COG-3 还需 substrate hook 验证（B2） |
 | 阶段 D — profile → ACTIVE 决策 | ⏸ 阻塞中 | 等阶段 C 至少 1 个 profile 跑出 5 seeds × paper-suite-small 的对照证据 |
 
 ### 下一步候选动作
 
-1. **写一份"阶段 B 的裁判席单线推进 packet 提纲"**（packet 0 DATA_CONTRACT 同步 / packet 1 EVO-2 cascade / packet 2 SYS-2+DM-4 双门 / packet 3 OA-1+OA-2 / packet 4 OA-4 audit-agent / packet 5 OA-3 framing check 的具体 convergence packet 拆分）；
-2. **基于已有 `run_atlas_titans_cms_shadow_smoke.py` 设计"阶段 C 的 4-profile 对照基准骨架"**（不实现，只给 ablation profile 矩阵 + acceptance gate 列表 + metric_means 抽取扩展点清单）；
-3. **直接起跑阶段 B packet 0**（DATA_CONTRACT §6 同步，是阶段 A brief 识别的 prerequisite，工作量 S，纯 spec 同步）；
-4. **直接起跑阶段 C 顺位 1 candidate SYS-1**（不需阶段 B 任何 packet 完成；前提是接受"先有候选 profile、再补 cascade 完整裁判席"的工作流，evidence 可后置）。
+1. **评审 [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)**：确认 9 项架构改造的范围 / 依赖图 / 安全协议；据此决定是否需要拆分或合并某些 packet；
+2. **起跑架构改造 A4**（DATA_CONTRACT §6 同步 + contract test，是所有其它改造的硬 prerequisite，工作量 S，1-2 PR）；
+3. **起草 [`docs/specs/profile-registry.md`](../specs/profile-registry.md)**（A1 + A3 接口同步设计，避免实施两遍——架构 spec §8 风险 1）；
+4. **起草 [`docs/specs/evaluation-cascade.md`](../specs/evaluation-cascade.md)**（A2 cascade 三层 schema + failure semantics 先冻结，再动代码——架构 spec §8 风险 2）；
+5. **直接起跑阶段 C 顺位 1 candidate SYS-1**（不需架构改造完成；前提是接受"先有候选 profile、再补完整基础设施"的妥协工作流，evidence 可后置）。
 
-选项 1/2 是规划层产出（继续在文档层推进）；选项 3/4 是直接动 spec/代码进入实施。视具体约束（是否允许动代码、阶段 B 排队是否优先级最高）选择。
+选项 1-4 是架构层产出（先打地基）；选项 5 是直接动 spec/代码起跑业务。视具体约束（先求快还是先求稳）选择。**推荐从选项 1 开始**——架构 spec 评审 + A4 同步是低成本高 ROI 的起手。
