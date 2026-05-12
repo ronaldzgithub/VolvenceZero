@@ -114,12 +114,53 @@ def build_parser() -> argparse.ArgumentParser:
     bake_bundle.add_argument(
         "--corpus-mode",
         default="synthetic",
-        choices=("synthetic",),
+        choices=("synthetic", "curated"),
         help=(
             "Corpus source. 'synthetic' uses the wheel's reviewer-"
-            "paraphrased placeholder corpus; 'curated' is reserved "
-            "for the V2 archive fetcher work (known-debts #19) and "
-            "is not yet wired."
+            "paraphrased placeholder corpus (default; SHADOW-safe). "
+            "'curated' (Wave J closure) walks an L1 cleaning store "
+            "+ a curator-staged metadata JSONL to assemble a real "
+            "Figure*Source tuple — requires --cleaning-root and "
+            "--curated-metadata-file; optionally --verification-root "
+            "+ --require-verification-pass when an L2 ledger exists."
+        ),
+    )
+    bake_bundle.add_argument(
+        "--cleaning-root",
+        default=None,
+        help=(
+            "Cleaning store root (the same directory L0 crawler "
+            "writes raw bytes into and figure_clean writes cleaned "
+            "text into). Required when --corpus-mode=curated."
+        ),
+    )
+    bake_bundle.add_argument(
+        "--curated-metadata-file",
+        default=None,
+        help=(
+            "JSONL of CuratedSourceMetadata records keyed by "
+            "raw_sha256. Required when --corpus-mode=curated."
+        ),
+    )
+    bake_bundle.add_argument(
+        "--verification-root",
+        default=None,
+        help=(
+            "Optional verification ledger root (typically the same "
+            "directory as --cleaning-root; figure_verify run-batch "
+            "writes <root>/verification/<sha>/checks.jsonl). When "
+            "supplied AND --require-verification-pass is set, the "
+            "bundle gate refuses sources without all-PASS verdicts."
+        ),
+    )
+    bake_bundle.add_argument(
+        "--require-verification-pass",
+        action="store_true",
+        help=(
+            "Run build_figure_artifact_bundle with "
+            "require_verification_pass=True; requires "
+            "--verification-root. The OFFLINE gate refuses bundle "
+            "build if any source has any non-PASS axis."
         ),
     )
     bake_bundle.add_argument(

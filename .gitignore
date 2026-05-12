@@ -53,6 +53,13 @@ packages/lifeform-domain-figure/data/crawl/
 data/figure_bundles/
 data/figure_audit/
 
+# Figure-vertical real-corpus collection (Wave K). Repo-root data/
+# figure_corpus/ holds the L0 frontier + L1 raw/cleaned + L2
+# verification ledger for live runs of scripts/figure_collect_einstein.sh.
+# Curator-tracked seed lists + metadata files live under
+# packages/lifeform-domain-figure/data/seeds/ which IS in git.
+data/figure_corpus/
+
 # External benchmark harnesses + their run artefacts (debt #29).
 # The eqbench3 / empathybench harnesses are cloned (or git-submoduled
 # in a future packet) into external/<harness>/ so we keep our

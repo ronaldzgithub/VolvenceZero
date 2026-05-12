@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
 import sys
 from collections.abc import Callable
 
@@ -29,6 +30,8 @@ from lifeform_domain_figure import (
     PEFTLoRABakeBackend,
     PEFTLoRAConfig,
     SyntheticLoRABakeBackend,
+    VerificationGateError,
+    VerificationLedger,
     apply_persona_lora_through_gate,
     apply_steering_through_gate,
     bake_steering_set,
@@ -40,6 +43,7 @@ from lifeform_domain_figure import (
     build_lu_xun_profile,
     build_steering_training_plan,
     list_figure_bundles,
+    load_curated_corpus_from_cleaning_store,
     load_figure_bundle,
     save_figure_bundle,
     synthetic_einstein_corpus,
@@ -66,23 +70,37 @@ EXIT_IO_OR_SCHEMA = 3
 def cmd_bake_bundle(args: argparse.Namespace) -> int:
     """Compile a profile + corpus into a fresh bundle, persist + audit."""
 
-    profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
-    if profile_factory is None or corpus_factory is None:
+    profile_factory, _corpus_factory = _resolve_figure_factories(args.figure)
+    if profile_factory is None:
         print(
             f"figure {args.figure!r} is not yet wired for bake-bundle "
             f"(see known-debts.md #27 for lu_xun corpus follow-up)",
             file=sys.stderr,
         )
         return EXIT_USAGE
-    if args.corpus_mode != "synthetic":
+    if args.corpus_mode == "synthetic":
+        return _cmd_bake_bundle_synthetic(args=args, profile_factory=profile_factory)
+    if args.corpus_mode == "curated":
+        return _cmd_bake_bundle_curated(args=args, profile_factory=profile_factory)
+    print(
+        f"corpus-mode {args.corpus_mode!r} unknown; expected one of "
+        f"('synthetic', 'curated')",
+        file=sys.stderr,
+    )
+    return EXIT_USAGE
+
+
+def _cmd_bake_bundle_synthetic(*, args, profile_factory) -> int:
+    """Synthetic-corpus path: legacy SHADOW behaviour, unchanged."""
+
+    _profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
+    if corpus_factory is None:
         print(
-            f"corpus-mode {args.corpus_mode!r} is reserved for the V2 "
-            f"archive fetcher work (known-debts.md #19) and not yet "
-            f"wired",
+            f"figure {args.figure!r} has no synthetic corpus factory wired "
+            f"(only Einstein ships one; see known-debts.md #27)",
             file=sys.stderr,
         )
         return EXIT_USAGE
-
     profile = profile_factory()
     papers, letters, lectures, notebooks = corpus_factory()
     corpus_bundle = FigureCorpusSourceBundle(
@@ -93,16 +111,110 @@ def cmd_bake_bundle(args: argparse.Namespace) -> int:
         notebooks=notebooks,
     )
     envelope_set = build_figure_ingestion_envelope(
-        corpus_bundle, uploader="lifeform_domain_figure.cli:bake-bundle"
+        corpus_bundle, uploader="lifeform_domain_figure.cli:bake-bundle:synthetic"
     )
     inputs = FigureBundleInputs(
         profile=profile,
         envelopes=envelope_set.envelopes,
         time_window_id=args.time_window_id,
     )
+    return _finalise_bake_bundle(args=args, inputs=inputs)
+
+
+def _cmd_bake_bundle_curated(*, args, profile_factory) -> int:
+    """Curated-corpus path: walk L1 cleaning store + curator metadata file."""
+
+    if not args.cleaning_root or not args.curated_metadata_file:
+        print(
+            "bake-bundle --corpus-mode curated requires both --cleaning-root "
+            "and --curated-metadata-file",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    if args.require_verification_pass and not args.verification_root:
+        print(
+            "bake-bundle --require-verification-pass requires "
+            "--verification-root pointing at the L2 ledger",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    cleaning_root = pathlib.Path(args.cleaning_root)
+    metadata_file = pathlib.Path(args.curated_metadata_file)
+    try:
+        curated = load_curated_corpus_from_cleaning_store(
+            cleaning_root=cleaning_root,
+            figure_id=args.figure,
+            metadata_file=metadata_file,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"bake-bundle (curated): {exc}", file=sys.stderr)
+        return EXIT_IO_OR_SCHEMA
+    profile = profile_factory()
+    corpus_bundle = FigureCorpusSourceBundle(
+        figure_id=args.figure,
+        papers=curated.papers,
+        letters=curated.letters,
+        lectures=curated.lectures,
+        notebooks=curated.notebooks,
+    )
+    envelope_set = build_figure_ingestion_envelope(
+        corpus_bundle, uploader="lifeform_domain_figure.cli:bake-bundle:curated"
+    )
+    verification_ledger = None
+    if args.verification_root:
+        verification_ledger = VerificationLedger(
+            pathlib.Path(args.verification_root)
+        )
+    inputs = FigureBundleInputs(
+        profile=profile,
+        envelopes=envelope_set.envelopes,
+        time_window_id=args.time_window_id,
+        provenance_records=curated.provenance_records,
+        verification_ledger=verification_ledger,
+        require_verification_pass=bool(args.require_verification_pass),
+    )
+    return _finalise_bake_bundle(args=args, inputs=inputs, source_count_summary=curated.source_count_by_kind)
+
+
+def _finalise_bake_bundle(
+    *,
+    args,
+    inputs: FigureBundleInputs,
+    source_count_summary: dict | None = None,
+) -> int:
+    """Shared persistence + audit tail used by both corpus modes."""
+
     try:
         bundle = build_figure_artifact_bundle(inputs)
         bundle_dir = save_figure_bundle(bundle, root_dir=args.bundle_root)
+    except VerificationGateError as exc:
+        # OFFLINE gate refusal: write an audit record + non-zero exit
+        # so the curator sees exactly which axes failed.
+        audit = build_audit_record(
+            action=FigureBakeAction.BAKE_BUNDLE,
+            figure_id=args.figure,
+            bundle_id=f"figure-bundle:{args.figure}:gate-blocked",
+            previous_bundle_id="absent",
+            gate_decision=FigureGateDecisionLabel.BLOCK,
+            block_reasons=tuple(str(exc).splitlines()),
+            corpus_mode=args.corpus_mode,
+        )
+        audit_path = write_audit(audit, root_dir=args.audit_root)
+        print(
+            json.dumps(
+                {
+                    "action": audit.action.value,
+                    "decision": "BLOCK",
+                    "block_reason_summary": str(exc).splitlines()[0],
+                    "audit_path": str(audit_path),
+                    "audit_id": audit.audit_id,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return EXIT_GATE_BLOCK
     except (OSError, ValueError) as exc:
         print(f"bake-bundle failed: {exc}", file=sys.stderr)
         return EXIT_IO_OR_SCHEMA
@@ -117,18 +229,18 @@ def cmd_bake_bundle(args: argparse.Namespace) -> int:
     )
     audit_path = write_audit(audit, root_dir=args.audit_root)
 
-    print(json.dumps(
-        {
-            "action": audit.action.value,
-            "bundle_id": bundle.bundle_id,
-            "figure_id": bundle.figure_id,
-            "bundle_dir": str(bundle_dir),
-            "audit_path": str(audit_path),
-            "audit_id": audit.audit_id,
-        },
-        indent=2,
-        sort_keys=True,
-    ))
+    payload = {
+        "action": audit.action.value,
+        "bundle_id": bundle.bundle_id,
+        "figure_id": bundle.figure_id,
+        "bundle_dir": str(bundle_dir),
+        "audit_path": str(audit_path),
+        "audit_id": audit.audit_id,
+        "provenance_fingerprint": bundle.provenance_fingerprint,
+    }
+    if source_count_summary is not None:
+        payload["source_count_by_kind"] = dict(source_count_summary)
+    print(json.dumps(payload, indent=2, sort_keys=True))
     return EXIT_OK
 
 

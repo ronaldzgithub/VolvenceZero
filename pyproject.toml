@@ -96,7 +96,12 @@ packages = []
 testpaths = ["tests"]
 markers = [
     "hf: tests that require optional Hugging Face / torch substrate dependencies",
+    "live_network: tests that hit external archives over the real network (CPAE / Wikisource / Gutenberg / Internet Archive); skipped by default; opt in via 'pytest -m live_network'",
 ]
+# Skip live_network tests by default — they require external services and
+# add wall-clock cost; CI / regular runs should not depend on them. To
+# opt in locally: ``pytest -m live_network``.
+addopts = "-m 'not live_network'"
 # pytest-asyncio in auto mode lets ``async def test_...`` functions and
 # ``async`` fixtures (e.g. lifeform-service's aiohttp test client) work
 # without per-test ``@pytest.mark.asyncio`` boilerplate.

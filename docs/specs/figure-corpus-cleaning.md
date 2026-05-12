@@ -184,3 +184,4 @@ python figure_clean.py list-versions --root <store-root>
 ## 变更日志
 
 - 2026-05-10 — 初版落地（debt #28 L1 packet）。Pipeline V1 = 6 ops（boilerplate / whitespace / typography / dedupe / pii / paragraph）；4 parser + 4 bridging + content-addressable store + CLI + 5 个测试套（39 cases，全绿）。
+- 2026-05-12 — Wave H closure：`parse_by_content_type` 注册 `WIKISOURCE_WIKITEXT_CONTENT_TYPE = "text/x-wiki"`，与 L0 wikisource fetcher 的 `derive_content_type` 对齐（fetcher 在 `?action=raw` 路径成功时持久 `text/x-wiki`，旧 dispatcher 只识别 HTML profile，导致真 wikisource 字节 `re-clean-all` 必 fail）。`parse_wikisource_html(content_type=text/x-wiki)` 既有支持已就位，本波只在 dispatcher 注册一行；contract test [`tests/contracts/test_wikisource_l0_l1_content_type_alignment.py`](../../tests/contracts/test_wikisource_l0_l1_content_type_alignment.py) AST 守门两端常量 + 调用对齐，未来新增 fetcher 不会再漂。新增 fixture `build_wikisource_wikitext_bytes` + 3 个 smoke case；`test_parse_by_content_type_dispatches_each_format` 加一行 `text/x-wiki` 走通。

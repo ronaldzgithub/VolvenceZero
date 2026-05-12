@@ -54,6 +54,13 @@ class PredictionActionContext:
     affordance_name: str = ""
     environment_event_id: str = ""
     environment_outcome_id: str = ""
+    # Packet A (long-horizon-closure): plan_ref / prediction_id lineage
+    # threaded through from AffordanceInvoker.invoke(plan_ref=...) -> 
+    # BrainSession.submit_tool_result -> EnvironmentOutcome.prediction_id
+    # -> next-turn PredictionActionContext.prediction_id. Empty when the
+    # caller did not supply a plan_ref (back-compat path); non-empty when
+    # the affordance call was bound to a specific prior prediction id.
+    prediction_id: str = ""
 
 
 @dataclass(frozen=True)

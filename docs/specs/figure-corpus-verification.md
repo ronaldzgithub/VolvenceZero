@@ -140,10 +140,12 @@ L1 sentinel 让 `LICENSE_PAGE_LEVEL` verifier 在无 license_notice 时显式产
 ## CLI (`scripts/figure_verify.py`)
 
 ```bash
-# 批量跑全部已实现 auto verifier
+# 批量跑全部 7 个 auto verifier (Wave I closure)
 python figure_verify.py run-batch \
     --root <verification-root> \
-    --provenance-file <provenances.jsonl>
+    --provenance-file <provenances.jsonl> \
+    --figure-context-file <figure-context.json> \
+    --metadata-mode {offline,live}
 
 # 抽样（read-only inspection）
 python figure_verify.py review --root <root> --sample 10 [--seed 42]
@@ -160,13 +162,28 @@ python figure_verify.py review --root <root> \
 python figure_verify.py list --root <root>
 ```
 
-`provenances.jsonl` 每行是一个 `SourceProvenance` 字段集合 + 三个 verifier 必需的 extras：
+`provenances.jsonl` 每行是一个 `SourceProvenance` 字段集合 + 7 个 verifier 必需的 extras（前 3 个是 first-batch；后面 5 个是 second-batch metadata-driven verifiers，缺失任一字段时对应 axis 落 `NEEDS_REVIEW`）：
 
 ```json
-{"source_id": "...", "figure_id": "einstein", "source_url": "...", "license_label": "...", "legal_clearance": "public_domain_global", "capture_method": "transcribed", "captured_by": "...", "captured_at_iso": "...", "byte_sha256": "...", "provenance_note": "...", "jurisdiction_hint": "", "document_year": 1905, "figure_lifespan": [1879, 1955], "document_group_key": "einstein-1905-paper-1"}
+{"source_id": "...", "figure_id": "einstein", "source_url": "...", "license_label": "...", "legal_clearance": "public_domain_global", "capture_method": "transcribed", "captured_by": "...", "captured_at_iso": "...", "byte_sha256": "...", "provenance_note": "...", "jurisdiction_hint": "", "document_year": 1905, "figure_lifespan": [1879, 1955], "document_group_key": "einstein-1905-paper-1", "candidate_work_id": "W4205692301", "candidate_coauthor_openalex_ids": [], "source_doi": "10.1002/andp.19053220607", "source_language": "de", "canonical_doi_hint": ""}
 ```
 
-CLI 用 `utf-8-sig` 读 JSONL（容忍 Windows 注入的 BOM）。
+`figure-context.json` 是**每个 figure 一份**的常量（4 个 metadata-driven verifier 一起读）：
+
+```json
+{
+  "expected_qid": "Q937",
+  "expected_birth_year": 1879,
+  "expected_occupations": ["physicist"],
+  "expected_openalex_author_id": "A5023888391",
+  "coauthor_anchor_works": [],
+  "figure_native_languages": ["de"]
+}
+```
+
+`--metadata-mode offline`（default）走 `_OfflineWikidataClient` / `_OfflineOpenAlexClient` / `_OfflineCrossrefClient` 的 V1 stub —— 它们的 `.fetch_*` 抛 `NotImplementedError`，run-batch 包裹后写 `NEEDS_REVIEW`（不让 ledger 出现 `missing-check`）。`--metadata-mode live` 走 V2 client 真发 HTTP（`MetadataCache` 自动复用，SSRF 白名单 + role gate 都生效）。CLI 用 `utf-8-sig` 读 JSONL（容忍 Windows 注入的 BOM）。
+
+**Singleton CROSS_SOURCE_BYTE**：当一个 anchor 没有 `document_group_key` 同伴时，run-batch 仍会写一行 `verdict=PASS, reviewer_id=auto:cross_source_byte_singleton:1`，避免 bundle gate 看到 `missing-check`。
 
 ## 数据流
 
@@ -218,4 +235,5 @@ flowchart LR
 ## 变更日志
 
 - 2026-05-10 — 初版落地（debt #28 L2 first batch）。3 / 7 verifier 真实现（DATE_PLAUSIBILITY / LICENSE_PAGE_LEVEL / CROSS_SOURCE_BYTE）；4 deferred kinds schema 立 + NotImplementedError stub；ledger + gate + CLI + L1 接线 + 9 个测试套（55 case）。
+- 2026-05-12 — Wave I closure：`figure_verify run-batch` 真调度全部 7 个 verifier（前 3 个 first-batch + 4 个 metadata-driven second-batch）。CLI 加 `--metadata-mode {offline, live}` + `--figure-context-file`；缺 figure-context / 缺 per-source extras 时对应 axis 写 `NEEDS_REVIEW`（永不 `missing-check`）。Singleton anchors 拿到 trivially-PASS 的 `cross_source_byte` 行。新增 contract test [`tests/contracts/test_run_batch_covers_all_implemented_check_kinds.py`](../../tests/contracts/test_run_batch_covers_all_implemented_check_kinds.py)：AST 静态守门 `figure_verify.py` import + 调用全部 `IMPLEMENTED_CHECK_KINDS` 的 verifier；未来扩 IMPLEMENTED_CHECK_KINDS 必须同时 wire CLI。新增 4 个 smoke case（[`test_verification_run_batch_smoke.py`](../../packages/lifeform-domain-figure/tests/test_verification_run_batch_smoke.py)）。
 - 2026-05-10 — second batch land（debt #28 L2 second batch + debt #26 closure）。剩余 4 / 7 verifier 真实现（IDENTITY_DISAMBIGUATION / AUTHORSHIP_ATTRIBUTION / VERSION_RECONCILIATION / TRANSLATION_LINEAGE），全 backed by V2 metadata clients (Wikidata / OpenAlex / Crossref)。`IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 启用；bundle gate 现要求每条 source 的 7 axes 全 PASS（含 NEEDS_REVIEW 转 PASS 必经 human override）。新增 `MetadataDependentVerifierContext` typed bundle 让 batch CLI 一次注入所有客户端 + 图灵 figure 上下文（QID / OpenAlex author id / native langs / co-author anchors）。新增 21 个 per-package case + 4 个 contract case（含 `test_figure_bundle_metadata_fingerprint` 跨切 #25 R15 byte-level 回滚契约）。

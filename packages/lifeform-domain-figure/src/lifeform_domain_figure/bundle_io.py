@@ -216,6 +216,8 @@ def load_figure_bundle(
         style_integrity=bundle.style_prior.integrity_hash,
         steering_integrity=_optional_artifact_hash(bundle.steering),
         lora_integrity=_optional_artifact_hash(bundle.lora),
+        metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
+        provenance_fingerprint=bundle.provenance_fingerprint,
     )
     if expected_hash != bundle.integrity_hash:
         raise ValueError(

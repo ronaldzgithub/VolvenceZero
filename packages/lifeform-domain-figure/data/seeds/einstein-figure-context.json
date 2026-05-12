@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-figure metadata constants for figure_verify run-batch. The 4 metadata-driven verifiers (identity / authorship / version / translation) consume these as the curator's declared expectation. With offline metadata mode the verifiers fall through to NEEDS_REVIEW since the V1 stubs raise NotImplementedError; this file still serves as the single SSOT a future live-mode reviewer points at.",
+  "expected_qid": "Q937",
+  "expected_birth_year": 1879,
+  "expected_occupations": ["physicist", "theoretical physicist"],
+  "expected_openalex_author_id": "A5023888391",
+  "coauthor_anchor_works": [],
+  "figure_native_languages": ["de"]
+}

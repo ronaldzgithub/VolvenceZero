@@ -70,6 +70,16 @@ from lifeform_domain_figure.corpus.archives import (
     wikisource_to_lecture_source,
     wikisource_to_paper_source,
 )
+from lifeform_domain_figure.corpus.loaders import (
+    CuratedCorpusBundle,
+    CuratedSourceMetadata,
+    load_curated_corpus_from_cleaning_store,
+    load_curated_metadata_jsonl,
+)
+from lifeform_domain_figure.verification import (
+    VerificationGateError,
+    VerificationLedger,
+)
 from lifeform_domain_figure.metadata import (
     AuthoredWorkSummary,
     CrossrefClient,
@@ -270,6 +280,14 @@ __all__ = [
     "internet_archive_to_lecture_source",
     "internet_archive_to_paper_source",
     "offline_archive_fetcher",
+    # Curated corpus loader (Wave J)
+    "CuratedCorpusBundle",
+    "CuratedSourceMetadata",
+    "load_curated_corpus_from_cleaning_store",
+    "load_curated_metadata_jsonl",
+    # L2 verification surfaces re-exported for CLI curated path (Wave J)
+    "VerificationGateError",
+    "VerificationLedger",
     "wikisource_to_lecture_source",
     "wikisource_to_paper_source",
     # D4 metadata adapters
