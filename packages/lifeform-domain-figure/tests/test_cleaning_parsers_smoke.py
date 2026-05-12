@@ -22,6 +22,7 @@ from lifeform_domain_figure.cleaning.parsers import (
     GUTENBERG_HTML_CONTENT_TYPE,
     GUTENBERG_TEXT_CONTENT_TYPE,
     WIKISOURCE_HTML_CONTENT_TYPE,
+    WIKISOURCE_WIKITEXT_CONTENT_TYPE,
     parse_archive_org_ocr_json,
     parse_by_content_type,
     parse_cpae_pdf,
@@ -35,6 +36,7 @@ from cleaning_fixtures import (
     build_gutenberg_text_bytes,
     build_minimal_cpae_pdf_bytes,
     build_wikisource_html_bytes,
+    build_wikisource_wikitext_bytes,
 )
 
 
@@ -67,6 +69,38 @@ def test_parse_wikisource_html_strips_chrome_and_keeps_body() -> None:
     assert raw.language_detected == "en"
     assert "PD-old" in raw.license_notice
     assert raw.raw_sha256 == hashlib.sha256(data).hexdigest()
+
+
+def test_parse_wikisource_wikitext_extracts_body_and_license() -> None:
+    """Wave H closure: real wikisource fetcher persists action=raw
+    bytes with content_type ``text/x-wiki``; parser must accept that
+    label and strip wikitext templates while harvesting license tag."""
+
+    data = build_wikisource_wikitext_bytes()
+    raw = parse_wikisource_html(
+        data,
+        source_url="test://en.wikisource.org/wiki/Sample?action=raw",
+        content_type=WIKISOURCE_WIKITEXT_CONTENT_TYPE,
+    )
+    assert "photoelectric effect" in raw.text
+    # wikitext-only path: language is captured from the {{header|language=...}}
+    # template (no <html lang="..."> attribute available).
+    assert raw.language_detected == "en"
+    assert "PD-old" in raw.license_notice
+    assert raw.raw_sha256 == hashlib.sha256(data).hexdigest()
+
+
+def test_parse_wikisource_html_rejects_unrelated_content_type() -> None:
+    """The parser refuses content_type labels outside its two
+    registered constants — we don't want a silent fallthrough."""
+
+    data = build_wikisource_wikitext_bytes()
+    with pytest.raises(ValueError, match="content_type"):
+        parse_wikisource_html(
+            data,
+            source_url="test://x",
+            content_type="application/json",
+        )
 
 
 def test_parse_gutenberg_text_carves_around_markers() -> None:
@@ -116,6 +150,11 @@ def test_parse_by_content_type_dispatches_each_format() -> None:
         (
             WIKISOURCE_HTML_CONTENT_TYPE,
             build_wikisource_html_bytes(),
+            "photoelectric effect",
+        ),
+        (
+            WIKISOURCE_WIKITEXT_CONTENT_TYPE,
+            build_wikisource_wikitext_bytes(),
             "photoelectric effect",
         ),
         (

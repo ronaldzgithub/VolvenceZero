@@ -93,6 +93,33 @@ wrote about the photoelectric effect in 1905 in a famous paper.
     return html.encode("utf-8")
 
 
+def build_wikisource_wikitext_bytes() -> bytes:
+    """Raw wikitext payload (the ``?action=raw`` response shape).
+
+    Used by the L1 dispatcher contract: real wikisource crawls
+    that follow the ``action=raw`` path land bytes whose
+    declared ``content_type`` is ``text/x-wiki``; the dispatcher
+    must route those through :func:`parse_wikisource_html` (the
+    parser already handles both labels) — see Wave H closure.
+    """
+
+    wikitext = """{{header
+| title    = Annus Mirabilis Letter
+| author   = Albert Einstein
+| year     = 1905
+| language = en
+}}
+
+This is the body of a sample Wikisource transcription. Albert Einstein
+wrote about the photoelectric effect in 1905 in a famous paper.
+
+''Italic emphasis here'' and a [[link to another page|link]] inline.
+
+{{PD-old-100}}
+"""
+    return wikitext.encode("utf-8")
+
+
 def build_gutenberg_text_bytes() -> bytes:
     """Plain-text Gutenberg-shaped fixture with START/END markers."""
 
@@ -174,4 +201,5 @@ __all__ = [
     "build_gutenberg_text_bytes",
     "build_minimal_cpae_pdf_bytes",
     "build_wikisource_html_bytes",
+    "build_wikisource_wikitext_bytes",
 ]

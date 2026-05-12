@@ -42,6 +42,7 @@ from lifeform_domain_figure.cleaning.parsers.gutenberg import (
 )
 from lifeform_domain_figure.cleaning.parsers.wikisource_html import (
     WIKISOURCE_HTML_CONTENT_TYPE,
+    WIKISOURCE_WIKITEXT_CONTENT_TYPE,
     parse_wikisource_html,
 )
 from lifeform_domain_figure.cleaning.raw_document import RawDocument
@@ -75,7 +76,17 @@ def parse_by_content_type(
 
     if content_type == CPAE_PDF_CONTENT_TYPE:
         return parse_cpae_pdf(data, source_url=source_url, content_type=content_type)
-    if content_type == WIKISOURCE_HTML_CONTENT_TYPE:
+    if content_type in {
+        WIKISOURCE_HTML_CONTENT_TYPE,
+        WIKISOURCE_WIKITEXT_CONTENT_TYPE,
+    }:
+        # Wave H: the wikisource fetcher persists content_type
+        # ``text/x-wiki`` whenever the action=raw path succeeds
+        # (see ``crawl/fetchers/wikisource.py``); the parser
+        # accepts both labels but the dispatcher previously only
+        # registered the rendered-HTML profile, so re-cleaning
+        # real wikisource bytes failed loudly. Both content_type
+        # constants now land on the same parser.
         return parse_wikisource_html(
             data, source_url=source_url, content_type=content_type
         )
@@ -89,6 +100,7 @@ def parse_by_content_type(
         f"parse_by_content_type: no parser registered for content_type="
         f"{content_type!r}; expected one of "
         f"({CPAE_PDF_CONTENT_TYPE!r}, {WIKISOURCE_HTML_CONTENT_TYPE!r}, "
+        f"{WIKISOURCE_WIKITEXT_CONTENT_TYPE!r}, "
         f"{GUTENBERG_HTML_CONTENT_TYPE!r}, {GUTENBERG_TEXT_CONTENT_TYPE!r}, "
         f"{ARCHIVE_ORG_OCR_CONTENT_TYPE!r})"
     )
@@ -101,6 +113,7 @@ __all__ = [
     "GUTENBERG_TEXT_CONTENT_TYPE",
     "Parser",
     "WIKISOURCE_HTML_CONTENT_TYPE",
+    "WIKISOURCE_WIKITEXT_CONTENT_TYPE",
     "parse_archive_org_ocr_json",
     "parse_by_content_type",
     "parse_cpae_pdf",
