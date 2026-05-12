@@ -13,3 +13,10 @@
 	# see the path referenced here but cannot fetch the contents — that is by
 	# design. The harness in packages/companion-bench detects the missing
 	# directory and runs against public scenarios only.
+
+[submodule "research"]
+	path = research
+	url = https://github.com/ronaldzgithub/volvence-research.git
+	branch = main
+	# Paper PDFs, probe corpora, and research notes. PRIVATE: clone with
+	# credentials or deploy key; contributors without access skip submodule init.
