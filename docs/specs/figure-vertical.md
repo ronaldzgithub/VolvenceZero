@@ -144,7 +144,16 @@ flowchart TD
     Pool --> RuntimeForward
     RuntimeForward --> Output["生成文本 (持久 / 真带 figure 风格)"]
     Synth -->|"L3 GroundedDecoder post-verify"| L3Tag["evidence pointers tag"]
+    Bundle --> Verify["verification.persona harness (Wave O-P)"]
+    Pool --> Verify
+    Verify --> Verdict["4-gate verdict.json + transcript.md"]
 ```
+
+## Verifying voice + cognition
+
+Wave O-P 把这一切拼成一条 CI-runnable 验证管线：自动产题 → 三 condition ablation（raw / bundle / bundle+LoRA） → deterministic scoring (voice / cognition / refusal) → 4-gate verdict。详见 [`figure-persona-verification.md`](./figure-persona-verification.md)。
+
+一键调用：`bash scripts/figure_verify_einstein_persona.sh`。
 
 ## 与其他能力域的关系
 

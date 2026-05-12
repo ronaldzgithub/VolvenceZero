@@ -1198,6 +1198,16 @@ class LifeformSession:
         # outlives the scene. Terminal artifacts are preserved for
         # post-mortem observability (``thinking_adapter_snapshot``).
         await self._invoke_thinking_drain()
+        # Packet D follow-up (long-horizon-closure): persist the
+        # hydratable owners (semantic_state / followup_manager /
+        # vitals) so the next session opened against the same
+        # backend can pick up where this scene left off. This is a
+        # no-op when ``BrainConfig.owner_hydration_wiring`` is
+        # DISABLED OR when the MemoryStore has no persistence
+        # backend (anonymous session). Failures propagate as typed
+        # ``HydrationError`` per the no-swallow rule rather than
+        # silently dropping the persisted state.
+        self.persist_owners()
         return closed
 
     # ------------------------------------------------------------------

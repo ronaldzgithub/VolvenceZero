@@ -239,7 +239,7 @@ class AffordanceSelectionState:
 
 `lifeform-affordance/module.py:AffordanceModule` 实现：
 
-- `slot_name = "affordance"`，`dependencies = ("temporal_abstraction",)`，**默认 `WiringLevel.SHADOW`**
+- `slot_name = "affordance"`，`dependencies = ("temporal_abstraction",)`，**默认 `WiringLevel.ACTIVE`**（long-horizon-closure follow-up）
 - `process()` 的优先级：
   1. 若 metacontroller 已发布 `affordance_selection`，直接采用（future path）
   2. 否则用 `score_affordance_candidates(z_t=temporal_snapshot.controller_state.code, descriptor_names=...)` 在本地做投影
@@ -354,11 +354,11 @@ Invariants:
 
 ## 回滚
 
-`AffordanceModule.WiringLevel`：
+`AffordanceModule.WiringLevel`（long-horizon-closure follow-up：默认 `ACTIVE`）：
 
-- `DISABLED`（v0 默认）：注册表为空，prompt 不渲染 affordance
-- `SHADOW`：注册表加载，metacontroller 评分发布到 snapshot，但 invoker 不实际调用
-- `ACTIVE`：invoker 启用
+- `ACTIVE`（**当前默认**）：注册表加载，metacontroller 评分发布到 snapshot，invoker 启用
+- `SHADOW`：评分发布但 invoker 不实际调用（benchmark ablation 用）
+- `DISABLED`：注册表为空，prompt 不渲染 affordance（rollback 用）
 
 每个 vertical 独立 wiring level（`coding_affordance_wiring` / `companion_affordance_wiring`），互不影响。
 
@@ -372,7 +372,8 @@ Invariants:
 
 ## 变更日志
 
-- 2026-05-12: Packet C (long-horizon-closure) — landed `AffordanceModule` (lifeform-affordance/module.py, default SHADOW wiring), `AffordanceSelectionState` dataclass + `MetacontrollerRuntimeState.affordance_selection` reserved field in vz-temporal, pure-function `score_affordance_candidates` z_t→name SHA-256 projection. New acceptance gates `affordance-scoring-from-metacontroller` (functional) and the existing `selection-is-learned-not-hardcoded` is now backed by static contract test `tests/contracts/test_no_keyword_routing.py` plus contract / e2e tests. `FinalRolloutConfig.affordance: WiringLevel = SHADOW` field added (additive, no kernel propagate change yet).
+- 2026-05-12: long-horizon-closure follow-up — `AffordanceModule.default_wiring_level` 与 `FinalRolloutConfig.affordance` 默认从 SHADOW 翻 ACTIVE，合并入正常主路径而非 opt-in。Benchmark 仍可显式 SHADOW；DISABLED 留作 rollback。
+- 2026-05-12: Packet C (long-horizon-closure) — landed `AffordanceModule` (lifeform-affordance/module.py), `AffordanceSelectionState` dataclass + `MetacontrollerRuntimeState.affordance_selection` reserved field in vz-temporal, pure-function `score_affordance_candidates` z_t→name SHA-256 projection. New acceptance gates `affordance-scoring-from-metacontroller` (functional) and the existing `selection-is-learned-not-hardcoded` is now backed by static contract test `tests/contracts/test_no_keyword_routing.py` plus contract / e2e tests. `FinalRolloutConfig.affordance: WiringLevel` field added (additive, no kernel propagate change yet — lifeform layer reads the flag).
 - 2026-05-12: Packet A (long-horizon-closure) — added `plan_ref` parameter to `AffordanceInvoker.invoke` threaded all the way to `PredictionActionContext.prediction_id` next turn; new acceptance gate `affordance-outcome-carries-prediction-id` and `tests/lifeform_e2e/test_affordance_pe_lineage.py`. Back-compat path (`plan_ref=None`) unchanged.
 - 2026-05-02: Rewrote Phase 1 clean gates as `affordance-selection-no-rules` / `affordance-outcome-observable-only` / `affordance-snapshot-replay-compatible`, aligned with the ETA/NL-first `emergent-action-abstraction` spec.
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 1 设计冻结。

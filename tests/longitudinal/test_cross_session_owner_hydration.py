@@ -333,26 +333,39 @@ def test_cross_user_isolation_after_owner_hydration(
     assert bob_records == ()
 
 
-def test_owner_hydration_disabled_by_default_does_not_persist(
+def test_owner_hydration_default_is_active_for_a_fresh_brain_config() -> None:
+    """Long-horizon-closure follow-up: a fresh ``BrainConfig`` must
+    default to ``owner_hydration_wiring=ACTIVE`` so production
+    deployments do not silently fall back to "every session starts
+    from scratch". Operators that want the old behavior must
+    explicitly set ``WiringLevel.DISABLED``.
+    """
+    config = BrainConfig()
+    assert config.owner_hydration_wiring is WiringLevel.ACTIVE, (
+        "Owner hydration default flipped: this test guards the "
+        "production-grade default. If you intentionally rolled it back, "
+        "update the test along with the change."
+    )
+
+
+def test_owner_hydration_explicit_disabled_does_not_persist_or_hydrate(
     tmp_path: Path,
 ) -> None:
-    """Default ``BrainConfig`` (owner_hydration_wiring=DISABLED) must
-    NOT hydrate or persist anything. This guards against accidentally
-    flipping the flag on without an explicit opt-in.
+    """When an operator explicitly sets ``owner_hydration_wiring=DISABLED``,
+    no hydration / persistence happens even on the same scope_root +
+    user_id path. This is the rollback escape hatch.
     """
     identity = UserIdentity(user_id="alice", scope_key="alice")
-    # NOTE: explicitly DISABLED (the default; we set it for clarity).
     config = BrainConfig(
         memory_scope_root_dir=str(tmp_path),
         owner_hydration_wiring=WiringLevel.DISABLED,
     )
     brain = Brain(config, identity_provider=StaticIdentityProvider(identity=identity))
     session = brain.create_session(session_id="alice-disabled")
-    # Drive a commitment, persist (no-op), tear down.
     _drive_commitment_to_reject(session.runner)
     persisted = session.persist_owners()
     assert persisted == (), (
-        "Owner hydration disabled should make persist_owners a no-op; "
+        "Owner hydration DISABLED should make persist_owners a no-op; "
         f"got {persisted!r}."
     )
     del session

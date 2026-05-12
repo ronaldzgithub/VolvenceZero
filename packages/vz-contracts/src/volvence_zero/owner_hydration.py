@@ -19,8 +19,11 @@ storage layout, migration path, rollback). The summary is:
   prefix ``owner_hydration/<owner_name>``.
 - Hydration failures MUST be typed exceptions, never silent fallbacks
   (``no-swallow-errors-no-hasattr-abuse`` rule).
-- Rollback is by ``BrainConfig.owner_hydration_wiring`` flipping back
-  to ``DISABLED``; old call sites and stored payloads stay untouched.
+- ``BrainConfig.owner_hydration_wiring`` defaults to ``ACTIVE`` after
+  the long-horizon-closure follow-up; flipping back to ``DISABLED``
+  is the operator escape hatch when an entire deployment needs to
+  fall back to "every session is fresh". Stored payloads stay
+  untouched on the backend regardless of the flag.
 """
 
 from __future__ import annotations

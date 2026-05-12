@@ -76,20 +76,27 @@ def test_affordance_module_satisfies_runtime_module_contract() -> None:
     assert module.owner == "AffordanceModule"
     assert module.value_type is AffordanceSnapshot
     assert module.dependencies == ("temporal_abstraction",)
-    # Default wiring level is SHADOW per spec.
-    assert module.default_wiring_level is WiringLevel.SHADOW
-    assert module.wiring_level is WiringLevel.SHADOW
+    # Default wiring level is ACTIVE post long-horizon-closure: the
+    # module publishes its z_t-driven snapshot so downstream
+    # consumers can pick it up without an explicit opt-in.
+    assert module.default_wiring_level is WiringLevel.ACTIVE
+    assert module.wiring_level is WiringLevel.ACTIVE
 
 
-def test_affordance_module_explicit_active_wiring_level_overrides_default() -> None:
-    """The class default is SHADOW but callers can opt in to ACTIVE
-    (or DISABLED) at construction time without subclassing.
+def test_affordance_module_explicit_shadow_wiring_level_overrides_default() -> None:
+    """The class default is ACTIVE but callers can opt to SHADOW
+    (or DISABLED) at construction time for benchmark ablations
+    without subclassing.
     """
     registry = _registry_with_descriptors("read_file")
-    active_module = AffordanceModule(
-        registry=registry, wiring_level=WiringLevel.ACTIVE
+    shadow_module = AffordanceModule(
+        registry=registry, wiring_level=WiringLevel.SHADOW
     )
-    assert active_module.wiring_level is WiringLevel.ACTIVE
+    assert shadow_module.wiring_level is WiringLevel.SHADOW
+    disabled_module = AffordanceModule(
+        registry=registry, wiring_level=WiringLevel.DISABLED
+    )
+    assert disabled_module.wiring_level is WiringLevel.DISABLED
 
 
 def test_affordance_module_cold_start_publishes_neutral_snapshot() -> None:

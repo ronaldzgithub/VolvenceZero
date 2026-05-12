@@ -94,16 +94,27 @@ class BrainConfig:
     # no-cross-session-memory behavior.
     memory_scope_root_dir: str | None = None
     # Packet D (long-horizon-closure): cross-session owner hydration
-    # wiring level. DISABLED preserves current behavior verbatim
-    # (each session starts with fresh SemanticStateStore /
-    # FollowupManager / VitalsModule). SHADOW writes hydration
-    # payloads after each turn / scene close but does NOT load on
-    # session create. ACTIVE both writes AND loads. The hydration
-    # store reuses the MemoryStore.persistence_backend; flipping
-    # this flag is safe because the hydration keys
-    # (``owner_hydration/<owner_name>``) do not collide with the
-    # memory checkpoint key.
-    owner_hydration_wiring: WiringLevel = WiringLevel.DISABLED
+    # wiring level. ACTIVE is the production-grade default — long
+    # horizon continuity is the whole point of the lifeform shape,
+    # so a fresh BrainConfig should not silently fall back to
+    # "every session starts from scratch". Concretely:
+    #
+    # * DISABLED — turns the entire hydration path off (also the
+    #   no-side-effects test escape hatch). No OwnerHydrationStore is
+    #   constructed; persist_owners returns ().
+    # * SHADOW — writes hydration payloads after each turn / scene
+    #   close but does NOT load on session create. Useful when an
+    #   operator wants to observe round-trip behavior in logs before
+    #   actually picking up persisted state.
+    # * ACTIVE (default) — both writes AND loads. Anonymous sessions
+    #   without a persistence backend are still safe (the store is
+    #   only constructed when the MemoryStore has a backend, which
+    #   requires identity + memory_scope_root_dir).
+    #
+    # The hydration store reuses the MemoryStore.persistence_backend;
+    # the hydration keys (``owner_hydration/<owner_name>``) do not
+    # collide with the memory checkpoint key.
+    owner_hydration_wiring: WiringLevel = WiringLevel.ACTIVE
 
 
 class BrainSession:

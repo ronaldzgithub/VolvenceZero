@@ -296,13 +296,14 @@ class FinalRolloutConfig:
     protocol_reflection: WiringLevel = WiringLevel.SHADOW
     protocol_revision_queue: WiringLevel = WiringLevel.SHADOW
     # Packet C (long-horizon-closure): AffordanceModule wiring level.
-    # SHADOW by default — the module publishes the ``affordance`` slot
-    # but no kernel consumer reads it yet. Promotion to ACTIVE
-    # requires a downstream consumer (prompt planner) plus matched-
-    # control evidence, which is a future packet. SHADOW means
-    # AffordanceModule.process can be called for telemetry without
-    # affecting other modules' outputs.
-    affordance: WiringLevel = WiringLevel.SHADOW
+    # ACTIVE is the production-grade default. The kernel propagate
+    # graph itself does not yet construct an AffordanceModule
+    # (registry lives in lifeform-affordance, which the kernel cannot
+    # import); the lifeform layer constructs the module and consumes
+    # this flag as the hint to publish the snapshot to its prompt
+    # planner. Use SHADOW to keep the module silent in benchmark
+    # ablations; DISABLED to skip module construction entirely.
+    affordance: WiringLevel = WiringLevel.ACTIVE
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:

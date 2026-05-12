@@ -546,6 +546,48 @@ class RuntimePlaceholderValue:
     detail: str
 ```
 
+### 2.12.1 Owner Hydration Contract（跨 session owner 续接，Packet D — long-horizon-closure）
+
+**所在 wheel**：`vz-contracts` 提供协议；`vz-cognition` / `lifeform-core` 实现；`vz-runtime` 编排
+
+```python
+@dataclass(frozen=True)
+class OwnerPersistenceSnapshot:
+    owner_name: str            # stable owner identifier
+    schema_version: int         # owner-internal
+    payload: Mapping[str, Any]  # JSON-serialisable
+    description: str = ""
+
+class HydratableOwnerProtocol(Protocol):
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot: ...
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None: ...
+
+# Typed exceptions (fail-loud, never silent fallback):
+class HydrationError(Exception): ...
+class HydrationVersionMismatchError(HydrationError): ...
+class HydrationPayloadInvalidError(HydrationError): ...
+class HydrationOwnerMismatchError(HydrationError): ...
+```
+
+**Persistence backend key 前缀**：`owner_hydration/<owner_name>` 写入与 `MemoryStore` 同一 `PersistenceBackend`（`memory/store` 是 MemoryStore 的；`owner_hydration/...` 是这层的，互不冲突）。当前已落地三个 hydratable owner：
+
+- `owner_hydration/semantic_state` — 9 个 SemanticStateStore slot
+- `owner_hydration/followup_manager` — FollowupManager 的 pending queue / dedup keys / counter
+- `owner_hydration/vitals` — VitalsModule 的 drive levels / 提前提示 / IQR baseline
+
+**关键不变量**：
+
+- 每个 hydratable owner 自己实现 export / hydrate；外部 store 不直写 owner 内部
+- `BrainConfig.owner_hydration_wiring: WiringLevel = ACTIVE` 默认（long-horizon-closure follow-up）；`SHADOW` 写不读，`DISABLED` 完全关闭
+- `OwnerHydrationStore`（`vz-runtime/owner_hydration_store.py`）是编排器，复用 `MemoryStore.persistence_backend`；只在 `BrainConfig.owner_hydration_wiring != DISABLED` 且 backend 存在时构造（anonymous session 自然 no-op）
+- `LifeformSession.end_scene` 自动调用 `persist_owners()`，scene 边界写出 hydration payload
+- 跨 user 隔离继承自 `MemoryStore` 的 per-user scope key 路径（`build_scoped_memory_store`）
+- 所有 hydration 失败抛 typed `HydrationError` 子类，禁止 bare `except`
+
+详见 [docs/specs/owner-hydration.md](specs/owner-hydration.md)。Acceptance：`tests/contracts/test_owner_hydration_protocol.py` + `tests/contracts/test_owner_hydration_failures_loud.py` + `tests/longitudinal/test_cross_session_owner_hydration.py`。
+
 ### 2.13 Lifeform-side Vitals Contract（生命体侧 always-on PE 契约）
 
 **所在 wheel**：`lifeform-core`（不进入内核运行时 slot 注册表）

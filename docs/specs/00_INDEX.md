@@ -502,6 +502,27 @@
 
 ---
 
+### 20. Owner Hydration (Packet D — long-horizon-closure)
+
+**对应需求**：R5（连续记忆）, R6（反思与沉淀）, R8（快照优先 / 单一所有者）, R11（内部状态可发布）, R15（迁移可解释性 + 可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [owner-hydration.md](./owner-hydration.md) | `HydratableOwnerProtocol` 协议 + `OwnerPersistenceSnapshot` 类型 + `BrainConfig.owner_hydration_wiring` 三态 + 三个首批 hydratable owner（`SemanticStateStore` / `FollowupManager` / `VitalsModule`）跨 session 续接 |
+
+**核心不变量**：
+
+- 每个 hydratable owner 自己实现 `export_persistence_snapshot()` / `hydrate_from_persistence(...)`，外部 store 不直写 owner 内部
+- 复用 `MemoryStore.persistence_backend`，新加 key 前缀 `owner_hydration/{owner_name}`
+- hydration 失败必须抛 typed `HydrationError` 子类（fail-loudly，不允许 bare except）
+- `BrainConfig.owner_hydration_wiring: WiringLevel = ACTIVE` 默认（long-horizon-closure follow-up）；`SHADOW` = export+log 不 import；`DISABLED` = 完全关闭
+- 跨 user 隔离继承自 `MemoryStore` 的 per-user scope key 路径
+- `LifeformSession.end_scene` 自动调用 `persist_owners()`（anonymous / 无 backend 时 no-op）
+
+来源：long-horizon-closure Packet D（2026-05-12）。Acceptance：`tests/contracts/test_owner_hydration_protocol.py` + `tests/contracts/test_owner_hydration_failures_loud.py` + `tests/longitudinal/test_cross_session_owner_hydration.py`。
+
+---
+
 ### 19. DLaaS Platform Layer（治理 / 编排基底，新增第三层 wheel 前缀）
 
 **对应需求**：R2（稳定基底 + 自适应控制器）、R4（控制不在 token 空间）、R8（快照优先 / 单一所有者）、R11（内部状态可发布）、R15（迁移可解释性 + 可回滚）

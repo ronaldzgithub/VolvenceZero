@@ -84,6 +84,14 @@ Each boundary exists to protect one invariant, not to mirror a directory layout:
    free-text heuristics may exist only as explicitly local diagnostics.
 5. Move a wheel boundary only when `SPLIT.md` trigger conditions and evidence gates
    justify the cost.
+6. New hydratable owners must implement `volvence_zero.owner_hydration.HydratableOwnerProtocol`
+   (`export_persistence_snapshot` / `hydrate_from_persistence`) and ship a
+   round-trip contract test alongside the implementation. See
+   `docs/specs/owner-hydration.md`. Owners that do not implement the protocol
+   simply do not participate in cross-session hydration; the kernel does not
+   require it. When implementing it, hydration failures must use typed
+   `HydrationError` subclasses (no silent fallbacks per
+   `.cursor/rules/no-swallow-errors-no-hasattr-abuse.mdc`).
 
 ## Document Map
 

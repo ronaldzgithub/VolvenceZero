@@ -39,11 +39,12 @@ Hard invariants:
    behavior. Static contract test
    ``tests/contracts/test_no_keyword_routing.py`` enforces this at
    the repo level.
-2. **Default ``WiringLevel`` is SHADOW.** This module publishes the
-   ``affordance`` snapshot but the rest of the kernel does not yet
-   consume it. Promotion to ACTIVE requires a downstream consumer
-   (prompt planner / response synthesizer wiring) plus matched-control
-   evidence — that is a future packet, not Packet C.
+2. **Default ``WiringLevel`` is ACTIVE** (long-horizon-closure follow-up).
+   The module publishes the ``affordance`` snapshot from its own
+   z_t projection so a downstream prompt planner / response
+   synthesizer can pick it up without an explicit opt-in. Use
+   SHADOW for benchmark ablations that need a quiet module;
+   DISABLED to suppress construction entirely.
 3. **Reads only public ``temporal_abstraction`` snapshot.** The
    module never reaches into temporal owner internals; it only uses
    ``controller_state.code`` (the public z_t) plus optionally the
@@ -252,7 +253,7 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
     owner = "AffordanceModule"
     value_type = AffordanceSnapshot
     dependencies = ("temporal_abstraction",)
-    default_wiring_level = WiringLevel.SHADOW
+    default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(
         self,
