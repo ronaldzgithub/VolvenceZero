@@ -352,6 +352,16 @@ Invariants:
 | 协作 | Domain Experience Layer | vertical 自带 affordances，与 DomainExperiencePackage 同包发布 |
 | 协作 | 评估体系 | F1 / F4 / F5 / F6 都受影响 |
 
+## MCP-backed Affordances（mcp-tools-bundle-bridge packet）
+
+External MCP servers（[`docs/specs/mcp-bridge.md`](mcp-bridge.md)）可以贡献第二级 affordance 来源：
+
+- 每个 MCP server 的 `tools/list` → `AffordanceDescriptor`，descriptor name 加 server name 前缀（`<server>.<tool>`）
+- `safety_model` / `cost_model` / `when_to_use` / `when_not_to_use` **必须**来自外部 repo 的 reviewed `.vzbridge.yaml`；缺则 `MCPMissingSafetyManifestError`
+- MCP-supplied tools 与 in-process tools 共享同一 `AffordanceRegistry` 与 `AffordanceInvoker`；选择仍由 `AffordanceModule` z_t 投影驱动（无"MCP 优先"硬路由）
+- MCP server crash → 该 server 的 candidate 在 snapshot 中带 `blocked_reason="mcp_unavailable:<server>"`；主进程不崩
+- bridge 实现在 `lifeform-mcp-bridge` wheel；wheel 边界禁止反向 import `vz-*` 内核
+
 ## 回滚
 
 `AffordanceModule.WiringLevel`（long-horizon-closure follow-up：默认 `ACTIVE`）：

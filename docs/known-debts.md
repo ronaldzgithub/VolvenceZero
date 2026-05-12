@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-12 (Figure-Vertical 端到端验证管线 land — Wave N-P; 真 Einstein 语料 + LoRA + 三 condition ablation + 4-gate verdict 全部 land)
+> Last updated: 2026-05-12 (Figure-Vertical 端到端验证管线 land + 真跑诊断 — Wave N-P + Wave Q dry-run; 4 道 gate 真跑数据已记录到 debt #39-#42)
+
+> 2026-05-12 update (Figure-Vertical persona verification dry-run — Wave Q): 把 Wave N-P 装好的管线在真 Wave K curated bundle (`figure-bundle:einstein:29eacd226a7cdfd0`, 444 chunks) + tiny-gpt2 substrate + 真 Wave N curated synthetic LoRA (`persona-lora:einstein:61c93126a0b2e98c`) 上跑了一次完整 verification（5 道 in-corpus + 5 道 out-of-scope，artifact 落 `artifacts/figure_verify/einstein-tinygpt2-curated/`）。**结果**：4/4 gates 全 FAIL，退出码 2。这是诚实的输出 —— 验证管线在配置不到位时就该报告 fail，不是 bug。**真跑暴露的 4 个具体债务（追踪在 #39-#42）**：(a) `default_persona_lora_pool()` 是 process-local，bake CLI 进程退出后 verify 进程看不到 → 已就地修了 `_ensure_pool_has_bundle_lora` 在 verify 入口自动从 `bundle.lora` 派生 register（不破 R8 wheel boundary，只读公开 `FigureLoRAArtifact` 字段）；(b) `bundle.coverage_map` 在 Wave K curated bundle 上**过严**：transcript 显示 in-corpus 关于 "relativity / postulate / theory" 的题被 L4 ScopeRefuser 当 OOS 短路 —— 真 production bug，记 #39；(c) synthetic LoRA backend 的 hash-derived 常数 delta 经过 tiny-gpt2 LayerNorm 被吃掉 → bundle ≡ bundle_lora（Wave D `_aggressive_persona_layers` 已知；要 voice gate 量化通过得用真 PEFT-trained LoRA on Qwen），记 #40；(d) tiny-gpt2 ~10M params 不能 model Einstein → cognition_score ≡ 0、L3 evidence ≡ 0；要 cognition / evidence gate 通过必须真 Qwen-1.5B + 真 PEFT bake（这台 Win/CPU 跑不动），记 #41；(e) reviewer-curated 5 道 OOS 探针只 60% 触发 L4 拒答（差 1 道 = 1/5 = 20%），threshold 80% 在小样本上离散度过粗，记 #42。**Wave Q 不是新代码 wave**，是真跑 + 诊断 + 把诊断写回 debt ledger 的运维步骤。verify CLI 修补已落库（`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/cli.py:_ensure_pool_has_bundle_lora`），smoke test 6/6 全绿。
 
 > 2026-05-12 update (Figure-Vertical 端到端口气+认知验证管线 Wave N-P): 把 [`docs/specs/figure-persona-verification.md`](specs/figure-persona-verification.md) 从想法推进到 CI-runnable 自动化验证管线。**Wave N** `bake-lora --corpus-mode curated`：`cmd_bake_lora` 加 curated 分支，`load_curated_corpus_from_cleaning_store` 从 Wave K cleaning store + curator metadata 派生真 envelope 集合 → LoRA 训练数据与 curated bundle 的 domain_package 严格一致；`scripts/figure_bake_einstein_persona_lora.sh` 一键调用（CLI 默认 tiny-gpt2，real run 用 Qwen2.5-1.5B-Instruct）。**Wave O** `lifeform_domain_figure.verification.persona` 子包：(a) `generate_in_corpus_questions` 按 chunk_id 排序遍历 `bundle.retrieval_index.chunk_records` 用固定模板派生 ≤ 20 道立场题 + reviewer-curated `OUT_OF_SCOPE_REFUSAL_QUESTIONS` 5 道（tiramisu / sourdough / Python / car / pop song）；(b) `with_condition` 三条 context manager — RAW (no bundle) / BUNDLE (bundle but pool 临时摘 LoRA) / BUNDLE_LORA (默认 activate)；(c) `run_ablation` 跑 conditions × questions 全网格；(d) deterministic 三族 score：voice (`top80 overlap` × 0.6 + `sentence-length p50 match` × 0.4) / cognition (retrieval_index `assertion_is_supported` 在 GT chunk 上的 cosine) / refusal (`l4_scope_refusal` tag + reviewer-written preamble)；(e) 4-gate verdict — `gate_cognition_improves` (Δ ≥ 0.05) / `gate_voice_improves_with_lora` (Δ ≥ 0.02，载荷性 gate) / `gate_refusal_works` (≥ 0.80) / `gate_evidence_emerges` (≥ 1)，全 deterministic 不依赖 LLM judge。**Wave P** CLI driver `python -m lifeform_domain_figure.verification.persona.cli` 输出 `artifacts/figure_verify/<run_id>/{questions.jsonl, results/<cond>.jsonl, scores.json, verdict.json, transcript.md}`；`scripts/figure_verify_einstein_persona.sh` 端到端编排（默认顺带跑 bake-lora，可 SKIP_BAKE=1）；6 case synthetic-substrate smoke 测试 + `@pytest.mark.hf` 真 Transformers runtime 测试（CI skip）；新 `docs/specs/figure-persona-verification.md` + `figure-vertical.md` mermaid 同步。**Follow-up debts**：(a) voice score 现用 hashing-embedding overlap，未来希望升级到 substrate residual cosine —— 真在 forward 上抽 voice 信号才比 lexical proxy 准；(b) 4 个 gate 阈值是 Wave P 经验值（`cognition_delta=0.05`、`voice_delta=0.02`、`refusal_min=0.80`、`evidence_min=1`），等积累足够多 verdict run 后用 ROC 校准而不是 hand-tune。
 
@@ -1169,6 +1171,90 @@ return (
   5. **(b) `lscb` keyword + footnote 清理**（~10 分钟）：~2027-Q1 minor bump 时一并改
   6. **(e) judge_calibration.json 改为真数据**（依赖 [#33](#33) sub-track 1+2 完成）：[`scripts/companion_bench/`](../scripts/companion_bench/) 加 `score_judge_calibration.py` 把人评 study 输出转成 `judge_calibration.json` schema
 - **优先级**：**中-低**（[#32](#32) sub-track 1 是入口；本债的 6 条按 ROI 排序，1-3 在 sub-track 1 同窗口完成；4-5 等 release 节奏；6 等 [#33](#33) 推进）
+
+---
+
+## 39. Wave K curated bundle 的 `coverage_map` 过严：in-corpus 题被 L4 ScopeRefuser 当 OOS 拒掉
+
+- **路径**：Wave Q dry-run（`artifacts/figure_verify/einstein-tinygpt2-curated/transcript.md`）显示，针对 Wave K curated bundle 的真 corpus chunk 派生的 in-corpus 立场题 —— prompt 形如 *"Speaking from your own primary writings, what is your perspective on the relationship between principal, considerations, postulate, relativity?"* —— 在 `BUNDLE` / `BUNDLE_LORA` 条件下被 L4 短路到 `"I'm sorry — that topic falls outside what this figure documented in their primary sources."`，rationale tag `l4_scope_refusal`。可这些题的 ground-truth chunk 就是这个 bundle 自己的 paper（`paper:wikisource:en:the_foundation_of_the_generalised_theory_of_relativity:...`）。这意味着 [`packages/lifeform-domain-figure/src/lifeform_domain_figure/coverage_map.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/coverage_map.py) 在真 Wave K corpus（2 篇 substantive paper, 444 chunks）上的 coverage scoring 阈值偏紧 —— 大概率是 hashing-embedding cosine 在小 corpus 上离散度过低 + `STRICT_REFUSE` 拍门阈值过高，导致 retrieval index 自己的 chunk 也通不过 coverage 自检。
+- **问题**：直接结果是 `gate_cognition_improves` 永远 fail（响应文本是固定 refusal 模板，跟 GT chunk cosine 当然 0.00）+ `gate_evidence_emerges` 永远 fail（refusal 不调 GroundedDecoder）。**这不是验证管线的 bug —— 是 figure-vertical L4 enforcement 在真 curated bundle 上的真 production bug，被 verification harness 第一次跑就抓到了。**
+- **违反**：不直接违反 R 铁律。这是 L4 实现 quality 缺陷：`coverage_policy=STRICT_REFUSE` 应该只对**严格 OOS** 短路，不应对**自己 corpus 涵盖的 topic** 短路。当前对真 corpus 的 false-positive 率太高。
+- **风险**：
+  - **短期高**：阻塞 `gate_cognition_improves` + `gate_evidence_emerges` 在真 Wave K bundle 上 PASS。在 fix 这条之前 verification verdict 永远 4-fail，无法证明 cognition 链路通。
+  - **中期高**：DLaaS 上线 Einstein lifeform 时用户问 "what is your view on relativity" → 收到 "that topic falls outside" 是 product-breaking 体验。
+  - **长期中**：相同的 coverage_map 阈值 logic 一旦复用到第二个 figure（比如 lu_xun），同 bug 复发。
+- **触发条件**：本 dry-run 已触发；任何对真 curated bundle 跑 `verification.persona.cli` 都会触发。
+- **推荐修法**（两条任选其一，或并行）：
+  1. **降低 `STRICT_REFUSE` 阈值 / 提供更友好的回退** —— 给 `coverage_map.evaluate(query)` 加一档 `SOFT_DISCLAIM` 或 `LOW_CONFIDENCE_PASS`：当 query top-k retrieval 命中至少 1 个 chunk 但 coverage_score 在 `[soft_min, strict_min)` 之间时不短路，让生成跑完后由 L3 GroundedDecoder 决定是否标 evidence；只有当 retrieval **零命中** 才 STRICT_REFUSE。这条最快，~半天。
+  2. **重新 calibrate Wave K bundle 的 coverage_map 构造**：[`build_figure_coverage_map`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/coverage_map.py) 在 444-chunk 真 corpus 上 emit 的 topic vector 太窄 —— 检查 `top_topic_terms` 是否被 stop-word + 通用 physics 词污染；扩 `term_list` 加上 corpus 显式频次最高的 50 个 physics 名词（"relativity / postulate / aether / inertia / equivalence / ..."）。~1 天。
+  3. **回归测试**：[`packages/lifeform-domain-figure/tests/test_coverage_map_self_consistency.py`](../packages/lifeform-domain-figure/tests/test_coverage_map_self_consistency.py)（新）—— 给一个真 curated bundle，断言 *bundle 自己 retrieval_index 里 ≥ 80% 的 chunk locator 经过 coverage_map.evaluate 不会 STRICT_REFUSE*。这个 contract 加上后，本 debt 就不会再无声复发。
+- **优先级**：**中-高**（直接阻塞 #41 真 Qwen 跑分时 gate 通过；推荐先做 (1) 快速救急 + (3) contract test，再排 (2)）
+
+---
+
+## 40. Synthetic LoRA backend 的常数 delta 经过 LayerNorm 被吃掉：BUNDLE 与 BUNDLE_LORA forward 不可区分
+
+- **路径**：Wave Q dry-run 显示 `bundle.voice_score == bundle_lora.voice_score`（0.272 vs 0.272，Δ=0.0），原因是 [`SyntheticLoRABakeBackend.bake`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora.py) 派生的 adapter delta 是从 `training_plan_hash` 派生的**常数 vector**（per-layer 全位置同值）；tiny-gpt2 的 `LayerNorm` 在 forward 时会把 mean 减掉 → 常数 delta 进 LayerNorm 出来变 0。Wave D 实测时已经知道这点（[`packages/vz-substrate/tests/test_lora_aware_runtime_smoke.py::_aggressive_persona_layers`](../packages/vz-substrate/tests/test_lora_aware_runtime_smoke.py) 故意用交替正负 delta 才能产生可观测 logit shift）。
+- **问题**：`gate_voice_improves_with_lora` 是这套验证里**载荷性 gate** —— 它专门用来证明 "LoRA 真改了 forward" —— 但在 synthetic backend 上永远 Δ=0.00，gate 永远 fail。production 路径（PEFT-trained LoRA on Qwen）不会有这个问题，但 SHADOW 部署 + CI 默认全是 synthetic backend，所以这个 gate 在默认配置下基本是死的。
+- **违反**：不违反 R 铁律。是 synthetic backend 的可观测性缺陷：synthetic 的本意是 "确定性、CPU-friendly、跨机器 byte-identical"，但**没有要求 forward 上必须可观测**。
+- **风险**：
+  - **短期低**：`gate_voice_improves_with_lora` 在 PEFT backend + 真 Qwen 跑分时（[#41](#41)）会自动恢复正常；synthetic 路径只是看不到 LoRA 真改。
+  - **中期中**：reviewer 看 SHADOW verdict 容易误判 "LoRA 没起作用 / pool 没注册" —— 看 `verdict.json.notes` 区分 BUNDLE_LORA fall-through 还是 forward 没观测到。
+  - **长期低**：真上线一定走 PEFT，本 debt 自然消解。
+- **推荐修法**：
+  1. **Synthetic backend 派生 alternating delta**：把 [`SyntheticLoRABakeBackend.bake`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/lora.py) 的 delta 从常数改成"按位置交替正负 + 散布"（参考 Wave D 的 `_aggressive_persona_layers` 模式）；保持 `training_plan_hash` 派生 byte-identical 不变（同 hash → 同 delta），但 LayerNorm 后剩余可观测 shift。~半天。
+  2. **`gate_voice_improves_with_lora` 加 `min_substrate_observability` 门**：当 backend 是 synthetic 时把 voice gate 标 `skipped:synthetic_backend_layer_norm_eats_delta` 而不是 `failed`；只在 PEFT backend 上要求 Δ ≥ threshold。这样 SHADOW verdict 不会假阴。~半天。
+  3. **回归测试**：[`packages/vz-substrate/tests/test_synthetic_lora_post_layernorm_observability.py`](../packages/vz-substrate/tests/test_synthetic_lora_post_layernorm_observability.py)（新）—— 给 synthetic LoRA + tiny-gpt2，跑 forward 一次断言 logit Δ > 1e-6。配合 (1) 同时 land。
+- **优先级**：**中**（不阻塞 [#41](#41) 真 Qwen 跑通；阻塞 SHADOW 路径下的 verdict 信号质量）
+
+---
+
+## 41. 真 Qwen-1.5B PEFT bake + verification 跑分未执行（cognition / evidence gate 通过的硬前提）
+
+- **路径**：Wave N-P 装好的管线**理论上**支持真 Qwen-1.5B PEFT bake（[`scripts/figure_bake_einstein_persona_lora.sh`](../scripts/figure_bake_einstein_persona_lora.sh) 默认 env 已留 `QWEN_MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct` + `PEFT_TARGET_MODULES=q_proj,k_proj,v_proj,o_proj` slot），但 Wave Q dry-run 用 tiny-gpt2 (~10M params) 跑 —— 这台开发机 Win/CPU 跑不动 1.5B model 的 PEFT 训练 + 推理（峰值 6-8 GB RAM + 数小时 CPU 时间）。结果：`raw / bundle / bundle_lora` 三条 condition 在 in-corpus 题上 cognition_score 全 0、L3 evidence_count 全 0；tiny-gpt2 emit 的是 boilerplate fallback "I can stay with the current context..." 而不是 Einstein 内容。
+- **问题**：cognition gate + evidence gate 通过的**硬前提**是 substrate 真能模型 Einstein —— tiny-gpt2 太小做不到，Qwen-1.5B 是最低门槛。本 debt 跟踪 "把 Wave N-P 管线在真 GPU + 真 Qwen 上跑一遍"。
+- **违反**：不违反 R 铁律。这是**资源 / 运维债**，不是代码债。代码层 Wave N-P 已就位。
+- **风险**：
+  - **短期中**：在真 Qwen 跑分前，无法对外宣称 "Einstein vertical 真有 Einstein 的口气和认知" —— 只能说 "管线就位，等 GPU"。这是融资 / 招募侧的 evidence gap。
+  - **中期高**：跟 [#37 EQ-Bench 3 P10 actuation](#37) 同样的 GPU 资源约束 —— 本债跟 #37 共享一台 GPU 时间；优先做哪个取决于 evidence-gap 优先级。
+  - **长期低**：一旦做了一次完整跑分（见下方 reproduction recipe），随后只在 Wave K corpus 重大变动时才需重跑。
+- **触发条件**：任何 GPU 实例（A10 / L4 / RTX4090 任一）+ 1 小时空闲就能跑一遍。
+- **推荐修法**（reproduction recipe）：
+  ```bash
+  # 1. 真 Qwen + 真 PEFT bake（~30 min on 1× A10 / L4）
+  QWEN_MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct \
+  PEFT_TARGET_MODULES=q_proj,k_proj,v_proj,o_proj \
+  PEFT_RANK=8 PEFT_MAX_STEPS=200 PEFT_DEVICE=cuda \
+      bash scripts/figure_bake_einstein_persona_lora.sh
+
+  # 2. 真 verify（~20 min on same GPU）
+  RUNTIME_BACKEND=transformers \
+  QWEN_MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct \
+  SKIP_BAKE=1 \
+      bash scripts/figure_verify_einstein_persona.sh
+
+  # 3. 看 verdict.json.gates[*].passed —— 如果 #39 已修，cognition + evidence 应能 PASS
+  ```
+- **依赖**：先做 [#39](#39)（coverage_map 过严修复）+ [#40](#40)（synthetic delta 修；不强依赖，但同步做更干净），再做本债。
+- **优先级**：**中-高**（融资 / 招募 evidence 视角；GPU 资源到位后 ~1 小时可完成第一次真跑）
+
+---
+
+## 42. Persona verification refusal-precision 阈值 + 探针集合在 5 道样本上离散度过粗
+
+- **路径**：Wave Q dry-run 显示 OOS refusal_rate = 0.60（5 道里 3 道触发 L4），低于 `gate_refusal_works.threshold = 0.80`。这里有两个层叠债务：(a) 探针只 5 道，1 道 = 0.20 量化步长 → 阈值 0.80 在 5 道样本上意味着至少 4/5，差 1 道就 fail（一个不稳定的 LLM 输出就能翻盘）；(b) [`OUT_OF_SCOPE_REFUSAL_QUESTIONS`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/out_of_scope_set.py) 的 5 道（tiramisu / sourdough / Python tutorial / car maintenance / pop song）跟 Einstein corpus 在 hashing-embedding 空间里有意外重叠 —— 比如 "Python" 跟 paper 里的 "Lyapunov" 共享 prefix；coverage_map 不会刚性区分。
+- **问题**：refusal gate 在小样本 + 探针集合不够 sharp 时**无法稳定触发**。Wave Q 是 4-fail verdict 的一部分，但即使 [#39](#39) 修了 coverage_map 阈值，本债仍在。
+- **违反**：不违反 R 铁律。这是**测试集 quality / 阈值统计 power** 债。
+- **风险**：
+  - **短期低**：单看 Wave Q 一次 dry-run，本债排在 #39 / #41 之后；refusal gate 不是核心信号。
+  - **中期中**：如果做完 #39 + #41 后 verdict 仍卡在 refusal gate，reviewer 会怀疑 ScopeRefuser 整体不工作 —— 但其实只是探针集合 + 阈值标定问题。
+  - **长期中**：跟 Wave P 已记录的 follow-up debt（gate threshold ROC 校准）合并 —— 等积累 ≥ 30 个 verdict run 后做 ROC 选阈值。
+- **推荐修法**（按 ROI 排序）：
+  1. **扩 OOS 探针到 ≥ 20 道**（~半天）：reviewer 写 15-20 道明显 off-corpus 的题，覆盖 culinary / software / automotive / entertainment / modern-tech / sports / fashion 至少 7 个 domain；每个 domain 至少 2 道防止单 domain 全错。这样 quantum step 从 0.20 降到 ≤ 0.05。
+  2. **拆 `gate_refusal_works` 成 per-domain pass-rate**（~半天）：而不是 single 0.80 threshold，要求 ≥ 5 个 domain 各自 refusal_rate ≥ 0.50。这样 sharper signal、不被单 domain 拉偏。
+  3. **ROC 校准**（依赖 (1)）：等 (1) 后跑 ≥ 30 个 verdict run（不同 figure / 不同 LoRA bake step / 不同 substrate 模型），统计 (refusal_rate, hand-graded "actually refuses correctly?") pair；用 ROC 选 threshold 而不是 0.80 hand-tune。
+  4. **sharper hashing embeddings**：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/coverage_map.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/coverage_map.py) 当前用 hashing trick 派生 embedding；考虑改用 sentence-transformer mini-encoder（offline embedding，pin via integrity hash），让 "Python" vs "Lyapunov" 真有 cosine 区分度。这条跟 [#28 残余 reviewer 工艺](#28) 同窗口做。
+- **优先级**：**低-中**（不阻塞 #39 / #41；但做完 #39 + #41 后如果 verdict 还卡在 refusal，本债成主路径）
 
 ---
 

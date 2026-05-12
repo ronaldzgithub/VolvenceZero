@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-mcp-bridge"
+version = "0.1.0"
+description = "Bridge external MCP servers (tools / resources / prompts) into the lifeform: tools become AffordanceDescriptors via per-server reviewed safety manifest, resources flow into the canonical IngestionPipeline, prompts become reviewed knowledge events. See docs/specs/mcp-bridge.md."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Cross-wheel contracts. We import:
+    #   - vz-contracts: AffordanceDescriptor / AffordanceKind / AffordanceCost / AffordanceSafety
+    #   - lifeform-affordance: AffordanceRegistry / AffordanceInvoker
+    #   - lifeform-ingestion: IngestionEnvelope shapes
+    # We deliberately do NOT depend on any vz-cognition / vz-memory / vz-temporal /
+    # vz-substrate / vz-application / vz-runtime kernel wheel — see
+    # tests/contracts/test_mcp_bridge_import_boundary.py.
+    "vz-contracts==0.1.*",
+    "lifeform-affordance==0.1.*",
+    "lifeform-ingestion==0.1.*",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Official Anthropic MCP SDK is supported as an optional source of an
+# MCPClient implementation. The default StdioMCPClient (in
+# lifeform_mcp_bridge.client_pool) is a self-contained JSON-RPC 2.0
+# stdio client and does NOT require this extra; install it only if a
+# downstream consumer wants to swap to the SDK-backed client.
+mcp-sdk = ["mcp>=1.0"]
+# HTTP+SSE transport is currently a planning stub; install this extra
+# once HTTP transport ships.
+http = ["aiohttp>=3.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_mcp_bridge*"]

@@ -212,6 +212,7 @@ The single-user compatibility path is `build_user_input_environment_event(...)`,
 | 依赖 | Lifeform Vitals | `internal_drive` and `system_tick` are environment event sources, not kernel shortcuts. |
 | 协作 | Runtime Ingestion | Ingestion is an Environment Event source adapter, not a special learning path. |
 | 协作 | Affordance | Affordance is the Act face for learned, bounded environment control. |
+| 协作 | MCP Bundle Bridge | External MCP server `resources/list` 经 `MCPResourceAdapter` 转换成 `IngestionEnvelope` 并经 `trigger_kind=INGESTION` 走 canonical event path；MCP `tools/call` 结果经标准 `BrainSession.submit_tool_result` 回流 PE。详见 [`docs/specs/mcp-bridge.md`](mcp-bridge.md)。 |
 | 协作 | Social Cognition | Environment Event supplies conversational frame; social owners publish learned social state. |
 
 ## Phase 1 Acceptance Gates
