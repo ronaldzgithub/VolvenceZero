@@ -39,9 +39,15 @@ R8 / R15 contract:
 
 from __future__ import annotations
 
+import contextlib
 import threading
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from typing import Iterator
 
+from volvence_zero.substrate.lora_aware_runtime import (
+    LoRAAwareResidualRuntime,
+)
 from volvence_zero.substrate.residual_contracts import (
     SubstrateDeltaAdapterLayer,
 )
@@ -205,18 +211,43 @@ class PersonaLoRAPool:
         return self.lookup(record_or_figure_id).adapter_layers
 
     def activate(
-        self, record_or_figure_id: str
-    ) -> PersonaLoRARecord:
-        """Mark ``record_id`` as the active persona LoRA.
+        self,
+        record_or_figure_id: str,
+        *,
+        runtime: LoRAAwareResidualRuntime | None = None,
+    ) -> AbstractContextManager[PersonaLoRARecord]:
+        """Activate ``record_or_figure_id``'s persona LoRA on ``runtime``.
 
-        In the in-memory pool this is a pass-through that returns
-        the record unchanged. The future S-LoRA / vLLM backend
-        overrides this to push the record's adapter_layers onto
-        the GPU-resident frozen base for the calling thread /
-        request scope.
+        Returns a **context manager** that yields the
+        :class:`PersonaLoRARecord` for the duration of the
+        activation. On context exit, the runtime restores the
+        pre-activation forward path byte-identically (the LoRA
+        delta is no longer applied to subsequent forward calls).
+
+        When ``runtime`` is ``None``, the context manager still
+        yields the record so calling code is uniform: the legacy
+        passthrough behaviour is preserved (registered LoRA in
+        memory, no real forward effect — useful for SHADOW /
+        diagnostic paths).
+
+        When ``runtime`` is supplied, it MUST satisfy
+        :class:`LoRAAwareResidualRuntime` (have an ``activate_lora``
+        method). The pool calls
+        ``runtime.activate_lora(record.adapter_layers)`` and
+        re-yields the record inside that context. This is the
+        load-bearing path for debt #20: the persona's adapter
+        delta is added to the runtime's residual stream for the
+        whole context, and removed on exit.
+
+        Implementations are responsible for guaranteeing that the
+        frozen base is not mutated; tests assert byte-identical
+        ``state_dict`` before / after the context.
         """
 
-        return self.lookup(record_or_figure_id)
+        record = self.lookup(record_or_figure_id)
+        return _persona_lora_activation_context(
+            record=record, runtime=runtime
+        )
 
     def deregister(self, record_or_figure_id: str) -> None:
         """Remove a record from the pool (rollback path).
@@ -272,6 +303,37 @@ def _record_id_for(*, figure_id: str, source_bundle_id: str) -> str:
     if ":" in source_bundle_id:
         suffix = source_bundle_id.split(":")[-1][:16]
     return f"persona-lora:{figure_id}:{suffix}"
+
+
+@contextlib.contextmanager
+def _persona_lora_activation_context(
+    *,
+    record: PersonaLoRARecord,
+    runtime: LoRAAwareResidualRuntime | None,
+) -> Iterator[PersonaLoRARecord]:
+    """Yield ``record`` for the lifetime of an optional runtime LoRA activation.
+
+    Centralised so :meth:`PersonaLoRAPool.activate` and any future
+    helper share one body. The ``runtime is None`` path is a
+    pure passthrough — it preserves the legacy behaviour where
+    a process-level pool was just an artifact registry. The
+    ``runtime is not None`` path routes through
+    ``runtime.activate_lora(record.adapter_layers)`` so the LoRA
+    delta is live in the forward path for the whole context.
+    """
+
+    if runtime is None:
+        yield record
+        return
+    activate = getattr(runtime, "activate_lora", None)
+    if not callable(activate):
+        raise TypeError(
+            "PersonaLoRAPool.activate: runtime does not satisfy "
+            "LoRAAwareResidualRuntime (no callable activate_lora). "
+            f"Got {type(runtime).__name__!r}."
+        )
+    with activate(record.adapter_layers):
+        yield record
 
 
 __all__ = [

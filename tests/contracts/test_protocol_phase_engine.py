@@ -511,6 +511,8 @@ def test_registry_falls_back_to_first_phase_when_no_phase_snapshot() -> None:
 
 
 def test_phase_module_registered_in_final_wiring() -> None:
+    """Packet 9.3 default flipped to ACTIVE — phase pointer is now
+    a real downstream channel."""
     from volvence_zero.integration.final_wiring import (
         FinalRolloutConfig,
         build_final_runtime_modules,
@@ -525,4 +527,4 @@ def test_phase_module_registered_in_final_wiring() -> None:
     publishers = [m for m in modules if m.slot_name == "protocol_phase"]
     assert len(publishers) == 1
     assert isinstance(publishers[0], ProtocolPhaseModule)
-    assert publishers[0].wiring_level is WiringLevel.SHADOW
+    assert publishers[0].wiring_level is WiringLevel.ACTIVE

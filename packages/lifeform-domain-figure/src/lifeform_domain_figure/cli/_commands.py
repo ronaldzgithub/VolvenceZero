@@ -26,6 +26,8 @@ from volvence_zero.substrate import PersonaLoRAPool, default_persona_lora_pool
 from lifeform_domain_figure import (
     FigureBundleInputs,
     FigureCorpusSourceBundle,
+    PEFTLoRABakeBackend,
+    PEFTLoRAConfig,
     SyntheticLoRABakeBackend,
     apply_persona_lora_through_gate,
     apply_steering_through_gate,
@@ -162,7 +164,29 @@ def cmd_bake_steering(args: argparse.Namespace) -> int:
         print(f"failed to load source bundle: {exc}", file=sys.stderr)
         return EXIT_IO_OR_SCHEMA
 
-    contrast_plan = build_steering_training_plan(build_einstein_contrast_set())
+    if getattr(args, "use_real_residual", False):
+        try:
+            runtime = _load_real_residual_runtime(
+                model_id=args.real_residual_model_id,
+            )
+        except (ImportError, RuntimeError) as exc:
+            print(
+                "bake-steering --use-real-residual: could not load real "
+                f"substrate runtime: {exc}",
+                file=sys.stderr,
+            )
+            return EXIT_IO_OR_SCHEMA
+        contrast_plan = build_steering_training_plan(
+            build_einstein_contrast_set(),
+            substrate_runtime=runtime,
+            layer_index=args.real_residual_layer_index,
+        )
+        backend_id = "steering-real-residual-v1"
+    else:
+        contrast_plan = build_steering_training_plan(
+            build_einstein_contrast_set()
+        )
+        backend_id = "steering-cpu-contrastive-v1"
     steering = bake_steering_set(contrast_plan)
 
     result = apply_steering_through_gate(
@@ -181,7 +205,7 @@ def cmd_bake_steering(args: argparse.Namespace) -> int:
         block_reasons=result.gate.block_reasons,
         applied=result.applied,
         action=FigureBakeAction.BAKE_STEERING,
-        backend_id="steering-cpu-contrastive-v1",
+        backend_id=backend_id,
         record_id=None,
         previous_record_id="absent",
     )
@@ -198,10 +222,9 @@ def cmd_bake_lora(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return EXIT_USAGE
-    if args.backend != "synthetic":
+    if args.backend not in ("synthetic", "peft"):
         print(
-            f"backend {args.backend!r} not yet wired (PEFT backend is "
-            f"tracked under known-debts.md #18)",
+            f"backend {args.backend!r} unknown; expected 'synthetic' or 'peft'",
             file=sys.stderr,
         )
         return EXIT_USAGE
@@ -254,7 +277,21 @@ def cmd_bake_lora(args: argparse.Namespace) -> int:
         rank=args.rank,
         target_layer_index=args.target_layer_index,
     )
-    artifact = SyntheticLoRABakeBackend().bake(plan)
+    if args.backend == "peft":
+        try:
+            artifact = _bake_with_peft(args=args, plan=plan)
+        except ImportError as exc:
+            print(
+                "bake-lora --backend peft requires peft + transformers + torch. "
+                f"{exc}",
+                file=sys.stderr,
+            )
+            return EXIT_IO_OR_SCHEMA
+        except RuntimeError as exc:
+            print(f"bake-lora --backend peft: {exc}", file=sys.stderr)
+            return EXIT_IO_OR_SCHEMA
+    else:
+        artifact = SyntheticLoRABakeBackend().bake(plan)
 
     pool = default_persona_lora_pool()
     result = apply_persona_lora_through_gate(
@@ -420,6 +457,65 @@ def _resolve_figure_factories(figure: str) -> _FigureFactories:
         # Profile available, corpus pending #27
         return (build_lu_xun_profile, None)
     return (None, None)
+
+
+def _load_real_residual_runtime(*, model_id: str):
+    """Construct an :class:`OpenWeightResidualRuntime` for steering bake.
+
+    Defers the import of ``vz-substrate.residual_backend`` to call
+    time so the CLI module loads fine when transformers / torch
+    are absent. Raises :class:`ImportError` with a precise install
+    hint when the real path is requested but the optional deps
+    are not installed.
+    """
+
+    try:
+        from volvence_zero.substrate.residual_backend import (
+            TransformersOpenWeightResidualRuntime,
+        )
+    except ImportError as exc:
+        raise ImportError(
+            "real-residual steering bake requires transformers + torch. "
+            "Install via ``pip install vz-substrate[hf]`` (and torch). "
+            f"Underlying error: {exc}"
+        ) from exc
+    return TransformersOpenWeightResidualRuntime(
+        model_id=model_id,
+        device="cpu",
+    )
+
+
+def _bake_with_peft(*, args: argparse.Namespace, plan):
+    """Construct a :class:`PEFTLoRABakeBackend` from CLI args + bake.
+
+    Kept as a small helper so :func:`cmd_bake_lora` reads as one
+    linear flow regardless of backend. The backend ctor itself
+    raises ``ImportError`` if peft is not installed, which the
+    caller surfaces as :data:`EXIT_IO_OR_SCHEMA`.
+    """
+
+    target_modules = tuple(
+        module.strip()
+        for module in str(args.peft_target_modules).split(",")
+        if module.strip()
+    )
+    if not target_modules:
+        raise RuntimeError(
+            "--peft-target-modules must list at least one module name"
+        )
+    config = PEFTLoRAConfig(
+        target_modules=target_modules,
+        rank=args.rank,
+        alpha=args.peft_alpha,
+        dropout=args.peft_dropout,
+    )
+    backend = PEFTLoRABakeBackend(
+        model_id=args.peft_model_id,
+        peft_config=config,
+        runtime_device=args.peft_device,
+        max_steps=args.peft_max_steps,
+    )
+    return backend.bake(plan)
 
 
 def _finalise_gate_apply(

@@ -52,6 +52,9 @@ from volvence_zero.protocol_runtime.introspection import (
     ProtocolRegistryIntrospectionModule,
     ProtocolRevisionLogModule,
 )
+from volvence_zero.protocol_runtime.queue_router import (
+    ProtocolRevisionQueueModule,
+)
 from volvence_zero.protocol_runtime.owner import (
     FallbackActivationActiveError,
     LoadContext,
@@ -81,6 +84,7 @@ __all__ = [
     "ProtocolRegistryIntrospectionModule",
     "ProtocolRegistryModule",
     "ProtocolRevisionLogModule",
+    "ProtocolRevisionQueueModule",
     "RevisionQueue",
     "compile_protocol_to_application_artifacts",
     "compute_active_mixture",

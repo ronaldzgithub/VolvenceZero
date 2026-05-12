@@ -34,6 +34,31 @@ from typing import Any, Protocol, runtime_checkable
 from volvence_zero.substrate import GroundedDecodeHook, GroundingVerdict
 
 
+# Typed locator parser exposed by lifeform-domain-figure. Imported
+# lazily inside helpers so this module can degrade to opaque-string
+# behaviour when the figure wheel is not installed (lifeform-expression
+# does not declare a hard dependency on lifeform-domain-figure).
+def _try_parse_locator(locator: str) -> Any:
+    """Best-effort typed locator parse.
+
+    Returns the typed :class:`ParsedLocator` when the figure-vertical
+    is reachable AND the string parses; ``None`` otherwise. The
+    helper localises the optional dependency to one place — the
+    decoder body itself stays type-clean.
+    """
+
+    if not locator:
+        return None
+    try:
+        from lifeform_domain_figure.corpus.citation import parse_locator
+    except ImportError:
+        return None
+    try:
+        return parse_locator(locator)
+    except ValueError:
+        return None
+
+
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _WORD_RE = re.compile(r"[A-Za-z\u00C0-\u024F\u4e00-\u9fff]+")
 _DEFAULT_MIN_ASSERTION_TOKENS = 4
@@ -63,6 +88,68 @@ class _RetrievalIndexLike(Protocol):
         cosine_floor: float,
         top_k: int,
     ) -> tuple[Any, ...]: ...
+
+
+@dataclass(frozen=True)
+class EvidencePointer:
+    """Typed structured citation attached to a grounded assertion.
+
+    The ``GroundingVerdict.evidence_pointers`` field carries opaque
+    strings to keep the substrate-side Protocol stable. Callers that
+    want the structured fields (sender / recipient / date / venue
+    / page / offset, etc.) consume :class:`EvidencePointer` returned
+    by :meth:`GroundedDecoder.verify_with_pointers` instead.
+
+    ``raw_locator`` is always populated and is what gets surfaced as
+    the opaque string in :class:`GroundingVerdict.evidence_pointers`.
+    Structured fields are populated only when the locator parses
+    successfully under :func:`parse_locator`; otherwise they are
+    empty / sentinel values and consumers should fall back to
+    ``raw_locator`` (debt #24 closure).
+    """
+
+    raw_locator: str
+    chunk_id: str
+    source_envelope_id: str
+    locator_kind: str = ""
+    document_id: str = ""
+    paragraph_index: int = -1
+    offset_start: int = -1
+    offset_end: int = -1
+    language: str = ""
+    sender_id: str = ""
+    recipient_id: str = ""
+    date_iso: str = ""
+    venue_id: str = ""
+    volume: str = ""
+    page: int = -1
+
+    @property
+    def parsed(self) -> bool:
+        """Whether the underlying locator was structurally parsed."""
+        return bool(self.locator_kind)
+
+    @property
+    def rendered(self) -> str:
+        """Single-line render combining structured fields + envelope id."""
+        if not self.parsed:
+            return f"{self.raw_locator} | {self.source_envelope_id}"
+        head = self.locator_kind
+        if self.locator_kind == "letter":
+            head = f"letter[{self.sender_id}->{self.recipient_id}@{self.date_iso}]"
+        elif self.locator_kind == "lecture":
+            head = f"lecture[{self.document_id}@{self.venue_id}/{self.date_iso}]"
+        elif self.locator_kind == "notebook":
+            head = f"notebook[{self.document_id} vol={self.volume} p.{self.page}]"
+        else:
+            head = f"paper[{self.document_id}]"
+        offset_tail = (
+            f" para={self.paragraph_index} off={self.offset_start}-{self.offset_end}"
+            if self.paragraph_index >= 0
+            else ""
+        )
+        lang_tail = f" lang={self.language}" if self.language else ""
+        return f"{head}{offset_tail}{lang_tail} | {self.source_envelope_id}"
 
 
 @dataclass(frozen=True)
@@ -144,20 +231,47 @@ class GroundedDecoder:
         floor (per the index's own ``assertion_is_supported`` rules).
         """
 
+        verdict, _pointers = self._verify_internal(text=text)
+        return verdict
+
+    def verify_with_pointers(
+        self, *, text: str
+    ) -> tuple[GroundingVerdict, tuple[EvidencePointer, ...]]:
+        """Return a verdict plus typed structured evidence pointers.
+
+        Same shape as :meth:`verify` but additionally returns a
+        tuple of :class:`EvidencePointer` records carrying the
+        structured locator fields (sender / recipient / date /
+        venue / page / offset / language) when the underlying
+        locator parses successfully (debt #24 closure). When the
+        locator does not parse, ``EvidencePointer.parsed`` is
+        False and only ``raw_locator`` / ``chunk_id`` /
+        ``source_envelope_id`` are populated.
+        """
+
+        return self._verify_internal(text=text)
+
+    def _verify_internal(
+        self, *, text: str
+    ) -> tuple[GroundingVerdict, tuple[EvidencePointer, ...]]:
         assertions = _split_assertions(text, self._config.min_assertion_tokens)
         if not assertions:
-            return GroundingVerdict(
-                passed=True,
-                unsupported_assertions=(),
-                evidence_pointers=(),
-                rationale=(
-                    "Generated text contained no substantive assertions "
-                    f"(threshold={self._config.min_assertion_tokens} "
-                    "tokens); L3 contract trivially satisfied."
+            return (
+                GroundingVerdict(
+                    passed=True,
+                    unsupported_assertions=(),
+                    evidence_pointers=(),
+                    rationale=(
+                        "Generated text contained no substantive assertions "
+                        f"(threshold={self._config.min_assertion_tokens} "
+                        "tokens); L3 contract trivially satisfied."
+                    ),
                 ),
+                (),
             )
         unsupported: list[str] = []
         evidence: list[str] = []
+        pointers: list[EvidencePointer] = []
         for assertion in assertions:
             supports = self._retrieval_index.assertion_is_supported(
                 assertion,
@@ -169,21 +283,33 @@ class GroundedDecoder:
                 unsupported.append(assertion)
                 continue
             for evidence_record in supports:
-                citation = _evidence_citation(evidence_record)
-                if citation:
-                    evidence.append(citation)
+                pointer = _build_evidence_pointer(evidence_record)
+                if pointer is None:
+                    continue
+                pointers.append(pointer)
+                evidence.append(pointer.rendered)
         passed = not unsupported
         rationale = (
             f"Verified {len(assertions)} assertion(s); "
             f"{len(unsupported)} unsupported. "
             f"{len(evidence)} evidence pointer(s) collected."
         )
-        return GroundingVerdict(
+        verdict = GroundingVerdict(
             passed=passed,
             unsupported_assertions=tuple(unsupported),
             evidence_pointers=tuple(dict.fromkeys(evidence)),
             rationale=rationale,
         )
+        # Dedupe pointers by rendered string while preserving order.
+        seen: set[str] = set()
+        deduped: list[EvidencePointer] = []
+        for pointer in pointers:
+            key = pointer.rendered
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(pointer)
+        return (verdict, tuple(deduped))
 
     def verify_strict(self, *, text: str) -> GroundingVerdict:
         """Same as :meth:`verify` but raises on L3 failure.
@@ -232,28 +358,50 @@ def _split_assertions(text: str, min_tokens: int) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _evidence_citation(evidence_record: Any) -> str:
-    """Extract a citation string from a retrieval-evidence record.
+def _build_evidence_pointer(evidence_record: Any) -> EvidencePointer | None:
+    """Build a typed :class:`EvidencePointer` from a retrieval record.
 
-    Prefers the typed ``citation`` property exposed by
-    :class:`lifeform_domain_figure.RetrievalEvidence`; falls back
-    to a stable ``"chunk_id|locator"`` rendering for any duck-typed
-    record. The ``getattr`` here is the **single** place where we
-    accept structural variation in evidence shape — anywhere else
-    in this file we rely on the duck-typed Protocol.
+    Reads the duck-typed evidence shape (``locator`` / ``chunk_id``
+    / ``source_envelope_id``) and tries to parse the locator into
+    typed fields via the optional :func:`parse_locator` helper. The
+    ``getattr`` calls here are the **single** place where we accept
+    structural variation in evidence shape — anywhere else in this
+    module we rely on the typed return.
     """
 
-    citation_attr = getattr(evidence_record, "citation", None)
-    if isinstance(citation_attr, str) and citation_attr:
-        return citation_attr
-    chunk_id = getattr(evidence_record, "chunk_id", "")
-    locator = getattr(evidence_record, "locator", "")
-    if chunk_id or locator:
-        return f"{locator} | {chunk_id}"
-    return ""
+    raw_locator = getattr(evidence_record, "locator", "") or ""
+    chunk_id = getattr(evidence_record, "chunk_id", "") or ""
+    source_envelope_id = getattr(evidence_record, "source_envelope_id", "") or ""
+    if not raw_locator and not chunk_id:
+        return None
+    parsed = _try_parse_locator(raw_locator)
+    if parsed is None:
+        return EvidencePointer(
+            raw_locator=raw_locator,
+            chunk_id=chunk_id,
+            source_envelope_id=source_envelope_id,
+        )
+    return EvidencePointer(
+        raw_locator=raw_locator,
+        chunk_id=chunk_id,
+        source_envelope_id=source_envelope_id,
+        locator_kind=parsed.kind.value,
+        document_id=parsed.document_id,
+        paragraph_index=parsed.paragraph_index,
+        offset_start=parsed.offset.start,
+        offset_end=parsed.offset.end,
+        language=parsed.language,
+        sender_id=parsed.sender_id,
+        recipient_id=parsed.recipient_id,
+        date_iso=parsed.date_iso,
+        venue_id=parsed.venue_id,
+        volume=parsed.volume,
+        page=parsed.page,
+    )
 
 
 __all__ = [
+    "EvidencePointer",
     "GroundedDecoder",
     "GroundedDecoderConfig",
     "UngroundedAssertionError",

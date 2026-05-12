@@ -43,6 +43,7 @@ def test_engine_default_dependencies() -> None:
         "active_mixture",
         "domain_knowledge",
         "case_memory",
+        "protocol_registry",
     )
 
 

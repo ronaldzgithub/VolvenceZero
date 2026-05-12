@@ -9,8 +9,11 @@ Validates:
   layer; perturbing the plan changes the hash.
 * :func:`attach_baked_lora` re-keys the bundle id and binds the
   artifact into ``bundle.lora``.
-* :class:`PEFTLoRABakeBackend.bake` raises ``NotImplementedError``
-  with a clear forwarding message (it is a deliberate stub).
+* :class:`PEFTLoRABakeBackend.bake` either runs a real PEFT loop
+  (when peft + transformers + torch are installed) OR raises
+  ``ImportError`` with a clear install hint (debt #18 closure).
+  The real-loop smoke is gated under ``@pytest.mark.hf`` so CI
+  without the optional deps still runs the rest of this file.
 * :class:`FigureLoRAArtifact` rejects malformed inputs (empty
   layers, zero rank, missing hashes).
 """
@@ -153,12 +156,63 @@ def test_attach_baked_lora_rejects_figure_id_mismatch() -> None:
         attach_baked_lora(bundle, foreign)
 
 
-def test_peft_backend_raises_not_implemented() -> None:
+def test_peft_backend_id_is_stable() -> None:
+    backend = PEFTLoRABakeBackend()
+    assert backend.backend_id == "peft-v1"
+
+
+def test_peft_backend_validates_constructor_args() -> None:
+    with pytest.raises(ValueError, match="model_id"):
+        PEFTLoRABakeBackend(model_id="")
+    with pytest.raises(ValueError, match="runtime_device"):
+        PEFTLoRABakeBackend(runtime_device="tpu")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="max_steps"):
+        PEFTLoRABakeBackend(max_steps=0)
+
+
+def _peft_stack_available() -> bool:
+    import importlib.util
+
+    return all(
+        importlib.util.find_spec(name) is not None
+        for name in ("peft", "transformers", "torch")
+    )
+
+
+def test_peft_backend_bake_raises_import_error_without_peft() -> None:
+    """Without peft / transformers / torch the backend must fail
+    loud on bake — no silent fallback to synthetic."""
+
+    if _peft_stack_available():
+        pytest.skip("peft + transformers + torch ARE installed; skip negative path")
     plan = _einstein_plan()
     backend = PEFTLoRABakeBackend()
-    assert backend.backend_id == "peft-v1-stub"
-    with pytest.raises(NotImplementedError, match="future F6.X"):
+    with pytest.raises(ImportError, match="peft"):
         backend.bake(plan)
+
+
+@pytest.mark.hf
+def test_peft_backend_bake_real_loop_smoke() -> None:
+    """When peft / transformers / torch are installed, a real bake
+    must produce an artifact whose backend_id is ``peft-v1`` and
+    whose adapter_layers carry the kernel SubstrateDeltaAdapterLayer
+    shape (so PersonaLoRAPool.register accepts them just like the
+    synthetic backend's output)."""
+
+    if not _peft_stack_available():
+        pytest.skip("peft + transformers + torch are not installed")
+    plan = _einstein_plan()
+    backend = PEFTLoRABakeBackend(max_steps=2, delta_vector_dim=64)
+    artifact = backend.bake(plan)
+    assert artifact.backend_id == "peft-v1"
+    assert artifact.figure_id == "einstein"
+    assert artifact.training_plan_hash == plan.integrity_hash
+    assert artifact.parameter_count > 0
+    assert len(artifact.adapter_layers) > 0
+    for layer in artifact.adapter_layers:
+        assert isinstance(layer, SubstrateDeltaAdapterLayer)
+        assert len(layer.delta_vector) == 64
+        assert layer.description.startswith("figure-persona-lora:einstein")
 
 
 def test_figure_lora_artifact_rejects_empty_layers() -> None:

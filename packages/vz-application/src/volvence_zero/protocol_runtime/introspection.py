@@ -33,6 +33,9 @@ from volvence_zero.behavior_protocol import (
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
+from volvence_zero.protocol_runtime.compiler import (
+    compile_protocol_to_application_artifacts,
+)
 from volvence_zero.protocol_runtime.registry import ProtocolRegistry
 
 
@@ -70,6 +73,8 @@ class ProtocolRegistryIntrospectionModule(
                 knowledge_seed_count=len(p.knowledge_seeds),
                 signature_case_count=len(p.signature_cases),
                 revision_count=len(p.revision_log),
+                knowledge_lineage_ids=_knowledge_lineage_ids(p),
+                case_lineage_ids=_case_lineage_ids(p),
             )
             for p in all_protocols
         )
@@ -138,6 +143,20 @@ class ProtocolRevisionLogModule(
             ),
         )
         return self.publish(snapshot)
+
+
+def _knowledge_lineage_ids(protocol) -> tuple[str, ...]:
+    """Re-run the compile path purely to read out lineage record_ids.
+
+    Idempotent and pure — no side effects on application stores.
+    """
+    artifacts = compile_protocol_to_application_artifacts(protocol)
+    return tuple(r.record_id for r in artifacts.domain_knowledge_records)
+
+
+def _case_lineage_ids(protocol) -> tuple[str, ...]:
+    artifacts = compile_protocol_to_application_artifacts(protocol)
+    return tuple(r.case_id for r in artifacts.case_memory_records)
 
 
 __all__ = [

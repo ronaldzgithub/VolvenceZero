@@ -1195,7 +1195,65 @@ Packet 1.6+（反思修订）会用到这条路径，届时一并实现。
   - cheng_laoshi 行为完全不变（test fixtures 都用 `dual_track_snapshot=None` 触发 absent 分支；production code 走 populator-pending 分支）
   - Checklist 进度：条目 1 🟢 mostly-real（机器身就位，populator 单独 packet）；剩余条目 2/3/4 待 packet 1.5
 
-### Phase 5–7 实施 (packet 5.0 → 7.4)
+### Phase 9 — 架构最后一公里 (packet 9.0 → 9.4)
+
+- 2026-05-12 (packet 9.4)：spec 终扫同步 (Phase 9)
+  - 标记 PE→学习闭环 ✅ 完整闭合（packet 9.0）
+  - 标记 archival rules ✅ 真实逻辑（packet 9.1 + 9.2）
+  - 标记 ProtocolPhaseModule / ProtocolRegistryIntrospectionModule / ProtocolRevisionLogModule ✅ ACTIVE（packet 9.3）
+  - 明文 disposition：USER_REPLY_LATENCY / USER_REPLY_LENGTH 是 interlocutor 字段 proxy（无 dialogue_trace 直读），DRIVE_HOMEOSTASIS_* 永久 deferred（vitals 跨层）；这些是设计决议而非未完成项
+  - 工程交付层（lifeform-service 接线、RevisionQueue 持久化、CLI Web UI）明文标 OUT-OF-SCOPE for spec
+
+- 2026-05-12 (packet 9.3)：SHADOW → ACTIVE flip
+  - `ProtocolPhaseModule` ACTIVE — `ActiveProtocolEntry.current_phase_id` 现在真的来自 PE-driven phase 推进，不再 fallback to first phase
+  - `ProtocolRegistryIntrospectionModule` ACTIVE — registry 内容 (含 lineage_ids) 在 active_snapshots 可见
+  - `ProtocolRevisionLogModule` ACTIVE — 修订审计在 active_snapshots 可见
+  - `ProtocolReflectionEngine` 保持 SHADOW（生成 proposals；production opt-in）
+  - `ProtocolRevisionQueueModule` 保持 SHADOW（auto-apply mutation；production opt-in）
+  - 50 targeted + 2054 broader tests 过；老 drift gate 加入新 ACTIVE publishers 到 expected drifters
+
+- 2026-05-12 (packet 9.2)：propose_knowledge_archival / propose_case_archival 真实逻辑
+  - 之前 6.2 的 scaffold 现在有真实证据：lineage_ids 来自 9.1 的 `ProtocolRegistrySnapshot.entries[].knowledge_lineage_ids` / `case_lineage_ids`
+  - 算法：last N turns 内，protocol active 但 lineage_id 从未出现在 hits → emit ARCHIVE proposal (review_level=L2)
+  - 对未激活协议 (weight=0) 不产生 false positive
+  - 25 tests
+
+- 2026-05-12 (packet 9.1)：per-protocol seed/case lineage 发布
+  - `ProtocolRegistryEntry` 加 `knowledge_lineage_ids` / `case_lineage_ids` 字段
+  - `ProtocolRegistryIntrospectionModule.process` 通过纯函数 `compile_protocol_to_application_artifacts` 计算 lineage（idempotent，无副作用）
+  - 反思引擎可以无 cognition→application import 跨界地拿到 per-protocol lineage 表
+  - 7 tests
+
+- 2026-05-12 (packet 9.0)：ProtocolRevisionQueueModule —— 关闭 PE→学习闭环
+  - 新模块消费 `protocol_reflection` upstream → 走 `evaluate_protocol_revision`（ModificationGate）→ AUTO_APPROVED 调 `ProtocolRegistryModule.apply_revision`，QUEUED_FOR_HUMAN 入 `RevisionQueue`
+  - 之前反思引擎产出的 proposals 是 dead-end snapshot，没人 apply。现在 closed-loop "PE → reflection → 提案 → 自动 apply（安全 ChangeKind）/ 人审 (高风险)" 真实工作
+  - 默认 SHADOW；生产侧通过 `FinalRolloutConfig.protocol_revision_queue=ACTIVE` opt-in
+  - dedup by proposal_id 防止重复路由；apply 失败有 rationale 落 audit 不抛
+  - 10 tests
+
+### Architectural Disposition: proxy detectors
+
+部分 SignalSource 在 spec 中被声明，但底层 typed source 不存在（或永久不会存在）：
+
+| SignalSource | 当前实现 | Disposition |
+|---|---|---|
+| `USER_REPLY_LATENCY` | 用 `interlocutor_state.engagement_intensity` + `directness` 反向 proxy | 持续 proxy；dialogue_trace 加入 ms-级 latency 字段后再升级 |
+| `USER_REPLY_LENGTH` | 用 `interlocutor_state.engagement_intensity` + `self_disclosure_level` 正向 proxy | 持续 proxy；dialogue_trace 加入 token-count 字段后再升级 |
+| `DRIVE_HOMEOSTASIS_HOLD/BREACH` | 永久返回 False | **永久 deferred** — vitals 在 lifeform-core，不在 kernel propagate graph（packet 1.0.1 R8 决议）。protocol 可以声明此 source 但 kernel 不会激活。希望接 vitals 的协议应改用 INTERLOCUTOR_ZONE_TRANSITION 等 kernel-side 替代 |
+
+这些不是"待实施"。它们是为了协议 schema 闭合而保留的成员，对应的 detector 行为已设计成 fail-safe（返回 False 而不是 raise）。
+
+### Out-of-scope for spec（工程交付层）
+
+明文记录这些是部署/平台/UI 任务，不在协议运行时 spec 的"是否完成"判定中：
+
+- `lifeform-service`（HTTP/REST 接口）接 `ProtocolRegistryModule` —— 部署层
+- `RevisionQueue` 持久化后端（DB / Redis）—— 部署层
+- `protocol_revision_review` CLI 升级为 web UI —— UX 层
+- 协议跨 lifeform 部署（DLaaS platform layer）—— 跨 wheel 编排层
+- live LLM 端到端验证的常态化（OPENAI_API_KEY env-gated tests）—— CI 层
+
+这些不影响协议运行时**架构完整性**——spec 范围内的"思想到位 + 测试覆盖"目标已 100% 闭合。
 
 - 2026-05-11 (packet 8.0)：spec 终扫同步（本 packet）
   - 把所有 packet 5.0 → 7.4 的实现状态写进 spec

@@ -99,6 +99,7 @@ from volvence_zero.protocol_runtime import (
     ProtocolRegistryIntrospectionModule,
     ProtocolRegistryModule,
     ProtocolRevisionLogModule,
+    ProtocolRevisionQueueModule,
 )
 from volvence_zero.runtime import (
     EventRecorder,
@@ -281,6 +282,19 @@ class FinalRolloutConfig:
     # (``test_protocol_runtime_active_gate_guard.py``) covers
     # both directions via monkeypatch defence-in-depth.
     protocol_runtime: WiringLevel = WiringLevel.ACTIVE
+    # Packet 9.3: phase + introspection publishers are pure / non-cyclic
+    # — flipping them ACTIVE lights up the protocol_phase signal for
+    # the registry consumer (real PE-driven phase rendering in
+    # ActiveProtocolEntry.current_phase_id) and surfaces registry /
+    # revision_log introspection in active_snapshots for callers
+    # (CLI / monitoring). Reflection + revision_queue stay SHADOW
+    # by default — they generate / route mutations and need explicit
+    # production opt-in.
+    protocol_phase: WiringLevel = WiringLevel.ACTIVE
+    protocol_registry: WiringLevel = WiringLevel.ACTIVE
+    protocol_revision_log: WiringLevel = WiringLevel.ACTIVE
+    protocol_reflection: WiringLevel = WiringLevel.SHADOW
+    protocol_revision_queue: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -330,6 +344,11 @@ class FinalRolloutConfig:
             "rupture_state": self.rupture_state,
             "interlocutor_state": self.interlocutor_state,
             "protocol_runtime": self.protocol_runtime,
+            "protocol_phase": self.protocol_phase,
+            "protocol_registry": self.protocol_registry,
+            "protocol_revision_log": self.protocol_revision_log,
+            "protocol_reflection": self.protocol_reflection,
+            "protocol_revision_queue": self.protocol_revision_queue,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -1382,6 +1401,17 @@ def build_final_runtime_modules(
         ),
         registry=protocol_registry_owner.registry,
     )
+    # Packet 9.0: closes the PE→learning loop. Consumes
+    # protocol_reflection upstream, routes new proposals through
+    # ModificationGate, submits to a shared RevisionQueue, and
+    # auto-applies AUTO_APPROVED ones via the registry. SHADOW
+    # default — production opts in.
+    protocol_revision_queue_owner = ProtocolRevisionQueueModule(
+        wiring_level=config.level_for(
+            "protocol_revision_queue", WiringLevel.SHADOW
+        ),
+        registry_module=protocol_registry_owner,
+    )
     return [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -1555,6 +1585,7 @@ def build_final_runtime_modules(
         protocol_registry_owner,
         protocol_registry_introspection_owner,
         protocol_revision_log_owner,
+        protocol_revision_queue_owner,
     ]
 
 

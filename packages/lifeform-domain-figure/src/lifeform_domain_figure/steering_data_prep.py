@@ -10,15 +10,21 @@ P5.1 sits between :mod:`lifeform_domain_figure.contrast_set` and
   residual vectors (the opponent's stance), plus per-pair labels and
   reviewer confidences.
 
-This module is the deterministic, dependency-free bridge: it
-embeds each paraphrase into the same 256-dim hashing-embedding
-space the retrieval index uses, so the steering bake can train a
-linear contrastive readout without taking a hard dependency on
-``vz-substrate`` or ``torch``. The embedding is intentionally
-identical to :func:`lifeform_domain_figure.retrieval_index._hashing_embedding`
-so that retrieval-time queries and steering-time residuals live in
-the same coordinate system; this is what makes the contrastive
-direction inferred at bake time meaningful at retrieval time.
+Two embedding paths are supported:
+
+1. **Hashing-embedding fallback** — pure stdlib, identical to the
+   retrieval index's ``_hashing_embedding`` so the steering
+   direction lives in the same coordinate system as runtime
+   retrieval queries. This is the default and lets a SHADOW
+   deployment bake without torch / GPU.
+2. **Real residual capture** (debt #21 closure) — when a
+   :class:`OpenWeightResidualRuntime` is supplied, each
+   paraphrase's positive / negative residual is the runtime's
+   actual hidden-state mean at the requested layer. The
+   contrastive direction inferred from these vectors lives in
+   the substrate's real residual coordinate system, so applying
+   it via :class:`SubstrateDeltaAdapterLayer` shifts the live
+   forward pass — not a hash-derived noise vector.
 
 The plan is a frozen dataclass with an integrity hash so the bake
 output (P5.2) is reproducible byte-for-byte (R15).
@@ -28,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import Any
 
 from lifeform_domain_figure.contrast_set import (
     FigureContrastPair,
@@ -37,6 +44,9 @@ from lifeform_domain_figure.retrieval_index import (
     _hashing_embedding,
     _tokenize,
 )
+
+
+_DEFAULT_REAL_RESIDUAL_LAYER_INDEX = 0
 
 
 SCHEMA_VERSION = 1
@@ -150,22 +160,35 @@ class FigureSteeringTrainingPlan:
 
 def build_steering_training_plan(
     contrast_set: FigureContrastSet,
+    *,
+    substrate_runtime: Any = None,
+    layer_index: int = _DEFAULT_REAL_RESIDUAL_LAYER_INDEX,
 ) -> FigureSteeringTrainingPlan:
     """Embed a contrast set into a deterministic training plan.
 
     Each :class:`FigureContrastPair` becomes one
     :class:`SteeringTrainingPair`:
 
-    * ``positive_residual`` = hashing embedding of
-      ``pair.figure_stance``.
-    * ``negative_residual`` = hashing embedding of
-      ``pair.opponent_stance``.
+    * ``positive_residual`` = embedding of ``pair.figure_stance``.
+    * ``negative_residual`` = embedding of ``pair.opponent_stance``.
 
-    The embedding function is the same one
-    :class:`FigureRetrievalIndex` uses, so the steering direction
-    inferred from these vectors lives in the same coordinate system
-    as runtime retrieval. The function is pure: same contrast_set
-    in → same plan out (including the same integrity hash).
+    Two embedding modes:
+
+    * **Default** (``substrate_runtime=None``): hashing-embedding,
+      same coordinate system as the retrieval index. SHADOW-safe
+      because it has no torch dependency.
+    * **Real residual** (``substrate_runtime`` is an
+      :class:`OpenWeightResidualRuntime`): the runtime's
+      ``capture_for_contrastive(positive_texts=..., negative_texts=..., layer_index=...)``
+      is called once per pair, producing a per-pair (positive_mean,
+      negative_mean) at the requested layer. The dimensionality
+      matches the runtime's hidden state width at that layer.
+
+    The function stays pure: same inputs → same plan out (including
+    the same integrity hash) within an embedding mode. Switching
+    modes deliberately changes the integrity hash because the
+    coordinate system itself has changed (R15: residual changes
+    must yield a new bundle id).
     """
 
     if not contrast_set.pairs:
@@ -174,8 +197,18 @@ def build_steering_training_plan(
             "this should have been caught by FigureContrastSet.__post_init__"
         )
     training_pairs: list[SteeringTrainingPair] = []
-    for pair in contrast_set.pairs:
-        training_pairs.append(_pair_to_training_pair(pair))
+    if substrate_runtime is None:
+        for pair in contrast_set.pairs:
+            training_pairs.append(_pair_to_training_pair_hashing(pair))
+    else:
+        for pair in contrast_set.pairs:
+            training_pairs.append(
+                _pair_to_training_pair_real_residual(
+                    pair=pair,
+                    runtime=substrate_runtime,
+                    layer_index=layer_index,
+                )
+            )
     integrity_hash = _compute_plan_integrity_hash(
         figure_id=contrast_set.figure_id,
         pairs=tuple(training_pairs),
@@ -190,7 +223,11 @@ def build_steering_training_plan(
     )
 
 
-def _pair_to_training_pair(pair: FigureContrastPair) -> SteeringTrainingPair:
+def _pair_to_training_pair_hashing(
+    pair: FigureContrastPair,
+) -> SteeringTrainingPair:
+    """Hashing-embedding path (no torch dependency)."""
+
     positive_tokens = _tokenize(pair.figure_stance)
     negative_tokens = _tokenize(pair.opponent_stance)
     if not positive_tokens:
@@ -213,6 +250,53 @@ def _pair_to_training_pair(pair: FigureContrastPair) -> SteeringTrainingPair:
         opponent_id=pair.opponent_id,
         positive_residual=positive,
         negative_residual=negative,
+        confidence=pair.confidence,
+        evidence_locator=pair.evidence_locator,
+    )
+
+
+def _pair_to_training_pair_real_residual(
+    *,
+    pair: FigureContrastPair,
+    runtime: Any,
+    layer_index: int,
+) -> SteeringTrainingPair:
+    """Real residual capture path (debt #21).
+
+    Calls ``runtime.capture_for_contrastive`` with the pair's two
+    paraphrases as one-element groups so the resulting tuple is
+    exactly the (positive, negative) residual mean at the chosen
+    layer. The runtime is responsible for ensuring the activation
+    width is consistent across calls; this helper only checks the
+    per-pair shape.
+    """
+
+    if not pair.figure_stance.strip():
+        raise ValueError(
+            f"build_steering_training_plan (real residual): figure_stance "
+            f"is whitespace-only for pair {pair.pair_id!r}"
+        )
+    if not pair.opponent_stance.strip():
+        raise ValueError(
+            f"build_steering_training_plan (real residual): opponent_stance "
+            f"is whitespace-only for pair {pair.pair_id!r}"
+        )
+    positive, negative = runtime.capture_for_contrastive(
+        positive_texts=(pair.figure_stance,),
+        negative_texts=(pair.opponent_stance,),
+        layer_index=layer_index,
+    )
+    if not positive or not negative:
+        raise RuntimeError(
+            "build_steering_training_plan (real residual): runtime "
+            f"returned empty residual for pair {pair.pair_id!r}"
+        )
+    return SteeringTrainingPair(
+        pair_id=pair.pair_id,
+        axis=pair.axis,
+        opponent_id=pair.opponent_id,
+        positive_residual=tuple(positive),
+        negative_residual=tuple(negative),
         confidence=pair.confidence,
         evidence_locator=pair.evidence_locator,
     )

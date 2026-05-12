@@ -35,7 +35,11 @@ from volvence_zero.application import (
     PlaybookRule,
 )
 
-from lifeform_domain_figure.corpus.provenance import SourceProvenance
+from lifeform_domain_figure.corpus.dedupe import compute_dedup_report
+from lifeform_domain_figure.corpus.provenance import (
+    SourceProvenance,
+    fingerprint_provenance,
+)
 from lifeform_domain_figure.coverage_map import (
     FigureCoverageMap,
     build_figure_coverage_map,
@@ -212,9 +216,16 @@ def build_figure_artifact_bundle(
     selected = inputs.profile.select_window(inputs.time_window_id)
     domain_package = build_figure_package(selected)
     vitals_bootstrap = build_figure_vitals_bootstrap(selected)
+    # debt #24: dedupe canonical chunks before retrieval index so
+    # cross-envelope duplicate boilerplate (e.g., the curator header
+    # note that lands on every synthetic source) does not over-weight
+    # BM25 corpus statistics. Only the canonical (highest-trust
+    # source kind) instance per byte-identical text survives.
+    dedup_report = compute_dedup_report(inputs.envelopes)
     retrieval_index = build_figure_retrieval_index(
         figure_id=selected.profile_id,
         envelopes=inputs.envelopes,
+        chunk_id_allowlist=dedup_report.canonical_chunk_ids,
     )
     coverage_map = build_figure_coverage_map(
         figure_id=selected.profile_id,
@@ -232,6 +243,11 @@ def build_figure_artifact_bundle(
     metadata_digest_fingerprint = (
         inputs.metadata_digest.fingerprint if inputs.metadata_digest is not None else ""
     )
+    provenance_fingerprint = (
+        fingerprint_provenance(inputs.provenance_records)
+        if inputs.provenance_records
+        else ""
+    )
     integrity_hash = compute_bundle_integrity_hash(
         figure_id=selected.profile_id,
         profile_version=selected.version,
@@ -242,6 +258,7 @@ def build_figure_artifact_bundle(
         steering_integrity=steering_integrity,
         lora_integrity=lora_integrity,
         metadata_digest_fingerprint=metadata_digest_fingerprint,
+        provenance_fingerprint=provenance_fingerprint,
     )
     return FigureArtifactBundle(
         schema_version=SCHEMA_VERSION,
@@ -259,6 +276,7 @@ def build_figure_artifact_bundle(
         lora=inputs.lora,
         integrity_hash=integrity_hash,
         metadata_digest_fingerprint=metadata_digest_fingerprint,
+        provenance_fingerprint=provenance_fingerprint,
     )
 
 
@@ -286,6 +304,7 @@ def attach_steering_to_bundle(
         steering_integrity=steering_integrity,
         lora_integrity=_artifact_integrity(bundle.lora),
         metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
+        provenance_fingerprint=bundle.provenance_fingerprint,
     )
     return _replace(
         bundle,
@@ -313,6 +332,7 @@ def attach_lora_to_bundle(
         steering_integrity=_artifact_integrity(bundle.steering),
         lora_integrity=lora_integrity,
         metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
+        provenance_fingerprint=bundle.provenance_fingerprint,
     )
     return _replace(
         bundle,

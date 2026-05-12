@@ -166,34 +166,82 @@ def propose_knowledge_archival(
     active_mixture_history: tuple[ActiveMixtureSnapshot, ...],
     knowledge_hit_history: tuple[tuple[str, ...], ...] = (),
     case_hit_history: tuple[tuple[str, ...], ...] = (),
+    knowledge_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
+    case_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
 ) -> tuple[ProtocolRevisionProposal, ...]:
-    """Packet 6.2: scan ``knowledge_hit_history`` for protocol-prefixed
-    record_ids that NEVER appeared in any turn's hit set across the
-    last ``KNOWLEDGE_ARCHIVAL_MIN_TURNS`` turns where the protocol
-    was active.
+    """Packet 9.2: identify protocol knowledge seeds that were never
+    retrieved across the recent observation window — propose ARCHIVE.
 
-    Detection: per protocol_id, find ``protocol:{protocol_id}:knowledge:*``
-    record_ids that NEVER show up in any ``knowledge_hit_history`` window.
-    Without owner-side knowledge of the protocol's seed list, this
-    rule's signal is "never observed" — we look at all observed
-    record_ids tagged ``protocol:`` and find protocol_ids whose seeds
-    are entirely missing from the last N turns.
+    Algorithm:
 
-    Heuristic v0: only emits when we have ``KNOWLEDGE_ARCHIVAL_MIN_TURNS``
-    turns of history AND at least one knowledge hit was observed
-    (otherwise we don't have signal — protocol just isn't being used
-    for retrieval at all).
+    1. For each loaded protocol with at least one ``knowledge_lineage_id``,
+       collect the union of hit_ids observed across the last
+       ``KNOWLEDGE_ARCHIVAL_MIN_TURNS`` turns of ``knowledge_hit_history``.
+    2. For each lineage_id of that protocol that is **not** in the
+       observed-hits union, emit an ARCHIVE proposal targeting the
+       seed_id (suffix after ``protocol:{pid}:knowledge:``).
+    3. If we don't have enough turns of history, return ``()``.
+    4. If the protocol has zero lineage_ids (no knowledge seeds),
+       skip (nothing to archive).
+
+    Conservative: only fires when the window is full *and* the
+    protocol was active during the window (i.e. its weight > 0
+    in at least one turn). A protocol that just hasn't had a
+    chance to retrieve gets no false positive.
     """
 
+    if knowledge_lineage_by_protocol is None or not knowledge_lineage_by_protocol:
+        return ()
     if len(knowledge_hit_history) < KNOWLEDGE_ARCHIVAL_MIN_TURNS:
         return ()
-    return ()  # Reserved for richer per-seed evidence in a follow-up
-    # pass. The current heuristic doesn't cleanly identify a single
-    # "stale seed" target_entry_id without owner-side knowledge of
-    # which seed_ids belong to which protocol. The rule scaffold is
-    # in place for a follow-up packet to populate when the
-    # ProtocolRegistry exposes seed_ids per protocol via a snapshot
-    # — until then this returns no proposals (no false positives).
+
+    window = knowledge_hit_history[-KNOWLEDGE_ARCHIVAL_MIN_TURNS:]
+    observed_hits: set[str] = set()
+    for hits in window:
+        observed_hits.update(hits)
+
+    active_protocols_in_window = _active_protocol_ids_in_window(
+        active_mixture_history, KNOWLEDGE_ARCHIVAL_MIN_TURNS
+    )
+
+    proposals: list[ProtocolRevisionProposal] = []
+    for protocol_id, lineage_ids in knowledge_lineage_by_protocol.items():
+        if not lineage_ids:
+            continue
+        if protocol_id not in active_protocols_in_window:
+            continue
+        for lineage_id in lineage_ids:
+            if lineage_id in observed_hits:
+                continue
+            seed_id = _strip_lineage_prefix(lineage_id, protocol_id, "knowledge")
+            if not seed_id:
+                continue
+            evidence = ProposalEvidence(
+                observation_window_turns=KNOWLEDGE_ARCHIVAL_MIN_TURNS,
+                pe_signature=(
+                    f"knowledge_seed_unretrieved_for_{KNOWLEDGE_ARCHIVAL_MIN_TURNS}_turns"
+                ),
+                summary=(
+                    f"protocol {protocol_id!r} knowledge seed {seed_id!r} "
+                    f"was never retrieved across the last "
+                    f"{KNOWLEDGE_ARCHIVAL_MIN_TURNS} active turns; "
+                    "propose archival."
+                ),
+            )
+            proposals.append(
+                ProtocolRevisionProposal(
+                    proposal_id=(
+                        f"reflect:knowledge_archival:{protocol_id}:{seed_id}"
+                    ),
+                    target_protocol_id=protocol_id,
+                    target_field=ProtocolRevisionTargetField.KNOWLEDGE_SEED,
+                    target_entry_id=seed_id,
+                    change_kind=ProtocolRevisionChangeKind.ARCHIVE,
+                    evidence=evidence,
+                    required_review_level=ReviewLevel.L2,
+                )
+            )
+    return tuple(proposals)
 
 
 def propose_case_archival(
@@ -202,17 +250,88 @@ def propose_case_archival(
     active_mixture_history: tuple[ActiveMixtureSnapshot, ...],
     knowledge_hit_history: tuple[tuple[str, ...], ...] = (),
     case_hit_history: tuple[tuple[str, ...], ...] = (),
+    knowledge_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
+    case_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
 ) -> tuple[ProtocolRevisionProposal, ...]:
-    """Mirror of :func:`propose_knowledge_archival` for case_memory.
+    """Packet 9.2: mirror of :func:`propose_knowledge_archival`
+    for case_memory."""
 
-    Same caveats: scaffolding in place; awaiting per-protocol
-    seed_id introspection on the registry snapshot before this
-    rule can identify which specific case_id to archive.
-    """
-
+    if case_lineage_by_protocol is None or not case_lineage_by_protocol:
+        return ()
     if len(case_hit_history) < CASE_ARCHIVAL_MIN_TURNS:
         return ()
-    return ()
+
+    window = case_hit_history[-CASE_ARCHIVAL_MIN_TURNS:]
+    observed_hits: set[str] = set()
+    for hits in window:
+        observed_hits.update(hits)
+
+    active_protocols_in_window = _active_protocol_ids_in_window(
+        active_mixture_history, CASE_ARCHIVAL_MIN_TURNS
+    )
+
+    proposals: list[ProtocolRevisionProposal] = []
+    for protocol_id, lineage_ids in case_lineage_by_protocol.items():
+        if not lineage_ids:
+            continue
+        if protocol_id not in active_protocols_in_window:
+            continue
+        for lineage_id in lineage_ids:
+            if lineage_id in observed_hits:
+                continue
+            case_id = _strip_lineage_prefix(lineage_id, protocol_id, "case")
+            if not case_id:
+                continue
+            evidence = ProposalEvidence(
+                observation_window_turns=CASE_ARCHIVAL_MIN_TURNS,
+                pe_signature=(
+                    f"signature_case_unretrieved_for_{CASE_ARCHIVAL_MIN_TURNS}_turns"
+                ),
+                summary=(
+                    f"protocol {protocol_id!r} signature case {case_id!r} "
+                    f"was never retrieved across the last "
+                    f"{CASE_ARCHIVAL_MIN_TURNS} active turns; "
+                    "propose archival."
+                ),
+            )
+            proposals.append(
+                ProtocolRevisionProposal(
+                    proposal_id=(
+                        f"reflect:case_archival:{protocol_id}:{case_id}"
+                    ),
+                    target_protocol_id=protocol_id,
+                    target_field=ProtocolRevisionTargetField.SIGNATURE_CASE,
+                    target_entry_id=case_id,
+                    change_kind=ProtocolRevisionChangeKind.ARCHIVE,
+                    evidence=evidence,
+                    required_review_level=ReviewLevel.L2,
+                )
+            )
+    return tuple(proposals)
+
+
+def _active_protocol_ids_in_window(
+    active_mixture_history: tuple[ActiveMixtureSnapshot, ...],
+    window_size: int,
+) -> set[str]:
+    if not active_mixture_history:
+        return set()
+    window = active_mixture_history[-window_size:]
+    out: set[str] = set()
+    for snap in window:
+        for entry in snap.active_protocols:
+            if entry.activation_weight > 0.0:
+                out.add(entry.protocol_id)
+    return out
+
+
+def _strip_lineage_prefix(
+    lineage_id: str, protocol_id: str, kind: str
+) -> str | None:
+    prefix = f"protocol:{protocol_id}:{kind}:"
+    if not lineage_id.startswith(prefix):
+        return None
+    return lineage_id[len(prefix) :]
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +610,8 @@ def run_all_protocol_revision_rules(
     active_mixture_history: tuple[ActiveMixtureSnapshot, ...],
     knowledge_hit_history: tuple[tuple[str, ...], ...] = (),
     case_hit_history: tuple[tuple[str, ...], ...] = (),
+    knowledge_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
+    case_lineage_by_protocol: dict[str, tuple[str, ...]] | None = None,
 ) -> tuple[ProtocolRevisionProposal, ...]:
     """Aggregate all rules into a single proposals tuple.
 
@@ -523,6 +644,8 @@ def run_all_protocol_revision_rules(
             active_mixture_history=active_mixture_history,
             knowledge_hit_history=knowledge_hit_history,
             case_hit_history=case_hit_history,
+            knowledge_lineage_by_protocol=knowledge_lineage_by_protocol,
+            case_lineage_by_protocol=case_lineage_by_protocol,
         ):
             bucket[proposal.proposal_id] = proposal
     return tuple(bucket.values())

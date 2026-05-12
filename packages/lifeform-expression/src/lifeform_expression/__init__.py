@@ -18,6 +18,7 @@ from lifeform_expression.etiquette_watchdog import (
     SpeakVerdict,
 )
 from lifeform_expression.grounded_decoder import (
+    EvidencePointer,
     GroundedDecoder,
     GroundedDecoderConfig,
     UngroundedAssertionError,
@@ -53,6 +54,7 @@ __all__ = (
     "CoveragePolicy",
     "EtiquetteVerdict",
     "EtiquetteWatchdog",
+    "EvidencePointer",
     "GroundedDecoder",
     "GroundedDecoderConfig",
     "GroundedResponseSynthesizer",

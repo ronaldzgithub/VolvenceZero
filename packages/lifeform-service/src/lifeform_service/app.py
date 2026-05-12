@@ -58,6 +58,8 @@ from lifeform_service.alpha import (
     AlphaServiceConfig,
     alpha_config_to_json,
 )
+from lifeform_service.protocol_routes import register_protocol_routes
+from lifeform_service.protocol_uptake import ProtocolUptakeService
 from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
     SessionManager,
@@ -107,6 +109,7 @@ def create_app(
     substrate_provider: SubstrateRuntimeProvider | None = None,
     alpha_config: AlphaServiceConfig | None = None,
     templates_root_dir: str | None = None,
+    protocol_uptake_service: ProtocolUptakeService | None = None,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -235,6 +238,8 @@ def create_app(
     )
     app.router.add_delete("/v1/users/me/memory", _handle_delete_user_memory)
     app.router.add_get("/v1/admin/weekly-report", _handle_admin_weekly_report)
+    if protocol_uptake_service is not None:
+        register_protocol_routes(app, uptake_service=protocol_uptake_service)
     return app
 
 
@@ -1232,6 +1237,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
       <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
       <button id="endBtn" class="secondary" disabled>End Scene</button>
       <button id="clearBtn" class="secondary">Clear</button>
+      <button id="protocolsBtn" class="secondary" title="Upload PDF / Markdown / task description and review extracted protocols">Protocols</button>
     </section>
     <section class="bar">
       <span id="modelStatus" class="msg system" style="margin: 0; padding: 4px 8px;">substrate: loading...</span>
@@ -1252,6 +1258,40 @@ _CHAT_UI_HTML = r"""<!doctype html>
       <button id="sendBtn" disabled>Send</button>
     </section>
   </main>
+  <div id="protocolsPanel" hidden style="
+    position: fixed; inset: 0; background: rgba(2,6,23,0.75);
+    display: grid; place-items: center; z-index: 50;
+  ">
+    <div style="
+      width: min(720px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px); overflow: auto;
+      background: #111827; border: 1px solid #4b5563; border-radius: 14px;
+      padding: 18px; color: #e5e7eb;
+    ">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <h2 style="margin: 0; font-size: 18px;">Behavior Protocols</h2>
+        <button id="protocolsCloseBtn" class="secondary">Close</button>
+      </div>
+      <div id="protocolsStatus" class="msg system" style="margin-top: 12px;">Loading...</div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Upload PDF / Markdown</h3>
+      <div class="bar" style="gap: 6px;">
+        <input type="file" id="protocolUploadFile" accept=".pdf,.md,.markdown,.txt" style="flex: 1; min-width: 220px;">
+        <input id="protocolUploadSeed" placeholder="optional protocol_id seed" style="flex: 1; min-width: 180px;">
+        <button id="protocolUploadBtn" class="secondary">Upload</button>
+      </div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">From Description</h3>
+      <div class="bar" style="gap: 6px; flex-wrap: wrap;">
+        <input id="protocolDescId" placeholder="protocol_id (e.g. spa-bot)" style="flex: 1; min-width: 200px;">
+        <input id="protocolDescAdvisor" placeholder="advisor_name" style="flex: 1; min-width: 160px;">
+      </div>
+      <textarea id="protocolDescText" placeholder="Free-text role description..." style="margin-top: 6px; min-height: 60px;"></textarea>
+      <button id="protocolDescBtn" class="secondary" style="margin-top: 6px;">Submit Description</button>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Pending Candidates</h3>
+      <div id="protocolsCandidates"></div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Approved Protocols</h3>
+      <div id="protocolsApproved"></div>
+    </div>
+  </div>
   <script>
     const state = {
       sessionId: null,
@@ -1602,6 +1642,192 @@ _CHAT_UI_HTML = r"""<!doctype html>
         sendTurn();
       }
     });
+    // ----- Protocol uptake panel -----
+    const protocolsBtn = document.getElementById("protocolsBtn");
+    const protocolsPanel = document.getElementById("protocolsPanel");
+    const protocolsCloseBtn = document.getElementById("protocolsCloseBtn");
+    const protocolsStatus = document.getElementById("protocolsStatus");
+    const protocolsCandidates = document.getElementById("protocolsCandidates");
+    const protocolsApproved = document.getElementById("protocolsApproved");
+    const protocolUploadFile = document.getElementById("protocolUploadFile");
+    const protocolUploadSeed = document.getElementById("protocolUploadSeed");
+    const protocolUploadBtn = document.getElementById("protocolUploadBtn");
+    const protocolDescId = document.getElementById("protocolDescId");
+    const protocolDescAdvisor = document.getElementById("protocolDescAdvisor");
+    const protocolDescText = document.getElementById("protocolDescText");
+    const protocolDescBtn = document.getElementById("protocolDescBtn");
+
+    function setProtocolStatus(msg) {
+      protocolsStatus.textContent = msg;
+    }
+
+    function renderCandidate(item, container) {
+      const div = document.createElement("div");
+      div.className = "msg system";
+      div.style.maxWidth = "100%";
+      div.style.marginRight = "0";
+      div.style.marginLeft = "0";
+      const counts = `boundaries=${item.boundary_count} strategies=${item.strategy_count} `
+        + `seeds=${item.knowledge_seed_count} cases=${item.signature_case_count}`;
+      div.innerHTML = `<strong>${item.protocol_id}</strong> &middot; ${item.advisor_name || "(no name)"} &middot; `
+        + `<em>${item.review_status}</em><br>`
+        + `<span style="opacity:.8">${item.description || "(no description)"}</span><br>`
+        + `<span style="font-size:12px;opacity:.7">${counts} &middot; src=${item.provenance ? item.provenance.source_kind : item.source_kind}</span>`;
+      const btnRow = document.createElement("div");
+      btnRow.style.marginTop = "6px";
+      btnRow.style.display = "flex";
+      btnRow.style.gap = "6px";
+      div.appendChild(btnRow);
+      container.appendChild(div);
+      return btnRow;
+    }
+
+    async function loadProtocols() {
+      setProtocolStatus("Loading...");
+      protocolsCandidates.innerHTML = "";
+      protocolsApproved.innerHTML = "";
+      try {
+        const [pendingPayload, approvedPayload] = await Promise.all([
+          requestJson("/v1/protocols/candidates", { method: "GET" }),
+          requestJson("/v1/protocols", { method: "GET" }),
+        ]);
+        const pending = pendingPayload.candidates || [];
+        const approved = approvedPayload.protocols || [];
+        if (pending.length === 0) {
+          protocolsCandidates.innerHTML = "<div class='msg system'>(no pending candidates)</div>";
+        } else {
+          for (const c of pending) {
+            const row = renderCandidate(c, protocolsCandidates);
+            const approveBtn = document.createElement("button");
+            approveBtn.textContent = "Approve";
+            approveBtn.className = "secondary";
+            approveBtn.addEventListener("click", () => approveCandidate(c.protocol_id));
+            const rejectBtn = document.createElement("button");
+            rejectBtn.textContent = "Reject";
+            rejectBtn.className = "danger";
+            rejectBtn.addEventListener("click", () => rejectCandidate(c.protocol_id));
+            row.appendChild(approveBtn);
+            row.appendChild(rejectBtn);
+          }
+        }
+        if (approved.length === 0) {
+          protocolsApproved.innerHTML = "<div class='msg system'>(no protocols loaded)</div>";
+        } else {
+          for (const p of approved) {
+            const row = renderCandidate(p, protocolsApproved);
+            const unloadBtn = document.createElement("button");
+            unloadBtn.textContent = "Unload";
+            unloadBtn.className = "danger";
+            unloadBtn.addEventListener("click", () => unloadProtocol(p.protocol_id));
+            row.appendChild(unloadBtn);
+          }
+        }
+        setProtocolStatus(
+          `Pending: ${pending.length} | Approved: ${approved.length}. `
+          + `Note: approved protocols apply to NEW sessions — restart your session for them to take effect.`
+        );
+      } catch (err) {
+        setProtocolStatus(`Failed to load: ${err.message}`);
+      }
+    }
+
+    async function approveCandidate(pid) {
+      try {
+        await requestJson(`/v1/protocols/candidates/${encodeURIComponent(pid)}/approve`, { method: "POST" });
+        setProtocolStatus(`Approved ${pid}`);
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Approve failed: ${err.message}`);
+      }
+    }
+    async function rejectCandidate(pid) {
+      const reason = window.prompt(`Reject reason for ${pid}:`, "") || "";
+      try {
+        await requestJson(`/v1/protocols/candidates/${encodeURIComponent(pid)}/reject`, {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        });
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Reject failed: ${err.message}`);
+      }
+    }
+    async function unloadProtocol(pid) {
+      if (!window.confirm(`Unload ${pid}? This removes its compiled artifacts.`)) return;
+      try {
+        await requestJson(`/v1/protocols/${encodeURIComponent(pid)}`, { method: "DELETE" });
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Unload failed: ${err.message}`);
+      }
+    }
+    async function uploadProtocolFile() {
+      const file = protocolUploadFile.files && protocolUploadFile.files[0];
+      if (!file) {
+        setProtocolStatus("Pick a .pdf / .md / .markdown / .txt file first.");
+        return;
+      }
+      const seed = protocolUploadSeed.value.trim();
+      const form = new FormData();
+      form.append("file", file, file.name);
+      if (seed) form.append("protocol_id_seed", seed);
+      const isMarkdown = /\.(md|markdown|txt)$/i.test(file.name);
+      const url = isMarkdown ? "/v1/protocols/upload-markdown" : "/v1/protocols/upload-pdf";
+      protocolUploadBtn.disabled = true;
+      setProtocolStatus(`Uploading ${file.name} ...`);
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          body: form,
+          headers: { ...alphaHeaders() },
+        });
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          throw new Error(`${payload.error || response.status}: ${payload.detail || text}`);
+        }
+        setProtocolStatus(`Uploaded ${file.name} -> ${payload.protocol_id}`);
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Upload failed: ${err.message}`);
+      } finally {
+        protocolUploadBtn.disabled = false;
+      }
+    }
+    async function submitDescription() {
+      const id = protocolDescId.value.trim();
+      const advisor = protocolDescAdvisor.value.trim();
+      const desc = protocolDescText.value.trim();
+      if (!id || !advisor || !desc) {
+        setProtocolStatus("Description, protocol_id, advisor_name are all required.");
+        return;
+      }
+      protocolDescBtn.disabled = true;
+      setProtocolStatus(`Submitting description for ${id} ...`);
+      try {
+        const payload = await requestJson("/v1/protocols/from-description", {
+          method: "POST",
+          body: JSON.stringify({ description: desc, protocol_id: id, advisor_name: advisor }),
+        });
+        setProtocolStatus(`Submitted ${payload.protocol_id}`);
+        protocolDescText.value = "";
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Submit failed: ${err.message}`);
+      } finally {
+        protocolDescBtn.disabled = false;
+      }
+    }
+    if (protocolsBtn) {
+      protocolsBtn.addEventListener("click", () => {
+        protocolsPanel.hidden = false;
+        loadProtocols();
+      });
+      protocolsCloseBtn.addEventListener("click", () => { protocolsPanel.hidden = true; });
+      protocolUploadBtn.addEventListener("click", uploadProtocolFile);
+      protocolDescBtn.addEventListener("click", submitDescription);
+    }
+
     loadModels();
     // loadVerticals() chains into loadTemplates() so the template
     // dropdown is filled for whatever vertical was auto-selected.

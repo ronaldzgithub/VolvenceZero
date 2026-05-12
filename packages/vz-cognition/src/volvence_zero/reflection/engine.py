@@ -29,6 +29,7 @@ from typing import Any, ClassVar, Mapping
 from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     ProtocolReflectionSnapshot,
+    ProtocolRegistrySnapshot,
     ProtocolRevisionProposal,
 )
 from volvence_zero.prediction import PredictionErrorSnapshot
@@ -64,11 +65,15 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
     # archival rules can read hit_ids per turn without breaking
     # the cognition→application import-boundary rule (snapshots
     # are read duck-typedly via getattr, no concrete type import).
+    # Packet 9.2: protocol_registry added so archival rules can
+    # see which knowledge / case lineage IDs each loaded protocol
+    # owns (compile-time lineage prefix).
     dependencies: ClassVar[tuple[str, ...]] = (
         "prediction_error",
         "active_mixture",
         "domain_knowledge",
         "case_memory",
+        "protocol_registry",
     )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
@@ -107,6 +112,9 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         self._case_hit_history: deque[tuple[str, ...]] = deque(
             maxlen=history_window
         )
+        # Packet 9.2: latest registry snapshot — used by archival
+        # rules to map lineage IDs back to owning protocol IDs.
+        self._latest_registry_snapshot: ProtocolRegistrySnapshot | None = None
         self._turns_since_last_scan: int = 0
         self._last_pe_turn_index: int | None = None
         self._last_proposals: tuple[ProtocolRevisionProposal, ...] = ()
@@ -134,6 +142,7 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         self._ingest_active_mixture(upstream)
         self._ingest_knowledge_hits(upstream)
         self._ingest_case_hits(upstream)
+        self._ingest_registry(upstream)
 
         self._turns_since_last_scan += 1
 
@@ -241,6 +250,17 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
         )
         self._case_hit_history.append(case_ids)
 
+    def _ingest_registry(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        snapshot = upstream.get("protocol_registry")
+        if snapshot is None:
+            return
+        value = snapshot.value
+        if not isinstance(value, ProtocolRegistrySnapshot):
+            return
+        self._latest_registry_snapshot = value
+
     # ------------------------------------------------------------------
     # Rules dispatch (filled in by packet 3.2)
     # ------------------------------------------------------------------
@@ -252,11 +272,27 @@ class ProtocolReflectionEngine(RuntimeModule[ProtocolReflectionSnapshot]):
             run_all_protocol_revision_rules,
         )
 
+        # Packet 9.2: build per-protocol → lineage_ids maps from the
+        # latest registry snapshot so archival rules can attribute
+        # absent hits to a specific (protocol, seed/case) pair.
+        knowledge_lineage_by_protocol: dict[str, tuple[str, ...]] = {}
+        case_lineage_by_protocol: dict[str, tuple[str, ...]] = {}
+        if self._latest_registry_snapshot is not None:
+            for entry in self._latest_registry_snapshot.entries:
+                knowledge_lineage_by_protocol[entry.protocol_id] = (
+                    entry.knowledge_lineage_ids
+                )
+                case_lineage_by_protocol[entry.protocol_id] = (
+                    entry.case_lineage_ids
+                )
+
         return run_all_protocol_revision_rules(
             pe_history=tuple(self._pe_history),
             active_mixture_history=tuple(self._active_mixture_history),
             knowledge_hit_history=tuple(self._knowledge_hit_history),
             case_hit_history=tuple(self._case_hit_history),
+            knowledge_lineage_by_protocol=knowledge_lineage_by_protocol,
+            case_lineage_by_protocol=case_lineage_by_protocol,
         )
 
     @property

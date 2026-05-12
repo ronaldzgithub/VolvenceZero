@@ -934,7 +934,15 @@ class ProposalEvidence:
 @dataclass(frozen=True)
 class ProtocolRegistryEntry:
     """Per-protocol summary published in
-    :class:`ProtocolRegistrySnapshot`. Surface for audit / CLI tools."""
+    :class:`ProtocolRegistrySnapshot`. Surface for audit / CLI tools.
+
+    Packet 9.1 adds ``knowledge_lineage_ids`` and ``case_lineage_ids``
+    — the fully-qualified ``protocol:{protocol_id}:knowledge:{seed_id}``
+    / ``protocol:{protocol_id}:case:{case_id}`` strings that the
+    compile path produces. Reflection rules (e.g. archival) need
+    these to identify which retrieval-store record_ids belong to
+    which protocol without re-running the compile pipeline.
+    """
 
     protocol_id: str
     version: str
@@ -946,6 +954,8 @@ class ProtocolRegistryEntry:
     knowledge_seed_count: int
     signature_case_count: int
     revision_count: int
+    knowledge_lineage_ids: tuple[str, ...] = ()
+    case_lineage_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -979,6 +989,45 @@ class ProtocolRevisionLogSnapshot:
     """Per-turn published view of all revisions across all protocols."""
 
     entries: tuple[ProtocolRevisionLogEntry, ...]
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ProtocolRevisionQueueEntry:
+    """One row in :class:`ProtocolRevisionQueueSnapshot`.
+
+    ``outcome`` mirrors :class:`ApprovalOutcome` value — kept as
+    a string here so vz-contracts has no dependency on
+    vz-application.protocol_runtime.revision_queue.
+    """
+
+    proposal_id: str
+    target_protocol_id: str
+    change_kind: str
+    outcome: str
+    rationale: str
+
+
+@dataclass(frozen=True)
+class ProtocolRevisionQueueSnapshot:
+    """Per-turn published view of the routing of new revision
+    proposals (packet 9.0). Each turn the
+    :class:`ProtocolRevisionQueueModule` consumes
+    ``protocol_reflection`` upstream, runs each new proposal
+    through the ModificationGate, submits to a shared
+    ``RevisionQueue``, and optionally auto-applies AUTO_APPROVED
+    ones via the registry.
+
+    ``newly_routed`` lists the proposals processed *this turn*
+    only. ``pending_count`` is the queue total (auto + manual).
+    ``auto_applied_count`` is how many of ``newly_routed`` were
+    AUTO_APPROVED *and* applied this turn (the closed PE→learning
+    loop's heartbeat).
+    """
+
+    newly_routed: tuple[ProtocolRevisionQueueEntry, ...]
+    pending_count: int
+    auto_applied_count: int
     description: str = ""
 
 
@@ -1222,6 +1271,8 @@ __all__ = [
     "ProtocolRegistrySnapshot",
     "ProtocolRevisionLogEntry",
     "ProtocolRevisionLogSnapshot",
+    "ProtocolRevisionQueueEntry",
+    "ProtocolRevisionQueueSnapshot",
     "ProtocolRevision",
     "ProtocolRevisionChangeKind",
     "ProtocolRevisionProposal",

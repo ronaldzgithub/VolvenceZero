@@ -50,6 +50,31 @@ def test_registry_introspection_summarizes_loaded() -> None:
     assert e.strategy_count == len(bp.strategy_priors)
 
 
+def test_registry_introspection_publishes_lineage_ids() -> None:
+    """Packet 9.1: knowledge_lineage_ids / case_lineage_ids surface
+    in the introspection snapshot so reflection rules can identify
+    per-protocol seed / case ownership."""
+    registry = ProtocolRegistry()
+    bp = growth_advisor_profile_to_behavior_protocol(
+        build_cheng_laoshi_profile()
+    )
+    registry.load(bp)
+    module = ProtocolRegistryIntrospectionModule(registry=registry)
+    snap = asyncio.run(module.process({}))
+    e = snap.value.entries[0]
+    # cheng_laoshi has knowledge seeds and signature cases.
+    assert e.knowledge_lineage_ids
+    assert e.case_lineage_ids
+    # All lineage IDs must carry the protocol prefix.
+    for lid in e.knowledge_lineage_ids:
+        assert lid.startswith(f"protocol:{bp.protocol_id}:knowledge:")
+    for lid in e.case_lineage_ids:
+        assert lid.startswith(f"protocol:{bp.protocol_id}:case:")
+    # Lineage count must equal the seed / case count on the protocol.
+    assert len(e.knowledge_lineage_ids) == len(bp.knowledge_seeds)
+    assert len(e.case_lineage_ids) == len(bp.signature_cases)
+
+
 def test_registry_introspection_counts_active_vs_retired() -> None:
     registry = ProtocolRegistry()
     bp_a = growth_advisor_profile_to_behavior_protocol(
@@ -108,6 +133,9 @@ def test_revision_log_module_lists_revisions() -> None:
 
 
 def test_introspection_modules_in_final_wiring() -> None:
+    """Packet 9.3 flipped both introspection publishers to ACTIVE
+    (pure read-only, no side effects, surfacing them in
+    active_snapshots is safe and useful for monitoring/CLI)."""
     from volvence_zero.integration.final_wiring import (
         FinalRolloutConfig,
         build_final_runtime_modules,
@@ -122,7 +150,6 @@ def test_introspection_modules_in_final_wiring() -> None:
     slots = {m.slot_name for m in modules}
     assert "protocol_registry" in slots
     assert "protocol_revision_log" in slots
-    # Both should default SHADOW.
     for m in modules:
         if m.slot_name in ("protocol_registry", "protocol_revision_log"):
-            assert m.wiring_level is WiringLevel.SHADOW
+            assert m.wiring_level is WiringLevel.ACTIVE

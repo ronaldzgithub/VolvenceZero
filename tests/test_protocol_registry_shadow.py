@@ -260,7 +260,19 @@ def test_loading_protocol_does_not_widen_active_value_drift() -> None:
         empty_run["active"], loaded_run["active"]
     )
 
-    new_drift = (load_drift - baseline_drift) - {"active_mixture"}
+    # Packet 9.3 ACTIVE-flipped publishers also legitimately drift
+    # when a protocol is loaded — protocol_phase tracks per-protocol
+    # phase pointer (which only exists when a protocol is loaded);
+    # protocol_registry / protocol_revision_log reflect registry
+    # contents directly. Exclude these alongside active_mixture
+    # itself.
+    expected_loaded_drifters = {
+        "active_mixture",
+        "protocol_phase",
+        "protocol_registry",
+        "protocol_revision_log",
+    }
+    new_drift = (load_drift - baseline_drift) - expected_loaded_drifters
     assert not new_drift, (
         "Loading a BehaviorProtocol introduced new drift on active "
         f"slots that are stable across baseline runs: {sorted(new_drift)}. "

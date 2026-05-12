@@ -156,7 +156,10 @@ from lifeform_domain_figure.lora_artifact import (
     LoRABakeBackend,
     compute_lora_integrity_hash,
 )
-from lifeform_domain_figure.lora_bake_peft import PEFTLoRABakeBackend
+from lifeform_domain_figure.lora_bake_peft import (
+    PEFTLoRABakeBackend,
+    PEFTLoRAConfig,
+)
 from lifeform_domain_figure.lora_bake_synthetic import (
     SyntheticLoRABakeBackend,
     attach_baked_lora,
@@ -353,6 +356,7 @@ __all__ = [
     "LORA_ARTIFACT_SCHEMA_VERSION",
     "LoRABakeBackend",
     "PEFTLoRABakeBackend",
+    "PEFTLoRAConfig",
     "SyntheticLoRABakeBackend",
     "attach_baked_lora",
     "compute_lora_integrity_hash",

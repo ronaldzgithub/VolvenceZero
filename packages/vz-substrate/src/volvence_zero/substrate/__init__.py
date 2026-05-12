@@ -20,6 +20,9 @@ from volvence_zero.substrate.grounded_decode_hook import (
     GroundedDecodeHook,
     GroundingVerdict,
 )
+from volvence_zero.substrate.lora_aware_runtime import (
+    LoRAAwareResidualRuntime,
+)
 from volvence_zero.substrate.persona_lora_pool import (
     PersonaLoRANotFound,
     PersonaLoRAPool,
@@ -82,6 +85,7 @@ __all__ = [
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",
     "HookLayerCalibrationReport",
+    "LoRAAwareResidualRuntime",
     "LocalModelCompatibilityReport",
     "NoOpResidualInterventionBackend",
     "OpenWeightResidualInterventionBackend",

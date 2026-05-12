@@ -284,12 +284,22 @@ def build_figure_retrieval_index(
     envelopes: tuple[IngestionEnvelope, ...],
     bm25_weight: float = 0.6,
     cosine_weight: float = 0.4,
+    chunk_id_allowlist: frozenset[str] | None = None,
 ) -> FigureRetrievalIndex:
     """Build a :class:`FigureRetrievalIndex` from ingestion envelopes.
 
     All chunks across all envelopes are folded into one index. Chunks
     with non-empty ``parse_error`` are dropped — the resulting index
     must only point at clean, ingestible primary-source text.
+
+    When ``chunk_id_allowlist`` is provided, only chunks whose
+    ``chunk_id`` is a member of that frozenset are admitted. The
+    figure-vertical compiler uses this to feed the canonical chunk
+    set produced by :func:`compute_dedup_report` so the BM25 corpus
+    statistics (document frequencies, average chunk length) are
+    computed without over-weighting boilerplate duplicates that
+    appeared in multiple envelopes (debt #24 closure). Pass ``None``
+    (the default) to keep existing callers unchanged.
     """
 
     if not envelopes:
@@ -304,6 +314,11 @@ def build_figure_retrieval_index(
     document_frequencies: dict[str, int] = {}
     for envelope in envelopes:
         for chunk in envelope.successful_chunks:
+            if (
+                chunk_id_allowlist is not None
+                and chunk.chunk_id not in chunk_id_allowlist
+            ):
+                continue
             tokens = _tokenize(chunk.text)
             if not tokens:
                 continue

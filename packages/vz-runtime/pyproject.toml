@@ -24,6 +24,14 @@ hf = [
 ]
 torch = [
     "vz-temporal[torch]==0.1.*",
+    # Parameter-Efficient Fine-Tuning library, used by
+    # ``lifeform_domain_figure.lora_bake_peft.PEFTLoRABakeBackend`` to
+    # produce real LoRA artifacts on a frozen base. Lives in the
+    # ``torch`` extra because peft itself transitively depends on
+    # torch (>=2.0). Installs only when the operator opts in:
+    # ``pip install vz-runtime[torch]``. Without it, the figure
+    # vertical falls back to ``SyntheticLoRABakeBackend``.
+    "peft>=0.11",
 ]
 dev = [
     "pytest",

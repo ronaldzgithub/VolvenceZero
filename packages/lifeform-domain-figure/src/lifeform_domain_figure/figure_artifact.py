@@ -63,6 +63,13 @@ class FigureArtifactBundle:
     when no metadata enrichment was applied; non-empty when present
     so an audit can reverse-look up which Wikidata / OpenAlex /
     Crossref / SEP snapshot produced this bundle.
+
+    ``provenance_fingerprint`` (debt #24 closure) is the SHA-256
+    fingerprint of the tuple of :class:`SourceProvenance` records
+    the curator pinned at compile time (license / capture method /
+    byte hash per source). Empty when no provenance records were
+    supplied; non-empty makes a license-only edit on any source
+    auditable through the bundle hash itself.
     """
 
     schema_version: int
@@ -80,6 +87,7 @@ class FigureArtifactBundle:
     lora: object | None
     integrity_hash: str
     metadata_digest_fingerprint: str = ""
+    provenance_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -129,6 +137,7 @@ def compute_bundle_integrity_hash(
     steering_integrity: str,
     lora_integrity: str,
     metadata_digest_fingerprint: str = "",
+    provenance_fingerprint: str = "",
 ) -> str:
     """Deterministic SHA-256 over the bundle's load-bearing identity fields.
 
@@ -142,6 +151,13 @@ def compute_bundle_integrity_hash(
     not record metadata enrichment. Passing a non-empty fingerprint
     yields a different bundle id (any metadata-snapshot change is
     auditable through the bundle hash).
+
+    ``provenance_fingerprint`` (debt #24 closure) follows the same
+    rule: empty default keeps existing bundles' hashes byte-stable,
+    a non-empty value (the SHA-256 over the supplied
+    :class:`SourceProvenance` tuple) folds the curator's license /
+    capture-method declarations into the bundle's identity so a
+    license-only edit yields a fresh bundle id.
     """
 
     payload: tuple[object, ...] = (
@@ -157,6 +173,8 @@ def compute_bundle_integrity_hash(
     )
     if metadata_digest_fingerprint:
         payload = payload + (("metadata_digest", metadata_digest_fingerprint),)
+    if provenance_fingerprint:
+        payload = payload + (("provenance", provenance_fingerprint),)
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
 

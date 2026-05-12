@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -7,7 +8,7 @@ import hashlib
 import importlib
 import math
 import re
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
@@ -172,6 +173,187 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         return self._capture_with_hooks(source_text=source_text)
+
+    def activate_lora(self, layers):
+        """Real-forward override of :meth:`OpenWeightResidualRuntime.activate_lora`.
+
+        Registers a forward hook on every ``_block_modules[layer_index]``
+        in the supplied LoRA layer set; the hook adds the broadcast
+        ``delta_vector`` to the residual stream output of that
+        attention block. On context exit the hooks are removed and
+        the model returns to its frozen-base behaviour. The base
+        ``state_dict`` is never mutated (R2: controller-layer only).
+
+        Layer indexing: each :class:`SubstrateDeltaAdapterLayer`
+        carries ``layer_index``. Layers whose index is not in this
+        runtime's hooked layer set (``self._layer_indices``) are
+        applied at the closest hooked layer modulo block count;
+        this keeps the activation effective even when the persona
+        was baked against a different block layout (debt #20
+        recommendation 6 — additive sequential, not silent drop).
+        """
+
+        return self._lora_hot_swap_context(layers)
+
+    @contextlib.contextmanager
+    def _lora_hot_swap_context(self, layers):
+        """Context-manager body for :meth:`activate_lora`.
+
+        Defined as a separate helper so :meth:`activate_lora` can
+        be a thin wrapper that returns the context manager rather
+        than yielding from a contextmanager-decorated method (the
+        Protocol declares the return type as a context manager).
+        """
+
+        if not layers:
+            raise ValueError(
+                "activate_lora: layers tuple must be non-empty"
+            )
+        if getattr(self, "_lora_activation_in_flight", False):
+            raise RuntimeError(
+                "activate_lora: nested activation detected; exit the "
+                "outer context before activating a different persona."
+            )
+        block_count = len(self._block_modules)
+        hooked = sorted(self._layer_indices)
+        if not hooked:
+            raise RuntimeError(
+                "activate_lora: runtime has no hooked layers; cannot "
+                "apply persona LoRA on top of the frozen base."
+            )
+        per_layer_deltas: dict[int, list[tuple[float, ...]]] = {
+            layer_idx: [] for layer_idx in hooked
+        }
+        for layer in layers:
+            if layer.layer_index in per_layer_deltas:
+                target = layer.layer_index
+            else:
+                normalised = layer.layer_index % max(block_count, 1)
+                target = min(hooked, key=lambda idx: abs(idx - normalised))
+            per_layer_deltas[target].append(tuple(layer.delta_vector))
+        hooks: list[Any] = []
+        try:
+            object.__setattr__(self, "_lora_activation_in_flight", True)
+            object.__setattr__(self, "_lora_activation_layers", tuple(layers))
+            for hooked_index, delta_list in per_layer_deltas.items():
+                if not delta_list:
+                    continue
+                summed = self._sum_persona_deltas_to_tensor(delta_list)
+                hook = self._block_modules[hooked_index].register_forward_hook(
+                    self._make_lora_forward_hook(delta_tensor=summed)
+                )
+                hooks.append(hook)
+            yield
+        finally:
+            for hook in hooks:
+                hook.remove()
+            object.__setattr__(self, "_lora_activation_in_flight", False)
+            object.__setattr__(self, "_lora_activation_layers", ())
+
+    def _sum_persona_deltas_to_tensor(self, deltas: list[tuple[float, ...]]):
+        """Sum-pool persona LoRA deltas into one torch tensor."""
+
+        max_width = max(len(delta) for delta in deltas)
+        accumulator = [0.0] * max_width
+        for delta in deltas:
+            for index, value in enumerate(delta):
+                accumulator[index] += float(value)
+        return self._torch.tensor(
+            accumulator, dtype=self._torch.float32, device=self._device
+        )
+
+    def _make_lora_forward_hook(self, *, delta_tensor):
+        """Create a per-layer forward hook that adds the LoRA delta."""
+
+        torch_mod = self._torch
+
+        def hook(module, args, output):
+            del module, args
+            tensor = self._extract_hidden_tensor(output=output)
+            hidden_dim = tensor.shape[-1]
+            delta = delta_tensor
+            if delta.shape[0] < hidden_dim:
+                padded = torch_mod.zeros(
+                    hidden_dim, dtype=tensor.dtype, device=tensor.device
+                )
+                padded[: delta.shape[0]] = delta.to(
+                    dtype=tensor.dtype, device=tensor.device
+                )
+                delta = padded
+            elif delta.shape[0] > hidden_dim:
+                delta = delta[:hidden_dim].to(
+                    dtype=tensor.dtype, device=tensor.device
+                )
+            else:
+                delta = delta.to(dtype=tensor.dtype, device=tensor.device)
+            broadcast = delta.view(*([1] * (tensor.dim() - 1)), hidden_dim)
+            mutated = tensor + broadcast
+            return self._replace_hidden_tensor(output=output, replacement=mutated)
+
+        return hook
+
+    def _replace_hidden_tensor(self, *, output, replacement):
+        """Return ``output`` with its primary hidden tensor replaced."""
+
+        if isinstance(output, tuple):
+            return (replacement,) + tuple(output[1:])
+        if isinstance(output, list):
+            return [replacement, *output[1:]]
+        return replacement
+
+    def _mean_residual_at_layer(
+        self,
+        *,
+        texts: tuple[str, ...],
+        layer_index: int,
+    ) -> tuple[float, ...]:
+        """Batched override using the internal hidden-state means hook.
+
+        Avoids the full-capture overhead of the public path: walks
+        each text through ``_capture_hidden_state_means`` (which
+        already pools per-token hidden states to a single vector
+        per layer) and averages across texts at the requested
+        layer. The end result is mathematically equivalent to the
+        ABC default but ~2x faster on torch CPU for short texts.
+        """
+
+        if not texts:
+            raise ValueError(
+                "_mean_residual_at_layer: texts must be non-empty"
+            )
+        if layer_index not in self._layer_indices:
+            raise ValueError(
+                f"_mean_residual_at_layer: layer_index={layer_index!r} not "
+                f"in runtime's hooked layer set {self._layer_indices!r}"
+            )
+        sums = None
+        sample_count = 0
+        for text in texts:
+            means = self._capture_hidden_state_means(source_text=text)
+            tensor = means.get(layer_index)
+            if tensor is None:
+                raise RuntimeError(
+                    f"_mean_residual_at_layer: capture did not produce a "
+                    f"hidden-state mean at layer_index={layer_index!r} for "
+                    f"text {text[:40]!r}"
+                )
+            values = tuple(float(v) for v in tensor.detach().cpu().tolist())
+            if sums is None:
+                sums = list(values)
+            else:
+                if len(values) != len(sums):
+                    raise RuntimeError(
+                        "_mean_residual_at_layer: hidden-state width drifted "
+                        f"across texts ({len(values)} vs {len(sums)})"
+                    )
+                for index, value in enumerate(values):
+                    sums[index] += value
+            sample_count += 1
+        if sums is None or sample_count == 0:
+            raise RuntimeError(
+                "_mean_residual_at_layer: produced empty activation pool"
+            )
+        return tuple(value / sample_count for value in sums)
 
     def apply_control(
         self,

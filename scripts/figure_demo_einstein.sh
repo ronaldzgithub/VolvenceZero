@@ -73,11 +73,11 @@ STEER_BUNDLE_ID="$(printf '%s' "${BAKE_STEER_OUT}" | extract_bundle_id)"
 echo "    steering bundle id: ${STEER_BUNDLE_ID}"
 
 echo ""
-echo "[3/4] bake-lora einstein (synthetic backend, OFFLINE gate)"
+echo "[3/4] bake-lora einstein (backend=${BACKEND:-synthetic}, OFFLINE gate)"
 BAKE_LORA_OUT="$("${CLI[@]}" bake-lora \
     --figure einstein \
     --bundle "${STEER_BUNDLE_ID}" \
-    --backend synthetic \
+    --backend "${BACKEND:-synthetic}" \
     --rank 8 \
     --evaluation-snapshot default-clean \
     --rollback-evidence "prev_lora=absent;base=${STEER_BUNDLE_ID}")"

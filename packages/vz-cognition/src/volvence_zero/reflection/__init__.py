@@ -2,6 +2,8 @@ from volvence_zero.reflection.engine import ProtocolReflectionEngine
 from volvence_zero.reflection.protocol_revision_rules import (
     ADD_STRATEGY_MIN_TURNS,
     ADD_STRATEGY_SUCCESS_THRESHOLD,
+    CASE_ARCHIVAL_MIN_TURNS,
+    KNOWLEDGE_ARCHIVAL_MIN_TURNS,
     PROTOCOL_RETIREMENT_MIN_TURNS,
     PROTOCOL_RETIREMENT_PE_THRESHOLD,
     STRATEGY_DECAY_MIN_TURNS,
@@ -42,6 +44,8 @@ from volvence_zero.reflection.writeback import (
 __all__ = [
     "ADD_STRATEGY_MIN_TURNS",
     "ADD_STRATEGY_SUCCESS_THRESHOLD",
+    "CASE_ARCHIVAL_MIN_TURNS",
+    "KNOWLEDGE_ARCHIVAL_MIN_TURNS",
     "PE_DERIVED_LESSON_IDS",
     "PROTOCOL_RETIREMENT_MIN_TURNS",
     "PROTOCOL_RETIREMENT_PE_THRESHOLD",
