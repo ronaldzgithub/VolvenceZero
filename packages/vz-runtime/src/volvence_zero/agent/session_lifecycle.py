@@ -262,6 +262,44 @@ class SessionLifecycleMixin:
         self._pending_environment_outcome_id = ""
         return outcome_id
 
+    def remember_environment_prediction_id(self, prediction_id: str) -> None:
+        """Buffer a plan_ref / prediction_id for the next-turn PE action context.
+
+        Packet A (long-horizon-closure): paired with
+        ``remember_environment_outcome`` so the AffordanceInvoker can
+        thread its caller-supplied ``plan_ref`` all the way to
+        ``PredictionActionContext.prediction_id`` on the next turn.
+        Empty string means "no plan_ref was supplied" (back-compat path).
+        """
+        self._pending_environment_prediction_id = prediction_id or ""
+
+    def _consume_pending_environment_prediction_id(self) -> str:
+        prediction_id = self._pending_environment_prediction_id
+        self._pending_environment_prediction_id = ""
+        return prediction_id
+
+    def persist_owners(self) -> tuple[str, ...]:
+        """Packet D (long-horizon-closure): export the runner-owned
+        hydratable owners (currently just SemanticStateStore) and
+        write to the configured ``OwnerHydrationStore``.
+
+        Returns the tuple of persisted owner names for observability.
+        Returns ``()`` when no hydration store is wired (DISABLED
+        wiring or no persistence backend).
+
+        Caller (BrainSession.persist_owners or LifeformSession.end_scene)
+        is responsible for orchestrating the call timing — never in
+        the middle of a turn / propagate, only at scene boundaries.
+        """
+        if self._owner_hydration_store is None:
+            return ()
+        persisted: list[str] = []
+        self._owner_hydration_store.export_and_save_owner(
+            self._semantic_state_store, "semantic_state"
+        )
+        persisted.append("semantic_state")
+        return tuple(persisted)
+
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
         operations: list[str] = []
         active_report = self._maybe_build_current_session_report()

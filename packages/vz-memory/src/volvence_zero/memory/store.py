@@ -805,6 +805,18 @@ class MemoryStore:
         self.restore_checkpoint(checkpoint)
         return ("rare-heavy:memory-import",)
 
+    @property
+    def persistence_backend(self) -> PersistenceBackend | None:
+        """Read-only accessor for the configured persistence backend.
+
+        Packet D (long-horizon-closure): owner hydration store reuses
+        this backend to persist non-MemoryStore owner snapshots
+        under the ``owner_hydration/<owner_name>`` key prefix. Returns
+        ``None`` when this MemoryStore has no backend (anonymous /
+        in-memory session).
+        """
+        return self._persistence_backend
+
     def save_to_backend(self, *, key: str = "memory/store") -> bool:
         """Persist the current checkpoint to the configured backend. Returns False if no backend."""
         if self._persistence_backend is None:

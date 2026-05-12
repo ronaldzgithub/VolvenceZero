@@ -1,6 +1,7 @@
 from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRule, LearnedUpdateRuleState
 from volvence_zero.temporal.interface import (
     ActionFamilyPublicSummary,
+    AffordanceSelectionState,
     ControllerState,
     DualTrackRareHeavySnapshot,
     FamilyOutcomeFeedback,
@@ -61,6 +62,7 @@ from volvence_zero.temporal.tensor_ops import (
 from volvence_zero.temporal.training import fit_policy_from_trace_dataset
 
 __all__ = [
+    "AffordanceSelectionState",
     "ControllerState",
     "DualTrackRareHeavySnapshot",
     "FullLearnedTemporalPolicy",

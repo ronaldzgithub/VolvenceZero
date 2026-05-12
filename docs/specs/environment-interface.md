@@ -226,7 +226,7 @@ The single-user compatibility path is `build_user_input_environment_event(...)`,
    - Status: **satisfied for Phase 1 social identity scope**. `multi_party_identity`, memory subject/audience scope, social prediction, and social PE tests pass.
 3. `outcome-links-to-prediction`
    - Tool result, expression result, scene outcome, and ingestion report evidence can link to a prior prediction id or documented prediction context.
-   - Status: **partial**. `tool_result` carries `EnvironmentOutcome` and next-turn `environment_outcome_id`; ingestion emits `EnvironmentEventKind.INGESTION` but envelope provenance -> PE lineage remains pending; expression / scene outcomes still need tests.
+   - Status: **partial**. `tool_result` carries `EnvironmentOutcome` and next-turn `environment_outcome_id` AND (Packet A — long-horizon-closure) `prediction_id` lineage end-to-end through `AffordanceInvoker.invoke(plan_ref=...)` covered by `tests/lifeform_e2e/test_affordance_pe_lineage.py`; ingestion emits `EnvironmentEventKind.INGESTION` but envelope provenance -> PE lineage remains pending; expression / scene outcomes still need tests.
 4. `owner-boundary-preserved`
    - `vz-*` wheels do not import `lifeform-*`.
    - Environment adapters do not become second owners for memory, temporal, social cognition, or application state.
@@ -246,6 +246,7 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-05-12: Packet A (long-horizon-closure) — `tool_result` 的 outcome→prediction lineage 完成端到端：`PredictionActionContext.prediction_id` 字段新增；`AffordanceInvoker.invoke(plan_ref=...)` -> `EnvironmentOutcome.prediction_id` -> next-turn `PredictionActionContext.prediction_id` 全链路接通；测试见 `tests/lifeform_e2e/test_affordance_pe_lineage.py`。`outcome-links-to-prediction` 的 tool_result 子项可视为 satisfied，整体 gate 仍 partial（待 expression / scene / ingestion）。
 - 2026-05-04: 更新实现状态：`volvence_zero.environment` 的 Phase 1 frozen contract surface 已落地，`user_input` / `ingestion` / `tool_result` 环境路由已有测试覆盖，social frame source-of-truth 已通过 Phase 1 social identity scope 测试；tick / scene / followup 与部分 outcome lineage 仍待逐入口验收。
 - 2026-05-04: 验收 `ingestion` canonical event kind route：`lifeform-ingestion` envelope / pipeline 测试覆盖 immutable envelope、partial failure 显式化、`trigger_kind=INGESTION` turn routing、`EnvironmentEventKind.INGESTION` 到达 kernel result、scene close、per-chunk exception isolation，以及禁止 import owner store / runtime internals；envelope provenance -> PE lineage 仍待端到端证据。
 - 2026-05-04: 验收 `tool_result` 环境 outcome 路径：`BrainSession.submit_tool_result(...)` 构造 `EnvironmentOutcome`，affordance invoker success/failure 均回流 session，下一轮 PE action context 与 snapshot replay 携带 `environment_outcome_id`。

@@ -409,14 +409,28 @@ class Lifeform:
         thinking_adapter: Any = None
         if self._thinking_adapter_factory is not None:
             thinking_adapter = self._thinking_adapter_factory()
+        followups = FollowupManager(
+            default_due_delay_ticks=self._config.followup_default_due_delay_ticks,
+            max_pending=self._config.followup_max_pending,
+        )
+        # Packet D (long-horizon-closure): when the brain session
+        # exposes an OwnerHydrationStore (BrainConfig.owner_hydration_wiring
+        # is non-DISABLED + a persistence backend exists), hydrate the
+        # session-local FollowupManager and VitalsModule from the
+        # backend so pending followups + drive levels survive across
+        # process restarts. Hydration errors fail-loudly per the
+        # no-swallow rule; SHADOW wiring is a no-op (load_snapshot
+        # returns None).
+        hydration_store = getattr(brain_session, "owner_hydration_store", None)
+        if hydration_store is not None:
+            hydration_store.hydrate_owner_if_present(followups, "followup_manager")
+            if vitals is not None:
+                hydration_store.hydrate_owner_if_present(vitals, "vitals")
         session = LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
             scene=SceneManager(idle_close_after_system_ticks=self._config.idle_close_after_system_ticks),
-            followups=FollowupManager(
-                default_due_delay_ticks=self._config.followup_default_due_delay_ticks,
-                max_pending=self._config.followup_max_pending,
-            ),
+            followups=followups,
             vitals=vitals,
             thinking_adapter=thinking_adapter,
         )
@@ -589,6 +603,31 @@ class LifeformSession:
     @property
     def vitals_snapshot(self) -> VitalsSnapshot | None:
         return self._vitals.current_snapshot() if self._vitals is not None else None
+
+    def persist_owners(self) -> tuple[str, ...]:
+        """Packet D (long-horizon-closure): export + persist all
+        hydratable owners (kernel + lifeform side) through the brain
+        session's OwnerHydrationStore.
+
+        Idempotent. Returns the persisted owner names. ``()`` when
+        owner hydration is disabled. Designed to be called at scene
+        boundaries (or by external schedulers); never mid-turn.
+        """
+        kernel_persisted = self._brain_session.persist_owners()
+        hydration_store = getattr(
+            self._brain_session, "owner_hydration_store", None
+        )
+        if hydration_store is None:
+            return kernel_persisted
+        lifeform_persisted: list[str] = []
+        hydration_store.export_and_save_owner(
+            self._followups, "followup_manager"
+        )
+        lifeform_persisted.append("followup_manager")
+        if self._vitals is not None:
+            hydration_store.export_and_save_owner(self._vitals, "vitals")
+            lifeform_persisted.append("vitals")
+        return tuple(kernel_persisted) + tuple(lifeform_persisted)
 
     @property
     def open_scene(self) -> Scene | None:

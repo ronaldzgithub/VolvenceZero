@@ -37,6 +37,8 @@ from volvence_zero.memory import (
     build_scoped_memory_store,
     scope_key_for,
 )
+from volvence_zero.owner_hydration_store import OwnerHydrationStore
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
@@ -91,6 +93,17 @@ class BrainConfig:
     # permission. None (default) keeps the current
     # no-cross-session-memory behavior.
     memory_scope_root_dir: str | None = None
+    # Packet D (long-horizon-closure): cross-session owner hydration
+    # wiring level. DISABLED preserves current behavior verbatim
+    # (each session starts with fresh SemanticStateStore /
+    # FollowupManager / VitalsModule). SHADOW writes hydration
+    # payloads after each turn / scene close but does NOT load on
+    # session create. ACTIVE both writes AND loads. The hydration
+    # store reuses the MemoryStore.persistence_backend; flipping
+    # this flag is safe because the hydration keys
+    # (``owner_hydration/<owner_name>``) do not collide with the
+    # memory checkpoint key.
+    owner_hydration_wiring: WiringLevel = WiringLevel.DISABLED
 
 
 class BrainSession:
@@ -150,6 +163,11 @@ class BrainSession:
         if tool_evidence:
             self._runner.attach_dialogue_outcome_evidence(tool_evidence)
         self._runner.remember_environment_outcome(outcome.outcome_id)
+        # Packet A (long-horizon-closure): when caller threaded a
+        # plan_ref, propagate it to the next-turn PE action context so
+        # downstream credit / replay can attribute the outcome to a
+        # specific prior prediction id. Empty string clears any prior.
+        self._runner.remember_environment_prediction_id(plan_ref or "")
         return self.submit_semantic_events(
             semantic_events_from_tool_result(
                 event_id=event_id,
@@ -313,6 +331,27 @@ class BrainSession:
 
     def export_snapshot_replay_artifact(self) -> dict[str, object]:
         return self._runner.export_snapshot_replay_artifact()
+
+    @property
+    def owner_hydration_store(self) -> OwnerHydrationStore | None:
+        """Packet D (long-horizon-closure): the same OwnerHydrationStore
+        the runner uses for SemanticStateStore hydration. Lifeform
+        layer reads this to hydrate / persist its own owners
+        (FollowupManager, VitalsModule) through the same backend.
+
+        Returns ``None`` when ``BrainConfig.owner_hydration_wiring``
+        is DISABLED or when the MemoryStore has no persistence
+        backend (anonymous session).
+        """
+        return getattr(self._runner, "_owner_hydration_store", None)
+
+    def persist_owners(self) -> tuple[str, ...]:
+        """Packet D (long-horizon-closure): export + persist all
+        runner-owned hydratable owners. Must be called only at scene
+        / session boundaries (never mid-turn). Returns the persisted
+        owner names. ``()`` when hydration is disabled.
+        """
+        return self._runner.persist_owners()
 
     def reconcile_case_memory_provisional(
         self,
@@ -509,6 +548,25 @@ class Brain:
                     identity=identity,
                     root_dir=self._config.memory_scope_root_dir,
                 )
+        # Packet D (long-horizon-closure): build the OwnerHydrationStore
+        # only when (a) hydration wiring is non-DISABLED AND (b) the
+        # memory store actually has a persistence backend. The store
+        # is passed to AgentSessionRunner for SemanticStateStore
+        # hydration on construction; it is also exposed on the
+        # BrainSession so the lifeform layer can hydrate / persist
+        # its own owners through the same backend.
+        owner_hydration_store: OwnerHydrationStore | None = None
+        if self._config.owner_hydration_wiring is not WiringLevel.DISABLED:
+            backend = (
+                session_memory_store.persistence_backend
+                if session_memory_store is not None
+                else None
+            )
+            if backend is not None:
+                owner_hydration_store = OwnerHydrationStore(
+                    backend=backend,
+                    wiring_level=self._config.owner_hydration_wiring,
+                )
         runner_kwargs: dict[str, object] = dict(
             session_id=session_id,
             config=self._config.final_rollout_config or FinalRolloutConfig(),
@@ -524,6 +582,7 @@ class Brain:
             memory_store=session_memory_store,
             allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
             user_scope=user_scope,
+            owner_hydration_store=owner_hydration_store,
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so

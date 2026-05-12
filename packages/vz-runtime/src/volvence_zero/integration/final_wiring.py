@@ -295,6 +295,14 @@ class FinalRolloutConfig:
     protocol_revision_log: WiringLevel = WiringLevel.ACTIVE
     protocol_reflection: WiringLevel = WiringLevel.SHADOW
     protocol_revision_queue: WiringLevel = WiringLevel.SHADOW
+    # Packet C (long-horizon-closure): AffordanceModule wiring level.
+    # SHADOW by default — the module publishes the ``affordance`` slot
+    # but no kernel consumer reads it yet. Promotion to ACTIVE
+    # requires a downstream consumer (prompt planner) plus matched-
+    # control evidence, which is a future packet. SHADOW means
+    # AffordanceModule.process can be called for telemetry without
+    # affecting other modules' outputs.
+    affordance: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
@@ -349,6 +357,7 @@ class FinalRolloutConfig:
             "protocol_revision_log": self.protocol_revision_log,
             "protocol_reflection": self.protocol_reflection,
             "protocol_revision_queue": self.protocol_revision_queue,
+            "affordance": self.affordance,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
@@ -1141,6 +1150,7 @@ def _prediction_action_context_from_upstream(
     upstream_snapshots: dict[str, Snapshot[Any]] | None,
     environment_event: EnvironmentEvent | None,
     environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
 ) -> PredictionActionContext:
     temporal_snapshot = (
         upstream_snapshots.get("temporal_abstraction")
@@ -1181,6 +1191,7 @@ def _prediction_action_context_from_upstream(
         affordance_name=(segment.affordance_name or "") if segment is not None else "",
         environment_event_id=environment_event.event_id if environment_event is not None else "",
         environment_outcome_id=environment_outcome_id,
+        prediction_id=environment_prediction_id,
     )
 
 
@@ -1215,6 +1226,7 @@ def build_final_runtime_modules(
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
     environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
     prediction_action_context: PredictionActionContext | None = None,
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
@@ -1629,6 +1641,7 @@ async def run_final_wiring_turn(
     social_prediction_errors: tuple[SocialPredictionError, ...] = (),
     environment_event: EnvironmentEvent | None = None,
     environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
     group_identities: tuple[GroupIdentity, ...] = (),
@@ -1641,6 +1654,7 @@ async def run_final_wiring_turn(
         upstream_snapshots=upstream_snapshots,
         environment_event=environment_event,
         environment_outcome_id=environment_outcome_id,
+        environment_prediction_id=environment_prediction_id,
     )
     modules = build_final_runtime_modules(
         config=config,
@@ -1672,6 +1686,7 @@ async def run_final_wiring_turn(
         social_prediction_errors=social_prediction_errors,
         environment_event=environment_event,
         environment_outcome_id=environment_outcome_id,
+        environment_prediction_id=environment_prediction_id,
         prediction_action_context=prediction_action_context,
         common_ground_dyad_atoms=common_ground_dyad_atoms,
         common_ground_group_atoms=common_ground_group_atoms,

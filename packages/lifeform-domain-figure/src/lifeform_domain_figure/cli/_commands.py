@@ -361,28 +361,62 @@ def cmd_bake_lora(args: argparse.Namespace) -> int:
         print(f"failed to load source bundle: {exc}", file=sys.stderr)
         return EXIT_IO_OR_SCHEMA
 
-    # Re-derive the corpus envelopes deterministically from the figure
-    # id; the bundle does not persist envelopes (R15: envelopes are
-    # input, the bundle's integrity hash already pins what they
-    # produced).
-    profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
-    if profile_factory is None or corpus_factory is None:
-        print(
-            f"internal: figure {args.figure!r} not in factory map",
-            file=sys.stderr,
+    corpus_mode = getattr(args, "corpus_mode", "synthetic")
+    if corpus_mode == "curated":
+        # Wave N: derive LoRA training envelopes from the same L1
+        # cleaning store + curator metadata that produced the
+        # curated bundle. Otherwise the LoRA would be trained on
+        # synthetic_einstein_corpus() while bundle says "curated"
+        # — a silent disagreement that defeats the whole point.
+        if not args.cleaning_root or not args.curated_metadata_file:
+            print(
+                "bake-lora --corpus-mode curated requires both "
+                "--cleaning-root and --curated-metadata-file",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        try:
+            curated = load_curated_corpus_from_cleaning_store(
+                cleaning_root=pathlib.Path(args.cleaning_root),
+                figure_id=args.figure,
+                metadata_file=pathlib.Path(args.curated_metadata_file),
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"bake-lora (curated): {exc}", file=sys.stderr)
+            return EXIT_IO_OR_SCHEMA
+        envelope_set = build_figure_ingestion_envelope(
+            FigureCorpusSourceBundle(
+                figure_id=args.figure,
+                papers=curated.papers,
+                letters=curated.letters,
+                lectures=curated.lectures,
+                notebooks=curated.notebooks,
+            ),
+            uploader="lifeform_domain_figure.cli:bake-lora:curated",
         )
-        return EXIT_USAGE
-    papers, letters, lectures, notebooks = corpus_factory()
-    envelope_set = build_figure_ingestion_envelope(
-        FigureCorpusSourceBundle(
-            figure_id=args.figure,
-            papers=papers,
-            letters=letters,
-            lectures=lectures,
-            notebooks=notebooks,
-        ),
-        uploader="lifeform_domain_figure.cli:bake-lora",
-    )
+    else:
+        # Legacy synthetic path — re-derive envelopes deterministically
+        # from the figure id; the bundle does not persist envelopes
+        # (R15: envelopes are input, the bundle's integrity hash
+        # already pins what they produced).
+        profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
+        if profile_factory is None or corpus_factory is None:
+            print(
+                f"internal: figure {args.figure!r} not in factory map",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        papers, letters, lectures, notebooks = corpus_factory()
+        envelope_set = build_figure_ingestion_envelope(
+            FigureCorpusSourceBundle(
+                figure_id=args.figure,
+                papers=papers,
+                letters=letters,
+                lectures=lectures,
+                notebooks=notebooks,
+            ),
+            uploader="lifeform_domain_figure.cli:bake-lora:synthetic",
+        )
     plan = build_lora_training_plan(
         figure_id=args.figure,
         envelopes=envelope_set.envelopes,

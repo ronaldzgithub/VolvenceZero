@@ -543,7 +543,13 @@ def derive_segment_closure_credit_records(
         segment.segment_id == context.segment_id
         for segment in temporal_snapshot.closed_segments
     ):
-        return None
+        # Packet B (long-horizon-closure): fix prior bug where this
+        # branch returned ``None`` despite the signature declaring
+        # ``tuple[CreditRecord, ...]``. Consumers ``extend(...)`` the
+        # result, so returning ``None`` would crash. The "no matching
+        # closed segment" case must be an empty tuple, mirroring the
+        # earlier no-segment-id branch.
+        return ()
     return (
         CreditRecord(
             record_id=str(uuid4()),
@@ -551,8 +557,16 @@ def derive_segment_closure_credit_records(
             track=Track.SHARED,
             source_event=f"segment:{context.segment_id}",
             credit_value=_clamp(prediction_error_snapshot.error.action_error),
+            # Packet B (long-horizon-closure): explicitly carry
+            # ``affordance_name`` and ``prediction_id`` in the
+            # human-readable context so reflection / replay /
+            # downstream credit consumers can grep "this credit was
+            # for which tool / which prior prediction" without
+            # re-deriving from PE snapshots.
             context=(
                 f"abstract_action={context.abstract_action_id}; "
+                f"affordance_name={context.affordance_name}; "
+                f"prediction_id={context.prediction_id}; "
                 f"z_t_digest={context.z_t_digest}; "
                 f"environment_event_id={context.environment_event_id}; "
                 f"environment_outcome_id={context.environment_outcome_id}; "

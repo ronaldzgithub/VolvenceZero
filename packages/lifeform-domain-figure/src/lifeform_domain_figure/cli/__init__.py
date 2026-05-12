@@ -276,6 +276,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Source bundle id to attach the LoRA artifact to.",
     )
     bake_lora.add_argument(
+        "--corpus-mode",
+        default="synthetic",
+        choices=("synthetic", "curated"),
+        help=(
+            "LoRA training corpus source. 'synthetic' (default; "
+            "backward-compatible) re-derives envelopes from the "
+            "wheel's reviewer-paraphrased synthetic corpus. "
+            "'curated' (Wave N closure) reads the same L1 cleaning "
+            "store + curator metadata that produced a curated bundle "
+            "so the LoRA trains on real corpus matching the bundle's "
+            "domain_package; requires --cleaning-root and "
+            "--curated-metadata-file."
+        ),
+    )
+    bake_lora.add_argument(
+        "--cleaning-root",
+        default=None,
+        help=(
+            "L1 cleaning store root (only consumed when "
+            "--corpus-mode=curated)."
+        ),
+    )
+    bake_lora.add_argument(
+        "--curated-metadata-file",
+        default=None,
+        help=(
+            "JSONL of CuratedSourceMetadata records keyed by "
+            "raw_sha256 (only consumed when --corpus-mode=curated)."
+        ),
+    )
+    bake_lora.add_argument(
         "--backend",
         default="synthetic",
         choices=("synthetic", "peft"),

@@ -122,8 +122,8 @@ derive_segment_closure_credit_records(
 - 生成 keyed by `segment_id / abstract_action_id / z_t_digest` 的 credit records。
 - 不读取 raw outcome text。
 - 不持有 trace store。
-- 当前主链路中 `CreditModule` 声明消费 `temporal_abstraction`，在 PE-first credit 派生后追加该 helper 的结果；`closed_segments` 为空或不匹配时返回空，不影响既有 credit。
-- credit context 可带 `environment_event_id` / `environment_outcome_id` lineage，但不改变 PE 或 credit 数值公式。
+- 当前主链路中 `CreditModule` 声明消费 `temporal_abstraction`，在 PE-first credit 派生后追加该 helper 的结果；`closed_segments` 为空或不匹配时返回空 tuple（Packet B 修复了之前 mismatch 分支误返回 `None` 的 bug），不影响既有 credit。
+- credit context 现在显式带 `affordance_name` / `prediction_id` / `environment_event_id` / `environment_outcome_id` lineage（Packet B），但不改变 PE 或 credit 数值公式；这条 lineage 让下游 reflection / replay 可按 tool 名 + 调用绑定的 prediction id 直接 grep credit record，而不需要回溯 PE snapshot。
 
 ## Layer 6. Snapshot Replay Export
 
@@ -148,6 +148,7 @@ Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
 - `affordance-selection-no-rules`: affordance selection 仍走 metacontroller state，无硬编码 action routing。
+- `segment-credit-attributes-to-tool` (Packet B — long-horizon-closure): closed segment 命中且对应 PE 携带非空 `affordance_name` 或 `prediction_id` 时，派生的 segment credit record 的 `context` 字段必须包含同样的 `affordance_name=...` 与 `prediction_id=...` 子串；mismatch 分支返回 empty tuple，不返回 `None`。acceptance: `tests/longitudinal/test_affordance_delayed_credit.py`。
 
 ## 与其他能力域的关系
 
@@ -170,4 +171,5 @@ Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不
 
 ## 变更日志
 
+- 2026-05-12: Packet B (long-horizon-closure) — 修复 `derive_segment_closure_credit_records` 在 segment id 不匹配时误返回 `None` 的 bug（改为返回 empty tuple）；新增 `affordance_name` / `prediction_id` 到 segment credit record 的 context 字符串，对应 acceptance gate `segment-credit-attributes-to-tool`；测试见 `tests/longitudinal/test_affordance_delayed_credit.py`。
 - 2026-05-02: 重写 Phase 1 方案，移除 `action_outcome_trace` owner / delayed ledger / action-outcome encoder owner，改为 PE + temporal segment closure 的 ETA/NL 第一性实现。

@@ -49,7 +49,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from lifeform_core.types import TickEvent, TickKind
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.prediction import DistributionSummary
+
+
+_VITALS_OWNER_NAME = "vitals"
+_VITALS_SCHEMA_VERSION = 1
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +489,113 @@ class VitalsModule:
             last_proactive_at_tick=self._last_proactive_at,
             distributional_drift_axes=drift_axes,
         )
+
+    # ------------------------------------------------------------------
+    # Packet D (long-horizon-closure): HydratableOwnerProtocol
+    # ------------------------------------------------------------------
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        """Dump runtime drive state + tick / proactive bookkeeping +
+        IQR baseline (the slow-scale observable) for cross-session
+        continuity.
+
+        ``_bootstrap`` and ``_apprentice_override_active`` are NOT
+        persisted — bootstrap is configuration (vertical decides on
+        new session start), and apprentice override is a per-call
+        gating flag with no cross-session meaning.
+        """
+        return OwnerPersistenceSnapshot(
+            owner_name=_VITALS_OWNER_NAME,
+            schema_version=_VITALS_SCHEMA_VERSION,
+            payload={
+                "levels": dict(self._levels),
+                "tick_index": self._tick_index,
+                "last_proactive_at": self._last_proactive_at,
+                "turn_count": self._turn_count,
+                "iqr_baseline": dict(self._iqr_baseline),
+                "iqr_baseline_accum": dict(self._iqr_baseline_accum),
+                "baseline_observation_count": self._baseline_observation_count,
+                # last_distribution_summary is intentionally omitted:
+                # it is a per-turn readout and re-derived from the next
+                # PE observation; persisting it cross-session would
+                # carry stale "drift looks like X" into a fresh process.
+            },
+            description=(
+                f"VitalsModule v{_VITALS_SCHEMA_VERSION} "
+                f"(tick={self._tick_index}, turns={self._turn_count}, "
+                f"levels={len(self._levels)} drives)"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        """Restore drive levels + tick / proactive / IQR baseline state.
+
+        Idempotent. Drive names that exist in the persisted payload
+        but NOT in the current bootstrap are silently dropped (the
+        vertical reconfigured drives between sessions); names that
+        exist in bootstrap but NOT in payload keep their bootstrap
+        ``initial_level`` (defensive default for new drives).
+
+        Fail-loud on owner / version / payload structure mismatches.
+        """
+        if snapshot.owner_name != _VITALS_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                f"VitalsModule.hydrate_from_persistence: owner_name "
+                f"mismatch — expected {_VITALS_OWNER_NAME!r}, got "
+                f"{snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _VITALS_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                f"VitalsModule.hydrate_from_persistence: unknown "
+                f"schema_version={snapshot.schema_version!r}; this "
+                f"build only knows version {_VITALS_SCHEMA_VERSION}."
+            )
+        payload = snapshot.payload
+        try:
+            persisted_levels = payload["levels"]
+            tick_index = int(payload["tick_index"])
+            last_proactive_raw = payload["last_proactive_at"]
+            turn_count = int(payload["turn_count"])
+            iqr_baseline = payload["iqr_baseline"]
+            iqr_baseline_accum = payload["iqr_baseline_accum"]
+            baseline_observation_count = int(
+                payload["baseline_observation_count"]
+            )
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"VitalsModule: missing required key {exc.args[0]!r} "
+                f"in payload"
+            ) from exc
+        # Apply: bootstrap drive set wins (configuration > persistence).
+        for drive in self._bootstrap.drives:
+            if drive.name in persisted_levels:
+                level = float(persisted_levels[drive.name])
+                # Clamp into [0, 1] to defend against backend corruption
+                # introducing out-of-range floats.
+                self._levels[drive.name] = max(0.0, min(1.0, level))
+            else:
+                # New drive in this build that the prior session didn't
+                # know about: keep bootstrap initial_level.
+                pass
+        self._tick_index = tick_index
+        self._turn_count = turn_count
+        if last_proactive_raw is None:
+            self._last_proactive_at = None
+        else:
+            self._last_proactive_at = int(last_proactive_raw)
+        self._iqr_baseline = {
+            str(axis): float(value) for axis, value in dict(iqr_baseline).items()
+        }
+        self._iqr_baseline_accum = {
+            str(axis): float(value)
+            for axis, value in dict(iqr_baseline_accum).items()
+        }
+        self._baseline_observation_count = baseline_observation_count
+        # last_distribution_summary is intentionally NOT restored.
+        # Apprentice override is per-call; do not persist it.
+        self._last_distribution_summary = None
 
 
 __all__ = [

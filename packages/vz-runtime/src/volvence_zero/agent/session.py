@@ -477,6 +477,7 @@ class AgentSessionRunner(
         dialogue_commitment_outcome_evidence_enabled: bool = True,
         allow_llm_outcome_proposals: bool = False,
         user_scope: str = "anonymous",
+        owner_hydration_store: Any = None,
     ) -> None:
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
@@ -553,6 +554,19 @@ class AgentSessionRunner(
         default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._semantic_state_store = SemanticStateStore()
+        # Packet D (long-horizon-closure): when an OwnerHydrationStore
+        # is supplied (the orchestrator built it from
+        # MemoryStore.persistence_backend), eagerly hydrate the
+        # SemanticStateStore from the prior session's persisted
+        # snapshot so commitment / open_loop / relationship_state
+        # records survive across BrainSession instances. Hydration
+        # errors fail-loudly per the no-swallow rule. SHADOW mode
+        # returns False from load_snapshot so this is a no-op there.
+        self._owner_hydration_store = owner_hydration_store
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._semantic_state_store, "semantic_state"
+            )
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         # Wave E1 follow-up (option B / debt #10B item 3): when the
         # session is wired with an LLM-backed semantic runtime, derive
@@ -579,6 +593,13 @@ class AgentSessionRunner(
             )
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
         self._pending_environment_outcome_id: str = ""
+        # Packet A (long-horizon-closure): mirror of
+        # ``_pending_environment_outcome_id`` for the prediction_id /
+        # plan_ref lineage. Populated by ``remember_environment_prediction_id``
+        # in the same call where the outcome id is remembered, drained at
+        # the start of the next turn so the next-turn PredictionActionContext
+        # can carry the affordance call's plan_ref.
+        self._pending_environment_prediction_id: str = ""
         self._dialogue_trace_store = DialogueTraceStore()
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
@@ -833,6 +854,13 @@ class AgentSessionRunner(
             )
             pending_semantic_events = self._drain_pending_semantic_events()
             environment_outcome_id = self._consume_pending_environment_outcome_id()
+            # Packet A: drain plan_ref / prediction_id buffer in the same
+            # spot so it lands on this turn's PE action context together
+            # with environment_outcome_id (both produced by the same
+            # ``submit_tool_result`` call last turn).
+            environment_prediction_id = (
+                self._consume_pending_environment_prediction_id()
+            )
             active_semantic_runtime: SemanticProposalRuntime = (
                 AdapterSemanticProposalRuntime(
                     base_runtime=self._semantic_proposal_runtime,
@@ -859,6 +887,7 @@ class AgentSessionRunner(
                 joint_loop_result=joint_result,
                 environment_event=environment_event,
                 environment_outcome_id=environment_outcome_id,
+                environment_prediction_id=environment_prediction_id,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,

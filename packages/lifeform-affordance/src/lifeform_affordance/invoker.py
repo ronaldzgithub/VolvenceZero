@@ -520,6 +520,7 @@ class AffordanceInvoker:
         session: _SessionLike | None = None,
         event_id: str | None = None,
         action_id: str | None = None,
+        plan_ref: str | None = None,
     ) -> AffordanceInvocationResult:
         """Run the 5-stage invocation pipeline.
 
@@ -537,6 +538,15 @@ class AffordanceInvoker:
         execution_result / open_loop / belief_assumption owners
         see the outcome. ``event_id`` + ``action_id`` default to
         ``descriptor_name``-based values if not supplied.
+
+        Packet A (long-horizon-closure): ``plan_ref`` (when supplied)
+        is threaded through ``_finalize -> session.submit_tool_result(
+        plan_ref=...)``. The kernel uses it to bind the resulting
+        ``EnvironmentOutcome.prediction_id`` and to populate the
+        next-turn ``PredictionActionContext.prediction_id`` so credit
+        / replay can attribute the outcome to a specific prior
+        prediction. ``plan_ref=None`` (the default) preserves the
+        legacy "no lineage" behavior verbatim.
         """
         descriptor = self._registry.get(descriptor_name)
 
@@ -562,6 +572,7 @@ class AffordanceInvoker:
                 action_id=action_id,
                 error_class=boundary_denial.reason_code,
                 error_detail=boundary_denial.detail,
+                plan_ref=plan_ref,
             )
 
         # Stage 3: rate limit.
@@ -575,6 +586,7 @@ class AffordanceInvoker:
                 action_id=action_id,
                 error_class=rate_denial.reason_code,
                 error_detail=rate_denial.detail,
+                plan_ref=plan_ref,
             )
 
         # Stage 4: parameter validation.
@@ -588,6 +600,7 @@ class AffordanceInvoker:
                 action_id=action_id,
                 error_class=param_denial.reason_code,
                 error_detail=param_denial.detail,
+                plan_ref=plan_ref,
             )
 
         # Stage 5: backend call.
@@ -604,6 +617,7 @@ class AffordanceInvoker:
                     f"No backend registered for {descriptor_name!r}; "
                     f"call AffordanceInvoker.register_backend(name, fn)."
                 ),
+                plan_ref=plan_ref,
             )
         backend_started_at = time.monotonic()
         try:
@@ -622,6 +636,7 @@ class AffordanceInvoker:
                 latency_ms=int((time.monotonic() - backend_started_at) * 1000),
                 error_class=type(exc).__name__,
                 error_detail=str(exc)[:512],
+                plan_ref=plan_ref,
             )
         payload: Mapping[str, Any] = (
             dict(raw_payload) if isinstance(raw_payload, Mapping) else {}
@@ -634,6 +649,7 @@ class AffordanceInvoker:
             action_id=action_id,
             payload=payload,
             latency_ms=int((time.monotonic() - backend_started_at) * 1000),
+            plan_ref=plan_ref,
         )
 
     async def invoke_or_raise(
@@ -670,6 +686,7 @@ class AffordanceInvoker:
         latency_ms: int | None = None,
         error_class: str = "",
         error_detail: str = "",
+        plan_ref: str | None = None,
     ) -> AffordanceInvocationResult:
         """Build the result + optionally feed it to ``session.submit_tool_result``.
 
@@ -722,6 +739,12 @@ class AffordanceInvoker:
                 summary=summary,
                 detail=detail,
                 confidence=1.0 if status is AffordanceInvocationStatus.SUCCEEDED else 0.6,
+                # Packet A (long-horizon-closure): thread caller plan_ref
+                # so EnvironmentOutcome.prediction_id is non-empty when
+                # the affordance call was bound to a prior prediction.
+                # ``plan_ref=None`` preserves the legacy "no lineage"
+                # path used by callers that don't yet bind predictions.
+                plan_ref=plan_ref,
                 latency_ms=latency_ms,
                 monetary_cost=_monetary_cost_from_descriptor(descriptor),
                 reversibility=(

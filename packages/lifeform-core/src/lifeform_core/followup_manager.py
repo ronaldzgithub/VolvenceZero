@@ -10,13 +10,28 @@ making the lifeform a second owner of conversation initiation.
 The kernel side already produces ``commitment.honored_commitment_refs`` and
 ``open_loop.unresolved_loops`` etc.; this manager only looks at the public
 snapshot fields, never inside the owners.
+
+Packet D (2026-05-12 long-horizon-closure): implements
+``HydratableOwnerProtocol`` so a session's pending followups survive
+process restart. See ``docs/specs/owner-hydration.md``.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
+
 from lifeform_core.types import FollowupItem
+
+
+_FOLLOWUP_OWNER_NAME = "followup_manager"
+_FOLLOWUP_SCHEMA_VERSION = 1
 
 
 class FollowupManager:
@@ -309,6 +324,74 @@ class FollowupManager:
         self._pending.sort(key=lambda item: (item.priority, -item.due_at_tick), reverse=True)
         self._pending = self._pending[: self._max_pending]
 
+    # ------------------------------------------------------------------
+    # Packet D (long-horizon-closure): HydratableOwnerProtocol
+    # ------------------------------------------------------------------
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        """Dump pending queue + dedup keys + counter for cross-session
+        continuity. Read-only on manager state; round-trip stable.
+        """
+        return OwnerPersistenceSnapshot(
+            owner_name=_FOLLOWUP_OWNER_NAME,
+            schema_version=_FOLLOWUP_SCHEMA_VERSION,
+            payload={
+                "default_due_delay": self._default_due_delay,
+                "max_pending": self._max_pending,
+                "counter": self._counter,
+                "seen_keys": sorted(self._seen_keys),
+                "pending": [
+                    _serialize_followup_item(item) for item in self._pending
+                ],
+            },
+            description=(
+                f"FollowupManager v{_FOLLOWUP_SCHEMA_VERSION} "
+                f"({len(self._pending)} pending, "
+                f"{len(self._seen_keys)} seen keys)"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        """Replace the in-memory queue + dedup keys + counter from a
+        previously-exported snapshot. Idempotent. Fail-loud on owner
+        / version / payload mismatches.
+        """
+        if snapshot.owner_name != _FOLLOWUP_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                f"FollowupManager.hydrate_from_persistence: owner_name "
+                f"mismatch — expected {_FOLLOWUP_OWNER_NAME!r}, got "
+                f"{snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _FOLLOWUP_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                f"FollowupManager.hydrate_from_persistence: unknown "
+                f"schema_version={snapshot.schema_version!r}; this "
+                f"build only knows version {_FOLLOWUP_SCHEMA_VERSION}."
+            )
+        payload = snapshot.payload
+        try:
+            counter = int(payload["counter"])
+            seen_keys = list(payload["seen_keys"])
+            pending_blob = payload["pending"]
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"FollowupManager: missing required key {exc.args[0]!r} "
+                f"in payload"
+            ) from exc
+        # Note: ``default_due_delay`` and ``max_pending`` are owner
+        # configuration. We honour the LIVE manager's config (so an
+        # operator can change them without re-hydrating); we only
+        # restore the state.
+        self._counter = counter
+        self._seen_keys = set(str(k) for k in seen_keys)
+        self._pending = [
+            _deserialize_followup_item(item) for item in pending_blob
+        ]
+        # Re-enforce capacity in case the operator lowered max_pending.
+        self._enforce_capacity()
+
     @staticmethod
     def _key_for(entry: Any, *, prefix: str) -> str:
         if isinstance(entry, str):
@@ -320,6 +403,41 @@ class FollowupManager:
         # Fall back to a stable repr — guarantees idempotent deduping even
         # when the kernel's owner produces opaque tuple entries.
         return f"{prefix}::{repr(entry)}"
+
+
+def _serialize_followup_item(item: FollowupItem) -> dict[str, Any]:
+    return {
+        "followup_id": item.followup_id,
+        "source": item.source,
+        "description": item.description,
+        "due_at_tick": item.due_at_tick,
+        "priority": item.priority,
+        "metadata": dict(item.metadata),
+    }
+
+
+def _deserialize_followup_item(blob: Any) -> FollowupItem:
+    if not isinstance(blob, dict):
+        raise HydrationPayloadInvalidError(
+            f"FollowupManager: each pending item must be a dict; got "
+            f"{type(blob).__name__} ({blob!r})"
+        )
+    try:
+        return FollowupItem(
+            followup_id=str(blob["followup_id"]),
+            source=str(blob["source"]),
+            description=str(blob["description"]),
+            due_at_tick=int(blob["due_at_tick"]),
+            priority=float(blob.get("priority", 0.5)),
+            metadata={
+                str(k): str(v) for k, v in dict(blob.get("metadata", {})).items()
+            },
+        )
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"FollowupManager: pending item missing required key "
+            f"{exc.args[0]!r}; got {blob!r}"
+        ) from exc
 
 
 def _entry_description(entry: Any, *, fallback: str) -> str:

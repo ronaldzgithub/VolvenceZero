@@ -88,6 +88,46 @@ class TemporalControllerParameters:
 
 
 @dataclass(frozen=True)
+class AffordanceSelectionState:
+    """Packet C (long-horizon-closure) — metacontroller-published
+    affordance selection state.
+
+    Per the affordance spec, affordance selection is a metacontroller
+    decision in z_t space, not a hand-coded routing layer. This
+    dataclass is the contract surface for the metacontroller / temporal
+    owner to publish its selection scoring; consumers (the lifeform-side
+    ``AffordanceModule``) read it instead of reconstructing scoring
+    locally.
+
+    Default value on ``MetacontrollerRuntimeState.affordance_selection``
+    is ``None`` (additive, back-compat). Current temporal owner does
+    not populate it; the lifeform-side ``AffordanceModule`` runs its
+    own deterministic ``score_affordance_candidates`` projection from
+    the public ``temporal_abstraction.controller_state.code`` (= z_t)
+    and exposes its own selection in the published ``affordance``
+    snapshot. Future temporal owner work can populate this field
+    inside the metacontroller and the AffordanceModule will then
+    prefer the metacontroller-side selection.
+
+    Invariants:
+
+    - ``candidate_scores`` is a tuple of ``(descriptor_name, score)``
+      pairs; scores in ``[0, 1]``. Order is the registry's iteration
+      order at the time of publication.
+    - ``selected_name`` is non-None only when the top score is the
+      strict argmax with margin >= 0.0 (no ties).
+    - ``selection_entropy`` in ``[0, 1]``: 1.0 means uniform
+      distribution (no preference), 0.0 means a single candidate
+      dominates. Used by the boundary policy as an "uncertainty"
+      signal.
+    """
+
+    candidate_scores: tuple[tuple[str, float], ...]
+    selected_name: str | None
+    selection_entropy: float
+
+
+@dataclass(frozen=True)
 class MetacontrollerRuntimeState:
     mode: str
     temporal_parameters: TemporalControllerParameters
@@ -145,6 +185,12 @@ class MetacontrollerRuntimeState:
     fast_prior_sequence_bias: float = 0.0
     fast_prior_switch_pressure_delta: float = 0.0
     learned_update_rule_state: LearnedUpdateRuleState | None = None
+    # Packet C (long-horizon-closure): optional affordance selection
+    # published by the metacontroller. None when the metacontroller
+    # has no opinion on affordance selection (current default — the
+    # AffordanceModule runs its own z_t projection). Non-None only
+    # after a future temporal-owner change populates it.
+    affordance_selection: AffordanceSelectionState | None = None
     description: str = ""
 
 

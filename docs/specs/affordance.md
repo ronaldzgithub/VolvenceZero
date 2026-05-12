@@ -223,6 +223,8 @@ examples:
 
 ### Metacontroller 集成
 
+Packet C (long-horizon-closure) 落地：
+
 `vz-temporal/temporal/interface.py:MetacontrollerRuntimeState` 增加：
 
 ```python
@@ -233,7 +235,16 @@ class AffordanceSelectionState:
     selection_entropy: float                           # 多样性监控
 ```
 
-发布到 `temporal_abstraction` snapshot。`AffordanceModule` 直接读这个 sub-state 而不重算评分——R8 owner 单写者。
+`MetacontrollerRuntimeState.affordance_selection: AffordanceSelectionState | None = None` 是新字段，**默认 None**。当 metacontroller owner 自己选择发布该字段时，`AffordanceModule` 优先采用（R8 单 owner）。
+
+`lifeform-affordance/module.py:AffordanceModule` 实现：
+
+- `slot_name = "affordance"`，`dependencies = ("temporal_abstraction",)`，**默认 `WiringLevel.SHADOW`**
+- `process()` 的优先级：
+  1. 若 metacontroller 已发布 `affordance_selection`，直接采用（future path）
+  2. 否则用 `score_affordance_candidates(z_t=temporal_snapshot.controller_state.code, descriptor_names=...)` 在本地做投影
+  3. 若 z_t 为空（cold start），所有 candidate 给 0.5 中性分，selected = None
+- `score_affordance_candidates` 是 pure function：用 SHA-256 把每个描述符名映射到投影向量，再与 z_t 做 dot product + sigmoid。**绝不**在内部 branch on descriptor name。
 
 Metacontroller 学习路径（与 regime selection_weights 同路径）：
 
@@ -276,6 +287,41 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
 8. `affordance-snapshot-replay-compatible` (Phase 1 clean)
    - affordance invocation can be audited through the existing snapshot replay artifact; no separate trace runtime schema is required.
    - acceptance: snapshot replay artifact includes `EnvironmentOutcome` observable fields and `prediction_error.action_context`.
+9. `affordance-outcome-carries-prediction-id` (Packet A — long-horizon-closure)
+   - When the caller threads `plan_ref` through `AffordanceInvoker.invoke(... plan_ref="p-XYZ")`, the next-turn `prediction_error.action_context.prediction_id` MUST equal that `plan_ref`. When `plan_ref=None` (default), the field MUST stay empty (back-compat path).
+   - This is the lineage that lets long-horizon credit attribute outcomes to specific prior predictions, instead of leaving every invoker call with `prediction_id=None`.
+   - acceptance: `tests/lifeform_e2e/test_affordance_pe_lineage.py`
+10. `affordance-scoring-from-metacontroller` (Packet C — long-horizon-closure)
+    - `AffordanceModule` exists, satisfies `RuntimeModule[AffordanceSnapshot]`, default wiring SHADOW; `AffordanceSelectionState` dataclass exists in `vz-temporal`; `MetacontrollerRuntimeState.affordance_selection: AffordanceSelectionState | None = None` field exists (None by default).
+    - `score_affordance_candidates` is the pure-function projection from `z_t` to per-descriptor scores via deterministic SHA-256 hashing. No branch on descriptor name strings.
+    - Different `z_t` produces different selection (otherwise the projection isn't z_t-driven). Same `z_t` produces deterministic identical scores.
+    - acceptance: `tests/contracts/test_no_keyword_routing.py` + `tests/contracts/test_affordance_module_contract.py` + `tests/lifeform_e2e/test_affordance_metacontroller_scoring.py`
+
+## PE Prediction Lineage (Packet A — long-horizon-closure)
+
+`AffordanceInvoker.invoke(... plan_ref: str | None = None)` threads a caller-supplied `plan_ref` through `_finalize` to `BrainSession.submit_tool_result(plan_ref=...)`. Concretely:
+
+```text
+AffordanceInvoker.invoke(plan_ref="p-XYZ")
+  -> AffordanceInvoker._finalize(plan_ref="p-XYZ")
+  -> BrainSession.submit_tool_result(plan_ref="p-XYZ")
+     -> EnvironmentOutcome(prediction_id="p-XYZ")
+     -> AgentSessionRunner.remember_environment_outcome(outcome_id)
+     -> AgentSessionRunner.remember_environment_prediction_id("p-XYZ")
+  -- next turn --
+  -> AgentSessionRunner._consume_pending_environment_prediction_id() -> "p-XYZ"
+  -> run_final_wiring_turn(environment_prediction_id="p-XYZ")
+  -> _prediction_action_context_from_upstream(environment_prediction_id="p-XYZ")
+  -> PredictionActionContext(prediction_id="p-XYZ", environment_outcome_id=...)
+  -> PredictionErrorModule.process(...) publishes the action context on the snapshot
+```
+
+Invariants:
+
+- `plan_ref=None` (default) preserves the legacy "no lineage" behavior verbatim. Existing tests must not regress.
+- The lineage applies on the `_finalize` branches that actually call `submit_tool_result` — `SUCCEEDED` and `BACKEND_FAILED`. Pre-flight gate denials (BOUNDARY / RATE_LIMITED / PARAMETER_INVALID / BACKEND_MISSING / EXCLUDED) do not reach the kernel and therefore do not produce lineage.
+- `prediction_id` and `environment_outcome_id` are independent fields on `PredictionActionContext`. The former is caller-bound (which prior prediction was this call attached to?), the latter is auto-derived from the call's own outcome id.
+- The kernel does NOT validate that `plan_ref` corresponds to an actually-registered prior prediction id — that is downstream credit's job. The lineage layer only carries the string.
 
 ## 接口契约（公开数据流向）
 
@@ -326,5 +372,7 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
 
 ## 变更日志
 
+- 2026-05-12: Packet C (long-horizon-closure) — landed `AffordanceModule` (lifeform-affordance/module.py, default SHADOW wiring), `AffordanceSelectionState` dataclass + `MetacontrollerRuntimeState.affordance_selection` reserved field in vz-temporal, pure-function `score_affordance_candidates` z_t→name SHA-256 projection. New acceptance gates `affordance-scoring-from-metacontroller` (functional) and the existing `selection-is-learned-not-hardcoded` is now backed by static contract test `tests/contracts/test_no_keyword_routing.py` plus contract / e2e tests. `FinalRolloutConfig.affordance: WiringLevel = SHADOW` field added (additive, no kernel propagate change yet).
+- 2026-05-12: Packet A (long-horizon-closure) — added `plan_ref` parameter to `AffordanceInvoker.invoke` threaded all the way to `PredictionActionContext.prediction_id` next turn; new acceptance gate `affordance-outcome-carries-prediction-id` and `tests/lifeform_e2e/test_affordance_pe_lineage.py`. Back-compat path (`plan_ref=None`) unchanged.
 - 2026-05-02: Rewrote Phase 1 clean gates as `affordance-selection-no-rules` / `affordance-outcome-observable-only` / `affordance-snapshot-replay-compatible`, aligned with the ETA/NL-first `emergent-action-abstraction` spec.
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 1 设计冻结。

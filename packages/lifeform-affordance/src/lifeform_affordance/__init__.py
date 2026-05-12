@@ -43,6 +43,10 @@ from lifeform_affordance.invoker import (
     DescriptorDerivedBoundaryPolicy,
     validate_parameters,
 )
+from lifeform_affordance.module import (
+    AffordanceModule,
+    score_affordance_candidates,
+)
 from lifeform_affordance.registry import (
     AffordanceAlreadyRegisteredError,
     AffordanceLintWarning,
@@ -82,6 +86,7 @@ __all__ = [
     "AffordanceKind",
     "AffordanceLatencyClass",
     "AffordanceLintWarning",
+    "AffordanceModule",
     "AffordanceMonetaryClass",
     "AffordanceRegistry",
     "AffordanceRegistryError",
@@ -101,5 +106,6 @@ __all__ = [
     "render_markdown",
     "render_openai_tools",
     "score_affordance",
+    "score_affordance_candidates",
     "validate_parameters",
 ]

@@ -8,12 +8,23 @@ mutate it via ``apply(...)`` which routes each proposal through
 
 Slice S.1 (2026-05-04): extracted from the previous monolithic
 ``semantic_state/__init__.py``.
+
+Packet D (2026-05-12): implements ``HydratableOwnerProtocol`` so the
+store's nine slots survive across BrainSession / process boundaries.
+See ``docs/specs/owner-hydration.md``.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.semantic_state.contracts import (
     SEMANTIC_OWNER_SLOTS,
     AdvocacyState,
@@ -39,6 +50,10 @@ from volvence_zero.semantic_state.lifecycle import (
     execution_result_outcome_for_operation,
     plan_intent_outcome_for_operation,
 )
+
+
+_SEMANTIC_STATE_OWNER_NAME = "semantic_state"
+_SEMANTIC_STATE_SCHEMA_VERSION = 1
 
 
 class SemanticStateStore:
@@ -184,6 +199,233 @@ class SemanticStateStore:
         inspect ``record.outcome`` after lookup.
         """
         return dict(self._record_outcome[slot])
+
+    # -----------------------------------------------------------------
+    # Packet D (long-horizon-closure): HydratableOwnerProtocol
+    # -----------------------------------------------------------------
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        """Dump the store's nine slots to a versioned, JSON-friendly
+        ``OwnerPersistenceSnapshot``.
+
+        Read-only on store state (no version bump, no side effect).
+        Round-trip stable: calling ``export -> hydrate -> export``
+        on a fresh store yields the same snapshot. Verified by
+        ``tests/contracts/test_owner_hydration_protocol.py``.
+        """
+        return OwnerPersistenceSnapshot(
+            owner_name=_SEMANTIC_STATE_OWNER_NAME,
+            schema_version=_SEMANTIC_STATE_SCHEMA_VERSION,
+            payload={
+                "records": {
+                    slot: [_serialize_semantic_record(r) for r in records]
+                    for slot, records in self._records.items()
+                },
+                "completed_refs": {
+                    slot: list(refs) for slot, refs in self._completed_refs.items()
+                },
+                "revision_counts": dict(self._revision_counts),
+                "record_lifecycle": {
+                    slot: {
+                        record_id: [advocacy.value, alignment.value]
+                        for record_id, (advocacy, alignment) in lifecycle.items()
+                    }
+                    for slot, lifecycle in self._record_lifecycle.items()
+                },
+                "record_followup_policy": {
+                    slot: {
+                        record_id: policy.value
+                        for record_id, policy in policies.items()
+                    }
+                    for slot, policies in self._record_followup_policy.items()
+                },
+                "record_outcome": {
+                    slot: {
+                        record_id: _serialize_outcome_record(slot, outcome)
+                        for record_id, outcome in outcomes.items()
+                    }
+                    for slot, outcomes in self._record_outcome.items()
+                },
+            },
+            description=(
+                f"SemanticStateStore snapshot v{_SEMANTIC_STATE_SCHEMA_VERSION} "
+                f"({sum(len(r) for r in self._records.values())} live records "
+                f"across {len(SEMANTIC_OWNER_SLOTS)} slots)"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        """Replace the store's nine slots from a previously-exported
+        snapshot.
+
+        Idempotent (applying the same snapshot twice yields the same
+        store state). Fail-loud on:
+
+        - ``snapshot.owner_name != "semantic_state"`` (wiring bug)
+        - ``snapshot.schema_version`` not equal to the owner's known
+          version (no migration registered)
+        - structurally-broken payload (missing required keys / wrong
+          slot names / unknown enum values)
+        """
+        if snapshot.owner_name != _SEMANTIC_STATE_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                f"SemanticStateStore.hydrate_from_persistence: owner_name "
+                f"mismatch — expected {_SEMANTIC_STATE_OWNER_NAME!r}, "
+                f"got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _SEMANTIC_STATE_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                f"SemanticStateStore.hydrate_from_persistence: unknown "
+                f"schema_version={snapshot.schema_version!r}; this build "
+                f"only knows version {_SEMANTIC_STATE_SCHEMA_VERSION}."
+            )
+        payload = snapshot.payload
+        try:
+            records_blob = payload["records"]
+            completed_refs_blob = payload["completed_refs"]
+            revision_counts_blob = payload["revision_counts"]
+            lifecycle_blob = payload["record_lifecycle"]
+            policy_blob = payload["record_followup_policy"]
+            outcome_blob = payload["record_outcome"]
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"SemanticStateStore.hydrate_from_persistence: missing "
+                f"required key {exc.args[0]!r} in payload"
+            ) from exc
+        # Validate that every slot referenced is in our registry.
+        for blob_name, blob in (
+            ("records", records_blob),
+            ("completed_refs", completed_refs_blob),
+            ("revision_counts", revision_counts_blob),
+            ("record_lifecycle", lifecycle_blob),
+            ("record_followup_policy", policy_blob),
+            ("record_outcome", outcome_blob),
+        ):
+            unknown_slots = set(blob).difference(SEMANTIC_OWNER_SLOTS)
+            if unknown_slots:
+                raise HydrationPayloadInvalidError(
+                    f"SemanticStateStore.hydrate_from_persistence: "
+                    f"payload[{blob_name!r}] references unknown slot(s) "
+                    f"{sorted(unknown_slots)!r}; expected subset of "
+                    f"{SEMANTIC_OWNER_SLOTS!r}"
+                )
+        # Apply (full reset on each slot — hydration is "replace", not "merge").
+        new_records: dict[str, tuple[SemanticRecord, ...]] = {}
+        new_completed: dict[str, tuple[str, ...]] = {}
+        new_revisions: dict[str, int] = {}
+        new_lifecycle: dict[str, dict[str, tuple[AdvocacyState, AlignmentState]]] = {}
+        new_followup: dict[str, dict[str, FollowupPolicy]] = {}
+        new_outcome: dict[str, dict[str, Any]] = {}
+        for slot in SEMANTIC_OWNER_SLOTS:
+            new_records[slot] = tuple(
+                _deserialize_semantic_record(item)
+                for item in records_blob.get(slot, ())
+            )
+            new_completed[slot] = tuple(completed_refs_blob.get(slot, ()))
+            new_revisions[slot] = int(revision_counts_blob.get(slot, 0))
+            new_lifecycle[slot] = {
+                record_id: (
+                    AdvocacyState(values[0]),
+                    AlignmentState(values[1]),
+                )
+                for record_id, values in lifecycle_blob.get(slot, {}).items()
+            }
+            new_followup[slot] = {
+                record_id: FollowupPolicy(value)
+                for record_id, value in policy_blob.get(slot, {}).items()
+            }
+            new_outcome[slot] = {
+                record_id: _deserialize_outcome_record(slot, outcome_blob_entry)
+                for record_id, outcome_blob_entry in outcome_blob.get(slot, {}).items()
+            }
+        self._records = new_records
+        self._completed_refs = new_completed
+        self._revision_counts = new_revisions
+        self._record_lifecycle = new_lifecycle
+        self._record_followup_policy = new_followup
+        self._record_outcome = new_outcome
+
+
+def _serialize_semantic_record(record: SemanticRecord) -> dict[str, Any]:
+    return {
+        "record_id": record.record_id,
+        "summary": record.summary,
+        "detail": record.detail,
+        "confidence": record.confidence,
+        "status": record.status,
+        "source_turn": record.source_turn,
+        "evidence": record.evidence,
+        "control_signal": record.control_signal,
+    }
+
+
+def _deserialize_semantic_record(blob: Mapping[str, Any]) -> SemanticRecord:
+    try:
+        return SemanticRecord(
+            record_id=str(blob["record_id"]),
+            summary=str(blob["summary"]),
+            detail=str(blob["detail"]),
+            confidence=float(blob["confidence"]),
+            status=str(blob["status"]),
+            source_turn=int(blob["source_turn"]),
+            evidence=str(blob["evidence"]),
+            control_signal=float(blob.get("control_signal", 0.0)),
+        )
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"semantic_state record missing required key {exc.args[0]!r}; "
+            f"got blob={blob!r}"
+        ) from exc
+
+
+def _serialize_outcome_record(slot: str, outcome: Any) -> dict[str, Any]:
+    return {
+        "kind": outcome.__class__.__name__,
+        "outcome_value": outcome.outcome.value,
+        "turn_index": outcome.turn_index,
+        "evidence": outcome.evidence,
+    }
+
+
+def _deserialize_outcome_record(slot: str, blob: Mapping[str, Any]) -> Any:
+    """Reconstruct the per-slot outcome record. The slot determines
+    which dataclass + which enum to use.
+    """
+    try:
+        kind = str(blob["kind"])
+        outcome_value = blob["outcome_value"]
+        turn_index = int(blob["turn_index"])
+        evidence = str(blob["evidence"])
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"semantic_state outcome blob missing required key "
+            f"{exc.args[0]!r}; slot={slot!r}, blob={blob!r}"
+        ) from exc
+    if kind == "_CommitmentOutcomeRecord":
+        return _CommitmentOutcomeRecord(
+            outcome=CommitmentOutcomeKind(outcome_value),
+            turn_index=turn_index,
+            evidence=evidence,
+        )
+    if kind == "_PlanIntentOutcomeRecord":
+        return _PlanIntentOutcomeRecord(
+            outcome=PlanIntentOutcome(outcome_value),
+            turn_index=turn_index,
+            evidence=evidence,
+        )
+    if kind == "_ExecutionResultOutcomeRecord":
+        return _ExecutionResultOutcomeRecord(
+            outcome=ExecutionResultOutcome(outcome_value),
+            turn_index=turn_index,
+            evidence=evidence,
+        )
+    raise HydrationPayloadInvalidError(
+        f"semantic_state outcome blob has unknown kind={kind!r} "
+        f"(slot={slot!r}); known kinds are _CommitmentOutcomeRecord / "
+        f"_PlanIntentOutcomeRecord / _ExecutionResultOutcomeRecord"
+    )
 
 
 def clone_semantic_store(source: SemanticStateStore) -> SemanticStateStore:
