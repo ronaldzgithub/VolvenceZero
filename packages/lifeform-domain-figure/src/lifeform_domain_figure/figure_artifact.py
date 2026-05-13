@@ -36,10 +36,11 @@ when the F6 module has loaded) keeps the contract narrow.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lifeform_core import VitalsBootstrap
 from volvence_zero.application import DomainExperiencePackage
+from volvence_zero.substrate import SubstrateFingerprint, fingerprint_set_sha256
 
 from lifeform_domain_figure.coverage_map import FigureCoverageMap
 from lifeform_domain_figure.profile import HistoricalFigureProfile
@@ -88,6 +89,25 @@ class FigureArtifactBundle:
     integrity_hash: str
     metadata_digest_fingerprint: str = ""
     provenance_fingerprint: str = ""
+    # debt #47 / F-C SHADOW: which substrate fingerprints this bundle
+    # was baked against. Empty tuple = legacy bundle (predates #47);
+    # migration shim in ``lifeform_domain_figure.bundle_io`` injects
+    # ``LEGACY_FINGERPRINT`` so old pickles still load. Non-empty tuple
+    # is folded into ``integrity_hash`` so upgrading substrate yields a
+    # different bundle id (R15 byte-level rollback contract).
+    compatible_substrates: tuple[SubstrateFingerprint, ...] = field(
+        default_factory=tuple
+    )
+    # debt #58 / #59 / #60 (P1 figure-evidence-packet): readout reports
+    # for L4 refusal accuracy / L3 grounding faithfulness / L1 voice
+    # blind-test. None = not yet evaluated; non-None = evaluation
+    # artifact attached. These fields **do not** affect
+    # ``integrity_hash`` (eval is readout, not bundle identity); see
+    # ``docs/specs/figure-refusal-gt-protocol.md`` for the audit
+    # fingerprint scheme.
+    refusal_eval_report: object | None = None
+    grounding_eval_report: object | None = None
+    voice_blind_test_report: object | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -138,6 +158,7 @@ def compute_bundle_integrity_hash(
     lora_integrity: str,
     metadata_digest_fingerprint: str = "",
     provenance_fingerprint: str = "",
+    compatible_substrates: tuple[SubstrateFingerprint, ...] = (),
 ) -> str:
     """Deterministic SHA-256 over the bundle's load-bearing identity fields.
 
@@ -175,6 +196,9 @@ def compute_bundle_integrity_hash(
         payload = payload + (("metadata_digest", metadata_digest_fingerprint),)
     if provenance_fingerprint:
         payload = payload + (("provenance", provenance_fingerprint),)
+    substrate_fp = fingerprint_set_sha256(compatible_substrates)
+    if substrate_fp:
+        payload = payload + (("compatible_substrates", substrate_fp),)
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
 

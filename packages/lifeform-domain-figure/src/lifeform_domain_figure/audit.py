@@ -115,6 +115,13 @@ class FigureBakeAuditRecord:
     backend_id: str
     created_at_iso: str
     extra: dict[str, str] = field(default_factory=dict)
+    # debt #63 (P1 figure-evidence-packet G-D cost回填): per-action
+    # cost telemetry for unit-economics actuals回填 (engineer hours /
+    # GPU hours / archive fetch wallclock / reviewer hours). Default
+    # empty dict for backward-compat; populated by bake CLI when
+    # --record-cost flag is on or by external scripts/figure_cost_summary.py
+    # when reconstructing from external timing data.
+    cost_breakdown: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.schema_version != AUDIT_SCHEMA_VERSION:
@@ -162,6 +169,7 @@ def build_audit_record(
     backend_id: str = "",
     created_at_iso: str | None = None,
     extra: dict[str, str] | None = None,
+    cost_breakdown: dict[str, float] | None = None,
 ) -> FigureBakeAuditRecord:
     """Assemble an audit record with a deterministic ``audit_id``.
 
@@ -209,6 +217,7 @@ def build_audit_record(
         backend_id=backend_id,
         created_at_iso=timestamp,
         extra=dict(extra or {}),
+        cost_breakdown=dict(cost_breakdown or {}),
     )
 
 
@@ -253,6 +262,7 @@ def write_audit(
         "backend_id": record.backend_id,
         "created_at_iso": record.created_at_iso,
         "extra": dict(record.extra),
+        "cost_breakdown": dict(record.cost_breakdown),
     }
     _atomic_write_text(
         target,
@@ -374,6 +384,10 @@ def _read_audit_file(path: pathlib.Path) -> FigureBakeAuditRecord:
         created_at_iso=str(payload["created_at_iso"]),
         extra={
             str(k): str(v) for k, v in (payload.get("extra") or {}).items()
+        },
+        cost_breakdown={
+            str(k): float(v)
+            for k, v in (payload.get("cost_breakdown") or {}).items()
         },
     )
 

@@ -1,7 +1,7 @@
 # Commercialization Evidence Rollout — 8 周加速版
 
-> Status: rollout plan v0.1
-> Last updated: 2026-05-13
+> Status: rollout plan v0.2
+> Last updated: 2026-05-13 (Stage 1-5 SHADOW scaffold all-land)
 > 团队规模假设：5+ 工程师 + 2 reviewer（少于 5 人立刻退回 12 周路径）
 > 与其他文档的关系：
 > - [`docs/business/commercialization-assessment.md`](../business/commercialization-assessment.md) — 商业目标 + 路径概率（SSOT）
@@ -381,6 +381,106 @@ W8 完成后进入 Phase B（[commercialization-assessment §5.3](../business/co
 
 ---
 
+## 附录 D. Scaffold All-Land Status (2026-05-13 v0.2 bump)
+
+本日一次性 land 了 4 阶段全部 SHADOW scaffold（团队 W1 不需要再开 PR-1/2/3/4 骨架，直接进入 W2 evidence run 推进）。
+
+### Stage 1 — 横切 scaffold (F-A/B/C/D)
+
+✅ 新建 (17 个文件):
+- `tests/perf/__init__.py` + `tests/perf/conftest.py` (含 `asyncio_harness` / `concurrent_lifeform_factory` / `gpu_mem_tracker` fixture + `@pytest.mark.perf` 自动 skip)
+- `tests/perf/test_concurrent_lifeform_sessions.py`
+- `tests/perf/test_multi_vertical_owner_propagation.py`
+- `tests/perf/test_persona_lora_hot_swap_concurrency.py`
+- `tests/perf/test_production_rollback_drill.py`
+- `scripts/realistic_load_companion.py`
+- `scripts/realistic_load_figure.py`
+- `scripts/realistic_load_growth_advisor.py`
+- `scripts/rollback_drill_figure.sh`
+- `scripts/rollback_drill_growth_advisor.sh`
+- `scripts/rollback_drill_substrate_upgrade.sh`
+- `docs/specs/perf-baseline.md`
+- `docs/specs/substrate-upgrade-protocol.md`
+- `docs/specs/rollback-drill-cadence.md`
+- `docs/specs/evidence-deletion-protocol.md`
+- `packages/vz-substrate/src/volvence_zero/substrate/substrate_fingerprint.py`
+- `packages/lifeform-service/src/lifeform_service/evidence_deletion.py`
+
+✅ 修改 (4 个文件):
+- `packages/vz-memory/src/volvence_zero/memory/identity.py` (加 `TenantIdentity` / `EndUserIdentity` / `derive_scope_key`)
+- `packages/vz-memory/src/volvence_zero/memory/__init__.py` (export 双层 scope)
+- `packages/lifeform-service/src/lifeform_service/alpha.py` (加 `bind_session_two_layer` opt-in)
+- `packages/vz-substrate/src/volvence_zero/substrate/__init__.py` (export `SubstrateFingerprint`)
+
+✅ contract test (3 个):
+- `tests/contracts/test_two_layer_scope_isolation.py`
+- `tests/contracts/test_evidence_deletion_proof_chain.py`
+- `tests/contracts/test_substrate_fingerprint_propagation.py`
+
+### Stage 2 — P5 公开化 scaffold
+
+✅ 新建 (14 个文件):
+- 6 sweep scripts: `scripts/companion_bench/{judge_robustness,calibration,simulator_robustness,statistical_power,estimate_quarterly_cost,trusted_runner}_sweep.py` + `_sweep`/`_runner` 后缀
+- 7 公开报告: `docs/external/companion-bench-{judge-robustness,calibration-report,simulator-robustness,statistical-power,cost-model,trusted-runner-protocol,heldout-leak-protocol}-v0.md`
+- contract test: `tests/contracts/test_heldout_access_audit.py`
+
+✅ 修改 (3 个文件):
+- `packages/companion-bench/src/companion_bench/spec.py` (`ScenarioSpec.language` 字段，**不**进 `to_canonical()` 保持 hash 稳定)
+- `packages/companion-bench/src/companion_bench/aggregator.py` (`WEIGHTS_VERSION = "v1.0"` + 引证 docstring)
+- `packages/companion-bench/src/companion_bench/arc_runner.py` (`ArcRecord.sut_substrate_fingerprint` + `simulator_family` Optional 字段)
+
+### Stage 3 — P1 figure-evidence scaffold
+
+✅ 新建 (16 个文件):
+- 3 GT example JSONL: `data/figure_refusal_gt/einstein/{in_scope,out_of_scope}.jsonl.example` + `data/figure_grounding_gt/einstein/assertions.jsonl.example`
+- 4 eval scripts: `scripts/figure_{refusal_eval,grounding_eval,voice_blind_test,cost_summary}.py`
+- 6 specs: `docs/specs/figure-{refusal-gt-protocol,grounding-gt-protocol,voice-blind-test-protocol,offline-gate-validation-protocol,persona-lora-concurrency}.md` + `docs/business/figure-bake-cost-actuals.md`
+- contract test: `tests/contracts/test_figure_bundle_refusal_gt_required.py`
+
+✅ 修改 (1 个文件):
+- `packages/lifeform-domain-figure/src/lifeform_domain_figure/figure_artifact.py` (加 `compatible_substrates` + 3 个 eval report Optional 字段；`compute_bundle_integrity_hash` 接受 `compatible_substrates` 参数)
+- `packages/lifeform-domain-figure/src/lifeform_domain_figure/audit.py` (`FigureBakeAuditRecord.cost_breakdown` 字段)
+
+### Stage 4 — P2 growth-advisor scaffold
+
+✅ 新建 (15 个文件):
+- 1 example JSONL: `packages/lifeform-domain-growth-advisor/data/growth_advisor_boundary_eval/cheng_laoshi/scenarios.jsonl.example`
+- 2 eval scripts: `scripts/growth_advisor_{boundary_eval,drive_ablation}.py`
+- 1 classifier: `packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/archetype_classifier.py`
+- 1 owner: `packages/lifeform-service/src/lifeform_service/monthly_report_owner.py`
+- 1 prompt: `packages/lifeform-expression/src/lifeform_expression/prompts/growth_advisor_archetype_classify.txt`
+- 1 schema: `packages/lifeform-expression/src/lifeform_expression/schemas/archetype_classification.json`
+- 7 specs: `docs/specs/growth-advisor-{boundary-baseline,drive-ablation-evidence,day-counter,archetype-detection,monthly-report}.md` + `docs/specs/{handoff-queue-slo,external-validation-protocol}.md`
+
+✅ 修改 (1 个文件):
+- `packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py` (加 `validated_substrates` 字段)
+
+✅ contract / perf test (4 个):
+- `tests/contracts/test_growth_advisor_day_routing.py`
+- `tests/contracts/test_no_keyword_archetype_detection.py`
+- `tests/contracts/test_monthly_report_schema_stability.py`
+- `tests/perf/test_handoff_queue_concurrent_load.py`
+
+### Stage 5 — rollout v0.2 + known-debts SHADOW 标注
+
+- 本附录 D 落档
+- `docs/known-debts.md` 顶部加 update 段标注 26 条 debt 进入 SHADOW
+
+### 总产出
+
+- **新建文件 ~62 个**（spec markdown ~17 / .py scaffold ~22 / contract+perf test ~10 / sh script ~3 / JSONL example ~4 / prompt+schema ~2 / public reports ~7 / business doc ~1）
+- **修改现有文件 ~10 个**（identity.py / alpha.py / 两个 __init__.py / figure_artifact.py / audit.py / spec.py / aggregator.py / arc_runner.py / profile.py）
+- **不动**：[`commercialization-assessment.md`](../business/commercialization-assessment.md)（SSOT 不变）/ 4 个 packet 文件本身（仅本 rollout 文件加附录）
+
+### 团队接手指南
+
+W2 起团队需要做的（不再写骨架）：
+1. **reviewer 招募**：P1 GT 标注 (refusal+grounding) / P2 boundary scenarios 标注（详见 `figure-refusal-gt-protocol.md` §4 + `growth-advisor-boundary-baseline.md` §5）
+2. **API key 准备**：P5 6 sweep 需要 5 LLM family API key（GPT-5 / Claude Opus 4.7 / DeepSeek V4 / Qwen3 / Gemini 2.5），预算 ¥93-186k（见 `companion-bench-cost-model-v0.md`）
+3. **GPU 准备**：P1 真 Qwen-1.5B PEFT (#41) + 横切 F-A baseline + F-D rollback drill，~1 GPU 月
+4. **实跑顺序**：W2 横切 F-A baseline → W3 sweep 第一批 → W6 GT eval ACTIVE → W8 双盲跑批
+
 ## 变更日志
 
-- 2026-05-13：v0.1 初稿。基于 4 个 packet（cross-cutting / companion-bench / figure-evidence / growth-advisor）+ 26 条 debt（#45-#70）+ 5+ 人团队加速假设。下次 v0.2 bump 在 W2 末。
+- 2026-05-13: v0.1 初稿。基于 4 个 packet（cross-cutting / companion-bench / figure-evidence / growth-advisor）+ 26 条 debt（#45-#70）+ 5+ 人团队加速假设。
+- 2026-05-13: v0.2 bump。Stage 1-5 全 SHADOW scaffold 一次性 land（约 62 新 + 10 改）。本 rollout 文件加附录 D 记录所有 land 的文件清单 + 团队接手指南。下次 v0.3 bump 在 W2 末（按 §11.2 双周节奏）。

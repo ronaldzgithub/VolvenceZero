@@ -94,6 +94,14 @@ class ArcRecord:
     sessions: tuple[ArcSession, ...]
     user_simulator_model: str
     summary_extra: dict[str, Any]
+    # debt #47 / #53: optional substrate fingerprint of the SUT
+    # (model_id @ version # weights_sha256[:8]) so the public
+    # leaderboard can group results by substrate without running
+    # extra introspection on submission YAML. None = legacy / not
+    # provided. simulator_family is recorded separately in the user
+    # simulator section (debt #53 simulator_robustness sweep).
+    sut_substrate_fingerprint: str | None = None
+    simulator_family: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -104,6 +112,8 @@ class ArcRecord:
             "paraphrase_seed": self.paraphrase_seed,
             "submission_id": self.submission_id,
             "sut_model_id": self.sut_model_id,
+            "sut_substrate_fingerprint": self.sut_substrate_fingerprint,
+            "simulator_family": self.simulator_family,
             "user_simulator_model": self.user_simulator_model,
             "started_at": self.started_at,
             "finished_at": self.finished_at,

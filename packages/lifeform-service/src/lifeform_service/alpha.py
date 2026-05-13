@@ -12,7 +12,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from volvence_zero.memory import UserIdentity
+from volvence_zero.memory import (
+    EndUserIdentity,
+    TenantIdentity,
+    UserIdentity,
+    derive_scope_key,
+)
+
+
+# Two-layer scope is opt-in for closed-alpha (debt #46 / F-B SHADOW).
+# Default ``bind_session`` keeps the legacy single-layer
+# ``user_id == scope_key`` contract so existing evidence / memory
+# files continue to load. Hosts that want admin / end-user separation
+# call ``bind_session_two_layer(...)`` instead, which derives
+# ``scope_key == f"{tenant_id}:{end_user_id}"`` and wires the typed
+# tenant + end-user identity onto ``UserIdentity``.
+DEFAULT_ALPHA_TENANT_ID = "alpha"
 
 
 ALPHA_DISCLAIMER = (
@@ -51,6 +66,42 @@ class AlphaIdentityProvider:
         # Closed alpha intentionally keeps path scope and memory tag scope
         # identical to avoid user_id/scope_key divergence.
         identity = UserIdentity(user_id=user_id, scope_key=user_id)
+        self._session_to_identity[session_id] = identity
+        return identity
+
+    def bind_session_two_layer(
+        self,
+        *,
+        session_id: str,
+        end_user_id: str,
+        tenant_id: str = DEFAULT_ALPHA_TENANT_ID,
+    ) -> UserIdentity:
+        """Opt-in two-layer scope binding (debt #46 / F-B SHADOW).
+
+        Derives ``scope_key == f"{tenant_id}:{end_user_id}"`` via
+        :func:`volvence_zero.memory.derive_scope_key`. Existing
+        single-layer evidence / memory under the legacy
+        ``scope_key == user_id`` are not migrated here; that lands as a
+        separate F-B subtask (read/delete path migration shim).
+        """
+
+        end_user_id = end_user_id.strip()
+        tenant_id = tenant_id.strip()
+        if not end_user_id:
+            raise ValueError("alpha two-layer: end_user_id must be non-empty")
+        if not tenant_id:
+            raise ValueError("alpha two-layer: tenant_id must be non-empty")
+        if self._allowed_users and end_user_id not in self._allowed_users:
+            raise PermissionError(f"alpha user {end_user_id!r} is not allowed")
+        tenant = TenantIdentity(tenant_id=tenant_id)
+        end_user = EndUserIdentity(tenant_id=tenant_id, end_user_id=end_user_id)
+        scope_key = derive_scope_key(tenant, end_user)
+        identity = UserIdentity(
+            user_id=end_user_id,
+            scope_key=scope_key,
+            tenant_identity=tenant,
+            end_user_identity=end_user,
+        )
         self._session_to_identity[session_id] = identity
         return identity
 

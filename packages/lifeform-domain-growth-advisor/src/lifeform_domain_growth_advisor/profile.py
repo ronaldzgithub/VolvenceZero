@@ -33,6 +33,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.substrate import SubstrateFingerprint
+
 
 @dataclass(frozen=True)
 class GrowthAdvisorKnowledgeSeed:
@@ -176,6 +178,13 @@ class GrowthAdvisorProfile:
         "private-domain-growth-advisor",
         "child-nutrition-companion",
     )
+    # debt #47 / F-C SHADOW: substrate fingerprints this profile has
+    # been validated against. Empty tuple = "untested / generic"
+    # (runtime warns on substrate mismatch but does not fail; profile
+    # is application-layer typed records, not substrate-bound weights).
+    # Non-empty tuple lets ops verify "this reviewed cheng-laoshi was
+    # tested on Qwen2.5-1.5B and Llama-3.1-8B" before promoting.
+    validated_substrates: tuple[SubstrateFingerprint, ...] = ()
 
     def __post_init__(self) -> None:
         _require_non_empty("profile_id", self.profile_id)

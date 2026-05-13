@@ -23,6 +23,11 @@ from volvence_zero.substrate.grounded_decode_hook import (
 from volvence_zero.substrate.lora_aware_runtime import (
     LoRAAwareResidualRuntime,
 )
+from volvence_zero.substrate.substrate_fingerprint import (
+    LEGACY_FINGERPRINT,
+    SubstrateFingerprint,
+    fingerprint_set_sha256,
+)
 from volvence_zero.substrate.persona_lora_pool import (
     PersonaLoRANotFound,
     PersonaLoRAPool,
@@ -85,8 +90,11 @@ __all__ = [
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",
     "HookLayerCalibrationReport",
+    "LEGACY_FINGERPRINT",
     "LoRAAwareResidualRuntime",
     "LocalModelCompatibilityReport",
+    "SubstrateFingerprint",
+    "fingerprint_set_sha256",
     "NoOpResidualInterventionBackend",
     "OpenWeightResidualInterventionBackend",
     "OpenWeightResidualRuntime",

@@ -36,6 +36,84 @@ from volvence_zero.memory.store import MemoryStore, build_default_memory_store
 ANONYMOUS_USER_SCOPE = "anonymous"
 
 
+# ---------------------------------------------------------------------------
+# Two-layer scope (debt #46 / commercialisation cross-cutting F-B)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TenantIdentity:
+    """B2B tenant identity (e.g. one paying customer / institution).
+
+    Closed-alpha derives ``tenant_id == "alpha"`` automatically; B2B
+    private-domain growth-advisor clients each get a real
+    ``tenant_id``. The kernel reads only ``tenant_id``; ``display_name``
+    is a product-layer concern.
+
+    See `cross-cutting-foundation-packet.md` §2.2 + debt #46.
+    """
+
+    tenant_id: str
+    display_name: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.tenant_id or not self.tenant_id.strip():
+            raise ValueError("TenantIdentity.tenant_id must be non-empty")
+
+
+@dataclass(frozen=True)
+class EndUserIdentity:
+    """End-user inside a tenant scope.
+
+    The pair ``(tenant_id, end_user_id)`` is globally unique; the same
+    ``end_user_id`` value may legitimately exist under different
+    tenants (e.g. ``alice`` under tenant ``brand_a`` and ``brand_b``
+    must not share state).
+    """
+
+    tenant_id: str
+    end_user_id: str
+    display_name: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.tenant_id or not self.tenant_id.strip():
+            raise ValueError("EndUserIdentity.tenant_id must be non-empty")
+        if not self.end_user_id or not self.end_user_id.strip():
+            raise ValueError("EndUserIdentity.end_user_id must be non-empty")
+
+
+def derive_scope_key(
+    tenant_identity: TenantIdentity | None,
+    end_user_identity: EndUserIdentity | None,
+) -> str:
+    """SSOT for ``scope_key`` derivation under the two-layer model.
+
+    * Two-layer (preferred for new code)::
+
+        TenantIdentity("brand_a"), EndUserIdentity("brand_a", "alice")
+            -> "brand_a:alice"
+
+    * Single-layer fallback (legacy closed-alpha): when only an
+      ``end_user_identity`` is supplied with ``tenant_id == "alpha"``,
+      the derived key is ``"alpha:<end_user_id>"``.
+
+    Returns ``ANONYMOUS_USER_SCOPE`` if both are ``None``.
+    """
+
+    if end_user_identity is None and tenant_identity is None:
+        return ANONYMOUS_USER_SCOPE
+    if end_user_identity is None:
+        # Only tenant scope: rare but legal (tenant-level admin actions)
+        return f"{tenant_identity.tenant_id}:_admin_"  # type: ignore[union-attr]
+    if tenant_identity is not None and tenant_identity.tenant_id != end_user_identity.tenant_id:
+        raise ValueError(
+            "derive_scope_key: tenant_identity.tenant_id "
+            f"({tenant_identity.tenant_id!r}) does not match "
+            f"end_user_identity.tenant_id ({end_user_identity.tenant_id!r})"
+        )
+    return f"{end_user_identity.tenant_id}:{end_user_identity.end_user_id}"
+
+
 @dataclass(frozen=True)
 class UserIdentity:
     """Frozen user identity surface.
@@ -49,12 +127,20 @@ class UserIdentity:
     * ``permissions`` is a small typed tuple of named capabilities the
       host has granted. v0 reserves ``{"persist", "inspect", "delete"}``;
       missing capabilities mean the helper APIs raise ``PermissionError``.
+    * ``tenant_identity`` / ``end_user_identity`` (debt #46): optional
+      two-layer scope. When supplied, ``scope_key`` should be derived
+      via :func:`derive_scope_key`. Closed-alpha auto-fills these as
+      ``TenantIdentity("alpha")`` + ``EndUserIdentity("alpha", user_id)``
+      so the new schema is backward-compatible with the single-layer
+      ``user_id == scope_key`` legacy.
     """
 
     user_id: str
     scope_key: str
     display_name: str = ""
     permissions: tuple[str, ...] = ("persist", "inspect", "delete")
+    tenant_identity: TenantIdentity | None = None
+    end_user_identity: EndUserIdentity | None = None
 
     def __post_init__(self) -> None:
         if not self.user_id or not self.user_id.strip():
@@ -63,6 +149,14 @@ class UserIdentity:
             raise ValueError("UserIdentity.scope_key must be non-empty")
         if any(perm.strip() == "" for perm in self.permissions):
             raise ValueError("UserIdentity.permissions must not contain empty entries")
+        # When both layers are supplied, scope_key must equal the SSOT derivation.
+        if self.tenant_identity is not None and self.end_user_identity is not None:
+            expected = derive_scope_key(self.tenant_identity, self.end_user_identity)
+            if expected != self.scope_key:
+                raise ValueError(
+                    f"UserIdentity.scope_key={self.scope_key!r} does not match "
+                    f"derive_scope_key(tenant, end_user)={expected!r}"
+                )
 
     def has_permission(self, name: str) -> bool:
         return name in self.permissions
@@ -218,11 +312,14 @@ def delete_entries_for_scope(
 __all__ = [
     "ANONYMOUS_USER_SCOPE",
     "AnonymousIdentityProvider",
+    "EndUserIdentity",
     "IdentityProvider",
     "StaticIdentityProvider",
+    "TenantIdentity",
     "UserIdentity",
     "build_scoped_memory_store",
     "delete_entries_for_scope",
+    "derive_scope_key",
     "list_durable_entries_for_scope",
     "scope_key_for",
     "scoped_memory_dir",

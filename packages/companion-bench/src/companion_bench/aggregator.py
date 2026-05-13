@@ -44,6 +44,20 @@ from companion_bench.spec import AxisId
 # ---------------------------------------------------------------------------
 
 
+# Version of the canonical weight + A6-cap configuration. Bumped when
+# the calibration sweep (debt #52, scripts/companion_bench/
+# calibration_sweep.py) shows a different configuration is more
+# robust. Public report:
+# docs/external/companion-bench-calibration-report-v0.md
+#
+# Evidence for current values (A1=0.10 / A2=0.15 / A3=0.25 / A4=0.20
+# / A5=0.10 / A6=0.20, A6_CAP_THRESHOLD=60.0, A6_CAP_VALUE=50.0):
+# see calibration-report-v0 §3 "current weights selection rationale"
+# + §4 "105 configuration sensitivity matrix" (populated after
+# calibration_sweep.py ACTIVE run).
+WEIGHTS_VERSION: str = "v1.0"
+
+
 WEIGHTS: dict[AxisId, float] = {
     AxisId.A1_TASK: 0.10,
     AxisId.A2_CONVERSATIONAL: 0.15,

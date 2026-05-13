@@ -245,6 +245,15 @@ class ScenarioSpec:
     public_test: bool
     held_out: bool
     paraphrase_seed_count: int = 3
+    # debt #55 (companion-bench-public-launch-packet §2.4): scenario
+    # primary language. Hash-stability strategy: ``language`` is
+    # **publishing metadata** (lets the leaderboard render zh / en
+    # sub-views) and is intentionally **not** included in
+    # ``to_canonical()`` — adding it would invalidate every existing
+    # ``scenario_hash``. The leaderboard groups by language using this
+    # field directly; cross-language scenarios with otherwise identical
+    # semantics share the same hash by design.
+    language: str = "zh"
 
     def to_canonical(self) -> dict[str, Any]:
         return {
@@ -390,6 +399,16 @@ def _spec_from_dict(data: dict[str, Any], *, source: pathlib.Path) -> ScenarioSp
             f">= 1; got {paraphrase_seed_count}"
         )
 
+    # debt #55: language defaults to "zh" for backward-compat with
+    # the existing 24 public scenarios (none currently declare it).
+    # 12 English scenarios planned will set ``language: en`` explicitly.
+    language = str(data.get("language", "zh")).strip()
+    if language not in {"zh", "en", "bilingual"}:
+        raise ValueError(
+            f"invalid_scenario: {source} language must be one of "
+            f"'zh' / 'en' / 'bilingual'; got {language!r}"
+        )
+
     return ScenarioSpec(
         scenario_id=scenario_id,
         family=family,
@@ -402,6 +421,7 @@ def _spec_from_dict(data: dict[str, Any], *, source: pathlib.Path) -> ScenarioSp
         public_test=public_test,
         held_out=held_out,
         paraphrase_seed_count=paraphrase_seed_count,
+        language=language,
     )
 
 
