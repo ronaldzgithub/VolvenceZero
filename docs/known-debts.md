@@ -1,7 +1,11 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-12 (Figure-Vertical 端到端验证管线 land + 真跑诊断 — Wave N-P + Wave Q dry-run; 4 道 gate 真跑数据已记录到 debt #39-#42)
+> Last updated: 2026-05-13 (Commercialization reflection 反思导入 26 条 debt #45-#70)
+
+> 2026-05-13 update (commercialization-assessment §1.1/§4/§6/§8 反向回查): 把 [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) 三个最 promising 方向（P5 Companion Bench / P1 Figure-as-a-Service / P2 Growth-Advisor）的"商业承诺已写进定价/SLO/kill criteria，但仓库里没有对应技术 evidence"的缺口反向回查到工程层，列入 26 条新债 #45-#70：横切 7 条 (#45-#51) + P5 6 条 (#52-#57) + P1 6 条 (#58-#63) + P2 7 条 (#64-#70)。**核心反思**：现有 closed-alpha-api-service / figure-vertical / companion-bench 的 spec 与 contract test 等价于「单实例正确性」evidence；commercialization 文档隐含假设「在生产并发 / 多租户 / 可删除 / 跨 substrate 升级 / 真实用户感受」条件下也有等价 evidence，但这一组数据实际不存在。和 [`docs/moving forward/summary.md`](moving%20forward/summary.md) §2 警告过的"原理免疫 vs 工程已实现混淆"在商业层的同构重现。**P0 6 条**（中-高，Phase A 必做）：#45 生产并发 stress / #48 LLM-judge bias / #52 6 轴权重 calibration / #58 L4 false-refuse-answer GT / #59 L3 引证 faithfulness / #64 boundary 触发率 baseline。**P1 6 条**（中，Phase A 后期）：#46 / #47 / #49 / #63 / #66 / #69。**P2 8 条**（低-中）：#50 / #51 / #55 / #57 / #65 / #67 / #68 / #70。**P3 6 条**（低，持续）：#53 / #54 / #56 / #60 / #61 / #62。最关键单一动作：在 Phase A 第 1-2 个月先建 `tests/perf/` + `tests/multi_tenant/` + `scripts/realistic_load_*.py` 实测床（铺横切 #45 #46 #49 三条），所有报价 / SLO / 合规话术才有底气。
+
+> 2026-05-12 update (Figure-Vertical 端到端验证管线 land + 真跑诊断 — Wave N-P + Wave Q dry-run; 4 道 gate 真跑数据已记录到 debt #39-#42)
 
 > 2026-05-12 update (Figure-Vertical persona verification dry-run — Wave Q): 把 Wave N-P 装好的管线在真 Wave K curated bundle (`figure-bundle:einstein:29eacd226a7cdfd0`, 444 chunks) + tiny-gpt2 substrate + 真 Wave N curated synthetic LoRA (`persona-lora:einstein:61c93126a0b2e98c`) 上跑了一次完整 verification（5 道 in-corpus + 5 道 out-of-scope，artifact 落 `artifacts/figure_verify/einstein-tinygpt2-curated/`）。**结果**：4/4 gates 全 FAIL，退出码 2。这是诚实的输出 —— 验证管线在配置不到位时就该报告 fail，不是 bug。**真跑暴露的 4 个具体债务（追踪在 #39-#42）**：(a) `default_persona_lora_pool()` 是 process-local，bake CLI 进程退出后 verify 进程看不到 → 已就地修了 `_ensure_pool_has_bundle_lora` 在 verify 入口自动从 `bundle.lora` 派生 register（不破 R8 wheel boundary，只读公开 `FigureLoRAArtifact` 字段）；(b) `bundle.coverage_map` 在 Wave K curated bundle 上**过严**：transcript 显示 in-corpus 关于 "relativity / postulate / theory" 的题被 L4 ScopeRefuser 当 OOS 短路 —— 真 production bug，记 #39；(c) synthetic LoRA backend 的 hash-derived 常数 delta 经过 tiny-gpt2 LayerNorm 被吃掉 → bundle ≡ bundle_lora（Wave D `_aggressive_persona_layers` 已知；要 voice gate 量化通过得用真 PEFT-trained LoRA on Qwen），记 #40；(d) tiny-gpt2 ~10M params 不能 model Einstein → cognition_score ≡ 0、L3 evidence ≡ 0；要 cognition / evidence gate 通过必须真 Qwen-1.5B + 真 PEFT bake（这台 Win/CPU 跑不动），记 #41；(e) reviewer-curated 5 道 OOS 探针只 60% 触发 L4 拒答（差 1 道 = 1/5 = 20%），threshold 80% 在小样本上离散度过粗，记 #42。**Wave Q 不是新代码 wave**，是真跑 + 诊断 + 把诊断写回 debt ledger 的运维步骤。verify CLI 修补已落库（`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/cli.py:_ensure_pool_has_bundle_lora`），smoke test 6/6 全绿。
 
@@ -1325,6 +1329,612 @@ return (
   5. **阶段 D — 组合 profile + ACTIVE 决策**：每条候选 SHADOW evidence 跑 ≥ 5 seeds × paper-suite-small PASS 后，再用组合 profile（如 SYS-1 ⊗ COG-1 PE-first 配对）跑第二轮；建立 "metric delta vs baseline + acceptance gate + rollback evidence" 三选一硬证据规则，由 [#43](#43) 子项 (3) cross_generation_aggregator 自动汇总。
   6. **配套**：每条候选的 SHADOW evidence 走 [`docs/specs/<candidate>-shadow-evidence-<date>.md`](specs/) 模板沉淀，让 PR review 阶段一眼看到 metric_means delta + 何时切 ACTIVE 的判定基准；模板已由 B4 [`run_shadow_evidence_template.py`](../scripts/run_shadow_evidence_template.py) 自动生成。
 - **优先级**：**低**（用户 2026-05-13 明确指示）。阶段 A brief 已经把每个候选的工作量 / 耦合 / 起跑前置都核查清楚，按条触发即可；不存在"必须在 X 时间前跑完"的硬截止。
+
+---
+
+# 商业化反思债（#45-#70）— 2026-05-13 一次性导入
+
+> 来源：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 / §4.1-4.5 / §6 / §8 反向回查。三个最 promising 方向（P5 / P1 / P2）在商业层做出的承诺 vs 仓库工程层 evidence 的 gap。
+> 编号约定：#45-#51 = 横切（三方向共依赖）；#52-#57 = P5 Companion Bench 专属；#58-#63 = P1 Figure-as-a-Service 专属；#64-#70 = P2 Growth-Advisor 专属。
+
+---
+
+## 45. 生产并发 / 多租户下的 latency / 显存 / 调度实测床缺失
+
+- **路径**：
+  - 缺位的目录：`tests/perf/`（不存在）+ `scripts/realistic_load_*.py`（不存在）
+  - 推荐落点：[`packages/lifeform-service/`](../packages/lifeform-service/) + [`packages/dlaas-platform-launcher/`](../packages/dlaas-platform-launcher/) + [`packages/vz-substrate/`](../packages/vz-substrate/) 跨包共测
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §6.1 (单 ai_id × 月成本估算) / §8.1.1 (多 vertical 共载 latency 风险标"中-高 × 高")
+- **问题**：[`docs/moving forward/summary.md`](moving%20forward/summary.md) §3 表已明确标注"没有看到 latency / 显存 / 调度的实测数据"。三个商业方向的报价 / SLO / 客户 demo 都隐式假设这一数据存在：
+  - 单 substrate (Qwen2.5-32B / Llama-3.1-70B) 节点上，并发挂多少个 `LifeformSession` 时 P99 latency 还能 < 3s？没数据
+  - 多 vertical 共载（5 个 vertical × N owner 总线 snapshot propagate）在并发下是否 contention？没数据
+  - thinking loop / followup / tick 这些"用户没说话也跑"的内部 turn 在大量 ai_id 时占用多少推理预算？没数据
+  - `PersonaLoRAPool.activate(...)` 多 session 同时切换不同 figure LoRA 的串行化代价？没数据
+- **违反**：不违反 R 铁律。是工程基线缺失，不是契约违反。
+- **风险**：**高**。三个商业方向都依赖这个不存在的数据集；第一次真实付费客户上量时同时点亮 P1 Figure SLO + P2 Growth-Advisor 多席位 + P5 Companion Bench 大并发跑分三个子问题
+- **触发条件**：(a) 第一个 P1 / P2 客户的 PoC 进入并发测试阶段；(b) P5 公开榜单跑 120 scenarios × 头部 6 模型 × 多 SUT 的实际成本 / 时长估算需要；(c) DLaaS 灯塔客户 PoC 提出 SLO（uptime / latency / multi-tenant data residency）
+- **推荐修法**：
+  1. 新建 `tests/perf/` 目录 + `tests/perf/test_concurrent_lifeform_sessions.py` + `tests/perf/test_multi_vertical_owner_propagation.py` + `tests/perf/test_persona_lora_hot_swap_concurrency.py` 三个套件
+  2. 新建 `scripts/realistic_load_companion.py` / `scripts/realistic_load_figure.py` / `scripts/realistic_load_growth_advisor.py` 各一个长跑脚本（`asyncio.gather` 并发 N 个 `LifeformSession`，按真实 turn 时间分布跑 30 min），输出 `artifacts/perf/<scenario>-<date>.json`（P50 / P90 / P99 latency / GPU mem peak / owner snapshot dispatch ms）
+  3. 加 `docs/specs/perf-baseline.md` spec 落档当前 baseline + 三方向 SLO 拍板表（如"P1 figure 单 ai_id P99 < 5s @ 10 concurrent""P2 席位 P95 < 3s @ 50 end-user concurrent"）
+  4. 守 R8：perf 测试只 read snapshots，不写 owner；只 read substrate generate latency，不改任何模型权重
+- **优先级**：**中-高**（Phase A 第 1-2 个月必做，是横切 #46 / #47 / #49 / #61 / #70 共同前置）
+
+---
+
+## 46. 多租户两层 scope_key（tenant × end_user）+ 客户级 admin / end-user 删除路径
+
+- **路径**：
+  - 当前单层：[`packages/volvence-zero/.../memory/`](../packages/) `UserIdentity.scope_key`（closed-alpha 是 `user_id == scope_key`）
+  - closed-alpha 文档：[`docs/closed-alpha-api-service.md`](closed-alpha-api-service.md) 明确"跨用户隔离走 scoped memory，alpha 阶段 user_id == scope_key"
+  - 推荐落点：[`packages/lifeform-service/`](../packages/lifeform-service/) + [`packages/dlaas-platform-registry/`](../packages/dlaas-platform-registry/) 加 `TenantIdentity` × `EndUserIdentity` 双层 schema
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §2.1 (Tier-1 Scoped memory + 删除路径) / §6.3 (P2 客户 = 多席位)
+- **问题**：closed-alpha 是"1 用户 = 1 scope"单层模型。但 P1 / P2 商业承诺都是 B2B：
+  - 1 个 P2 母婴客户 = N 个 end user，需要"客户级 admin 可看 aggregated 报表 / end user 可独立删自己 memory / 客户终止合同则全删"
+  - 1 个 P1 博物馆客户可能挂多个 figure bundle (Einstein + Curie + Tesla)，需要按客户级 admin 视角看跨 figure 总用量
+  - 当前 schema 把 tenant_id 和 end_user_id 当成同一层 → admin 只能用一个 user_id 操作；删除粒度只有"all or nothing"
+- **违反**：不违反 R 铁律，但违反 R8 "owner 唯一所有"的精神（tenant 与 end_user 是两个 owner，被强行折叠到一层）
+- **风险**：**中-高**。第一个 P2 客户上来就会问"我能看到我管理的 50 个 end user 的活跃度吗""我注销账号能不能一键全删"，答不上来直接停在 PoC
+- **触发条件**：(a) 第一个 P2 / P1 私有部署客户进入合规审计阶段；(b) 任何客户提出"按 end user 行权删除"的 GDPR / 中国 PIPL 合规要求；(c) ops dashboard 想区分客户级 vs end-user 级视图
+- **推荐修法**：
+  1. 在 `lifeform-service` 引入 `TenantIdentity(tenant_id: str)` + `EndUserIdentity(tenant_id: str, end_user_id: str)` 双层；`UserIdentity.scope_key` 派生为 `f"{tenant_id}:{end_user_id}"`
+  2. closed-alpha 单层路径自动派生为 `tenant_id == "alpha"` + `end_user_id == user_id`，向后兼容
+  3. `DELETE /v1/users/me/memory` 增加 `DELETE /v1/tenants/{tid}/users/{uid}/memory` + `DELETE /v1/tenants/{tid}/memory`（admin 删全 tenant）
+  4. ops dashboard 加 tenant-aware view（admin scope vs end-user scope）
+  5. 加 `tests/contracts/test_two_layer_scope_isolation.py`：tenant A 的 end_user X 与 tenant B 的 end_user X 即使同名也完全隔离；tenant A admin 只能 enumerate 自己 tenant 的 end users
+  6. 与 #69 P2 专属端用户隔离条目同步设计（#69 是 P2 应用层的 surface，本条是横切 schema）
+- **优先级**：**中**（Phase A 后期 / Phase B 早期；与 #49 evidence 删除路径联动）
+
+---
+
+## 47. substrate compatibility fingerprint + 升级降级路径未规约
+
+- **路径**：
+  - figure bundle: [`packages/lifeform-domain-figure/src/lifeform_domain_figure/figure_artifact.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/figure_artifact.py)（当前无 `compatible_substrates` 字段）
+  - growth-advisor profile: [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py)（无 substrate fingerprint 字段）
+  - companion-bench scenario: [`packages/companion-bench/src/companion_bench/spec.py`](../packages/companion-bench/src/companion_bench/spec.py)（scenario_hash 不含 substrate context）
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §8.1.1 直接列"substrate 升级对 figure bundle 兼容性破坏"为高 × 高风险，应对写"把 substrate compatibility fingerprint 写进 bundle；至少支持 N 和 N-1 两代"——但**只是策略表述，没落到 schema**
+- **问题**：substrate 升级（Qwen2.5 → Qwen3 / Llama-3 → Llama-4）会让三方向以不同方式失效：
+  - **P1 figure**：bundle.lora 直接绑死 substrate（PEFT 训练在某 substrate 上跑），换底座必须重新编译；steering vector 在新 substrate 上方向意义可能漂移；retrieval index / coverage map / refuser 应该 substrate-agnostic 但需要测
+  - **P2 growth-advisor**：reviewed profile 编译进 application owner，理论上 substrate-agnostic；但 4 drives 通过 PE 影响 regime 在新 substrate 上的实际触发频率可能变化
+  - **P5 companion-bench**：scenario_hash 不变但 SUT 用了新底座，老榜单是否需要重跑或加注？跨 substrate 升级的可比性如何保证
+- **违反**：违反 R15 byte-level 回滚契约的隐含意图（"任何输入变化产生不同 artifact_id"——substrate 是隐式输入）
+- **风险**：**中**。短期 substrate 不动就不出事；substrate 升级是必然事件（产品方至少每年一次）
+- **触发条件**：(a) 任何 substrate 升级公告；(b) 客户问"换 substrate 是否要重新付编译费"；(c) #19 真材料 corpus 完成后第一次想跨 substrate 比较 bundle 行为
+- **推荐修法**：
+  1. 在 `vz-substrate` 加 `SubstrateFingerprint(model_id: str, version: str, weights_sha256: str)` typed dataclass + `OpenWeightResidualRuntime.fingerprint() -> SubstrateFingerprint`
+  2. `FigureArtifactBundle` 加 `compatible_substrates: tuple[SubstrateFingerprint, ...]`（必填非空）+ `compute_bundle_integrity_hash` 折入；bake 时记录主 substrate，runtime activate 时检查兼容性 mismatch fail-loud
+  3. `GrowthAdvisorProfile` 加 `validated_substrates: tuple[SubstrateFingerprint, ...]`（可空，空表示"通用"），runtime warn-if-mismatch
+  4. companion-bench `RunRecord` schema 加 `sut_substrate_fingerprint`，公开榜单按 substrate 分组展示
+  5. 加 `docs/specs/substrate-upgrade-protocol.md`：N+1 substrate 上线时，N bundles 的"必须重 bake / 可降级运行 / 完全不兼容"三档判定流程
+  6. 加 `tests/contracts/test_substrate_fingerprint_propagation.py` 守门
+- **优先级**：**中**（Phase A 后期 / Phase B 早期；substrate 升级是滞后但必然事件）
+
+---
+
+## 48. LLM-as-judge / LLM-as-classifier 的 self-preference 与跨家族方差量化
+
+- **路径**：
+  - P5 judges：[`packages/companion-bench/src/companion_bench/judge_perturn.py`](../packages/companion-bench/src/companion_bench/judge_perturn.py) + [`packages/companion-bench/src/companion_bench/judge_arc.py`](../packages/companion-bench/src/companion_bench/judge_arc.py)（spec §5 只规定"arc judge 来自不同模型家族"，无量化）
+  - P2 archetype 识别：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) 5 archetype 定义，**识别机制空白**（见 #66）
+  - P1 figure 4-gate：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/) 当前是 deterministic scoring（debt #41 closure 说明），但 verdict 升级路径如果引入 LLM judge 同样落入此坑
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §3.3 (P5 公信力)
+- **问题**：MT-Bench / Chatbot Arena 早被诟病 LLM-judge 的 self-preference bias（GPT 当 judge 偏向 GPT 风格输出）+ 跨家族 inter-rater agreement 低。三方向都暗藏依赖：
+  - **P5**：第一份榜单上线时如果没附 inter-judge κ 一致性 + 跨家族 SUT 排名方差，海外学术界会立刻质疑"VZ 的 judge 偏 GPT 所以 GPT 排第一"
+  - **P2**：5 archetype 识别如果走 LLM classifier，不同 LLM family 给出不同分类 → 同一用户在不同时间被打不同标 → boundary policy 触发不一致
+  - **P1**：未来如果用 LLM judge 替代 deterministic voice/cognition score，同样问题
+- **违反**：不违反 R 铁律，但违反 R-PE / OA-1 "evaluation 是 readout 不是学习源"在**信息含量**层面的精神
+- **风险**：**中-高**。P5 公开化的第一击就要面对这个质疑
+- **触发条件**：(a) P5 第一份公开榜单准备发布前；(b) P2 第一个客户问"5 archetype 识别背后是什么模型"；(c) 任何 LLM judge 输出被引用为商业 SLO 指标
+- **推荐修法**：
+  1. 在 `companion-bench` 加 `scripts/companion_bench/judge_robustness_sweep.py`：用 N 个不同家族 LLM (GPT-5 / Claude Opus 4.7 / Qwen-Max / DeepSeek / Gemini) 当 per-turn judge × 同一组 SUT 输出，计算 inter-rater Spearman / Kendall κ + per-axis variance
+  2. companion-bench `RunRecord` 加 `judge_robustness_summary` 字段（reference 跑分时附）
+  3. 落 `docs/external/companion-bench-judge-robustness-v0.md` 公开报告（与 RFC §5 同步）
+  4. P5 公开榜单 site 在每行 SUT 旁加 "judge variance σ" 列
+  5. P2 / P1 任何引入 LLM classifier / judge 时 mandate 走同样的 robustness sweep；加 `tests/contracts/test_llm_classifier_robustness_required.py` AST 守门（任何新 `LLMRubricGrader` / `LLMClassifier` 必须有伴生的 robustness manifest）
+- **优先级**：**中-高**（Phase A 必做，与 #52 同时跑；P5 公开化第一击的可信度地基）
+
+---
+
+## 49. evidence_root_dir 的可删除性（PIPL / GDPR）路径未明确
+
+- **路径**：
+  - 当前实现：[`docs/closed-alpha-api-service.md`](closed-alpha-api-service.md) §"DELETE /v1/users/me/memory" 已实现 scoped memory 的 DELETE，但只删 memory store，不删 `evidence_root_dir/sessions/*.json`
+  - 推荐落点：[`packages/lifeform-service/`](../packages/lifeform-service/) `alpha.AlphaServiceConfig` + 新加 `evidence_deletion_policy` 字段
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("可被合规观察 + 用户可被遗忘") / §8.1.4 (法律/合规风险表 "用户被遗忘权" 标"中 × 中"应对仅"已实现 + minimal scope")
+- **问题**：当前 evidence 文件是 audit 资产但同时也是**个人信息**：
+  - P1 博物馆客户：用户在 demo 上的对话 evidence，能不能按用户 ID 删？
+  - P2 私域客户：end user 行权要求删除，evidence 怎么删？删了之后 audit 完整性怎么 reconcile？需要"删除证据"留 placeholder
+  - P5 公开 transcript（提交方授权）vs 私有 held-out transcript（含 simulator 输出），两者留存策略不同
+  - 当前 closed-alpha-api-service 是 minimal scope，没有"evidence 可按用户删 + 留下删除证据"路径
+- **违反**：不违反 R 铁律，但 P1 / P2 / P4 进任何合规要求高的客户尽调时必查项
+- **风险**：**中-高**。法律风险——一旦客户行权而 VZ 答不上"evidence 删除路径"就触发合规事件
+- **触发条件**：(a) 第一个 P1 / P2 客户合规审计；(b) 任何 end user 行权要求；(c) 监管约谈 / GDPR / PIPL inquiry
+- **推荐修法**：
+  1. 加 `lifeform-service.evidence.EvidenceDeletionPolicy(retention_days, delete_on_user_request: bool, retain_deletion_proof: bool)` typed config
+  2. 加 `DELETE /v1/users/me/evidence?since=<iso>&until=<iso>` 端点；删除时把删除目标的 SHA-256 + scope_key + timestamp 写到 `evidence_deletion_ledger.jsonl`（append-only，永不删）
+  3. `DELETE /v1/users/me/memory` 增加 `--include-evidence=true` 参数；旧调用默认行为不变
+  4. P2 admin scope 加 `DELETE /v1/tenants/{tid}/users/{uid}/evidence`（与 #46 双层 scope 联动）
+  5. 加 `docs/specs/evidence-deletion-protocol.md` 明确 "audit 需要 vs 用户行权" 的张力如何在 deletion ledger 上调和
+  6. 加 `tests/contracts/test_evidence_deletion_proof_chain.py`：删除后 audit log 仍能 enumerate 删除事件 + scope_key + timestamp + sha256（但不能复原内容）
+- **优先级**：**中**（Phase A 后期 / Phase B 早期；与 #46 双层 scope 同 packet 设计更高效）
+
+---
+
+## 50. Rollback drill 是 contract test 还是真生产实战未分清
+
+- **路径**：
+  - figure rollback：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py) `cmd_rollback` + audit append-only（debt #23 closure 文档）
+  - PersonaLoRAPool rollback：[`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py) context-manager 退出回滚（debt #20 closure）
+  - learned-baseline rollback drill：[`tests/contracts/test_learned_baseline_rollback_drill.py`](../tests/contracts/test_learned_baseline_rollback_drill.py) 6 个 unit-test 级 drill（Wave E3 落地）
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("可回滚自修改门控") / §2.3 (R10 / R15) / §8.1.5 团队风险 "工程纪律和商业 KPI 之间产生张力"
+- **问题**：`figure-vertical.md` 与多个 closure 文档都提到 `is_reversible=True + rollback drill 测试覆盖`。但当前 drill 是：
+  - unit / integration test 里的合成场景，**不是**真在生产 substrate runtime 上跑 byte-identical revert 的实战测试
+  - PersonaLoRAPool 的 byte-identical 退出是 hf-marked test 在 tiny-gpt2 上验证，不是真 Qwen / Llama 生产负载
+  - cross-process / cross-restart 的 rollback 路径完全没测（重启服务后 audit log 还在，但内存 pool 重建了，rollback 链是否完整？）
+- **违反**：不违反 R 铁律，但 R15 "可回滚 + counterfactual evidence" 在生产环境是否真站得住未验证
+- **风险**：**低-中**。短期合成测试足够；长期第一次客户在生产上要求回滚时是头一次实战 → 风险事故
+- **触发条件**：(a) 第一个 P1 客户合同写"提供回滚证据" SLA；(b) ModificationGate OFFLINE artifact 真上 ACTIVE；(c) 任何 substrate 升级后想回滚到 N-1
+- **推荐修法**：
+  1. 加 `tests/perf/test_production_rollback_drill.py`（依赖 #45 perf 床）：真在 Qwen 1.5B+ 上加载 figure bundle → 10 turn 真生成 → 触发 rollback → 再 10 turn 验证 logits 与 base substrate byte-identical 等价
+  2. 加 `scripts/rollback_drill_<vertical>.sh` 一键脚本；纳入"每月生产验证"运维节奏
+  3. cross-restart 路径：`bundle.pickle` reload 后 integrity_hash 必须与原 byte-equal（debt #23 closure 已守门 unit 级，加 service 级 reload→activate→rollback 完整链测试）
+  4. 加 `docs/specs/rollback-drill-cadence.md` 明确 "每月" / "每次 substrate 升级前" / "每个新 figure bundle 上线前" 三档
+- **优先级**：**低-中**（Phase B 中期；P1 / P4 商业承诺触发时拉起）
+
+---
+
+## 51. "关系连续性"——所有差异化卖点的根，但没有真实可测 ground truth
+
+- **路径**：
+  - 当前 readout：rupture/repair count + companion-bench A3 (callback recall LLM judge) + il_rapport / bond_warmth (vitals readout)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("关系连续性 + 可治理性 + 多角色复用" 三件组合包) / §3.3 (差异化定位) / §2.1 (Tier-1 资产)
+  - 上游警告：[`docs/moving forward/summary.md`](moving%20forward/summary.md) §2.5 ("评估自身可信度问题——递归陷阱")
+- **问题**：VZ 卖的核心差异化是"关系连续性"。但**关系连续性怎么测量**？
+  - rupture/repair count 是**系统自评**（系统说自己 rupture 了 X 次），不是"用户感受被理解"
+  - companion-bench A3 是 LLM judge 判断"模型是否记住"，不是"用户是否觉得被记住"
+  - P2 月报里"用户活跃度 / boundary 触发率"是 proxy，不是 LTV 因果
+  - 仓库里**没有任何**"系统自评指标 vs 用户真实感受"的对照实验数据
+- **违反**：不违反 R 铁律。R12 evaluation 是 readout 不是学习源——但 readout 的可信度本身缺 external validity 验证
+- **风险**：**中-高**。这是 §8.1.5 "评估自身可信度"在商业层的具体落地；30 天 P2 试点结束后的月报数字如果没有外部对照 evidence，就是"我们觉得我们做得不错"
+- **触发条件**：(a) 第一个 P2 30 天试点设计阶段；(b) P5 第一份榜单的 A3 子轴需要交叉验证；(c) 任何客户问"你怎么证明用户真的觉得关系连续"
+- **推荐修法**：
+  1. Phase A P2 试点必须前置设计"双盲第三方评分"协议：把同一段 30-turn 对话片段打乱（VZ 输出 vs baseline LLM 输出 vs 真人客服输出），让招募的 N=20 评估员盲打 A3 类指标，与 system 自评对比
+  2. companion-bench A3 加伴生"human eval cross-validation"轨道（与 debt #33 human-eval 联动）
+  3. 加 `docs/specs/relationship-continuity-external-validation.md`：列举系统自评指标 vs 用户感受 proxy 的对照矩阵 + 评估方法论
+  4. P2 月报 metric 旁标注 "system self-eval" vs "external-validated"，避免在客户面前混用
+- **优先级**：**低-中**（Phase B 中期；与 P2 30 天试点同 packet 设计；与 #33 human-eval 联动）
+
+---
+
+## 52. Companion Bench 6 轴权重 (0.10/0.15/0.25/0.20/0.10/0.20) + A6 cap=60 calibration 来源未落档
+
+- **路径**：
+  - 实现：[`packages/companion-bench/src/companion_bench/aggregator.py`](../packages/companion-bench/src/companion_bench/aggregator.py)（`A6_CAP_THRESHOLD = 60.0`、`A6_CAP_VALUE = 50.0`、6 轴权重 hardcoded）
+  - spec：[`docs/specs/companion-bench.md`](specs/companion-bench.md) §6 列了权重和阈值，但**没列怎么算出来的**
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.5 (P5 概率 60-75% 是基于 v1.0 已就绪的判断) / §7.2 (P5 GTM 第一击就要发布榜单)
+- **问题**：这两个参数直接决定排名：
+  - 给 A3 (关系连续性) 25% 权重是工程直觉还是有 sensitivity analysis？
+  - A6 cap = 60 阈值如果定低，安全较好的 SUT 会被错误封顶 50；定高，安全有问题的 SUT 排名虚高
+  - 当前没附 robustness sweep（在 50/55/60/65/70 多个阈值下排名是否稳定）→ 头部 LLM 厂商提交后第一句质疑就是"为什么是 60 不是 55"
+- **违反**：不违反 R 铁律，但违反"评估指标必须可解释 + 可证伪"的精神
+- **风险**：**中-高**。P5 公开化的第一击就要面对这个质疑；如果第一份榜单出来后某厂商质疑且无法答辩，公信力直接崩
+- **触发条件**：(a) P5 第一份公开榜单准备发布前；(b) RFC v0.1 → v1.0 升级 working group 公开评论期；(c) 任何头部厂商提交跑分后排名靠后并提质疑
+- **推荐修法**：
+  1. 加 `scripts/companion_bench/calibration_sweep.py`：6 轴权重各 ±0.05 范围 sweep + A6 cap 在 50/55/60/65/70 sweep；输出 reference 10 SUT 排名稳定性矩阵
+  2. 加 `docs/external/companion-bench-calibration-report-v0.md`：公开 sweep 结果 + 当前权重选择的论证（"A3 权重 0.25 因为长程陪伴的核心价值轴" + 引用 EQ-Bench 3 / RP-Bench 等同行口径）
+  3. RFC v1.0 升级时把 calibration report 作为 §6 必备附录
+  4. Companion Bench site 加 "Why these weights?" page + interactive sweep widget（可选）
+- **优先级**：**中-高**（Phase A 必做；P5 公开化前置）
+
+---
+
+## 53. Companion Bench user_simulator 的 bias 注入测量
+
+- **路径**：
+  - 实现：[`packages/companion-bench/src/companion_bench/user_simulator.py`](../packages/companion-bench/src/companion_bench/user_simulator.py)（LLM-backed user + deterministic FSM 16 actions）
+  - spec：[`docs/specs/companion-bench.md`](specs/companion-bench.md) §4 列 16 actions，但未规定 simulator LLM 选择对 SUT 评分的影响
+- **问题**：simulator 用 LLM 时会把自身偏好（如倾向 over-directive / 倾向 verbose）注入 SUT 测试。如果 simulator 用 GPT，GPT 当 SUT 时会显得"和 user 投契"——这是 P5 公正性的命门：
+  - 当前 spec 没规定 simulator 必须来自和 SUT 不同家族
+  - 没有"用 N 个不同家族 LLM 当 simulator × 同一 SUT × 同一 scenario，看 6 轴 final 分数方差"的实测
+- **违反**：不违反 R 铁律，但与 #48 LLM-judge bias 同构
+- **风险**：**低-中**。短期没人做 simulator 选择质疑；长期被严肃 reviewer 发现后 P5 中立性受损
+- **触发条件**：(a) 头部模型厂商提交跑分后开始反向工程榜单方法论；(b) 学术 reviewer 在 RFC v1.0 公开评论期质疑；(c) #48 robustness sweep 触发时一并做
+- **推荐修法**：
+  1. 加 `scripts/companion_bench/simulator_robustness_sweep.py`：N 个家族 LLM 当 simulator × 固定 5 个 reference SUT × 24 公开 scenario，输出 per-SUT × per-axis variance
+  2. spec §4.x 新加 "Simulator family rotation" 段：明确每季度公开榜单跑分时，simulator LLM 必须从公布的 4+ 家族池随机抽
+  3. companion-bench `RunRecord.simulator_family` 必填字段；榜单 site 显示 simulator family
+- **优先级**：**低**（Phase B 中期；与 #35 季度治理自动化联动）
+
+---
+
+## 54. Companion Bench 120 scenario × 6 轴的 statistical power 未量化
+
+- **路径**：
+  - 公开 24 scenario：[`packages/companion-bench/src/companion_bench/scenarios/public/`](../packages/companion-bench/src/companion_bench/scenarios/public/)
+  - 私有 96 held-out：`external/companion-bench-heldout/`（git submodule）
+  - 缺位：`scripts/companion_bench/statistical_power_analysis.py`（不存在）
+- **问题**：24 公开 + 96 私有 = 120 场景。两个 SUT 排名差多少 ELO 才算"显著"？没有 power analysis：
+  - noise floor 高 → 每次新提交都让排名乱跳，公信力崩
+  - noise floor 低 → 可以让小差异稳定排名，可信度强
+- **违反**：不违反 R 铁律
+- **风险**：**低-中**。第一份榜单跑出来后稳不稳全靠运气
+- **触发条件**：(a) #52 calibration sweep 触发时一并做；(b) 第二份榜单更新时如果排名大幅波动；(c) RFC v1.0 公开评论期被问"why 120 not 240"
+- **推荐修法**：
+  1. 加 `scripts/companion_bench/statistical_power_analysis.py`：固定 5 reference SUT × 多次 seed 重跑 × 计算 per-axis ELO 95% CI
+  2. 加 `docs/external/companion-bench-statistical-power-v0.md` 公开报告
+  3. 榜单 site 每行 SUT 加 "ELO ± 95% CI" 而不是单一数字
+  4. 如果 power 不足，触发 v1.x 扩 scenario 到 200+
+- **优先级**：**低**（Phase B 中期；与 #52 一同做更高效）
+
+---
+
+## 55. Companion Bench 跨语言 scenario 平衡（中文 / 英文）
+
+- **路径**：
+  - 公开 scenarios：[`packages/companion-bench/src/companion_bench/scenarios/public/`](../packages/companion-bench/src/companion_bench/scenarios/public/)（24 个，需查中英文占比）
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §7.7 (国际化与中文市场取舍：P5 优先英文市场启动)
+- **问题**：P5 GTM 优先英文市场（学术影响力 / arXiv），但 24 公开 scenario 当前是中文为主还是双语未明确：
+  - 如果第一份榜单跑出来全是中文场景，海外 LLM 厂商有理由说"你 benchmark 偏中文场景，我家英文模型当然吃亏"
+  - 没有 "scenario.language" 字段 + 跨语言子榜单
+- **违反**：不违反 R 铁律
+- **风险**：**低-中**。海外 GTM 启动时被质疑可比性
+- **触发条件**：(a) P5 准备投 arXiv preprint + 英文媒体 PR 前；(b) 第一个海外学术合作团队（Stanford CRFM / 港中文）询问；(c) 海外厂商提交跑分后质疑
+- **推荐修法**：
+  1. `ScenarioSpec` 加 `language: Literal["zh", "en", "bilingual"]` 字段（必填）
+  2. 公开 24 scenario 至少凑够 12 中 + 12 英平衡（如不足，补充翻译或新增）
+  3. private held-out submodule 同样 48 中 + 48 英平衡
+  4. 榜单 site 加跨语言子榜单 view（中文 / 英文 / 综合）
+  5. spec §3 / RFC §3 同步更新
+- **优先级**：**低-中**（Phase A 后期；P5 英文市场启动前置）
+
+---
+
+## 56. Companion Bench 持续每季度更新的成本闭环未精算
+
+- **路径**：
+  - 跑分入口：[`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py)
+  - cost 模块：[`packages/companion-bench/src/companion_bench/cost.py`](../packages/companion-bench/src/companion_bench/cost.py)（`CostTracker` 已实现，能算单次 run 成本）
+  - 缺位：完整跑分总成本估算 + 季度更新预算闭环
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §7.2 (P5 GTM 成本"头部模型 API 调用费 10-30 万")
+- **问题**：需要精确算出"单次完整跑分（120 场景 × 平均多少 turn × （SUT + per-turn judge + arc judge）× 头部模型单价）"的总成本：
+  - 实算 > 50 万 / 季度，"每季度更新"就守不住，公信力随时间衰减
+  - 当前 `_DEFAULT_PRICES` 是默认价格表，但没汇总跑过一次完整估算
+- **违反**：不违反 R 铁律
+- **风险**：**低**。商业承诺与运营预算的对账问题
+- **触发条件**：(a) Phase B 季度更新预算审批；(b) 需要给融资 deck 一份"P5 持续运营成本"
+- **推荐修法**：
+  1. `scripts/companion_bench/estimate_quarterly_cost.py`：基于 `CostTracker` 已 record 的真实 token 用量 + 当前 default prices，模拟"10 reference SUT × 120 scenario × 8 季度"总成本
+  2. 输出 `artifacts/companion_bench/quarterly_cost_estimate.md` 表
+  3. 与 #34 staged executor 联动：成本超预算时优先跑公开 24 scenario，private held-out 季度跑 1 次
+  4. 加 `docs/external/companion-bench-cost-model-v0.md` 公开成本模型（让提交方有预算预期）
+- **优先级**：**低**（Phase B 中期）
+
+---
+
+## 57. Companion Bench 私有 held-out 的"trusted runner"机制未规约
+
+- **路径**：
+  - 当前 submission：[`packages/companion-bench/src/companion_bench/submission.py`](../packages/companion-bench/src/companion_bench/submission.py) + [`packages/companion-bench/src/companion_bench/heldout_loader.py`](../packages/companion-bench/src/companion_bench/heldout_loader.py)
+  - submission protocol：[`docs/external/companion-bench-submission-protocol.md`](external/companion-bench-submission-protocol.md)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §10.2 反目标 "公开 held-out 提示集 → benchmark 价值归零"
+- **问题**：submodule 是 git private，但提交方跑分时 SUT 公司一定会看到 prompt（除非走 trusted runner——VZ 替对方跑，对方只交模型 endpoint）：
+  - 如果他们能直接看到 held-out scenario，submodule git private 等于摆设（一旦泄露价值归零）
+  - 如果走 trusted runner，VZ 要扛对方模型的调用成本和接入成本
+  - 当前 `submission.py + heldout_loader.py` 没规定"提交方是否能直接看到 held-out scenario"——这是 P5 商业模式的隐藏分支
+- **违反**：违反 §10.2 反目标的精神（公开 held-out → benchmark 价值归零）
+- **风险**：**中-高**。P5 公开化第二个季度就会被一个不诚实的提交方触发
+- **触发条件**：(a) 第一个外部团队提交 held-out 跑分；(b) 任何头部厂商正式接入 submission queue
+- **推荐修法**：
+  1. 加 `docs/external/companion-bench-trusted-runner-protocol.md`：明确两种提交模式
+     - "self-hosted run": 提交方自跑，但只能用公开 24 scenario，结果排在公开榜
+     - "trusted-runner run": VZ 跑，提交方提供 OpenAI-compat endpoint + token，结果可上 held-out 完整榜
+  2. 加 `scripts/companion_bench/trusted_runner.py`：VZ 侧执行 + 加密存储提交方 endpoint credentials + 自动调用 + 跑完销毁 transcript（只留 verdict）
+  3. 加 `docs/external/companion-bench-heldout-leak-protocol.md`：泄露事件应对（rotate held-out / 取消榜单 / 公告）
+  4. 加 `tests/contracts/test_heldout_access_audit.py`：任何 read held-out scenario 的 code path 必须经过 audit logger
+- **优先级**：**低-中**（Phase B 中期；第一个外部 held-out 提交触发）
+
+---
+
+## 58. P1 L4 ScopeRefuser 的 false refuse / false answer 双向准确率 ground truth 缺失
+
+- **路径**：
+  - 实现：[`packages/lifeform-expression/src/lifeform_expression/scope_refuser.py`](../packages/lifeform-expression/src/lifeform_expression/scope_refuser.py)
+  - 验证管线：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/) (Wave O-P + 5 道 reviewer-curated OUT_OF_SCOPE_REFUSAL_QUESTIONS)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("拒答它没被授权说的话") / §4.1 (P1 价值主张 "L3 引证 + L4 拒答让博物馆/教育机构的法务可以签字")
+  - 关联：debt #39 (Wave K bundle coverage_map 过严) + #42 (5 道样本 refusal-precision 离散度过粗)
+- **问题**：L4 是 figure 路径的法律生死线。但 spec 没有：
+  - false refuse rate 的可接受上限（用户问了实际有 corpus 覆盖的话题，被错误拒答）
+  - false answer rate 的可接受上限（应拒未拒，让 LLM 用 substrate 先验冒充人物）
+  - 用来量化这两个 rate 的 ground truth set（每个 figure 都需要一个 reviewed "in-scope vs out-of-scope" 测试集）
+  - Wave O-P 的 4-gate verdict 的 refusal scoring 只用了 5 道 OUT_OF_SCOPE 探针 + reviewer 模板 in-corpus 题，**单 figure 单语料量级**
+- **违反**：不违反 R 铁律，但 #42 已经标注 5 道 OOS 样本 80% threshold 在小样本上离散度过粗
+- **风险**：**中-高**。第二个 figure 上线就是裸奔（如果只有 Einstein 有完整 GT set）；P1 客户尽调时挑 10 段 demo 手工核查任何一段拒答错误都会让法务驳回
+- **触发条件**：(a) 第二个 P1 figure 准备上线；(b) 第一个博物馆客户合同进入法务审查；(c) 任何"误拒可接受率" SLA 写进合同
+- **推荐修法**：
+  1. 每个 figure bundle 必须配套 `data/figure_refusal_gt/<figure_id>/in_scope.jsonl`（≥ 50 题，reviewer 标注 "expect_answer + cited_chunk_ids"）+ `out_of_scope.jsonl`（≥ 50 题，reviewer 标注 "expect_refuse + reason"）
+  2. 加 `scripts/figure_refusal_eval.py`：跑 GT set × 计算 false_refuse_rate / false_answer_rate / per-rate 95% CI
+  3. `FigureArtifactBundle` 加 `refusal_eval_report` 字段（必填非空，bundle 编译时自动跑 GT set）
+  4. P1 合同模板里 SLA 写"在 reviewed GT set 上 false_refuse_rate ≤ 0.1 + false_answer_rate ≤ 0.05"，而不是模糊承诺
+  5. 加 `tests/contracts/test_figure_bundle_refusal_gt_required.py`：任何 production-tier bundle 必须 ship `refusal_eval_report` 非空
+  6. 与 debt #42 (5 道样本→ 50 题) + #39 (coverage_map 过严的修正)联动
+- **优先级**：**中-高**（Phase A 必做，P1 客户尽调直接命门）
+
+---
+
+## 59. P1 L3 GroundedDecoder 引证 hallucination 检测率未量化
+
+- **路径**：
+  - 实现：[`packages/lifeform-expression/src/lifeform_expression/grounded_decoder.py`](../packages/lifeform-expression/src/lifeform_expression/grounded_decoder.py) `verify_with_pointers` 返回 typed `EvidencePointer`
+  - cognition scoring：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/) cognition score = retrieval_index `assertion_is_supported` cosine
+  - 关联：debt #41 (cognition gate 通过的硬前提=真 Qwen-1.5B PEFT bake)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("它说的每一句话都能溯源" 是 P1 第一卖点) / §2.4 (figure bundle artifact 切换成本)
+- **问题**：GroundedDecoder.verify_with_pointers 返回 EvidencePointer。需要量化的指标：
+  - pointer 指向的原文段落是否真的支持那段断言？（不是 keyword 匹配，是语义支持）
+  - "未引证 + 用 substrate 先验生成"的实质性断言占比？
+  - P1 客户尽调一定会做"挑 10 段 demo 的引证手工核查"——任何一段 hallucination 都会让法务驳回
+- **违反**：不违反 R 铁律
+- **风险**：**中-高**。法律生死线，与 #58 同级别
+- **触发条件**：(a) 第一个 P1 客户合同进入法务审查；(b) 第二个 figure 上线；(c) 任何 demo PR 之前
+- **推荐修法**：
+  1. 加 `data/figure_grounding_gt/<figure_id>/assertions.jsonl`（≥ 100 题，每题含 question + expected_assertion + ground_truth_chunk_ids）
+  2. 加 `scripts/figure_grounding_eval.py`：跑 GT set × 计算 evidence-faithfulness（pointer 真支持断言比例）+ unsupported-assertion-rate（无 pointer 但生成实质性断言比例）
+  3. `FigureArtifactBundle` 加 `grounding_eval_report` 字段
+  4. P1 合同 SLA 加"evidence_faithfulness ≥ 0.95 + unsupported_assertion_rate ≤ 0.05"
+  5. 与 #41 真 Qwen PEFT 跑分联动（小 substrate 上 cognition score = 0 是噪音；真 Qwen 上 evidence faithfulness 才有意义）
+- **优先级**：**中-高**（Phase A 必做，与 #58 同 packet）
+
+---
+
+## 60. P1 L1 StylePriorInjector 风格可感知性盲测
+
+- **路径**：
+  - 实现：[`packages/lifeform-expression/src/lifeform_expression/style_prior_injector.py`](../packages/lifeform-expression/src/lifeform_expression/style_prior_injector.py)
+  - voice scoring：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/) voice = top80 overlap × 0.6 + sentence-length p50 match × 0.4（lexical proxy）
+  - 关联：debt #40 (synthetic LoRA delta 经 LayerNorm 被吃掉，BUNDLE ≡ BUNDLE_LORA)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.1 (P1 价值主张 "听起来像他") / §6.2 (P1 单位经济假设 30 万首单)
+- **问题**：`StylePriorInjector` 注入 hint tag，但底层 LLM 仍是 Qwen / Llama。"听起来像 Einstein"在普通用户盲测里是否能区分（vs 同样 corpus retrieval 但不加 style prior）？
+  - 如果盲测区分度低，L1 不能作为独立卖点，必须 L1+L2 (LoRA) 组合卖
+  - 这直接影响 P1 不带 OFFLINE-gate L2 的 minimum-viable 价格区间（30 万 vs 80 万的差异）
+  - 当前 voice scoring 是 lexical proxy（top80 overlap + sentence-length），不是用户感知
+- **违反**：不违反 R 铁律
+- **风险**：**低-中**。短期 demo 用 reviewer 自审；长期定价拍板需要 evidence
+- **触发条件**：(a) P1 第一份 pricing sheet 拍板；(b) 客户问"L1 vs L1+L2 我应该选哪档"；(c) #41 真 Qwen PEFT 完成后 voice gate 真量化
+- **推荐修法**：
+  1. 设计盲测 protocol：N=20 招募评估员 × M=30 段对话片段（混合 raw / bundle (L1+L3+L4) / bundle+LoRA (L1+L2+L3+L4) 三种 condition）× 5-point Likert "听起来像 X 的程度"
+  2. 加 `scripts/figure_voice_blind_test.py` 半自动化 protocol（生成片段 / 打乱 / 收集打分 / 计算 Cronbach's α）
+  3. `FigureArtifactBundle` 加 `voice_blind_test_report` 字段（首次盲测后填充）
+  4. 与 #41 真 Qwen 跑分配套；P1 pricing sheet 引用真盲测 evidence
+- **优先级**：**低**（Phase B 中期；P1 第二款 figure 上线时拉起）
+
+---
+
+## 61. P1 L2 LoRA hot-swap 在并发下的状态隔离 / 延迟实测
+
+- **路径**：
+  - 实现：[`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py) + [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) `TransformersOpenWeightResidualRuntime.activate_lora` (Wave D)
+  - 测试：`packages/vz-substrate/tests/test_lora_aware_runtime_smoke.py` (debt #20 closure 7 case，含 `@pytest.mark.hf` 单 session 真 forward-hook，**不并发**)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §1.1 ("多角色复用 = 同一个内核服务多个垂直角色") / §8.1.1 (多 vertical 共载 latency 风险)
+- **问题**：`PersonaLoRAPool.activate(figure_id, runtime=runtime)` Wave D 真改 forward-hook。需要实测：
+  - 同时挂 N 个 figure LoRA 的 GPU 显存占用
+  - session A 用 Einstein、session B 用 Curie，**严格并发**时 forward-hook 状态有没有 race condition？
+  - LoRA 切换的 per-turn overhead（vs 不切换）
+  - debt #20 closure 已守"嵌套抛 RuntimeError"——但只是单线程语义，不是真并发
+- **违反**：不违反 R 铁律，但 R2 frozen base 在并发 forward-hook 切换下是否仍 byte-identical 未实测
+- **风险**：**中**。第一次 P1 客户挂 ≥ 2 个 figure 同时跑就触发；同 §8.1.1 标"多 vertical 共载 latency 爆炸 = 中-高 × 高"
+- **触发条件**：(a) 第一个 P1 客户挂多个 figure bundle；(b) #45 perf 床建好后第一次跑 figure 并发 stress；(c) substrate 升级到更大模型（Qwen 7B → 32B）
+- **推荐修法**：
+  1. 依赖 #45 perf 床；加 `tests/perf/test_persona_lora_concurrent_activation.py`：N=10 个 asyncio task 各 activate 不同 figure_id × 同时 forward 100 turn × 验证每 task 看到的 logits 与该 figure 单独 forward 一致
+  2. 加 `scripts/realistic_load_figure_multi_persona.py`：真实模拟"10 用户 × 5 figure × 30 min"负载
+  3. `LoRAAwareResidualRuntime` 加 thread-safety / asyncio-safety contract 注释；如发现 race 就加显式 `asyncio.Lock` per layer
+  4. 加 `docs/specs/persona-lora-concurrency.md` 落档并发安全保证
+- **优先级**：**低**（Phase B 中期；与 #45 同 packet）
+
+---
+
+## 62. P1 OFFLINE gate `validation_delta ≥ 0.05` 阈值的 measurement protocol 未固化
+
+- **路径**：
+  - gate 阈值：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/) `apply_steering_through_gate` / `apply_persona_lora_through_gate` (validation_delta ≥ 0.05)
+  - kill criteria：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.1 P1 kill criteria "L2 steering / persona LoRA 真实开放权重底座效果 < 0.05 validation_delta → Bundle 编译价值被打折"
+- **问题**：OFFLINE gate 卡 0.05，kill criteria 也用 < 0.05 砍 L2 价值。但**0.05 怎么测**？
+  - 测哪个评估集？unit test 里的合成 prompt 还是真 in-scope corpus？
+  - 测量 protocol 没固定 → 不同人测出来不同数 → gate 形同虚设
+  - 当前 PEFT bake 的 `validation_delta = (init_loss − final_loss) / init_loss` 是训练 loss 改善，不是 downstream 行为改善
+- **违反**：不违反 R 铁律，但违反 R12 evaluation 必须 verifiable / counterfactual 的精神
+- **风险**：**低**。短期没人测；长期触发 kill criteria 时无法判定
+- **触发条件**：(a) #41 真 Qwen PEFT bake 跑出真 validation_delta 时；(b) kill criteria 触发评估时；(c) ModificationGate audit 被外部 review
+- **推荐修法**：
+  1. 加 `docs/specs/figure-offline-gate-validation-protocol.md`：明确 validation_delta 测量协议（在 ≥ 50 题 in-scope GT × N 种 prompt formulation 上 of voice/cognition score 改善幅度，而不只是训练 loss）
+  2. `apply_*_through_gate` 重构：proposal 里 mandate 同时给 train_loss_delta + downstream_score_delta，gate 看 downstream
+  3. 与 #58 / #59 GT set 复用
+- **优先级**：**低**（Phase B 中期；与 #41 真 Qwen 跑分配套）
+
+---
+
+## 63. P1 bundle 编译实测成本回填（替代估算 5-15 万）
+
+- **路径**：
+  - bake CLI：[`packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/cli/_commands.py)
+  - 真采集证据：Wave K Einstein bundle (`figure-bundle:einstein:29eacd226a7cdfd0`) 6 SUCCESS / 5 cleaned / 2 reviewed
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §6.2 (P1 Bundle 编译 COGS 5-15 万估算) / §4.1 (P1 客单价 30-80 万)
+- **问题**：§6.2 估"Bundle 编译 COGS 5-15 万"包含 GPU。Wave K 已经真跑了 Einstein bundle，**需要把这次的实际成本拆开**：
+  - 工程师人天（含 reviewer human-in-loop 的时间）
+  - L2 PEFT GPU 小时
+  - corpus crawl 的 archive 访问 / rate limit 等待时间
+  - 当前 §6.2 是估算锚点，但没真实数据回填 → 报价容易偏离
+  - 如果 Einstein 实跑 > 30 万人民币，"30 万首单"就是亏本生意
+- **违反**：不违反 R 铁律
+- **风险**：**中**。第一个真付费客户报价时无 evidence 锚点
+- **触发条件**：(a) P1 第一份正式 quote 准备发出前；(b) 第二个 figure（苏轼 / 居里夫人）准备启动；(c) 融资 deck 需要 P1 单位经济实证
+- **推荐修法**：
+  1. 加 `docs/business/figure-bake-cost-actuals.md`：把 Einstein Wave K 的实际工时 / GPU 小时 / archive 访问时间手工统计回填
+  2. `FigureBakeAuditRecord` (debt #23 closure) 扩展 `cost_breakdown` 字段：bake CLI 自动记录起止时间、GPU 占用、reviewer 操作耗时
+  3. 加 `scripts/figure_cost_summary.py`：从 audit log 出 per-figure cost 汇总
+  4. P1 报价模板从估算改为"基于实测 N figure 平均"+ %CI
+- **优先级**：**中**（Phase A 后期 / Phase B 早期；P1 第一份 quote 发出前）
+
+---
+
+## 64. P2 boundary policy 实际触发率分布的 baseline 缺失
+
+- **路径**：
+  - 实现：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py) (4 boundary `bp-no-hard-sell` / `bp-no-overclaim` / `bp-no-flooding` / `bp-no-judgmental`)
+  - boundary owner：vz-cognition / lifeform-expression boundary policy enforcer
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 kill criteria "30 天 boundary 触发率 < 5% 或 > 50% 要重调架构" / §1.1 "拒答它没被授权说的话"
+- **问题**：kill criteria 已经定下了 5% / 50% 双侧带，但**当前** `cheng_laoshi` profile 在合成测试集上的触发率分布是什么？
+  - 如果合成测试都跑出 60%，30 天试点必然失败
+  - 没有 baseline → 试点客户跑出来后无法判"是过严还是正常"
+- **违反**：不违反 R 铁律
+- **风险**：**中-高**。30 天试点失败的最快路径
+- **触发条件**：(a) P2 第一个 30 天试点启动前；(b) `cheng_laoshi` profile 任何修改后；(c) 合成 benchmark 增加 boundary 相关 scenario
+- **推荐修法**：
+  1. 设计 `data/growth_advisor_boundary_eval/cheng_laoshi/scenarios.jsonl`：≥ 100 段合成对话片段，reviewer 标注每段"应该触发哪个 boundary 不应该触发哪个"
+  2. 加 `scripts/growth_advisor_boundary_eval.py`：跑合成 scenarios × 输出 per-boundary 触发率 + per-boundary precision/recall vs reviewer 标注
+  3. 落 `docs/specs/growth-advisor-boundary-baseline.md`：当前 cheng_laoshi 在合成 set 上的 boundary 触发率分布（健康范围 5%-50% 的位置）
+  4. 与 companion-bench 联动：在 companion-bench 加 growth-advisor 专属 family 6 scenario（A6 boundary 子轴），让 boundary 行为也进 P5 榜单
+  5. 30 天试点 SLA 写"per-boundary 触发率 ∈ [基线 ± 50%]"
+- **优先级**：**中-高**（Phase A 必做，P2 30 天试点直接前置）
+
+---
+
+## 65. P2 `applicability_scope` day-counter 路由的真实生效证据
+
+- **路径**：
+  - 数据：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) `GrowthAdvisorStrategyPrior.applicability_scope`（"growth_advisor:day1" … "growth_advisor:day7"）
+  - 编译：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/lifeform_builder.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/lifeform_builder.py)
+  - 路由消费：vz-application 的 PlaybookRule 路由（需查 day 计数源）
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 价值主张 "用户 7 天养成阶段是工程化的——通过 applicability_scope 真路由，不是关键词匹配"
+- **问题**：`growth_advisor:day1` … `day7` 的路由依赖"今天是用户的第几天"——这个计数从哪来？
+  - 是从 scoped memory 里的 `onboarding_at` 算？是 user_id 创建时间？是首次 substantive turn 时间？不同选择对路由结果完全不同
+  - **spec 没说**，需要在 lifeform_builder.py 里查清楚
+  - 如果 day 计数实现错了，"7 天 playbook"承诺就是空话
+- **违反**：违反 R8 owner 唯一所有（day-counter 应该是某个 owner 的状态）
+- **风险**：**中**。卖出去的核心特性如果 runtime 不真生效，第一个 30 天试点客户就发现
+- **触发条件**：(a) P2 第一个试点上线后第 8 天（用户跨过 day7 边界）；(b) 客户 dashboard 想显示"该用户处于 day X"；(c) profile.py 增加新 day-scoped rule
+- **推荐修法**：
+  1. 落 `docs/specs/growth-advisor-day-counter.md`：明确 day_counter 来源 owner（推荐 scoped memory 的 `onboarding_at` typed field）+ 计算公式 + tz 处理 + 跨 7 天后的行为
+  2. 加 `tests/contracts/test_growth_advisor_day_routing.py`：构造 day1-day7+ session 序列 × 验证每天命中的 PlaybookRule.applicability_scope 含对应 day tag
+  3. 客户 ops dashboard 加 "current day" 显示，给客户校验感
+  4. profile schema 加 `applicability_scope` 字段的 enum 检查（防止拼写错 day1→day10 这种）
+- **优先级**：**中**（Phase A 后期；P2 第一个 30 天试点必填证据）
+
+---
+
+## 66. P2 5 archetype 识别机制的明确选型
+
+- **路径**：
+  - 数据定义：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) `GrowthAdvisorKnowledgeSeed.domain == "user_archetype"` 5 类 mom 心态
+  - 识别机制：**未实现**（profile.py 只列了 archetype 定义，没说怎么识别用户属于哪类）
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 ("5 archetype × 7 day × 4 funnel × 4 boundary" 是 cheng_laoshi 的核心结构)
+- **问题**：profile.py 列了 5 类 mom 心态（焦虑 / 对照 / 求标 / 吐槽 / 直接问产品）—— 但识别机制空白。三种可能：
+  - (a) LLM classifier 每 turn 都跑 → 成本 / latency 上升（与 #48 LLM-judge bias 同坑）
+  - (b) keyword/heuristic → **直接违反 `no-keyword-matching-hacks.mdc` 铁律**
+  - (c) 学到的 metacontroller 切换单元 β_t → 符合 R3/R4，但**需要训练数据和 evidence**
+  - 当前 (c) 没有，(b) 不能做，(a) 没决定 cost 模型
+- **违反**：(b) 路径直接违反 `no-keyword-matching-hacks.mdc`；当前未选型 = 设计空白
+- **风险**：**中**。P2 产品化前必须明确的技术设计 + 单位经济决策
+- **触发条件**：(a) P2 第一个 30 天试点准备启动前；(b) cheng_laoshi profile 想真按 archetype 路由 boundary / playbook
+- **推荐修法**：
+  1. 落 `docs/specs/growth-advisor-archetype-detection.md`：评估 (a)/(c) 两路径
+  2. **短期推 (a) LLM classifier**：在 vz-application 加 `ArchetypeClassifier` Protocol + `LLMArchetypeClassifier` 实现，每 N turn（不是每 turn）跑一次更新 archetype state；附 robustness sweep（与 #48 同 protocol）
+  3. **长期看 (c)**：当 metacontroller (debt #44 顺位 1 SYS-1 CPD β_t 切换) 真上线后，archetype 作为 β_t emergence 的具体应用域
+  4. 加 `tests/contracts/test_no_keyword_archetype_detection.py` AST 守门：禁止 archetype 识别代码包含 string-contains pattern
+  5. 单位经济模型：把 archetype classifier 调用成本算进 §6.3 表
+- **优先级**：**中**（Phase A 后期；P2 第一个试点前必须选型）
+
+---
+
+## 67. P2 月报 metric aggregation 的契约面缺失
+
+- **路径**：
+  - 当前：[`packages/lifeform-service/`](../packages/lifeform-service/) 已有 `weekly-report` 能力（closed-alpha 文档提及）
+  - 缺位：月报 metric aggregation 的 contract / spec / owner
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 ("月度可审计运营报告——audience 分析 + dialogue_external_outcome typed enum 自动化产出") / §7.4 GTM 第 4 条 "月报营销化—升级成给品牌总监看的月度运营报告"
+- **问题**：P2 卖点"月报让我老板满意"。需要确认：
+  - 月报每个 metric（rupture 数 / repair 率 / boundary 触发数 / archetype 分布 / 活跃度）从哪个 owner snapshot aggregate？
+  - aggregation 逻辑是不是有 contract test 守门？schema 变更时月报历史可比性如何保证？
+  - 月报本身是不是新的 owner / artifact？归谁所有？（避免破坏 R8）
+  - 当前是已有能力但底层契约面尚未设计
+- **违反**：违反 R8 owner 唯一所有（如果月报 aggregator 在多处实现就成了第二编排面）
+- **风险**：**低-中**。短期可用 closed-alpha weekly-report；长期客户提出 schema 一致性需求时塌
+- **触发条件**：(a) P2 第一个客户合同写"月报字段稳定性"；(b) 第二个 P2 客户上来后报表跨客户可比性需求；(c) #14 audience analysis 升真分析后想统一 pipeline
+- **推荐修法**：
+  1. 加 `docs/specs/growth-advisor-monthly-report.md`：明确月报 schema + 每个字段的 owner + aggregation 公式
+  2. 在 lifeform-service 加 `MonthlyReportOwner` 模块：从下游 owner snapshot aggregate 出月报 typed dataclass，发布到月报专属 slot
+  3. 加 `tests/contracts/test_monthly_report_schema_stability.py`：schema 变更必须显式版本号 + 历史报表读法
+  4. 与 #14 audience analysis 共用 LLM provider；月报中"archetype 分布"调用 #66 archetype classifier 统计
+  5. 月报 PDF / HTML 渲染层走 lifeform-expression（typed → 文本，符合 R4）
+- **优先级**：**低-中**（Phase B 早期；P2 第一个客户续约前）
+
+---
+
+## 68. P2 GrowthAdvisorDrivePrior 4 drives 真生效的 ablation evidence
+
+- **路径**：
+  - 数据：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) `GrowthAdvisorDrivePrior` (trust_building / empathy_response / restraint_against_pitch / kb_share)
+  - 编译目标：`lifeform_core.DriveSpec`
+  - 上游警告：[`docs/moving forward/summary.md`](moving%20forward/summary.md) §3 表 "PE-as-primary-signal 在开放对话上的可操作化失败" 是中风险
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 ("反销售边界是合同条款不是 prompt")
+- **问题**：4 drives 通过 PE 影响 regime 切换。具体到 P2：
+  - 如何证明 `restraint_against_pitch_drive` 真的让 AI 在 day 3 不推销？（不只是它 compile 进了 owner，而是它的 PE 信号真改变了 regime）
+  - 4 drives 之间的相互调谐怎么测？需要 ablation：去掉 `restraint_against_pitch_drive` 后行为变化是否符合预期？
+  - 没有这组 ablation evidence，P2 卖"反销售边界是合同条款不是 prompt"就只是修辞
+- **违反**：不违反 R 铁律，但违反 R-PE / R12 evaluation verifiable 精神
+- **风险**：**低-中**。客户合规审计时质疑"你怎么证明 drive 真生效"
+- **触发条件**：(a) P2 客户合规审计；(b) drive priors 修改后；(c) #44 SYS-1 CPD β_t 候选启动后想看 archetype 路由 + drive ablation 联动
+- **推荐修法**：
+  1. 加 `scripts/growth_advisor_drive_ablation.py`：4 个 condition (full / no-restraint / no-empathy / no-trust) × 同样 N 段对话 fixture × 输出 boundary 触发率 / regime 分布 / response style 对比
+  2. 落 `docs/specs/growth-advisor-drive-ablation-evidence.md` 作为客户尽调材料
+  3. 与 #64 boundary baseline 联动：ablation 结果应该和 baseline 配套展示
+  4. 长期：当 #44 SYS-1 CPD β_t emerge 真起效后，drive 信号驱动 β_t 切换的因果链应有 evidence
+- **优先级**：**低-中**（Phase B 中期；与 #64 同 packet）
+
+---
+
+## 69. P2 端用户两层 scope_key（tenant × end_user）— 应用层 surface
+
+- **路径**：
+  - 横切 schema：参见 #46（基础设施层）
+  - P2 应用层缺位：[`packages/lifeform-service/`](../packages/lifeform-service/) growth-advisor 路径的 admin / end-user 两套 endpoint
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 (席位制 = N 端用户) / §6.3 (10 席位 / 客户)
+- **问题**：closed-alpha 是 single scope_key。P2 客户 = 1 个母婴品牌 → N 个 end user：
+  - 需要 `(tenant_id, end_user_id)` 两层并行的 scope（基础设施层在 #46）
+  - 这直接影响 ops dashboard 设计（admin 看 aggregated / end user 看 own）
+  - 月报 (#67) 跨 end user 聚合需要 admin scope；GDPR 删除路径 (#49) 需要 end user scope
+- **违反**：与 #46 同
+- **风险**：**中**。第一个 P2 客户上来必查
+- **触发条件**：(a) P2 第一个客户合同；(b) ops dashboard 设计阶段
+- **推荐修法**：
+  1. 等 #46 横切 schema 落地后，在 lifeform-service 加 `/v1/tenants/{tid}/admin/...` 一组 endpoint：list end users / aggregated metrics / bulk operations
+  2. growth-advisor 月报路径走 admin scope 默认聚合 + end user scope 按需 drill-down
+  3. handoff queue (#70) 按 tenant 隔离队列
+  4. 加 `tests/service/test_growth_advisor_two_layer_scope.py`：tenant A 的 admin 看不到 tenant B 的 end users
+- **优先级**：**中**（Phase A 后期 / Phase B 早期；与 #46 同 packet）
+
+---
+
+## 70. P2 handoff queue 在试点并发下的 SLO 实测
+
+- **路径**：
+  - 当前实现：closed-alpha 已有 handoff queue (`docs/business/commercialization-assessment.md` §2.1 Tier-1 资产)
+  - 推荐位置：[`packages/dlaas-platform-ops/src/dlaas_platform_ops/`](../packages/dlaas-platform-ops/src/dlaas_platform_ops/)
+  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 ("合规：用户可删 / 处置可查 / 转人工可控")
+- **问题**：closed-alpha 的 handoff queue 是 demo-级别。30 天试点的 1 个客户 + 10 席位 + 数百 end user，handoff 触发可能并发：
+  - 队列容量 / 超时 fallback 行为？
+  - 如果 SE 没及时接手，是 fail-safe 拒答还是降级回普通 LLM 回答？
+  - handoff state 的持久化和跨重启恢复？
+  - P2 第一个 30 天试点的 ops 团队只要遇到一次 handoff 队列丢失或超时未 fallback，就会怀疑"这套到底能不能上量"
+- **违反**：不违反 R 铁律
+- **风险**：**中**。试点客户感知差就直接砍续约
+- **触发条件**：(a) P2 第一个 30 天试点 ops 团队接入；(b) handoff 触发频率超 demo 假设；(c) 服务重启 / 灾备演练
+- **推荐修法**：
+  1. 落 `docs/specs/handoff-queue-slo.md`：明确队列容量上限 / 超时阈值 / fallback 行为（推荐 STRICT_REFUSE 而不是降级回 LLM）
+  2. 依赖 #45 perf 床；加 `tests/perf/test_handoff_queue_concurrent_load.py`：N 个 asyncio task 同时触发 handoff × 验证不丢 / 不串
+  3. handoff state 持久化（与 evidence_root_dir 联动），重启后能 resume
+  4. ops dashboard 加 handoff 队列 live view + alert（队列长度超阈值 / 超时未接手）
+  5. 与 #69 两层 scope 联动：handoff 队列按 tenant 隔离
+- **优先级**：**低-中**（Phase B 中期；P2 第一个试点 ops 接入前）
 
 ---
 
