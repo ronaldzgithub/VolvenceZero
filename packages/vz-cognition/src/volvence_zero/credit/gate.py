@@ -6,6 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Mapping
 from uuid import uuid4
 
+from volvence_zero.audit.types import AuditSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import Track
@@ -660,12 +661,18 @@ def evaluate_gate(
     return GateDecision.ALLOW
 
 
-def evaluate_gate_reasons(
+def _evaluation_and_structural_gate_reasons(
     *,
     proposal: ModificationProposal,
     evaluation_snapshot: EvaluationSnapshot,
-) -> tuple[str, ...]:
-    """Return fail-closed blocking reasons for a self-modification proposal."""
+) -> list[str]:
+    """Existing two-gate evaluation + structural checks (extracted helper).
+
+    Architecture-uplift A5 (T11): factored out so the public
+    ``evaluate_gate_reasons`` can layer audit-evidence checks on top
+    without touching the existing two-gate logic. Behaviour is
+    byte-equivalent to pre-A5 implementation when called alone.
+    """
     critical_alert = any(alert.severity == "CRITICAL" for alert in evaluation_snapshot.structured_alerts)
     high_alert = any(alert.severity == "HIGH" for alert in evaluation_snapshot.structured_alerts)
     metric_values = {
@@ -703,6 +710,65 @@ def evaluate_gate_reasons(
     rollback_resilience = metric_values.get("rollback_resilience", 1.0)
     if rollback_resilience < 0.6:
         reasons.append(f"rollback_resilience {rollback_resilience:.3f} below 0.600")
+    return reasons
+
+
+def evaluate_gate_reasons(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+    audit_snapshot: AuditSnapshot | None = None,
+    audit_required: bool = False,
+) -> tuple[str, ...]:
+    """Return fail-closed blocking reasons for a self-modification proposal.
+
+    Three categories of evidence (spec §A5.3):
+
+    1. calibrated evaluation readout — from ``evaluation_snapshot``
+    2. structural evidence — from ``proposal.validation_delta`` /
+       ``proposal.capacity_cost`` / ``proposal.rollback_evidence`` /
+       ``proposal.is_reversible``
+    3. audit transcript — from ``audit_snapshot`` (A5 / T11 channel)
+
+    ``audit_required`` behaviour:
+
+    - ``False`` (default in A5 阶段 1): existing 4 callers are unaffected;
+      audit_snapshot is ignored even if present
+    - ``True`` (rare-heavy artifact promotion path after OA-4 lands):
+      missing ``audit_snapshot`` or ``threshold_decision != "pass"`` → BLOCK
+
+    See docs/specs/audit-owner.md §A5.3 for migration protocol.
+    """
+    reasons: list[str] = _evaluation_and_structural_gate_reasons(
+        proposal=proposal,
+        evaluation_snapshot=evaluation_snapshot,
+    )
+
+    if audit_required:
+        if audit_snapshot is None:
+            reasons.append("audit_snapshot required but missing")
+        else:
+            if audit_snapshot.threshold_decision == "hard-block":
+                reasons.append(
+                    f"audit hard-block: risk_score={audit_snapshot.risk_score:.3f}"
+                )
+            elif (
+                audit_snapshot.threshold_decision == "soft-warn"
+                and proposal.desired_gate is ModificationGate.ONLINE
+            ):
+                reasons.append(
+                    f"audit soft-warn blocks ONLINE gate: "
+                    f"risk_score={audit_snapshot.risk_score:.3f}"
+                )
+            blocked_attacks = [
+                a
+                for a in audit_snapshot.detected_attack_classes
+                if a.detected and a.confidence >= 0.7
+            ]
+            if blocked_attacks:
+                attack_names = ", ".join(a.attack_class for a in blocked_attacks)
+                reasons.append(f"audit detected attack(s): {attack_names}")
+
     return tuple(reasons)
 
 

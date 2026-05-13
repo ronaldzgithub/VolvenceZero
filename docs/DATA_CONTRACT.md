@@ -708,6 +708,68 @@ vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t
 - 跨 vertical 隔离：`lifeform-domain-growth-advisor` 不 import `lifeform-domain-character` / `lifeform-domain-figure`，反之亦然；CI 由 [`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 三对 parallel pair 强制
 - `lifeform-service.verticals.discover_verticals()` 通过 `_try_growth_advisor` 软发现，未安装 wheel 时静默跳过，已安装时暴露为 `name="growth_advisor"`
 
+### 2.17 MCP Bundle Bridge Contract（mcp-tools-bundle-bridge packet）
+
+**所在 wheel**：`lifeform-mcp-bridge`（lifeform-side；不进 kernel slot 注册表）；外部 repo 作为 git submodule 引入主项目（默认绑定 `external/vz-bundle/`）
+
+```python
+@dataclass(frozen=True)
+class MCPServerSpec:
+    name: str                                # safe id; descriptor name prefix
+    transport: Literal["stdio", "http"] = "stdio"
+    command: tuple[str, ...] = ()            # for stdio
+    url: str = ""                            # for http (planning stub)
+    env: Mapping[str, str] = ...             # extra subprocess env
+    safety_manifest_path: str = ""           # required, path to .vzbridge.yaml
+    autostart: bool = True
+    restart_policy: Literal["never", "on_crash", "always"] = "on_crash"
+    call_timeout_seconds: float = 30.0
+    enable_resources: bool = True
+    enable_prompts: bool = False
+
+@dataclass(frozen=True)
+class SafetyManifestEntry:
+    tool_name: str
+    when_to_use: str                         # >= 50 chars
+    when_not_to_use: str                     # >= 50 chars
+    cost_model: AffordanceCost
+    safety_model: AffordanceSafety
+    affordance_tags: tuple[str, ...] = ()
+    excluded: bool = False
+
+# Typed errors:
+#   MCPBridgeError (base)
+#   MCPServerSpawnError
+#   MCPConnectionLostError
+#   MCPCallTimeoutError
+#   MCPProtocolError
+#   MCPMissingSafetyManifestError
+#   MCPSafetyManifestSchemaError
+```
+
+**MCP wire endpoints consumed by the bridge**: `initialize` / `tools/list` / `tools/call` / `resources/list` / `resources/read` / `prompts/list` / `prompts/get`. Stdio JSON-RPC 2.0 hand-rolled in `lifeform_mcp_bridge.client.StdioMCPClient` (no `mcp` SDK dependency required). HTTP+SSE is reserved for a future packet.
+
+**Bridge translation tables**:
+
+| MCP source | Maps to | Path |
+|---|---|---|
+| `tools/list` entry + manifest entry | `AffordanceDescriptor` (name = `<server>.<tool>`) | `MCPAffordanceAdapter.populate_registry` |
+| `tools/call` payload | `AffordanceBackend` invocation result | bridge-bound async backend |
+| `resources/list` + `resources/read` | `IngestionEnvelope` (CORPUS, FORCED) | `MCPResourceAdapter.fetch_envelopes` |
+| `prompts/list` + `prompts/get` | reviewed knowledge event | `MCPPromptAdapter.fetch_prompt_events` |
+| `<repo>/eval-scenarios/*.json` (no RPC) | `MCPEvalScenario` | `EvalScenarioLoader.load_scenarios` |
+
+**关键不变量**：
+
+- MCP server 不是 owner；`AffordanceRegistry` 是 lifeform-side 单 writer，bridge 只是给它喂 reviewed descriptor
+- safety_model / cost_model / when_to_use(>=50) / when_not_to_use(>=50) 必须来自 reviewed `.vzbridge.yaml`，缺则 `MCPMissingSafetyManifestError`
+- bridge wheel 禁止反向 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`（contract test [`tests/contracts/test_mcp_bridge_import_boundary.py`](../tests/contracts/test_mcp_bridge_import_boundary.py)）
+- `LifeformConfig.mcp_server_specs: tuple[MCPServerSpec, ...] = ()` + `LifeformConfig.mcp_bridge_wiring: WiringLevel = WiringLevel.ACTIVE`（默认 ACTIVE，与 owner_hydration 同纪律；空 specs 是 no-op）
+- MCP server crash 不能让主进程崩溃；`AffordanceCandidate.blocked_reason="mcp_unavailable:<server>"` + 后续调用 `BACKEND_FAILED`
+- MCP-supplied tools 与 in-process tools 共享同一 `AffordanceModule` z_t scoring；descriptor name 经 SHA-256 hash 投影，没有"MCP 优先"硬路由
+
+详见 [`docs/specs/mcp-bridge.md`](specs/mcp-bridge.md)。Acceptance：6 个测试 + 外部 bundle template 自带 CI。
+
 ---
 
 ## 3. 模块快照契约
@@ -1668,6 +1730,7 @@ reflection ──────────────→ proposals; runtime invo
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 | `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
 | `active_mixture` | ProtocolRegistryModule | ActiveMixtureSnapshot | SHADOW | 每 turn | （packet 1.2+ 接入：boundary_policy / metacontroller / vitals / strategy_playbook 读 IDs+权重，不读内容本体） |
+| `audit` | AuditModule | AuditSnapshot | SHADOW | rare-heavy / promotion event | credit / gate（A5/T11 接入空骨架；OA-4 业务 packet 落地 N8 audit-agent tool loop 后由 rare-heavy 路径切 ACTIVE，详见 [`docs/specs/audit-owner.md`](./specs/audit-owner.md)） |
 
 这里的“默认接线”指模块类声明的 `default_wiring_level`。`final_wiring`、session runner 或 staged rollout 可以在构造模块时显式覆盖接线级别；文档中的 owner / snapshot shape 不因此改变。
 
@@ -1728,27 +1791,29 @@ reflection ──────────────→ proposals; runtime invo
 
 `response_assembly.support_before_decision_pressure` 必须优先消费上述 owner-side readouts；domain/prototype 路由只能作为辅助证据。ETA / temporal 层消费的是压缩后的 action-family advisory，不拥有这些语义事实。
 
-### 6.X Social Cognition Learning Slots（R16-R20，planned / migration log mirror）
+### 6.X Social Cognition Learning Slots（R16-R20）
 
-下表是 Social Cognition Learning Layer 的 planned slot 注册表。它们必须按 `docs/implementation/15_social_cognition_layer.md` 的 SHADOW → ACTIVE → retire 协议逐步落地；在 SHADOW 期不得破坏现有 flat `user_model` / `relationship_state` / `interlocutor_state` 消费路径。
+下表是 Social Cognition Learning Layer 的 slot 注册表。它们按 `docs/implementation/15_social_cognition_layer.md` 的 SHADOW → ACTIVE → retire 协议逐步落地。**"默认接线"列反映 `FinalRolloutConfig` 当前 default 值（即 `final_wiring.py` 现状）**，必须与 [`tests/contracts/test_data_contract_wiring_sync.py`](../tests/contracts/test_data_contract_wiring_sync.py) 保持一致——任何 spec 与 wiring 偏离都会让 contract test FAIL。
 
-> 主契约的稳定 slot surface 以 §6 默认接线表为准。本节只保留 planned / SHADOW 迁移镜像；完整 rollout notes 与 slice changelog 迁到 `docs/CONTRACT_MIGRATION_LOG.md`，后续实现流水不再追加到本文档。
+> 主契约的稳定 slot surface 以 §6 默认接线表为准。本节是 social cognition 子领域的额外 slot 注册。完整 rollout notes 与 slice changelog 迁到 `docs/CONTRACT_MIGRATION_LOG.md`，后续实现流水不再追加到本文档。
+>
+> **Keyed-view 标记**：表格中"默认接线 = SHADOW (keyed view)" 的行（`interlocutor_models` / `relationship_states` / `interlocutor_states`）是 keyed mapping，由 `MultiPartyIdentityModule` 在 owner-internal 层维护，**不**直接对应 `FinalRolloutConfig` 顶层字段；contract test 会跳过此类行。
 
 | Slot Name | Owner 模块 | Value 类型 | 依赖 | 默认接线 | Timescale | Social prediction emitted | PE consumer |
 |-----------|-----------|-----------|------|----------|-----------|---------------------------|-------------|
-| `multi_party_identity` | MultiPartyIdentityModule | MultiPartyIdentitySnapshot | substrate, memory, semantic proposals, scene role envelope | DISABLED → SHADOW | online-fast / session-medium / background-slow | active speaker, subject scope, audience scope, identity continuity | social_prediction_error → prediction_error / credit |
-| `interlocutor_models` | MultiPartyIdentityModule + keyed semantic owner views | Mapping[str, UserModelSnapshot] | user_model, multi_party_identity | SHADOW | per turn / scene | state-to-person attribution | social_prediction_error |
-| `relationship_states` | MultiPartyIdentityModule + keyed relationship views | Mapping[str, RelationshipStateSnapshot] | relationship_state, multi_party_identity | SHADOW | per turn / scene | dyad continuity / repair attribution | social_prediction_error |
-| `interlocutor_states` | MultiPartyIdentityModule + readout builder | Mapping[str, InterlocutorState] | evaluation, memory, commitment, multi_party_identity | SHADOW | per turn | current interlocutor readout attribution | social_prediction_error |
-| `belief_about_other` | BeliefAboutOtherModule | BeliefAboutOtherSnapshot | semantic proposals, memory, multi_party_identity, prediction_error | DISABLED → SHADOW | online-fast / session-medium / background-slow | interpretation / belief update outcome | social_prediction_error → prediction_error |
-| `intent_about_other` | IntentAboutOtherModule | IntentAboutOtherSnapshot | semantic proposals, execution_result, commitment, multi_party_identity | DISABLED → SHADOW | online-fast / session-medium | follow-through / next-action outcome | social_prediction_error → prediction_error |
-| `feeling_about_other` | FeelingAboutOtherModule | FeelingAboutOtherSnapshot | evaluation, relationship_states, multi_party_identity | DISABLED → SHADOW | online-fast / session-medium | affect / rapport movement | social_prediction_error → prediction_error |
-| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot | semantic proposals, memory, multi_party_identity | DISABLED → SHADOW | session-medium / background-slow | durable style / boundary stability | social_prediction_error → prediction_error |
-| `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | DISABLED → SHADOW | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
-| `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | DISABLED → SHADOW | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
-| `groups` | GroupModule | GroupSnapshot | multi_party_identity, conversational_role, common_ground, commitment, open_loop | DISABLED → SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit | social_prediction_error → prediction_error / credit |
-| `social_prediction` | SocialPredictionAggregateModule (lifter) | SocialPredictionSnapshot | multi_party_identity, memory.social_pe_signals（Slice 12+：其它 R16-R20 owner 自报 typed signals 后并入） | DISABLED → SHADOW → ACTIVE-when-multi-party | pre-action per turn | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPrediction（不重建） | social_prediction_error |
-| `social_prediction_error` | SocialPredictionErrorModule (lifter) | SocialPredictionErrorSnapshot | social_prediction, multi_party_identity, memory.social_pe_signals（计划：evaluation, execution_result, relationship_states, common_ground, groups 各 owner typed signals） | DISABLED → SHADOW → ACTIVE-when-multi-party | post-action per turn / session | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPredictionError（owner 字段来自 signal.source_owner）+ 外部 probe 注入 | prediction_error / credit |
+| `multi_party_identity` | MultiPartyIdentityModule | MultiPartyIdentitySnapshot | substrate, memory, semantic proposals, scene role envelope | ACTIVE | online-fast / session-medium / background-slow | active speaker, subject scope, audience scope, identity continuity | social_prediction_error → prediction_error / credit |
+| `interlocutor_models` | MultiPartyIdentityModule + keyed semantic owner views | Mapping[str, UserModelSnapshot] | user_model, multi_party_identity | SHADOW (keyed view) | per turn / scene | state-to-person attribution | social_prediction_error |
+| `relationship_states` | MultiPartyIdentityModule + keyed relationship views | Mapping[str, RelationshipStateSnapshot] | relationship_state, multi_party_identity | SHADOW (keyed view) | per turn / scene | dyad continuity / repair attribution | social_prediction_error |
+| `interlocutor_states` | MultiPartyIdentityModule + readout builder | Mapping[str, InterlocutorState] | evaluation, memory, commitment, multi_party_identity | SHADOW (keyed view) | per turn | current interlocutor readout attribution | social_prediction_error |
+| `belief_about_other` | BeliefAboutOtherModule | BeliefAboutOtherSnapshot | semantic proposals, memory, multi_party_identity, prediction_error | ACTIVE | online-fast / session-medium / background-slow | interpretation / belief update outcome | social_prediction_error → prediction_error |
+| `intent_about_other` | IntentAboutOtherModule | IntentAboutOtherSnapshot | semantic proposals, execution_result, commitment, multi_party_identity | ACTIVE | online-fast / session-medium | follow-through / next-action outcome | social_prediction_error → prediction_error |
+| `feeling_about_other` | FeelingAboutOtherModule | FeelingAboutOtherSnapshot | evaluation, relationship_states, multi_party_identity | ACTIVE | online-fast / session-medium | affect / rapport movement | social_prediction_error → prediction_error |
+| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot | semantic proposals, memory, multi_party_identity | ACTIVE | session-medium / background-slow | durable style / boundary stability | social_prediction_error → prediction_error |
+| `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | ACTIVE | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
+| `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | ACTIVE | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
+| `groups` | GroupModule | GroupSnapshot | multi_party_identity, conversational_role, common_ground, commitment, open_loop | SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit | social_prediction_error → prediction_error / credit |
+| `social_prediction` | SocialPredictionAggregateModule (lifter) | SocialPredictionSnapshot | multi_party_identity, memory.social_pe_signals（Slice 12+：其它 R16-R20 owner 自报 typed signals 后并入） | ACTIVE | pre-action per turn | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPrediction（不重建） | social_prediction_error |
+| `social_prediction_error` | SocialPredictionErrorModule (lifter) | SocialPredictionErrorSnapshot | social_prediction, multi_party_identity, memory.social_pe_signals（计划：evaluation, execution_result, relationship_states, common_ground, groups 各 owner typed signals） | ACTIVE | post-action per turn / session | 把上游 owner 自报的 typed PE signals 升级为公共 SocialPredictionError（owner 字段来自 signal.source_owner）+ 外部 probe 注入 | prediction_error / credit |
 
 **Social Cognition migration protocol**：
 

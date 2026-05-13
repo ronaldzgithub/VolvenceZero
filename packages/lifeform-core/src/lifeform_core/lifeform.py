@@ -66,6 +66,7 @@ from volvence_zero.semantic_state import (
     SemanticProposalRuntime,
 )
 from volvence_zero.regime import RegimeBootstrap
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
@@ -131,6 +132,21 @@ class LifeformConfig:
     # ``forbidden_self_traits``. See ``docs/specs/protocol-runtime.md``
     # checklist condition 1.
     identity_seed: IdentitySeed | None = None
+    # mcp-tools-bundle-bridge packet: external MCP server bundles to
+    # attach to this lifeform. Each entry is an
+    # ``lifeform_mcp_bridge.MCPServerSpec`` (typed ``Any`` here so
+    # ``lifeform-core`` does not import ``lifeform-mcp-bridge`` at
+    # module load time — duck-typed via lazy import inside
+    # ``Lifeform.start``). Empty tuple = no MCP bridge attached
+    # (the entire bridge code path is dormant).
+    mcp_server_specs: tuple[Any, ...] = ()
+    # Wiring level for the MCP bundle bridge. ACTIVE (default) starts
+    # the per-Lifeform pool, registers MCP-supplied affordances, and
+    # ingests resources / prompts as configured. SHADOW boots the
+    # pool but does not register affordances or ingest anything
+    # (used to verify the servers come up cleanly before flipping
+    # ACTIVE). DISABLED skips bridge construction entirely.
+    mcp_bridge_wiring: WiringLevel = WiringLevel.ACTIVE
 
     def with_domain_experience(
         self,
@@ -244,6 +260,19 @@ class Lifeform:
         # `synthesizer.with_figure_bundle(bundle)` so the L1 / L3 / L4
         # enforcement layers can consume it on each turn.
         self._figure_bundle: Any = None
+        # mcp-tools-bundle-bridge packet — lazily initialised state
+        # for the optional MCP server pool. ``Lifeform.start()``
+        # (async) populates these once when there are non-empty
+        # ``LifeformConfig.mcp_server_specs``. ``create_session``
+        # forwards the invoker + pending-resource payloads to the
+        # new ``LifeformSession``.
+        self._mcp_pool: Any = None
+        self._mcp_invoker: Any = None
+        self._mcp_registry: Any = None
+        self._mcp_audit: tuple[Any, ...] = ()
+        self._mcp_pending_envelopes: tuple[Any, ...] = ()
+        self._mcp_pending_prompts: tuple[Any, ...] = ()
+        self._mcp_started: bool = False
 
     @property
     def config(self) -> LifeformConfig:
@@ -272,6 +301,141 @@ class Lifeform:
         into ``lifeform-domain-figure`` directly.
         """
         return self._figure_bundle
+
+    @property
+    def mcp_pool(self) -> Any:
+        """The lifeform-scoped ``MCPClientPool`` (or ``None``).
+
+        Non-None only after a successful ``await lifeform.start()``
+        with non-empty ``LifeformConfig.mcp_server_specs``. Pool is
+        shared across every session created from this lifeform
+        instance. Tests / dashboards inspect ``pool.specs()`` and
+        ``pool.is_unavailable(name)`` here.
+        """
+        return self._mcp_pool
+
+    @property
+    def mcp_invoker(self) -> Any:
+        """The lifeform-scoped ``AffordanceInvoker`` populated with
+        MCP-supplied tool backends, or ``None`` if the bridge is
+        not active. Sessions also expose this same object.
+        """
+        return self._mcp_invoker
+
+    @property
+    def mcp_registry(self) -> Any:
+        """The lifeform-scoped ``AffordanceRegistry`` containing the
+        MCP-supplied descriptors, or ``None``. Distinct from the
+        coding / companion vertical's own registry; merge if you need
+        a single combined registry.
+        """
+        return self._mcp_registry
+
+    @property
+    def mcp_started(self) -> bool:
+        """True after ``await Lifeform.start()`` has finished and
+        either populated the bridge OR confirmed there is nothing
+        to do (empty specs / DISABLED wiring).
+        """
+        return self._mcp_started
+
+    async def start(self) -> None:
+        """Boot the MCP bundle bridge if configured. Idempotent.
+
+        Boot order:
+
+        1. If the lifeform has no ``mcp_server_specs`` OR
+           ``mcp_bridge_wiring is DISABLED``, mark started and
+           return — entire path stays dormant.
+        2. SHADOW wiring: spawn the pool to verify servers come up
+           cleanly, but do NOT register any affordance / ingest any
+           resource. Used for "gate the rollout" scenarios.
+        3. ACTIVE wiring: spawn the pool, populate the
+           lifeform-scoped registry/invoker via
+           ``populate_registry``, fetch the resource ingestion
+           envelopes, and (when enabled) the prompt knowledge
+           events. The envelopes / prompts are stashed on the
+           lifeform; they get drained per-session via
+           ``LifeformSession.flush_mcp_resources()`` /
+           ``flush_mcp_prompts()`` so each session has its own
+           ingestion turn (apprentice override per
+           ``trigger_kind=INGESTION``).
+
+        Failures bubble up as typed ``MCPBridgeError`` subclasses
+        (``MCPServerSpawnError`` / ``MCPSafetyManifestSchemaError``
+        / ``MCPMissingSafetyManifestError`` / ...). The lifeform
+        deliberately does NOT silently down-grade — operators must
+        see the failure and either fix the spec / manifest or
+        remove the offending entry from
+        ``LifeformConfig.mcp_server_specs``.
+        """
+        if self._mcp_started:
+            return
+        wiring = self._config.mcp_bridge_wiring
+        specs = self._config.mcp_server_specs
+        if not specs or wiring is WiringLevel.DISABLED:
+            self._mcp_started = True
+            return
+        # Lazy import so ``lifeform-core`` does not pin
+        # ``lifeform-mcp-bridge`` as a hard dependency for the
+        # majority of users that never wire MCP. This also keeps
+        # the wheel-import boundary contract honest: the import
+        # only fires when the user opts in via ``mcp_server_specs``.
+        from lifeform_affordance import (
+            AffordanceInvoker,
+            AffordanceRegistry,
+        )
+        from lifeform_mcp_bridge import (
+            MCPClientPool,
+            fetch_envelopes,
+            fetch_prompt_events,
+            populate_registry,
+        )
+
+        pool = MCPClientPool()
+        registry = AffordanceRegistry()
+        invoker = AffordanceInvoker(registry=registry)
+        if wiring is WiringLevel.SHADOW:
+            for spec in specs:
+                await pool.ensure_started(spec)
+            self._mcp_pool = pool
+            self._mcp_registry = registry
+            self._mcp_invoker = invoker
+            self._mcp_started = True
+            return
+        # ACTIVE wiring.
+        audit = await populate_registry(
+            pool=pool,
+            specs=specs,
+            registry=registry,
+            invoker=invoker,
+        )
+        envelopes = await fetch_envelopes(pool=pool, specs=specs)
+        prompts = await fetch_prompt_events(pool=pool, specs=specs)
+        self._mcp_pool = pool
+        self._mcp_registry = registry
+        self._mcp_invoker = invoker
+        self._mcp_audit = audit
+        self._mcp_pending_envelopes = envelopes
+        self._mcp_pending_prompts = prompts
+        self._mcp_started = True
+
+    async def shutdown(self) -> None:
+        """Close every MCP server the bridge spawned. Idempotent.
+
+        Safe to call when the bridge was never started (no-op).
+        Should be called once when the lifeform is permanently
+        torn down (CLI exit, test fixture teardown, service
+        process shutdown).
+        """
+        pool = self._mcp_pool
+        if pool is None:
+            return
+        await pool.shutdown_all()
+        # Keep ``_mcp_pool`` reference set to None so subsequent
+        # accessor calls are honest about "the bridge is down"
+        # instead of returning a stale handle to a closed pool.
+        self._mcp_pool = None
 
     def bind_figure_bundle(self, bundle: Any) -> None:
         """Attach a :class:`FigureArtifactBundle` to this lifeform.
@@ -433,6 +597,17 @@ class Lifeform:
             followups=followups,
             vitals=vitals,
             thinking_adapter=thinking_adapter,
+            mcp_invoker=self._mcp_invoker,
+            mcp_pool=self._mcp_pool,
+            # Each new session gets a copy of the lifeform's
+            # pending MCP resource envelopes / prompt events. The
+            # lifeform itself does NOT clear its own pending lists
+            # so multi-session lifeform tests / longitudinal runs
+            # see the ingestion replay on every fresh session;
+            # production code calls ``flush_mcp_resources`` exactly
+            # once per session and the pending list goes empty.
+            mcp_pending_envelopes=self._mcp_pending_envelopes,
+            mcp_pending_prompts=self._mcp_pending_prompts,
         )
         session_holder.session = session
         return session
@@ -548,6 +723,10 @@ class LifeformSession:
         followups: FollowupManager,
         vitals: VitalsModule | None = None,
         thinking_adapter: Any = None,
+        mcp_invoker: Any = None,
+        mcp_pool: Any = None,
+        mcp_pending_envelopes: tuple[Any, ...] = (),
+        mcp_pending_prompts: tuple[Any, ...] = (),
     ) -> None:
         self._brain_session = brain_session
         self._tick = tick
@@ -571,6 +750,21 @@ class LifeformSession:
         # adapter (when present) is called at three well-defined
         # lifecycle points; see ``_invoke_thinking_*`` helpers below.
         self._thinking_adapter: Any = thinking_adapter
+        # mcp-tools-bundle-bridge packet — per-session handles to
+        # the lifeform's shared MCP pool / invoker plus the
+        # not-yet-flushed resource / prompt payloads. Tools are
+        # invoked via ``session.mcp_invoker.invoke(...)`` (it shares
+        # the same kernel-canonical ``submit_tool_result`` path as
+        # any other AffordanceInvoker). Resources / prompts are
+        # drained via ``flush_mcp_resources`` / ``flush_mcp_prompts``;
+        # both methods are idempotent and clear their pending lists
+        # so subsequent calls are safe no-ops.
+        self._mcp_invoker: Any = mcp_invoker
+        self._mcp_pool: Any = mcp_pool
+        self._pending_mcp_envelopes: list[Any] = list(mcp_pending_envelopes)
+        self._pending_mcp_prompts: list[Any] = list(mcp_pending_prompts)
+        self._mcp_resources_flushed: bool = False
+        self._mcp_prompts_flushed: bool = False
 
     # ------------------------------------------------------------------
     # Read API
@@ -603,6 +797,107 @@ class LifeformSession:
     @property
     def vitals_snapshot(self) -> VitalsSnapshot | None:
         return self._vitals.current_snapshot() if self._vitals is not None else None
+
+    # ------------------------------------------------------------------
+    # MCP bundle bridge (mcp-tools-bundle-bridge packet)
+    # ------------------------------------------------------------------
+
+    @property
+    def mcp_invoker(self) -> Any:
+        """The MCP-supplied ``AffordanceInvoker`` for this session, or
+        ``None`` if no MCP bridge is wired. Tools registered through
+        the bridge are invoked through this object the same way as
+        any other vertical's invoker (``await invoker.invoke(name,
+        params, session=session.brain_session, plan_ref="...")``).
+        """
+        return self._mcp_invoker
+
+    @property
+    def mcp_pool(self) -> Any:
+        """The MCP client pool (or ``None``). Snapshot consumers /
+        dashboards inspect ``pool.is_unavailable(name)`` here to
+        surface ``blocked_reason="mcp_unavailable:<name>"`` on
+        affordance candidates without crossing the wire boundary.
+        """
+        return self._mcp_pool
+
+    @property
+    def pending_mcp_envelope_count(self) -> int:
+        """How many MCP-derived ``IngestionEnvelope`` payloads are
+        still waiting to be flushed via ``flush_mcp_resources``.
+        Tests / observability surfaces use this to confirm the
+        flush actually drained.
+        """
+        return len(self._pending_mcp_envelopes)
+
+    @property
+    def pending_mcp_prompt_count(self) -> int:
+        return len(self._pending_mcp_prompts)
+
+    async def flush_mcp_resources(self) -> tuple[Any, ...]:
+        """Drain the lifeform's pending MCP resource envelopes
+        through this session's ``run_turn`` with
+        ``trigger_kind=INGESTION``.
+
+        Idempotent: subsequent calls return ``()`` because the
+        pending list is cleared after the first call. Returns the
+        tuple of ``AgentTurnResult`` objects (one per envelope) so
+        the caller can inspect ingestion outcome per envelope.
+
+        Designed to be called once per session, typically right
+        after ``Lifeform.create_session(...)`` and before the first
+        user-initiated turn so the lifeform has the MCP resource
+        knowledge available before the user starts asking questions.
+        """
+        if self._mcp_resources_flushed or not self._pending_mcp_envelopes:
+            self._mcp_resources_flushed = True
+            self._pending_mcp_envelopes = []
+            return ()
+        # Lazy import: lifeform-core does not depend on
+        # lifeform-ingestion in pyproject.toml directly; the
+        # ``lifeform-mcp-bridge`` wheel pulls it in transitively, and
+        # this code path only fires when the user opted into the MCP
+        # bridge. Importing locally keeps the dependency explicit at
+        # the call site rather than at module load.
+        from lifeform_ingestion import IngestionPipeline
+
+        pipeline = IngestionPipeline()
+        results: list[Any] = []
+        for envelope in self._pending_mcp_envelopes:
+            report = await pipeline.process_envelope(
+                envelope, session=self, end_scene_after=False
+            )
+            results.append(report)
+        self._pending_mcp_envelopes = []
+        self._mcp_resources_flushed = True
+        return tuple(results)
+
+    def flush_mcp_prompts(self) -> tuple[str, ...]:
+        """Submit the lifeform's pending MCP prompt events as
+        reviewed knowledge events on the underlying brain session.
+
+        Idempotent: clears the pending list on first call, returns
+        empty afterwards. Returns the tuple of submitted event ids
+        (one per prompt) for observability.
+        """
+        if self._mcp_prompts_flushed or not self._pending_mcp_prompts:
+            self._mcp_prompts_flushed = True
+            self._pending_mcp_prompts = []
+            return ()
+        submitted: list[str] = []
+        for event in self._pending_mcp_prompts:
+            ids = self._brain_session.submit_reviewed_knowledge_event(
+                event_id=f"mcp:{event.knowledge_id}",
+                knowledge_id=event.knowledge_id,
+                summary=event.summary,
+                detail=event.detail,
+                source_label=event.source_label,
+                confidence=event.confidence,
+            )
+            submitted.extend(ids)
+        self._pending_mcp_prompts = []
+        self._mcp_prompts_flushed = True
+        return tuple(submitted)
 
     def persist_owners(self) -> tuple[str, ...]:
         """Packet D (long-horizon-closure): export + persist all

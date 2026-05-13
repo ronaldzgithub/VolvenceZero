@@ -20,3 +20,7 @@
 	branch = main
 	# Paper PDFs, probe corpora, and research notes. PRIVATE: clone with
 	# credentials or deploy key; contributors without access skip submodule init.
+[submodule "external/vz-bundle"]
+	path = external/vz-bundle
+	url = https://github.com/ronaldzgithub/vz-bundle.git
+	branch = main

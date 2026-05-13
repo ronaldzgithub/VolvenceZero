@@ -92,6 +92,18 @@ Each boundary exists to protect one invariant, not to mirror a directory layout:
    require it. When implementing it, hydration failures must use typed
    `HydrationError` subclasses (no silent fallbacks per
    `.cursor/rules/no-swallow-errors-no-hasattr-abuse.mdc`).
+7. New external MCP bundles (`MCPServerSpec` entries on
+   `LifeformConfig.mcp_server_specs`) MUST ship a reviewed
+   `.vzbridge.yaml` safety manifest covering every tool the server
+   exposes. Manifest entries must declare `safety_model` /
+   `cost_model` / `when_to_use` (>=50 chars) /
+   `when_not_to_use` (>=50 chars) per tool. Bridge fail-loud rejects
+   missing entries (`MCPMissingSafetyManifestError`) and never
+   defaults to "safe-but-quiet". See `docs/specs/mcp-bridge.md` and
+   `docs/integration/external-bundle.md`. The bridge wheel
+   (`lifeform-mcp-bridge`) is a lifeform-side wheel; CI
+   `tests/contracts/test_mcp_bridge_import_boundary.py` enforces it
+   does not reverse-import any kernel internals.
 
 ## Document Map
 

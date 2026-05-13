@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from dataclasses import dataclass, replace
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
@@ -168,6 +170,9 @@ from volvence_zero.temporal import (
 )
 
 
+_EMPTY_FINAL_WIRING_CAPABILITY_MAP: Mapping[str, WiringLevel] = MappingProxyType({})
+
+
 @dataclass(frozen=True)
 class FinalRolloutConfig:
     substrate: WiringLevel = WiringLevel.ACTIVE
@@ -304,7 +309,31 @@ class FinalRolloutConfig:
     # planner. Use SHADOW to keep the module silent in benchmark
     # ablations; DISABLED to skip module construction entirely.
     affordance: WiringLevel = WiringLevel.ACTIVE
+    # A5 (T11): audit owner skeleton — empty AuditSnapshot publisher.
+    # SHADOW by default per docs/specs/audit-owner.md §WiringLevel; OA-4
+    # promotion to ACTIVE happens on the rare-heavy artifact promotion path
+    # once the N8 audit-agent tool loop is implemented.
+    audit: WiringLevel = WiringLevel.SHADOW
     kill_switches: frozenset[str] = frozenset()
+    # A3: nested capability wiring map. Outer key = owner slot name (must
+    # match a FinalRolloutConfig field above); inner key = capability name
+    # declared on that owner's RuntimeModule subclass. Empty default ⇒
+    # current behaviour is byte-equivalent to pre-A3 since
+    # ``capability_overrides_for(slot)`` returns an empty mapping.
+    # ProfileRegistry's ResolvedProfile.apply_to_config() will populate this
+    # map for non-baseline profiles in T5 阶段 2; for阶段 1 the map stays
+    # empty and modules continue using their default_wiring_level.
+    capability_wirings: Mapping[str, Mapping[str, WiringLevel]] = dataclasses.field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+    def capability_overrides_for(self, owner_slot: str) -> Mapping[str, WiringLevel]:
+        """Return capability-level overrides for ``owner_slot`` or empty map.
+
+        Empty default preserves byte-equivalent behaviour for modules that
+        haven't opted into A3 capability wiring.
+        """
+        return self.capability_wirings.get(owner_slot, _EMPTY_FINAL_WIRING_CAPABILITY_MAP)
 
     def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
         if module_name in self.kill_switches:
@@ -359,6 +388,7 @@ class FinalRolloutConfig:
             "protocol_reflection": self.protocol_reflection,
             "protocol_revision_queue": self.protocol_revision_queue,
             "affordance": self.affordance,
+            "audit": self.audit,
         }.get(module_name, default)
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:

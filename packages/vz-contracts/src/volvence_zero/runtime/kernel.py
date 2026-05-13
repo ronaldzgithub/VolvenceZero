@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from hashlib import sha256
+from types import MappingProxyType
 from typing import Any, ClassVar, Generic, Mapping, MutableMapping, TypeVar
 from uuid import uuid4
 
@@ -406,6 +407,49 @@ class UpstreamView(Mapping[str, Snapshot[Any]]):
         return default
 
 
+_EMPTY_CAPABILITY_MAP: Mapping[str, WiringLevel] = MappingProxyType({})
+
+
+@dataclass(frozen=True)
+class BenchmarkMetricDescriptor:
+    """Owner-declared metric eligible for benchmark.metric_means extraction.
+
+    Architecture-uplift B3 (see docs/specs/evaluation-cascade.md §B3). Owners
+    that produce new readouts should override
+    ``RuntimeModule.declare_benchmark_metrics()`` to surface them to the
+    dialogue / paper-suite benchmark layer without forcing the benchmark
+    code to know about every new metric in advance.
+
+    Schema-driven extraction follows ``union(hardcoded_keys,
+    all_owner_declared_keys)``: existing hardcoded benchmark keys remain
+    intact (additive), and key conflicts must surface at startup as a
+    contract violation rather than silently shadow each other.
+    """
+
+    key: str
+    extractor_path: str
+    description: str
+    declared_by_owner: str
+
+
+@dataclass(frozen=True)
+class CapabilityWiring:
+    """Sub-capability wiring decision attached to a single owner module.
+
+    Architecture-uplift A3 (see docs/specs/profile-registry.md §A3.1).
+    Owners declare known capability names in their ``capabilities`` ClassVar
+    map; profile-registry resolution may override individual entries through
+    ``capability_overrides`` at construction time. Consumers must call
+    ``module.capability_active(name)`` / ``module.capability_shadow(name)``
+    instead of inspecting flags directly so SSOT remains in the owner.
+    """
+
+    capability_name: str
+    owner: str
+    wiring_level: WiringLevel
+    description: str = ""
+
+
 class RuntimeModule(ABC, Generic[ValueT]):
     """Base module contract for all runtime owners."""
 
@@ -414,14 +458,69 @@ class RuntimeModule(ABC, Generic[ValueT]):
     value_type: ClassVar[type[Any]]
     dependencies: ClassVar[tuple[str, ...]] = ()
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.ACTIVE
+    # A3: sub-capability default wiring map. Module subclasses MAY declare
+    # known capabilities here; ProfileRegistry-driven overrides are merged on
+    # top via ``capability_overrides`` in __init__. Default empty mapping
+    # preserves byte-equivalent behaviour for every module that has not yet
+    # opted in.
+    capabilities: ClassVar[Mapping[str, WiringLevel]] = _EMPTY_CAPABILITY_MAP
 
-    def __init__(self, *, wiring_level: WiringLevel | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        wiring_level: WiringLevel | None = None,
+        capability_overrides: Mapping[str, WiringLevel] | None = None,
+    ) -> None:
         self._wiring_level = wiring_level or self.default_wiring_level
+        # A3: merge class-level default + per-instance overrides.
+        merged: dict[str, WiringLevel] = dict(self.capabilities)
+        if capability_overrides:
+            for name, level in capability_overrides.items():
+                if name not in self.capabilities:
+                    # fail-loudly per docs/specs/profile-registry.md §错误处理:
+                    # unknown capability references must surface at construction
+                    # time, not be silently absorbed.
+                    raise ContractViolationError(
+                        f"module {self.owner!r} received capability_overrides "
+                        f"for unknown capability {name!r}; declared capabilities "
+                        f"are {tuple(self.capabilities.keys())!r}"
+                    )
+                merged[name] = level
+        self._capability_wiring: Mapping[str, WiringLevel] = MappingProxyType(merged)
         self._version = 0
 
     @property
     def wiring_level(self) -> WiringLevel:
         return self._wiring_level
+
+    def capability_wiring(self, capability_name: str) -> WiringLevel:
+        """Return wiring level for a sub-capability declared on this module.
+
+        Falls back to module-level ``wiring_level`` when the capability is
+        not declared. Consumers must use this accessor (not direct dict
+        lookup) so capability ↔ module SSOT stays in the owner.
+        """
+        return self._capability_wiring.get(capability_name, self._wiring_level)
+
+    def capability_active(self, capability_name: str) -> bool:
+        return self.capability_wiring(capability_name) is WiringLevel.ACTIVE
+
+    def capability_shadow(self, capability_name: str) -> bool:
+        return self.capability_wiring(capability_name) is WiringLevel.SHADOW
+
+    @classmethod
+    def declare_benchmark_metrics(cls) -> tuple[BenchmarkMetricDescriptor, ...]:
+        """Owner-declared metrics for benchmark ``metric_means`` extraction.
+
+        Architecture-uplift B3 (see docs/specs/evaluation-cascade.md §B3).
+        Default ``()`` keeps existing hardcoded extraction behaviour unchanged;
+        owners that want to surface new readouts override this classmethod.
+
+        Declaration is class-level + cached at class load: callers may
+        rely on the return value being stable across instances (no
+        run-time mutation, no per-turn shape change).
+        """
+        return ()
 
     def seed_version(self, version: int) -> None:
         if version > self._version:

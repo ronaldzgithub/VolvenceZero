@@ -502,6 +502,27 @@
 
 ---
 
+### 21. MCP Bundle Bridge (mcp-tools-bundle-bridge packet)
+
+**对应需求**：R3, R4, R5, R8, R10, R11, R15
+
+| Spec | 内容 |
+|------|------|
+| [mcp-bridge.md](./mcp-bridge.md) | `lifeform-mcp-bridge` wheel：把外部 MCP server 的 tools / resources / prompts 翻译成 `AffordanceDescriptor` / `IngestionEnvelope` / reviewed knowledge event；reviewed `.vzbridge.yaml` safety manifest；6 个 acceptance gate；`LifeformConfig.mcp_bridge_wiring` 三态默认 ACTIVE |
+
+**核心不变量**：
+
+- MCP server 不是 owner；`AffordanceDescriptor` / `DomainKnowledgeRecord` 由主项目内 owner 构造写入
+- safety_model / cost_model / when_to_use(>=50) / when_not_to_use(>=50) 必须来自 reviewed `.vzbridge.yaml`，缺则 `MCPMissingSafetyManifestError` fail-loud
+- MCP-supplied tools 与 in-process tools 共享 `AffordanceRegistry`；选择仍由 `AffordanceModule` z_t 投影驱动
+- MCP server crash 不能让主进程崩溃；`AffordanceCandidate.blocked_reason="mcp_unavailable:<server>"`
+- bridge wheel 禁止反向 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`
+- 外部 repo 作为 git submodule 引入主项目（默认绑定 [`external/vz-bundle/`](../../external/vz-bundle)，对应 sibling 路径 `D:/GitHub/vz-bundle`，可后续推到 GitHub）；主项目 monorepo 体积不变重
+
+来源：mcp-tools-bundle-bridge packet（2026-05-13）。Acceptance：6 个测试（`tests/contracts/test_mcp_*` + `tests/lifeform_e2e/test_mcp_*` + `tests/longitudinal/test_mcp_resource_becomes_durable_knowledge.py`）。
+
+---
+
 ### 20. Owner Hydration (Packet D — long-horizon-closure)
 
 **对应需求**：R5（连续记忆）, R6（反思与沉淀）, R8（快照优先 / 单一所有者）, R11（内部状态可发布）, R15（迁移可解释性 + 可回滚）

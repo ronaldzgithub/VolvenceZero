@@ -41,6 +41,7 @@ dependencies = [
     "lifeform-evolution==0.1.*",
     "lifeform-openai-compat==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
+    "lifeform-mcp-bridge==0.1.*",
     "dlaas-platform-contracts==0.1.*",
     "dlaas-platform-registry==0.1.*",
     "dlaas-platform-launcher==0.1.*",
@@ -52,6 +53,15 @@ dependencies = [
 [project.optional-dependencies]
 hf = ["vz-runtime[hf]==0.1.*"]
 torch = ["vz-runtime[torch]==0.1.*"]
+# mcp-tools-bundle-bridge packet: the bridge wheel itself ships under
+# the always-installed list above (``lifeform-mcp-bridge==0.1.*``). The
+# ``[mcp-sdk]`` extra layered here pulls in the official Anthropic
+# ``mcp`` Python SDK for the (rarer) consumer that wants the
+# SDK-backed client instead of the bridge's hand-rolled stdio
+# JSON-RPC implementation. ``[mcp-http]`` reserves the HTTP+SSE
+# transport extra for the planning-stub HTTP path.
+mcp-sdk = ["lifeform-mcp-bridge[mcp-sdk]==0.1.*"]
+mcp-http = ["lifeform-mcp-bridge[http]==0.1.*"]
 dev = [
     "pytest",
     "ruff",
@@ -78,6 +88,7 @@ lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
 lifeform-openai-compat = { workspace = true }
 lifeform-protocol-runtime = { workspace = true }
+lifeform-mcp-bridge       = { workspace = true }
 dlaas-platform-contracts = { workspace = true }
 dlaas-platform-registry = { workspace = true }
 dlaas-platform-launcher = { workspace = true }
