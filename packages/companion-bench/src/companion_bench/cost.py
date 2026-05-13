@@ -50,6 +50,14 @@ _DEFAULT_PRICES: dict[str, TokenPricing] = {
     "google/gemini-3-pro": TokenPricing("google/gemini-3-pro", 5.0, 15.0),
     "deepseek/deepseek-v3": TokenPricing("deepseek/deepseek-v3", 0.27, 1.10),
     "qwen/qwen2.5-72b-instruct": TokenPricing("qwen/qwen2.5-72b-instruct", 0.40, 1.20),
+    # Alibaba DashScope Qwen series (compatible-mode, 2026-05 public pricing
+    # snapshot; converted to USD at ~¥7.2/USD). Use these names verbatim
+    # when the SUT / judge speaks to DashScope at
+    # https://dashscope.aliyuncs.com/compatible-mode/v1.
+    "qwen3-max": TokenPricing("qwen3-max", 0.70, 2.80),
+    "qwen-max-latest": TokenPricing("qwen-max-latest", 0.70, 2.80),
+    "qwen-plus": TokenPricing("qwen-plus", 0.11, 0.40),
+    "qwen-flash": TokenPricing("qwen-flash", 0.05, 0.20),
     "meta/llama-3-70b": TokenPricing("meta/llama-3-70b", 0.40, 1.20),
     "lifeform-companion": TokenPricing("lifeform-companion", 0.0, 0.0),
     "lifeform-companion-cold": TokenPricing("lifeform-companion-cold", 0.0, 0.0),

@@ -133,9 +133,17 @@ def _read_json(path: pathlib.Path) -> dict:
 
 
 def _load_arc_bundles(submission_dir: pathlib.Path) -> list[dict]:
+    """Find arc bundle JSON files under a submission directory.
+
+    ``run_real_submission.py`` writes bundles to ``submission_dir/arcs/``
+    (so the submission summary stays at the root and bundles are grouped),
+    while older test fixtures wrote them flat at the root. Use ``rglob``
+    so both layouts are picked up; sorted for deterministic ordering in
+    leaderboard / pairwise output.
+    """
     return [
         _read_json(p)
-        for p in sorted(submission_dir.glob("*.bundle.json"))
+        for p in sorted(submission_dir.rglob("*.bundle.json"))
     ]
 
 

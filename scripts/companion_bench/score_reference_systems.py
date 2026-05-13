@@ -42,14 +42,14 @@ import tempfile
 import yaml
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-ROSTER_PATH = REPO_ROOT / "scripts" / "companion_bench" / "reference_systems.yaml"
+DEFAULT_ROSTER_PATH = REPO_ROOT / "scripts" / "companion_bench" / "reference_systems.yaml"
 RUNNER = REPO_ROOT / "scripts" / "companion_bench" / "run_real_submission.py"
 
 _LOG = logging.getLogger("score_reference_systems")
 
 
-def _load_roster() -> list[dict]:
-    with ROSTER_PATH.open("r", encoding="utf-8") as fh:
+def _load_roster(path: pathlib.Path) -> list[dict]:
+    with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     return list(data["systems"])
 
@@ -80,6 +80,15 @@ def _build_manifest(system: dict, tmpdir: pathlib.Path) -> pathlib.Path:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="score_reference_systems")
     p.add_argument("--output-dir", type=pathlib.Path, required=True)
+    p.add_argument(
+        "--roster",
+        type=pathlib.Path,
+        default=DEFAULT_ROSTER_PATH,
+        help=(
+            "Path to roster YAML (default: reference_systems.yaml; "
+            "smoke runs use reference_systems.smoke.yaml)."
+        ),
+    )
     p.add_argument("--user-sim-model", required=True)
     p.add_argument("--user-sim-key-env", required=True)
     p.add_argument("--user-sim-base-url", default="https://api.anthropic.com/v1")
@@ -91,9 +100,27 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--arc-base-url", default="https://api.openai.com/v1")
     p.add_argument("--paraphrase-seeds", default="0")
     p.add_argument("--systems", default=None,
-                   help="Comma-separated subset of model_identifiers; default = all 10.")
+                   help="Comma-separated subset of model_identifiers; default = all roster entries.")
+    p.add_argument(
+        "--family",
+        default=None,
+        help="Optional: restrict run to one family (F1..F6). Passed through to run_real_submission.",
+    )
     p.add_argument("--include-heldout", action="store_true")
     p.add_argument("--require-heldout", action="store_true")
+    p.add_argument(
+        "--per-system-timeout-min",
+        type=int,
+        default=30,
+        help=(
+            "Per-system subprocess wallclock timeout in minutes "
+            "(default 30). On timeout, the runner kills the subprocess "
+            "and continues with the next system; the timed-out system "
+            "is logged with no aggregate row. Prevents the kind of "
+            "silent hang seen when a SUT endpoint is unreachable and "
+            "urllib's default 120s timeout × N turns ≈ many hours."
+        ),
+    )
     p.add_argument("--dry-run", action="store_true",
                    help="Print the planned commands without executing.")
     p.add_argument("--verbose", "-v", action="store_true")
@@ -108,7 +135,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    roster = _load_roster()
+    roster_path: pathlib.Path = args.roster
+    if not roster_path.exists():
+        print(f"error: roster YAML not found at {roster_path}", file=sys.stderr)
+        return 2
+    _LOG.info("loading roster from %s", roster_path)
+    roster = _load_roster(roster_path)
     if args.systems:
         wanted = {s.strip() for s in args.systems.split(",") if s.strip()}
         roster = [s for s in roster if s["model_identifier"] in wanted]
@@ -142,11 +174,28 @@ def main(argv: list[str] | None = None) -> int:
                 cmd.append("--include-heldout")
             if args.require_heldout:
                 cmd.append("--require-heldout")
+            if args.family:
+                cmd.extend(["--family", args.family])
 
             _LOG.info("[%s] %s", system["submission_id"], " ".join(cmd))
             if args.dry_run:
                 continue
-            result = subprocess.run(cmd, check=False, cwd=REPO_ROOT)
+            timeout_sec = max(60, int(args.per_system_timeout_min) * 60)
+            try:
+                result = subprocess.run(
+                    cmd,
+                    check=False,
+                    cwd=REPO_ROOT,
+                    timeout=timeout_sec,
+                )
+            except subprocess.TimeoutExpired:
+                _LOG.error(
+                    "[%s] runner exceeded %d-min wallclock timeout; "
+                    "subprocess killed; continuing with next system",
+                    system["submission_id"],
+                    args.per_system_timeout_min,
+                )
+                continue
             if result.returncode != 0:
                 _LOG.error("[%s] runner exited %d", system["submission_id"], result.returncode)
                 continue

@@ -99,6 +99,27 @@ def _read_env(env_var: str, label: str) -> str:
     return val
 
 
+def _maybe_openrouter_headers(base_url: str) -> dict[str, str]:
+    """Return OpenRouter attribution headers when the endpoint is OpenRouter.
+
+    ``OPENROUTER_HTTP_REFERER`` + ``OPENROUTER_X_TITLE`` are read from env.
+    Both optional; missing values are simply omitted. Only injected when the
+    target ``base_url`` looks like OpenRouter so direct vendor calls (e.g.
+    api.openai.com / api.anthropic.com / localhost VZ SUT) are unaffected.
+    """
+
+    if "openrouter.ai" not in base_url:
+        return {}
+    headers: dict[str, str] = {}
+    referer = os.environ.get("OPENROUTER_HTTP_REFERER", "").strip()
+    if referer:
+        headers["HTTP-Referer"] = referer
+    title = os.environ.get("OPENROUTER_X_TITLE", "").strip()
+    if title:
+        headers["X-Title"] = title
+    return headers
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     logging.basicConfig(
@@ -124,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         base_url=manifest.base_url,
         api_key=sut_key,
         model=manifest.model_identifier,
+        extra_headers=_maybe_openrouter_headers(manifest.base_url),
     )
 
     user_sim_key = _read_env(args.user_sim_key_env, "user simulator")
@@ -131,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         base_url=args.user_sim_base_url,
         api_key=user_sim_key,
         model=args.user_sim_model,
+        extra_headers=_maybe_openrouter_headers(args.user_sim_base_url),
     )
 
     pt_key = _read_env(args.perturn_key_env, "per-turn judge")
@@ -138,7 +161,11 @@ def main(argv: list[str] | None = None) -> int:
 
     def make_completer(base_url: str, api_key: str, model: str):
         client = OpenAIUtteranceClient(
-            base_url=base_url, api_key=api_key, model=model, max_tokens=1024
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            max_tokens=1024,
+            extra_headers=_maybe_openrouter_headers(base_url),
         )
 
         def complete(prompt: str, *, seed: int, system: str = "") -> str:

@@ -1,0 +1,55 @@
+# Companion Bench smoke roster — Qwen DashScope (immediate fallback while OpenRouter
+# key is being provisioned).
+#
+# JUDGE-QUALITY GATE (READ THIS FIRST):
+#
+#   This roster places per-turn judge AND arc judge inside the SAME model
+#   family (Qwen3-Max + Qwen-Plus, both Alibaba DashScope). Per
+#   docs/specs/companion-bench.md §5, the arc judge MUST come from a
+#   different model family than the per-turn judge for a "real" run.
+#   Two Qwen sizes is a WEAK FAMILY PROXY — useful for pipeline
+#   validation, NOT acceptable as an official leaderboard submission.
+#
+#   See docs/external/companion-bench-openrouter-setup.md §"Judge 合格度档级"
+#   for the three-tier qualification ladder (A/B/C). This file is tier A
+#   (weak proxy). Tier B (true cross-family via OpenRouter) is one
+#   OPENROUTER_API_KEY away — see reference_systems.smoke.yaml.
+#
+# Why this exists alongside reference_systems.smoke.yaml:
+#   - .local/llm.env already has PROTOCOL_LLM_API_KEY (Qwen DashScope) configured
+#   - OpenRouter route requires an additional account/key the user is provisioning
+#   - This roster lets the user validate the full pipeline TODAY using existing
+#     credentials, then switch to OpenRouter for true cross-vendor reference runs
+#
+# Use:
+#   SMOKE_PROVIDER=qwen bash scripts/companion_bench/run_companion_bench_smoke.sh
+#
+# Prerequisites in `.local/llm.env`:
+#   PROTOCOL_LLM_API_KEY=sk-...           (already present — DashScope key)
+#   LIFEFORM_LOCAL_API_KEY=any-non-empty  (lifeform-openai-compat does not validate)
+#
+# Family rotation NOTE:
+#   All four call-sites (SUT, user simulator, per-turn judge, arc judge) use Qwen.
+#   The arc judge uses qwen-plus instead of qwen3-max as a *weak* family proxy
+#   (different model size / training snapshot). For the true cross-family judge
+#   ensemble required by RFC §5, switch to OpenRouter and run the OpenRouter roster.
+#
+# Cost estimate (4 scenarios × 2 SUT × ~3 sessions × ~5 turns × ~3K token,
+# DashScope 旗舰 qwen3-max ~¥0.05/1K input + ¥0.20/1K output, 估算上限):
+#   Token cost:    ~¥10-30
+#   Wallclock:     ~10-20 min
+
+systems:
+  - submission_id: dashscope-qwen3-max-smoke
+    system_name: Qwen3-Max (DashScope)
+    model_identifier: qwen3-max
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key_env: PROTOCOL_LLM_API_KEY
+    leaderboard_category: closed-api
+
+  - submission_id: lifeform-companion-smoke
+    system_name: VZ companion (synthetic substrate)
+    model_identifier: lifeform-companion
+    base_url: http://127.0.0.1:8000/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke

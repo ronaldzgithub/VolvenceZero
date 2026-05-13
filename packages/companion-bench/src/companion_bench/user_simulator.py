@@ -34,7 +34,7 @@ import dataclasses
 import hashlib
 import random
 import textwrap
-from typing import Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 
 from companion_bench.lexicon import IdentitySlot, draw_identity
 from companion_bench.spec import FSMStep, ScenarioSpec
@@ -424,12 +424,19 @@ class OpenAIUtteranceClient:
         model: str,
         request_timeout_s: float = 60.0,
         max_tokens: int = 256,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = request_timeout_s
         self._max_tokens = max_tokens
+        # ``extra_headers`` lets callers attach vendor-specific attribution
+        # headers (e.g. OpenRouter's ``HTTP-Referer`` + ``X-Title``) so
+        # rate-limit policies kick in correctly. Mirrors the
+        # ``OpenAIChatClient.__init__(extra_headers=...)`` parameter
+        # already on the SUT side.
+        self._extra_headers = dict(extra_headers or {})
 
     def complete(
         self,
@@ -453,13 +460,15 @@ class OpenAIUtteranceClient:
             "seed": int(seed),
             "max_tokens": self._max_tokens,
         }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        headers.update(self._extra_headers)
         req = urllib.request.Request(
             f"{self._base_url}/chat/completions",
             data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=self._timeout) as resp:

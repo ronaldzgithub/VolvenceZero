@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-13 (26 条 commercialization debt #45-#70 全 SHADOW scaffold land — 8 周 rollout v0.2 bump)
+> Last updated: 2026-05-13 (Companion Bench smoke 真跑导出 5 条新 debt #71-#75)
+
+> 2026-05-13 update (Companion Bench smoke real-run findings — 5 new debts #71-#75): 跑通 [`scripts/companion_bench/run_companion_bench_smoke.py`](../scripts/companion_bench/run_companion_bench_smoke.py) Qwen + VZ-synthetic F1 family (4 scenarios) 后，从 SMOKE_REPORT v2 + judge robustness replay 导出 5 条 hard-evidence debts。**核心 finding**：(a) [`#71`] Qwen-内 weak proxy judge 6 axis 全 σ > 8（实测平均 23.2），qwen3-max vs qwen-flash 给同一 transcript 差 35 分 → [`#48`] 真 cross-family sweep **不是 nice-to-have，是 leaderboard 准入硬前提**；(b) [`#72`] smoke 默认 `--substrate-mode synthetic` 让 VZ 跑 deterministic echo，VZ 13.79 vs Qwen 74.56 是 substrate 差不是 architectural argument，触发 P5 kill criteria 误报警的根因；(c) [`#73`] SUT subprocess 单 HTTP 400/timeout 整个 SUT 0 bundle (Qwen v2 重跑 25 min timeout 实例) → 缺 retry + arc-isolation；(d) [`#74`] `SubmissionManifest.system_prompt` / `generation_config` 在 `arc_runner` 未注入 SUT → "manifest 与跑分一致"承诺破；(e) [`#75`] `CostTracker.record_perturn_judge` / `record_arc_judge` 在 `run_submission` 未调用 → 即使加 Qwen 价格表 judge cost 仍 None。**Pipeline 状态**：scaffold + wiring 修补就位 (cost.py 加 Qwen 价格 / score_reference 加 subprocess timeout / build_site recursive glob / OpenRouter scaffold 待用户加 key)；评估 evidence 受 #71 #72 阻塞，绝对数字不可外引。
 
 > 2026-05-13 update (rollout v0.2 — 26 条 commercialization debt 全部进入 SHADOW 阶段): 按 [`docs/moving forward/commercialization-evidence-rollout.md`](moving%20forward/commercialization-evidence-rollout.md) §3 W1-W2 + §10 W1 PR 拆法 + §3 推荐起跑顺序，一次性 land 全 4 个 packet 的 SHADOW scaffold（约 62 新文件 + 10 修改）。**本批 SHADOW 不破现有 1452+ contract test**：所有新字段都是 `Optional` 默认（`compatible_substrates=()` / `tenant_identity=None` / `refusal_eval_report=None` / `validated_substrates=()` / `cost_breakdown={}`），所有新 perf test 走 `@pytest.mark.perf` 默认 skip。**26 条 debt 状态**：#45-#70 全部从"未启动"推进到"SHADOW scaffold land + 待 evidence run"——具体每条 debt 对应的 scaffold 文件清单见 rollout v0.2 附录 D。**ACTIVE 推进路径**：W2 起团队按 [`commercialization-evidence-rollout.md`](moving%20forward/commercialization-evidence-rollout.md) §6 周交付物 checkbox 跑（reviewer 招募 → API sweep → GPU PEFT → 30 天试点），不需要再写骨架代码。**关键 SHADOW 选择记录**：(a) F-B 双层 scope `bind_session_two_layer` 是 opt-in（不破 closed-alpha legacy 路径）；(b) F-C `compatible_substrates` 折入 `compute_bundle_integrity_hash` 仅当非空（旧 bundle hash byte-stable）；(c) P5 `ScenarioSpec.language` **不**进 `to_canonical()`（避免 24 公开 scenario hash 全表 rotation）；(d) P2 archetype 识别走 (a) `LLMArchetypeClassifier`（DeepSeek V4 默认）+ (b) keyword 路径被 AST 守门永久排除 + (c) metacontroller 长期过渡。
 
@@ -1937,6 +1939,136 @@ return (
   4. ops dashboard 加 handoff 队列 live view + alert（队列长度超阈值 / 超时未接手）
   5. 与 #69 两层 scope 联动：handoff 队列按 tenant 隔离
 - **优先级**：**低-中**（Phase B 中期；P2 第一个试点 ops 接入前）
+
+---
+
+## 71. Companion Bench Qwen-only weak proxy judge 实测 6 axis 全 size-sensitive (强化 #48)
+
+- **路径**：
+  - 实测 driver: [`scripts/companion_bench/qwen_judge_robustness_replay.py`](../scripts/companion_bench/qwen_judge_robustness_replay.py)
+  - 实测 artifact: `artifacts/companion_bench_smoke/judge_robustness_qwen_proxy.json` (gitignored)
+  - 实测 narrative: `artifacts/companion_bench_smoke/SMOKE_REPORT.md` v2 §4
+  - 现 smoke 默认 judge 配置: [`scripts/companion_bench/reference_systems.smoke_qwen.yaml`](../scripts/companion_bench/reference_systems.smoke_qwen.yaml)（per-turn=`qwen3-max`, arc=`qwen-plus`，同 family 不同 size）
+  - 上游 spec：[`docs/specs/companion-bench.md`](specs/companion-bench.md) §5（"arc judge MUST come from a different model family than per-turn"）
+  - 上游 debt：[`#48`](../docs/known-debts.md) (LLM-as-judge cross-family robustness sweep)
+- **问题**：本次 smoke 用 4 个 lifeform-companion bundle × 3 个 Qwen judge (qwen3-max / qwen-plus / qwen-flash) replay 跑 arc-level scoring，得到：
+  - **6 axis per-axis σ 全部 > 8（合格阈值）**：A1=32.68 / A2=26.04 / A3=9.52 / A4=32.07 / A5=25.42 / A6=13.43，平均 σ ≈ 23.2
+  - **3 judge 给同一组 transcript 的 mean 分**：qwen3-max=40.83 / qwen-plus=34.38 / **qwen-flash=75.42** → 同 transcript 差 35 分
+  - 单 SUT 没 pairwise，ranking flip = 0/0 (但绝对分数差 35 分本身就否定了 ranking 稳定性)
+- **核心含义**：weak proxy（同 family 不同 size）**内部都不稳**——跨 family ρ 大概率更糟。这是 [#48](../docs/known-debts.md) 真 cross-family sweep **不是 nice-to-have，是 leaderboard 准入硬前提**的硬证据。
+- **违反**：违反 [`docs/specs/companion-bench.md`](specs/companion-bench.md) §5 "arc judge 必须 cross-family" 精神；violations 不在 wheel 而在 orchestrator (`reference_systems.smoke_qwen.yaml` 配置同 family 两 model)，wheel 已显式不强制 family rotation。
+- **风险**：**高**。**当前 smoke 跑分的所有绝对数字全部不可外引**——VZ 13.79 / Qwen 74.56 / ΔA3 都被 weak proxy bias 染色。任何用这组数据 cite 给客户/媒体/arxiv 都会被严肃 reviewer 一击即破。
+- **触发条件**：(a) 任何 Qwen-only 配置进 leaderboard；(b) 任何 cite smoke 数据当 reference run；(c) [#32](../docs/known-debts.md) Companion Bench v1.0 launch 准备公开榜单时；(d) 任何 A/B prompt-engineering 实验依赖判分稳定性。
+- **推荐修法**：
+  1. **立即**：smoke `SMOKE_REPORT.md` 顶部加 `不可外引` watermark（已有 §4 标注 size-sensitive，但应升级为 doc-level 警告）
+  2. **短期**：用户加 `OPENROUTER_API_KEY` 后切档 B (`--provider openrouter`，自动用 `openai/gpt-5-mini` per-turn + `anthropic/claude-3.7-sonnet` arc)，重跑同 4 scenario 验证是否 σ 显著下降（cross-family）
+  3. **中期**：跑 [#48](../docs/known-debts.md) [`scripts/companion_bench/judge_robustness_sweep.py`](../scripts/companion_bench/judge_robustness_sweep.py) 真 cross-family sweep (5+ family × 5 SUT × 24 scenario)，validate Spearman ρ ≥ 0.75，作为 [#32](../docs/known-debts.md) launch 准入条件
+  4. 长期：leaderboard `aggregate_results.json` 每行加 "judge_qualification_tier: A/B/C" 字段，weak proxy 跑分永不在 official tier 显示
+- **优先级**：**中-高**（强化 [#48](../docs/known-debts.md) — #48 之前是"应该跑"，本次实测证明是"不跑就不能 launch"）
+
+---
+
+## 72. Smoke 默认 substrate=synthetic 让 VZ 跑 deterministic echo，触发 P5 kill criteria 误报警
+
+- **路径**：
+  - lifeform-serve CLI 默认: [`packages/lifeform-service/src/lifeform_service/cli.py`](../packages/lifeform-service/src/lifeform_service/cli.py)（`--substrate-mode {synthetic,hf-shared}`）
+  - smoke runner 默认 substrate: [`scripts/companion_bench/run_companion_bench_smoke.py`](../scripts/companion_bench/run_companion_bench_smoke.py) line `VZ_SUT_SUBSTRATE = ... default "synthetic"`
+  - smoke helper: [`scripts/companion_bench/start_vz_sut.sh`](../scripts/companion_bench/start_vz_sut.sh) `VZ_SUT_SUBSTRATE="${VZ_SUT_SUBSTRATE:-synthetic}"`
+  - synthetic backend: `packages/vz-substrate/src/volvence_zero/substrate/adapter.py` `PlaceholderSubstrateAdapter` (deterministic echo / fake provider)
+  - 上游商业承诺: [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §3.1 / §4.5 "P5 在长程陪伴 niche 上区分得出 SUT" 论点
+- **问题**：smoke 跑 lifeform-companion SUT 默认走 `--substrate-mode synthetic`，底层 LLM 是 deterministic placeholder（不试图记忆 / 推理 / 共情，输出 `[echo:<sid>] <user_text>` 风格 placeholder）。本次 smoke 实测：
+  - VZ-synthetic A3 Continuity = **5.00**（接近底）
+  - Qwen3-Max v1 (real LLM) A3 = **36.25**
+  - **ΔA3 = -31.25**，触发 [`commercialization-assessment.md`](business/commercialization-assessment.md) §4.5 P5 kill criteria 警告（"VZ A3 接近或低于 Qwen → 触发评估，需重审"）
+  - 但这**完全不是 VZ architectural problem**——synthetic substrate 不试图记忆，是 substrate 选择的 unfair benchmark；任何 NLU 系统在 placeholder substrate 上都会 A3 = 0
+- **核心含义**：smoke default substrate 选择**让数据看起来 unfair**，会让任何看到 SMOKE_REPORT 的人误以为"VZ 比 Qwen 弱"，污染商业判断。SMOKE_REPORT v2 §3 已加 synthetic-substrate caveat，但 caveat 是事后说明，不如默认配置就用真 substrate。
+- **违反**：不违反 R 铁律。但违反 evaluation 公平性精神（"用同 substrate 比较两个 architecture"才是 architectural ablation）。
+- **风险**：**中-高**。任何 P5 demo / 内部评估 / 客户尽调引用 smoke 数据会触发 P5 kill criteria 误报；任何后续 commercialization 决策若基于 ΔA3 < 0 误读会偏向"砍 VZ companion"路径。
+- **触发条件**：(a) 任何 P5 第三方 demo 引用 SMOKE_REPORT；(b) 任何商业决策 review 引用 ΔA3；(c) 想要真 P5 evidence 时；(d) commercialization §4.5 kill criteria 评估实际触发。
+- **推荐修法**：
+  1. **立即（不破现有）**：smoke runner 加 `--substrate-mode {synthetic,hf-shared}` 顶层参数 + `--vz-substrate-model-id` 默认 `Qwen/Qwen2.5-1.5B-Instruct`；新加 `SMOKE_PROFILE=cpu_fast | gpu_fair` env，cpu_fast 默认 synthetic 标 "pipeline-only"，gpu_fair 默认 hf-shared 标 "architecture-fair"
+  2. SMOKE_REPORT generator ([`_emit_smoke_report.py`](../scripts/companion_bench/_emit_smoke_report.py)) 在 §1 配置表加 `Substrate Mode` 行，gpu_fair 模式才允许进 §3 ΔA3 商业判定，cpu_fast 模式 §3 显示 "Substrate-unfair, no commercial judgement"
+  3. 文档 [`docs/external/companion-bench-openrouter-setup.md`](external/companion-bench-openrouter-setup.md) 加 §"Substrate 公平度档级"对照 §"Judge 合格度档级"
+  4. 长期：`packages/lifeform-service/` 提供 `--substrate-mode hf-shared` + lazy-load + warm-up cache 让 GPU 加载 < 5 min（当前 ~10-15 min）
+- **优先级**：**中**（不阻塞 pipeline 验证 — synthetic 跑通确实证明 wiring 通；但阻塞任何商业 evidence 引用）
+
+---
+
+## 73. Companion Bench SUT subprocess 缺 retry + arc-level fail-isolation
+
+- **路径**：
+  - SUT HTTP client: [`packages/companion-bench/src/companion_bench/sut_client.py`](../packages/companion-bench/src/companion_bench/sut_client.py) `OpenAIChatClient.chat`（无 retry，单次 `urllib.request.urlopen`，`request_timeout_s=120` 默认）
+  - simulator HTTP client: [`packages/companion-bench/src/companion_bench/user_simulator.py`](../packages/companion-bench/src/companion_bench/user_simulator.py) `OpenAIUtteranceClient.complete`（同上无 retry）
+  - judge HTTP client: 同上 (judge 也走 `OpenAIUtteranceClient`)
+  - arc runner: [`packages/companion-bench/src/companion_bench/arc_runner.py`](../packages/companion-bench/src/companion_bench/arc_runner.py) `run_arc`（单 turn HTTP 异常 → arc fail）
+  - submission orchestrator: [`packages/companion-bench/src/companion_bench/submission.py`](../packages/companion-bench/src/companion_bench/submission.py) `run_submission`（arc 异常未 catch → 整个 SUT 0 bundle）
+  - 上游 partial closure: [`#45`](../docs/known-debts.md) `score_reference_systems` subprocess wallclock timeout（已加，本次 25 min 守住）
+- **问题**：本次 smoke Phase 2 实测：
+  - **第一次跑** (Qwen + VZ): Qwen subprocess 在 user_simulator.py:474 触发 `urllib.error.HTTPError: HTTP Error 400: Bad Request`（DashScope 间歇拒绝 — 可能 token 超限、seed 字段、或 transient server-side），整个 Qwen SUT 0 bundle 写出
+  - **第二次跑** (Qwen-only 重跑): 第 1 arc 7 min 完成，第 2 arc 超 25 min subprocess timeout 被 [#45](../docs/known-debts.md) 守门 kill，4 arcs 只完成 1 个，summary.json 没写 → 整个 SUT 数据废
+  - 即使有 1 个 bundle 写出，run_submission 没机会调用 `write_submission_summary` → leaderboard 看不到
+- **核心含义**：single-vendor reliability 风险（DashScope 当前晚高峰慢、HTTP 400 偶发、token 超限 transient）让整轮跑分白做。严肃 reference run 必须有 retry + arc-level fail-fast。
+- **违反**：不违反 R 铁律。但违反 [`docs/external/companion-bench-submission-protocol.md`](external/companion-bench-submission-protocol.md) reproducibility 精神（同样 manifest + key 应该出同样 result，含 transient 失败容忍）。
+- **风险**：**中**。每次 Qwen-only / single-vendor smoke 都有 ~30% 失败率（实测 2 跑 1 全失败 1 部分失败）；正式 reference run（24 scen × 5 SUT × 3 seeds = 360 arcs）只要任一 arc fail 整个 SUT 死，再加 OpenRouter rate limit 风险，nightly small ($200-400) 都跑不出完整 evidence。
+- **触发条件**：(a) 任何严肃 reference run；(b) [#34](../docs/known-debts.md) staged executor 重新设计时；(c) DashScope/OpenRouter 间歇性 fail；(d) [`#32`](../docs/known-debts.md) launch 准备真跑 paper-suite-full 时。
+- **推荐修法**：
+  1. `OpenAIChatClient` + `OpenAIUtteranceClient` 加 `_retry_with_backoff(max_retries=3, backoff_factor=2.0)` helper：429 / 5xx / `URLError` / `TimeoutError` 重试（HTTP 400 不重试 — 是 client 错）
+  2. `run_arc` 把单 turn 异常包装为 `ArcExecutionError`，`run_submission` catch ArcExecutionError → log + 跳到下个 arc + 仍写已成功 arcs 的 summary.json（arc-level fail-isolation）
+  3. 加 `SubmissionResult.failed_arc_count` + `failed_arc_reasons` 字段，让 leaderboard 显示 "Qwen3-Max: 3/4 arcs OK, 1 failed (HTTP 400)"
+  4. `score_reference_systems.py` 在主循环 catch 后写 partial aggregate（即使 0 arc，也写 `{"submission_id": ..., "status": "FAILED", "reason": ...}` 到 aggregate；现在直接 skip aggregate row）
+  5. CI workflow [`companion-bench-paper-suite-small.yml`](../.github/workflows/companion-bench-paper-suite-small.yml) 加 `--retry-failed-systems` 把失败 SUT 单独 retry 1 次
+- **优先级**：**中**（阻塞 reference run 完整性；smoke 可勉强凑合）
+
+---
+
+## 74. SubmissionManifest.system_prompt + generation_config 在 arc_runner 未注入 SUT messages
+
+- **路径**：
+  - schema: [`packages/companion-bench/src/companion_bench/submission.py`](../packages/companion-bench/src/companion_bench/submission.py) `SubmissionManifest.system_prompt: str` + `generation_config: dict` 字段（line 87-99）
+  - arc 调度: [`packages/companion-bench/src/companion_bench/arc_runner.py`](../packages/companion-bench/src/companion_bench/arc_runner.py) `run_arc` 调 `sut_client.chat(messages=..., temperature=ArcRunConfig.temperature, max_tokens=ArcRunConfig.max_tokens)` — `messages` 不含 manifest.system_prompt，`temperature` / `max_tokens` 写死 ArcRunConfig 默认
+  - 调度入口: [`scripts/companion_bench/run_real_submission.py`](../scripts/companion_bench/run_real_submission.py) line 124-128 构造 `OpenAIChatClient(base_url=..., api_key=..., model=...)` — 不传 manifest.system_prompt 也不读 manifest.generation_config
+  - 上游协议: [`docs/external/companion-bench-submission-protocol.md`](external/companion-bench-submission-protocol.md)（明文 require manifest 的 system_prompt + generation_config 体现在 SUT 上）
+- **问题**：`SubmissionManifest` schema 含 `system_prompt: str` + `generation_config: dict`，但运行时**完全没用**：
+  - SUT 每 turn 用 vendor 默认 system prompt + ArcRunConfig 默认 generation_config
+  - submitter 上传 `system_prompt: "你是友好的 X 顾问"` 与上传 `system_prompt: ""` 跑出**完全相同**的数据
+  - manifest 自我描述（"我用了 prompt X + temperature 0.5"）与实际跑分行为脱节
+- **核心含义**：reproducibility / 可比性 / 提交方信任三个东西同时坏。任何 prompt-tuning ablation（"我加了 brand voice prompt 后 A2 提升 5 分"）实际不会发生 — 因为 prompt 没注入。
+- **违反**：违反 [`docs/external/companion-bench-submission-protocol.md`](external/companion-bench-submission-protocol.md) reproducibility 协议（spec §3 P3）。
+- **风险**：**中**。第一个外部 submitter 想做 system_prompt A/B 时立即发现失效；submission protocol 第一条承诺破坏 → submitter 失去信任。
+- **触发条件**：(a) 任何 submitter 提交 manifest 含非空 system_prompt 期望生效；(b) 任何 prompt-engineering ablation 实验；(c) [#32](../docs/known-debts.md) launch 之前必须修；(d) 内部 lifeform-companion SUT 也想用自定义 system_prompt 时（VZ 自己也踩这个坑）。
+- **推荐修法**：
+  1. `arc_runner.run_arc` 接 `system_prompt: str = ""` + `generation_config: dict = {}` 参数，内部把 system_prompt 注入 `messages = [{"role": "system", "content": system_prompt}, ...] if system_prompt else messages`，把 generation_config 透传 `sut_client.chat(temperature=generation_config.get("temperature", default), max_tokens=generation_config.get("max_tokens", default), ...)`
+  2. `submission.run_submission` 透传 `manifest.system_prompt + manifest.generation_config` 到 `run_arc`
+  3. 加 `tests/contracts/test_submission_manifest_system_prompt_propagation.py`：fake SUT client 验证 `messages[0]['role']=='system'` 含 manifest.system_prompt 字面量
+  4. ArcRunConfig 增加 `inherit_from_manifest: bool = True` 让 default generation_config 来自 manifest 而不是写死
+  5. `SUTClient.chat` Protocol surface 已有 `temperature` / `max_tokens` 参数，无需扩 Protocol；只需 caller 真传 manifest 值
+- **优先级**：**中**（影响 launch 准入；不影响 pipeline 跑通）
+
+---
+
+## 75. CostTracker.record_perturn_judge / record_arc_judge 在 run_submission 未调用 → judge cost 漏算
+
+- **路径**：
+  - cost API: [`packages/companion-bench/src/companion_bench/cost.py`](../packages/companion-bench/src/companion_bench/cost.py) `CostTracker.record_perturn_judge(model, prompt_tokens, completion_tokens)` + `record_arc_judge(...)` 已实现
+  - submission orchestrator: [`packages/companion-bench/src/companion_bench/submission.py`](../packages/companion-bench/src/companion_bench/submission.py) `run_submission` **只**调用 `cost_tracker.record_arc_record(arc)` 拿 SUT usage（每 ArcTurn 携带 `sut_prompt_tokens` / `sut_completion_tokens`），**从未**调用 `record_perturn_judge` / `record_arc_judge`
+  - judge 实现: [`packages/companion-bench/src/companion_bench/judge_perturn.py`](../packages/companion-bench/src/companion_bench/judge_perturn.py) `LLMPerTurnJudge` + [`judge_arc.py`](../packages/companion-bench/src/companion_bench/judge_arc.py) `LLMArcJudge` — judge `.score()` 内部调 `client_complete(...)` 拿 raw text，**不返回** usage tokens（make_completer 闭包丢失 usage 信息）
+  - 价格表: [`cost.py`](../packages/companion-bench/src/companion_bench/cost.py) `_DEFAULT_PRICES`（本次 #71 配套已加 Qwen 系列）
+- **问题**：本次 smoke 实测：
+  - VZ companion smoke summary `cost.totals.total_usd = 0.0`（lifeform-companion 价格表 = 0，对，但 judge 部分应该有数）
+  - dashscope-qwen3-max-smoke v1 summary `cost.totals.total_usd = None`（v1 时 cost.py 没 Qwen 价格 — 已修）
+  - 即使 cost.py 加 Qwen 价格表后重跑，**判分用了多少 token、多少钱**仍然 None — 因为 `record_perturn_judge` / `record_arc_judge` 从来没被 call
+  - 4 个 arc × ~5 turn × per-turn judge 1 call/turn + arc judge 1 call/arc = ~24 judge calls，全部漏 cost
+- **核心含义**：cost evidence 不全 → submitter 看不到 reference judge 真实成本 → [`commercialization-assessment.md`](business/commercialization-assessment.md) §6 P5 单位经济假设（"$5-15k release-tier 跑分"）依赖完整 cost evidence 才能准。
+- **违反**：违反 [`docs/external/companion-bench-cost-model-v0.md`](external/companion-bench-cost-model-v0.md) cost transparency 承诺。
+- **风险**：**低-中**。不阻塞跑分；但任何 commercialization §6 单位经济回填 / submitter 预算指引 / [#56](../docs/known-debts.md) cost 闭环都要这个数据完整。
+- **触发条件**：(a) submitter 看 cost 决定是否值得提交；(b) [#56](../docs/known-debts.md) [`scripts/companion_bench/estimate_quarterly_cost.py`](../scripts/companion_bench/estimate_quarterly_cost.py) 真跑预算分析；(c) [`commercialization-assessment.md`](business/commercialization-assessment.md) §6.5 P5 单位经济回填实测；(d) [#32](../docs/known-debts.md) launch 之前 publish 完整 cost。
+- **推荐修法**：
+  1. `LLMPerTurnJudge` / `LLMArcJudge` 内部把 `client_complete` 升级为返回 `tuple[str, UsageInfo]`，UsageInfo = `(prompt_tokens, completion_tokens)`；或加 typed `.usage_log: list[UsageEntry]` 字段累积每次 call usage
+  2. `submission.run_submission` 在每个 `score_arc_perturn(arc, judge)` 调用后，遍历 judge.usage_log 调 `cost_tracker.record_perturn_judge(model=judge.model, prompt_tokens=..., completion_tokens=...)`；arc judge 同理
+  3. 或者更优雅：`make_completer(...)` 闭包 hook CostTracker，在每次 LLM HTTP response 解析后自动 record（避免改 judge 内部）
+  4. 加 contract test `tests/contracts/test_companion_bench_judge_cost_recorded.py`：fake judge × N 次 `.score()`，run_submission 后 `result.cost.perturn_calls > 0` AND `result.cost.perturn_usd > 0`
+  5. 价格表: [#71](../docs/known-debts.md) 配套已加 Qwen；可顺手补 OpenRouter `<vendor>/<model>` 命名（如 `openrouter/openai/gpt-5-mini`），让档 B (OpenRouter) 路径 cost 自动有数
+- **优先级**：**低-中**（与 [#56](../docs/known-debts.md) 同 packet 推进最高效）
 
 ---
 
