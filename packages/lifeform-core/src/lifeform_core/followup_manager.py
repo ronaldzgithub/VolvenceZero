@@ -26,6 +26,7 @@ from volvence_zero.owner_hydration import (
     HydrationVersionMismatchError,
     OwnerPersistenceSnapshot,
 )
+from volvence_zero.semantic_state import SemanticRecord
 
 from lifeform_core.types import FollowupItem
 
@@ -396,12 +397,13 @@ class FollowupManager:
     def _key_for(entry: Any, *, prefix: str) -> str:
         if isinstance(entry, str):
             return f"{prefix}::{entry}"
-        for attr in ("loop_id", "commitment_ref", "id", "ref"):
-            value = getattr(entry, attr, None)
-            if value:
-                return f"{prefix}::{value}"
-        # Fall back to a stable repr — guarantees idempotent deduping even
-        # when the kernel's owner produces opaque tuple entries.
+        if isinstance(entry, SemanticRecord):
+            return f"{prefix}::{entry.record_id}"
+        # R8 / SSOT note: ``unresolved_loops`` / ``active_commitments`` are
+        # ``tuple[SemanticRecord, ...]`` (vz-cognition contracts), so the
+        # SemanticRecord fast-path above covers production callers. The
+        # repr fallback exists only for opaque tuple entries that legacy
+        # test fixtures sometimes synthesise.
         return f"{prefix}::{repr(entry)}"
 
 
@@ -441,12 +443,14 @@ def _deserialize_followup_item(blob: Any) -> FollowupItem:
 
 
 def _entry_description(entry: Any, *, fallback: str) -> str:
+    # R8 / SSOT: ``SemanticRecord.summary`` is the canonical short
+    # description field (vz-cognition contracts); read it directly
+    # instead of scanning candidate attribute names. The ``str`` arm
+    # remains for legacy callers that pass a raw string.
     if isinstance(entry, str):
         return entry
-    for attr in ("description", "summary", "text", "loop_id", "commitment_ref"):
-        value = getattr(entry, attr, None)
-        if isinstance(value, str) and value:
-            return value
+    if isinstance(entry, SemanticRecord):
+        return entry.summary or fallback
     return fallback
 
 
