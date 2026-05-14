@@ -7,22 +7,35 @@ What this owns:
 * A list of **approved protocols** loaded into a service-level
   :class:`ProtocolRegistry`.
 * A factory for building :class:`LlmJsonClient` (when configured).
+* A sync compile path
+  (:meth:`compile_approved_to_domain_packages_snapshot`) that
+  turns the current approved set into a tuple of
+  :class:`DomainExperiencePackage` so the
+  :class:`SessionManager` can inject them into each new
+  :class:`Lifeform` via ``Lifeform.with_domain_experience(...)``.
+  This is the load-bearing wiring that makes "upload PDF →
+  approve → AI behaves accordingly on the next session" actually
+  hold end-to-end. Packet name: ``protocol-uptake-to-session-injection``.
 
-What this does NOT own (honest scoping for v1):
+What this does NOT own:
 
 * Per-session :class:`ProtocolRegistryModule` α/β learning state.
-  Each kernel session today instantiates its own registry inside
-  the vertical's ``lifeform_factory``; wiring the service-level
-  registry into per-session modules requires a follow-up patch
-  to each vertical factory. For v1 the operator has visibility
-  + audit trail at the service level; per-session activation is
-  documented as the next plumbing step.
+  v1 ships the static-injection path above; α/β reinforcement
+  on protocol weights remains a per-session concern handled by
+  ``ProtocolRegistryModule`` internals at runtime, fed by the
+  PE loop. The service-level registry is the source of truth
+  for *which protocols a session inherits at construction*, not
+  for their runtime weight evolution.
 
 Concurrency model:
 
-* All mutations go through ``asyncio.Lock``.
-* HTTP routes await :meth:`acquire_lock`-style helpers below
-  rather than touching internal dicts directly.
+* Mutating routes (submit / approve / reject / unload) go
+  through an internal ``asyncio.Lock``.
+* The compile-snapshot path is sync (the underlying
+  :class:`ProtocolRegistry` is RLock-protected, so calling it
+  without awaiting our own asyncio lock is safe and avoids
+  nested-lock concerns when ``SessionManager.create_session``
+  reads it while holding its own lock).
 """
 
 from __future__ import annotations
@@ -46,13 +59,21 @@ from lifeform_protocol_runtime import (
     read_pdf,
     scan_directory_for_protocols,
 )
+from volvence_zero.application.domain_experience import (
+    DomainExperienceManifest,
+    DomainExperiencePackage,
+)
 from volvence_zero.behavior_protocol import (
     BehaviorProtocol,
     BehaviorProtocolCandidate,
     ProtocolSourceKind,
     ReviewStatus,
 )
-from volvence_zero.protocol_runtime import ProtocolRegistry
+from volvence_zero.protocol_runtime import (
+    ProtocolApplicationArtifacts,
+    ProtocolRegistry,
+    compile_protocol_to_application_artifacts,
+)
 
 
 _LOG = logging.getLogger("lifeform_service.protocol_uptake")
@@ -124,6 +145,38 @@ class ProtocolUptakeService:
     async def list_approved(self) -> tuple[BehaviorProtocol, ...]:
         async with self._lock:
             return self._registry.loaded_all()
+
+    def compile_approved_to_domain_packages_snapshot(
+        self,
+    ) -> tuple[DomainExperiencePackage, ...]:
+        """Compile every currently-approved (non-RETIRED) protocol into
+        a :class:`DomainExperiencePackage`.
+
+        Sync on purpose: the underlying :class:`ProtocolRegistry`
+        is RLock-protected, so reading it without taking our own
+        ``asyncio.Lock`` is safe and lets
+        :class:`SessionManager.create_session` call this from
+        inside its own async lock without nesting.
+
+        One :class:`DomainExperiencePackage` per protocol; the
+        manifest carries the protocol id / version / advisor name
+        verbatim so application owners attribute the resulting
+        ``BoundaryPriorHint`` / ``PlaybookRule`` /
+        ``DomainKnowledgeRecord`` / ``CaseMemoryRecord`` entries
+        back to a single uptake source.
+
+        Empty registry returns ``()`` so the caller can use it
+        unconditionally without an extra emptiness check.
+        """
+
+        approved = self._registry.loaded()
+        if not approved:
+            return ()
+        packages: list[DomainExperiencePackage] = []
+        for protocol in approved:
+            artifacts = compile_protocol_to_application_artifacts(protocol)
+            packages.append(_artifacts_to_domain_package(protocol, artifacts))
+        return tuple(packages)
 
     async def list_pending(self) -> tuple[_PendingEntry, ...]:
         async with self._lock:
@@ -395,6 +448,50 @@ def protocol_to_json(p: BehaviorProtocol) -> dict[str, Any]:
         "revision_count": len(p.revision_log),
         "parent_protocol_id": p.parent_protocol_id,
     }
+
+
+def _artifacts_to_domain_package(
+    protocol: BehaviorProtocol,
+    artifacts: ProtocolApplicationArtifacts,
+) -> DomainExperiencePackage:
+    """Wrap one protocol's compiled artifacts in a typed package.
+
+    Field renames from
+    :class:`ProtocolApplicationArtifacts` to
+    :class:`DomainExperiencePackage`:
+
+    * ``boundary_prior_hints`` → ``boundary_hints``
+    * ``domain_knowledge_records`` → ``knowledge_records``
+    * ``case_memory_records`` → ``case_records``
+    * ``playbook_rules`` passes through unchanged
+
+    The synthesised ``DomainExperienceManifest`` carries the
+    ``protocol_id`` / ``version`` so application owner audit
+    and ``DomainExperienceValidationReport`` lineage point
+    back to the originating uptake protocol.
+    """
+
+    manifest = DomainExperienceManifest(
+        package_id=f"protocol-uptake:{protocol.protocol_id}",
+        version=protocol.version or "1",
+        display_name=protocol.advisor_name or protocol.protocol_id,
+        domain_ids=("protocol-uptake",),
+        target_contexts=("any",),
+        evidence_level=protocol.review_status.value,
+        owner="lifeform-service/protocol-uptake",
+        description=(
+            protocol.description
+            or f"Approved protocol {protocol.protocol_id!r} compiled "
+            "into a DomainExperiencePackage by ProtocolUptakeService."
+        ),
+    )
+    return DomainExperiencePackage(
+        manifest=manifest,
+        boundary_hints=artifacts.boundary_prior_hints,
+        playbook_rules=artifacts.playbook_rules,
+        knowledge_records=artifacts.domain_knowledge_records,
+        case_records=artifacts.case_memory_records,
+    )
 
 
 __all__ = [

@@ -20,13 +20,15 @@ from volvence_zero.memory import (
 )
 
 
-# Two-layer scope is opt-in for closed-alpha (debt #46 / F-B SHADOW).
-# Default ``bind_session`` keeps the legacy single-layer
-# ``user_id == scope_key`` contract so existing evidence / memory
-# files continue to load. Hosts that want admin / end-user separation
-# call ``bind_session_two_layer(...)`` instead, which derives
-# ``scope_key == f"{tenant_id}:{end_user_id}"`` and wires the typed
-# tenant + end-user identity onto ``UserIdentity``.
+# Two-layer scope is the default since debt #46 ACTIVE (2026-05-14).
+# ``bind_session`` derives ``scope_key == f"{tenant_id}:{end_user_id}"``
+# (using ``DEFAULT_ALPHA_TENANT_ID`` when no explicit tenant is
+# supplied) and wires the typed tenant + end-user identity onto
+# ``UserIdentity``. Hosts that must preserve the previous SHADOW
+# default ``scope_key == user_id`` contract (e.g. closed-alpha
+# evidence / memory files written before the upgrade) call
+# ``bind_session_legacy_alias(...)`` explicitly so the migration is
+# observable rather than silent.
 DEFAULT_ALPHA_TENANT_ID = "alpha"
 
 
@@ -57,14 +59,65 @@ class AlphaIdentityProvider:
         self._allowed_users = allowed_users
         self._session_to_identity: dict[str, UserIdentity] = {}
 
-    def bind_session(self, *, session_id: str, user_id: str) -> UserIdentity:
+    def bind_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str | None = None,
+        end_user_id: str | None = None,
+        tenant_id: str = DEFAULT_ALPHA_TENANT_ID,
+    ) -> UserIdentity:
+        """Default two-layer scope binding (debt #46 ACTIVE).
+
+        Accepts either ``end_user_id=`` (preferred new contract) or
+        legacy positional ``user_id=`` (preserved so closed-alpha
+        callers that pre-date the upgrade keep compiling). Both names
+        are routed through :meth:`bind_session_two_layer` so the
+        derived ``scope_key == f"{tenant_id}:{end_user_id}"``.
+
+        For sites that must preserve the previous SHADOW
+        ``scope_key == user_id`` contract (because their evidence /
+        memory files on disk were written under it), call
+        :meth:`bind_session_legacy_alias` explicitly so the migration
+        is observable.
+        """
+
+        effective_id = end_user_id if end_user_id is not None else user_id
+        if effective_id is None:
+            raise ValueError(
+                "AlphaIdentityProvider.bind_session requires end_user_id "
+                "(or legacy user_id)"
+            )
+        return self.bind_session_two_layer(
+            session_id=session_id,
+            end_user_id=effective_id,
+            tenant_id=tenant_id,
+        )
+
+    def bind_session_legacy_alias(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+    ) -> UserIdentity:
+        """Single-layer legacy migration shim (debt #46 backward-compat).
+
+        Closed-alpha bindings under the previous SHADOW default kept
+        ``scope_key == user_id`` so on-disk evidence + scoped memory
+        files were keyed by the bare user_id. Hosts that still need to
+        load those files call this method explicitly. New sites
+        should prefer :meth:`bind_session` (default two-layer) so
+        admin / end-user separation is automatic.
+        """
+
         user_id = user_id.strip()
         if not user_id:
-            raise ValueError("alpha user_id must be non-empty")
+            raise ValueError(
+                "AlphaIdentityProvider.bind_session_legacy_alias: "
+                "user_id must be non-empty"
+            )
         if self._allowed_users and user_id not in self._allowed_users:
             raise PermissionError(f"alpha user {user_id!r} is not allowed")
-        # Closed alpha intentionally keeps path scope and memory tag scope
-        # identical to avoid user_id/scope_key divergence.
         identity = UserIdentity(user_id=user_id, scope_key=user_id)
         self._session_to_identity[session_id] = identity
         return identity
@@ -76,13 +129,12 @@ class AlphaIdentityProvider:
         end_user_id: str,
         tenant_id: str = DEFAULT_ALPHA_TENANT_ID,
     ) -> UserIdentity:
-        """Opt-in two-layer scope binding (debt #46 / F-B SHADOW).
+        """Explicit two-layer scope binding (debt #46 ACTIVE).
 
         Derives ``scope_key == f"{tenant_id}:{end_user_id}"`` via
-        :func:`volvence_zero.memory.derive_scope_key`. Existing
-        single-layer evidence / memory under the legacy
-        ``scope_key == user_id`` are not migrated here; that lands as a
-        separate F-B subtask (read/delete path migration shim).
+        :func:`volvence_zero.memory.derive_scope_key`. This is what
+        :meth:`bind_session` calls internally; named entry kept for
+        sites that want the intent visible at the call-site.
         """
 
         end_user_id = end_user_id.strip()

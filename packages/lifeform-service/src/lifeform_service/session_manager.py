@@ -56,6 +56,7 @@ from lifeform_service.vertical_registry import (
 from lifeform_service.verticals import VerticalSpec
 
 if TYPE_CHECKING:
+    from lifeform_service.protocol_uptake import ProtocolUptakeService
     from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
@@ -102,6 +103,7 @@ class SessionManager:
         template_adapter: VerticalTemplateAdapter | None = None,
         templates_root_dir: pathlib.Path | None = None,
         vertical_registry: VerticalRegistry | None = None,
+        protocol_uptake_service: "ProtocolUptakeService | None" = None,
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -157,6 +159,18 @@ class SessionManager:
         # synthesizer clone then carries the bundle through to L1
         # / L3 / L4 enforcement (debt #22 closure).
         self._figure_bundle: object | None = None
+        # ``protocol-uptake-to-session-injection`` packet: when set,
+        # every freshly-built ``Lifeform`` (regardless of which
+        # vertical / template / alpha branch produced it) is
+        # rebuilt via ``Lifeform.with_domain_experience(...)`` with
+        # one ``DomainExperiencePackage`` per currently-approved
+        # ``BehaviorProtocol`` injected on top of the vertical's
+        # own packages. This is the load-bearing wiring that makes
+        # "upload PDF → approve → AI behaves accordingly on the
+        # next session" hold end-to-end. Existing sessions are NOT
+        # mutated — the contract is "approval applies to NEW
+        # sessions only", which the chat UI surfaces verbatim.
+        self._protocol_uptake_service = protocol_uptake_service
 
     @property
     def vertical_registry(self) -> VerticalRegistry:
@@ -368,7 +382,18 @@ class SessionManager:
                         "template_adapter; pick a different vertical or "
                         "disable alpha mode"
                     )
-                self._alpha_identity_provider.bind_session(
+                # SessionManager keeps the legacy single-layer
+                # contract: closed-alpha evidence / scoped-memory
+                # files on disk were written under
+                # ``scope_key == user_id``. Per debt #46 ACTIVE the
+                # default ``bind_session`` now derives a two-layer
+                # scope_key, so we route this call site through the
+                # explicit legacy alias to avoid silently re-keying
+                # existing files. Sites that *want* two-layer scope
+                # call ``bind_session(...)`` (default) on the provider
+                # directly (e.g. P2 growth-advisor admin endpoint per
+                # debt #69) — they intentionally bypass SessionManager.
+                self._alpha_identity_provider.bind_session_legacy_alias(
                     session_id=sid,
                     user_id=user_id,
                 )
@@ -426,6 +451,7 @@ class SessionManager:
                 )
             else:
                 life = chosen_spec.factory(runtime)
+            life = self._inject_uptake_protocol_packages(life)
             if self._figure_bundle is not None:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
@@ -490,6 +516,31 @@ class SessionManager:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _inject_uptake_protocol_packages(self, life: Lifeform) -> Lifeform:
+        """Append uptake-approved protocol packages onto ``life``.
+
+        Returns ``life`` unchanged when no
+        :class:`ProtocolUptakeService` is wired OR no protocol
+        is currently approved. Otherwise returns a new
+        :class:`Lifeform` whose ``LifeformConfig`` carries the
+        vertical's own ``domain_experience_packages`` plus one
+        ``DomainExperiencePackage`` per approved protocol.
+
+        ``Lifeform.with_domain_experience`` reuses the same
+        ``substrate_runtime`` instance (carried in
+        ``_init_kwargs``), so this does NOT trigger a second HF
+        weight load — the only cost is reconstructing the
+        controller-layer modules at session creation.
+        """
+        if self._protocol_uptake_service is None:
+            return life
+        packages = (
+            self._protocol_uptake_service.compile_approved_to_domain_packages_snapshot()
+        )
+        if not packages:
+            return life
+        return life.with_domain_experience(packages)
 
     def _fresh_session_id(self) -> str:
         return f"sess-{uuid.uuid4().hex[:12]}"

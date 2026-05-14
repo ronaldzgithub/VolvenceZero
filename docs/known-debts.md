@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-14 (P2 day-counter 路径整段 deprecate；#65 strikethrough)
+> Last updated: 2026-05-14 (Einstein demo verticals 3-condition 接入 start_browser_chat_qwen；新增 #76 #77)
+
+> 2026-05-14 update (Einstein figure-as-a-service demo verticals 接入 chat UI — F4.2 → F4.3): 把 `_try_einstein` 拆为 [`einstein-raw`](../packages/lifeform-service/src/lifeform_service/verticals.py) / [`einstein-bundle`](../packages/lifeform-service/src/lifeform_service/verticals.py) / [`einstein-full`](../packages/lifeform-service/src/lifeform_service/verticals.py) 三个 vertical，语义一一对齐 [`PersonaCondition.{RAW,BUNDLE,BUNDLE_LORA}`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/runtime_conditions.py)；新增 [`lifeform_service.einstein_resolver`](../packages/lifeform-service/src/lifeform_service/einstein_resolver.py) 让 `EINSTEIN_BUNDLE_ROOT` / `EINSTEIN_BUNDLE_ID` / `EINSTEIN_REQUIRE_REAL_BUNDLE` 三个 env var 驱动 disk-backed Wave K artefact 加载，回退路径走 `synthetic_einstein_corpus()`；原 `einstein` vertical 名保留为 backward-compat alias 指向 `einstein-bundle`；[`start_browser_chat_qwen.sh`](../start_browser_chat_qwen.sh) + [`.ps1`](../start_browser_chat_qwen.ps1) 头部 doc + env var 默认值落档。Demo 现场可见差异（**今天就真实存在**）：`einstein-raw` ↔ `einstein-bundle` 的 L4 拒答 / L3 引证 pointer / L1 风格 — 用户在 chat UI vertical dropdown 切换零前端改动。**两条主动延后的 follow-up 已写为 debt**：(a) **#76** 进程级 `default_persona_lora_pool()` 在 3 vertical 同进程共存时无法 per-vertical 隔离 — 当前 debt #40 / #41 守护期下不浮现（synthetic LoRA delta byte-equivalent），#41 真 PEFT-on-Qwen land 后必须给 `LifeformLLMResponseSynthesizer` 加 `persona_lora_enabled: bool` flag；(b) **#77** 离线 3-condition 对照报告生成器（markdown / HTML 静态产物，给法务尽调 / [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) #58 / #59 reviewer 工艺用），本次 BOSS 决策为 `a_chat_only` 主动延后，~0.5 工程天可补。1302 + 54 = 1356 contract / smoke 测试全绿（排除 2 个预存上游 `volvence_zero.owner_hydration` 子包未声明的 import-boundary 失败，与本改动无关）。
 
 > 2026-05-14 update (debt #65 day-counter 整段 deprecated): 节奏分层（"用户处于第几阶段"）已由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接，calendar-day routing 是伪需求。配套清理已 land：删 `docs/specs/growth-advisor-day-counter.md` + `tests/contracts/test_growth_advisor_day_routing.py`；`cheng_laoshi.py` 17 处 `applicability_scope` 中 `growth_advisor:dayN` 字符串残留全部清理（funnel/rapport rules 直接删 day 标签；7 个 playbook-dayN rules 改为 onboarding-arc 关系阶段 reserve rule，`description` 从 "Day N" 改为 "Phase: ..."）；7 个 `scenarios/dayN_*.json` rename 为 `sNN_*.json` 同步更新 `scenario_id` + test 期望；`fixture_uptake.py` / `profile.py` / `__init__.py` / `prd.md` / `archetecture.md` / `SYSTEM_DESIGN.md` / `SYSTEM_GUIDE.md` / `DATA_CONTRACT.md` / `protocol-runtime.md` / `external-validation-protocol.md` / `commercialization-assessment.md` / `cross-cutting-foundation-packet.md` / `growth-advisor-pilot-packet.md`（v0.2，G-B 整段下线）/ `commercialization-evidence-rollout.md`（v0.3，月报字段 `day_cohort_activity` → `protocol_phase_cohort_activity`）/ `outbound_scheduler.py` / `realistic_load_growth_advisor.py` / `rollback_drill_growth_advisor.sh` 全部 prose / 注释同步修订。**P2 子包数量从 6 降至 5**（G-A / G-C / G-D / G-E / G-F；G-B 永久下线）。**P2 阻塞条目从 9 降至 8**：原"指责 3 day-counter routing 完全 noop"作废（节奏由 protocol 承接，不是工程缺位）。
 
@@ -2065,6 +2067,54 @@ return (
   4. 加 contract test `tests/contracts/test_companion_bench_judge_cost_recorded.py`：fake judge × N 次 `.score()`，run_submission 后 `result.cost.perturn_calls > 0` AND `result.cost.perturn_usd > 0`
   5. 价格表: [#71](../docs/known-debts.md) 配套已加 Qwen；可顺手补 OpenRouter `<vendor>/<model>` 命名（如 `openrouter/openai/gpt-5-mini`），让档 B (OpenRouter) 路径 cost 自动有数
 - **优先级**：**低-中**（与 [#56](../docs/known-debts.md) 同 packet 推进最高效）
+
+---
+
+## 76. 进程级 `default_persona_lora_pool()` 在 Einstein 三 vertical 同进程共存时无法 per-vertical 隔离
+
+- **路径**：
+  - synthesizer 端 auto-activate hook: [`packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py`](../packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py) `_maybe_activate_persona_lora`（按 `bundle.figure_id` 查 process-wide `default_persona_lora_pool()`）
+  - vertical 端 LoRA 注册: [`packages/lifeform-service/src/lifeform_service/verticals.py`](../packages/lifeform-service/src/lifeform_service/verticals.py) `_register_einstein_persona_lora_if_present`（被 `_try_einstein_full` 在 factory 内调用）
+  - verification harness 的临时方案: [`packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/runtime_conditions.py`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/runtime_conditions.py) `_temporarily_deregister_pool_record`（per-call context manager，对长生命周期 chat session 不适用）
+  - pool 实现: [`packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py`](../packages/vz-substrate/src/volvence_zero/substrate/persona_lora_pool.py) `PersonaLoRAPool`（process-level singleton）
+- **问题**：本次 F4.3 把 Einstein vertical 拆为 `einstein-raw` / `einstein-bundle` / `einstein-full` 三个 ablation arm，但 LoRA pool 是 **process-wide singleton**：`einstein-full` factory 注册 record 后，pool 状态对同进程所有 vertical 全局可见 → 后续从 `einstein-bundle` 创建的 session 走 `synthesize()` 时，`_maybe_activate_persona_lora` 通过 `bundle.figure_id == "einstein"` 在 pool 中查得到 record → auto-activate，行为与 `einstein-full` 等价，违反 [`PersonaCondition.BUNDLE`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/runtime_conditions.py) 的"persona LoRA 临时摘出"契约。verification harness 用 per-call context manager 解决（call 进入 deregister / call 退出 restore），但 chat UI 的 session 是长生命周期，pool state 必须按 synthesizer 显式 opt-out 而不是按 call 临时摘。
+- **当前不影响（debt [#40](../docs/known-debts.md) 守护期下）**：synthetic LoRA backend delta 经 LayerNorm 被吃 → bundle ↔ bundle_lora forward byte-equivalent → pool 共享在 forward 上无副作用；用户在 chat UI 切 vertical 看不出 BUNDLE / BUNDLE_LORA 差异（"看不出来"既掩盖了 #40 也掩盖了 #76）。
+- **核心含义**：今天 chat UI 上 demo 的可见差异**全部来自 `einstein-raw` vs `einstein-bundle`**（L4 拒答 / L3 引证 pointer / L1 风格），这是真实的；BUNDLE / BUNDLE_LORA 一对差异在 #40 + #41 closure 之前看不到，在 closure 之后会被 #76 污染。
+- **违反**：[`PersonaCondition`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/runtime_conditions.py) ablation contract（runtime 端必须保证 BUNDLE 条件下 LoRA forward 不激活）；ssot-module-boundaries（pool state 是 substrate-side ownership，被 service 层 vertical factory 单向写入是合理的，但被多个 vertical 同时写入而无 per-write隔离不合理）。
+- **风险**：当前**低**（debt #40 守护期）→ 一旦 [#40](../docs/known-debts.md) + [#41](../docs/known-debts.md) 闭合**升级到中-高**：真 PEFT-on-Qwen LoRA 注入 pool 后，`einstein-bundle` session 被 `einstein-full` 的 pool registration 静默"污染"，BUNDLE / BUNDLE_LORA 两条 demo 路径无法在 chat UI 上独立展示；任何依赖 byte-level condition isolation 的 SLA / 合同表述（含 [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §6.2 "L1 vs L1+L2 选哪档"客户问询）失效；[`docs/external/companion-bench-rfc-v0.md`](external/companion-bench-rfc-v0.md) reproducibility 协议受影响。
+- **触发条件**：(a) [#41](../docs/known-debts.md) 真 PEFT-on-Qwen 跑分完成 + register；(b) BD / 客户法务 demo 需要在同一会话里 A/B 切 BUNDLE vs BUNDLE_LORA 看真差异；(c) 任何依赖 condition byte-level 独立的合同 SLA；(d) [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) Packet 60 voice 盲测的 bundle vs bundle_lora paired t-test 评估需要真隔离样本。
+- **推荐修法**：
+  1. `LifeformLLMResponseSynthesizer.__init__` 新增 `persona_lora_enabled: bool = True` 字段；`_maybe_activate_persona_lora` 入口 `if not self._persona_lora_enabled: yield; return` 提前 bail；`clone_for_session` / `with_figure_bundle` 透传 flag
+  2. 配套 `with_persona_lora_enabled(flag: bool) -> LifeformLLMResponseSynthesizer` clone-style helper（mirror `with_figure_bundle` 模式）
+  3. `_try_einstein_bundle` factory 在 `_attach_figure_bundle(...)` 后显式 `bound_synthesizer = bound_synthesizer.with_persona_lora_enabled(False)`；`_try_einstein_full` 保持 default True
+  4. 加 contract test [`tests/contracts/test_einstein_vertical_condition_isolation.py`](../tests/contracts/test_einstein_vertical_condition_isolation.py)：3 个 vertical 在同进程 factory(None)，用 fake `LoRAAwareResidualRuntime` mock `activate_lora`；assert `einstein-bundle` 完整 turn 内 `runtime.activate_lora` 调用次数 == 0 而 `einstein-full` >= 1
+  5. 同步移除 [`start_browser_chat_qwen.sh`](../start_browser_chat_qwen.sh) + [`.ps1`](../start_browser_chat_qwen.ps1) 头部"Known limitation: bundle ↔ bundle_lora byte-equivalent"段落
+- **优先级**：**中**（与 [#41](../docs/known-debts.md) 同 packet 推进最高效；#41 不动则本债性质类似休眠债）
+
+---
+
+## 77. Einstein 训练成果对外只挂在 chat UI，没有离线 3-condition 对照报告（法务尽调 / reviewer 评分材料缺失）
+
+- **路径**：
+  - 现有 harness: [`scripts/figure_verify_einstein_persona.sh`](../scripts/figure_verify_einstein_persona.sh) → [`python -m lifeform_domain_figure.verification.persona.cli`](../packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/cli.py) → 输出 `artifacts/figure_verify/<run_id>/{verdict.json, transcript.md, results/<condition>.jsonl, scores.json}`（gate verdict + per-condition transcript，但**未并排**）
+  - 新增建议落点: `packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/report_render.py` + `scripts/figure_demo_einstein_report.sh`
+  - 与 chat UI 接入的关系: [`packages/lifeform-service/src/lifeform_service/verticals.py`](../packages/lifeform-service/src/lifeform_service/verticals.py) F4.3 已提供 `einstein-{raw,bundle,full}` 三 vertical 现场切换；本债是离线静态产物路径
+- **问题**：F4.3 把 demo 主路径设为 chat UI 切 vertical（BOSS 决策 `a_chat_only`），但**离线 evidence** 路径完全缺位：
+  - BD / 客户法务首次尽调时只能现场演示，不能离线提交 PDF / markdown
+  - [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) Packet 58 / Packet 59 reviewer 标注时只能看 chat UI screenshot
+  - [`docs/business/xfund-strategic-thesis.md`](business/xfund-strategic-thesis.md) / [`docs/business/xfund-technical-credibility-brief.md`](business/xfund-technical-credibility-brief.md) 缺一份可附 PDF 的 "raw / bundle / bundle_lora 3 condition × N 题并排" 报告
+  - Wave O-P verification harness 已有所有原料（per-condition transcript 与 score 落 `artifacts/figure_verify/`），只缺**渲染器** + Bash 编排把三条 condition 并排
+- **核心含义**：这不是 evidence 缺失（Wave K + Wave O-P 已经产出 4-gate verdict + transcript），是 **evidence 展示载体**缺失。今天能离线交付的只有 `verdict.json` 一段 + 三份 `transcript.md`（按 condition 分文件），客户法务看不到"同一题三条件并排"。
+- **违反**：无 R 铁律违反；属于"工程交付 vs 商业展示载体"缺口。
+- **风险**：**中-低**。不阻塞 chat UI demo（已通），但缺这条会让：(a) [`#58`](../docs/known-debts.md) / [`#59`](../docs/known-debts.md) reviewer 工艺评估时只能看 chat UI screenshot；(b) [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §7.3 P1 GTM 第一击的"我们已经在 N=50 题 reviewed set 上跑出 X" 没有离线打包形态；(c) [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) §1.2 "evidence 不齐"补回的展示路径不完整。
+- **触发条件**：(a) 第一次客户法务尽调需要离线 evidence；(b) [`#58`](../docs/known-debts.md) / [`#59`](../docs/known-debts.md) reviewer 标注材料；(c) [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) Packet 60 voice 盲测的 `eval_packet.csv` 渲染（同一渲染器可服务）；(d) 任何"raw vs bundle"的对外 case study。
+- **推荐修法**（~0.5 工程天）：
+  1. 新 `verification/persona/report_render.py`：读 `artifacts/figure_verify/<run_id>/results/<cond>.jsonl` → group by `question_id` → 每题渲染一段 `### Q{n}: <prompt>\n#### raw\n<answer>\n#### bundle\n<answer> [evidence pointers] [refusal_tag] [voice/cognition score]\n#### bundle_lora\n<answer> [...]` markdown；可选 HTML 输出复用 [`site/assets/charts.js`](../site/assets/charts.js) inline-SVG per-axis bar
+  2. `scripts/figure_demo_einstein_report.sh`：复用 `figure_verify_einstein_persona.sh` 跑一次 verification → 调 report_render → 输出 `artifacts/figure_demo_einstein/<run_id>.{md,html}` + 一份 manifest（`bundle_id` / `questions_sha` / `substrate_fingerprint` / `created_at_iso`）
+  3. 加 smoke test `packages/lifeform-domain-figure/tests/test_report_render_smoke.py`：deterministic fixture 3 condition × 2 question → render → assert markdown 内含 3 个 condition heading + question text + 至少一个 evidence pointer 标记
+  4. 在 [`docs/specs/figure-persona-verification.md`](specs/figure-persona-verification.md) 加一段说明 "离线对照报告" 是 verification CLI 的可选 readout，与 4-gate verdict 同一份原料、不重跑、不影响 verdict 字节稳定性
+  5. 与 [#76](../docs/known-debts.md) 同节奏 land 最理想 — #76 让 BUNDLE / BUNDLE_LORA 真分化，#77 让分化看得见
+- **优先级**：**中-低**（独立可立刻跑，不依赖 [#41](../docs/known-debts.md) / [#76](../docs/known-debts.md)；与 [`#58`](../docs/known-debts.md) reviewer 工艺 + [`docs/moving forward/figure-evidence-packet.md`](moving%20forward/figure-evidence-packet.md) Packet 58-60 同 packet 推进最高效）
 
 ---
 

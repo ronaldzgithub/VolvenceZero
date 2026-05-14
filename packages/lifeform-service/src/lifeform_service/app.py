@@ -187,6 +187,7 @@ def create_app(
         idle_eviction_seconds=idle_eviction_seconds,
         substrate_provider=substrate_provider,
         templates_root_dir=service_templates_root,
+        protocol_uptake_service=protocol_uptake_service,
     )
     if substrate_provider is not None and substrate_provider.swap_supported:
         # Wire the SessionManager's session-clearer as the swap
@@ -1738,7 +1739,10 @@ _CHAT_UI_HTML = r"""<!doctype html>
         }
         setProtocolStatus(
           `Pending: ${pending.length} | Approved: ${approved.length}. `
-          + `Note: approved protocols apply to NEW sessions — restart your session for them to take effect.`
+          + `Approved protocols are compiled into the next session's `
+          + `domain knowledge / boundaries / playbook / case memory. `
+          + `Existing sessions keep their original wiring — restart your `
+          + `session (or create a new one) to pick up changes.`
         );
       } catch (err) {
         setProtocolStatus(`Failed to load: ${err.message}`);
