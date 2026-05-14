@@ -137,7 +137,7 @@ def _collect_rupture_entries(
     runner: AgentSessionRunner, *, user_scope: str
 ) -> tuple:
     return list_durable_entries_for_scope(
-        runner._memory_store,  # noqa: SLF001
+        runner.memory_store,
         user_scope=user_scope,
     )
 
@@ -145,7 +145,7 @@ def _collect_rupture_entries(
 def _count_durable_rupture_repair(runner: AgentSessionRunner) -> int:
     return sum(
         1
-        for entry in runner._memory_store._entries_for(MemoryStratum.DURABLE)  # noqa: SLF001
+        for entry in runner.memory_store.entries_for(MemoryStratum.DURABLE)
         if "rupture_repair" in entry.tags
     )
 

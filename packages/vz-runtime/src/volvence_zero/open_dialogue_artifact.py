@@ -76,12 +76,12 @@ def export_open_dialogue_session(
 
     * ``runner.dialogue_trace_snapshot`` for the per-turn trace rows.
     * ``runner.session_post_queue_state`` for slow-loop counters.
-    * ``runner._memory_store._entries_for(DURABLE)`` for rupture-repair
-      durable counts (via the admin inspection path in
-      ``vz-memory``). Only the tag/content keys needed for the review
-      bundle are emitted; raw content strings are not redacted but the
-      schema is documented in ``docs/specs/rupture-and-repair.md``.
-    * ``runner._upstream_snapshots`` for the latest active and shadow
+    * ``runner.memory_store.entries_for(DURABLE)`` for rupture-repair
+      durable counts (public R8 admin readout from ``vz-memory``).
+      Only the tag/content keys needed for the review bundle are
+      emitted; raw content strings are not redacted but the schema
+      is documented in ``docs/specs/rupture-and-repair.md``.
+    * ``runner.upstream_snapshots`` for the latest active and shadow
       snapshots, used to write regime and rupture summaries.
 
     No owner state is mutated. All failures raise.
@@ -94,7 +94,7 @@ def export_open_dialogue_session(
     summary_path = session_dir / "session_summary.json"
 
     trace_snapshot = runner.dialogue_trace_snapshot
-    resolved_scope = user_scope or runner._user_scope  # noqa: SLF001
+    resolved_scope = user_scope or runner.user_scope
     turn_rows = _build_turn_rows(trace_snapshot)
 
     with turns_path.open("w", encoding="utf-8") as fh:
@@ -104,7 +104,7 @@ def export_open_dialogue_session(
 
     durable_rupture_repair_entries = tuple(
         entry
-        for entry in runner._memory_store._entries_for(MemoryStratum.DURABLE)  # noqa: SLF001
+        for entry in runner.memory_store.entries_for(MemoryStratum.DURABLE)
         if "rupture_repair" in entry.tags
     )
 
@@ -188,7 +188,7 @@ def _build_session_summary(
     extra_metadata: dict[str, Any],
 ) -> dict[str, Any]:
     queue_state = runner.session_post_queue_state
-    last_snapshots = runner._upstream_snapshots  # noqa: SLF001
+    last_snapshots = runner.upstream_snapshots
     rupture_summary = _summarize_rupture_state_snapshot(
         last_snapshots.get("rupture_state")
     )

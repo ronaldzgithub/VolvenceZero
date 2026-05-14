@@ -48,6 +48,17 @@ from lifeform_affordance.registry import AffordanceRegistry
 from lifeform_affordance.snapshot import AffordanceCandidate, AffordanceSnapshot
 
 
+# Mirror of ``CognitiveDepth.REFLEXIVE`` / ``CognitiveDepth.SHALLOW``
+# string values from ``vz-cognition.regime.hints``. Kept as string
+# literals here so ``lifeform-affordance`` stays framework-agnostic
+# per the ``AffordanceScoringContext`` docstring (no import of the
+# ``vz-cognition.regime`` enum, keeping the wheel graph thin). If
+# ``CognitiveDepth`` gains a new shallow-side member, mirror it here
+# AND keep the comment pointing back to the kernel enum so a
+# repo-wide grep stays meaningful.
+_LOW_DEPTH_VALUES: frozenset[str] = frozenset({"reflexive", "shallow"})
+
+
 # ---------------------------------------------------------------------------
 # Scoring context
 # ---------------------------------------------------------------------------
@@ -182,7 +193,7 @@ def _latency_penalty(
     block; the selected filter can still pick a SLOW tool if
     the kind + task fit is strong.
     """
-    if cognitive_depth in {"reflexive", "shallow"}:
+    if cognitive_depth in _LOW_DEPTH_VALUES:
         if cost_latency is AffordanceLatencyClass.VERY_SLOW:
             return 0.35
         if cost_latency is AffordanceLatencyClass.SLOW:

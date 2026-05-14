@@ -354,6 +354,18 @@ def test_regime_module_applies_policy_consolidation_and_restores_checkpoint():
 
 
 def test_regime_module_emits_delayed_outcomes_after_multi_step_horizon():
+    # R-PE invariant: delayed-outcome learning signal must come from
+    # ``prediction_error.signed_reward`` (regime/identity._record_turn_score).
+    # Drive turns 2/3 with high-positive PE so the delayed payoff exceeds
+    # the 0.7 threshold; ``EvaluationSnapshot`` is still passed so the
+    # surrounding gate / score_regimes path stays exercised.
+    from volvence_zero.prediction import (
+        ActualOutcome,
+        PredictedOutcome,
+        PredictionError,
+        PredictionErrorSnapshot,
+    )
+
     module = RegimeModule(wiring_level=WiringLevel.ACTIVE)
     dual_track_snapshot = DualTrackSnapshot(
         world_track=TrackState(
@@ -377,49 +389,73 @@ def test_regime_module_emits_delayed_outcomes_after_multi_step_horizon():
         cross_track_tension=0.25,
         description="dual-track snapshot for delayed attribution",
     )
+
+    def _make_pe(turn_index: int, signed_reward: float, label: str) -> PredictionErrorSnapshot:
+        return PredictionErrorSnapshot(
+            evaluated_prediction=PredictedOutcome(
+                turn_index - 1, turn_index, 0.5, 0.5, 0.5, 0.5, 0.5, "pred"
+            ),
+            actual_outcome=ActualOutcome(turn_index, 0.7, 0.7, 0.7, 0.7, "actual"),
+            next_prediction=PredictedOutcome(
+                turn_index, turn_index + 1, 0.6, 0.6, 0.6, 0.6, 0.6, "next"
+            ),
+            error=PredictionError(
+                task_error=0.1,
+                relationship_error=0.1,
+                regime_error=0.1,
+                action_error=0.1,
+                magnitude=abs(signed_reward),
+                signed_reward=signed_reward,
+                description=label,
+            ),
+            turn_index=turn_index,
+            bootstrap=False,
+            description=label,
+        )
+
+    baseline_eval = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.4, 0.7, "baseline"),
+            EvaluationScore("interaction", "warmth", 0.5, 0.7, "baseline"),
+            EvaluationScore("relationship", "cross_track_stability", 0.5, 0.7, "baseline"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="turn one",
+    )
+    improved_eval = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.88, 0.7, "delayed improvement"),
+            EvaluationScore("interaction", "warmth", 0.82, 0.7, "delayed improvement"),
+            EvaluationScore("relationship", "cross_track_stability", 0.84, 0.7, "delayed improvement"),
+        ),
+        session_scores=(),
+        alerts=(),
+        description="improved",
+    )
+
+    # All three turns publish high-positive PE so the n-step blended
+    # delayed payoff (gamma=0.85 across horizon turns) clears the 0.7
+    # gate at turn 3.
     first = asyncio.run(
         module.process_standalone(
             dual_track_snapshot=dual_track_snapshot,
-            evaluation_snapshot=EvaluationSnapshot(
-                turn_scores=(
-                    EvaluationScore("task", "info_integration", 0.4, 0.7, "baseline"),
-                    EvaluationScore("interaction", "warmth", 0.5, 0.7, "baseline"),
-                    EvaluationScore("relationship", "cross_track_stability", 0.5, 0.7, "baseline"),
-                ),
-                session_scores=(),
-                alerts=(),
-                description="turn one",
-            )
+            evaluation_snapshot=baseline_eval,
+            prediction_error_snapshot=_make_pe(1, 0.4, "positive PE"),
         )
     ).value
     second = asyncio.run(
         module.process_standalone(
             dual_track_snapshot=dual_track_snapshot,
-            evaluation_snapshot=EvaluationSnapshot(
-                turn_scores=(
-                    EvaluationScore("task", "info_integration", 0.9, 0.7, "delayed improvement"),
-                    EvaluationScore("interaction", "warmth", 0.8, 0.7, "delayed improvement"),
-                    EvaluationScore("relationship", "cross_track_stability", 0.85, 0.7, "delayed improvement"),
-                ),
-                session_scores=(),
-                alerts=(),
-                description="turn two",
-            )
+            evaluation_snapshot=improved_eval,
+            prediction_error_snapshot=_make_pe(2, 0.4, "positive PE"),
         )
     ).value
     third = asyncio.run(
         module.process_standalone(
             dual_track_snapshot=dual_track_snapshot,
-            evaluation_snapshot=EvaluationSnapshot(
-                turn_scores=(
-                    EvaluationScore("task", "info_integration", 0.88, 0.7, "delayed improvement"),
-                    EvaluationScore("interaction", "warmth", 0.82, 0.7, "delayed improvement"),
-                    EvaluationScore("relationship", "cross_track_stability", 0.84, 0.7, "delayed improvement"),
-                ),
-                session_scores=(),
-                alerts=(),
-                description="turn three",
-            )
+            evaluation_snapshot=improved_eval,
+            prediction_error_snapshot=_make_pe(3, 0.4, "positive PE"),
         )
     ).value
 
@@ -633,6 +669,16 @@ def test_regime_module_multi_horizon_resolution():
 
 
 def test_regime_module_nstep_aggregation_uses_geometric_decay():
+    # R-PE invariant: per-turn score must come from PE.signed_reward;
+    # evaluation is gate / readout only. Drive the n-step blend with
+    # PE so the geometric-decay aggregation is observable.
+    from volvence_zero.prediction import (
+        ActualOutcome,
+        PredictedOutcome,
+        PredictionError,
+        PredictionErrorSnapshot,
+    )
+
     module = RegimeModule(attribution_horizons=(3,), wiring_level=WiringLevel.ACTIVE)
     dt = DualTrackSnapshot(
         world_track=TrackState(
@@ -646,19 +692,44 @@ def test_regime_module_nstep_aggregation_uses_geometric_decay():
         cross_track_tension=0.2,
         description="nstep test",
     )
-    scores_sequence = [0.3, 0.5, 0.9, 0.9]
-    for score_val in scores_sequence:
+    # Map score sequence onto signed_reward (score = clamp(0.5 + signed_reward)):
+    # 0.3 -> -0.2, 0.5 -> 0.0, 0.9 -> 0.4, 0.9 -> 0.4
+    pe_sequence = [-0.2, 0.0, 0.4, 0.4]
+    flat_eval = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore("task", "info_integration", 0.5, 0.7, "v"),
+            EvaluationScore("interaction", "warmth", 0.5, 0.7, "v"),
+            EvaluationScore("relationship", "cross_track_stability", 0.5, 0.7, "v"),
+        ),
+        session_scores=(), alerts=(), description="",
+    )
+    for turn_idx, signed_reward in enumerate(pe_sequence, start=1):
+        pe = PredictionErrorSnapshot(
+            evaluated_prediction=PredictedOutcome(
+                turn_idx - 1, turn_idx, 0.5, 0.5, 0.5, 0.5, 0.5, "pred"
+            ),
+            actual_outcome=ActualOutcome(turn_idx, 0.5, 0.5, 0.5, 0.5, "actual"),
+            next_prediction=PredictedOutcome(
+                turn_idx, turn_idx + 1, 0.5, 0.5, 0.5, 0.5, 0.5, "next"
+            ),
+            error=PredictionError(
+                task_error=0.1,
+                relationship_error=0.1,
+                regime_error=0.1,
+                action_error=0.1,
+                magnitude=abs(signed_reward),
+                signed_reward=signed_reward,
+                description="pe",
+            ),
+            turn_index=turn_idx,
+            bootstrap=False,
+            description="pe",
+        )
         snap = asyncio.run(
             module.process_standalone(
                 dual_track_snapshot=dt,
-                evaluation_snapshot=EvaluationSnapshot(
-                    turn_scores=(
-                        EvaluationScore("task", "info_integration", score_val, 0.7, "v"),
-                        EvaluationScore("interaction", "warmth", score_val, 0.7, "v"),
-                        EvaluationScore("relationship", "cross_track_stability", score_val, 0.7, "v"),
-                    ),
-                    session_scores=(), alerts=(), description="",
-                ),
+                evaluation_snapshot=flat_eval,
+                prediction_error_snapshot=pe,
             )
         ).value
     # Horizon-3 pending from turn 1 matures at turn 4

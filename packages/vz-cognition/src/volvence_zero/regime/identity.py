@@ -48,7 +48,6 @@ from volvence_zero.regime.scoring import (
     _controller_profile,
     _dominant_abstract_action_context,
     _metacontroller_action_profile,
-    _metric,
     _track_counts,
     build_regime_identity,
     score_regimes,
@@ -443,17 +442,20 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         *,
         prediction_error_snapshot: PredictionErrorSnapshot | None = None,
     ) -> None:
+        # R-PE invariant: ``historical_effectiveness`` is a learning
+        # signal that biases regime selection across turns; it must be
+        # PE-derived. ``evaluation`` is gate / readout, never a learning
+        # source. Without an actionable PE this turn, leave the
+        # effectiveness EMA untouched.
+        del evaluation_snapshot  # kept in signature for caller compatibility
         if self._active_regime_id is None:
             return
-        if prediction_error_snapshot is not None:
-            blended = _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
-        elif evaluation_snapshot is not None:
-            relationship_score = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
-            warmth_score = _metric(evaluation_snapshot, "warmth", default=0.5)
-            task_score = _metric(evaluation_snapshot, "info_integration", default=0.5)
-            blended = _clamp((relationship_score + warmth_score + task_score) / 3.0)
-        else:
+        if (
+            prediction_error_snapshot is None
+            or prediction_error_snapshot.bootstrap
+        ):
             return
+        blended = _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
         current = self._historical_effectiveness[self._active_regime_id]
         self._historical_effectiveness[self._active_regime_id] = round(current * 0.7 + blended * 0.3, 4)
         self._effectiveness_history.setdefault(self._active_regime_id, []).append(
@@ -470,18 +472,20 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         *,
         prediction_error_snapshot: PredictionErrorSnapshot | None = None,
     ) -> None:
-        if prediction_error_snapshot is not None:
+        # R-PE invariant: turn-level reward signal must come from
+        # ``prediction_error.signed_reward``; ``evaluation`` is gate /
+        # readout only. PE absent or bootstrap => append neutral 0.5
+        # (no learning signal this turn).
+        del evaluation_snapshot  # kept in signature for caller compatibility
+        if (
+            prediction_error_snapshot is not None
+            and not prediction_error_snapshot.bootstrap
+        ):
             self._turn_evaluation_scores.append(
                 _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
             )
             return
-        if evaluation_snapshot is None:
-            self._turn_evaluation_scores.append(0.5)
-            return
-        relationship = _metric(evaluation_snapshot, "cross_track_stability", default=0.5)
-        warmth = _metric(evaluation_snapshot, "warmth", default=0.5)
-        task = _metric(evaluation_snapshot, "info_integration", default=0.5)
-        self._turn_evaluation_scores.append(_clamp((relationship + warmth + task) / 3.0))
+        self._turn_evaluation_scores.append(0.5)
 
     def _nstep_blended_score(self, source_turn_index: int) -> float:
         gamma = 0.85

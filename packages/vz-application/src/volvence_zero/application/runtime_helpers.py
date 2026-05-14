@@ -677,12 +677,42 @@ def _retrieval_depth(
     return _nearest_anchor_value(depth_score, KNOWLEDGE_DEPTH_ANCHORS)
 
 
+# Knowledge-domain set constants (R8 + first-principles: closed lists
+# named once, referenced everywhere). Mirrors the curated knowledge-domain
+# vocabulary owned by ``ApplicationBrief.domain_affinity`` in
+# ``vz-cognition.regime.contracts``; treat as a closed list and update
+# both sides together when adding a new reviewed domain.
+
+# Domains that require an external citation in their generated knowledge
+# records (citation gate).
+_CITATION_REQUIRED_DOMAINS: frozenset[str] = frozenset({
+    "family_transition",
+    "professional_process",
+    "career_decision",
+})
+
+# Domains whose advice is jurisdiction-sensitive (legal / professional
+# process). Used by both the citation gate and the source-type selection.
+_JURISDICTION_SENSITIVE_DOMAINS: frozenset[str] = frozenset({
+    "family_transition",
+    "professional_process",
+})
+
+# Domains whose default ``KnowledgeSourceType`` is INTERNAL_GUIDE
+# (versus the default REVIEWED_ARTICLE) — empathy / repair material
+# curated in-house rather than externally cited.
+_INTERNAL_GUIDE_DOMAINS: frozenset[str] = frozenset({
+    "relational_repair",
+    "emotional_support_basics",
+})
+
+
 def _requires_citation(knowledge_domains: tuple[str, ...]) -> bool:
-    return any(domain in {"family_transition", "professional_process", "career_decision"} for domain in knowledge_domains)
+    return any(domain in _CITATION_REQUIRED_DOMAINS for domain in knowledge_domains)
 
 
 def _requires_jurisdiction(knowledge_domains: tuple[str, ...]) -> bool:
-    return any(domain in {"family_transition", "professional_process"} for domain in knowledge_domains)
+    return any(domain in _JURISDICTION_SENSITIVE_DOMAINS for domain in knowledge_domains)
 
 
 def _has_jurisdiction_context(text: str) -> bool:
@@ -739,15 +769,15 @@ def _domain_topic_tags(domain: str) -> tuple[str, ...]:
 
 
 def _domain_source_type(domain: str) -> KnowledgeSourceType:
-    if domain in {"family_transition", "professional_process"}:
+    if domain in _JURISDICTION_SENSITIVE_DOMAINS:
         return KnowledgeSourceType.OFFICIAL_GUIDE
-    if domain in {"relational_repair", "emotional_support_basics"}:
+    if domain in _INTERNAL_GUIDE_DOMAINS:
         return KnowledgeSourceType.INTERNAL_GUIDE
     return KnowledgeSourceType.REVIEWED_ARTICLE
 
 
 def _domain_jurisdiction_tags(domain: str, *, jurisdiction_required: bool) -> tuple[str, ...]:
-    if jurisdiction_required and domain in {"family_transition", "professional_process"}:
+    if jurisdiction_required and domain in _JURISDICTION_SENSITIVE_DOMAINS:
         return ("local-law-sensitive",)
     return ("general",)
 

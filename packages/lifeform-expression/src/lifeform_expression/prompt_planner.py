@@ -296,19 +296,12 @@ class PromptPlanner:
                 return TurnIntent.CLARIFY_FIRST
             return TurnIntent.STRUCTURE_FIRST
 
-        # No assembly available — fall back to regime defaults.
-        if context.regime_id == "emotional_support":
-            return TurnIntent.SUPPORT_FIRST
-        if context.regime_id == "repair_and_deescalation":
-            return TurnIntent.REPAIR_FIRST
-        if context.regime_id == "guided_exploration":
-            return TurnIntent.JUDGMENT_PROCESS
-        if context.regime_id == "problem_solving":
-            return TurnIntent.STRUCTURE_FIRST
-        if context.regime_id == "acquaintance_building":
-            return TurnIntent.WARMTH_FIRST
-        if context.regime_id == "casual_social":
-            return TurnIntent.DIRECT_ANSWER
+        # No assembly available — fall back to a neutral intent rather
+        # than hardcoding ``regime_id == "X"`` => intent (R14: regime is
+        # not a prompt label; first-principles: do not encode by string
+        # comparison what the system should learn). When upstream owners
+        # have not published an assembly snapshot yet, the planner stays
+        # minimal and lets downstream rendering carry the slack.
         return TurnIntent.DIRECT_ANSWER
 
     def _pick_sections(

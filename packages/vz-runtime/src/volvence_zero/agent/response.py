@@ -305,37 +305,18 @@ class ResponseSynthesizer:
                 "I can help, but I should keep this bounded until one key detail is clarified. "
                 "That way I do not over-commit too early."
             )
-        elif effective_regime_id == "repair_and_deescalation":
-            text = (
-                "I want to slow this down a little and make sure I respond in a steady, repairing way. "
-                "We can handle the immediate issue, but I want to keep the interaction safe and grounded."
-            )
-        elif effective_regime_id == "emotional_support":
-            text = (
-                "I am hearing emotional weight in this, so I want to stay supportive first and not rush past it. "
-                "We can still move toward something useful together."
-            )
-        elif effective_regime_id == "problem_solving":
-            text = (
-                "I see a concrete problem-solving path here. "
-                "I can help structure the next steps clearly and keep the solution actionable."
-            )
-        elif effective_regime_id == "guided_exploration":
-            text = (
-                "This feels like a place for guided exploration rather than a rushed answer. "
-                "I can help us narrow the space step by step."
-            )
-        elif effective_regime_id == "acquaintance_building":
-            text = (
-                "I want to keep this warm and relational rather than treating it like a cold transaction. "
-                "We can build clarity without losing that sense of connection."
-            )
-        elif effective_regime_id == "casual_social":
-            text = (
-                "I can keep this steady, natural, and continuous rather than over-formalizing it too early. "
-                "That gives us room to stay useful without losing flow."
-            )
         else:
+            # R14: regime is not a prompt label. We do NOT hardcode
+            # ``regime_id == "X"`` => english template here. Structured
+            # intents (judgment-process / support-first / repair-first /
+            # warmth-first / clarify-first / refer-out / etc.) are
+            # already rendered above through the typed
+            # ``_render_judgment_process_response`` /
+            # ``_render_speech_plan_response`` paths driven by the
+            # owner-published ``ResponseAssemblySnapshot``. Reaching this
+            # else branch means upstream did not publish a structured
+            # assembly; emit a single neutral fallback so the regime
+            # owner stays the single source of behavioural specialisation.
             text = (
                 "I can stay with the current context and respond in a way that keeps both usefulness and continuity in view."
             )

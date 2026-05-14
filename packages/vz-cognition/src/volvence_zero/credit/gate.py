@@ -624,19 +624,33 @@ def derive_abstract_action_credit_records(
     *,
     temporal_snapshot: TemporalAbstractionSnapshot,
     dual_track_snapshot: DualTrackSnapshot,
-    evaluation_snapshot: EvaluationSnapshot,
     timestamp_ms: int,
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None,
+    evaluation_snapshot: EvaluationSnapshot | None = None,
 ) -> tuple[CreditRecord, ...]:
+    """Derive abstract-action credit records from PE / dual-track only.
+
+    R-PE invariant: ``credit_value`` is a PE-derived reward signal.
+    Priority: ``prediction_error_snapshot.error.signed_reward`` (clamped
+    to ``[0, 1]`` via ``0.5 + signed_reward``); when PE is missing or
+    bootstrap, fall back to ``1.0 - dual_track.cross_track_tension``
+    (dual_track is itself PE-derived upstream, still inside the PE main
+    chain). ``evaluation_snapshot`` is accepted for backwards-compatible
+    call-site signatures but only ever read by gate-style callers
+    (``evaluate_gate`` / ``evaluate_gate_reasons``); it never feeds the
+    reward signal here.
+    """
+
+    del evaluation_snapshot  # R-PE: evaluation is gate / readout, not learning source.
     dominant_track = Track.SHARED
     if dual_track_snapshot.world_track.tension_level > dual_track_snapshot.self_track.tension_level:
         dominant_track = Track.WORLD
     elif dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level:
         dominant_track = Track.SELF
-    reward_signal = 1.0 - dual_track_snapshot.cross_track_tension
-    if evaluation_snapshot.turn_scores:
-        reward_signal = sum(score.value for score in evaluation_snapshot.turn_scores) / len(
-            evaluation_snapshot.turn_scores
-        )
+    if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap:
+        reward_signal = _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
+    else:
+        reward_signal = 1.0 - dual_track_snapshot.cross_track_tension
     reward_signal = _clamp(reward_signal + temporal_snapshot.controller_state.switch_gate * 0.1)
     return (
         CreditRecord(

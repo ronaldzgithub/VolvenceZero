@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import asyncio
 from dataclasses import dataclass, replace
 import os
@@ -776,6 +776,28 @@ class AgentSessionRunner(
         private ``_owner_hydration_store`` field.
         """
         return self._owner_hydration_store
+
+    @property
+    def user_scope(self) -> str:
+        """Per-user memory / rupture-repair scope key set at construction.
+
+        Public R8 readout used by export / audit consumers
+        (``vz-runtime.open_dialogue_artifact`` / ``lifeform-evolution``)
+        instead of the private ``_user_scope`` field.
+        """
+        return self._user_scope
+
+    @property
+    def upstream_snapshots(self) -> Mapping[str, "Snapshot[Any]"]:
+        """Read-only view of the latest ``slot_name -> Snapshot`` map
+        published by the runtime graph this turn (active + shadow).
+
+        Returns a defensive shallow copy so callers cannot mutate the
+        runner's internal dict; the snapshot values themselves are
+        immutable (``vz-contracts`` invariant). Public R8 readout
+        replacing prior ``_upstream_snapshots`` SLF001 paths.
+        """
+        return dict(self._upstream_snapshots)
 
     @property
     def turn_index(self) -> int:

@@ -847,8 +847,20 @@ class MemoryStore:
         self._persistence_version = version
         return True
 
-    def _entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
+    def entries_for(self, stratum: MemoryStratum) -> tuple[MemoryEntry, ...]:
+        """Public admin readout for the entries in a given stratum.
+
+        Used by export / audit / R12 evaluation consumers
+        (``vz-runtime.open_dialogue_artifact`` / ``lifeform-evolution``)
+        per R8 SSOT: cross-wheel callers read this typed surface
+        instead of poking at ``_artifact_store`` internals.
+        Read-only; does not mutate the store.
+        """
         return self._artifact_store.entries_for(stratum)
+
+    # Deprecated alias kept so legacy fixtures / mid-flight callers
+    # don't break in the same change set; prefer ``entries_for``.
+    _entries_for = entries_for
 
     def _score_entry(
         self,
