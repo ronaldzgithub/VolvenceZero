@@ -283,7 +283,18 @@ async def _handle_operator_message(request: web.Request) -> web.Response:
 
                 try:
                     session = await manager.get_session(session_id)
-                except Exception:
+                except LookupError:
+                    # ``SessionNotFoundError`` subclasses ``LookupError``;
+                    # treat "session does not exist" as a soft skip
+                    # (operator-message injection is best-effort), but
+                    # let real failures (network / OOM / contract
+                    # violations) surface.
+                    _LOG.warning(
+                        "operator-message: session %s/%s not found, "
+                        "skipping injection",
+                        ai_id,
+                        session_id,
+                    )
                     session = None
                 if session is not None:
                     try:

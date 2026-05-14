@@ -324,8 +324,6 @@ class PromptPlanner:
                 SectionId.BOUNDARY_DISCLAIMER,
                 SectionId.NEXT_STEP,
             ]
-        if intent is TurnIntent.DIRECT_ANSWER:
-            return [SectionId.REGIME_FRAME, SectionId.NEXT_STEP]
         if intent is TurnIntent.REPAIR_FIRST:
             return [
                 SectionId.ACKNOWLEDGE_PRESSURE,
@@ -339,7 +337,15 @@ class PromptPlanner:
             or context.regime_id
             or ""
         )
-        base = list(_REGIME_DEFAULT_SECTIONS.get(regime_id, (SectionId.REGIME_FRAME, SectionId.NEXT_STEP)))
+        if intent is TurnIntent.DIRECT_ANSWER:
+            # ``DIRECT_ANSWER`` keeps a minimal scaffold but still falls
+            # through to the shared reflection / boundary / vitals
+            # continuity-note logic below — vitals signals must surface
+            # regardless of the chosen intent (R14: regime is the owner
+            # of behavioural specialisation, not the intent).
+            base = [SectionId.REGIME_FRAME, SectionId.NEXT_STEP]
+        else:
+            base = list(_REGIME_DEFAULT_SECTIONS.get(regime_id, (SectionId.REGIME_FRAME, SectionId.NEXT_STEP)))
 
         if intent is TurnIntent.CLARIFY_FIRST and SectionId.CLARIFICATION not in base:
             base.insert(1, SectionId.CLARIFICATION)

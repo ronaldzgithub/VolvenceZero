@@ -79,6 +79,7 @@ from lifeform_service.vertical_registry import (
     VerticalRegistry,
 )
 from lifeform_service.verticals import VerticalSpec
+from volvence_zero.application.types import ResponseAssemblySnapshot
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
@@ -89,6 +90,7 @@ from volvence_zero.memory import (
     delete_entries_for_scope,
     list_durable_entries_for_scope,
 )
+from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
 
 
 _LOG = logging.getLogger("lifeform_service")
@@ -768,16 +770,16 @@ async def _handle_turn(request: web.Request) -> web.Response:
     summary = summaries[-1] if summaries else None
     expression_intent: str | None = None
     assembly = result.active_snapshots.get("response_assembly")
-    if assembly is not None:
-        expression_intent = getattr(assembly.value, "expression_intent", None)
+    if assembly is not None and isinstance(assembly.value, ResponseAssemblySnapshot):
+        expression_intent = assembly.value.expression_intent
     open_loop_count = 0
     open_loop = result.active_snapshots.get("open_loop")
-    if open_loop is not None:
-        open_loop_count = len(getattr(open_loop.value, "unresolved_loops", ()) or ())
+    if open_loop is not None and isinstance(open_loop.value, OpenLoopSnapshot):
+        open_loop_count = len(open_loop.value.unresolved_loops)
     commitment_count = 0
     commitment = result.active_snapshots.get("commitment")
-    if commitment is not None:
-        commitment_count = len(getattr(commitment.value, "active_commitments", ()) or ())
+    if commitment is not None and isinstance(commitment.value, CommitmentSnapshot):
+        commitment_count = len(commitment.value.active_commitments)
     pe_magnitude = summary.pe_magnitude if summary is not None else 0.0
 
     open_scene = session.open_scene

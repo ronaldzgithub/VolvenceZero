@@ -56,6 +56,8 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
+from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.regime import RegimeSnapshot
 
 from lifeform_domain_character.narrative import NarrativeArc, NarrativeScene
 
@@ -121,23 +123,19 @@ def _drive_levels_from_session(session: LifeformSession) -> tuple[tuple[str, flo
 
 
 def _regime_sequence_payoff_count(active_snapshots: dict[str, Any]) -> int:
+    # ``RegimeSnapshot.sequence_payoffs`` is the typed field name (plural);
+    # direct access keeps schema drift loud per R8 / SSOT.
     snap = active_snapshots.get("regime")
-    if snap is None:
+    if snap is None or not isinstance(snap.value, RegimeSnapshot):
         return 0
-    seq = getattr(snap.value, "sequence_payoff", None)
-    if seq is None:
-        return 0
-    return len(seq)
+    return len(snap.value.sequence_payoffs)
 
 
 def _pe_magnitude(active_snapshots: dict[str, Any]) -> float:
     snap = active_snapshots.get("prediction_error")
-    if snap is None:
+    if snap is None or not isinstance(snap.value, PredictionErrorSnapshot):
         return 0.0
-    error = getattr(snap.value, "error", None)
-    if error is None:
-        return 0.0
-    return float(getattr(error, "magnitude", 0.0))
+    return float(snap.value.error.magnitude)
 
 
 def _truncate(text: str, *, max_chars: int = 240) -> str:
@@ -279,9 +277,7 @@ class ExperientialReplayDriver:
             scene.decision_point,
             trigger_kind=TurnTriggerKind.USER_INPUT,
         )
-        predicted_text = _truncate(
-            getattr(decision_result.response, "text", "")
-        )
+        predicted_text = _truncate(decision_result.response.text)
         active_regime = decision_result.active_regime
         pe_magnitude = _pe_magnitude(decision_result.active_snapshots)
         # Step 3: typed outcome回流.
@@ -333,7 +329,7 @@ def _profile_id_from_lifeform(lifeform: Lifeform) -> str:
     """
     pkgs = lifeform.config.brain_config.domain_experience_packages
     for pkg in pkgs:
-        package_id = getattr(pkg.manifest, "package_id", "")
+        package_id = pkg.manifest.package_id
         if package_id.startswith("lifeform-character:"):
             return package_id.split(":", 1)[1]
     raise ValueError(

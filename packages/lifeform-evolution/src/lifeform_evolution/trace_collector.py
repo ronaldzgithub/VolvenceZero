@@ -48,6 +48,13 @@ from typing import Any
 from lifeform_core import Lifeform, LifeformConfig
 from lifeform_domain_emogpt import build_companion_package
 from lifeform_evolution.benchmark import ScriptedScenario
+from volvence_zero.application.types import ResponseAssemblySnapshot
+from volvence_zero.dual_track import DualTrackSnapshot
+from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.memory import MemorySnapshot
+from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
+from volvence_zero.substrate import SubstrateSnapshot
 
 
 # ---------------------------------------------------------------------------
@@ -307,57 +314,74 @@ class TraceCollector:
     ) -> TraceTurnRecord:
         snapshots = result.active_snapshots
 
+        # All snapshot fields read below come from owner-published typed
+        # dataclasses in vz-contracts / vz-cognition; isinstance dispatch
+        # keeps schema drift loud (R8 SSOT).
         pe_snap = snapshots.get("prediction_error")
         pe_magnitude = 0.0
         pe_task = pe_relationship = pe_regime = pe_action = 0.0
-        if pe_snap is not None:
-            error = getattr(pe_snap.value, "error", None)
-            if error is not None:
-                pe_magnitude = float(getattr(error, "magnitude", 0.0))
-                pe_task = float(getattr(error, "task", 0.0))
-                pe_relationship = float(getattr(error, "relationship", 0.0))
-                pe_regime = float(getattr(error, "regime", 0.0))
-                pe_action = float(getattr(error, "action", 0.0))
+        if pe_snap is not None and isinstance(pe_snap.value, PredictionErrorSnapshot):
+            error = pe_snap.value.error
+            pe_magnitude = float(error.magnitude)
+            # Real bug fix: ``PredictionError`` axis fields are
+            # ``task_error / relationship_error / regime_error / action_error``;
+            # the previous getattr defaults silently returned 0.0 for every
+            # turn since the trace collector landed.
+            pe_task = float(error.task_error)
+            pe_relationship = float(error.relationship_error)
+            pe_regime = float(error.regime_error)
+            pe_action = float(error.action_error)
 
         dual_snap = snapshots.get("dual_track")
         world_pressure = self_pressure = 0.0
-        if dual_snap is not None:
-            world_pressure = float(getattr(dual_snap.value, "world_pressure", 0.0))
-            self_pressure = float(getattr(dual_snap.value, "self_pressure", 0.0))
+        if dual_snap is not None and isinstance(dual_snap.value, DualTrackSnapshot):
+            # ``DualTrackSnapshot`` exposes per-track tension via the
+            # ``world_track / self_track`` ``TrackState.tension_level`` field
+            # rather than top-level ``world_pressure / self_pressure`` (the
+            # prior getattr defaults silently returned 0.0).
+            world_pressure = float(dual_snap.value.world_track.tension_level)
+            self_pressure = float(dual_snap.value.self_track.tension_level)
 
         eval_snap = snapshots.get("evaluation")
         alert_count = 0
-        if eval_snap is not None:
-            alerts = getattr(eval_snap.value, "alerts", ()) or ()
-            alert_count = len(alerts)
+        if eval_snap is not None and isinstance(eval_snap.value, EvaluationSnapshot):
+            alert_count = len(eval_snap.value.alerts)
 
         memory_snap = snapshots.get("memory")
         memory_entry_count = 0
-        if memory_snap is not None:
-            entries = getattr(memory_snap.value, "entries", ()) or ()
-            memory_entry_count = len(entries)
+        if memory_snap is not None and isinstance(memory_snap.value, MemorySnapshot):
+            # ``MemorySnapshot`` exposes ``retrieved_entries`` (this turn's
+            # retrieval) rather than a flat ``entries`` field; the prior
+            # getattr default silently returned 0 every turn.
+            memory_entry_count = len(memory_snap.value.retrieved_entries)
 
         open_loop_snap = snapshots.get("open_loop")
         open_loop_count = 0
-        if open_loop_snap is not None:
-            open_loop_count = len(getattr(open_loop_snap.value, "unresolved_loops", ()) or ())
+        if open_loop_snap is not None and isinstance(
+            open_loop_snap.value, OpenLoopSnapshot
+        ):
+            open_loop_count = len(open_loop_snap.value.unresolved_loops)
 
         commitment_snap = snapshots.get("commitment")
         commitment_count = 0
-        if commitment_snap is not None:
-            commitment_count = len(getattr(commitment_snap.value, "active_commitments", ()) or ())
+        if commitment_snap is not None and isinstance(
+            commitment_snap.value, CommitmentSnapshot
+        ):
+            commitment_count = len(commitment_snap.value.active_commitments)
 
         substrate_snap = snapshots.get("substrate")
         has_substrate_residuals = False
-        if substrate_snap is not None:
-            has_substrate_residuals = bool(
-                getattr(substrate_snap.value, "residual_activations", None)
-            )
+        if substrate_snap is not None and isinstance(
+            substrate_snap.value, SubstrateSnapshot
+        ):
+            has_substrate_residuals = bool(substrate_snap.value.residual_activations)
 
         assembly_snap = snapshots.get("response_assembly")
         expression_intent: str | None = None
-        if assembly_snap is not None:
-            expression_intent = getattr(assembly_snap.value, "expression_intent", None)
+        if assembly_snap is not None and isinstance(
+            assembly_snap.value, ResponseAssemblySnapshot
+        ):
+            expression_intent = assembly_snap.value.expression_intent
 
         return TraceTurnRecord(
             schema_version=_SCHEMA_VERSION,

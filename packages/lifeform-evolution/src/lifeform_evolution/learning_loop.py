@@ -27,6 +27,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from volvence_zero.application import DomainExperiencePackage
+from volvence_zero.application.types import ResponseAssemblySnapshot
+from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.semantic_state import OpenLoopSnapshot
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterSnapshot,
@@ -294,22 +297,22 @@ async def _run_scenario_with_lifeform(
         )
         pe_magnitude = 0.0
         pe_snap = result.active_snapshots.get("prediction_error")
-        if pe_snap is not None:
-            error = getattr(pe_snap.value, "error", None)
-            if error is not None:
-                pe_magnitude = float(getattr(error, "magnitude", 0.0))
+        if pe_snap is not None and isinstance(pe_snap.value, PredictionErrorSnapshot):
+            pe_magnitude = float(pe_snap.value.error.magnitude)
         pe_threshold_met = (
             turn.expected_min_pe_magnitude is None
             or pe_magnitude >= turn.expected_min_pe_magnitude
         )
         open_loop_count = 0
         ol_snap = result.active_snapshots.get("open_loop")
-        if ol_snap is not None:
-            open_loop_count = len(getattr(ol_snap.value, "unresolved_loops", ()) or ())
+        if ol_snap is not None and isinstance(ol_snap.value, OpenLoopSnapshot):
+            open_loop_count = len(ol_snap.value.unresolved_loops)
         expression_intent: str | None = None
         assembly_snap = result.active_snapshots.get("response_assembly")
-        if assembly_snap is not None:
-            expression_intent = getattr(assembly_snap.value, "expression_intent", None)
+        if assembly_snap is not None and isinstance(
+            assembly_snap.value, ResponseAssemblySnapshot
+        ):
+            expression_intent = assembly_snap.value.expression_intent
         turn_reports.append(
             TurnReport(
                 turn_index=index,

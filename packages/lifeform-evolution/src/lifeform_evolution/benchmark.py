@@ -21,6 +21,19 @@ from dataclasses import dataclass, field
 
 from lifeform_core import Lifeform, LifeformConfig, LifeformSession
 from lifeform_domain_emogpt import build_companion_package
+from volvence_zero.application.types import ResponseAssemblySnapshot
+from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
+from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
+    PreferenceAboutOtherSnapshot,
+    SocialPredictionErrorSnapshot,
+)
+from volvence_zero.temporal import TemporalAbstractionSnapshot
 
 
 @dataclass(frozen=True)
@@ -393,11 +406,11 @@ async def run_benchmark_async(
         # attribution. We count events at the per-turn level because
         # the social PE snapshot is fresh each turn.
         social_pe_snap = result.active_snapshots.get("social_prediction_error")
-        if social_pe_snap is not None:
-            errors = getattr(social_pe_snap.value, "errors", ()) or ()
-            for error in errors:
-                kind_value = getattr(getattr(error, "kind", None), "value", None)
-                if kind_value in {
+        if social_pe_snap is not None and isinstance(
+            social_pe_snap.value, SocialPredictionErrorSnapshot
+        ):
+            for error in social_pe_snap.value.errors:
+                if error.kind.value in {
                     "identity_attribution",
                     "relationship_attribution",
                 }:
@@ -409,21 +422,20 @@ async def run_benchmark_async(
         )
         pe_magnitude = 0.0
         pe_snapshot = result.active_snapshots.get("prediction_error")
-        if pe_snapshot is not None:
-            error = getattr(pe_snapshot.value, "error", None)
-            if error is not None:
-                pe_magnitude = float(getattr(error, "magnitude", 0.0))
-                # Wave E2 (debt #11 follow-up): track when the PE
-                # distribution window starts filling. ``error`` is
-                # a ``PredictionError`` and exposes
-                # ``distribution_summary`` (None until min_window
-                # samples accumulate; non-None thereafter).
-                if (
-                    not pe_distribution_window_filled
-                    and getattr(error, "distribution_summary", None) is not None
-                ):
-                    pe_distribution_window_filled = True
-                    pe_distribution_window_filled_first_turn = index
+        if pe_snapshot is not None and isinstance(
+            pe_snapshot.value, PredictionErrorSnapshot
+        ):
+            error = pe_snapshot.value.error
+            pe_magnitude = float(error.magnitude)
+            # Wave E2 (debt #11 follow-up): track when the PE
+            # distribution window starts filling. ``error.distribution_summary``
+            # is None until min_window samples accumulate; non-None thereafter.
+            if (
+                not pe_distribution_window_filled
+                and error.distribution_summary is not None
+            ):
+                pe_distribution_window_filled = True
+                pe_distribution_window_filled_first_turn = index
         pe_threshold_met = (
             turn.expected_min_pe_magnitude is None
             or pe_magnitude >= turn.expected_min_pe_magnitude
@@ -431,39 +443,38 @@ async def run_benchmark_async(
 
         open_loop_count = 0
         open_loop_snapshot = result.active_snapshots.get("open_loop")
-        if open_loop_snapshot is not None:
-            open_loop_count = len(
-                getattr(open_loop_snapshot.value, "unresolved_loops", ()) or ()
-            )
+        if open_loop_snapshot is not None and isinstance(
+            open_loop_snapshot.value, OpenLoopSnapshot
+        ):
+            open_loop_count = len(open_loop_snapshot.value.unresolved_loops)
 
         expression_intent: str | None = None
         continuum_position: float | None = None
         refer_out_required = False
         assembly_snapshot = result.active_snapshots.get("response_assembly")
-        if assembly_snapshot is not None:
-            expression_intent = getattr(assembly_snapshot.value, "expression_intent", None)
-            cp = getattr(assembly_snapshot.value, "continuum_target_position", None)
-            if cp is not None:
-                continuum_position = float(cp)
-            refer_out_required = bool(
-                getattr(assembly_snapshot.value, "refer_out_required", False)
+        if assembly_snapshot is not None and isinstance(
+            assembly_snapshot.value, ResponseAssemblySnapshot
+        ):
+            expression_intent = assembly_snapshot.value.expression_intent
+            continuum_position = float(
+                assembly_snapshot.value.continuum_target_position
             )
+            refer_out_required = bool(assembly_snapshot.value.refer_out_required)
 
         switch_gate = 0.0
         temporal_snapshot = result.active_snapshots.get("temporal_abstraction")
-        if temporal_snapshot is not None:
-            sg = getattr(temporal_snapshot.value, "switch_gate", None)
-            if sg is not None:
-                switch_gate = float(sg)
+        if temporal_snapshot is not None and isinstance(
+            temporal_snapshot.value, TemporalAbstractionSnapshot
+        ):
+            switch_gate = float(temporal_snapshot.value.controller_state.switch_gate)
         evaluation_metrics: tuple[tuple[str, float], ...] = ()
         evaluation_snapshot = result.active_snapshots.get("evaluation")
-        if evaluation_snapshot is not None:
-            scores = getattr(evaluation_snapshot.value, "turn_scores", ()) or ()
+        if evaluation_snapshot is not None and isinstance(
+            evaluation_snapshot.value, EvaluationSnapshot
+        ):
             evaluation_metrics = tuple(
-                (str(getattr(score, "metric_name")), float(getattr(score, "value")))
-                for score in scores
-                if getattr(score, "metric_name", None) is not None
-                and isinstance(getattr(score, "value", None), int | float)
+                (score.metric_name, float(score.value))
+                for score in evaluation_snapshot.value.turn_scores
             )
 
         turn_reports.append(
@@ -548,6 +559,12 @@ async def run_benchmark_async(
     common_ground_proposal_last_parse_status = "no_call"
     active_snaps = session.latest_active_snapshots
     shadow_snaps = session.latest_shadow_snapshots
+    _tom_snapshot_types = (
+        BeliefAboutOtherSnapshot,
+        IntentAboutOtherSnapshot,
+        FeelingAboutOtherSnapshot,
+        PreferenceAboutOtherSnapshot,
+    )
     for slot in (
         "belief_about_other",
         "intent_about_other",
@@ -555,17 +572,17 @@ async def run_benchmark_async(
         "preference_about_other",
     ):
         snap = active_snaps.get(slot) or shadow_snaps.get(slot)
-        if snap is None:
+        if snap is None or not isinstance(snap.value, _tom_snapshot_types):
             continue
-        records = getattr(snap.value, "records", ())
+        records = snap.value.records
         tom_records_total += len(records)
         for record in records:
-            interlocutor_id = getattr(record, "interlocutor_id", None)
-            if isinstance(interlocutor_id, str) and interlocutor_id:
+            interlocutor_id = record.interlocutor_id
+            if interlocutor_id:
                 per_interlocutor_counts[interlocutor_id] = (
                     per_interlocutor_counts.get(interlocutor_id, 0) + 1
                 )
-        diagnostics = getattr(snap.value, "proposal_diagnostics", None)
+        diagnostics = snap.value.proposal_diagnostics
         if diagnostics is not None:
             # Aggregate by ``max`` because all four ToM owners share a
             # single runtime instance under the default auto-wire, so
@@ -590,11 +607,9 @@ async def run_benchmark_async(
             if diagnostics.last_parse_status != "no_call":
                 tom_proposal_last_parse_status = diagnostics.last_parse_status
     cg_snap = active_snaps.get("common_ground") or shadow_snaps.get("common_ground")
-    if cg_snap is not None:
-        common_ground_dyad_atoms_total = len(
-            getattr(cg_snap.value, "dyad_atoms", ())
-        )
-        cg_diagnostics = getattr(cg_snap.value, "proposal_diagnostics", None)
+    if cg_snap is not None and isinstance(cg_snap.value, CommonGroundSnapshot):
+        common_ground_dyad_atoms_total = len(cg_snap.value.dyad_atoms)
+        cg_diagnostics = cg_snap.value.proposal_diagnostics
         if cg_diagnostics is not None:
             common_ground_proposal_attempts = (
                 cg_diagnostics.proposals_received_total

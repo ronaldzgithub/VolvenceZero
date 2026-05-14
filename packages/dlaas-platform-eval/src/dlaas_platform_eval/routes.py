@@ -405,7 +405,12 @@ async def _handle_execute_exam_run(request: web.Request) -> web.Response:
     )
     try:
         session = await manager.get_session(session_id)
-    except Exception:
+    except LookupError:
+        # ``SessionNotFoundError`` (lifeform-service) subclasses
+        # ``LookupError``; the typed "session does not exist" path is
+        # the only condition for which we transparently create a fresh
+        # session. Real failures (network / OOM / contract violations)
+        # surface to the HTTP handler.
         session = await manager.create_session(session_id=session_id)
     ai_responses: dict[str, str] = {}
     for question_id in run.question_ids:

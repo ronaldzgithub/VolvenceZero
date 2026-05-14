@@ -231,7 +231,14 @@ def test_tick_engine_fires_system_energy_context_at_configured_cadence():
 # ---------------------------------------------------------------------------
 
 
-def test_prompt_planner_picks_support_first_for_emotional_support_regime():
+def test_prompt_planner_falls_back_to_neutral_intent_without_assembly():
+    """R14 (regime is not a prompt label): with no ``ResponseAssemblySnapshot``
+    the planner must NOT map ``regime_id == "emotional_support"`` to a
+    ``SUPPORT_FIRST`` intent via string comparison; it falls back to a
+    neutral ``DIRECT_ANSWER`` so the regime owner stays the single source
+    of behavioural specialisation. Structured intents flow through the
+    typed ``assembly.expression_intent`` path (covered separately).
+    """
     from volvence_zero.agent.response import ResponseContext
 
     planner = PromptPlanner()
@@ -253,9 +260,7 @@ def test_prompt_planner_picks_support_first_for_emotional_support_regime():
     )
 
     plan: PromptPlan = planner.plan(context=context, assembly=None)
-    assert plan.intent is TurnIntent.SUPPORT_FIRST
-    assert SectionId.ACKNOWLEDGE_PRESSURE in plan.sections
-    assert SectionId.NEXT_STEP in plan.sections
+    assert plan.intent is TurnIntent.DIRECT_ANSWER
 
 
 def test_prompt_planner_acknowledges_vitals_pressure_in_continuity_note_and_tags():
