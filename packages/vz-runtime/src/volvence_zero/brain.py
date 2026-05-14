@@ -354,7 +354,7 @@ class BrainSession:
         is DISABLED or when the MemoryStore has no persistence
         backend (anonymous session).
         """
-        return getattr(self._runner, "_owner_hydration_store", None)
+        return self._runner.owner_hydration_store
 
     def persist_owners(self) -> tuple[str, ...]:
         """Packet D (long-horizon-closure): export + persist all

@@ -41,6 +41,7 @@ from typing import Protocol
 
 from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.semantic_state import (
+    CommitmentSnapshot,
     load_semantic_json_schema,
     load_semantic_prompt_template,
     NoOpSemanticProposalRuntime,
@@ -127,23 +128,17 @@ _GENERIC_LLM_SLOT_IDS = frozenset({
 def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:
     """True iff ``previous_snapshot`` exposes >=1 active commitment.
 
-    The runtime ships with structural typing only \u2014 we duck-type
-    on ``active_commitments`` so a future replacement of
-    ``CommitmentSnapshot`` (e.g. with a richer typed lifecycle
-    aggregate) does not require a runtime re-import. Anything that
-    isn't a tuple-like with ``len() >= 1`` is treated as "no active
-    commitment", which fails closed: BLOCK / COMPLETE / DEFER are
-    routed to OBSERVE rather than risk applying to nothing.
+    Typed dispatch via ``isinstance(CommitmentSnapshot)`` per R8 / SSOT:
+    the previous snapshot is a 9-arm union over typed semantic owners
+    (see ``contracts.py: SemanticSnapshotValue``); only the
+    ``CommitmentSnapshot`` arm carries ``active_commitments``. Other
+    arms (PlanIntent / OpenLoop / UserModel / ...) are not commitment
+    state owners, so we fail closed: BLOCK / COMPLETE / DEFER route to
+    OBSERVE rather than crediting an unrelated owner.
     """
-    if previous_snapshot is None:
+    if not isinstance(previous_snapshot, CommitmentSnapshot):
         return False
-    active = getattr(previous_snapshot, "active_commitments", None)
-    if active is None:
-        return False
-    try:
-        return len(active) > 0
-    except TypeError:
-        return False
+    return len(previous_snapshot.active_commitments) > 0
 
 
 def _parse_commitment_label(text: str) -> SemanticProposalOperation | None:

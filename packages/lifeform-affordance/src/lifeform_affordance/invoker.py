@@ -765,14 +765,16 @@ class AffordanceInvoker:
 
 
 def _monetary_cost_from_descriptor(descriptor: AffordanceDescriptor) -> float:
+    # ``CostModel.monetary_class`` is a typed ``AffordanceMonetaryClass``
+    # enum (vz-contracts/affordance.py); direct ``.value`` access keeps
+    # the contract loud per R8 / SSOT + no-hasattr-abuse.
     monetary_class = descriptor.cost_model.monetary_class
-    value = monetary_class.value if hasattr(monetary_class, "value") else str(monetary_class)
     return {
         "free": 0.0,
         "low": 0.25,
         "medium": 0.5,
         "high": 1.0,
-    }.get(value, 0.0)
+    }.get(monetary_class.value, 0.0)
 
 
 def _summarise_for_kernel(

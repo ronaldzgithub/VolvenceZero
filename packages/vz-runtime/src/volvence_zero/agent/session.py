@@ -4,7 +4,10 @@ from collections.abc import Callable
 import asyncio
 from dataclasses import dataclass, replace
 import os
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from volvence_zero.owner_hydration_store import OwnerHydrationStore
 
 from volvence_zero.dialogue_trace import (
     DialogueActionTrace,
@@ -552,8 +555,14 @@ class AgentSessionRunner(
                 application_rare_heavy_state=self._application_rare_heavy_state,
                 persist=application_persistence_dir is not None,
             )
-        world_parameter_store = getattr(self._world_temporal_policy, "parameter_store", None)
-        default_latent_dim = world_parameter_store.n_z if world_parameter_store is not None else 16
+        # ``parameter_store`` is only declared on ``FullLearnedTemporalPolicy``;
+        # the abstract ``TemporalPolicy`` base lacks it. Use isinstance
+        # dispatch instead of getattr-default so non-learned policies
+        # surface explicitly (R8 / SSOT + no-hasattr-abuse).
+        if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
+            default_latent_dim = self._world_temporal_policy.parameter_store.n_z
+        else:
+            default_latent_dim = 16
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._semantic_state_store = SemanticStateStore()
         # Packet D (long-horizon-closure): when an OwnerHydrationStore
@@ -755,6 +764,18 @@ class AgentSessionRunner(
     @property
     def session_id(self) -> str:
         return self._session_id
+
+    @property
+    def owner_hydration_store(self) -> "OwnerHydrationStore | None":
+        """Public typed handle to the OwnerHydrationStore (Packet D).
+
+        Returns ``None`` when ``BrainConfig.owner_hydration_wiring`` is
+        DISABLED or when the MemoryStore has no persistence backend
+        (anonymous session). Consumers (BrainSession / LifeformSession)
+        read this directly per R8 / SSOT instead of poking at the
+        private ``_owner_hydration_store`` field.
+        """
+        return self._owner_hydration_store
 
     @property
     def turn_index(self) -> int:

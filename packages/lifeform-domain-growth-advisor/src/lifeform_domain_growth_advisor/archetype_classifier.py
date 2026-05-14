@@ -114,7 +114,29 @@ class ArchetypeStateSnapshot:
 
 
 class ArchetypeClassifier(Protocol):
-    """Contract for any archetype classifier (LLM / future β_t)."""
+    """Contract for any archetype classifier (LLM / future β_t).
+
+    Tuning knobs (``call_every_n_turns`` / ``min_turns_to_classify``)
+    are exposed as typed properties on the Protocol per R8 / SSOT:
+    callers (e.g. ``GrowthAdvisorLifeformBundle.maybe_classify_archetype``)
+    must read them through this typed surface, never via ``getattr`` on
+    private ``_config`` fields.
+    """
+
+    @property
+    def call_every_n_turns(self) -> int:
+        """How often (in user turns) the classifier should be re-invoked.
+
+        Owner-published value: callers schedule classification on
+        ``count % call_every_n_turns == 0``.
+        """
+
+    @property
+    def min_turns_to_classify(self) -> int:
+        """Minimum number of recent user turns required for a real
+        classification. Below this the classifier yields a placeholder
+        so downstream wiring stays None-safe.
+        """
 
     def classify(
         self,
@@ -171,6 +193,14 @@ class LLMArchetypeClassifier:
         self._config = config or LLMArchetypeClassifierConfig()
         self._state: dict[str, ArchetypeStateSnapshot] = {}
         self._turn_counter: dict[str, int] = {}
+
+    @property
+    def call_every_n_turns(self) -> int:
+        return self._config.call_every_n_turns
+
+    @property
+    def min_turns_to_classify(self) -> int:
+        return self._config.min_turns_to_classify
 
     def state_for(self, end_user_id: str) -> ArchetypeStateSnapshot | None:
         return self._state.get(end_user_id)

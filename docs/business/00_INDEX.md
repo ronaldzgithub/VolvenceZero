@@ -11,6 +11,8 @@
 |---|---|---|
 | [commercialization-assessment.md](./commercialization-assessment.md) | VZ 全面商业化评估：差异化资产、市场结构、6 条路径备选、12-24 个月排序、单位经济、GTM、风险与 kill criteria、OKR 草案、反目标 | v0.1（2026-05-13） |
 | [xfund-technical-credibility-brief.md](./xfund-technical-credibility-brief.md) | 对 Xfund (Patrick Chung) 一次首谈用的技术可信度对外裁短版：thesis / 架构第一性承诺 / 8 件 ship 的事 / 与 Delphi / Open Evidence 对标 / anti-claims / 60 秒中英文口头版 | v0.1（2026-05-13） |
+| [xfund-strategic-thesis.md](./xfund-strategic-thesis.md) | Xfund 完整战略叙事书面版：业界深度调研 / 与头部互相支撑 / 已 ship 实物 + 算法证明 / IQ + EQ 涌现路径 / 三件事 evidence cascade / anti-claims / 60 秒口头版 | v0.1（2026-05-14） |
+| [xfund-pitch-deck-blueprint.md](./xfund-pitch-deck-blueprint.md) | Xfund 投资理念深度研究 + PPT 设计原则反推 + 27 页 slide-by-slide 蓝图 + 30/45 分钟两套演讲编排 + leave-behind packet 清单 + 待 BOSS 决策 7 项 | v0.1（2026-05-14） |
 
 ## 阅读顺序建议
 

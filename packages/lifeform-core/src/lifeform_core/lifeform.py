@@ -643,7 +643,10 @@ class Lifeform:
         # process restarts. Hydration errors fail-loudly per the
         # no-swallow rule; SHADOW wiring is a no-op (load_snapshot
         # returns None).
-        hydration_store = getattr(brain_session, "owner_hydration_store", None)
+        # ``BrainSession.owner_hydration_store`` is a public typed property
+        # that returns ``OwnerHydrationStore | None``; direct access keeps
+        # the contract loud (vz-runtime/brain.py).
+        hydration_store = brain_session.owner_hydration_store
         if hydration_store is not None:
             hydration_store.hydrate_owner_if_present(followups, "followup_manager")
             if vitals is not None:
@@ -967,9 +970,7 @@ class LifeformSession:
         boundaries (or by external schedulers); never mid-turn.
         """
         kernel_persisted = self._brain_session.persist_owners()
-        hydration_store = getattr(
-            self._brain_session, "owner_hydration_store", None
-        )
+        hydration_store = self._brain_session.owner_hydration_store
         if hydration_store is None:
             return kernel_persisted
         lifeform_persisted: list[str] = []
@@ -1414,7 +1415,11 @@ class LifeformSession:
 
         unresolved_loops: tuple[Any, ...] = ()
         if open_loops_snapshot is not None:
-            unresolved_loops = tuple(getattr(open_loops_snapshot.value, "unresolved_loops", ()) or ())
+            # Direct typed access: ``OpenLoopSnapshot.unresolved_loops``
+            # is ``tuple[SemanticRecord, ...]`` (vz-cognition contracts).
+            # Schema drift must fail loudly per R8 / SSOT — no getattr
+            # defaults.
+            unresolved_loops = open_loops_snapshot.value.unresolved_loops
             if unresolved_loops:
                 self._followups.ingest_open_loops(
                     unresolved_loops=unresolved_loops,
@@ -1426,9 +1431,7 @@ class LifeformSession:
             # Owner-side ``at_risk_commitments`` (status=blocked records)
             # are still surfaced via the classic ingest path so product
             # layers that consumed the old shape keep working.
-            at_risk_records = tuple(
-                getattr(commitment_value, "at_risk_commitments", ()) or ()
-            )
+            at_risk_records = commitment_value.at_risk_commitments
             if at_risk_records:
                 self._followups.ingest_at_risk_commitments(
                     at_risk_refs=at_risk_records,
@@ -1440,9 +1443,7 @@ class LifeformSession:
             # GENTLE_CHECKIN vs DEFER_ONLY \u2014 rather than fabricating a
             # classifier here. This keeps the lifeform layer out of the
             # business of interpreting commitment state.
-            lifecycle_entries = tuple(
-                getattr(commitment_value, "lifecycle_entries", ()) or ()
-            )
+            lifecycle_entries = commitment_value.lifecycle_entries
             if lifecycle_entries:
                 self._followups.ingest_commitment_lifecycle(
                     lifecycle_entries=lifecycle_entries,
@@ -1452,9 +1453,10 @@ class LifeformSession:
         pe_snapshot = result.active_snapshots.get("prediction_error")
         pe_magnitude = 0.0
         if pe_snapshot is not None:
-            error = getattr(pe_snapshot.value, "error", None)
-            if error is not None:
-                pe_magnitude = float(getattr(error, "magnitude", 0.0))
+            # Typed access: ``PredictionErrorSnapshot.error.magnitude`` is
+            # the load-bearing PE readout. Bootstrap turns still publish
+            # a typed shape with magnitude=0.0 so direct access is safe.
+            pe_magnitude = float(pe_snapshot.value.error.magnitude)
 
         self._turn_summaries.append(
             TurnSummary(
@@ -1466,7 +1468,7 @@ class LifeformSession:
                 active_abstract_action=result.active_abstract_action,
                 open_loop_count=len(unresolved_loops),
                 commitment_count=(
-                    len(getattr(commitment_snapshot.value, "active_commitments", ()) or ())
+                    len(commitment_snapshot.value.active_commitments)
                     if commitment_snapshot is not None
                     else 0
                 ),
@@ -1625,38 +1627,22 @@ class LifeformSession:
     # ------------------------------------------------------------------
 
     def _extract_open_loop_keys(self) -> tuple[str, ...]:
+        # Direct typed access per R8 / SSOT: ``OpenLoopSnapshot.unresolved_loops``
+        # is ``tuple[SemanticRecord, ...]`` (vz-cognition contracts.py),
+        # and ``SemanticRecord.record_id`` is the canonical key. No
+        # candidate-attribute scanning, no fallback shapes.
         snap = self._latest_active_snapshots.get("open_loop")
         if snap is None:
             return ()
-        loops = getattr(snap.value, "unresolved_loops", ()) or ()
-        out: list[str] = []
-        for entry in loops:
-            for attr in ("loop_id", "id", "key", "ref"):
-                value = getattr(entry, attr, None)
-                if value:
-                    out.append(str(value))
-                    break
-            else:
-                if isinstance(entry, str):
-                    out.append(entry)
-        return tuple(out)
+        return tuple(entry.record_id for entry in snap.value.unresolved_loops)
 
     def _extract_commitment_keys(self) -> tuple[str, ...]:
+        # Direct typed access per R8 / SSOT: ``CommitmentSnapshot.active_commitments``
+        # is ``tuple[SemanticRecord, ...]``; ``record_id`` is the canonical key.
         snap = self._latest_active_snapshots.get("commitment")
         if snap is None:
             return ()
-        active = getattr(snap.value, "active_commitments", ()) or ()
-        out: list[str] = []
-        for entry in active:
-            for attr in ("commitment_ref", "id", "ref"):
-                value = getattr(entry, attr, None)
-                if value:
-                    out.append(str(value))
-                    break
-            else:
-                if isinstance(entry, str):
-                    out.append(entry)
-        return tuple(out)
+        return tuple(entry.record_id for entry in snap.value.active_commitments)
 
     # ------------------------------------------------------------------
     # Gap 4 slice 2c: thinking-loop invocation helpers

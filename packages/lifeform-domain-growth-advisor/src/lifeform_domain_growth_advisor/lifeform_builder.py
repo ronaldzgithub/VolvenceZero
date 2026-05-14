@@ -98,9 +98,11 @@ class GrowthAdvisorLifeformBundle:
             return None
         count = self._per_user_turn_count.get(end_user_id, 0) + 1
         self._per_user_turn_count[end_user_id] = count
-        config = getattr(self.archetype_classifier, "_config", None)
-        every_n = getattr(config, "call_every_n_turns", 3)
-        min_turns = getattr(config, "min_turns_to_classify", 2)
+        # Read tuning knobs through the typed ``ArchetypeClassifier``
+        # Protocol surface (R8 / SSOT); never through ``_config``
+        # private state.
+        every_n = self.archetype_classifier.call_every_n_turns
+        min_turns = self.archetype_classifier.min_turns_to_classify
         if count % every_n == 0 and len(recent_user_turns) >= min_turns:
             self.archetype_classifier.classify(
                 recent_user_turns=recent_user_turns,

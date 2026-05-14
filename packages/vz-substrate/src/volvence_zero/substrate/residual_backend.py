@@ -6,9 +6,12 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 import hashlib
 import importlib
+import logging
 import math
 import re
 from typing import Any, Callable, Iterable, Sequence
+
+_LOG = logging.getLogger("volvence_zero.substrate.residual_backend")
 
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
@@ -502,8 +505,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     captured_layers=captured_layers,
                     control_applied=control_delta is not None,
                 )
-            except Exception:
-                pass
+            except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
+                _LOG.warning(
+                    "residual capture failed (model=%s device=%s): %r",
+                    self.model_id,
+                    self._device,
+                    exc,
+                )
 
         return GenerationResult(
             text=generated_text,

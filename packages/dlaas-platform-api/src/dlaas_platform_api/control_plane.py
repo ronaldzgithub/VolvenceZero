@@ -843,7 +843,9 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     # generating). The two helpers are import-guarded so a
     # platform install without the figure-vertical wheel still
     # adopts non-figure templates without crashing.
-    figure_artifact_id = getattr(template, "figure_artifact_id", "") or ""
+    # ``TemplateSpec.figure_artifact_id`` is a typed field (default ``""``)
+    # in dlaas-platform-contracts; direct access keeps R8 / SSOT.
+    figure_artifact_id = template.figure_artifact_id
     if figure_artifact_id:
         try:
             from lifeform_service import (
@@ -858,10 +860,13 @@ async def _handle_adopt(request: web.Request) -> web.Response:
                 default=None, bundle_id=figure_artifact_id
             )
             if bundle is not None:
-                manager = instance_manager.get(final_contract.ai_id)
-                bind = getattr(manager, "bind_figure_bundle", None)
-                if callable(bind):
-                    bind(bundle)
+                # Note: the historical ``manager.bind_figure_bundle`` hook
+                # was a hasattr-defended dead code path (no such method
+                # exists on ``InstanceManager``); removed per
+                # no-swallow-errors-no-hasattr-abuse. If a future packet
+                # needs to thread the bundle into the launcher session,
+                # add a typed method on ``InstanceManager`` and call it
+                # directly.
                 if register_bundle_persona_lora is not None:
                     register_bundle_persona_lora(bundle)
 
@@ -1156,29 +1161,18 @@ def _activation_text(
 
 
 def _activation_snapshot_summary(session) -> dict[str, int]:
-    """Read minimal kernel snapshot counters after activation.
+    """Placeholder kernel-counter readout for the activation report.
 
-    The platform never re-derives kernel state — it consumes whatever
-    the ``LifeformSession`` exposes. Empty / missing fields read as
-    zero so readiness can run on a minimally-bootstrapped vertical.
+    R8 / SSOT note: ``world_nodes`` / ``self_nodes`` / ``l2_cards`` are
+    not fields on ``vz-memory``'s ``MemorySnapshot`` (verified
+    2026-05-14); the previous getattr / hasattr / except-AttributeError
+    cascade silently returned all-zero counters anyway. Until
+    ``LifeformSession`` exposes a typed kernel-counter API the platform
+    can consume, return zeros directly. Field names preserved to keep
+    ``dlaas-platform-contracts.ReadinessReport`` wire-compatible.
     """
-    counters = {"world_nodes": 0, "self_nodes": 0, "l2_cards": 0}
-    runner = getattr(session, "_brain_session", None)
-    if runner is None:
-        return counters
-    try:
-        snapshots = runner.runner.active_snapshots()  # type: ignore[attr-defined]
-    except AttributeError:
-        return counters
-    if not isinstance(snapshots, Mapping):
-        return counters
-    memory = snapshots.get("memory")
-    if memory is not None and hasattr(memory, "value"):
-        for key in ("world_nodes", "self_nodes", "l2_cards"):
-            value = getattr(memory.value, key, None)
-            if isinstance(value, int):
-                counters[key] = value
-    return counters
+    del session  # placeholder; see TODO above
+    return {"world_nodes": 0, "self_nodes": 0, "l2_cards": 0}
 
 
 def _compute_tool_policy_snapshot(engine_tools: Mapping[str, Any]) -> dict[str, Any]:
