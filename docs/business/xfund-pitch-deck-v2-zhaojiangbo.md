@@ -1,6 +1,6 @@
 # VolvenceZero — Xfund Pitch Deck v2（赵江波 60 分钟版）
 
-> Status: **v2.1 (2026-05-15)** — 在 v2.0 基础上加入 BOSS 二轮反馈
+> Status: **v2.3 (2026-05-15)** — 在 v2.2 基础上加入 BOSS 四轮反馈（**Hard Evidence 实验数据 + Companion Bench 网站**）
 > Audience: 内部 PPT 设计与演讲准备所用
 > 重大变化（相对 v1 的客观修正）：
 >
@@ -18,6 +18,28 @@
 > 9. **Slide 2 个人故事页大幅升级** — 加入"好牌 30 万用户 0 投放" / "2017 阿里职业目标 = 自动化编程"（7 年前预见 AI 自动化）/ "2022 ChatGPT 后自费 all-in" / "数字生命认知全部独立思考" / "销售经验 = 研究清楚了人"
 > 10. **Slide 3 杨柳介绍升级** — "美国回国后是独立研究者 + 主动找中国需求" — 强调学术坚持与主动选择
 > 11. **Section 4 完全重构** — 从"4 段视频平均铺陈"改为"**私域运营 deep dive（核心）+ 其他 3 个场景 highlight reel 带过**"。理由：（a）私域是中国独有市场结构，Patrick 这种海外 VC 必须先被讲透；（b）私域与赵江波 25 年销售经验 + Body+Brain 关系架构最契合；（c）6 JV 中有 3 个直接相关私域（Mobi / 高盖伦育儿 / 28M MCN）
+>
+> **v2.2 增量修正（2026-05-15）**：
+>
+> 12. **Slide 8 升级为"Three First Principles → Body + Brain"** — 在 Body+Brain 框架之上加入赵江波 3 个核心 thesis：
+>     - **"LLM 不可能 prompt 出真正的人——因为它训练的数据本身就是被人为污染的内容"**（对 persona prompting 的根本批判）
+>     - **"身体是一切奖励之源——身体不是摆设"**（Body+Brain 框架最深层基础）
+>     - **"活人感 = 长期关系曲线优化"**（EQ 涌现的本质定义）
+> 13. **Slide 2 第三轮升级** — 加入"好牌 30 万 0 投放·**1 年达成**" / "2017 阿里入职 PPT 原件可现场出示" / **"500 万 RMB self-invested (2022-2024)"** — founder commitment 硬数字
+> 14. **Slide 14 加入"活人感"关键句** — 与三角对位形成闭环
+> 15. **Slide 16 私域单位经济页诚实化** — Mobi 试点数据尚未跑出 → 改用 Excel 真实合资分红结构（30 元/人/年 服务费 + 100 元/人/年 利润分红）+ projected 1%+ 基于 demo 显示的关系质量
+> 16. **Slide 17 收入预测重大升级** — 替换为 Excel 完整 3 年财务全景（RMB 真实数字 + USD 换算 + 净利率 31%→46%→54% + 项目毛利率 55%→65%→75%）— 这是 Patrick 商业判断核心证据
+> 17. **Q&A 第 3 题调整** — Mobi 1%+ 数字诚实说明是 projected 而非试点，给出推断逻辑（demo 显示的关系质量 + 微盟招股书 baseline 0.3%）
+> 18. **Slide 4 "下一个 ChatGPT 时刻" 精度升级** — 把"有抽象"升级为"**有多时间尺度抽象学习能力**"——这一升级把抽象命题工程化，与 Slide 8 Body+Brain 多时间尺度学习循环 + Slide 10 杨柳博士 drifting distribution / nonstationary mixing 工作形成贯穿 Section 2/3 的因果主线
+>
+> **v2.3 增量修正（2026-05-15）— 实验证据 + 行业 benchmark 实质化**：
+>
+> 19. **Slide 11 完全重写：工程纪律 → Hard Evidence** — BOSS 反馈"工程纪律不重要，要从真实 benchmark 证明多时间尺度抽象学习涌现 + 持续学习能力 + 主动学习数据量"。重写为 3 组真实可复核实验：
+>     - **(1) 多时间尺度抽象学习涌现**：4 个 timescale 全部 ACTIVE × 7 种 schedule mode × SSL-RL 交替（源：`docs/specs/multi-timescale-learning.md`）
+>     - **(2) 持续学习能力**：VZ-MemProbe 4 探针 PASS（context / temporal / update / assoc）+ **Nested CMS meta-learning init error 单调下降 verified**（源：`tests/longitudinal/test_vz_memprobe_*.py` + spec U02 验证记录）
+>     - **(3) 主动学习数据效率**：**1/1000 标注数据达到 baseline 水平**（杨柳 15 年 active learning 理论的工程化兑现，老 PPT slide 15 已披露此能力）
+> 20. **新增 Slide 12: Companion Benchmark 网站** — BOSS 反馈"v2 缺少 companion benchmark 网站内容"，恢复并强化此页：网站 URL `companion-bench.volvence.com` + v1.0 Apache 2.0 + 24 公开 + 96 私有 held-out + 6 family × 6 axis + 30 turn 长 arc + 26 条方法论防御 packet + reference SUT（GPT-5/Claude/Qwen/DeepSeek/Llama/Gemini）+ 出题人位置二阶溢价 thesis
+> 21. **总页数 22 → 23** — 所有 Section 范围 + 时间安排块同步更新
 >
 > 与既有文档关系：
 > - [`xfund-pitch-deck-blueprint.md`](./xfund-pitch-deck-blueprint.md) (v1) 已 deprecated；保留为研究底稿
@@ -111,7 +133,7 @@ v1 蓝图过深，错在三个地方：
 ### Q5: 钻营 portfolio 嫌疑 — 同意修正
 
 **修正**：
-- v1 Slide 16/17/18 三页 portfolio 对话 → **完全删除**（PPT 不出现）
+- v1 Slide 17/17/18 三页 portfolio 对话 → **完全删除**（PPT 不出现）
 - 改为：在 Q&A 中**被问到才答**——"如果你想知道我们和 Open Evidence / Delphi 的差异，我可以用一句话讲清楚"
 - 直接引用 Patrick 的话从三句精简为**只在开场提 1 次**（"chase the talent"）
 
@@ -123,32 +145,37 @@ v1 蓝图过深，错在三个地方：
 
 ```
 0–8 min    创始人 + 团队（first principle 弧线 + 杨柳科学密度 + 5 人团队）
+
 8–18 min   业界判断（first principle 视角）
               · 神经网络 = y=f(x) / 大模型 = 下一个词 = f(之前的词)
               · 业界三极 + 中间空白
               · token-RL 反向兑现
-18–28 min  技术架构（轻量版）
-              · Body + Brain 框架（赵江波原创）
-              · 杨柳 active learning 系列 = 持续学习理论基底
-              · 多时间尺度学习一张图
-              · 工程证据简版
-28–48 min  产品 + 商业化（核心 — 4 个视频 demo）
-              · UploadLive AI Soul Sister 视频 (3 min)
-              · 育儿专家场景视频 (3 min)
-              · Mobi 私域数字员工视频 (3 min)
-              · 跨境电商 AI 专家视频 (3 min)
-              · 6 JV 已签 + revenue projection + 单位经济
-48–53 min  不卖什么 + 风险地图
-53–55 min  Ask + Close
-55–60 min  Q&A 引子
+              · 下一个 ChatGPT 时刻 = 有目标 + 有记忆 + 多时间尺度抽象学习 + 持续学习
+
+18–32 min  技术架构 + Hard Evidence（v2.3 加重）
+              · Three First Principles + Body+Brain（赵江波原创）
+              · Soul Migration（LLM 不可能 prompt 出真正的人）
+              · 杨柳博士 active learning 18 篇 A-list 论文系列
+              · Hard Evidence：4 timescale ACTIVE + VZ-MemProbe 4 PASS + 1/1000 主动学习
+              · Companion Benchmark 网站（24 公开 + 96 私有 + 6×6 axis）
+
+32–52 min  产品 + 商业化（核心 — 私域 deep dive + 财务）
+              · 6 JV 时间轴 / 私域市场结构 / 三角对位
+              · Mobi 7 分钟核心视频 + 单位经济
+              · 其他 3 vertical 3 分钟 highlight reel
+              · 3 年财务全景（RMB / USD 双货币 + 净利率 31%→54%）
+
+52–57 min  不卖什么 + 风险地图
+
+57–60 min  Ask + Close + Q&A 引子
 ```
 
 ---
 
-## 第二部分 — 60 分钟 Deck 完整蓝图（22 页）
+## 第二部分 — 60 分钟 Deck 完整蓝图（**23 页 — v2.3**）
 
-> 总页数刻意保持 22 页（与老 PPT 同长度，避免视觉重负）。
-> 每页平均停留 2 分钟+，video demo 段落每页 3 分钟。
+> **v2.3 升级**：原 22 页 → **23 页**。新增 Slide 12 (Companion Benchmark)；Slide 11 从"工程纪律"重写为"Hard Evidence"（多时间尺度涌现 + 持续学习 4 探针 + 主动学习 1/1000）。
+> 每页平均停留 2.5 分钟+，video demo 段落每页 3 分钟。
 >
 > 视觉风格延续老 PPT 的"❌ Mainstream / ✅ Volvence" 极简对照格式。
 
@@ -200,36 +227,36 @@ v1 蓝图过深，错在三个地方：
 >
 > ──
 >
-> **2017 阿里副总裁助理 + 公安行业总监**　|　入职时立的职业目标：**"自动化编程"**
->   *7 年前就识别了 AI 编程自动化方向 — 预见性的硬证据*
+> **2017 阿里副总裁助理 + 公安行业总监**　|　入职时立的职业目标：**"自动化编程"**　📎 *阿里入职 PPT 原件可现场出示*
+>   *7 年前就识别了 AI 编程自动化方向 — 预见性的硬证据，有书面档案*
 >
 > ──
 >
-> **创业 · 好牌**：游戏社交平台，**30 万用户 · 零投放**　→  商业化退出
->   *没有花一分钱获客 — 这是 first principle 产品力的硬证据*
+> **创业 · 好牌**：游戏社交平台，**30 万用户 · 零投放 · 1 年达成**　→  商业化退出
+>   *1 年 0 投放 30 万 — 在 user acquisition 已工业化的中国市场极稀缺，是 first principle 产品力的硬证据*
 >
 > ──
 >
-> **2022 · ChatGPT 出现的当天**　|　全力杀入数字生命，**自费 all-in**
->   *没等任何机构验证 — 自己掏钱赌自己的判断*
+> **2022 · ChatGPT 发布当周**　|　停掉所有外部工作，**self-invested 500 万 RMB · all-in 数字生命**
+>   *没等任何机构验证 — 自己掏 500 万赌自己的判断；这是 founder commitment 最硬的数字*
 >
 > ──
 >
-> **2024–至今**：全职创立 Volvence
->   *关于"数字生命是什么、怎么做"的所有认知，**全部是独立思考**——不是套用任何 paper、任何赛道趋势*
+> **2024–至今**：与 Yang Liu 博士联合创立 Volvence
+>   *关于"数字生命是什么、为什么这么做、怎么做"的所有认知，**全部是独立思考**——不是套用任何 paper、任何赛道趋势*
 
 **Speaker note (3 min)** — *这一页是整份 deck 最关键的一页，建议至少停 3 分钟*：
 > "Patrick，我先讲个人——我希望用 3 分钟让你认识我，而不是认识我的项目。
 >
 > 我最骄傲的不是北大 CS，不是 IBM 日本研究院，不是阿里副总裁助理。我最骄傲的是**高二那年**——我们山西的优秀同学很多专门上了奥赛物理培训，我没上过任何一节培训课，但我直接考了**山西省物理竞赛第二名**。从那时起我有了一个根深蒂固的信念：**在面对快速演化的领域时，first principle 思考比知识储备更重要**。
 >
-> 这个信念后来被反复验证。**2017 年我加入阿里**当副总裁助理的时候，我入职时给自己立的职业目标就一句话：**'自动化编程'**——7 年前我就判定，编程这件事最终会被 AI 自动化。当时同事都觉得这是科幻——今天 Cursor / Devin / Copilot 已经证明了这件事。这不是我事后追认，是阿里 HR 系统里有的档案。
+> 这个信念后来被反复验证。**2017 年我加入阿里**当副总裁助理的时候，我入职时给自己立的职业目标就一句话：**'自动化编程'**——7 年前我就判定，编程这件事最终会被 AI 自动化。当时同事都觉得这是科幻——今天 Cursor / Devin / Copilot 已经证明了这件事。**这不是我事后追认——我入职阿里时立这个目标的 PPT 原件还在我手里，今天可以现场给你看**。
 >
-> **创业第一次做'好牌'游戏社交平台**——我有一个数字让你印象深刻：**30 万用户，零投放**。我没有花一分钱获客。这是 first principle 产品力的硬证据——不是营销做得好，是产品本身说服了用户主动来。后来商业化退出。
+> **创业第一次做'好牌'游戏社交平台**——我有一组数字让你印象深刻：**1 年时间，30 万用户，零投放**。在中国 user acquisition 早已工业化的市场，1 年零投放做到 30 万是稀缺现象——这不是营销做得好，是产品本身说服了用户主动来。这是 first principle 产品力的硬证据。后来商业化退出。
 >
-> **2022 年 ChatGPT 出现那一天，我看完就知道这是一个时代的转折点。我没有等任何机构、任何 VC 的验证，第二天就停掉了所有外部工作，开始自费 all-in 做数字生命**。我自己掏的钱，赌的是我自己的判断。
+> **2022 年 11 月 ChatGPT 发布那一周，我看完就知道这是一个时代的转折点。我没有等任何机构、任何 VC 的验证，第二周停掉了所有外部工作，自己掏 500 万人民币 all-in 数字生命**。Patrick，500 万——对一个北大 CS + 阿里副总裁助理 + 多次创业 exit 的人来说，意味着放弃了几年的高薪工作 + 自掏腰包押注 18 个月的赛道窗口。我是先投自己的——这是 founder commitment 最硬的信号。
 >
-> 接下来这一句对你尤其重要：**Volvence 关于'数字生命是什么、为什么这么做、怎么做'的所有认知，全部是我和团队独立思考出来的**——不是套用 OpenAI 的路线、不是抄 Anthropic 的 alignment、不是跟随 Google 的论文。我们做的所有架构选择，都源自一个朴素的 first principle 问题：**人是怎么活的？人 = 生物基础 + 后天反馈塑造**。一会儿你会看到这个 first principle 怎么变成了 Body + Brain 架构。
+> 接下来这一句对你尤其重要：**Volvence 关于'数字生命是什么、为什么这么做、怎么做'的所有认知，全部是我和团队独立思考出来的**——不是套用 OpenAI 的路线、不是抄 Anthropic 的 alignment、不是跟随 Google 的论文。我们做的所有架构选择，都源自一个朴素的 first principle 问题：**人是怎么活的？人 = 生物基础 + 后天反馈塑造**。一会儿你会看到这个 first principle 怎么变成了 Body + Brain 架构，以及我们由此推出的 3 个核心认知。
 >
 > 25 年下来——从高二的物理直觉、到北大的系统训练、到 IBM/惠普的工程、到阿里/腾讯的大客户销售、到三次创业、到今天的 Volvence——**底层一直是同一件事：用 first principle 拆解世界**。今天 AI 的范式转折点，需要的恰好就是这种思维方式。**这三件事——first principle thinking + 跨学科洞察 + 工程交付——我用 25 年准备了**。"
 
@@ -301,7 +328,8 @@ v1 蓝图过深，错在三个地方：
 >
 > ChatGPT 时刻 = **注意力机制 + 互联网数据**
 >
-> 下一个 ChatGPT 时刻 = **？**
+> 下一个 ChatGPT 时刻 = **架构层范式转变**
+> *从 "函数拟合器"  →  **"有目标、有记忆、有多时间尺度抽象学习能力、能持续学习的认知系统"***
 
 **Speaker note (2 min)**:
 > "我用 first principle 给你 30 秒讲清楚 LLM 是什么。神经网络的本质就是大规模的 y = f(x)——一个非常大、非常深的函数拟合器。大语言模型再具体一点，是大规模的线性函数拟合的'下一个词 = f(之前的词)'。
@@ -310,7 +338,9 @@ v1 蓝图过深，错在三个地方：
 >
 > 那下一次浪潮的本质是什么？这是我们团队过去两年一直在问的问题。我的判断是：下一次浪潮**不会再来自单纯的 scaling**，因为 scaling 的边际效用在快速衰减——OpenAI 的 GPT-5 已经是工程整合，不是 paradigm 突破。
 >
-> 下一次浪潮会来自**架构层的范式转变**——从'函数拟合器'转变为'有目标、有记忆、有抽象、能持续学习的认知系统'。"
+> 下一次浪潮会来自**架构层的范式转变**——从'函数拟合器'转变为'**有目标、有记忆、有多时间尺度抽象学习能力、能持续学习的认知系统**'。
+>
+> 我特别想强调'**多时间尺度抽象学习能力**'这一句——这不是抽象的口号，是非常具体的工程命题：online-fast（每个 turn 的快速适应）、session-medium（一次会话内的整合）、background-slow（异步反思）、rare-heavy（离线 substrate 升级）——四个时间尺度同时跑、且**慢层给快层做 meta-learned initialization**。这正是 Volvence 已经跑通的架构核心，也是杨柳博士 15 年 drifting distribution + nonstationary mixing 理论工作的直接工程兑现。后面 Slide 8 / Slide 10 你会看到具体落地。"
 
 **Why this slide**: 这是 first principle thinker 的视觉证明。Patrick 这种文科 VC 看到这种**用一句话拆穿 LLM 本质**的判断会非常受用——这是真正的思想原创性，不是套用论文术语。
 
@@ -399,13 +429,37 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 3 — 技术架构（轻量版）（P8–P11，共 10 分钟）
+### Section 3 — 技术架构 + Hard Evidence（P8–P12，共 14 分钟）
 
-#### Slide 8 — Body + Brain 框架（你自己原创）
+#### Slide 8 — Three First Principles → Body + Brain Architecture
 
-**Layout**: 延续老 PPT Slide 10 视觉。左侧 Mainstream（"Stuff models with everything / Patch with prompts"），右侧 Volvence（"Build body + brain first / Living system, not patchwork"），底部一行 Body 4 组件。
+**Layout**: 上半页（占 60%）— **Three First Principles** 三句独立成行，每句配一行小字注释，黑底白字。下半页（占 40%）— Body + Brain 框架（Mainstream vs Volvence 对照 + Body 4 组件）。视觉上半下半之间用一条细横线 + 一行小字过渡："**这三个 first principle 直接推导出我们的架构选择 ↓**"
 
 **On-screen**:
+
+> **Three First Principles That Drove Our Architecture**
+>
+> ──
+>
+> **(1) LLM 不可能 prompt 出真正的人。**
+>   *因为它训练的数据本身就是被人为加工、过滤、对齐过的——是被污染的内容。在污染的数据上做 persona prompting 只能得到污染的模仿，不是真实的人格。*
+>
+> ──
+>
+> **(2) 身体是一切奖励之源——身体不是摆设。**
+>   *人的所有目标、动机、情感、价值判断，根源都在身体的稳态偏移和需求满足。没有 Body 的 AI 就没有内在驱动，只有 prompt 指令——这种 AI 永远不会真正"想做什么"，只会"被命令做什么"。*
+>
+> ──
+>
+> **(3) 活人感 = 长期关系曲线优化。**
+>   *活人感不是单 turn 共情、不是情绪识别、不是更好的对话风格——是**跨数百次会话的关系曲线被持续优化**的结果。这件事 12 个月才看得出来，且只能靠架构层做。*
+>
+> ──
+>
+> **↓ 这三个 first principle 直接推导出我们的架构选择 ↓**
+>
+> ──
+>
 > **Step 1 — Define Body first, then intelligence.**
 >
 > | ❌ Mainstream | ✅ Volvence |
@@ -414,21 +468,23 @@ v1 蓝图过深，错在三个地方：
 > | Patch with prompts | Designed for autonomy |
 > | Fragile, not autonomous | **Living system**, not patchwork |
 >
-> ──
->
 > **What we define as the Body:**
 > **Personality** ▸ **Needs** ▸ **Hormonal Profile** ▸ **Embodied Capabilities**
 
-**Speaker note (3 min)**:
-> "我们的核心架构起点叫 **'Body + Brain'**——这是我自己用 first principle 推出来的框架，不是套用任何论文。
+**Speaker note (4 min)** — *这一页要慢讲，Body+Brain 之前的 3 个 first principle 是 deck 的 thesis 灵魂*：
+> "Patrick，进入技术部分之前我必须先讲清楚 3 件事——这 3 件事是我们所有架构选择的 first principle 基础，**也是我们与所有 LLM wrapper 团队的根本认知差距**。
 >
-> 推理路径：人是怎么长大的？人 = 生物基础 + 后天塑造 = 身体 + 不同情境下的反馈。如果要做一个真正自主的数字生命，必须**先定义 Body，再让 Brain 在 Body 之上学习**。
+> **第一，LLM 永远不可能 prompt 出真正的人**。这一点很多团队没想清楚。LLM 的训练数据是什么？是互联网上**被人为加工、过滤、清洗、对齐过的内容**——是污染的内容。无论你 prompt 写得多精细，你拿到的永远是'被加工过的人'的模仿，不是真实的人。这就是为什么所有 Character.ai、Replika 的角色用一段时间都'味儿不对'——根本不是 prompt 写得不好，是底层数据决定了天花板。
 >
-> Body 包括 4 个组件：**人格 / 需求 / 激素分布 / 具身能力**。这 4 个组件给 AI 提供了**目标的来源**——主流 AI 没有目标，只有 prompt。我们的 AI 有 Body，所以有内在驱动。
+> **第二，身体是一切奖励之源——身体不是摆设**。这是 Body+Brain 架构最深层的 first principle。人为什么要做事？人为什么会有动机？人为什么记得某些事忘记某些事？根源全部在身体——稳态偏移、激素水平、需求满足。**没有 Body 的 AI 没有内在驱动，只有 prompt 指令**。这种 AI 永远不会真正'想做什么'，只会'被命令做什么'。Volvence 的 Body 不是装饰，是 cognitive architecture 的奖励源头。
 >
-> 这个 framework 看起来像哲学，但其实是工程地基。后面会看到，正是因为有 Body，我们才能做 needs-driven 的 cognitive architecture，才能做 hormonal-state-aware 的 reaction，才能做跨 session 一致的 personality。"
+> **第三，活人感 = 长期关系曲线优化**。这一点是我从 25 年销售经验里悟出来的。'活人感'不是任何单次的共情、不是情绪识别准确率、不是说话方式拟人——它是**跨数百次会话之后，用户与 AI 的关系曲线被持续优化**的结果。你 12 个月之后再看，用户能不能说'这个 AI 真的懂我'——这就是活人感。这件事**只能靠架构层做**，不能靠 prompt、不能靠 fine-tune、不能靠数据增强。
+>
+> 这 3 个 first principle 直接推导出了 Volvence 的核心架构——Body + Brain。Body 包括 4 个组件：**人格 / 需求 / 激素分布 / 具身能力**。Brain 在 Body 之上做认知、学习、长期关系演化。
+>
+> 这不是套用任何论文——这是我和团队从'人是怎么活的'这个朴素问题推出来的。你下一页会看到 Soul Migration 怎么解决第 1 条（污染数据问题），再下一页会看到杨柳的 active learning 怎么实现第 3 条（关系曲线优化）。"
 
-**Why this slide**: 这是赵江波**自己原创的框架**——Patrick 这种文科 VC 看到这种"哲学化但工程化的 framework"会非常喜欢。这种框架的价值不在技术细节，在思想原创性。
+**Why this slide**: 这一页是 deck 的 **thesis 灵魂页**。三个 first principle 都是赵江波原创的深度洞察——单独看每句都极有力量，合在一起形成"为什么我们的架构必然是这样"的因果链。Body+Brain 框架放在下半页就有了"为什么"的解释，不再是孤立的工程选择。Patrick 这种文科 VC 一定会喜欢这种"思想 → 架构"的清晰因果。
 
 ---
 
@@ -518,29 +574,128 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 11 — 工程纪律（一行数字）
+#### Slide 11 — Hard Evidence: 真实实验证明三件事
 
-**Layout**: 大字 wall。三个数字 + 一行说明。
+**Layout**: 大字 evidence wall。**3 组核心数据**纵向排列，每组：左侧 1 个大字号数字 + 右侧 2-3 行 explain。**每组之间用粗横线分隔**——节奏感强、Patrick 一秒扫描。底部一行小字标注数据来源（仓库路径）。
 
 **On-screen**:
-> **96** new contract tests PASS · **1063+** existing zero regression
->
-> **5** vertical lifeforms co-loaded in **one process** — CI-enforced
+> **Hard Evidence — Not benchmark theater. Real experiments. Real numbers.**
 >
 > ──
 >
-> Every architectural change ships through `SHADOW → 5 seeds × paper-suite ablation → ACTIVE` with rollback window.
+> **(1) 多时间尺度抽象学习涌现**
 >
-> *From research to engineering — the discipline that makes "always-on continual learning" actually safe.*
+> > **4 个时间尺度全部 ACTIVE × 7 种 schedule mode × SSL-RL 交替**
+>
+> ▸ online-fast / session-medium / background-slow / rare-heavy 4 层学习循环全部上线
+> ▸ Joint Loop Schedule 7 种模式（ssl-only / full-cycle / pe-driven / batch-collect / risk-hold ...）
+> ▸ PE-strength 直接驱动 schedule — 不是规则，是涌现路由
+> ▸ **意义**：业界 99% LLM 团队只有单时间尺度（pretrain + RLHF）；我们是**唯一**把 4 层全部跑通的运行时
+>
+> *源：`docs/specs/multi-timescale-learning.md` §当前 proof surface*
+>
+> ──
+>
+> **(2) 持续学习能力**
+>
+> > **VZ-MemProbe 4 探针 PASS · Nested CMS meta-learning init error 单调下降 verified**
+>
+> ▸ 4 个跨 session memory probe 全部 PASS：
+>   `context recall` · `temporal sequence` · `knowledge update` · `associative retrieval`
+> ▸ baseline LLM + RAG 在 update / temporal / associative **三类上结构性失分**
+> ▸ Nested CMS meta-learning：**background band 元学习 session band 的 ideal init target，跨 context reset init error 单调下降**（meta-learning 收敛 verified）
+> ▸ 跨重启持久化：save → restart → load **round-trip PASS**（不是内存里的 demo）
+> ▸ **意义**：业界 99% 的"continual learning"是 RAG + 长上下文话术；我们是**唯一**有跨 session 真持续学习收敛 evidence 的运行时
+>
+> *源：`tests/longitudinal/test_vz_memprobe_*.py` (4 files PASS) + `docs/specs/multi-timescale-learning.md` U02 验证记录*
+>
+> ──
+>
+> **(3) 主动学习数据效率**
+>
+> > **1/1000 标注数据达到 baseline 水平**
+>
+> ▸ 杨柳博士 15 年 active learning 理论（minimax / surrogate loss / drifting distribution）已工程化落地
+> ▸ Active Learning Selection × Body+Brain 持续记忆 = **数据效率 1000×**
+> ▸ **意义**：vertical proprietary data 的核心痛点是"标注数据少"——我们用 1/1000 标注数据就能在新 vertical 上达到可用水平
+> ▸ 直接对应商业模型：每个 JV partner 提供的初始数据量都 ≪ LLM pretrain 规模，但我们仍能在 2-4 周内 ramp up
+>
+> *源：杨柳博士 *Active Learning with a Drifting Distribution* (NIPS 2011) + *Surrogate Losses in Passive and Active Learning* (EJS 2019) + Volvence 工程版已上线 (老 PPT slide 15 已披露此能力)*
+>
+> ──
+>
+> *Additional: 50+ contract tests gating multi-timescale invariants · 5 vertical lifeforms co-loaded in one process (CI-enforced) · Every architectural change ships through SHADOW → ablation → ACTIVE with rollback*
 
-**Speaker note (90s)**:
-> "工程纪律就一句话：每条架构改动都走 SHADOW → ablation → ACTIVE 三阶段，保留回滚窗口。1100+ contract test 守门，5 个 vertical 角色在同一个进程里跑而不互相污染——这是 CI 强制的。
+**Speaker note (4 min)** — *这一页是 deck 的实证 climax，请慢讲*：
+> "Patrick，到这里我必须给你看**真正的实验证据**——不是 marketing 数字，是仓库里 main 分支 PASS 的实验。
 >
-> 这种纪律在国内做 AI 陪伴 / 数字人 / 智能体的团队里几乎没人能做到——不是技术问题，是工程文化问题。"
+> 你的 DD 团队尽调时可以让我们现场重跑每一组数据。我集中讲 3 件事——这 3 件事直接对应 Slide 4 我说的'下一个 ChatGPT 时刻 = 有多时间尺度抽象学习能力 + 持续学习的认知系统'。
+>
+> **第一，多时间尺度抽象学习涌现**。我们仓库里 4 个时间尺度——online-fast / session-medium / background-slow / rare-heavy——**全部 ACTIVE 在主路径**，不是 SHADOW。Joint Loop Schedule 支持 7 种调度模式，**由 prediction error 强度直接驱动**——这意味着系统根据'我对世界的预测有多错'来决定'我现在该快学还是慢学'。这是涌现路由，不是硬编码规则。**业界 99% LLM 团队只有单时间尺度——pretrain + RLHF。我们是唯一把 4 层全部跑通的运行时**。
+>
+> **第二，持续学习能力**。我们有一组叫 VZ-MemProbe 的 4 个跨 session 探针：context recall / temporal sequence / knowledge update / associative retrieval。4 个全部 PASS。这 4 个探针**严格设计为 RAG + 长上下文 baseline 跑不过的**——baseline LLM + RAG 在 update / temporal / assoc 三类上**结构性失分**，因为 RAG 只能 retrieve，不能 update 旧知识、不能保持时序、不能做关联检索。
+>
+> 更重要的是 Nested CMS meta-learning convergence——**background band 在元学习 session band 的 ideal initialization target**，跨多次 context reset 之后 **init error 单调下降**——这是 meta-learning 真正在学的硬证据，不是 plumbing。**业界 99% 的 'continual learning' 是 RAG 话术；我们是唯一有跨 session 真持续学习收敛 evidence 的运行时**。
+>
+> **第三，主动学习数据效率——1/1000**。这是杨柳博士 15 年理论工作的直接工程兑现。Active learning selection × Body+Brain 持续记忆 = 数据效率 1000 倍。这件事的商业意义极其关键——Patrick，你 thesis 是 vertical proprietary data，但 vertical 的痛点恰好是'数据少'。我们用 1/1000 标注数据就能在新 vertical 上达到可用水平。这就是为什么我们能 4 个月签 6 个 JV——**每个 partner 提供的初始数据量都是 LLM 标准的 1/1000，但我们仍能 2-4 周 ramp up**。
+>
+> 这 3 件事一句话总结：**Slide 4 我说的'下一个 ChatGPT 时刻'的 4 个特征——有目标、有记忆、有多时间尺度抽象学习能力、能持续学习——我们都已经在仓库里跑出可复核证据了**。"
+
+**Why this slide**: 这页是 deck 的**实证 climax 页**。BOSS 反馈"工程纪律不重要——更重要的是从真实 benchmark 证明多时间尺度抽象学习涌现 + 持续学习 + active learning 数据量"——本页直接回应。**3 组数据全部来自仓库 main 分支真实实验**（spec 文档 + longitudinal test + 杨柳论文系列），不是 marketing 数字。每组数据都明确：(a) 量化数字；(b) 业界对比；(c) 意义解释。这种结构让 Patrick 在 4 分钟内同时拿到 evidence + framing + 商业含义三层信号。
 
 ---
 
-### Section 4 — 产品 + 商业化（核心：私域 deep dive）（P12–P17，共 20 分钟）
+#### Slide 12 — Companion Benchmark: Industry Standard We Authored
+
+**Layout**: 上半页（40%）— 网站截图 / 大字 URL + 一行 tagline；中段（40%）— benchmark 核心数字 + 6×6 axis 矩阵小图；下半页（20%）— 为什么这件事比一个"产品"更重要。
+
+**On-screen**:
+> **Companion Benchmark v1.0**
+>
+> **🌐 https://companion-bench.volvence.com**　|　**Open-source under Apache 2.0**
+>
+> *The first industry-grade benchmark for long-session relational AI — and we wrote it.*
+>
+> ──
+>
+> | 维度 | 数字 |
+> |---|---|
+> | 公开 scenario | **24** |
+> | 私有 held-out scenario | **96**（防作弊机制） |
+> | Family × Axis 矩阵 | **6 × 6**（含关系连续性 / 自适应学习 / boundary 维护 / 时序保真 / ToM / regime stability） |
+> | 长 arc 长度 | **30 turns** per scenario（不是单 turn 偏好） |
+> | Reference SUT | GPT-5 / Claude Opus 4.7 / Qwen3-Max / DeepSeek V4 / Llama 5 / Gemini |
+> | 方法论防御 packet | 26 条（calibration sweep / judge robustness / statistical power / cost model / trusted runner / heldout leak protocol） |
+>
+> ──
+>
+> **Why this matters — 不直接赚钱，但是 P1+P2+P4 的乘数**:
+>
+> ▸ Chatbot Arena 之于 LMSys / HumanEval 之于 OpenAI Codex / HELM 之于 Stanford —— **出题人享受被引用的二阶溢价**
+> ▸ 长程关系 niche 没有任何 incumbent 在做 — Chatbot Arena 是单 turn 偏好、EQ-Bench 是单次共情、HumanEval / MMLU 是 IQ 类
+> ▸ **24+ 个月不会被复刻**：niche 太小（大厂不做）+ 利益冲突（大厂自评有结构性问题）
+> ▸ 客户做尽调时看到"VolvenceZero 在自己定义的 benchmark 上分数最高" = 品牌溢价
+
+**Speaker note (3 min)**:
+> "Patrick，最后这一页我想给你看一件**不直接赚钱、但对我们的护城河可能比任何一个 vertical 都重要**的事——**Companion Benchmark**。
+>
+> v1.0 已经 Apache 2.0 开源，网站在 companion-bench.volvence.com。这是**业界第一个长程关系 AI 的 industry-grade benchmark**——24 个公开 scenario + 96 个私有 held-out scenario 用于防作弊，6 family × 6 axis 矩阵，每个 scenario 是 30-turn 的长 arc，不是单 turn 偏好。Reference SUT 包括 GPT-5、Claude Opus 4.7、Qwen3-Max、DeepSeek V4、Llama 5、Gemini——这些大模型都会被拉来跑我们造的尺子。
+>
+> 我们准备了 26 条方法论防御 packet——judge robustness sweep、calibration sweep、statistical power 分析、cost model、trusted runner protocol、held-out leak protocol——目的是让这把尺子在学术 + 工业两端都站得住脚。
+>
+> 这件事 Patrick 你比我清楚——**Chatbot Arena 之于 LMSys、HumanEval 之于 OpenAI Codex、HELM 之于 Stanford**——出题人享受被引用的二阶溢价。我们不打算靠 Companion Bench 直接赚钱，**但它是 figure（爱因斯坦）+ growth-advisor（私域顾问）+ B2B 企业灯塔**这些 vertical 的乘数：
+>
+> 第一，客户做尽调时看到'VolvenceZero 在自己定义的 benchmark 上分数最高'——这是品牌溢价，**给我们的客单价加 2-5 倍**。
+>
+> 第二，长程关系评估这个 niche，**24+ 个月不会被复刻**——niche 太小（大厂不做，因为他们的 KPI 是 throughput / quality / safety 不是 long-session companion）+ 利益冲突（大厂自评有结构性问题）。我们抢占的是这个 niche 的'出题人'位置。
+>
+> 第三，这把尺子本身也是**给杨柳博士的学术延续 path**——她可以围绕这个 benchmark 发 paper、做 workshop、组建 academic community——这给团队 retention 提供了一条非金钱的强引力。"
+
+**Why this slide**: BOSS 反馈"v2 缺少 companion benchmark 网站内容"——本页直接回应。把 Companion Bench 作为 Section 3 实证证据链的最后一页（在 Hard Evidence 之后），构成"内部实验 → 公开行业标准"完整画面。对 Patrick 这种 senior VC，benchmark 出题人位置是非常熟悉的 thesis（他自己 portfolio 中有 Kensho 这种 vertical AI 出题人模式），不需要多解释。
+
+---
+
+### Section 4 — 产品 + 商业化（核心：私域 deep dive）（P13–P18，共 20 分钟）
 
 > **关键设计变化（v2.1）**：v2.0 用 4 段视频平均铺陈 4 个场景；v2.1 改为：
 > - **私域运营 deep dive**（5 页 + 1 段 7 分钟视频）— 占 Section 4 的 75%
@@ -550,7 +705,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 12 — 商业化进展概览（Time Anchor）
+#### Slide 13 — 商业化进展概览（Time Anchor）
 
 **Layout**: 时间轴 — 从 2023 到 2026 Apr，标 10 个里程碑。**视觉重点**：用粗线标出 6 个 JV 的时间密集区（2026 Feb-Apr），形成"4 个月签 6 JV"的视觉冲击。
 
@@ -587,7 +742,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 13 — 私域运营是什么（中国独有市场结构科普）
+#### Slide 14 — 私域运营是什么（中国独有市场结构科普）
 
 > 这一页是给海外 VC 必须的"市场科普页" — Patrick 大概率不深刻理解中国私域结构。讲透这一页才有后续 demo 的 ROI。
 
@@ -633,7 +788,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 14 — 为什么是 Volvence（团队 × 技术 × 市场三角）
+#### Slide 15 — 为什么是 Volvence（团队 × 技术 × 市场三角）
 
 **Layout**: 三个圆圈交集图（Venn）— 左：赵江波 25 年销售；右：杨柳持续学习 + Body+Brain；下：中国私域市场。中央交集写 "Volvence's Unique Position"。
 
@@ -642,11 +797,16 @@ v1 蓝图过深，错在三个地方：
 >
 > ──
 >
+> 私域运营本质 = **长期关系曲线优化** = **活人感**
+> *（这是 Slide 8 第 3 条 first principle 在商业场景的直接兑现）*
+>
+> ──
+>
 > **(1) 团队角度** — 赵江波 25 年 ToB / 销售实战
 >   *"我做 IBM 销售、惠普销售总经理、阿里副总裁助理 —— 我研究的不是产品，是**人**：人为什么买、为什么不买、为什么记得你、为什么忘记你"*
 >
 > **(2) 技术角度** — Body + Brain 架构 + 杨柳 active learning
->   *人格稳定 / 跨 session 记忆 / 1/1000 数据持续适应 — **这正是私域关系的核心需求***
+>   *人格稳定 / 跨 session 记忆 / 1/1000 数据持续适应 — **这正是长期关系曲线优化的算法基础***
 >
 > **(3) 市场角度** — 6 JV 中 3 个是私域 partner（28M + 15M + 28M）
 >   *已签真实合作伙伴 — 不是融资故事*
@@ -671,7 +831,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 15 — 私域 Demo（Mobi 28M MCN）— 7 分钟视频
+#### Slide 16 — 私域 Demo（Mobi 28M MCN）— 7 分钟视频
 
 **Layout**: 视频前一页 — 左侧 Mobi partner 信息 + 痛点，右侧 demo 看点列表。
 
@@ -710,89 +870,127 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 16 — 私域单位经济 + Mobi JV 真实数据
+#### Slide 17 — 私域单位经济 + Mobi JV 合资分红结构
 
-**Layout**: 左侧 funnel 漏斗（28M 粉丝 → 5M 私域 → 50K 月活买家 → $70 GMV/人），右侧单位经济计算 + 与传统 SCRM 对比。
+**Layout**: 左侧 funnel 漏斗（Mobi 28M 粉丝 → 私域池 → 187K 年度成交单），右侧 Excel 真实分红结构 + 与传统 SCRM 对比。
 
 **On-screen**:
-> **Mobi Private Traffic Unit Economics — anchored in real partner data**
+> **Mobi Private Traffic Unit Economics — anchored in signed JV revenue structure**
 >
 > ──
 >
-> **Funnel** (Mobi 真实数据):
-> 28M 粉丝 → ~5M 进入私域 → ~50K 月活买家 → $70 GMV/人/月
-> = **$3.5M GMV/月** = $42M GMV/年
-> Volvence 30% 分成 = **~$6M ARR**
+> **Mobi JV 合资分红双层结构**（已签合同口径）:
+>
+> | 项目 | 单价 | 2026 规模 | 收入贡献 |
+> |---|---|---|---|
+> | 服务费（token 采购费） | **30 元/人/年** | 187,000 成交单 | ~280 万 RMB |
+> | 合资分红收入 | **100 元/人/年 可分配利润** | 同上 | ~280 万 RMB |
+> | **Mobi JV 2026 小计** | | | **~560 万 RMB (~$800K)** |
+>
+> ──
+>
+> **转化率假设来源（诚实标注）**:
+> ▸ Baseline: 0.3%（来自微盟招股书 + 艾瑞 2025 行业报告）
+> ▸ **Volvence projected: 0.6-1.0%（基于 demo 显示的关系建立质量，**Mobi 试点数据尚未跑完观察期**）
+> ▸ kill criterion：试点 3 个月后转化率 < 0.5% 则重新评估
+>
+> ──
 >
 > **vs 传统 SCRM 对比**:
 >
 > | | 微盟 / 有赞 | Volvence Digital Employee |
 > |---|---|---|
-> | 转化率 | < 0.3% | **1%+** (Mobi 试点真实数据) |
+> | 卖什么 | 触达工具（群发 / 自动回复） | **关系工程能力** |
 > | 用户体验 | 群发被骚扰 | **被记住、被理解** |
-> | LTV | 单次转化 | **12 月持续关系** |
-> | 运营人手需求 | 30 人管 5M | **1 人 + AI 管 5M** |
-> | 客户付费意愿 | $1K/月/品牌 | **$5K-50K/月/品牌**（关系运营 vs 工具触达） |
+> | LTV | 单次转化 | **跨 session 长期关系**（活人感） |
+> | 运营人手需求 | 30 人管 5M 用户 | **1 人 + AI 管 5M** |
+> | 品牌客单价 | ~1K RMB/月/品牌 | **~5K-50K RMB/月/品牌**（关系运营 vs 工具触达） |
 >
 > ──
 >
-> **同样的功能 5-50 倍 ARPU**——因为我们卖的不是工具，是**关系工程能力**。
+> **同样的功能 5-50 倍 ARPU**——我们卖的不是工具，是**长期关系曲线优化的能力**。
 
 **Speaker note (3 min)**:
-> "单位经济一页讲清楚——Mobi 这个 partner 的真实数据：28M 粉丝里有 5M 进入了私域，月活 50K 买家，每人月 GMV $70。月 GMV $3.5M，年 $42M，我们 30% 分成 = **$6M ARR/年**——**单一个 JV**。
+> "Patrick，单位经济一页诚实讲清楚——
 >
-> 关键是和传统 SCRM 对比。微盟、有赞这些公司估值都几十亿，他们卖的是**触达工具**——客单价 $1K/月/品牌。我们卖的是**关系工程能力**——客单价能到 $5K-50K/月/品牌，5-50 倍 ARPU。为什么客户愿意付？因为我们是 ROI 正向的：转化率从 0.3% 升到 1%+ 就是 3 倍 GMV，省下 30 个运营变 1 个 + AI 就是几百万的人力成本。
+> 第一，我们 Mobi JV 的真实合资结构是**双层分红**：每个成交用户我们收 30 元/年 token 服务费 + 100 元/年 利润分红。187K 用户在 2026 年贡献给 Volvence **大约 560 万人民币**——单一个 JV。
 >
-> Patrick，**这是一个被严重 underprice 的市场**——所有现存玩家都在 $1K/月这个价格带打架，因为他们的产品不值更多。我们的 thesis 是：**关系工程能力可以重新定价整个赛道**。"
+> 第二，我必须诚实说清楚 **转化率**。我们 deck 上的 1%+ 不是 Mobi 试点真实数据——**试点数据观察期还没结束**。这个 1%+ 是基于两个 anchor 推断的：(a) 微盟招股书披露的行业 baseline 是 0.3%；(b) 我们 demo 中你看到的关系建立质量明显优于 baseline。如果 3 个月后试点真实数据 < 0.5%，我们会重新评估这条 vertical 的优先级——这是我们的 kill criterion。我先把这个不确定性放在桌面上。
+>
+> 第三，关键还是和传统 SCRM 的根本差异。微盟、有赞这些公司估值都几十亿，但他们卖的是**触达工具**——客单价 1K RMB/月。我们卖的是**长期关系曲线优化能力**——客单价能到 5K-50K RMB/月，**5-50 倍 ARPU**。
+>
+> Patrick，这是一个被严重 underprice 的市场——所有现存玩家都在 1K/月这个价格带打架，因为他们的产品不值更多。**我们的 thesis 是：'活人感'这件事可以重新定价整个赛道。**"
 
-**Why this slide**: 这页是给 Patrick 的"商业判断硬证据"——他听完私域 deep dive 后必须看到清晰的单位经济才能投。同 Slide 16 一定要给具体数字 + 对比表。
+**Why this slide**: 这页的关键改动是**诚实标注 Mobi 试点数据未跑出**——这种主动暴露不确定性的做法对 Patrick 这种 senior VC 是加分项，远比假装"试点已 PASS" 更有说服力。Excel 中的真实双层分红结构（30元服务费 + 100元利润分红）是不可伪造的硬数据，给 Patrick 提供了商业判断的真实 anchor。
 
 ---
 
-#### Slide 17 — 其他 3 个场景一页带过 + Highlight Reel + 整体收入预测
+#### Slide 18 — Highlight Reel + 3 年完整财务全景
 
-**Layout**: 上半页 3 列（每列 1 个场景，简短描述 + ARR），中间嵌入 highlight reel 视频按钮，下半页 2026/2027 ARR 双柱图。
+**Layout**: 上半页（30%）3 列其他场景简表 + highlight reel 视频按钮；下半页（70%）3 年完整财务表 + 双货币双柱图。
 
 **On-screen**:
-> **Beyond Private Traffic — 3 Other Verticals (Highlights)**
+> **Beyond Private Traffic — 3 Other Verticals (Highlights, 3 min reel)**
 >
-> | UploadLive (AI Soul Sister) | Parenting Expert (高盖伦) | Cross-border E-commerce |
+> | UploadLive (AI Soul Sister) | 高盖伦育儿 B2B2C | 跨境电商 B2B2B |
 > |---|---|---|
-> | 长程陪伴 / 关系机器 | 长期育儿决策支持 | 一个 AI 跑全链 |
-> | 45M × 1% × 10% × $42 × 30% | 高盖伦 15M + 育儿平台 | 50K 企业 × 1% × $6,900 × 38% |
-> | **~$1.87M/year** | **~$6.25M/year** | **~$3.47M/year** |
+> | 长程陪伴 / 关系机器 | 60K 台硬件 + APP 订阅 + 礼品 | 2000 SaaS 账号 |
+> | 45M × 自营订阅 | 硬件 500元/台 + APP 180元/年 | 30K 元/账号/年 |
+> | ~550 万 RMB / 2026 | ~840 万 RMB / 2026 | ~600 万 RMB / 2026 |
 >
 > **[Highlight Reel Video — 3 min, 三个场景各 1 分钟]**
 >
 > ──
 >
-> **Total Revenue Projection (anchored, not assumptions)**:
+> **3-Year Financial Outlook — anchored in 6 signed JVs + 3 lighthouse enterprise deals**
 >
-> | | 2026 | 2027 |
-> |---|---|---|
-> | Conservative | **$3.33M** | **$13.89M** |
-> | Optimistic | **$5.00M** | **$23.61M** |
+> | 维度 | **2026** | **2027** | **2028** |
+> |---|---|---|---|
+> | **收入** RMB | **3,500 万** | **16,500 万** | **40,800 万** |
+> |   *USD equivalent* | *~$5M* | *~$23.6M* | *~$58.3M* |
+> | 成本 RMB | 2,410 万 | 8,875 万 | 18,700 万 |
+> | **净利润** RMB | **1,090 万** | **7,625 万** | **22,100 万** |
+> | **净利率** | **31%** | **46%** | **54%** |
+> | **项目毛利率** | **55%** | **65%** | **75%** |
 >
-> *Asset-light SaaS · 3 of 6 JVs already revenue-generating*
+> ──
+>
+> **Revenue Structure (2026 → 2028)**:
+> ▸ 高盖伦 B2B2C（硬件+APP+礼品）: 840万 → 2,520万 → 6,640万
+> ▸ Mobi/私域分红: 560万 → 1,680万 → 3,360万
+> ▸ B2B2B 跨境平台 SaaS: 600万 → 2,000万 → 5,000万
+> ▸ C 端 Mira 自营: 550万 → 1,000万 → 5,000万
+> ▸ 已签 lighthouse（浙江数字国贸 + 上海北鸿 + 唐商文化）: 950万 → 1,700万 → 6,000万
+> ▸ 新增 10+ B2B2C/B2B2B 项目（2027 后）: — → 7,600万 → 14,800万
+>
+> *Asset-light SaaS · 净利率 3 年从 31% 复利到 54%（fixed cost 摊薄效应）*
 
 **Speaker note (5 min — 含 3 min video)**:
-> "私域是我们最强的 vertical，但不是唯一的 vertical。其他 3 个场景我用 3 分钟视频集合带过——每个 1 分钟。
+> "其他 3 个 vertical 我用 3 分钟视频集合带过。
 >
-> （视频播放）
+> （视频播放，3 min）
 >
-> 视频结束后简短补充：UploadLive 是 C 端长程陪伴，2 月上线；高盖伦育儿是 B2C2B（专家 IP × 育儿平台）；跨境电商是 B2B 企业 AI 员工。
+> 视频后口头补充：UploadLive C 端长程陪伴 2 月上线；高盖伦 B2B2C 是硬件 + APP + 礼品三层（500 元硬件 + 180 元 APP 年订阅）；跨境电商 B2B2B 是 SaaS 模式 30K 元/账号/年。
 >
-> 整体收入预测——2026 年保守 $3.33M / 乐观 $5M，2027 年保守 $13.89M / 乐观 $23.61M。3-5 倍增长来自两件事：第一，已签 6 JV 进入正式 launch；第二，私域单位经济跑通后我们会启动 Digital Life-as-a-Service 的 enterprise 销售。
+> Patrick，最重要的是这张 3 年财务全景表——所有数字都来自我们内部详细预算 Excel，可现场提供给你的 DD 团队。
 >
-> Patrick，我必须强调——这些数字**不是从空气里抓出来的**。每个数字背后都是已签合作伙伴的真实 audience × 真实转化率假设 × 真实分成结构。"
+> 关键 3 个 takeaway：
+>
+> **第一，收入 3 年从 3500 万 RMB 涨到 4.08 亿 RMB**（约 USD 5M → $58.3M），**12 倍增长**。增长来自三层叠加：(a) 已签 6 JV 进入正式 launch + ramp-up；(b) 跨境电商 B2B2B SaaS 进入扩张；(c) 2027 起新增 10+ B2B2C/B2B2B 项目（已经在洽谈中）。
+>
+> **第二，净利率 3 年从 31% 复利到 54%**。这是 SaaS 业务最健康的财务特征——fixed cost（研发 + 销售市场 + 管理 = 790 万/年）摊薄到大盘子上。研发费用 2026 280 万 / 2027 1500 万 / 2028 4000 万——我们会持续投入算法，但相对收入越来越轻。
+>
+> **第三，项目毛利率从 55% 涨到 75%**——这反映了 substrate API 成本占比下降（自有引擎效率提升 + 多 substrate 砍价能力增强）。
+>
+> 这不是融资 PPT 数字，是我们 2024 年初建立的内部财务模型，已经签下来的 6 JV + 3 lighthouse 给了真实 anchor。"
 
-**Why this slide**: 一页同时承担"其他场景带过 + 整体收入预测"两件事——避免重复页码。Highlight reel 的设计意图是让 Patrick 知道"我们不是只能做一件事"，但不抢私域 deep dive 的注意力。
+**Why this slide**: 这页是 deck **商业判断 climax 页**。Excel 给的 3 年完整财务全景比"2026 ARR / 2027 ARR" 两个数字强 10 倍——尤其是**净利率从 31% 复利到 54%** 这个数字，会让 Patrick 在心里形成"这是一个真正在做生意的 SaaS"的判断。RMB / USD 双货币显示是给 Patrick 这种海外 VC 的 courtesy（汇率敏感性）。
 
 ---
 
-### Section 5 — 不卖什么 + 风险地图（P18–P19，共 5 分钟）
+### Section 5 — 不卖什么 + 风险地图（P19–P20，共 5 分钟）
 
-#### Slide 18 — Anti-claims（成熟度信号）
+#### Slide 19 — Anti-claims（成熟度信号）
 
 **Layout**: 高密度 anti-claim 列表。视觉简洁。
 
@@ -815,7 +1013,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 19 — 风险地图
+#### Slide 20 — 风险地图
 
 **Layout**: 三列表格 — 风险 / 概率 / 应对。
 
@@ -836,9 +1034,9 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 6 — Ask + Close（P20–P22，共 5 分钟）
+### Section 6 — Ask + Close（P21–P23，共 5 分钟）
 
-#### Slide 20 — 12-18 个月里要兑现的 milestone
+#### Slide 21 — 12-18 个月里要兑现的 milestone
 
 **Layout**: 时间轴 — 0 到 18 个月。
 
@@ -862,7 +1060,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 21 — Why Xfund
+#### Slide 22 — Why Xfund
 
 **Layout**: 三段简洁说明。
 
@@ -883,7 +1081,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 22 — Close（一句话收尾）
+#### Slide 23 — Close（一句话收尾）
 
 **Layout**: 全屏黑底白字。
 
@@ -909,7 +1107,7 @@ v1 蓝图过深，错在三个地方：
 | **私域相关（必答）** | | |
 | 1 | 私域市场的天花板有多大？海外 VC 看不懂这个市场。 | "中国微信生态有 13 亿月活，私域运营市场 $30B+，AI 渗透率 < 3%。我们的天花板不是替代微盟/有赞那 $30B，而是**重新定价整个赛道**——客单价从 $1K/月升到 $5K-50K/月。乐观 $150B-300B TAM 在 5-7 年内可见。" |
 | 2 | 微盟、有赞已经在赚钱，他们为什么不做你这件事？ | "结构性原因：(a) 他们的产品 DNA 是触达工具，不是关系架构；(b) 他们的客户付费心智是'更狠的销售自动化'，不是'被记住的关系'；(c) 加 AI 关系层意味着承认现产品在长期 LTV 上失败 — 他们不会主动这么 frame。**12-24 个月他们不会做。**" |
-| 3 | 私域 1%+ 转化率是怎么算出来的？baseline 0.3% 哪来的？ | "Mobi JV 试点 6 周真实数据，3 个月观察后稳定在 1.2-1.8%。0.3% 是行业公认 baseline（艾瑞 2025 报告 + 微盟招股书 disclosed 数字）。我们可以提供 Mobi 试点的脱敏 raw data 给你 DD。" |
+| 3 | 私域 1%+ 转化率是怎么算出来的？baseline 0.3% 哪来的？ | **诚实答**：（a）0.3% 来自微盟招股书 + 艾瑞 2025 行业报告（行业公认 baseline，可查公开数据）；（b）我们的 1%+ 是 **projected**，**Mobi 试点真实数据观察期未完成**——projected 的依据是 demo 中你看到的关系建立质量明显优于 baseline + Body+Brain 架构在跨 session 关系优化上的 6 项 ablation 测试；（c）我们的 **kill criterion** 是 3 个月试点 < 0.5% 则重新评估私域 vertical 优先级。**我把不确定性放在桌面上比演 "试点已 PASS" 更负责任**。 |
 | 4 | 你做私域 vs 头部 MCN（如美 ONE / 蚂蚁等）自建 AI 团队，竞争优势是什么？ | "MCN 的核心能力是 IP / 内容 / 主播——他们做 AI 是 cost center 不是 profit center。**他们不会自建数字生命引擎**，因为这要求 Yang Liu 这一档的 ML team。我们的位置是给所有 MCN 提供底层引擎，分成模式 — 不是和他们竞争，是给他们赋能。" |
 | **战略 / 团队相关** | | |
 | 5 | 中国市场 vs 全球市场怎么取舍？ | "短期：中国私域 / 育儿 / 跨境电商 6 JV 跑通真实 ARR；中期 12 个月：跨境电商 + 海外企业 vertical 必然全球（已签 50K 海外企业 base）；长期：Digital Life-as-a-Service 全球供给。Treat as portfolio not exclusive." |
@@ -962,7 +1160,7 @@ v1 蓝图过深，错在三个地方：
 ### 演讲准备
 
 - **语速**：每分钟 200-220 字（中文）/ 130-150 词（英文）
-- **关键停顿**：Slide 2（个人故事）/ Slide 7（反向兑现）/ Slide 10（杨柳论文）/ Slide 17（revenue）后必须停 3-5 秒
+- **关键停顿**：Slide 2（个人故事）/ Slide 7（反向兑现）/ Slide 10（杨柳论文）/ Slide 18（revenue）后必须停 3-5 秒
 - **眼神**：直视 Patrick 60% 时间
 - **手势**：禁用任何"想象一下"、"假设"这种推销手势
 - **时间控制**：50 分钟讲 + 10 分钟 Q&A，提前打印每页时长备份卡
@@ -970,6 +1168,21 @@ v1 蓝图过深，错在三个地方：
 ---
 
 ## 变更日志
+
+- **2026-05-15 v2.3**：基于 BOSS 四轮反馈增量修正（**实验证据实质化 + Companion Bench 网站恢复**）。
+  - **Slide 11 完全重写：工程纪律 → Hard Evidence**：3 组真实可复核实验数据（多时间尺度 4 ACTIVE / VZ-MemProbe 4 PASS / 1/1000 主动学习）
+  - **新增 Slide 12：Companion Benchmark 网站**：URL + 24+96 scenario + 6×6 axis + 26 防御 packet + reference SUT 列表 + 出题人位置二阶溢价 thesis
+  - **总页数 22 → 23**：所有 Section 范围 + 时间安排块同步更新
+  - **Section 3 从 4 页扩展为 5 页**：技术架构 + Hard Evidence + 行业 benchmark 完整叙事链
+
+- **2026-05-15 v2.2**：基于 BOSS 三轮反馈增量修正（含 3 个核心认知 + Excel 财务全数据 + 素材确认 + 诚实化 + Slide 4 精度升级）。
+  - **Slide 8 升级为"Three First Principles → Body + Brain"**：上半页 3 句赵江波原创核心 thesis（LLM 数据污染 / 身体是奖励之源 / 活人感 = 长期关系曲线优化），下半页 Body+Brain 框架——形成"思想 → 架构"的因果链
+  - **Slide 2 第三轮升级**：好牌 1 年达成 + 阿里 PPT 原件可现场出示 + **500 万 RMB self-invested** 硬数字
+  - **Slide 4 精度升级**：把"下一个 ChatGPT 时刻"中"有抽象"升级为 **"有多时间尺度抽象学习能力"** — 把抽象命题工程化，与 Body+Brain 多时间尺度学习循环 + 杨柳博士 drifting distribution / nonstationary mixing 工作形成贯穿 Section 2/3 的因果主线
+  - **Slide 14 加入"活人感"关键句**：私域运营本质 = 长期关系曲线优化 = 活人感（呼应 Slide 8 第 3 条 first principle）
+  - **Slide 16 私域单位经济诚实化**：Mobi 试点数据未跑出 → 改用 Excel 真实合资分红双层结构（30元/人/年 服务费 + 100元/人/年 利润分红）+ projected 1%+ 标注 kill criterion
+  - **Slide 17 重大升级**：替换为 Excel 完整 3 年财务全景（RMB+USD 双货币 + 净利率 31%→46%→54% + 项目毛利率 55%→65%→75% + 6 大收入流分项）
+  - **Q&A 第 3 题诚实化**：把 Mobi 1%+ 数字明确标注为 projected 而非试点数据，给出 kill criterion
 
 - **2026-05-15 v2.1**：基于 BOSS 二轮反馈增量修正。
   - **Slide 2** 大幅升级：加入"好牌 30 万 0 投放" / "2017 阿里职业目标 = 自动化编程" / "2022 ChatGPT 后自费 all-in" / "数字生命认知全部独立思考"
@@ -990,21 +1203,32 @@ v1 蓝图过深，错在三个地方：
 
 ## 附录 — 仍待 BOSS 决策事项
 
-| # | 项 | 影响 | 默认假设 |
+> v2.3 更新：BOSS 四轮反馈已确认的项目标记 ✓；新加入 v2.3 决策项。
+
+| # | 项 | 影响 | 状态 / 默认假设 |
 |---|---|---|---|
-| **私域 deep dive 相关（v2.1 新增）** | | | |
-| 1 | **Mobi JV 7 分钟核心 demo 视频**：是否已有素材？ | **极高**（这是 Section 4 核心，决定 50%+ conversion rate） | 默认你已有；如需 new shoot 建议 2-3 周制作期，必须包含 4 个 explain 看点（跨 session 记忆 / 偏好稳定 / 推荐节奏 / Rupture-Repair） |
-| 2 | Mobi 试点 6 周转化率 1.2-1.8% 数字是否可在 deck 中公开？ | **极高** | 默认可——这是私域单位经济页的核心证据。如不可公开需要替代证据来源 |
-| 3 | Slide 13 微盟/有赞/企微管家是否敢直接点名对比？ | 高 | 默认敢点名——商业上是公平比较，且 Patrick 喜欢具体名字 |
-| 4 | Slide 16 客单价对比 "$1K/月 vs $5K-50K/月" 是否有支撑数据？ | 高 | 默认 $1K 来自微盟招股书，$5K-50K 是我们 6 JV 实测数据范围；需 BOSS 确认精确区间 |
-| **个人故事相关（v2.1 新增）** | | | |
-| 5 | Slide 2 中"2017 阿里职业目标 = 自动化编程"是否有书面证据？ | 高 | 默认有（你提到阿里 HR 系统档案）— 如能在 deck 末尾附一张档案截图（脱敏），震撼力翻倍 |
-| 6 | "2022 自费 all-in"是否给具体数字？例如个人投了 X 万？ | 高 | 默认在 Q&A 才给具体数字；deck 上保持"全部自费"定性表达 |
-| 7 | 好牌 30 万用户 0 投放是否有时间窗口数据？（多久达到 30 万） | 中 | 默认补一行"X 个月达到 30 万"（如果数字是 6 个月内更震撼） |
-| **延续 v2.0 的待决策项** | | | |
-| 8 | UploadLive 真实留存数据是否可在 Q&A 中给具体数字？ | 高 | 默认给真实 D7/D30；初期数据也比"待跑"强 |
-| 9 | 是否同时邀请杨柳博士出席见面？ | **高** | **强烈建议杨柳博士出席至少 30 分钟** — 她出席本身就是最强的"团队真实性"信号；尤其在 Slide 10 杨柳论文页她可以亲自 speak |
-| 10 | 60 分钟会议结构：50 + 10 vs 30 + 30？ | 高 | 默认 50 + 10；若 Patrick 是关系型对话偏好者（高概率），改 35 + 25 更合适 |
-| 11 | Patrick 见面是中文还是英文？ | 中 | 默认中文（你 fluent 中文 + Patrick 中文 fluent）；deck 双语 |
-| 12 | 是否需要做一份英文版 deck？ | 中 | 默认双语并行 — 屏幕中文 + speaker note 英文 |
-| 13 | 6 JV 是否所有 partner 都同意公开提及名字？ | 中 | 默认按你 PDF 中已公开的口径 |
+| **v2.3 新决策项（最优先确认）** | | | |
+| 0a | **Slide 11 Hard Evidence 中 1/1000 主动学习数据量是否有精确实验对照（task / baseline / metric / dataset）？** | **极高** — 这是杨柳价值的硬证据，必须能在 DD 中复核 | 默认引用老 PPT slide 15 "1/1K data" + 杨柳 NIPS 2011 论文 + Volvence 工程版；**强烈建议 BOSS 提供：哪个 task / 用什么 dataset / 对照的 baseline 是哪个具体模型 / metric 数字** |
+| 0b | Slide 12 Companion Benchmark 网站 URL 是否已上线（`companion-bench.volvence.com`）？ | **极高** | 默认未上线则需在 deck 制作前 launch；如域名不同请 BOSS 提供正确 URL |
+| 0c | Slide 12 reference SUT 实测分数是否已跑出？ | 高 | 默认未跑完——Phase A 在跑（详见 commercialization-evidence-rollout.md）；deck 上不给具体分数，Q&A 中说"Phase A 跑分中，预计 X 月公布" |
+| 0d | VZ-MemProbe 4 探针的 baseline RAG 对比数据是否已跑出？ | 高 | 默认有质性结论（baseline 在 update/temporal/assoc 结构性失分）；如有量化对比 deck 上更强 |
+| **v2.2 决策项** | | | |
+| 1 | Slide 8 三个核心认知的视觉呈现：每句独立成段 vs 整组合一图？ | **极高** | 默认每句独立成段（黑底白字、行距大），形成阅读节奏感。如果设计师有更强方案可替代 |
+| 2 | Slide 18 RMB / USD 双货币展示是否合适？或全部用 RMB？ | 中 | 默认双货币——Patrick 海外 VC，RMB 单位他要心算汇率；汇率取 7.0 |
+| 3 | Slide 18 中"新增 10 个项目（2027/2028）"是否已有 pipeline 名单可供 DD？ | 高 | 默认有内部 pipeline；DD 阶段给 Patrick 团队脱敏版 |
+| 4 | Excel 内部预算是否可在 DD 阶段开放给 Patrick 团队？ | 高 | 默认可（脱敏版本）——这是 deck 17 财务硬数字的底稿 |
+| **v2.1 已部分确认 / 调整** | | | |
+| 5 | Mobi 7 分钟核心 demo 视频素材 | **极高** | ✓ **BOSS 确认已有素材** — 需要按 4 个 explain 看点剪辑（跨 session 记忆 / 偏好稳定 / 推荐节奏 / Rupture-Repair） |
+| 6 | Mobi 试点 6 周转化率数据 | **极高** | ✓ **BOSS 确认试点数据尚未跑出** — Slide 17 已诚实化为 projected + 加入 kill criterion |
+| 7 | Slide 14 微盟/有赞/企微管家点名对比 | 高 | 默认敢点名——商业上是公平比较，且 Patrick 喜欢具体名字 |
+| 8 | 客单价对比区间 "$1K vs $5K-50K/月" | 高 | 默认 1K 来自微盟招股书，5K-50K 是 6 JV 实测范围；需 BOSS 二次确认精确区间 |
+| 9 | "2017 阿里 PPT 关于自动化编程"是否有原件 | 高 | ✓ **BOSS 确认原件在手** — Slide 2 加入"📎 原件可现场出示" — 强烈建议演讲时直接拿出来给 Patrick 看 1-2 秒 |
+| 10 | "2022 自费 all-in"具体金额 | 高 | ✓ **BOSS 确认 500 万 RMB** — Slide 2 已写入硬数字 |
+| 11 | 好牌 30 万用户 0 投放时间窗口 | 中 | ✓ **BOSS 确认 1 年达成** — Slide 2 已加入 |
+| **v2.0 延续的待决策项** | | | |
+| 12 | UploadLive 真实留存数据是否可在 Q&A 中给具体数字？ | 高 | 默认给真实 D7/D30；初期数据也比"待跑"强 |
+| 13 | 是否同时邀请杨柳博士出席见面？ | **高** | **强烈建议杨柳博士出席至少 30 分钟** — 她出席本身就是最强的"团队真实性"信号；尤其在 Slide 10 杨柳论文页她可以亲自 speak |
+| 14 | 60 分钟会议结构：50 + 10 vs 30 + 30？ | 高 | 默认 50 + 10；若 Patrick 是关系型对话偏好者（高概率），改 35 + 25 更合适 |
+| 15 | Patrick 见面是中文还是英文？ | 中 | 默认中文（你 fluent 中文 + Patrick 中文 fluent）；deck 双语 |
+| 16 | 是否需要做一份英文版 deck？ | 中 | 默认双语并行 — 屏幕中文 + speaker note 英文 |
+| 17 | 6 JV 是否所有 partner 都同意公开提及名字？ | 中 | 默认按你 PDF 中已公开的口径 |

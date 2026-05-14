@@ -13,7 +13,7 @@
 | [xfund-technical-credibility-brief.md](./xfund-technical-credibility-brief.md) | 对 Xfund (Patrick Chung) 一次首谈用的技术可信度对外裁短版：thesis / 架构第一性承诺 / 8 件 ship 的事 / 与 Delphi / Open Evidence 对标 / anti-claims / 60 秒中英文口头版 | v0.1（2026-05-13） |
 | [xfund-strategic-thesis.md](./xfund-strategic-thesis.md) | Xfund 完整战略叙事书面版：业界深度调研 / 与头部互相支撑 / 已 ship 实物 + 算法证明 / IQ + EQ 涌现路径 / 三件事 evidence cascade / anti-claims / 60 秒口头版 | v0.1（2026-05-14） |
 | [xfund-pitch-deck-blueprint.md](./xfund-pitch-deck-blueprint.md) | Xfund 投资理念深度研究 + PPT 设计原则反推 + 27 页 slide-by-slide 蓝图 + 30/45 分钟两套演讲编排 + leave-behind packet 清单 | **v0.1 已 deprecated** — 由 v2 替代，研究底稿保留 |
-| [xfund-pitch-deck-v2-zhaojiangbo.md](./xfund-pitch-deck-v2-zhaojiangbo.md) | **当前主用** — 60 分钟版 22 页 deck 蓝图：v2.1 加强 — 赵江波 25 年 first principle 弧线（高二省物理 / 2017 阿里目标 = 自动化编程 / 好牌 30 万 0 投放 / 2022 自费 all-in） + 杨柳博士 active learning + 独立研究者锚点 + **私域运营 deep dive（5 页 + 7 分钟核心 demo + Mobi 单位经济硬数据 + 与微盟/有赞对比）** + 12 题 Q&A 必答 + 设计制作清单 | v2.1（2026-05-15） |
+| [xfund-pitch-deck-v2-zhaojiangbo.md](./xfund-pitch-deck-v2-zhaojiangbo.md) | **当前主用** — 60 分钟版 **23 页** deck 蓝图：v2.3 加强 — **Slide 11 Hard Evidence**（4 timescale ACTIVE + VZ-MemProbe 4 PASS + 1/1000 主动学习）+ **新增 Slide 12 Companion Bench 网站**（24+96 scenario + 6×6 axis + 26 防御 packet）+ 赵江波 3 个核心 thesis（LLM 不可能 prompt 真人 / 身体是奖励之源 / 活人感 = 长期关系曲线优化）+ 25 年 first principle 弧线（高二省物理 / 2017 阿里目标 = 自动化编程 + PPT 原件 / 好牌 30 万 0 投放 1 年达成 / 2022 自费 500 万 all-in）+ 杨柳博士 active learning + 独立研究者锚点 + 私域运营 deep dive（5 页 + 7 分钟核心 demo + Mobi 合资分红双层结构）+ Excel 3 年财务全景（净利率 31%→54%）+ 12 题 Q&A 必答 + 设计制作清单 | v2.3（2026-05-15） |
 
 ## 阅读顺序建议
 
