@@ -61,7 +61,7 @@
 | 工程结对 | bug 排查、重构、模糊需求澄清、安全代码评审 | 意图清晰度 drive、问题探索 / 解决 regime、refer-out 边界 |
 | 虚构角色养成 | 小说人物形象的可对话化身 | 角色档案 reviewed artifact、style fidelity、persona 一致性 |
 | 真实人物数字复生 | 已逝历史人物（Einstein 等）/ 在世授权人物 | 一手资料引证、覆盖图、不知拒答、style/stance 双层保真 |
-| 私域长程顾问 | 母婴 / 教育 / 健康等私域 LTV 路径 | 7 天 playbook 漂移、boundary policy、apprentice/teach 通道 |
+| 私域长程顾问 | 母婴 / 教育 / 健康等私域 LTV 路径 | 关系阶段 playbook 漂移（PE-driven，不靠日历切）、boundary policy、apprentice/teach 通道 |
 
 **当前已落地的五个垂直**：
 
@@ -71,7 +71,7 @@
 | `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`；`direction_certainty` 在 `guided_exploration` regime 下使用**负向 recharge**，证明 drive 层支持非单调激励 |
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`；reviewed `CharacterSoulProfile` 编译为 `DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope` |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；`HistoricalFigureProfile` + 多源 `FigureCorpusSource` (papers/letters/lectures/notebooks) → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯（语气 / 立场 / 引证 / 不知拒答） |
-| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移，不靠关键词匹配 |
+| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals` (PE-driven)，不靠关键词匹配 / 不按日历天数硬切 |
 
 五个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；service 注册表 (`lifeform_service.verticals`) 通过 import 自动发现，内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据（见 §11）。
 
@@ -806,7 +806,7 @@
 - **DLaaS 多渠道平台**：6 个 `dlaas-platform-*` wheel × 7 切片完成。typed `InteractionEnvelope` 7 类（chat / observe / feedback / teach / task / report / command）全 dispatch；control plane 持久化（tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket）；ops（pause / resume / operator-message / handoff queue / SSE conversations stream）；eval gate（audience / exam / launch license，仅 readout）；`OutputAct` shell-aware degrade。**vz-* 内核 7 个 wheel 全程零改动**。
 - **OpenAI 兼容 façade**：`lifeform-openai-compat` 把 `POST /v1/chat/completions` 翻译成既有 stateful `POST /v1/sessions/{id}/turns`；三种模式（stateless / sticky session / raw substrate passthrough）；read-only 不改 owner snapshot；可被 EQ-Bench 3 / EmpathyBench / OpenRouter / Chatbot Arena 等外部 harness 当作普通 OpenAI endpoint 使用。
 - **外发 Companion Bench 基准**：`companion-bench` v1.0 reference implementation（Apache 2.0），评估**任意** OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现（A1 任务 / A2 交互 / A3 关系连续性 / A4 自适应学习 / A5 自我一致性 / A6 安全有界，A6 hard-cap）；6.4 加权几何平均 + TrueSkill / Bradley-Terry elo；24 公开 + 96 私有 held-out（git submodule）；强制 system-agnostic（CI 守门 [`tests/contracts/test_companion_bench_no_internal_imports.py`](../tests/contracts/test_companion_bench_no_internal_imports.py)）。
-- **figure / character / growth-advisor 三个新 vertical 联动验证**：figure 的 L1/L2 corpus 管线 + character 的 reviewed `CharacterSoulProfile` + growth-advisor 的 7 天 playbook 漂移，三种"非简单 chat archetype"在同一组 application owner 表面落地，证明 vertical = data + light glue 在更广领域成立。
+- **figure / character / growth-advisor 三个新 vertical 联动验证**：figure 的 L1/L2 corpus 管线 + character 的 reviewed `CharacterSoulProfile` + growth-advisor 的 onboarding-arc playbook 漂移（PE-driven phase），三种"非简单 chat archetype"在同一组 application owner 表面落地，证明 vertical = data + light glue 在更广领域成立。
 
 ### 部分实现 / 仍受 gate 约束的部分
 
@@ -854,7 +854,7 @@
 | 垂直（pair-programmer） | `lifeform-domain-coding` | 工程结对 archetype（含负向 recharge） |
 | 垂直（虚构角色） | `lifeform-domain-character` | reviewed `CharacterSoulProfile` 编译为 standard vertical 输入 |
 | 垂直（真实人物） | `lifeform-domain-figure` | 一手资料 → `FigureArtifactBundle`；L1/L2 corpus cleaning + verification + L3/L4 retrieval / coverage |
-| 垂直（私域 LTV） | `lifeform-domain-growth-advisor` | reviewed `GrowthAdvisorProfile` + 7 天 playbook 漂移 |
+| 垂直（私域 LTV） | `lifeform-domain-growth-advisor` | reviewed `GrowthAdvisorProfile` + onboarding-arc playbook 漂移（PE-driven phase via `BehaviorProtocol.TemporalArc.progression_signals`） |
 
 ### 平台治理与外部接入（`dlaas-platform-*` + `companion-bench`，6 + 1）
 

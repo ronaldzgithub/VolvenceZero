@@ -166,11 +166,15 @@ def test_success_signal_expected_value_range_matches_drive_band() -> None:
 def test_strategy_applicability_phase_carries_through_day_tag_scopes() -> None:
     """Packet 1.0 is intentionally a transparent passthrough.
 
-    Packet 1.4+ will translate ``growth_advisor:day3``-style string
-    tags into PE-driven ``ProgressionSignal`` definitions; until
-    then, the BehaviorProtocol's ``applicability_phase`` mirrors the
-    legacy ``GrowthAdvisorStrategyPrior.applicability_scope`` tuple
-    1:1 so the fixture round-trips losslessly.
+    The BehaviorProtocol's ``applicability_phase`` mirrors the
+    ``GrowthAdvisorStrategyPrior.applicability_scope`` tuple 1:1 so
+    the fixture round-trips losslessly. Calendar-day routing
+    (``growth_advisor:day{1..7}``) was removed on 2026-05-14; this
+    transparent-passthrough invariant is independent of which tags
+    the upstream profile chooses to ship (currently funnel/regime
+    only). Future protocol-runtime ACTIVE work will rewrite these
+    scopes into TemporalArc phase ids; that change rides this same
+    1:1 pass-through invariant.
     """
 
     profile = build_cheng_laoshi_profile()

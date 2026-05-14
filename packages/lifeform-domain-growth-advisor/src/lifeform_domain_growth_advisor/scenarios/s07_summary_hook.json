@@ -1,6 +1,6 @@
 {
-  "scenario_id": "growth-advisor-day7-summary-hook",
-  "description": "Day 7 of the 7-day playbook. Light summary + long-term hook. Summarize child picture in three sentences, frame growth window as promising rather than alarming, open the door for long-term consultation. Acquaintance_building primary.",
+  "scenario_id": "growth-advisor-s07-summary-hook",
+  "description": "Onboarding stage 07 (summary + long-term hook). Light summary + long-term hook. Summarize child picture in three sentences, frame growth window as promising rather than alarming, open the door for long-term consultation. Acquaintance_building primary.",
   "turns": [
     {
       "user_input": "感觉这一周聊下来挺有收获的。",

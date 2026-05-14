@@ -1,6 +1,6 @@
 {
-  "scenario_id": "growth-advisor-day3-empathy-kb",
-  "description": "Day 3 of the 7-day playbook. Advisor opens with empathy for the working parent's load and shares one age-appropriate micro tip with a one-sentence rationale. No lecture, no embedded promo. Emotional_support dominant, acquaintance_building tolerable.",
+  "scenario_id": "growth-advisor-s03-empathy-kb",
+  "description": "Onboarding stage 03 (empathy + micro-kb). Advisor opens with empathy for the working parent's load and shares one age-appropriate micro tip with a one-sentence rationale. No lecture, no embedded promo. Emotional_support dominant, acquaintance_building tolerable.",
   "turns": [
     {
       "user_input": "今天上班好累，娃又闹。",

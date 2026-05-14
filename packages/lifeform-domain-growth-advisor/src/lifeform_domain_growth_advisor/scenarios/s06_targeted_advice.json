@@ -1,6 +1,6 @@
 {
-  "scenario_id": "growth-advisor-day6-targeted-advice",
-  "description": "Day 6 of the 7-day playbook. Advisor connects priors collected over Day 1-5 and gives a category-level direction (e.g. calcium absorption + steady DHA) without naming a brand. Invites more information before specifics. Problem_solving primary, guided_exploration tolerable.",
+  "scenario_id": "growth-advisor-s06-targeted-advice",
+  "description": "Onboarding stage 06 (targeted advice). Advisor connects priors collected over earlier stages and gives a category-level direction (e.g. calcium absorption + steady DHA) without naming a brand. Invites more information before specifics. Problem_solving primary, guided_exploration tolerable.",
   "turns": [
     {
       "user_input": "前面跟你聊的那些情况，你建议我怎么做呀？",

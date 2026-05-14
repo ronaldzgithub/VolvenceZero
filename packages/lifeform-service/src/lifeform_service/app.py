@@ -1227,6 +1227,11 @@ _CHAT_UI_HTML = r"""<!doctype html>
       border: 1px dashed #374151; font-size: 13px;
     }
     .composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    /* The protocolsPanel modal carries inline ``display: grid`` to center
+       its inner card; without this rule that inline style wins over the
+       UA stylesheet's ``[hidden] { display: none }`` and the Close button
+       cannot hide the modal. */
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>

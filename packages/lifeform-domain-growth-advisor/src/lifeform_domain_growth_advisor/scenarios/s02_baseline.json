@@ -1,6 +1,6 @@
 {
-  "scenario_id": "growth-advisor-day2-baseline",
-  "description": "Day 2 of the 7-day playbook. Advisor collects an approximate height baseline and places the child in / near / below age band calmly. No alarm, no jump to product. Acquaintance_building primary, guided_exploration tolerable for the data-collection probe.",
+  "scenario_id": "growth-advisor-s02-baseline",
+  "description": "Onboarding stage 02 (baseline). Advisor collects an approximate height baseline and places the child in / near / below age band calmly. No alarm, no jump to product. Acquaintance_building primary, guided_exploration tolerable for the data-collection probe.",
   "turns": [
     {
       "user_input": "宝妈好。",

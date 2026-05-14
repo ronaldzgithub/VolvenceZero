@@ -33,10 +33,21 @@ What is encoded:
 What is NOT in here:
 
 * No verbatim PDF text.
-* No keyword-driven behaviour toggles. Behaviour differences across the
-  7 days reach the kernel via ``applicability_scope`` (e.g.
-  ``growth_advisor:day1`` vs ``growth_advisor:day6``) and
-  ``regime_tags``, never through user-text grep.
+* No keyword-driven behaviour toggles. Behaviour differences across
+  relationship phases reach the kernel via ``applicability_scope``
+  (``funnel:*`` / ``rapport_building`` / ``regime_tags``), never
+  through user-text grep.
+* **No calendar-day routing**: the previously-encoded
+  ``growth_advisor:day{1..7}`` string tags have been removed (2026-05-14).
+  Relationship phase routing now flows through
+  ``BehaviorProtocol.TemporalArc.progression_signals`` (PE-driven phase
+  detection in protocol-runtime), not via a calendar day-counter. The
+  7 ``playbook-day*`` strategy priors are kept as reserve rules: their
+  ``problem_pattern`` / ``recommended_ordering`` / ``avoid_patterns``
+  describe what the advisor should do at each onboarding phase, but
+  the day-tag in ``applicability_scope`` was the previous routing
+  signal and has been dropped. They are expected to be re-keyed to
+  TemporalArc phase ids once protocol-runtime ACTIVE consumes them.
 * No specific brand recommendation. Knowledge seeds describe ingredient
   categories (calcium / CBP / DHA / lutein) qualitatively; product-
   level recommendations are explicitly out of scope until trust gates
@@ -535,7 +546,7 @@ def _boundary_priors() -> tuple[GrowthAdvisorBoundaryPrior, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Strategy priors (16: 4 funnels + 5 rapport + 7 day playbook)
+# Strategy priors (16: 4 funnels + 5 rapport + 7 onboarding-arc reserve rules)
 # ---------------------------------------------------------------------------
 
 
@@ -565,8 +576,6 @@ def _need_mining_funnels() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             ),
             applicability_scope=(
                 "funnel:height",
-                "growth_advisor:day2",
-                "growth_advisor:day3",
                 "guided_exploration",
             ),
             confidence=0.88,
@@ -598,8 +607,6 @@ def _need_mining_funnels() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             ),
             applicability_scope=(
                 "funnel:immunity",
-                "growth_advisor:day3",
-                "growth_advisor:day4",
                 "guided_exploration",
             ),
             confidence=0.84,
@@ -630,8 +637,6 @@ def _need_mining_funnels() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             ),
             applicability_scope=(
                 "funnel:nutrition",
-                "growth_advisor:day4",
-                "growth_advisor:day6",
                 "guided_exploration",
             ),
             confidence=0.86,
@@ -663,7 +668,6 @@ def _need_mining_funnels() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "funnel:vision",
                 "funnel:brain",
-                "growth_advisor:day6",
                 "guided_exploration",
             ),
             confidence=0.83,
@@ -699,8 +703,6 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "rapport_building",
                 "casual_social",
-                "growth_advisor:day1",
-                "growth_advisor:day5",
             ),
             confidence=0.86,
             description=(
@@ -729,7 +731,6 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "rapport_building",
                 "acquaintance_building",
-                "growth_advisor:day3",
             ),
             confidence=0.85,
             description=(
@@ -758,8 +759,6 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "rapport_building",
                 "emotional_support",
-                "growth_advisor:day3",
-                "growth_advisor:day5",
             ),
             confidence=0.92,
             description=(
@@ -787,7 +786,6 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "rapport_building",
                 "emotional_support",
-                "growth_advisor:day5",
             ),
             confidence=0.84,
             description=(
@@ -816,7 +814,6 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
             applicability_scope=(
                 "rapport_building",
                 "casual_social",
-                "growth_advisor:day5",
             ),
             confidence=0.83,
             description=(
@@ -830,7 +827,22 @@ def _rapport_topics() -> tuple[GrowthAdvisorStrategyPrior, ...]:
 
 
 def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
-    """7-Day onboarding playbook (Day 1 - Day 7)."""
+    """Onboarding playbook reserve rules (formerly Day 1 - Day 7).
+
+    These 7 priors describe what the advisor should do across the
+    onboarding arc (icebreaker → baseline → empathy+micro-tip →
+    pain mining → rapport → targeted advice → summary+hook). The
+    previous calendar-day routing (``growth_advisor:day{1..7}``) was
+    removed on 2026-05-14; phase routing now flows through
+    ``BehaviorProtocol.TemporalArc.progression_signals`` (PE-driven)
+    in protocol-runtime. Until protocol-runtime ACTIVE re-keys these
+    rules to TemporalArc phase ids, they sit as reserve content: the
+    strategy_priors list still ships them so reviewers / fixture
+    uptake can audit the onboarding intent, but vz-application's
+    PlaybookRule routing matches them only by ``regime_tags``
+    (so they coexist with the funnel/rapport priors above without a
+    dedicated phase scope).
+    """
     return (
         GrowthAdvisorStrategyPrior(
             rule_id="playbook-day1-icebreaker",
@@ -848,13 +860,13 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "send_long_introduction_paragraph",
             ),
             applicability_scope=(
-                "growth_advisor:day1",
                 "acquaintance_building",
                 "casual_social",
             ),
             confidence=0.92,
             description=(
-                "Day 1: brief icebreaker. Introduce role + promise free "
+                "Phase: icebreaker (post-friend-add). Introduce role + "
+                "promise free "
                 "consultation + ask age/sex once and stop. No follow-up "
                 "if the parent did not engage further."
             ),
@@ -877,13 +889,13 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "lead_to_product_recommendation",
             ),
             applicability_scope=(
-                "growth_advisor:day2",
                 "acquaintance_building",
             ),
             confidence=0.89,
             description=(
-                "Day 2: collect a height baseline in approximate range "
-                "and compare to age-band calmly. No alarm, no product."
+                "Phase: baseline (post-icebreaker). Collect a height "
+                "baseline in approximate range and compare to age-band "
+                "calmly. No alarm, no product."
             ),
             knowledge_weight_hint=0.40,
             experience_weight_hint=0.65,
@@ -904,15 +916,14 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "embed_promo_in_tip",
             ),
             applicability_scope=(
-                "growth_advisor:day3",
                 "emotional_support",
                 "acquaintance_building",
             ),
             confidence=0.91,
             description=(
-                "Day 3: empathy + one practical age-appropriate micro tip "
-                "(e.g. one hour outdoor activity supports calcium "
-                "uptake). Stay short."
+                "Phase: empathy + micro-kb (post-baseline). Empathy + one "
+                "practical age-appropriate micro tip (e.g. one hour "
+                "outdoor activity supports calcium uptake). Stay short."
             ),
             knowledge_weight_hint=0.55,
             experience_weight_hint=0.65,
@@ -933,17 +944,16 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "jump_to_product",
             ),
             applicability_scope=(
-                "growth_advisor:day4",
                 "guided_exploration",
                 "funnel:nutrition",
                 "funnel:immunity",
             ),
             confidence=0.90,
             description=(
-                "Day 4: mine pain points along the four funnels (height "
-                "/ immunity / nutrition / vision-brain) by following the "
-                "parent's natural lead. Empathy first; never ask buy/no-"
-                "buy directly."
+                "Phase: pain mining (post-empathy). Mine pain points "
+                "along the four funnels (height / immunity / nutrition / "
+                "vision-brain) by following the parent's natural lead. "
+                "Empathy first; never ask buy/no-buy directly."
             ),
             knowledge_weight_hint=0.40,
             experience_weight_hint=0.74,
@@ -963,14 +973,14 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "shift_to_product",
             ),
             applicability_scope=(
-                "growth_advisor:day5",
                 "casual_social",
                 "rapport_building",
             ),
             confidence=0.87,
             description=(
-                "Day 5: non-product rapport cycle. Weekend / household / "
-                "venting topics; advisor listens more than advises."
+                "Phase: rapport cycle (mid-onboarding rest). Non-product "
+                "rapport: weekend / household / venting topics; advisor "
+                "listens more than advises."
             ),
             knowledge_weight_hint=0.20,
             experience_weight_hint=0.55,
@@ -992,13 +1002,13 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "promise_outcome",
             ),
             applicability_scope=(
-                "growth_advisor:day6",
                 "problem_solving",
                 "guided_exploration",
             ),
             confidence=0.92,
             description=(
-                "Day 6: connect priors collected over Day 1-5 and give a "
+                "Phase: targeted advice (post-pain-mining). Connect "
+                "priors collected over earlier phases and give a "
                 "category-level direction (e.g. 'looks like the priority "
                 "is calcium absorption + steady DHA') without naming a "
                 "brand. Invite more information before specifics."
@@ -1023,15 +1033,14 @@ def _day_playbook() -> tuple[GrowthAdvisorStrategyPrior, ...]:
                 "force_followup",
             ),
             applicability_scope=(
-                "growth_advisor:day7",
                 "acquaintance_building",
             ),
             confidence=0.93,
             description=(
-                "Day 7: light summary + long-term hook. Summarize the "
-                "child picture in three sentences, frame the growth "
-                "window as promising rather than alarming, leave an open "
-                "door for long-term consultation."
+                "Phase: summary + long-term hook (post-targeted advice). "
+                "Summarize the child picture in three sentences, frame "
+                "the growth window as promising rather than alarming, "
+                "leave an open door for long-term consultation."
             ),
             knowledge_weight_hint=0.35,
             experience_weight_hint=0.78,

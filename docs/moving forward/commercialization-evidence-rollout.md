@@ -66,7 +66,7 @@ flowchart LR
 | **Eng-A** | 横切（[cross-cutting-foundation-packet](cross-cutting-foundation-packet.md)） | F-A perf 床 / F-B 双层 scope schema / F-C substrate fingerprint / F-D rollback drill | 100%（横切是其他三组前置） |
 | **Eng-B** | P5（[companion-bench-public-launch-packet](companion-bench-public-launch-packet.md)） | sweep 脚本 6 个 / 公开报告 7 份 / 12 中文 scenario 增补 | 100% |
 | **Eng-C** | P1（[figure-evidence-packet](figure-evidence-packet.md)） | refusal/grounding eval 脚本 / bundle 字段 / cost 回填 / LoRA 并发实测 | 100% |
-| **Eng-D** | P2（[growth-advisor-pilot-packet](growth-advisor-pilot-packet.md)） | LLMArchetypeClassifier / day-counter spec / 月报 owner / drives ablation | 100% |
+| **Eng-D** | P2（[growth-advisor-pilot-packet](growth-advisor-pilot-packet.md)） | LLMArchetypeClassifier / 月报 owner / drives ablation（**G-B day-counter 已下线**：节奏走 BehaviorProtocol.TemporalArc.progression_signals） | 100% |
 | **Reviewer-1**（P1 主） | P1 GT 集合 | Einstein refusal 50+50 + grounding 100 + 第二款 figure 启动 | W1-W7 90%（单 packet 142 小时聚焦） |
 | **Reviewer-2**（P2 主） | P2 boundary + 双盲 | boundary scenarios 100+ + N=20 双盲评估员管理 | W1-W6 80% + W7-W8 满负荷（双盲跑批） |
 | **SE / Ops**（共享） | 横切 F-A 测试基础设施 / P2 G-E handoff SLO / 30 天试点对接 | infra + 客户对接 | 50% × 8 周 = 20 工程人天 |
@@ -102,7 +102,7 @@ flowchart LR
 | **W1** | F-A perf 床目录骨架 + `scripts/realistic_load_*.py` 模板 | #48/#52/#54 三 sweep 脚本骨架 + reference SUT 调用基础设施 | #58 refusal GT + #59 grounding GT schema 设计 + reviewer 工艺 spec | G-A boundary scenarios 设计 + G-C archetype 三路径决策表 | 招募 + on-board | 招募 + on-board | F-A 测试基础设施搭建 |
 | **W2** | F-A perf 床 SHADOW + 单 vertical baseline 跑通 | sweep 跑第一批 reference SUT (10% scenario) | #58 GT in_scope schema 落库 + Einstein 真 corpus 对齐 | G-C 选型决策落档 (推 a-LLMArchetypeClassifier) | 标 Einstein in_scope ≥ 25 题 | 标 boundary scenarios ≥ 30 段 | 接 P5 sweep 跑 |
 | **W3** | F-B 双层 scope schema 落 SHADOW + 删除 endpoint 设计 | sweep 跑完 + 出 robustness/calibration v0 报告 | #58 in_scope 50 + out_of_scope 50 全入库 + #59 grounding 50% | G-D 月报 schema 设计 + MonthlyReportOwner 骨架 | 标完 50 in + 50 out + 启动 grounding 100 | 标 boundary scenarios 80 段 | 接 P1 真 Qwen GPU |
-| **W4** | F-B SHADOW 完整 + F-C substrate fingerprint schema | #55 跨语言 12 中 12 英 scenario 增补 + #57 trusted runner 设计 | #59 grounding eval 脚本 + 接 #41 真 Qwen 跑分 | G-B day-counter spec + contract test | 标完 grounding 100 题 | 标完 boundary 100+ 段 + 启动 G-A baseline | F-A 接所有下游 |
+| **W4** | F-B SHADOW 完整 + F-C substrate fingerprint schema | #55 跨语言 12 中 12 英 scenario 增补 + #57 trusted runner 设计 | #59 grounding eval 脚本 + 接 #41 真 Qwen 跑分 | G-D 月报 schema 收口（先于 ACTIVE）+ MonthlyReportInputs builder 接 protocol_phase snapshot | 标完 grounding 100 题 | 标完 boundary 100+ 段 + 启动 G-A baseline | F-A 接所有下游 |
 | **W5** | F-A ACTIVE + F-D rollback drill 设计 | #56 cost 闭环报告 + sweep v0.1 leaderboard 数据准备 | #62 OFFLINE gate validation protocol + #63 cost 回填 audit log | G-C LLMArchetypeClassifier 实现 + robustness sweep（用 P5 #48 协议） | Einstein refusal/grounding eval 报告 review + 第二款 figure 招募 | G-A baseline 跑通 + G-F 双盲 protocol 设计 | - |
 | **W6** | F-B + F-C ACTIVE + F-D SHADOW | #53 simulator robustness sweep + 公开榜单 v0.1 dry-run | #58 + #59 ACTIVE + bundle 字段 land + 第二款 figure GT 启动 | G-A boundary baseline 报告 + G-D 月报 ACTIVE | 第二款 figure GT 启动（25%） | G-F N=20 双盲评估员招募 + on-board | G-E handoff SLO 测试设计 |
 | **W7** | F-D rollback drill SHADOW + 生产回滚演练第一次 | 公开榜单 v1.0 准备 + #57 trusted runner 端到端 | #61 LoRA 并发实测（用 F-A perf 床） | G-D 月报 ACTIVE + G-F 双盲 protocol 跑第一批 | 第二款 figure GT（50%） | 双盲第一批跑 + κ 计算 | G-E SLO 测试跑 |
@@ -142,12 +142,12 @@ flowchart TB
 
     subgraph p2 [P2 试点前置 packet]
         GA[G-A boundary baseline + drives ablation]
-        GB[G-B day-counter]
         GC[G-C archetype classifier]
         GD[G-D 月报 owner]
         GE[G-E handoff SLO]
         GF[G-F 双盲第三方评分]
     end
+    PR[BehaviorProtocol.TemporalArc<br/>protocol-runtime owner]
 
     FA -->|"硬"| FD
     FA -->|"硬"| P161
@@ -164,9 +164,9 @@ flowchart TB
     P159 -.->|"评估配套"| P162
     P163 -.->|"audit 字段"| FD
 
-    GA --- GB
     GA --- GC
     GA -.->|"baseline 配套"| GF
+    PR -->|"phase snapshot"| GD
 ```
 
 **硬依赖（实线）**：上游不 ACTIVE 下游不能起跑
@@ -210,7 +210,7 @@ flowchart TB
 | **W1** | 横切：F-A 目录骨架 PR / P5：#48/#52/#54 sweep 脚本骨架 PR / P1：refusal+grounding GT schema spec PR + reviewer on-board / P2：archetype 三路径决策表 PR + boundary scenarios 设计 |
 | **W2** | 横切：F-A SHADOW（baseline latency 报告） / P5：sweep 第一批数据（10% scenario） / P1：Einstein refusal in_scope ≥ 25 题入库 / P2：archetype 选型决策落档 (a-LLMArchetypeClassifier) |
 | **W3** | 横切：F-B 双层 scope SHADOW + DELETE endpoint 设计 / P5：sweep v0 robustness/calibration 报告 / P1：refusal 50+50 全入库 + grounding 50% / P2：月报 schema spec |
-| **W4** | 横切：F-B SHADOW 完整 + F-C fingerprint schema / P5：12 中文+12 英文 scenario 增补 + trusted runner 设计 / P1：grounding 100% + grounding eval 脚本 / P2：day-counter SHADOW + 测试 |
+| **W4** | 横切：F-B SHADOW 完整 + F-C fingerprint schema / P5：12 中文+12 英文 scenario 增补 + trusted runner 设计 / P1：grounding 100% + grounding eval 脚本 / P2：MonthlyReportInputs builder 接 protocol_phase snapshot |
 | **W5** | 横切：F-A ACTIVE / P5：cost 闭环报告 + leaderboard 数据准备 / P1：OFFLINE gate validation protocol + cost 回填 audit log / P2：LLMArchetypeClassifier 实现 + robustness sweep |
 | **W6** | 横切：F-B + F-C ACTIVE + F-D SHADOW / P5：simulator robustness 报告 + 公开榜单 v0.1 dry-run / P1：refusal+grounding ACTIVE + bundle 字段 land + 第二款 figure GT 启动 / P2：boundary baseline 报告 + 月报 ACTIVE |
 | **W7** | 横切：F-D SHADOW + 生产回滚演练 #1 / P5：公开榜单 v1.0 准备 + trusted runner 端到端 / P1：LoRA 并发实测报告 / P2：双盲 N=20 评估员 on-board + 第一批跑 |
@@ -450,16 +450,16 @@ W8 完成后进入 Phase B（[commercialization-assessment §5.3](../business/co
 - 1 owner: `packages/lifeform-service/src/lifeform_service/monthly_report_owner.py`
 - 1 prompt: `packages/lifeform-expression/src/lifeform_expression/prompts/growth_advisor_archetype_classify.txt`
 - 1 schema: `packages/lifeform-expression/src/lifeform_expression/schemas/archetype_classification.json`
-- 7 specs: `docs/specs/growth-advisor-{boundary-baseline,drive-ablation-evidence,day-counter,archetype-detection,monthly-report}.md` + `docs/specs/{handoff-queue-slo,external-validation-protocol}.md`
+- 6 specs: `docs/specs/growth-advisor-{boundary-baseline,drive-ablation-evidence,archetype-detection,monthly-report}.md` + `docs/specs/{handoff-queue-slo,external-validation-protocol}.md`（**已 deprecated 并删除**：`growth-advisor-day-counter.md` — 节奏走 `BehaviorProtocol.TemporalArc.progression_signals`）
 
 ✅ 修改 (1 个文件):
 - `packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py` (加 `validated_substrates` 字段)
 
-✅ contract / perf test (4 个):
-- `tests/contracts/test_growth_advisor_day_routing.py`
+✅ contract / perf test (3 个):
 - `tests/contracts/test_no_keyword_archetype_detection.py`
 - `tests/contracts/test_monthly_report_schema_stability.py`
 - `tests/perf/test_handoff_queue_concurrent_load.py`
+- ~~`tests/contracts/test_growth_advisor_day_routing.py`~~（**已 deprecated 并删除**，与 day-counter spec 同期下线）
 
 ### Stage 5 — rollout v0.2 + known-debts SHADOW 标注
 
@@ -483,4 +483,5 @@ W2 起团队需要做的（不再写骨架）：
 ## 变更日志
 
 - 2026-05-13: v0.1 初稿。基于 4 个 packet（cross-cutting / companion-bench / figure-evidence / growth-advisor）+ 26 条 debt（#45-#70）+ 5+ 人团队加速假设。
-- 2026-05-13: v0.2 bump。Stage 1-5 全 SHADOW scaffold 一次性 land（约 62 新 + 10 改）。本 rollout 文件加附录 D 记录所有 land 的文件清单 + 团队接手指南。下次 v0.3 bump 在 W2 末（按 §11.2 双周节奏）。
+- 2026-05-13: v0.2 bump。Stage 1-5 全 SHADOW scaffold 一次性 land（约 62 新 + 10 改）。本 rollout 文件加附录 D 记录所有 land 的文件清单 + 团队接手指南。
+- 2026-05-14: v0.3 bump。P2 G-B（day-counter）整段下线——节奏由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接。配套：删 `docs/specs/growth-advisor-day-counter.md` + `tests/contracts/test_growth_advisor_day_routing.py`；月报 `day_cohort_activity` → `protocol_phase_cohort_activity`；known-debts.md #65 strikethrough。P2 子包从 6 降至 5（G-A/G-C/G-D/G-E/G-F）。下次 v0.4 bump 在 W2 末。

@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-13 (Companion Bench smoke 真跑导出 5 条新 debt #71-#75)
+> Last updated: 2026-05-14 (P2 day-counter 路径整段 deprecate；#65 strikethrough)
+
+> 2026-05-14 update (debt #65 day-counter 整段 deprecated): 节奏分层（"用户处于第几阶段"）已由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接，calendar-day routing 是伪需求。配套清理已 land：删 `docs/specs/growth-advisor-day-counter.md` + `tests/contracts/test_growth_advisor_day_routing.py`；`cheng_laoshi.py` 17 处 `applicability_scope` 中 `growth_advisor:dayN` 字符串残留全部清理（funnel/rapport rules 直接删 day 标签；7 个 playbook-dayN rules 改为 onboarding-arc 关系阶段 reserve rule，`description` 从 "Day N" 改为 "Phase: ..."）；7 个 `scenarios/dayN_*.json` rename 为 `sNN_*.json` 同步更新 `scenario_id` + test 期望；`fixture_uptake.py` / `profile.py` / `__init__.py` / `prd.md` / `archetecture.md` / `SYSTEM_DESIGN.md` / `SYSTEM_GUIDE.md` / `DATA_CONTRACT.md` / `protocol-runtime.md` / `external-validation-protocol.md` / `commercialization-assessment.md` / `cross-cutting-foundation-packet.md` / `growth-advisor-pilot-packet.md`（v0.2，G-B 整段下线）/ `commercialization-evidence-rollout.md`（v0.3，月报字段 `day_cohort_activity` → `protocol_phase_cohort_activity`）/ `outbound_scheduler.py` / `realistic_load_growth_advisor.py` / `rollback_drill_growth_advisor.sh` 全部 prose / 注释同步修订。**P2 子包数量从 6 降至 5**（G-A / G-C / G-D / G-E / G-F；G-B 永久下线）。**P2 阻塞条目从 9 降至 8**：原"指责 3 day-counter routing 完全 noop"作废（节奏由 protocol 承接，不是工程缺位）。
 
 > 2026-05-13 update (Companion Bench smoke real-run findings — 5 new debts #71-#75): 跑通 [`scripts/companion_bench/run_companion_bench_smoke.py`](../scripts/companion_bench/run_companion_bench_smoke.py) Qwen + VZ-synthetic F1 family (4 scenarios) 后，从 SMOKE_REPORT v2 + judge robustness replay 导出 5 条 hard-evidence debts。**核心 finding**：(a) [`#71`] Qwen-内 weak proxy judge 6 axis 全 σ > 8（实测平均 23.2），qwen3-max vs qwen-flash 给同一 transcript 差 35 分 → [`#48`] 真 cross-family sweep **不是 nice-to-have，是 leaderboard 准入硬前提**；(b) [`#72`] smoke 默认 `--substrate-mode synthetic` 让 VZ 跑 deterministic echo，VZ 13.79 vs Qwen 74.56 是 substrate 差不是 architectural argument，触发 P5 kill criteria 误报警的根因；(c) [`#73`] SUT subprocess 单 HTTP 400/timeout 整个 SUT 0 bundle (Qwen v2 重跑 25 min timeout 实例) → 缺 retry + arc-isolation；(d) [`#74`] `SubmissionManifest.system_prompt` / `generation_config` 在 `arc_runner` 未注入 SUT → "manifest 与跑分一致"承诺破；(e) [`#75`] `CostTracker.record_perturn_judge` / `record_arc_judge` 在 `run_submission` 未调用 → 即使加 Qwen 价格表 judge cost 仍 None。**Pipeline 状态**：scaffold + wiring 修补就位 (cost.py 加 Qwen 价格 / score_reference 加 subprocess timeout / build_site recursive glob / OpenRouter scaffold 待用户加 key)；评估 evidence 受 #71 #72 阻塞，绝对数字不可外引。
 
@@ -1802,26 +1804,20 @@ return (
 
 ---
 
-## 65. P2 `applicability_scope` day-counter 路由的真实生效证据
+## ~~65. P2 `applicability_scope` day-counter 路由的真实生效证据~~ — DEPRECATED 2026-05-14
 
-- **路径**：
-  - 数据：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) `GrowthAdvisorStrategyPrior.applicability_scope`（"growth_advisor:day1" … "growth_advisor:day7"）
-  - 编译：[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/lifeform_builder.py`](../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/lifeform_builder.py)
-  - 路由消费：vz-application 的 PlaybookRule 路由（需查 day 计数源）
-  - 上游商业承诺：[`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §4.2 P2 价值主张 "用户 7 天养成阶段是工程化的——通过 applicability_scope 真路由，不是关键词匹配"
-- **问题**：`growth_advisor:day1` … `day7` 的路由依赖"今天是用户的第几天"——这个计数从哪来？
-  - 是从 scoped memory 里的 `onboarding_at` 算？是 user_id 创建时间？是首次 substantive turn 时间？不同选择对路由结果完全不同
-  - **spec 没说**，需要在 lifeform_builder.py 里查清楚
-  - 如果 day 计数实现错了，"7 天 playbook"承诺就是空话
-- **违反**：违反 R8 owner 唯一所有（day-counter 应该是某个 owner 的状态）
-- **风险**：**中**。卖出去的核心特性如果 runtime 不真生效，第一个 30 天试点客户就发现
-- **触发条件**：(a) P2 第一个试点上线后第 8 天（用户跨过 day7 边界）；(b) 客户 dashboard 想显示"该用户处于 day X"；(c) profile.py 增加新 day-scoped rule
-- **推荐修法**：
-  1. 落 `docs/specs/growth-advisor-day-counter.md`：明确 day_counter 来源 owner（推荐 scoped memory 的 `onboarding_at` typed field）+ 计算公式 + tz 处理 + 跨 7 天后的行为
-  2. 加 `tests/contracts/test_growth_advisor_day_routing.py`：构造 day1-day7+ session 序列 × 验证每天命中的 PlaybookRule.applicability_scope 含对应 day tag
-  3. 客户 ops dashboard 加 "current day" 显示，给客户校验感
-  4. profile schema 加 `applicability_scope` 字段的 enum 检查（防止拼写错 day1→day10 这种）
-- **优先级**：**中**（Phase A 后期；P2 第一个 30 天试点必填证据）
+> **Deprecated（不再追踪）**：节奏分层（"用户处于第几阶段"）已由 `BehaviorProtocol.TemporalArc.progression_signals` 承接（PE-driven 关系阶段，不是 calendar 7 天硬切），不需要独立的 day-counter owner。
+>
+> 配套清理已完成：
+> - 删除 `docs/specs/growth-advisor-day-counter.md`（spec 不再适用）
+> - 删除 `tests/contracts/test_growth_advisor_day_routing.py`（contract 不再存在）
+> - `cheng_laoshi.py` strategy_priors 的 `applicability_scope` 已移除 `growth_advisor:dayN` 字符串残留（保留 `funnel:*` / `regime:*` tags）
+> - `fixture_uptake.py` 和 prose 文档（prd / archetecture / SYSTEM_DESIGN / SYSTEM_GUIDE / DATA_CONTRACT / commercialization-assessment / protocol-runtime / external-validation-protocol）相应注释/章节已修订
+> - `growth-advisor-pilot-packet.md` G-B 子包整段下线，`commercialization-evidence-rollout.md` 周历表对应行删除
+>
+> 后续若仍需"用户处于关系阶段 X"信号，走 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven），由 protocol-runtime 模块在 application owner 中消费，不再回到 day-counter 路径。
+>
+> 历史背景保留以便审计：原 debt 描述见 `git log -- docs/known-debts.md` (commit history)。
 
 ---
 

@@ -703,7 +703,7 @@ vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t
 
 - profile 是 frozen dataclass；`__post_init__` 强制 `boundary_priors` 非空 — LTV 档案不允许在没有显式 anti-sales / anti-overclaim / anti-flooding / anti-judgmental 边界的情况下存在
 - 4 条 anchoring boundary id 必须包含 `bp-no-hard-sell` / `bp-no-overclaim` / `bp-no-flooding` / `bp-no-judgmental`；前两条结构性地阻止该 vertical 退化成普通销售 bot
-- 7-day playbook 通过 `CharacterStrategyPrior.applicability_scope=("growth_advisor:dayN", ...)` 实现跨多日的行为差异，**不**通过用户原文关键词匹配
+- onboarding-arc playbook 通过 `GrowthAdvisorStrategyPrior.applicability_scope=("funnel:*", ...)` 携带 funnel/regime 漂移；关系阶段（icebreaker / baseline / empathy / pain mining / rapport / targeted advice / summary）由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven）路由，**不**按日历天数硬切，**不**通过用户原文关键词匹配（calendar-day routing 已于 2026-05-14 移除）
 - 4 大需求挖掘 funnel（height / immunity / nutrition / vision-brain）通过 `applicability_scope=("funnel:X", ...)` 编码，下游 owner 通过 scope 匹配做 turn-级路由
 - 跨 vertical 隔离：`lifeform-domain-growth-advisor` 不 import `lifeform-domain-character` / `lifeform-domain-figure`，反之亦然；CI 由 [`tests/contracts/test_import_boundaries.py`](../tests/contracts/test_import_boundaries.py) 三对 parallel pair 强制
 - `lifeform-service.verticals.discover_verticals()` 通过 `_try_growth_advisor` 软发现，未安装 wheel 时静默跳过，已安装时暴露为 `name="growth_advisor"`

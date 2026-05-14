@@ -134,7 +134,7 @@ flowchart TD
 |---|---|---|---|---|
 | `scripts/realistic_load_companion.py` | [`companion-bench`](../../packages/companion-bench/) 6 family × 4 scenario user_simulator | N=20 `LifeformSession` `asyncio.gather`，30 min | `artifacts/perf/companion-<date>.json` | 走 [`closed-alpha-api-service.md`](../closed-alpha-api-service.md) `/v1/sessions/...` |
 | `scripts/realistic_load_figure.py` | Einstein bundle in-corpus + OOS 混合问题 | N=10 ai_id × 50 turn | `artifacts/perf/figure-<date>.json`（含 L3 引证率 / L4 拒答率不退化证据） | 走 [`dlaas-platform-rollout.md`](dlaas-platform-rollout.md) `/dlaas/adopt` + `/dlaas/interactions` |
-| `scripts/realistic_load_growth_advisor.py` | `cheng-laoshi` profile + `growth_advisor:day1...day7` 路由 | N=50 end_user × 10 客户（"席位"） | `artifacts/perf/growth-advisor-<date>.json`（含 4 反销售边界触发率） | 走 `/dlaas/*` typed envelope + admin endpoint |
+| `scripts/realistic_load_growth_advisor.py` | `cheng-laoshi` profile + onboarding-arc playbook（关系阶段路由由 `BehaviorProtocol.TemporalArc.progression_signals` PE-driven 驱动；**不**按日历天数硬切） | N=50 end_user × 10 客户（"席位"） | `artifacts/perf/growth-advisor-<date>.json`（含 4 反销售边界触发率） | 走 `/dlaas/*` typed envelope + admin endpoint |
 
 - 三个脚本都**不绕过**典型 HTTP 边界（即不通过 in-process import `LifeformSession` 直接调用）
 - 每个脚本支持 `--dry-run`（1 min synthetic check）与 `--production`（30 min 真负载）两档
@@ -423,7 +423,7 @@ class EvidenceDeletionPolicy:
 | 脚本 | 流程 | 输出 artifact |
 |---|---|---|
 | `scripts/rollback_drill_figure.sh` | bake → adopt → activate → 10 turn → rollback → revert audit | `artifacts/rollback_drill/figure-<date>.json` |
-| `scripts/rollback_drill_growth_advisor.sh` | reviewed profile 重新编译 → activate → 跑 7 day playbook 三轮 → 触发 OFFLINE-gate 重 compile → rollback 到上一版 profile | `artifacts/rollback_drill/growth-advisor-<date>.json` |
+| `scripts/rollback_drill_growth_advisor.sh` | reviewed profile 重新编译 → activate → 跑 onboarding-arc playbook 三轮 → 触发 OFFLINE-gate 重 compile → rollback 到上一版 profile | `artifacts/rollback_drill/growth-advisor-<date>.json` |
 | `scripts/rollback_drill_substrate_upgrade.sh` | substrate N → N+1 升级 drill（依赖 F-C `SubstrateFingerprint` 字段判定 "可降级 / 不可降级"）；不能降级时 fail-loud + 生成迁移建议 | `artifacts/rollback_drill/substrate-upgrade-<date>.json` |
 
 - 每个脚本支持 `--smoke`（5 min synthetic）/ `--production`（30 min 真 Qwen）两档

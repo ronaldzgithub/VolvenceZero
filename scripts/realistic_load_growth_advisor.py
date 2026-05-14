@@ -2,9 +2,11 @@
 
 Drives N=50 end_user × 10 客户 ("席位") through the DLaaS typed
 envelope + admin endpoints, exercising the ``cheng-laoshi`` profile
-across the ``growth_advisor:day1...day7`` routing. Captures the 4
-anti-sales boundary trigger rates (``bp-no-hard-sell`` /
-``bp-no-overclaim`` / ``bp-no-flooding`` / ``bp-no-judgmental``) so
+across the onboarding-arc playbook (relationship phase routing flows
+through ``BehaviorProtocol.TemporalArc.progression_signals`` PE-driven
+in protocol-runtime; calendar-day routing was removed 2026-05-14).
+Captures the 4 anti-sales boundary trigger rates (``bp-no-hard-sell``
+/ ``bp-no-overclaim`` / ``bp-no-flooding`` / ``bp-no-judgmental``) so
 load tuning cannot silently degrade boundary enforcement.
 
 SHADOW scaffold: CLI + ``--dry-run`` placeholder; real wiring lands

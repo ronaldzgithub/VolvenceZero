@@ -48,7 +48,7 @@
 1. **Identity Core 不在 Active Mixture 里**：identity core 是混合**之上**的恒定层，决定哪些协议根本不被允许激活（与 R7 Self 轨道、R14 持久身份对齐）
 2. **边界契约跨协议取并集**：所有 active protocol 的 `boundary_contracts` 取并集，任一条 fire 即 block；边界永远不进 utility 计算（与 `bp-no-hard-sell` / R10 自修改门控对齐）
 3. **协议优先级是后验，不是 hard list**：激活权重 = 后验（context match × PE history utility × identity gate），随时间被学（注：`drive_value` 信号源因 vitals 跨层边界限制 deferred，详见 §调度）
-4. **β_t 切换由 PE 学，不由外部计数器打 tag**：当前 `applicability_scope=("growth_advisor:day3",)` 这种"按日历天数"的 string tag 是过渡形态，正式实现必须改为"按 PE 信号驱动的关系阶段"
+4. **β_t 切换由 PE 学，不由外部计数器打 tag**：以前的 `applicability_scope=("growth_advisor:day3",)` 这种"按日历天数"的 string tag 已于 2026-05-14 移除，正式路由必须走 PE 信号驱动的关系阶段（`BehaviorProtocol.TemporalArc.progression_signals`）
 5. **协议 schema 区分 frozen 与 PE-revisable 字段**：identity_core / boundary_contracts frozen；strategy_priors / temporal_arc / drive 初值带 PE 权重衰减入口
 6. **协议必须自带 success / failure PE 定义**：协议入库时必须声明"成功长什么样、失败长什么样"的可测信号，否则 PE / reflection 无东西可学
 7. **协议不创造新 application owner**：协议的具体内容（knowledge / case / playbook / boundary）仍编译到现有 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` owner；ProtocolRuntime 只发布"当前激活混合"快照，不持有领域内容
@@ -484,7 +484,7 @@ weight_i = enforce_co_activation_constraints(base_weight, registry)
 
 **实现位置**：`vz-temporal.metacontroller` 的 β_t 已是一等学习对象（见 §3 temporal-abstraction.md）；本 spec 要求 β_t 的输入特征中**加入**当前 ActiveMixtureSnapshot 的 phase 候选集合。
 
-**关键纪律**：不要用日历天数硬切（当前 `growth_advisor:day3` 这种）；要用 PE 信号驱动的关系阶段（`TemporalArc.progression_signals`）。
+**关键纪律**：不要用日历天数硬切（以前的 `growth_advisor:dayN` 字符串路由已移除）；要用 PE 信号驱动的关系阶段（`TemporalArc.progression_signals`）。
 
 ### 类型 D：身份级冲突（升级反思）
 

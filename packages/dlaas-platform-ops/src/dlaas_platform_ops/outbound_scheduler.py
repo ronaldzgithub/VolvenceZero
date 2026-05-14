@@ -53,9 +53,11 @@ from typing import Any
 
 
 # Default cooldown values are chosen to match the LTV growth-advisor
-# vertical's 7-day playbook: at most one outbound message per 24h, no
-# more than seven per relationship in the first two weeks. Operators
-# can override these per ai_id × end_user_ref via :class:`OutboundCadenceConfig`.
+# vertical's onboarding-arc cadence: at most one outbound message per
+# 24h, no more than seven per relationship in the first two weeks
+# (matches the 7 onboarding-arc reserve rules — icebreaker through
+# summary-hook). Operators can override these per ai_id × end_user_ref
+# via :class:`OutboundCadenceConfig`.
 _DEFAULT_MIN_GAP_SECONDS: int = 24 * 60 * 60
 _DEFAULT_MAX_FOLLOWUPS: int = 7
 _DEFAULT_MIN_AGE_TURNS_FOR_FOLLOWUP: int = 1

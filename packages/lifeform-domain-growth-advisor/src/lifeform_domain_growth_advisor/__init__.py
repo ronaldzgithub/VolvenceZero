@@ -8,13 +8,16 @@ Zero inputs:
   boundaries.
 * ``VitalsBootstrap`` for the advisor's drive profile.
 * ``IngestionEnvelope`` for replaying livestream-channel introduction
-  text + 7-day dialogue samples through the canonical turn pipeline.
+  text + onboarding-arc dialogue samples through the canonical turn
+  pipeline.
 
 It does not add a new kernel owner and does not infer behaviour from
-keywords in raw user text. Behaviour differences across the 7-day
-playbook reach the kernel via ``applicability_scope`` tags
-(``growth_advisor:day1`` ... ``growth_advisor:day7``) and
-``regime_tags`` carried by the typed compiled records.
+keywords in raw user text. Behaviour differences across the
+onboarding arc reach the kernel via ``applicability_scope`` tags
+(``funnel:*`` / ``rapport_building`` / regime tags) and PE-driven
+phase routing through ``BehaviorProtocol.TemporalArc.progression_signals``
+in protocol-runtime; calendar-day routing
+(``growth_advisor:day{1..7}``) was removed on 2026-05-14.
 
 The wheel is parallel to ``lifeform-domain-character`` /
 ``lifeform-domain-figure`` / ``lifeform-domain-emogpt`` /

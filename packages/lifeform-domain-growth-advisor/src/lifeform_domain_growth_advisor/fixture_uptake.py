@@ -28,11 +28,19 @@ PE-signal synthesis (spec §协议 → PE 映射 option ii):
 
 Things this adapter does NOT do (deferred):
 
-* Translate ``applicability_scope=("growth_advisor:day3",)``
-  string tags into PE-driven ``TemporalArc.progression_signals`` —
-  this is packet 1.4+. Packet 1.0 uses a single placeholder phase
-  and passes the day-tag scopes through unchanged in
-  ``StrategyPrior.applicability_phase``.
+* Synthesise PE-driven ``TemporalArc.progression_signals`` from the
+  reviewed onboarding arc (icebreaker → baseline → empathy → pain
+  mining → rapport → targeted advice → summary). The previous
+  calendar-day routing tags (``growth_advisor:day{1..7}``) were
+  removed on 2026-05-14 — relationship phase routing is now owned
+  by ``BehaviorProtocol.TemporalArc.progression_signals``
+  (PE-driven), to be wired in protocol-runtime once the phase
+  ids are agreed. Packet 1.0 still uses a single placeholder phase
+  and passes ``StrategyPrior.applicability_scope`` (now
+  funnel/regime-only) through unchanged in
+  ``StrategyPrior.applicability_phase``; the field is intentionally
+  kept as a transparent passthrough until protocol-runtime ACTIVE
+  re-keys those scopes to TemporalArc phase ids.
 * Translate ``GrowthAdvisorKnowledgeSeed`` / ``signature_cases``
   into ``BehaviorProtocol`` fields: those continue to flow through
   the existing ``compiler.build_growth_advisor_package`` path into
@@ -379,13 +387,15 @@ def _synthesize_activation_conditions(
 def _placeholder_temporal_arc(profile: GrowthAdvisorProfile) -> TemporalArc:
     """Single placeholder phase covering the full fixture lifetime.
 
-    The reviewed ``cheng_laoshi`` profile encodes a 7-day playbook
-    via ``applicability_scope=("growth_advisor:day3",)`` string
-    tags on individual ``StrategyPrior``s. Translating those
-    string tags into PE-driven ``ProgressionSignal`` is packet
-    1.4+ work; packet 1.0 keeps a single ``long_term_companion``
-    phase so the schema is non-empty without claiming a phase
-    semantics it doesn't yet implement.
+    The reviewed ``cheng_laoshi`` profile carries an onboarding arc
+    intent (icebreaker → baseline → empathy → pain mining → rapport
+    → targeted advice → summary) across 7 ``playbook-day*``
+    ``StrategyPrior``s. Calendar-day routing was removed on
+    2026-05-14; PE-driven ``ProgressionSignal`` synthesis from the
+    reviewed onboarding intent is the protocol-runtime ACTIVE work.
+    Packet 1.0 keeps a single ``long_term_companion`` phase so the
+    schema is non-empty without claiming a phase semantics it doesn't
+    yet implement.
     """
 
     del profile  # reserved for future phase translation
@@ -395,9 +405,9 @@ def _placeholder_temporal_arc(profile: GrowthAdvisorProfile) -> TemporalArc:
                 phase_id=_PLACEHOLDER_PHASE_ID,
                 description=(
                     "Placeholder phase for packet 1.0 SHADOW. "
-                    "Real PE-driven phase progression lands in "
-                    "packet 1.4+ when day-tag scopes are translated "
-                    "into ProgressionSignals."
+                    "Real PE-driven phase progression lands when "
+                    "protocol-runtime synthesises ProgressionSignals "
+                    "from the reviewed onboarding arc intent."
                 ),
             ),
         ),

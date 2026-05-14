@@ -394,58 +394,98 @@ def _try_zhang_wuji() -> VerticalSpec | None:
     )
 
 
-def _try_einstein() -> VerticalSpec | None:
-    """Real-person figure vertical: Albert Einstein (synthetic placeholder corpus).
+def _attach_figure_bundle(synthesizer, bundle):
+    """Bind ``bundle`` onto ``synthesizer`` via the duck-typed hook.
 
-    Builds an Einstein lifeform that combines the existing
-    domain-experience compilation path (knowledge / cases / playbook /
-    boundaries) with the figure-vertical's runtime artifact bundle
-    (retrieval index, coverage map, style prior). The bundle is
-    attached to the LLM expression synthesizer via
-    :meth:`LifeformLLMResponseSynthesizer.with_figure_bundle` so the
-    L1 / L3 / L4 enforcement layers (style injector, grounded
-    decoder, scope refuser) can consume it on each turn.
-
-    Steering (F5) and persona LoRA (F6) are not yet wired by default
-    — those packets will populate ``bundle.steering`` /
-    ``bundle.lora`` and the synthesizer side will pick them up
-    through the same hook without further changes here.
+    Returns the bound synthesizer when the hook is callable, else the
+    original (kernel fallback / GroundedResponseSynthesizer carries no
+    figure_bundle path; L1/L3/L4 enforcement only runs on the LLM
+    synthesizer).
     """
 
-    try:
-        from lifeform_core import LifeformConfig
-        from lifeform_domain_figure import build_einstein_lifeform
-    except ImportError:
-        return None
+    attach = getattr(synthesizer, "with_figure_bundle", None)
+    if callable(attach):
+        return attach(bundle)
+    return synthesizer
 
-    def _attach_bundle(synthesizer, bundle):
-        attach = getattr(synthesizer, "with_figure_bundle", None)
-        if callable(attach):
-            return attach(bundle)
-        return synthesizer
 
-    def factory(runtime):
-        base_synthesizer = _expression_synthesizer_for_runtime(runtime)
-        # Build with a placeholder synthesizer first so we can read
-        # the resulting artifact_bundle, then re-bind the same
-        # synthesizer with the bundle attached. The lifeform's
-        # response_synthesizer is mutable via Lifeform.with_*
-        # only at construction; we bind once here and pass it in.
-        # Steps: build bundle (no synthesizer wired yet), bind
-        # synthesizer to bundle, then construct lifeform.
-        bundle = build_einstein_lifeform(
-            substrate_runtime=runtime,
-        )
-        bound_synthesizer = _attach_bundle(
-            base_synthesizer, bundle.artifact_bundle
-        )
-        rebound = build_einstein_lifeform(
-            substrate_runtime=runtime,
-            response_synthesizer=bound_synthesizer,
-        )
-        return rebound.lifeform
+def _resolve_einstein_artifact_bundle(synthetic_fallback):
+    """Pick the artifact bundle to attach to the synthesizer.
 
-    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+    Reads :func:`lifeform_service.einstein_resolver.resolve_einstein_bundle`
+    (disk-backed Wave K artefact path); falls back to
+    ``synthetic_fallback`` (typically the bundle produced by a fresh
+    ``build_einstein_lifeform`` call) when no disk bundle is
+    available AND ``EINSTEIN_REQUIRE_REAL_BUNDLE`` is unset.
+
+    The resolver itself fail-louds on schema / integrity violations;
+    this helper only widens the result into the
+    ``(bundle, bundle_id, source)`` triple the verticals layer logs.
+    """
+
+    from lifeform_service.einstein_resolver import resolve_einstein_bundle
+
+    resolution = resolve_einstein_bundle()
+    if resolution.bundle is None:
+        return synthetic_fallback, "", "synthetic"
+    return resolution.bundle, resolution.bundle_id, resolution.source
+
+
+def _register_einstein_persona_lora_if_present(bundle) -> str | None:
+    """Register the disk bundle's LoRA artefact into the default pool.
+
+    No-op when ``bundle.lora`` is ``None`` (the resolver picked a
+    base / curated bundle without an F6 artefact). Returns the pool
+    record id on success so the startup log can surface it.
+
+    The pool is process-wide, so registration persists across all
+    three Einstein verticals in the same process. ``einstein-bundle``
+    is **not** insulated from this registration today (see module
+    docstring's "Known limitations" note); the demo-time mitigation
+    is that synthetic LoRA backends produce a zero-delta forward
+    (debt #40), so ``einstein-bundle`` and ``einstein-full`` behave
+    identically until #41 lands a real PEFT artefact.
+    """
+
+    from lifeform_service.figure_bundle_store import register_bundle_persona_lora
+
+    return register_bundle_persona_lora(bundle)
+
+
+def _build_einstein_lifeform_with_bundle(
+    *,
+    runtime,
+    use_alpha: bool,
+    identity_provider=None,
+    memory_scope_root_dir=None,
+    attach_bundle: bool,
+    register_lora: bool,
+    condition_label: str,
+):
+    """Construct an Einstein :class:`Lifeform` for a given condition.
+
+    Three call shapes correspond to the three ablation conditions
+    in :mod:`lifeform_domain_figure.verification.persona.runtime_conditions`:
+
+    * ``attach_bundle=False, register_lora=False`` -> RAW (no L1/L3/L4
+      enforcement on the LLM synthesizer).
+    * ``attach_bundle=True,  register_lora=False`` -> BUNDLE
+      (L1/L3/L4 active; persona-LoRA auto-activate falls through).
+    * ``attach_bundle=True,  register_lora=True``  -> BUNDLE_LORA
+      (LoRA artefact registered in the default pool; synthesizer's
+      auto-activate path triggers on each turn).
+
+    The lifeform's ``domain_package`` + ``vitals_bootstrap`` always
+    come from the reviewed Einstein profile -- those are not what we
+    are ablating. We are ablating the L1/L3/L4 layer + the LoRA hook,
+    which live on the response synthesizer.
+    """
+
+    from lifeform_core import LifeformConfig
+    from lifeform_domain_figure import build_einstein_lifeform
+
+    config: LifeformConfig | None = None
+    if use_alpha:
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
@@ -453,31 +493,261 @@ def _try_einstein() -> VerticalSpec | None:
                 memory_scope_root_dir=memory_scope_root_dir
             )
         )
+
+    seed_bundle = build_einstein_lifeform(
+        config=config,
+        substrate_runtime=runtime,
+        identity_provider=identity_provider if use_alpha else None,
+    )
+
+    if attach_bundle:
+        artifact, bundle_id, source = _resolve_einstein_artifact_bundle(
+            synthetic_fallback=seed_bundle.artifact_bundle
+        )
         base_synthesizer = _expression_synthesizer_for_runtime(
-            runtime, repair_alpha_enabled=True
+            runtime, repair_alpha_enabled=use_alpha
         )
-        bundle = build_einstein_lifeform(
-            config=config,
-            substrate_runtime=runtime,
-            identity_provider=identity_provider,
-        )
-        bound_synthesizer = _attach_bundle(
-            base_synthesizer, bundle.artifact_bundle
-        )
+        bound_synthesizer = _attach_figure_bundle(base_synthesizer, artifact)
+        lora_record_id: str | None = None
+        if register_lora:
+            lora_record_id = _register_einstein_persona_lora_if_present(
+                artifact
+            )
         rebound = build_einstein_lifeform(
             config=config,
             substrate_runtime=runtime,
             response_synthesizer=bound_synthesizer,
-            identity_provider=identity_provider,
+            identity_provider=identity_provider if use_alpha else None,
+        )
+        _log_einstein_vertical_ready(
+            condition_label=condition_label,
+            bundle_id=bundle_id,
+            source=source,
+            lora_record_id=lora_record_id,
+            lora_present_in_bundle=getattr(artifact, "lora", None) is not None,
         )
         return rebound.lifeform
 
+    base_synthesizer = _expression_synthesizer_for_runtime(
+        runtime, repair_alpha_enabled=use_alpha
+    )
+    rebound = build_einstein_lifeform(
+        config=config,
+        substrate_runtime=runtime,
+        response_synthesizer=base_synthesizer,
+        identity_provider=identity_provider if use_alpha else None,
+    )
+    _log_einstein_vertical_ready(
+        condition_label=condition_label,
+        bundle_id="",
+        source="raw",
+        lora_record_id=None,
+        lora_present_in_bundle=False,
+    )
+    return rebound.lifeform
+
+
+def _log_einstein_vertical_ready(
+    *,
+    condition_label: str,
+    bundle_id: str,
+    source: str,
+    lora_record_id: str | None,
+    lora_present_in_bundle: bool,
+) -> None:
+    """Single-line stdout breadcrumb so operators can audit the wiring."""
+
+    import sys
+
+    lora_label = (
+        f"lora_record={lora_record_id}"
+        if lora_record_id
+        else (
+            "lora_artifact=in-bundle (not registered)"
+            if lora_present_in_bundle
+            else "lora=absent"
+        )
+    )
+    print(
+        f"[verticals] einstein condition={condition_label} "
+        f"bundle_id={bundle_id or '-'} source={source} {lora_label}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _try_einstein_raw() -> VerticalSpec | None:
+    """RAW ablation arm: pure base LLM, no figure_bundle on the synthesizer.
+
+    Matches ``PersonaCondition.RAW`` in
+    :mod:`lifeform_domain_figure.verification.persona.runtime_conditions`:
+    no L1 (style hint), no L3 (grounded decoder), no L4 (scope refusal).
+    The lifeform still carries the reviewed Einstein profile (domain
+    package + vitals + drives) -- without that the kernel has no
+    figure identity at all; the ablation is on the expression-time
+    enforcement, not on the kernel.
+    """
+
+    try:
+        from lifeform_domain_figure import build_einstein_lifeform  # noqa: F401
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=False,
+            attach_bundle=False,
+            register_lora=False,
+            condition_label="raw",
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=True,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            attach_bundle=False,
+            register_lora=False,
+            condition_label="raw",
+        )
+
     return VerticalSpec(
-        name="einstein",
+        name="einstein-raw",
         factory=factory,
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,
         alpha_factory=alpha_factory,
+    )
+
+
+def _try_einstein_bundle() -> VerticalSpec | None:
+    """BUNDLE ablation arm: L1/L3/L4 enforcement on, no persona-LoRA.
+
+    Matches ``PersonaCondition.BUNDLE``: the synthesizer carries the
+    figure bundle (disk-backed Wave K artefact when available, else
+    the synthetic fallback). Persona-LoRA registration is skipped on
+    this factory; if a sibling ``einstein-full`` factory has already
+    registered a LoRA into the process-wide pool, the synthesizer's
+    auto-activate hook will pick it up (this is the documented
+    cross-vertical pool-sharing limitation today; once debt #41 lands
+    a real PEFT artefact, a future ``persona_lora_enabled`` flag on
+    the synthesizer will let the three verticals coexist with true
+    forward-level isolation).
+    """
+
+    try:
+        from lifeform_domain_figure import build_einstein_lifeform  # noqa: F401
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=False,
+            attach_bundle=True,
+            register_lora=False,
+            condition_label="bundle",
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=True,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            attach_bundle=True,
+            register_lora=False,
+            condition_label="bundle",
+        )
+
+    return VerticalSpec(
+        name="einstein-bundle",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
+def _try_einstein_full() -> VerticalSpec | None:
+    """BUNDLE_LORA ablation arm: L1/L3/L4 + persona-LoRA active.
+
+    Matches ``PersonaCondition.BUNDLE_LORA``: the disk bundle's
+    ``lora`` slot (when populated by an F6 bake) is registered into
+    the process-wide :class:`PersonaLoRAPool`, so the synthesizer's
+    ``_maybe_activate_persona_lora`` hook fires on each turn.
+
+    Known limitation (today): when the resolver hands back a bundle
+    whose ``lora`` slot was filled by the synthetic backend, the
+    LoRA delta is zeroed by the substrate's LayerNorm before any
+    head logits change (known-debts #40), so the forward output is
+    byte-equivalent to the BUNDLE condition. Once debt #41 lands a
+    real PEFT-on-Qwen LoRA, the same wiring will surface a real
+    behavioural delta with no code change here.
+    """
+
+    try:
+        from lifeform_domain_figure import build_einstein_lifeform  # noqa: F401
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=False,
+            attach_bundle=True,
+            register_lora=True,
+            condition_label="bundle_lora",
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return _build_einstein_lifeform_with_bundle(
+            runtime=runtime,
+            use_alpha=True,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            attach_bundle=True,
+            register_lora=True,
+            condition_label="bundle_lora",
+        )
+
+    return VerticalSpec(
+        name="einstein-full",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
+def _try_einstein() -> VerticalSpec | None:
+    """Backward-compatibility alias for ``einstein-bundle``.
+
+    The original ``einstein`` vertical (Wave F4.2) shipped a single
+    factory that carried the figure_bundle. We now split that into
+    three ablation arms (``einstein-raw`` / ``einstein-bundle`` /
+    ``einstein-full``) matching the verification harness's
+    ``PersonaCondition``; this shim keeps the legacy ``einstein``
+    name resolving to the closest-equivalent (BUNDLE) arm so
+    existing ``VERTICAL=einstein`` invocations and saved templates
+    do not break.
+    """
+
+    spec = _try_einstein_bundle()
+    if spec is None:
+        return None
+    return VerticalSpec(
+        name="einstein",
+        factory=spec.factory,
+        has_temporal_bootstrap=spec.has_temporal_bootstrap,
+        has_regime_bootstrap=spec.has_regime_bootstrap,
+        bootstraps_dir=spec.bootstraps_dir,
+        scenarios_dir=spec.scenarios_dir,
+        alpha_factory=spec.alpha_factory,
+        template_adapter=spec.template_adapter,
+        template_subdir=spec.template_subdir,
     )
 
 
@@ -487,6 +757,9 @@ _BUILDERS = (
     _try_coding,
     _try_zhang_wuji,
     _try_einstein,
+    _try_einstein_raw,
+    _try_einstein_bundle,
+    _try_einstein_full,
     _try_growth_advisor,
 )
 

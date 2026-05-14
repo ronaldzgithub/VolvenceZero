@@ -799,7 +799,7 @@ DriveSpec(
 | `lifeform-domain-coding` | 工程结对（pair-programmer） | `solution_clarity` / `code_freshness` / `direction_certainty`（探索时**负向充能**） |
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`（每个角色档案自定义） |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；多源一手语料 → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯 |
-| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移 |
+| `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven） |
 
 `direction_certainty` 在 `guided_exploration` regime 下用**负向 recharge**——这证明了 drive 层可以编码"探索期间确定性应该被消耗"这种非单调激励。
 
@@ -923,12 +923,12 @@ DriveSpec(
 
 #### 6.5.3 `lifeform-domain-growth-advisor`：私域 LTV 长程顾问
 
-> 🌱 **常识比喻**：直播间的"成长顾问"老师不是一次性卖完就走，而是和家长建立 7 天的渐进信任：第 1 天介绍 → 第 4 天展示专业 → 第 7 天形成长期咨询关系。系统要在这条 7 天 playbook 上**有节奏地学习不同行为模式**。
+> 🌱 **常识比喻**：直播间的"成长顾问"老师不是一次性卖完就走，而是和家长建立渐进信任：先 icebreaker 介绍 → 后展示专业 → 最后形成长期咨询关系。系统要在这条 onboarding-arc playbook 上**有节奏地学习不同行为模式**——但节奏不按日历切，而是由 `BehaviorProtocol.TemporalArc.progression_signals` 中的 PE 信号驱动的关系阶段决定。
 
 > 🔧 **工程语言**
 >
 > - 输入：reviewed `GrowthAdvisorProfile`（drive prior + knowledge seed + signature case + strategy prior + boundary prior）
-> - 7 天 playbook 通过 `applicability_scope`（`growth_advisor:day1` … `day7`）+ `regime_tags` 携带漂移**到 application owner**
+> - onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移**到 application owner**；关系阶段（icebreaker / baseline / empathy / pain mining / rapport / targeted advice / summary）由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven）路由，不按日历天数硬切
 > - **不靠关键词匹配从用户文本推断"现在是第几天"** —— 由 typed event / scope tag 驱动
 > - 编译为：`DomainExperiencePackage` + `VitalsBootstrap` + `IngestionEnvelope`（含直播间介绍文 + 7 天对话样本）
 

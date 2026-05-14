@@ -29,6 +29,10 @@ from __future__ import annotations
 
 from lifeform_service.app import create_app
 from lifeform_service.cli import main
+from lifeform_service.einstein_resolver import (
+    EinsteinBundleResolution,
+    resolve_einstein_bundle,
+)
 from lifeform_service.figure_bundle_store import (
     FigureBundleNotFound,
     FigureBundleStore,
@@ -48,6 +52,7 @@ from lifeform_service.verticals import (
 )
 
 __all__ = (
+    "EinsteinBundleResolution",
     "FigureBundleNotFound",
     "FigureBundleStore",
     "SessionAlreadyExistsError",
@@ -61,4 +66,5 @@ __all__ = (
     "lookup_figure_bundle",
     "main",
     "register_bundle_persona_lora",
+    "resolve_einstein_bundle",
 )

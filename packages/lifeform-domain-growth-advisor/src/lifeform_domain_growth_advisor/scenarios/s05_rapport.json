@@ -1,6 +1,6 @@
 {
-  "scenario_id": "growth-advisor-day5-rapport",
-  "description": "Day 5 of the 7-day playbook. Non-product rapport cycle. Weekend / household / venting topics; advisor listens more than advises. No advice pivots, no product. Casual_social primary, emotional_support tolerable.",
+  "scenario_id": "growth-advisor-s05-rapport",
+  "description": "Onboarding stage 05 (rapport cycle). Non-product rapport: weekend / household / venting topics; advisor listens more than advises. No advice pivots, no product. Casual_social primary, emotional_support tolerable.",
   "turns": [
     {
       "user_input": "周末打算带他去公园转转。",

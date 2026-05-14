@@ -28,13 +28,13 @@ from lifeform_domain_growth_advisor import (
 
 
 _EXPECTED_SCENARIO_IDS = (
-    "growth-advisor-day1-icebreaker",
-    "growth-advisor-day2-baseline",
-    "growth-advisor-day3-empathy-kb",
-    "growth-advisor-day4-pain-mining",
-    "growth-advisor-day5-rapport",
-    "growth-advisor-day6-targeted-advice",
-    "growth-advisor-day7-summary-hook",
+    "growth-advisor-s01-icebreaker",
+    "growth-advisor-s02-baseline",
+    "growth-advisor-s03-empathy-kb",
+    "growth-advisor-s04-pain-mining",
+    "growth-advisor-s05-rapport",
+    "growth-advisor-s06-targeted-advice",
+    "growth-advisor-s07-summary-hook",
 )
 
 

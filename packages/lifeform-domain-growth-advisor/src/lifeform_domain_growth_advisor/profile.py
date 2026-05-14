@@ -64,9 +64,11 @@ class GrowthAdvisorSignatureCase:
     """Concrete situation-action-outcome pattern.
 
     Compiles to ``CaseMemoryRecord``. Used by this vertical for the
-    7-day playbook examples and the 5 universal-response cases (no-
-    reply / asks for a standard / vents / asks for supplements / asks
-    for a product).
+    7 onboarding-arc playbook examples (icebreaker → summary; phase
+    routing flows through ``BehaviorProtocol.TemporalArc.progression_signals``,
+    not calendar days) and the 5 universal-response cases (no-reply /
+    asks for a standard / vents / asks for supplements / asks for a
+    product).
     """
 
     case_id: str
@@ -89,11 +91,15 @@ class GrowthAdvisorSignatureCase:
 class GrowthAdvisorStrategyPrior:
     """Reviewed pacing / ordering prior.
 
-    Compiles to ``PlaybookRule``. The 7-day playbook is encoded as 7
-    such priors with ``applicability_scope`` carrying the day window
-    (``growth_advisor:day1`` … ``growth_advisor:day7``). The 4 need-
-    mining funnels use ``funnel:height``, ``funnel:immunity``,
-    ``funnel:nutrition``, ``funnel:vision``.
+    Compiles to ``PlaybookRule``. The 7 onboarding-arc priors carry
+    ``applicability_scope`` with funnel / regime tags only; the
+    previous calendar-day tags (``growth_advisor:day1`` …
+    ``growth_advisor:day7``) were removed on 2026-05-14 — phase
+    routing now flows through
+    ``BehaviorProtocol.TemporalArc.progression_signals`` (PE-driven)
+    in protocol-runtime. The 4 need-mining funnels use
+    ``funnel:height``, ``funnel:immunity``, ``funnel:nutrition``,
+    ``funnel:vision``.
     """
 
     rule_id: str

@@ -1,24 +1,24 @@
 # Growth-Advisor 30 天试点前置 Packet
 
 > 出处：商业化反思 26 条 debt 的 P2 组（[`docs/known-debts.md`](../known-debts.md) 顶部 `2026-05-13 update` 段）
-> 覆盖：debt **#51 / #64 / #65 / #66 / #67 / #68 / #70**
+> 覆盖：debt **#51 / #64 / #66 / #67 / #68 / #70**（#65 day-counter 已 deprecated，节奏走 `BehaviorProtocol.TemporalArc.progression_signals`）
 > 姊妹 packet（不重复其内容，引用即可）：
 > - [`cross-cutting-foundation-packet.md`](cross-cutting-foundation-packet.md) — 横切基础设施（#45 / #46 / #47 / #49 / #50 / #69 已覆盖）
 > - [`companion-bench-public-launch-packet.md`](companion-bench-public-launch-packet.md) — P5 公开化（#48 / #52-#57）
 > - [`figure-evidence-packet.md`](figure-evidence-packet.md) — P1 法律生死线（#58-#63）
-> 状态：plan v0.1，待 packet review
-> Last updated: 2026-05-13
+> 状态：plan v0.2（2026-05-14 G-B/day-counter 下线；改为 protocol-phase-cohort），待 packet review
+> Last updated: 2026-05-14
 > 作用：本 packet 是 **P2 Private-Domain Growth-Advisor 30 天试点**（[`commercialization-assessment.md`](../business/commercialization-assessment.md) §4.2 概率 30-45% / §6.3 毛利 ~88% / 回本 2-3 月）的**前置 evidence 组**。所有产出服务"30 天试点 → 客户续签"这一单一商业目标
 
 ---
 
 ## 0. TL;DR（≤ 8 行）
 
-- 本组 7 条 debt 拆 **6 个 sub-packet**：G-A（#64+#68 boundary baseline + drives ablation）/ G-B（#65 day-counter spec）/ G-C（#66 archetype 识别选型）/ G-D（#67 月报契约 + MonthlyReportOwner）/ G-E（#70 handoff SLO 实测，依赖横切 F-A）/ G-F（#51 双盲第三方评分 protocol）
+- 本组 6 条 debt 拆 **5 个 sub-packet**：G-A（#64+#68 boundary baseline + drives ablation）/ G-C（#66 archetype 识别选型）/ G-D（#67 月报契约 + MonthlyReportOwner）/ G-E（#70 handoff SLO 实测，依赖横切 F-A）/ G-F（#51 双盲第三方评分 protocol）（**G-B/day-counter 已下线**：节奏走 `BehaviorProtocol.TemporalArc.progression_signals`，由 protocol-runtime 在 application owner 中消费）
 - **archetype 识别选型决策**（G-C）：短期 **(a) LLMArchetypeClassifier**（每 N=3 turn 跑一次，不每 turn），长期 **(c) metacontroller β_t**（依赖 SYS-1，Phase B+）；(b) keyword 路径被 [`no-keyword-matching-hacks.mdc`](../../.cursor/rules/no-keyword-matching-hacks.mdc) 排除
 - **强依赖**：G-E 必须等横切 F-A perf 床；G-D 复用横切 F-B `EvidenceDeletionPolicy`；G-F 评估员 transcript 删除走横切 F-B；G-C robustness sweep 复用 P5 packet #48 模板
-- 推荐起跑顺序：**G-A → G-B → G-C → G-D → G-F → G-E**（G-E 顺位最后因等 F-A）
-- 总资源：**10-14 人周工程**（6 sub-packet 各 1.5-2.5 周）+ **零 GPU 训练成本**（复用现有 substrate）+ **LLM API 月成本 ~$300-600**（含 G-C classifier 持续调用 + G-F 双盲评分）
+- 推荐起跑顺序：**G-A → G-C → G-D → G-F → G-E**（G-E 顺位最后因等 F-A）
+- 总资源：**8.5-12 人周工程**（5 sub-packet 各 1.5-2.5 周）+ **零 GPU 训练成本**（复用现有 substrate）+ **LLM API 月成本 ~$300-600**（含 G-C classifier 持续调用 + G-F 双盲评分）
 - 30 天试点 evidence 完整度估算：当前 ~30% → 本 packet 完成后 **~85%**（G-A baseline + G-D 月报 + G-F 外部对照 = 客户尽调三件套齐全）
 
 ---
@@ -45,14 +45,15 @@
 
 [`closed-alpha-api-service.md`](../closed-alpha-api-service.md) 已有：`UserIdentity.scope_key` 单层（横切 F-B 升双层）/ `DELETE /v1/users/me/memory` / `pause` / `weekly-report` 最小 readout / handoff 队列 [`packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py`](../../packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py)（**注意**：debt #70 推荐位置 `dlaas-platform-ops` 与现实不符，已在 [`cross-cutting-foundation-packet.md`](cross-cutting-foundation-packet.md) 附录 A.7 标注；本 packet G-E 按现实位置 `dlaas-platform-registry/handoff.py` 接入）。
 
-[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py) 已完整编码 5 archetype × 7 day × 4 funnel × 4 boundary × 4 drive 的全部 typed payload，但有两块代码现状 **vs** debt 描述需要明确指出：
+[`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py) 已完整编码 5 archetype × 4 funnel × 4 boundary × 4 drive 的全部 typed payload，但有一块代码现状 **vs** debt 描述需要明确指出：
 
-- **#65 day-counter**：[`fixture_uptake.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py) 第 31-35 行明文写 "Translate `applicability_scope=('growth_advisor:day3',)` string tags into PE-driven `TemporalArc.progression_signals` — this is packet 1.4+"。即 day-tag 当前**只是字符串通过传递**，没有 day-counter 运行时消费，profile 编译进 `StrategyPrior.applicability_phase` 也只是 metadata。debt #65 描述准确——P2 试点客户跨过 day7 边界时，**当前没有任何路由会因 day 计数改变而切换**
 - **#66 archetype 识别**：profile.py 列了 5 类 mom 心态 seed（`archetype-anxious-rational-consumer` / `archetype-time-scarce-professional` / `archetype-empathy-before-product` / `archetype-high-trust-threshold` / `archetype-multi-axis-growth-concern`），但**没有任何运行时 classifier**——这是 debt #66 描述的"设计空白"在仓库的具体兑现
+
+> **节奏分层（"用户处于第几阶段"）路径变更**：原 G-B/day-counter 方案（按 calendar 7 天硬切）已下线；改由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接。`fixture_uptake.py` 已经 import `TemporalArc/TemporalPhase`，protocol-runtime 是节奏 SSOT。月报"day-cohort 活跃度"字段相应改为 "protocol-phase-cohort"，从 protocol_phase snapshot aggregate（已在 vz-application owner 中可用）。
 
 ### 1.4 本 packet 的边界
 
-本 packet **不做**：substrate 升级 / corpus 工艺改造 / 横切 schema（双层 scope / DELETE 矩阵 / fingerprint 全部走横切 packet）。**只做**：P2 试点客户尽调三件套（月报 + boundary 触发 + 关系连续性）+ 卡商业承诺的两个工程决策（archetype 识别选型 + day-counter spec）+ 试点 ops 接入前的 handoff SLO 实测。
+本 packet **不做**：substrate 升级 / corpus 工艺改造 / 横切 schema（双层 scope / DELETE 矩阵 / fingerprint 全部走横切 packet）。**只做**：P2 试点客户尽调三件套（月报 + boundary 触发 + 关系连续性）+ 卡商业承诺的核心工程决策（archetype 识别选型）+ 试点 ops 接入前的 handoff SLO 实测。
 
 ---
 
@@ -109,56 +110,16 @@
 
 ---
 
-### 2.2 G-B — day-counter 路由 spec + contract test（debt #65）
+### ~~2.2 G-B — day-counter 路由 spec + contract test（debt #65）~~ — DEPRECATED 2026-05-14
 
-#### 路径
-
-- **当前实现**（已 Grep 验证）：[`fixture_uptake.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py) 第 31-35 行注释明文 "Translate `applicability_scope=('growth_advisor:day3',)` string tags ... is packet 1.4+。Packet 1.0 uses a single placeholder phase and passes the day-tag scopes through unchanged"；即 day-tag 当前**只是字符串透传，没有运行时消费**
-- **profile 已编码**：`cheng_laoshi.py` 7 个 playbook rule × `applicability_scope=("growth_advisor:dayN",)`（第 699-1026 行）
-- **缺位**：day_counter owner 未定 / `onboarding_at` 字段未规约 / `applicability_scope` enum 校验缺失 / `tests/contracts/test_growth_advisor_day_routing.py` 不存在
-- **上游商业承诺**：§4.2 P2 "用户 7 天养成阶段是工程化的——通过 applicability_scope 真路由，不是关键词匹配"
-
-#### 退出标准（SHADOW → ACTIVE）
-
-| 阶段 | 条件 | 验证方式 |
-|---|---|---|
-| **SHADOW** | (a) `docs/specs/growth-advisor-day-counter.md` v0.1 草稿落档明确 owner / 计算公式 / tz 处理；(b) `applicability_scope` enum 字段校验加在 `GrowthAdvisorStrategyPrior.__post_init__`；(c) `tests/contracts/test_growth_advisor_day_routing.py` 骨架（仅 enum 校验通过） | profile 加 `applicability_scope=("growth_advisor:day99",)` 时 fail-loud；现有 cheng_laoshi 通过 |
-| **ACTIVE** | (a) `onboarding_at` 作为 scoped memory typed field 落到 `vz-memory` 或 `lifeform-service`（在 SHADOW 末确定 owner）；(b) day_counter 真路由：构造 day1-day7+ session 序列 × 验证每天命中的 PlaybookRule.applicability_scope 含对应 day tag；(c) ops dashboard 加 "current day" 显示端点 | 端到端测试：模拟 8 天 session × 验证 day1-day7 routing × day8+ fallback 行为；新加端点 `GET /v1/sessions/{sid}/growth-advisor/current-day` 返回 typed int |
-
-#### 子任务（5 项）
-
-1. **`docs/specs/growth-advisor-day-counter.md`**：明确 day_counter 来源 owner 候选三选一 + 推荐方案
-   - 候选 A：`scoped_memory.user_profile.onboarding_at` typed field（推荐，与 [`closed-alpha-api-service.md`](../closed-alpha-api-service.md) `UserIdentity` 一致 R8 边界）
-   - 候选 B：`lifeform-service` session 创建时间（不推荐，session 重启会重置）
-   - 候选 C：dlaas-platform-registry `EndUserRecord.created_at_ms`（不推荐，与 vz-memory `UserIdentity` 跨 owner）
-   - 计算公式：`day_index = (now_ms - onboarding_at_ms) // 86_400_000 + 1`，clip 到 `[1, 7+]`（day7+ 是"养成完成"统一态）
-   - tz 处理：onboarding_at 写 UTC ms，display 时 client 自行 localize
-   - 跨 7 天后行为：所有 `applicability_scope` 含 `growth_advisor:day7` 的 rule 一律 fallback 触发；规划"day8+" optional tag（暂不实现）
-2. **`GrowthAdvisorStrategyPrior` enum 校验**：在 `profile.py` 第 86-108 行 `__post_init__` 加 `_validate_applicability_scope` —— 任何以 `growth_advisor:day` 前缀的 tag 必须在 `{day1, day2, ..., day7}` 中；其他前缀如 `funnel:` / `regime:` 沿用现状不校验
-3. **`tests/contracts/test_growth_advisor_day_routing.py`**：
-   - case 1：`onboarding_at` 为 0 → day1 rule 触发
-   - case 2：onboarding_at + 3.5 day → day3 / day4 rule 同时候选（依赖 tag 容器是 tuple union）
-   - case 3：onboarding_at + 8 day → 仅 day7 fallback rule 触发
-   - case 4：enum 校验：构造 `applicability_scope=("growth_advisor:day10",)` 应 raise `ValueError`
-   - case 5：tz 跨越：onboarding_at 跨 UTC 0 点 → day_index 仍以 86400s 切分
-4. **ops dashboard `current-day` 端点**：在 [`packages/lifeform-service/`](../../packages/lifeform-service/) 加 `GET /v1/sessions/{sid}/growth-advisor/current-day`（admin scope，参见横切 F-B `X-Control-Plane-Secret`）返回 `{day_index, onboarding_at_ms, days_since_onboarding}`；alpha 路径自动从 session 时间派生（migration shim）
-5. **lifeform-service 路由消费**：把 `applicability_scope` day-tag 真正接到 `vz-application.PlaybookRule` routing—— `fixture_uptake.py` 第 31-35 行注释里写的 "packet 1.4+" 把它收尾，让 routing 真按 day 切；此项是 G-B 最大工作量
-
-#### 资源估算
-
-- **工程**：1.5-2 人周（spec 0.5 周 + enum 校验 + contract test 0.5 周 + dashboard 端点 0.5 周 + routing 真接 0.5 周）
-- **GPU / API**：零
-
-#### 依赖
-
-- **软依赖横切 F-B**：admin scope endpoint 走双层 `tenant × end_user`，需要横切 F-B SHADOW 后再发 `current-day` 端点（否则 alpha 单层路径走兼容 shim）
-
-#### 风险 & fallback
-
-| 风险 | 评估 | fallback |
-|---|---|---|
-| `onboarding_at` 字段 owner 归属在 SHADOW 末仍有争议 | 中 | 推迟到 G-D 月报落档时一并决策（月报"day-cohort 活跃度"字段也需要 day_index） |
-| Routing 真接（子任务 5）涉及 [`vz-application/`](../../packages/vz-application/) `PlaybookRule` 选择逻辑改动 | 中 | 第一版只做 "day 在 applicability_scope 中则得分 +1"，不动现有 ordering 算法；ablation: 关闭 day-routing 时 P2 行为不应崩 |
+> **下线（不再追踪）**：节奏分层（"用户处于第几阶段"）由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接，不需要独立 day-counter owner。
+> 配套清理：
+> - `docs/specs/growth-advisor-day-counter.md` 已删
+> - `tests/contracts/test_growth_advisor_day_routing.py` 已删
+> - `cheng_laoshi.py` 中 `growth_advisor:dayN` 字符串残留已清理（保留 `funnel:*` / `regime:*` tags）
+> - debt #65 strikethrough，备注同上
+>
+> 后续若需"用户处于关系阶段 X"信号，走 `TemporalArc.progression_signals`，由 protocol-runtime 模块在 application owner 中消费。月报"day-cohort"字段（原 G-D 子任务依赖）改为 "protocol-phase-cohort"，从 protocol_phase snapshot aggregate；具体 phase 命名见 cheng_laoshi 的 BehaviorProtocol.temporal_arc 定义。
 
 ---
 
@@ -227,7 +188,7 @@
 | 阶段 | 条件 | 验证方式 |
 |---|---|---|
 | **SHADOW** | (a) `docs/specs/growth-advisor-monthly-report.md` v0.1 落档明确 schema + per-field owner + aggregation 公式；(b) `MonthlyReportOwner` 模块骨架在 [`packages/lifeform-service/`](../../packages/lifeform-service/) 落地（不新开 wheel，避免破坏 R8）；(c) `GET /v1/tenants/{tid}/admin/monthly-report?month=YYYY-MM` 端点骨架（mock 数据） | contract test 7 case 覆盖 schema 字段稳定性 + version 升级兼容性 + 跨 month 可比性 |
-| **ACTIVE** | (a) 月报真从下游 owner snapshot aggregate（rupture/repair from `vz-cognition.rupture_state` / boundary 触发 from G-A baseline 路径 / archetype 分布 from G-C classifier snapshot / handoff from `dlaas-platform-registry/handoff.py` / day-cohort from G-B day_counter）；(b) 月报 PDF / HTML 渲染走 lifeform-expression（R4 表达层）；(c) DELETE 路径打通（end-user 删除后该 end-user 数据从月报中剔除，月报有"delete 事件计数"字段而不是泄露内容） | 端到端：10 mock end_user × 5 turn × 30 day 跑 fixture → 月报 PDF 输出含 §4 全部字段 + 数字合理 |
+| **ACTIVE** | (a) 月报真从下游 owner snapshot aggregate（rupture/repair from `vz-cognition.rupture_state` / boundary 触发 from G-A baseline 路径 / archetype 分布 from G-C classifier snapshot / handoff from `dlaas-platform-registry/handoff.py` / protocol-phase-cohort from `BehaviorProtocol.TemporalArc.progression_signals` snapshot）；(b) 月报 PDF / HTML 渲染走 lifeform-expression（R4 表达层）；(c) DELETE 路径打通（end-user 删除后该 end-user 数据从月报中剔除，月报有"delete 事件计数"字段而不是泄露内容） | 端到端：10 mock end_user × 5 turn × 30 day 跑 fixture → 月报 PDF 输出含 §4 全部字段 + 数字合理 |
 
 #### 子任务（5 项）
 
@@ -253,7 +214,7 @@
 #### 依赖
 
 - **强依赖横切 F-B**：admin scope endpoint + DELETE evidence ledger
-- **软依赖 G-A / G-C / G-B**：月报字段需要 boundary baseline / archetype classifier / day_counter 三方数据源；G-D ACTIVE 必须在 G-A SHADOW + G-C SHADOW + G-B SHADOW 之后
+- **软依赖 G-A / G-C**：月报字段需要 boundary baseline / archetype classifier 两方数据源；G-D ACTIVE 必须在 G-A SHADOW + G-C SHADOW 之后；protocol-phase-cohort 字段读 `BehaviorProtocol.TemporalArc.progression_signals` snapshot（已在 vz-application owner 中可用）
 
 #### 风险 & fallback
 
@@ -437,7 +398,7 @@
 | `boundary_trigger_per_policy` | dict | `{"bp-no-hard-sell": 412, "bp-no-overclaim": 78, "bp-no-flooding": 23, "bp-no-judgmental": 9}` | G-A `BoundaryEnforcerSnapshot` | 4 个反销售边界本月触发次数（**合规增长**：bp-no-hard-sell 412 次 = AI 拒推销 412 次）|
 | `boundary_trigger_rate_band` | dict | `{"bp-no-hard-sell": 0.155 (in [0.05, 0.5])}` | G-A baseline reference | 触发率落在 §4.2 kill criteria 健康带内 |
 | `archetype_distribution` | dict | `{"anxious-rational": 0.34, "time-scarce": 0.18, "empathy-first": 0.22, "high-trust": 0.14, "multi-axis": 0.12}` | G-C `ArchetypeStateSnapshot` | 5 archetype 比例（无单一 archetype > 80% 退化）|
-| `day_cohort_activity` | dict | `{"day1-3": 0.42, "day4-6": 0.31, "day7+": 0.27}` | G-B day_counter | 7 天养成阶段 retention 漏斗 |
+| `protocol_phase_cohort_activity` | dict | `{"acquaintance": 0.42, "guided_exploration": 0.31, "rapport_mature": 0.27}` | `BehaviorProtocol.TemporalArc.progression_signals` snapshot | 关系阶段 retention 漏斗（PE-driven phase；不再硬切日历天数） |
 | `handoff_trigger_count` / `handoff_avg_response_min` / `handoff_timeout_count` | int / float / int | **47 / 12.3 / 2** | G-E `HandoffTicketStore.list_for_tenant` | 转人工触发数 / 平均响应时长 / 超时未接手数 |
 | `relationship_continuity_self_eval` | dict | `{"a3_callback_recall": 0.78, "il_rapport_avg": 0.62, "bond_warmth_avg": 0.71}` | `vz-cognition` vitals + companion-bench A3 | **system self-eval**（明确标注，区别于 G-F external validated） |
 | `relationship_continuity_external_validated` | dict / null | G-F ACTIVE 前 = `null`；后 = `{"a3_spearman_vs_evaluator": 0.65, "evaluator_n": 20}` | G-F external eval | **external-validated**（30 天试点末追加） |
@@ -477,7 +438,7 @@
   "boundary_trigger_per_policy": {"bp-no-hard-sell": 412, "bp-no-overclaim": 78, "bp-no-flooding": 23, "bp-no-judgmental": 9},
   "boundary_trigger_rate_band_check": {"bp-no-hard-sell": "within [0.05, 0.5]"},
   "archetype_distribution": {"anxious-rational": 0.34, "time-scarce": 0.18, "empathy-first": 0.22, "high-trust": 0.14, "multi-axis": 0.12},
-  "day_cohort_activity": {"day1-3": 0.42, "day4-6": 0.31, "day7+": 0.27},
+  "protocol_phase_cohort_activity": {"acquaintance": 0.42, "guided_exploration": 0.31, "rapport_mature": 0.27},
   "handoff_trigger_count": 47,
   "handoff_avg_response_min": 12.3,
   "handoff_timeout_count": 2,
@@ -485,7 +446,7 @@
   "relationship_continuity_external_validated": null,
   "deletion_event_count": 3,
   "deleted_end_user_count": 3,
-  "narrative_summary": "本月 AI 顾问触发 bp-no-hard-sell 拒推销 412 次（合规增长）；rupture-repair 完成率 70.6%（用户关系健康度优）；day1-3 活跃占 42% 显示新用户上手良好；handoff 触发 47 次平均响应 12.3 分钟优于 30 分 SLA。"
+  "narrative_summary": "本月 AI 顾问触发 bp-no-hard-sell 拒推销 412 次（合规增长）；rupture-repair 完成率 70.6%（用户关系健康度优）；acquaintance 阶段活跃占 42% 显示新用户上手良好；handoff 触发 47 次平均响应 12.3 分钟优于 30 分 SLA。"
 }
 ```
 
@@ -499,7 +460,7 @@
 |---|---|---|
 | 1 | "AI 顾问真的会拒推销吗？我怎么知道？" | G-A `artifacts/growth_advisor_eval/boundary_baseline_<date>.json` + 月报 `boundary_trigger_per_policy` 字段 |
 | 2 | "如果 AI 顾问开始硬推销了你们能立刻发现吗？" | G-A `docs/specs/growth-advisor-boundary-baseline.md` kill criteria band + 月报 `boundary_trigger_rate_band_check` |
-| 3 | "用户跨过 day7 后会发生什么？" | G-B `docs/specs/growth-advisor-day-counter.md` §跨 7 天行为 + ops dashboard `current-day` 端点 |
+| 3 | "用户处于关系阶段 X 如何识别？" | `BehaviorProtocol.TemporalArc.progression_signals` PE-driven phase（已在 vz-application owner 中可用，不依赖 calendar 7 天硬切） |
 | 4 | "你们怎么区分焦虑型妈妈和直接问产品的妈妈？" | G-C `docs/specs/growth-advisor-archetype-detection.md` §短期路径 + 月报 `archetype_distribution` |
 | 5 | "月报字段会不会下个月就改了？我老板要的是稳定的报表" | G-D `docs/specs/growth-advisor-monthly-report.md` §版本化策略 + `tests/contracts/test_monthly_report_schema_stability.py` |
 | 6 | "用户提删除请求 30 天内能处理吗？" | 横切 F-B `DELETE /v1/tenants/{tid}/users/{uid}/memory` + 月报 `deletion_event_count` + `evidence_deletion_ledger.jsonl` |
@@ -519,7 +480,6 @@
 ```mermaid
 flowchart TD
     GA[G-A: boundary baseline + drives ablation<br/>#64 + #68]
-    GB[G-B: day-counter spec + routing<br/>#65]
     GC[G-C: archetype 识别选型<br/>#66]
     GD[G-D: 月报契约 + MonthlyReportOwner<br/>#67]
     GE[G-E: handoff SLO 实测<br/>#70]
@@ -527,13 +487,13 @@ flowchart TD
 
     FA[横切 F-A: perf 床]
     FB[横切 F-B: 双层 scope + DELETE]
+    PR[BehaviorProtocol.TemporalArc<br/>protocol-runtime owner]
 
     GA -->|baseline 数字| GD
-    GB -->|day_counter| GD
     GC -->|archetype state| GD
     GE -->|handoff 数| GD
+    PR -->|protocol_phase snapshot| GD
     FB -.->|admin scope endpoint| GD
-    FB -.->|admin scope endpoint| GB
     FB -.->|evidence deletion ledger| GD
     FB -.->|external eval transcript 删除| GF
     FA -.->|concurrent fixture| GE
@@ -543,7 +503,7 @@ flowchart TD
 
 | 决策 | 选择 | 理由 |
 |---|---|---|
-| G-A / G-B / G-C / G-D / G-F 是否并行 | **可并行启动** | 5 个 sub-packet 改不同模块，无共享代码依赖；G-D 只在 ACTIVE 阶段收口需要其他 4 项 SHADOW 结果 |
+| G-A / G-C / G-D / G-F 是否并行 | **可并行启动** | 4 个 sub-packet 改不同模块，无共享代码依赖；G-D 只在 ACTIVE 阶段收口需要其他 3 项 SHADOW 结果 |
 | G-E 是否能与 G-A 并行 | **不能（推荐串行）** | G-E 强依赖横切 F-A perf 床，F-A ACTIVE 才能跑 |
 | G-C / G-D 同时改 lifeform-expression prompts 目录 | 注意冲突 | G-C 加 `growth_advisor_archetype_classify.txt`；G-D 加 `monthly_report_narrative.txt`；两个 prompt 文件无重叠 |
 
@@ -552,11 +512,10 @@ flowchart TD
 | 顺位 | sub-packet | 起跑节奏 |
 |---|---|---|
 | **1** | **G-A**（boundary baseline + drives ablation） | Phase A 第 1-3 周 SHADOW，第 3-5 周 ACTIVE；客户尽调三件套中 (b) 反销售边界数据，最核心 |
-| **2** | **G-B**（day-counter spec） | Phase A 第 1-2 周 SHADOW（spec 即可），第 3-4 周 ACTIVE（真接 routing） |
-| **3** | **G-C**（archetype 识别选型） | Phase A 第 2-4 周 SHADOW（含 robustness sweep），第 4-6 周 ACTIVE；与横切 F-A SHADOW 并行 |
-| **4** | **G-D**（月报契约） | Phase A 第 3-5 周 SHADOW（spec + 骨架），第 5-7 周 ACTIVE；强依赖 G-A/B/C SHADOW + 横切 F-B |
-| **5** | **G-F**（双盲第三方评分 protocol） | Phase A 第 3-4 周 SHADOW（protocol + 评估员招募），第 7-8 周 ACTIVE（试点首周抽样后跑） |
-| **6** | **G-E**（handoff SLO 实测） | Phase A 第 5-6 周 SHADOW（spec），第 6-8 周 ACTIVE；必须等横切 F-A ACTIVE |
+| **2** | **G-C**（archetype 识别选型） | Phase A 第 2-4 周 SHADOW（含 robustness sweep），第 4-6 周 ACTIVE；与横切 F-A SHADOW 并行 |
+| **3** | **G-D**（月报契约） | Phase A 第 3-5 周 SHADOW（spec + 骨架），第 5-7 周 ACTIVE；强依赖 G-A/G-C SHADOW + 横切 F-B |
+| **4** | **G-F**（双盲第三方评分 protocol） | Phase A 第 3-4 周 SHADOW（protocol + 评估员招募），第 7-8 周 ACTIVE（试点首周抽样后跑） |
+| **5** | **G-E**（handoff SLO 实测） | Phase A 第 5-6 周 SHADOW（spec），第 6-8 周 ACTIVE；必须等横切 F-A ACTIVE |
 
 ---
 
@@ -620,7 +579,6 @@ flowchart TD
 | sub-packet | kill 触发 | 砍后 fallback |
 |---|---|---|
 | G-A | Phase A 第 5 周仍无 reviewer-curated 100 段 scenarios | 退到 50 段 + per-archetype coverage 不保证；SLA 标 "indicative baseline" |
-| G-B | Phase A 第 4 周 day_counter owner 仍有争议 | 退到 "spec 落档 + enum 校验"，routing 真接推到 Phase B |
 | G-C | Phase A 第 6 周跨 family 方差仍 > 40% | 锁单 family + disclose；ACTIVE 准入放宽 |
 | G-D | Phase A 第 7 周月报 PDF 渲染未通过试点客户 review | 退到 JSON-only 月报 + 客户自行可视化（不卖"PDF 给老板看"卖点） |
 | G-E | Phase A 第 8 周仍无法跑通 30 min 真负载 handoff 套件 | 退到 N=20 burst 测试 + 标 "indicative SLO"；试点 ops 接入需手工监控 |
@@ -643,7 +601,7 @@ flowchart TD
 | G-C archetype 状态由 `LLMArchetypeClassifier` 独家 owner | 下游（boundary / playbook routing / G-D 月报）只**读** `ArchetypeStateSnapshot`，不重建 | AST 扫描禁止 archetype 状态在 classifier 之外被构造 |
 | G-D 月报新 owner 是 `MonthlyReportOwner`（lifeform-service 子模块） | 不新开 wheel；不读底层数据自己重 aggregate，只读其他 owner 已发布的 snapshot | `monthly_report_owner.py` 不允许 import `evidence_root_dir` 直接读 session evidence |
 | G-E handoff queue owner 仍是 `HandoffTicketStore` | G-D 月报 handoff 字段调 `list_for_tenant`，不读 SQLite 表 | contract test 守门 |
-| G-B day_counter owner 落地确认（推荐 `scoped_memory.user_profile.onboarding_at`） | day_index 派生 SSOT 单点；其他 caller 调而非自己拼 | SHADOW spec 落档时锁定 owner |
+| protocol-phase-cohort 字段 owner 是 `BehaviorProtocol.TemporalArc` snapshot（非 G-D 自建） | 月报 aggregator 只读 protocol_phase snapshot，不重建 phase 推断 | R8 read-only consumer 守门 |
 
 ### 9.2 [`no-keyword-matching-hacks.mdc`](../../.cursor/rules/no-keyword-matching-hacks.mdc)
 
@@ -651,7 +609,6 @@ flowchart TD
 |---|---|
 | G-C archetype 识别禁 keyword 路径 | `tests/contracts/test_no_keyword_archetype_detection.py` AST 扫描禁止 `in user_text` / `re.search` / `keyword_dict[...]` 等 pattern |
 | G-A boundary trigger 判定走 typed `BoundaryPriorHint` + `BoundarySeverity`，不走 user_text 子串 | 既有 `cheng_laoshi.py` boundary 编码已合规；contract test 守门 |
-| G-B day 路由走 `applicability_scope` enum + day_counter typed int，不走"今天是周X"类字符串 | `_validate_applicability_scope` enum check |
 
 ### 9.3 [`llm-prompt-centralization.mdc`](../../.cursor/rules/llm-prompt-centralization.mdc)
 
@@ -675,7 +632,6 @@ flowchart TD
 |---|---|
 | G-C `ArchetypeStateSnapshot` | DATA_CONTRACT 加新 slot `archetype_state` owner=`lifeform-domain-growth-advisor.archetype_classifier`，consumers=[`vz-application` playbook routing, `lifeform-service` monthly report] |
 | G-D `MonthlyReport` | DATA_CONTRACT 加新 slot `monthly_report` owner=`lifeform-service.monthly_report_owner`，consumers=[admin endpoint, lifeform-expression renderer] |
-| G-B `day_counter` 派生字段 | 不独立 slot；在 `scoped_memory.user_profile` slot 段补 `onboarding_at_ms` typed field |
 | G-A `BoundaryEnforcerSnapshot` per-policy 触发计数 | 在既有 boundary owner slot 段加 `per_policy_trigger_count_window` 字段 |
 
 ---
@@ -687,12 +643,11 @@ flowchart TD
 | sub-packet | 工程人周 | reviewer 小时 |
 |---|---|---|
 | G-A（boundary baseline + drives ablation） | 2-3 | 8-12 |
-| G-B（day-counter spec + routing） | 1.5-2 | 2 |
 | G-C（archetype 识别选型 + classifier） | 2.5 | 4 |
 | G-D（月报契约 + Owner） | 2-2.5 | 4 |
 | G-E（handoff SLO 实测） | 1.5-2 | 2 |
 | G-F（双盲第三方评分 protocol） | 2 | 20 评估员 × 5h = 100 评估员小时 |
-| **合计** | **11.5-14 人周** | **~120 评估员小时 + 20 内部 reviewer 小时** |
+| **合计** | **10-12 人周** | **~120 评估员小时 + 18 内部 reviewer 小时** |
 
 ### 10.2 LLM API 月成本估算（试点期）
 
@@ -740,12 +695,12 @@ flowchart TD
 
 ### A.2 上游工程 spec / 代码
 
-- [`docs/known-debts.md`](../known-debts.md) #51 / #64 / #65 / #66 / #67 / #68 / #70
+- [`docs/known-debts.md`](../known-debts.md) #51 / #64 / #66 / #67 / #68 / #70（#65 已 deprecated）
 - [`docs/closed-alpha-api-service.md`](../closed-alpha-api-service.md) handoff queue + scoped memory + DELETE 现状
 - [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profile.py) schema
 - [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/profiles/cheng_laoshi.py) reviewed instance
 - [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/compiler.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/compiler.py) + [`lifeform_builder.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/lifeform_builder.py)
-- [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py)（明文标注 day-tag 当前仅透传）
+- [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/fixture_uptake.py)（节奏走 BehaviorProtocol.TemporalArc.progression_signals）
 - [`packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py`](../../packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py)（debt #70 推荐位置与现实不符的接入点）
 
 ### A.3 姊妹 packet
@@ -758,7 +713,6 @@ flowchart TD
 
 - `docs/specs/growth-advisor-boundary-baseline.md`（G-A）
 - `docs/specs/growth-advisor-drive-ablation-evidence.md`（G-A）
-- `docs/specs/growth-advisor-day-counter.md`（G-B）
 - `docs/specs/growth-advisor-archetype-detection.md`（G-C）
 - `docs/specs/growth-advisor-monthly-report.md`（G-D）
 - `docs/specs/handoff-queue-slo.md`（G-E）
@@ -768,7 +722,6 @@ flowchart TD
 ### A.5 本 packet 将要落档的新 contract test
 
 - `tests/contracts/test_no_keyword_archetype_detection.py`（G-C）
-- `tests/contracts/test_growth_advisor_day_routing.py`（G-B）
 - `tests/contracts/test_monthly_report_schema_stability.py`（G-D）
 - `tests/perf/test_handoff_queue_concurrent_load.py`（G-E，依赖横切 F-A）
 
@@ -782,7 +735,7 @@ flowchart TD
 
 | 项 | debt 描述 | 代码现状 | 差异 |
 |---|---|---|---|
-| `applicability_scope` day-tag 运行时消费（#65）| spec 没说，需要在 lifeform_builder.py 里查清楚 | `fixture_uptake.py` 第 31-35 行**明文注释**说 day-tag 仅字符串透传，"is packet 1.4+" 未实现 | debt 描述准确——确实是 spec + 实现双缺失 |
+| ~~`applicability_scope` day-tag 运行时消费（#65）~~ DEPRECATED 2026-05-14 | spec 没说，需要在 lifeform_builder.py 里查清楚 | 节奏由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven）承接，不需要 day-counter；day-tag 字符串残留已从 cheng_laoshi.py / fixture_uptake.py / spec / test 清理 | **debt 已 deprecate**——伪需求；详见 known-debts.md #65 strikethrough 段 |
 | 5 archetype 识别（#66） | 未实现 | profile.py 5 archetype seed 只是 knowledge 编码，**完全无运行时 classifier** | debt 描述准确 |
 | 4 boundary 实现（#64） | profile.py 已有 4 `bp-no-*` | `cheng_laoshi.py` 第 417-545 行已编码；编译到 `BoundaryPriorHint` 已通；缺 baseline 数据 | debt 描述准确 |
 | 4 drives 实现（#68） | profile.py 已有 4 `GrowthAdvisorDrivePrior` | 已编码并编译到 `lifeform_core.DriveSpec`；缺 ablation evidence | debt 描述准确 |
@@ -794,4 +747,5 @@ flowchart TD
 
 ## 变更日志
 
-- **2026-05-13 v0.1**：初稿。基于 [`docs/known-debts.md`](../known-debts.md) 顶部 `2026-05-13 update` 26 条 debt 的 P2 组（#51 / #64-#68 / #70）+ [`commercialization-assessment.md`](../business/commercialization-assessment.md) v0.1 P2 路径反射；strong reference 三个姊妹 packet。下次复盘随第一个 P2 30 天试点客户启动前同步。
+- **2026-05-13 v0.1**：初稿。基于 [`docs/known-debts.md`](../known-debts.md) 顶部 `2026-05-13 update` 26 条 debt 的 P2 组（#51 / #64-#68 / #70）+ [`commercialization-assessment.md`](../business/commercialization-assessment.md) v0.1 P2 路径反射；strong reference 三个姊妹 packet。
+- **2026-05-14 v0.2**：G-B（day-counter）整段下线——节奏由 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven 关系阶段）承接，不再需要 day-counter owner。配套：删 `docs/specs/growth-advisor-day-counter.md` + `tests/contracts/test_growth_advisor_day_routing.py`；月报字段 `day_cohort_activity` 改为 `protocol_phase_cohort_activity`；cheng_laoshi.py / fixture_uptake.py 中 `growth_advisor:dayN` 字符串残留清理；known-debts.md #65 strikethrough。下次复盘随第一个 P2 30 天试点客户启动前同步。

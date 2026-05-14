@@ -42,6 +42,55 @@
 # not on a 24 GB Mac.
 #
 # ---------------------------------------------------------------------
+# Einstein figure-as-a-service demo verticals (debt #41 / Wave K rollout)
+# ---------------------------------------------------------------------
+# The vertical registry now exposes four Einstein entries that mirror
+# the three-condition ablation harness in
+# ``lifeform_domain_figure.verification.persona``:
+#
+#   VERTICAL=einstein-raw     # PersonaCondition.RAW
+#                             # No L1 (style) / L3 (grounded decoder) /
+#                             # L4 (scope refusal) on the synthesizer.
+#                             # Pure base Qwen with the reviewed
+#                             # Einstein profile (drives + domain
+#                             # knowledge) but no figure_bundle.
+#   VERTICAL=einstein-bundle  # PersonaCondition.BUNDLE
+#                             # L1+L3+L4 active; figure_bundle attached
+#                             # (disk-backed Wave K artefact when
+#                             # reachable, else synthetic fallback).
+#                             # NO persona-LoRA registration.
+#   VERTICAL=einstein-full    # PersonaCondition.BUNDLE_LORA
+#                             # Same as einstein-bundle plus the
+#                             # bundle's LoRA artefact is registered
+#                             # in the process-wide PersonaLoRAPool so
+#                             # the synthesizer's auto-activate hook
+#                             # fires on each turn.
+#   VERTICAL=einstein         # Backward-compat alias for einstein-bundle.
+#
+# Disk wiring (see lifeform_service.einstein_resolver):
+#   EINSTEIN_BUNDLE_ROOT         # default data/figure_bundles
+#                                # where ``figure-bake bake-bundle`` /
+#                                # ``scripts/figure_collect_einstein.sh``
+#                                # wrote the persisted bundle tree.
+#   EINSTEIN_BUNDLE_ID           # optional pin to a specific bundle id
+#                                # (e.g. figure-bundle:einstein:29eacd...).
+#                                # When empty the resolver picks the
+#                                # most recently created manifest.
+#   EINSTEIN_REQUIRE_REAL_BUNDLE # set to 1 to fail-loud when no disk
+#                                # bundle is reachable. Defaults to 0
+#                                # so a fresh checkout still starts
+#                                # against the synthetic fallback.
+#
+# Known limitation (today): until debt #41 lands a real PEFT-on-Qwen
+# persona LoRA, the synthetic LoRA delta is zeroed by the substrate's
+# LayerNorm (debt #40), so einstein-bundle and einstein-full produce
+# byte-equivalent forward outputs. The user-observable demo delta is
+# einstein-raw vs einstein-bundle (L4 refusal / L3 evidence pointer /
+# L1 voice style), which is real today. Once #41 lands the same
+# wiring will surface a bundle vs bundle_lora delta with no code
+# change here.
+#
+# ---------------------------------------------------------------------
 # Cross-session memory
 # ---------------------------------------------------------------------
 # ALPHA_MODE defaults to 1 so the kernel binds each session to the
@@ -119,6 +168,13 @@ PYTHON_BIN="${PYTHON:-python}"
 export HOST="${HOST:-127.0.0.1}"
 export PORT="${PORT:-8765}"
 export VERTICAL="${VERTICAL:-companion}"
+# Einstein figure-as-a-service demo wiring (see header for details).
+# These three env vars are read by lifeform_service.einstein_resolver
+# when VERTICAL is one of einstein / einstein-raw / einstein-bundle /
+# einstein-full; harmless on other verticals.
+export EINSTEIN_BUNDLE_ROOT="${EINSTEIN_BUNDLE_ROOT:-${ROOT_DIR}/data/figure_bundles}"
+export EINSTEIN_BUNDLE_ID="${EINSTEIN_BUNDLE_ID:-}"
+export EINSTEIN_REQUIRE_REAL_BUNDLE="${EINSTEIN_REQUIRE_REAL_BUNDLE:-0}"
 export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
 export DEVICE="${DEVICE:-auto}"
 export LOCAL_FILES_ONLY="${LOCAL_FILES_ONLY:-0}"

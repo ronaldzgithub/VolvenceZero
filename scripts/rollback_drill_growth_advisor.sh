@@ -4,9 +4,10 @@
 #
 # Drill flow:
 #
-#   compile reviewed profile → activate → run 7-day playbook 3 rounds
-#   → trigger OFFLINE-gate re-compile → rollback to prior profile
-#   version → run 7-day playbook 1 round → audit verification
+#   compile reviewed profile → activate → run onboarding-arc playbook
+#   3 rounds → trigger OFFLINE-gate re-compile → rollback to prior
+#   profile version → run onboarding-arc playbook 1 round → audit
+#   verification
 #
 # SHADOW scaffold; real wire-up depends on growth-advisor packet
 # G-D MonthlyReportOwner + revision history + audit chain. Until
@@ -46,10 +47,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
   "steps": [
     "compile reviewed profile (lifeform_builder.compile)",
     "activate via DLaaS",
-    "run 7-day playbook × 3 rounds (record baseline boundary trigger rates)",
+    "run onboarding-arc playbook × 3 rounds (record baseline boundary trigger rates)",
     "trigger OFFLINE-gate re-compile (e.g. profile reviewer update)",
     "rollback to prior profile version",
-    "run 7-day playbook × 1 round → assert per-boundary rate identical to baseline",
+    "run onboarding-arc playbook × 1 round → assert per-boundary rate identical to baseline",
     "verify audit log append-only across rollback"
   ],
   "expected_active_outputs": {

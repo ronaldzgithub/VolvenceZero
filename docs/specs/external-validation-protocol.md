@@ -66,7 +66,7 @@ P2 客户合同写：
 
 - ✅ boundary baseline (G-A)
 - ✅ drives ablation (G-A)
-- ✅ day-counter routing 真生效 (G-B)
+- ✅ 关系阶段路由真生效（`BehaviorProtocol.TemporalArc.progression_signals` PE-driven phase；calendar-day-counter 已 deprecated 2026-05-14）
 - ✅ archetype distribution (G-C)
 - ✅ 月报字段稳定 (G-D)
 - ✅ 双盲外部对照 (G-F)

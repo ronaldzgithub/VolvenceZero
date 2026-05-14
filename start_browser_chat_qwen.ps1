@@ -35,6 +35,45 @@
     in bf16 on CPU is the comfortable default; for GPU acceleration set DEVICE=cuda
     and the 7B / 14B variants both fit on a 16 GB card with bf16 / Q4 respectively.
 
+    Einstein figure-as-a-service demo verticals (debt #41 / Wave K rollout)
+    -----------------------------------------------------------------------
+    The vertical registry now exposes four Einstein entries that mirror
+    the three-condition ablation harness in
+    ``lifeform_domain_figure.verification.persona``:
+
+      VERTICAL=einstein-raw     PersonaCondition.RAW. No L1 (style) /
+                                L3 (grounded decoder) / L4 (scope refusal)
+                                on the synthesizer. Pure base Qwen with
+                                the reviewed Einstein profile.
+      VERTICAL=einstein-bundle  PersonaCondition.BUNDLE. L1+L3+L4 active;
+                                figure_bundle attached (disk-backed Wave K
+                                artefact when reachable, else synthetic
+                                fallback). NO persona-LoRA registration.
+      VERTICAL=einstein-full    PersonaCondition.BUNDLE_LORA. Same as
+                                einstein-bundle plus the bundle's LoRA
+                                artefact is registered in the process-wide
+                                PersonaLoRAPool so the synthesizer's
+                                auto-activate hook fires on each turn.
+      VERTICAL=einstein         Backward-compat alias for einstein-bundle.
+
+    Disk wiring (see lifeform_service.einstein_resolver):
+      EINSTEIN_BUNDLE_ROOT         default data\figure_bundles -- where
+                                   ``figure-bake bake-bundle`` /
+                                   ``scripts/figure_collect_einstein.sh``
+                                   wrote the persisted bundle tree.
+      EINSTEIN_BUNDLE_ID           optional pin to a specific bundle id;
+                                   empty selects the newest manifest.
+      EINSTEIN_REQUIRE_REAL_BUNDLE 1 = fail-loud when no disk bundle is
+                                   reachable. Defaults to 0 so a fresh
+                                   checkout still starts.
+
+    Known limitation (today): until debt #41 lands a real PEFT-on-Qwen
+    persona LoRA, the synthetic LoRA delta is zeroed by the substrate's
+    LayerNorm (debt #40), so einstein-bundle and einstein-full produce
+    byte-equivalent forward outputs. The user-observable demo delta is
+    einstein-raw vs einstein-bundle (L4 refusal / L3 evidence pointer /
+    L1 voice style), which is real today.
+
     Cross-session memory
     --------------------
     ALPHA_MODE defaults to 1 so the kernel binds each session to the ``userId``
@@ -138,6 +177,12 @@ function Set-DefaultEnv {
 Set-DefaultEnv 'HOST'                  '127.0.0.1'
 Set-DefaultEnv 'PORT'                  '8765'
 Set-DefaultEnv 'VERTICAL'              'companion'
+# Einstein figure-as-a-service demo wiring (see header for details).
+# Read by lifeform_service.einstein_resolver when VERTICAL is one of
+# einstein / einstein-raw / einstein-bundle / einstein-full.
+Set-DefaultEnv 'EINSTEIN_BUNDLE_ROOT'        (Join-Path $RootDir 'data\figure_bundles')
+Set-DefaultEnv 'EINSTEIN_BUNDLE_ID'          ''
+Set-DefaultEnv 'EINSTEIN_REQUIRE_REAL_BUNDLE' '0'
 Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-1.5B-Instruct'
 Set-DefaultEnv 'DEVICE'                'auto'
 Set-DefaultEnv 'LOCAL_FILES_ONLY'      '0'
