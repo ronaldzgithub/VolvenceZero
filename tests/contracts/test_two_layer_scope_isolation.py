@@ -1,6 +1,6 @@
-"""Contract tests for the two-layer scope schema (debt #46).
+"""Contract tests for the two-layer scope schema (debt #46 ACTIVE).
 
-Validates the SHADOW surface land in
+Validates the ACTIVE surface land in
 :mod:`volvence_zero.memory.identity` + ``lifeform_service.alpha``:
 
 1. ``TenantIdentity`` / ``EndUserIdentity`` reject empty fields
@@ -10,10 +10,15 @@ Validates the SHADOW surface land in
 4. Mismatched ``tenant_identity`` / ``end_user_identity`` raises
 5. ``UserIdentity`` two-layer fields stay backward-compatible (None
    defaults; existing ``user_id == scope_key`` callers unaffected)
-6. ``AlphaIdentityProvider.bind_session`` legacy single-layer
-   behaviour preserved
-7. ``AlphaIdentityProvider.bind_session_two_layer`` opt-in surface
-   yields properly two-layer-derived ``UserIdentity``
+6. ``AlphaIdentityProvider.bind_session_legacy_alias`` preserves the
+   previous SHADOW single-layer ``scope_key == user_id`` contract for
+   sites that need to load on-disk evidence written under it
+7. ``AlphaIdentityProvider.bind_session`` defaults to two-layer
+   (debt #46 ACTIVE 2026-05-14) and accepts both legacy ``user_id``
+   and new ``end_user_id`` keyword names
+8. ``AlphaIdentityProvider.bind_session_two_layer`` explicit entry
+   yields a two-layer ``UserIdentity`` (used at sites that want the
+   intent visible at the call-site)
 
 See:
 
@@ -105,21 +110,62 @@ def test_user_identity_two_layer_consistency_check() -> None:
         )
 
 
-def test_alpha_provider_legacy_single_layer_unchanged() -> None:
-    """Closed-alpha legacy ``bind_session`` keeps ``scope_key == user_id``."""
+def test_alpha_provider_legacy_alias_preserves_single_layer() -> None:
+    """``bind_session_legacy_alias`` keeps the SHADOW ``scope_key == user_id``.
+
+    Closed-alpha sites whose on-disk evidence / scoped memory was
+    written under the previous single-layer contract must load
+    those files unchanged; this alias is the explicit migration shim.
+    """
     provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
-    identity = provider.bind_session(session_id="s1", user_id="alice")
+    identity = provider.bind_session_legacy_alias(session_id="s1", user_id="alice")
     assert identity.user_id == "alice"
     assert identity.scope_key == "alice"
     assert identity.tenant_identity is None
     assert identity.end_user_identity is None
 
 
-def test_alpha_provider_two_layer_opt_in() -> None:
-    """Opt-in two-layer derives scope_key + populates typed identities."""
+def test_alpha_provider_default_now_two_layer_via_user_id() -> None:
+    """Debt #46 ACTIVE: ``bind_session`` defaults to two-layer.
+
+    Legacy positional ``user_id=`` is accepted for backward compat,
+    but the resulting ``scope_key`` is ``f"{DEFAULT_ALPHA_TENANT_ID}:{user_id}"``.
+    """
+    provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
+    identity = provider.bind_session(session_id="s1", user_id="alice")
+    assert identity.user_id == "alice"
+    assert identity.scope_key == "alpha:alice"
+    assert identity.tenant_identity is not None
+    assert identity.tenant_identity.tenant_id == "alpha"
+    assert identity.end_user_identity is not None
+    assert identity.end_user_identity.end_user_id == "alice"
+
+
+def test_alpha_provider_default_two_layer_via_end_user_id() -> None:
+    """Preferred kwarg ``end_user_id=`` flows through to two-layer."""
+    provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
+    identity = provider.bind_session(
+        session_id="s2",
+        end_user_id="alice",
+        tenant_id="brand_a",
+    )
+    assert identity.scope_key == "brand_a:alice"
+    assert identity.tenant_identity is not None
+    assert identity.tenant_identity.tenant_id == "brand_a"
+
+
+def test_alpha_provider_default_requires_some_id() -> None:
+    """Calling without either ``user_id`` or ``end_user_id`` fail-loud."""
+    provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
+    with pytest.raises(ValueError, match="requires end_user_id"):
+        provider.bind_session(session_id="s3")
+
+
+def test_alpha_provider_two_layer_explicit_opt_in_unchanged() -> None:
+    """Explicit ``bind_session_two_layer`` still works (intent-visible site)."""
     provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
     identity = provider.bind_session_two_layer(
-        session_id="s2",
+        session_id="s4",
         end_user_id="alice",
     )
     assert identity.user_id == "alice"
@@ -134,7 +180,7 @@ def test_alpha_provider_two_layer_custom_tenant() -> None:
     """B2B tenant_id flows through correctly."""
     provider = AlphaIdentityProvider(allowed_users=frozenset({"alice"}))
     identity = provider.bind_session_two_layer(
-        session_id="s3",
+        session_id="s5",
         end_user_id="alice",
         tenant_id="brand_a",
     )

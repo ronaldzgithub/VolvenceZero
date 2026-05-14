@@ -49,6 +49,34 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_FIGURE_EXPECTED_SLO = {
+    "p50_turn_latency_s_max": 2.5,
+    "p99_turn_latency_s_max": 5.0,
+    "concurrent_ai_id_min": 20,
+    "gpu_mem_peak_capacity_pct_max": 0.80,
+    "l3_citation_rate_min": 0.95,
+    "l4_refusal_rate_min": 0.85,
+    "lora_swap_overhead_p50_ms_max": 200.0,
+}
+
+
+def _sample_shape(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "is_sample": True,
+        "p50_turn_latency_s": 1.62,
+        "p99_turn_latency_s": 4.18,
+        "l3_citation_rate": 0.97,
+        "l4_refusal_rate": 0.88,
+        "lora_swap_overhead_p50_ms": 145.3,
+        "n_ai_id_actual": args.n_ai_id,
+        "completed_turns": args.n_ai_id * args.turns_per_id,
+        "in_corpus_turns": int(
+            args.n_ai_id * args.turns_per_id * args.in_corpus_ratio
+        ),
+        "errors": [],
+    }
+
+
 def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +90,8 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
         "turns_per_id": args.turns_per_id,
         "in_corpus_ratio": args.in_corpus_ratio,
         "dry_run": True,
+        "expected_slo": _FIGURE_EXPECTED_SLO,
+        "sample_shape": _sample_shape(args),
         "p50_turn_latency_s": None,
         "p99_turn_latency_s": None,
         "l3_citation_rate": None,
@@ -72,7 +102,8 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
             "F-A SHADOW scaffold. Real DLaaS load lands with "
             "cross-cutting-foundation-packet §2.1 subtask 4. "
             "L3/L4 rates are tracked here so latency tuning cannot "
-            "silently regress them."
+            "silently regress them; expected_slo + sample_shape are "
+            "review aids."
         ),
     }
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

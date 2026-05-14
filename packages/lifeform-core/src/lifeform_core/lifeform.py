@@ -132,6 +132,19 @@ class LifeformConfig:
     # ``forbidden_self_traits``. See ``docs/specs/protocol-runtime.md``
     # checklist condition 1.
     identity_seed: IdentitySeed | None = None
+    # ``protocol-online-learning-active`` packet (sub-packet A): seed
+    # ``BehaviorProtocol`` instances to load into the kernel session's
+    # stable ``ProtocolRegistryModule`` at construction. Each entry is
+    # a frozen ``BehaviorProtocol`` (typed ``Any`` here so
+    # ``lifeform-core`` does not hard-depend on
+    # ``vz-contracts.behavior_protocol`` at module-load time —
+    # duck-typed and forwarded to ``Brain`` → ``AgentSessionRunner``,
+    # which carries the actual import). When non-empty, every session
+    # the lifeform creates inherits these protocols' compiled hint /
+    # rule / knowledge / case records (via ``load_protocol``'s store-
+    # injection path) AND participates in α/β PE-driven mixing across
+    # turns. Empty tuple = no seed (existing behaviour preserved).
+    seed_protocols: tuple[Any, ...] = ()
     # mcp-tools-bundle-bridge packet: external MCP server bundles to
     # attach to this lifeform. Each entry is an
     # ``lifeform_mcp_bridge.MCPServerSpec`` (typed ``Any`` here so
@@ -178,6 +191,26 @@ class LifeformConfig:
 
         from dataclasses import replace as _replace
         return _replace(self, identity_seed=seed)
+
+    def with_seed_protocols(
+        self,
+        protocols: tuple[Any, ...],
+    ) -> "LifeformConfig":
+        """Append BehaviorProtocols to the seed list.
+
+        Each protocol is forwarded to the kernel session's stable
+        ``ProtocolRegistryModule.load_protocol(...)`` at construction
+        so its boundary / strategy / knowledge / case records compile
+        into the application owners AND its weights participate in
+        α/β PE-driven mixing across turns.
+
+        Like ``with_domain_experience``, this is **additive** — the
+        new tuple is the existing seed tuple plus the supplied entries,
+        in declaration order. Pass an empty tuple for a no-op.
+        """
+
+        from dataclasses import replace as _replace
+        return _replace(self, seed_protocols=self.seed_protocols + tuple(protocols))
 
 
 class _LateBoundSessionHolder:
@@ -238,6 +271,7 @@ class Lifeform:
             temporal_bootstrap=temporal_bootstrap,
             regime_bootstrap=regime_bootstrap,
             identity_seed=self._config.identity_seed,
+            seed_protocols=self._config.seed_protocols,
             memory_store=memory_store,
             identity_provider=identity_provider,
         )
@@ -459,6 +493,30 @@ class Lifeform:
     ) -> "Lifeform":
         return Lifeform(
             self._config.with_domain_experience(packages),
+            **self._init_kwargs,
+        )
+
+    def with_seed_protocols(
+        self,
+        protocols: tuple[Any, ...],
+    ) -> "Lifeform":
+        """Return a clone of this lifeform with extra seed BehaviorProtocols.
+
+        Each new session this lifeform creates will have these
+        protocols loaded into its stable
+        ``ProtocolRegistryModule`` (compiled into application owners
+        AND tracked by α/β PE-driven mixing). Existing sessions are
+        not mutated — the contract is "applies to NEW sessions".
+
+        Pass an empty tuple for an idempotent no-op clone (returns
+        a new lifeform with identical config); the SessionManager's
+        injection path uses this property to keep the rebuilt
+        ``Lifeform`` reusing the same shared ``substrate_runtime``
+        instance via ``_init_kwargs``.
+        """
+
+        return Lifeform(
+            self._config.with_seed_protocols(protocols),
             **self._init_kwargs,
         )
 
@@ -922,6 +980,23 @@ class LifeformSession:
         if self._vitals is not None:
             hydration_store.export_and_save_owner(self._vitals, "vitals")
             lifeform_persisted.append("vitals")
+        # ``protocol-online-learning-active`` packet (sub-packet C):
+        # persist the kernel session's stable
+        # ``ProtocolRegistryModule`` learning state (α / β /
+        # _pe_utility / _strategy_weights). The next session for
+        # the same user_scope (built against the same persistence
+        # backend) will hydrate from this snapshot during
+        # ``AgentSessionRunner.__init__``.
+        protocol_registry_module = getattr(
+            self._brain_session.runner,
+            "_protocol_registry_module",
+            None,
+        )
+        if protocol_registry_module is not None:
+            hydration_store.export_and_save_owner(
+                protocol_registry_module, "protocol_registry"
+            )
+            lifeform_persisted.append("protocol_registry")
         return tuple(kernel_persisted) + tuple(lifeform_persisted)
 
     @property

@@ -20,7 +20,11 @@ round (R8 layering).
 
 from __future__ import annotations
 
+import dataclasses
+import datetime as _dt
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from volvence_zero.credit.gate import (
     GateDecision,
@@ -37,6 +41,60 @@ from lifeform_domain_figure.lora_data_prep import (
     PersonaLoRAProposal,
     build_persona_lora_proposal,
 )
+
+
+# debt #62 v0.2: every OFFLINE gate decision writes one append-only
+# audit row under the per-figure audit ledger so a reviewer can later
+# explain exactly why a candidate LoRA / steering artifact was applied
+# or blocked. Rotation cadence + spec live in
+# ``docs/specs/figure-offline-gate-validation-protocol.md`` §4.
+AUDIT_LOG_SCHEMA_VERSION = "v0.2"
+
+
+@dataclass(frozen=True)
+class OfflineGateAuditEntry:
+    """One row in the OFFLINE gate audit ledger (debt #62 v0.2)."""
+
+    audit_id: str
+    audit_log_schema_version: str
+    timestamp_iso: str
+    figure_id: str
+    artifact_kind: str  # "persona_lora" / "steering"
+    artifact_integrity_hash: str
+    train_loss_delta: float
+    downstream_score_delta: float | None  # None until v0.2 ACTIVE
+    downstream_score_delta_method: str  # "absent" / "refusal+grounding"
+    capacity_cost: float
+    decision: str  # GateDecision.value
+    block_reasons: tuple[str, ...]
+    base_bundle_id: str
+    candidate_bundle_id: str | None
+    previous_record_id: str
+    record_id: str | None
+    rollback_evidence: str
+
+    def to_json_line(self) -> str:
+        payload = dataclasses.asdict(self)
+        return json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
+
+def _audit_log_path(audit_log_dir: Path, figure_id: str) -> Path:
+    today = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d")
+    return audit_log_dir / f"offline-gate-audit-{figure_id}-{today}.jsonl"
+
+
+def _write_audit_entry(
+    audit_log_dir: Path | None,
+    entry: OfflineGateAuditEntry,
+) -> Path | None:
+    if audit_log_dir is None:
+        return None
+    audit_log_dir = Path(audit_log_dir)
+    audit_log_dir.mkdir(parents=True, exist_ok=True)
+    path = _audit_log_path(audit_log_dir, entry.figure_id)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(entry.to_json_line() + "\n")
+    return path
 
 
 @dataclass(frozen=True)
@@ -89,6 +147,9 @@ def apply_persona_lora_through_gate(
     validation_delta: float = 0.05,
     capacity_cost: float = 0.30,
     rollback_evidence: str = "",
+    audit_log_dir: Path | str | None = None,
+    downstream_score_delta: float | None = None,
+    downstream_score_delta_method: str = "absent",
 ) -> PersonaLoRAApplyResult:
     """Run a persona LoRA artifact through the OFFLINE gate.
 
@@ -150,10 +211,40 @@ def apply_persona_lora_through_gate(
         proposal=persona_proposal.proposal,
         evaluation_snapshot=evaluation_snapshot,
     )
+    audit_log_dir_path = (
+        Path(audit_log_dir) if audit_log_dir is not None else None
+    )
+    audit_id = (
+        f"audit-{artifact.figure_id}-"
+        f"{int(_dt.datetime.now(_dt.timezone.utc).timestamp() * 1000)}-"
+        f"{artifact.integrity_hash[:8]}"
+    )
     if decision is GateDecision.BLOCK:
         reasons = evaluate_gate_reasons(
             proposal=persona_proposal.proposal,
             evaluation_snapshot=evaluation_snapshot,
+        )
+        _write_audit_entry(
+            audit_log_dir_path,
+            OfflineGateAuditEntry(
+                audit_id=audit_id,
+                audit_log_schema_version=AUDIT_LOG_SCHEMA_VERSION,
+                timestamp_iso=_dt.datetime.now(_dt.timezone.utc).isoformat(),
+                figure_id=artifact.figure_id,
+                artifact_kind="persona_lora",
+                artifact_integrity_hash=artifact.integrity_hash,
+                train_loss_delta=validation_delta,
+                downstream_score_delta=downstream_score_delta,
+                downstream_score_delta_method=downstream_score_delta_method,
+                capacity_cost=capacity_cost,
+                decision=decision.value,
+                block_reasons=tuple(reasons),
+                base_bundle_id=base_bundle.bundle_id,
+                candidate_bundle_id=None,
+                previous_record_id=previous_record_id,
+                record_id=None,
+                rollback_evidence=rollback_evidence,
+            ),
         )
         return PersonaLoRAApplyResult(
             bundle=base_bundle,
@@ -177,6 +268,28 @@ def apply_persona_lora_through_gate(
         adapter_layers=artifact.adapter_layers,
         parameter_count=artifact.parameter_count,
         description=artifact.description,
+    )
+    _write_audit_entry(
+        audit_log_dir_path,
+        OfflineGateAuditEntry(
+            audit_id=audit_id,
+            audit_log_schema_version=AUDIT_LOG_SCHEMA_VERSION,
+            timestamp_iso=_dt.datetime.now(_dt.timezone.utc).isoformat(),
+            figure_id=artifact.figure_id,
+            artifact_kind="persona_lora",
+            artifact_integrity_hash=artifact.integrity_hash,
+            train_loss_delta=validation_delta,
+            downstream_score_delta=downstream_score_delta,
+            downstream_score_delta_method=downstream_score_delta_method,
+            capacity_cost=capacity_cost,
+            decision=decision.value,
+            block_reasons=(),
+            base_bundle_id=base_bundle.bundle_id,
+            candidate_bundle_id=new_bundle.bundle_id,
+            previous_record_id=previous_record_id,
+            record_id=record_id,
+            rollback_evidence=rollback_evidence,
+        ),
     )
     return PersonaLoRAApplyResult(
         bundle=new_bundle,

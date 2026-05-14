@@ -220,6 +220,70 @@ class SubmissionResult:
         }
 
 
+def _arc_run_config_from_manifest(
+    manifest: SubmissionManifest,
+    *,
+    user_simulator_model: str,
+) -> ArcRunConfig:
+    """Translate manifest declared system_prompt + generation_config into runner config.
+
+    Per debt #74 the manifest's system_prompt + generation_config
+    fields must reach the SUT message stream; arc_runner exposes
+    them via :class:`ArcRunConfig`. ``max_tokens`` and ``temperature``
+    are pulled from ``generation_config`` when present and otherwise
+    fall back to the dataclass defaults (512 / 0.0). Unknown keys in
+    ``generation_config`` are tolerated so manifests that ship
+    extra knobs (top_p / top_k / etc.) do not need a runner upgrade
+    in lock-step.
+    """
+
+    gen = dict(manifest.generation_config or {})
+    raw_max = gen.get("max_tokens")
+    max_tokens: int | None
+    if raw_max is None:
+        max_tokens = 512
+    else:
+        max_tokens = int(raw_max)
+    raw_temp = gen.get("temperature")
+    temperature: float | None
+    if raw_temp is None:
+        temperature = 0.0
+    else:
+        temperature = float(raw_temp)
+    return ArcRunConfig(
+        submission_id=manifest.submission_id,
+        user_simulator_model=user_simulator_model,
+        sut_max_tokens=max_tokens,
+        sut_temperature=temperature,
+        system_prompt=manifest.system_prompt,
+    )
+
+
+def _drain_judge_usage(
+    *,
+    judge_obj: object,
+    tracker: CostTracker,
+    record_callable_name: str,
+) -> None:
+    """Call ``judge.drain_usage_log()`` and feed entries to the tracker.
+
+    Per the PerTurnJudge / ArcJudge protocols (debt #75) every judge
+    implementation exposes ``drain_usage_log() -> list[dict]``. Fakes
+    return ``[]``; LLM-backed judges return one entry per LLM call
+    accumulated since the last drain. We call the drain after every
+    arc so cost is attributed even when an arc later raises.
+    """
+
+    drain = judge_obj.drain_usage_log
+    record = getattr(tracker, record_callable_name)
+    for entry in drain():
+        record(
+            model=judge_obj.model,
+            prompt_tokens=entry.get("prompt_tokens"),
+            completion_tokens=entry.get("completion_tokens"),
+        )
+
+
 def run_submission(
     *,
     manifest: SubmissionManifest,
@@ -231,11 +295,22 @@ def run_submission(
     paraphrase_seeds: Iterable[int] = (0, 1, 2),
     artifact_dir: pathlib.Path | str | None = None,
     user_simulator_model: str = "fake/user-sim",
+    fail_isolated: bool = True,
 ) -> SubmissionResult:
     """Run one submission across (specs × paraphrase_seeds) → SubmissionResult.
 
     Cost telemetry is captured automatically. If ``artifact_dir`` is
     set, every per-arc bundle is written as ``{arc_id}.json`` under it.
+
+    ``fail_isolated`` (debt #73): when True (default), an exception in
+    a single arc is logged to ``arc_failure.jsonl`` under
+    ``artifact_dir`` and the submission continues with the next arc.
+    Set False for tests that want to surface the exception (or when
+    re-running a single arc for debugging). The ``arc_failure.jsonl``
+    has one line per failed arc:
+    ``{"scenario_id": ..., "paraphrase_seed": ..., "exception": ...,
+       "stage": ...}``. The remaining ArcBundles aggregate normally,
+    so partial submissions still produce a usable summary.
     """
 
     started_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
@@ -244,43 +319,104 @@ def run_submission(
     arc_dir = pathlib.Path(artifact_dir) if artifact_dir else None
     if arc_dir:
         arc_dir.mkdir(parents=True, exist_ok=True)
+    failures: list[dict] = []
+    arc_config = _arc_run_config_from_manifest(
+        manifest, user_simulator_model=user_simulator_model
+    )
 
     for spec in specs:
         for seed in paraphrase_seeds:
             if seed >= spec.paraphrase_seed_count:
                 continue
-            arc = run_arc(
-                spec=spec,
-                paraphrase_seed=seed,
-                sut_client=sut_client,
-                user_backend=user_backend,
-                config=ArcRunConfig(
-                    submission_id=manifest.submission_id,
-                    user_simulator_model=user_simulator_model,
-                ),
-            )
-            tracker.record_arc_record(arc)
-            ledger = build_callback_ledger(arc=arc, extractor=HeuristicCallbackExtractor())
-            disq = run_disqualifiers(arc=arc, ledger=ledger, declared=spec.disqualifiers)
-            perturn = score_arc_perturn(arc=arc, judge=perturn_judge)
-            arc_scores = score_arc_axes(
-                arc=arc, ledger=ledger, family=spec.family.value, judge=arc_judge,
-            )
-            # Apply ledger fabrication penalty on A3 BEFORE aggregation
-            # (RFC §4 hard penalty).
-            penalised = _apply_ledger_penalty(arc_scores, ledger=ledger)
-            final = aggregate_arc(penalised)
-            bundle = ArcBundle(
-                arc=arc,
-                callback_ledger=ledger,
-                disqualifier_report=disq,
-                perturn_rubric=perturn,
-                arc_axis_scores=penalised,
-                final_score=final,
-            )
-            bundles.append(bundle)
-            if arc_dir is not None:
-                _write_bundle(bundle, arc_dir)
+            stage = "run_arc"
+            try:
+                arc = run_arc(
+                    spec=spec,
+                    paraphrase_seed=seed,
+                    sut_client=sut_client,
+                    user_backend=user_backend,
+                    config=arc_config,
+                )
+                tracker.record_arc_record(arc)
+                stage = "callback_ledger"
+                ledger = build_callback_ledger(
+                    arc=arc, extractor=HeuristicCallbackExtractor()
+                )
+                stage = "disqualifiers"
+                disq = run_disqualifiers(
+                    arc=arc, ledger=ledger, declared=spec.disqualifiers
+                )
+                stage = "perturn_judge"
+                perturn = score_arc_perturn(arc=arc, judge=perturn_judge)
+                _drain_judge_usage(
+                    judge_obj=perturn_judge,
+                    tracker=tracker,
+                    record_callable_name="record_perturn_judge",
+                )
+                stage = "arc_judge"
+                arc_scores = score_arc_axes(
+                    arc=arc,
+                    ledger=ledger,
+                    family=spec.family.value,
+                    judge=arc_judge,
+                )
+                _drain_judge_usage(
+                    judge_obj=arc_judge,
+                    tracker=tracker,
+                    record_callable_name="record_arc_judge",
+                )
+                stage = "aggregate"
+                # Apply ledger fabrication penalty on A3 BEFORE
+                # aggregation (RFC §4 hard penalty).
+                penalised = _apply_ledger_penalty(arc_scores, ledger=ledger)
+                final = aggregate_arc(penalised)
+                bundle = ArcBundle(
+                    arc=arc,
+                    callback_ledger=ledger,
+                    disqualifier_report=disq,
+                    perturn_rubric=perturn,
+                    arc_axis_scores=penalised,
+                    final_score=final,
+                )
+                bundles.append(bundle)
+                if arc_dir is not None:
+                    _write_bundle(bundle, arc_dir)
+            except Exception as exc:
+                if not fail_isolated:
+                    raise
+                # Drain any partial usage so cost is attributed even on
+                # arc failure (judge may have been called before the
+                # exception).
+                for jobj, name in (
+                    (perturn_judge, "record_perturn_judge"),
+                    (arc_judge, "record_arc_judge"),
+                ):
+                    try:
+                        _drain_judge_usage(
+                            judge_obj=jobj,
+                            tracker=tracker,
+                            record_callable_name=name,
+                        )
+                    except AttributeError:
+                        # Judge implementations are required to expose
+                        # drain_usage_log; if missing we surface it as
+                        # part of the original failure.
+                        pass
+                failures.append(
+                    {
+                        "scenario_id": spec.scenario_id,
+                        "paraphrase_seed": seed,
+                        "stage": stage,
+                        "exception_type": type(exc).__name__,
+                        "exception": str(exc),
+                    }
+                )
+
+    if arc_dir is not None and failures:
+        ledger_path = arc_dir / "arc_failure.jsonl"
+        with ledger_path.open("a", encoding="utf-8") as fh:
+            for entry in failures:
+                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     aggregate = aggregate_submission(
         submission_id=manifest.submission_id,

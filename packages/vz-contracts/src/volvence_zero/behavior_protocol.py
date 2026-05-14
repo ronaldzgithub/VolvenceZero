@@ -811,6 +811,69 @@ class ActiveProtocolEntry:
 
 
 @dataclass(frozen=True)
+class StrategyWeightEntry:
+    """One row of the per-rule strategy weight table.
+
+    Published on :class:`ActiveMixtureSnapshot.strategy_weights` by
+    ``ProtocolRegistryModule`` (packet ``protocol-online-learning-active``,
+    sub-packet B1). One entry per ``StrategyPrior`` of every loaded
+    protocol; the weight starts at the prior's ``initial_weight`` and
+    is multiplicatively reinforced by positive PE
+    (``pe_reinforce_rate``) or decayed by negative PE
+    (``pe_decay_rate``), clamped to ``minimum_weight_floor`` from
+    below.
+
+    Two id fields, distinct namespaces:
+
+    * ``rule_id`` — the **raw** ``BehaviorProtocol.StrategyPrior.rule_id``.
+      Reviewer-facing identifier, stable across protocol revisions,
+      used by ``ProtocolRegistryModule`` internally to key its
+      ``_strategy_weights`` table.
+    * ``compiled_rule_id`` — the **namespaced** id produced by
+      ``compile_protocol_to_application_artifacts(protocol).playbook_rules[i].rule_id``.
+      Format: ``protocol:{protocol_id}:playbook:{raw_rule_id}``.
+      This is the join key downstream application owners
+      (``StrategyPlaybookModule``, ranking-aware planners) use to
+      cross-reference a learnt weight with the corresponding
+      ``PlaybookRule`` in the application stores. When the
+      producer fills this in (``ProtocolRegistryModule._build_strategy_weight_entries``
+      does so), consumers can do
+      ``weight_by_compiled_rule_id[playbook_rule.rule_id]`` without
+      any reverse-parsing of the namespace prefix.
+
+    Default empty string preserves backward-compat for hand-built
+    test fixtures that only set ``rule_id``; production code on
+    the publisher side always fills it.
+
+    Read-only contract: as of follow-up ``protocol-online-learning-followups``
+    sub-packet F1, ``StrategyPlaybookModule`` does consume the
+    weight via ``compiled_rule_id`` to stably re-rank
+    ``matched_rules``. Pre-F1 the field was SHADOW (snapshot-only).
+    """
+
+    protocol_id: str
+    rule_id: str
+    weight: float
+    last_signed_reward: float = 0.0
+    compiled_rule_id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.protocol_id.strip():
+            raise ValueError(
+                "StrategyWeightEntry.protocol_id must be non-empty"
+            )
+        if not self.rule_id.strip():
+            raise ValueError(
+                "StrategyWeightEntry.rule_id must be non-empty"
+            )
+        if self.weight < 0.0:
+            raise ValueError(
+                f"StrategyWeightEntry.weight must be non-negative, "
+                f"got {self.weight!r}"
+            )
+
+
+@dataclass(frozen=True)
 class ActiveMixtureSnapshot:
     """Per-turn published value of the ``active_mixture`` slot.
 
@@ -845,6 +908,12 @@ class ActiveMixtureSnapshot:
       .activation_weight`` → weights retrieval mix
     - ``vitals``: reads ``active_protocols[*].current_phase_id`` →
       adjusts drive expected_band per phase
+    - ``strategy_weights``: per-rule weight table populated by
+      ``protocol-online-learning-active`` packet (sub-packet B1)
+      from ``StrategyPrior.initial_weight`` then PE-driven
+      reinforced / decayed via ``pe_reinforce_rate`` /
+      ``pe_decay_rate``. SHADOW consumer wiring (rule selection
+      reads this) is B2 follow-up.
     """
 
     active_protocols: tuple[ActiveProtocolEntry, ...]
@@ -852,6 +921,7 @@ class ActiveMixtureSnapshot:
     identity_gate_traits: tuple[str, ...] = ()
     revision_fingerprint: str = ""
     description: str = ""
+    strategy_weights: tuple[StrategyWeightEntry, ...] = ()
 
     def __post_init__(self) -> None:
         _check_unique(
@@ -861,6 +931,13 @@ class ActiveMixtureSnapshot:
         _check_unique(
             "boundary_union_ids",
             self.boundary_union_ids,
+        )
+        _check_unique(
+            "strategy_weights.(protocol_id,rule_id)",
+            tuple(
+                f"{w.protocol_id}::{w.rule_id}"
+                for w in self.strategy_weights
+            ),
         )
 
 
@@ -1283,6 +1360,7 @@ __all__ = [
     "SignatureCase",
     "StrategyPrior",
     "StrategyPriorRevision",
+    "StrategyWeightEntry",
     "SuccessSignal",
     "TemporalArc",
     "TemporalPhase",

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Companion Bench — Apply to Evaluate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <header>
+    <h1>Apply to Evaluate</h1>
+    <p class="subtitle">Companion Bench Human-Eval Track</p>
+    <nav><a href="index.html">← Back to human-eval overview</a></nav>
+  </header>
+
+  <main>
+    <p>
+      We screen for: native fluency in the scenario language;
+      1+ years in long-conversation work (CS / coaching /
+      counselling); no current employment at any frontier-model lab
+      or VolvenceZero. See the
+      <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-human-eval-protocol.md#21-资质要求">
+        protocol v0.1 §2.1
+      </a>
+      for the complete qualification list.
+    </p>
+
+    <form id="apply-form" method="post" action="https://example.invalid/companion-bench-apply"
+          enctype="application/x-www-form-urlencoded">
+      <fieldset>
+        <legend>Applicant</legend>
+        <label for="name">Full name</label>
+        <input id="name" name="name" type="text" required maxlength="120">
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+
+        <label for="native_lang">Native language(s)</label>
+        <select id="native_lang" name="native_lang" required>
+          <option value="">Select…</option>
+          <option value="zh">Chinese (Mandarin)</option>
+          <option value="en">English</option>
+          <option value="bilingual_zh_en">Bilingual zh/en</option>
+        </select>
+
+        <label for="background">Relevant background</label>
+        <textarea id="background" name="background" rows="4" maxlength="2000"
+                  placeholder="e.g. 3 years customer success at a SaaS company; 2 years volunteer crisis line"
+                  required></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>Conflict-of-interest</legend>
+        <label>
+          <input type="checkbox" name="not_lab_employed" required>
+          I am NOT currently employed at OpenAI / Anthropic / DeepMind / Thinking Machines / VolvenceZero or any of their subsidiaries.
+        </label>
+        <label>
+          <input type="checkbox" name="agree_nda" required>
+          I agree to sign the Companion Bench evaluator NDA (held-out
+          scenario content stays confidential; my scores are
+          publicly published in aggregate).
+        </label>
+        <label>
+          <input type="checkbox" name="agree_payment" required>
+          I understand the payment structure ($50 onboarding, $200
+          per round, $50 consistency bonus).
+        </label>
+      </fieldset>
+
+      <button type="submit">Submit application</button>
+    </form>
+
+    <p class="muted">
+      Form action above is a placeholder. The real receiving endpoint
+      is configured by the evaluator-coordinator at launch
+      (typically Formspree / Tally / a Google Form). Submissions
+      received here while the form action stays
+      <code>example.invalid</code> are silently dropped — that's
+      intentional in the SHADOW phase.
+    </p>
+  </main>
+</body>
+</html>

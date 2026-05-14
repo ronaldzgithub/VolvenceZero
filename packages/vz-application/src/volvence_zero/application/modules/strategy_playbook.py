@@ -93,11 +93,11 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
         dual_track_snapshot = upstream["dual_track"].value
 
         # Packet 5.1: read active_mixture / protocol_phase
-        # SHADOW-tolerantly. Behavior unchanged; reads pin the
-        # consumer-audit ACTIVE-channel readiness check.
+        # SHADOW-tolerantly. ``protocol_phase_value`` reserved for
+        # future phase-aware ranking.
         am_snap = upstream.get("active_mixture")
         pp_snap = upstream.get("protocol_phase")
-        _active_mixture_value = (
+        active_mixture_value = (
             am_snap.value
             if am_snap is not None and isinstance(am_snap.value, ActiveMixtureSnapshot)
             else None
@@ -107,6 +107,23 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
             if pp_snap is not None and isinstance(pp_snap.value, ProtocolPhaseSnapshot)
             else None
         )
+
+        # ``protocol-online-learning-followups`` packet, sub-packet F1
+        # (B2 closeout): build a ``compiled_rule_id → weight`` map from
+        # the per-rule strategy weight table that
+        # ``ProtocolRegistryModule`` publishes on ``active_mixture``.
+        # The map is keyed on ``compiled_rule_id`` (namespaced format
+        # ``protocol:{protocol_id}:playbook:{raw_rule_id}``) which is
+        # byte-identical to the ``rule_id`` carried by
+        # ``PlaybookRule`` instances pushed by the protocol compile
+        # path. Empty / missing snapshot ⇒ empty map ⇒ falls back to
+        # default weight 1.0 ⇒ stable sort preserves the original
+        # order ⇒ pre-F1 byte-equivalence preserved.
+        weight_by_compiled_rule_id: dict[str, float] = {}
+        if active_mixture_value is not None:
+            for entry in active_mixture_value.strategy_weights:
+                if entry.compiled_rule_id:
+                    weight_by_compiled_rule_id[entry.compiled_rule_id] = entry.weight
 
         if not isinstance(case_memory_snapshot, CaseMemorySnapshot):
             raise TypeError("case_memory must publish CaseMemorySnapshot.")
@@ -235,10 +252,25 @@ class StrategyPlaybookModule(RuntimeModule[StrategyPlaybookSnapshot]):
                     ),
                 )
             )
+        # F1 ranking: stable-sort matched_rules by descending learnt
+        # weight (default 1.0 for any rule not in the weight map).
+        # Stable sort means ties (including the all-default-weight
+        # case) preserve insertion order, so single-protocol /
+        # uniform-weight scenarios stay byte-equivalent with the
+        # pre-F1 output. Downstream
+        # ``_response_ordering_plan`` reads ``matched_rules[0]
+        # .recommended_ordering`` so a high-weight rule's ordering
+        # naturally drives the plan.
+        ranked_rules = tuple(
+            sorted(
+                rules,
+                key=lambda r: -weight_by_compiled_rule_id.get(r.rule_id, 1.0),
+            )
+        )
         return self.publish(
             StrategyPlaybookSnapshot(
                 matched_problem_patterns=case_memory_snapshot.active_problem_patterns,
-                matched_rules=tuple(rules),
+                matched_rules=ranked_rules,
                 continuum_profile_id=case_memory_snapshot.continuum_profile_id,
                 active_band_ids=_dedupe(tuple(active_band_ids)),
                 support_prior=_clamp(self_weight),

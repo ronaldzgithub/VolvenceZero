@@ -131,6 +131,7 @@ from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, Writebac
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
 from volvence_zero.rupture_state import RuptureStateSnapshot
+from volvence_zero.protocol_runtime import ProtocolRegistryModule
 from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
     AdapterSemanticProposalRuntime,
@@ -478,6 +479,7 @@ class AgentSessionRunner(
         allow_llm_outcome_proposals: bool = False,
         user_scope: str = "anonymous",
         owner_hydration_store: Any = None,
+        seed_protocols: tuple[Any, ...] = (),
     ) -> None:
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
@@ -566,6 +568,58 @@ class AgentSessionRunner(
         if self._owner_hydration_store is not None:
             self._owner_hydration_store.hydrate_owner_if_present(
                 self._semantic_state_store, "semantic_state"
+            )
+        # ``protocol-online-learning-active`` packet (sub-packet A):
+        # construct ONE stable ``ProtocolRegistryModule`` here in
+        # ``__init__`` so its ``_alpha`` / ``_beta`` / ``_pe_utility``
+        # / ``_strategy_weights`` learning state survives across every
+        # turn of this session. The default-construction branch inside
+        # ``build_final_runtime_modules`` would otherwise rebuild this
+        # owner per turn and reset all the PE-driven dials —
+        # mirroring the same fix applied to ``_tom_proposal_runtime``
+        # / ``_common_ground_proposal_runtime`` below for debt #10B
+        # item 3. Sibling owners (ProtocolPhase / Introspection /
+        # RevisionLog / RevisionQueue) read ``module.registry`` so
+        # threading the SAME instance via ``run_final_wiring_turn``
+        # also keeps their views aligned.
+        #
+        # Each entry in ``seed_protocols`` is loaded right away; when
+        # the application stores are injected (always true here),
+        # ``load_protocol`` auto-applies the protocol's compiled
+        # ``BoundaryPriorHint`` / ``PlaybookRule`` /
+        # ``DomainKnowledgeRecord`` / ``CaseMemoryRecord`` artifacts
+        # into the owner stores in the same call. This is the single-
+        # path replacement for the SessionManager's old
+        # ``with_domain_experience(...)`` injection (which went via
+        # ``apply_domain_experience_packages``); both paths produce
+        # the same store mutations, but the new path also enables
+        # α/β learning on the seeded protocols.
+        self._protocol_registry_module = ProtocolRegistryModule(
+            wiring_level=self._config.level_for(
+                "protocol_runtime", WiringLevel.SHADOW
+            ),
+            application_rare_heavy_state=self._application_rare_heavy_state,
+            domain_knowledge_store=self._domain_knowledge_store,
+            case_memory_store=self._case_memory_store,
+        )
+        for protocol in seed_protocols:
+            self._protocol_registry_module.load_protocol(protocol)
+        # ``protocol-online-learning-active`` packet (sub-packet C):
+        # rehydrate the per-session learning state (α / β /
+        # _pe_utility / _strategy_weights / _last_strategy_reward
+        # / _last_pe_turn_index) from the prior session's persisted
+        # snapshot when one exists. MUST run AFTER the seed
+        # protocols are loaded so the hydrate path can intersect
+        # the persisted strategy_weights with the currently-loaded
+        # protocols' rule ids (rules that disappeared between
+        # sessions are dropped; rules added stay at their
+        # initial_weight). SHADOW hydration store returns False
+        # from load_snapshot so this is a no-op there. Errors
+        # propagate as typed ``HydrationError`` per the no-swallow
+        # rule.
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._protocol_registry_module, "protocol_registry"
             )
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         # Wave E1 follow-up (option B / debt #10B item 3): when the
@@ -895,6 +949,7 @@ class AgentSessionRunner(
                 prediction_module=self._prediction_module,
                 regime_module=self._regime_module,
                 dialogue_external_outcome_module=self._dialogue_external_outcome_module,
+                protocol_registry_module=self._protocol_registry_module,
                 user_scope=self._user_scope,
                 session_id=context_session_id,
                 wave_id=wave_id,

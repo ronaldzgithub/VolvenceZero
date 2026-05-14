@@ -137,12 +137,22 @@ class ArcRecord:
 
 @dataclasses.dataclass(frozen=True)
 class ArcRunConfig:
-    """Knobs the runner exposes to the orchestrator."""
+    """Knobs the runner exposes to the orchestrator.
+
+    ``system_prompt`` is the manifest-declared system prompt that
+    must be injected into the SUT's message history (debt #74). When
+    non-empty, ``run_arc`` prepends ``{"role": "system", "content":
+    system_prompt}`` to every session's transcript so the SUT
+    receives the same persona / behaviour declaration the manifest
+    promised. Empty string keeps the legacy ``run_arc`` behaviour
+    (no system message) for tests that don't care.
+    """
 
     submission_id: str
     user_simulator_model: str
     sut_max_tokens: int | None = 512
     sut_temperature: float | None = 0.0
+    system_prompt: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +194,16 @@ def run_arc(
     arc_seed_str = f"arc|{spec.scenario_id}|{paraphrase_seed}"
     rng = random.Random(arc_seed_str)
 
-    transcript_messages: list[dict[str, str]] = []
+    # Initial transcript carries the manifest system prompt at the
+    # head when one is declared (debt #74). The session-boundary reset
+    # below preserves this prefix because every SUT call has the same
+    # persona contract from the manifest.
+    def _fresh_history() -> list[dict[str, str]]:
+        if config.system_prompt.strip():
+            return [{"role": "system", "content": config.system_prompt}]
+        return []
+
+    transcript_messages: list[dict[str, str]] = _fresh_history()
     sessions: list[ArcSession] = []
 
     for s_idx in range(1, spec.arc_length_sessions + 1):
@@ -195,7 +214,7 @@ def run_arc(
             # Inject a user-side time-elapsed marker so the SUT sees
             # session boundaries explicitly. Kept inside the user
             # turn (not the system prompt) per RFC §7.1.
-            transcript_messages = []  # session_id changes; reset history view
+            transcript_messages = _fresh_history()  # session_id changes; reset history view
         session_id = f"{arc_id}-s{s_idx}"
         turn_count = _draw_turn_count(rng=rng, spec=spec)
 

@@ -89,12 +89,16 @@ class FigureArtifactBundle:
     integrity_hash: str
     metadata_digest_fingerprint: str = ""
     provenance_fingerprint: str = ""
-    # debt #47 / F-C SHADOW: which substrate fingerprints this bundle
-    # was baked against. Empty tuple = legacy bundle (predates #47);
-    # migration shim in ``lifeform_domain_figure.bundle_io`` injects
-    # ``LEGACY_FINGERPRINT`` so old pickles still load. Non-empty tuple
-    # is folded into ``integrity_hash`` so upgrading substrate yields a
-    # different bundle id (R15 byte-level rollback contract).
+    # debt #47 / F-C ACTIVE (2026-05-14): which substrate fingerprints
+    # this bundle was baked against. Empty tuple = legacy bundle
+    # (predates #47); migration shim in
+    # ``lifeform_domain_figure.bundle_io`` injects ``LEGACY_FINGERPRINT``
+    # so old pickles still load. Non-empty tuple is folded into
+    # ``integrity_hash`` so upgrading substrate yields a different
+    # bundle id (R15 byte-level rollback contract). Contract test
+    # ``tests/contracts/test_substrate_fingerprint_propagation.py``
+    # locks both the byte-stable empty-tuple and the
+    # hash-changes-with-content invariants.
     compatible_substrates: tuple[SubstrateFingerprint, ...] = field(
         default_factory=tuple
     )

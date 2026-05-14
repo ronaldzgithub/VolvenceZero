@@ -77,6 +77,13 @@ from volvence_zero.behavior_protocol import (
     ProtocolPhaseSnapshot,
     ProtocolRevisionProposal,
     ReviewStatus,
+    StrategyWeightEntry,
+)
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
 )
 from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -87,6 +94,7 @@ from volvence_zero.protocol_runtime.activation import (
     is_fallback_mode,
 )
 from volvence_zero.protocol_runtime.compiler import (
+    _protocol_rule_id,
     compile_protocol_to_application_artifacts,
     merge_protocol_chain,
 )
@@ -139,6 +147,134 @@ _ALPHA_BETA_LEARNING_RATE: float = 0.05
 # of dynamic range for differentiated mixtures.
 _ALPHA_BETA_MIN: float = 0.1
 _ALPHA_BETA_MAX: float = 5.0
+
+
+# ---------------------------------------------------------------------------
+# Per-strategy weight learning (``protocol-online-learning-active`` packet,
+# sub-packet B1)
+# ---------------------------------------------------------------------------
+#
+# Each ``StrategyPrior`` of every loaded protocol carries
+# ``initial_weight``, ``pe_decay_rate``, ``pe_reinforce_rate`` and
+# ``minimum_weight_floor``. Pre-this-packet those fields were
+# explicitly dropped at compile time (see compiler.py docstring).
+# This packet keeps the per-rule weights as runtime state on the
+# owner so the prior's PE-rate fields actually drive in-session
+# adaptation.
+#
+# Update rule (multiplicative, per active turn with non-bootstrap PE):
+#
+#   if signed_reward >= 0:
+#       w' = w * (1 + reinforce_rate * |signed_reward|)
+#   else:
+#       w' = w * (1 - decay_rate * |signed_reward|)
+#   w' = max(minimum_weight_floor, w')
+#
+# Attribution: only protocols with ``_last_active_weights[pid] > 0``
+# get their per-rule weights updated this turn (PE outcome of last
+# turn's action is attributed to the protocols that were active
+# then). The factor is scaled by ``last_active_weight`` so a protocol
+# that barely contributed only weakly steers its own rules.
+#
+# The reinforce/decay rates are bounded to [0, 1) at the contract
+# layer; the multiplicative factor is therefore always in (0, 2)
+# for any single-turn |signed_reward| <= 1.0. For larger PE
+# magnitudes the factor still stays bounded by clamping to
+# ``_STRATEGY_WEIGHT_MAX`` from above.
+_STRATEGY_WEIGHT_MAX: float = 1_000.0
+
+
+# ---------------------------------------------------------------------------
+# Cross-session persistence (``protocol-online-learning-active`` packet,
+# sub-packet C; schema-evolution guidance closed out by
+# ``protocol-online-learning-followups`` packet, sub-packet F3)
+# ---------------------------------------------------------------------------
+#
+# Owner identifier used both as the persistence key prefix in
+# ``OwnerHydrationStore`` and as the contract sentinel inside
+# ``hydrate_from_persistence`` (mismatched name → fail-loud
+# ``HydrationOwnerMismatchError``). Stable across builds.
+#
+# ``schema_version`` is OWNER-internal. Current payload (v1) carries:
+#
+#   * ``alpha`` (float)            — global softmax-α coefficient
+#   * ``beta`` (float)             — global softmax-β coefficient
+#   * ``pe_utility`` (dict[str,
+#         float])                  — per-protocol PE EMA
+#   * ``strategy_weights`` (dict[
+#         str, dict[str, float]])  — per-(protocol, raw rule_id)
+#                                    learnt weight (B1)
+#   * ``last_strategy_reward``
+#         (dict[str, dict[str,
+#         float]])                 — per-(protocol, raw rule_id)
+#                                    last signed_reward mirror (B1)
+#   * ``last_pe_turn_index``
+#         (int | None)             — replay-dedup cursor
+#
+# Defensive filtering: the export path intersects
+# ``strategy_weights`` / ``last_strategy_reward`` with the currently-
+# loaded protocols' ``strategy_priors`` rule_ids (sub-packet F2).
+# Stale rule_ids cannot leak into v1 payload.
+#
+# ---------------------------------------------------------------------------
+# Schema-evolution policy (sub-packet F3)
+# ---------------------------------------------------------------------------
+#
+# Wider repo convention (mirrored by ``SemanticStateStore`` /
+# ``VitalsModule`` / ``FollowupManager``): each hydratable owner
+# carries a single integer ``_*_SCHEMA_VERSION`` constant; the
+# ``hydrate_from_persistence`` path requires byte-equality and
+# raises ``HydrationVersionMismatchError`` otherwise. There is NO
+# central migration registry, NO chained version-step framework.
+# Mismatch is fail-loud by design — it forces operators to roll
+# the build forward together with the persistence directory.
+#
+# Bumping this owner to a future ``vN+1`` is a 5-step procedure;
+# perform ALL of them in the same change set:
+#
+# 1. Bump ``_PROTOCOL_REGISTRY_SCHEMA_VERSION`` to ``N + 1``.
+# 2. Update ``export_persistence_snapshot`` to write the new
+#    payload shape (add fields, change types, split entries).
+#    Keep the new shape JSON-serialisable (the
+#    ``OwnerHydrationStore`` backend is text-based).
+# 3. In ``hydrate_from_persistence``, **before** the
+#    ``snapshot.schema_version != _PROTOCOL_REGISTRY_SCHEMA_VERSION``
+#    fail-loud check, branch on ``snapshot.schema_version == N``
+#    and migrate the payload in-process::
+#
+#        if snapshot.schema_version == N:
+#            payload = _migrate_vN_to_vNplus1(dict(snapshot.payload))
+#            snapshot = OwnerPersistenceSnapshot(
+#                owner_name=snapshot.owner_name,
+#                schema_version=N + 1,
+#                payload=payload,
+#                description=snapshot.description,
+#            )
+#
+#    The migrate helper is a pure function on dicts; defensively
+#    copy the input. Older snapshots (``schema_version < N``)
+#    that need multi-step upgrades chain through the same branch
+#    series (``vN-1 → vN → vN+1``); two-or-more-version gaps that
+#    cross a deliberate-break boundary should still fail-loud.
+# 4. Add a contract test under ``tests/contracts/`` that constructs
+#    a hand-built ``OwnerPersistenceSnapshot`` at the OLD
+#    schema_version, calls ``hydrate_from_persistence``, then
+#    asserts the resulting owner state is semantically equivalent
+#    to what an in-place ``vN+1`` export would have produced.
+#    Mirrors the round-trip + fail-loud tests in
+#    ``tests/contracts/test_protocol_registry_module_hydration.py``.
+# 5. Update the field list in this docstring AND the matching
+#    ``docs/specs/owner-hydration.md`` table so future readers can
+#    see the payload at a glance without grepping.
+#
+# Cross-process compatibility warning: in deployments where one
+# process writes the snapshot and another reads it, run a
+# co-deployment of build versions during the transition. The
+# hydration path is intentionally not lenient — silently accepting
+# an unknown schema_version would leak partially-correct state
+# into the new owner and corrupt α / β learning trajectories.
+_PROTOCOL_REGISTRY_OWNER_NAME: str = "protocol_registry"
+_PROTOCOL_REGISTRY_SCHEMA_VERSION: int = 1
 
 
 class FallbackActivationActiveError(ContractViolationError):
@@ -274,6 +410,31 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # what last turn's softmax actually saw.
         self._last_pe_utilities: dict[str, float] = {}
 
+        # ``protocol-online-learning-active`` packet (sub-packet B1):
+        # per-rule weight table, learning the per-strategy weight
+        # encoded in ``StrategyPrior.initial_weight`` /
+        # ``pe_decay_rate`` / ``pe_reinforce_rate`` /
+        # ``minimum_weight_floor``. Outer key is ``protocol_id``,
+        # inner key is ``rule_id``; value is the current weight.
+        # Initialised on ``load_protocol`` from each prior's
+        # ``initial_weight``. Updated on every PE turn by
+        # ``_update_strategy_weights``: positive signed_reward ⇒
+        # multiplicative reinforcement scaled by the prior's
+        # ``pe_reinforce_rate``; negative signed_reward ⇒
+        # multiplicative decay scaled by ``pe_decay_rate``; result
+        # is clamped to ``minimum_weight_floor`` from below.
+        # Published verbatim on
+        # ``ActiveMixtureSnapshot.strategy_weights`` so downstream
+        # ``StrategyPlaybookModule`` / planner can read the
+        # PE-tuned weights when they want to. SHADOW for now: no
+        # consumer reads the field yet (B2 follow-up packet).
+        self._strategy_weights: dict[str, dict[str, float]] = {}
+        # ``last_signed_reward`` per (protocol_id, rule_id) for
+        # observability — surfaced verbatim on the snapshot entry
+        # so external monitors can debug the learning step
+        # without poking at the module's private state.
+        self._last_strategy_reward: dict[str, dict[str, float]] = {}
+
     @property
     def registry(self) -> ProtocolRegistry:
         """Public handle for adapters (``FixtureUptake`` etc.) to load protocols.
@@ -326,6 +487,15 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
                     f"{load_context.reviewer_id!r})"
                 )
         self._registry.load(protocol)
+        # ``protocol-online-learning-active`` packet (sub-packet B1):
+        # seed per-rule weights from each StrategyPrior's
+        # ``initial_weight``. Idempotent across re-loads of the same
+        # protocol id (existing weights for known rule ids are
+        # preserved so PE-driven learning state survives a hot-reload
+        # of the same protocol; new rule ids get their initial_weight;
+        # rule ids that disappeared get pruned). The
+        # ``last_signed_reward`` mirror table is updated in lockstep.
+        self._reseed_strategy_weights_for_protocol(protocol)
         # Short-circuit: no application stores injected → registry-only.
         if (
             self._application_rare_heavy_state is None
@@ -454,6 +624,16 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         if protocol_id in self._applied_to_application_state:
             self._unload_protocol_artifacts(protocol_id)
             self._applied_to_application_state.discard(protocol_id)
+        # ``protocol-online-learning-active`` packet (sub-packet B1):
+        # drop per-rule weight + reward state for the unloaded
+        # protocol so the snapshot doesn't carry stale entries.
+        # Pre-emptive: also clear pe_utility / last_active_weights
+        # entries so the next α/β / EMA pass cannot attribute
+        # signal to a no-longer-loaded protocol.
+        self._strategy_weights.pop(protocol_id, None)
+        self._last_strategy_reward.pop(protocol_id, None)
+        self._pe_utility.pop(protocol_id, None)
+        self._last_active_weights.pop(protocol_id, None)
         return self._registry.unload(protocol_id)
 
     def _unload_protocol_artifacts(self, protocol_id: str) -> None:
@@ -488,6 +668,14 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
         # the caches.
         self._update_pe_history(upstream)
         self._update_alpha_beta(upstream)
+        # ``protocol-online-learning-active`` packet (sub-packet B1):
+        # per-rule weight learning runs on the same PE attribution
+        # window as ``_update_pe_history`` (uses last turn's
+        # ``_last_active_weights`` to credit the protocols that
+        # were active when the action was taken). Must run BEFORE
+        # ``_last_active_weights`` is overwritten with THIS turn's
+        # mixture below.
+        self._update_strategy_weights(upstream)
 
         loaded = self._registry.loaded()
         # Capture this turn's per-eligible-protocol context_match
@@ -509,6 +697,17 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
             beta=self._beta,
             audit_context_scores=audit_context,
             phase_by_id=phase_by_id,
+        )
+        # ``protocol-online-learning-active`` packet (sub-packet B1):
+        # attach the per-rule weight table to the snapshot. The
+        # mixture computation in ``activation.py`` is owner-agnostic
+        # and only knows about per-protocol weights, so we splice
+        # the per-rule table in here using ``dataclasses.replace``
+        # to keep the snapshot immutable.
+        from dataclasses import replace as _replace
+        snapshot_value = _replace(
+            snapshot_value,
+            strategy_weights=self._build_strategy_weight_entries(),
         )
 
         # Cache this turn's published weights AND signal scores for
@@ -594,6 +793,405 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
                 updated = -_PE_UTILITY_CLAMP
             self._pe_utility[protocol_id] = updated
 
+    # ------------------------------------------------------------------
+    # Per-strategy weight learning (``protocol-online-learning-active``
+    # packet, sub-packet B1)
+    # ------------------------------------------------------------------
+
+    def _reseed_strategy_weights_for_protocol(
+        self, protocol: BehaviorProtocol
+    ) -> None:
+        """(Re)initialise per-rule weights for a freshly loaded protocol.
+
+        Idempotent: weights for known rule ids are preserved (so a
+        hot-reload of the same protocol id does not reset learning
+        state); new rule ids get their ``initial_weight``; rule ids
+        that disappeared (revision dropped them) get pruned.
+        """
+
+        rule_ids_in_protocol = {
+            prior.rule_id for prior in protocol.strategy_priors
+        }
+        existing = self._strategy_weights.get(protocol.protocol_id, {})
+        new_weights: dict[str, float] = {}
+        new_rewards: dict[str, float] = {}
+        existing_rewards = self._last_strategy_reward.get(
+            protocol.protocol_id, {}
+        )
+        for prior in protocol.strategy_priors:
+            if prior.rule_id in existing:
+                # Preserve learned weight across re-loads (clamped at
+                # the floor though, in case the prior's floor was
+                # raised between revisions).
+                preserved = max(
+                    existing[prior.rule_id], prior.minimum_weight_floor
+                )
+                new_weights[prior.rule_id] = preserved
+            else:
+                new_weights[prior.rule_id] = max(
+                    prior.initial_weight, prior.minimum_weight_floor
+                )
+            new_rewards[prior.rule_id] = existing_rewards.get(
+                prior.rule_id, 0.0
+            )
+        # Prune rule ids that no longer exist in the protocol.
+        del rule_ids_in_protocol  # used implicitly via `prior.rule_id`
+        self._strategy_weights[protocol.protocol_id] = new_weights
+        self._last_strategy_reward[protocol.protocol_id] = new_rewards
+
+    def _update_strategy_weights(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> None:
+        """Multiplicatively reinforce / decay per-rule weights from PE.
+
+        Same attribution window as ``_update_pe_history``: PE at
+        turn t reflects last turn's action; only protocols that
+        had non-zero ``_last_active_weights[pid]`` participate.
+        SHADOW-tolerant on missing PE / bootstrap PE / duplicate
+        turn_index (returns silently — same skip rules as the
+        sibling EMA path).
+        """
+
+        pe_snapshot = upstream.get("prediction_error")
+        if pe_snapshot is None:
+            return
+        pe_value = pe_snapshot.value
+        if not isinstance(pe_value, PredictionErrorSnapshot):
+            return
+        if pe_value.bootstrap:
+            return
+        # NOTE: we share the de-dup state with ``_update_pe_history``
+        # which runs immediately before us. ``_update_pe_history``
+        # has already advanced ``_last_pe_turn_index`` for this
+        # turn_index, so we cannot use the same ``<=`` check here.
+        # Instead we read ``_last_active_weights``: it is empty on
+        # cold start, and any duplicate replay would have skipped
+        # the EMA path anyway (so on duplicate the weights here
+        # already reflect this turn's update). Net effect: replay
+        # is a no-op here too.
+        if not self._last_active_weights:
+            return
+
+        signed_reward = float(pe_value.error.signed_reward)
+        magnitude = abs(signed_reward)
+        if magnitude == 0.0:
+            return
+
+        for protocol in self._registry.loaded():
+            pid = protocol.protocol_id
+            last_weight = self._last_active_weights.get(pid, 0.0)
+            if last_weight <= 0.0:
+                continue
+            rule_table = self._strategy_weights.get(pid)
+            reward_table = self._last_strategy_reward.setdefault(pid, {})
+            if rule_table is None:
+                continue
+            for prior in protocol.strategy_priors:
+                if prior.rule_id not in rule_table:
+                    # Defensive: a freshly added rule we haven't seeded
+                    # yet (e.g. mid-session apply_revision before the
+                    # caller re-ran load_protocol). Seed it lazily
+                    # rather than dropping the update.
+                    rule_table[prior.rule_id] = max(
+                        prior.initial_weight, prior.minimum_weight_floor
+                    )
+                current = rule_table[prior.rule_id]
+                # Scale the multiplicative factor by the protocol's
+                # last-turn weight so a barely-active protocol only
+                # weakly steers its own rules. ``magnitude`` is in
+                # [0, +inf); typical PE magnitudes from the kernel
+                # PE module sit in [0, ~2].
+                attributed = magnitude * last_weight
+                if signed_reward >= 0.0:
+                    factor = 1.0 + prior.pe_reinforce_rate * attributed
+                else:
+                    factor = 1.0 - prior.pe_decay_rate * attributed
+                # Negative factor would flip the sign of the weight;
+                # that's pathological. Clamp factor at 0 so an
+                # extreme decay step takes the weight to the floor
+                # rather than below it.
+                if factor < 0.0:
+                    factor = 0.0
+                updated = current * factor
+                if updated < prior.minimum_weight_floor:
+                    updated = prior.minimum_weight_floor
+                if updated > _STRATEGY_WEIGHT_MAX:
+                    updated = _STRATEGY_WEIGHT_MAX
+                rule_table[prior.rule_id] = updated
+                reward_table[prior.rule_id] = signed_reward
+
+    def _filter_to_loaded_priors(
+        self,
+        per_protocol: dict[str, dict[str, float]],
+    ) -> dict[str, dict[str, float]]:
+        """Return a copy of ``per_protocol`` keeping only (pid, rule_id)
+        pairs that still appear on a currently-loaded protocol's
+        ``strategy_priors``.
+
+        Used by both :meth:`export_persistence_snapshot` and the
+        snapshot-build path so internal stale entries (which
+        ``apply_revision`` + ``_reseed_strategy_weights_for_protocol``
+        should already have GC'd) cannot leak out to either
+        persistence or downstream consumers. Pure / read-only on the
+        owner state; the caller decides whether to assign the
+        result back over the internal dicts.
+        """
+
+        loaded_priors_by_pid: dict[str, set[str]] = {
+            p.protocol_id: {prior.rule_id for prior in p.strategy_priors}
+            for p in self._registry.loaded_all()
+        }
+        filtered: dict[str, dict[str, float]] = {}
+        for pid, rule_table in per_protocol.items():
+            valid_rule_ids = loaded_priors_by_pid.get(pid, set())
+            if not valid_rule_ids:
+                continue
+            kept = {
+                rid: value
+                for rid, value in rule_table.items()
+                if rid in valid_rule_ids
+            }
+            if kept:
+                filtered[pid] = kept
+        return filtered
+
+    def _build_strategy_weight_entries(
+        self,
+    ) -> tuple[StrategyWeightEntry, ...]:
+        """Project the current ``_strategy_weights`` table onto the
+        snapshot's read-only entry shape.
+
+        Sorted by ``(protocol_id, rule_id)`` so the snapshot is
+        deterministic across runs (matches the ordering
+        convention used elsewhere in this module).
+
+        ``compiled_rule_id`` (follow-up packet ``protocol-online-learning-followups``,
+        sub-packet F1) is filled via :func:`_protocol_rule_id`, the
+        same helper used by ``compile_protocol_to_application_artifacts``
+        so the value is byte-identical with the corresponding
+        ``PlaybookRule.rule_id`` written into the application stores.
+        Downstream consumers (``StrategyPlaybookModule``) join on
+        this field — no reverse-parsing of the namespace prefix.
+
+        Defensive filtering (sub-packet F2): only entries whose
+        ``rule_id`` still appears on a currently-loaded protocol's
+        ``strategy_priors`` are emitted. This keeps stale rule_ids
+        out of the published snapshot even if some path forgot to
+        call ``_reseed_strategy_weights_for_protocol`` after a
+        revision dropped a strategy. ``apply_revision`` and
+        ``load_protocol`` both already call the reseed helper; the
+        filter is belt-and-braces.
+        """
+
+        loaded_priors_by_pid: dict[str, set[str]] = {
+            p.protocol_id: {prior.rule_id for prior in p.strategy_priors}
+            for p in self._registry.loaded_all()
+        }
+        entries: list[StrategyWeightEntry] = []
+        for pid in sorted(self._strategy_weights):
+            valid_rule_ids = loaded_priors_by_pid.get(pid, set())
+            rule_table = self._strategy_weights[pid]
+            reward_table = self._last_strategy_reward.get(pid, {})
+            for rid in sorted(rule_table):
+                if rid not in valid_rule_ids:
+                    continue
+                entries.append(
+                    StrategyWeightEntry(
+                        protocol_id=pid,
+                        rule_id=rid,
+                        weight=rule_table[rid],
+                        last_signed_reward=reward_table.get(rid, 0.0),
+                        compiled_rule_id=_protocol_rule_id(pid, rid),
+                    )
+                )
+        return tuple(entries)
+
+    # ------------------------------------------------------------------
+    # Cross-session persistence (``protocol-online-learning-active``
+    # packet, sub-packet C)
+    # ------------------------------------------------------------------
+    #
+    # Implements the duck-typed ``HydratableOwnerProtocol`` so the
+    # owner participates in ``OwnerHydrationStore``. The persisted
+    # state covers everything that drives in-session adaptation:
+    #
+    # * ``_alpha`` / ``_beta`` — global softmax learning coefficients
+    # * ``_pe_utility`` — per-protocol EMA of attributed PE
+    # * ``_strategy_weights`` — per-rule weights (B1)
+    # * ``_last_strategy_reward`` — per-rule last signed_reward mirror
+    # * ``_last_pe_turn_index`` — replay-dedup cursor
+    #
+    # The protocol REGISTRY itself is NOT persisted here. Loaded
+    # protocols come from ``LifeformConfig.seed_protocols`` (which
+    # the SessionManager re-supplies from
+    # ``ProtocolUptakeService.loaded_approved_snapshot()`` on each
+    # session creation), so reconstructing the registry is the
+    # caller's job. Persisting the registry too would create a
+    # second source of truth for "which protocols are loaded",
+    # violating R8.
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        """Dump per-session learning state to a versioned, JSON-friendly
+        ``OwnerPersistenceSnapshot``.
+
+        Read-only on the owner state. Round-trip stable: calling
+        ``export → hydrate → export`` on a fresh module yields the
+        same payload.
+        """
+
+        return OwnerPersistenceSnapshot(
+            owner_name=_PROTOCOL_REGISTRY_OWNER_NAME,
+            schema_version=_PROTOCOL_REGISTRY_SCHEMA_VERSION,
+            payload={
+                "alpha": float(self._alpha),
+                "beta": float(self._beta),
+                "pe_utility": dict(self._pe_utility),
+                # Sub-packet F2 defensive filtering: only persist
+                # rule_ids that still appear on a currently-loaded
+                # protocol's strategy_priors. Mirrors the same
+                # intersection ``_build_strategy_weight_entries``
+                # applies to the published snapshot, and the same
+                # intersection ``hydrate_from_persistence`` applies
+                # on read. End result: stale rule_ids that survived
+                # an apply_revision (or were left over from earlier
+                # builds) cannot leak into the cross-session
+                # persistence payload.
+                "strategy_weights": self._filter_to_loaded_priors(
+                    self._strategy_weights
+                ),
+                "last_strategy_reward": self._filter_to_loaded_priors(
+                    self._last_strategy_reward
+                ),
+                "last_pe_turn_index": self._last_pe_turn_index,
+            },
+            description=(
+                "ProtocolRegistryModule online learning state "
+                "(alpha/beta + pe_utility + strategy_weights)."
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        """Restore per-session learning state from a previously-exported
+        snapshot.
+
+        Idempotent (applying the same snapshot twice yields the
+        same module state). Fail-loud on owner mismatch / unknown
+        schema version / missing required keys, per the
+        :class:`HydratableOwnerProtocol` contract.
+
+        Strategy-weight payloads are intersected with the currently-
+        loaded protocols: a rule id that exists in the snapshot
+        but not in the current ``BehaviorProtocol.strategy_priors``
+        is dropped (the protocol may have been revised between
+        sessions); a rule id present in the protocol but not in
+        the snapshot is left at its just-seeded ``initial_weight``.
+        This keeps hydration safe across protocol-revision
+        boundaries without silently re-introducing weights for
+        rules that no longer exist.
+        """
+
+        if snapshot.owner_name != _PROTOCOL_REGISTRY_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                f"ProtocolRegistryModule.hydrate_from_persistence: "
+                f"owner_name mismatch — expected "
+                f"{_PROTOCOL_REGISTRY_OWNER_NAME!r}, got "
+                f"{snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _PROTOCOL_REGISTRY_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                f"ProtocolRegistryModule.hydrate_from_persistence: "
+                f"unknown schema_version={snapshot.schema_version!r}; "
+                f"this build only knows version "
+                f"{_PROTOCOL_REGISTRY_SCHEMA_VERSION}."
+            )
+        payload = snapshot.payload
+        try:
+            alpha = float(payload["alpha"])
+            beta = float(payload["beta"])
+            pe_utility_blob = payload["pe_utility"]
+            strategy_weights_blob = payload["strategy_weights"]
+            last_strategy_reward_blob = payload["last_strategy_reward"]
+            last_pe_turn_index = payload["last_pe_turn_index"]
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"ProtocolRegistryModule.hydrate_from_persistence: "
+                f"missing required key {exc.args[0]!r} in payload"
+            ) from exc
+
+        # Clamp α / β to the allowed band on rehydrate so a
+        # malformed snapshot can't poison the owner. Same band
+        # ``_update_alpha_beta`` enforces.
+        if alpha < _ALPHA_BETA_MIN:
+            alpha = _ALPHA_BETA_MIN
+        elif alpha > _ALPHA_BETA_MAX:
+            alpha = _ALPHA_BETA_MAX
+        if beta < _ALPHA_BETA_MIN:
+            beta = _ALPHA_BETA_MIN
+        elif beta > _ALPHA_BETA_MAX:
+            beta = _ALPHA_BETA_MAX
+        self._alpha = alpha
+        self._beta = beta
+
+        # PE utility: keep entries for currently-loaded protocols
+        # only, and clamp to the EMA band.
+        loaded_ids = {p.protocol_id for p in self._registry.loaded_all()}
+        pe_utility: dict[str, float] = {}
+        for pid, value in pe_utility_blob.items():
+            if pid not in loaded_ids:
+                continue
+            v = float(value)
+            if v > _PE_UTILITY_CLAMP:
+                v = _PE_UTILITY_CLAMP
+            elif v < -_PE_UTILITY_CLAMP:
+                v = -_PE_UTILITY_CLAMP
+            pe_utility[pid] = v
+        self._pe_utility = pe_utility
+
+        # Strategy weights: for each loaded protocol, intersect the
+        # snapshot's rule ids with the protocol's current rule ids;
+        # honour each prior's minimum_weight_floor.
+        new_weights: dict[str, dict[str, float]] = {}
+        new_rewards: dict[str, dict[str, float]] = {}
+        for protocol in self._registry.loaded_all():
+            pid = protocol.protocol_id
+            persisted_rules = strategy_weights_blob.get(pid, {})
+            persisted_rewards = last_strategy_reward_blob.get(pid, {})
+            rule_table: dict[str, float] = {}
+            reward_table: dict[str, float] = {}
+            for prior in protocol.strategy_priors:
+                if prior.rule_id in persisted_rules:
+                    w = float(persisted_rules[prior.rule_id])
+                    if w < prior.minimum_weight_floor:
+                        w = prior.minimum_weight_floor
+                    if w > _STRATEGY_WEIGHT_MAX:
+                        w = _STRATEGY_WEIGHT_MAX
+                    rule_table[prior.rule_id] = w
+                else:
+                    # Rule wasn't in the snapshot: leave the
+                    # currently-seeded initial value (set by
+                    # _reseed_strategy_weights_for_protocol on the
+                    # earlier load_protocol).
+                    existing = self._strategy_weights.get(pid, {}).get(
+                        prior.rule_id,
+                        max(prior.initial_weight, prior.minimum_weight_floor),
+                    )
+                    rule_table[prior.rule_id] = existing
+                reward_table[prior.rule_id] = float(
+                    persisted_rewards.get(prior.rule_id, 0.0)
+                )
+            new_weights[pid] = rule_table
+            new_rewards[pid] = reward_table
+        self._strategy_weights = new_weights
+        self._last_strategy_reward = new_rewards
+
+        self._last_pe_turn_index = (
+            int(last_pe_turn_index)
+            if last_pe_turn_index is not None
+            else None
+        )
+
     def checkout_revision(
         self,
         protocol_id: str,
@@ -678,6 +1276,17 @@ class ProtocolRegistryModule(RuntimeModule[ActiveMixtureSnapshot]):
             revised_by=revised_by,
             revised_at_tick=revised_at_tick,
         )
+        # ``protocol-online-learning-followups`` packet, sub-packet F2:
+        # re-sync per-rule strategy weight state with the revised
+        # protocol's strategy_priors. ``_reseed_strategy_weights_for_protocol``
+        # preserves learnt weights for unchanged rule_ids, seeds new
+        # rule_ids at their initial_weight, and prunes weights for
+        # rule_ids that the revision removed. Mirrors what
+        # ``load_protocol`` already does for fresh loads. Called
+        # unconditionally (independent of injected stores) because
+        # the weight table is a per-owner internal state, not an
+        # application-store side effect.
+        self._reseed_strategy_weights_for_protocol(revised)
         # Re-run compile so application owners see the new content.
         if (
             self._application_rare_heavy_state is None

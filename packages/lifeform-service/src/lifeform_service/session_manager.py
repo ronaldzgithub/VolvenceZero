@@ -159,17 +159,22 @@ class SessionManager:
         # synthesizer clone then carries the bundle through to L1
         # / L3 / L4 enforcement (debt #22 closure).
         self._figure_bundle: object | None = None
-        # ``protocol-uptake-to-session-injection`` packet: when set,
+        # ``protocol-online-learning-active`` packet: when set,
         # every freshly-built ``Lifeform`` (regardless of which
         # vertical / template / alpha branch produced it) is
-        # rebuilt via ``Lifeform.with_domain_experience(...)`` with
-        # one ``DomainExperiencePackage`` per currently-approved
-        # ``BehaviorProtocol`` injected on top of the vertical's
-        # own packages. This is the load-bearing wiring that makes
-        # "upload PDF → approve → AI behaves accordingly on the
-        # next session" hold end-to-end. Existing sessions are NOT
-        # mutated — the contract is "approval applies to NEW
-        # sessions only", which the chat UI surfaces verbatim.
+        # rebuilt via ``Lifeform.with_seed_protocols(...)`` with
+        # the currently-approved ``BehaviorProtocol`` snapshot.
+        # The kernel session's stable
+        # ``ProtocolRegistryModule.load_protocol`` then auto-applies
+        # each protocol's compiled hint / rule / knowledge / case
+        # to the application owners AND keeps the protocol available
+        # for online α/β PE-driven mixing across turns. This is the
+        # load-bearing wiring that makes "upload PDF → approve → AI
+        # behaves accordingly on the next session, and continues
+        # learning from PE during the session" hold end-to-end.
+        # Existing sessions are NOT mutated — the contract is
+        # "approval applies to NEW sessions only", which the chat
+        # UI surfaces verbatim.
         self._protocol_uptake_service = protocol_uptake_service
 
     @property
@@ -451,7 +456,7 @@ class SessionManager:
                 )
             else:
                 life = chosen_spec.factory(runtime)
-            life = self._inject_uptake_protocol_packages(life)
+            life = self._inject_uptake_seed_protocols(life)
             if self._figure_bundle is not None:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
@@ -517,30 +522,33 @@ class SessionManager:
     # Internals
     # ------------------------------------------------------------------
 
-    def _inject_uptake_protocol_packages(self, life: Lifeform) -> Lifeform:
-        """Append uptake-approved protocol packages onto ``life``.
+    def _inject_uptake_seed_protocols(self, life: Lifeform) -> Lifeform:
+        """Append uptake-approved seed protocols onto ``life``.
 
         Returns ``life`` unchanged when no
         :class:`ProtocolUptakeService` is wired OR no protocol
         is currently approved. Otherwise returns a new
         :class:`Lifeform` whose ``LifeformConfig`` carries the
-        vertical's own ``domain_experience_packages`` plus one
-        ``DomainExperiencePackage`` per approved protocol.
+        vertical's own ``seed_protocols`` plus the approved
+        ``BehaviorProtocol`` tuple.
 
-        ``Lifeform.with_domain_experience`` reuses the same
+        ``Lifeform.with_seed_protocols`` reuses the same
         ``substrate_runtime`` instance (carried in
         ``_init_kwargs``), so this does NOT trigger a second HF
         weight load — the only cost is reconstructing the
-        controller-layer modules at session creation.
+        controller-layer modules at session creation. Once the
+        kernel session is built, its stable
+        :class:`ProtocolRegistryModule.load_protocol` auto-applies
+        the protocol's compiled artifacts into the application
+        owner stores AND tracks each protocol for online α/β PE-
+        driven mixing.
         """
         if self._protocol_uptake_service is None:
             return life
-        packages = (
-            self._protocol_uptake_service.compile_approved_to_domain_packages_snapshot()
-        )
-        if not packages:
+        approved = self._protocol_uptake_service.loaded_approved_snapshot()
+        if not approved:
             return life
-        return life.with_domain_experience(packages)
+        return life.with_seed_protocols(approved)
 
     def _fresh_session_id(self) -> str:
         return f"sess-{uuid.uuid4().hex[:12]}"

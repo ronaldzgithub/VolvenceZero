@@ -1,7 +1,7 @@
 # Figure OFFLINE Gate Validation Protocol
 
-> Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Status: scaffold v0.2 (SHADOW；audit ledger 接通)
+> Last updated: 2026-05-14
 > Owner: figure-evidence-packet G-E (debt #62)
 
 ## 1. 范围
@@ -62,9 +62,37 @@ ACTIVE 节奏：W6（#58/#59 ACTIVE）+ #41（Phase B 早期）→ 本协议 ACT
 
 | 阶段 | 标准 |
 |---|---|
-| **SHADOW**（W5） | 本 spec v0.1 落档；CLI `cmd_bake_lora` 加 `--downstream-eval-gt-root` 占位（fail-loud "scaffolded"） |
-| **ACTIVE**（W6+） | 双重 gate 真生效；audit 字段记录 `downstream_score_delta_method`；旧 `train_loss_delta` 单一判定降级为兼容路径 |
+| **SHADOW v0.1**（W5） | 本 spec 落档；CLI `cmd_bake_lora` 加 `--downstream-eval-gt-root` 占位（fail-loud "scaffolded"） |
+| **SHADOW v0.2**（W5+） | `apply_*_through_gate(audit_log_dir=...)` 真写 `OfflineGateAuditEntry`（schema v0.2）+ contract test 守门 schema 字段稳定；`downstream_score_delta` / `downstream_score_delta_method` 字段已 wire 但默认 `None` / `"absent"` 直到 v0.3 ACTIVE |
+| **ACTIVE v0.3**（W6+） | 双重 gate 真生效（`downstream_score_delta` 必填非 None）；audit 字段记录 `downstream_score_delta_method`；旧 `train_loss_delta` 单一判定降级为兼容路径 |
+
+## 8. Audit Ledger 字段（v0.2 真接通）
+
+[`packages/lifeform-domain-figure/src/lifeform_domain_figure/gate_apply.py`](../../packages/lifeform-domain-figure/src/lifeform_domain_figure/gate_apply.py) `OfflineGateAuditEntry`：
+
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `audit_id` | str | `audit-{figure_id}-{epoch_ms}-{integrity[:8]}` 唯一审计 id |
+| `audit_log_schema_version` | str | 当前 `"v0.2"`（schema 升版必动） |
+| `timestamp_iso` | str | UTC ISO 8601 |
+| `figure_id` | str | 适用 figure |
+| `artifact_kind` | str | `"persona_lora"` / `"steering"` |
+| `artifact_integrity_hash` | str | 候选 artifact 的完整 SHA-256 |
+| `train_loss_delta` | float | gate 的训练 loss 改善（已有路径） |
+| `downstream_score_delta` | float \| None | 下游 eval 改善（v0.2 默认 None；v0.3 ACTIVE 必填） |
+| `downstream_score_delta_method` | str | `"absent"` / `"refusal+grounding"` / `"refusal"` / `"grounding"` |
+| `capacity_cost` | float | gate proposal 的 capacity_cost |
+| `decision` | str | `"ALLOW"` / `"BLOCK"` |
+| `block_reasons` | tuple[str] | BLOCK 时的原因列表（ALLOW 时为 `()`） |
+| `base_bundle_id` | str | 基线 bundle id（rollback target） |
+| `candidate_bundle_id` | str \| None | ALLOW 时为新 bundle id；BLOCK 时为 None |
+| `previous_record_id` | str | 之前 LoRA pool record id（`"absent"` 表示首次） |
+| `record_id` | str \| None | ALLOW 时为新 pool record id；BLOCK 时为 None |
+| `rollback_evidence` | str | 调用方传入的 rollback evidence string |
+
+文件路径：`{audit_log_dir}/offline-gate-audit-{figure_id}-{YYYYMMDD}.jsonl`（按日 rotate；append-only）。
 
 ## 变更日志
 
 - 2026-05-13: v0.1 SHADOW scaffold。
+- 2026-05-14: v0.2 audit ledger 接通——`apply_persona_lora_through_gate` 加 `audit_log_dir` / `downstream_score_delta` / `downstream_score_delta_method` kwargs + `OfflineGateAuditEntry` typed dataclass + per-day jsonl rotation；contract test ([`tests/contracts/test_figure_offline_gate_audit_ledger.py`](../../tests/contracts/test_figure_offline_gate_audit_ledger.py)) 守门 schema 字段稳定 + ALLOW/BLOCK 都有 audit row + rollback evidence 必填。

@@ -33,19 +33,35 @@ def _all_specs() -> tuple[ScenarioSpec, ...]:
     return load_scenarios_dir(_scenarios_dir(), include_held_out=True)
 
 
-def test_public_set_contains_24_scenarios() -> None:
+def test_public_set_size_matches_i18n_roadmap() -> None:
+    """24 en (initial reviewer-curated) + 6 zh demo (debt #55 Batch 1) = 30.
+
+    See ``docs/external/companion-bench-i18n-roadmap.md`` §3.
+    """
     specs = _all_specs()
-    assert len(specs) == 24, f"public set must have 24 scenarios; got {len(specs)}"
+    assert len(specs) == 30, (
+        f"public set must have 30 scenarios (24 en + 6 zh demo); "
+        f"got {len(specs)}"
+    )
 
 
-def test_each_family_has_exactly_4_public_scenarios() -> None:
+def test_each_family_has_exactly_4_en_plus_1_zh() -> None:
+    """Per family: 4 English (initial Wave A) + 1 Chinese (Batch 1)."""
     specs = _all_specs()
-    counts: dict[FamilyId, int] = {f: 0 for f in FamilyId}
+    en_counts: dict[FamilyId, int] = {f: 0 for f in FamilyId}
+    zh_counts: dict[FamilyId, int] = {f: 0 for f in FamilyId}
     for s in specs:
-        counts[s.family] += 1
+        if s.language == "en":
+            en_counts[s.family] += 1
+        elif s.language == "zh":
+            zh_counts[s.family] += 1
     for family in FamilyId:
-        assert counts[family] == 4, (
-            f"family {family.value} has {counts[family]} scenarios, expected 4"
+        assert en_counts[family] == 4, (
+            f"family {family.value} en count = {en_counts[family]}, expected 4"
+        )
+        assert zh_counts[family] == 1, (
+            f"family {family.value} zh count = {zh_counts[family]}, expected 1 "
+            f"(Batch 1 floor; Batch 2 will lift to 4)"
         )
 
 

@@ -96,7 +96,9 @@ def test_build_site_end_to_end(tmp_path: pathlib.Path) -> None:
     # scenarios.json built and shaped as expected.
     scenarios = json.loads((site_dir / "data" / "scenarios.json").read_text(encoding="utf-8"))
     assert scenarios["companion_bench_version"] == "1.0.0"
-    assert scenarios["scenario_count"] == 24
+    # 24 English (initial reviewer-curated) + 6 zh demo (debt #55 i18n
+    # Batch 1, 2026-05-14). Roadmap target: 12+12 → 24+24 (Batch 2).
+    assert scenarios["scenario_count"] == 30
     sample = scenarios["scenarios"][0]
     for key in ("scenario_id", "family", "scenario_hash", "user_simulator", "expected_axes"):
         assert key in sample, f"scenarios.json[0] missing key {key!r}"

@@ -23,11 +23,24 @@ Aggregation lives in :mod:`dlaas_platform_eval.routes`.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from dlaas_platform_contracts import RubricEntry
+
+
+_LOG = logging.getLogger(__name__)
+
+
+# Plug-in surface for an LLM-backed grader (debt #13). Implementations
+# receive (rubric, ai_response, reference_answer) and return the same
+# GradedSubmission shape; this keeps the runtime contract the same as
+# DefaultRubricGrader so the swap is purely behavioural.
+LLMGraderCallable = Callable[
+    [tuple[RubricEntry, ...], str, str], "GradedSubmission"
+]
 
 
 @dataclass(frozen=True)
@@ -72,12 +85,39 @@ class DefaultRubricGrader:
     :class:`RubricGrader`.
     """
 
-    def __init__(self, *, default_factor: float = 0.5) -> None:
+    def __init__(
+        self,
+        *,
+        default_factor: float = 0.5,
+        llm_grader_callable: LLMGraderCallable | None = None,
+    ) -> None:
+        """Default rubric grader with optional LLM injection (debt #13).
+
+        ``llm_grader_callable`` (debt #13): when supplied, every
+        :meth:`grade` call routes to the injected callable instead of
+        the deterministic placeholder. The callable's return value is
+        expected to satisfy the :class:`GradedSubmission` shape.
+        Tests inject deterministic fakes to lock the wiring contract;
+        production wires a real LLM judge once #13 ACTIVE lands.
+        """
+
         if not 0.0 <= default_factor <= 1.0:
             raise ValueError(
                 f"default_factor must be in [0,1], got {default_factor!r}"
             )
         self._default_factor = default_factor
+        self._llm_grader = llm_grader_callable
+        if self._llm_grader is None:
+            _LOG.warning(
+                "DefaultRubricGrader running in fallback mode "
+                "(default_factor=%.2f). LLM judge not configured "
+                "(debt #13); all responses score "
+                "%.0f%% of max_score. License grants require operator "
+                "score override or a real LLMGraderCallable injected "
+                "via DefaultRubricGrader(llm_grader_callable=...).",
+                self._default_factor,
+                self._default_factor * 100,
+            )
 
     def grade(
         self,
@@ -86,6 +126,11 @@ class DefaultRubricGrader:
         ai_response: str,
         reference_answer: str,
     ) -> GradedSubmission:
+        if self._llm_grader is not None:
+            # Injected LLM grader takes over end-to-end; we trust the
+            # caller's GradedSubmission shape (no defensive coercion
+            # so any contract drift fails loudly).
+            return self._llm_grader(rubric, ai_response, reference_answer)
         breakdown: list[dict[str, Any]] = []
         if not rubric:
             return GradedSubmission(
@@ -122,5 +167,6 @@ class DefaultRubricGrader:
 __all__ = [
     "DefaultRubricGrader",
     "GradedSubmission",
+    "LLMGraderCallable",
     "RubricGrader",
 ]

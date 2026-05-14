@@ -7,31 +7,42 @@ What this owns:
 * A list of **approved protocols** loaded into a service-level
   :class:`ProtocolRegistry`.
 * A factory for building :class:`LlmJsonClient` (when configured).
-* A sync compile path
-  (:meth:`compile_approved_to_domain_packages_snapshot`) that
-  turns the current approved set into a tuple of
-  :class:`DomainExperiencePackage` so the
-  :class:`SessionManager` can inject them into each new
-  :class:`Lifeform` via ``Lifeform.with_domain_experience(...)``.
-  This is the load-bearing wiring that makes "upload PDF →
-  approve → AI behaves accordingly on the next session" actually
-  hold end-to-end. Packet name: ``protocol-uptake-to-session-injection``.
+* A sync snapshot accessor
+  (:meth:`loaded_approved_snapshot`) that returns the current
+  approved set as a tuple of :class:`BehaviorProtocol` so the
+  :class:`SessionManager` can hand them to
+  ``Lifeform.with_seed_protocols(...)``. From there the kernel
+  session's stable :class:`ProtocolRegistryModule.load_protocol`
+  auto-applies each protocol's compiled artifacts into the
+  application owners AND keeps the protocol available for the
+  online α/β PE-driven mixing across turns. This is the
+  load-bearing wiring that makes "upload PDF → approve → AI
+  behaves accordingly on the next session, and continues
+  learning from PE during the session" hold end-to-end. Packet
+  name: ``protocol-online-learning-active``.
+
+  An earlier iteration of this packet went via a parallel
+  ``DomainExperiencePackage`` injection path; that path was
+  removed when the unified ``seed_protocols`` channel landed,
+  because going through ``ProtocolRegistryModule.load_protocol``
+  produces identical store mutations *and* enables α/β learning
+  on the seeded protocols (the package-injection path bypassed
+  the registry, so the loaded protocols were invisible to the
+  online learning module).
 
 What this does NOT own:
 
 * Per-session :class:`ProtocolRegistryModule` α/β learning state.
-  v1 ships the static-injection path above; α/β reinforcement
-  on protocol weights remains a per-session concern handled by
-  ``ProtocolRegistryModule`` internals at runtime, fed by the
-  PE loop. The service-level registry is the source of truth
-  for *which protocols a session inherits at construction*, not
-  for their runtime weight evolution.
+  Each kernel session evolves its own weights from PE; that
+  evolution is owned by the per-session module. Cross-session
+  persistence of those weights goes through
+  :class:`OwnerHydrationStore` (not this service).
 
 Concurrency model:
 
 * Mutating routes (submit / approve / reject / unload) go
   through an internal ``asyncio.Lock``.
-* The compile-snapshot path is sync (the underlying
+* The snapshot accessor is sync (the underlying
   :class:`ProtocolRegistry` is RLock-protected, so calling it
   without awaiting our own asyncio lock is safe and avoids
   nested-lock concerns when ``SessionManager.create_session``
@@ -59,21 +70,13 @@ from lifeform_protocol_runtime import (
     read_pdf,
     scan_directory_for_protocols,
 )
-from volvence_zero.application.domain_experience import (
-    DomainExperienceManifest,
-    DomainExperiencePackage,
-)
 from volvence_zero.behavior_protocol import (
     BehaviorProtocol,
     BehaviorProtocolCandidate,
     ProtocolSourceKind,
     ReviewStatus,
 )
-from volvence_zero.protocol_runtime import (
-    ProtocolApplicationArtifacts,
-    ProtocolRegistry,
-    compile_protocol_to_application_artifacts,
-)
+from volvence_zero.protocol_runtime import ProtocolRegistry
 
 
 _LOG = logging.getLogger("lifeform_service.protocol_uptake")
@@ -146,11 +149,8 @@ class ProtocolUptakeService:
         async with self._lock:
             return self._registry.loaded_all()
 
-    def compile_approved_to_domain_packages_snapshot(
-        self,
-    ) -> tuple[DomainExperiencePackage, ...]:
-        """Compile every currently-approved (non-RETIRED) protocol into
-        a :class:`DomainExperiencePackage`.
+    def loaded_approved_snapshot(self) -> tuple[BehaviorProtocol, ...]:
+        """Return the currently-loaded (non-RETIRED) approved protocols.
 
         Sync on purpose: the underlying :class:`ProtocolRegistry`
         is RLock-protected, so reading it without taking our own
@@ -158,25 +158,18 @@ class ProtocolUptakeService:
         :class:`SessionManager.create_session` call this from
         inside its own async lock without nesting.
 
-        One :class:`DomainExperiencePackage` per protocol; the
-        manifest carries the protocol id / version / advisor name
-        verbatim so application owners attribute the resulting
-        ``BoundaryPriorHint`` / ``PlaybookRule`` /
-        ``DomainKnowledgeRecord`` / ``CaseMemoryRecord`` entries
-        back to a single uptake source.
-
         Empty registry returns ``()`` so the caller can use it
-        unconditionally without an extra emptiness check.
+        unconditionally without an extra emptiness check. The
+        :class:`SessionManager` forwards the result verbatim to
+        :meth:`Lifeform.with_seed_protocols`, which in turn
+        threads the protocols through to each new kernel
+        session's stable :class:`ProtocolRegistryModule` for
+        ``load_protocol`` (auto-applies hint / rule / knowledge
+        / case to application owners) AND for online α/β PE-
+        driven mixing.
         """
 
-        approved = self._registry.loaded()
-        if not approved:
-            return ()
-        packages: list[DomainExperiencePackage] = []
-        for protocol in approved:
-            artifacts = compile_protocol_to_application_artifacts(protocol)
-            packages.append(_artifacts_to_domain_package(protocol, artifacts))
-        return tuple(packages)
+        return self._registry.loaded()
 
     async def list_pending(self) -> tuple[_PendingEntry, ...]:
         async with self._lock:
@@ -448,50 +441,6 @@ def protocol_to_json(p: BehaviorProtocol) -> dict[str, Any]:
         "revision_count": len(p.revision_log),
         "parent_protocol_id": p.parent_protocol_id,
     }
-
-
-def _artifacts_to_domain_package(
-    protocol: BehaviorProtocol,
-    artifacts: ProtocolApplicationArtifacts,
-) -> DomainExperiencePackage:
-    """Wrap one protocol's compiled artifacts in a typed package.
-
-    Field renames from
-    :class:`ProtocolApplicationArtifacts` to
-    :class:`DomainExperiencePackage`:
-
-    * ``boundary_prior_hints`` → ``boundary_hints``
-    * ``domain_knowledge_records`` → ``knowledge_records``
-    * ``case_memory_records`` → ``case_records``
-    * ``playbook_rules`` passes through unchanged
-
-    The synthesised ``DomainExperienceManifest`` carries the
-    ``protocol_id`` / ``version`` so application owner audit
-    and ``DomainExperienceValidationReport`` lineage point
-    back to the originating uptake protocol.
-    """
-
-    manifest = DomainExperienceManifest(
-        package_id=f"protocol-uptake:{protocol.protocol_id}",
-        version=protocol.version or "1",
-        display_name=protocol.advisor_name or protocol.protocol_id,
-        domain_ids=("protocol-uptake",),
-        target_contexts=("any",),
-        evidence_level=protocol.review_status.value,
-        owner="lifeform-service/protocol-uptake",
-        description=(
-            protocol.description
-            or f"Approved protocol {protocol.protocol_id!r} compiled "
-            "into a DomainExperiencePackage by ProtocolUptakeService."
-        ),
-    )
-    return DomainExperiencePackage(
-        manifest=manifest,
-        boundary_hints=artifacts.boundary_prior_hints,
-        playbook_rules=artifacts.playbook_rules,
-        knowledge_records=artifacts.domain_knowledge_records,
-        case_records=artifacts.case_memory_records,
-    )
 
 
 __all__ = [

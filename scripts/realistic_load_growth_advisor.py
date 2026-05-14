@@ -55,6 +55,41 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_GROWTH_ADVISOR_EXPECTED_SLO = {
+    "p50_turn_latency_s_max": 1.5,
+    "p99_turn_latency_s_max": 3.0,
+    "concurrent_ai_id_min": 100,
+    "gpu_mem_peak_capacity_pct_max": 0.50,
+    "boundary_trigger_rate_band": [0.05, 0.50],
+    "handoff_queue_p99_s_max": 30.0,
+}
+
+
+def _sample_shape(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "is_sample": True,
+        "p50_turn_latency_s": 0.81,
+        "p99_turn_latency_s": 2.34,
+        "boundary_trigger_rates": {
+            "bp-no-hard-sell": 0.18,
+            "bp-no-overclaim": 0.09,
+            "bp-no-flooding": 0.06,
+            "bp-no-judgmental": 0.04,
+        },
+        "archetype_distribution": {
+            "anxious": 0.34,
+            "comparing": 0.18,
+            "standard_seeking": 0.22,
+            "venting": 0.16,
+            "product_seeking": 0.10,
+        },
+        "handoff_queue_p99_ms": 21_400.0,
+        "n_end_users_actual": args.n_end_users,
+        "n_tenants_actual": args.n_tenants,
+        "errors": [],
+    }
+
+
 def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -68,6 +103,8 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
         "n_tenants": args.n_tenants,
         "days_window": args.days_window,
         "dry_run": True,
+        "expected_slo": _GROWTH_ADVISOR_EXPECTED_SLO,
+        "sample_shape": _sample_shape(args),
         "p50_turn_latency_s": None,
         "p99_turn_latency_s": None,
         "boundary_trigger_rates": {b: None for b in _BOUNDARIES},
@@ -78,7 +115,8 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
             "F-A SHADOW scaffold. Real DLaaS multi-tenant load lands "
             "with cross-cutting-foundation-packet §2.1 subtask 4. "
             "Per-boundary trigger rate must stay in [0.05, 0.50] "
-            "(growth-advisor-pilot-packet G-A kill criteria)."
+            "(growth-advisor-pilot-packet G-A kill criteria); "
+            "expected_slo + sample_shape are review aids."
         ),
     }
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

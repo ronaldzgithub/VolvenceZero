@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, replace
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 from volvence_zero.agent.response import ResponseSynthesizer
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
@@ -407,6 +407,7 @@ class Brain:
         temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
         identity_seed: IdentitySeed | None = None,
+        seed_protocols: tuple[Any, ...] = (),
         memory_store: MemoryStore | None = None,
         identity_provider: IdentityProvider | None = None,
     ) -> None:
@@ -418,6 +419,13 @@ class Brain:
         self._temporal_bootstrap = temporal_bootstrap
         self._regime_bootstrap = regime_bootstrap
         self._identity_seed = identity_seed
+        # ``protocol-online-learning-active`` packet (sub-packet A):
+        # seed BehaviorProtocols loaded into every kernel session's
+        # stable ``ProtocolRegistryModule``. Forwarded to
+        # ``AgentSessionRunner`` via ``runner_kwargs`` in
+        # ``create_session`` so each session inherits them at
+        # construction. Empty tuple = no seed (existing behaviour).
+        self._seed_protocols: tuple[Any, ...] = tuple(seed_protocols)
         self._memory_store = memory_store
         # Rupture-and-Repair M4: identity provider resolves
         # ``session_id`` into an optional ``UserIdentity``. Default is
@@ -461,6 +469,7 @@ class Brain:
             "temporal_bootstrap": self._temporal_bootstrap,
             "regime_bootstrap": self._regime_bootstrap,
             "identity_seed": self._identity_seed,
+            "seed_protocols": self._seed_protocols,
             "memory_store": self._memory_store,
             "identity_provider": self._identity_provider,
         }
@@ -590,6 +599,7 @@ class Brain:
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
             identity_seed=self._identity_seed,
+            seed_protocols=self._seed_protocols,
             memory_store=session_memory_store,
             allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
             user_scope=user_scope,

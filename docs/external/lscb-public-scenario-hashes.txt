@@ -1,9 +1,0 @@
-# Moved.
-#
-# The public scenario hash manifest now lives at:
-#   docs/external/companion-bench-public-scenario-hashes.txt
-#
-# Companion Bench is the rebrand of LSCB; the SHA-256 hashes are
-# byte-identical (the bench-name is not part of the canonical hash).
-#
-# This stub will be removed in a future release.

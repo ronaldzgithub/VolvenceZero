@@ -26,7 +26,7 @@ and let the caller decide when to drain — typically right after
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace as _replace
+from dataclasses import dataclass, field, replace as _replace
 from typing import Any
 
 from lifeform_core import Lifeform, LifeformConfig
@@ -51,11 +51,62 @@ class GrowthAdvisorLifeformBundle:
     The caller drains the optional ingestion envelope into a session
     before the first user turn (typical pattern: build, create_session,
     drain envelope, then run user turns).
+
+    ``archetype_classifier`` (debt #66 ACTIVE wiring): the per-end-user
+    archetype state owner (R8 SSOT). When supplied, callers can
+    request a classification at any turn boundary via
+    :meth:`maybe_classify_archetype`. Downstream consumers
+    (boundary policy / playbook routing / monthly report) read the
+    typed ``ArchetypeStateSnapshot`` via
+    ``classifier.state_for(end_user_id)`` and never re-derive
+    archetype state. ``None`` keeps the classic build path
+    backward-compatible.
     """
 
     lifeform: Lifeform
     profile: GrowthAdvisorProfile
     ingestion_envelope: IngestionEnvelope | None
+    archetype_classifier: Any = None
+    _per_user_turn_count: dict[str, int] = field(default_factory=dict)
+
+    def maybe_classify_archetype(
+        self,
+        *,
+        end_user_id: str,
+        recent_user_turns: tuple[str, ...],
+    ):  # noqa: ANN201 — return type lives in lifeform_domain_growth_advisor
+        """Run the classifier every ``call_every_n_turns`` user turns.
+
+        Returns the per-end-user :class:`ArchetypeStateSnapshot` after
+        the (possibly-skipped) classification call, or ``None`` when
+        no classifier is wired.
+
+        Each invocation:
+
+        1. Bumps the per-end-user turn counter.
+        2. Calls ``classifier.classify(...)`` if the counter hits a
+           multiple of ``call_every_n_turns`` AND there are at least
+           ``min_turns_to_classify`` turns to classify on.
+        3. Returns the latest snapshot from ``classifier.state_for``.
+
+        The skip path is the common case: caller invokes after every
+        user turn, classifier only fires every N=3 turns, R8 owner
+        stays sole writer of archetype state.
+        """
+
+        if self.archetype_classifier is None:
+            return None
+        count = self._per_user_turn_count.get(end_user_id, 0) + 1
+        self._per_user_turn_count[end_user_id] = count
+        config = getattr(self.archetype_classifier, "_config", None)
+        every_n = getattr(config, "call_every_n_turns", 3)
+        min_turns = getattr(config, "min_turns_to_classify", 2)
+        if count % every_n == 0 and len(recent_user_turns) >= min_turns:
+            self.archetype_classifier.classify(
+                recent_user_turns=recent_user_turns,
+                end_user_id=end_user_id,
+            )
+        return self.archetype_classifier.state_for(end_user_id)
 
 
 def build_growth_advisor_lifeform(
@@ -77,6 +128,7 @@ def build_growth_advisor_lifeform(
     semantic_proposal_runtime: Any = None,
     identity_provider: Any = None,
     rare_heavy_enabled: bool = False,
+    archetype_classifier: Any = None,
 ) -> GrowthAdvisorLifeformBundle:
     """Construct a Lifeform from a reviewed GrowthAdvisorProfile.
 
@@ -185,6 +237,7 @@ def build_growth_advisor_lifeform(
         lifeform=lifeform,
         profile=profile,
         ingestion_envelope=envelope,
+        archetype_classifier=archetype_classifier,
     )
 
 
@@ -200,6 +253,7 @@ def build_cheng_laoshi_lifeform(
     response_synthesizer: Any = None,
     semantic_proposal_runtime: Any = None,
     identity_provider: Any = None,
+    archetype_classifier: Any = None,
 ) -> GrowthAdvisorLifeformBundle:
     """Convenience: ``build_growth_advisor_lifeform`` pre-bound to 谌老师.
 
@@ -227,6 +281,7 @@ def build_cheng_laoshi_lifeform(
         response_synthesizer=response_synthesizer,
         semantic_proposal_runtime=semantic_proposal_runtime,
         identity_provider=identity_provider,
+        archetype_classifier=archetype_classifier,
     )
 
 

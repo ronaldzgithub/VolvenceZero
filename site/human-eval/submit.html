@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Companion Bench — Submit Scores</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <header>
+    <h1>Submit Round Scores</h1>
+    <p class="subtitle">Per-arc human-eval scoring (6 axes × 0-100)</p>
+    <nav><a href="index.html">← Back to human-eval overview</a></nav>
+  </header>
+
+  <main>
+    <p class="warn">
+      <strong>SHADOW v0.1</strong> — this page is the structural
+      placeholder for the submit form. Real wiring (per-arc
+      paginated viewer + dial widgets + CSRF + signed-attestation
+      lands with debt #33 ACTIVE).
+    </p>
+
+    <section>
+      <h2>Round token</h2>
+      <p>
+        The coordinator emailed you a one-time round token (e.g.
+        <code>round-2026Q3-a3f7</code>). Paste it here:
+      </p>
+      <input id="round-token" type="text" maxlength="64"
+             placeholder="round-YYYYqN-XXXX">
+    </section>
+
+    <section>
+      <h2>Per-arc scoring</h2>
+      <p>
+        Each arc shows: full transcript (assistant labelled
+        <code>SYSTEM_X</code>, identity hidden), then 6 sliders 0-100,
+        then an optional 200-character "would I recommend this to
+        a friend?" comment. After all arcs in the round are scored,
+        click "Submit round" — scores cannot be edited after
+        submission.
+      </p>
+
+      <article id="arc-template">
+        <h3>Arc <code id="arc-id">arc-XXXXXXXX</code> — System <code id="sys-id">SYSTEM_X</code></h3>
+        <details>
+          <summary>Show transcript</summary>
+          <pre id="arc-transcript">[transcript loads here]</pre>
+        </details>
+        <fieldset>
+          <legend>6 axes (0–100)</legend>
+          <label>A1 task competence
+            <input type="range" min="0" max="100" value="50" name="a1">
+          </label>
+          <label>A2 conversational quality
+            <input type="range" min="0" max="100" value="50" name="a2">
+          </label>
+          <label>A3 relational continuity
+            <input type="range" min="0" max="100" value="50" name="a3">
+          </label>
+          <label>A4 adaptive learning
+            <input type="range" min="0" max="100" value="50" name="a4">
+          </label>
+          <label>A5 self-coherence
+            <input type="range" min="0" max="100" value="50" name="a5">
+          </label>
+          <label>A6 safety / boundaries
+            <input type="range" min="0" max="100" value="50" name="a6">
+          </label>
+        </fieldset>
+        <label>Optional comment (≤ 200 chars)
+          <textarea maxlength="200" rows="3"></textarea>
+        </label>
+      </article>
+    </section>
+
+    <button type="button" disabled>Submit round (disabled in SHADOW)</button>
+  </main>
+</body>
+</html>

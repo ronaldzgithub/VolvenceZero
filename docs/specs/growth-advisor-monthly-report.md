@@ -1,20 +1,20 @@
 # Growth-Advisor Monthly Report Spec
 
-> Status: scaffold v0.1 (SHADOW)
-> Owner: growth-advisor-pilot-packet G-D (debt #67)
+> Status: scaffold v0.2 (SHADOW; schema v0.2)
+> Owner: growth-advisor-pilot-packet G-D (debt #67 + #49)
 > Implementation: [`packages/lifeform-service/src/lifeform_service/monthly_report_owner.py`](../../packages/lifeform-service/src/lifeform_service/monthly_report_owner.py)
 
 ## 1. 范围
 
 P2 卖点"月报让我老板满意"的 schema + owner + 端点 + 版本化策略。月报字段必须**长期稳定**（客户老板每月看同一份格式），同时给 customer 提供透明的可量化指标。
 
-## 2. Schema (v0.1)
+## 2. Schema (v0.2)
 
 `MonthlyReportSnapshot` 字段表（参考 [`monthly_report_owner.py`](../../packages/lifeform-service/src/lifeform_service/monthly_report_owner.py)）：
 
 | 字段 | 类型 | mock 值 | 含义 |
 |---|---|---|---|
-| `report_schema_version` | str | `"v0.1"` | schema 版本 |
+| `report_schema_version` | str | `"v0.2"` | schema 版本 |
 | `tenant_id` | str | `"brand_a"` | 客户 id |
 | `month_iso` | str | `"2026-04"` | 报告月份 |
 | `period_start_ms` / `period_end_ms` | int | timestamps | 报告周期 |
@@ -31,7 +31,9 @@ P2 卖点"月报让我老板满意"的 schema + owner + 端点 + 版本化策略
 | `handoff_triggered_count` | int | 12 | handoff 触发数 |
 | `handoff_completed_count` | int | 11 | SE 真接手数 |
 | `handoff_p99_seconds` | float | 24.7 | handoff 触发到接手 P99 |
-| `day_cohort_active_counts` | dict | `{"day1": 64, "day2": 51, "day3": 47, "day4": 39, "day5": 33, "day6": 31, "day7+": 47}` | day-cohort 活跃数 |
+| `protocol_phase_cohort_active_counts` | dict | `{"icebreaker": 64, "baseline": 51, "empathy": 47, "pain_mining": 39, "rapport": 33, "targeted_advice": 31, "summary_hook": 47}` | onboarding-arc phase 活跃数。phase id 来自 `BehaviorProtocol.TemporalArc.progression_signals` snapshot（PE-driven）。replaces v0.1 `day_cohort_active_counts`（calendar-day routing 已 deprecate）|
+| `deleted_end_user_count` | int | 3 | 本月被删除的 end_user 数（debt #49 GDPR/PIPL 合规审计） |
+| `deletion_event_count` | int | 5 | 本月 deletion 事件总数（同一 end_user 多次删除算多次） |
 
 ## 3. Owner 归属决策
 
@@ -42,10 +44,17 @@ P2 卖点"月报让我老板满意"的 schema + owner + 端点 + 版本化策略
 
 ## 4. 版本化策略
 
-- `report_schema_version = "v0.1"` 锁定（contract test 守门）
-- 加新字段：bump 到 `v0.2`，向后兼容（旧月报仍可读，新字段空）
+- `report_schema_version = "v0.2"` 锁定（contract test 守门）
+- 加新字段：bump 到 `v0.3`，向后兼容（旧月报仍可读，新字段空）
 - 删字段 / 改字段语义：bump 主版本到 `v1.0`，附 migration shim
 - customer-facing PDF 渲染按 schema_version 路由模板（v0.x 用 template-v0，v1.x 用 template-v1）
+
+### Schema 版本日志
+
+- **v0.1** 初始 scaffold
+- **v0.2** (2026-05-14)
+  - `day_cohort_active_counts` → `protocol_phase_cohort_active_counts`（calendar-day routing deprecate；phase 由 `BehaviorProtocol.TemporalArc.progression_signals` PE-driven 决定）
+  - 加 `deleted_end_user_count` + `deletion_event_count`（debt #49 GDPR/PIPL 合规审计；不泄露被删 end_user 内容）
 
 ## 5. Aggregation 公式
 

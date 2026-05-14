@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Companion Bench — Human-Eval Track</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <header>
+    <h1>Companion Bench — Human-Eval Track</h1>
+    <p class="subtitle">Subjective ground-truth scoring by paid human evaluators (debt #33).</p>
+    <nav>
+      <a href="../index.html">Home</a> ·
+      <a href="../leaderboard.html">Leaderboard</a> ·
+      <a href="../scenarios.html">Scenarios</a> ·
+      <a href="../judges.html">Judges</a> ·
+      <a href="../about.html">About</a>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h2>Why a human-eval track?</h2>
+      <p>
+        Companion Bench's primary leaderboard is scored by LLM judges
+        (cost-efficient, reproducible). LLM judges have known bias
+        modes (own-family preference, sycophancy, length bias). The
+        human-eval track keeps the leaderboard honest by giving
+        every quarter's release a small-N (N≈30 arcs × 3 systems)
+        human-scored cross-check, with public Spearman ρ vs the
+        LLM-judge.
+      </p>
+      <p>
+        See the
+        <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-human-eval-protocol.md">
+          full v0.1 protocol
+        </a>
+        for axis definitions, evaluator qualifications, scoring
+        rubric, and consistency-honeypot policy.
+      </p>
+    </section>
+
+    <section>
+      <h2>Apply to evaluate</h2>
+      <p>
+        We pay $200 per round (4 hr) plus a $50 consistency bonus.
+        Onboarding is a 30-minute training course and a 3-arc trial
+        round. Apply via
+        <a href="apply.html">the application form</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Quarterly cross-check report</h2>
+      <p>
+        The latest LLM-judge vs human Spearman ρ table is published
+        in
+        <a href="../judges.html">the judges page</a>
+        (<code>quarterly_rotation.py</code> regenerates it each
+        cycle).
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Companion Bench — Apache 2.0 — <a href="../about.html">About</a></p>
+  </footer>
+</body>
+</html>

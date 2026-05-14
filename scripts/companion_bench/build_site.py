@@ -481,6 +481,17 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Only regenerate site/data/scenarios.json and exit.")
     p.add_argument("--keep-demo", action="store_true",
                    help="Do not overwrite aggregate_results.json (useful when --artifact-dir is empty).")
+    p.add_argument(
+        "--incremental",
+        action="store_true",
+        help=(
+            "Skip per-submission detail rebuild when an existing "
+            "site/data/submissions/<id>.json is newer than the source "
+            "summary.json (debt #38). Aggregate / pairwise / scenarios "
+            "are still always regenerated because they depend on every "
+            "submission's content."
+        ),
+    )
     p.add_argument("--verbose", "-v", action="store_true")
     return p
 
@@ -526,6 +537,46 @@ def main(argv: list[str] | None = None) -> int:
     submissions_dir = data_dir / "submissions"
     submissions_dir.mkdir(parents=True, exist_ok=True)
     for sub_dir in submission_dirs:
+        summary_path = sub_dir / "summary.json"
+        # Probe an existing detail file by guessing the id from
+        # summary.json (cheap path; if guess wrong, we always
+        # fall through to a real build).
+        try:
+            summary_payload = json.loads(
+                summary_path.read_text(encoding="utf-8")
+            )
+            guessed_sid = (
+                summary_payload.get("manifest", {}).get("submission_id")
+                or summary_payload.get("submission_id")
+            )
+        except (OSError, json.JSONDecodeError):
+            guessed_sid = None
+        existing_detail = (
+            (submissions_dir / f"{guessed_sid}.json")
+            if guessed_sid else None
+        )
+        if (
+            args.incremental
+            and existing_detail is not None
+            and existing_detail.exists()
+            and existing_detail.stat().st_mtime
+            >= summary_path.stat().st_mtime
+        ):
+            _LOG.info(
+                "incremental skip: %s (existing detail newer than summary.json)",
+                sub_dir.name,
+            )
+            try:
+                cached = json.loads(existing_detail.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                _LOG.warning(
+                    "incremental cache read failed for %s, falling back to "
+                    "rebuild: %s",
+                    sub_dir.name, exc,
+                )
+            else:
+                detail_payloads.append(cached)
+                continue
         try:
             payload = build_submission_detail(submission_dir=sub_dir)
         except (FileNotFoundError, ValueError, KeyError) as exc:

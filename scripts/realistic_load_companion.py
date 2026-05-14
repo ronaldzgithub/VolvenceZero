@@ -63,6 +63,34 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# SLO baseline targets pinned in docs/specs/perf-baseline.md §2.
+# Values reproduced here so the artifact is self-contained for ops
+# review without forcing the spec doc open.
+_COMPANION_EXPECTED_SLO = {
+    "p50_turn_latency_s_max": 1.5,
+    "p99_turn_latency_s_max": 3.0,
+    "concurrent_ai_id_min": 50,
+    "gpu_mem_peak_capacity_pct_max": 0.70,
+    "owner_snapshot_dispatch_p50_ms_max": 50.0,
+}
+
+
+# A representative artifact shape so reviewers can see the field
+# layout that an ACTIVE run will produce. Marked ``is_sample: true``
+# so anyone reading the file knows numbers are not real evidence.
+def _sample_shape(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "is_sample": True,
+        "p50_turn_latency_s": 0.92,
+        "p99_turn_latency_s": 2.41,
+        "owner_snapshot_dispatch_p50_ms": 18.7,
+        "gpu_mem_peak_mb": 41_500.0,
+        "n_sessions_actual": args.n_sessions,
+        "completed_turns": args.n_sessions * args.duration_min * 4,
+        "errors": [],
+    }
+
+
 def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -76,6 +104,9 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
         "alpha_base_url": args.alpha_base_url,
         "scenario_pack": args.scenario_pack,
         "dry_run": True,
+        "expected_slo": _COMPANION_EXPECTED_SLO,
+        "sample_shape": _sample_shape(args),
+        # Real-run fields stay None until ACTIVE runs populate them.
         "p50_turn_latency_s": None,
         "p99_turn_latency_s": None,
         "owner_snapshot_dispatch_p50_ms": None,
@@ -83,7 +114,10 @@ def _emit_placeholder_artifact(args: argparse.Namespace) -> Path:
         "errors": [],
         "notes": (
             "F-A SHADOW scaffold. Real load generation lands with "
-            "cross-cutting-foundation-packet §2.1 subtask 4."
+            "cross-cutting-foundation-packet §2.1 subtask 4. "
+            "expected_slo / sample_shape are review aids; the "
+            "p50/p99/owner_snapshot/gpu_mem fields stay None until "
+            "an ACTIVE run replaces them with real measurements."
         ),
     }
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

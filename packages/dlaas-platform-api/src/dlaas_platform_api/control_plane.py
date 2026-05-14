@@ -1085,16 +1085,29 @@ async def _handle_list_identity_links(request: web.Request) -> web.Response:
 
 
 def _activation_text(
-    *, template: TemplateSpec, seed_override: Mapping[str, Any]
+    *,
+    template: TemplateSpec,
+    seed_override: Mapping[str, Any],
+    asset_fetcher_callable: Any = None,
+    template_assets: tuple[Any, ...] = (),
 ) -> str:
-    """Build a deterministic activation corpus from template fields.
+    """Build an activation corpus from template fields (debt #15 injection).
 
-    The corpus is intentionally small and structured: persona name,
-    role archetype, speaking style, value boundaries, background
-    story, plus the seed config + override. Slice 7 can swap in a
-    real asset-pulling pipeline; for now this is enough to drive the
-    R6 slow loop and produce non-empty memory snapshots so readiness
-    counters move off zero.
+    SHADOW behaviour (default): the corpus is small and structured —
+    persona name, role archetype, speaking style, value boundaries,
+    background story, plus the seed config + override. Suitable for
+    smoke / dev where the apprentice memory just needs to move off
+    zero.
+
+    ``asset_fetcher_callable`` (debt #15): when supplied, the
+    callable receives ``(template_id, template_assets)`` and returns
+    a list of fetched corpus chunks (typically pulled via HTTP from
+    each asset's ``uri`` and parsed with the appropriate content-type
+    handler — PDF / HTML / markdown / txt). Returned chunks are
+    appended to the structured persona block so the apprentice's
+    memory actually contains real reviewer-curated content rather
+    than persona metadata alone. ``None`` keeps the persona-only
+    path (back-compat with Slice 7 behaviour).
     """
     persona = template.persona_spec or {}
     seed = dict(template.seed_config)
@@ -1123,6 +1136,22 @@ def _activation_text(
     if seed:
         parts.append(f"Seed config: {json.dumps(seed, sort_keys=True)}")
     parts.append(f"Runtime template id: {template.runtime_template_id}")
+    if asset_fetcher_callable is not None and template_assets:
+        try:
+            chunks = asset_fetcher_callable(
+                template_id=template.template_id,
+                template_assets=template_assets,
+            )
+        except Exception as exc:  # noqa: BLE001 — surface caller failure as fail-loud
+            raise RuntimeError(
+                f"asset_fetcher_callable raised on template "
+                f"{template.template_id!r}: {exc}"
+            ) from exc
+        if chunks:
+            parts.append("Asset corpus:")
+            for idx, chunk in enumerate(chunks):
+                if isinstance(chunk, str) and chunk.strip():
+                    parts.append(f"  [chunk-{idx:02d}] {chunk.strip()}")
     return "\n\n".join(parts)
 
 

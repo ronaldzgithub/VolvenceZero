@@ -114,6 +114,13 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # interlocutor was missing from this allow-list because
             # nothing in vz-application had read it before packet 1.5a.
             "interlocutor",
+            # ``protocol-online-learning-active`` packet (sub-packet C):
+            # ``ProtocolRegistryModule`` implements
+            # ``HydratableOwnerProtocol`` so its α/β/_pe_utility/
+            # _strategy_weights state can be persisted across
+            # sessions via ``OwnerHydrationStore``. The contract +
+            # error types live in ``vz-contracts.owner_hydration``.
+            "owner_hydration",
         }
     ),
     "vz-temporal": frozenset(
@@ -142,6 +149,18 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # owner lives in vz-cognition; vz-runtime registers it via
             # ``build_final_runtime_modules``.
             "protocol_runtime",
+            # OwnerHydrationStore (Packet D long-horizon-closure)
+            # consumes the ``OwnerPersistenceSnapshot`` /
+            # ``HydratableOwnerProtocol`` types from
+            # ``vz-contracts.owner_hydration``. The store itself
+            # lives in vz-runtime (``owner_hydration_store.py``)
+            # because it composes ``MemoryStore.persistence_backend``
+            # with the orchestration tier; the contracts stay one
+            # tier down so multiple wheels (including
+            # ``vz-application.protocol_runtime`` per the
+            # ``protocol-online-learning-active`` packet) can
+            # implement the protocol.
+            "owner_hydration",
             # IdentitySeed (Behavior Protocol Runtime packet 1.3'') —
             # threaded through ``run_final_wiring_turn`` /
             # ``build_final_runtime_modules`` and passed to

@@ -23,7 +23,7 @@ from lifeform_service.monthly_report_owner import (
 )
 
 
-_PINNED_SCHEMA_VERSION = "v0.1"
+_PINNED_SCHEMA_VERSION = "v0.2"
 
 
 _PINNED_SNAPSHOT_FIELDS = frozenset(
@@ -46,7 +46,13 @@ _PINNED_SNAPSHOT_FIELDS = frozenset(
         "handoff_triggered_count",
         "handoff_completed_count",
         "handoff_p99_seconds",
-        "day_cohort_active_counts",
+        # v0.2: replaces day_cohort_active_counts (calendar-day routing
+        # deprecated 2026-05-14; phase ids come from
+        # BehaviorProtocol.TemporalArc.progression_signals).
+        "protocol_phase_cohort_active_counts",
+        # v0.2: deletion auditability (debt #49).
+        "deleted_end_user_count",
+        "deletion_event_count",
     }
 )
 
@@ -66,7 +72,9 @@ _PINNED_INPUTS_FIELDS = frozenset(
         "handoff_triggered_count",
         "handoff_completed_count",
         "handoff_p99_seconds",
-        "day_cohort_active_counts",
+        "protocol_phase_cohort_active_counts",
+        "deleted_end_user_count",
+        "deletion_event_count",
     }
 )
 
@@ -131,15 +139,17 @@ def test_owner_aggregate_returns_snapshot() -> None:
         handoff_triggered_count=3,
         handoff_completed_count=2,
         handoff_p99_seconds=18.4,
-        day_cohort_active_counts={
-            "day1": 4,
-            "day2": 3,
-            "day3": 5,
-            "day4": 2,
-            "day5": 1,
-            "day6": 1,
-            "day7+": 2,
+        protocol_phase_cohort_active_counts={
+            "icebreaker": 4,
+            "baseline": 3,
+            "empathy": 5,
+            "pain_mining": 2,
+            "rapport": 1,
+            "targeted_advice": 1,
+            "summary_hook": 2,
         },
+        deleted_end_user_count=1,
+        deletion_event_count=2,
     )
     snapshot = owner.aggregate(inputs)
     assert snapshot.report_schema_version == _PINNED_SCHEMA_VERSION
@@ -147,3 +157,6 @@ def test_owner_aggregate_returns_snapshot() -> None:
     assert snapshot.end_user_count_total == 3
     assert snapshot.end_user_count_active == 2
     assert snapshot.repair_rate == 7 / 8
+    assert snapshot.deleted_end_user_count == 1
+    assert snapshot.deletion_event_count == 2
+    assert snapshot.protocol_phase_cohort_active_counts["icebreaker"] == 4

@@ -117,12 +117,32 @@ class FigureCoverageMap:
                 f"got {self.boundary_threshold!r}"
             )
 
-    def classify_query(self, query: str) -> CoverageClassification:
+    def classify_query(
+        self,
+        query: str,
+        *,
+        retrieval_index: "FigureRetrievalIndex | None" = None,
+        retrieval_floor: float = 0.30,
+        retrieval_top_k: int = 5,
+    ) -> CoverageClassification:
         """Classify ``query`` as IN_DOMAIN, BOUNDARY_BLOCKED, or OUT_OF_DOMAIN.
 
         The boundary check runs first so that explicit reviewer
         declarations (e.g., ``post_1955_events``) take precedence
         over corpus-derived in-domain similarity.
+
+        ``retrieval_index`` (debt #39): optional retrieval-augmented
+        floor pass. When supplied, a query that falls *below* the
+        in-domain centroid threshold gets a second chance via top-K
+        cosine against the actual corpus chunks. If
+        ``max(top_k cosine_score) >= retrieval_floor``, the query is
+        upgraded to IN_DOMAIN with a rationale citing the chunk id.
+        This fixes the Wave K Einstein prod bug where in-corpus
+        relativity / postulate / theory questions were being L4-refused
+        because the per-knowledge-seed centroid embedding was too
+        narrow for the corpus's actual paraphrase coverage. The
+        boundary check is not re-evaluated by the floor pass —
+        explicit reviewer out-of-scope declarations still win.
         """
 
         query_tokens = _tokenize(query)
@@ -179,6 +199,37 @@ class FigureCoverageMap:
                     f">= in_domain_threshold={self.in_domain_threshold:.3f})."
                 ),
             )
+        # Retrieval-augmented floor pass (debt #39). A query may miss
+        # every static centroid yet still match real corpus content —
+        # e.g. an Einstein 1916 GR paraphrase that lexically diverges
+        # from the curated centroid title but cosine-matches a real
+        # chunk. We only enter this path when the caller has explicitly
+        # supplied a retrieval_index; the legacy two-centroid behaviour
+        # is preserved for callers that don't pass it.
+        if retrieval_index is not None:
+            evidences = retrieval_index.retrieve(query, top_k=retrieval_top_k)
+            best_floor_cosine = 0.0
+            best_chunk_id = ""
+            for ev in evidences:
+                if ev.cosine_score > best_floor_cosine:
+                    best_floor_cosine = ev.cosine_score
+                    best_chunk_id = ev.chunk_id
+            if best_floor_cosine >= retrieval_floor:
+                return CoverageClassification(
+                    decision=CoverageDecision.IN_DOMAIN,
+                    closest_in_domain_label=f"retrieval_floor:{best_chunk_id}",
+                    closest_in_domain_score=best_floor_cosine,
+                    closest_out_of_scope_label=out_label,
+                    closest_out_of_scope_score=out_score,
+                    rationale=(
+                        f"Query missed every static in-domain centroid "
+                        f"(best cosine={in_domain_score:.3f} < "
+                        f"{self.in_domain_threshold:.3f}) but matched "
+                        f"real corpus chunk {best_chunk_id!r} via the "
+                        f"retrieval-augmented floor (cosine={best_floor_cosine:.3f} "
+                        f">= retrieval_floor={retrieval_floor:.3f})."
+                    ),
+                )
         return CoverageClassification(
             decision=CoverageDecision.OUT_OF_DOMAIN,
             closest_in_domain_label=in_domain_label,

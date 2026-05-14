@@ -31,15 +31,25 @@ Error mapping:
   (body has stable code; the exception is logged but its message is
   NOT echoed back to the client, since it could leak stack details).
 
-Streaming: not yet supported. ``stream=true`` requests are rejected
-with 501 ``streaming_not_supported`` so callers can fall back to
-non-streaming mode rather than getting a malformed response.
+Streaming (debt #12 / #31): SSE streaming is implemented as a
+post-hoc chunked re-emission of the non-streaming response — the
+adapter completes the lifeform run synchronously, then frames the
+result into one ``role:assistant`` content delta, optional
+fingerprint delta, and a final ``[DONE]`` sentinel. This is
+deliberately simpler than per-token streaming because the
+underlying lifeform pipeline produces the answer atomically (so
+any "chunked" framing here is presentational, not generative).
+Real per-token streaming requires substrate-level streaming hooks
+(DLaaS Slice 5.4 substrate streaming additive interface) and lands
+when those hooks are wired.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import time
+import uuid
 from typing import Any
 
 from aiohttp import web
@@ -114,15 +124,7 @@ async def _handle_chat_completions(request: web.Request) -> web.Response:
     except ValueError as exc:
         return _error_from_value_error(exc)
 
-    if parsed.generation.stream:
-        return _error(
-            status=501,
-            error="streaming_not_supported",
-            detail=(
-                "stream=true is not supported by this adapter yet. "
-                "Set stream=false to receive a single-shot response."
-            ),
-        )
+    streaming_requested = parsed.generation.stream
 
     mode = _resolve_mode(request)
     if mode not in _VALID_MODES:
@@ -148,12 +150,28 @@ async def _handle_chat_completions(request: web.Request) -> web.Response:
         )
 
     if mode == "raw":
-        return await _dispatch_raw(parsed=parsed, manager=manager)
+        return await _dispatch_raw(
+            parsed=parsed,
+            manager=manager,
+            streaming=streaming_requested,
+            request=request,
+        )
     # default lifeform path
-    return await _dispatch_lifeform(parsed=parsed, manager=manager)
+    return await _dispatch_lifeform(
+        parsed=parsed,
+        manager=manager,
+        streaming=streaming_requested,
+        request=request,
+    )
 
 
-async def _dispatch_raw(*, parsed: ChatCompletionRequest, manager: Any) -> web.Response:
+async def _dispatch_raw(
+    *,
+    parsed: ChatCompletionRequest,
+    manager: Any,
+    streaming: bool,
+    request: web.Request,
+) -> web.StreamResponse:
     runtime = manager.substrate_runtime
     try:
         response = raw_substrate_complete(request=parsed, runtime=runtime)
@@ -176,10 +194,23 @@ async def _dispatch_raw(*, parsed: ChatCompletionRequest, manager: Any) -> web.R
         "x-lifeform-mode": "raw",
         "x-lifeform-fingerprint": response.system_fingerprint,
     }
+    if streaming:
+        return await _emit_sse(
+            payload=response.to_json(),
+            headers=headers,
+            model=parsed.model,
+            request=request,
+        )
     return web.json_response(response.to_json(), status=200, headers=headers)
 
 
-async def _dispatch_lifeform(*, parsed: ChatCompletionRequest, manager: Any) -> web.Response:
+async def _dispatch_lifeform(
+    *,
+    parsed: ChatCompletionRequest,
+    manager: Any,
+    streaming: bool,
+    request: web.Request,
+) -> web.StreamResponse:
     try:
         result = await lifeform_complete(request=parsed, manager=manager)
     except ValueError as exc:
@@ -192,7 +223,108 @@ async def _dispatch_lifeform(*, parsed: ChatCompletionRequest, manager: Any) -> 
             detail="lifeform run_turn failed; check service logs.",
         )
     headers = _lifeform_telemetry_headers(result)
-    return web.json_response(result.response.to_json(), status=200, headers=headers)
+    payload = result.response.to_json()
+    if streaming:
+        return await _emit_sse(
+            payload=payload,
+            headers=headers,
+            model=parsed.model,
+            request=request,
+        )
+    return web.json_response(payload, status=200, headers=headers)
+
+
+async def _emit_sse(
+    *,
+    payload: dict,
+    headers: dict[str, str],
+    model: str,
+    request: web.Request,
+) -> web.StreamResponse:
+    """Stream a non-streaming OpenAI completion as SSE chunks (debt #12 / #31).
+
+    Frame order (matches OpenAI's ``stream=true`` wire format):
+
+    1. ``role:assistant`` opening delta (no content yet).
+    2. ``content`` delta carrying the full assistant text.
+    3. final chunk with ``finish_reason: "stop"`` + usage echo.
+    4. ``data: [DONE]`` sentinel.
+
+    Lifeform telemetry headers are preserved on the SSE response so
+    harnesses still get ``x-lifeform-*`` even when streaming.
+    """
+
+    response = web.StreamResponse(
+        status=200,
+        headers={
+            **headers,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+    await response.prepare(request)
+    completion_id = f"chatcmpl-stream-{uuid.uuid4().hex[:24]}"
+    created_ts = int(time.time())
+
+    def _sse(chunk: dict) -> bytes:
+        return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n".encode("utf-8")
+
+    # Frame 1: role delta
+    await response.write(_sse({
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created_ts,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {"role": "assistant"},
+            "finish_reason": None,
+        }],
+    }))
+
+    # Frame 2: content delta — extract assistant text from the
+    # OpenAI-shaped non-streaming payload.
+    choices = payload.get("choices") or []
+    assistant_text = ""
+    finish_reason = "stop"
+    if choices:
+        first = choices[0]
+        message = first.get("message") or {}
+        assistant_text = str(message.get("content") or "")
+        finish_reason = str(first.get("finish_reason") or "stop")
+    await response.write(_sse({
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created_ts,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {"content": assistant_text},
+            "finish_reason": None,
+        }],
+    }))
+
+    # Frame 3: final chunk with finish_reason + usage echo.
+    final_chunk = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created_ts,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {},
+            "finish_reason": finish_reason,
+        }],
+    }
+    if "usage" in payload:
+        final_chunk["usage"] = payload["usage"]
+    await response.write(_sse(final_chunk))
+
+    # Frame 4: [DONE] sentinel per OpenAI streaming convention.
+    await response.write(b"data: [DONE]\n\n")
+    await response.write_eof()
+    return response
 
 
 def _lifeform_telemetry_headers(result: LifeformCompletionResult) -> dict[str, str]:

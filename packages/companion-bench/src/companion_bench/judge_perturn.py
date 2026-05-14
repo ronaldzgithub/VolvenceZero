@@ -85,7 +85,13 @@ class ArcRubric:
 
 @runtime_checkable
 class PerTurnJudge(Protocol):
-    """Score one assistant turn (with prior context) on the 8 criteria."""
+    """Score one assistant turn (with prior context) on the 8 criteria.
+
+    Implementations expose ``drain_usage_log()`` so the submission
+    cost tracker (debt #75) can attribute LLM judge tokens to this
+    submission. Implementations that have no real LLM cost (e.g.
+    deterministic fakes) return an empty list.
+    """
 
     def score(
         self,
@@ -98,6 +104,15 @@ class PerTurnJudge(Protocol):
 
     @property
     def model(self) -> str: ...
+
+    def drain_usage_log(self) -> list[dict]:
+        """Return + clear per-call usage entries collected since last drain.
+
+        Each entry is ``{"prompt_tokens": int, "completion_tokens": int}``
+        from the underlying LLM client call. Empty list when the judge
+        has no LLM-backed cost (deterministic fakes).
+        """
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -125,23 +140,60 @@ _PROMPT_HEADER = (
 )
 
 
+def _split_complete_result(result: object) -> tuple[str, dict | None]:
+    """Accept either ``str`` or ``(str, usage_dict)`` from a client_complete.
+
+    Some clients return only the text (legacy contract); others return
+    ``(text, {"prompt_tokens": int, "completion_tokens": int})`` so cost
+    tracking (debt #75) can record the call. This helper normalises
+    both cases without forcing every caller to upgrade signature.
+    """
+
+    if isinstance(result, tuple) and len(result) == 2:
+        text, usage = result
+        if not isinstance(text, str):
+            raise TypeError(
+                f"client_complete returned tuple but text is {type(text).__name__}; "
+                "expected (str, dict)"
+            )
+        if usage is None:
+            return text, None
+        if not isinstance(usage, dict):
+            raise TypeError(
+                f"client_complete returned tuple but usage is {type(usage).__name__}; "
+                "expected dict with prompt_tokens / completion_tokens"
+            )
+        return text, usage
+    if isinstance(result, str):
+        return result, None
+    raise TypeError(
+        f"client_complete must return str or (str, dict); got {type(result).__name__}"
+    )
+
+
 class LLMPerTurnJudge:
     """Per-turn judge backed by an LLM completion callable."""
 
     def __init__(
         self,
         *,
-        client_complete,  # callable(prompt, *, seed, system) -> str
+        client_complete,  # callable(prompt, *, seed, system) -> str | (str, usage)
         model: str,
         seed_base: int = 0,
     ) -> None:
         self._complete = client_complete
         self._model = model
         self._seed_base = seed_base
+        self._usage_log: list[dict] = []
 
     @property
     def model(self) -> str:
         return self._model
+
+    def drain_usage_log(self) -> list[dict]:
+        out = list(self._usage_log)
+        self._usage_log.clear()
+        return out
 
     def score(
         self,
@@ -160,7 +212,10 @@ class LLMPerTurnJudge:
             f"JSON object:"
         )
         seed = self._seed_base + 1000 * session_index + turn_index
-        text = self._complete(prompt, seed=seed, system="You are a precise rubric scorer.")
+        result = self._complete(prompt, seed=seed, system="You are a precise rubric scorer.")
+        text, usage = _split_complete_result(result)
+        if usage is not None:
+            self._usage_log.append(usage)
         return _parse_scores(text)
 
 
@@ -263,6 +318,7 @@ class DeterministicFakePerTurnJudge:
       * deterministic: same text → same scores
       * structural validity: every criterion always present, in [0, 5]
       * no actual semantic judgement
+      * ``drain_usage_log()`` returns an empty list (no LLM cost)
     """
 
     def __init__(self, *, model: str = "fake/perturn") -> None:
@@ -271,6 +327,9 @@ class DeterministicFakePerTurnJudge:
     @property
     def model(self) -> str:
         return self._model
+
+    def drain_usage_log(self) -> list[dict]:
+        return []
 
     def score(
         self,

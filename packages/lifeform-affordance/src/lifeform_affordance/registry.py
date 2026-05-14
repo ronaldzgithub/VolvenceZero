@@ -84,6 +84,13 @@ class AffordanceRegistry:
         self._registration_order: list[str] = []
         self._sealed: bool = False
         self._lint_warnings: list[AffordanceLintWarning] = []
+        # debt #16: per-contract tool policy snapshots indexed by
+        # contract_id. Each entry is a frozenset of allowed
+        # affordance names (whitelist semantics; absence = allow-all
+        # legacy back-compat). Set via :meth:`set_contract_policy`;
+        # consumed by :meth:`list_for_contract`. Never mutated
+        # in-place after `seal()`.
+        self._contract_policies: dict[str, frozenset[str]] = {}
 
     # ------------------------------------------------------------------
     # Write path (startup only)
@@ -197,6 +204,85 @@ class AffordanceRegistry:
 
     def names(self) -> tuple[str, ...]:
         return tuple(self._registration_order)
+
+    # ------------------------------------------------------------------
+    # debt #16: per-contract tool policy enforcement
+    # ------------------------------------------------------------------
+
+    def set_contract_policy(
+        self,
+        *,
+        contract_id: str,
+        allowed_affordance_names: Iterable[str],
+    ) -> None:
+        """Push a contract's ``tool_policy_snapshot`` whitelist into the registry.
+
+        The DLaaS control plane computes the whitelist from
+        ``contract.tool_policy_snapshot`` and calls this method so the
+        runtime read path can filter by it. Per debt #16, this used to
+        be computed but never wired — sessions saw every globally
+        registered affordance regardless of the contract policy.
+
+        ``contract_id`` is opaque to the registry (the registry does
+        not validate it against any contract store; that's the
+        caller's job). ``allowed_affordance_names`` is a frozen
+        whitelist; unknown names are tolerated (registry doesn't
+        eagerly cross-reference) so a stale policy doesn't crash the
+        runtime — :meth:`list_for_contract` simply returns the
+        intersection with currently-registered affordances.
+        """
+
+        if not contract_id.strip():
+            raise ValueError("set_contract_policy: contract_id must be non-empty")
+        self._contract_policies[contract_id] = frozenset(
+            n for n in allowed_affordance_names if n.strip()
+        )
+
+    def has_contract_policy(self, contract_id: str) -> bool:
+        return contract_id in self._contract_policies
+
+    def list_for_contract(
+        self, contract_id: str | None
+    ) -> tuple[AffordanceDescriptor, ...]:
+        """Return descriptors visible to ``contract_id`` (debt #16).
+
+        Behaviour:
+
+        * ``contract_id is None`` → return :meth:`all_descriptors`
+          (legacy back-compat for sites that don't yet plumb a
+          contract id through).
+        * ``contract_id`` has no registered policy → also return
+          :meth:`all_descriptors` (legacy contract created before
+          tool_policy_snapshot was wired; default-allow keeps
+          existing behaviour observable).
+        * ``contract_id`` has a registered policy → return only the
+          intersection with the whitelist, preserving registration
+          order so the rendered tool list stays deterministic.
+        """
+
+        if contract_id is None or contract_id not in self._contract_policies:
+            return self.all_descriptors()
+        allow = self._contract_policies[contract_id]
+        return tuple(
+            self._descriptors[n]
+            for n in self._registration_order
+            if n in allow
+        )
+
+    def list_for_session(
+        self, *, contract_id: str | None = None
+    ) -> tuple[AffordanceDescriptor, ...]:
+        """Session-time read alias for :meth:`list_for_contract`.
+
+        Most session callers don't think in "contract" terms — they
+        just have a session that maps to one. We expose this thin
+        alias so the call site reads naturally:
+
+            for d in registry.list_for_session(contract_id=ctx.contract_id):
+                ...
+        """
+
+        return self.list_for_contract(contract_id)
 
     # ------------------------------------------------------------------
     # Lint surface (slice 2 will grow this)

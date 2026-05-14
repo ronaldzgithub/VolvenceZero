@@ -61,6 +61,8 @@ class ArcAxisScores:
 
 @runtime_checkable
 class ArcJudge(Protocol):
+    """Score one full arc on the six axes (debt #75 cost-tracked)."""
+
     @property
     def model(self) -> str: ...
 
@@ -71,6 +73,15 @@ class ArcJudge(Protocol):
         ledger: CallbackLedger,
         family: str,
     ) -> Mapping[AxisId, float]: ...
+
+    def drain_usage_log(self) -> list[dict]:
+        """Return + clear per-call usage entries since last drain.
+
+        Each entry is ``{"prompt_tokens": int, "completion_tokens": int}``;
+        empty list when the judge has no LLM-backed cost (deterministic
+        fakes).
+        """
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -103,17 +114,23 @@ class LLMArcJudge:
     def __init__(
         self,
         *,
-        client_complete,  # callable(prompt, *, seed, system) -> str
+        client_complete,  # callable(prompt, *, seed, system) -> str | (str, usage)
         model: str,
         seed_base: int = 0,
     ) -> None:
         self._complete = client_complete
         self._model = model
         self._seed_base = seed_base
+        self._usage_log: list[dict] = []
 
     @property
     def model(self) -> str:
         return self._model
+
+    def drain_usage_log(self) -> list[dict]:
+        out = list(self._usage_log)
+        self._usage_log.clear()
+        return out
 
     def score(
         self,
@@ -122,11 +139,16 @@ class LLMArcJudge:
         ledger: CallbackLedger,
         family: str,
     ) -> Mapping[AxisId, float]:
+        from companion_bench.judge_perturn import _split_complete_result
+
         prompt = self._build_prompt(arc=arc, ledger=ledger, family=family)
         seed = self._seed_base + abs(hash(arc.arc_id)) % (2 ** 31)
-        text = self._complete(
+        result = self._complete(
             prompt, seed=seed, system="You are a precise rubric scorer."
         )
+        text, usage = _split_complete_result(result)
+        if usage is not None:
+            self._usage_log.append(usage)
         return _parse_axis_scores(text)
 
     def _build_prompt(
@@ -251,7 +273,10 @@ def _parse_axis_scores(text: str) -> dict[AxisId, float]:
 
 
 class DeterministicFakeArcJudge:
-    """Hash-derived axis scores; structurally valid output for tests."""
+    """Hash-derived axis scores; structurally valid output for tests.
+
+    ``drain_usage_log()`` returns an empty list (no LLM cost).
+    """
 
     def __init__(self, *, model: str = "fake/arc") -> None:
         self._model = model
@@ -259,6 +284,9 @@ class DeterministicFakeArcJudge:
     @property
     def model(self) -> str:
         return self._model
+
+    def drain_usage_log(self) -> list[dict]:
+        return []
 
     def score(
         self,

@@ -13,7 +13,7 @@ import json
 import secrets
 import time
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Callable
 
 from dlaas_platform_contracts import (
     AudienceProfileSpec,
@@ -24,6 +24,13 @@ from dlaas_platform_contracts import (
     LaunchLicenseSpec,
     RubricEntry,
 )
+
+
+# Plug-in surface for an NLP corpus analyzer (debt #14). Receives the
+# audience-profile construction payload and returns a dict of enriched
+# fields (top topics / sentiment dist / engagement bands) which the
+# upsert call uses to fill empty / explicitly-delegated slots.
+_CorpusAnalyzerCallable = Callable[..., Mapping[str, Any]]
 
 from dlaas_platform_registry.db import Registry
 
@@ -67,6 +74,13 @@ class EvalStore:
     # ------------------------------------------------------------------
     # Audience profiles
     # ------------------------------------------------------------------
+    # debt #14: a corpus_analyzer_callable receives the audience-profile
+    # construction payload + the asset_ids it should analyse, and
+    # returns a dict of enriched fields. Real ACTIVE plug-in runs
+    # NLP topic / sentiment / engagement extraction over the assets;
+    # contract test injects a deterministic fake.
+    # Type alias kept inline so we do not import a heavyweight typing
+    # protocol just for this single-callsite shim.
 
     async def upsert_audience_profile(
         self,
@@ -80,7 +94,61 @@ class EvalStore:
         decision_patterns: tuple[str, ...] = (),
         evidence_stats: Mapping[str, Any] | None = None,
         profile_id: str | None = None,
+        corpus_analyzer_callable: "_CorpusAnalyzerCallable | None" = None,
     ) -> AudienceProfileSpec:
+        """Persist an audience profile (debt #14).
+
+        ``corpus_analyzer_callable`` (debt #14): when supplied, the
+        analyzer is given ``(template_id, asset_ids, caller_supplied_seed)``
+        and may **enrich** the persisted record with NLP-derived fields
+        (top topics, sentiment distribution, engagement bands). The
+        caller-supplied fields remain authoritative — analyzer output
+        only fills empty / explicitly delegated slots. ``None``
+        preserves the SHADOW behaviour (record only what the caller
+        supplied) but emits a deprecation warning so anyone relying
+        on it knows the surface is a placeholder until #14 ACTIVE.
+        """
+
+        if corpus_analyzer_callable is not None:
+            enriched = corpus_analyzer_callable(
+                template_id=template_id,
+                asset_ids=asset_ids,
+                caller_supplied={
+                    "cohort_name": cohort_name,
+                    "common_questions": common_questions,
+                    "communication_style": communication_style,
+                    "emotion_triggers": emotion_triggers,
+                    "decision_patterns": decision_patterns,
+                    "evidence_stats": dict(evidence_stats or {}),
+                },
+            )
+            common_questions = (
+                tuple(enriched.get("common_questions", common_questions))
+                if not common_questions else common_questions
+            )
+            communication_style = (
+                str(enriched.get("communication_style", communication_style))
+                if not communication_style else communication_style
+            )
+            emotion_triggers = (
+                tuple(enriched.get("emotion_triggers", emotion_triggers))
+                if not emotion_triggers else emotion_triggers
+            )
+            decision_patterns = (
+                tuple(enriched.get("decision_patterns", decision_patterns))
+                if not decision_patterns else decision_patterns
+            )
+            evidence_stats = enriched.get("evidence_stats") or evidence_stats
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "EvalStore.upsert_audience_profile running in SHADOW "
+                "mode (debt #14): record persists caller-supplied "
+                "fields verbatim with no NLP analysis. Pass "
+                "corpus_analyzer_callable to enrich with topics / "
+                "sentiment / engagement; the platform 'audience analysis' "
+                "claim is only backed once an analyzer is wired."
+            )
         profile_id = profile_id or _fresh_profile_id()
         created_at_ms = int(time.time() * 1000.0)
         async with self._registry.write_lock:

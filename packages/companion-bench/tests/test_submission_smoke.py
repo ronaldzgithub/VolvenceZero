@@ -76,9 +76,13 @@ def test_load_manifest_rejects_unknown_category(tmp_path: pathlib.Path) -> None:
 
 def test_dry_run_smoke_with_fakes_one_family(tmp_path: pathlib.Path) -> None:
     public_dir = pathlib.Path(str(res.files("companion_bench") / "scenarios" / "public"))
+    # Restrict to en variants so the F1 count matches the original 4
+    # initial reviewer-curated scenarios; debt #55 i18n adds one
+    # F1-continuity-zh-001 to the same family but it is excluded here
+    # so the smoke fixture stays stable.
     specs = tuple(
         s for s in load_scenarios_dir(public_dir, include_held_out=False)
-        if s.family.value == "F1"
+        if s.family.value == "F1" and s.language == "en"
     )
     assert len(specs) == 4
     manifest = SubmissionManifest(
@@ -114,10 +118,13 @@ def test_dry_run_smoke_with_fakes_one_family(tmp_path: pathlib.Path) -> None:
 
 
 def test_dry_run_full_public_set(tmp_path: pathlib.Path) -> None:
-    """Full 24-scenario × 1-seed run completes inside the smoke budget."""
+    """Full 30-scenario × 1-seed run completes inside the smoke budget.
+
+    Public set = 24 en (initial) + 6 zh demo (debt #55 Batch 1).
+    """
     public_dir = pathlib.Path(str(res.files("companion_bench") / "scenarios" / "public"))
     specs = load_scenarios_dir(public_dir, include_held_out=False)
-    assert len(specs) == 24
+    assert len(specs) == 30
     manifest = SubmissionManifest(
         submission_id="t",
         system_name="t",
@@ -136,7 +143,7 @@ def test_dry_run_full_public_set(tmp_path: pathlib.Path) -> None:
         user_backend=DeterministicFakeUtteranceClient(),
         paraphrase_seeds=(0,),
     )
-    # All 24 arcs ran and got a final score.
-    assert len(result.arc_bundles) == 24
+    # All 30 arcs ran and got a final score (24 en + 6 zh demo).
+    assert len(result.arc_bundles) == 30
     for b in result.arc_bundles:
         assert 0.0 <= b.final_score.final <= 100.0

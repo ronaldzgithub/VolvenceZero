@@ -253,7 +253,13 @@ class ScenarioSpec:
     # ``scenario_hash``. The leaderboard groups by language using this
     # field directly; cross-language scenarios with otherwise identical
     # semantics share the same hash by design.
-    language: str = "zh"
+    #
+    # Default is ``"en"`` because the initial 24 reviewer-curated public
+    # scenarios shipped with English ``user_simulator.persona`` /
+    # ``goals`` / ``fsm.payload`` content. Chinese variants set
+    # ``language: zh`` explicitly. The 12+12 zh/en balance roadmap is
+    # tracked in ``docs/external/companion-bench-i18n-roadmap.md``.
+    language: str = "en"
 
     def to_canonical(self) -> dict[str, Any]:
         return {
@@ -399,10 +405,12 @@ def _spec_from_dict(data: dict[str, Any], *, source: pathlib.Path) -> ScenarioSp
             f">= 1; got {paraphrase_seed_count}"
         )
 
-    # debt #55: language defaults to "zh" for backward-compat with
-    # the existing 24 public scenarios (none currently declare it).
-    # 12 English scenarios planned will set ``language: en`` explicitly.
-    language = str(data.get("language", "zh")).strip()
+    # debt #55: ``language`` defaults to "en" because the initial 24
+    # reviewer-curated public scenarios ship with English simulator
+    # content; new Chinese variants must set ``language: zh``
+    # explicitly. ``bilingual`` is reserved for scenarios where the
+    # simulator alternates languages mid-arc.
+    language = str(data.get("language", "en")).strip()
     if language not in {"zh", "en", "bilingual"}:
         raise ValueError(
             f"invalid_scenario: {source} language must be one of "

@@ -1,9 +1,10 @@
 # Figure-Vertical Persona Verification Spec
 
-> Status: draft
-> Last updated: 2026-05-12
+> Status: draft v0.2
+> Last updated: 2026-05-14
 > 对应需求: R2, R8, R12, R15
 > 对应代码: `packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`
+> 对应 debt: #39 (coverage_map retrieval-augmented floor) / #42 (refusal precision N=25 + ROC re-calibration)
 
 ## 要解决的问题
 
@@ -130,6 +131,53 @@ artifacts/figure_verify/<run_id>/
     verdict.json                 # 4-gate 终评
     transcript.md                # reviewer-friendly 三栏并排
 ```
+
+## refusal-precision 阈值 + ROC 重新 calibrate（debt #42 v0.2）
+
+### 探针集合扩张：N=5 → N=25
+
+`OUT_OF_SCOPE_REFUSAL_QUESTIONS` 从 5 个 culinary/software/automotive/entertainment/pop-song 扩展到 5 类 × 5 题 = 25 题：
+
+| 类别 | 题数 | 示例 |
+|---|---|---|
+| `culinary` | 5 | tiramisu / sourdough / 刀工 / 抹茶拿铁 / 腌菜 |
+| `software` | 5 | Python list-comp / React Hooks / docker-compose / git rebase / k8s pod |
+| `automotive` | 5 | check-engine / tire-pressure / brake-pads / EV cable / winter tires |
+| `entertainment` | 5 | pop song / Netflix / Zelda / Taylor Swift / K-drama |
+| `daily_life` | 5 | 洗衣液 / SF 房租押金 / 手机相机 / meal-prep / Airbnb checkout |
+
+### N=25 的 ROC re-calibration 必要性
+
+历史 N=5 时单题权重 = 20%：1 题漏 = 20% 准确率掉，threshold 80% 在小样本上离散度过粗（5/5=1.0 vs 4/5=0.8 vs 3/5=0.6）。N=25 时单题权重 = 4%，threshold 80% 真有平滑梯度（25/25=1.0 → 24/25=0.96 → 23/25=0.92 …），ROC 才能在 0.80-0.90 区间 sweep 出有意义的 precision-recall 曲线。
+
+### v0.2 重设阈值方案
+
+| 阶段 | refusal_rate_min | 备注 |
+|---|---|---|
+| **SHADOW**（当前） | 0.80 | 与 v0.1 一致；N=25 后这是 25 题中 ≥ 20 题拒（5 题漏）|
+| **ACTIVE**（待回填） | TBD via ROC sweep | 真跑 ≥ 3 figure × 5 substrate 的 25 题后，按 `(precision, recall)` Pareto 前沿选；预计落在 [0.85, 0.92] |
+
+### v0.2 守门 contract test
+
+`tests/contracts/test_figure_refusal_precision_v0_2.py`：
+1. `OUT_OF_SCOPE_REFUSAL_QUESTIONS` 长度 == 25
+2. 5 个 `domain_tag` 各 5 题 (`culinary` / `software` / `automotive` / `entertainment` / `daily_life`)
+3. 全部 `category == OUT_OF_SCOPE_REFUSAL`
+4. `question_id` 唯一
+
+## coverage_map retrieval-augmented floor（debt #39 v0.2）
+
+### 问题
+
+Wave K Einstein bundle 的 `coverage_map.classify_query` 把 in-corpus 的 relativity / postulate / theory query L4 拒掉，因为 per-knowledge-seed centroid 太窄，corpus paraphrase 的 cosine 落到 in_domain_threshold (0.18) 以下。
+
+### 解法
+
+`FigureCoverageMap.classify_query` 加 optional `retrieval_index` + `retrieval_floor` 参数。当 query 落到静态 in-domain centroid 阈值之下时，再走一次 retrieval index 的 `retrieve(query, top_k=5)`，取 max chunk cosine。如 `>= retrieval_floor (0.30 default)` → 升级 IN_DOMAIN，rationale 引用具体 `chunk_id`。
+
+不破坏向后兼容：调用方不传 `retrieval_index` 时退回原 cosine-only 路径（与 #39 修复前完全一致）。
+
+ScopeRefuser 调用 `classify_query` 时显式传入 bundle.retrieval_index 即可激活 floor。
 
 ## 怎么读 transcript.md
 

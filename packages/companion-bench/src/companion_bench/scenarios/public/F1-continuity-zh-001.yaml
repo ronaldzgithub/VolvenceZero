@@ -1,0 +1,34 @@
+scenario_id: F1-continuity-zh-001
+family: F1
+language: zh
+arc_length_sessions: 3
+session_turn_range: [6, 8]
+inter_session_gap_days: [1, 2]
+user_simulator:
+  persona: "在上海工作的设计师，安全依恋型，倾向在描述压力时反复解释细节"
+  goals:
+    - "在 S1 用一个具体的项目细节抛出压力点"
+    - "在 S2 直接询问那个细节，但不重新讲一遍"
+    - "在 S3 在已建立的细节上提出相邻方向的新问题"
+  perturbation_seed: 17
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "我在做一款给独居老人用的远程问诊产品，最近被产品经理打回来了，说 onboarding 太复杂"
+    - session: 2
+      turn: 1
+      action: callback_probe
+    - session: 3
+      turn: 2
+      action: establish_preference
+      payload: "我喜欢你追问而不是直接给我一份总结"
+expected_axes:
+  primary: [A3]
+  secondary: [A2]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3

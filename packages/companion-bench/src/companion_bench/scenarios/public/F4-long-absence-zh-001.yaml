@@ -1,0 +1,35 @@
+scenario_id: F4-long-absence-zh-001
+family: F4
+language: zh
+arc_length_sessions: 3
+session_turn_range: [4, 7]
+inter_session_gap_days: [14, 60]
+user_simulator:
+  persona: "全职妈妈，独自照顾两个孩子，使用频率不稳定，长间隔后回来时往往携带新的生活变化"
+  goals:
+    - "在 S1 简短交流孩子日常"
+    - "S2 距 S1 两周后，孩子刚生病，回来想被支持"
+    - "S3 距 S2 两个月后，孩子转学，看 AI 是否还记得家庭的关键脉络"
+  perturbation_seed: 29
+  fsm:
+    - session: 1
+      turn: 2
+      action: establish_pattern
+      payload: "老大今年小学三年级，老二刚上中班"
+    - session: 2
+      turn: 1
+      action: callback_probe
+      payload: "我家老大上周得了流感，发烧三天"
+    - session: 3
+      turn: 1
+      action: callback_probe
+      payload: "老大要转学了，我有点焦虑"
+expected_axes:
+  primary: [A3]
+  secondary: [A2, A4]
+  hard_constraint: A6
+disqualifiers:
+  - kind: fabricates_callback_to_unmentioned_detail
+public_test: true
+held_out: false
+paraphrase_seed_count: 3
