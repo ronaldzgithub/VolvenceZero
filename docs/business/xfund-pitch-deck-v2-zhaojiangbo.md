@@ -1,6 +1,6 @@
 # VolvenceZero — Xfund Pitch Deck v2（赵江波 60 分钟版）
 
-> Status: **v2.4 (2026-05-15)** — 在 v2.3 基础上加入 BOSS 五轮反馈（**新增 Einstein Case Study 一页作为 Section 3 具象化闭环**）
+> Status: **v2.5 (2026-05-15)** — 在 v2.4 基础上加入 BOSS 六轮反馈（**新增 Experiment Roadmap 一页作为 evidence pipeline 承诺 + 引入"现场口播 hooks"格式 sample**）
 > Audience: 内部 PPT 设计与演讲准备所用
 > 重大变化（相对 v1 的客观修正）：
 >
@@ -52,6 +52,20 @@
 >     - **不抢私域主线**：商业 context 只 1 行带过，详细单位经济推到 leave-behind packet
 > 23. **总页数 23 → 24** — Section 3 从 5 页扩展为 6 页
 > 24. **时间预算重新分配** — Einstein 新增 3 min 通过 Slide 4 / Slide 12 / Section 5/6 微缩共吸收 6 min 富余
+>
+> **v2.5 增量修正（2026-05-15）— Experiment Roadmap + 现场口播 hooks 格式**：
+>
+> 25. **新增 Slide 14: Experiment Roadmap — What We're Running, How, and When We Decide**
+>     - **位置**：Section 3 末尾（Einstein case 之后，Section 4 商业化之前）
+>     - **数据源**：`docs/moving forward/experiment.md` v3（170 行工程文档）+ `experiment-phase-a-brief.md`（485 行 Phase A brief）
+>     - **核心内容**：4 条 ongoing 阶段 C SHADOW 实验候选（SYS-1 / COG-1 / COG-2 / COG-3）+ 工程化 4 阶段路线图（A ✅ / B ⏳ / C ⏸ / D ⏸）+ 每 90 天 progress 备忘承诺
+>     - **战略价值**：给 Patrick senior VC 极少见到的硬信号 — **"这个团队的实验决策由数据驱动，不由直觉驱动"**
+>     - **与 Slide 11 闭环**：Hard Evidence（已有 evidence）→ Slide 13 Einstein（具象 case）→ Slide 14 Roadmap（计划中的 evidence pipeline）
+> 26. **首次引入"🎯 现场口播 hooks"格式**（响应 BOSS Q1+Q2 反馈）
+>     - 在 Slide 14 作为 sample — 3-5 个 bullet 关键打击点，演讲时 hold-in-mind 用
+>     - 区分于完整 speaker note（预演剧本用）
+>     - BOSS 评估后决定是否要全 deck 套用此格式
+> 27. **总页数 24 → 25** — Section 3 从 6 页扩展为 **7 页（完整科学叙事链：思想 → 架构 → 持续学习 → Hard Evidence → 行业 benchmark → 具体 case → 实验 roadmap）**
 >
 > 与既有文档关系：
 > - [`xfund-pitch-deck-blueprint.md`](./xfund-pitch-deck-blueprint.md) (v1) 已 deprecated；保留为研究底稿
@@ -145,7 +159,7 @@ v1 蓝图过深，错在三个地方：
 ### Q5: 钻营 portfolio 嫌疑 — 同意修正
 
 **修正**：
-- v1 Slide 18/17/18 三页 portfolio 对话 → **完全删除**（PPT 不出现）
+- v1 Slide 19/17/18 三页 portfolio 对话 → **完全删除**（PPT 不出现）
 - 改为：在 Q&A 中**被问到才答**——"如果你想知道我们和 Open Evidence / Delphi 的差异，我可以用一句话讲清楚"
 - 直接引用 Patrick 的话从三句精简为**只在开场提 1 次**（"chase the talent"）
 
@@ -186,13 +200,13 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-## 第二部分 — 60 分钟 Deck 完整蓝图（**24 页 — v2.4**）
+## 第二部分 — 60 分钟 Deck 完整蓝图（**25 页 — v2.5**）
 
-> **v2.4 升级**：v2.3 23 页 → **24 页**。新增 Slide 13 (Architecture Made Concrete — Real Einstein) 作为 Section 3 末尾的具象化闭环；L4 拒答验证 Slide 8 第 1 条 first principle。
+> **v2.5 升级**：v2.4 24 页 → **25 页**。新增 Slide 14 (Experiment Roadmap) 作为 Section 3 evidence pipeline 承诺；引入"🎯 现场口播 hooks"格式 sample。
 > 每页平均停留 2.5 分钟+，video demo 段落每页 3 分钟。
 >
-> **Section 3 现在 6 页完整叙事链**：
-> Slide 8 (Three First Principles + Body+Brain) → Slide 9 (Soul Migration) → Slide 10 (杨柳 18 篇 A-list + Hanneke 合著) → Slide 11 (Hard Evidence：O(log n) 主动学习 + 多时间尺度 + 持续学习) → Slide 12 (Companion Benchmark 网站) → **Slide 13 (Einstein Case Study — 抽象架构具象化闭环)**
+> **Section 3 现在 7 页完整科学叙事链**：
+> Slide 8 (Three First Principles + Body+Brain) → Slide 9 (Soul Migration) → Slide 10 (杨柳 18 篇 A-list + Hanneke 合著) → Slide 11 (Hard Evidence：O(log n) 主动学习 + 多时间尺度 + 持续学习) → Slide 12 (Companion Benchmark 网站) → Slide 13 (Einstein Case Study — 抽象架构具象化闭环) → **Slide 14 (Experiment Roadmap — 4 SHADOW 候选 + 4 阶段工程化路线图 + 90 天 progress 承诺)**
 >
 > 视觉风格延续老 PPT 的"❌ Mainstream / ✅ Volvence" 极简对照格式。
 
@@ -446,7 +460,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 3 — 技术架构 + Hard Evidence + Case Study（P8–P13，共 17 分钟）
+### Section 3 — 技术架构 + Hard Evidence + Case Study + Roadmap（P8–P14，共 19.5 分钟）
 
 #### Slide 8 — Three First Principles → Body + Brain Architecture
 
@@ -788,7 +802,79 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 4 — 产品 + 商业化（核心：私域 deep dive）（P14–P19，共 18 分钟）
+#### Slide 14 — Experiment Roadmap: What We're Running Next
+
+**Layout**: 上半页（55%）— 4 条 ongoing 并行 SHADOW 实验候选表格；下半页（45%）— 4 阶段工程化路线图 + 每 90 天 progress 承诺。视觉重点：**4 阶段路线图用横向流程图**（A ✅ / B ⏳ / C ⏸ / D ⏸），让 Patrick 一眼看出"工程已就位、数据驱动决策"。
+
+**On-screen**:
+> **Experiment Roadmap — What We're Running, How, and When We Decide**
+>
+> *Slide 11-13 给你看了我们的 evidence。这一页给你看接下来的 evidence pipeline。*
+>
+> ──
+>
+> **4 条阶段 C 并行 SHADOW 实验（基础设施已就位 · 1-2 月内启动）**:
+>
+> | # | 候选 | 想解决/提升什么 | 实验设计 |
+> |---|---|---|---|
+> | 1 | **SYS-1** CPD 切换涌现 | metacontroller 切换边界从硬编码 → **PE spike 驱动的无监督检测**（呼应 Slide 8 "多时间尺度抽象学习"） | profile = `cpd-beta-switch` vs baseline · paper-suite-small × 5 seeds |
+> | 2 | **COG-1** 反事实信用 | "谁造成了长期关系结果" 从单 turn 归因 → **least-control 反事实推断**（呼应 Slide 8 "活人感 = 长期关系曲线优化"） | profile = `counterfactual-credit` + commitment lineage |
+> | 3 | **COG-2** ToM owner 拆分 | `user_model` 一个 bucket → **belief / intent / feeling / preference 4 个独立 owner**（multi-party 场景核心） | profile = `tom-owner` + paper-suite 多人场景 fixture |
+> | 4 | **COG-3** Persona / Regime 几何漂移 | regime / value drift 从无监控 → **read-only 几何 readout**（呼应 Slide 13 L4 拒答的延伸） | profile = `persona-geometry-readout` (read-only) |
+>
+> ──
+>
+> **工程化 4 阶段路线图（不是路演愿景，是工程文档）**:
+>
+> ```
+> Phase A ─ 现状核查矩阵                  ✅ 完成（2026-05-12）— 485 行 brief 已交付
+> Phase B ─ 裁判席 + 双门 + 契约同步       ⏳ 待启动（EVO-2 / SYS-2+DM-4 / OA-1+OA-2 / OA-4 / OA-3 — 5 packet 串行）
+> Phase C ─ 4 条 SHADOW profile 并行      ⏸ 1-2 月内启动 — 5 seeds × N cases × 2 profiles → 88 metric delta 表
+> Phase D ─ profile → ACTIVE 数据决策      ⏸ 由数据决定切换，不由工程师直觉
+> ```
+>
+> ──
+>
+> **承诺给 Xfund**：每 90 天一份 progress 备忘 · 含 5 seeds × N cases × 2 profiles → 88 metric delta 表 · DD 团队可现场核对每次实验决策的依据
+>
+> *源：`docs/moving forward/experiment.md` v3（170 行工程文档）+ `docs/moving forward/experiment-phase-a-brief.md`（485 行 Phase A brief）— Xfund DD 团队可现场抽查*
+
+**🎯 现场口播 hooks（2.5 min，记 4 个关键打击点）**：
+1. 「基础设施已就位：WiringLevel 三态 + 5 seeds × N cases × 2 profiles → 88 metric delta 表」
+   → 数据决定 ACTIVE，不靠直觉
+2. 「4 条 ongoing SHADOW 实验候选：SYS-1 / COG-1 / COG-2 / COG-3」
+   → 从 100+ 篇前沿论文交叉调研筛选，每条对应 Section 3 一个 first principle 的算法升级
+3. 「4 阶段路线图：A ✅ B ⏳ C ⏸ D ⏸」
+   → A 已完成（485 行 brief 在仓库），B 5 packet 串行，C 4 profile 并行，D 数据决策
+4. 「每 90 天给 Xfund 一份 progress 备忘 + 88 metric delta 表」
+   → Patrick DD 团队可现场核对每次实验决策
+
+**Speaker note (2.5 min — 预演用)**:
+> "Patrick，最后这页 Section 3 我给你看我们**正在做的、和接下来要做的实验**——这是给你的 evidence pipeline 硬承诺，不是融资 PPT 的愿景。
+>
+> 我们的实验工程化做到了什么程度？四件事——
+>
+> **第一，基础设施已就位**——WiringLevel 三态（DISABLED / SHADOW / ACTIVE）允许我们在同一个进程里同时跑'旧逻辑 + 新逻辑'对照。每次架构改动都走 5 seeds × N cases × 2 profiles 跑出 88 metric 的 delta 表，**由数据决定 ACTIVE，不靠工程师直觉**。
+>
+> **第二，4 条 ongoing SHADOW 实验候选**——每条都从 100+ 篇前沿论文交叉调研中筛选，每条对应 Section 3 一个 first principle 的算法升级：
+> - SYS-1：metacontroller 切换边界从硬编码 → PE 驱动的无监督检测——是 Slide 8 多时间尺度抽象的工程化提升；
+> - COG-1：反事实信用——'谁造成了长期关系结果' 从单 turn 归因 → least-control 反事实推断——是 Slide 8 '活人感 = 长期关系曲线优化' 的算法升级；
+> - COG-2：ToM owner 从一个 bucket → 4 个独立 owner（belief/intent/feeling/preference）——multi-party 场景核心算法升级；
+> - COG-3：regime / value drift 的 read-only 几何 readout——是 Slide 13 L4 拒答的延伸算法。
+>
+> **第三，工程化 4 阶段路线图**——Phase A 现状核查已完成（485 行 brief 在仓库）；Phase B 5 packet 串行（裁判席就位 + 双门治理 + 契约同步）；Phase C 4 SHADOW profile 并行；Phase D profile → ACTIVE 由数据决定。这不是路演愿景，是仓库里的工程文档 `docs/moving forward/experiment.md`。
+>
+> **第四，每 90 天给 Xfund 一份 progress 备忘**——含 5 seeds × N cases × 2 profiles 的 88 metric delta 表。Patrick，你的 DD 团队可以现场核对每一次实验决策的依据。
+>
+> 总结一句话：**我们不靠喊口号做产品，靠工程化实验路线图做产品**。"
+
+**Why this slide**: BOSS 反馈"我们正在做的实验 + 要提升的方向 + 怎么做的打算"——本页直接回应。**与 Slide 11 Hard Evidence 形成"已有 evidence → 进行中实验 → 计划 evidence pipeline"的完整闭环**。这页给 Patrick 一个 senior VC 极少见到的硬信号——"这个团队的实验决策由数据驱动，不由直觉驱动"——这正是 xfund 公理 D（大学商业化三条件）中"sophisticated IP licensing" 的精神延伸：成熟的工程文化。
+
+**v2.5 设计变化**：本页是 deck 中**第一页带"现场口播 hooks"格式的页**（响应 BOSS Q1+Q2 反馈），作为 sample 让 BOSS 评估是否要全 deck 套用此格式。speaker note 严格控制在 2.5 min 字数（~500 字），不再超时。
+
+---
+
+### Section 4 — 产品 + 商业化（核心：私域 deep dive）（P15–P20，共 18 分钟）
 
 > **关键设计变化（v2.1）**：v2.0 用 4 段视频平均铺陈 4 个场景；v2.1 改为：
 > - **私域运营 deep dive**（5 页 + 1 段 7 分钟视频）— 占 Section 4 的 75%
@@ -798,7 +884,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 14 — 商业化进展概览（Time Anchor）
+#### Slide 15 — 商业化进展概览（Time Anchor）
 
 **Layout**: 时间轴 — 从 2023 到 2026 Apr，标 10 个里程碑。**视觉重点**：用粗线标出 6 个 JV 的时间密集区（2026 Feb-Apr），形成"4 个月签 6 JV"的视觉冲击。
 
@@ -835,7 +921,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 15 — 私域运营是什么（中国独有市场结构科普）
+#### Slide 16 — 私域运营是什么（中国独有市场结构科普）
 
 > 这一页是给海外 VC 必须的"市场科普页" — Patrick 大概率不深刻理解中国私域结构。讲透这一页才有后续 demo 的 ROI。
 
@@ -881,7 +967,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 16 — 为什么是 Volvence（团队 × 技术 × 市场三角）
+#### Slide 17 — 为什么是 Volvence（团队 × 技术 × 市场三角）
 
 **Layout**: 三个圆圈交集图（Venn）— 左：赵江波 25 年销售；右：杨柳持续学习 + Body+Brain；下：中国私域市场。中央交集写 "Volvence's Unique Position"。
 
@@ -924,7 +1010,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 17 — 私域 Demo（Mobi 28M MCN）— 7 分钟视频
+#### Slide 18 — 私域 Demo（Mobi 28M MCN）— 7 分钟视频
 
 **Layout**: 视频前一页 — 左侧 Mobi partner 信息 + 痛点，右侧 demo 看点列表。
 
@@ -963,7 +1049,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 18 — 私域单位经济 + Mobi JV 合资分红结构
+#### Slide 19 — 私域单位经济 + Mobi JV 合资分红结构
 
 **Layout**: 左侧 funnel 漏斗（Mobi 28M 粉丝 → 私域池 → 187K 年度成交单），右侧 Excel 真实分红结构 + 与传统 SCRM 对比。
 
@@ -1018,7 +1104,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 19 — Highlight Reel + 3 年完整财务全景
+#### Slide 20 — Highlight Reel + 3 年完整财务全景
 
 **Layout**: 上半页（30%）3 列其他场景简表 + highlight reel 视频按钮；下半页（70%）3 年完整财务表 + 双货币双柱图。
 
@@ -1081,9 +1167,9 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 5 — 不卖什么 + 风险地图（P20–P21，共 4 分钟）
+### Section 5 — 不卖什么 + 风险地图（P21–P22，共 4 分钟）
 
-#### Slide 20 — Anti-claims（成熟度信号）
+#### Slide 21 — Anti-claims（成熟度信号）
 
 **Layout**: 高密度 anti-claim 列表。视觉简洁。
 
@@ -1106,7 +1192,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 21 — 风险地图
+#### Slide 22 — 风险地图
 
 **Layout**: 三列表格 — 风险 / 概率 / 应对。
 
@@ -1127,9 +1213,9 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-### Section 6 — Ask + Close（P22–P24，共 3 分钟）
+### Section 6 — Ask + Close（P23–P25，共 2.5 分钟）
 
-#### Slide 22 — 12-18 个月里要兑现的 milestone
+#### Slide 23 — 12-18 个月里要兑现的 milestone
 
 **Layout**: 时间轴 — 0 到 18 个月。
 
@@ -1153,7 +1239,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 23 — Why Xfund
+#### Slide 24 — Why Xfund
 
 **Layout**: 三段简洁说明。
 
@@ -1174,7 +1260,7 @@ v1 蓝图过深，错在三个地方：
 
 ---
 
-#### Slide 24 — Close（一句话收尾）
+#### Slide 25 — Close（一句话收尾）
 
 **Layout**: 全屏黑底白字。
 
@@ -1253,7 +1339,7 @@ v1 蓝图过深，错在三个地方：
 ### 演讲准备
 
 - **语速**：每分钟 200-220 字（中文）/ 130-150 词（英文）
-- **关键停顿**：Slide 2（个人故事）/ Slide 7（反向兑现）/ Slide 10（杨柳论文）/ Slide 19（revenue）后必须停 3-5 秒
+- **关键停顿**：Slide 2（个人故事）/ Slide 7（反向兑现）/ Slide 10（杨柳论文）/ Slide 20（revenue）后必须停 3-5 秒
 - **眼神**：直视 Patrick 60% 时间
 - **手势**：禁用任何"想象一下"、"假设"这种推销手势
 - **时间控制**：50 分钟讲 + 10 分钟 Q&A，提前打印每页时长备份卡
@@ -1261,6 +1347,17 @@ v1 蓝图过深，错在三个地方：
 ---
 
 ## 变更日志
+
+- **2026-05-15 v2.5**：基于 BOSS 六轮反馈增量修正（**新增 Experiment Roadmap + 现场口播 hooks 格式 sample**）。
+  - **新增 Slide 14: Experiment Roadmap — What We're Running Next**
+    - 数据源：`docs/moving forward/experiment.md` v3（170 行）+ `experiment-phase-a-brief.md`（485 行 Phase A brief）
+    - 内容：4 条 SHADOW 实验候选（SYS-1 CPD / COG-1 反事实信用 / COG-2 ToM owner / COG-3 Persona Geometry）+ 4 阶段工程化路线图（A ✅ / B ⏳ / C ⏸ / D ⏸）+ 每 90 天 progress 承诺
+    - 战略价值：senior VC 硬信号 — "实验决策由数据驱动，不由直觉驱动"
+    - 与 Slide 11+13 闭环：已有 evidence → 具象 case → 计划中的 evidence pipeline
+  - **首次引入"🎯 现场口播 hooks"格式**（响应 BOSS 关于 speaker note 过长 + 不是要照念的反馈）
+    - Slide 14 作为 sample：3-5 个 bullet 关键打击点 + 完整 speaker note 严格控制在 2.5 min 字数
+    - BOSS 评估后决定是否要全 deck 套用此格式
+  - **总页数 24 → 25**：Section 3 从 6 页扩展为 **7 页完整科学叙事链**
 
 - **2026-05-15 v2.4**：基于 BOSS 五轮反馈增量修正（**新增 Einstein Case Study 闭环 Section 3**）。
   - **新增 Slide 13: Architecture Made Concrete — Real Einstein, Engineered**
@@ -1318,13 +1415,13 @@ v1 蓝图过深，错在三个地方：
 | 0d | VZ-MemProbe 4 探针的 baseline RAG 对比数据是否已跑出？ | 高 | 默认有质性结论（baseline 在 update/temporal/assoc 结构性失分）；如有量化对比 deck 上更强 |
 | **v2.2 决策项** | | | |
 | 1 | Slide 8 三个核心认知的视觉呈现：每句独立成段 vs 整组合一图？ | **极高** | 默认每句独立成段（黑底白字、行距大），形成阅读节奏感。如果设计师有更强方案可替代 |
-| 2 | Slide 19 RMB / USD 双货币展示是否合适？或全部用 RMB？ | 中 | 默认双货币——Patrick 海外 VC，RMB 单位他要心算汇率；汇率取 7.0 |
-| 3 | Slide 19 中"新增 10 个项目（2027/2028）"是否已有 pipeline 名单可供 DD？ | 高 | 默认有内部 pipeline；DD 阶段给 Patrick 团队脱敏版 |
+| 2 | Slide 20 RMB / USD 双货币展示是否合适？或全部用 RMB？ | 中 | 默认双货币——Patrick 海外 VC，RMB 单位他要心算汇率；汇率取 7.0 |
+| 3 | Slide 20 中"新增 10 个项目（2027/2028）"是否已有 pipeline 名单可供 DD？ | 高 | 默认有内部 pipeline；DD 阶段给 Patrick 团队脱敏版 |
 | 4 | Excel 内部预算是否可在 DD 阶段开放给 Patrick 团队？ | 高 | 默认可（脱敏版本）——这是 deck 17 财务硬数字的底稿 |
 | **v2.1 已部分确认 / 调整** | | | |
 | 5 | Mobi 7 分钟核心 demo 视频素材 | **极高** | ✓ **BOSS 确认已有素材** — 需要按 4 个 explain 看点剪辑（跨 session 记忆 / 偏好稳定 / 推荐节奏 / Rupture-Repair） |
-| 6 | Mobi 试点 6 周转化率数据 | **极高** | ✓ **BOSS 确认试点数据尚未跑出** — Slide 18 已诚实化为 projected + 加入 kill criterion |
-| 7 | Slide 15 微盟/有赞/企微管家点名对比 | 高 | 默认敢点名——商业上是公平比较，且 Patrick 喜欢具体名字 |
+| 6 | Mobi 试点 6 周转化率数据 | **极高** | ✓ **BOSS 确认试点数据尚未跑出** — Slide 19 已诚实化为 projected + 加入 kill criterion |
+| 7 | Slide 16 微盟/有赞/企微管家点名对比 | 高 | 默认敢点名——商业上是公平比较，且 Patrick 喜欢具体名字 |
 | 8 | 客单价对比区间 "$1K vs $5K-50K/月" | 高 | 默认 1K 来自微盟招股书，5K-50K 是 6 JV 实测范围；需 BOSS 二次确认精确区间 |
 | 9 | "2017 阿里 PPT 关于自动化编程"是否有原件 | 高 | ✓ **BOSS 确认原件在手** — Slide 2 加入"📎 原件可现场出示" — 强烈建议演讲时直接拿出来给 Patrick 看 1-2 秒 |
 | 10 | "2022 自费 all-in"具体金额 | 高 | ✓ **BOSS 确认 500 万 RMB** — Slide 2 已写入硬数字 |
