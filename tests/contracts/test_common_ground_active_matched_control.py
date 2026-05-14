@@ -217,11 +217,13 @@ def test_planner_emits_observed_tag_and_adds_continuity_note_for_dyad_atom() -> 
     )
     cg_tags = [t for t in plan.rationale_tags if t.startswith("common_ground")]
     assert any(t.startswith("common_ground=observed(dyads=2,") for t in cg_tags)
-    # ``acquaintance_building`` already includes CONTINUITY_NOTE in its
-    # default sections (mirrors warmth-first regime). Adding the same
-    # section is a no-op so the ``common_ground_add=continuity_note``
-    # rationale must NOT fire here.
-    assert not any(t.startswith("common_ground_add=continuity_note") for t in cg_tags)
+    # R14 (regime is not a prompt label): with no assembly snapshot the
+    # planner falls back to a neutral ``TurnIntent.DIRECT_ANSWER`` rather
+    # than mapping ``regime_id == "acquaintance_building"`` to
+    # ``WARMTH_FIRST``. ``DIRECT_ANSWER`` does not include CONTINUITY_NOTE
+    # in its default sections, so the common_ground modulation correctly
+    # fires the ``common_ground_add=continuity_note`` rationale here.
+    assert any(t.startswith("common_ground_add=continuity_note") for t in cg_tags)
 
 
 def test_planner_adds_continuity_note_when_not_in_default_sections() -> None:
