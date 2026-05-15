@@ -48,10 +48,27 @@ PACKAGES=(
   packages/dlaas-platform-api
 )
 
+# Pass 1: register every workspace sibling editably with --no-deps so the
+# circular workspace dependency cluster (lifeform-openai-compat <->
+# lifeform-service <-> lifeform-protocol-runtime) does not cause pip's
+# resolver to try to fetch unpublished `==0.1.*` siblings from PyPI.
 for pkg in "${PACKAGES[@]}"; do
   if [[ -d "${pkg}" ]]; then
-    echo "==> pip install -e ${pkg}"
+    echo "==> [pass 1] pip install -e ${pkg} --no-deps"
     "$PYTHON_BIN" -m pip install -e "${pkg}" --no-deps "$@"
+  fi
+done
+
+# Pass 2: re-run with full dep resolution. By now every workspace sibling
+# is editable and satisfies its ==0.1.* constraint, so pip only fetches
+# the *external* PyPI deps declared in each wheel's pyproject.toml
+# (aiohttp / pypdf / beautifulsoup4 / mwparserfromhell / lxml / requests
+# / PyYAML / ...). This keeps pyproject.toml as the single source of
+# truth for runtime deps — install.sh never has to mirror the list.
+for pkg in "${PACKAGES[@]}"; do
+  if [[ -d "${pkg}" ]]; then
+    echo "==> [pass 2] pip install -e ${pkg}"
+    "$PYTHON_BIN" -m pip install -e "${pkg}" "$@"
   fi
 done
 
