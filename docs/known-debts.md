@@ -1,7 +1,9 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: 2026-05-14 (第一性原理四轮违规修复 follow-up — #78-#81 land：framework-agnostic getattr default typed-path 升级 / regime_id 字符串硬编码 / score_regimes 用 evaluation feature / runtime_helpers hint summary 文本硬编码)
+> Last updated: **2026-05-15** (debt #82: Companion Bench reference SUT 真跑实证缺位 / debt #83: 6 JV → in-production 真实 ARR 兑现路径缺位 — 两条都是融资尽调 evidence 阻塞条件，对接 deck v2.7 Slide 13 Companion Bench + Slide 22 12-18 个月 milestone)
+
+> 2026-05-15 update v2 (debt #82 / #83 入档 — 与 xfund-pitch-deck-v2.7 同步): 两条 commercialization evidence 缺口正式入档：**debt #82** Companion Bench reference SUT 真跑实证缺位 — 6 大主流 substrate（GPT-5 / Claude Opus 4.7 / Qwen3-Max / DeepSeek V4 / Llama 5 / Gemini）只有 Qwen smoke 已跑且受 #71 / #72 影响 evidence 不可外引，其余 5 个零真实跑分 — leaderboard launch 硬前提（5 phase Phase A.1-A.5 timeline）；**debt #83** 6 JV → in-production 真实 ARR 兑现路径缺位 — deck v2.7 Slide 21 财务全景 + Slide 25 Ask 都依赖"6 JV → 3 in-production · ARR > $1M real"承诺，但当前 0 in-production（3 phase Phase 1-3 timeline）。两条都是融资尽调阻塞条件，列入 #82 与 [`#29`](../docs/known-debts.md) / [`#32`](../docs/known-debts.md) / [`#48`](../docs/known-debts.md) 同源 launch path；#83 与 [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §5 推荐排序绑定。
 
 > 2026-05-14 update (第一性原理违规四轮修复 follow-up — #78-#81 入档): 经过 4 轮针对 R-PE / R8 / R14 / first-principles 的违规扫描 + 修复（累计 **59 处修复 / 跨 27 个文件**：1 轮 13 处 SSOT 吞错误 hasattr / 2 轮 11 处 R-PE evaluation 反向 + R14 regime 字符串硬编码 + R8 跨 wheel 私有访问 / 3 轮 33 处 typed snapshot getattr defense + trace_collector 4 处真 bug 字段名错 + 2 处吞错误 + 1 处早期 return bug / 4 轮 2 处 followup_manager 多候选属性名猜测），仓库主要 R8 SSOT / R-PE 主链 / R14 regime-as-prompt-label 违规已经收尾。第四轮深扫后**剩余 getattr default 绝大多数是有意为之的合规设计**（pure helper 参数 `object | None` / cross-tier duck-typed builder / 第三方 HF API / dataclass `__post_init__` 自验证 / owner 内部 closed schema 遍历）。本批 4 条新 debt 记录前面四轮 plan 中明确 "不在本次范围" 的 4 类 follow-up 候选，等待长期演化触发条件成熟时收口：**#78** framework-agnostic getattr default 系统性 typed-path 升级（pure helpers / cross-tier builders / followup_manager enum 字段） / **#79** `apply_metacontroller_evidence` regime_id 字符串硬编码（owner 内部 reviewer-defined fallback，需 [#44](../docs/known-debts.md) SYS-1 learned policy land 后让位） / **#80** `score_regimes` 用 evaluation 作 input feature（R-PE 严格版本，需 [#48](../docs/known-debts.md) judge sweep 量化偏差后决策） / **#81** `runtime_helpers.py` 6 段 hint summary 文本硬编码（i18n / 新 domain 触发后再 typed 化）。**这 4 条都不阻塞任何 milestone**，列入主要为：(a) 给未来 schema drift / mypy strict / i18n / SYS-1 learned policy land 提供 grep 入口；(b) 不让"reviewer 自我标注 framework-agnostic"的设计选择被时间遗忘；(c) 与已有 [#43](../docs/known-debts.md) Arch Uplift Phase 2 follow-up 节奏对齐。**今天能跑 + 长期影响可演化性**严格符合 known-debts 维护规则。
 
@@ -2200,6 +2202,55 @@ return (
   3. contract test：grep `if domain == ` 在 `runtime_helpers.py` 归零；新 domain 加入时 contract test 自动覆盖 summary + topic_tags 一致性。
   4. 与 [`#79`](../docs/known-debts.md) regime fallback table / [`#43`](../docs/known-debts.md) Arch Uplift 同 packet 推进最高效（都属于"owner schema 替代 if/elif"）。
 - **优先级**：**低**（不阻塞任何 milestone；与 i18n 路径同节奏 land 最高效）
+
+---
+
+## 82. Companion Bench reference SUT 真跑实证缺位（leaderboard launch 硬前提 / 融资尽调 evidence 阻塞）
+
+- **路径**：[`packages/companion-bench/`](../packages/companion-bench/) v1.0 reference impl + [`scripts/companion_bench/score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) reference SUT orchestrator + [`site/data/submissions/`](../site/data/submissions/) leaderboard 数据面
+- **问题**：截至 2026-05-15，Companion Bench v1.0 reference 实现已 land（32 文件完整 package + 24 公开 + 96 held-out scenarios + 6 family × 6 axis），但 **6 大主流 substrate 真实跑分尚未完成实证**：
+  - **GPT-5**（OpenAI）/ **Claude Opus 4.7**（Anthropic）/ **Qwen3-Max**（Alibaba）/ **DeepSeek V4** / **Llama 5**（Meta）/ **Gemini**（Google）
+  - 其中 [`site/data/submissions/dashscope-qwen3-max-smoke.json`](../site/data/submissions/dashscope-qwen3-max-smoke.json) 已有 Qwen smoke 跑分（受 #71 / #72 影响 evidence 不可外引），其余 5 个主流 substrate **零真实跑分**
+- **核心含义**：
+  - (a) deck v2.7 Slide 13 (Companion Benchmark) 列出"Reference SUT: GPT-5 / Claude / Qwen / DeepSeek / Llama / Gemini" — 实际**只有 Qwen smoke 跑过，且因 judge robustness 问题（#71 / #72）evidence 不可外引**
+  - (b) Patrick / senior VC 视角的关键质问："**你说自己 benchmark 上分数最高 — 但谁来跑你的尺子？大厂为什么要来跑你造的 benchmark？**" — 当前回答只能给出 "Phase A 在跑，预计 X 月公布"，**不能给出实证分数**
+  - (c) 这是 Companion Bench 作为"行业可信度资产 / 出题人位置二阶溢价"的**核心 evidence 缺口** — 无 reference SUT 真实跑分 = leaderboard 没有 baseline = "vanity benchmark" 风险
+- **违反**：无 R 铁律违反；属于"对外 benchmark 工程层就位 → 实证层未触发"的预算 + 时机层债。
+- **风险**：**高**（融资尽调 + 行业可信度视角）。短期：deck v2.7 Q&A 备答"Phase A 跑分中，预计 X 月公布"但被识别为延迟；中期：Patrick DD 团队会问"哪个 academic 已 review 你的方法论？哪个大厂团队已合作？" — 当前两条都缺位；长期：Companion Bench 如未在 6-12 个月内有 ≥ 3 个大厂主流模型真实跑分 + 至少一个 third-party academic backing，会被归为 "early benchmark / vanity scoring" 档位，失去 leaderboard 公信力窗口。
+- **触发条件**：(a) Companion Bench v1.0 公开 launch 之前（必须先有 baseline 跑分数据）；(b) Patrick / Xfund DD 阶段询问 reference SUT 实测；(c) 任何第三方 vendor 联系 Volvence 询问 benchmark 准入；(d) academic conference / workshop 投稿（leaderboard paper 必须有 reference 数据）。
+- **推荐修法**：
+  1. **Phase A.1 (M0-M2)**：完成至少 **3 个主流 reference SUT 真跑**（优先级：Qwen3-Max ✓ 已 smoke / DeepSeek V4 / Claude Opus 4.7）— 真跑 24 公开 scenarios × 3 seeds，跑出 95% CI；预算估计 $1K-3K API 费 + 1 周编排（[`#56`](../docs/known-debts.md) [`estimate_quarterly_cost.py`](../scripts/companion_bench/estimate_quarterly_cost.py) 已就位）
+  2. **Phase A.2 (M0-M2 并行)**：解决 [`#71`](../docs/known-debts.md) judge robustness 阻塞（Qwen-内 weak proxy judge σ > 8 / 真 cross-family sweep [`#48`](../docs/known-debts.md)）— 至少跑通 Anthropic + OpenAI 两个 family judge 对比，σ < 3 才能 publish leaderboard
+  3. **Phase A.3 (M2-M4)**：补齐剩余 3 个 reference SUT（GPT-5 / Llama 5 / Gemini）真跑 — 预算估计 $2K-5K + 1 月编排（[`#32`](../docs/known-debts.md) [`score_reference_systems.py`](../scripts/companion_bench/score_reference_systems.py) 已就位待批准）
+  4. **Phase A.4 (M4-M6)**：争取 **1 个 third-party academic backing**（建议 Yang Liu 学术 network：CMU / Yale / Hanneke 系），把 Companion Bench paper 投 ACL / EMNLP / ICLR workshop — 这是从 "vanity benchmark" 升级到 "industry-standard benchmark" 的最强信号
+  5. **Phase A.5 (M6 onwards)**：[`#33`](../docs/known-debts.md) human-eval protocol v0.1 land + [`#35`](../docs/known-debts.md) quarterly rotation 真实启动 — 让 Companion Bench 进入 "live benchmark" 状态而非 "static benchmark"
+- **优先级**：**高**（融资尽调 + 行业可信度阻塞条件 / leaderboard launch 硬前提）
+- **关联**：
+  - 与 [`#29`](../docs/known-debts.md) Companion Bench v1.0 reference impl 直接关联（同一 launch path）
+  - 与 [`#32`](../docs/known-debts.md) Companion Bench launch sub-tracks (a) 真 10 reference systems 跑分 + (b) DNS / Pages + (c) heldout deploy key + (d) working group 形成同节奏推进
+  - 与 [`#48`](../docs/known-debts.md) 真 cross-family judge sweep 强依赖（先 #48 → 再 #82 出 leaderboard）
+  - 与 [`#71`](../docs/known-debts.md)–[`#75`](../docs/known-debts.md) Companion Bench smoke real-run findings 同源 — 都是"跑实证暴露 evidence 缺口"
+
+---
+
+## 83. 6 JV 已签 → in-production 真实 ARR 兑现路径缺位（融资尽调 / 商业 evidence 阻塞条件）
+
+- **路径**：跨多个 lifeform-domain-* package（Mobi 私域 / 高盖伦育儿 / 跨境电商 / UploadLive / Hengyi-Guomao / 30K 海外企业）+ `lifeform-service` alpha-API multi-tenant 路径
+- **问题**：截至 2026-05-15，6 JV 全部已签合作协议（含 200K 大客户 / 4500 万粉丝 + 5 万企业客户连接基础），但 **0 个 JV 已产生真实 ARR**。所有 deck / commercialization 文档中的 revenue 数字都是基于"真实 partner audience × 行业基线 conversion rate × 已签 partner 协议的分成结构"的 **conservative projection**，**不是 in-production 实测**。这种缺口在融资尽调阶段会被 senior VC 立即识别（"projected vs realized"是 VC 第一道过滤）。
+- **核心含义**：
+  - (a) deck Slide 19 (Mobi 单位经济) / Slide 20 (3 年财务全景) / Q&A #3 / Q&A #6 的所有数字均为 projected — 这一点在 deck v2.7 已经诚实化（"全部 projected 但基于真实 audience anchor + conservative conversion 假设"）
+  - (b) 但 **DD 阶段 Patrick 团队会要求 in-production evidence**：哪个 JV 已经产生第一笔分账？是哪一天？金额多少？invoice 在哪？
+  - (c) 当前**没有一个 JV 能给出这些 in-production evidence**——这是融资 timeline 的硬约束
+- **违反**：无 R 铁律违反；属于"商业承诺已写进 deck 但实际 production 滞后"的工程 + 业务双层债。
+- **风险**：**高**（融资尽调视角）。短期：deck 自身已 projected 标注 + kill criterion 守门；中期：Patrick 这一类 senior VC 在 DD 时会问"3-6 个月内能否给我 1 个 JV 的真实 in-production ARR"，需要明确 commitment timeline；长期：如果 18 个月后 6 JV 仍 0 in-production，整个 commercialization thesis（Slide 14-20）会被打回"早期 thesis 团队"档位。
+- **触发条件**：(a) Patrick / Xfund DD team formal request for in-production ARR evidence（任何 institutional fundraising round 启动时）；(b) Series A 启动前的 milestone gate（deck 承诺"6 JV → 3 in-production + ARR > $1M real"）；(c) JV partner 提出"何时进入正式 launch"问题；(d) 内部 OKR season（每 90 天 progress 备忘 to Xfund）。
+- **推荐修法**：
+  1. **Phase 1 (M0-M3)**：选 2 个 highest-ROI JV（推荐 Mobi 私域 + 高盖伦育儿）作为 lighthouse，**优先做 in-production 接入**：(a) 完成 Volvence engine → JV partner 系统的真实接口；(b) 跑通 1 周小流量试点（10-100 真实用户）；(c) 第一笔真实分账 evidence；(d) 文档化为 [`docs/business/jv-in-production-evidence.md`](business/jv-in-production-evidence.md) 给 DD 团队
+  2. **Phase 2 (M4-M9)**：把 3-4 个 JV 推进到 in-production，**真实 ARR 累计达到 $500K-1M USD** — 这是 deck Slide 22 "12-18 个月里要兑现的 milestone" 的 M7-M12 目标，但需要真实数字落实
+  3. **Phase 3 (M10-M18)**：剩余 JV 推进 + 跨境电商 SaaS 启动 + 第 7-10 个 JV 签约 + 启动 Series A（deck 承诺数字 ARR $1M real）
+  4. **DD 防御**：在 deck 中所有 projected 数字旁明确标注 "projected based on real audience × conservative baseline"（v2.7 已落地 Slide 19 + Q&A #3）；DD 阶段提供 internal financial model Excel 给 Patrick 团队 verify projection 推算逻辑（v2.7 待决策项 #4）
+- **优先级**：**高**（融资尽调阻塞条件 / Series A 启动前必兑现）
+- **关联**：与 deck v2.7 Slide 22 (12-18 个月 milestone) 强绑定；与 [`docs/business/commercialization-assessment.md`](business/commercialization-assessment.md) §5 推荐排序相关
 
 ---
 
