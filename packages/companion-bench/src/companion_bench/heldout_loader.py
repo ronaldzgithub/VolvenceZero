@@ -4,11 +4,10 @@
 """Held-out scenario loader.
 
 The held-out set lives outside this wheel — in a private git submodule
-mounted at ``external/companion-bench-heldout/`` (preferred) or the
-legacy alias ``external/lscb-heldout/`` (kept for git-history continuity).
-See RFC §3 P3, §8.6. This module knows how to find that submodule,
-refuse to load if it is missing in environments that require it, and
-surface a clean message otherwise.
+mounted at ``external/companionbench-heldout/``. See RFC §3 P3, §8.6.
+This module knows how to find that submodule, refuse to load if it is
+missing in environments that require it, and surface a clean message
+otherwise.
 
 Held-out semantics:
 
@@ -30,14 +29,13 @@ import warnings
 from companion_bench.spec import ScenarioSpec, load_scenarios_dir
 
 
-_DEFAULT_HELDOUT_DIR_ENV = "COMPANION_BENCH_HELDOUT_DIR"
+_DEFAULT_HELDOUT_DIR_ENV = "COMPANIONBENCH_HELDOUT_DIR"
 
-# Preferred path first; legacy alias second. The loader auto-resolves to
-# whichever exists at runtime so existing checkouts keep working while new
-# clones use the rebranded name.
-_DEFAULT_HELDOUT_PATHS: tuple[tuple[str, ...], ...] = (
-    ("external", "companion-bench-heldout", "scenarios"),
-    ("external", "lscb-heldout", "scenarios"),
+# Single canonical path. The submodule lives at companionbench/heldout on
+# GitHub and is mounted under external/companionbench-heldout/ inside this
+# monorepo.
+_DEFAULT_HELDOUT_PATH: tuple[str, ...] = (
+    "external", "companionbench-heldout", "scenarios",
 )
 
 
@@ -46,18 +44,8 @@ class HeldOutMissingError(RuntimeError):
 
 
 def default_heldout_dir(repo_root: pathlib.Path) -> pathlib.Path:
-    """Path the harness expects the submodule to live at.
-
-    Returns the preferred ``companion-bench-heldout`` path if it exists,
-    otherwise falls back to the legacy ``lscb-heldout`` path. If neither
-    exists on disk the preferred path is returned (callers that ``require``
-    presence will then raise a clear error).
-    """
-    for parts in _DEFAULT_HELDOUT_PATHS:
-        candidate = repo_root.joinpath(*parts)
-        if candidate.exists():
-            return candidate
-    return repo_root.joinpath(*_DEFAULT_HELDOUT_PATHS[0])
+    """Path the harness expects the submodule to live at."""
+    return repo_root.joinpath(*_DEFAULT_HELDOUT_PATH)
 
 
 def is_heldout_present(heldout_dir: pathlib.Path) -> bool:
@@ -90,8 +78,7 @@ def load_heldout_scenarios(
             raise HeldOutMissingError(
                 f"held-out submodule not found at {heldout_dir}. "
                 f"Initialise it with `git submodule update --init "
-                f"external/companion-bench-heldout` (or the legacy "
-                f"`external/lscb-heldout` alias; requires deploy key)."
+                f"external/companionbench-heldout` (requires deploy key)."
             )
         warnings.warn(
             f"held-out submodule not present at {heldout_dir}; "

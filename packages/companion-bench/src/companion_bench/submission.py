@@ -65,7 +65,7 @@ from companion_bench.user_simulator import UtteranceClient
 class SubmissionAttestation:
     """Required attestation block (RFC §7.2)."""
 
-    no_lscb_derivative_in_training: bool
+    no_companionbench_derivative_in_training: bool
     no_scenario_specific_prompt: bool
     no_public_test_set_tuning: bool
     cross_user_memory_isolation: bool
@@ -76,7 +76,7 @@ class SubmissionAttestation:
     def all_affirmed(self) -> bool:
         return all(
             (
-                self.no_lscb_derivative_in_training,
+                self.no_companionbench_derivative_in_training,
                 self.no_scenario_specific_prompt,
                 self.no_public_test_set_tuning,
                 self.cross_user_memory_isolation,
@@ -143,7 +143,9 @@ def load_manifest(path: pathlib.Path | str) -> SubmissionManifest:
     if not isinstance(att_raw, dict):
         raise ValueError("attestation block must be a mapping")
     attestation = SubmissionAttestation(
-        no_lscb_derivative_in_training=bool(att_raw.get("no_lscb_derivative_in_training", False)),
+        no_companionbench_derivative_in_training=bool(
+            att_raw.get("no_companionbench_derivative_in_training", False)
+        ),
         no_scenario_specific_prompt=bool(att_raw.get("no_scenario_specific_prompt", False)),
         no_public_test_set_tuning=bool(att_raw.get("no_public_test_set_tuning", False)),
         cross_user_memory_isolation=bool(att_raw.get("cross_user_memory_isolation", False)),

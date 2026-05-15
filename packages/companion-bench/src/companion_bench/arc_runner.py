@@ -256,7 +256,7 @@ def run_arc(
                     sut_model_id=sut_resp.model_id,
                     sut_prompt_tokens=sut_resp.usage_prompt_tokens,
                     sut_completion_tokens=sut_resp.usage_completion_tokens,
-                    sut_telemetry=_extract_lscb_telemetry(sut_resp),
+                    sut_telemetry=_extract_companionbench_telemetry(sut_resp),
                 ),
             )
 
@@ -333,14 +333,14 @@ def _maybe_add_gap_prefix(text: str, gap_days: int, turn_index: int) -> str:
     return f"[It has been {gap_days} day(s) since we last spoke.] {text}"
 
 
-def _extract_lscb_telemetry(resp: SUTResponse) -> dict[str, str]:
+def _extract_companionbench_telemetry(resp: SUTResponse) -> dict[str, str]:
     """Pull telemetry headers we care about into a flat dict.
 
     The runner does NOT depend on any of these; they are recorded as
     bonus metadata for downstream ablation analysis. Missing headers
     are simply absent from the result.
     """
-    relevant_prefixes = ("x-lifeform-", "x-lscb-", "x-bench-")
+    relevant_prefixes = ("x-lifeform-", "x-companionbench-", "x-bench-")
     out: dict[str, str] = {}
     for key, value in resp.response_headers.items():
         lk = key.lower()

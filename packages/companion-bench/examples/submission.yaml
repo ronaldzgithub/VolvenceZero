@@ -17,7 +17,7 @@ generation_config:
   temperature: 0.0
   max_tokens: 512
 attestation:
-  no_lscb_derivative_in_training: true
+  no_companionbench_derivative_in_training: true
   no_scenario_specific_prompt: true
   no_public_test_set_tuning: true
   cross_user_memory_isolation: true

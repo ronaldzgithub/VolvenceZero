@@ -75,14 +75,14 @@ _PUBLIC_LIKE_BUT_IN_HELDOUT_DIR = textwrap.dedent(
 
 
 def test_missing_dir_returns_empty_with_warning(tmp_path: pathlib.Path) -> None:
-    missing = tmp_path / "lscb-heldout" / "scenarios"
+    missing = tmp_path / "companionbench-heldout" / "scenarios"
     with pytest.warns(UserWarning, match="held-out submodule not present"):
         out = load_heldout_scenarios(heldout_dir=missing, require=False)
     assert out == ()
 
 
 def test_missing_dir_with_require_raises(tmp_path: pathlib.Path) -> None:
-    missing = tmp_path / "lscb-heldout" / "scenarios"
+    missing = tmp_path / "companionbench-heldout" / "scenarios"
     with pytest.raises(HeldOutMissingError, match="held-out submodule not found"):
         load_heldout_scenarios(heldout_dir=missing, require=True)
 

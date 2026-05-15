@@ -35,7 +35,7 @@ _MANIFEST_FIXTURE = textwrap.dedent(
     generation_config:
       temperature: 0.0
     attestation:
-      no_lscb_derivative_in_training: true
+      no_companionbench_derivative_in_training: true
       no_scenario_specific_prompt: true
       no_public_test_set_tuning: true
       cross_user_memory_isolation: true
@@ -54,8 +54,8 @@ def test_load_manifest_round_trip(tmp_path: pathlib.Path) -> None:
 
 def test_load_manifest_rejects_unaffirmed_attestation(tmp_path: pathlib.Path) -> None:
     bad = _MANIFEST_FIXTURE.replace(
-        "no_lscb_derivative_in_training: true",
-        "no_lscb_derivative_in_training: false",
+        "no_companionbench_derivative_in_training: true",
+        "no_companionbench_derivative_in_training: false",
     )
     p = tmp_path / "m.yaml"
     p.write_text(bad, encoding="utf-8")

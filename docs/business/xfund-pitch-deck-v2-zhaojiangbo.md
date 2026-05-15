@@ -1563,6 +1563,19 @@ v1 蓝图过深，错在三个地方：
 
 ## 变更日志
 
+- **2026-05-15 v2.7.2**：minor patch — Slide 13 加 Niche Map 对比表（响应 BOSS 反馈 "Slide 13 没有说明和现有的各种接近的 bench 的区别"）。
+  - **Slide 13 新增对比表** — 7 行 × 5 列 niche map：
+    - MMLU / HumanEval / HELM（Stanford / OpenAI — IQ / 任务正确性 / 单 turn / 无关系演化）
+    - Chatbot Arena（LMSys — 通用对话偏好 / 单 turn pairwise / 无关系演化）
+    - MT-Bench（LMSys — 多 turn 任务完成 / 2-3 turn / 无关系演化）
+    - EQ-Bench 3（Paech — 单次共情打分 / 单 scenario / 无跨 session 记忆）
+    - RP-Bench / CharacterEval（中国学术界 — 角色扮演一致性 / 短对话 / 单一角色无关系演化）
+    - AgentBench（Tsinghua — Agent 任务完成能力 / 任务序列 / 无关系演化）
+    - **Companion Bench（Volvence 独占 — 长程陪伴关系质量 / 30-turn arc × 跨 session × 6 family / 关系阶段 + 修复 + 长期演化 A1-A6 六轴）**
+  - **关键差异 framing**：所有现有 benchmark 测的都是"单点能力" — 唯一空白是"长程关系曲线"
+  - **structurally 长期不会被占的两个原因**：(a) LLM-API wrapper 跑不了（无跨 session 持续学习）；(b) 大厂结构性回避（与"通用助手 + 信任厂商"叙事冲突）— 这与 Slide 8 灵魂 thesis 形成闭环
+  - **Speaker note** 自然提及对比逻辑
+
 - **2026-05-15 v2.7.1**：minor patch — 修正 BOSS 反馈 #5 真实意图。
   - **原始意图**：BOSS 反馈 #5 "把这个真跑做到 known debts 里面去" 真实意图 = **Companion Bench reference SUT 真跑**（5 大主流模型未实测），不是 "6 JV 真跑"
   - **known-debts.md 修正**：

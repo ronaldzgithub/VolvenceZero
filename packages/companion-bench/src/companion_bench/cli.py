@@ -68,7 +68,7 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
     manifest = SubmissionManifest(
         submission_id="smoke-test",
-        system_name="lscb-smoke-fakes",
+        system_name="companionbench-smoke-fakes",
         model_identifier="fake-sut/echo",
         base_url="http://localhost",
         api_key_env="UNSET",
@@ -169,7 +169,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--heldout-dir",
         type=pathlib.Path,
-        default=pathlib.Path("external/lscb-heldout/scenarios"),
+        default=pathlib.Path("external/companionbench-heldout/scenarios"),
     )
     run.add_argument("--artifact-dir", type=pathlib.Path, required=True)
     run.add_argument("--summary", type=pathlib.Path, default=None)
@@ -181,7 +181,7 @@ def _build_parser() -> argparse.ArgumentParser:
     hashes.add_argument("--include-heldout", action="store_true")
     hashes.add_argument(
         "--heldout-dir",
-        default="external/lscb-heldout/scenarios",
+        default="external/companionbench-heldout/scenarios",
     )
     hashes.set_defaults(func=cmd_hashes)
 

@@ -293,7 +293,7 @@ def build_submission_detail(
 
     manifest = summary.get("manifest", {})
     aggregate = {
-        "lscb_final": final_mean,
+        "companionbench_final": final_mean,
         "raw": final_mean,  # surface a separate "raw" only when meaningful (cap applied)
         "axis_means": per_axis,
         "axis_ci95": {k: list(v) for k, v in per_axis_ci.items()},
@@ -355,7 +355,7 @@ def build_aggregate_payload(
             "system_name": d.get("system_name"),
             "model_identifier": d.get("model_identifier"),
             "leaderboard_category": d.get("leaderboard_category", "bespoke"),
-            "lscb_final": agg.get("lscb_final"),
+            "companionbench_final": agg.get("companionbench_final"),
             "a6_cap_applied": agg.get("a6_cap_applied", False),
             "axis_means": agg.get("axis_means", {}),
             "trueskill_conservative": ts_entry.get("conservative"),
@@ -363,7 +363,7 @@ def build_aggregate_payload(
             "human_elo": None,
             "arc_count": agg.get("arc_count", 0),
         })
-    rows.sort(key=lambda r: (-(r.get("lscb_final") or 0.0), r["system_name"] or ""))
+    rows.sort(key=lambda r: (-(r.get("companionbench_final") or 0.0), r["system_name"] or ""))
     return {
         "companion_bench_version": COMPANION_BENCH_VERSION,
         "demo": False,

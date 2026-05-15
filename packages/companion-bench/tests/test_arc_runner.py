@@ -157,8 +157,8 @@ def test_run_arc_arc_id_differs_for_different_seeds(tmp_path: pathlib.Path) -> N
 
 def test_run_arc_records_telemetry_headers_when_present(tmp_path: pathlib.Path) -> None:
     """The fake SUT emits ``x-fake-sut: 1`` which should be ignored
-    (does not match the lifeform/lscb/bench prefixes). When the SUT is
-    real, we'd see ``x-lifeform-pe-magnitude`` etc. — this test
+    (does not match the lifeform/companionbench/bench prefixes). When the SUT
+    is real, we'd see ``x-lifeform-pe-magnitude`` etc. — this test
     asserts the runner filters correctly."""
     spec = _load(tmp_path)
     sut = EchoFakeSUTClient()
