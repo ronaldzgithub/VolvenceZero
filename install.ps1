@@ -26,11 +26,21 @@ $Packages = @(
     "packages\lifeform-ingestion",
     "packages\lifeform-affordance",
     "packages\lifeform-expression",
+    "packages\lifeform-domain-character",
     "packages\lifeform-domain-emogpt",
     "packages\lifeform-domain-coding",
+    "packages\lifeform-domain-figure",
+    "packages\lifeform-domain-growth-advisor",
     "packages\lifeform-service",
     "packages\lifeform-evolution",
+    "packages\lifeform-openai-compat",
+    "packages\lifeform-protocol-runtime",
+    "packages\lifeform-mcp-bridge",
     "packages\dlaas-platform-contracts",
+    "packages\dlaas-platform-registry",
+    "packages\dlaas-platform-launcher",
+    "packages\dlaas-platform-ops",
+    "packages\dlaas-platform-eval",
     "packages\dlaas-platform-api"
 )
 
