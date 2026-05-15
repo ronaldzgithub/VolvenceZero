@@ -48,7 +48,7 @@
 
 - [#29](../known-debts.md) / [#37](../known-debts.md) 解决的是「**对外可被 google 到的客观分数**」（EQ-Bench 3 / Chatbot Arena）—— P5 公开化的**外部参照点**
 - 本 packet 解决的是「**作为 RFC convener 自己定义的 benchmark 第一次跑分时的方法论防御**」—— P5 公开化的**内生可信度**
-- 两者顺序：**[#37](../known-debts.md) actuation 先跑（拿第三方分数）→ 本 packet 7 条同步 land（补 evidence）→ [#32](../known-debts.md) sub-track 1 真 reference 跑分（出 LSCB 第一份榜单）**——三步打通，48 小时内 marketing 故事可串
+- 两者顺序：**[#37](../known-debts.md) actuation 先跑（拿第三方分数）→ 本 packet 7 条同步 land（补 evidence）→ [#32](../known-debts.md) sub-track 1 真 reference 跑分（出 Companion Bench 第一份榜单）**——三步打通，48 小时内 marketing 故事可串
 
 ### 1.5 概率拆解：为什么是 60-75% 而不是 80%+
 
@@ -194,7 +194,7 @@
 - **资源估算**
   - 工程：1 人 × 1.5 周
   - API token 成本：与 [#48](../known-debts.md) 同量级 ~$3000-4000 / sweep（≈ 21-28k CNY）
-  - **注**：本 sweep 与 [#48](../known-debts.md) sweep 可**串行复用同一批 reference SUT cache**（如果 reference SUT 是 closed API 即只需 cache transcript；如果是 LSCB 自定义 SUT 则需重跑）
+  - **注**：本 sweep 与 [#48](../known-debts.md) sweep 可**串行复用同一批 reference SUT cache**（如果 reference SUT 是 closed API 即只需 cache transcript；如果是 Companion Bench 自定义 SUT 则需重跑）
 
 - **依赖**
   - 上游：[#48](../known-debts.md) judge robustness sweep 已 land（确定 judge ensemble = top-3）
@@ -361,7 +361,7 @@
   - 安全 review：1 人 × 半天 review credential 加密协议 + leak response 协议
 
 - **依赖**
-  - 上游：[#32](../known-debts.md) sub-track 2（VolvenceZero/companion-bench-heldout 私有 repo 创建）必须先 land；本 packet trusted_runner 才能真消费 held-out scenario
+  - 上游：[#32](../known-debts.md) sub-track 2（companionbench/heldout 私有 repo 创建）必须先 land；本 packet trusted_runner 才能真消费 held-out scenario
   - 下游：[#33](../known-debts.md) human-eval 轨道 v0.3 起步时人评 transcript 也走类似 audit logger 模式（可复用 `HeldoutAccessAudit` 抽象）
 
 - **风险 & fallback**
@@ -392,8 +392,8 @@
 
 | 任务 | 成本 | 备注 |
 |---|---|---|
-| [#32](../known-debts.md) sub-track 1 small-tier real run（5 SUT × 1 seed × 24 公开 scenario） | $200-400 | 已在 [`scripts/companion_bench/run_companion_bench_paper_suite_small.sh`](../../scripts/companion_bench/run_lscb_paper_suite_small.sh) 估算 |
-| [#32](../known-debts.md) sub-track 1 release-tier real run（10 SUT × 3 seed × 120 scenario） | $5,000-15,000 | 已在 [`run_companion_bench_paper_suite_full.sh`](../../scripts/companion_bench/run_lscb_paper_suite_full.sh) 估算 |
+| [#32](../known-debts.md) sub-track 1 small-tier real run（5 SUT × 1 seed × 24 公开 scenario） | $200-400 | 已在 [`scripts/companion_bench/run_companion_bench_paper_suite_small.sh`](../../scripts/companion_bench/run_companion_bench_paper_suite_small.sh) 估算 |
+| [#32](../known-debts.md) sub-track 1 release-tier real run（10 SUT × 3 seed × 120 scenario） | $5,000-15,000 | 已在 [`run_companion_bench_paper_suite_full.sh`](../../scripts/companion_bench/run_companion_bench_paper_suite_full.sh) 估算 |
 | **合计 reference run** | **$5,200-15,400** | |
 
 ### 3.3 Phase A 6 个月总 API 预算估算
@@ -479,7 +479,7 @@ Week  1   2   3   4   5   6   7   8   9  10  11  12
 
 1. **[#37](../known-debts.md) actuation 先跑**（拿到 EQ-Bench 第三方分数，建立外部参照点）
 2. **本 packet 7 条同步 land**（补 evidence + 治理）
-3. **[#32](../known-debts.md) sub-track 1 真 reference 跑分**（出 LSCB 第一份榜单）
+3. **[#32](../known-debts.md) sub-track 1 真 reference 跑分**（出 Companion Bench 第一份榜单）
 4. **48 小时内 marketing 故事可串**：「VZ 在 EQ-Bench 第 N 名（客观）+ 在 Companion Bench A3/A4 子轴领先（自定义但有 robustness evidence）+ 我们是 RFC convener」
 
 ### 5.3 与 [#36](../known-debts.md) v2.x 长尾 / [#38](../known-debts.md) site 小尾巴的关系
@@ -534,7 +534,7 @@ Week  1   2   3   4   5   6   7   8   9  10  11  12
 
 - **本 packet 6 个月后 evidence sweep 全部完成但 [#32](../known-debts.md) sub-track 1 reference run 因预算 / 组织原因未跑** → 本 packet 价值 ≤ 30%（evidence 没人引用）。**Fallback**：把 4 份公开报告独立投 arXiv preprint（"Methodological Robustness for Long-Session Companion Benchmarks"），让本 packet 在没有 reference run 的前提下仍有学术价值
 - **本 packet 完成但 6 个月后 OpenAI / Anthropic / Meta 发布自家 long-session benchmark RFC** → P5 convener 窗口关闭，本 packet 的方法论防御价值降到 30-50%。**Fallback**：把本 packet evidence 转成「我们 follow XX RFC + 增加 Y 方面 robustness 评估」的补充论文形态
-- **[#48](../known-debts.md) sweep 显示 LSCB judge ensemble 与 EQ-Bench 3 / RP-Bench judge 在同一 SUT 上排名差 > 2 名**：跨 benchmark 信号转移失败 → 与 [`docs/external/companion-bench-eqbench-crosswalk.md`](../external/companion-bench-eqbench-crosswalk.md) 现有声明矛盾。**Fallback**：写 errata 修订 crosswalk 文档；与 [#36](../known-debts.md)(b) prompt 1:1 reuse 同 packet 推进
+- **[#48](../known-debts.md) sweep 显示 Companion Bench judge ensemble 与 EQ-Bench 3 / RP-Bench judge 在同一 SUT 上排名差 > 2 名**：跨 benchmark 信号转移失败 → 与 [`docs/external/companion-bench-eqbench-crosswalk.md`](../external/companion-bench-eqbench-crosswalk.md) 现有声明矛盾。**Fallback**：写 errata 修订 crosswalk 文档；与 [#36](../known-debts.md)(b) prompt 1:1 reuse 同 packet 推进
 
 ---
 
@@ -605,7 +605,7 @@ Week  1    2    3    4    5    6
 
 - 不能让 robustness sweep 的结果**反向写回** [`ScenarioSpec`](../../packages/companion-bench/src/companion_bench/spec.py) / [`WEIGHTS`](../../packages/companion-bench/src/companion_bench/aggregator.py) / `lexicon.py` 等 scenario / 评估配置
   - **正确做法**：sweep 结果用于**人工审议**（calibration report 公开 + RFC 升级流程）；任何配置变更走 RFC working group 决议（[#32](../known-debts.md) sub-track 3）
-  - **违反**：直接 auto-tune 权重让 LSCB 排名最优 = 把 evaluation 变成学习源 → 违反 R12
+  - **违反**：直接 auto-tune 权重让 Companion Bench 排名最优 = 把 evaluation 变成学习源 → 违反 R12
 - 不能让 [#54](../known-debts.md) ELO CI 计算结果**反向写回** SUT 配置或 scenario distribution
 
 ### 9.3 LLM judge 注册
@@ -632,7 +632,7 @@ Week  1    2    3    4    5    6
 
 - ❌ 不在本 packet 内动 [`vz-*`](../../packages/) / [`lifeform-*`](../../packages/) 内核包（违反 [#29](../known-debts.md) 红线）
 - ❌ 不公开 96 私有 held-out scenario body（违反 §10.2 反目标）
-- ❌ 不在 sweep 期间让 LSCB SUT 看到 judge prompt 或反之（违反 cross-contamination 原则）
+- ❌ 不在 sweep 期间让 Companion Bench SUT 看到 judge prompt 或反之（违反 cross-contamination 原则）
 - ❌ 不为了让 VZ 排第一而调整 reference SUT 池（§7.2 GTM 反目标）
 - ❌ 不在 trusted-runner 模式下保留提交方 transcript（违反 [#57](../known-debts.md) 隐私 + 治理协议）
 

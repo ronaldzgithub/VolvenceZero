@@ -52,7 +52,7 @@ The chair's responsibilities:
 * Sign off on quarterly held-out paraphrase rotation
   (`scripts/companion_bench/generate_heldout_seeds.py`).
 * Maintain the working-group public log at
-  `docs/external/lscb-working-group-log.md`.
+  `docs/external/companion-bench-working-group-log.md`.
 * Forward submission flags from the verifier to the working group.
 
 ## 5. Public comment
@@ -66,7 +66,7 @@ public comment period of ≥ 4 weeks. A breaking change is one of:
 * Change to the A6 hard-cap threshold or value.
 * Change to the per-turn rubric criteria set.
 
-Comment intake: GitHub issues on `VolvenceZero/companion-bench` with the
+Comment intake: GitHub issues on `companionbench/bench` with the
 `comment-period` label. The chair compiles a comment summary that
 the working group references at the next quarterly meeting.
 
@@ -112,7 +112,7 @@ Recusal is logged in the meeting minutes.
 
 Companion Bench is funded by member organisations' budgeted compute donations.
 The working group publishes annual cost transparency at
-`docs/external/lscb-funding-summary.md`. No commercial sponsorship
+`docs/external/companion-bench-funding-summary.md`. No commercial sponsorship
 of leaderboard placement is permitted.
 
 ## 10. Amendment process

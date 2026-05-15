@@ -16,9 +16,6 @@
 Public surface re-exports the most-used building blocks. Heavy modules
 (arc_runner, judge_*) stay importable on demand to keep ``import companion_bench``
 fast for tooling that only needs the spec / aggregator surfaces.
-
-Previously circulated as LSCB; the wheel ships under ``companion-bench`` from
-v1.0 onward.
 """
 
 from __future__ import annotations

@@ -243,7 +243,7 @@ def _build_verdict(
     elif bootstrap_delta > -1.0:
         recommendations.append(
             f"trained bootstraps {bootstrap_delta:+.2f} ≈ no effect on EQ. "
-            "Not a regression but worth noting in LSCB cross-walk."
+            "Not a regression but worth noting in Companion Bench cross-walk."
         )
     else:
         recommendations.append(

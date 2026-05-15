@@ -41,7 +41,7 @@ generation_config:                    # optional
   top_p: number
   ...
 attestation:                          # required, all four must be true
-  no_lscb_derivative_in_training: bool
+  no_companionbench_derivative_in_training: bool
   no_scenario_specific_prompt: bool
   no_public_test_set_tuning: bool
   cross_user_memory_isolation: bool
@@ -154,9 +154,9 @@ For release-tier scoring (annual paper-suite-full), the runner adds:
 ```
 
 This pulls 96 additional scenarios from the private
-`external/companion-bench-heldout/` submodule. The held-out hashes appear on the
+`external/companionbench-heldout/` submodule. The held-out hashes appear on the
 leaderboard (one column per axis), but the YAML body never enters
-public history. Public PRs and `lscb-ci-smoke` run public-only and
+public history. Public PRs and `companionbench-ci-smoke` run public-only and
 emit a single-line warning when the submodule is absent.
 
 ## 8. Cost expectations (RFC §6.7)
@@ -190,6 +190,6 @@ detected:
 ## 10. Submission inquiries
 
 The v1.0 release ships without a working group. To submit, file an
-issue on `github.com/VolvenceZero/companion-bench` with the manifest YAML
+issue on `github.com/companionbench/bench` with the manifest YAML
 attached. Once the working group forms (RFC §11), the submission
 queue will move to a dedicated workflow.

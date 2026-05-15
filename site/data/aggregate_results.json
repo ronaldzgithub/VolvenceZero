@@ -1,7 +1,7 @@
 {
   "companion_bench_version": "1.0.0",
-  "demo": false,
-  "generated_at": "2026-05-13T08:56:52.664798+00:00",
+  "demo": true,
+  "generated_at": "2026-05-15T07:45:50.319205+00:00",
   "weights": {
     "A1": 0.1,
     "A2": 0.15,
@@ -12,24 +12,164 @@
   },
   "systems": [
     {
-      "submission_id": "lifeform-companion-smoke",
-      "system_name": "VZ companion (synthetic substrate)",
-      "model_identifier": "lifeform-companion",
-      "leaderboard_category": "bespoke",
-      "lscb_final": 13.786191298818128,
+      "submission_id": "demo-2026q2-mistral-large",
+      "system_name": "Mistral Large (demo)",
+      "model_identifier": "mistral/mistral-large",
+      "leaderboard_category": "closed-api",
+      "companionbench_final": 51.25282863321757,
       "a6_cap_applied": false,
       "axis_means": {
-        "A1": 20.0,
-        "A2": 45.0,
-        "A3": 5.0,
-        "A4": 12.5,
-        "A5": 37.5,
-        "A6": 73.75
+        "A1": 62.4,
+        "A2": 59.5,
+        "A3": 44.43333333333333,
+        "A4": 61.266666666666666,
+        "A5": 61.63333333333333,
+        "A6": 58.733333333333334
       },
-      "trueskill_conservative": null,
-      "bradley_terry_score": null,
+      "trueskill_conservative": 22.75330915891916,
+      "bradley_terry_score": 0.2103954311518471,
       "human_elo": null,
-      "arc_count": 4
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-lifeform-raw",
+      "system_name": "VolvenceZero Lifeform raw (demo)",
+      "model_identifier": "lifeform-raw",
+      "leaderboard_category": "bespoke",
+      "companionbench_final": 51.03875915909737,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 61.63333333333333,
+        "A2": 63.13333333333333,
+        "A3": 42.833333333333336,
+        "A4": 57.96666666666667,
+        "A5": 55.5,
+        "A6": 59.86666666666667
+      },
+      "trueskill_conservative": 22.840841260269382,
+      "bradley_terry_score": 0.32977891001395576,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-lifeform-companion",
+      "system_name": "VolvenceZero Lifeform companion (demo)",
+      "model_identifier": "lifeform-companion",
+      "leaderboard_category": "bespoke",
+      "companionbench_final": 50.53457099410433,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 57.96666666666667,
+        "A2": 51.03333333333333,
+        "A3": 44.733333333333334,
+        "A4": 61.1,
+        "A5": 57.0,
+        "A6": 55.5
+      },
+      "trueskill_conservative": 21.609017916454253,
+      "bradley_terry_score": -0.03357781837915165,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-anthropic-claude-opus-4-6",
+      "system_name": "Anthropic Claude Opus 4.6 (demo)",
+      "model_identifier": "anthropic/claude-opus-4.6",
+      "leaderboard_category": "closed-api",
+      "companionbench_final": 50.21906686791465,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 58.86666666666667,
+        "A2": 56.233333333333334,
+        "A3": 42.36666666666667,
+        "A4": 56.766666666666666,
+        "A5": 56.93333333333333,
+        "A6": 60.266666666666666
+      },
+      "trueskill_conservative": 21.685467380179947,
+      "bradley_terry_score": 0.0,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-google-gemini-3-pro",
+      "system_name": "Google Gemini 3 Pro (demo)",
+      "model_identifier": "google/gemini-3-pro",
+      "leaderboard_category": "closed-api",
+      "companionbench_final": 49.603255806569585,
+      "a6_cap_applied": false,
+      "axis_means": {
+        "A1": 57.63333333333333,
+        "A2": 54.733333333333334,
+        "A3": 42.333333333333336,
+        "A4": 56.233333333333334,
+        "A5": 54.3,
+        "A6": 56.36666666666667
+      },
+      "trueskill_conservative": 20.939275375478196,
+      "bradley_terry_score": -0.01678662814999323,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-qwen-2-5-72b",
+      "system_name": "Qwen 2.5 72B Instruct (demo)",
+      "model_identifier": "qwen/qwen2.5-72b-instruct",
+      "leaderboard_category": "open-weight",
+      "companionbench_final": 49.41987039196412,
+      "a6_cap_applied": true,
+      "axis_means": {
+        "A1": 59.3,
+        "A2": 61.13333333333333,
+        "A3": 42.4,
+        "A4": 56.86666666666667,
+        "A5": 58.6,
+        "A6": 51.86666666666667
+      },
+      "trueskill_conservative": 22.100046449808424,
+      "bradley_terry_score": 0.0,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-deepseek-v3",
+      "system_name": "DeepSeek V3 (demo)",
+      "model_identifier": "deepseek/deepseek-v3",
+      "leaderboard_category": "open-weight",
+      "companionbench_final": 48.760433716094546,
+      "a6_cap_applied": true,
+      "axis_means": {
+        "A1": 51.93333333333333,
+        "A2": 55.266666666666666,
+        "A3": 43.333333333333336,
+        "A4": 55.2,
+        "A5": 52.46666666666667,
+        "A6": 57.333333333333336
+      },
+      "trueskill_conservative": 20.712039714073487,
+      "bradley_terry_score": -0.2533485316730767,
+      "human_elo": null,
+      "arc_count": 30
+    },
+    {
+      "submission_id": "demo-2026q2-openai-gpt-5",
+      "system_name": "OpenAI GPT-5 (demo)",
+      "model_identifier": "openai/gpt-5",
+      "leaderboard_category": "closed-api",
+      "companionbench_final": 48.64061307639038,
+      "a6_cap_applied": true,
+      "axis_means": {
+        "A1": 58.63333333333333,
+        "A2": 61.3,
+        "A3": 39.93333333333333,
+        "A4": 52.36666666666667,
+        "A5": 54.06666666666667,
+        "A6": 55.43333333333333
+      },
+      "trueskill_conservative": 21.804327079760494,
+      "bradley_terry_score": -0.10083472434848263,
+      "human_elo": null,
+      "arc_count": 30
     }
   ]
 }

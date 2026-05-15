@@ -46,7 +46,7 @@ import sys
 from typing import Iterable
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-DEFAULT_HELDOUT_DIR = REPO_ROOT / "external" / "lscb-heldout" / "scenarios"
+DEFAULT_HELDOUT_DIR = REPO_ROOT / "external" / "companionbench-heldout" / "scenarios"
 
 _LOG = logging.getLogger("run_real_submission")
 

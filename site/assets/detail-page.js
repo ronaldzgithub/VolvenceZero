@@ -10,7 +10,7 @@
  *     manifest: { ... declared params ... },
  *     verifier: { state, arc_id?, ... },
  *     aggregate: {
- *       lscb_final, raw, a6_cap_applied, a6_cap_fraction,
+ *       companionbench_final, raw, a6_cap_applied, a6_cap_fraction,
  *       axis_means: {A1..A6: float},
  *       axis_ci95:  {A1..A6: [lo,hi]},
  *       trueskill_conservative, bradley_terry_score,
@@ -72,7 +72,7 @@
     $("#hero-meta").innerHTML = metaParts.join(" · ");
 
     const agg = detail.aggregate || {};
-    $("#hero-score").textContent = fmt(agg.lscb_final, 2);
+    $("#hero-score").textContent = fmt(agg.companionbench_final, 2);
     if (agg.a6_cap_applied) {
       $("#hero-cap").style.display = "inline-block";
     }

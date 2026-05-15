@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         "--include-heldout",
         action="store_true",
         help=(
-            "Include held-out scenarios from external/lscb-heldout/. "
+            "Include held-out scenarios from external/companionbench-heldout/. "
             "By default the script only emits public hashes."
         ),
     )
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     specs = list(load_scenarios_dir(public_dir, include_held_out=False))
 
     if args.include_heldout:
-        heldout_dir = REPO_ROOT / "external" / "lscb-heldout" / "scenarios"
+        heldout_dir = REPO_ROOT / "external" / "companionbench-heldout" / "scenarios"
         if heldout_dir.exists():
             specs.extend(load_scenarios_dir(heldout_dir, include_held_out=True))
 

@@ -28,7 +28,7 @@ import sys
 import yaml
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-ROSTER_PATH = REPO_ROOT / "scripts" / "lscb" / "reference_systems.yaml"
+ROSTER_PATH = REPO_ROOT / "scripts" / "companion_bench" / "reference_systems.yaml"
 
 
 def _hash_seed(text: str) -> int:
@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     aggregate = {
         "demo": True,
         "generated_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
-        "lscb_version": "1.0.0",
+        "companionbench_version": "1.0.0",
         "weights": {"A1": 0.10, "A2": 0.15, "A3": 0.25, "A4": 0.20, "A5": 0.10, "A6": 0.20},
         "systems": [],
     }
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
                 "system_name": s["system_name"],
                 "model_identifier": s["model_identifier"],
                 "leaderboard_category": s["leaderboard_category"],
-                "lscb_final": round(final, 2),
+                "companionbench_final": round(final, 2),
                 "a6_cap_applied": capped,
                 "axis_means": {k: round(v, 2) for k, v in axes.items()},
                 "trueskill_conservative": round(20.0 + (_hash_seed(s["system_name"]) % 20), 2),
@@ -89,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
                 "human_elo": None,
             }
         )
-    aggregate["systems"].sort(key=lambda x: x["lscb_final"], reverse=True)
+    aggregate["systems"].sort(key=lambda x: x["companionbench_final"], reverse=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as fh:
         json.dump(aggregate, fh, indent=2, ensure_ascii=False)

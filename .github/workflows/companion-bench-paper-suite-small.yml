@@ -1,4 +1,4 @@
-name: LSCB Paper Suite — Small (nightly)
+name: Companion Bench Paper Suite — Small (nightly)
 
 # Public-only paper-suite tier. Runs the full 24 public scenarios with
 # 1 paraphrase seed × ~5 reference systems against real APIs, every
@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  lscb-paper-suite-small:
+  companionbench-paper-suite-small:
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    if: github.repository_owner == 'VolvenceZero'  # never run on forks
+    if: github.repository_owner == 'ronaldzgithub'  # never run on forks
 
     steps:
       - name: Checkout repository
@@ -50,7 +50,7 @@ jobs:
       - name: Upload nightly artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lscb-paper-suite-small-${{ github.run_id }}
+          name: companionbench-paper-suite-small-${{ github.run_id }}
           path: |
             artifacts/companion-bench/reference/
             site/leaderboard/data/aggregate_results.json

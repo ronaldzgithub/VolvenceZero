@@ -3,8 +3,7 @@
 > Status: v1.0 reference implementation
 > License: Apache 2.0
 > RFC: [`docs/external/companion-bench-rfc-v0.md`](../../docs/external/companion-bench-rfc-v0.md)
-> Public site: <https://companion-bench.org/>
-> Previously circulated as **LSCB**; the wheel ships under `companion-bench` from v1.0 onward.
+> Public site: <https://companionbench.com/>
 
 Companion Bench evaluates any OpenAI-compatible chat endpoint on multi-session
 companion arcs across six axes:
@@ -73,14 +72,13 @@ packages/companion-bench/
     cli.py                    # python -m companion_bench
     scenarios/public/         # 24 public scenarios (in-repo)
   tests/                      # Unit + contract tests
-external/companion-bench-heldout/  # Private submodule (held-out, gitignored)
+external/companionbench-heldout/  # Private submodule (held-out, gitignored)
 ```
 
 ## Held-out scenarios
 
 The held-out pool (RFC §3 P3, §8.6) lives in a separate private
-repository that organisers pull in as a git submodule at
-`external/companion-bench-heldout/` (legacy alias `external/lscb-heldout/`
-is also accepted for git-history continuity). Without the submodule the
-harness still runs against public scenarios only, so external contributors
-and CI on public PRs are not blocked.
+repository (`companionbench/heldout`) that organisers pull in as a git
+submodule at `external/companionbench-heldout/`. Without the submodule
+the harness still runs against public scenarios only, so external
+contributors and CI on public PRs are not blocked.

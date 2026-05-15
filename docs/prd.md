@@ -538,7 +538,7 @@
 
 ### 5.11 外部 Benchmark / Arena 接入（R8, R12, R15）
 
-**要解决的问题**：内部 `lifeform-bench --family-report` 是 R12 6 族评估的 first-class 入口，但要让系统接受**外部第三方 benchmark / 竞技场**（EQ-Bench 3 / EmpathyBench / Chatbot Arena 等）的同口径评分，必须把它伪装成普通的 OpenAI Chat Completions endpoint，同时不让外部 harness 反向污染 kernel 状态。同时我们也对外发布**自己的开源 benchmark**：LSCB（Long-Session Companion Benchmark），评估任意 OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现，作为对外的客观证据。
+**要解决的问题**：内部 `lifeform-bench --family-report` 是 R12 6 族评估的 first-class 入口，但要让系统接受**外部第三方 benchmark / 竞技场**（EQ-Bench 3 / EmpathyBench / Chatbot Arena 等）的同口径评分，必须把它伪装成普通的 OpenAI Chat Completions endpoint，同时不让外部 harness 反向污染 kernel 状态。同时我们也对外发布**自己的开源 benchmark**：Companion Bench（Long-Session Companion Benchmark），评估任意 OpenAI-compatible chat endpoint 在多会话 companion arc 上的 6 轴表现，作为对外的客观证据。
 
 **工程挑战**：
 

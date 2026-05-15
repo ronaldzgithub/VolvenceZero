@@ -4,7 +4,7 @@
 > Audience: Companion Bench working-group chair (or the org running the leaderboard)
 
 The held-out scenario set lives in a **separate private GitHub
-repository** at `VolvenceZero/companion-bench-heldout` (per RFC §3 P3 and §8.6).
+repository** at `companionbench/bench-heldout` (per RFC §3 P3 and §8.6).
 The public monorepo references it as a git submodule at
 `external/companion-bench-heldout/`, which is gitignored so the YAML body never
 enters the public history.
@@ -27,11 +27,11 @@ probe — so a system overfit on the public set shows a measurable gap.
 Then move that tree into the private repo:
 
 ```bash
-cd external/lscb-heldout
+cd external/companionbench-heldout
 git init -b main
 git add .
-git commit -m "lscb-heldout v1.0 seed (96 scenarios)"
-git remote add origin git@github.com:VolvenceZero/companion-bench-heldout.git
+git commit -m "companionbench-heldout v1.0 seed (96 scenarios)"
+git remote add origin git@github.com:companionbench/heldout.git
 git push -u origin main
 ```
 
@@ -41,20 +41,21 @@ The `.gitmodules` entry in the monorepo points at the private repo
 already. CI nightly + release tiers must check it out via deploy key:
 
 ```yaml
-# Excerpt from .github/workflows/lscb-paper-suite-full.yml
+# Excerpt from .github/workflows/companion-bench-paper-suite-full.yml
 - uses: actions/checkout@v4
   with:
     submodules: true
-    ssh-key: ${{ secrets.COMPANION_BENCH_HELDOUT_DEPLOY_KEY }}
+    ssh-key: ${{ secrets.COMPANIONBENCH_HELDOUT_DEPLOY_KEY }}
 ```
 
 The deploy key is a read-only SSH key registered on the private
-`lscb-heldout` repo. The corresponding private key lives in the
-public monorepo's repository secrets as `COMPANION_BENCH_HELDOUT_DEPLOY_KEY`.
+`companionbench/heldout` repo. The corresponding private key lives in
+the public monorepo's repository secrets as
+`COMPANIONBENCH_HELDOUT_DEPLOY_KEY`.
 
 ## Public PRs
 
-Public PRs run against `lscb-ci-smoke` only, which does NOT check
+Public PRs run against `companionbench-ci-smoke` only, which does NOT check
 out the held-out submodule. The harness emits a single warning and
 proceeds with public scenarios. This keeps the held-out body out of
 PR diffs while letting external contributors iterate freely.

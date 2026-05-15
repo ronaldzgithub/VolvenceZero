@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "companion-bench"
 version = "1.0.0a0"
-description = "Companion Bench (Long-Session Companion Benchmark) reference implementation. Evaluates any OpenAI-compatible chat endpoint on multi-session companion arcs across six axes (continuity, repair, personalization, long-absence, boundary, goal-drift). Previously circulated as LSCB; see docs/external/companion-bench-rfc-v0.md for the methodology RFC."
+description = "Companion Bench (Long-Session Companion Benchmark) reference implementation. Evaluates any OpenAI-compatible chat endpoint on multi-session companion arcs across six axes (continuity, repair, personalization, long-absence, boundary, goal-drift). See docs/external/companion-bench-rfc-v0.md for the methodology RFC."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Companion Bench Contributors" }]
-keywords = ["benchmark", "evaluation", "companion-ai", "long-session", "companion-bench", "lscb"]
+keywords = ["benchmark", "evaluation", "companion-ai", "long-session", "companion-bench", "companionbench"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: Apache Software License",

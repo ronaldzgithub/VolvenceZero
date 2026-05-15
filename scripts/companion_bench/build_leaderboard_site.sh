@@ -12,7 +12,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-REF_DIR="${LSCB_REFERENCE_DIR:-artifacts/companion-bench/reference}"
+REF_DIR="${COMPANIONBENCH_REFERENCE_DIR:-artifacts/companion-bench/reference}"
 SITE_DATA="site/leaderboard/data/aggregate_results.json"
 
 if [[ -f "$REF_DIR/aggregate_results.json" ]]; then
@@ -24,6 +24,6 @@ else
   python scripts/companion_bench/generate_demo_aggregate.py --output "$SITE_DATA"
 fi
 
-PORT="${LSCB_PREVIEW_PORT:-8089}"
+PORT="${COMPANIONBENCH_PREVIEW_PORT:-8089}"
 echo "[build_leaderboard_site] preview at http://localhost:$PORT"
 exec python -m http.server "$PORT" --directory site/leaderboard

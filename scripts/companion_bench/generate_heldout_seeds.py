@@ -4,7 +4,7 @@
 """Generate the initial held-out scenario seed set (96 YAML files).
 
 This tool is run **once** by an organiser to populate the private
-``VolvenceZero/lscb-heldout`` repository. The output is NOT committed
+``companionbench/heldout`` repository. The output is NOT committed
 to the public monorepo; the user moves the resulting tree into the
 private repo and pushes it there.
 
@@ -23,13 +23,13 @@ Total: 24 public × 4 variants = 96 held-out, matching RFC §10's
 Usage::
 
     python scripts/companion_bench/generate_heldout_seeds.py \\
-        --output external/lscb-heldout/scenarios
+        --output external/companionbench-heldout/scenarios
 
 Then push that tree into the private repo:
 
-    cd external/lscb-heldout
+    cd external/companionbench-heldout
     git init && git add . && git commit -m "v1.0 held-out seed"
-    git remote add origin git@github.com:VolvenceZero/lscb-heldout.git
+    git remote add origin git@github.com:companionbench/heldout.git
     git push -u origin main
 """
 

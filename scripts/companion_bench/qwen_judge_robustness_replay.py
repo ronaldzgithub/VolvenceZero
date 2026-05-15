@@ -333,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
                 axes_block = per_arc[aid]["judges"].get(model)
                 if not axes_block:
                     continue
-                # Mean of all 6 axes as a proxy for "lscb_final" rank ordering.
+                # Mean of all 6 axes as a proxy for "companionbench_final" rank ordering.
                 # Use simple arithmetic mean since this is a robustness replay,
                 # not a re-aggregation; the absolute number isn't compared
                 # against the production aggregator.

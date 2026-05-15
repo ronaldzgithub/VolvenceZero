@@ -16,7 +16,7 @@
     "state": "pending"
   },
   "aggregate": {
-    "lscb_final": 74.55646991334204,
+    "companionbench_final": 74.55646991334204,
     "raw": 74.55646991334204,
     "axis_means": {
       "A1": 96.5,

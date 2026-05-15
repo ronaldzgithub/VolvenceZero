@@ -23,10 +23,6 @@ docstring, base64-ish noise inside vendored research PDFs).
 
 This is the "long-term watchdog" that keeps the rename from
 silently regressing.
-
-Initially decorated with ``xfail`` during the active rename so CI
-stays green while the migration completes; the marker is removed in
-the final step of the rename plan.
 """
 
 from __future__ import annotations
@@ -54,11 +50,14 @@ _GUARDED_FILES: tuple[pathlib.Path, ...] = (
 )
 
 # Files where ``lscb`` appears for reasons orthogonal to the rename
-# (the test itself names the legacy token; the contract test file
-# documenting the rebrand cleanup deliberately names the legacy stubs).
+# (the test itself names the legacy token; the publish script and the
+# G2 cleanup test deliberately reference the legacy stubs).
 _ALLOWLIST: frozenset[pathlib.Path] = frozenset(
     {
         pathlib.Path(__file__).resolve(),
+        (
+            REPO_ROOT / "scripts" / "companion_bench" / "publish_public_bench.sh"
+        ).resolve(),
     }
 )
 
@@ -94,12 +93,18 @@ def _iter_text_files(tree: pathlib.Path) -> list[pathlib.Path]:
             continue
         if path.suffix.lower() not in _TEXT_SUFFIXES:
             continue
-        # Skip vendored / cache dirs.
-        parts = set(path.relative_to(tree).parts)
-        if parts & {
+        # Skip vendored / cache / build-artifact dirs.
+        parts = path.relative_to(tree).parts
+        parts_set = set(parts)
+        if parts_set & {
             "__pycache__", ".pytest_cache", ".ruff_cache",
             "node_modules", ".venv", "venv",
         }:
+            continue
+        # *.egg-info dirs are setuptools build artifacts; they cache
+        # the previous metadata snapshot. They are gitignored and not
+        # part of the source surface.
+        if any(p.endswith(".egg-info") for p in parts):
             continue
         out.append(path)
     return out
@@ -133,14 +138,6 @@ def _collect_offenders() -> list[tuple[pathlib.Path, int, str]]:
     return offenders
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Rename in progress: lscb -> companionbench migration spans schema, "
-        "URLs, paths, CI, and prose. xfail will be removed in the final "
-        "step of the rename plan once all guarded trees are clean."
-    ),
-    strict=False,
-)
 def test_no_lscb_token_in_guarded_trees() -> None:
     offenders = _collect_offenders()
     if not offenders:

@@ -68,11 +68,10 @@
         </div>
         <div>
           <p>
-            <a href="https://github.com/VolvenceZero/companion-bench" rel="noopener" target="_blank">GitHub</a> &middot;
-            <a href="https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-rfc-v0.md" rel="noopener" target="_blank">RFC v0.1</a> &middot;
-            <a href="https://github.com/VolvenceZero/companion-bench/issues" rel="noopener" target="_blank">Issues</a>
+            <a href="https://github.com/companionbench/bench" rel="noopener" target="_blank">GitHub</a> &middot;
+            <a href="https://github.com/companionbench/bench/blob/main/docs/external/companion-bench-rfc-v0.md" rel="noopener" target="_blank">RFC v0.1</a> &middot;
+            <a href="https://github.com/companionbench/bench/issues" rel="noopener" target="_blank">Issues</a>
           </p>
-          <p>Previously circulated as <strong>LSCB</strong>.</p>
         </div>
       </div>
     `;

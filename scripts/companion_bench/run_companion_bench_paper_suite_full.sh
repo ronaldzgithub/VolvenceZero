@@ -11,18 +11,18 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-if [[ ! -d external/lscb-heldout/scenarios ]]; then
-  echo "[lscb-paper-suite-full] held-out submodule missing; init it first" >&2
+if [[ ! -d external/companionbench-heldout/scenarios ]]; then
+  echo "[companionbench-paper-suite-full] held-out submodule missing; init it first" >&2
   exit 1
 fi
 
-heldout_count=$(ls external/lscb-heldout/scenarios/*.yaml | wc -l)
+heldout_count=$(ls external/companionbench-heldout/scenarios/*.yaml | wc -l)
 if [[ $heldout_count -ne 96 ]]; then
-  echo "[lscb-paper-suite-full] expected 96 held-out scenarios, got $heldout_count" >&2
+  echo "[companionbench-paper-suite-full] expected 96 held-out scenarios, got $heldout_count" >&2
   exit 1
 fi
 
-OUT_DIR="${LSCB_OUTPUT_DIR:-artifacts/companion-bench/reference-full-${LSCB_RELEASE_TAG:-untagged}}"
+OUT_DIR="${COMPANIONBENCH_OUTPUT_DIR:-artifacts/companion-bench/reference-full-${COMPANIONBENCH_RELEASE_TAG:-untagged}}"
 mkdir -p "$OUT_DIR"
 
 # All 10 reference systems by default (no env-var filtering at this
@@ -39,4 +39,4 @@ python scripts/companion_bench/score_reference_systems.py \
   --include-heldout \
   --require-heldout
 
-echo "[lscb-paper-suite-full] aggregate → $OUT_DIR/aggregate_results.json"
+echo "[companionbench-paper-suite-full] aggregate → $OUT_DIR/aggregate_results.json"

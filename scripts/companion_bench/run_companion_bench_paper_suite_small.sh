@@ -21,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-OUT_DIR="${LSCB_OUTPUT_DIR:-artifacts/companion-bench/reference}"
+OUT_DIR="${COMPANIONBENCH_OUTPUT_DIR:-artifacts/companion-bench/reference}"
 mkdir -p "$OUT_DIR"
 
 systems=()
@@ -39,13 +39,13 @@ for env in OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY DEEPSEEK_API_KEY TOGE
 done
 
 if [[ ${#systems[@]} -eq 0 ]]; then
-  echo "[lscb-paper-suite-small] no API keys set; aborting" >&2
+  echo "[companionbench-paper-suite-small] no API keys set; aborting" >&2
   exit 1
 fi
 
 systems_csv=$(IFS=, ; echo "${systems[*]}")
 
-echo "[lscb-paper-suite-small] scoring ${#systems[@]} systems: $systems_csv"
+echo "[companionbench-paper-suite-small] scoring ${#systems[@]} systems: $systems_csv"
 python scripts/companion_bench/score_reference_systems.py \
   --output-dir "$OUT_DIR" \
   --user-sim-model anthropic/claude-3.7-sonnet \
@@ -57,4 +57,4 @@ python scripts/companion_bench/score_reference_systems.py \
   --paraphrase-seeds 0 \
   --systems "$systems_csv"
 
-echo "[lscb-paper-suite-small] aggregate → $OUT_DIR/aggregate_results.json"
+echo "[companionbench-paper-suite-small] aggregate → $OUT_DIR/aggregate_results.json"

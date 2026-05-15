@@ -2,8 +2,8 @@
 
 Validates:
 
-1. ``docs/external/lscb-*.md`` redirect stubs have been removed
-   (LSCB rebrand cleanup).
+1. Legacy redirect stub files have been removed from
+   ``docs/external/`` (Companion Bench rebrand cleanup).
 2. ``scripts/companion_bench/verify_site.py`` exits 0 on the
    shipped site (page existence + internal links + data field
    completeness + demo banner).
@@ -45,12 +45,12 @@ def _load_script(filename: str) -> ModuleType:
 
 
 # ---------------------------------------------------------------------------
-# LSCB rebrand cleanup
+# Companion Bench rebrand cleanup
 # ---------------------------------------------------------------------------
 
 
-def test_lscb_redirect_stubs_removed() -> None:
-    """All seven historical LSCB stub files must be gone."""
+def test_legacy_redirect_stubs_removed() -> None:
+    """All seven historical legacy stub files must be gone."""
     for stub in (
         "docs/external/lscb-governance-charter-draft.md",
         "docs/external/lscb-rfc-v0.md",
@@ -62,7 +62,7 @@ def test_lscb_redirect_stubs_removed() -> None:
     ):
         path = _REPO_ROOT / stub
         assert not path.exists(), (
-            f"LSCB redirect stub still present: {stub} (debt #38 cleanup)"
+            f"Legacy redirect stub still present: {stub} (debt #38 cleanup)"
         )
 
 

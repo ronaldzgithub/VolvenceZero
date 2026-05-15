@@ -45,7 +45,7 @@
 
   function sortValue(row, key) {
     switch (key) {
-      case "lscb_final": return row.lscb_final;
+      case "companionbench_final": return row.companionbench_final;
       case "trueskill": return row.trueskill_conservative;
       case "bradley_terry": return row.bradley_terry_score;
       case "A1":
@@ -92,7 +92,7 @@
           <td>${i + 1}</td>
           <td><a href="${detail}"><span class="system-name">${escapeHtml(row.system_name)}</span>${idLine}</a></td>
           <td><span class="category-tag">${escapeHtml(categoryLabel(row.leaderboard_category))}</span></td>
-          <td class="numeric lscb-cell">${fmtScore(row.lscb_final)}</td>
+          <td class="numeric companionbench-cell">${fmtScore(row.companionbench_final)}</td>
           <td class="numeric">${fmtAxis(row.axis_means && row.axis_means.A3)}</td>
           <td class="numeric">${fmtAxis(row.axis_means && row.axis_means.A6)}</td>
           <td>${cap}</td>
@@ -104,7 +104,7 @@
         <td>${i + 1}</td>
         <td><a href="${detail}"><span class="system-name">${escapeHtml(row.system_name)}</span>${idLine}</a></td>
         <td><span class="category-tag">${escapeHtml(categoryLabel(row.leaderboard_category))}</span></td>
-        <td class="numeric lscb-cell">${fmtScore(row.lscb_final)}</td>
+        <td class="numeric companionbench-cell">${fmtScore(row.companionbench_final)}</td>
         ${axisCells}
         <td class="numeric">${fmtScore(row.trueskill_conservative)}</td>
         <td class="numeric">${fmtScore(row.bradley_terry_score)}</td>
@@ -127,16 +127,16 @@
     const metaEl = $("#aggregate-meta");
     if (metaEl) {
       const parts = [];
-      if (payload.companion_bench_version || payload.lscb_version) {
-        parts.push(`Companion Bench v${payload.companion_bench_version || payload.lscb_version}`);
+      if (payload.companion_bench_version || payload.companionbench_version) {
+        parts.push(`Companion Bench v${payload.companion_bench_version || payload.companionbench_version}`);
       }
       if (payload.generated_at) parts.push(`generated ${payload.generated_at.replace("T", " ").split(".")[0]} UTC`);
       if (Array.isArray(payload.systems)) parts.push(`${payload.systems.length} systems`);
       metaEl.textContent = parts.join(" · ");
     }
     const versionEl = $("#cb-version");
-    if (versionEl && (payload.companion_bench_version || payload.lscb_version)) {
-      versionEl.textContent = `v${payload.companion_bench_version || payload.lscb_version}`;
+    if (versionEl && (payload.companion_bench_version || payload.companionbench_version)) {
+      versionEl.textContent = `v${payload.companion_bench_version || payload.companionbench_version}`;
     }
     const banner = $("#demo-banner");
     if (banner) banner.hidden = !payload.demo;
@@ -160,7 +160,7 @@
       };
       const readState = () => ({
         category: stateSelectors.category ? stateSelectors.category.value : "all",
-        sort: stateSelectors.sort ? stateSelectors.sort.value : "lscb_final",
+        sort: stateSelectors.sort ? stateSelectors.sort.value : "companionbench_final",
         search: stateSelectors.search ? stateSelectors.search.value : "",
       });
       const rerender = () => {

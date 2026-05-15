@@ -117,5 +117,5 @@ emit a verdict if any track is missing an attestation.
 | Packet 6 (this) | landed | runner + .env.example + README + per-track config |
 | Packet 7 | pending | cross-track diff + verdict + go/no-go gate |
 | Packet 8 | pending | empathybench second track (parallel structure) |
-| Packet 9 | pending | public submission protocol + LSCB cross-walk |
+| Packet 9 | pending | public submission protocol + Companion Bench cross-walk |
 | Packet 10 | conditional | EQ-Bench leaderboard PR (only if Packet 7 verdict goes "go") |

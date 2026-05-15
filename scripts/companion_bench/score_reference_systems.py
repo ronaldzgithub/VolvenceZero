@@ -66,7 +66,7 @@ def _build_manifest(system: dict, tmpdir: pathlib.Path) -> pathlib.Path:
         "system_prompt": system.get("system_prompt", ""),
         "generation_config": {"temperature": 0.0, "max_tokens": 512},
         "attestation": {
-            "no_lscb_derivative_in_training": True,
+            "no_companionbench_derivative_in_training": True,
             "no_scenario_specific_prompt": True,
             "no_public_test_set_tuning": True,
             "cross_user_memory_isolation": True,

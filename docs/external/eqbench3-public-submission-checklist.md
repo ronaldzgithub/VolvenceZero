@@ -85,7 +85,7 @@ be executed quickly when the green light comes.
       rejected: keep the debt open with the new state in its
       "subsequent updates" section.
 
-- [ ] **Add a comparison row to [`lscb-rfc-v0.md`](lscb-rfc-v0.md)
+- [ ] **Add a comparison row to [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md)
       Appendix A** so the RFC's compatibility statement has
       empirical evidence backing.
 
@@ -110,7 +110,7 @@ maintainer in a way that materially changes our positioning,
 treat that as an externally-attested signal and:
 
 1. Open a follow-up debt with the diagnosis.
-2. Update [`lscb-rfc-v0.md`](lscb-rfc-v0.md) §8 (validity threats) with the
+2. Update [`companion-bench-rfc-v0.md`](companion-bench-rfc-v0.md) §8 (validity threats) with the
    lesson learned.
 3. Pause any external marketing referring to the EQ-Bench score
    until the diagnosis is closed.

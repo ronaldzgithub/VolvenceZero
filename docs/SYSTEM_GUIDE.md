@@ -1044,8 +1044,8 @@ DriveSpec(
 
 #### ❌ 常见误解
 
-- "LSCB 是给 VolvenceZero 做的内部工具？" —— 不是。它是**对外公开**的 benchmark，可以被 GPT / Claude / Gemini / 国内任意厂商的 OpenAI-compatible endpoint 调用打分。
-- "为什么不让 Companion Bench 直接读内核状态？这样不是更准吗？" —— 因为这就违反了"system-agnostic"的承诺。LSCB 的整个价值在于它**完全只看输入输出**，跟实现完全解耦——这才是公平基准。
+- "Companion Bench 是给 VolvenceZero 做的内部工具？" —— 不是。它是**对外公开**的 benchmark，可以被 GPT / Claude / Gemini / 国内任意厂商的 OpenAI-compatible endpoint 调用打分。
+- "为什么不让 Companion Bench 直接读内核状态？这样不是更准吗？" —— 因为这就违反了"system-agnostic"的承诺。Companion Bench 的整个价值在于它**完全只看输入输出**，跟实现完全解耦——这才是公平基准。
 
 ---
 
@@ -1093,7 +1093,7 @@ VolvenceZero/
 │   ├── dlaas-platform-eval/            [Layer 5] — audience / exam / launch license（仅 readout）
 │   │
 │   └── ── 外发基准（system-agnostic，1） ──────────────────────────────────
-│       companion-bench/        [独立] — Companion Bench (formerly LSCB) v1.0；
+│       companion-bench/        [独立] — Companion Bench (formerly Companion Bench) v1.0；
 │                                        6 轴；24 公开 + 96 held-out；Apache 2.0
 │
 ├── docs/                       — 见 docs/specs/00_INDEX.md

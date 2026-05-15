@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for submitting to **Companion Bench** (formerly LSCB)!
+        Thanks for submitting to **Companion Bench**!
 
         Use this template when you cannot run the harness directly against
         your endpoint (e.g., closed-API key cannot be shared with public CI).
         For self-hosted scoring, prefer opening a PR with your manifest under
-        `submissions/` instead — see the [submission protocol](https://github.com/VolvenceZero/companion-bench/blob/main/docs/external/companion-bench-submission-protocol.md)
+        `submissions/` instead — see the [submission protocol](https://github.com/companionbench/bench/blob/main/docs/external/companion-bench-submission-protocol.md)
         for the full schema + cost estimate ($40–115 per submission).
 
         All four attestation flags must be set to true. Failing any of them

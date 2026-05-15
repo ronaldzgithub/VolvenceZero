@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"=== Submission: {data['submission_id']} ({data.get('system_name')}) ===")
     print(f"category: {data.get('leaderboard_category')}")
     agg = data.get("aggregate", {})
-    print(f"lscb_final: {agg.get('lscb_final')}")
+    print(f"companionbench_final: {agg.get('companionbench_final')}")
     print(f"final_ci95: {agg.get('final_ci95')}")
     print(f"arc_count: {agg.get('arc_count')}")
     print(f"a6_cap_applied: {agg.get('a6_cap_applied')}")

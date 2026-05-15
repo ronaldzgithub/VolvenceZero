@@ -3,7 +3,7 @@
 > Status: Implementation reference for `packages/companion-bench`
 > Public counterpart: [`docs/external/companion-bench-rfc-v0.md`](../external/companion-bench-rfc-v0.md)
 > Last updated: 2026-05-11
-> Previously circulated as **LSCB**; the wheel ships under `companion-bench` from v1.0 onward.
+> Previously circulated as **Companion Bench**; the wheel ships under `companion-bench` from v1.0 onward.
 
 This is the **internal** spec for the companion-bench reference
 implementation. The public RFC owns the methodology; this doc owns

@@ -41,7 +41,7 @@ _HISTORICAL_QWEN_V1_DETAIL: dict = {
     "model_identifier": "qwen3-max",
     "leaderboard_category": "closed-api",
     "aggregate": {
-        "lscb_final": 74.56,
+        "companionbench_final": 74.56,
         "final_ci95": [70.01, 79.11],
         "axis_means": {
             "A1": 96.50,
@@ -159,9 +159,9 @@ def _build_report(
                 row.append(_fmt_num(val))
             lines.append("| " + " | ".join(row) + " |")
         # Final row
-        row = ["**lscb_final**"]
+        row = ["**companionbench_final**"]
         for d in details:
-            val = d.get("aggregate", {}).get("lscb_final")
+            val = d.get("aggregate", {}).get("companionbench_final")
             row.append(_fmt_num(val))
         lines.append("| " + " | ".join(row) + " |")
     lines.append("")

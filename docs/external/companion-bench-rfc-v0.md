@@ -4,15 +4,12 @@
 > Last updated: 2026-05-11
 > License of this document: CC BY 4.0
 > Intended licence of reference implementation: Apache 2.0
-> Previously circulated as **LSCB** (Long-Session Companion Benchmark); the
-> public-facing brand is **Companion Bench** as of v1.0. The acronym CB and
-> the original Companion Bench both refer to this same methodology.
 
 ## Abstract
 
 Conversational AI evaluation has matured rapidly across single-turn quality (Chatbot Arena, MT-Bench), short-form emotional intelligence (EQ-Bench 3, EmpathyBench), and roleplay quality (RP-Bench / Roleplay-Bench). However, the fastest-growing class of consumer conversational systems — long-running **companion-style** assistants used across days, weeks, and months — is not adequately covered by any of these. The core dimensions that distinguish a good companion from a good chatbot (memory of who the user is, identity stability across sessions, recovery from rupture, learned adaptation to a specific user, boundary maintenance under social pressure) are precisely the dimensions that single-turn or short-multi-turn benchmarks cannot probe.
 
-This RFC proposes **Companion Bench** (Long-Session Companion Benchmark; previously circulated as LSCB): a multi-session, scenario-based, ablation-friendly evaluation framework for systems intended to maintain an ongoing relationship with a user. Companion Bench is designed to be (a) reproducible by any team with an OpenAI-compatible chat endpoint, (b) compatible with existing per-turn rubrics (so EQ-Bench-style scoring transfers), and (c) discriminative on dimensions that current benchmarks bunch up.
+This RFC proposes **Companion Bench** (Long-Session Companion Benchmark): a multi-session, scenario-based, ablation-friendly evaluation framework for systems intended to maintain an ongoing relationship with a user. Companion Bench is designed to be (a) reproducible by any team with an OpenAI-compatible chat endpoint, (b) compatible with existing per-turn rubrics (so EQ-Bench-style scoring transfers), and (c) discriminative on dimensions that current benchmarks bunch up.
 
 We are publishing this v0.1 as a request-for-comment. The benchmark is not yet a leaderboard; this document defines the methodology so that reference scenarios, harness, and held-out validation set can be developed openly.
 
@@ -65,7 +62,7 @@ Submissions can compose Companion Bench with these complementary benchmarks; Com
 | AlpacaEval / Arena-Hard | Single-instruction | Instruction-following | All companion dimensions |
 | LongBench | Long-context retrieval | Document QA | Not conversational |
 | PersonaChat | Single-session persona | Persona consistency in 1 session | Not cross-session |
-| Companion Bench (this RFC, formerly LSCB) | Multi-session arc | Cross-session continuity, identity stability, repair, adaptation, boundary | (intentionally narrow) |
+| Companion Bench (this RFC) | Multi-session arc | Cross-session continuity, identity stability, repair, adaptation, boundary | (intentionally narrow) |
 
 Companion Bench is designed to be **complementary**, not competitive, with the EQ-Bench / RP-Bench family. Where possible we reuse their rubric criteria so per-turn signals transfer. The novel contribution is the **arc-level** evaluation surface and the scenarios designed to probe phenomena visible only across sessions.
 

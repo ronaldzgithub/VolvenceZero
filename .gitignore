@@ -73,17 +73,14 @@ artifacts/external_bench/*
 !artifacts/external_bench/.gitkeep
 
 # Companion Bench held-out scenarios live in a SEPARATE private
-# repository (`VolvenceZero/companion-bench-heldout`, also accessible
-# under the legacy `VolvenceZero/lscb-heldout` path) and are pulled
-# in as a git submodule at external/companion-bench-heldout/ (or
-# external/lscb-heldout/). The public monorepo MUST NOT see the
-# held-out YAML in any commit diff (RFC §3 P3, §8.6). The .gitmodules
-# entry references the private repo; the actual checkout is gitignored
-# so accidental file drops never enter the public history.
-external/lscb-heldout/
-external/companion-bench-heldout/
-artifacts/lscb/*
-!artifacts/lscb/.gitkeep
+# repository (`companionbench/heldout`) and are pulled in as a git
+# submodule at external/companionbench-heldout/. The public monorepo
+# MUST NOT see the held-out YAML in any commit diff (RFC §3 P3, §8.6).
+# The .gitmodules entry references the private repo; the actual
+# checkout is gitignored so accidental file drops never enter the
+# public history.
+artifacts/companionbench/*
+!artifacts/companionbench/.gitkeep
 artifacts/companion-bench/*
 !artifacts/companion-bench/.gitkeep
 artifacts/companion_bench_smoke/*

@@ -261,7 +261,7 @@
       $("#compare-grid").innerHTML = `<p class="text-bad">Could not load <code>data/aggregate_results.json</code>: ${escape(String(e.message || e))}</p>`;
       return;
     }
-    SYSTEMS = (agg.systems || []).slice().sort((x, y) => (y.lscb_final || 0) - (x.lscb_final || 0));
+    SYSTEMS = (agg.systems || []).slice().sort((x, y) => (y.companionbench_final || 0) - (x.companionbench_final || 0));
     if (SYSTEMS.length < 2) {
       $("#compare-meta").innerHTML = `Need at least two systems on the leaderboard to compare. Add submissions and re-run <code>build_site.py</code>.`;
       return;

@@ -1,4 +1,4 @@
-name: LSCB Paper Suite — Full (release)
+name: Companion Bench Paper Suite — Full (release)
 
 # Release-tier paper-suite. Pulls held-out submodule, runs all 10
 # reference systems × 3 paraphrase seeds × (24 public + 96 held-out)
@@ -13,17 +13,17 @@ on:
         type: string
 
 jobs:
-  lscb-paper-suite-full:
+  companionbench-paper-suite-full:
     runs-on: ubuntu-latest
     timeout-minutes: 1440
-    if: github.repository_owner == 'VolvenceZero'
+    if: github.repository_owner == 'ronaldzgithub'
 
     steps:
       - name: Checkout repository (with held-out submodule)
         uses: actions/checkout@v4
         with:
           submodules: true
-          ssh-key: ${{ secrets.LSCB_HELDOUT_DEPLOY_KEY }}
+          ssh-key: ${{ secrets.COMPANIONBENCH_HELDOUT_DEPLOY_KEY }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,7 +42,7 @@ jobs:
           from companion_bench.heldout_loader import load_heldout_scenarios
           import pathlib
           specs = load_heldout_scenarios(
-              heldout_dir=pathlib.Path('external/lscb-heldout/scenarios'),
+              heldout_dir=pathlib.Path('external/companionbench-heldout/scenarios'),
               require=True,
           )
           assert len(specs) == 96, f'expected 96 held-out, got {len(specs)}'
@@ -57,14 +57,14 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          LSCB_RELEASE_TAG: ${{ inputs.tag }}
+          COMPANIONBENCH_RELEASE_TAG: ${{ inputs.tag }}
         run: |
           bash scripts/companion_bench/run_companion_bench_paper_suite_full.sh
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lscb-paper-suite-full-${{ inputs.tag }}-${{ github.run_id }}
+          name: companionbench-paper-suite-full-${{ inputs.tag }}-${{ github.run_id }}
           path: |
             artifacts/companion-bench/reference/
           retention-days: 365

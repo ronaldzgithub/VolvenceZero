@@ -361,7 +361,7 @@ table tbody tr:hover { background: var(--accent-soft); }
   display: block;
   font-family: 'JetBrains Mono', monospace;
 }
-.lscb-cell, .score-cell {
+.companionbench-cell, .score-cell {
   font-weight: 600;
   color: var(--header-color);
 }
