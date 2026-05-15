@@ -276,6 +276,15 @@ def _evaluate_scope(*, bundle: Any, query: str):
     Returns ``None`` when there is no bundle, the bundle has no
     coverage map, or the query string is empty — keeping the legacy
     behaviour for synthesizers without a figure bundle attached.
+
+    The bundle's ``retrieval_index`` (debt #39 retrieval-augmented
+    floor) is injected into the refuser so an in-corpus query that
+    misses every static centroid but cosine-matches a real corpus
+    chunk gets lifted to IN_DOMAIN instead of being L4-refused — the
+    Wave K Einstein "equivalence principle / postulate / theory"
+    false-refuse fix. When the bundle has no retrieval index the
+    refuser falls back to centroid-only classification, identical to
+    the pre-wiring behaviour.
     """
 
     if bundle is None:
@@ -283,9 +292,11 @@ def _evaluate_scope(*, bundle: Any, query: str):
     coverage_map = getattr(bundle, "coverage_map", None)
     if coverage_map is None or not query.strip():
         return None
+    retrieval_index = getattr(bundle, "retrieval_index", None)
     refuser = ScopeRefuser(
         coverage_map,
         config=ScopeRefuserConfig(policy=CoveragePolicy.STRICT_REFUSE),
+        retrieval_index=retrieval_index,
     )
     return refuser.evaluate(query=query)
 

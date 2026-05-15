@@ -87,9 +87,21 @@ class ScopeRefuserConfig:
 
 
 class _CoverageMapLike(Protocol):
-    """Duck-typed coverage map contract that ScopeRefuser consumes."""
+    """Duck-typed coverage map contract that ScopeRefuser consumes.
 
-    def classify_query(self, query: str) -> Any: ...
+    The optional ``retrieval_index`` kwarg is the debt #39
+    retrieval-augmented floor: when the static centroid path would
+    mark an in-corpus query OUT_OF_DOMAIN (the Wave K Einstein
+    relativity / postulate / theory bug), the coverage map gets a
+    second chance to lift it to IN_DOMAIN by cosine-matching real
+    corpus chunks. The Protocol advertises that the kwarg is
+    accepted; :class:`ScopeRefuser` only passes it through when the
+    constructor was given a non-None ``retrieval_index``, so
+    consumers / mocks that don't care about the floor keep working
+    without having to widen their ``classify_query`` signature.
+    """
+
+    def classify_query(self, query: str, **kwargs: Any) -> Any: ...
 
 
 class ScopeRefuser:
@@ -100,9 +112,11 @@ class ScopeRefuser:
         coverage_map: _CoverageMapLike,
         *,
         config: ScopeRefuserConfig | None = None,
+        retrieval_index: Any = None,
     ) -> None:
         self._coverage_map = coverage_map
         self._config = config or ScopeRefuserConfig()
+        self._retrieval_index = retrieval_index
 
     @property
     def config(self) -> ScopeRefuserConfig:
@@ -116,9 +130,24 @@ class ScopeRefuser:
         translates the result into the runtime-facing
         :class:`ScopeRefusalDirective` shape, applying the active
         :class:`CoveragePolicy`.
+
+        When the refuser was constructed with a non-None
+        ``retrieval_index`` the kwarg is forwarded to
+        :meth:`classify_query` so the coverage map's
+        retrieval-augmented floor (debt #39) can lift in-corpus
+        queries that miss every static centroid. When the refuser
+        was constructed without a retrieval_index, the call shape
+        stays byte-for-byte identical to the pre-wiring path so
+        existing callers / lightweight test mocks do not need to
+        widen their signature.
         """
 
-        classification = self._coverage_map.classify_query(query)
+        if self._retrieval_index is not None:
+            classification = self._coverage_map.classify_query(
+                query, retrieval_index=self._retrieval_index
+            )
+        else:
+            classification = self._coverage_map.classify_query(query)
         decision = _decision_value(classification)
         rationale = _decision_rationale(classification)
         if decision == "in_domain":
