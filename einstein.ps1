@@ -485,7 +485,40 @@ if (-not $SkipCollect) {
         if ($RequireVerify -eq '1') {
             $bakeArgs += @('--verification-root', $CorpusRoot, '--require-verification-pass')
         }
-        Invoke-PythonStep 'phase1.5/5 bake-bundle (curated)' $bakeArgs
+        # Exit code 2 = OFFLINE gate BLOCKed the bundle build. This is a
+        # legitimate signal -- the audit row was written, the block_reason
+        # is in stdout above. Not a crash. We allow it here and stop the
+        # pipeline cleanly with actionable advice below (phases 2/3 cannot
+        # proceed without a bundle so there is nothing else to do).
+        Invoke-PythonStep 'phase1.5/5 bake-bundle (curated)' $bakeArgs -AllowedExitCodes @(0, 2)
+        if ($script:LastPythonExitCode -eq 2) {
+            Write-Host ""
+            Write-Host "=================================================================" -ForegroundColor Yellow
+            Write-Host " phase 1.5: OFFLINE gate BLOCKED bundle compilation (exit 2)." -ForegroundColor Yellow
+            Write-Host "" -ForegroundColor Yellow
+            Write-Host " The audit row is at" -ForegroundColor Yellow
+            Write-Host "   $AuditRoot\<timestamp>_BAKE_BUNDLE_einstein_*.json" -ForegroundColor Yellow
+            Write-Host " and carries the verifier failures that triggered the BLOCK." -ForegroundColor Yellow
+            Write-Host "" -ForegroundColor Yellow
+            Write-Host " Most common cause: --metadata-mode=offline ships V1 stubs that" -ForegroundColor Yellow
+            Write-Host " mark 4 of 7 verifier axes as NEEDS_REVIEW; --require-verification-pass" -ForegroundColor Yellow
+            Write-Host " then always BLOCKs unless live metadata + reviewed overrides are" -ForegroundColor Yellow
+            Write-Host " staged. This is by design (R10 OFFLINE gate)." -ForegroundColor Yellow
+            Write-Host "" -ForegroundColor Yellow
+            Write-Host " Phases 2 and 3 cannot run without a bundle. Pick one of:" -ForegroundColor Yellow
+            if ($RequireVerify -eq '1') {
+                Write-Host "   .\einstein.ps1 -Mode $Mode -RequireVerify 0" -ForegroundColor Cyan
+                Write-Host "       Skip the curator verification gate; bundle is baked" -ForegroundColor Gray
+                Write-Host "       with verifier NEEDS_REVIEW notes attached. L3 evidence" -ForegroundColor Gray
+                Write-Host "       + L4 refusal demo signal is still live." -ForegroundColor Gray
+                Write-Host "" -ForegroundColor Yellow
+            }
+            Write-Host "   .\einstein.ps1" -ForegroundColor Cyan
+            Write-Host "       Smoke mode (default); RequireVerify=0 auto, tiny-gpt2," -ForegroundColor Gray
+            Write-Host "       fully offline, ~30s on CPU. Wiring check, not curation." -ForegroundColor Gray
+            Write-Host "=================================================================" -ForegroundColor Yellow
+            exit 2
+        }
     } else {
         Write-Host "[phase1.5/5] skipped (METADATA_FILE not found: $MetadataFile)" -ForegroundColor Yellow
     }
@@ -559,6 +592,14 @@ if (-not $SkipBake) {
     Write-Host ""
     Write-Host "[phase2] bake-lora bundle=$SourceBundleId backend=peft model=$QwenModelId" -ForegroundColor Cyan
 
+    # Exit code 2 = OFFLINE gate BLOCKed the LoRA artifact (e.g. the
+    # downstream validation_delta / capacity_cost / rollback_evidence
+    # contract failed). Same semantic as phase 1.5 -- legitimate gate
+    # decision, not a script crash. We allow it here and report the
+    # block cleanly so Phase 3 can be re-run against the latest
+    # already-existing LoRA-bearing bundle (or none, in which case
+    # Phase 3 uses the source bundle and BUNDLE_LORA falls through
+    # to BUNDLE behaviour -- which is still useful for L4/L3 demo).
     $bakeLoraStdout = Invoke-PythonStep 'phase2/3 bake-lora (curated)' @(
         '-m', 'lifeform_domain_figure.cli',
         '--bundle-root', $BundleRoot,
@@ -577,7 +618,24 @@ if (-not $SkipBake) {
         '--peft-device', $PeftDevice,
         '--evaluation-snapshot', 'default-clean',
         '--rollback-evidence', $RollbackEvidence
-    ) -CaptureStdout
+    ) -CaptureStdout -AllowedExitCodes @(0, 2)
+
+    if ($script:LastPythonExitCode -eq 2) {
+        Write-Host ""
+        Write-Host "=================================================================" -ForegroundColor Yellow
+        Write-Host " phase 2: OFFLINE gate BLOCKED persona LoRA artifact (exit 2)." -ForegroundColor Yellow
+        Write-Host " The audit row records the block_reason; the source bundle" -ForegroundColor Yellow
+        Write-Host " ($SourceBundleId) is unchanged." -ForegroundColor Yellow
+        Write-Host "" -ForegroundColor Yellow
+        Write-Host " Phase 3 cannot verify a non-existent LoRA-bearing bundle." -ForegroundColor Yellow
+        Write-Host " Re-run with -SkipBake to verify the base bundle's L4 refusal" -ForegroundColor Yellow
+        Write-Host " + L3 evidence signal against raw (BUNDLE_LORA condition will" -ForegroundColor Yellow
+        Write-Host " fall through to BUNDLE since no LoRA is registered):" -ForegroundColor Yellow
+        Write-Host "" -ForegroundColor Yellow
+        Write-Host "   .\einstein.ps1 -Mode $Mode -SkipCollect -SkipBake" -ForegroundColor Cyan
+        Write-Host "=================================================================" -ForegroundColor Yellow
+        exit 2
+    }
 
     # bake-lora emits a new bundle with the `.lora` artifact attached;
     # the source bundle is left untouched. Phase 3 (persona verify)
