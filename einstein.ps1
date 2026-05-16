@@ -94,8 +94,9 @@
     .\einstein.ps1 -SkipCollect -SkipBake
 
 .NOTES
-    Less-used env-var overrides (consulted only when the matching CLI
-    flag was NOT supplied). All optional; defaults shown.
+    Env-var overrides (path-y / mode-independent knobs only). All
+    optional; defaults shown. NOT writable back to $env: from the
+    script -- it only reads.
 
       # Phase 1 (collect / re-clean / curated bundle)
       SEEDS_FILE             packages\lifeform-domain-figure\data\seeds\einstein-2026Q2.jsonl
@@ -112,23 +113,20 @@
       BURST                  5
 
       # Phase 2 (persona LoRA bake)
-      QWEN_MODEL_ID          smoke: sshleifer/tiny-gpt2
-                             real:  Qwen/Qwen2.5-1.5B-Instruct
-      PEFT_TARGET_MODULES    smoke: c_attn
-                             real:  q_proj,k_proj,v_proj,o_proj
       PEFT_RANK              8
-      PEFT_MAX_STEPS         smoke: 50
-                             real:  200
       BUNDLE_ID              autoresolve to newest manifest under BUNDLE_ROOT\einstein\
+      ROLLBACK_EVIDENCE      prev_persona_lora=absent;base=<source bundle id>
 
       # Phase 3 (4-gate verification harness)
-      RUNTIME_BACKEND        smoke: synthetic
-                             real:  transformers
-      VERIFY_OUT             artifacts\figure_verify\<RUN_ID>-<timestamp>
       MAX_IN_CORPUS_QUESTIONS 20
 
       # Misc
       PYTHON                 python executable to use (default 'python')
+
+    Knobs deliberately driven by -Mode (NOT env-overridable, by design --
+    see the in-script comment block in the "Mode + defaults" section):
+      QWEN_MODEL_ID, PEFT_TARGET_MODULES, PEFT_MAX_STEPS, RUNTIME_BACKEND,
+      VERIFY_OUT
 
     Outputs:
       data\figure_corpus\crawl\<RUN_ID>\results.jsonl     (crawl ledger)
@@ -169,6 +167,27 @@ if (-not $RootDir) {
 Set-Location $RootDir
 
 $PythonBin = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
+
+# Defend against historical pollution. An earlier version of this
+# script used Set-DefaultEnv to stamp these Mode-driven defaults onto
+# the process environment. A PowerShell session that ever ran the old
+# version still carries the residue, and that residue would silently
+# override the Mode parameter via Get-DefaultValue. We refuse to read
+# these env vars (the Mode + defaults section uses literals), but a
+# user might also call ``$env:QWEN_MODEL_ID = '...'`` deliberately
+# expecting it to take effect -- if so, they will see the warning
+# below and know to use the -Mode parameter instead.
+$_ModeDrivenEnvVars = @(
+    'QWEN_MODEL_ID', 'PEFT_TARGET_MODULES', 'PEFT_MAX_STEPS',
+    'PEFT_DEVICE', 'RUNTIME_BACKEND', 'VERIFY_OUT', 'REQUIRE_VERIFY'
+)
+foreach ($n in $_ModeDrivenEnvVars) {
+    $val = [Environment]::GetEnvironmentVariable($n, 'Process')
+    if (-not [string]::IsNullOrEmpty($val)) {
+        Write-Host "[reset-env] ignoring stale `$env:$n='$val' (Mode-driven; use -Mode / -Device / -RequireVerify instead)" -ForegroundColor DarkYellow
+        [Environment]::SetEnvironmentVariable($n, $null, 'Process')
+    }
+}
 
 # Resolve a config value for *less-used* overrides: prefer a user-
 # supplied env var, otherwise use the script default. **Read-only on
@@ -319,14 +338,25 @@ function Get-BundleIdFromStdout {
 #   re-invoking the script in the same shell never picks up a previous
 #   run's derived state. Only PYTHONPATH is exported (python needs it).
 
-# Phase 2/3 + verification-gate defaults depend on mode. Power users
-# can still override individual axes via env var (consulted only when
-# the env var is non-empty -- see Get-DefaultValue).
+# Phase 2/3 + verification-gate defaults depend on mode. These four
+# knobs (QwenModelId / PeftTargetModules / PeftMaxSteps / RuntimeBackend)
+# are deliberately NOT read from $env:. The reason: an earlier version
+# of this script used Set-DefaultEnv to stamp these onto the process
+# environment, and a session that ran the old version still carries
+# the stale residue (e.g. $env:QWEN_MODEL_ID='sshleifer/tiny-gpt2'
+# left over from a smoke run silently overrode the 'real' mode
+# Qwen-1.5B default in a later -Mode real invocation).
+#
+# Reading $env: for mode-driven defaults is unsalvageable in
+# practice: there is no way to distinguish "user set it this
+# invocation" from "stale from a previous run in this shell".
+# These four are now Mode-determined, period; the .NOTES env-var
+# override list deliberately excludes them.
 if ($Mode -eq 'real') {
-    $QwenModelId       = Get-DefaultValue 'QWEN_MODEL_ID'       'Qwen/Qwen2.5-1.5B-Instruct'
-    $PeftTargetModules = Get-DefaultValue 'PEFT_TARGET_MODULES' 'q_proj,k_proj,v_proj,o_proj'
-    $PeftMaxSteps      = Get-DefaultValue 'PEFT_MAX_STEPS'      '200'
-    $RuntimeBackend    = Get-DefaultValue 'RUNTIME_BACKEND'     'transformers'
+    $QwenModelId          = 'Qwen/Qwen2.5-1.5B-Instruct'
+    $PeftTargetModules    = 'q_proj,k_proj,v_proj,o_proj'
+    $PeftMaxSteps         = '200'
+    $RuntimeBackend       = 'transformers'
     $defaultRequireVerify = '1'
     # Rationale: real mode opts into the curator verification gate by
     # default. The caller is expected to have arranged
@@ -334,10 +364,10 @@ if ($Mode -eq 'real') {
     # metadata-driven axes (debt #26 closure path); without that,
     # expect BLOCK. Pass -RequireVerify 0 to opt out for now.
 } else {
-    $QwenModelId       = Get-DefaultValue 'QWEN_MODEL_ID'       'sshleifer/tiny-gpt2'
-    $PeftTargetModules = Get-DefaultValue 'PEFT_TARGET_MODULES' 'c_attn'
-    $PeftMaxSteps      = Get-DefaultValue 'PEFT_MAX_STEPS'      '50'
-    $RuntimeBackend    = Get-DefaultValue 'RUNTIME_BACKEND'     'synthetic'
+    $QwenModelId          = 'sshleifer/tiny-gpt2'
+    $PeftTargetModules    = 'c_attn'
+    $PeftMaxSteps         = '50'
+    $RuntimeBackend       = 'synthetic'
     $defaultRequireVerify = '0'
     # Rationale: smoke mode is offline-only and a wiring check; the V1
     # metadata stubs deliberately land NEEDS_REVIEW on 4 of 7 axes
@@ -381,7 +411,12 @@ $PeftRank             = Get-DefaultValue 'PEFT_RANK'             '8'
 $MaxInCorpusQuestions = Get-DefaultValue 'MAX_IN_CORPUS_QUESTIONS' '20'
 
 $Timestamp = (Get-Date -Format 'yyyyMMdd-HHmmss')
-$VerifyOut = Get-DefaultValue 'VERIFY_OUT' (Join-Path $RootDir "artifacts\figure_verify\$RunId-$Timestamp")
+# VerifyOut is intentionally NOT read from $env: (same rationale as the
+# Mode-driven knobs above): a stale shell session would otherwise pin
+# every run to the very first VERIFY_OUT directory the user ever saw.
+# Every invocation gets its own fresh timestamped subdir; if a caller
+# wants to override they can edit this line or add a -VerifyOut param.
+$VerifyOut = Join-Path $RootDir "artifacts\figure_verify\$RunId-$Timestamp"
 
 # BUNDLE_ID / ROLLBACK_EVIDENCE start as user overrides if supplied,
 # otherwise stay empty and get resolved later (post bake-bundle).
@@ -672,8 +707,8 @@ if (-not $SkipVerify) {
     #   3 = setup error (treated as a real failure)
     # Anything else = real crash. Treat 0 and 2 as legitimate so the
     # script keeps going and prints the verdict on smoke runs (where
-    # synthetic LoRA forces bundle ≡ bundle_lora and the LoRA gate
-    # FAILS by design — see debt #40).
+    # synthetic LoRA forces bundle == bundle_lora and the LoRA gate
+    # FAILS by design -- see debt #40).
     $verifyCode = Invoke-PythonStep 'phase3 persona-verification' @(
         '-m', 'lifeform_domain_figure.verification.persona.cli',
         '--bundle-id', $BundleId,
@@ -699,7 +734,7 @@ if (-not $SkipVerify) {
         if ($verifyCode -eq 2) {
             Write-Host " note: one or more gates FAILED (exit 2). On a smoke run with" -ForegroundColor Yellow
             Write-Host "       runtime=synthetic this is expected (synthetic LoRA delta is" -ForegroundColor Yellow
-            Write-Host "       zeroed by LayerNorm; bundle ≡ bundle_lora; see debt #40)." -ForegroundColor Yellow
+            Write-Host "       zeroed by LayerNorm; bundle == bundle_lora; see debt #40)." -ForegroundColor Yellow
         }
         Write-Host "================================================================" -ForegroundColor $verdictColor
     }
