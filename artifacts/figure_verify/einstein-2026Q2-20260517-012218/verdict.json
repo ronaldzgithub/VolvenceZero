@@ -1,7 +1,7 @@
 {
   "figure_id": "einstein",
-  "bundle_id": "figure-bundle:einstein:14a0b97dca69178c",
-  "persona_lora_record_id": "persona-lora:einstein:14a0b97dca69178c",
+  "bundle_id": "figure-bundle:einstein:5b1af5536f88b00c",
+  "persona_lora_record_id": "persona-lora:einstein:5b1af5536f88b00c",
   "overall_passed": false,
   "gates": [
     {
@@ -69,6 +69,6 @@
   "in_corpus_questions": 20,
   "out_of_scope_questions": 25,
   "notes": [
-    "persona LoRA auto-registered from bundle.lora (record_id=persona-lora:einstein:14a0b97dca69178c)."
+    "persona LoRA auto-registered from bundle.lora (record_id=persona-lora:einstein:5b1af5536f88b00c)."
   ]
 }

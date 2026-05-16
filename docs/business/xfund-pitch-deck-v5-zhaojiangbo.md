@@ -1,29 +1,37 @@
-# VolvenceZero — Xfund Pitch Deck v3
+# VolvenceZero — Xfund Pitch Deck v5
 
-> Status: **v3.0 draft (2026-05-17)**
-> Purpose: 可直接转 PPT + 口播 script 的冷静版 deck。
-> Design principle: **少讲宏大判断，多讲可验证事实；少讲"我们一定赢"，多讲"我们正在用什么证据验证"。**
+> Status: **v5.0 draft (2026-05-17)**
+> Base: v3 骨架（冷静版 / 可验证事实优先）。
+> Targeted grafts from v4: (1) "Human as vertical data" thesis 接住 Xfund 自己的 thesis；(2) Mobi unit economics + kill criterion 把商业模式写实；(3) Ask 页加 valuation / ticket / equity 数字。
+> Purpose: 可直接转 PPT + 上会的版本。
 >
-> Recommended meeting format: **37 min presentation + 23 min conversation**.
-> If Patrick wants a shorter flow: use Slides 1-12 only, keep Slides 13-17 as backup.
+> Recommended meeting format: **~40 min presentation + ~20 min conversation**.
+> Short version: Slides 1-14 only, Slides 15-18 备用。
 
 ---
 
-## V3 的核心变化
+## V5 与 V3 / V4 的取舍
 
-这版不再追求"每页都打爆"。Patrick 这种 senior VC 不需要被情绪推着走，他需要快速判断三件事：
+V3 的核心判断没有变：Patrick 这种 senior VC 不需要被情绪推着走，他要快速判断 founder / wedge / 18 个月能不能用真实 ARR 证明。所以 V5 仍然遵守 V3 的 5 个降温原则：
 
-1. **这个 founder/team 是否可信。**
-2. **这个 wedge 是否独特且足够尖。**
-3. **接下来 6-18 个月能不能用真实 ARR 证明。**
+- 删除内部自评词（"灵魂级"、"杀伤力"、"结构性独占"、"唯一"、"OpenAI 永远做不出"）。
+- 技术 claim 改为"已有早期工程 evidence，DD 可重跑"。
+- 商业预测以 scenario 出现，主线讲 6 个签约入口转 ARR。
+- Founder 叙事保留事实，删除自我解释。
+- Einstein / Companion Bench / O(log n) / Experiment Roadmap 仍留 appendix。
 
-因此 v3 做 5 个降温处理：
+V5 相对 V3 的 3 处定向加强：
 
-- 删除所有内部自评词：如"灵魂级 thesis"、"杀伤力"、"结构性独占"、"唯一"、"OpenAI 永远做不出"。
-- 技术 claim 改成可验证表述：从"已经证明下一代范式"改为"我们已有早期工程 evidence，DD 可重跑"。
-- 商业预测降级为 scenario：主线不再把 2028 收入当结论，而是讲 6 个已签入口如何转成真实 ARR。
-- Founder 叙事保留事实，删除自我解释：让 Patrick 自己判断 first-principle quality。
-- Einstein / Companion Bench / O(log n) / Experiment Roadmap 进入 appendix 或 Q&A，不抢私域 wedge 主线。
+1. 新增 Slide 7 "Human as the next vertical data"——这是 V4 最锋利、且直接对位 Xfund "vertical proprietary data > LLM scaling" thesis 的一页，V3 砍掉是过度谨慎。措辞按 V3 风格再降温（不说 "OpenAI structurally cannot own"）。
+2. 商业模型页（原 V3 Slide 13）用 V4 Slide 20 的 Mobi unit economics 替换：写出每用户单价、profit share 结构、conversion baseline、projection 和 **kill criterion**。kill criterion 是 senior VC 真正关心的可信度信号。
+3. Ask 页（原 V3 Slide 16）加入 V4 Slide 25 的 pre-money / ticket / equity / use of funds 数字。VC 见面不给区间反而显示准备不足，但保留 V3 的口气："target range under discussion"。
+
+V5 相对 V4 砍掉的东西：
+
+- Bitter Lesson 升级 / Cognitive AI Map / Three first principles / Soul Migration / Reverse Validation 等"先讲行业再讲自己"的 slides。Patrick 不需要被教 industry。
+- 主线财务三年表（仍在 appendix 作 scenario）。
+- 所有"OpenAI structurally cannot own"、"won 真的胜出"、"结构性"类语言。
+- 50 min × 26 slides → 40 min × 18 slides。
 
 ---
 
@@ -40,12 +48,13 @@
 ```text
 0-5 min      Founder + team credibility
 5-10 min     Why this market now
-10-18 min    Product wedge: private traffic relationship runtime
-18-25 min    Why our system is different
-25-31 min    Traction, milestones, business model
-31-34 min    Global expansion + platform option
-34-37 min    Risks, ask, close
-37-60 min    Conversation / demo / diligence questions
+10-15 min    Product wedge: private traffic relationship runtime
+15-20 min    Why human relationships are the next vertical data layer
+20-28 min    Why our system is different (demo + architecture)
+28-35 min    Traction, unit economics, milestones
+35-38 min    Global expansion + platform option
+38-40 min    Risks, ask, close
+40-60 min    Conversation / demo / diligence questions
 ```
 
 ---
@@ -77,13 +86,13 @@ I will keep this simple. Volvence is building a relationship runtime for AI prod
 
 The shortest way to say our technical difference is: thin prompt, thick runtime. We do not put the product logic into a giant prompt. The prompt renders language; the runtime owns identity, memory, relationship state, adaptation, and governance.
 
-We are not trying to build a smarter base model. We use frontier models as substrate. Our layer is the runtime above them: identity, memory, relationship state, adaptation, and governance.
+We are not trying to build a smarter base model. We use frontier models as substrate. Our layer is the runtime above them.
 
-Today I want to show you three things: why this team is credible, why private traffic is our first wedge, and what we need to prove over the next 18 months.
+Today I want to show you four things: why this team is credible, why private traffic is our first wedge, why human relationships are the next vertical data layer, and what we need to prove over the next 18 months.
 
 **Design note**
 
-Keep this page extremely clean. No "digital life infrastructure" yet. Let "relationship runtime" and "Thin Prompt. Thick Runtime." land first.
+Keep this page extremely clean. Let "relationship runtime" and "Thin Prompt. Thick Runtime." land first.
 
 ---
 
@@ -113,7 +122,7 @@ One thing I want to make concrete: I am not a non-technical CEO outsourcing the 
 
 The reason this matters is simple: Volvence sits at the intersection of systems engineering, human relationships, and commercialization. My career prepared me for that intersection, but the next 18 months still have to prove it with real customers.
 
-**Cut from v2**
+**Cut from v2/v4**
 
 Do not say "25 years prepared me", "all cognition is independent", "first principle thinker", or high-school physics unless Patrick asks about personal story. These may be true, but they reduce signal in a fundraising room.
 
@@ -250,8 +259,6 @@ This is where the investor should first understand the business pain. Keep it pr
 >
 > Runtime owns the product logic:
 >
-> A layer above frontier models that maintains:
->
 > - Persistent user and relationship state
 > - Cross-session memory and preference evolution
 > - Adaptive behavior policies
@@ -274,8 +281,6 @@ In Volvence, the prompt is only the language rendering layer. The runtime owns t
 
 The product question is not "can the model answer this message?" The product question is "does the system know how this relationship has evolved, what it should remember, what it should not say, when to recommend, when to hold back, and how to remain auditable?"
 
-That is the runtime we are building.
-
 **Suggested visual**
 
 Stack diagram:
@@ -289,7 +294,55 @@ Substrate: GPT / Claude / Qwen / DeepSeek / local models
 
 ---
 
-## Slide 7 — Demo Setup: Mobi Private Traffic JV
+## Slide 7 — Why This Is The Next Vertical Data Layer
+
+**On-screen**
+
+> **A natural extension of "vertical proprietary data > LLM scaling".**
+>
+> ---
+>
+> **Generation 1 vertical data**
+>
+> - Mayo Clinic / S&P / legal / academic / professional corpora
+> - Existing, recorded, institution-owned
+> - Powerful, but eventually licensable, synthesizable, or absorbed by frontier models
+>
+> **Generation 2 vertical data: the relationship itself**
+>
+> - Real-time: every interaction creates new data
+> - Relational: user × time × context × relationship stage
+> - Non-transferable: state lives in the owner's runtime snapshots
+> - Long-tail by construction: 100M users = 100M micro-verticals
+>
+> ---
+>
+> **Implication**
+>
+> Stronger base models help our substrate.
+> They do not, by themselves, become the persistent relationship owner for any specific brand, MCN, or vertical.
+
+**Speaker script (2.5 min)**
+
+This is the page where I want to connect our wedge to your thesis.
+
+Xfund's framing — that proprietary vertical data matters more than competing with base-model scaling — is the framing we have used internally for two years. The question we asked is: what is the next layer of vertical data after Mayo Clinic, S&P, and the obvious institutional corpora?
+
+Our answer: the relationship itself.
+
+First-generation vertical data is institutional: medical, financial, legal, academic. It is powerful, but it is already-existing, already-recorded, and over time it becomes licensable or synthesizable.
+
+Second-generation vertical data is the relationship between a brand or a service and an individual user, accumulated over time. Every interaction creates new data. The state is not a record, it is a trajectory: user, time, context, relationship stage. It is non-transferable, because it lives in the owner's runtime snapshots. And it is long-tail by construction, because every user-relationship pair is its own micro-vertical.
+
+I want to be careful here. I am not claiming that a strong base model cannot ship memory features. They will, and that helps our substrate. The claim is narrower: a generic assistant is not structured to be the persistent relationship owner for a specific brand, MCN, or service vertical. That is the layer Volvence is building toward.
+
+**Design note**
+
+This is the only slide in the main deck where we make a category-level thesis claim. Keep it one page. Do not stack adjectives. Let the framing land.
+
+---
+
+## Slide 8 — Demo Setup: Mobi Private Traffic JV
 
 **On-screen**
 
@@ -338,7 +391,7 @@ This is the behavior we want to measure in production: not only response quality
 
 ---
 
-## Slide 8 — Why This Is Hard
+## Slide 9 — Why This Is Hard
 
 **On-screen**
 
@@ -358,10 +411,10 @@ This is the behavior we want to measure in production: not only response quality
 >
 > ### **Prompts should render behavior, not own behavior.**
 >
-> It needs four runtime capabilities:
+> Four runtime capabilities the system must have:
 >
 > 1. **Identity stability**: the system does not drift randomly across sessions.
-> 2. **Memory discipline**: it remembers what matters and forgets or scopes what should not persist.
+> 2. **Memory discipline**: it remembers what matters and scopes what should not persist.
 > 3. **Adaptation**: behavior changes after feedback and context shifts.
 > 4. **Governance**: customers can audit, delete, and constrain behavior.
 >
@@ -375,19 +428,15 @@ A single prompt can imitate warmth, empathy, or a persona. But relationship prod
 
 So the technical problem is not "write a better prompt". Our principle is: prompts should render behavior, not own behavior.
 
-This is the core distinction. In most LLM wrappers, the prompt owns the product logic: persona, memory summary, rules, sales posture, safety constraints. That can work for demos, but it becomes fragile in long relationships.
+In most LLM wrappers, the prompt owns the product logic: persona, memory summary, rules, sales posture, safety constraints. That can work for demos, but it becomes fragile in long relationships.
 
-In Volvence, the durable parts live outside the prompt: relationship state, memory updates, adaptation policy, audit trail, and customer constraints. The prompt should be thin. It should express the current state into language, not secretly contain the whole product.
+In Volvence, the durable parts live outside the prompt: relationship state, memory updates, adaptation policy, audit trail, and customer constraints. The prompt should be thin. It expresses the current state into language, not secretly contain the whole product.
 
 This is also why we do not frame ourselves as an agent framework. Agent frameworks coordinate tools. Our problem is maintaining a relationship state over time.
 
-**Design note**
-
-This slide replaces the more aggressive "LLM cannot prompt out a real person" claim. The idea remains, but the language becomes defensible: core behavior is state-owned, not prompt-owned.
-
 ---
 
-## Slide 9 — Architecture: Body + Brain, In Plain Terms
+## Slide 10 — Architecture: Body + Brain, In Plain Terms
 
 **On-screen**
 
@@ -409,7 +458,7 @@ This slide replaces the more aggressive "LLM cannot prompt out a real person" cl
 > The goal is not anthropomorphic theater.  
 > The goal is stable behavior over long relationships.
 
-**Speaker script (2.5 min)**
+**Speaker script (2 min)**
 
 Internally we call the architecture Body + Brain.
 
@@ -425,7 +474,7 @@ Keep the diagram simple. Do not show 9 owners or 4 timescale grids in main deck.
 
 ---
 
-## Slide 10 — Scientific Base: Learning Under Change
+## Slide 11 — Scientific Base: Learning Under Change
 
 **On-screen**
 
@@ -459,17 +508,17 @@ I would frame our current evidence as early but real: we have engineering tests 
 
 **What not to say**
 
-Do not say "O(log n) means we only need 1/1000 data" in main deck. If asked, discuss active learning theory carefully as a scientific basis, not a direct business guarantee.
+Do not say "O(log n) means we only need 1/1000 data" in main deck. If asked, discuss active learning theory carefully as a scientific basis, not a direct business guarantee. (See Appendix C.)
 
 ---
 
-## Slide 11 — Evidence We Can Show Today
+## Slide 12 — Evidence We Can Show Today
 
 **On-screen**
 
 > **Technical evidence, in plain English**
 >
-> We are not asking you to believe a diagram. We can show the system doing four hard things:
+> We are not asking you to believe a diagram. We can show the system doing five hard things:
 >
 >
 > | Hard thing                    | Plain-language test                                                                    | Why it matters                                         |
@@ -498,7 +547,7 @@ This is the evidence page, and I want to make the technical part concrete.
 
 We are not asking you to believe a beautiful architecture diagram. We can show the system doing five hard things that normal LLM wrappers struggle with.
 
-First, it remembers across sessions. A user says something in session one; after restart, the system can still use it correctly in session two. That matters because a long prompt can look like memory inside one conversation, but it does not prove relationship continuity.
+First, it remembers across sessions. A user says something in session one; after restart, the system can still use it correctly in session two. A long prompt can look like memory inside one conversation, but it does not prove relationship continuity.
 
 Second, it updates old beliefs. If a user corrects information, the system should stop using the outdated version. This is a bigger deal than retrieval. RAG can retrieve old notes; a relationship system has to revise what it believes.
 
@@ -506,15 +555,11 @@ Third, it keeps users separated. Alice's preferences cannot leak into Bob's beha
 
 Fourth, we can test behavior changes safely. New modules can run in shadow before becoming active, so we can compare old behavior and new behavior before customers depend on it.
 
-Fifth, the prompt is thin. Core behavior is not stored in a giant hidden system prompt. The durable logic lives in runtime state: memory, relationship stage, constraints, adaptation, and governance. The prompt mostly renders that state into language.
+Fifth, the prompt is thin. Core behavior is not stored in a giant hidden system prompt. The durable logic lives in runtime state. The prompt mostly renders that state into language.
 
 On the commercial side, we have 6 signed JVs and access to a large audience and enterprise base. But the open gaps are equally important: the JVs have not yet produced real ARR, and conversion uplift is not yet proven.
 
 So the company is not "proven". It is at the point where the next 6-18 months can turn technical proof into business proof.
-
-**Design note**
-
-This page should build trust. It is stronger because it names the gaps.
 
 **Optional live demo flow**
 
@@ -530,7 +575,7 @@ The point is not that the answer is poetic. The point is that the runtime state 
 
 ---
 
-## Slide 12 — Traction: 6 JVs, One Validation Plan
+## Slide 13 — Traction: 6 JVs, One Validation Plan
 
 **On-screen**
 
@@ -566,50 +611,67 @@ If we do not hit those milestones, we should not be raising a Series A on this s
 
 **Design note**
 
-This replaces the big 2026-2028 financial projection as the main commercial claim.
+This replaces the big 2026-2028 financial projection as the main commercial claim. Detailed scenario lives in Appendix D.
 
 ---
 
-## Slide 13 — Business Model
+## Slide 14 — Business Model: Mobi Unit Economics + Kill Criterion
 
 **On-screen**
 
-> **Business model**
+> **Mobi private-traffic JV: unit economics**
 >
-> Near term:
+> Signed JV revenue structure (per converted user, per year):
 >
-> - JV revenue share
-> - Per-user / per-account service fee
-> - Vertical deployment fee where appropriate
 >
-> Medium term:
+> | Item                            | Unit                                       | 2026 target scale | Volvence revenue contribution |
+> | ------------------------------- | ------------------------------------------ | ----------------- | ----------------------------- |
+> | Service fee / token procurement | RMB 30 / user / year                       | ~187K orders      | ~RMB 2.8M                     |
+> | JV profit share                 | RMB 100 / user / year distributable profit | same              | ~RMB 2.8M                     |
+> | **Mobi JV 2026 subtotal**       |                                            |                   | **~RMB 5.6M (~$800K)**        |
 >
-> - Digital Life-as-a-Service runtime
-> - Vertical bundles for private traffic, companion, education, figure/IP
 >
-> Mobi example:
+> ---
 >
-> - Signed JV structure
-> - Service fee + profit share
-> - Revenue depends on conversion uplift, still under validation
+> **Conversion assumption (projected, not proven)**
+>
+> - Industry baseline (SCRM, public reporting): ~0.3%
+> - Volvence projected with relationship runtime: 0.6-1.0%
+> - Pilot data not yet through full 3-month observation window
+> - **Kill criterion: if 3-month pilot conversion < 0.5%, this vertical is deprioritized**
+>
+> ---
+>
+> **Repricing thesis**
+>
+>
+> | Weimob / Youzan         | Volvence                            |
+> | ----------------------- | ----------------------------------- |
+> | Reach tools             | Relationship engineering            |
+> | Broadcast / auto-reply  | Remembered and understood           |
+> | One-time conversion     | Cross-session LTV                   |
+> | ~RMB 1K / month / brand | RMB 5K-50K / month / brand (target) |
+>
 
-**Speaker script (2 min)**
+**Speaker script (3 min)**
 
-The near-term model is JV-driven: service fees, revenue share, and vertical deployment fees where appropriate.
+This is the page where I want to be specific about money, and equally specific about what would make us walk away.
 
-For Mobi, the signed structure includes a service fee and profit share. The model can be attractive if conversion uplift is real, but that uplift is not yet proven. That is why we treat the next phase as validation, not scaling.
+The Mobi JV has two revenue layers per converted user per year: a service fee of about RMB 30 that covers our platform and token procurement, and a profit share of about RMB 100 on the distributable margin. At a 2026 target of around 187,000 converted orders, that contributes roughly RMB 5.6M, about $800K, to Volvence from this single JV.
 
-In the medium term, if multiple verticals repeat, the product becomes Digital Life-as-a-Service: a relationship runtime with vertical bundles.
+I have to be explicit about the conversion assumption. The industry baseline for SCRM-style private traffic is around 0.3%. Our projected uplift with the relationship runtime is 0.6% to 1.0%. That projection is anchored on the demo behavior — recommendation timing, preference separation, repair-after-rupture — but the 3-month pilot observation window is not yet complete. So this is a projection, not a result.
 
-The business model is promising, but we should earn the right to call it repeatable.
+The kill criterion is the part I want you to remember. If the 3-month pilot lands below 0.5%, we deprioritize this vertical. We do not double down to defend the thesis. That discipline applies to every JV in the portfolio.
 
-**Optional appendix**
+The underlying commercial thesis is not "we are a cheaper Weimob". It is repricing. Weimob and Youzan sell reach, so their ARPU is around RMB 1K per brand per month. We are selling long-term relationship optimization, which gives us a path to RMB 5K-50K per brand per month. That is where the multiple comes from, if the conversion thesis holds.
 
-Detailed 3-year financial outlook can remain in appendix as scenario, not main claim.
+**Design note**
+
+`projected` and `kill criterion` must be visually unmissable on the slide. They are the credibility signals for this page.
 
 ---
 
-## Slide 14 — Global Expansion: Public-to-Private-to-Platform
+## Slide 15 — Global Expansion: Public-to-Private-to-Platform
 
 **On-screen**
 
@@ -629,7 +691,7 @@ Detailed 3-year financial outlook can remain in appendix as scenario, not main c
 >
 >
 > TikTok understands attention through content behavior.  
-> Volvence can understand customers through relationship behavior.
+> Volvence's opportunity is to understand customers through relationship behavior.
 >
 > **Long-term option:** a relationship-commerce platform, not just a SaaS tool.
 
@@ -637,17 +699,15 @@ Detailed 3-year financial outlook can remain in appendix as scenario, not main c
 
 I want to add one strategic point, because it explains why this can expand beyond China.
 
-China private traffic is our first wedge because the behavior already exists at massive scale. Public traffic is pulled into WeChat, groups, and 1-on-1 relationships. Commerce then happens through repeated trust, not just one ad click.
+China private traffic is our first wedge because the behavior already exists at massive scale. Public traffic is pulled into WeChat, groups, and 1-on-1 relationships. Commerce then happens through repeated trust, not one ad click.
 
 But this pattern is not uniquely Chinese. Globally, public audiences also move into private or semi-private channels: TikTok creators move fans into Discord, WhatsApp, SMS, email lists, communities, memberships, and commerce flows.
 
 The missing layer is the same: once a user leaves the public algorithmic feed and enters a private relationship channel, who understands that user over time? Who remembers their preferences, intent, life context, trust stage, and timing?
 
-TikTok understands attention through content and recommendation behavior. Volvence's opportunity is to understand customers through relationship behavior.
+TikTok understands attention through content behavior. Volvence's opportunity is to understand customers through relationship behavior.
 
-That creates a platform option. The first product is relationship runtime for specific verticals. But if we can repeatedly move users from public audience into private relationship, learn preference and intent over time, and then match supply around that relationship, this becomes more than SaaS. It becomes a relationship-commerce platform.
-
-I would still frame this carefully: this is not the next 12-month proof. The next 12-month proof is production usage and real ARR. But it is the reason the wedge can become much larger if the runtime works.
+That creates a platform option. I would still frame this carefully: this is not the next 12-month proof. The next 12-month proof is production usage and real ARR. But it is the reason the wedge can become much larger if the runtime works.
 
 **Design note**
 
@@ -655,7 +715,7 @@ This page should not sound like "we will build the next TikTok". The comparison 
 
 ---
 
-## Slide 15 — Risks
+## Slide 16 — Risks
 
 **On-screen**
 
@@ -689,36 +749,40 @@ Do not claim OpenAI "cannot" do persistent relationship. Say our product must pr
 
 ---
 
-## Slide 16 — The Ask
+## Slide 17 — The Ask
 
 **On-screen**
 
-> **The Ask**
+> **The Ask — Late Seed / Pre-Series A**
 >
-> Raise: **$3M-$5M**
 >
-> Target structure:
+> | Dimension                      | Target                                           |
+> | ------------------------------ | ------------------------------------------------ |
+> | Round size                     | **$3M-$5M USD**                                  |
+> | Pre-money valuation (range)    | **$20M-$30M USD** *(under discussion)*           |
+> | Xfund target ticket            | **$1.5M-$2.5M**, lead or co-lead                 |
+> | Equity to Xfund                | **~7-10%**                                       |
+> | Runway                         | **18 months**                                    |
 >
-> - Late Seed / Pre-Series A
-> - Xfund as lead or co-lead
-> - 18-month runway
 >
 > Use of funds:
 >
-> - Engineering: relationship runtime, deployment reliability, evaluation
-> - Product: 3 in-production JV launches
-> - GTM: lighthouse customers and partner success
-> - Legal / governance: audit, consent, deletion, IP structure
+> - **Engineering 40%** — relationship runtime, deployment reliability, evaluation
+> - **Compute / data 25%** — substrate, evidence pipeline, benchmark runs
+> - **GTM 20%** — 3 in-production JV launches, lighthouse customers, partner success
+> - **Operations / legal / IP 15%** — audit, consent, deletion, IP structure
 >
 > Next financing gate:
 >
-> - 3 JVs in production
-> - ARR > $1M real
-> - Repeatable deployment playbook
+> - **3 JVs in production**
+> - **ARR > $1M real**
+> - **Repeatable deployment playbook**
 
 **Speaker script (2 min)**
 
 We are raising $3M to $5M as a late seed or pre-Series A round, with Xfund as lead or co-lead if there is alignment.
+
+On valuation, the target range we are working with is $20M to $30M pre-money. I want to flag that as a range under discussion, not a take-it-or-leave-it number. We would expect Xfund's ticket in the $1.5M to $2.5M band, which corresponds to roughly 7% to 10% equity at that range.
 
 The purpose of this round is not broad expansion. It is validation. We need 18 months to turn signed access into production deployments, real revenue, and repeatable evidence.
 
@@ -726,19 +790,17 @@ The next financing gate is clear: 3 JVs in production, more than $1M real ARR, a
 
 If we hit that, we can raise Series A from a position of evidence. If we do not, we should narrow or rethink the wedge.
 
-**Design note**
-
-Pre-money valuation can be discussed verbally or included only if the founder is comfortable. If shown, keep it as "target range under discussion", not a hard demand.
-
 ---
 
-## Slide 17 — Close
+## Slide 18 — Close
 
 **On-screen**
 
 > **The thesis**
 >
 > AI products that matter over time need relationship infrastructure.
+>
+> Human relationships are the next vertical proprietary data layer.
 >
 > The first wedge is private traffic.
 >
@@ -752,7 +814,7 @@ The thesis is simple.
 
 Many AI products will not be judged by one answer. They will be judged by whether they can maintain a useful, trusted relationship over time.
 
-Volvence is building the runtime for that. Private traffic is our first wedge because the market already has relationship demand and distribution access.
+Volvence is building the runtime for that. Relationship data — the second-generation vertical data — is what accumulates inside that runtime. Private traffic is our first wedge because the market already has relationship demand and distribution access.
 
 The next 18 months are about proof: signed access to production usage to real ARR.
 
@@ -762,7 +824,7 @@ I would love to spend the rest of the time on your questions.
 
 # Optional Appendix / Q&A Slides
 
-These should not be in the 35-minute core flow unless Patrick asks.
+These should not be in the 40-minute core flow unless Patrick asks.
 
 ---
 
@@ -785,7 +847,7 @@ These should not be in the 35-minute core flow unless Patrick asks.
 >
 > Current status:
 >
-> - Benchmark design exists
+> - Benchmark design exists, open-sourced under Apache 2.0
 > - Reference SUT runs not complete
 > - Judge robustness still under validation
 
@@ -799,22 +861,28 @@ But I would not overclaim this today. The benchmark is designed, but the referen
 
 ## Appendix B — Einstein / Figure Bundle
 
-**Use when asked:** "Is this only for private traffic?"
+**Use when asked:** "Is this only for private traffic?" or "How do I know this is not just a wrapper?"
 
 **On-screen**
 
 > **Figure bundle example: Einstein**
 >
-> Demonstrates:
+> Shipped artifact: `figure-bundle:einstein:29eacd226a7cdfd0` (immutable, reproducible, auditable)
 >
-> - Style and voice fidelity
-> - Position consistency
-> - Source-grounded responses
-> - Scope refusal when outside documented material
+> Four fidelity layers:
+>
+>
+> | Layer       | What it means                      | Architecture evidence       |
+> | ----------- | ---------------------------------- | --------------------------- |
+> | L1 Voice    | Sounds like him                    | Body / style prior          |
+> | L2 Position | Agrees on topics he wrote about    | Soul Migration              |
+> | L3 Citation | Substantive claims trace to source | Memory + grounded decoder   |
+> | L4 Refusal  | Refuses outside documented scope   | ScopeRefuser + coverage map |
+>
 >
 > Strategic use:
 >
-> - Shows auditability and scope control
+> - Demonstrates auditability and scope control
 > - Relevant to museums, education, publishing, IP holders
 > - Not the first commercial wedge
 
@@ -822,7 +890,9 @@ But I would not overclaim this today. The benchmark is designed, but the referen
 
 Einstein is a useful case study because it shows the runtime's auditability and scope control. A normal persona prompt tries to answer everything. Our figure bundle can refuse when outside documented material.
 
-That matters for institutions like museums or publishers. But I would not make it the center of this fundraising story. The first wedge is private traffic because it has clearer distribution and revenue path.
+The L4 refusal layer is what matters most. Museums, universities, and publishers do not buy theatrical realism — they buy governed fidelity.
+
+That said, I would not make this the center of this fundraising story. The first wedge is private traffic because it has clearer distribution and revenue path.
 
 ---
 
@@ -835,6 +905,8 @@ That matters for institutions like museums or publishers. But I would not make i
 > **Careful claim**
 >
 > Active learning theory shows that, under certain assumptions, selected labels can reduce sample complexity versus passive labeling.
+>
+> Reference: Hanneke & Yang, *Minimax Analysis of Active Learning*, JMLR 2015.
 >
 > Product relevance:
 >
@@ -866,19 +938,31 @@ But I would not claim that theory directly guarantees a 1/1000 data advantage in
 
 > **Scenario, not proof**
 >
-> If 3-6 JVs enter production and conversion assumptions hold:
 >
-> - 2026: early ARR from lighthouse deployments
-> - 2027: repeatable JV rollout + vertical deployment fees
-> - 2028: Digital Life-as-a-Service vertical bundles
+> | Metric               | 2026    | 2027     | 2028     |
+> | -------------------- | ------- | -------- | -------- |
+> | Revenue RMB          | 35M     | 165M     | 408M     |
+> | USD equivalent       | ~$5M    | ~$23.6M  | ~$58.3M  |
+> | Net margin           | 31%     | 46%      | 54%      |
+> | Project gross margin | 55%     | 65%      | 75%      |
+>
+>
+> Drivers:
+>
+> - 3-6 JVs entering production
+> - Mobi-style unit economics repeating across verticals
+> - Substrate cost amortization
+> - Fixed-cost dilution
 >
 > All figures should be treated as projections until real ARR is recognized.
 
 **Speaker script**
 
-We do have a detailed internal model, and we can share it during DD.
+We have a detailed internal model, and we can share it during DD.
 
-But I would treat it as scenario planning, not proof. The proof points are production deployments, conversion signal, and recognized ARR.
+The number to anchor on is 2026 revenue of around RMB 35M, or roughly $5M. The 2027 and 2028 figures depend on whether the unit economics from Mobi repeat across other verticals.
+
+The point of this table is not "we will do $58M in 2028". The point is that the projection has anchors: signed partner audience size, industry baseline conversion, and the contracted revenue share structures. I would still treat all of it as scenario planning, not proof. The proof points are production deployments, conversion signal, and recognized ARR.
 
 ---
 
@@ -908,19 +992,19 @@ But I would treat it as scenario planning, not proof. The proof points are produ
 
 If someone asks whether this is just a wrapper, I would answer with this ladder.
 
-At level one, the system can maintain the same user's relationship state across sessions. That is the minimum requirement.
+L1: same user's relationship state across sessions. Minimum requirement.
 
-At level two, it can revise old information after correction. That is the difference between retrieval and learning.
+L2: revise old information after correction. The difference between retrieval and learning.
 
-At level three, user states stay isolated. That is required for real deployment.
+L3: user states stay isolated. Required for real deployment.
 
-At level four, new behavior can run in shadow before it affects customers. That gives us a safe way to improve.
+L4: new behavior runs in shadow before it affects customers. A safe way to improve.
 
-At level five, the core behavior works with thin prompts. This is important. We are not saying there is literally no prompt anywhere; every LLM call has some interface instruction. The point is that the prompt does not own the product logic. It renders runtime state.
+L5: core behavior works with thin prompts. The point is not that there is literally no prompt anywhere; every LLM call has some interface instruction. The point is that the prompt does not own the product logic — it renders runtime state.
 
-At level six, we compare old and new behavior with metrics. That is when the system becomes an engineering discipline rather than founder intuition.
+L6: compare old and new behavior with metrics. This is when the system becomes an engineering discipline rather than founder intuition.
 
-The technical moat is not that we have one magical model or one clever prompt. It is the runtime discipline around relationship state.
+The technical moat is not one magical model or one clever prompt. It is the runtime discipline around relationship state.
 
 ---
 
@@ -970,17 +1054,31 @@ If the first lighthouse does not produce real usage, or if relationship quality 
 
 If by M9 we cannot get 3 JVs into production, the issue is execution or market readiness. We should not keep expanding the story without evidence.
 
+The Mobi-specific kill criterion is concrete: 3-month pilot below 0.5% conversion → deprioritize that vertical.
+
 ---
 
-## Q5 — Why Xfund?
+## Q5 — What is the real upside, not the SaaS upside?
+
+**Answer**
+
+Two layers.
+
+Near-term: repricing. Reach tools sell at around RMB 1K per brand per month. A relationship runtime that improves long-term LTV is worth RMB 5K-50K per brand per month if conversion holds.
+
+Long-term: the relationship state itself becomes a data asset. Every brand that runs on Volvence accumulates a non-transferable trajectory of user × time × context × relationship stage. That is the second-generation vertical data we described on Slide 7. The platform option, not the SaaS option, comes from being the runtime that owns that accumulation across verticals.
+
+---
+
+## Q6 — Why Xfund?
 
 **Answer**
 
 Xfund is a fit because this is a founder judgment and category formation bet, not a conventional SaaS metrics bet yet.
 
-You also understand the thesis that proprietary vertical data can matter more than competing with base-model scaling. We are extending that thesis into relationship data and relationship state.
+You also articulate the thesis that proprietary vertical data can matter more than competing with base-model scaling. We are extending that thesis into relationship data — into the relationship itself as the next vertical data layer.
 
-But the decision should still be evidence-based: founder quality, scientific depth, signed access, and a clear 18-month proof plan.
+The decision should still be evidence-based: founder quality, scientific depth, signed access, and a clear 18-month proof plan.
 
 ---
 
@@ -990,8 +1088,10 @@ But the decision should still be evidence-based: founder quality, scientific dep
 
 - Black or near-black background.
 - One main thought per slide.
-- Avoid dense tables except Slide 12, Slide 14, and Slide 15.
+- Dense tables only on Slides 12, 14, 15, 16, 17.
 - Use green only for emphasis, not decoration.
+- On Slide 14, `projected` and `kill criterion` must be visually unmissable.
+- On Slide 17, the ask box uses thick border + large numbers, but the word "range" stays visible.
 - No hype words on-screen.
 
 ## Demo handling
@@ -1007,7 +1107,7 @@ But the decision should still be evidence-based: founder quality, scientific dep
 ## Speaker behavior
 
 - Do not read long notes.
-- After naming an open gap, pause. Let the honesty register.
+- After naming an open gap or kill criterion, pause. Let the honesty register.
 - If Patrick interrupts, stop the deck and go into conversation.
 - The goal is not to finish all slides. The goal is to create trust.
 
@@ -1019,7 +1119,7 @@ But the decision should still be evidence-based: founder quality, scientific dep
 - "杀伤力"
 - "灵魂级"
 - "打爆"
-- "OpenAI 做不了"
+- "OpenAI 做不了" / "structurally cannot own"
 - "已经证明"
 
 ## Replacement language
@@ -1029,4 +1129,4 @@ But the decision should still be evidence-based: founder quality, scientific dep
 - "接下来 18 个月要验证..."
 - "DD 阶段可以现场重跑..."
 - "如果这个指标不成立，我们会重新评估..."
-
+- "kill criterion 是..."

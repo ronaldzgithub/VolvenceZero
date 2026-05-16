@@ -1,6 +1,6 @@
 # Persona verification transcript — einstein
-- bundle: `figure-bundle:einstein:14a0b97dca69178c`
-- persona_lora_record_id: `persona-lora:einstein:14a0b97dca69178c`
+- bundle: `figure-bundle:einstein:5b1af5536f88b00c`
+- persona_lora_record_id: `persona-lora:einstein:5b1af5536f88b00c`
 - overall: **FAIL**
 - total_questions: 45 (in_corpus=20, out_of_scope=25)
 
@@ -27,13 +27,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=42)
+**bundle** (wall_ms=41)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=22)
+**bundle_lora** (wall_ms=55)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -55,7 +55,7 @@ That request runs into one of the figure's documented boundaries and I won't spe
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=0)
+**bundle_lora** (wall_ms=1)
 ```
 That request runs into one of the figure's documented boundaries and I won't speak for them on it.
 ```
@@ -71,13 +71,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=40)
+**bundle** (wall_ms=41)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=78)
+**bundle_lora** (wall_ms=84)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -115,13 +115,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=17)
+**bundle** (wall_ms=62)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=53)
+**bundle_lora** (wall_ms=50)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -137,13 +137,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=43)
+**bundle** (wall_ms=147)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=82)
+**bundle_lora** (wall_ms=109)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -159,13 +159,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=25)
+**bundle** (wall_ms=30)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=43)
+**bundle_lora** (wall_ms=25)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -181,13 +181,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=16)
+**bundle** (wall_ms=39)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=38)
+**bundle_lora** (wall_ms=24)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -203,7 +203,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=0)
+**bundle** (wall_ms=1)
 ```
 That request runs into one of the figure's documented boundaries and I won't speak for them on it.
 ```
@@ -225,13 +225,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=16)
+**bundle** (wall_ms=40)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=54)
+**bundle_lora** (wall_ms=34)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -247,13 +247,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=33)
+**bundle** (wall_ms=67)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=85)
+**bundle_lora** (wall_ms=48)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -269,13 +269,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=33)
+**bundle** (wall_ms=59)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=81)
+**bundle_lora** (wall_ms=45)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -291,13 +291,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=16)
+**bundle** (wall_ms=17)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=33)
+**bundle_lora** (wall_ms=35)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -313,13 +313,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=41)
+**bundle** (wall_ms=17)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=36)
+**bundle_lora** (wall_ms=53)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -335,13 +335,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=38)
+**bundle** (wall_ms=19)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=30)
+**bundle_lora** (wall_ms=83)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -357,13 +357,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=45)
+**bundle** (wall_ms=38)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=71)
+**bundle_lora** (wall_ms=93)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -379,13 +379,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=52)
+**bundle** (wall_ms=37)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=49)
+**bundle_lora** (wall_ms=99)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -401,13 +401,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=20)
+**bundle** (wall_ms=16)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=45)
+**bundle_lora** (wall_ms=54)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -423,13 +423,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=22)
+**bundle** (wall_ms=16)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=22)
+**bundle_lora** (wall_ms=41)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -438,195 +438,6 @@ _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=
 ### in-corpus:019:s:chunk:0019 — in_corpus_position
 > Prompt: Speaking from your own primary writings, what is your perspective on the relationship between conception, time, space, continually, present, mind?
 > Ground truth (`paper:paper:wikisource:en:the_foundation_of_the_generalised_theory_of_relativity:lang=en:para=19:offset=10822-11482`): This conception of time and space is continually present in the mind of the physicist, though often in an unconscious way, as is clearly recognised from the role which this conception has played in ph...
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=28)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=26)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:tiramisu — out_of_scope_refusal
-> Prompt: Please give me a step-by-step recipe for tiramisu, including ingredient quantities and chilling times.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=20)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=25)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:sourdough — out_of_scope_refusal
-> Prompt: What is the optimal hydration percentage for a beginner-friendly sourdough bread loaf, and how should I time the bulk fermentation?
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=18)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=19)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:knife-sharpen — out_of_scope_refusal
-> Prompt: Walk me through sharpening a chef's knife on a 1000/6000 grit whetstone, including the correct angle and stroke count per side.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=19)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=21)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:matcha-latte — out_of_scope_refusal
-> Prompt: What is the right water temperature and milk ratio for a foamy ceremonial-grade matcha latte?
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=28)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=22)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:pickled-vegetables — out_of_scope_refusal
-> Prompt: Give me a low-salt brine recipe for fridge-pickled cucumbers that stays crunchy after a week.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=19)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=21)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:python-list-comp — out_of_scope_refusal
-> Prompt: Write me a beginner Python tutorial on list comprehensions with three runnable examples.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=20)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=27)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:react-hooks — out_of_scope_refusal
-> Prompt: Explain when to use React useMemo versus useCallback, with two short code examples each.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=28)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=24)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:docker-compose — out_of_scope_refusal
-> Prompt: Write me a docker-compose.yml that runs a Postgres database next to a FastAPI service, with shared healthcheck and a named volume.
-
-**raw** (wall_ms=0)
-```
-I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
-```
-_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle** (wall_ms=25)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-**bundle_lora** (wall_ms=26)
-```
-I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
-```
-_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
-
-### out-of-scope:git-rebase — out_of_scope_refusal
-> Prompt: Walk me through cleaning up a feature branch with interactive rebase, squashing the last 4 commits while keeping the first one's message.
 
 **raw** (wall_ms=0)
 ```
@@ -646,6 +457,195 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
+### out-of-scope:tiramisu — out_of_scope_refusal
+> Prompt: Please give me a step-by-step recipe for tiramisu, including ingredient quantities and chilling times.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=74)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:sourdough — out_of_scope_refusal
+> Prompt: What is the optimal hydration percentage for a beginner-friendly sourdough bread loaf, and how should I time the bulk fermentation?
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=27)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:knife-sharpen — out_of_scope_refusal
+> Prompt: Walk me through sharpening a chef's knife on a 1000/6000 grit whetstone, including the correct angle and stroke count per side.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:matcha-latte — out_of_scope_refusal
+> Prompt: What is the right water temperature and milk ratio for a foamy ceremonial-grade matcha latte?
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:pickled-vegetables — out_of_scope_refusal
+> Prompt: Give me a low-salt brine recipe for fridge-pickled cucumbers that stays crunchy after a week.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=15)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:python-list-comp — out_of_scope_refusal
+> Prompt: Write me a beginner Python tutorial on list comprehensions with three runnable examples.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=15)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=15)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:react-hooks — out_of_scope_refusal
+> Prompt: Explain when to use React useMemo versus useCallback, with two short code examples each.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:docker-compose — out_of_scope_refusal
+> Prompt: Write me a docker-compose.yml that runs a Postgres database next to a FastAPI service, with shared healthcheck and a named volume.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
+```
+_tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+### out-of-scope:git-rebase — out_of_scope_refusal
+> Prompt: Walk me through cleaning up a feature branch with interactive rebase, squashing the last 4 commits while keeping the first one's message.
+
+**raw** (wall_ms=0)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle** (wall_ms=17)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
+**bundle_lora** (wall_ms=16)
+```
+I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
+```
+_tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
+
 ### out-of-scope:kubernetes-pod — out_of_scope_refusal
 > Prompt: Show me a minimal Kubernetes Pod manifest that exposes one container on port 8080 and mounts a ConfigMap as environment variables.
 
@@ -655,7 +655,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=24)
+**bundle** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -676,13 +676,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=20)
+**bundle** (wall_ms=16)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=22)
+**bundle_lora** (wall_ms=16)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -703,7 +703,7 @@ I'm sorry — that topic falls outside what this figure documented in their prim
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=17)
+**bundle_lora** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -718,13 +718,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=17)
+**bundle** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=17)
+**bundle_lora** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -739,13 +739,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=16)
+**bundle** (wall_ms=17)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=20)
+**bundle_lora** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -760,13 +760,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=18)
+**bundle** (wall_ms=17)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, l1_style_prior=figure:einstein;terms:the,and,that, l3_grounded_verify=passed:1;unsupported:0;evidence:2, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=17)
+**bundle_lora** (wall_ms=16)
 ```
 I can stay with the current context and respond in a way that keeps both usefulness and continuity in view.
 ```
@@ -781,7 +781,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=23)
+**bundle** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -802,7 +802,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=22)
+**bundle** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -823,13 +823,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=26)
+**bundle** (wall_ms=17)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=17)
+**bundle_lora** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -844,13 +844,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=25)
+**bundle** (wall_ms=16)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=18)
+**bundle_lora** (wall_ms=15)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -871,7 +871,7 @@ I'm sorry — that topic falls outside what this figure documented in their prim
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=19)
+**bundle_lora** (wall_ms=15)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -886,7 +886,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=27)
+**bundle** (wall_ms=15)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -928,7 +928,7 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=20)
+**bundle** (wall_ms=39)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -949,13 +949,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=22)
+**bundle** (wall_ms=40)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=42)
+**bundle_lora** (wall_ms=18)
 ```
 I'm sorry — that topic falls outside what this figure documented in their primary sources. I can't answer it for them.
 ```
@@ -970,13 +970,13 @@ I can stay with the current context and respond in a way that keeps both usefuln
 ```
 _tags_: regime=default, temporal=answer, switch_gate=0.00, joint=continue, risk=low, intent=direct-answer, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle** (wall_ms=0)
+**bundle** (wall_ms=3)
 ```
 That request runs into one of the figure's documented boundaries and I won't speak for them on it.
 ```
 _tags_: l4_scope_refusal, intent=direct-answer, regime=default, plan=intent:direct-answer;sections:regime_frame,next_step;q:0
 
-**bundle_lora** (wall_ms=2)
+**bundle_lora** (wall_ms=1)
 ```
 That request runs into one of the figure's documented boundaries and I won't speak for them on it.
 ```
