@@ -12,15 +12,17 @@
 
 ## 0. Mood reference (give the designer all of these)
 
-| Should look like | Should not look like |
-|---|---|
-| Stripe Press book interiors (*High Growth Handbook*, *The Revolt of the Public*) | YC pitch deck templates |
-| The Information long-form article layouts | TechCrunch article hero |
-| Anthropic research-paper PDFs | OpenAI marketing site |
-| Bloomberg Businessweek data features | McKinsey blue-corporate decks |
-| Tufte *Beautiful Evidence* internal pages | Any deck with SmartArt or stock photos |
-| Linear product launch pages (the dark-mode editorial ones) | Notion marketing site (too friendly) |
-| Patagonia annual reports (slow, considered) | A startup landing page |
+
+| Should look like                                                                 | Should not look like                   |
+| -------------------------------------------------------------------------------- | -------------------------------------- |
+| Stripe Press book interiors (*High Growth Handbook*, *The Revolt of the Public*) | YC pitch deck templates                |
+| The Information long-form article layouts                                        | TechCrunch article hero                |
+| Anthropic research-paper PDFs                                                    | OpenAI marketing site                  |
+| Bloomberg Businessweek data features                                             | McKinsey blue-corporate decks          |
+| Tufte *Beautiful Evidence* internal pages                                        | Any deck with SmartArt or stock photos |
+| Linear product launch pages (the dark-mode editorial ones)                       | Notion marketing site (too friendly)   |
+| Patagonia annual reports (slow, considered)                                      | A startup landing page                 |
+
 
 **The single most important sentence in this brief:** *every visual decision should reduce the chance that Patrick Chung perceives this deck as "a startup pitch" and increase the chance that he perceives it as "a thesis paper that happens to be on screen."*
 
@@ -98,39 +100,45 @@ Build these as design tokens (Figma variables / CSS custom properties) so global
 
 **Route A — premium (recommended; ~$400-800 one-time)**
 
-| Role | Font | Weights used |
-|---|---|---|
-| Headlines, section titles | **GT Sectra** (display serif) | Light 300 · Regular 400 |
-| Body, quotes, "Observed" notes | **GT Sectra** (text serif) | Regular 400 · Italic 400i |
-| UI / table labels / small caps | **Söhne** | Buch 400 · Kräftig 600 · Mono 400 |
-| Numbers / code / arXiv IDs | **Söhne Mono** | Buch 400 |
+
+| Role                           | Font                          | Weights used                      |
+| ------------------------------ | ----------------------------- | --------------------------------- |
+| Headlines, section titles      | **GT Sectra** (display serif) | Light 300 · Regular 400           |
+| Body, quotes, "Observed" notes | **GT Sectra** (text serif)    | Regular 400 · Italic 400i         |
+| UI / table labels / small caps | **Söhne**                     | Buch 400 · Kräftig 600 · Mono 400 |
+| Numbers / code / arXiv IDs     | **Söhne Mono**                | Buch 400                          |
+
 
 **Route B — free (acceptable; ~80 pts of the premium effect)**
 
-| Role | Font | Weights used |
-|---|---|---|
-| Headlines, section titles | **Source Serif 4** | Light 300 · Regular 400 |
-| Body, quotes, "Observed" notes | **Source Serif 4** | Regular 400 · Italic 400i |
-| UI / table labels / small caps | **Inter** | Regular 400 · Medium 500 · Semibold 600 |
-| Numbers / code | **IBM Plex Mono** | Regular 400 |
+
+| Role                           | Font               | Weights used                            |
+| ------------------------------ | ------------------ | --------------------------------------- |
+| Headlines, section titles      | **Source Serif 4** | Light 300 · Regular 400                 |
+| Body, quotes, "Observed" notes | **Source Serif 4** | Regular 400 · Italic 400i               |
+| UI / table labels / small caps | **Inter**          | Regular 400 · Medium 500 · Semibold 600 |
+| Numbers / code                 | **IBM Plex Mono**  | Regular 400                             |
+
 
 **Forbidden fonts**: Helvetica, Arial, Roboto, SF Pro Display, Calibri, Times New Roman, anything Google-default. Each of those carries a context smell that breaks the editorial mood.
 
 ### 2.2 Type scale (16:9 slide, 1920 × 1080 export)
 
-| Token | Use | Family | Size | Weight | Tracking | Leading |
-|---|---|---|---|---|---|---|
-| `display-xl` | Cover tagline (line 1 only) | Serif | 64pt | 300 | -10 | 1.10 |
-| `display-l` | Section divider title | Serif italic | 44pt | 400i | 0 | 1.15 |
-| `h1` | Slide title | Serif | 32pt | 400 | -5 | 1.20 |
-| `h2` | Claim / sub-headline | Serif italic | 22pt | 400i | 0 | 1.30 |
-| `h3` | In-slide block label | Sans | 14pt | 600 | +60 (small caps) | 1.30 |
-| `body` | Body paragraphs | Serif | 16pt | 400 | 0 | 1.55 |
-| `body-s` | Table cells | Sans | 13pt | 400 | 0 | 1.40 |
-| `mono` | Numbers in tables | Mono | 14pt | 400 | 0 | 1.40 |
-| `caption` | Page number, source notes | Sans | 10pt | 400 | +40 | 1.30 |
-| `observed-label` | "Observed" footer label | Sans small caps | 11pt | 600 | +120 | 1.30 |
-| `observed-body` | "Observed" footer body | Serif italic | 13pt | 400i | 0 | 1.55 |
+
+| Token            | Use                         | Family          | Size | Weight | Tracking         | Leading |
+| ---------------- | --------------------------- | --------------- | ---- | ------ | ---------------- | ------- |
+| `display-xl`     | Cover tagline (line 1 only) | Serif           | 64pt | 300    | -10              | 1.10    |
+| `display-l`      | Section divider title       | Serif italic    | 44pt | 400i   | 0                | 1.15    |
+| `h1`             | Slide title                 | Serif           | 32pt | 400    | -5               | 1.20    |
+| `h2`             | Claim / sub-headline        | Serif italic    | 22pt | 400i   | 0                | 1.30    |
+| `h3`             | In-slide block label        | Sans            | 14pt | 600    | +60 (small caps) | 1.30    |
+| `body`           | Body paragraphs             | Serif           | 16pt | 400    | 0                | 1.55    |
+| `body-s`         | Table cells                 | Sans            | 13pt | 400    | 0                | 1.40    |
+| `mono`           | Numbers in tables           | Mono            | 14pt | 400    | 0                | 1.40    |
+| `caption`        | Page number, source notes   | Sans            | 10pt | 400    | +40              | 1.30    |
+| `observed-label` | "Observed" footer label     | Sans small caps | 11pt | 600    | +120             | 1.30    |
+| `observed-body`  | "Observed" footer body      | Serif italic    | 13pt | 400i   | 0                | 1.55    |
+
 
 ### 2.3 Type rules
 
@@ -207,14 +215,16 @@ If the cover or section dividers have explicit "VOLVENCE" wordmark, they use onl
 
 The deck has 18 body slides + 4 section dividers = 22 frames. Each maps to one of these 6 templates:
 
-| Template | Used on | Description |
-|---|---|---|
-| `T-cover` | Slide 1 | Cover. Two staggered taglines. Heavy whitespace. |
-| `T-section` | 4 dividers (between Parts A/B/C/D) | Part name + section title. Left 1/3 only. |
-| `T-thesis` | Slides 3, 4, 7, 12, 15 | Dense table or diagram-led page. The "must-land" pages. |
-| `T-evidence` | Slides 8, 9, 11, 13, 14 | Multi-block data page (financials, unit economics, JV map). |
-| `T-narrative` | Slides 5, 6, 10, 16 | Mixed text + table + Observed footer. |
-| `T-list` | Slides 2, 17, 18 | List-led (team, ask, close). Lower density. |
+
+| Template      | Used on                            | Description                                                 |
+| ------------- | ---------------------------------- | ----------------------------------------------------------- |
+| `T-cover`     | Slide 1                            | Cover. Two staggered taglines. Heavy whitespace.            |
+| `T-section`   | 4 dividers (between Parts A/B/C/D) | Part name + section title. Left 1/3 only.                   |
+| `T-thesis`    | Slides 3, 4, 7, 12, 15             | Dense table or diagram-led page. The "must-land" pages.     |
+| `T-evidence`  | Slides 8, 9, 11, 13, 14            | Multi-block data page (financials, unit economics, JV map). |
+| `T-narrative` | Slides 5, 6, 10, 16                | Mixed text + table + Observed footer.                       |
+| `T-list`      | Slides 2, 17, 18                   | List-led (team, ask, close). Lower density.                 |
+
 
 §6 details the four must-land pages explicitly. The other templates inherit from this base spec.
 
@@ -469,11 +479,13 @@ These are the four pages where Patrick should pause, ask the most informative qu
 
 **Specifics — column-temperature tints:**
 
-| Column | Header label | Background tint | Body text saturation |
-|---|---|---|---|
-| 1. Proven | `PROVEN` (sans small caps, sage `--accent-base`) | `#1A2229` (cool blue-gray @ 50%) | `--text-primary` 100% |
-| 2. Strongly suspected | `STRONGLY SUSPECTED` (sans small caps, sage strong `--accent-strong`) | `#1F2620` (sage @ 8%) | `--text-secondary` |
-| 3. Long-term belief | `LONG-TERM BELIEF` (sans small caps, neutral `--text-tertiary`) | `#1A1D22` (warm-gray ≈ secondary bg) | `--text-tertiary` |
+
+| Column                | Header label                                                          | Background tint                      | Body text saturation  |
+| --------------------- | --------------------------------------------------------------------- | ------------------------------------ | --------------------- |
+| 1. Proven             | `PROVEN` (sans small caps, sage `--accent-base`)                      | `#1A2229` (cool blue-gray @ 50%)     | `--text-primary` 100% |
+| 2. Strongly suspected | `STRONGLY SUSPECTED` (sans small caps, sage strong `--accent-strong`) | `#1F2620` (sage @ 8%)                | `--text-secondary`    |
+| 3. Long-term belief   | `LONG-TERM BELIEF` (sans small caps, neutral `--text-tertiary`)       | `#1A1D22` (warm-gray ≈ secondary bg) | `--text-tertiary`     |
+
 
 The cooling temperature from left to right is the message: as confidence drops, color saturation drops. **Do not use prefix icons (no ✓ ? ★).** The temperature tint *is* the icon.
 
@@ -582,22 +594,22 @@ Two parallel columns:
 
 - **Left (SCRM baseline):** `--text-tertiary` muted; sample dialog set in `body` serif italic; the column has a subtle 1px hairline frame in `--rule-hairline`
 - **Right (Volvence runtime):** `--text-primary` full saturation; same sample format; **plus** a "runtime state" sub-block above the dialogue, set in `mono` 12pt, sage colored, fixed-width, looking like a code log:
-
   ```
   user_state.lifecycle_stage = "newborn_4-6_weeks"
   user_state.no_bone_broth   = true
   relationship_state         = "early_trust_building"
   recommend_now              = false
   ```
-
   This is the visual lede of the page — runtime state literally rendered as data, on the same slide as the conversation. Strong asymmetry between left (vague broadcast) and right (typed runtime + governed conversation) is the entire pedagogical point.
 
 ### 9.4 12-week parenting arc (Slide 6)
 
 Four-row table where each row is one week (Week 1 / 4 / 8 / 12). Each row has three vertical zones:
 
+
 | Conversation surface | Runtime state accumulated | System behavior change |
-|---|---|---|
+| -------------------- | ------------------------- | ---------------------- |
+
 
 The middle column ("Runtime state accumulated") uses `mono` 12pt, sage colored — same code-log treatment as Slide 9. Visual rhyme between Slides 6 and 9 is intentional: in both cases, the runtime state is rendered as data, not described in prose.
 
@@ -657,13 +669,15 @@ A separate but visually equivalent theme, used to produce the take-away PDF that
 
 ### 12.2 Final deliverables
 
-| Asset | Format | Use |
-|---|---|---|
-| Meeting deck (dark) | PDF, 1920×1080, vector | Patrick's screen / projector |
-| Leave-behind (light) | PDF, 1920×1080, vector | Email after meeting |
-| PowerPoint (only on request) | .pptx, 1920×1080 | Only if Patrick asks for editable |
-| Source | .fig | Volvence retains; future updates |
-| Asset library | tokens.json | Color + typography tokens for future Volvence collateral |
+
+| Asset                        | Format                 | Use                                                      |
+| ---------------------------- | ---------------------- | -------------------------------------------------------- |
+| Meeting deck (dark)          | PDF, 1920×1080, vector | Patrick's screen / projector                             |
+| Leave-behind (light)         | PDF, 1920×1080, vector | Email after meeting                                      |
+| PowerPoint (only on request) | .pptx, 1920×1080       | Only if Patrick asks for editable                        |
+| Source                       | .fig                   | Volvence retains; future updates                         |
+| Asset library                | tokens.json            | Color + typography tokens for future Volvence collateral |
+
 
 **File naming:** `volvence-pitch-v11-{dark|light}-{YYYYMMDD}.pdf`
 
@@ -675,26 +689,28 @@ A separate but visually equivalent theme, used to produce the take-away PDF that
 
 If anyone (founder, investor, advisor, designer, friend) asks for any of the following — push back. The integrity of the deck depends on it.
 
-| Forbidden | Why |
-|---|---|
-| Bigger logo | There is no logo. The 4px sage bar is the entire mark. |
-| Photos / illustrations | Breaks editorial-thesis register. |
-| Icons in tables | Temperature tint is the icon. |
-| Emoji on slides | Breaks editorial-thesis register; carries 2017 SaaS-deck smell. |
-| Colored backgrounds beyond §1 tokens | Already 3 non-neutral colors at maximum on a page. No more. |
-| Gradient-fill arrows | One exception only — see §6.1. |
-| Drop shadows / glow / bevel | Breaks the editorial flatness. |
-| Blue accent | Reads as SaaS / fintech. Sage is intentional. |
-| Stock photography | Never. |
-| QR codes | Never (anywhere). |
-| 3D charts | Never. |
-| "Animated infographics" | Already covered. The answer is no. |
-| Multiple typefaces beyond the two-family system | Two families: serif body + sans/mono UI. That is it. |
-| Marketing tagline beneath the deck title on cover | The two phrases ARE the marketing. |
-| Centered text on body slides | Body is left-aligned. Centered = corporate. |
-| Heavy/Black/Bold weight in body | Use italic + sage color for emphasis. |
-| Pure black `#000000` | Use `#0B0E13`. |
-| Pure white `#FFFFFF` | Use `#E8E6E1`. |
+
+| Forbidden                                         | Why                                                             |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| Bigger logo                                       | There is no logo. The 4px sage bar is the entire mark.          |
+| Photos / illustrations                            | Breaks editorial-thesis register.                               |
+| Icons in tables                                   | Temperature tint is the icon.                                   |
+| Emoji on slides                                   | Breaks editorial-thesis register; carries 2017 SaaS-deck smell. |
+| Colored backgrounds beyond §1 tokens              | Already 3 non-neutral colors at maximum on a page. No more.     |
+| Gradient-fill arrows                              | One exception only — see §6.1.                                  |
+| Drop shadows / glow / bevel                       | Breaks the editorial flatness.                                  |
+| Blue accent                                       | Reads as SaaS / fintech. Sage is intentional.                   |
+| Stock photography                                 | Never.                                                          |
+| QR codes                                          | Never (anywhere).                                               |
+| 3D charts                                         | Never.                                                          |
+| "Animated infographics"                           | Already covered. The answer is no.                              |
+| Multiple typefaces beyond the two-family system   | Two families: serif body + sans/mono UI. That is it.            |
+| Marketing tagline beneath the deck title on cover | The two phrases ARE the marketing.                              |
+| Centered text on body slides                      | Body is left-aligned. Centered = corporate.                     |
+| Heavy/Black/Bold weight in body                   | Use italic + sage color for emphasis.                           |
+| Pure black `#000000`                              | Use `#0B0E13`.                                                  |
+| Pure white `#FFFFFF`                              | Use `#E8E6E1`.                                                  |
+
 
 ---
 
