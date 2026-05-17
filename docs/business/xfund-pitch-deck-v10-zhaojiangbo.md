@@ -243,6 +243,12 @@ Three-row generation diagram is the visual lede. The four-row analogue table sup
 > | ⑧ Switching cost | Re-onboarding time + lost-history penalty | Churn floor → LTV ceiling | "Switch" = lose biographical history |
 >
 > **Where the flywheel locks in fastest:** any vertical that maximizes frequency, emotional intensity, lifecycle length, data density, trust requirement, and per-user uniqueness. **Parenting maximizes all six simultaneously — that is why it is the proof environment, not the destination.**
+>
+> ---
+>
+> **Observed (early closed-alpha pilot behavior, not yet at production scale):**
+>
+> > High-frequency intervention raised short-term engagement but visibly weakened week-3 trust signals on the same cohort. **The flywheel optimizes for relationship health, not session-level activity** — and those two objectives diverge measurably within the first three weeks. This is one of several reasons our governance layer (Slide 7) exists at all: the right product behavior is often *less intervention*, not more.
 
 **Speaker script (4 min)**
 
@@ -256,9 +262,11 @@ The right column is what makes this a moat. Each stage produces something struct
 
 The closing line on this slide is the bridge to the next two. The flywheel can spin in any vertical that maximizes the six conditions. **Parenting maximizes all six simultaneously — that is why it is the proof environment, not the destination.** Slide 5 explains the conditions; Slide 12 explains why this wedge precedes the category.
 
+One concrete observation I want to leave with you, in the small box at the bottom of this slide. In our early closed-alpha pilots, raising intervention frequency raised short-term engagement and *lowered* week-3 trust signals on the same cohort. That divergence is the reason our governance layer — Slide 7 — exists at all. We are optimizing for relationship health, not engagement metrics. That is a category difference from how foundation labs or engagement-driven products are wired.
+
 **Design note**
 
-Flywheel diagram dominates. Eight-row table supports. The closing green line about parenting being "the proof environment, not the destination" is the rephrase from v9 — it positions parenting as proof infrastructure, not as the only vertical the flywheel can run in.
+Flywheel diagram dominates. Eight-row table supports. The closing green line about parenting being "the proof environment, not the destination" is the rephrase from v9. **The "Observed" box at the very bottom is a deliberate texture choice** — it is not a learnings slide, it is a mundane operational reality dropped into a high-concept page so the page does not read as theory. Same convention used on Slides 5, 6, and 7.
 
 ---
 
@@ -294,6 +302,12 @@ Flywheel diagram dominates. Eight-row table supports. The closing green line abo
 > > The point is not parenting's TAM. The point is whether the trajectory compounds — and parenting is where that compounding becomes undeniable first, because all six conditions peak in the same vertical. If the flywheel works in parenting, it generalizes. If it does not work in parenting, it does not work anywhere.
 > >
 > > Slide 12 shows the phase sequencing past parenting.
+>
+> ---
+>
+> **Observed (early closed-alpha pilot behavior):**
+>
+> > Several parents resumed interaction after weeks of inactivity not to ask for advice, but to preserve continuity of observation — a self-described unwillingness to "start over." **The earliest visible form of switching cost is behavioral, not commercial** — it shows up as return-after-inactivity before it shows up as paid retention. This is exactly the Stage 8 dynamic from Slide 4, surfaced sooner than we expected.
 
 **Speaker script (4 min)**
 
@@ -315,9 +329,11 @@ The distribution is already signed. 高盖伦, 11 million parenting followers pl
 
 Now the part I want you to read carefully. **Parenting is not the terminal market.** The point of starting in parenting is not parenting's TAM. It is that parenting is the cleanest setting where relationship-state compounding becomes undeniable first, because all six flywheel conditions peak in the same vertical. **If the flywheel works in parenting, it generalizes. If it does not work in parenting, it does not work anywhere.** Slide 12 shows the phase sequencing past parenting.
 
+The small "Observed" note at the bottom is the mundane reality. Several parents in our early closed-alpha resumed interaction after weeks of inactivity not to ask for advice, but specifically to preserve continuity. They described it as not wanting to "start over." **The earliest visible form of Stage-8 switching cost is behavioral — return-after-inactivity — before it shows up as paid retention.** That signal showed up sooner than we expected.
+
 **Design note**
 
-Six-criterion comparison table is the visual lede. Parenting column highlighted. **The bottom green box — "the proof environment, not the terminal market" — is the page's punchline and the answer to the venture-scale question Patrick will hold.** This is the most important wording change from v9.
+Six-criterion comparison table is the visual lede. Parenting column highlighted. **The bottom green box — "the proof environment, not the terminal market" — is the page's punchline and the answer to the venture-scale question Patrick will hold.** Below it, the "Observed" box gives the page operational texture without breaking the structural argument.
 
 ---
 
@@ -364,6 +380,12 @@ Six-criterion comparison table is the visual lede. Parenting column highlighted.
 > **The switch-out problem:**
 >
 > > If Ms. Chen moves to a new product at Week 12, the new product starts at child age = 16 weeks with no prior context. It does not know about the formula caution. It does not know about the over-pushing rupture. It does not know about the sleep pattern. **The new product is structurally less useful than the old product for at least 12 weeks** — and after 18 months, structurally less useful for that long. Switching cost is biographical, not technical.
+>
+> ---
+>
+> **Observed (early closed-alpha pilot behavior, onboarding friction):**
+>
+> > Parents who completed setup quickly showed visibly weaker week-3 continuity than parents who took longer to define household boundaries — child name, who else is in the home, scope of consent — explicitly during onboarding. **Trust calibration appears to require deliberate friction at the start.** Faster onboarding traded long-term retention for activation speed; the pattern was visible by week three. That is one reason our onboarding deliberately resists "let's get you to the chat surface in 30 seconds" UX patterns common in consumer AI.
 
 **Speaker script (4 min)**
 
@@ -375,9 +397,11 @@ That response is useful in proportion to the trajectory. A new system, even a st
 
 The switch-out problem at the bottom is the punchline. If Ms. Chen tries to switch at Week 12, the new product knows nothing — no formula caution, no rupture, no sleep pattern. **It is structurally less useful for at least 12 weeks. After 18 months, structurally less useful for 18 months.** **Switching cost is biographical, not technical.** This is what Stage 8 of the flywheel turns into actual stay-rate.
 
+The smaller observation at the bottom is the onboarding friction note. In our closed-alpha, parents who blew through setup retained visibly worse by week three than parents who took the time to define household boundaries explicitly. **Trust calibration appears to require deliberate friction at the start** — faster onboarding traded long-term retention for activation speed. That is the opposite of how most consumer AI products are wired, and it is consistent with the governance layer being the actual product.
+
 **Design note**
 
-The four-row weekly table is the slide. Each row reads like a diff entry. The "switch-out problem" green box is the page's punchline. **The phrase "switching cost is biographical, not technical" is the key sentence Patrick should walk away repeating.**
+The four-row weekly table is the slide. Each row reads like a diff entry. The "switch-out problem" green box is the page's punchline. **The phrase "switching cost is biographical, not technical" is the key sentence Patrick should walk away repeating.** The "Observed" onboarding-friction note below it earns the page operational realism — and it frames our slow onboarding as a design choice, not a UX bug.
 
 ---
 
@@ -417,6 +441,12 @@ The four-row weekly table is the slide. Each row reads like a diff entry. The "s
 > > Foundation-model memory reduces the cost of recall. It does not solve longitudinal relationship governance. *That actually helps us — it makes the substrate cheaper.*
 >
 > **Why foundation labs will not verticalize this:** the governance decisions are family-specific (parenting), brand-specific (private-traffic), institution-specific (museum / education), or regulator-specific (PIPL / GDPR / EU AI Act). A foundation lab optimizes for *one billion users*; relationship governance is fundamentally per-vertical, per-relationship, per-jurisdiction.
+>
+> ---
+>
+> **Observed (early closed-alpha pilot behavior, governance in action):**
+>
+> > In one early interaction pattern, the system inferred emotional disengagement from extended silence and over-intervened on a parent who had simply stepped away from the phone. **Re-engagement only occurred after the agent explicitly acknowledged its own uncertainty** — not after additional guidance, and not after a stronger recommendation. *Repair, not avoidance, was the operative governance primitive.* This is the kind of dynamic the seven dimensions above govern in practice — silence-versus-disengagement disambiguation, intervention-versus-restraint, uncertainty acknowledgment as a typed product action.
 
 **Speaker script (4 min)**
 
@@ -434,9 +464,11 @@ These seven decisions are *family-specific* in parenting, *brand-specific* in pr
 
 The line I want you to take away from this slide: **the moat is not remembering more. The moat is deciding what persists, what adapts, what repairs trust, and what becomes economically actionable over years.**
 
+The "Observed" box at the bottom is what governance looks like in practice. We had an early interaction where the system inferred disengagement from silence and over-intervened on a parent who had simply put the phone down. The repair did not come from additional guidance. It came from the agent explicitly acknowledging its own uncertainty about what was happening. **Repair, not avoidance, was the operative governance primitive.** That is the substance of the seven dimensions above — silence-versus-disengagement disambiguation, intervention-versus-restraint, uncertainty acknowledgment as a typed product action — and it is *not* the kind of dynamic a foundation lab optimizing for one billion users will engineer per-vertical.
+
 **Design note**
 
-Two-section layout. Top: what foundation memory does well (short list, to actively concede). Bottom: the seven-row governance dimensions table. The green framing-shift box at the bottom is the page's punchline. **This slide is the answer to the substitution-risk question. It is the second must-land slide alongside the flywheel.**
+Two-section layout. Top: what foundation memory does well (short list, to actively concede). Bottom: the seven-row governance dimensions table. The green framing-shift box at the bottom is the page's punchline. **This slide is the answer to the substitution-risk question. It is the second must-land slide alongside the flywheel.** The "Observed" interaction-pattern note below it grounds the seven dimensions in product mechanics so the page does not read as architecture diagram.
 
 ---
 
@@ -1097,6 +1129,27 @@ Yes. Appendix E carries the architecture chain — Cognitive AGI, latent-space R
 - On Slide 9, `projected` and `kill criterion` are visually unmissable.
 - No hype words on-screen.
 
+## "Observed" boxes — the operational-realism convention
+
+V10.1 introduces a deliberate texture pattern: **on four high-concept slides (4, 5, 6, 7), a small "Observed" box appears at the bottom of the page.** The convention is:
+
+- The box reports a *single mundane behavioral observation from early closed-alpha pilot* — the kind of thing you could only know if you have actually run the system.
+- **No numbers.** "Several parents," "visibly weaker," "in one early interaction pattern" — qualitative, specific, non-marketing.
+- **No success claims.** Each observation reports either friction the system encountered, a non-obvious user behavior, or a place where engineering intuition got pushed back by reality.
+- The box is *visually small* — never larger than the page punchline above it. It is a footnote that earns the page realism, not a competing claim.
+- **Do not consolidate these into a "learnings slide."** The whole point is that they are dropped *into* high-concept pages so those pages stop reading as theory.
+
+The four observations as deployed:
+
+| Slide | Observation | Why it grounds the page |
+|---|---|---|
+| 4 (Flywheel) | High-frequency intervention raised short-term engagement but weakened week-3 trust | Establishes *we optimize for relationship health, not engagement* — a category difference from foundation-lab and consumer-AI defaults |
+| 5 (Parenting wedge) | Parents returned after weeks of inactivity to *preserve continuity*, not to seek advice | The earliest visible form of switching cost is behavioral — Stage 8 of the flywheel, surfaced earlier than expected |
+| 6 (12-week arc) | Faster onboarding correlated with weaker week-3 retention; longer onboarding with explicit household-boundary definition retained better | Onboarding friction is a design choice, not a UX bug — consistent with governance being the product |
+| 7 (Memory→Governance) | System inferred disengagement from silence and over-intervened; re-engagement only occurred after the agent acknowledged its own uncertainty | Repair-via-acknowledgment is the operative governance primitive in practice, not a theoretical seven-dimension list |
+
+If Patrick reads only the four "Observed" boxes, he should walk away knowing: *this team has been watching the system interact with real humans long enough to see the world push back.*
+
 ## Demo handling
 
 - Mobi demo is 4-5 minutes max.
@@ -1144,6 +1197,7 @@ Yes. Appendix E carries the architecture chain — Cognitive AGI, latent-space R
 
 ## Change log
 
+- **2026-05-17 v10.1**: Operational-realism pass. Four "Observed" boxes embedded into high-concept slides (4 / 5 / 6 / 7) following the convention documented in Production Notes. No numbers, no success claims, no consolidated learnings slide. Each observation reports a mundane behavioral reality from early closed-alpha pilot that *could only be known if the system has actually been running on real users*. Effect: deck shifts from "grand unified theory of relationship AI" to "a strange system already interacting with reality." Slide 4 — high-frequency intervention raises short-term engagement but lowers week-3 trust (we optimize for relationship health, not engagement). Slide 5 — parents return after inactivity primarily to preserve continuity (earliest behavioral switching cost). Slide 6 — faster onboarding correlated with weaker week-3 retention (onboarding friction is a design choice). Slide 7 — system inferred disengagement from silence and over-intervened; repair came from agent acknowledging its own uncertainty (repair, not avoidance, is the operative governance primitive). Production Notes extended with the "Observed" convention and a four-row mapping table.
 - **2026-05-17 v10.0**: Three structural fixes from v9.
   1. **New Slide 7: "Memory is substrate. Relationship governance is the product."** Answers the substitution-risk question by moving the moat off the memory primitive and onto seven governance dimensions (what persists / what adapts / what decays / what never transfers / when monetization stops / how rupture is repaired / what consent means longitudinally). Foundation-model memory getting stronger is reframed as substrate-cost reduction, not threat. The line that has to land: *the moat is not remembering more; the moat is deciding what persists, what adapts, what repairs trust, and what becomes economically actionable over years.*
   2. **Slide 5 reframed + new Slide 12: Phase 1→2→3→4 sequencing.** Parenting is restated as the *highest-fidelity proof environment*, not the terminal market. The line that has to land: *parenting is not the terminal market; it is the cleanest environment for observing whether relationship-state compounding is real.* Phase 1 (parenting, 0-18m, asset proof) → Phase 2 (Mobi B2B2C, 0-12m parallel, unit-economics proof) → Phase 3 (enterprise / regulated workflows, 12-36m, governance defensibility proof) → Phase 4 (cross-vertical relationship graph, 36m+, platform option). This is the slide that converts "parenting company" into "category company starting in parenting."
