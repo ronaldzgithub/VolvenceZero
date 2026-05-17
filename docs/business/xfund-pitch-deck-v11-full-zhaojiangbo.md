@@ -2480,3 +2480,689 @@ Union of V2 / V4 / V10 / strategic thesis / technical brief anti-claims:
 - Do not narrate AGI / emotion / consciousness / superseding humans / fully replacing real people / overstated delivery
 
 ---
+
+## Appendix G — Q&A library (18+ questions, full answers)
+
+> Union of V2's 12 Q&As + V6 Appendix E's 6 Q&As + V7 / V8 / V9 additions + technical brief follow-ups. Organized by topic. **Used for room preparation; answer in your own words; do not read from this list.**
+
+### G.1 — Traction, ARR, conversion
+
+**Q1 — You have 6 JVs but no recognized ARR. Why is this traction?**
+
+Signed distribution access, not recognized revenue — and we say so on Slide 26 (uncertainty boundary) and Slide 28 (milestones). The 18-month plan converts at least three JVs into in-production deployments with recognized revenue plus four cohort curves (Slide 8) plus Phase 1 flywheel evidence (Slide 19). The Mobi 3-month kill criterion is the public discipline.
+
+**Q2 — Why parenting first, not Mobi?**
+
+Mobi answers a 90-day unit-economics question — does relationship continuity translate to ~2× SCRM conversion. Parenting answers the 12-month flywheel question — does the trajectory itself become a moat with non-linear switching cost. Mobi cannot answer the second question; its lifecycle is too short. Parenting cannot answer the first in 90 days; its commercial cycle is too long. **We need both, sequentially.** Parenting is the asset side, Mobi is the unit-economics side.
+
+**Q3 — Why are you so confident in the 0.67% Mobi conversion?**
+
+We are not. Internal-model projection, not measurement. Kill criterion below 0.5% is the discipline. Noisy first 30 days expected; clearer curve by day 90. Each runtime mechanism on Slide 8 — memory, preference scoping, timing, adaptation — should move conversion by a measurable amount; we will report which moved how much. Baseline 0.3% comes from public SCRM-industry reporting (Weimob prospectus + iResearch 2025).
+
+**Q4 — All projections; no real ARR. Why should we treat the numbers as credible?**
+
+Because each number is *audience × conservative conversion × signed share*, not TAM extrapolation. Each line in Slide 21 names a specific JV partner and a specific share structure. The deck is *projected* in 2026 — we say so. The kill criterion at Mobi 3-month < 0.5% is the test.
+
+**Q5 — Why 11M-follower 高盖伦 instead of 15M? V2 / V4 said 15M.**
+
+The PDF / V4 line was the wider parenting JV cluster including platform partner audience. The V8+ line refers specifically to the 高盖伦 influencer's own following (~11M). Both are accurate at different aggregation levels. The 60K-unit / RMB 8.4M model uses the conservative 11M base + parenting platform partner.
+
+### G.2 — Substitution risk (the OpenAI question)
+
+**Q6 — Why not just use GPT with memory once it ships?**
+
+GPT memory is a substrate. We will use it. Real human-relationship products require typed feedback enums, scoped deletion with audit, persistent runtime identity, rupture-repair loops, and per-persona refusal as commercial-contract requirements — not as architectural superiority claims. **Frontier labs optimize for generality across one billion users; we optimize for relationship state inside one vertical.** If GPT memory strengthens, our substrate improves; the runtime + governance + JV-distribution layer remains ours.
+
+**Q7 — If foundation labs ship deep memory + persona + state at production quality, what is left of your moat?**
+
+Slide 7. *Memory is substrate; relationship governance is the product.* Memory getting stronger makes our substrate *cheaper*, not us obsolete. The seven governance dimensions on Slide 7 — what persists, what adapts, what decays, what never transfers, when monetization stops, how rupture is repaired, what consent means longitudinally — are family-specific, brand-specific, institution-specific, regulator-specific. They are not what a generality-optimizing foundation lab will verticalize. **Different optimization target; different product.**
+
+**Q8 — But you previously said "OpenAI structurally cannot do X." That feels strong.**
+
+We have stopped using that framing as of V8 (May 2026). The empirical case does not need it. The honest framing is *frontier labs optimize for generality; we optimize for relationship state*. Both can be real. **And foundation-model memory getting stronger helps us, not hurts us.** See Slide 24 anti-claims row 10.
+
+### G.3 — Competitive positioning
+
+**Q9 — Why is Weimob / 有赞 not the threat?**
+
+Their DNA is reach tooling — broadcast, mass messaging, tag-based CRM. Their customer-mind-share is "sales automation." Layering AI relationship engineering on top would amount to admitting their LTV mechanic has failed. They will not do this in 12–24 months. Volvence sells the next category. Repricing thesis (Slide 20).
+
+**Q10 — Why won't large MCNs build this themselves?**
+
+The MCN core competency is IP + content; AI is a cost center, not a revenue line. They will not build a digital-life engine (it requires Yang Liu-grade ML). Volvence *enables* them, not competes with them. The Mobi JV is the proof.
+
+**Q11 — Open Evidence is your competitor.**
+
+Different layer. Open Evidence sits in Generation 1 (institutional vertical data — Mayo Clinic). Volvence sits in Generation 2 (per-person trajectory data). Volvence's cross-vertical relationship graph is what Open Evidence + Mayo cannot become because the data class is fundamentally different. *Three slices of the same Xfund thesis.* (Slide 4, Slide 29.)
+
+**Q12 — Delphi is your competitor.**
+
+Different *time-shape*. Delphi captures one person *statically* (a snapshot replica). Volvence captures the *live trajectory* with governance. A museum that wants Einstein-as-decision-replay buys Delphi; a museum that wants Einstein-as-living-auditable-carrier buys Volvence. Same thesis space; complementary slices.
+
+### G.4 — Founder / team
+
+**Q13 — Why is Yang Liu full-time and not back at OpenAI or DeepMind?**
+
+She is full-time and has been since Volvence's founding. She is an independent researcher who values doing this kind of small-data, non-stationary, real-world relationship research that big labs do not currently underwrite — labs optimize for either pure theory or pure scale, and neither fits Volvence's regime. She is on the company cap table.
+
+**Q14 — Burn / runway?**
+
+RMB 5M self-funded, fully burned across team + engineering + experiments + 6 JV business development. Monthly burn rate available in DD. Need institutional capital for the next 12–18-month evidence pipeline. Honest: even after 3 JVs reach in-production, we will continue to operate in burn-mode for ~6 months as revenue ramps.
+
+**Q15 — What if large labs poach your team?**
+
+Five-person full-time + shipped product + JV network + sunk-cost commitment. Retention mechanism is *mission* — none of the team would replicate this work inside a big lab. Yang Liu in particular is the highest-risk seat; her published commitment to the company is the relevant signal.
+
+### G.5 — Vertical / market
+
+**Q16 — Why China-private-traffic first, not US-global?**
+
+Short-term (this round): China private traffic / parenting / cross-border via 6 JVs. Medium-term (12 months): cross-border + global through existing 50K enterprise base. Long-term: DLaaS global. **The 18 months of this round is China-first; the Series A trajectory adds international.**
+
+**Q17 — UploadLive retention?**
+
+Live ~3 months. Real D7 / D30 numbers being collected. Honest: too early to publish retention. The retention thesis is what Phase 1 parenting evidence proves; UploadLive is a parallel C-end signal, not the primary measurement.
+
+**Q18 — Cross-border SaaS conversion — RMB 30K per seat sounds high?**
+
+Through Hengyi / 1688 / Zhejiang Guomao — these are *enterprise* cross-border accounts, not consumers. 2,000 SaaS accounts × RMB 30K/year × 38% Volvence share is the Slide 21 line. The substitute is hiring a human international-trade specialist (~RMB 200–500K/year). Repricing is favorable.
+
+### G.6 — Substrate / cost / regulation
+
+**Q19 — Substrate price spike risk?**
+
+Four-substrate fallback: GPT-5 / Claude Opus 4.7 / Qwen3-Max / DeepSeek V4. Inference cost ~12% of ARR — substantial, not existential. If one substrate spikes, the others remain. Fallback degrades cost not capability.
+
+**Q20 — Regulation softens — what then?**
+
+Phase 3 governance moat narrows; Phase 1 and Phase 2 commercial moats remain through unit economics + trajectory compounding. The architecture is product-driven; regulatory alignment is a downstream benefit, not the primary motivation.
+
+### G.7 — Upside / category / why Xfund
+
+**Q21 — What is the upside, not the SaaS upside?**
+
+Near term: repricing — Weimob and Youzan sell reach at RMB 1K / brand / month; Volvence targets RMB 5K–50K / brand / month if conversion holds. Long term: **platform option** — every brand and every parent running on Volvence accumulates a non-transferable trajectory; the cumulative trajectory data is the Generation-2 asset that no foundation lab can structurally replicate. **The platform option is a 5–10 year story (Phase 4), not a 12-month story.**
+
+**Q22 — Why Xfund specifically?**
+
+Three reasons:
+
+1. The thesis is a direct extension of Xfund's existing framing — proprietary vertical data beats LLM scaling — into the next layer.
+2. Patrick underwrites founder judgment and category formation, which is what this round is.
+3. Your Delphi and Open Evidence portfolio are complementary slices of the same thesis space — Delphi is snapshot, Open Evidence is institutional, Volvence is the living trajectory with governance.
+
+**Q23 — Why is governance a moat and not a tax?**
+
+Because the architecture required for a long-relationship product is the *same* architecture required by EU AI Act, GDPR Article 17, China PIPL, and emerging AI liability frameworks. We did not build governance for compliance; we built it because the product needs it, and regulation happens to point at the same thing. **Our 50K-enterprise channel cannot sign a workflow contract on GPT-with-Memory; they can on Volvence.** (Slide 23.)
+
+### G.8 — Technical DD partner
+
+**Q24 — The technical depth in Appendix C — is that real?**
+
+Yes. Appendix C carries the full V6 8-step chain — Cognitive AGI, latent-space RL infeasibility, Nested Learning + Emergent Temporal Abstractions, four matched-control ablations PASSing, 28+ EQ benchmarks — with full paper citations, arXiv IDs, and script paths in repo. Any senior technical DD partner can reproduce. **We deliberately keep that material out of the body** because the round is being underwritten on parenting flywheel evidence + Mobi unit economics, not on research claims.
+
+**Q25 — What is your most-likely strategic weakness?**
+
+Without false modesty: enterprise sales experience above US$1M ARR is limited. We will need Xfund portfolio help for the first lighthouse enterprise deals.
+
+**Q26 — What would make you change direction?**
+
+- Mobi 3-month pilot < 0.5% conversion → deprioritize Mobi
+- M9 without 3 JVs in production → narrow focus
+- M6 without ≥ 2 of 4 LTV levers showing measurable lift → thesis softens
+- Parenting D90 / D180 retention curve flat or declining vs. baseline → re-evaluate the asset thesis
+- Token-RL danger papers retracted → the architecture remains useful as a vertical-bundle relationship runtime, but the thesis-of-necessity softens
+- Frontier labs ship deep memory + persona + state at production quality → we compete on relationship governance, vertical depth, JV distribution rather than on primitive
+
+---
+
+## Appendix H — 3-year financial model (revenue, cost, P&L 2026 / 2027 / 2028)
+
+> Source: `00：19-详细版本(1).xls` (internal model — full Excel can be shared in DD). Reconciles V2 S21 + V8 S10–11 + V9 S11 + V10 S13 financial pages.
+
+### H.1 — Top-line P&L 2026–2028
+
+| Year | Revenue | Variable cost | Fixed overhead | Net profit | Net margin |
+|---|---|---|---|---|---|
+| **2026** | **RMB 35M (~US$5.0M)** | RMB 16.2M | RMB 7.9M | **RMB 10.9M (~US$1.55M)** | **31.1%** |
+| **2027** | **RMB 165M (~US$23.6M)** | — | — | **RMB 76.3M (~US$10.9M)** | **46.2%** |
+| **2028** | **RMB 408M (~US$58M)** | — | — | **RMB 221M (~US$31.6M)** | **54.2%** |
+
+Conservative 2026 ARR band: **US$3.33M – US$5.0M** depending on JV ramp speed. 2027–2028 are scenario, not proof. Margin trajectory comes from variable cost scaling sub-linearly + fixed overhead diluting + substrate inference cost falling.
+
+### H.2 — Revenue breakdown per vertical (RMB, 3-year ramp)
+
+| Vertical | 2026 | 2027 | 2028 |
+|---|---|---|---|
+| **高盖伦 parenting** (B2B2C, FIRST WEDGE / proof environment) | 840万 | 2,520万 | 6,640万 |
+| **Mobi / private-traffic profit share** (unit-economics anchor) | 560万 | 1,680万 | 3,360万 |
+| **B2B2B cross-border SaaS** (恒一 / 1688) | 600万 | 2,000万 | 5,000万 |
+| **C-end Mira self-operated** | 550万 | 1,000万 | 5,000万 |
+| **Signed custom enterprise** (浙江数字国贸 + 上海北鸿 + 唐商文化) | 950万 | 1,700万 | 6,000万 |
+| **New 10+ B2B2C/B2B2B (2027+)** | — | 7,600万 | 14,800万 |
+| **Total RMB** | **~3,500万** | **~16,500万** | **~40,800万** |
+| **Total US$ (at 7:1)** | ~US$5M | ~US$23.6M | ~US$58.3M |
+
+**Growth:** **12× revenue** (RMB 35M → RMB 408M).
+
+### H.3 — 2026 cost breakdown (variable / fixed)
+
+| Variable cost (project delivery) | RMB |
+|---|---|
+| Compute / API substrate | ~RMB 9.3M |
+| Delivery | ~RMB 3.5M |
+| Ops | ~RMB 0.7M |
+| JV onsite staff | ~RMB 2.7M |
+| **Total variable** | **RMB 16.2M** |
+
+| Fixed overhead | RMB |
+|---|---|
+| R&D | RMB 2.8M |
+| Sales & marketing | RMB 3.3M |
+| G&A | RMB 1.8M |
+| **Total fixed** | **RMB 7.9M (~US$1.1M)** |
+
+**Total 2026 cost:** RMB 24.1M. **Net 2026:** RMB 10.9M / 31.1% margin.
+
+### H.4 — R&D scaling
+
+| Year | R&D budget |
+|---|---|
+| 2026 | RMB 2.8M |
+| 2027 | RMB 15.0M |
+| 2028 | RMB 40.0M |
+
+R&D scaling roughly tracks revenue scaling at ~10% of revenue, with margin improvement as substrate API cost falls per token.
+
+### H.5 — Mobi single-line economics (deeper detail)
+
+| Item | Per converted user / year | 2026 target scale | 2026 Volvence revenue |
+|---|---|---|---|
+| Service fee (token procurement) | RMB 30 | 187,000 orders | RMB 2.8M |
+| JV profit share (50% × 30% Volvence cut) | RMB 100 distributable | 187,000 orders | RMB 2.8M |
+| **Mobi 2026 subtotal** | | | **RMB 5.6M (~US$0.8M)** |
+
+Three-year ramp:
+
+- 2026: RMB 5.6M (~US$0.8M) — 187K orders @ 0.67%
+- 2027: RMB 16.8M (~US$2.4M) — 561K orders (3×)
+- 2028: RMB 33.6M (~US$4.8M) — 1.122M orders (6×)
+
+**Conversion assumption:** internal model 0.67%, projected, not proven. SCRM baseline 0.3%. Volvence target 0.6–1.0%. Kill criterion < 0.5%.
+
+### H.6 — 高盖伦 parenting single-line economics
+
+| Item | Unit | 2026 target | 2026 Volvence revenue |
+|---|---|---|---|
+| Hardware (newborn pacifier / sleep monitor / baby cam) | RMB 500 / unit | 60,000 units (0.55% activation) | RMB 3.0M |
+| APP subscription | RMB 360 / yr | 60,000 paying users | RMB 5.4M |
+| **高盖伦 2026 subtotal** | | | **RMB 8.4M (~US$1.20M)** |
+
+### H.7 — Companion (UploadLive) single-line economics
+
+| Item | Unit | 2026 target |
+|---|---|---|
+| Activation rate | 1% | 450,000 users |
+| Annual conversion | 10% | 45,000 paid |
+| ARPU | US$42 / yr | |
+| Volvence share | 30% | |
+| **2026 Volvence subtotal** | | **~US$1.87M** |
+
+### H.8 — Cross-border SaaS (恒一 / 1688) single-line economics
+
+| Item | Unit | 2026 target | 2026 Volvence revenue |
+|---|---|---|---|
+| SaaS accounts | 50K base × ~4% adoption = 2,000 | RMB 30K / account / yr | RMB 6.0M |
+| **Cross-border 2026 subtotal** | | | **~US$0.86M** |
+
+### H.9 — Funding terms (the Ask, summary)
+
+| Dimension | Target |
+|---|---|
+| Round size | **US$3M – US$5M** |
+| Pre-money | **US$20M – US$30M** (under discussion) |
+| Xfund target ticket | **US$1.5M – US$2.5M** lead/co-lead |
+| Equity | ~7% – 10% |
+| Runway | 18 months |
+
+**Use of funds:** Engineering **40%** · Compute/data **25%** · GTM **20%** · Operations/legal/IP **15%**.
+
+**Series A trigger:** 3 JVs in production · recognized ARR > US$1M real · ≥ 2 of 4 LTV levers with measurable lift · **Phase 1 exit evidence on parenting** (Stage 8 switching-cost data on a real cohort).
+
+---
+
+## Appendix I — Private-domain deep dive (China structural primer)
+
+> Source: V2 Slides 17–18 + V4 Slide 17. Carries the China-private-traffic / 私域 explainer that does not always survive into cool-tone Patrick-room body decks. Useful for any investor without China commerce context, or when the deck is being given to a US LP who needs to understand why the wedge geography is China.
+
+### I.1 — What private traffic is (definition)
+
+> **Public traffic** (e.g., Douyin / WeChat Channels / RedNote) → user **adds the brand on WeChat or joins a group** → repeated 1-on-1 (or small-group) conversation → trust + preference + timing → purchase / repeat purchase / referral.
+
+The defining feature is that the brand owns the **direct messaging channel** to each user, repeatable without paying for ad reuse.
+
+### I.2 — China vs US comparison
+
+| Dimension | US analogue | China private traffic |
+|---|---|---|
+| **Primary channel** | Email + ads + CRM | WeChat 1-on-1 + WeChat group + WeChat moments |
+| **Relationship density** | Lower (CRM is mostly transactional) | Higher (WeChat is the daily social graph) |
+| **Tooling category** | Salesforce / HubSpot / Marketo | Weimob / Youzan / 企微管家 / SCRM (touch tools, no AI relationship layer) |
+| **Operator pain point** | Cost of lead generation | **Operator headcount + harassment risk** — there is not enough human bandwidth to maintain real relationships at scale |
+| **Market size** | ~US$50B+ SaaS | ~**US$30B+** market |
+| **AI penetration** | Growing | **< 3%** — structurally underbuilt |
+
+### I.3 — The structural pain point (verbatim, V4 framing)
+
+> *"Users want a **relationship**; what the company sends is a **salesperson** — that's why nobody talks in the group."*
+>
+> Existing tools optimize for **reach**. What they cannot do:
+>
+> - Remember the user from session to session
+> - Adapt to the relationship stage (cold lead vs warm vs loyal)
+> - Hold back on monetization when timing is wrong
+> - Build trust *before* the sales pitch
+>
+> The bandwidth gap is huge. A single private-traffic operator can manage ~200 high-quality 1-on-1 relationships. A Mobi-scale pool of 5M users needs **25,000 operators** — economically infeasible. Today the gap is bridged by broadcast messaging, which has a ~0.3% baseline conversion ceiling.
+
+### I.4 — Why Volvence wins this wedge
+
+**Three pillars** (V2 / V4 Slide 18):
+
+1. **Team — 25 years of sales studying humans.** Zhao + Wang + Wu carry combined ~70 years of enterprise sales / commercial / MCN experience. They know what relationship looks like at scale because they have built it manually.
+2. **Tech — Body + Brain + 1/1000-data active learning.** The architecture the body deck describes is exactly what relationship operators need but cannot afford to build.
+3. **Market — 3 private-traffic JVs already signed (28M + 15M + 28M followers).** ~71M-follower aggregate base.
+
+### I.5 — Mobi JV deep dive (commercial structure)
+
+**JV economics:**
+
+- **Per converted user / year:** RMB 30 service fee + RMB 100 distributable profit
+- **2026 target:** 187K converted orders → ~RMB 5.6M (~US$0.8M)
+- **Three-year ramp:** RMB 5.6M → 16.8M → 33.6M (3× / 6×)
+
+**Pricing thesis vs incumbent SCRM:**
+
+| Item | Weimob / Youzan / SCRM | Volvence |
+|---|---|---|
+| Sells | Reach + auto-reply tooling | Relationship engineering |
+| Behavior | Broadcast | Remembered and understood |
+| Goal | One-time conversion | Cross-session LTV |
+| Price | ~RMB 1K / month / brand | RMB 5K – 50K / month / brand (target) |
+| ARPU multiple | 1× | **5× – 50×** |
+
+**Why no incumbent will counter in 12–24 months:** (1) Weimob and Youzan's DNA is reach tooling, not relationship engineering; (2) their customer mind-share is "sales automation," and layering relationship AI would amount to admitting their existing LTV mechanic has failed; (3) the engineering depth (Yang Liu-grade ML) is outside their org culture.
+
+### I.6 — Companion / Mira economics
+
+| Vertical | Volvence | Industry baseline |
+|---|---|---|
+| ARPU | US$42 / yr | Replika ~US$10/mo subscription |
+| D30 retention | TBD (UploadLive ~3 months live) | Replika / Companion industry ~20–30% |
+| CAC | TBD | Industry CAC US$200–400 (competitive) |
+| Activation rate (assumed) | 1% of 45M followers | n/a |
+| Annual conversion (assumed) | 10% of activated | n/a |
+| Volvence share | 30% | n/a |
+| 2026 line | ~US$1.87M | |
+
+### I.7 — Geography sequencing
+
+| Window | Primary geography | Why |
+|---|---|---|
+| 0 – 18 months | **China** | 6 JVs already signed; team's GTM superpower; private-traffic market structure is uniquely Chinese; cross-border SaaS gives US-revenue surface via 1688's 50K-enterprise base |
+| 12 – 36 months | **China + cross-border + selective US** | Heyi / 1688 cross-border SaaS gives US-customer revenue without US sales infrastructure; selected US lighthouse via portfolio support |
+| 36+ months | **Global** | DLaaS as the platform option (Phase 4) |
+
+> **The thesis is geography-agnostic, but the GTM is sequenced.** We do not pretend Volvence will go global in 12 months.
+
+---
+
+## Appendix J — Industry research depth (Patrick Chung / Xfund / frontier-lab map)
+
+> Source: `xfund-strategic-thesis.md` §1 + `xfund-pitch-deck-blueprint.md` §1.4–1.6. Background for the Xfund-specific framing in Slide 29 and for any LP / portfolio-Q&A conversation. **This is the research-corpus packet, not a slide deck section.**
+
+### J.1 — Xfund as institution (facts, public sources)
+
+| Fact | Source |
+|---|---|
+| Founded 2012 as *The Experiment Fund* | Public |
+| Fund sizes: **US$10M (2012) → US$100M (2014) → US$120M (2020 oversubscribed)** | Public |
+| LPs include **Harvard, NEA, Breyer, Accel, Polaris** | Public |
+| Cambridge MA + Palo Alto CA offices | Public |
+| **Xfund 2 returned 1/3 of invested capital by 2020** | Public statements |
+| **Xperiment Stake**: US$100K SAFE for Harvard / Yale / MIT / UPenn / Stanford / Berkeley students | Public |
+| Typical stage: pre-seed / seed / A | Public |
+| **First-check size: ~US$250K – US$3M** | Public |
+| **~90% first-money-in rate** | Public statements |
+
+### J.2 — Patrick Chung (career anchors)
+
+- **Education:** Oxford + Harvard (JD-MBA, Harvard Law Review)
+- **Pre-Xfund:** NEA (regulated-industries partner); ZEFER (founder before Xfund)
+- **The 2005 Loopt check:** at NEA, gave 19-year-old Sam Altman / Loopt the first US$5M institutional check — **the canonical "Hacker + Humanist" / 'chase the talent' story Xfund still cites**
+- **Verbatim quotes (public, cited verbatim in deck Slide 29):**
+  - *"We chase the talent. We let the talent decide where to go."*
+  - *"The greatest opportunities are in the proprietary data verticals. Vertical proprietary data beats LLM scaling."* (2024-07 public statement)
+  - *"No one is going to compete with the established LLMs."* (2024-07)
+  - *"Relationships are the most meaningful, persistent, and valuable."*
+- **Three lessons Patrick says he learned from Sam Altman:** team quality, board support, **relationships are more durable than companies**
+
+### J.3 — Xfund portfolio relevant to Volvence
+
+| Company | Sector | Relevance to Volvence thesis |
+|---|---|---|
+| **Open Evidence** | Mayo Clinic data × medical vertical AI | Canonical **Generation 1 vertical proprietary data** — validates the thesis Volvence extends into Generation 2 |
+| **Delphi** | Personal digital clone (chat + decision replay) | Adjacent — *snapshot replica*; Volvence is *live trajectory with governance.* Complementary, not competitive |
+| **Kensho** | S&P Global × financial vertical AI (acquired) | Pre-portfolio analogue; institutional vertical data acquired by S&P |
+| **Loopt** | Sam Altman's location-sharing startup (2005) | Founder-judgment portfolio template; the Hacker + Humanist team profile Xfund has backed since |
+
+### J.4 — Patrick's "what doesn't work" list (deck filter)
+
+Things to *avoid* in a Patrick room:
+
+- TAM "US$X billion by 2030" framing
+- Roadmap-led pitch ("here's our 5-year plan")
+- "We will disrupt OpenAI"
+- Apologetic pre-revenue framing
+- Over-emphasizing "we're an AI company" (the AI thesis is given; the founder-judgment thesis is what gets funded)
+
+What *works*:
+
+- First-principle reasoning visible from the cover
+- Founder-judgment, founder concentration, founder commitment story
+- A specific, signed, verifiable distribution channel
+- *Anti-claims* — what you are *not* selling
+- A documented uncertainty boundary (Slide 26)
+
+### J.5 — Internal industry-research corpus (the 12-month scan)
+
+- **100+ papers** read in depth across NL / ETA / token-RL / multi-timescale RL / world models / cognitive science / active learning
+- **OpenAI frontier 2026 watch:** 12 named researchers tracked across 2024-01 – 2026-05 + 8 new papers in deep read + 4 papers in delta read
+- **DeepMind 2026 watch:** 13 named researchers (Dreamer 4 / Botvinick / Precup HRL / AlphaEvolve / AlphaDev / SIMA / Genie 3) — A10 + B10 + C3 papers deep-read, 21 new PDF downloads (~230 MB)
+- **NL / ETA source group:** Google Nested Learning; ETH-Sacramento ETA — 22 papers in deep evaluation
+- **Repository:** `research/` 100+ PDFs; ~1500 lines of internal review notes
+
+### J.6 — Four macro signals 2026 (deck Slide 2 source)
+
+| Signal | What it means |
+|---|---|
+| **A. OpenAI in engineering-integration phase** | GPT-5 system card = integration of o-series + dual-process router; no new scaling milestone; resources visibly redirected to Bio/Chem safety. **The IQ-scaling SOTA delta per quarter is decreasing.** |
+| **B. Three labs proved token-space RL is structurally dangerous (Nov '25 – Mar '26)** | Anthropic + OpenAI/academia + MATS — five-month independent triangulation. **The default RL recipe is structurally broken.** |
+| **C. Frontier-lab diaspora** | Sutskever → SSI (silent, ~US$32B); Karpathy → Eureka Labs; Schulman → Anthropic → Thinking Machines; Murati / Weng → Thinking Machines. **Specialization replacing monoculture.** |
+| **D. Test-time compute / multi-timescale learning / governance** | Empty center on the 2026 cognitive AI map — not on any major frontier lab's product roadmap. **Volvence sits in the empty center deliberately.** |
+
+### J.7 — Frontier-lab roster watched (named researchers)
+
+- **OpenAI (12 watched):** Schulman (departed → Anthropic → Thinking Machines); Weng (departed → Thinking Machines); Murati (departed → Thinking Machines); plus 9 currently-at-OpenAI for whom public statements are tracked
+- **DeepMind (13 watched):** Hassabis, Silver, Precup, Klissarov, Botvinick, Wang, Dabney, Genie/SIMA/Dreamer team leads, AlphaEvolve / AlphaDev team — current and rotating
+
+### J.8 — The "Volvence sits in the empty center" claim
+
+*The map of 2026:* OpenAI = engineering integration; Anthropic = alignment science; DeepMind = world models + self-improvement; SSI = silent; Karpathy = education; Thinking Machines = reasoning + safety. **The intersection of "living digital relationships + multi-timescale learning + auditable governance" is not on any of their 2026 product roadmaps.** That intersection is Volvence's design space.
+
+---
+
+## Appendix K — Cool-tone playbook + production notes
+
+> Source: V3 cooling-principles + V9 / V10 PPT production notes + deck blueprint speaking arrangements + leave-behind packet checklist. **This appendix is for the speaker, not the room.** Use as a rehearsal checklist and a content-selection filter.
+
+### K.1 — V3's five cooling principles (verbatim — applied across all V11-full body slides)
+
+> Per `xfund-pitch-deck-v3-zhaojiangbo.md`, §"因此 v3 做 5 个降温处理":
+>
+> 1. **删除所有内部自评词：如"灵魂级 thesis"、"杀伤力"、"结构性独占"、"唯一"、"OpenAI 永远做不出"。**
+> 2. **技术 claim 改成可验证表述：从"已经证明下一代范式"改为"我们已有早期工程 evidence，DD 可重跑"。**
+> 3. **商业预测降级为 scenario：主线不再把 2028 收入当结论，而是讲 6 个已签入口如何转成真实 ARR。**
+> 4. **Founder 叙事保留事实，删除自我解释：让 Patrick 自己判断 first-principle quality。**
+> 5. **Einstein / Companion Bench / O(log n) / Experiment Roadmap 进入 appendix 或 Q&A，不抢私域 wedge 主线。**
+
+**English summary:**
+
+1. Delete every self-praise word. *No "soul-level thesis" / "lethality" / "structurally exclusive" / "only" / "OpenAI will never do this".*
+2. Rephrase technical claims as verifiable. *"We have early engineering evidence; DD can re-run."*
+3. Demote commercial projections to scenarios. *2028 revenue is not the conclusion; six signed JVs converting to real ARR is.*
+4. Founder narrative = facts only. *Let Patrick judge first-principle quality himself.*
+5. Einstein / Companion Bench / O(log n) / experiment roadmap → appendix or Q&A, not the wedge mainline.
+
+**How V11-full applies these:**
+
+- The cool-tone principles govern body slides 1–30. Manifesto / civilization-level claims live only in Appendix C, D.
+- Whenever you select content for a Patrick-room variant, pass it through this filter.
+
+### K.2 — Words to avoid (body slides) — V9 / V10 production-note list
+
+Do *not* use in body slides (allowed only in Appendix C, D, J):
+
+- "AGI", "Cognitive AGI", "the era of experience", "Bitter Lesson"
+- "frontier labs structurally cannot", "OpenAI cannot do X"
+- "token-RL is dead", "alignment-faking"
+- "Nested Learning", "Emergent Temporal Abstractions", "ETA", "β_t", "z_t", "metacontroller", "R1–R15"
+- "operating system", "AI infrastructure", "AI runtime layer" used in isolation (use *trajectory* / *flywheel* / *wedge* vocabulary instead)
+- "platform" used vaguely (commit: Volvence is a *vertical-relationship runtime starting with parenting*; the platform option is a 5–10 year story)
+- 唯一 / 永远 / 结构性独占 / 杀伤力 / 灵魂级 / 打爆
+
+### K.3 — Replacement language
+
+Use instead:
+
+- "Frontier labs optimize for generality; we optimize for relationship state."
+- "Generation 2 vertical proprietary data."
+- "The trajectory is the moat. Parenting is the first proof." (V9 variant)
+- "Memory is substrate. Relationship governance is the product." (V10 variant — canonical V11-full)
+- "Parenting is the proof environment, not the terminal market."
+- "The flywheel compounds the trajectory; switching cost rises non-linearly."
+- "The child is the third party — and the child changes faster than any new system can keep up."
+- "Switching cost is biographical, not technical."
+- "Our current judgment is..." / "This has not yet been proven; the kill criterion is..." / "DD can re-run this live..."
+
+### K.4 — Speaking arrangements (30 / 45 / 60 / 90 min)
+
+**30-minute Patrick-room (current default):**
+
+```text
+0-2 min      Cover + one-line pitch                        (Slide 1)
+2-6 min      Generation 2 vertical proprietary data        (Slide 4)
+6-12 min     The Trajectory Flywheel                       (Slide 5)
+12-17 min    Memory vs governance + LTV levers             (Slides 7, 8)
+17-23 min    Parenting wedge + 12-week arc                 (Slides 18, 19)
+23-27 min    Mobi unit econ + 6 JV revenue map             (Slides 20, 21)
+27-30 min    Phase 1→4 + financials + uncertainty + ask    (Slides 22, 25, 26, 29)
+30-60 min    Conversation
+```
+
+Must-land slides: **5 (flywheel), 7 (memory/governance), 22 (Phase 1→4), 26 (uncertainty)**.
+
+**45-minute Patrick-room:**
+
+```text
+0-3 min      Cover + founders                              (Slides 1, 9)
+3-8 min      Why now + reverse validation                  (Slides 2, 3)
+8-15 min     Gen 2 + flywheel + data ceiling               (Slides 4, 5, 6)
+15-22 min    Memory/governance + LTV levers                (Slides 7, 8)
+22-28 min    Parenting wedge + 12-week arc                 (Slides 18, 19)
+28-33 min    Mobi + revenue map                            (Slides 20, 21)
+33-38 min    Phase 1→4 + financials                        (Slides 22, 25)
+38-42 min    Risks + uncertainty + ask + close             (Slides 26, 27, 29, 30)
+42-60 min    Conversation
+```
+
+**60-minute investment-document walkthrough:**
+
+Full body deck 1–30 with pauses on must-land set 4, 5, 7, 8, 18, 19, 22, 26. ~50 min presentation + 10 min Q&A.
+
+**90-minute technical DD partner:**
+
+Body 1–17 (skip 18–21 wedge / commercial unless asked), then dive deep on Appendix C (full 8-step chain) + Appendix E (engineering reality). Add Appendix B citation index for reference.
+
+**30-minute speaking pacing (deck-blueprint version):**
+
+```text
+0-3 min      Hook                                          (Slides 1-3)
+3-8 min      Industry scan                                 (Slides 2-3, plus selectables 6-7)
+8-16 min     What we have built                            (Slides 12-15)
+16-20 min    IQ + EQ emergence                             (Slides 13-14)
+20-23 min    Portfolio positioning                         (Slide 4 reframed + Appendix E.4)
+23-27 min    Three things shipping (evidence cascade)      (Slides 16, 17, 20)
+27-29 min    Risk + uncertainty                            (Slides 26-27)
+29-30 min    Ask                                           (Slide 29)
+30-45 min    Conversation
+```
+
+Key pages to dwell on: **3, 11 (Soul Migration), 14 (EQ), 18 (parenting wedge), 26 (uncertainty)**. At least **15 minutes** for Q&A.
+
+### K.5 — Speaker behavior
+
+- **After the trajectory flywheel slide (Slide 5) — pause.** Let inevitability register. Patrick's question after Slide 5 is the single most informative moment of the meeting.
+- **After Slide 7 (memory vs governance) — pause.** This is where the substitution-risk objection is resolved or amplified.
+- **After Slide 22 (Phase 1→4) — pause.** The venture-scale question lands here.
+- **After Slide 26 (uncertainty boundary) — pause.** The maturity tell.
+- After naming a kill criterion or honest-disclosure number — pause.
+- If Patrick interrupts, switch to conversation. The must-land set is 5, 7, 22, 26; everything else is supporting evidence.
+
+**Goal of the meeting:** leave the room with Patrick able to repeat **one sentence to his LP**:
+
+> *"Volvence is Generation 2 vertical proprietary data — the per-family trajectory. Memory is substrate; relationship governance is the product. Parenting is the proof environment, not the terminal market — Phase 1→4 is why this wedge precedes the category. Switching cost is biographical, not technical."*
+
+### K.6 — Visual style
+
+- Near-black background. Single main thought per slide.
+- Dense tables only on Slides 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27.
+- **Green** only for emphasis (numbers, kill criterion, honest-disclosure, switching-cost punchline) — not decoration.
+- **Slide 5 (Trajectory Flywheel) is the deck's center of gravity.** The flywheel diagram dominates; the eight-row metric table supports; the non-obvious-insight box in green.
+- **Slide 7 (memory/governance) — punchline box in green at the bottom.**
+- **Slide 19 (12-week parenting arc)** uses a diff-style visual — each week is a row; runtime-state column is in audit-trail color. *"Switching cost is biographical, not technical"* in green.
+- **Slide 26 (uncertainty boundary)** — three columns visually distinct: cool blue (proven), green (in-progress), neutral grey (long-term).
+- **Slide 20 (Mobi)** — `projected` and `kill criterion` visually unmissable.
+- Use the V4-style four-quadrant grid for any "one engine, four scenarios" page; shared center says "Volvence Runtime".
+- No hype words on-screen.
+
+### K.7 — Demo handling
+
+- Mobi demo: 4–5 minutes max.
+- If parenting demo is available, prioritize a **60–90 second multi-week-state replay** over the Mobi demo; the parenting flywheel is harder to grasp without seeing state accumulate.
+- Subtitles English if conversation is Chinese.
+- Highlight only **4 moments** mapped to Slide 8's four LTV levers:
+  - prior context remembered (retention)
+  - preference separation (trust premium)
+  - recommendation timing (conversion)
+  - adaptation after feedback that persists across restart (recovery)
+
+### K.8 — Leave-behind packet checklist (8 items)
+
+When the meeting ends, send / hand over:
+
+1. `xfund-technical-credibility-brief.md` — short technical credibility doc
+2. `xfund-strategic-thesis.md` — full strategic narrative
+3. `commercialization-assessment.md` — 6-path commercialization framework
+4. `experiment-arch-uplift-phase1-exit-evidence.md` — Phase 1 contract-test exit evidence
+5. `growth-advisor-pilot-packet.md` — Growth-Advisor pilot proposal (Path P2)
+6. `companion-bench-public-launch-packet.md` — Companion Bench v1.0 public launch material
+7. **V11-full PDF export** (this document, converted) — printed deck
+8. Follow-up email ≤ 300 words — TODO before each meeting
+
+### K.9 — Production checklist before any meeting
+
+- [ ] Cover tagline matches audience? (V10 default; V9 trajectory-emphasis; V4 manifesto; V3/V5 cool-tone first-meeting)
+- [ ] Words-to-avoid list cleared from all body slides
+- [ ] Appendix C / D / J content moved out of body if audience is not technical DD
+- [ ] Mobi `projected` + kill criterion visible
+- [ ] Uncertainty boundary (Slide 26) included for any first meeting (always)
+- [ ] 90-day memo commitment named on Slide 28
+- [ ] Three Patrick quotes on Slide 29 (Patrick-room only — remove for other LP / portfolio meetings)
+- [ ] Internal financial model (`00：19-详细版本(1).xls`) ready to share if asked
+- [ ] GitHub commit graph available to screen-share if asked
+- [ ] Companion Bench URL live and clickable
+
+### K.10 — Internal known inconsistencies (still being resolved across versions; pick one when generating a variant)
+
+| Item | V2 / V4 | V8 / V9 / V10 | V11-full canonical |
+|---|---|---|---|
+| 高盖伦 follower count | 15M | 11M | **11M** (use the conservative, with parenting platform partner as the additional reach) |
+| Mobi conversion model | Multiple framings; V2 says 1%+ vs baseline 0.3% | **0.67% internal model**, kill criterion 0.5% | **0.67% internal model** |
+| "8 things shipped" Item 8 | Growth-Advisor (strategic thesis §3) | Figure / Einstein (technical brief Table) | **Technical brief order** (Phase 1 first, Figure-Einstein last) |
+| Phase A completion date | Phase A "✅ 完成 2026-05-12" | Phase A done as of 2026-05-15 in V2 changelog | **2026-05-12** (the brief date) |
+| Number of body slides | V2 = 26 / V4 = 26 / V6 = 22 / V7 = 14 / V8 = 15 / V9 = 15 / V10 = 18 | | **V11-full = 30 body slides + 11 appendices** |
+
+---
+
+## Change log
+
+- **2026-05-17 v11.0-full (this version)** — **Master super-deck consolidation.** Folds in everything from V2 through V10 + the April 2026 *Beyond Agents* PDF + four backing docs (strategic thesis, blueprint, technical credibility brief, commercialization assessment). Hybrid thesis-driven spine: V10 governance-as-product framing on top, V9 flywheel + V8 economic-lift as empirical spine, V6 8-step chain preserved verbatim as Appendix C, V4 / PDF Body+Brain / Soul Migration / Cognitive AI Map / Reverse Validation as Appendix D and Slides 2, 3, 10, 11. V2 Companion Bench Niche Map + Einstein L1–L4 preserved as Slides 16, 17. V3 cooling principles, words-to-avoid, and speaking arrangements consolidated as Appendix K. Designed to be the *source of all future audience-specific decks*. 30 body slides + 11 selectable appendix modules.
+- **2026-05-17 v10.0** — *Memory is substrate. Relationship governance is the product.* New Slide 7 (memory-vs-governance), Slide 12 (Phase 1→4), Slide 15 (uncertainty boundary). Parenting reframed as proof environment, not terminal market.
+- **2026-05-17 v9.0** — *The trajectory is the moat. Parenting is the first proof.* New Slide 4 (Trajectory Flywheel — 8-stage compounding loop with metric / economic-consequence / irreversibility-property per stage). Parenting committed as THE first wedge; 6-criterion comparison vs. companion / private-traffic / cross-border; new Slide 6 (12-week parenting trajectory arc). Mobi compressed from 3 slides to 1. Architecture prose density trimmed ~30%.
+- **2026-05-17 v8.0** — *Relationship Continuity Creates Economic Lift.* Reorganized around empirical business-metric spine. Civilization-level narrative walled off in Appendix E. Mobi promoted to centerpiece across 3 slides.
+- **2026-05-17 v7.0** — Patrick-Chung-specific (founder + thesis-extension + governance). Compressed V6's 8-step technical thesis from body to appendix. Governance promoted to Slide 6.
+- **2026-05-17 v6.0** — Thesis-driven 8-step argument chain with explicit Proof blocks. Cognitive AGI / token-RL / NL+ETA civilization-level narrative on body slides.
+- **2026-05-17 v5.0** — Cool-tone (V3 skeleton + V4 reinforcements: Human-as-vertical-data thesis / Mobi unit econ + kill criterion / Ask page with $20-30M pre-money / 7-10% equity).
+- **2026-05-17 v4.0** — *Beyond Agents* PDF-companion markdown. Body+Brain / Soul Migration / Cognitive AI Map / Reverse Validation manifesto narratives. 26 body slides.
+- **2026-05-17 v3.0** — Cool-tone first version. Five cooling principles applied.
+- **2026-05-15 v2.7.2** — Encyclopedic baseline. 26-slide full deck + appendices. Slide 8 "Human Beings Themselves Are the Vertical Data" + Slide 13 Niche Map (vs MMLU / Chatbot Arena / MT-Bench / EQ-Bench 3 / RP-Bench / AgentBench) + Slide 25 funding terms ($3-5M / $20-30M pre-money / 7-10% equity) + Slide 14 Experiment Roadmap + Slide 13 Einstein Case Study + Slide 11 Hard Evidence + Slide 12 Companion Bench. 12-question Q&A library. 25-year first-principle arc. Private-domain operations deep dive. Excel 3-year financial outlook.
+
+---
+
+## Cross-version provenance table
+
+> Where every block of V11-full came from. Use this when generating an audience-specific variant: pull the canonical sub-module from the listed source.
+
+| V11 element | Drawn from |
+|---|---|
+| Cover tagline (V10 variant — default) | V10 Slide 1 verbatim |
+| Cover tagline (V9 variant — trajectory-emphasis) | V9 Slide 1 verbatim |
+| Cover tagline (V4 variant — manifesto) | V4 Slide 1 verbatim |
+| Cover tagline (V3 / V5 variant — cool-tone) | V3 / V5 Slide 1 verbatim |
+| Why now: 2026 Cognitive AI map (Slide 2) | V4 Slide 6 + V6 Slides 3–5 + strategic thesis §1 |
+| Reverse validation: token-space RL (Slide 3) | V4 Slide 7 + V6 Slide 6 |
+| Generation 2 vertical proprietary data (Slide 4) | V10 Slide 3 verbatim |
+| The Trajectory Flywheel (Slide 5) | V9 Slide 4 verbatim (+ V10 Slide 4 row tweaks called out) |
+| The data ceiling (Slide 6) | V6 Slide 5 + V8 Slide 4 + V7 Slide 4 |
+| Memory is substrate (Slide 7) | V10 Slide 7 verbatim |
+| Four governance mechanisms → four LTV levers (Slide 8) | V10 Slide 8 + V8 Slide 5 |
+| Founders: Hacker + Humanist (Slide 9) | V7 Slide 2 + V9 Slide 2 + PDF Slide 18 + V2 Slide 2 (25-year arc) |
+| Three first principles → Body + Brain (Slide 10) | V4 Slide 9 + PDF Slides 5/10 |
+| Soul Migration (Slide 11) | V4 Slide 10 + PDF Slide 11 + V2 Slide 10 |
+| 8-step technical chain (one frame) (Slide 12) | V6 thesis-chain table + Appendix C condensed |
+| How IQ emerges (Slide 13) | V6 Slide 11 verbatim |
+| How EQ emerges (Slide 14) | V6 Slide 12 verbatim |
+| Hard evidence wall (Slide 15) | V2 Slide 12 + V4 Slide 12 + V6 Slide 9 + technical brief §1 |
+| Companion Bench Niche Map (Slide 16) | V2 Slide 13 + V4 Slide 13 verbatim |
+| Einstein L1–L4 (Slide 17) | V2 Slide 14 + V4 Slide 14 |
+| Why parenting is THE proof environment (Slide 18) | V9 Slide 5 / V10 Slide 5 verbatim |
+| 12-week parenting trajectory arc (Slide 19) | V9 Slide 6 / V10 Slide 6 verbatim |
+| Mobi unit econ (Slide 20) | V8 Slides 7–9 + V9 Slide 8 / V10 Slide 9 |
+| Six JV revenue map (Slide 21) | V8 Slide 10 + V9 Slide 10 / V10 Slide 11 + V4 Slide 16 (timeline insert) |
+| Phase 1→4 sequencing (Slide 22) | V10 Slide 12 verbatim |
+| Governance moat (Slide 23) | V7 Slide 6 + V9 Slide 9 / V10 Slide 10 |
+| Anti-claims (Slide 24) | V2 Slide 22 + V4 Slide 22 + strategic thesis §6 + V10 Appendix C union |
+| 2026–2028 financials (Slide 25) | V8 Slide 11 + V9 Slide 11 / V10 Slide 13 + V2 Slide 21 |
+| Uncertainty boundary (Slide 26) | V10 Slide 15 verbatim |
+| Risks + falsifiers (Slide 27) | V9 Slide 13 + V10 Slide 16 |
+| 18-month milestones (Slide 28) | V2 Slide 24 + V6 Slide 17 + V10 Slide 13 |
+| Why Xfund + The Ask (Slide 29) | V2 Slide 25 + V10 Slide 17 |
+| Close in five lines (Slide 30) | V9 Slide 15 / V10 Slide 18 |
+| Appendix A — Yang Liu papers | V9 / V10 Appendix A + PDF appendix (4 pages) |
+| Appendix B — Citation index | V6 Appendix B + strategic thesis citation index |
+| Appendix C — Full 8-step chain | V6 Slides 3–10 + V6 Slide 20 verbatim (with all Proof blocks) |
+| Appendix D — PDF *Beyond Agents* content | PDF pages 1–22 + V4 manifesto content |
+| Appendix E — Engineering reality | Technical credibility brief §1 verbatim (with footnote on strategic-thesis §3 differing item 8) |
+| Appendix F — Commercialization assessment | `commercialization-assessment.md` §4–10 |
+| Appendix G — Q&A library | V2's 12 Q&As + V6 Appendix E (6 Q&As) + V7/V8 additions + V9 Appendix F |
+| Appendix H — 3-year financial model | V2 Slide 21 + V8 Slides 10–11 reconciled with `00：19-详细版本(1).xls` |
+| Appendix I — Private-domain deep dive | V2 Slides 17–18 + V4 Slide 17 |
+| Appendix J — Industry research depth | Strategic thesis §1 + blueprint §1.4–1.6 |
+| Appendix K — Cool-tone playbook | V3 cooling principles verbatim + V9 / V10 PPT production notes + blueprint speaking arrangements |
+| Cross-version provenance table | This document |
+
+---
+
+## What V11-full deliberately does NOT do
+
+- Does **not** pick a single audience. It is the master. Patrick-room, technical-DD-partner, LP-room, and Chinese-investor variants are derived by *selection*, not by rewriting.
+- Does **not** collapse any verbatim block from a prior version. Canonical sub-modules are preserved so future selectors can quote without losing fidelity.
+- Does **not** silently fix unresolved discrepancies — they are recorded in Appendix K.10 so the user picks one when generating a variant.
+- Does **not** introduce any new claims not already in V2–V10 / PDF / four backing docs.
+- Does **not** retire V10. V11-full is the *master*; V10 remains the canonical 18-slide ready-to-present deck for the current Patrick-room default.
+
+---
+
+*End of V11-full master deck.*
+
