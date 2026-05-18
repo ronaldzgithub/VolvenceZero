@@ -69,6 +69,14 @@ class TurnResponse:
     commitment_count: int
     response_rationale_tags: tuple[str, ...] = ()
     safety: dict[str, Any] = field(default_factory=dict)
+    # Derived view of the prompt envelope that was assembled for this
+    # turn's LLM call. SSOT note: ``system_prompt`` is rebuilt by the
+    # handler via the pure ``build_system_prompt(assembly)`` function
+    # using the same ``response_assembly`` snapshot the synthesizer
+    # consumed, so this is a snapshot-derived projection — not a new
+    # owner of prompt state. ``None`` when no LLM-backed synthesizer
+    # ran (deterministic substrate, scope refusal, error path).
+    llm_envelope: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -84,6 +92,7 @@ class TurnResponse:
             "commitment_count": self.commitment_count,
             "response_rationale_tags": list(self.response_rationale_tags),
             "safety": self.safety,
+            "llm_envelope": self.llm_envelope,
         }
 
 

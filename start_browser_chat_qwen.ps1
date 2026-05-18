@@ -9,11 +9,12 @@
     The two scripts produce identical service behavior; only the host scripting
     layer differs.
 
-    Defaults target Qwen2.5-7B-Instruct: the smallest base model that reliably
-    follows VZ's structured system prompt AND keeps multi-turn coherence on
-    short follow-ups. The 0.5B / 1.5B / 3B variants tend to collapse into
-    single-character or off-topic replies once the kernel's plan/ordering
-    instructions are stacked on top of the user turn.
+    Windows default: Qwen2.5-0.5B-Instruct. On a typical Windows workstation
+    the 0.5B variant downloads fast (~1 GB) and runs on CPU with minimal RAM.
+    For richer coherence on complex VZ prompts, override with MODEL_ID:
+      $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'   # better coherence
+      $env:MODEL_ID = 'Qwen/Qwen2.5-7B-Instruct'   # recommended quality bar
+    The Mac/Linux companion script (start_browser_chat_qwen.sh) defaults to 7B.
 
     What you can actually run locally
     ---------------------------------
@@ -82,7 +83,7 @@
     previous anonymous, in-memory-only behavior.
 
 .EXAMPLE
-    .\start_browser_chat_qwen.ps1                                # 7B default
+    .\start_browser_chat_qwen.ps1                                # 0.5B default
 
 .EXAMPLE
     $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'
@@ -101,7 +102,7 @@
     Useful env vars (all optional, defaults shown):
       HOST=127.0.0.1
       PORT=8765
-      MODEL_ID=Qwen/Qwen2.5-7B-Instruct        # see sizing table above
+      MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct      # Windows default; override for richer output
       DEVICE=auto                              # auto | cpu | cuda | cuda:0 | mps
       LOCAL_FILES_ONLY=0
       OPEN_BROWSER=1
@@ -183,7 +184,7 @@ Set-DefaultEnv 'VERTICAL'              'companion'
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ROOT'        (Join-Path $RootDir 'data\figure_bundles')
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ID'          ''
 Set-DefaultEnv 'EINSTEIN_REQUIRE_REAL_BUNDLE' '0'
-Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-1.5B-Instruct'
+Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-0.5B-Instruct'
 Set-DefaultEnv 'DEVICE'                'auto'
 Set-DefaultEnv 'LOCAL_FILES_ONLY'      '0'
 Set-DefaultEnv 'MAX_SESSIONS'          '256'

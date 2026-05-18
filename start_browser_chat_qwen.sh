@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Start the browser chat service with a real Hugging Face Qwen substrate.
 #
-# Defaults target Qwen2.5-7B-Instruct: the smallest base model that
-# reliably follows VZ's structured system prompt AND keeps multi-turn
-# coherence on short follow-ups. The 0.5B / 1.5B / 3B variants tend
-# to collapse into single-character or off-topic replies once the
-# kernel's plan/ordering instructions are stacked on top of the user
-# turn.
+# Default: Qwen2.5-0.5B-Instruct. Aligned with start_browser_chat_qwen.ps1
+# so the first-run experience on any host is "tiny model, fast download
+# (~1 GB), runs on CPU with minimal RAM". The 0.5B model produces
+# noticeably weaker multi-turn coherence on the kernel's structured
+# system prompt — for richer output, override with MODEL_ID:
+#
+#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct   # better coherence
+#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct   # recommended quality bar
 #
 # ---------------------------------------------------------------------
 # What you can actually run locally
@@ -16,9 +18,10 @@
 #
 #   Model                       bf16 RAM   Q4 RAM   Disk    Verdict on M4 24GB
 #   --------------------------- ---------- -------- ------- ------------------
+#   Qwen2.5-0.5B-Instruct       ~ 1 GB     ~ 0.5 GB  1 GB   default (fast/weak)
 #   Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   too weak for VZ prompt
 #   Qwen2.5-3B-Instruct         ~ 8 GB     ~ 2 GB    6 GB   borderline coherent
-#   Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   recommended (default)
+#   Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   recommended quality bar
 #   Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 OK
 #   Qwen2.5-32B-Instruct        ~64 GB     ~18 GB   62 GB   bf16 NO; Q4 tight
 #   Qwen2.5-72B-Instruct       ~145 GB     ~40 GB  145 GB   NOT runnable locally
@@ -102,9 +105,9 @@
 # ---------------------------------------------------------------------
 # Usage
 # ---------------------------------------------------------------------
-#   bash start_browser_chat_qwen.sh                                # 7B default
+#   bash start_browser_chat_qwen.sh                                # 0.5B default
 #   MODEL_ID=Qwen/Qwen2.5-3B-Instruct bash start_browser_chat_qwen.sh
-#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct bash start_browser_chat_qwen.sh
+#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
 #
 # If HuggingFace is slow / blocked, route through the mirror:
 #   HF_ENDPOINT=https://hf-mirror.com bash start_browser_chat_qwen.sh
@@ -113,7 +116,8 @@
 # Useful env:
 #   HOST=127.0.0.1
 #   PORT=8765
-#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct        # default; see sizing table above
+#   MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct      # default; see sizing table above
+#                                            # (override for richer output)
 #   DEVICE=auto
 #   LOCAL_FILES_ONLY=0
 #   OPEN_BROWSER=1
@@ -175,7 +179,7 @@ export VERTICAL="${VERTICAL:-companion}"
 export EINSTEIN_BUNDLE_ROOT="${EINSTEIN_BUNDLE_ROOT:-${ROOT_DIR}/data/figure_bundles}"
 export EINSTEIN_BUNDLE_ID="${EINSTEIN_BUNDLE_ID:-}"
 export EINSTEIN_REQUIRE_REAL_BUNDLE="${EINSTEIN_REQUIRE_REAL_BUNDLE:-0}"
-export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
+export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-0.5B-Instruct}"
 export DEVICE="${DEVICE:-auto}"
 export LOCAL_FILES_ONLY="${LOCAL_FILES_ONLY:-0}"
 export MAX_SESSIONS="${MAX_SESSIONS:-256}"

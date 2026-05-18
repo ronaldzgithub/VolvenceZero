@@ -87,6 +87,7 @@ from lifeform_service.vertical_registry import (
     VerticalRegistry,
 )
 from lifeform_service.verticals import VerticalSpec
+from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.application.types import ResponseAssemblySnapshot
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
@@ -797,9 +798,11 @@ async def _handle_turn(request: web.Request) -> web.Response:
     summaries = session.turn_summaries
     summary = summaries[-1] if summaries else None
     expression_intent: str | None = None
+    assembly_value: ResponseAssemblySnapshot | None = None
     assembly = result.active_snapshots.get("response_assembly")
     if assembly is not None and isinstance(assembly.value, ResponseAssemblySnapshot):
-        expression_intent = assembly.value.expression_intent
+        assembly_value = assembly.value
+        expression_intent = assembly_value.expression_intent
     open_loop_count = 0
     open_loop = result.active_snapshots.get("open_loop")
     if open_loop is not None and isinstance(open_loop.value, OpenLoopSnapshot):
@@ -809,6 +812,10 @@ async def _handle_turn(request: web.Request) -> web.Response:
     if commitment is not None and isinstance(commitment.value, CommitmentSnapshot):
         commitment_count = len(commitment.value.active_commitments)
     pe_magnitude = summary.pe_magnitude if summary is not None else 0.0
+
+    llm_envelope = _derive_llm_envelope(
+        assembly=assembly_value, user_input=user_input
+    )
 
     open_scene = session.open_scene
     body = TurnResponse(
@@ -824,8 +831,45 @@ async def _handle_turn(request: web.Request) -> web.Response:
         commitment_count=commitment_count,
         response_rationale_tags=tuple(result.response.rationale_tags),
         safety=_safety_metadata(result.response.rationale_tags),
+        llm_envelope=llm_envelope,
     )
     return _json_ok(body.to_json())
+
+
+def _derive_llm_envelope(
+    *,
+    assembly: ResponseAssemblySnapshot | None,
+    user_input: str,
+) -> dict[str, Any] | None:
+    """Derive a UI-facing view of the prompt envelope from snapshots.
+
+    This is **not** a second owner of prompt state — it re-invokes the
+    same pure ``build_system_prompt(assembly, context=None)`` that the
+    LLM synthesizer calls internally, against the same
+    ``response_assembly`` snapshot that flowed through the runner.
+    Whenever the system prompt template (in
+    ``volvence_zero.agent.prompts``) is updated, this view tracks it
+    automatically.
+
+    We pass ``context=None`` because reconstructing a faithful
+    ``ResponseContext`` would require duplicating the synthesizer's
+    history ring buffer in the service layer (the synthesizer owns
+    that state). Skipping the ``regime_switched`` clause and reading
+    guidance via the regime template registry fallback is acceptable
+    for a debug / demo surface; if reviewers ever need full fidelity
+    we lift the envelope capture into the synthesizer instead.
+    """
+
+    if assembly is None:
+        return None
+    system_prompt = build_system_prompt(assembly=assembly)
+    return {
+        "system_prompt": system_prompt,
+        "user_input": user_input,
+        "regime_id": assembly.regime_id,
+        "regime_name": assembly.regime_name,
+        "expression_intent": assembly.expression_intent,
+    }
 
 
 async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
@@ -1220,25 +1264,74 @@ _CHAT_UI_HTML = r"""<!doctype html>
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; }
     body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      margin: 0; min-height: 100vh;
       background: #030712; color: #e5e7eb;
     }
     main {
-      width: min(1240px, calc(100vw - 28px));
-      height: min(820px, calc(100vh - 28px));
-      display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px;
-      padding: 16px; border: 1px solid #374151; border-radius: 16px;
+      /* Full-viewport layout. Removed the 1240x820 cap so wide
+         screens don't waste real estate, and so the governance
+         column has enough horizontal room to render every Slide-7
+         section without vertical scrolling. */
+      width: 100vw; height: 100vh;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(440px, 34vw);
+      gap: 12px;
+      padding: 12px;
       background: #111827;
     }
     .chat-col {
       display: grid;
-      grid-template-rows: auto auto auto auto 1fr auto;
+      /* Extra row hosts the LLM prompt panel above the chat log.
+         The log keeps the elastic 1fr row so it still grows to fill
+         leftover vertical space; the prompt panel collapses to ~28px
+         when its <details> is closed. */
+      grid-template-rows: auto auto auto auto auto 1fr auto;
       gap: 12px;
       min-width: 0;
+      min-height: 0;
     }
-    @media (max-width: 880px) {
-      main { grid-template-columns: 1fr; }
-      .gov-col { order: 2; }
+    .prompt-panel {
+      padding: 8px 10px;
+      border: 1px solid #1f2937;
+      border-radius: 10px;
+      background: #030712;
+      font-size: 12px;
+    }
+    .prompt-panel[hidden] { display: none; }
+    .prompt-panel details > summary {
+      cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      list-style: revert;
+      color: #cbd5e1;
+    }
+    .prompt-panel .prompt-label {
+      font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .prompt-panel .prompt-meta {
+      font-family: ui-monospace, Menlo, monospace; color: #cbd5e1;
+      font-size: 11px; margin-left: auto;
+    }
+    .prompt-panel .prompt-text {
+      margin: 6px 0 0; padding: 8px;
+      max-height: 240px; overflow: auto;
+      background: #0b1322; border: 1px solid #1f2937; border-radius: 6px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+      white-space: pre-wrap; line-height: 1.45; color: #e2e8f0;
+    }
+    .prompt-panel .prompt-userinput {
+      margin: 6px 0 0; padding: 6px 8px;
+      background: #0b1322; border-left: 3px solid #2563eb; border-radius: 4px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+      white-space: pre-wrap; line-height: 1.4; color: #dbeafe;
+    }
+    @media (max-width: 1100px) {
+      main {
+        height: auto;
+        grid-template-columns: 1fr;
+      }
+      .gov-col { order: 2; max-height: none; }
     }
     h1 { margin: 0; font-size: 20px; }
     .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -1270,28 +1363,42 @@ _CHAT_UI_HTML = r"""<!doctype html>
     .composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 
     /* ----- Governance panel (right column) ----- */
+    /* Two-column internal grid so all 7 Slide-7 sections fit on
+       one screen without scrolling. Section ordering is preserved
+       (Scope -> Regime -> PE -> Owners -> Tags -> Scenes -> Repair);
+       the wide sections (PE sparkline, tag chips, repair banner)
+       span both columns via the .gov-section.span-2 modifier so
+       their content stays readable. ``grid-auto-flow: dense``
+       packs single-column sections into any gap left after a
+       span-2 section. */
     .gov-col {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: dense;
+      grid-auto-rows: min-content;
+      gap: 8px;
+      padding: 10px;
       background: #0b1322;
       border: 1px solid #1f2937;
       border-radius: 12px;
       overflow: auto;
       min-width: 0;
+      min-height: 0;
       font-size: 13px;
     }
     .gov-col h2 {
+      grid-column: 1 / -1;
       margin: 0; font-size: 14px; letter-spacing: 0.04em;
       color: #cbd5e1; text-transform: uppercase;
     }
     .gov-section {
-      padding: 8px 10px;
+      padding: 7px 9px;
       border: 1px solid #1f2937;
       border-radius: 8px;
       background: #030712;
+      min-width: 0;
     }
+    .gov-section.span-2 { grid-column: 1 / -1; }
     .gov-section .gov-label {
       font-size: 11px; color: #94a3b8; letter-spacing: 0.05em;
       text-transform: uppercase; margin-bottom: 4px;
@@ -1387,6 +1494,17 @@ _CHAT_UI_HTML = r"""<!doctype html>
         <button class="secondary outcome" data-kind="COME_BACK" disabled>Come back</button>
         <button class="danger outcome" data-kind="UNSAFE" disabled>Unsafe</button>
       </section>
+      <section id="promptPanel" class="prompt-panel" hidden>
+        <details>
+          <summary>
+            <span class="prompt-label">Last LLM Prompt</span>
+            <span class="prompt-meta" id="promptMeta">(no turns yet)</span>
+          </summary>
+          <pre class="prompt-text" id="promptSystemText"></pre>
+          <div class="prompt-label" style="margin-top: 8px;">Latest user input</div>
+          <div class="prompt-userinput" id="promptUserInput"></div>
+        </details>
+      </section>
       <section id="log" aria-live="polite"></section>
       <section class="composer">
         <textarea id="input" placeholder="Type a message... Ctrl+Enter to send" disabled></textarea>
@@ -1413,7 +1531,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
         <div id="govRegimeBand" class="gov-regime-band" title="last 12 turns"></div>
         <div class="gov-value" id="govRegimeLabel" style="margin-top: 4px;">(no turns yet)</div>
       </div>
-      <div class="gov-section">
+      <div class="gov-section span-2">
         <div class="gov-label">Prediction Error (R-PE: PE is a 1st-class object)</div>
         <svg id="govPeSpark" class="gov-pe-spark" viewBox="0 0 100 38" preserveAspectRatio="none">
           <polyline id="govPePoly" fill="none" stroke="#fcd34d" stroke-width="1.2"
@@ -1434,7 +1552,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
           </div>
         </div>
       </div>
-      <div class="gov-section">
+      <div class="gov-section span-2">
         <div class="gov-label">Safety + Rationale tags</div>
         <div id="govTagChips" class="gov-value">(no tags yet)</div>
       </div>
@@ -1451,7 +1569,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
           </div>
         </div>
       </div>
-      <div class="gov-section">
+      <div class="gov-section span-2">
         <div class="gov-label">Rupture / Repair (Slide 7: repair primitive)</div>
         <div id="govRelationshipBanner" class="gov-banner empty">
           set userId + create session to track
@@ -1549,6 +1667,10 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const govRelationshipBanner = document.getElementById("govRelationshipBanner");
     const forgetMeBtn = document.getElementById("forgetMeBtn");
     const govForgetEvidence = document.getElementById("govForgetEvidence");
+    const promptPanel = document.getElementById("promptPanel");
+    const promptSystemText = document.getElementById("promptSystemText");
+    const promptMeta = document.getElementById("promptMeta");
+    const promptUserInput = document.getElementById("promptUserInput");
 
     // 12 distinct colours so the regime colour-band stays readable
     // even on long arcs; the mapping is order-of-first-appearance
@@ -1678,6 +1800,26 @@ _CHAT_UI_HTML = r"""<!doctype html>
       if (!haveAny) {
         govTagChips.textContent = "(no tags yet)";
       }
+    }
+
+    function updatePromptPanel(envelope, fallbackUserInput) {
+      // Render the snapshot-derived view of the system prompt the LLM
+      // saw on the current turn. Server returns `null` for the
+      // deterministic substrate / scope-refusal paths; we keep the
+      // panel hidden in that case rather than displaying a misleading
+      // empty box.
+      if (!envelope || typeof envelope.system_prompt !== "string") {
+        promptPanel.hidden = true;
+        return;
+      }
+      promptPanel.hidden = false;
+      promptSystemText.textContent = envelope.system_prompt;
+      promptUserInput.textContent =
+        envelope.user_input || fallbackUserInput || "(empty)";
+      const regime = envelope.regime_name || envelope.regime_id || "—";
+      const intent = envelope.expression_intent || "—";
+      const chars = envelope.system_prompt.length;
+      promptMeta.textContent = `regime=${regime} · intent=${intent} · system=${chars}c`;
     }
 
     function updateGovernancePanel(turnPayload) {
@@ -2059,6 +2201,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
       addMessage("bot", payload.response_text || "(empty response)");
       state.simLastBotText = payload.response_text || "";
       updateGovernancePanel(payload);
+      updatePromptPanel(payload.llm_envelope, text);
       await refreshSessionStateGauges();
       if (state.debug) {
         const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
