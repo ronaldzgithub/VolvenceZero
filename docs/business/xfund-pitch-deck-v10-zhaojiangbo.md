@@ -1010,6 +1010,30 @@ Plus 20+ more in TPAMI, NeurIPS, CVPR, AAAI, AISTATS, TCS, ITCS, UAI; full list 
 
 **Step 8.** Frontier labs are sprinting toward IQ scaling; relationship-governance runtime is an orthogonal moat. They optimize for generality across one billion users; we optimize for vertical relationship state. Public market signal: GPT-5 is engineering integration; SSI silent; Karpathy → Eureka Labs; Schulman → Thinking Machines.
 
+**Speaker script (4-5 min, only when a senior technical DD partner pulls the conversation to this layer)**
+
+If the conversation has moved past the business-metric layer and a technical partner wants the architecture chain — this is the page I walk through. Two framings up front. First, this appendix is **deliberately walled off** from the body deck — the round is being underwritten on parenting flywheel evidence + Mobi cohort curves + Phase 1 exit data, not on the research thesis. Second, **each of the 8 steps is a load-bearing claim, not a flourish** — every step has a public paper and a repo path behind it, and DD can re-run any of them in-room.
+
+Step 1. The binding constraint on usable AI is **cognition**, not world models or actuators. Sutton & Silver's *Era of Experience* and Sutskever's NeurIPS 2024 keynote frame this the same way. Once you accept the framing, every step that follows lands by itself.
+
+Step 2. Cognitive AGI has to be **online continual learning on neural substrate**. Hand-engineered prompts and harnesses are the new expert systems — the 2025-2026 echo of the Bitter Lesson, and the production failure rate of the agent-harness companies is the empirical witness.
+
+Step 3. Public internet text saturates between 2026 and 2032 (Epoch AI, *Will We Run Out of Data?*). The next durable vertical data layer is **humans**, not the internet. Open Evidence's Mayo Clinic moat is Generation 1; per-family trajectory is Generation 2. **This is where the appendix bridges to Slide 3 of the body** — the architecture and the commercial thesis meet at this step.
+
+Step 4. **Token-level RL is structurally infeasible.** This is the single most important step for understanding why our runtime is shaped the way it is. Three labs falsified token-RL from four angles in five months — Anthropic on natural emergent misalignment from reward hacking, OpenAI on reasoning models that cannot control their own chains of thought, MATS on output supervision obfuscating the CoT, Anthropic + Schulman on models not saying what they think. Token-space RL pushes the model into either reward hacking or obfuscation; **either way, you cannot build a long-horizon policy on it**. This step is the engineering unavoidability.
+
+Step 5. The path forward is multi-timescale RL on a **learned abstraction space `z_t`** with switching gate `β_t`, trained on sparse interaction data. The substrate-side formalization is Nested Learning (Google Research, arXiv:2512.24695); the control-side formalization is Emergent Temporal Abstractions (ETH-Sacramento, arXiv:2512.20605); the data-side formalization is Yang Liu's *Minimax Analysis of Active Learning* (JMLR 2015). **Those three papers together are the algorithmic skeleton of our runtime** — not "related work."
+
+Step 6. Step 5 translated into three concrete answers. **Reward = Body** — Botvinick / Wang / Dabney 2025 *Distributional Dopamine* + Friston *Active Inference*, implemented in `vz-cognition.prediction` and `vz-cognition.credit` with drive states. **Abstractions emerge from Nested Learning + ETA** — `CMSVariant.NESTED` shows initialization error decreasing monotonically across context resets; `scripts/run_eta_paper_suite.sh` runs four matched-control ablations (`full-no-optimize` / `full-no-replacement` / `learned-lite-causal` / `noop-backend`) and **all 4 PASS**. **Sparse data = Active Learning** — Hanneke & Yang JMLR 2015 + Yang Liu's 40+ papers; VZ-MemProbe 4 probes PASS at production-relevant data scales where **baseline RAG fails on 3 of 4**. That last contrast is the DD anchor.
+
+Step 7. **Thin Prompt, Thick Runtime — implemented and shipping**, not roadmap. 96 new contract tests PASS; 1063+ existing zero regression; five vertical lifeforms co-loaded in one CI-enforced process; closed-alpha API serving real users; Companion Bench v1.0 open-sourced under Apache 2.0; Figure vertical full chain reproducible byte-equivalent; Rupture/Repair typed enum loop with durable memory and audit trail; GDPR/PIPL deletion path with evidence ledger; OpenAI-compatible facade. **Every one of those nine has a repo path; DD can re-run any of them in-room.**
+
+Step 8. Frontier labs sprint toward IQ scaling; relationship-governance runtime is an **orthogonal** moat. They optimize for generality across one billion users; we optimize for vertical relationship state. The public market signal is consistent — GPT-5 is engineering integration, not capability leap; SSI silent; Karpathy → Eureka Labs; Schulman → Thinking Machines. **The frontier is fragmenting in a way that makes our positioning more durable, not in a way that makes it obsolete.**
+
+The pivot back to the body: every claim in Slide 7 — memory is substrate, governance is the product — **has engineering content sitting in this 8-step chain**. E.4 makes that concrete on five invariants: per-snapshot publish-time provenance, modification-gate primitive, per-jurisdiction scoped deletion with evidence, typed feedback enums + rupture-repair durability, per-vertical bundle compilation. **The architecture is not aesthetic; it is load-bearing.** And we deliberately wall it off from the body — the round is underwritten on flywheel evidence + unit-economics curves + Phase 1 exit data, letting the seriousness of the architecture speak through the empirical lift it produces.
+
+Pause here. This is where the deepest technical questions usually start.
+
 ### E.2 — IQ and EQ emergence (28+ PASSing benchmarks)
 
 **IQ** = Substrate × ETA abstract-action reuse × Nested-Learning persistent memory accumulation.
