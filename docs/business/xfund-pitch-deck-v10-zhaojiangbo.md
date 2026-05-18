@@ -139,6 +139,54 @@ Yang's CMU advisors and paper count are the credibility anchors. Make them visua
 
 ---
 
+## Slide 2b — Zhao Jiangbo: vision declared 2017, executed every day since
+
+**Claim**
+
+> Two artifacts, one continuous arc. **A 2017 vision document declaring the goal of building "a programmable agent that can write code itself" — written when joining Alibaba.** Four years of GitHub heatmaps showing 1,200-2,000+ commits/year through to today. **This is not a founder who pivoted into AI agents in 2024. This is a founder who declared the vision in 2017 and has been executing toward it for nine years.**
+
+**On-screen**
+
+> **[Full-width image: founder credibility composite — `assets/.../2026-05-18_20.44.47.png`]**
+>
+> Left column (text):
+>
+> > **Zhao Jiangbo**
+> >
+> > **2017 — joining Alibaba.** Declared personal terminal career goal: *"a programmable agent — towards Autonomous Coding Agent: Transcendence."*
+> >
+> > **1998 — China Physics Olympiad, top 100.** Self-studied from high-school textbooks.
+> >
+> > **2022-2026 — GitHub contribution heatmaps:**
+> > - 2026 (last 12 months): **1,767 contributions**
+> > - 2025: **1,242 contributions**
+> > - 2024: **1,436 contributions**
+> > - 2022: **2,079 contributions**
+>
+> Right column (image):
+>
+> > **The 2017 slide** ("WHY 阿里"): *为世界带来一点改变 / 去接近自己的终极职业梦想：一个可以编程的机器人.*
+>
+> Bottom strip: four GitHub contribution heatmaps, four years, every year green-dense.
+>
+> > **The point is not the volume. The point is the slope — and the fact that the slope is unbroken for nine years toward exactly this thesis.**
+
+**Speaker script (90s)**
+
+I want to give you one slide on me specifically, because the hacker side of the hacker-humanist frame is where founders usually fail Xfund's bar.
+
+The slide on the right is from November 2017, the day I joined Alibaba. The Chinese text says: *to bring a little change to the world, to approach my terminal career dream — a programmable agent that can write its own code.* I wrote that nine years ago.
+
+The four heatmaps at the bottom are public GitHub contribution graphs. 2022: 2,079 commits. 2024: 1,436. 2025: 1,242. Last twelve months: 1,767. Every year, 1,200-2,000+ commits. Every week dense. This is not a founder who pivoted into AI agents in 2024 because of the hype. This is a founder who declared the thesis in 2017 and has been executing toward it every week for nine years.
+
+The 1998 line is there for one reason. China Physics Olympiad top 100 from a high-school textbook means the first-principles physics-to-engineering instinct is older than the career. That instinct is what shows up in the seven-dimension governance table you'll see on Slide 7 — it is engineered like a physics system, with conservation laws and audit anchors, not assembled like a prompt stack. that is the next gold mine is people himself, and the way to do it is make context engineering and decision making become neuro.
+
+**Design note**
+
+Image-dominant slide — the 2017 slide and the GitHub heatmaps do the heavy lifting; the text is annotation. Both visual artifacts should be near-original resolution so Patrick can read the 2017 Chinese text and verify the heatmap density without zooming. **The strongest single line on the page: "1,767 / 1,242 / 1,436 / 2,079 — every year green-dense, every year toward the same thesis."** This page is the answer to the unspoken "is the technical founder a real builder?" question, and it should resolve in under 90 seconds.
+
+---
+
 ## Slide 3 — Generation 2 vertical proprietary data
 
 **On-screen**
