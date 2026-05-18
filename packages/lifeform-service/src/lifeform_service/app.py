@@ -59,6 +59,9 @@ from lifeform_service.alpha import (
     alpha_config_to_json,
 )
 from lifeform_core import LlmJsonClient
+from lifeform_service.openai_utterance_client import (
+    build_utterance_client_from_env,
+)
 from lifeform_service.protocol_routes import register_protocol_routes
 from lifeform_service.protocol_uptake import ProtocolUptakeService
 from lifeform_service.session_manager import (
@@ -66,6 +69,11 @@ from lifeform_service.session_manager import (
     SessionManager,
     SessionNotFoundError,
     TemplatesNotSupportedError,
+)
+from lifeform_service.simulator_routes import (
+    evict_simulator_cache_entry,
+    install_simulator_cache,
+    register_simulator_routes,
 )
 from lifeform_service.substrate_registry import (
     SubstrateRuntimeProvider,
@@ -114,6 +122,7 @@ def create_app(
     templates_root_dir: str | None = None,
     protocol_uptake_service: ProtocolUptakeService | None = None,
     external_llm_client: "LlmJsonClient | None" = None,
+    utterance_backend: Any = None,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -252,6 +261,24 @@ def create_app(
     app.router.add_get("/v1/admin/weekly-report", _handle_admin_weekly_report)
     if protocol_uptake_service is not None:
         register_protocol_routes(app, uptake_service=protocol_uptake_service)
+    # Governance-demo simulator routes. The cache is always installed
+    # (default: companion_bench DeterministicFakeUtteranceClient). When
+    # ``utterance_backend`` is ``None`` and ``PROTOCOL_LLM_API_KEY`` is
+    # set, we promote to a live OpenAI-compat utterance backend so the
+    # Run-Simulator button in the chat UI produces realistic user
+    # turns out of the box. ``build_utterance_client_from_env`` fails
+    # loud when provider env is half-set (e.g. ``PROTOCOL_LLM_API_KEY``
+    # set but ``provider=custom`` without ``PROTOCOL_LLM_BASE_URL``);
+    # we do NOT swallow that ValueError here — mirrors the JSON-mode
+    # sibling ``build_client_from_env`` contract and the
+    # ``no-swallow-errors-no-hasattr-abuse.mdc`` rule.
+    resolved_backend = (
+        utterance_backend
+        if utterance_backend is not None
+        else build_utterance_client_from_env()
+    )
+    install_simulator_cache(app, utterance_backend=resolved_backend)
+    register_simulator_routes(app)
     return app
 
 
@@ -730,6 +757,7 @@ async def _handle_close_session(request: web.Request) -> web.Response:
     closed = await manager.close_session(session_id)
     if not closed:
         raise SessionNotFoundError(session_id)
+    evict_simulator_cache_entry(request.app, session_id)
     return _json_ok({"session_id": session_id, "closed": True})
 
 
@@ -1196,11 +1224,21 @@ _CHAT_UI_HTML = r"""<!doctype html>
       background: #030712; color: #e5e7eb;
     }
     main {
-      width: min(920px, calc(100vw - 28px));
+      width: min(1240px, calc(100vw - 28px));
       height: min(820px, calc(100vh - 28px));
-      display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px;
+      display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px;
       padding: 16px; border: 1px solid #374151; border-radius: 16px;
       background: #111827;
+    }
+    .chat-col {
+      display: grid;
+      grid-template-rows: auto auto auto auto 1fr auto;
+      gap: 12px;
+      min-width: 0;
+    }
+    @media (max-width: 880px) {
+      main { grid-template-columns: 1fr; }
+      .gov-col { order: 2; }
     }
     h1 { margin: 0; font-size: 20px; }
     .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -1230,6 +1268,79 @@ _CHAT_UI_HTML = r"""<!doctype html>
       border: 1px dashed #374151; font-size: 13px;
     }
     .composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+
+    /* ----- Governance panel (right column) ----- */
+    .gov-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      background: #0b1322;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      overflow: auto;
+      min-width: 0;
+      font-size: 13px;
+    }
+    .gov-col h2 {
+      margin: 0; font-size: 14px; letter-spacing: 0.04em;
+      color: #cbd5e1; text-transform: uppercase;
+    }
+    .gov-section {
+      padding: 8px 10px;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      background: #030712;
+    }
+    .gov-section .gov-label {
+      font-size: 11px; color: #94a3b8; letter-spacing: 0.05em;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .gov-section .gov-value {
+      font-family: ui-monospace, Menlo, monospace;
+      color: #f8fafc;
+    }
+    .gov-chip {
+      display: inline-block; padding: 2px 7px; margin: 1px 2px;
+      border-radius: 999px; font-size: 11px; line-height: 1.4;
+      background: #1f2937; color: #cbd5e1; border: 1px solid #374151;
+    }
+    .gov-chip.scope { background: #052e16; color: #86efac; border-color: #166534; }
+    .gov-chip.scope.anon { background: #1f2937; color: #94a3b8; border-color: #374151; }
+    .gov-chip.fsm { background: #1e1b4b; color: #c4b5fd; border-color: #4c1d95; }
+    .gov-chip.safety { background: #3f1d1d; color: #fca5a5; border-color: #b91c1c; }
+    .gov-chip.rationale { background: #052e16; color: #86efac; border-color: #166534; }
+    .gov-regime-band {
+      display: flex; gap: 2px; height: 18px; overflow: hidden;
+      border-radius: 4px;
+    }
+    .gov-regime-cell {
+      flex: 1; background: #1f2937;
+    }
+    .gov-pe-spark { width: 100%; height: 38px; }
+    .gov-counts { display: flex; gap: 14px; }
+    .gov-count { flex: 1; }
+    .gov-count .num {
+      font-size: 22px; font-family: ui-monospace, Menlo, monospace;
+      color: #f8fafc;
+    }
+    .gov-banner {
+      padding: 6px 8px; border-radius: 6px; background: #052e16;
+      color: #bbf7d0; border: 1px solid #166534; font-size: 12px;
+    }
+    .gov-banner.empty { background: #0f172a; color: #94a3b8; border-color: #1f2937; }
+
+    /* ----- Simulator FSM badge inside chat log ----- */
+    .msg.user .fsm-badge {
+      display: inline-block; margin-left: 8px; padding: 1px 6px;
+      border-radius: 999px; font-size: 11px;
+      background: rgba(196, 181, 253, 0.18); color: #ddd6fe;
+      border: 1px solid rgba(196, 181, 253, 0.35);
+    }
+    .msg.system.gap-banner {
+      text-align: center; font-style: italic; color: #fcd34d;
+      border-style: solid; border-color: rgba(252, 211, 77, 0.45);
+    }
     /* The protocolsPanel modal carries inline ``display: grid`` to center
        its inner card; without this rule that inline style wins over the
        UA stylesheet's ``[hidden] { display: none }`` and the Close button
@@ -1239,41 +1350,114 @@ _CHAT_UI_HTML = r"""<!doctype html>
 </head>
 <body>
   <main>
-    <header>
-      <h1>Volvence Zero Chat</h1>
-      <div id="status" class="msg system">Create a session to start. In alpha mode, set an allowed user id.</div>
-    </header>
-    <section class="bar">
-      <input id="userId" placeholder="alpha user, e.g. alice">
-      <input id="sessionId" placeholder="optional session_id">
-      <select id="verticalSelect" title="Pick which vertical (lifeform domain) builds the session"></select>
-      <select id="templateSelect" title="Pick a saved lifeform template (optional)">
-        <option value="">no template (vertical default)</option>
-      </select>
-      <button id="createBtn">Create Session</button>
-      <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
-      <button id="endBtn" class="secondary" disabled>End Scene</button>
-      <button id="clearBtn" class="secondary">Clear</button>
-      <button id="protocolsBtn" class="secondary" title="Upload PDF / Markdown / task description and review extracted protocols">Protocols</button>
-    </section>
-    <section class="bar">
-      <span id="modelStatus" class="msg system" style="margin: 0; padding: 4px 8px;">substrate: loading...</span>
-      <select id="modelSelect" title="Switch the shared base model (closes all sessions)" disabled></select>
-      <button id="switchModelBtn" class="secondary" disabled>Switch Model</button>
-    </section>
-    <section class="bar">
-      <button class="secondary outcome" data-kind="FELT_HEARD" disabled>Felt heard</button>
-      <button class="secondary outcome" data-kind="HELPED" disabled>Helped</button>
-      <button class="secondary outcome" data-kind="MISSED" disabled>Missed</button>
-      <button class="secondary outcome" data-kind="OVER_DIRECTIVE" disabled>Over-directive</button>
-      <button class="secondary outcome" data-kind="COME_BACK" disabled>Come back</button>
-      <button class="danger outcome" data-kind="UNSAFE" disabled>Unsafe</button>
-    </section>
-    <section id="log" aria-live="polite"></section>
-    <section class="composer">
-      <textarea id="input" placeholder="Type a message... Ctrl+Enter to send" disabled></textarea>
-      <button id="sendBtn" disabled>Send</button>
-    </section>
+    <div class="chat-col">
+      <header>
+        <h1>Volvence Zero Chat</h1>
+        <div id="status" class="msg system">Create a session to start. In alpha mode, set an allowed user id.</div>
+      </header>
+      <section class="bar">
+        <input id="userId" placeholder="alpha user, e.g. alice">
+        <input id="sessionId" placeholder="optional session_id">
+        <select id="verticalSelect" title="Pick which vertical (lifeform domain) builds the session"></select>
+        <select id="templateSelect" title="Pick a saved lifeform template (optional)">
+          <option value="">no template (vertical default)</option>
+        </select>
+        <button id="createBtn">Create Session</button>
+        <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
+        <button id="endBtn" class="secondary" disabled>End Scene</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="protocolsBtn" class="secondary" title="Upload PDF / Markdown / task description and review extracted protocols">Protocols</button>
+      </section>
+      <section class="bar">
+        <span id="modelStatus" class="msg system" style="margin: 0; padding: 4px 8px;">substrate: loading...</span>
+        <select id="modelSelect" title="Switch the shared base model (closes all sessions)" disabled></select>
+        <button id="switchModelBtn" class="secondary" disabled>Switch Model</button>
+      </section>
+      <section class="bar">
+        <select id="scenarioSelect" title="Pick a CompanionBench scenario for the user simulator" disabled>
+          <option value="">loading scenarios...</option>
+        </select>
+        <input id="paraphraseSeed" type="number" min="0" value="0" title="paraphrase_seed (must be < scenario.paraphrase_seed_count)" style="min-width: 90px; max-width: 110px;">
+        <button id="runSimBtn" class="secondary" disabled title="Drive the bound session with a scripted, LLM-backed synthetic user">Run Simulator</button>
+        <button id="stopSimBtn" class="secondary" disabled title="Halt the simulator at the next turn boundary">Stop</button>
+        <button class="secondary outcome" data-kind="FELT_HEARD" disabled>Felt heard</button>
+        <button class="secondary outcome" data-kind="HELPED" disabled>Helped</button>
+        <button class="secondary outcome" data-kind="MISSED" disabled>Missed</button>
+        <button class="secondary outcome" data-kind="OVER_DIRECTIVE" disabled>Over-directive</button>
+        <button class="secondary outcome" data-kind="COME_BACK" disabled>Come back</button>
+        <button class="danger outcome" data-kind="UNSAFE" disabled>Unsafe</button>
+      </section>
+      <section id="log" aria-live="polite"></section>
+      <section class="composer">
+        <textarea id="input" placeholder="Type a message... Ctrl+Enter to send" disabled></textarea>
+        <button id="sendBtn" disabled>Send</button>
+      </section>
+    </div>
+    <aside class="gov-col" id="governance">
+      <h2>Governance Trace</h2>
+      <div class="gov-section">
+        <div class="gov-label">Scope (Slide 7: what is non-transferable)</div>
+        <div class="gov-value">
+          <span id="govScopeChip" class="gov-chip scope anon">anonymous</span>
+        </div>
+        <div style="margin-top: 6px;">
+          <button id="forgetMeBtn" class="danger" disabled
+            title="DELETE /v1/users/me/memory; produces an evidence_artifact_ref">
+            Forget Me
+          </button>
+        </div>
+        <div id="govForgetEvidence" class="gov-label" style="margin-top: 4px;"></div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Regime (R14: persistent regime identity)</div>
+        <div id="govRegimeBand" class="gov-regime-band" title="last 12 turns"></div>
+        <div class="gov-value" id="govRegimeLabel" style="margin-top: 4px;">(no turns yet)</div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Prediction Error (R-PE: PE is a 1st-class object)</div>
+        <svg id="govPeSpark" class="gov-pe-spark" viewBox="0 0 100 38" preserveAspectRatio="none">
+          <polyline id="govPePoly" fill="none" stroke="#fcd34d" stroke-width="1.2"
+            points="" />
+        </svg>
+        <div class="gov-value" id="govPeLast" style="margin-top: 4px;">last: -</div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Semantic Owners (Slide 7: what accrues)</div>
+        <div class="gov-counts">
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">commitments</div>
+            <div class="num" id="govCommitments">0</div>
+          </div>
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">open loops</div>
+            <div class="num" id="govOpenLoops">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Safety + Rationale tags</div>
+        <div id="govTagChips" class="gov-value">(no tags yet)</div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Scenes (Slide 7: what decays)</div>
+        <div class="gov-counts">
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">closed</div>
+            <div class="num" id="govClosedScenes">0</div>
+          </div>
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">open turn</div>
+            <div class="num" id="govOpenTurn">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Rupture / Repair (Slide 7: repair primitive)</div>
+        <div id="govRelationshipBanner" class="gov-banner empty">
+          set userId + create session to track
+        </div>
+      </div>
+    </aside>
   </main>
   <div id="protocolsPanel" hidden style="
     position: fixed; inset: 0; background: rgba(2,6,23,0.75);
@@ -1320,6 +1504,17 @@ _CHAT_UI_HTML = r"""<!doctype html>
       alphaEnabled: false,
       verticalsByName: {},
       debug: new URLSearchParams(window.location.search).get("debug") === "1",
+      // ----- Simulator orchestration -----
+      scenariosById: {},
+      simRunning: false,
+      simStopRequested: false,
+      simScenarioId: null,
+      simParaphraseSeed: 0,
+      simSchedule: [],
+      simLastBotText: "",
+      // ----- Governance panel rolling state -----
+      regimeHistory: [],
+      peHistory: [],
     };
     const statusEl = document.getElementById("status");
     const logEl = document.getElementById("log");
@@ -1337,15 +1532,59 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const modelSelectEl = document.getElementById("modelSelect");
     const switchModelBtn = document.getElementById("switchModelBtn");
     const outcomeBtns = Array.from(document.querySelectorAll(".outcome"));
+    const scenarioSelectEl = document.getElementById("scenarioSelect");
+    const paraphraseSeedEl = document.getElementById("paraphraseSeed");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const stopSimBtn = document.getElementById("stopSimBtn");
+    const govScopeChip = document.getElementById("govScopeChip");
+    const govRegimeBand = document.getElementById("govRegimeBand");
+    const govRegimeLabel = document.getElementById("govRegimeLabel");
+    const govPePoly = document.getElementById("govPePoly");
+    const govPeLast = document.getElementById("govPeLast");
+    const govCommitments = document.getElementById("govCommitments");
+    const govOpenLoops = document.getElementById("govOpenLoops");
+    const govTagChips = document.getElementById("govTagChips");
+    const govClosedScenes = document.getElementById("govClosedScenes");
+    const govOpenTurn = document.getElementById("govOpenTurn");
+    const govRelationshipBanner = document.getElementById("govRelationshipBanner");
+    const forgetMeBtn = document.getElementById("forgetMeBtn");
+    const govForgetEvidence = document.getElementById("govForgetEvidence");
+
+    // 12 distinct colours so the regime colour-band stays readable
+    // even on long arcs; the mapping is order-of-first-appearance
+    // (no hard-coded regime->colour table — keeps the band purely a
+    // visual identity signal, not a semantic claim).
+    const REGIME_PALETTE = [
+      "#2563eb", "#16a34a", "#f59e0b", "#dc2626",
+      "#7c3aed", "#0891b2", "#db2777", "#65a30d",
+      "#ea580c", "#0284c7", "#c026d3", "#475569",
+    ];
+    const regimeColourMap = new Map();
+    function regimeColour(regime) {
+      if (!regime) return "#1f2937";
+      if (!regimeColourMap.has(regime)) {
+        const next = REGIME_PALETTE[regimeColourMap.size % REGIME_PALETTE.length];
+        regimeColourMap.set(regime, next);
+      }
+      return regimeColourMap.get(regime);
+    }
 
     function alphaHeaders() {
       const user = userIdEl.value.trim();
       return user ? { "X-Alpha-User": user } : {};
     }
-    function addMessage(kind, text) {
+    function addMessage(kind, text, opts) {
+      const options = opts || {};
       const div = document.createElement("div");
       div.className = `msg ${kind}`;
+      if (options.gapBanner) div.classList.add("gap-banner");
       div.textContent = text;
+      if (options.fsmAction) {
+        const badge = document.createElement("span");
+        badge.className = "fsm-badge";
+        badge.textContent = options.fsmAction;
+        div.appendChild(badge);
+      }
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
     }
@@ -1355,6 +1594,218 @@ _CHAT_UI_HTML = r"""<!doctype html>
       endBtn.disabled = !ready;
       saveTemplateBtn.disabled = !(ready && state.templatesSupported);
       outcomeBtns.forEach(btn => { btn.disabled = !ready; });
+      // Run-Simulator is gated on a live session AND a scenario being
+      // available in the dropdown. Stop button is the inverse of Run.
+      const haveScenario = Boolean(scenarioSelectEl.value);
+      runSimBtn.disabled = !(ready && haveScenario) || state.simRunning;
+      stopSimBtn.disabled = !state.simRunning;
+      forgetMeBtn.disabled = !ready;
+    }
+
+    // ----- Governance panel -----
+
+    function updateScopeChip() {
+      const user = userIdEl.value.trim();
+      if (user) {
+        govScopeChip.textContent = `scope: ${user}`;
+        govScopeChip.classList.remove("anon");
+      } else {
+        govScopeChip.textContent = "anonymous";
+        govScopeChip.classList.add("anon");
+      }
+    }
+
+    function renderRegimeBand() {
+      govRegimeBand.innerHTML = "";
+      const recent = state.regimeHistory.slice(-12);
+      for (const regime of recent) {
+        const cell = document.createElement("div");
+        cell.className = "gov-regime-cell";
+        cell.style.background = regimeColour(regime);
+        cell.title = regime || "(none)";
+        govRegimeBand.appendChild(cell);
+      }
+      // Always reserve 12 visual slots so the band keeps a stable
+      // width even when the arc has only fired a few turns.
+      for (let i = recent.length; i < 12; i++) {
+        const cell = document.createElement("div");
+        cell.className = "gov-regime-cell";
+        govRegimeBand.appendChild(cell);
+      }
+    }
+
+    function renderPeSparkline() {
+      const recent = state.peHistory.slice(-20);
+      if (recent.length === 0) {
+        govPePoly.setAttribute("points", "");
+        return;
+      }
+      const maxVal = Math.max(0.001, ...recent);
+      const points = recent
+        .map((v, i) => {
+          const x = recent.length === 1
+            ? 50
+            : (i / (recent.length - 1)) * 100;
+          const y = 38 - Math.max(0, Math.min(1, v / maxVal)) * 36;
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(" ");
+      govPePoly.setAttribute("points", points);
+    }
+
+    function renderTagChips(rationale, safety) {
+      govTagChips.innerHTML = "";
+      let haveAny = false;
+      if (Array.isArray(rationale)) {
+        for (const tag of rationale) {
+          const chip = document.createElement("span");
+          chip.className = "gov-chip rationale";
+          chip.textContent = String(tag);
+          govTagChips.appendChild(chip);
+          haveAny = true;
+        }
+      }
+      if (safety && typeof safety === "object") {
+        for (const [k, v] of Object.entries(safety)) {
+          if (!v) continue;
+          const chip = document.createElement("span");
+          chip.className = "gov-chip safety";
+          chip.textContent = `${k}=${typeof v === "boolean" ? "on" : v}`;
+          govTagChips.appendChild(chip);
+          haveAny = true;
+        }
+      }
+      if (!haveAny) {
+        govTagChips.textContent = "(no tags yet)";
+      }
+    }
+
+    function updateGovernancePanel(turnPayload) {
+      if (!turnPayload) return;
+      const regime = turnPayload.active_regime || "";
+      state.regimeHistory.push(regime);
+      renderRegimeBand();
+      govRegimeLabel.textContent = regime
+        ? `${regime} · ${turnPayload.active_abstract_action || "(no z_t)"}`
+        : "(regime not declared)";
+
+      const pe = Number.isFinite(turnPayload.pe_magnitude)
+        ? turnPayload.pe_magnitude
+        : 0;
+      state.peHistory.push(pe);
+      renderPeSparkline();
+      govPeLast.textContent = `last: ${pe.toFixed(3)}`;
+
+      govCommitments.textContent = String(turnPayload.commitment_count || 0);
+      govOpenLoops.textContent = String(turnPayload.open_loop_count || 0);
+      renderTagChips(
+        turnPayload.response_rationale_tags,
+        turnPayload.safety,
+      );
+    }
+
+    async function refreshSessionStateGauges() {
+      if (!state.sessionId) return;
+      try {
+        const payload = await requestJson(
+          `/v1/sessions/${encodeURIComponent(state.sessionId)}/state`,
+          { method: "GET" },
+        );
+        govClosedScenes.textContent = String(payload.closed_scene_count || 0);
+        govOpenTurn.textContent = String(payload.open_scene_turn_count || 0);
+      } catch (err) {
+        // The session-state route IS authoritative on the gauges, so
+        // we must NOT silently swallow. Surface to console so the
+        // operator sees it; leave the gauges showing the previous
+        // values (the next successful refresh repaints).
+        console.warn("governance gauges: /v1/sessions/.../state failed", err);
+      }
+    }
+
+    async function refreshRelationshipSummary() {
+      if (!state.alphaEnabled) {
+        govRelationshipBanner.textContent =
+          "alpha mode disabled; no cross-session memory";
+        govRelationshipBanner.classList.add("empty");
+        return;
+      }
+      const user = userIdEl.value.trim();
+      if (!user) {
+        govRelationshipBanner.textContent =
+          "set userId in the bar above to track ruptures across sessions";
+        govRelationshipBanner.classList.add("empty");
+        return;
+      }
+      try {
+        const payload = await requestJson(
+          "/v1/users/me/relationship-summary",
+          { method: "GET" },
+        );
+        const kinds = (payload.rupture_kinds || []).join(", ") || "(none)";
+        govRelationshipBanner.textContent =
+          `ruptures: ${payload.rupture_repair_count || 0} · `
+          + `repaired: ${payload.observed_repair_count || 0} · `
+          + `kinds: ${kinds}`;
+        if ((payload.rupture_repair_count || 0) > 0) {
+          govRelationshipBanner.classList.remove("empty");
+        } else {
+          govRelationshipBanner.classList.add("empty");
+        }
+      } catch (err) {
+        govRelationshipBanner.textContent =
+          `relationship-summary failed: ${err.message}`;
+        govRelationshipBanner.classList.add("empty");
+      }
+    }
+
+    function resetGovernancePanel() {
+      state.regimeHistory = [];
+      state.peHistory = [];
+      renderRegimeBand();
+      renderPeSparkline();
+      govPeLast.textContent = "last: -";
+      govRegimeLabel.textContent = "(no turns yet)";
+      govCommitments.textContent = "0";
+      govOpenLoops.textContent = "0";
+      govTagChips.textContent = "(no tags yet)";
+      govClosedScenes.textContent = "0";
+      govOpenTurn.textContent = "0";
+      govForgetEvidence.textContent = "";
+    }
+
+    async function forgetMe() {
+      const user = userIdEl.value.trim();
+      if (!user) {
+        addMessage("system", "Set userId before calling Forget Me.");
+        return;
+      }
+      if (!window.confirm(
+        `Forget Me: DELETE /v1/users/me/memory for ${user}?\n\n`
+        + "This erases all durable cross-session entries for this user "
+        + "and emits an evidence_artifact_ref (GDPR Article 17 / PIPL).",
+      )) return;
+      try {
+        const payload = await requestJson(
+          "/v1/users/me/memory",
+          { method: "DELETE" },
+        );
+        const count = (payload.deleted_entry_ids || []).length;
+        addMessage(
+          "system",
+          `Forget Me: deleted ${count} entries for ${user}.`,
+        );
+        if (payload.evidence_artifact_ref) {
+          govForgetEvidence.textContent =
+            `evidence: ${payload.evidence_artifact_ref}`;
+          addMessage(
+            "system",
+            `Evidence artifact: ${payload.evidence_artifact_ref}`,
+          );
+        }
+        await refreshRelationshipSummary();
+      } catch (err) {
+        addMessage("system", `Forget Me failed: ${err.message}`);
+      }
     }
     async function loadModels() {
       try {
@@ -1534,9 +1985,13 @@ _CHAT_UI_HTML = r"""<!doctype html>
         state.sessionVertical = payload.vertical;
         const templateLabel = payload.template_id ? ` | template ${payload.template_id}` : "";
         statusEl.textContent = `Session ${state.sessionId} | vertical ${payload.vertical}${templateLabel}`;
+        resetGovernancePanel();
+        updateScopeChip();
         setReady(true);
         addMessage("system", `Created session ${state.sessionId} on vertical ${payload.vertical}${templateLabel}`);
         if (payload.alpha_disclaimer) addMessage("system", payload.alpha_disclaimer);
+        await refreshSessionStateGauges();
+        await refreshRelationshipSummary();
         inputEl.focus();
       } catch (err) {
         addMessage("system", `Create failed: ${err.message}`);
@@ -1588,32 +2043,250 @@ _CHAT_UI_HTML = r"""<!doctype html>
         saveTemplateBtn.disabled = !state.templatesSupported;
       }
     }
+    async function sendTurnPayload(text, addUserBubble) {
+      // Helper called by both the manual textarea path and the
+      // simulator-driven path. Returns the parsed payload so the
+      // simulator loop can pipe ``response_text`` back into the
+      // simulator's history.
+      if (addUserBubble) addMessage("user", text);
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(state.sessionId)}/turns`,
+        {
+          method: "POST",
+          body: JSON.stringify({ user_input: text }),
+        },
+      );
+      addMessage("bot", payload.response_text || "(empty response)");
+      state.simLastBotText = payload.response_text || "";
+      updateGovernancePanel(payload);
+      await refreshSessionStateGauges();
+      if (state.debug) {
+        const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
+          ? ` | tags=${payload.response_rationale_tags.join(",")}`
+          : "";
+        const meta = `turn=${payload.turn_index} | regime=${payload.active_regime || "none"} `
+          + `| intent=${payload.expression_intent || "none"}${tags}`;
+        addMessage("system", meta);
+      }
+      return payload;
+    }
+
     async function sendTurn() {
       const text = inputEl.value.trim();
       if (!text || !state.sessionId) return;
       inputEl.value = "";
-      addMessage("user", text);
       setReady(false);
       try {
-        const payload = await requestJson(`/v1/sessions/${encodeURIComponent(state.sessionId)}/turns`, {
-          method: "POST",
-          body: JSON.stringify({ user_input: text }),
-        });
-        addMessage("bot", payload.response_text || "(empty response)");
-        if (state.debug) {
-          const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
-            ? ` | tags=${payload.response_rationale_tags.join(",")}`
-            : "";
-          const meta = `turn=${payload.turn_index} | regime=${payload.active_regime || "none"} `
-            + `| intent=${payload.expression_intent || "none"}${tags}`;
-          addMessage("system", meta);
-        }
+        await sendTurnPayload(text, /*addUserBubble*/ true);
       } catch (err) {
         addMessage("system", `Turn failed: ${err.message}`);
       } finally {
         setReady(Boolean(state.sessionId));
         inputEl.focus();
       }
+    }
+
+    // ----- Simulator orchestration -----
+
+    async function loadScenarios() {
+      try {
+        const payload = await requestJson("/v1/scenarios", { method: "GET" });
+        state.scenariosById = {};
+        scenarioSelectEl.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "no scenario";
+        scenarioSelectEl.appendChild(placeholder);
+        const items = Array.isArray(payload.scenarios) ? payload.scenarios : [];
+        for (const item of items) {
+          state.scenariosById[item.scenario_id] = item;
+          const opt = document.createElement("option");
+          opt.value = item.scenario_id;
+          opt.textContent =
+            `${item.scenario_id} [${item.family} / ${item.language}] `
+            + `(arc=${item.arc_length_sessions}, seeds=${item.paraphrase_seed_count})`;
+          scenarioSelectEl.appendChild(opt);
+        }
+        scenarioSelectEl.disabled = items.length === 0;
+      } catch (err) {
+        addMessage("system", `Failed to load scenarios: ${err.message}`);
+        scenarioSelectEl.disabled = true;
+      }
+    }
+
+    async function initSimulatorForSession(sid, resumeFromSessionId) {
+      const body = {
+        scenario_id: state.simScenarioId,
+        paraphrase_seed: state.simParaphraseSeed,
+      };
+      if (resumeFromSessionId) {
+        body.resume_from_session_id = resumeFromSessionId;
+        if (state.simLastBotText) {
+          body.recent_assistant_text = state.simLastBotText;
+        }
+      }
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(sid)}/simulator/init`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      state.simSchedule = Array.isArray(payload.schedule)
+        ? payload.schedule
+        : [];
+      addMessage(
+        "system",
+        `Simulator bound to ${sid}: scenario=${payload.scenario_id} `
+        + `seed=${payload.paraphrase_seed} `
+        + `arc_length_sessions=${payload.arc_length_sessions} `
+        + `identity=${payload.identity.name || "?"}`,
+      );
+      return payload;
+    }
+
+    async function pumpOneSimulatorTurn(initial) {
+      // ``initial`` = true on the first call after /simulator/init,
+      // before any assistant reply is available. Subsequent calls
+      // pass the prior bot text so the simulator's history advances.
+      const body = {};
+      if (!initial && state.simLastBotText) {
+        body.recent_assistant_text = state.simLastBotText;
+      }
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(state.sessionId)}/simulator/next-user-turn`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      const fsmAction = payload.fsm_step && payload.fsm_step.action
+        ? payload.fsm_step.action
+        : null;
+      addMessage("user", payload.user_text, { fsmAction });
+      const turnPayload = await sendTurnPayload(
+        payload.user_text,
+        /*addUserBubble*/ false,
+      );
+      // sendTurnPayload already updated state.simLastBotText.
+      return { sim: payload, turn: turnPayload };
+    }
+
+    async function bridgeToNextArcSession(nextGapDays) {
+      // Close the current scene, create a new HTTP session for the
+      // next arc-session, transfer the simulator state across.
+      const oldSid = state.sessionId;
+      try {
+        await requestJson(
+          `/v1/sessions/${encodeURIComponent(oldSid)}/end-scene`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              reason: "simulator-arc-session-end",
+              drain_slow_loop: true,
+            }),
+          },
+        );
+      } catch (err) {
+        addMessage("system", `End-scene failed before bridge: ${err.message}`);
+      }
+      // Visual cue mid-bridge so the user reads the gap as a real
+      // discontinuity rather than the simulator just "going quiet".
+      addMessage(
+        "system",
+        `--- gap: ${nextGapDays} day(s); new session ---`,
+        { gapBanner: true },
+      );
+      const newSidRequest = `${state.simScenarioId}-${state.simParaphraseSeed}-${Date.now()}`;
+      const verticalName = state.sessionVertical || selectedVerticalName();
+      const created = await requestJson("/v1/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: newSidRequest,
+          vertical: verticalName,
+        }),
+      });
+      // Close old HTTP session AFTER /simulator/init transfers state
+      // off it; otherwise the simulator cache evicts before we can
+      // resume_from_session_id.
+      state.sessionId = created.session_id;
+      state.sessionVertical = created.vertical;
+      statusEl.textContent =
+        `Session ${state.sessionId} | vertical ${created.vertical}`;
+      await initSimulatorForSession(state.sessionId, oldSid);
+      try {
+        await requestJson(
+          `/v1/sessions/${encodeURIComponent(oldSid)}`,
+          { method: "DELETE" },
+        );
+      } catch (err) {
+        addMessage("system", `Closing old session ${oldSid} failed: ${err.message}`);
+      }
+      await refreshSessionStateGauges();
+      await refreshRelationshipSummary();
+    }
+
+    async function runSimulator() {
+      if (!state.sessionId) {
+        addMessage("system", "Run Simulator requires a live session.");
+        return;
+      }
+      const scenarioId = scenarioSelectEl.value.trim();
+      if (!scenarioId) {
+        addMessage("system", "Pick a scenario before running the simulator.");
+        return;
+      }
+      const seedRaw = paraphraseSeedEl.value.trim();
+      const seed = seedRaw === "" ? 0 : parseInt(seedRaw, 10);
+      if (!Number.isInteger(seed) || seed < 0) {
+        addMessage("system", "paraphrase_seed must be a non-negative integer.");
+        return;
+      }
+      const meta = state.scenariosById[scenarioId];
+      if (meta && seed >= meta.paraphrase_seed_count) {
+        addMessage(
+          "system",
+          `paraphrase_seed ${seed} >= scenario.paraphrase_seed_count `
+          + `${meta.paraphrase_seed_count} for ${scenarioId}.`,
+        );
+        return;
+      }
+      state.simRunning = true;
+      state.simStopRequested = false;
+      state.simScenarioId = scenarioId;
+      state.simParaphraseSeed = seed;
+      state.simLastBotText = "";
+      setReady(true);
+      try {
+        await initSimulatorForSession(state.sessionId, null);
+        let initialCall = true;
+        while (!state.simStopRequested) {
+          const { sim } = await pumpOneSimulatorTurn(initialCall);
+          initialCall = false;
+          if (sim.arc_position === "arc_end") {
+            addMessage("system", "Simulator arc complete.");
+            break;
+          }
+          if (sim.arc_position === "session_end") {
+            await bridgeToNextArcSession(sim.next_gap_days);
+            // After bridge the schedule keeps a single linear cursor
+            // on the server, so we keep pumping; first call after a
+            // resumed /init should still pass the prior assistant
+            // text (we just appended it via /init).
+            initialCall = true;
+            state.simLastBotText = "";
+          }
+        }
+        if (state.simStopRequested) {
+          addMessage("system", "Simulator stopped on operator request.");
+        }
+      } catch (err) {
+        addMessage("system", `Simulator run failed: ${err.message}`);
+      } finally {
+        state.simRunning = false;
+        state.simStopRequested = false;
+        setReady(Boolean(state.sessionId));
+      }
+    }
+
+    function stopSimulator() {
+      if (!state.simRunning) return;
+      state.simStopRequested = true;
+      addMessage("system", "Stop requested; halting at next turn boundary.");
     }
     async function submitOutcome(kind) {
       if (!state.sessionId) return;
@@ -1641,6 +2314,8 @@ _CHAT_UI_HTML = r"""<!doctype html>
         if (payload.evidence_artifact_ref) {
           addMessage("system", `Evidence: ${payload.evidence_artifact_ref}`);
         }
+        await refreshSessionStateGauges();
+        await refreshRelationshipSummary();
       } catch (err) {
         addMessage("system", `End scene failed: ${err.message}`);
       }
@@ -1653,6 +2328,19 @@ _CHAT_UI_HTML = r"""<!doctype html>
     switchModelBtn.addEventListener("click", switchModel);
     verticalSelectEl.addEventListener("change", () => { loadTemplates(); });
     outcomeBtns.forEach(btn => btn.addEventListener("click", () => submitOutcome(btn.dataset.kind)));
+    runSimBtn.addEventListener("click", runSimulator);
+    stopSimBtn.addEventListener("click", stopSimulator);
+    forgetMeBtn.addEventListener("click", forgetMe);
+    scenarioSelectEl.addEventListener("change", () => {
+      setReady(Boolean(state.sessionId));
+    });
+    userIdEl.addEventListener("input", () => {
+      updateScopeChip();
+    });
+    userIdEl.addEventListener("change", () => {
+      updateScopeChip();
+      refreshRelationshipSummary();
+    });
     inputEl.addEventListener("keydown", event => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
@@ -1852,6 +2540,9 @@ _CHAT_UI_HTML = r"""<!doctype html>
     // loadVerticals() chains into loadTemplates() so the template
     // dropdown is filled for whatever vertical was auto-selected.
     loadVerticals();
+    loadScenarios();
+    resetGovernancePanel();
+    updateScopeChip();
   </script>
 </body>
 </html>

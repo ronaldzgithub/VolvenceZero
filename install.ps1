@@ -31,6 +31,7 @@ $Packages = @(
     "packages\lifeform-domain-coding",
     "packages\lifeform-domain-figure",
     "packages\lifeform-domain-growth-advisor",
+    "packages\companion-bench",
     "packages\lifeform-service",
     "packages\lifeform-evolution",
     "packages\lifeform-openai-compat",

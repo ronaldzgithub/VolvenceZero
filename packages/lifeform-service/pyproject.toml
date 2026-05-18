@@ -19,6 +19,13 @@ dependencies = [
     "lifeform-domain-figure==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
     "aiohttp>=3.9",
+    # companion-bench is Apache 2.0 OSS-style and the dependency
+    # direction is one-way: lifeform-service consumes companion-bench
+    # to drive the governance-demo user simulator
+    # (see packages/lifeform-service/src/lifeform_service/simulator_routes.py).
+    # The reverse direction is forbidden by
+    # tests/contracts/test_companion_bench_no_internal_imports.py.
+    "companion-bench==1.0.*",
 ]
 
 [project.scripts]
