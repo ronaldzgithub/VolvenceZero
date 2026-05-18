@@ -497,89 +497,39 @@ Two-section layout. Top: what foundation memory does well (short list, to active
 > | SAFETY + RATIONALE TAGS | `ordering_driver: continuum-clarify-first` / `continuum_target=0.58` | When monetization stops — recommendation gate, logged and auditable |
 > | Forget Me button | visible top-left | What consent means longitudinally — one-action revocation |
 
-**Speaker script (4.5 min)**
+**Speaker script (2.5 min)**
 
-*[Entering from Slide 7's closing line: "The moat is not remembering more. The moat is deciding what persists, what adapts, what repairs trust, and what becomes economically actionable over years."]*
+*[Entering from Slide 7's closing line: "...what persists, what adapts, what repairs trust, and what becomes economically actionable over years."]*
 
-"I just described seven dimensions. Let me show you all seven of them running right now."
+"Let me show you all seven of those decisions running right now."
 
-*[切图，停顿一秒]*
+*[切图]*
 
-"This is a live session from our closed alpha. Alice is having a conversation. The right side is what we call the Governance Trace — a real-time audit panel. Every label you see there maps to a governance dimension I just put on the table. Let me walk through them in order."
+"Live session, closed alpha. Right panel is the Governance Trace. Every label maps to a dimension I just showed you.
 
----
+**SCOPE: `scope: alice`** — *what never transfers.* Hard runtime isolation. Not a privacy policy, an enforced boundary.
 
-**SCOPE — `scope: alice`**
+**REGIME: `acquaintance_building / discovered_family_2`** — *what adapts.* The relationship stage is a live state machine, learned from interaction, not set by config. Family context inferred from the conversation itself.
 
-"First: **what never transfers.**
+**PREDICTION ERROR: 0.120** — the surprise signal that drives adaptation speed. Not a sentiment score. The cognitive tension that decides what the system learns next.
 
-The SCOPE panel says `scope: alice`. Alice's runtime state is hard-isolated. The system's knowledge of Alice — her open loops, her relationship history, her emotional context — none of it bleeds into anyone else's session. This is not a privacy policy. This is an enforced runtime boundary. The label in the UI is the audit anchor for non-transfer."
+**SEMANTIC OWNERS: 12 open loops, 0 commitments** — *what persists.* Threads Alice opened that the system hasn't resolved. They live in memory, survive across sessions, get re-injected when she returns. Typed state with a lifecycle, not RAG retrieval.
 
----
+**SCENES: 5 open, 0 closed** — *what decays.* A sleep pattern from six months ago closes. A formula caution stays open. Decay is a design decision, not a storage limit.
 
-**REGIME — `acquaintance_building / discovered_family_2`**
+**SAFETY + RATIONALE TAGS** — *when monetization stops.* Look at `ordering_driver: continuum-clarify-first` and `continuum_target=0.58`. Zero is push-the-product. One is stay-present. 0.58 is support-leaning. The system had **43 knowledge hits and 40 case hits available this turn. It chose to use none of them** — because Alice was talking about what it means to still do things just for herself, and the governance layer said: *not the moment.* That choice is logged and auditable.
 
-"Second: **what adapts.**
+**RUPTURE / REPAIR: 0 / 0 / none** — *how rupture is repaired.* The counter is live. If Alice said 'stop telling me what to do,' this would log a typed rupture, classify the kind, and change the next three sessions' behavior. Not a softer prompt — a typed state change that persists.
 
-The REGIME panel shows `acquaintance_building` and `discovered_family_2`. This is the relationship stage state machine. The system is not treating Alice as a new user and not treating her as an intimate — it has placed her in early-trust building, and that stage was learned from interaction, not set by a config. The `discovered_family_2` tag means the system has inferred a family context from the conversation itself. Two signals, two independent layers, live right now. When the relationship evolves, the regime transitions. When the regime transitions, every downstream decision changes with it."
+**Forget Me** in the corner: one-button longitudinal revocation. Not a support ticket."
 
----
+*[Closing]*
 
-**PREDICTION ERROR — graph, `last: 0.120`**
+"Seven dimensions on the previous slide. Seven panels here. Same thing, running.
 
-"Third: the adaptation engine behind all of this.
+Foundation memory will get better. It will not build a scope boundary, run a relationship stage state machine, close a recommendation gate at 0.58, or log a rupture and modify behavior three sessions later. These are governance decisions — per-vertical, per-relationship, per-jurisdiction. The opposite of what a foundation lab optimizes for."
 
-The Prediction Error graph. Last value: 0.120. This is the system's real-time surprise signal — how much the current interaction deviated from what the system expected based on the relationship history. It's not a sentiment score. It's not a satisfaction rating. It is the cognitive tension that drives what the system learns next. When PE spikes, the system updates faster. When PE is flat, the regime is stable. This is the signal that decides *what adapts and at what time-scale* — the second governance dimension, implemented as a first-class runtime object, not a dashboard metric."
-
----
-
-**SEMANTIC OWNERS — `COMMITMENTS 0 / OPEN LOOPS 12`**
-
-"Fourth: **what persists.**
-
-SEMANTIC OWNERS shows 12 open loops and 0 commitments. An open loop is something the system has registered but not resolved — Alice mentioned something, the system took note, the thread is open. A commitment is a promise the system has made to Alice that it intends to follow up on. These survive across sessions. They are not in the LLM context window. They live in the memory layer and get re-injected when Alice comes back. This is *what persists* — not as a RAG retrieval, but as a typed semantic state with an owner and a lifecycle."
-
----
-
-**SCENES — `CLOSED 0 / OPEN TURN 5`**
-
-"Fifth: **what decays.**
-
-SCENES shows 5 open scenes this turn and 0 closed. A scene is a bounded episode — a topic, a tension, a moment — that the system is tracking. Open scenes are active. Closed scenes are resolved and age out. This is the decay governance. A sleep pattern from six months ago closes. A formula caution stays open. The system manages this explicitly — it doesn't just accumulate everything forever. Decay is a design decision, not a storage limitation."
-
----
-
-**SAFETY + RATIONALE TAGS**
-
-"Sixth: the decision audit trail — this is **when monetization stops.**
-
-Every response produces these tags. Two of them tell the whole story.
-
-`ordering_driver: continuum-clarify-first`. The system decided: this turn, I will listen and clarify, not recommend. The recommendation gate is closed.
-
-`continuum_target=0.58`. Zero is full action mode — push the product. One is full support mode — stay present. 0.58 is support-leaning. The system computed this from the relationship stage, the prediction error, and the session history.
-
-Alice is talking about a tattoo and what it means to still do things just for herself. The governance layer read that context and decided: *not the moment.* The system had 43 knowledge hits and 40 case hits available. It chose to use none of them. That choice is logged, tagged, and auditable. This is what makes it a different category from a recommendation engine."
-
----
-
-**RUPTURE / REPAIR — `ruptures: 0, repaired: 0, kind: (none)`**
-
-"Seventh: **how rupture is repaired.**
-
-The Rupture/Repair panel shows 0 ruptures, 0 repaired, kind: none. This session is healthy — no rupture has occurred. But the counter is live. If Alice had said 'stop telling me what to do,' the system would have logged a rupture, classified it by kind — over-directive, too-much-advice, boundary-crossed — and triggered a repair protocol that changes the next response structure. The repair is not a softer prompt. It is a typed state change that persists across sessions and overrides the default recommendation logic until trust is rebuilt.
-
-The Forget Me button next to the scope panel is the consent surface. One button. Longitudinal revocation. Not a support ticket."
-
----
-
-*[Closing, flip to Slide 8]*
-
-"Seven dimensions on the previous slide. Seven panels in this trace. They are the same seven things, running.
-
-Foundation memory will get better. It will not build a scope boundary. It will not run a relationship stage state machine. It will not close a recommendation gate at 0.58. It will not log a rupture and modify behavior three sessions later. These are governance decisions — and they are, by design, per-vertical, per-relationship, per-jurisdiction. The opposite of what a foundation lab optimizes for.
-
-Next slide shows how these decisions translate into four measurable business levers."
+*[flip to Slide 8]*
 
 ---
 
