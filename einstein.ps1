@@ -866,6 +866,12 @@ if (-not $SkipVerify) {
     # script keeps going and prints the verdict on smoke runs (where
     # synthetic LoRA forces bundle == bundle_lora and the LoRA gate
     # FAILS by design -- see debt #40).
+    # Forward $PeftDevice as the verifier's --device. The persona CLI
+    # itself defaults to cpu, but in this pipeline we already resolved
+    # cuda / cpu via -Device auto / explicit flag at the top; running
+    # verify on cpu while bake ran on cuda makes a 1.5B Qwen
+    # verification take ~1 hour vs ~5 min and confuses operators
+    # (CPU 100% / GPU idle while the harness "hangs").
     $verifyCode = Invoke-PythonStep 'phase3 persona-verification' @(
         '-m', 'lifeform_domain_figure.verification.persona.cli',
         '--bundle-id', $BundleId,
@@ -874,6 +880,7 @@ if (-not $SkipVerify) {
         '--output-dir', $VerifyOut,
         '--runtime', $RuntimeBackend,
         '--qwen-model-id', $QwenModelId,
+        '--device', $PeftDevice,
         '--max-in-corpus-questions', $MaxInCorpusQuestions,
         '--conditions', 'raw,bundle,bundle_lora',
         '--questions-cache', (Join-Path $VerifyOut 'questions.jsonl')
