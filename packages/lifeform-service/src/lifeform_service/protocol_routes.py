@@ -3,15 +3,25 @@
 Mounted by ``create_app`` when a :class:`ProtocolUptakeService` is
 injected. Routes:
 
-* ``GET    /v1/protocols``                    list approved protocols
+* ``GET    /v1/protocols``                    list active protocols (in-memory registry)
 * ``GET    /v1/protocols/candidates``         list pending candidates
 * ``POST   /v1/protocols/upload-pdf``         multipart PDF → candidate
 * ``POST   /v1/protocols/upload-markdown``    multipart MD → candidate
 * ``POST   /v1/protocols/from-description``   {description, protocol_id, advisor_name} → candidate
 * ``POST   /v1/protocols/from-payload``       full BehaviorProtocol payload → candidate
-* ``POST   /v1/protocols/candidates/{id}/approve``  approve → load
+* ``POST   /v1/protocols/candidates/{id}/approve``  approve → load + persist to library
 * ``POST   /v1/protocols/candidates/{id}/reject``   reject
-* ``DELETE /v1/protocols/{id}``               unload approved
+* ``DELETE /v1/protocols/{id}``               unload approved from active set (keeps library file)
+
+Library routes (only when ``--protocol-approved-dir`` is set):
+
+* ``GET    /v1/protocols/library``            list disk-persisted protocols + active flag
+* ``POST   /v1/protocols/library/{id}/load``  read JSON → load into active set
+* ``POST   /v1/protocols/library/{id}/unload`` remove from active set (file stays)
+* ``DELETE /v1/protocols/library/{id}``       remove JSON + unload
+
+When the service is started without ``--protocol-approved-dir``,
+library routes respond ``503 protocol_library_not_configured``.
 
 All extraction routes that need an LLM respond ``503 protocol_llm_not_configured``
 when the service has no client. ``from-payload`` works without an LLM.
@@ -70,6 +80,27 @@ def register_protocol_routes(
         "/v1/protocols/candidates/{protocol_id}/reject",
         _handle_reject,
     )
+    # Library (disk-backed) routes — handlers themselves return
+    # ``503 protocol_library_not_configured`` when no persistence
+    # store is wired, so registration is unconditional.
+    app.router.add_get(
+        "/v1/protocols/library", _handle_list_library
+    )
+    app.router.add_post(
+        "/v1/protocols/library/{protocol_id}/load",
+        _handle_library_load,
+    )
+    app.router.add_post(
+        "/v1/protocols/library/{protocol_id}/unload",
+        _handle_library_unload,
+    )
+    app.router.add_delete(
+        "/v1/protocols/library/{protocol_id}",
+        _handle_library_delete,
+    )
+    # NOTE: the legacy "/v1/protocols/{id}" DELETE route is
+    # registered AFTER the library routes so the more specific
+    # path ``/v1/protocols/library/{id}`` matches first.
     app.router.add_delete(
         "/v1/protocols/{protocol_id}", _handle_unload
     )
@@ -328,6 +359,95 @@ async def _handle_unload(request: web.Request) -> web.Response:
 
 
 # ---------------------------------------------------------------------------
+# Library (disk-backed) routes
+# ---------------------------------------------------------------------------
+
+
+async def _handle_list_library(request: web.Request) -> web.Response:
+    service = _service(request)
+    if service.persistence is None:
+        return _library_not_configured()
+    entries = service.library_state_snapshot()
+    return web.json_response(
+        {
+            "approved_dir": str(service.persistence.approved_dir),
+            "count": len(entries),
+            "entries": [
+                {
+                    **protocol_to_json(p),
+                    "is_active": active,
+                }
+                for p, active in entries
+            ],
+        }
+    )
+
+
+async def _handle_library_load(request: web.Request) -> web.Response:
+    service = _service(request)
+    if service.persistence is None:
+        return _library_not_configured()
+    protocol_id = request.match_info["protocol_id"]
+    try:
+        loaded = await service.load_from_library(protocol_id)
+    except KeyError as exc:
+        return web.json_response(
+            {"error": "library_entry_not_found", "detail": str(exc)},
+            status=404,
+        )
+    except ValueError as exc:
+        return web.json_response(
+            {"error": "library_entry_invalid", "detail": str(exc)},
+            status=422,
+        )
+    return web.json_response(
+        {
+            "loaded": True,
+            "protocol_id": protocol_id,
+            "protocol": protocol_to_json(loaded),
+        }
+    )
+
+
+async def _handle_library_unload(request: web.Request) -> web.Response:
+    service = _service(request)
+    if service.persistence is None:
+        return _library_not_configured()
+    protocol_id = request.match_info["protocol_id"]
+    removed = await service.unload_from_registry(protocol_id)
+    return web.json_response(
+        {
+            "unloaded": removed,
+            "protocol_id": protocol_id,
+            "detail": (
+                "removed from active set; file remains on disk"
+                if removed
+                else "no active entry for this protocol_id; file (if any) remains on disk"
+            ),
+        }
+    )
+
+
+async def _handle_library_delete(request: web.Request) -> web.Response:
+    service = _service(request)
+    if service.persistence is None:
+        return _library_not_configured()
+    protocol_id = request.match_info["protocol_id"]
+    removed = await service.delete_from_library(protocol_id)
+    if not removed:
+        return web.json_response(
+            {
+                "error": "library_entry_not_found",
+                "detail": f"no persisted protocol with id {protocol_id!r}",
+            },
+            status=404,
+        )
+    return web.json_response(
+        {"deleted": True, "protocol_id": protocol_id}
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -341,6 +461,20 @@ def _llm_not_configured() -> web.Response:
                 "PROTOCOL_LLM_BASE_URL and PROTOCOL_LLM_API_KEY (and "
                 "optionally PROTOCOL_LLM_MODEL / "
                 "PROTOCOL_LLM_TIMEOUT_SECONDS) and restart the service."
+            ),
+        },
+        status=503,
+    )
+
+
+def _library_not_configured() -> web.Response:
+    return web.json_response(
+        {
+            "error": "protocol_library_not_configured",
+            "detail": (
+                "this route requires a disk-backed protocol library. "
+                "Start the service with --protocol-approved-dir <path> "
+                "and restart."
             ),
         },
         status=503,

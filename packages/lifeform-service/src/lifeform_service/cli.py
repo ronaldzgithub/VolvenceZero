@@ -167,7 +167,66 @@ def _build_parser() -> argparse.ArgumentParser:
             "/v1/sessions/{id}/turns API only)."
         ),
     )
+    parser.add_argument(
+        "--protocol-approved-dir",
+        default=None,
+        help=(
+            "Directory to persist approved protocols as JSON. When "
+            "set, the protocol uptake service mirrors every "
+            "approved candidate to '<dir>/<protocol_id>.json' and "
+            "exposes the GET/POST/DELETE /v1/protocols/library "
+            "routes so the chat UI can pick which persisted "
+            "protocols to activate across restarts. Default: None "
+            "(library mode disabled; approved protocols evaporate "
+            "on restart)."
+        ),
+    )
     return parser
+
+
+def _maybe_build_protocol_uptake_service(args: argparse.Namespace):
+    """Construct a ProtocolUptakeService when persistence is requested.
+
+    Returns ``None`` when ``--protocol-approved-dir`` is not set — in
+    that case the CLI keeps the legacy single-vertical behavior of
+    not mounting the protocol routes at all (matches pre-persistence
+    behavior of this CLI; the richer ``start_browser_chat_qwen``
+    scripts do their own wiring).
+
+    Returns a configured :class:`ProtocolUptakeService` with the
+    persistence store wired so approved protocols are mirrored to
+    disk and library routes work.
+    """
+
+    approved_dir = (args.protocol_approved_dir or "").strip() or None
+    if approved_dir is None:
+        return None
+    from pathlib import Path
+
+    from lifeform_service.protocol_persistence import ProtocolPersistenceStore
+    from lifeform_service.protocol_uptake import (
+        ProtocolUptakeConfig,
+        ProtocolUptakeService,
+    )
+
+    store = ProtocolPersistenceStore(Path(approved_dir))
+    service = ProtocolUptakeService(
+        config=ProtocolUptakeConfig(),
+        persistence=store,
+    )
+    persisted = store.list_all()
+    if persisted:
+        _LOG.info(
+            "protocol library: discovered %d persisted protocol(s) in %s "
+            "(use POST /v1/protocols/library/<id>/load to activate)",
+            len(persisted), approved_dir,
+        )
+    else:
+        _LOG.info(
+            "protocol library: empty (no .json files under %s)",
+            approved_dir,
+        )
+    return service
 
 
 def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRuntime | None":
@@ -292,12 +351,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to build shared substrate runtime: {exc}", file=sys.stderr)
         return 1
 
+    protocol_uptake_service = _maybe_build_protocol_uptake_service(args)
+
     app = create_app(
         vertical=spec,
         max_sessions=args.max_sessions,
         idle_eviction_seconds=idle,
         substrate_runtime=substrate_runtime,
         alpha_config=alpha_config,
+        protocol_uptake_service=protocol_uptake_service,
     )
     if args.enable_openai_compat:
         # Deferred import: keeps lifeform-openai-compat an optional dep

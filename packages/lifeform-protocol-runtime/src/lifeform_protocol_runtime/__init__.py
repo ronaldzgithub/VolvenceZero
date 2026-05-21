@@ -53,6 +53,12 @@ from lifeform_protocol_runtime.llm_clients import (
     OpenAiCompatConfig,
     OpenAiCompatJsonClient,
 )
+from lifeform_protocol_runtime.serialization import (
+    SCHEMA_VERSION as PROTOCOL_PAYLOAD_SCHEMA_VERSION,
+    ProtocolPayloadSchemaError,
+    protocol_from_payload,
+    protocol_to_payload,
+)
 from lifeform_protocol_runtime.task_description_uptake import (
     extract_protocol_from_description,
 )
@@ -65,10 +71,14 @@ __all__ = [
     "MockLlmJsonClient",
     "OpenAiCompatConfig",
     "OpenAiCompatJsonClient",
+    "PROTOCOL_PAYLOAD_SCHEMA_VERSION",
+    "ProtocolPayloadSchemaError",
     "chunk_document",
     "extract_protocol_candidate",
     "extract_protocol_from_description",
     "inject_protocol_from_payload",
+    "protocol_from_payload",
+    "protocol_to_payload",
     "read_markdown",
     "read_pdf",
     "scan_directory_for_protocols",

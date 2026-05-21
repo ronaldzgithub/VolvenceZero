@@ -123,6 +123,13 @@
       PROTOCOL_AUTOLOAD_FORCE_APPROVE=0        # DEV: 1 = auto-approve scanned
                                                # candidates (skip review). Use
                                                # only on local dev / tests.
+      PROTOCOL_APPROVED_DIR=                   # optional dir for persisting
+                                               # approved protocols as JSON.
+                                               # When set, /v1/protocols/library
+                                               # routes mount and the chat UI
+                                               # lets you multi-select which
+                                               # persisted protocols to load
+                                               # across restarts (no LLM re-run).
       PROTOCOL_LLM_PROVIDER=qwen               # provider preset for the uptake
                                                # LLM. Known: openai / qwen /
                                                # dashscope / vllm /
@@ -334,6 +341,7 @@ Set-DefaultEnv 'TEMPLATES_ROOT_DIR'    (Join-Path $RootDir 'artifacts\lifeform-t
 Set-DefaultEnv 'MODEL_ID_ALLOWLIST'    ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_DIR'        ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_FORCE_APPROVE' '0'
+Set-DefaultEnv 'PROTOCOL_APPROVED_DIR'        (Join-Path $RootDir '.local\protocol_library')
 Set-DefaultEnv 'PROTOCOL_LLM_PROVIDER'        'qwen'
 Set-DefaultEnv 'PROTOCOL_LLM_BASE_URL'        ''
 Set-DefaultEnv 'PROTOCOL_LLM_API_KEY'         ''
@@ -503,6 +511,7 @@ from lifeform_service.openai_compat_client import (
     build_client_from_env,
     describe_active_provider,
 )
+from lifeform_service.protocol_persistence import ProtocolPersistenceStore
 from lifeform_service.protocol_uptake import (
     ProtocolUptakeConfig,
     ProtocolUptakeService,
@@ -635,12 +644,31 @@ def main() -> int:
     # spend in one place.
     shared_llm_client = build_client_from_env()
 
+    # Disk-backed protocol library: when PROTOCOL_APPROVED_DIR is
+    # set, approved candidates are persisted to JSON and the
+    # /v1/protocols/library/* routes are mounted. Discovery only
+    # — the registry starts empty; the chat UI lets the operator
+    # multi-select which library entries to activate per restart.
+    approved_dir_raw = _env_str_or_none("PROTOCOL_APPROVED_DIR")
+    persistence_store = None
+    if approved_dir_raw is not None:
+        approved_dir = Path(approved_dir_raw)
+        approved_dir.mkdir(parents=True, exist_ok=True)
+        persistence_store = ProtocolPersistenceStore(approved_dir)
+        persisted_count = len(list(approved_dir.glob("*.json")))
+        print(
+            f"[start-browser-chat-qwen] protocol library: "
+            f"dir={approved_dir} persisted={persisted_count}",
+            flush=True,
+        )
+
     uptake_service = ProtocolUptakeService(
         config=ProtocolUptakeConfig(
             autoload_dir=Path(autoload_dir_raw) if autoload_dir_raw else None,
             autoload_force_approve=autoload_force_approve,
             llm_client_factory=lambda: shared_llm_client,
         ),
+        persistence=persistence_store,
     )
 
     app = create_app(

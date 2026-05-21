@@ -1607,8 +1607,22 @@ _CHAT_UI_HTML = r"""<!doctype html>
       <button id="protocolDescBtn" class="secondary" style="margin-top: 6px;">Submit Description</button>
       <h3 style="font-size: 14px; margin: 16px 0 6px;">Pending Candidates</h3>
       <div id="protocolsCandidates"></div>
-      <h3 style="font-size: 14px; margin: 16px 0 6px;">Approved Protocols</h3>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Active (this run)</h3>
       <div id="protocolsApproved"></div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">
+        Protocol Library
+        <span id="protocolLibraryDir" style="font-size: 11px; color: #9ca3af; margin-left: 8px;"></span>
+      </h3>
+      <div id="protocolLibraryStatus" class="msg system" style="margin-top: 4px; font-size: 12px;">
+        Disk-backed library lets approved protocols survive service restarts.
+      </div>
+      <div class="bar" style="gap: 6px; margin-top: 6px;">
+        <button id="protocolLibrarySelectAll" class="secondary">Select All</button>
+        <button id="protocolLibraryClearAll" class="secondary">Clear All</button>
+        <button id="protocolLibraryLoadSelected" class="secondary">Load Selected</button>
+        <button id="protocolLibraryReload" class="secondary">Reload from Disk</button>
+      </div>
+      <div id="protocolLibraryEntries" style="margin-top: 8px;"></div>
     </div>
   </div>
   <script>
@@ -2504,6 +2518,14 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const protocolDescAdvisor = document.getElementById("protocolDescAdvisor");
     const protocolDescText = document.getElementById("protocolDescText");
     const protocolDescBtn = document.getElementById("protocolDescBtn");
+    const protocolLibraryDir = document.getElementById("protocolLibraryDir");
+    const protocolLibraryStatus = document.getElementById("protocolLibraryStatus");
+    const protocolLibraryEntries = document.getElementById("protocolLibraryEntries");
+    const protocolLibrarySelectAll = document.getElementById("protocolLibrarySelectAll");
+    const protocolLibraryClearAll = document.getElementById("protocolLibraryClearAll");
+    const protocolLibraryLoadSelected = document.getElementById("protocolLibraryLoadSelected");
+    const protocolLibraryReload = document.getElementById("protocolLibraryReload");
+    let protocolLibraryEnabled = false;
 
     function setProtocolStatus(msg) {
       protocolsStatus.textContent = msg;
@@ -2559,7 +2581,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
           }
         }
         if (approved.length === 0) {
-          protocolsApproved.innerHTML = "<div class='msg system'>(no protocols loaded)</div>";
+          protocolsApproved.innerHTML = "<div class='msg system'>(no protocols active this run)</div>";
         } else {
           for (const p of approved) {
             const row = renderCandidate(p, protocolsApproved);
@@ -2571,15 +2593,199 @@ _CHAT_UI_HTML = r"""<!doctype html>
           }
         }
         setProtocolStatus(
-          `Pending: ${pending.length} | Approved: ${approved.length}. `
-          + `Approved protocols are compiled into the next session's `
+          `Pending: ${pending.length} | Active: ${approved.length}. `
+          + `Active protocols are compiled into the next session's `
           + `domain knowledge / boundaries / playbook / case memory. `
           + `Existing sessions keep their original wiring — restart your `
           + `session (or create a new one) to pick up changes.`
         );
+        await loadProtocolLibrary();
       } catch (err) {
         setProtocolStatus(`Failed to load: ${err.message}`);
       }
+    }
+
+    async function loadProtocolLibrary() {
+      protocolLibraryEntries.innerHTML = "";
+      try {
+        const resp = await fetch("/v1/protocols/library", {
+          method: "GET",
+          headers: { "Content-Type": "application/json", ...alphaHeaders() },
+        });
+        if (resp.status === 503) {
+          protocolLibraryEnabled = false;
+          protocolLibraryDir.textContent = "(persistence not configured)";
+          protocolLibraryStatus.textContent =
+            "Library mode is off. Restart the service with PROTOCOL_APPROVED_DIR=<path> "
+            + "(or --protocol-approved-dir <path>) to persist approved protocols across restarts.";
+          protocolLibrarySelectAll.disabled = true;
+          protocolLibraryClearAll.disabled = true;
+          protocolLibraryLoadSelected.disabled = true;
+          protocolLibraryReload.disabled = true;
+          return;
+        }
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`library list failed: ${text}`);
+        }
+        protocolLibraryEnabled = true;
+        protocolLibrarySelectAll.disabled = false;
+        protocolLibraryClearAll.disabled = false;
+        protocolLibraryLoadSelected.disabled = false;
+        protocolLibraryReload.disabled = false;
+        const payload = await resp.json();
+        const entries = payload.entries || [];
+        protocolLibraryDir.textContent = `dir: ${payload.approved_dir} (${entries.length} on disk)`;
+        if (entries.length === 0) {
+          protocolLibraryEntries.innerHTML =
+            "<div class='msg system'>(library is empty — approve a candidate to populate it)</div>";
+          protocolLibraryStatus.textContent =
+            "No persisted protocols yet. Upload + approve a candidate to add it to the library.";
+          return;
+        }
+        protocolLibraryStatus.textContent =
+          "Tick the protocols you want active for new sessions, then click 'Load Selected'. "
+          + "Items already active have a green badge; load/unload toggles activation; "
+          + "delete removes the JSON from disk.";
+        for (const entry of entries) {
+          const row = document.createElement("div");
+          row.className = "msg system";
+          row.style.maxWidth = "100%";
+          row.style.marginRight = "0";
+          row.style.marginLeft = "0";
+          const checkboxId = `protoLibCheck_${entry.protocol_id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+          const counts = `boundaries=${entry.boundary_count} strategies=${entry.strategy_count} `
+            + `seeds=${entry.knowledge_seed_count} cases=${entry.signature_case_count}`;
+          const badge = entry.is_active
+            ? `<span style="background:#065f46;color:#d1fae5;padding:1px 6px;border-radius:6px;font-size:11px;margin-left:6px;">active</span>`
+            : `<span style="background:#374151;color:#9ca3af;padding:1px 6px;border-radius:6px;font-size:11px;margin-left:6px;">inactive</span>`;
+          row.innerHTML =
+            `<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">`
+            + `<input type="checkbox" id="${checkboxId}" data-protocol-id="${entry.protocol_id}" ${entry.is_active ? "checked" : ""} style="margin-top:4px;">`
+            + `<div style="flex:1;">`
+            + `<strong>${entry.protocol_id}</strong> &middot; ${entry.advisor_name || "(no name)"}${badge}<br>`
+            + `<span style="opacity:.8">${entry.description || "(no description)"}</span><br>`
+            + `<span style="font-size:12px;opacity:.7">${counts} &middot; src=${entry.source_kind}</span>`
+            + `</div></label>`;
+          const btnRow = document.createElement("div");
+          btnRow.style.marginTop = "6px";
+          btnRow.style.display = "flex";
+          btnRow.style.gap = "6px";
+          btnRow.style.justifyContent = "flex-end";
+          if (entry.is_active) {
+            const unloadBtn = document.createElement("button");
+            unloadBtn.textContent = "Unload";
+            unloadBtn.className = "secondary";
+            unloadBtn.addEventListener("click", () => libraryUnload(entry.protocol_id));
+            btnRow.appendChild(unloadBtn);
+          } else {
+            const loadBtn = document.createElement("button");
+            loadBtn.textContent = "Load";
+            loadBtn.className = "secondary";
+            loadBtn.addEventListener("click", () => libraryLoad(entry.protocol_id));
+            btnRow.appendChild(loadBtn);
+          }
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.className = "danger";
+          deleteBtn.addEventListener("click", () => libraryDelete(entry.protocol_id));
+          btnRow.appendChild(deleteBtn);
+          row.appendChild(btnRow);
+          protocolLibraryEntries.appendChild(row);
+        }
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Library load failed: ${err.message}`;
+      }
+    }
+
+    async function libraryLoad(pid) {
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}/load`,
+          { method: "POST" },
+        );
+        protocolLibraryStatus.textContent = `Loaded ${pid} into active set.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Load failed: ${err.message}`;
+      }
+    }
+
+    async function libraryUnload(pid) {
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}/unload`,
+          { method: "POST" },
+        );
+        protocolLibraryStatus.textContent = `Unloaded ${pid} (file kept on disk).`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Unload failed: ${err.message}`;
+      }
+    }
+
+    async function libraryDelete(pid) {
+      if (!window.confirm(`Delete ${pid} from disk? This cannot be undone.`)) return;
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}`,
+          { method: "DELETE" },
+        );
+        protocolLibraryStatus.textContent = `Deleted ${pid}.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Delete failed: ${err.message}`;
+      }
+    }
+
+    async function libraryLoadSelected() {
+      if (!protocolLibraryEnabled) return;
+      const checkboxes = protocolLibraryEntries.querySelectorAll(
+        "input[type=checkbox][data-protocol-id]"
+      );
+      const targetActive = new Set();
+      const currentlyActive = new Set();
+      for (const cb of checkboxes) {
+        if (cb.checked) targetActive.add(cb.dataset.protocolId);
+        if (cb.closest(".msg").innerHTML.includes("background:#065f46")) {
+          currentlyActive.add(cb.dataset.protocolId);
+        }
+      }
+      const toLoad = [...targetActive].filter((id) => !currentlyActive.has(id));
+      const toUnload = [...currentlyActive].filter((id) => !targetActive.has(id));
+      if (toLoad.length === 0 && toUnload.length === 0) {
+        protocolLibraryStatus.textContent = "No changes (selection matches current active set).";
+        return;
+      }
+      protocolLibraryStatus.textContent =
+        `Applying: load ${toLoad.length}, unload ${toUnload.length}...`;
+      try {
+        for (const pid of toLoad) {
+          await requestJson(
+            `/v1/protocols/library/${encodeURIComponent(pid)}/load`,
+            { method: "POST" },
+          );
+        }
+        for (const pid of toUnload) {
+          await requestJson(
+            `/v1/protocols/library/${encodeURIComponent(pid)}/unload`,
+            { method: "POST" },
+          );
+        }
+        protocolLibraryStatus.textContent =
+          `Applied: loaded ${toLoad.length}, unloaded ${toUnload.length}. `
+          + `Restart your chat session to pick up changes.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Apply failed: ${err.message}`;
+      }
+    }
+
+    function libraryToggleAll(checked) {
+      const checkboxes = protocolLibraryEntries.querySelectorAll(
+        "input[type=checkbox][data-protocol-id]"
+      );
+      for (const cb of checkboxes) cb.checked = checked;
     }
 
     async function approveCandidate(pid) {
@@ -2677,6 +2883,10 @@ _CHAT_UI_HTML = r"""<!doctype html>
       protocolsCloseBtn.addEventListener("click", () => { protocolsPanel.hidden = true; });
       protocolUploadBtn.addEventListener("click", uploadProtocolFile);
       protocolDescBtn.addEventListener("click", submitDescription);
+      protocolLibrarySelectAll.addEventListener("click", () => libraryToggleAll(true));
+      protocolLibraryClearAll.addEventListener("click", () => libraryToggleAll(false));
+      protocolLibraryLoadSelected.addEventListener("click", libraryLoadSelected);
+      protocolLibraryReload.addEventListener("click", loadProtocolLibrary);
     }
 
     loadModels();

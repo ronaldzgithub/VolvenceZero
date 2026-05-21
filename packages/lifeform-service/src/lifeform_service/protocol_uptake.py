@@ -70,6 +70,7 @@ from lifeform_protocol_runtime import (
     read_pdf,
     scan_directory_for_protocols,
 )
+from lifeform_service.protocol_persistence import ProtocolPersistenceStore
 from volvence_zero.behavior_protocol import (
     BehaviorProtocol,
     BehaviorProtocolCandidate,
@@ -121,6 +122,27 @@ class ProtocolUptakeService:
 
     Owns the in-memory pending + approved stores and exposes a small
     typed API used by route handlers. Threadsafe via asyncio.Lock.
+
+    Optional persistence: when constructed with a
+    :class:`ProtocolPersistenceStore` the service mirrors the
+    in-memory ``approved`` registry to JSON files in
+    ``persistence.approved_dir``. The library (disk) and the
+    active set (in-memory registry) are intentionally **decoupled**:
+
+    * Approving a candidate writes the protocol to disk AND loads
+      it into the registry (current behaviour preserved + persisted).
+    * On service restart, the library survives on disk; the
+      registry starts empty. The chat-browser UI then surfaces the
+      library and lets the operator multi-select which protocols
+      to activate via :meth:`load_from_library`.
+    * :meth:`unload_from_registry` removes a protocol from the
+      active set but keeps the file on disk.
+    * :meth:`delete_from_library` removes the file (and unloads
+      from the registry if currently loaded).
+
+    This split is the SSOT for the persistence decision the user
+    made on 2026-05-22: "auto-discover from disk, multi-select in
+    UI, then load" — explicit human activation per restart.
     """
 
     def __init__(
@@ -128,15 +150,21 @@ class ProtocolUptakeService:
         *,
         config: ProtocolUptakeConfig,
         registry: ProtocolRegistry | None = None,
+        persistence: ProtocolPersistenceStore | None = None,
     ) -> None:
         self._config = config
         self._registry = registry if registry is not None else ProtocolRegistry()
+        self._persistence = persistence
         self._pending: dict[str, _PendingEntry] = {}
         self._lock = asyncio.Lock()
 
     @property
     def registry(self) -> ProtocolRegistry:
         return self._registry
+
+    @property
+    def persistence(self) -> ProtocolPersistenceStore | None:
+        return self._persistence
 
     @property
     def llm_client(self) -> LlmJsonClient | None:
@@ -227,9 +255,28 @@ class ProtocolUptakeService:
                 review_status=ReviewStatus.ACTIVE,
             )
             self._registry.load(approved)
+            if self._persistence is not None:
+                try:
+                    self._persistence.write(approved)
+                except OSError as exc:
+                    # Disk write failed but the in-memory load already
+                    # succeeded. Don't roll back the registry — the
+                    # operator just approved this protocol and the
+                    # current session must still see it. Surface the
+                    # failure loudly so they can fix permissions /
+                    # disk space before the next restart, when the
+                    # persistence loss would actually bite.
+                    _LOG.error(
+                        "approve %s: persisted to in-memory registry but "
+                        "disk write failed (%s). Protocol is active for "
+                        "this run but will NOT survive restart until you "
+                        "fix the underlying disk error and re-approve.",
+                        protocol_id, exc,
+                    )
             del self._pending[protocol_id]
             _LOG.info(
-                "approved candidate %s by reviewer %s", protocol_id, reviewer_id
+                "approved candidate %s by reviewer %s (persisted=%s)",
+                protocol_id, reviewer_id, self._persistence is not None,
             )
             return approved
 
@@ -254,6 +301,113 @@ class ProtocolUptakeService:
     async def unload_protocol(self, protocol_id: str) -> bool:
         async with self._lock:
             return self._registry.unload(protocol_id)
+
+    # ------------------------------------------------------------------
+    # Library (disk-backed persisted approved protocols)
+    # ------------------------------------------------------------------
+
+    async def list_library(self) -> tuple[BehaviorProtocol, ...]:
+        """Return every approved protocol on disk.
+
+        When no :class:`ProtocolPersistenceStore` is wired, returns
+        the empty tuple (library mode is opt-in via the service-level
+        ``--protocol-approved-dir`` flag). The result is sorted by
+        ``protocol_id`` for deterministic UI ordering.
+        """
+
+        if self._persistence is None:
+            return ()
+        async with self._lock:
+            return self._persistence.list_all()
+
+    async def load_from_library(self, protocol_id: str) -> BehaviorProtocol:
+        """Load a persisted protocol into the in-memory active set.
+
+        Reads ``approved_dir/<id>.json``, deserialises, and calls
+        ``registry.load(...)``. Loading is idempotent — if the
+        protocol is already in the registry the disk version
+        overwrites the in-memory copy (handy when an external
+        editor changed the JSON between activations).
+
+        Raises:
+            RuntimeError: no persistence store wired.
+            KeyError: no file with that protocol_id on disk.
+        """
+
+        if self._persistence is None:
+            raise RuntimeError(
+                "load_from_library: no persistence store wired; pass "
+                "--protocol-approved-dir at service start to enable "
+                "the library mode."
+            )
+        async with self._lock:
+            protocol = self._persistence.read(protocol_id)
+            self._registry.load(protocol)
+            _LOG.info(
+                "loaded persisted protocol %s into in-memory registry",
+                protocol_id,
+            )
+            return protocol
+
+    async def unload_from_registry(self, protocol_id: str) -> bool:
+        """Drop a protocol from the in-memory registry; keep the disk file.
+
+        Idempotent: returns ``False`` when the protocol wasn't
+        loaded. New sessions will no longer pick this protocol up
+        via ``with_seed_protocols``; existing sessions keep the
+        already-injected copy (per-session state is owned by the
+        session's own :class:`ProtocolRegistryModule`).
+        """
+
+        async with self._lock:
+            return self._registry.unload(protocol_id)
+
+    async def delete_from_library(self, protocol_id: str) -> bool:
+        """Delete the persisted JSON file AND unload from registry.
+
+        This is the destructive variant — once called there is no
+        way to bring this protocol back without re-uploading the
+        original source document and re-approving. Returns
+        ``True`` when something on disk was deleted (file existed),
+        independent of whether the protocol was also loaded in
+        the active set at the time of the call.
+
+        Raises:
+            RuntimeError: no persistence store wired.
+        """
+
+        if self._persistence is None:
+            raise RuntimeError(
+                "delete_from_library: no persistence store wired"
+            )
+        async with self._lock:
+            self._registry.unload(protocol_id)
+            removed = self._persistence.delete(protocol_id)
+            if removed:
+                _LOG.info(
+                    "deleted persisted protocol %s from library and "
+                    "registry",
+                    protocol_id,
+                )
+            return removed
+
+    def library_state_snapshot(self) -> tuple[tuple[BehaviorProtocol, bool], ...]:
+        """Return ``((protocol, is_active), ...)`` for every library entry.
+
+        Sync read used by the HTTP route handler that powers the
+        chat-browser library panel. ``is_active`` is True when the
+        protocol_id is also currently in the in-memory registry
+        (non-RETIRED). When no persistence store is wired, returns
+        an empty tuple.
+        """
+
+        if self._persistence is None:
+            return ()
+        active_ids = {p.protocol_id for p in self._registry.loaded()}
+        return tuple(
+            (proto, proto.protocol_id in active_ids)
+            for proto in self._persistence.list_all()
+        )
 
     # ------------------------------------------------------------------
     # Extraction adapters
