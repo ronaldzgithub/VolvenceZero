@@ -131,12 +131,14 @@ class VoiceScore:
     """Voice-fidelity decomposition for one response."""
 
     top_words_overlap: float  # in [0, 1]
+    top_bigrams_overlap: float  # in [0, 1]
     sentence_length_match: float  # in [0, 1]
     voice_score: float  # weighted combination, in [0, 1]
 
     def to_json(self) -> dict:
         return {
             "top_words_overlap": self.top_words_overlap,
+            "top_bigrams_overlap": self.top_bigrams_overlap,
             "sentence_length_match": self.sentence_length_match,
             "voice_score": self.voice_score,
         }

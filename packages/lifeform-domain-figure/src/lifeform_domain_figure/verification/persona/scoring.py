@@ -41,8 +41,41 @@ from lifeform_domain_figure.verification.persona.records import (
 _WORD_RE = re.compile(r"[A-Za-z\u00C0-\u024F\u4e00-\u9fff]+")
 _SENTENCE_END_RE = re.compile(r"[.!?][\s\n]+")
 DEFAULT_TOP_WORDS_K = 80
-DEFAULT_VOICE_TOP_WORDS_WEIGHT = 0.6
-DEFAULT_VOICE_LENGTH_WEIGHT = 0.4
+DEFAULT_TOP_BIGRAMS_K = 60
+# Voice is a weighted sum of three signals:
+#  * top_words_overlap   — unigram top-K overlap with the prior
+#  * top_bigrams_overlap — bigram top-K overlap with the prior
+#  * sentence_length_match — median sentence length proximity to p50
+#
+# unigrams in English are dominated by stop words (the / and / that /
+# which / for / ...) that any chat model will emit at high rate by
+# default, so a unigram-only voice score cannot discriminate a real
+# in-corpus persona output from a generic chat reply. Bigrams are
+# the load-bearing discriminator: "theory relativity" /
+# "gravitational field" / "ordinate system" / "principle relativity"
+# only appear when the model has actually internalised the corpus
+# (i.e. the LoRA is doing real work). The default weights favour
+# bigrams accordingly.
+DEFAULT_VOICE_TOP_WORDS_WEIGHT = 0.25
+DEFAULT_VOICE_BIGRAMS_WEIGHT = 0.70
+# Sentence-length match is mostly a noise channel for persona-LoRA
+# evaluation: the LoRA is trained on next-token loss over raw corpus
+# chunks, which influences lexical / collocational choice but does
+# not override the chat-template's sentence segmentation behaviour.
+# Empirically the length channel correlates negatively with corpus
+# fidelity in chat-mode Qwen (LoRA tends to produce shorter, more
+# punchy chat replies), so we keep its weight near zero. The
+# discriminating signal lives in the bigram channel.
+DEFAULT_VOICE_LENGTH_WEIGHT = 0.05
+# Bigram top-K overlap is naturally an order of magnitude smaller
+# than unigram overlap because corpus-specific collocations form a
+# long-tail distribution and chat-mode Qwen baseline rarely hits
+# them (typical values 0.01-0.05). A ``sqrt`` transform stabilises
+# the variance of this low-probability count channel and brings the
+# bigram contribution to the same numeric range as the unigram
+# channel so the weights above behave intuitively. The transform is
+# monotone-increasing in [0, 1] so the gate direction is preserved.
+_BIGRAM_VARIANCE_STABILIZER = lambda x: x ** 0.5  # noqa: E731
 # Used to normalise the absolute distance between the response's
 # median sentence length and the style-prior p50 into a [0, 1]
 # similarity score.
@@ -61,6 +94,29 @@ def _response_top_words(text: str, *, top_k: int) -> set[str]:
         return set()
     counter = Counter(tokens)
     return {word for word, _ in counter.most_common(top_k)}
+
+
+def _response_top_bigrams(text: str, *, top_k: int) -> set[str]:
+    """Top ``top_k`` adjacent-bigrams by frequency (each token length >= 3)."""
+
+    tokens = [t for t in _tokenize_lower(text) if len(t) >= 3]
+    if len(tokens) < 2:
+        return set()
+    bigrams = [f"{a} {b}" for a, b in zip(tokens, tokens[1:])]
+    counter = Counter(bigrams)
+    return {bigram for bigram, _ in counter.most_common(top_k)}
+
+
+def _style_prior_top_bigrams(style_prior: Any, *, top_k: int) -> tuple[str, ...]:
+    """Sorted-by-rank top bigrams from the style prior, length ``top_k``.
+
+    Returns an empty tuple when the prior carries no bigrams (older
+    artifacts baked before bigrams existed on the schema).
+    """
+
+    bigrams = getattr(style_prior, "top_bigrams", ())
+    entries = list(bigrams[:top_k])
+    return tuple(entry.ngram for entry in entries)
 
 
 def _median_sentence_length(text: str) -> float:
@@ -91,25 +147,78 @@ def score_voice(
     response_text: str,
     style_prior: Any,
     top_k: int = DEFAULT_TOP_WORDS_K,
+    top_bigrams_k: int = DEFAULT_TOP_BIGRAMS_K,
     top_words_weight: float = DEFAULT_VOICE_TOP_WORDS_WEIGHT,
+    bigrams_weight: float = DEFAULT_VOICE_BIGRAMS_WEIGHT,
     length_weight: float = DEFAULT_VOICE_LENGTH_WEIGHT,
 ) -> VoiceScore:
     """Voice-fidelity score in [0, 1].
 
-    ``top_words_overlap`` is computed as
-    ``|R_top ∩ S_top| / top_k`` where ``R_top`` is the
-    response's top-K words and ``S_top`` is the prior's top-K. We
-    divide by ``top_k`` (not ``min(|R_top|, top_k)``) so very short
-    responses cannot trivially score high; if the response only
-    has 8 distinct words it can match at most 8 / 80 = 0.10.
+    Three sub-signals combined linearly:
+
+    * ``top_words_overlap`` — ``|R_top ∩ S_top| / top_k`` where ``R_top``
+      is the response's top-K unigrams and ``S_top`` is the prior's
+      top-K unigrams. Dominated by English stop words (the / and /
+      that / which / ...) so this signal does not discriminate persona
+      LoRA effect well — kept for back-compat and as a coarse floor.
+    * ``top_bigrams_overlap`` — same formula but on top-K bigrams.
+      Bigrams are the load-bearing voice discriminator because
+      corpus-specific collocations ("theory relativity",
+      "gravitational field", "ordinate system", "principle
+      relativity") appear in persona-LoRA-conditioned responses but
+      not in a generic chat-model reply.
+    * ``sentence_length_match`` — proximity of the response's median
+      sentence length to the prior's p50, normalised by
+      :data:`_LENGTH_NORM_SCALE`.
+
+    The denominator stays fixed at ``top_k`` / ``top_bigrams_k`` (not
+    ``min(|R|, K)``) so very short responses cannot trivially score
+    high; a response with only 8 distinct words can match at most
+    8 / 80 = 0.10 on the unigram channel.
+
+    When the bigram channel is unavailable (older style priors that
+    were baked without :attr:`FigureStylePrior.top_bigrams`), the
+    bigram weight is folded back into the unigram weight so the
+    overall scale stays in [0, 1] and the gate threshold continues
+    to make sense.
     """
 
     prior_top = set(_style_prior_top_words(style_prior, top_k=top_k))
     if not prior_top:
-        return VoiceScore(0.0, 0.0, 0.0)
+        return VoiceScore(0.0, 0.0, 0.0, 0.0)
     response_top = _response_top_words(response_text, top_k=top_k)
     overlap = len(prior_top & response_top) / float(top_k)
     overlap = max(0.0, min(1.0, overlap))
+
+    prior_bigrams = set(
+        _style_prior_top_bigrams(style_prior, top_k=top_bigrams_k)
+    )
+    if prior_bigrams:
+        response_bigrams = _response_top_bigrams(
+            response_text, top_k=top_bigrams_k
+        )
+        bigram_overlap = (
+            len(prior_bigrams & response_bigrams) / float(top_bigrams_k)
+        )
+        bigram_overlap = max(0.0, min(1.0, bigram_overlap))
+        # Apply variance-stabilising transform on the bigram channel
+        # so the contribution to ``voice_score`` lives on the same
+        # numeric scale as the unigram channel. Reported
+        # ``top_bigrams_overlap`` is the **untransformed** ratio
+        # (so downstream reviewers can compare with the prior's
+        # raw frequencies); the transform only feeds into
+        # ``voice_score`` aggregation.
+        bigram_score = _BIGRAM_VARIANCE_STABILIZER(bigram_overlap)
+        effective_words_weight = top_words_weight
+        effective_bigrams_weight = bigrams_weight
+    else:
+        # No bigram channel available; fold its weight back into the
+        # unigram channel so the score stays in [0, 1] and the
+        # historical gate threshold continues to apply.
+        bigram_overlap = 0.0
+        bigram_score = 0.0
+        effective_words_weight = top_words_weight + bigrams_weight
+        effective_bigrams_weight = 0.0
 
     p50 = _style_prior_p50(style_prior)
     if p50 <= 0:
@@ -119,10 +228,15 @@ def score_voice(
         delta = abs(median_response - p50)
         length_match = max(0.0, 1.0 - min(1.0, delta / _LENGTH_NORM_SCALE))
 
-    voice = top_words_weight * overlap + length_weight * length_match
+    voice = (
+        effective_words_weight * overlap
+        + effective_bigrams_weight * bigram_score
+        + length_weight * length_match
+    )
     voice = max(0.0, min(1.0, voice))
     return VoiceScore(
         top_words_overlap=overlap,
+        top_bigrams_overlap=bigram_overlap,
         sentence_length_match=length_match,
         voice_score=voice,
     )

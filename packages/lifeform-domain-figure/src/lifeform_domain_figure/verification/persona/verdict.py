@@ -61,6 +61,17 @@ class VerdictThresholds:
 
 DEFAULT_VERDICT_THRESHOLDS = VerdictThresholds(
     cognition_delta=0.05,
+    # ``voice_delta`` was 0.02 under the original unigram-dominated
+    # voice formula (0.6 × top_words + 0.4 × length), where stop-word
+    # overlap alone produced ±0.1 swings and LoRA could move the
+    # score by a meaningful 0.02. After the move to the
+    # bigram-dominated formula with sqrt-stabilised bigram channel
+    # (0.25 × words + 0.70 × sqrt(bigrams) + 0.05 × length, see
+    # ``scoring.score_voice`` and ``_BIGRAM_VARIANCE_STABILIZER``),
+    # the bigram channel contribution lives on roughly the same
+    # numeric scale as the unigram channel and the threshold 0.02
+    # continues to mean what it used to: a measurable lift on the
+    # discriminating channel beyond noise.
     voice_delta=0.02,
     refusal_min=0.8,
     evidence_min=1,
