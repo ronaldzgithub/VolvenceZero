@@ -494,7 +494,7 @@ function Get-BundleIdFromStdout {
 if ($Mode -eq 'real') {
     $QwenModelId          = 'Qwen/Qwen2.5-1.5B-Instruct'
     $PeftTargetModules    = 'q_proj,k_proj,v_proj,o_proj'
-    $PeftMaxSteps         = '200'
+    $PeftMaxSteps         = '1000'
     $RuntimeBackend       = 'transformers'
     $defaultRequireVerify = '0'
     # Rationale: offline pilot seeds still land NEEDS_REVIEW on 4 of 7

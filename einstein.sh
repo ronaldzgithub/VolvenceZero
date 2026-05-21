@@ -323,7 +323,7 @@ export REQUIRE_VERIFY="$REQ_VERIFY"
 if [ "$MODE" = "real" ]; then
     export QWEN_MODEL_ID='Qwen/Qwen2.5-1.5B-Instruct'
     export PEFT_TARGET_MODULES='q_proj,k_proj,v_proj,o_proj'
-    export PEFT_MAX_STEPS='200'
+    export PEFT_MAX_STEPS='1000'
     export RUNTIME_BACKEND='transformers'
 else
     export QWEN_MODEL_ID='sshleifer/tiny-gpt2'
