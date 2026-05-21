@@ -36,6 +36,7 @@ PACKAGES=(
   packages/lifeform-domain-figure
   packages/lifeform-domain-growth-advisor
   packages/companion-bench
+  packages/companion-ref-harness
   packages/lifeform-service
   packages/lifeform-evolution
   packages/lifeform-openai-compat
@@ -76,6 +77,30 @@ done
 if [[ -n "$VOLVENCE_EXTRAS" ]]; then
   echo "==> pip install vz-runtime[${VOLVENCE_EXTRAS}] (extras only)"
   "$PYTHON_BIN" -m pip install "vz-runtime[${VOLVENCE_EXTRAS}]"
+  if [[ "$VOLVENCE_EXTRAS" == *"dev"* ]]; then
+    echo "==> pip install -e .[dev] (workspace dev tooling)"
+    "$PYTHON_BIN" -m pip install -e ".[dev]"
+  fi
+  # Reinstall torch from the official PyTorch index. PyPI wheels can fail on
+  # Windows (c10.dll / WinError 1114) and GPU machines need cu126, not CPU.
+  pytorch_index_url() {
+    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+      echo "https://download.pytorch.org/whl/cu126"
+    else
+      echo "https://download.pytorch.org/whl/cpu"
+    fi
+  }
+  if [[ "$VOLVENCE_EXTRAS" == *"hf"* ]]; then
+    TORCH_INDEX="$(pytorch_index_url)"
+    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+      echo "==> Reinstall torch from ${TORCH_INDEX} (CUDA 12.6 — GPU detected)"
+    else
+      echo "==> Reinstall torch from ${TORCH_INDEX} (CPU — no NVIDIA GPU detected)"
+    fi
+    "$PYTHON_BIN" -m pip uninstall -y torch >/dev/null 2>&1 || true
+    "$PYTHON_BIN" -m pip install torch --index-url "${TORCH_INDEX}"
+    "$PYTHON_BIN" -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available()); print('gpu', torch.cuda.get_device_name(0)) if torch.cuda.is_available() else None"
+  fi
 fi
 
 echo "Volvence Zero workspace installed successfully."

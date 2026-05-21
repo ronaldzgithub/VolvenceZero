@@ -17,18 +17,18 @@
 #
 # Two demo modes:
 #
-#   smoke (default, ~5 min, no GPU)
+#   real (default, ~30-45 min, GPU/MPS strongly recommended)
 #       ./einstein.sh
-#     tiny-gpt2 + synthetic corpus path. Proves the L1/L2/L3/L4 chain
-#     wires end-to-end. Not a real-LoRA demo -- synthetic delta is zeroed
-#     by Qwen LayerNorm (debt #40).
-#
-#   real (opt-in, ~30-45 min, GPU/MPS strongly recommended)
-#       ./einstein.sh --mode real
 #     Qwen/Qwen2.5-1.5B-Instruct + PEFT q/k/v/o on the Wave K curated
 #     Einstein corpus. Produces the demo where the chat UI vertical
 #     dropdown (einstein-raw / einstein-bundle / einstein-full) shows
 #     distinct behaviour.
+#
+#   smoke (opt-in, ~5 min, no GPU)
+#       ./einstein.sh --mode smoke
+#     tiny-gpt2 + synthetic corpus path. Proves the L1/L2/L3/L4 chain
+#     wires end-to-end. Not a real-LoRA demo -- synthetic delta is zeroed
+#     by Qwen LayerNorm (debt #40).
 #
 # Device selection:
 #   --device cpu  / --device cuda  / --device mps  / --device auto
@@ -37,11 +37,9 @@
 #
 # Verification gate:
 #   --require-verify 0  / --require-verify 1  / --require-verify auto
-#   'auto' (default) -> smoke: 0, real: 1.
-#   Smoke can never satisfy the gate offline (V1 metadata stubs land
-#   NEEDS_REVIEW on 4 of 7 axes); real expects curator overrides.
-#   When 1 and no overrides land, phase 1's bake-bundle BLOCKs (exit 2)
-#   and the script prints an actionable next-step block.
+#   'auto' (default) -> 0 for both modes (offline pilot seeds still
+#   NEEDS_REVIEW on 4 of 7 axes). Pass --require-verify 1 once live
+#   curator overrides are staged.
 #
 # Phase skipping:
 #   --skip-collect              (re-bake + re-verify only)
@@ -67,6 +65,120 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+resolve_project_python() {
+  if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
+    echo "${ROOT_DIR}/.venv/bin/python"
+    return 0
+  fi
+  if [[ -n "${PYTHON:-}" ]]; then
+    echo "${PYTHON}"
+    return 0
+  fi
+  echo "python"
+}
+
+has_nvidia_gpu() {
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+initialize_hf_download_env() {
+  local model_id="$1"
+  local hf_home="$2"
+  hf_probe() {
+    local endpoint="$1"
+    local temp_home="$2"
+    if [[ -n "$endpoint" ]]; then
+      export HF_ENDPOINT="$endpoint"
+    else
+      unset HF_ENDPOINT
+    fi
+    export HF_HOME="$temp_home"
+    mkdir -p "$temp_home"
+    HF_PROBE_MODEL="$model_id" "$PYTHON_BIN" -c "
+import os, sys, warnings
+warnings.filterwarnings('ignore')
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(os.environ['HF_PROBE_MODEL'], 'config.json')
+except Exception:
+    sys.exit(1)
+" >/dev/null 2>&1
+  }
+
+  if [[ -n "${VOLVENCE_FORCE_HF_ENDPOINT:-}" ]]; then
+    export HF_HOME="$hf_home"
+    if [[ -n "${HF_ENDPOINT:-}" ]]; then
+      echo "[einstein] hf_endpoint=${HF_ENDPOINT} (forced)"
+    else
+      echo "[einstein] hf_endpoint=<default huggingface.co> (forced)"
+    fi
+    return 0
+  fi
+
+  local temp_home configured_endpoint
+  configured_endpoint="${HF_ENDPOINT:-}"
+  if [[ -z "$configured_endpoint" ]]; then
+    temp_home="$(mktemp -d 2>/dev/null || mktemp -d -t vz_hf_probe)"
+    if hf_probe "" "$temp_home"; then
+      rm -rf "$temp_home"
+      export HF_HOME="$hf_home"
+      echo "[einstein] hf_endpoint=<default huggingface.co>"
+      return 0
+    fi
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    echo "Cannot reach huggingface.co to download '${model_id}'." >&2
+    exit 1
+  fi
+
+  echo "[einstein] probing HF_ENDPOINT=${configured_endpoint} ..."
+  temp_home="$(mktemp -d 2>/dev/null || mktemp -d -t vz_hf_probe)"
+  if hf_probe "$configured_endpoint" "$temp_home"; then
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    export HF_ENDPOINT="$configured_endpoint"
+    echo "[einstein] hf_endpoint=${configured_endpoint}"
+    return 0
+  fi
+  rm -rf "$temp_home"
+  echo "[einstein] WARN: HF_ENDPOINT=${configured_endpoint} failed huggingface_hub probe; falling back to huggingface.co" >&2
+  unset HF_ENDPOINT
+  temp_home="$(mktemp -d 2>/dev/null || mktemp -d -t vz_hf_probe)"
+  if hf_probe "" "$temp_home"; then
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    echo "[einstein] hf_endpoint=<default huggingface.co> (mirror fallback)"
+    return 0
+  fi
+  rm -rf "$temp_home"
+  export HF_HOME="$hf_home"
+  echo "Cannot download '${model_id}' from HF_ENDPOINT or huggingface.co." >&2
+  exit 1
+}
+
+test_einstein_preflight() {
+  local mode="$1"
+  if ! "$PYTHON_BIN" -c "import torch, transformers, peft" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+Missing torch/transformers/peft in '${PYTHON_BIN}'.
+Install: VOLVENCE_EXTRAS=full ./install.sh
+EOF
+    exit 1
+  fi
+  if [[ "$mode" == "real" ]] && has_nvidia_gpu; then
+    if ! "$PYTHON_BIN" -c "import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)" >/dev/null 2>&1; then
+      cat >&2 <<EOF
+Real mode on a GPU machine requires CUDA-enabled torch.
+Install: ${PYTHON_BIN} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+EOF
+      exit 1
+    fi
+  fi
+}
+
+PYTHON_BIN="$(resolve_project_python)"
+export PYTHON="$PYTHON_BIN"
+
 # --- defend against historical pollution -----------------------------------
 # Mirror einstein.ps1's reset-env block. An earlier version of this script
 # (and its PowerShell twin) stamped Mode-derived defaults onto the process
@@ -89,7 +201,7 @@ unset _MODE_DRIVEN_ENV_VARS _n
 
 # --- argument parsing -------------------------------------------------------
 
-MODE='smoke'
+MODE='real'
 DEVICE='auto'
 REQ_VERIFY='auto'
 RUN_ID_ARG=''
@@ -162,7 +274,7 @@ fi
 
 # Probe torch for cuda > mps > cpu. Returns 'cpu' if torch is missing.
 _detect_peft_device() {
-    python - <<'PY' 2>/dev/null || echo cpu
+    "$PYTHON_BIN" - <<'PY' 2>/dev/null || echo cpu
 try:
     import torch
     if torch.cuda.is_available():
@@ -176,31 +288,28 @@ except Exception:
 PY
 }
 
-# Resolve --device 'auto': smoke -> cpu; real -> probe torch.
+# Resolve --device 'auto': smoke -> cpu; real + NVIDIA -> cuda; else probe torch.
 if [ "$DEVICE" = "auto" ]; then
     if [ "$MODE" = "real" ]; then
-        DEVICE="$(_detect_peft_device)"
-        echo "[device-detect] --device auto -> $DEVICE (probed via torch)"
+        if has_nvidia_gpu; then
+            DEVICE='cuda'
+            echo "[device-detect] --device auto -> cuda (NVIDIA GPU present)"
+        else
+            DEVICE="$(_detect_peft_device)"
+            echo "[device-detect] --device auto -> $DEVICE (probed via torch)"
+        fi
     else
         DEVICE='cpu'
     fi
 fi
 export PEFT_DEVICE="$DEVICE"
 
-# Resolve --require-verify 'auto': smoke -> 0; real -> 1.
-# Rationale (smoke=0): offline V1 metadata stubs guarantee NEEDS_REVIEW
-# on 4 of 7 axes; gating bake-bundle would always BLOCK. Smoke is a
-# wiring check, not a curatorial verification.
-# Rationale (real=1): real mode opts into the curator verification
-# gate by default; the caller is expected to have arranged
-# --metadata-mode=live + human review overrides (debt #26 closure
-# path). Pass --require-verify 0 to opt out for now.
+# Resolve --require-verify 'auto': default 0 for both modes.
+# Offline pilot metadata still lands NEEDS_REVIEW on 4 of 7 axes;
+# gating bake-bundle would BLOCK without live curator overrides.
+# Pass --require-verify 1 once --metadata-mode=live + review land.
 if [ "$REQ_VERIFY" = "auto" ]; then
-    if [ "$MODE" = "real" ]; then
-        REQ_VERIFY=1
-    else
-        REQ_VERIFY=0
-    fi
+    REQ_VERIFY=0
 fi
 export REQUIRE_VERIFY="$REQ_VERIFY"
 
@@ -231,6 +340,17 @@ _TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 export VERIFY_OUT="${ROOT_DIR}/artifacts/figure_verify/${RUN_ID}-${_TIMESTAMP}"
 mkdir -p "$VERIFY_OUT"
 
+if [[ -z "${HF_HOME+x}" ]]; then
+  export HF_HOME="${ROOT_DIR}/.local/hf-cache"
+fi
+if [[ -n "${HF_HOME}" ]]; then
+  mkdir -p "${HF_HOME}"
+fi
+export HF_HUB_DISABLE_SYMLINKS_WARNING="${HF_HUB_DISABLE_SYMLINKS_WARNING:-1}"
+
+test_einstein_preflight "$MODE"
+initialize_hf_download_env "$QWEN_MODEL_ID" "$HF_HOME"
+
 # Path-like fallbacks (env override legitimate; mode-independent).
 export METADATA_FILE="${METADATA_FILE:-packages/lifeform-domain-figure/data/seeds/einstein-2026Q2.curated_metadata.jsonl}"
 
@@ -238,6 +358,7 @@ echo "================================================================"
 echo " Einstein figure-vertical pipeline (Unix driver)"
 echo " mode          = $MODE"
 echo " run_id        = $RUN_ID"
+echo " python        = $PYTHON_BIN"
 echo " peft_device   = $PEFT_DEVICE"
 echo " qwen_model_id = $QWEN_MODEL_ID"
 echo " runtime       = $RUNTIME_BACKEND"

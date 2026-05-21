@@ -32,6 +32,7 @@ $Packages = @(
     "packages\lifeform-domain-figure",
     "packages\lifeform-domain-growth-advisor",
     "packages\companion-bench",
+    "packages\companion-ref-harness",
     "packages\lifeform-service",
     "packages\lifeform-evolution",
     "packages\lifeform-openai-compat",
@@ -75,6 +76,55 @@ if ($Extras) {
     Write-Host "==> pip install vz-runtime[$Extras] (extras only)"
     & $PythonBin -m pip install "vz-runtime[$Extras]"
     if ($LASTEXITCODE -ne 0) { throw "pip install extras failed" }
+    if ($Extras -match "dev") {
+        Write-Host "==> pip install -e .[dev] (workspace dev tooling)"
+        & $PythonBin -m pip install -e ".[dev]"
+        if ($LASTEXITCODE -ne 0) { throw "pip install dev extras failed" }
+    }
+}
+
+function Get-PytorchWheelIndex {
+    if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+        $gpuList = & nvidia-smi -L 2>$null
+        if ($LASTEXITCODE -eq 0 -and $gpuList) {
+            return @{
+                Url = "https://download.pytorch.org/whl/cu126"
+                Label = "CUDA 12.6 (GPU detected)"
+            }
+        }
+    }
+    return @{
+        Url = "https://download.pytorch.org/whl/cpu"
+        Label = "CPU (no NVIDIA GPU detected)"
+    }
+}
+
+# PyPI's default Windows torch wheel can fail to load c10.dll (WinError 1114),
+# especially in venvs created from conda Python. Reinstall from the official
+# PyTorch index: cu126 when an NVIDIA GPU is present, otherwise CPU.
+if ($Extras -and $Extras -match "hf") {
+    $torchIndex = Get-PytorchWheelIndex
+    Write-Host "==> Reinstall torch from $($torchIndex.Url) ($($torchIndex.Label))"
+    & $PythonBin -m pip uninstall -y torch 2>$null | Out-Null
+    & $PythonBin -m pip install torch --index-url $torchIndex.Url
+    if ($LASTEXITCODE -ne 0) { throw "pip install torch ($($torchIndex.Label)) failed" }
+    & $PythonBin -c @"
+import torch
+print('torch', torch.__version__, 'cuda', torch.cuda.is_available())
+if torch.cuda.is_available():
+    print('gpu', torch.cuda.get_device_name(0))
+"@
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+torch import failed after official-wheel reinstall. Recreate the venv with a
+standalone python.org interpreter (not conda), then rerun install.ps1 -Extras hf:
+
+  Remove-Item -Recurse -Force .venv
+  `$py = `"`$env:LOCALAPPDATA\Programs\Python\Python311\python.exe`"
+  & `$py -m venv .venv
+  .\install.ps1 -PythonBin .\.venv\Scripts\python.exe -Extras hf
+"@
+    }
 }
 
 Write-Host "Volvence Zero workspace installed successfully."

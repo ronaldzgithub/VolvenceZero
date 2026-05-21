@@ -23,16 +23,16 @@
     listed in .NOTES for power users.
 
 .PARAMETER Mode
-    'smoke' (default; fully offline, ~5 minutes on CPU) -- proves the
-    L1/L2/L3/L4 chain wires end-to-end with tiny-gpt2 + synthetic
-    runtime. No L2 forward delta is visible (synthetic LoRA delta is
-    zeroed by LayerNorm; see debt #40).
-
-    'real' (opt-in, ~30-45 minutes, GPU/MPS strongly recommended) --
+    'real' (default; ~30-45 minutes, GPU/MPS strongly recommended) --
     Qwen/Qwen2.5-1.5B-Instruct + PEFT q/k/v/o LoRA on the Wave K
     Einstein curated corpus. Produces the hand-on-table demo where
     einstein-raw / einstein-bundle / einstein-full show distinct
     behaviour.
+
+    'smoke' (opt-in, fully offline, ~5 minutes on CPU) -- proves the
+    L1/L2/L3/L4 chain wires end-to-end with tiny-gpt2 + synthetic
+    runtime. No L2 forward delta is visible (synthetic LoRA delta is
+    zeroed by LayerNorm; see debt #40).
 
 .PARAMETER Device
     Torch device for the PEFT persona bake AND the Phase 3 transformers
@@ -47,11 +47,10 @@
     Whether bake-bundle gates on verifier PASS. '0' / '1' / 'auto'
     (default 'auto').
 
-    'auto' resolves per-mode: smoke -> 0 (offline V1 metadata stubs
-    guarantee NEEDS_REVIEW on 4 of 7 axes; gating would always BLOCK;
-    smoke is a wiring check, not a curatorial verification);
-    real -> 1 (curator metadata gates bake-bundle on verifier PASS;
-    run with --metadata-mode=live + reviewed overrides to satisfy it).
+    'auto' resolves per-mode: both smoke and real default to 0 so the
+    offline pilot seeds can bake without live curator overrides. Pass
+    -RequireVerify 1 when --metadata-mode=live + reviewed overrides
+    are staged (curator gate on verifier PASS).
 
 .PARAMETER RunId
     Crawl + verification run identifier (default 'einstein-2026Q2').
@@ -68,13 +67,12 @@
     Skip Phase 3 (4-gate persona verification).
 
 .EXAMPLE
-    # 5-minute CPU smoke (default; verifies the chain end-to-end
-    # without a GPU).
+    # Full real run (default; auto-detects cuda -> mps -> cpu).
     .\einstein.ps1
 
 .EXAMPLE
-    # Full real run, auto-detect the best torch device (cuda -> mps -> cpu).
-    .\einstein.ps1 -Mode real
+    # 5-minute CPU smoke (wiring check only; tiny-gpt2 + synthetic runtime).
+    .\einstein.ps1 -Mode smoke
 
 .EXAMPLE
     # Real run, pinned to CPU.
@@ -142,7 +140,7 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('smoke', 'real')]
-    [string] $Mode = 'smoke',
+    [string] $Mode = 'real',
 
     [Parameter(Position = 1)]
     [ValidateSet('cpu', 'cuda', 'mps', 'auto')]
@@ -166,7 +164,148 @@ if (-not $RootDir) {
 }
 Set-Location $RootDir
 
-$PythonBin = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
+function Resolve-ProjectPython {
+    param([string]$RepoRoot)
+    $venvPython = Join-Path $RepoRoot '.venv\Scripts\python.exe'
+    if (Test-Path $venvPython) {
+        return $venvPython
+    }
+    if ($env:PYTHON) {
+        return $env:PYTHON
+    }
+    return 'python'
+}
+
+function Test-NvidiaGpu {
+    if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+    $gpuList = & nvidia-smi -L 2>$null
+    return ($LASTEXITCODE -eq 0 -and $gpuList)
+}
+
+function Initialize-HfDownloadEnv {
+    param(
+        [Parameter(Mandatory)] [string] $PythonBin,
+        [Parameter(Mandatory)] [string] $ModelId,
+        [Parameter(Mandatory)] [string] $HfHome
+    )
+    if ($env:VOLVENCE_FORCE_HF_ENDPOINT) {
+        if ($env:HF_ENDPOINT) {
+            Write-Host "[einstein] hf_endpoint=$($env:HF_ENDPOINT) (forced)"
+        } else {
+            Write-Host "[einstein] hf_endpoint=<default huggingface.co> (forced)"
+        }
+        return
+    }
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        $probeWithEndpoint = {
+            param([string]$Endpoint, [string]$TempHome)
+            if ($Endpoint) { $env:HF_ENDPOINT = $Endpoint }
+            else { Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue }
+            $env:HF_HOME = $TempHome
+            New-Item -ItemType Directory -Force -Path $TempHome | Out-Null
+            $env:HF_PROBE_MODEL = $ModelId
+            & $PythonBin -c @"
+import os, sys, warnings
+warnings.filterwarnings('ignore')
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(os.environ['HF_PROBE_MODEL'], 'config.json')
+except Exception:
+    sys.exit(1)
+"@ 2>$null | Out-Null
+            return ($LASTEXITCODE -eq 0)
+        }
+
+        $configuredEndpoint = $env:HF_ENDPOINT
+        if ([string]::IsNullOrEmpty($configuredEndpoint)) {
+            $tempHome = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+            try {
+                if (& $probeWithEndpoint '' $tempHome) {
+                    Write-Host "[einstein] hf_endpoint=<default huggingface.co>"
+                    return
+                }
+            } finally {
+                Remove-Item -Recurse -Force $tempHome -ErrorAction SilentlyContinue
+                $env:HF_HOME = $HfHome
+            }
+            throw "Cannot reach huggingface.co to download '$ModelId'. Check network or set VOLVENCE_FORCE_HF_ENDPOINT=1 with a working HF_ENDPOINT."
+        }
+
+        Write-Host "[einstein] probing HF_ENDPOINT=$configuredEndpoint ..."
+        $tempHome = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+        $mirrorOk = $false
+        try {
+            $mirrorOk = (& $probeWithEndpoint $configuredEndpoint $tempHome)
+        } finally {
+            Remove-Item -Recurse -Force $tempHome -ErrorAction SilentlyContinue
+            $env:HF_HOME = $HfHome
+        }
+        if ($mirrorOk) {
+            $env:HF_ENDPOINT = $configuredEndpoint
+            Write-Host "[einstein] hf_endpoint=$configuredEndpoint"
+            return
+        }
+
+        Write-Warning "[einstein] HF_ENDPOINT=$configuredEndpoint failed huggingface_hub probe; falling back to huggingface.co"
+        Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue
+        $tempHome2 = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+        try {
+            if (& $probeWithEndpoint '' $tempHome2) {
+                Write-Host "[einstein] hf_endpoint=<default huggingface.co> (mirror fallback)"
+                return
+            }
+        } finally {
+            Remove-Item -Recurse -Force $tempHome2 -ErrorAction SilentlyContinue
+            $env:HF_HOME = $HfHome
+        }
+        throw "Cannot download '$ModelId' from HF_ENDPOINT or huggingface.co. Remove-Item Env:HF_ENDPOINT and retry."
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+}
+
+function Test-EinsteinPreflight {
+    param(
+        [Parameter(Mandatory)] [string] $PythonBin,
+        [ValidateSet('smoke', 'real')]
+        [string] $Mode
+    )
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        & $PythonBin -c "import torch, transformers, peft" 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw @"
+Missing torch/transformers/peft in '$PythonBin'.
+
+Install the HF + LoRA stack into the project venv:
+  .\install.ps1 -PythonBin .\.venv\Scripts\python.exe -Extras hf,torch
+
+Or install peft only:
+  .\.venv\Scripts\python.exe -m pip install peft
+"@
+        }
+        if ($Mode -eq 'real' -and (Test-NvidiaGpu)) {
+            & $PythonBin -c "import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)" 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw @"
+Real mode on a GPU machine requires CUDA-enabled torch.
+
+  .\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+"@
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+}
+
+$PythonBin = Resolve-ProjectPython -RepoRoot $RootDir
 
 # Defend against historical pollution. An earlier version of this
 # script used Set-DefaultEnv to stamp these Mode-driven defaults onto
@@ -357,12 +496,10 @@ if ($Mode -eq 'real') {
     $PeftTargetModules    = 'q_proj,k_proj,v_proj,o_proj'
     $PeftMaxSteps         = '200'
     $RuntimeBackend       = 'transformers'
-    $defaultRequireVerify = '1'
-    # Rationale: real mode opts into the curator verification gate by
-    # default. The caller is expected to have arranged
-    # --metadata-mode=live + human review overrides for the 4
-    # metadata-driven axes (debt #26 closure path); without that,
-    # expect BLOCK. Pass -RequireVerify 0 to opt out for now.
+    $defaultRequireVerify = '0'
+    # Rationale: offline pilot seeds still land NEEDS_REVIEW on 4 of 7
+    # axes; gating bake-bundle would BLOCK without live curator overrides.
+    # Pass -RequireVerify 1 once --metadata-mode=live + review land.
 } else {
     $QwenModelId          = 'sshleifer/tiny-gpt2'
     $PeftTargetModules    = 'c_attn'
@@ -376,11 +513,16 @@ if ($Mode -eq 'real') {
     # forward. Leave gating off so smoke can complete Phase 2/3.
 }
 
-# Resolve -Device: 'auto' -> cpu in smoke, probe in real.
+# Resolve -Device: 'auto' -> cpu in smoke, cuda on GPU machines in real.
 if ($Device -eq 'auto') {
     if ($Mode -eq 'real') {
-        $PeftDevice = Resolve-AutoDevice
-        Write-Host "[device-detect] -Device auto -> $PeftDevice (probed via torch)" -ForegroundColor DarkGray
+        if (Test-NvidiaGpu) {
+            $PeftDevice = 'cuda'
+            Write-Host "[device-detect] -Device auto -> cuda (NVIDIA GPU present)" -ForegroundColor DarkGray
+        } else {
+            $PeftDevice = Resolve-AutoDevice
+            Write-Host "[device-detect] -Device auto -> $PeftDevice (probed via torch)" -ForegroundColor DarkGray
+        }
     } else {
         $PeftDevice = 'cpu'
     }
@@ -388,7 +530,7 @@ if ($Device -eq 'auto') {
     $PeftDevice = $Device
 }
 
-# Resolve -RequireVerify: 'auto' -> mode-derived default (0 smoke, 1 real).
+# Resolve -RequireVerify: 'auto' -> 0 (both modes; see parameter help).
 if ($RequireVerify -eq 'auto') {
     $RequireVerify = $defaultRequireVerify
 }
@@ -417,6 +559,20 @@ $Timestamp = (Get-Date -Format 'yyyyMMdd-HHmmss')
 # Every invocation gets its own fresh timestamped subdir; if a caller
 # wants to override they can edit this line or add a -VerifyOut param.
 $VerifyOut = Join-Path $RootDir "artifacts\figure_verify\$RunId-$Timestamp"
+
+$existingHfHome = [Environment]::GetEnvironmentVariable('HF_HOME', 'Process')
+if ($null -eq $existingHfHome) {
+    $env:HF_HOME = Join-Path $RootDir '.local\hf-cache'
+}
+if (-not [string]::IsNullOrEmpty($env:HF_HOME)) {
+    New-Item -ItemType Directory -Path $env:HF_HOME -Force | Out-Null
+}
+if (-not $env:HF_HUB_DISABLE_SYMLINKS_WARNING) {
+    $env:HF_HUB_DISABLE_SYMLINKS_WARNING = '1'
+}
+
+Test-EinsteinPreflight -PythonBin $PythonBin -Mode $Mode
+Initialize-HfDownloadEnv -PythonBin $PythonBin -ModelId $QwenModelId -HfHome $env:HF_HOME
 
 # BUNDLE_ID / ROLLBACK_EVIDENCE start as user overrides if supplied,
 # otherwise stay empty and get resolved later (post bake-bundle).
@@ -449,6 +605,7 @@ Write-Host " bundle_root   = $BundleRoot"
 Write-Host " audit_root    = $AuditRoot"
 Write-Host " verify_out    = $VerifyOut"
 Write-Host " qwen_model_id = $QwenModelId"
+Write-Host " python        = $PythonBin"
 Write-Host " peft_device   = $PeftDevice"
 Write-Host " runtime       = $RuntimeBackend"
 Write-Host " require_verify= $RequireVerify  (1=bake-bundle gates on verifier PASS)"

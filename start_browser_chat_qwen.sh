@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Start the browser chat service with a real Hugging Face Qwen substrate.
 #
-# Default: Qwen2.5-0.5B-Instruct. Aligned with start_browser_chat_qwen.ps1
-# so the first-run experience on any host is "tiny model, fast download
-# (~1 GB), runs on CPU with minimal RAM". The 0.5B model produces
-# noticeably weaker multi-turn coherence on the kernel's structured
-# system prompt — for richer output, override with MODEL_ID:
+# Default: Einstein full vertical (bundle + LoRA) with Qwen2.5-1.5B-Instruct,
+# aligned with ``./einstein.sh`` real mode and start_browser_chat_qwen.ps1.
+# For the generic companion vertical instead:
+#   VERTICAL=companion bash start_browser_chat_qwen.sh
+# For richer coherence, override MODEL_ID:
 #
 #   MODEL_ID=Qwen/Qwen2.5-3B-Instruct   # better coherence
 #   MODEL_ID=Qwen/Qwen2.5-7B-Instruct   # recommended quality bar
@@ -105,7 +105,7 @@
 # ---------------------------------------------------------------------
 # Usage
 # ---------------------------------------------------------------------
-#   bash start_browser_chat_qwen.sh                                # 0.5B default
+#   bash start_browser_chat_qwen.sh                                # Einstein 1.5B default
 #   MODEL_ID=Qwen/Qwen2.5-3B-Instruct bash start_browser_chat_qwen.sh
 #   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
 #
@@ -116,8 +116,8 @@
 # Useful env:
 #   HOST=127.0.0.1
 #   PORT=8765
-#   MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct      # default; see sizing table above
-#                                            # (override for richer output)
+#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct      # default; matches einstein real mode
+#   VERTICAL=einstein-full                   # bundle + LoRA; set companion for generic chat
 #   DEVICE=auto
 #   LOCAL_FILES_ONLY=0
 #   OPEN_BROWSER=1
@@ -167,11 +167,109 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_BIN="${PYTHON:-python}"
+
+resolve_project_python() {
+  if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
+    echo "${ROOT_DIR}/.venv/bin/python"
+    return 0
+  fi
+  if [[ -n "${PYTHON:-}" ]]; then
+    echo "${PYTHON}"
+    return 0
+  fi
+  echo "python"
+}
+
+PYTHON_BIN="$(resolve_project_python)"
+
+has_nvidia_gpu() {
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+initialize_hf_download_env() {
+  local model_id="$1"
+  local hf_home="$2"
+  hf_probe() {
+    local endpoint="$1"
+    local temp_home="$2"
+    if [[ -n "$endpoint" ]]; then
+      export HF_ENDPOINT="$endpoint"
+    else
+      unset HF_ENDPOINT
+    fi
+    export HF_HOME="$temp_home"
+    mkdir -p "$temp_home"
+    HF_PROBE_MODEL="$model_id" "$PYTHON_BIN" -c "
+import os, sys, warnings
+warnings.filterwarnings('ignore')
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(os.environ['HF_PROBE_MODEL'], 'config.json')
+except Exception:
+    sys.exit(1)
+" >/dev/null 2>&1
+  }
+
+  if [[ -n "${VOLVENCE_FORCE_HF_ENDPOINT:-}" ]]; then
+    export HF_HOME="$hf_home"
+    if [[ -n "${HF_ENDPOINT:-}" ]]; then
+      echo "[start-browser-chat-qwen] hf_endpoint=${HF_ENDPOINT} (forced)"
+    else
+      echo "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co> (forced)"
+    fi
+    return 0
+  fi
+
+  local temp_home
+  temp_home="$(mktemp -d 2>/dev/null || mktemp -d -t vz_hf_probe)"
+  local configured_endpoint="${HF_ENDPOINT:-}"
+
+  if [[ -z "$configured_endpoint" ]]; then
+    if hf_probe "" "$temp_home"; then
+      rm -rf "$temp_home"
+      export HF_HOME="$hf_home"
+      echo "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co>"
+      return 0
+    fi
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    cat >&2 <<EOF
+Cannot reach huggingface.co to download '${model_id}'.
+EOF
+    exit 1
+  fi
+
+  echo "[start-browser-chat-qwen] probing HF_ENDPOINT=${configured_endpoint} ..."
+  if hf_probe "$configured_endpoint" "$temp_home"; then
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    export HF_ENDPOINT="$configured_endpoint"
+    echo "[start-browser-chat-qwen] hf_endpoint=${configured_endpoint}"
+    return 0
+  fi
+  rm -rf "$temp_home"
+
+  echo "[start-browser-chat-qwen] WARN: HF_ENDPOINT=${configured_endpoint} failed huggingface_hub probe; falling back to huggingface.co" >&2
+  unset HF_ENDPOINT
+  temp_home="$(mktemp -d 2>/dev/null || mktemp -d -t vz_hf_probe)"
+  if hf_probe "" "$temp_home"; then
+    rm -rf "$temp_home"
+    export HF_HOME="$hf_home"
+    echo "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co> (mirror fallback)"
+    return 0
+  fi
+  rm -rf "$temp_home"
+  export HF_HOME="$hf_home"
+  cat >&2 <<EOF
+Cannot download '${model_id}' from HF_ENDPOINT or huggingface.co.
+Unset HF_ENDPOINT or set VOLVENCE_FORCE_HF_ENDPOINT=1 with a working mirror.
+EOF
+  exit 1
+}
 
 export HOST="${HOST:-127.0.0.1}"
 export PORT="${PORT:-8765}"
-export VERTICAL="${VERTICAL:-companion}"
+export VERTICAL="${VERTICAL:-einstein-full}"
 # Einstein figure-as-a-service demo wiring (see header for details).
 # These three env vars are read by lifeform_service.einstein_resolver
 # when VERTICAL is one of einstein / einstein-raw / einstein-bundle /
@@ -179,8 +277,12 @@ export VERTICAL="${VERTICAL:-companion}"
 export EINSTEIN_BUNDLE_ROOT="${EINSTEIN_BUNDLE_ROOT:-${ROOT_DIR}/data/figure_bundles}"
 export EINSTEIN_BUNDLE_ID="${EINSTEIN_BUNDLE_ID:-}"
 export EINSTEIN_REQUIRE_REAL_BUNDLE="${EINSTEIN_REQUIRE_REAL_BUNDLE:-0}"
-export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-0.5B-Instruct}"
-export DEVICE="${DEVICE:-auto}"
+export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-1.5B-Instruct}"
+if has_nvidia_gpu; then
+  export DEVICE="${DEVICE:-cuda}"
+else
+  export DEVICE="${DEVICE:-auto}"
+fi
 export LOCAL_FILES_ONLY="${LOCAL_FILES_ONLY:-0}"
 export MAX_SESSIONS="${MAX_SESSIONS:-256}"
 export IDLE_EVICTION_SECONDS="${IDLE_EVICTION_SECONDS:-1800}"
@@ -216,6 +318,12 @@ export PROTOCOL_LLM_API_KEY="${PROTOCOL_LLM_API_KEY:-}"
 export PROTOCOL_LLM_MODEL="${PROTOCOL_LLM_MODEL:-}"
 export PROTOCOL_LLM_TIMEOUT_SECONDS="${PROTOCOL_LLM_TIMEOUT_SECONDS:-60}"
 
+if has_nvidia_gpu; then
+  if [[ -z "${DEVICE:-}" || "${DEVICE}" == "auto" ]]; then
+    export DEVICE="cuda"
+  fi
+fi
+
 # Optional: source secrets from a non-committed .local/llm.env so
 # operators don't have to paste the API key every shell. .local/
 # is gitignored. Format:
@@ -240,8 +348,42 @@ fi
 if [[ -n "${HF_HOME}" ]]; then
   mkdir -p "${HF_HOME}"
 fi
+export HF_HUB_DISABLE_SYMLINKS_WARNING="${HF_HUB_DISABLE_SYMLINKS_WARNING:-1}"
 
 cd "$ROOT_DIR"
+
+initialize_hf_download_env "${MODEL_ID}" "${HF_HOME}"
+
+if ! "$PYTHON_BIN" -c "import aiohttp, transformers, torch; print('deps ok', torch.__version__, 'cuda', torch.cuda.is_available()); print('gpu', torch.cuda.get_device_name(0)) if torch.cuda.is_available() else None" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+Python at '${PYTHON_BIN}' cannot load the HF stack required for real Qwen chat.
+
+Install the HF profile (GPU machines get torch cu126 automatically):
+  ./scripts/bootstrap_bare_metal.sh --skip-system-deps --profile hf
+
+Or manually:
+  source .venv/bin/activate
+  VOLVENCE_EXTRAS=hf ./install.sh
+
+Then retry:
+  bash start_browser_chat_qwen.sh
+EOF
+  exit 1
+fi
+
+if has_nvidia_gpu && ! "$PYTHON_BIN" -c "import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+NVIDIA GPU detected but torch.cuda.is_available() is False.
+
+Reinstall the CUDA wheel:
+  ${PYTHON_BIN} -m pip uninstall -y torch
+  ${PYTHON_BIN} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+Or rerun:
+  VOLVENCE_EXTRAS=hf ./install.sh
+EOF
+  exit 1
+fi
 
 PACKAGE_PATHS="$(printf '%s:' packages/*/src)"
 if [[ -n "${PYTHONPATH:-}" ]]; then
@@ -258,7 +400,11 @@ fi
 CHAT_URL="http://${HOST}:${PORT}/chat"
 
 echo "[start-browser-chat-qwen] model=${MODEL_ID}"
+echo "[start-browser-chat-qwen] python=${PYTHON_BIN}"
 echo "[start-browser-chat-qwen] device=${DEVICE} local_files_only=${LOCAL_FILES_ONLY}"
+if has_nvidia_gpu; then
+  echo "[start-browser-chat-qwen] gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)"
+fi
 echo "[start-browser-chat-qwen] hf_home=${HF_HOME:-<system default>}"
 echo "[start-browser-chat-qwen] url=${CHAT_URL}"
 

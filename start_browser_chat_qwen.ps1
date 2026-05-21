@@ -9,12 +9,14 @@
     The two scripts produce identical service behavior; only the host scripting
     layer differs.
 
-    Windows default: Qwen2.5-0.5B-Instruct. On a typical Windows workstation
-    the 0.5B variant downloads fast (~1 GB) and runs on CPU with minimal RAM.
-    For richer coherence on complex VZ prompts, override with MODEL_ID:
+    Windows default: Einstein full vertical (bundle + LoRA) with
+    Qwen/Qwen2.5-1.5B-Instruct — matches ``.\einstein.ps1`` real mode.
+    For the generic companion vertical instead:
+      $env:VERTICAL = 'companion'
+    For richer coherence on complex VZ prompts, override MODEL_ID:
       $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'   # better coherence
       $env:MODEL_ID = 'Qwen/Qwen2.5-7B-Instruct'   # recommended quality bar
-    The Mac/Linux companion script (start_browser_chat_qwen.sh) defaults to 7B.
+    The Mac/Linux companion script (start_browser_chat_qwen.sh) uses the same defaults.
 
     What you can actually run locally
     ---------------------------------
@@ -83,7 +85,7 @@
     previous anonymous, in-memory-only behavior.
 
 .EXAMPLE
-    .\start_browser_chat_qwen.ps1                                # 0.5B default
+    .\start_browser_chat_qwen.ps1                                # Einstein 1.5B default
 
 .EXAMPLE
     $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'
@@ -102,7 +104,8 @@
     Useful env vars (all optional, defaults shown):
       HOST=127.0.0.1
       PORT=8765
-      MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct      # Windows default; override for richer output
+      MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct      # default; matches einstein.ps1 real mode
+      VERTICAL=einstein-full                   # bundle + LoRA; set companion for generic chat
       DEVICE=auto                              # auto | cpu | cuda | cuda:0 | mps
       LOCAL_FILES_ONLY=0
       OPEN_BROWSER=1
@@ -161,7 +164,135 @@ if (-not $RootDir) {
     $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 
-$PythonBin = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
+function Resolve-ProjectPython {
+    param([string]$RepoRoot)
+    $venvPython = Join-Path $RepoRoot '.venv\Scripts\python.exe'
+    if (Test-Path $venvPython) {
+        return $venvPython
+    }
+    if ($env:PYTHON) {
+        return $env:PYTHON
+    }
+    return 'python'
+}
+
+function Test-NvidiaGpu {
+    if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+    $gpuList = & nvidia-smi -L 2>$null
+    return ($LASTEXITCODE -eq 0 -and $gpuList)
+}
+
+function Initialize-HfDownloadEnv {
+    param(
+        [Parameter(Mandatory)] [string] $PythonBin,
+        [Parameter(Mandatory)] [string] $ModelId,
+        [Parameter(Mandatory)] [string] $HfHome
+    )
+    if ($env:VOLVENCE_FORCE_HF_ENDPOINT) {
+        if ($env:HF_ENDPOINT) {
+            Write-Host "[start-browser-chat-qwen] hf_endpoint=$($env:HF_ENDPOINT) (forced)"
+        } else {
+            Write-Host "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co> (forced)"
+        }
+        return
+    }
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+    $probeWithEndpoint = {
+        param([string]$Endpoint, [string]$TempHome)
+        if ($Endpoint) {
+            $env:HF_ENDPOINT = $Endpoint
+        } else {
+            Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue
+        }
+        $env:HF_HOME = $TempHome
+        New-Item -ItemType Directory -Force -Path $TempHome | Out-Null
+        $env:HF_PROBE_MODEL = $ModelId
+        & $PythonBin -c @"
+import os, sys, warnings
+warnings.filterwarnings('ignore')
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(os.environ['HF_PROBE_MODEL'], 'config.json')
+except Exception:
+    sys.exit(1)
+"@ 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    }
+
+    $configuredEndpoint = $env:HF_ENDPOINT
+    if ([string]::IsNullOrEmpty($configuredEndpoint)) {
+        $tempHome = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+        try {
+            if (& $probeWithEndpoint '' $tempHome) {
+                Write-Host "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co>"
+                return
+            }
+        } finally {
+            Remove-Item -Recurse -Force $tempHome -ErrorAction SilentlyContinue
+            $env:HF_HOME = $HfHome
+        }
+        Write-Error @"
+Cannot reach huggingface.co to download '$ModelId'.
+
+Check network / proxy, or set a working mirror explicitly:
+  `$env:HF_ENDPOINT = 'https://hf-mirror.com'
+  `$env:VOLVENCE_FORCE_HF_ENDPOINT = '1'
+  .\start_browser_chat_qwen.ps1
+"@
+        exit 1
+    }
+
+    Write-Host "[start-browser-chat-qwen] probing HF_ENDPOINT=$configuredEndpoint ..."
+    $tempHome = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+    $mirrorOk = $false
+    try {
+        $mirrorOk = (& $probeWithEndpoint $configuredEndpoint $tempHome)
+    } finally {
+        Remove-Item -Recurse -Force $tempHome -ErrorAction SilentlyContinue
+        $env:HF_HOME = $HfHome
+    }
+
+    if ($mirrorOk) {
+        $env:HF_ENDPOINT = $configuredEndpoint
+        Write-Host "[start-browser-chat-qwen] hf_endpoint=$configuredEndpoint"
+        return
+    }
+
+    Write-Warning "[start-browser-chat-qwen] HF_ENDPOINT=$configuredEndpoint failed huggingface_hub probe; falling back to huggingface.co"
+    Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue
+
+    $tempHome2 = Join-Path $env:TEMP ("vz_hf_probe_{0}" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        if (& $probeWithEndpoint '' $tempHome2) {
+            Write-Host "[start-browser-chat-qwen] hf_endpoint=<default huggingface.co> (mirror fallback)"
+            return
+        }
+    } finally {
+        Remove-Item -Recurse -Force $tempHome2 -ErrorAction SilentlyContinue
+        $env:HF_HOME = $HfHome
+    }
+
+    Write-Error @"
+Cannot download '$ModelId' from HF_ENDPOINT or huggingface.co.
+
+Your shell has HF_ENDPOINT=$configuredEndpoint but the mirror is unreachable
+from huggingface_hub on this machine. Fix one of:
+
+  Remove-Item Env:HF_ENDPOINT
+  .\start_browser_chat_qwen.ps1
+"@
+    exit 1
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+}
+
+$PythonBin = Resolve-ProjectPython -RepoRoot $RootDir
 
 # Honor existing env-var values; only fill in defaults when missing or empty.
 function Set-DefaultEnv {
@@ -177,15 +308,19 @@ function Set-DefaultEnv {
 
 Set-DefaultEnv 'HOST'                  '127.0.0.1'
 Set-DefaultEnv 'PORT'                  '8765'
-Set-DefaultEnv 'VERTICAL'              'companion'
+Set-DefaultEnv 'VERTICAL'              'einstein-full'
 # Einstein figure-as-a-service demo wiring (see header for details).
 # Read by lifeform_service.einstein_resolver when VERTICAL is one of
 # einstein / einstein-raw / einstein-bundle / einstein-full.
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ROOT'        (Join-Path $RootDir 'data\figure_bundles')
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ID'          ''
 Set-DefaultEnv 'EINSTEIN_REQUIRE_REAL_BUNDLE' '0'
-Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-0.5B-Instruct'
-Set-DefaultEnv 'DEVICE'                'auto'
+Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-1.5B-Instruct'
+if (Test-NvidiaGpu) {
+    Set-DefaultEnv 'DEVICE'            'cuda'
+} else {
+    Set-DefaultEnv 'DEVICE'            'auto'
+}
 Set-DefaultEnv 'LOCAL_FILES_ONLY'      '0'
 Set-DefaultEnv 'MAX_SESSIONS'          '256'
 Set-DefaultEnv 'IDLE_EVICTION_SECONDS' '1800'
@@ -204,6 +339,14 @@ Set-DefaultEnv 'PROTOCOL_LLM_API_KEY'         ''
 Set-DefaultEnv 'PROTOCOL_LLM_MODEL'           ''
 Set-DefaultEnv 'PROTOCOL_LLM_TIMEOUT_SECONDS' '60'
 
+# GPU machines: treat inherited DEVICE=auto as cuda unless explicitly overridden.
+if (Test-NvidiaGpu) {
+    $deviceNow = [Environment]::GetEnvironmentVariable('DEVICE', 'Process')
+    if ([string]::IsNullOrEmpty($deviceNow) -or $deviceNow -eq 'auto') {
+        $env:DEVICE = 'cuda'
+    }
+}
+
 # HuggingFace cache directory. We distinguish "unset" from "empty" so
 # the operator can opt into the system default (~\.cache\huggingface)
 # by setting $env:HF_HOME='' explicitly. Default = per-repo cache,
@@ -218,7 +361,61 @@ if (-not [string]::IsNullOrEmpty($env:HF_HOME)) {
     New-Item -ItemType Directory -Path $env:HF_HOME -Force | Out-Null
 }
 
+# Quiet Windows symlink warning; caching still works without symlinks.
+if (-not $env:HF_HUB_DISABLE_SYMLINKS_WARNING) {
+    $env:HF_HUB_DISABLE_SYMLINKS_WARNING = '1'
+}
+
 Set-Location $RootDir
+
+Initialize-HfDownloadEnv -PythonBin $PythonBin -ModelId $env:MODEL_ID -HfHome $env:HF_HOME
+
+# Fail fast with a helpful hint when the chosen interpreter lacks deps.
+$preflight = & $PythonBin -c @"
+import aiohttp, transformers, torch
+print('deps ok', torch.__version__, 'cuda', torch.cuda.is_available())
+if torch.cuda.is_available():
+    print('gpu', torch.cuda.get_device_name(0))
+"@ 2>&1
+if ($LASTEXITCODE -ne 0) {
+    $hint = @"
+Python at '$PythonBin' cannot load the HF stack required for real Qwen chat.
+
+Preflight output:
+$preflight
+
+Fix (recommended on Windows — avoid conda-created venvs):
+  Remove-Item -Recurse -Force .venv
+  `$py = `"`$env:LOCALAPPDATA\Programs\Python\Python311\python.exe`"
+  & `$py -m venv .venv
+  .\install.ps1 -PythonBin .\.venv\Scripts\python.exe -Extras hf
+
+This machine has an NVIDIA GPU — install.ps1 will pull torch from cu126 automatically.
+If torch fails with WinError 1114 / c10.dll, recreate .venv with python.org first.
+
+Then retry:
+  .\start_browser_chat_qwen.ps1
+"@
+    Write-Error $hint
+    exit 1
+}
+
+if (Test-NvidiaGpu) {
+    & $PythonBin -c "import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error @"
+NVIDIA GPU detected but torch.cuda.is_available() is False.
+
+Reinstall the CUDA wheel:
+  .\.venv\Scripts\python.exe -m pip uninstall -y torch
+  .\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+Or rerun:
+  .\install.ps1 -PythonBin .\.venv\Scripts\python.exe -Extras hf
+"@
+        exit 1
+    }
+}
 
 # Optional: source secrets from a non-committed .local/llm.env.ps1
 # so operators don't have to paste the API key every shell. The
@@ -265,7 +462,12 @@ if ($listener) {
 $chatUrl = "http://$($env:HOST):$($env:PORT)/chat"
 
 Write-Host "[start-browser-chat-qwen] model=$($env:MODEL_ID)"
+Write-Host "[start-browser-chat-qwen] python=$PythonBin"
 Write-Host "[start-browser-chat-qwen] device=$($env:DEVICE) local_files_only=$($env:LOCAL_FILES_ONLY)"
+if (Test-NvidiaGpu) {
+    $gpuName = (& nvidia-smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
+    Write-Host "[start-browser-chat-qwen] gpu=$gpuName"
+}
 $hfHomeLabel = if ([string]::IsNullOrEmpty($env:HF_HOME)) { '<system default>' } else { $env:HF_HOME }
 Write-Host "[start-browser-chat-qwen] hf_home=$hfHomeLabel"
 Write-Host "[start-browser-chat-qwen] url=$chatUrl"

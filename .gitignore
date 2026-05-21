@@ -87,3 +87,5 @@ artifacts/companion_bench_smoke/*
 !artifacts/companion_bench_smoke/.gitkeep
 /.local
 /.local
+/.venv
+/.venv.conda.bak
