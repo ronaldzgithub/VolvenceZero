@@ -144,14 +144,42 @@ async def test_create_session_422s_on_unknown_vertical(multi_client):
     assert body["error"] == "unknown_vertical"
 
 
+async def test_create_session_growth_advisor_in_alpha_mode_succeeds(
+    alpha_multi_client, all_verticals
+):
+    """Growth-advisor vertical is alpha-capable post debt #69 prep.
+
+    Mirrors the contract that companion / zhang_wuji / einstein
+    already satisfy on the closed-alpha lane: a session minted with
+    ``vertical=growth_advisor`` + a valid ``X-Alpha-User`` header
+    must succeed (201) and echo back the bound vertical. The actual
+    scope binding goes through ``bind_session_legacy_alias`` so
+    ``scope_key == user_id`` matches the other 3 verticals on this
+    lane.
+    """
+    if "growth_advisor" not in all_verticals:
+        pytest.skip("growth_advisor vertical not installed")
+    resp = await alpha_multi_client.post(
+        "/v1/sessions",
+        headers={"X-Alpha-User": "alice"},
+        json={"vertical": "growth_advisor"},
+    )
+    assert resp.status == 201, await resp.text()
+    body = await resp.json()
+    assert body["vertical"] == "growth_advisor"
+
+
 async def test_create_session_422s_on_non_alpha_vertical_in_alpha_mode(
     alpha_multi_client, all_verticals
 ):
     """Alpha mode + vertical without alpha_factory → 422.
 
-    ``coding`` and ``growth_advisor`` are the verticals in the
-    discovered set that don't ship an ``alpha_factory``. We pick
-    whichever one exists; if neither is installed we skip.
+    ``coding`` is the only vertical in the discovered set that does
+    not ship an ``alpha_factory`` (growth_advisor gained one in the
+    debt #69 prep work — its closed-alpha lane now mirrors the
+    companion / zhang_wuji / einstein 1-layer scope contract). We
+    pick whichever non-alpha vertical exists; if none is installed
+    we skip.
     """
     candidate = next(
         (

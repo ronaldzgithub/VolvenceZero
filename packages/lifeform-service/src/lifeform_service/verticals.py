@@ -218,6 +218,26 @@ def _try_growth_advisor() -> VerticalSpec | None:
     metacontroller / regime bootstraps, so a fresh session starts
     from the kernel's flat defaults plus the reviewed profile-derived
     seeds (knowledge / cases / playbook / boundaries / drives).
+
+    Alpha mode (``alpha_factory``): closed-alpha runs go through
+    :class:`SessionManager`'s ``bind_session_legacy_alias`` path so
+    ``scope_key == user_id`` (1-layer) — same contract as the
+    companion / zhang_wuji / einstein verticals on this lane. The
+    forward-looking 2-layer scope path (``scope_key == "alpha:end_user_id"``,
+    debt #69 P2 growth-advisor admin endpoint) lives outside
+    :class:`SessionManager` and is independent of this factory;
+    callers that wire that path must not also mint sessions for the
+    same end_user through this 1-layer alpha_factory without an
+    explicit migration, otherwise scoped memory would split across
+    two keys for the same human user.
+
+    LLM semantic-proposal runtime + per-end-user archetype classifier
+    (debt #66 ACTIVE wiring) are *not* attached here: the semantic-
+    proposal runtime is opt-in at the lifeform_builder level, and
+    archetype classifier needs its own LLM client/config. Both stay
+    consistent across the dev ``factory`` and the alpha ``alpha_factory``
+    paths so the only thing the alpha path adds is per-user identity
+    + scoped memory root — nothing surprising leaks in.
     """
     try:
         from lifeform_domain_growth_advisor import (
@@ -226,6 +246,22 @@ def _try_growth_advisor() -> VerticalSpec | None:
         )
     except ImportError:
         return None
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        return build_growth_advisor_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime, repair_alpha_enabled=True
+            ),
+        ).lifeform
 
     sdir = scenarios_dir()
     return VerticalSpec(
@@ -237,6 +273,7 @@ def _try_growth_advisor() -> VerticalSpec | None:
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,
         scenarios_dir=str(sdir) if sdir.is_dir() else None,
+        alpha_factory=alpha_factory,
     )
 
 
