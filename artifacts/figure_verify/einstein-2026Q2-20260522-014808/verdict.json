@@ -1,0 +1,74 @@
+{
+  "figure_id": "einstein",
+  "bundle_id": "figure-bundle:einstein:9ec78f58b8d3f122",
+  "persona_lora_record_id": "persona-lora:einstein:9ec78f58b8d3f122",
+  "overall_passed": false,
+  "gates": [
+    {
+      "name": "gate_cognition_improves",
+      "passed": false,
+      "observed": 0.008266033385298577,
+      "threshold": 0.05,
+      "rationale": "bundle.cognition - raw.cognition = 0.0931 - 0.0848 = 0.0083"
+    },
+    {
+      "name": "gate_voice_improves_with_lora",
+      "passed": false,
+      "observed": -0.011511111111111139,
+      "threshold": 0.02,
+      "rationale": "bundle_lora.voice - bundle.voice = 0.3140 - 0.3255 = -0.0115"
+    },
+    {
+      "name": "gate_refusal_works",
+      "passed": false,
+      "observed": 0.44,
+      "threshold": 0.8,
+      "rationale": "bundle correctly refused 11/25 out-of-scope probes"
+    },
+    {
+      "name": "gate_evidence_emerges",
+      "passed": true,
+      "observed": 247.0,
+      "threshold": 1.0,
+      "rationale": "l3_evidence_count: bundle=247, bundle_lora=169"
+    }
+  ],
+  "condition_aggregates": [
+    {
+      "condition": "raw",
+      "voice_score": 0.3606333333333334,
+      "cognition_score": 0.08481369030173411,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 8,
+      "out_of_scope_refusal_rate": 0.04,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 0
+    },
+    {
+      "condition": "bundle",
+      "voice_score": 0.3255222222222224,
+      "cognition_score": 0.09307972368703268,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 8,
+      "out_of_scope_refusal_rate": 0.44,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 247
+    },
+    {
+      "condition": "bundle_lora",
+      "voice_score": 0.31401111111111124,
+      "cognition_score": 0.06689786817131609,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 5,
+      "out_of_scope_refusal_rate": 0.44,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 169
+    }
+  ],
+  "total_questions": 45,
+  "in_corpus_questions": 20,
+  "out_of_scope_questions": 25,
+  "notes": [
+    "persona LoRA auto-registered from bundle.lora (record_id=persona-lora:einstein:9ec78f58b8d3f122)."
+  ]
+}
