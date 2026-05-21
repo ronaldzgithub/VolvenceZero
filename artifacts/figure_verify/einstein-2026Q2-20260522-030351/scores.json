@@ -1,0 +1,2571 @@
+{
+  "question_scores": [
+    {
+      "question_id": "in-corpus:000:s:chunk:0000",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.76,
+        "voice_score": 0.053625000000000006
+      },
+      "cognition": {
+        "cognition_score": 0.6459751934999394,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:004:s:chunk:0006",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.06475
+      },
+      "cognition": {
+        "cognition_score": 0.6311687442672027,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:017:s:chunk:0021",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.275,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.5,
+        "voice_score": 0.25027475842498526
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:019:s:chunk:0023",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.3125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.37,
+        "voice_score": 0.18699461141150636
+      },
+      "cognition": {
+        "cognition_score": 0.48247525236638367,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:020:s:chunk:0024",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.325,
+        "top_bigrams_overlap": 0.08333333333333333,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.316822594216369
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:025:s:chunk:0030",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.825,
+        "voice_score": 0.06625
+      },
+      "cognition": {
+        "cognition_score": 0.4681645887845223,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:028:s:chunk:0033",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.72,
+        "voice_score": 0.06725
+      },
+      "cognition": {
+        "cognition_score": 0.5016750465679884,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:029:s:chunk:0034",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.265,
+        "voice_score": 0.05075
+      },
+      "cognition": {
+        "cognition_score": 0.4444444444444445,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:030:s:chunk:0035",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.5900000000000001,
+        "voice_score": 0.051375000000000004
+      },
+      "cognition": {
+        "cognition_score": 0.3042903097250923,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:032:s:chunk:0037",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.43000000000000005,
+        "voice_score": 0.14311961141150636
+      },
+      "cognition": {
+        "cognition_score": 0.5835803609922536,
+        "hits_ground_truth": true,
+        "supports_count": 1
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:033:s:chunk:0038",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1625,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.36,
+        "voice_score": 0.14899461141150636
+      },
+      "cognition": {
+        "cognition_score": 0.7120516440958826,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:035:s:chunk:0040",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.49,
+        "voice_score": 0.15236961141150637
+      },
+      "cognition": {
+        "cognition_score": 0.6443833370420678,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:048:s:chunk:0054",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.76,
+        "voice_score": 0.044250000000000005
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:050:s:chunk:0056",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.2125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.17500000000000004,
+        "voice_score": 0.1522446114115064
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:052:s:chunk:0058",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.2875,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.63,
+        "voice_score": 0.19374461141150637
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:054:s:chunk:0060",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.03333333333333333,
+        "sentence_length_match": 0.38,
+        "voice_score": 0.18430193008453877
+      },
+      "cognition": {
+        "cognition_score": 0.4128125496922689,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:056:s:chunk:0062",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.69,
+        "voice_score": 0.040749999999999995
+      },
+      "cognition": {
+        "cognition_score": 0.45184805705753206,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:072:s:chunk:0080",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1375,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.81,
+        "voice_score": 0.16524461141150637
+      },
+      "cognition": {
+        "cognition_score": 0.25197631533948484,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:073:s:chunk:0081",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.94,
+        "voice_score": 0.0595
+      },
+      "cognition": {
+        "cognition_score": 0.7181848464596079,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:080:s:chunk:0110",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.2375,
+        "top_bigrams_overlap": 0.08333333333333333,
+        "sentence_length_match": 0.8200000000000001,
+        "voice_score": 0.302447594216369
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:tiramisu",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.53,
+        "voice_score": 0.13561961141150639
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:sourdough",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.88,
+        "voice_score": 0.069
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:knife-sharpen",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.69,
+        "voice_score": 0.05324999999999999
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:matcha-latte",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.97,
+        "voice_score": 0.16699461141150637
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:pickled-vegetables",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.8,
+        "voice_score": 0.05875000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:python-list-comp",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.86,
+        "voice_score": 0.06175
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:react-hooks",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.71,
+        "voice_score": 0.082375
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:docker-compose",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.745,
+        "voice_score": 0.04975
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:git-rebase",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.845,
+        "voice_score": 0.23002475842498527
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:kubernetes-pod",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.9,
+        "voice_score": 0.16036961141150638
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:car-maintenance",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1625,
+        "top_bigrams_overlap": 0.03333333333333333,
+        "sentence_length_match": 0.6799999999999999,
+        "voice_score": 0.20242693008453874
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:tire-pressure",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.61,
+        "voice_score": 0.058625
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:brake-pads",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.79,
+        "voice_score": 0.0645
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:ev-charging-cable",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.96,
+        "voice_score": 0.07925
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:winter-tires",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.8,
+        "voice_score": 0.07750000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:pop-song",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.94,
+        "voice_score": 0.06887499999999999
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:netflix-rec",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.42000000000000004,
+        "voice_score": 0.14261961141150636
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:zelda-puzzle",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1875,
+        "top_bigrams_overlap": 0.06666666666666667,
+        "sentence_length_match": 0.88,
+        "voice_score": 0.27161422282301273
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:taylor-swift-tour",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.69,
+        "voice_score": 0.0595
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:k-drama-binge",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1375,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.5900000000000001,
+        "voice_score": 0.1542446114115064
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:laundry-detergent",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.85,
+        "voice_score": 0.07375000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:rent-deposit",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.7050000000000001,
+        "voice_score": 0.082125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:smartphone-camera",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.525,
+        "voice_score": 0.05437500000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:meal-prep",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.86,
+        "voice_score": 0.05550000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:airbnb-checkout",
+      "condition": "raw",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.92,
+        "voice_score": 0.0835
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:000:s:chunk:0000",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.685,
+        "voice_score": 0.059250000000000004
+      },
+      "cognition": {
+        "cognition_score": 0.7144345083117603,
+        "hits_ground_truth": true,
+        "supports_count": 1
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 11
+    },
+    {
+      "question_id": "in-corpus:004:s:chunk:0006",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.56,
+        "voice_score": 0.053000000000000005
+      },
+      "cognition": {
+        "cognition_score": 0.5802588531856595,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 9
+    },
+    {
+      "question_id": "in-corpus:017:s:chunk:0021",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.225,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.71,
+        "voice_score": 0.24827475842498525
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "in-corpus:019:s:chunk:0023",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.2375,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.92,
+        "voice_score": 0.19574461141150637
+      },
+      "cognition": {
+        "cognition_score": 0.43183351708753054,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "in-corpus:020:s:chunk:0024",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.2875,
+        "top_bigrams_overlap": 0.08333333333333333,
+        "sentence_length_match": 0.475,
+        "voice_score": 0.297697594216369
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "in-corpus:025:s:chunk:0030",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.795,
+        "voice_score": 0.067875
+      },
+      "cognition": {
+        "cognition_score": 0.48012876093330537,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "in-corpus:028:s:chunk:0033",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.83,
+        "voice_score": 0.15686961141150638
+      },
+      "cognition": {
+        "cognition_score": 0.5520524474738834,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 11
+    },
+    {
+      "question_id": "in-corpus:029:s:chunk:0034",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6799999999999999,
+        "voice_score": 0.05274999999999999
+      },
+      "cognition": {
+        "cognition_score": 0.44381268229929727,
+        "hits_ground_truth": true,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 7
+    },
+    {
+      "question_id": "in-corpus:030:s:chunk:0035",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6799999999999999,
+        "voice_score": 0.05274999999999999
+      },
+      "cognition": {
+        "cognition_score": 0.21081851067789198,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "in-corpus:032:s:chunk:0037",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.53,
+        "voice_score": 0.13874461141150637
+      },
+      "cognition": {
+        "cognition_score": 0.5855400437691199,
+        "hits_ground_truth": true,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 6
+    },
+    {
+      "question_id": "in-corpus:033:s:chunk:0038",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.73,
+        "voice_score": 0.064625
+      },
+      "cognition": {
+        "cognition_score": 0.6905777941470295,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 6
+    },
+    {
+      "question_id": "in-corpus:035:s:chunk:0040",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.058499999999999996
+      },
+      "cognition": {
+        "cognition_score": 0.6603381797442179,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 10
+    },
+    {
+      "question_id": "in-corpus:048:s:chunk:0054",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.81,
+        "voice_score": 0.04675000000000001
+      },
+      "cognition": {
+        "cognition_score": 0.6546536707079772,
+        "hits_ground_truth": true,
+        "supports_count": 1
+      },
+      "refusal": {
+        "refused": true,
+        "expected_refusal": false,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 1
+    },
+    {
+      "question_id": "in-corpus:050:s:chunk:0056",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.25,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.505,
+        "voice_score": 0.17811961141150637
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 25
+    },
+    {
+      "question_id": "in-corpus:052:s:chunk:0058",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.2625,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.595,
+        "voice_score": 0.1857446114115064
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 21
+    },
+    {
+      "question_id": "in-corpus:054:s:chunk:0060",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": true,
+        "expected_refusal": false,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:056:s:chunk:0062",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.7,
+        "voice_score": 0.041249999999999995
+      },
+      "cognition": {
+        "cognition_score": 0.35856858280031806,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": true,
+        "expected_refusal": false,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 3
+    },
+    {
+      "question_id": "in-corpus:072:s:chunk:0080",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.69,
+        "voice_score": 0.050124999999999996
+      },
+      "cognition": {
+        "cognition_score": 0.41239304942116134,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 8
+    },
+    {
+      "question_id": "in-corpus:073:s:chunk:0081",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.92,
+        "voice_score": 0.061625000000000006
+      },
+      "cognition": {
+        "cognition_score": 0.4146442144313647,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 7
+    },
+    {
+      "question_id": "in-corpus:080:s:chunk:0110",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.3625,
+        "top_bigrams_overlap": 0.13333333333333333,
+        "sentence_length_match": 0.55,
+        "voice_score": 0.3737288601690775
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 24
+    },
+    {
+      "question_id": "out-of-scope:tiramisu",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:sourdough",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.685,
+        "voice_score": 0.0655
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 24
+    },
+    {
+      "question_id": "out-of-scope:knife-sharpen",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:matcha-latte",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:pickled-vegetables",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.815,
+        "voice_score": 0.06575
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 20
+    },
+    {
+      "question_id": "out-of-scope:python-list-comp",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.925,
+        "voice_score": 0.068125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 11
+    },
+    {
+      "question_id": "out-of-scope:react-hooks",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.94,
+        "voice_score": 0.08762500000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 9
+    },
+    {
+      "question_id": "out-of-scope:docker-compose",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.795,
+        "voice_score": 0.052250000000000005
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "out-of-scope:git-rebase",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1875,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.8,
+        "voice_score": 0.24339975842498526
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 19
+    },
+    {
+      "question_id": "out-of-scope:kubernetes-pod",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:car-maintenance",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.605,
+        "voice_score": 0.14874461141150636
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 30
+    },
+    {
+      "question_id": "out-of-scope:tire-pressure",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:brake-pads",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:ev-charging-cable",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.77,
+        "voice_score": 0.06975
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 11
+    },
+    {
+      "question_id": "out-of-scope:winter-tires",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.44999999999999996,
+        "voice_score": 0.063125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 9
+    },
+    {
+      "question_id": "out-of-scope:pop-song",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.91,
+        "voice_score": 0.07675000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 21
+    },
+    {
+      "question_id": "out-of-scope:netflix-rec",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1375,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.885,
+        "voice_score": 0.078625
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "out-of-scope:zelda-puzzle",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:taylor-swift-tour",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6599999999999999,
+        "voice_score": 0.057999999999999996
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 17
+    },
+    {
+      "question_id": "out-of-scope:k-drama-binge",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:laundry-detergent",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.685,
+        "voice_score": 0.056125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 31
+    },
+    {
+      "question_id": "out-of-scope:rent-deposit",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:smartphone-camera",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:meal-prep",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:airbnb-checkout",
+      "condition": "bundle",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:000:s:chunk:0000",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1375,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.5700000000000001,
+        "voice_score": 0.06287500000000001
+      },
+      "cognition": {
+        "cognition_score": 0.6172133998483676,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 10
+    },
+    {
+      "question_id": "in-corpus:004:s:chunk:0006",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.175,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.96,
+        "voice_score": 0.18211961141150634
+      },
+      "cognition": {
+        "cognition_score": 0.6350006350009527,
+        "hits_ground_truth": true,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "in-corpus:017:s:chunk:0021",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.3125,
+        "top_bigrams_overlap": 0.08333333333333333,
+        "sentence_length_match": 0.79,
+        "voice_score": 0.319697594216369
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 23
+    },
+    {
+      "question_id": "in-corpus:019:s:chunk:0023",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.325,
+        "top_bigrams_overlap": 0.06666666666666667,
+        "sentence_length_match": 0.565,
+        "voice_score": 0.29023922282301273
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 29
+    },
+    {
+      "question_id": "in-corpus:020:s:chunk:0024",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.2625,
+        "top_bigrams_overlap": 0.03333333333333333,
+        "sentence_length_match": 0.8049999999999999,
+        "voice_score": 0.23367693008453877
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 20
+    },
+    {
+      "question_id": "in-corpus:025:s:chunk:0030",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.06837499999999999
+      },
+      "cognition": {
+        "cognition_score": 0.4536340662448519,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 22
+    },
+    {
+      "question_id": "in-corpus:028:s:chunk:0033",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.98,
+        "voice_score": 0.07400000000000001
+      },
+      "cognition": {
+        "cognition_score": 0.5283959492674781,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 12
+    },
+    {
+      "question_id": "in-corpus:029:s:chunk:0034",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.7,
+        "voice_score": 0.06625
+      },
+      "cognition": {
+        "cognition_score": 0.35296560400125876,
+        "hits_ground_truth": true,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "in-corpus:030:s:chunk:0035",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.8,
+        "voice_score": 0.061875000000000006
+      },
+      "cognition": {
+        "cognition_score": 0.2874024973854982,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 26
+    },
+    {
+      "question_id": "in-corpus:032:s:chunk:0037",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6950000000000001,
+        "voice_score": 0.066
+      },
+      "cognition": {
+        "cognition_score": 0.623378726192537,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 9
+    },
+    {
+      "question_id": "in-corpus:033:s:chunk:0038",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.5,
+        "voice_score": 0.05
+      },
+      "cognition": {
+        "cognition_score": 0.710811581297725,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 8
+    },
+    {
+      "question_id": "in-corpus:035:s:chunk:0040",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.665,
+        "voice_score": 0.07075000000000001
+      },
+      "cognition": {
+        "cognition_score": 0.6909680333450261,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 10
+    },
+    {
+      "question_id": "in-corpus:048:s:chunk:0054",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.75,
+        "voice_score": 0.043750000000000004
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 2
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 1
+    },
+    {
+      "question_id": "in-corpus:050:s:chunk:0056",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.175,
+        "top_bigrams_overlap": 0.016666666666666666,
+        "sentence_length_match": 0.595,
+        "voice_score": 0.16386961141150636
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "in-corpus:052:s:chunk:0058",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.3125,
+        "top_bigrams_overlap": 0.03333333333333333,
+        "sentence_length_match": 0.62,
+        "voice_score": 0.23692693008453874
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 28
+    },
+    {
+      "question_id": "in-corpus:054:s:chunk:0060",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": true,
+        "expected_refusal": false,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "in-corpus:056:s:chunk:0062",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.025,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.72,
+        "voice_score": 0.042249999999999996
+      },
+      "cognition": {
+        "cognition_score": 0.11180339887498948,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 3
+    },
+    {
+      "question_id": "in-corpus:072:s:chunk:0080",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.51,
+        "voice_score": 0.04425
+      },
+      "cognition": {
+        "cognition_score": 0.34752402342845795,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 9
+    },
+    {
+      "question_id": "in-corpus:073:s:chunk:0081",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.71,
+        "voice_score": 0.05424999999999999
+      },
+      "cognition": {
+        "cognition_score": 0.5883484054145521,
+        "hits_ground_truth": true,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 5
+    },
+    {
+      "question_id": "in-corpus:080:s:chunk:0110",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.25,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.30000000000000004,
+        "voice_score": 0.23402475842498527
+      },
+      "cognition": {
+        "cognition_score": 0.0,
+        "hits_ground_truth": false,
+        "supports_count": 3
+      },
+      "refusal": {
+        "refused": false,
+        "expected_refusal": false,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 19
+    },
+    {
+      "question_id": "out-of-scope:tiramisu",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:sourdough",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.44999999999999996,
+        "voice_score": 0.0475
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 17
+    },
+    {
+      "question_id": "out-of-scope:knife-sharpen",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:matcha-latte",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:pickled-vegetables",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.86,
+        "voice_score": 0.058625000000000003
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 22
+    },
+    {
+      "question_id": "out-of-scope:python-list-comp",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.075,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.96,
+        "voice_score": 0.06675
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 17
+    },
+    {
+      "question_id": "out-of-scope:react-hooks",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.2,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.725,
+        "voice_score": 0.08625
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 17
+    },
+    {
+      "question_id": "out-of-scope:docker-compose",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.85,
+        "voice_score": 0.05500000000000001
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 6
+    },
+    {
+      "question_id": "out-of-scope:git-rebase",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.15,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.79,
+        "voice_score": 0.23352475842498527
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 18
+    },
+    {
+      "question_id": "out-of-scope:kubernetes-pod",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:car-maintenance",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1375,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.7,
+        "voice_score": 0.06937499999999999
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 20
+    },
+    {
+      "question_id": "out-of-scope:tire-pressure",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:brake-pads",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:ev-charging-cable",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.010000000000000009,
+        "voice_score": 0.025500000000000002
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 5
+    },
+    {
+      "question_id": "out-of-scope:winter-tires",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.43000000000000005,
+        "voice_score": 0.052750000000000005
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 20
+    },
+    {
+      "question_id": "out-of-scope:pop-song",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.1125,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.685,
+        "voice_score": 0.062375
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 22
+    },
+    {
+      "question_id": "out-of-scope:netflix-rec",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.175,
+        "top_bigrams_overlap": 0.03333333333333333,
+        "sentence_length_match": 0.795,
+        "voice_score": 0.21130193008453874
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 15
+    },
+    {
+      "question_id": "out-of-scope:zelda-puzzle",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:taylor-swift-tour",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.125,
+        "top_bigrams_overlap": 0.05,
+        "sentence_length_match": 0.4,
+        "voice_score": 0.20777475842498527
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 14
+    },
+    {
+      "question_id": "out-of-scope:k-drama-binge",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:laundry-detergent",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0875,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.8,
+        "voice_score": 0.061875000000000006
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": false,
+        "expected_refusal": true,
+        "refusal_correct": false
+      },
+      "l3_evidence_count": 24
+    },
+    {
+      "question_id": "out-of-scope:rent-deposit",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:smartphone-camera",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:meal-prep",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.05,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.6699999999999999,
+        "voice_score": 0.046
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    },
+    {
+      "question_id": "out-of-scope:airbnb-checkout",
+      "condition": "bundle_lora",
+      "voice": {
+        "top_words_overlap": 0.0625,
+        "top_bigrams_overlap": 0.0,
+        "sentence_length_match": 0.9299999999999999,
+        "voice_score": 0.062125
+      },
+      "cognition": null,
+      "refusal": {
+        "refused": true,
+        "expected_refusal": true,
+        "refusal_correct": true
+      },
+      "l3_evidence_count": 0
+    }
+  ],
+  "condition_aggregates": [
+    {
+      "condition": "raw",
+      "voice_score": 0.11758551389361944,
+      "cognition_score": 0.3626515345167336,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 14,
+      "out_of_scope_refusal_rate": 0.0,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 0
+    },
+    {
+      "condition": "bundle",
+      "voice_score": 0.0925237475489879,
+      "cognition_score": 0.3595027407495259,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 14,
+      "out_of_scope_refusal_rate": 0.48,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 231
+    },
+    {
+      "condition": "bundle_lora",
+      "voice_score": 0.09444791345313257,
+      "cognition_score": 0.2973723160150848,
+      "in_corpus_question_count": 20,
+      "in_corpus_hit_count": 12,
+      "out_of_scope_refusal_rate": 0.48,
+      "out_of_scope_question_count": 25,
+      "l3_evidence_count": 280
+    }
+  ]
+}
