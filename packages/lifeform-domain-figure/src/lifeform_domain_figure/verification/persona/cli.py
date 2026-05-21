@@ -258,6 +258,7 @@ def _ensure_pool_has_bundle_lora(*, bundle: Any) -> str:
         adapter_layers=artifact.adapter_layers,
         parameter_count=artifact.parameter_count,
         description=artifact.description,
+        peft_checkpoint_dir=getattr(artifact, "peft_checkpoint_dir", ""),
     )
 
 

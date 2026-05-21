@@ -122,7 +122,7 @@ class FigureCoverageMap:
         query: str,
         *,
         retrieval_index: "FigureRetrievalIndex | None" = None,
-        retrieval_floor: float = 0.30,
+        retrieval_floor: float = 0.18,
         retrieval_top_k: int = 5,
     ) -> CoverageClassification:
         """Classify ``query`` as IN_DOMAIN, BOUNDARY_BLOCKED, or OUT_OF_DOMAIN.

@@ -268,6 +268,7 @@ def apply_persona_lora_through_gate(
         adapter_layers=artifact.adapter_layers,
         parameter_count=artifact.parameter_count,
         description=artifact.description,
+        peft_checkpoint_dir=getattr(artifact, "peft_checkpoint_dir", ""),
     )
     _write_audit_entry(
         audit_log_dir_path,

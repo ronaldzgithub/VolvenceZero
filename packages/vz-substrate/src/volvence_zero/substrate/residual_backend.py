@@ -198,6 +198,91 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         return self._lora_hot_swap_context(layers)
 
+    def activate_peft_adapter(self, checkpoint_dir):
+        """Load a saved PEFT adapter onto the base model for the context.
+
+        Debt #40 closure path. The projected ``adapter_layers``
+        summary vector consumed by :meth:`activate_lora` is a
+        per-layer constant that LayerNorm zeroes out — making
+        ``BUNDLE`` and ``BUNDLE_LORA`` byte-identical in real Qwen
+        forward. ``activate_peft_adapter`` instead loads the
+        trained LoRA A/B matrices saved by
+        :meth:`peft.PeftModel.save_pretrained` and wraps the base
+        model so q_proj / k_proj / etc. forward calls produce the
+        true ``base @ x + lora_alpha/r * (B @ (A @ x))`` output.
+
+        ``checkpoint_dir`` MUST point at a directory containing
+        ``adapter_config.json`` + ``adapter_model.safetensors``
+        (the standard ``peft.save_pretrained`` layout).
+
+        R2 contract: the underlying frozen base weights are not
+        mutated. peft inserts adapter sub-modules in-place, but on
+        context exit we call ``unload()`` to detach those sub-modules
+        without merging their weights into the base. A pre-/post-
+        context ``state_dict`` hash on the base weights stays
+        byte-identical (covered by ``test_lora_activate_does_not_
+        mutate_base.py``).
+
+        Raises ``ImportError`` if ``peft`` is not importable.
+        Raises ``FileNotFoundError`` if ``checkpoint_dir`` doesn't
+        exist — refuses to silently fall back to a no-op (per
+        ``no-swallow-errors-no-hasattr-abuse.mdc``).
+        """
+
+        return self._peft_adapter_context(checkpoint_dir)
+
+    @contextlib.contextmanager
+    def _peft_adapter_context(self, checkpoint_dir):
+        """Context-manager body for :meth:`activate_peft_adapter`."""
+
+        import pathlib
+
+        path = pathlib.Path(str(checkpoint_dir))
+        if not path.is_dir():
+            raise FileNotFoundError(
+                f"activate_peft_adapter: checkpoint_dir {path!r} is not a "
+                f"directory. The PEFTLoRABakeBackend saves the adapter at "
+                f"bake time; ensure the bundle was baked with a non-empty "
+                f"checkpoint_dir and that the directory has not been "
+                f"deleted."
+            )
+        try:
+            peft_mod = importlib.import_module("peft")
+        except ImportError as exc:
+            raise ImportError(
+                "activate_peft_adapter: peft is required to load a saved "
+                "PEFT adapter at inference time. Install via "
+                "``pip install vz-runtime[torch]`` (peft is a transitive "
+                "dep)."
+            ) from exc
+        if getattr(self, "_lora_activation_in_flight", False):
+            raise RuntimeError(
+                "activate_peft_adapter: nested activation detected; exit "
+                "the outer LoRA context before activating a different "
+                "persona."
+            )
+        original_model = self._model
+        peft_wrapped = peft_mod.PeftModel.from_pretrained(
+            original_model, str(path)
+        )
+        peft_wrapped.eval()
+        try:
+            object.__setattr__(self, "_lora_activation_in_flight", True)
+            object.__setattr__(self, "_lora_activation_checkpoint_dir", str(path))
+            object.__setattr__(self, "_model", peft_wrapped)
+            yield
+        finally:
+            object.__setattr__(self, "_model", original_model)
+            object.__setattr__(self, "_lora_activation_in_flight", False)
+            object.__setattr__(self, "_lora_activation_checkpoint_dir", "")
+            # ``unload`` returns the unwrapped base with adapter
+            # sub-modules detached but weights NOT merged into base.
+            # This guarantees R2: post-context state_dict hash on
+            # ``original_model`` equals pre-context hash.
+            unload = getattr(peft_wrapped, "unload", None)
+            if callable(unload):
+                unload()
+
     @contextlib.contextmanager
     def _lora_hot_swap_context(self, layers):
         """Context-manager body for :meth:`activate_lora`.
@@ -675,15 +760,29 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     )
                 except TypeError:
                     encoded = None
+                except ValueError:
+                    # Tokenizers without a configured chat_template
+                    # (e.g. ``sshleifer/tiny-gpt2`` used in CI smoke
+                    # tests) raise ValueError instead of returning
+                    # gracefully. Drop through to the ROLE-prefix
+                    # fallback below — it produces a valid
+                    # text-completion prompt without needing a
+                    # template.
+                    encoded = None
+                    apply_chat_template = None
                 if encoded is not None:
                     return source_text, self._prepare_model_inputs(encoded=encoded)
-                rendered = apply_chat_template(
-                    chat_payload,
-                    tokenize=False,
-                    add_generation_prompt=True,
-                )
-                if isinstance(rendered, str) and rendered.strip():
-                    return rendered.strip(), self._tokenize(source_text=rendered.strip())
+                if callable(apply_chat_template):
+                    try:
+                        rendered = apply_chat_template(
+                            chat_payload,
+                            tokenize=False,
+                            add_generation_prompt=True,
+                        )
+                    except ValueError:
+                        rendered = None
+                    if isinstance(rendered, str) and rendered.strip():
+                        return rendered.strip(), self._tokenize(source_text=rendered.strip())
             fallback_sections = [f"{role.upper()}:\n{content}" for role, content in chat_messages if content.strip()]
             fallback_sections.append("ASSISTANT:\n")
             rendered_fallback = "\n\n".join(fallback_sections).strip()

@@ -3,8 +3,18 @@
 For each (condition, question) pair we open the
 :func:`with_condition` context, build a default
 :class:`ResponseContext` carrying the question prompt, and call
-``synth.synthesize(context=...)``. The wall time is captured from
-``time.monotonic_ns()`` so reviewers can track latency regressions.
+``synth.synthesize(context=..., assembly=_baseline_assembly)``. The
+wall time is captured from ``time.monotonic_ns()`` so reviewers can
+track latency regressions.
+
+The minimal :class:`ResponseAssemblySnapshot` is the load-bearing
+detail for measuring real LoRA effect: when ``assembly is None``,
+:meth:`LLMResponseSynthesizer.synthesize` short-circuits to a
+templated regime-based renderer that never invokes the LLM forward
+path — and a verification ablation built on that path would compare
+template strings rather than Qwen output, so the persona LoRA would
+not be observable in the gates (debt #40 secondary cause:
+verification did not invoke the runtime forward at all).
 
 Output is a tuple of :class:`AblationResult` records, one per pair,
 in the (questions x conditions) iteration order — that ordering is
@@ -18,6 +28,11 @@ import time
 from typing import Any, Sequence
 
 from volvence_zero.agent.response import ResponseContext
+from volvence_zero.application.types import (
+    ResponseAssemblySnapshot,
+    ResponseMode,
+    RiskBand,
+)
 
 from lifeform_domain_figure.verification.persona.records import (
     AblationResult,
@@ -27,6 +42,62 @@ from lifeform_domain_figure.verification.persona.records import (
 from lifeform_domain_figure.verification.persona.runtime_conditions import (
     with_condition,
 )
+
+
+def _baseline_assembly() -> ResponseAssemblySnapshot:
+    """Minimal :class:`ResponseAssemblySnapshot` that routes through the LLM.
+
+    All three ablation conditions share the **same** assembly so the
+    only thing that differs across rows is the LoRA activation and the
+    figure-bundle prompt enrichment — never the prompt assembly /
+    constraint plan. That makes the voice / cognition delta strictly
+    attributable to LoRA (BUNDLE_LORA vs BUNDLE) and to the bundle
+    style prior / scope policy (BUNDLE vs RAW).
+
+    Field choices:
+
+    * ``response_mode=SUPPORT`` and ``answer_depth_limit="medium"``
+      → no premature truncation, no clarify-mode refusal.
+    * ``clarification_required=False`` /
+      ``refer_out_required=False`` → no synthesizer-side
+      short-circuit.
+    * ``citation_mode="optional"`` → no required-citation phrasing.
+    * Empty tuples for briefs / playbook / disclaimers → the prompt
+      reads "answer the question" without injected boilerplate.
+    * ``risk_band=LOW`` → no safety-side rephrase.
+
+    All optional fields use the dataclass defaults
+    (``ordering_driver="playbook-only"``, ``speech_plan=None``,
+    etc.) so the renderer's ``_decoding_profile_for_assembly``
+    falls into the deterministic ``"structure-first"`` branch.
+    """
+
+    return ResponseAssemblySnapshot(
+        regime_id="default",
+        regime_name="default",
+        abstract_action="answer",
+        response_mode=ResponseMode.SUPPORT,
+        answer_depth_limit="medium",
+        citation_mode="optional",
+        clarification_required=False,
+        refer_out_required=False,
+        ordering_plan=(),
+        knowledge_briefs=(),
+        case_briefs=(),
+        playbook_ordering=(),
+        required_disclaimers=(),
+        required_disclaimer_phrases=(),
+        control_code=(),
+        control_scale=0.0,
+        max_questions=0,
+        prompt_residue_summary="",
+        prompt_residue_ratio=0.0,
+        knowledge_hit_count=0,
+        case_hit_count=0,
+        playbook_rule_count=0,
+        risk_band=RiskBand.LOW,
+        description="persona-verification minimal assembly",
+    )
 
 
 _DEFAULT_CONDITION_ORDER: tuple[PersonaCondition, ...] = (
@@ -83,6 +154,7 @@ def run_ablation(
     if not conditions:
         raise ValueError("run_ablation: conditions must be non-empty")
 
+    assembly = _baseline_assembly()
     results: list[AblationResult] = []
     for condition in conditions:
         with with_condition(
@@ -91,7 +163,9 @@ def run_ablation(
             for question in questions:
                 started = time.monotonic_ns()
                 context = _default_response_context(question.prompt)
-                response = synth.synthesize(context=context)
+                response = synth.synthesize(
+                    context=context, assembly=assembly
+                )
                 wall_ms = max(
                     0, (time.monotonic_ns() - started) // 1_000_000
                 )

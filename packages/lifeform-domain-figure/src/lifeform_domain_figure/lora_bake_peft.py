@@ -78,6 +78,15 @@ _DEFAULT_LORA_DROPOUT = 0.0
 # bundle pickle.
 _DEFAULT_DELTA_VECTOR_DIM = 256
 
+# Default on-disk location for peft.save_pretrained snapshots. The
+# real-LoRA inference path (debt #40 closure) loads checkpoints from
+# here via `peft.PeftModel.from_pretrained`. Layout:
+#   PEFT_CHECKPOINT_CACHE_ROOT / <figure_id> / <plan_hash_prefix> /
+# Keyed by training_plan_hash so two bakes of the same plan share
+# one on-disk snapshot (cheap re-bake; portable across processes).
+PEFT_CHECKPOINT_CACHE_ROOT = pathlib.Path(".local") / "peft-checkpoints"
+_DISABLED_CHECKPOINT_DIR = pathlib.Path("")
+
 
 @dataclass(frozen=True)
 class PEFTLoRAConfig:
@@ -137,9 +146,19 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
       ``max_steps`` keeps wall clock bounded even if the corpus
       is large.
     * ``checkpoint_dir`` — out-of-process artifact staging dir.
-      ``None`` (default) keeps the bake fully in-memory; a path
-      makes peft persist a checkpoint at the end (useful for
-      reproducing the exact baked model later).
+      ``None`` (default) auto-derives a path under
+      :data:`PEFT_CHECKPOINT_CACHE_ROOT`/``<figure_id>/<plan_hash>``
+      so the trained PEFT adapter is **always** persisted to disk.
+      The path is recorded on the returned
+      :attr:`FigureLoRAArtifact.peft_checkpoint_dir` so the runtime
+      can load the real A/B matrices through
+      :meth:`LoRAAwareResidualRuntime.activate_peft_adapter` at
+      inference time (debt #40 closure path). Pass a Path to override
+      the location (e.g. share a checkpoint across machines via a
+      network mount); pass an empty :class:`pathlib.Path` to opt out
+      (the artifact ships with ``peft_checkpoint_dir=""`` and the
+      runtime falls back to the projected ``adapter_layers`` summary
+      hook — degraded mode, kept for back-compat with older bundles).
     * ``delta_vector_dim`` — per-layer delta_vector width (see
       module docstring). Compresses the LoRA ``A @ B`` matrix to a
       bounded-width vector for storage parity with the synthetic
@@ -316,9 +335,13 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
                 f"actually exists in {self.model_id!r}; the configured "
                 f"modules did not match any base-model submodule names."
             )
-        if self.checkpoint_dir is not None:
-            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            peft_model.save_pretrained(str(self.checkpoint_dir))
+        resolved_checkpoint_dir = self._resolve_checkpoint_dir(plan=plan)
+        if resolved_checkpoint_dir is not None:
+            resolved_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            peft_model.save_pretrained(str(resolved_checkpoint_dir))
+            checkpoint_dir_str = str(resolved_checkpoint_dir.resolve())
+        else:
+            checkpoint_dir_str = ""
 
         integrity_hash = compute_lora_integrity_hash(
             figure_id=plan.figure_id,
@@ -350,7 +373,37 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
                 f"validation_delta={validation_delta:.4f}, capacity_cost="
                 f"{capacity_cost:.4f}). Plan {plan.integrity_hash[:8]}."
             ),
+            peft_checkpoint_dir=checkpoint_dir_str,
         )
+
+    def _resolve_checkpoint_dir(
+        self, *, plan: LoRATrainingPlan
+    ) -> pathlib.Path | None:
+        """Decide where to persist the peft adapter for this bake.
+
+        Three cases:
+
+        * ``checkpoint_dir is None`` (default) — auto-derive to
+          :data:`PEFT_CHECKPOINT_CACHE_ROOT` /
+          ``<figure_id>/<plan_hash_prefix>`` under the current working
+          directory. Always returns a real path: the trained adapter
+          is persisted so the runtime can load it through
+          ``peft.PeftModel.from_pretrained``.
+        * ``checkpoint_dir`` set to an empty path
+          (``pathlib.Path("")``) — explicit opt-out. Returns ``None``;
+          the bake skips ``save_pretrained`` and the artifact ships
+          ``peft_checkpoint_dir=""``. Kept for callers (e.g. unit
+          tests) that genuinely don't want any disk I/O.
+        * ``checkpoint_dir`` set to a concrete path — caller-supplied
+          override. Returns it verbatim.
+        """
+
+        if self.checkpoint_dir is None:
+            plan_prefix = plan.integrity_hash[:16] if plan.integrity_hash else "unhashed"
+            return PEFT_CHECKPOINT_CACHE_ROOT / plan.figure_id / plan_prefix
+        if self.checkpoint_dir == _DISABLED_CHECKPOINT_DIR:
+            return None
+        return self.checkpoint_dir
 
 
 def _encode_rows(

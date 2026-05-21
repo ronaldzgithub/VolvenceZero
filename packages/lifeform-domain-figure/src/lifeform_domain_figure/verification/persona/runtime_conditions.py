@@ -118,6 +118,7 @@ def _temporarily_deregister_pool_record(*, figure_id: str) -> Iterator[None]:
             adapter_layers=cached.adapter_layers,
             parameter_count=cached.parameter_count,
             description=cached.description,
+            peft_checkpoint_dir=getattr(cached, "peft_checkpoint_dir", ""),
         )
 
 

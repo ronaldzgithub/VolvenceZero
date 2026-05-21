@@ -520,6 +520,9 @@ def cmd_rollback(args: argparse.Namespace) -> int:
                     f"{prior_audit.audit_id[:12] if prior_audit else 'absent'})"
                 )
             ),
+            peft_checkpoint_dir=getattr(
+                target_bundle.lora, "peft_checkpoint_dir", ""
+            ),
         )
 
     audit = build_audit_record(

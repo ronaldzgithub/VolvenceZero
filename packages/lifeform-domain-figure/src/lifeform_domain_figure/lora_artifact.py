@@ -49,6 +49,25 @@ class FigureLoRAArtifact:
     that crosses the wheel boundary; the persona-LoRA pool (P6.3)
     consumes its :attr:`adapter_layers` and never reaches into
     backend-internal state.
+
+    ``peft_checkpoint_dir`` (optional, default ``""``): on-disk path
+    to a real ``peft.save_pretrained(...)`` snapshot — populated by
+    :class:`lifeform_domain_figure.lora_bake_peft.PEFTLoRABakeBackend`
+    when a real PEFT loop ran. The runtime's
+    :meth:`LoRAAwareResidualRuntime.activate_peft_adapter` consumes
+    this path to apply the trained LoRA via
+    ``peft.PeftModel.from_pretrained`` at inference time (debt #40
+    closure: the projected ``adapter_layers`` summary vector is
+    eaten by LayerNorm in real Qwen forward; loading the actual
+    A/B matrices through peft restores the trained delta).
+
+    The checkpoint path is **not** included in
+    :func:`compute_lora_integrity_hash` because the path is
+    platform-specific while the artifact's logical identity
+    (figure, backend, plan, projected layers) is portable. Two
+    machines that bake the same plan emit byte-identical
+    ``integrity_hash`` even when they save the checkpoint to
+    different local directories.
     """
 
     schema_version: int
@@ -61,6 +80,7 @@ class FigureLoRAArtifact:
     integrity_hash: str
     parameter_count: int
     description: str
+    peft_checkpoint_dir: str = ""
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:

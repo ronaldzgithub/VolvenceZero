@@ -72,6 +72,19 @@ class PersonaLoRARecord:
                               (used as a capacity-cost signal at the
                               gate and as a sanity check at activate).
     * ``description``       — short human-readable description.
+    * ``peft_checkpoint_dir`` — on-disk path to a saved
+                                ``peft.save_pretrained`` snapshot
+                                (debt #40 closure path); empty
+                                string when the artifact has no
+                                real PEFT checkpoint (synthetic
+                                backend, or PEFT bake with the
+                                checkpoint explicitly disabled).
+                                When non-empty AND the runtime
+                                supports :meth:`activate_peft_adapter`,
+                                :meth:`activate` prefers it over
+                                the projected ``adapter_layers``
+                                summary forward hook (which is the
+                                LayerNorm-eaten fallback path).
     """
 
     record_id: str
@@ -82,6 +95,7 @@ class PersonaLoRARecord:
     adapter_layers: tuple[SubstrateDeltaAdapterLayer, ...]
     parameter_count: int
     description: str
+    peft_checkpoint_dir: str = ""
 
     def __post_init__(self) -> None:
         if not self.record_id.strip():
@@ -144,6 +158,7 @@ class PersonaLoRAPool:
         adapter_layers: tuple[SubstrateDeltaAdapterLayer, ...],
         parameter_count: int,
         description: str = "",
+        peft_checkpoint_dir: str = "",
     ) -> str:
         """Register a persona LoRA and return its ``record_id``.
 
@@ -172,6 +187,7 @@ class PersonaLoRAPool:
                     f"(bundle={source_bundle_id}, backend={backend_id})"
                 )
             ),
+            peft_checkpoint_dir=peft_checkpoint_dir,
         )
         with self._lock:
             self._records[record_id] = record
@@ -313,17 +329,38 @@ def _persona_lora_activation_context(
 ) -> Iterator[PersonaLoRARecord]:
     """Yield ``record`` for the lifetime of an optional runtime LoRA activation.
 
-    Centralised so :meth:`PersonaLoRAPool.activate` and any future
-    helper share one body. The ``runtime is None`` path is a
-    pure passthrough — it preserves the legacy behaviour where
-    a process-level pool was just an artifact registry. The
-    ``runtime is not None`` path routes through
-    ``runtime.activate_lora(record.adapter_layers)`` so the LoRA
-    delta is live in the forward path for the whole context.
+    Two activation backends, picked at runtime:
+
+    1. **Real PEFT adapter** (debt #40 closure path): when ``record``
+       has a non-empty ``peft_checkpoint_dir`` AND ``runtime`` exposes
+       :meth:`activate_peft_adapter`, the pool loads the saved peft
+       checkpoint into the base model for the context. The trained
+       A/B matrices are applied through the target_module linears'
+       forward, so ``BUNDLE`` and ``BUNDLE_LORA`` produce observably
+       different outputs in real Qwen.
+
+    2. **Projected adapter_layers summary** (legacy path): when the
+       record has no checkpoint OR the runtime does not implement
+       ``activate_peft_adapter``, the pool falls back to
+       :meth:`activate_lora`'s forward hook that adds the projected
+       ``delta_vector`` to the residual stream. This path is the one
+       LayerNorm zeroes out — kept for back-compat with the synthetic
+       backend and with bundles baked before the checkpoint field
+       existed.
+
+    The ``runtime is None`` path stays a pure passthrough — it
+    preserves the legacy behaviour where a process-level pool was
+    just an artifact registry.
     """
 
     if runtime is None:
         yield record
+        return
+    peft_checkpoint_dir = record.peft_checkpoint_dir
+    activate_peft = getattr(runtime, "activate_peft_adapter", None)
+    if peft_checkpoint_dir and callable(activate_peft):
+        with activate_peft(peft_checkpoint_dir):
+            yield record
         return
     activate = getattr(runtime, "activate_lora", None)
     if not callable(activate):
