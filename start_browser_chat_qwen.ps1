@@ -10,12 +10,12 @@
     layer differs.
 
     Windows default: Einstein full vertical (bundle + LoRA) with
-    Qwen/Qwen2.5-1.5B-Instruct — matches ``.\einstein.ps1`` real mode.
+    Qwen/Qwen2.5-7B-Instruct — matches ``.\einstein.ps1`` real mode.
     For the generic companion vertical instead:
       $env:VERTICAL = 'companion'
-    For richer coherence on complex VZ prompts, override MODEL_ID:
-      $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'   # better coherence
-      $env:MODEL_ID = 'Qwen/Qwen2.5-7B-Instruct'   # recommended quality bar
+    To drop down to a lighter model on tighter-VRAM hosts:
+      $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'   # ~8 GB bf16
+      $env:MODEL_ID = 'Qwen/Qwen2.5-1.5B-Instruct' # ~4 GB bf16
     The Mac/Linux companion script (start_browser_chat_qwen.sh) uses the same defaults.
 
     What you can actually run locally
@@ -23,20 +23,21 @@
     Reference target: MacBook Air M4, 24 GB unified memory, ~30 GB free disk.
     bf16 = transformers default, Q4 = GGUF / llama.cpp 4-bit quantization.
 
-      Model                       bf16 RAM   Q4 RAM   Disk    Verdict on M4 24GB
+      Model                       bf16 VRAM  Q4 VRAM  Disk    Verdict on RTX 4090 24GB
       --------------------------- ---------- -------- ------- ------------------
-      Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   too weak for VZ prompt
+      Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   tight-VRAM fallback
       Qwen2.5-3B-Instruct         ~ 8 GB     ~ 2 GB    6 GB   borderline coherent
-      Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   recommended (default)
-      Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 OK
+      Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   default (bf16 fits)
+      Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 fits
       Qwen2.5-32B-Instruct        ~64 GB     ~18 GB   62 GB   bf16 NO; Q4 tight
       Qwen2.5-72B-Instruct       ~145 GB     ~40 GB  145 GB   NOT runnable locally
       Qwen3-235B-A22B (MoE)      ~470 GB    ~120 GB  470 GB   NOT runnable locally
       Qwen3-Coder-480B-A35B (MoE)~960 GB    ~150 GB  960 GB   NOT runnable locally
 
-    On a typical Windows workstation (32 GB DDR5, RTX 4080 16 GB), Qwen2.5-7B-Instruct
-    in bf16 on CPU is the comfortable default; for GPU acceleration set DEVICE=cuda
-    and the 7B / 14B variants both fit on a 16 GB card with bf16 / Q4 respectively.
+    On a 24 GB GPU workstation (RTX 4090 / RTX 4090D / A6000 / L40),
+    Qwen2.5-7B-Instruct in bf16 is the default and fits comfortably (~16 GB VRAM
+    leaving ~8 GB for KV cache + LoRA adapter). On a 16 GB GPU, drop to
+    MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct or use a Q4 GGUF runtime.
 
     Einstein figure-as-a-service demo verticals (debt #41 / Wave K rollout)
     -----------------------------------------------------------------------
@@ -85,10 +86,10 @@
     previous anonymous, in-memory-only behavior.
 
 .EXAMPLE
-    .\start_browser_chat_qwen.ps1                                # Einstein 1.5B default
+    .\start_browser_chat_qwen.ps1                                # Einstein 7B default
 
 .EXAMPLE
-    $env:MODEL_ID = 'Qwen/Qwen2.5-3B-Instruct'
+    $env:MODEL_ID = 'Qwen/Qwen2.5-1.5B-Instruct'                 # drop down for low-VRAM hosts
     .\start_browser_chat_qwen.ps1
 
 .EXAMPLE
@@ -104,7 +105,7 @@
     Useful env vars (all optional, defaults shown):
       HOST=127.0.0.1
       PORT=8765
-      MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct      # default; matches einstein.ps1 real mode
+      MODEL_ID=Qwen/Qwen2.5-7B-Instruct        # default; matches einstein.ps1 real mode
       VERTICAL=einstein-full                   # bundle + LoRA; set companion for generic chat
       DEVICE=auto                              # auto | cpu | cuda | cuda:0 | mps
       LOCAL_FILES_ONLY=0
@@ -315,7 +316,7 @@ Set-DefaultEnv 'VERTICAL'              'einstein-full'
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ROOT'        (Join-Path $RootDir 'data\figure_bundles')
 Set-DefaultEnv 'EINSTEIN_BUNDLE_ID'          ''
 Set-DefaultEnv 'EINSTEIN_REQUIRE_REAL_BUNDLE' '0'
-Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-1.5B-Instruct'
+Set-DefaultEnv 'MODEL_ID'              'Qwen/Qwen2.5-7B-Instruct'
 if (Test-NvidiaGpu) {
     Set-DefaultEnv 'DEVICE'            'cuda'
 } else {
@@ -455,7 +456,7 @@ try {
     }
 }
 if ($listener) {
-    Write-Error "Port $portNum is already in use (pid=$($listener.OwningProcess)). Stop the existing service or set `$env:PORT to another port."
+    Write-Error "Port $portNum is already in use (pid=$($listener.OwningProcess)). Run .\stop_browser_chat_qwen.ps1 or set `$env:PORT to another port."
     exit 1
 }
 

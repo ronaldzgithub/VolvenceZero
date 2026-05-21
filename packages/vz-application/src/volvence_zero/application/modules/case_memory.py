@@ -111,6 +111,20 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
             if continuum_location is not None:
                 active_band_ids.append(continuum_location.band_id)
                 continuum_positions.append(continuum_location.position)
+            try:
+                outcome_label = ExperienceOutcomeLabel(record.outcome_label)
+            except ValueError as exc:
+                # Fail loudly with producer context (case_id) instead of
+                # surfacing a bare enum ValueError from deep inside
+                # propagate(). The contract owner is this module; the
+                # producer (figure/character/etc. compiler) violated it.
+                valid = tuple(member.value for member in ExperienceOutcomeLabel)
+                raise ValueError(
+                    f"CaseMemoryRecord(case_id={record.case_id!r}) carries "
+                    f"outcome_label={record.outcome_label!r}, which is not a "
+                    f"valid ExperienceOutcomeLabel. Expected one of {valid}. "
+                    f"Fix the producing domain pack / compiler."
+                ) from exc
             hits.append(
                 CaseEpisodeHit(
                     case_id=record.case_id,
@@ -132,7 +146,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                         for step_index, step in enumerate(record.intervention_ordering, start=1)
                     ),
                     outcome=CaseOutcomeSummary(
-                        outcome_label=ExperienceOutcomeLabel(record.outcome_label),
+                        outcome_label=outcome_label,
                         delayed_signal_count=record.delayed_signal_count,
                         escalation_observed=record.escalation_observed,
                         repair_observed=record.repair_observed,

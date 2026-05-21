@@ -17,12 +17,13 @@
 #
 # Two demo modes:
 #
-#   real (default, ~30-45 min, GPU/MPS strongly recommended)
+#   real (default, ~30-60 min on a 24 GB GPU, GPU strongly recommended)
 #       ./einstein.sh
-#     Qwen/Qwen2.5-1.5B-Instruct + PEFT q/k/v/o on the Wave K curated
+#     Qwen/Qwen2.5-7B-Instruct + PEFT q/k/v/o on the Wave K curated
 #     Einstein corpus. Produces the demo where the chat UI vertical
 #     dropdown (einstein-raw / einstein-bundle / einstein-full) shows
-#     distinct behaviour.
+#     distinct behaviour. Edit QWEN_MODEL_ID below to swap to
+#     Qwen2.5-1.5B-Instruct on tighter-VRAM hosts.
 #
 #   smoke (opt-in, ~5 min, no GPU)
 #       ./einstein.sh --mode smoke
@@ -321,7 +322,10 @@ export REQUIRE_VERIFY="$REQ_VERIFY"
 # damage when stale env residue silently overrides Mode -- so they get
 # the strictest treatment.
 if [ "$MODE" = "real" ]; then
-    export QWEN_MODEL_ID='Qwen/Qwen2.5-1.5B-Instruct'
+    # Default: Qwen2.5-7B-Instruct (bf16 ~15 GB VRAM; fits 24 GB
+    # GPU like RTX 4090 / RTX 4090D / A6000 / L40). For tighter
+    # VRAM hosts swap this literal to 'Qwen/Qwen2.5-1.5B-Instruct'.
+    export QWEN_MODEL_ID='Qwen/Qwen2.5-7B-Instruct'
     export PEFT_TARGET_MODULES='q_proj,k_proj,v_proj,o_proj'
     export PEFT_MAX_STEPS='1000'
     export RUNTIME_BACKEND='transformers'

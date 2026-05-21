@@ -24,7 +24,7 @@
 #   CORPUS_ROOT   — L0/L1/L2 shared root (default: data/figure_corpus)
 #   BUNDLE_ROOT   — persisted bundle root (default: data/figure_bundles)
 #   AUDIT_ROOT    — audit log root (default: data/figure_audit)
-#   MAX_PAGES     — figure_crawl run --max-pages (default: 30)
+#   MAX_PAGES     — figure_crawl run --max-pages (default: 100)
 #   RATE_RPS      — figure_crawl run --rate-rps (default: 0.5)
 #   BURST         — figure_crawl run --burst (default: 5)
 #   METADATA_FILE — curator-staged CuratedSourceMetadata JSONL for step 5
@@ -41,7 +41,7 @@ SEEDS_FILE="${SEEDS_FILE:-packages/lifeform-domain-figure/data/seeds/einstein-20
 CORPUS_ROOT="${CORPUS_ROOT:-data/figure_corpus}"
 BUNDLE_ROOT="${BUNDLE_ROOT:-data/figure_bundles}"
 AUDIT_ROOT="${AUDIT_ROOT:-data/figure_audit}"
-MAX_PAGES="${MAX_PAGES:-30}"
+MAX_PAGES="${MAX_PAGES:-100}"
 RATE_RPS="${RATE_RPS:-0.5}"
 BURST="${BURST:-5}"
 METADATA_FILE="${METADATA_FILE:-}"

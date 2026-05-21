@@ -23,11 +23,12 @@
     listed in .NOTES for power users.
 
 .PARAMETER Mode
-    'real' (default; ~30-45 minutes, GPU/MPS strongly recommended) --
-    Qwen/Qwen2.5-1.5B-Instruct + PEFT q/k/v/o LoRA on the Wave K
-    Einstein curated corpus. Produces the hand-on-table demo where
-    einstein-raw / einstein-bundle / einstein-full show distinct
-    behaviour.
+    'real' (default; ~30-60 minutes on a 24 GB GPU, GPU strongly
+    recommended) -- Qwen/Qwen2.5-7B-Instruct + PEFT q/k/v/o LoRA on
+    the Wave K Einstein curated corpus. Produces the hand-on-table
+    demo where einstein-raw / einstein-bundle / einstein-full show
+    distinct behaviour. Edit ``$QwenModelId`` in this script to
+    swap to Qwen2.5-1.5B-Instruct on tighter-VRAM hosts.
 
     'smoke' (opt-in, fully offline, ~5 minutes on CPU) -- proves the
     L1/L2/L3/L4 chain wires end-to-end with tiny-gpt2 + synthetic
@@ -106,7 +107,7 @@
       CORPUS_ROOT            data\figure_corpus
       BUNDLE_ROOT            data\figure_bundles
       AUDIT_ROOT             data\figure_audit
-      MAX_PAGES              30
+      MAX_PAGES              100
       RATE_RPS               0.5
       BURST                  5
 
@@ -492,7 +493,14 @@ function Get-BundleIdFromStdout {
 # These four are now Mode-determined, period; the .NOTES env-var
 # override list deliberately excludes them.
 if ($Mode -eq 'real') {
-    $QwenModelId          = 'Qwen/Qwen2.5-1.5B-Instruct'
+    # Default: Qwen2.5-7B-Instruct (bf16 ~15 GB VRAM; fits a single
+    # RTX 4090 24 GB / RTX 4090D / A6000 / L40 etc.). PEFT bake on
+    # 7B with q/k/v/o rank-8 LoRA trains ~16 M adapter params; bake
+    # + verify on the einstein corpus is ~30-60 min wall-clock on a
+    # 4090. For lower-VRAM hosts edit this line to
+    # 'Qwen/Qwen2.5-1.5B-Instruct' (or smaller) — Mode-driven by
+    # design, not env-overridable (see comment block above).
+    $QwenModelId          = 'Qwen/Qwen2.5-7B-Instruct'
     $PeftTargetModules    = 'q_proj,k_proj,v_proj,o_proj'
     $PeftMaxSteps         = '1000'
     $RuntimeBackend       = 'transformers'
@@ -545,7 +553,7 @@ $FigureContextFile = Get-DefaultValue 'FIGURE_CONTEXT_FILE' (Join-Path $RootDir 
 $CorpusRoot        = Get-DefaultValue 'CORPUS_ROOT'        (Join-Path $RootDir 'data\figure_corpus')
 $BundleRoot        = Get-DefaultValue 'BUNDLE_ROOT'        (Join-Path $RootDir 'data\figure_bundles')
 $AuditRoot         = Get-DefaultValue 'AUDIT_ROOT'         (Join-Path $RootDir 'data\figure_audit')
-$MaxPages          = Get-DefaultValue 'MAX_PAGES'          '30'
+$MaxPages          = Get-DefaultValue 'MAX_PAGES'          '100'
 $RateRps           = Get-DefaultValue 'RATE_RPS'           '0.5'
 $Burst             = Get-DefaultValue 'BURST'              '5'
 

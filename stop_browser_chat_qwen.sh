@@ -4,6 +4,8 @@
 # Usage:
 #   bash stop_browser_chat_qwen.sh
 #   PORT=8766 bash stop_browser_chat_qwen.sh
+#
+# Windows: .\stop_browser_chat_qwen.ps1  (or $env:PORT='8766')
 
 set -euo pipefail
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Start the browser chat service with a real Hugging Face Qwen substrate.
 #
-# Default: Einstein full vertical (bundle + LoRA) with Qwen2.5-1.5B-Instruct,
+# Default: Einstein full vertical (bundle + LoRA) with Qwen2.5-7B-Instruct,
 # aligned with ``./einstein.sh`` real mode and start_browser_chat_qwen.ps1.
 # For the generic companion vertical instead:
 #   VERTICAL=companion bash start_browser_chat_qwen.sh
-# For richer coherence, override MODEL_ID:
+# To drop down to a lighter model on tighter-VRAM hosts:
 #
-#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct   # better coherence
-#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct   # recommended quality bar
+#   MODEL_ID=Qwen/Qwen2.5-3B-Instruct   # ~8 GB bf16
+#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct # ~4 GB bf16
 #
 # ---------------------------------------------------------------------
 # What you can actually run locally
@@ -16,13 +16,13 @@
 # Reference target: MacBook Air M4, 24 GB unified memory, ~30 GB free disk.
 # bf16 = transformers default, Q4 = GGUF / llama.cpp 4-bit quantization.
 #
-#   Model                       bf16 RAM   Q4 RAM   Disk    Verdict on M4 24GB
+#   Model                       bf16 VRAM  Q4 VRAM  Disk    Verdict on RTX 4090 24GB
 #   --------------------------- ---------- -------- ------- ------------------
-#   Qwen2.5-0.5B-Instruct       ~ 1 GB     ~ 0.5 GB  1 GB   default (fast/weak)
-#   Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   too weak for VZ prompt
+#   Qwen2.5-0.5B-Instruct       ~ 1 GB     ~ 0.5 GB  1 GB   trivial / wiring check
+#   Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   tight-VRAM fallback
 #   Qwen2.5-3B-Instruct         ~ 8 GB     ~ 2 GB    6 GB   borderline coherent
-#   Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   recommended quality bar
-#   Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 OK
+#   Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   default (bf16 fits)
+#   Qwen2.5-14B-Instruct        ~28 GB     ~ 9 GB   28 GB   bf16 NO; Q4 fits
 #   Qwen2.5-32B-Instruct        ~64 GB     ~18 GB   62 GB   bf16 NO; Q4 tight
 #   Qwen2.5-72B-Instruct       ~145 GB     ~40 GB  145 GB   NOT runnable locally
 #   Qwen3-235B-A22B (MoE)      ~470 GB    ~120 GB  470 GB   NOT runnable locally
@@ -105,9 +105,9 @@
 # ---------------------------------------------------------------------
 # Usage
 # ---------------------------------------------------------------------
-#   bash start_browser_chat_qwen.sh                                # Einstein 1.5B default
+#   bash start_browser_chat_qwen.sh                                # Einstein 7B default
 #   MODEL_ID=Qwen/Qwen2.5-3B-Instruct bash start_browser_chat_qwen.sh
-#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct bash start_browser_chat_qwen.sh
+#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct bash start_browser_chat_qwen.sh
 #
 # If HuggingFace is slow / blocked, route through the mirror:
 #   HF_ENDPOINT=https://hf-mirror.com bash start_browser_chat_qwen.sh
@@ -116,7 +116,7 @@
 # Useful env:
 #   HOST=127.0.0.1
 #   PORT=8765
-#   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct      # default; matches einstein real mode
+#   MODEL_ID=Qwen/Qwen2.5-7B-Instruct        # default; matches einstein real mode
 #   VERTICAL=einstein-full                   # bundle + LoRA; set companion for generic chat
 #   DEVICE=auto
 #   LOCAL_FILES_ONLY=0
@@ -277,7 +277,7 @@ export VERTICAL="${VERTICAL:-einstein-full}"
 export EINSTEIN_BUNDLE_ROOT="${EINSTEIN_BUNDLE_ROOT:-${ROOT_DIR}/data/figure_bundles}"
 export EINSTEIN_BUNDLE_ID="${EINSTEIN_BUNDLE_ID:-}"
 export EINSTEIN_REQUIRE_REAL_BUNDLE="${EINSTEIN_REQUIRE_REAL_BUNDLE:-0}"
-export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-1.5B-Instruct}"
+export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
 if has_nvidia_gpu; then
   export DEVICE="${DEVICE:-cuda}"
 else

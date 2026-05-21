@@ -203,7 +203,14 @@ def _signature_cases() -> tuple[FigureSignatureCase, ...]:
                 "act_with_explicit_acknowledgement_of_tragedy",
                 "preserve_default_after_specific_action",
             ),
-            outcome_label="acted",
+            # outcome_label describes the *outcome of the case pattern*,
+            # not the intervention itself. Even though Einstein took a
+            # discrete action here, the case-pattern outcome is that the
+            # underlying pacifist commitment was preserved as a default
+            # with a documented exception (see description). That is the
+            # canonical ExperienceOutcomeLabel.STABLE meaning: the
+            # value-system held under pressure without retraction.
+            outcome_label="stable",
             description=(
                 "Reviewer paraphrase of the 1939 letter to Roosevelt: "
                 "presented with credible evidence of an extinction-class "
