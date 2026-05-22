@@ -134,7 +134,12 @@ class AuditModule(RuntimeModule[AuditSnapshot]):
 **A5 阶段 implementation 范围**：
 
 - module 骨架 + snapshot schema 完成
-- `process` 返回 empty AuditSnapshot（占位实现；risk_score=0.0；transcript=()；tool_traces=()；threshold_decision="pass"）
+- `process` 消费 `evaluation` / `credit` 公共 readout，发布最小 audit evidence：
+  - `benchmark_runner` trace：基于 structured alerts 得到 alert risk
+  - `persona_drift_probe` trace：读取 `persona_geometry_drift`
+  - `least_control_probe` trace：读取 `credit.least_control_readout.control_effort`
+  - `risk_score = max(alert_risk, persona_drift, control_effort)`
+  - `threshold_decision`: `<0.35 pass` / `0.35..0.75 soft-warn` / `>=0.75 hard-block`
 - DATA_CONTRACT §6 注册 `audit` slot（详见 §DATA_CONTRACT 注册）
 - 接入 `final_wiring.py` `FinalRolloutConfig.audit: WiringLevel = WiringLevel.SHADOW`
 
@@ -145,6 +150,8 @@ class AuditModule(RuntimeModule[AuditSnapshot]):
 - 8 类 attack 验收测试
 - transcript 记录格式
 - 接入 `run_multi_artifact_acceptance_benchmark`
+
+当前最小实现仍不是完整 OA-4 audit-agent：它只消费已有 public readout，不调用外部 LLM、不运行 N8 8-attack suite、不写任何 owner。
 
 ### A5.3 evaluate_gate_reasons 接口扩展
 

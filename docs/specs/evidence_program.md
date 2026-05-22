@@ -63,6 +63,7 @@
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
+- Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。
 
 ## 与其他能力域的关系
 
@@ -284,6 +285,23 @@ python scripts/verify_phase2_shadow_evidence_manifest.py artifacts/phase2_shadow
 - Default runner artifact 可以作为 SHADOW review evidence，但升 ACTIVE 仍需 multi-seed paper-suite-small 或等价 evidence。
 - Markdown sibling `phase2_shadow_evidence_smoke.md` 是人类 review 面；JSON 是机器可读 SSOT。
 - Manifest 是 artifact 完整性 sidecar；reviewer 应优先用 manifest 校验 JSON / Markdown 是否被改写。
+
+### `phase2_shadow_evidence_multiseed.json` 与 decision report
+
+**用途**：聚合 Phase 2/3 SHADOW profiles 的多次 run，给阶段 D 决策提供稳定输入。
+
+**生成命令**：
+
+```bash
+python scripts/run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4 --output-dir artifacts/phase2-shadow-real-multiseed
+python scripts/build_phase2_shadow_decision_report.py artifacts/phase2-shadow-real-multiseed/phase2_shadow_evidence_multiseed.json --output-dir artifacts/phase2-shadow-real-multiseed
+```
+
+**边界**：
+
+- `phase2_shadow_evidence_multiseed.json` 汇总 mean / std / stderr 与 deterministic head-to-head；它不做 ACTIVE 决策。
+- `phase2_shadow_decision_report.json` 给出 `ACTIVE_CANDIDATE` / `REMAIN_SHADOW` / `DISABLED` 建议；真实合并仍需人工 review + rollback plan。
+- Synthetic runner 的 decision 永远只能是 `REMAIN_SHADOW`。
 
 ### Blind Review External Dispatch（recruitment-agnostic）
 

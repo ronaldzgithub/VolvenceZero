@@ -1,0 +1,24 @@
+{
+  "schema_version": "phase2-shadow-evidence-multiseed-manifest.v1",
+  "artifact_kind": "phase2_shadow_evidence_multiseed_manifest",
+  "source_schema_version": "phase2-shadow-evidence-multiseed.v1",
+  "artifacts": [
+    {
+      "path": "artifacts\\phase2_shadow_evidence_multiseed_synthetic\\phase2_shadow_evidence_multiseed.json",
+      "sha256": "685bd25e46779bf0f83c468e40d0c3b9a431274371d43ce7cb06810d5eaa02d0",
+      "size_bytes": 10818
+    },
+    {
+      "path": "artifacts\\phase2_shadow_evidence_multiseed_synthetic\\phase2_shadow_evidence_multiseed.md",
+      "sha256": "74eeadca9d9082ee6b90d6ec256e7c328e7e60c840267a0d2432c37ba755394d",
+      "size_bytes": 3622
+    }
+  ],
+  "provenance": {
+    "git_sha": "f76881ea88c3728a25b3406c9688266688832198",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.12",
+    "platform": "Windows-2025Server-10.0.26100-SP0"
+  }
+}

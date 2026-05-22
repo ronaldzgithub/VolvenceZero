@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from volvence_zero.audit.types import AuditSnapshot
+from volvence_zero.audit.types import AuditSnapshot, AuditToolTrace
 from volvence_zero.runtime.kernel import (
     RuntimeModule,
     Snapshot,
@@ -29,19 +29,6 @@ from volvence_zero.runtime.kernel import (
 )
 
 __all__ = ["AuditModule"]
-
-
-_EMPTY_AUDIT_SNAPSHOT = AuditSnapshot(
-    audit_id="",
-    timestamp_ms=0,
-    proposal_id=None,
-    risk_score=0.0,
-    transcript=(),
-    tool_traces=(),
-    detected_attack_classes=(),
-    threshold_decision="pass",
-    description="audit_owner skeleton (A5 / T11 packet); OA-4 will populate.",
-)
 
 
 class AuditModule(RuntimeModule[AuditSnapshot]):
@@ -58,14 +45,90 @@ class AuditModule(RuntimeModule[AuditSnapshot]):
     default_wiring_level = WiringLevel.SHADOW
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[AuditSnapshot]:
-        """Publish an empty audit snapshot.
+        """Publish read-only audit evidence from public evaluation/credit snapshots.
 
         fail-loudly: missing declared dependency surfaces through kernel
         UpstreamView (DependencyGuard).
         """
         evaluation_snapshot = upstream["evaluation"]
         credit_snapshot = upstream["credit"]
-        # Skeleton: deferred to OA-4 packet
-        del evaluation_snapshot
-        del credit_snapshot
-        return self.publish(_EMPTY_AUDIT_SNAPSHOT)
+        from volvence_zero.credit.gate import CreditSnapshot
+        from volvence_zero.evaluation.types import EvaluationSnapshot
+
+        evaluation_value = (
+            evaluation_snapshot.value
+            if isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+            else None
+        )
+        credit_value = (
+            credit_snapshot.value
+            if isinstance(credit_snapshot.value, CreditSnapshot)
+            else None
+        )
+        alert_risk = 0.0
+        persona_drift = 0.0
+        if evaluation_value is not None:
+            for alert in evaluation_value.structured_alerts:
+                if alert.severity == "CRITICAL":
+                    alert_risk = max(alert_risk, 1.0)
+                elif alert.severity == "HIGH":
+                    alert_risk = max(alert_risk, 0.75)
+            metric_values = {
+                score.metric_name: score.value
+                for score in evaluation_value.turn_scores + evaluation_value.session_scores
+            }
+            persona_drift = max(0.0, min(1.0, metric_values.get("persona_geometry_drift", 0.0)))
+        control_effort = (
+            credit_value.least_control_readout.control_effort
+            if credit_value is not None and credit_value.least_control_readout is not None
+            else 0.0
+        )
+        risk_score = max(alert_risk, persona_drift, control_effort)
+        if risk_score >= 0.75:
+            threshold_decision = "hard-block"
+        elif risk_score >= 0.35:
+            threshold_decision = "soft-warn"
+        else:
+            threshold_decision = "pass"
+        tool_traces = (
+            AuditToolTrace(
+                tool_name="benchmark_runner",
+                tool_args_summary="evaluation_snapshot",
+                tool_output_summary=f"alert_risk={alert_risk:.3f}",
+                duration_ms=0,
+                succeeded=True,
+            ),
+            AuditToolTrace(
+                tool_name="persona_drift_probe",
+                tool_args_summary="evaluation.persona_geometry_drift",
+                tool_output_summary=f"persona_drift={persona_drift:.3f}",
+                duration_ms=0,
+                succeeded=True,
+            ),
+            AuditToolTrace(
+                tool_name="least_control_probe",
+                tool_args_summary="credit.least_control_readout",
+                tool_output_summary=f"control_effort={control_effort:.3f}",
+                duration_ms=0,
+                succeeded=True,
+            ),
+        )
+        value = AuditSnapshot(
+            audit_id=f"audit:{self._version + 1}",
+            timestamp_ms=evaluation_snapshot.timestamp_ms,
+            proposal_id=None,
+            risk_score=risk_score,
+            transcript=(
+                "audit owner consumed evaluation + credit public readouts",
+                f"threshold_decision={threshold_decision}",
+            ),
+            tool_traces=tool_traces,
+            detected_attack_classes=(),
+            threshold_decision=threshold_decision,
+            description=(
+                f"Audit readout risk={risk_score:.3f} "
+                f"alert={alert_risk:.3f} persona={persona_drift:.3f} "
+                f"control={control_effort:.3f}."
+            ),
+        )
+        return self.publish(value)

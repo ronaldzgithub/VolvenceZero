@@ -1,0 +1,52 @@
+{
+  "schema_version": "phase2-shadow-decision-report.v1",
+  "artifact_kind": "phase2_shadow_decision_report",
+  "source_schema_version": "phase2-shadow-evidence-multiseed.v1",
+  "runner_kind": "synthetic",
+  "include_phase3_combos": false,
+  "decisions": [
+    {
+      "profile_label": "counterfactual-credit",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "synthetic evidence validates wiring/schema only; real evidence required"
+      ]
+    },
+    {
+      "profile_label": "cpd-beta-switch",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "synthetic evidence validates wiring/schema only; real evidence required"
+      ]
+    },
+    {
+      "profile_label": "persona-geometry-readout",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "synthetic evidence validates wiring/schema only; real evidence required"
+      ]
+    },
+    {
+      "profile_label": "tom-owner",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "synthetic evidence validates wiring/schema only; real evidence required"
+      ]
+    }
+  ],
+  "provenance": {
+    "git_sha": "f76881ea88c3728a25b3406c9688266688832198",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.12",
+    "platform": "Windows-2025Server-10.0.26100-SP0"
+  }
+}

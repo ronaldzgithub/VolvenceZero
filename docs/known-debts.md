@@ -1287,8 +1287,8 @@ return (
 - **问题**：2026-05-13 落地的 Arch Uplift Phase 1 是 **schema + 接口 + 骨架 + contract test** 层；6 项实质实施仍未做，每项都是独立 packet：
   1. **A1 阶段 2**：[`packages/vz-runtime/src/volvence_zero/agent/dialogue/_legacy.py`](../packages/vz-runtime/src/volvence_zero/agent/dialogue/_legacy.py) legacy 11 个 profile 仍用 `if profile_label == "X"` 分支；**但 Phase 2 四条候选 profile 已接入 registry + dispatch**（`cpd-beta-switch` / `counterfactual-credit` / `tom-owner` / `persona-geometry-readout`），作为最小 SHADOW evidence 入口。剩余 debt 是把 legacy 11 个 profile 也迁到 registry-first dispatch。
   2. **A2 backbone 迁移**：[`packages/vz-cognition/src/volvence_zero/evaluation/backbone.py`](../packages/vz-cognition/src/volvence_zero/evaluation/backbone.py) compute_* helpers 仍在原文件，未搬到 `cheap_layer.py`；当前 `EvaluationCheapLayer` 仅是 marker facade。
-  3. **A2 cascade 实际计算**：[`evaluation/mid_layer.py`](../packages/vz-cognition/src/volvence_zero/evaluation/mid_layer.py) / [`expensive_layer.py`](../packages/vz-cognition/src/volvence_zero/evaluation/expensive_layer.py) / [`cross_generation_aggregator.py`](../packages/vz-cognition/src/volvence_zero/evaluation/cross_generation_aggregator.py) `process()` 返回 empty snapshot；真实 ablation aggregation / counterfactual readout 抽取 / head-to-head winrate / LLM-judge readout 都没做。
-  4. **A5 audit-agent 内容**：[`packages/vz-cognition/src/volvence_zero/audit/module.py`](../packages/vz-cognition/src/volvence_zero/audit/module.py) `AuditModule.process()` 返回 empty AuditSnapshot；N8 风格 tool loop（dataset inspector / benchmark runner / persona drift probe / memprobe runner）+ risk score 计算 + 8 类 attack 验收完全未做（归 OA-4 业务 packet）。
+  3. **A2 cascade 实际计算**：[`evaluation/mid_layer.py`](../packages/vz-cognition/src/volvence_zero/evaluation/mid_layer.py) 已能抽 COG-1 readout，`expensive_layer.py` 已能从 metric means 生成 deterministic head-to-head，`cross_generation_aggregator.py` 已能聚合 gate evidence。剩余 debt 是把这些从脚本 utility 推进到正式 runtime/cascade process 与真实 multi-seed aggregate。
+  4. **A5 audit-agent 内容**：[`packages/vz-cognition/src/volvence_zero/audit/module.py`](../packages/vz-cognition/src/volvence_zero/audit/module.py) 已从 empty snapshot 推进到 readout-only probes（evaluation alert / persona drift / least-control effort）并发布 risk score。剩余 debt 是 N8 8-attack elicited probe 工具链（dataset inspector / benchmark runner / persona drift probe / memprobe runner）与 rare-heavy `audit_required=True`。
   5. **B2 阶段 2**：[`packages/vz-substrate/src/volvence_zero/substrate/adapter.py`](../packages/vz-substrate/src/volvence_zero/substrate/adapter.py) `feature_surface` / `residual_activations` 仍是 recommended 而非 abstract；contract test [`test_substrate_feature_hook_completeness.py::test_production_adapter_hook_population_report`](../tests/contracts/test_substrate_feature_hook_completeness.py) 当前是 informational SKIP（pre-promotion）。
   6. **B3 benchmark union**：`RuntimeModule.declare_benchmark_metrics()` 接口已建；dialogue / paper-suite benchmark 的 `metric_means` 仍主要是硬编码 key 集。**Phase 2 候选 readout 已手动接入 `metric_means`**（CPD / least-control / ToM interlocutor count / persona geometry），剩余 debt 是改为 `union(hardcoded, declared)` 的通用声明式抽取。
 - **违反**：不违反 R 铁律。Phase 1 已经把所有不变量（R2 frozen base / R4 token 空间禁忌 / R8 SSOT / R12 evaluation = readout / R15 可回滚）都纳入 contract test 守门。这条债是**"骨架已立但还没装内容"**的工程残余，不是设计缺陷。
@@ -1302,7 +1302,7 @@ return (
   - **COG-3 起跑**（persona drift readout 需要真 feature_surface）→ 触发 (5)
   - **OA-4 业务 packet 启动**（audit-agent 工具集） → 触发 (4)
   - **阶段 C 多 profile 对照** 想用 mid_layer 的 ablation delta → 触发 (3) 的 mid_layer 部分
-  - **阶段 D 决策**（profile → ACTIVE 切换）想用 cross-generation winrate + audit evidence → 触发 (3) + (4) 全部
+  - **阶段 D 决策**（profile → ACTIVE 切换）想从 synthetic/single-run 升级到真实 multi-seed verdict → 触发 (3) runtime aggregate + (4) full audit-agent
   - **Arch Uplift "完整完成"判定**（[`experiment-arch-uplift.md`](moving%20forward/experiment-arch-uplift.md) §10 5 条退出条件）→ 触发全部 6 项
 - **推荐修法**（按依赖图，可并行 / 串行明确）：
   1. **(1) + (6) 已有 Phase 2 最小切片**：四条候选已能显式跑 SHADOW profile，且关键 readout 已进 `metric_means`。剩余工作是泛化 legacy dispatch 与声明式 metric union。
@@ -1328,7 +1328,7 @@ return (
   - **COG-1 reframed（least-control + counterfactual credit）**：已新增 `CreditSnapshot.least_control_readout`，并让 evaluation mid layer 抽取 least-control / counterfactual readout。
   - **COG-2 reframed（ToM / 多人归因）**：已新增 `ToMInterlocutorRecordCount` / `tom_record_counts_by_interlocutor(...)`，并让 dialogue `metric_means` 暴露 `tom_distinct_interlocutor_max` / `tom_record_total_max`。
   - **SHADOW profile + metric 面**：四条 profile 已注册并可通过 `default_phase2_shadow_evidence_profiles()` / `run_phase2_shadow_evidence_smoke.py` 显式跑；默认 ablation / strong-proof 矩阵不包含它们。
-  - **阶段 D 决策机制**：依赖 [#43](#43) 子项 (3) cross_generation_aggregator 实际 winrate 计算 + 子项 (4) audit-agent 让 ModificationGate 三类证据齐全；当前没有自动化的"哪些 SHADOW profile 升 ACTIVE"决策路径。
+  - **阶段 D 决策机制**：`build_phase2_shadow_decision_report.py` 已能基于 multi-seed JSON 输出 `ACTIVE_CANDIDATE` / `REMAIN_SHADOW` / `DISABLED` 建议；当前缺真实 5-seed evidence 与 OA-4 full audit-agent，因此只能作为首版 decision-support，不是自动合并门。
 - **违反**：不违反 R 铁律。每个候选都遵循 Phase 1 的 profile composition + capability wiring 接口，行为隔离 + 可回滚 + 不污染现有 owner SSOT。COG-1 / COG-2 / COG-3 的"现状盲点"段落在 phase-a-brief 中已被 PARTIALLY-REFUTED，实际工作量比 [`探索方向.md`](moving%20forward/探索方向.md) 原描述小一档（4 个 ToM slot 已 ACTIVE / COCOA Phase 1.A+2.A 已上线 / multi_party_scenarios 已有 fixture）。
 - **风险**：
   - **短期低**：不做不影响 functionality，现有系统照常运行；阶段 A brief 已经记录所有候选的 ROI 与依赖。
@@ -1342,9 +1342,9 @@ return (
 - **推荐修法**（按 [`experiment.md`](moving%20forward/experiment.md) §6 推荐起跑顺序）：
   1. **已完成最小切片**：SYS-1 / COG-3 / COG-1 / COG-2 readout + profile + metrics + synthetic smoke。
   2. **下一步**：真实 runner 跑 `scripts/run_phase2_shadow_evidence_smoke.py --case-limit 1`，确认非 synthetic path 可完成；再扩到全 4 canonical cases。
-  3. **再下一步**：写 5 seeds wrapper / paper-suite-small aggregate，把每条 profile 的 metric delta 固化为 evidence bundle。
-  4. **阶段 D 前置**：实现 cross-generation aggregator 的真实 winrate 计算，并接 OA-4 audit-agent 内容。
-  5. **阶段 D — 组合 profile + ACTIVE 决策**：每条候选 SHADOW evidence 跑 ≥ 5 seeds × paper-suite-small PASS 后，再用组合 profile（如 SYS-1 ⊗ COG-1 PE-first 配对）跑第二轮；建立 "metric delta vs baseline + acceptance gate + rollback evidence" 三选一硬证据规则，由 [#43](#43) 子项 (3) cross_generation_aggregator 自动汇总。
+  3. **已完成 wrapper / decision-support**：`run_phase2_shadow_evidence_multiseed.py` 与 `build_phase2_shadow_decision_report.py` 已落地；synthetic 2-seed + Phase 3 combo smoke 已跑通。
+  4. **下一步**：真实 runner 跑 `run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4`，再生成 decision report。
+  5. **阶段 D — 组合 profile + ACTIVE 决策**：真实 multi-seed 后再用组合 profile（如 SYS-1 ⊗ COG-1 PE-first 配对）跑第二轮；建立 "metric delta vs baseline + acceptance gate + rollback evidence" 三选一硬证据规则。
   6. **配套**：每条候选的 SHADOW evidence 走 [`docs/specs/<candidate>-shadow-evidence-<date>.md`](specs/) 模板沉淀，让 PR review 阶段一眼看到 metric_means delta + 何时切 ACTIVE 的判定基准；模板已由 B4 [`run_shadow_evidence_template.py`](../scripts/run_shadow_evidence_template.py) 自动生成。
 - **优先级**：**低**（用户 2026-05-13 明确指示）。阶段 A brief 已经把每个候选的工作量 / 耦合 / 起跑前置都核查清楚，按条触发即可；不存在"必须在 X 时间前跑完"的硬截止。
 

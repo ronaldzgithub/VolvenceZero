@@ -16,6 +16,7 @@ Done 检查 阶段 1:
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import pathlib
 
@@ -31,9 +32,10 @@ from volvence_zero.credit.gate import (
     ModificationProposal,
     evaluate_gate_reasons,
 )
-from volvence_zero.evaluation.types import EvaluationSnapshot
+from volvence_zero.credit import CreditSnapshot
+from volvence_zero.evaluation.types import EvaluationAlert, EvaluationScore, EvaluationSnapshot
 from volvence_zero.integration.final_wiring import FinalRolloutConfig
-from volvence_zero.runtime.kernel import WiringLevel
+from volvence_zero.runtime.kernel import Snapshot, WiringLevel
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +114,65 @@ def test_audit_module_can_be_constructed() -> None:
     """Pre-A5 callers should not need any change to import / construct."""
     m = AuditModule()
     assert m.wiring_level is WiringLevel.SHADOW
+
+
+def test_audit_module_publishes_readout_from_evaluation_and_credit() -> None:
+    audit = AuditModule(wiring_level=WiringLevel.ACTIVE)
+    snapshot = asyncio.run(
+        audit.process(
+            {
+                "evaluation": Snapshot(
+                    slot_name="evaluation",
+                    owner="EvaluationModule",
+                    version=1,
+                    timestamp_ms=10,
+                    value=EvaluationSnapshot(
+                        turn_scores=(
+                            EvaluationScore(
+                                family="safety",
+                                metric_name="persona_geometry_drift",
+                                value=0.6,
+                                confidence=0.7,
+                                evidence="persona drift readout",
+                            ),
+                        ),
+                        session_scores=(),
+                        alerts=(),
+                        description="eval",
+                        structured_alerts=(
+                            EvaluationAlert(
+                                code="high-risk",
+                                severity="HIGH",
+                                family="safety",
+                                metric_name="risk",
+                                description="risk",
+                            ),
+                        ),
+                    ),
+                ),
+                "credit": Snapshot(
+                    slot_name="credit",
+                    owner="CreditModule",
+                    version=1,
+                    timestamp_ms=10,
+                    value=CreditSnapshot(
+                        recent_credits=(),
+                        recent_modifications=(),
+                        cumulative_credit_by_level=(),
+                        description="credit",
+                    ),
+                ),
+            }
+        )
+    )
+
+    assert snapshot.value.risk_score == 0.75
+    assert snapshot.value.threshold_decision == "hard-block"
+    assert {trace.tool_name for trace in snapshot.value.tool_traces} == {
+        "benchmark_runner",
+        "persona_drift_probe",
+        "least_control_probe",
+    }
 
 
 # ---------------------------------------------------------------------------
