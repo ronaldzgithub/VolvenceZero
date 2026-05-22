@@ -27,6 +27,16 @@ Public exports:
 
 from __future__ import annotations
 
+from dlaas_platform_contracts.adoption import (
+    AdoptionConfig,
+    MemoryPolicySelection,
+    OpsPolicySelection,
+    ProtocolSelection,
+    SubstrateSelection,
+    ToolPolicySelection,
+    TrainingPolicySelection,
+    VerticalSelection,
+)
 from dlaas_platform_contracts.dispatch_vocab import (
     CommandName,
     FeedbackValence,
@@ -51,6 +61,19 @@ from dlaas_platform_contracts.eval import (
     LaunchLicenseSpec,
     RubricEntry,
 )
+from dlaas_platform_contracts.lifecycle import (
+    InstanceLifecycleState,
+    InstanceStatus,
+    SleepRequest,
+    WakeRequest,
+)
+from dlaas_platform_contracts.observability import (
+    ExplainTrace,
+    LifeBlueprint,
+    ReadoutBundle,
+    ReadoutView,
+    SnapshotExportRequest,
+)
 from dlaas_platform_contracts.resources import (
     AssetSpec,
     CitationPolicy,
@@ -71,8 +94,16 @@ from dlaas_platform_contracts.resources import (
     TemplateVersionSpec,
     TenantSpec,
 )
+from dlaas_platform_contracts.training import (
+    ProtocolSubmission,
+    ProtocolSubmissionSourceType,
+    TrainingJob,
+    TrainingJobStatus,
+    TrainingJobType,
+)
 
 __all__ = (
+    "AdoptionConfig",
     "AssetSpec",
     "AudienceProfileSpec",
     "CitationPolicy",
@@ -85,28 +116,49 @@ __all__ = (
     "ExamRunSpec",
     "ExamRunStatus",
     "ExamSubmissionScore",
+    "ExplainTrace",
     "FeedbackPayload",
     "FeedbackValence",
     "FocusPersonSpec",
     "HandoffStatus",
     "HandoffTicketSpec",
     "IdentityLinkSpec",
+    "InstanceLifecycleState",
+    "InstanceStatus",
     "InteractionEnvelope",
     "InteractionMode",
     "InteractionType",
     "LaunchLicenseSpec",
+    "LifeBlueprint",
+    "MemoryPolicySelection",
     "ObservationType",
+    "OpsPolicySelection",
     "OutputAct",
     "OutputContract",
+    "ProtocolSelection",
+    "ProtocolSubmission",
+    "ProtocolSubmissionSourceType",
     "ReadinessReport",
+    "ReadoutBundle",
+    "ReadoutView",
     "RubricEntry",
     "ShellKind",
     "ShellSpec",
+    "SleepRequest",
+    "SnapshotExportRequest",
+    "SubstrateSelection",
     "TemplateActivationStatus",
     "TemplateAssetLinkSpec",
     "TemplateSpec",
     "TemplateStatus",
     "TemplateVersionSpec",
     "TenantSpec",
+    "ToolPolicySelection",
+    "TrainingJob",
+    "TrainingJobStatus",
+    "TrainingJobType",
+    "TrainingPolicySelection",
+    "VerticalSelection",
+    "WakeRequest",
     "feedback_valence_to_outcome_kind",
 )

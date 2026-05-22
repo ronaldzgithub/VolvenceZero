@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 
 import pytest
@@ -131,6 +132,32 @@ def test_cascade_role_enum_values_are_canonical() -> None:
     }
 
 
+def test_cascade_facade_reexports_all_tier_surfaces() -> None:
+    """A2 facade invariant: downstream gate / benchmark code can import the
+    cascade surface from one module without reaching into tier internals."""
+    from volvence_zero.evaluation import (
+        CrossGenerationAggregatorModule as PackageAggregatorModule,
+        EvaluationCascadeRole as PackageCascadeRole,
+        ExpensiveLayerModule as PackageExpensiveLayerModule,
+        MidLayerModule as PackageMidLayerModule,
+        ModificationGateEvidence as PackageGateEvidence,
+    )
+    from volvence_zero.evaluation.cascade import (
+        CrossGenerationAggregatorModule as FacadeAggregatorModule,
+        EvaluationCascadeRole as FacadeCascadeRole,
+        ExpensiveLayerModule as FacadeExpensiveLayerModule,
+        MidLayerModule as FacadeMidLayerModule,
+        ModificationGateEvidence as FacadeGateEvidence,
+    )
+
+    assert FacadeCascadeRole is EvaluationCascadeRole
+    assert PackageCascadeRole is FacadeCascadeRole
+    assert PackageMidLayerModule is FacadeMidLayerModule
+    assert PackageExpensiveLayerModule is FacadeExpensiveLayerModule
+    assert PackageAggregatorModule is FacadeAggregatorModule
+    assert PackageGateEvidence is FacadeGateEvidence
+
+
 # ---------------------------------------------------------------------------
 # Mid / expensive / aggregator tier schema (T8 / T9)
 # ---------------------------------------------------------------------------
@@ -142,10 +169,93 @@ def test_mid_layer_module_skeleton() -> None:
 
     assert MidLayerModule.slot_name == "evaluation_mid"
     assert MidLayerModule.owner == "MidLayerModule"
-    assert MidLayerModule.dependencies == ("evaluation",)
+    assert MidLayerModule.dependencies == ("evaluation", "credit")
     from volvence_zero.runtime.kernel import WiringLevel
 
     assert MidLayerModule.default_wiring_level is WiringLevel.DISABLED
+
+
+def test_mid_layer_extracts_credit_owner_cog1_readouts() -> None:
+    """COG-1: mid layer mirrors credit-owned readouts, not recompute them."""
+    from volvence_zero.credit import (
+        CreditLedger,
+        CreditRecord,
+        CounterfactualContributionReadout as CreditCounterfactualReadout,
+        GateDecision,
+        ModificationGate,
+        SelfModificationRecord,
+    )
+    from volvence_zero.evaluation.mid_layer import MidLayerModule
+    from volvence_zero.evaluation.types import EvaluationSnapshot
+    from volvence_zero.memory import Track
+    from volvence_zero.runtime.kernel import Snapshot
+
+    ledger = CreditLedger()
+    ledger.record_credits(
+        (
+            CreditRecord(
+                record_id="r1",
+                level="counterfactual_contribution_learned",
+                track=Track.SHARED,
+                source_event="cocoa:repair:seg:action",
+                credit_value=0.4,
+                context="lineage=commitment:1",
+                timestamp_ms=1,
+            ),
+        )
+    )
+    ledger._recent_counterfactual_readouts.append(  # noqa: SLF001 - contract seed
+        CreditCounterfactualReadout(
+            source_event="cocoa:repair:seg:action",
+            historical_baseline=0.2,
+            learned_baseline=0.1,
+            actual_outcome=0.6,
+            learned_contribution=0.5,
+            validation_delta=0.05,
+            update_count=1,
+            checkpoint_id="ckpt",
+            gate_decision=GateDecision.ALLOW,
+        )
+    )
+    ledger.record_modification(
+        SelfModificationRecord(
+            target="commitment.lineage",
+            gate=ModificationGate.ONLINE,
+            decision=GateDecision.ALLOW,
+            old_value_hash="old",
+            new_value_hash="new",
+            justification="bounded update",
+            timestamp_ms=2,
+            is_reversible=True,
+        )
+    )
+    credit_snapshot = ledger.snapshot()
+
+    snapshot = asyncio.run(
+        MidLayerModule().process(
+            {
+                "evaluation": Snapshot(
+                    slot_name="evaluation",
+                    owner="EvaluationModule",
+                    version=1,
+                    timestamp_ms=1,
+                    value=EvaluationSnapshot((), (), (), "base"),
+                ),
+                "credit": Snapshot(
+                    slot_name="credit",
+                    owner="CreditModule",
+                    version=1,
+                    timestamp_ms=2,
+                    value=credit_snapshot,
+                ),
+            }
+        )
+    )
+
+    metric_names = {score.metric_name for score in snapshot.value.aggregated_scores}
+    assert "least_control_score" in metric_names
+    assert snapshot.value.counterfactual_readouts
+    assert snapshot.value.counterfactual_readouts[0].record_id == "cocoa:repair:seg:action"
 
 
 def test_mid_layer_snapshot_schema_fields() -> None:

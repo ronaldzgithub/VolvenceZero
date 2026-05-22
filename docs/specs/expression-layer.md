@@ -32,6 +32,17 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
    kernel**。kernel `ResponseSynthesizer` 不渲染 per-id 的具体提示文本。
 6. lifeform-expression 的 `_render_reflection` 是 reflection hint 文案的**唯一
    渲染入口**；多入口意味着 SSOT 破裂。
+7. **Mind/Face 隔离**：Face 层（`lifeform-expression` / OpenAI compat renderer /
+   外部 LLM judge 输出）只表达和 readout，不拥有学习、gate、credit、PE 或 memory
+   状态。Face 层不得 import / 调用 `volvence_zero.credit`,
+   `volvence_zero.evaluation`, `volvence_zero.prediction`,
+   `volvence_zero.temporal`, `volvence_zero.memory`,
+   `volvence_zero.regime`, `volvence_zero.audit` 等 Mind / gate owner 包；只允许
+   读取已发布的 response / application contract surface（如
+   `volvence_zero.agent.response`, `volvence_zero.application.runtime`），以及窄化的
+   expression-facing readout contract（如 `volvence_zero.regime.hints`）。
+8. LLM judge / expression naturalness score 永远是 readout；不得写回 reward、
+   `ModificationGate`、controller gradient、Face fine-tune 或 owner 内部状态。
 
 ## 工程挑战
 
@@ -86,6 +97,8 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
   消费者。任何 gate / 评估扩展必须沿用 typed-tag 路径。
 - LLM-backed `LifeformLLMResponseSynthesizer` 通过 `_attach_plan_rationale` 同样
   发布 typed tag。
+- `tests/contracts/test_mind_face_isolation.py` 静态守门 Face 层不得反向 import
+  Mind / gate owner 包，防止表达层在未来 PR 中悄悄变成第二学习源。
 
 ## 变更日志
 
@@ -93,3 +106,6 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
   section variant tags、`ReflectionLessonId` / `ReflectionTensionId` enum、
   `lifeform_expression.reflection_hints` 模块。kernel `ResponseSynthesizer.synthesize`
   移除 inline `lesson_hint_map` / `tension_hint_map`；UX 文案下放 lifeform 层。
+- **2026-05-22**: OA-2 最小收敛切片。显式形式化 Mind/Face 隔离，并增加静态
+  contract test 防止 Face 层反向 import credit / evaluation / PE / memory / regime /
+  audit owner。

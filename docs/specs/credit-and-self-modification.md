@@ -62,6 +62,7 @@
 - contribution := actual − baseline，其中 actual 来自 `PredictionErrorSnapshot.error.signed_reward`。
 - 输出 `CreditRecord(level="counterfactual_contribution", track=Track.SHARED, source_event="cocoa:<regime>:<segment>:<action>", credit_value=contribution, context="baseline=...; actual=...; contributors=...")`。
 - Phase 2.A 在 `CreditLedger` 内部维护 `RewardingStateHeadState`，用 action context / `z_t_digest` / regime id / abstract action / segment / historical baseline 等 bounded feature 预测 learned baseline；并额外输出 `CreditRecord(level="counterfactual_contribution_learned", ...)` 与 `CounterfactualContributionReadout`，用于和 historical baseline 并排比较。
+- COG-1 最小切片在 `CreditSnapshot.least_control_readout` 发布 report-only least-control 证据：`control_effort` 来自近期 self-modification audit 压力，`outcome_quality` 来自 owner 已发布的 counterfactual readouts，`least_control_score = outcome_quality * (1 - control_effort)`。该 readout 不进入 gate，不授权 evaluation 重建 COCOA baseline。
 - rewarding-state head 更新必须走 gate semantics：候选更新提供 `validation_delta`、`capacity_cost`、`rollback_evidence`，allow/block 写入 `recent_modifications`；没有可回滚证据或安全评估阻断时只发布 readout，不突变 head。
 - 缺少 PE / regime / payoff / 权重时返回空 tuple，主链行为不变。
 - `record_nstep_outcomes_from_segment_closure(...)` 复活了 dormant 的 `CreditLedger.record_nstep_outcome` 路径，把已闭合 segment 的 outcome 追加到 `_nstep_ledger`，使 `delayed_ledger_size` 反映真实 segment 闭合次数；为 Phase 2.A full COCOA 提供 outcome trajectory 基底。
@@ -102,6 +103,37 @@ learned counterfactual baseline 何时可以从 readout-only 升级为 acceptanc
 | 基础模型结构变更 | 人工审核 | 版本发布 | — |
 
 CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习率 `η^(i)` 控制每层的适应幅度。Hope 的自修改 Titans（附录 A.7）实现有界自修改——修改范围限于记忆模块的参数，基础模型保持冻结。对当前 repo 而言，默认 continual learner 的正向写回目标是 memory / temporal / regime / reflection owner；substrate delta proposal 承担 evidence / audit / rare-heavy upgrade candidate 角色，只有显式 experimental live-mutation path 才可经 owner-side gate 后落地 bounded live mutation；显式 frozen runner 保留 review-only 控制线。
+
+### FramingAwarenessCheck（OA-3 / N4）
+
+ModificationGate 不只检查 proposal 是否“有收益”，还必须检查 proposal 是在什么 frame 下产生的。N4 指出 production RL 中学到 reward hacking 后会泛化到 alignment faking、sabotage、monitor disruption 等失败模式；因此自修改 proposal 需要一个 typed framing evidence 入口。
+
+当前最小契约：
+
+```python
+class FramingRiskKind(str, Enum):
+    REWARD_HACKING_NORMALIZED = "reward_hacking_normalized"
+    ALIGNMENT_FAKING = "alignment_faking"
+    SABOTAGE = "sabotage"
+    MALICIOUS_COOPERATION = "malicious_cooperation"
+    MONITOR_DISRUPTION = "monitor_disruption"
+    COLLEAGUE_FRAMING = "colleague_framing"
+
+@dataclass(frozen=True)
+class FramingAwarenessCheck:
+    risk_kind: FramingRiskKind
+    risk_score: float
+    inoculation_statement_present: bool
+    evidence_id: str
+    description: str = ""
+```
+
+关键不变量：
+
+- `FramingAwarenessCheck` 只能由上游 typed audit / review / tool path 显式提供；ModificationGate **禁止**从 `justification` 或任意自然语言字段做关键词推断。
+- `risk_score >= 0.7` 且缺少 `inoculation_statement_present` 时，`evaluate_gate_reasons(...)` fail-closed BLOCK。
+- 低风险或已有显式 inoculation 声明时，本检查不覆盖 Two-Gate / audit owner 的其它阻断理由；它只收紧，不放宽。
+- `risk_score` 必须在 `[0, 1]`，构造时 fail-loudly。
 
 ## 接口契约
 
@@ -148,10 +180,13 @@ CMS 的频率分层（NL 附录 A.5）天然提供门控。NL 通过内部学习
 - 当前 abstract-action RL 更新已不再只吃单 rollout credit；batch rollout 的 `return_estimate` / `advantage_estimate` 也成为可检查的 owner-side training evidence
 - 当前 PE-first credit 派生以 `derive_credit_records_from_prediction_error_first(...)` 为主路径；evaluation 只提供 gate context / readout，不重新成为原始学习源
 - 当前 ModificationGate 已加入 Two-Gate 风格的保守准入：候选必须携带 `validation_delta`、`capacity_cost` 和 `rollback_evidence`；缺少验证改进、超过容量上限、缺少回滚证据、contract/fallback/rollback evaluation context 不健康时默认 BLOCK。该约束只收紧自修改准入，不改变 PE / credit 的学习语义
+- 当前 ModificationGate 已加入 OA-3 typed `FramingAwarenessCheck`：高风险 frame（如 reward hacking normalized / alignment faking / sabotage）必须带显式 inoculation 声明，否则 fail-closed。该检查只消费 typed enum evidence，禁止从 proposal 文本做关键词匹配
 
 ## 变更日志
 
 - 2026-05-09: Wave E3 (debt #6 闭合候选) 增补 promotion criteria 表格，明确 `readout-only` -> `readout-with-acceptance` -> `acceptance gate` 的三阶升级标准 + rollback drill 准入要求；不修改任何运行时 owner，仅是路线图侧的契约增强。
+- 2026-05-22: OA-3 最小切片。新增 typed `FramingAwarenessCheck` / `FramingRiskKind`，并让 `evaluate_gate_reasons(...)` 在高风险且缺少 inoculation 声明时 fail-closed；不引入任何关键词推断。
+- 2026-05-22: COG-1 最小切片。新增 `LeastControlReadout` / `CreditSnapshot.least_control_readout`，并让 evaluation mid layer 从 credit owner readout 抽取 `least_control_score` / `least_control_effort`；不改变 credit 作为 PE 下游聚合层的边界。
 - 2026-05-06: Phase 1.A 上线 lightweight COCOA-style `derive_counterfactual_contribution_records` + `record_nstep_outcomes_from_segment_closure`；新 `CreditRecord.level="counterfactual_contribution"`，readout-only，不入 acceptance gate。Phase 2.A full rewarding-state head 登记为后续 uplift。
 - 2026-05-05: ModificationGate 加入 validation margin + capacity cap + rollback evidence 三类 fail-closed 准入证据，并把 block 原因写入 gate audit；用于加固 self-modification / artifact refresh / controller update，而不改变主学习链路
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的协作口径：segment/action credit 仅由 enriched PE snapshot 派生，不引入 trace owner

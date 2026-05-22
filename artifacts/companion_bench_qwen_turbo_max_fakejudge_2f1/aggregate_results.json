@@ -1,0 +1,44 @@
+{
+  "systems": [
+    {
+      "submission_id": "dashscope-qwen_turbo-fakejudge-2f1",
+      "model": "qwen-turbo",
+      "scenario_ids": [
+        "F1-continuity-001",
+        "F1-continuity-002"
+      ],
+      "arc_count": 2,
+      "final_mean": 50.653961485693216,
+      "axis_means": {
+        "A1": 62.0,
+        "A2": 45.0,
+        "A3": 33.5,
+        "A4": 62.0,
+        "A5": 71.5,
+        "A6": 63.5
+      },
+      "a6_cap_rate": null,
+      "summary_path": "artifacts\\companion_bench_qwen_turbo_max_fakejudge_2f1\\dashscope-qwen_turbo-fakejudge-2f1\\summary.json"
+    },
+    {
+      "submission_id": "dashscope-qwen_max-fakejudge-2f1",
+      "model": "qwen-max",
+      "scenario_ids": [
+        "F1-continuity-001",
+        "F1-continuity-002"
+      ],
+      "arc_count": 2,
+      "final_mean": 48.00596046673631,
+      "axis_means": {
+        "A1": 52.0,
+        "A2": 46.0,
+        "A3": 36.5,
+        "A4": 46.0,
+        "A5": 47.5,
+        "A6": 72.0
+      },
+      "a6_cap_rate": null,
+      "summary_path": "artifacts\\companion_bench_qwen_turbo_max_fakejudge_2f1\\dashscope-qwen_max-fakejudge-2f1\\summary.json"
+    }
+  ]
+}

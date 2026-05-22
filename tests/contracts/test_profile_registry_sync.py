@@ -49,6 +49,13 @@ _LEGACY_PROFILE_LABELS: tuple[str, ...] = (
     "heuristic-baseline",
 )
 
+_PHASE2_SHADOW_PROFILE_LABELS: tuple[str, ...] = (
+    "cpd-beta-switch",
+    "counterfactual-credit",
+    "tom-owner",
+    "persona-geometry-readout",
+)
+
 
 def test_registry_validates_at_import_time() -> None:
     """The module-level singleton registry must be valid (validate() PASS).
@@ -83,6 +90,30 @@ def test_every_legacy_label_resolves() -> None:
     assert not unresolved, (
         "registry cannot resolve every legacy profile_label:\n"
         + "\n".join(f"  - {u}" for u in unresolved)
+    )
+
+
+def test_phase2_shadow_candidate_profiles_resolve() -> None:
+    """SYS-1 / COG-1 / COG-2 / COG-3 are registered as explicit SHADOW
+    evidence profiles but are not part of the default benchmark matrix."""
+    for label in _PHASE2_SHADOW_PROFILE_LABELS:
+        resolved = resolve_profile(label)
+        assert resolved.capabilities, f"{label} must declare at least one capability"
+
+    assert tuple(c.name for c in resolve_profile("cpd-beta-switch").capabilities) == (
+        "cpd-beta-switch-readout",
+    )
+    assert tuple(c.name for c in resolve_profile("counterfactual-credit").capabilities) == (
+        "least-control-credit-readout",
+    )
+    assert tuple(c.name for c in resolve_profile("persona-geometry-readout").capabilities) == (
+        "persona-geometry-readout",
+    )
+    assert tuple(c.name for c in resolve_profile("tom-owner").capabilities) == (
+        "belief-about-other-readout",
+        "intent-about-other-readout",
+        "feeling-about-other-readout",
+        "preference-about-other-readout",
     )
 
 

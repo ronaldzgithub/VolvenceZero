@@ -67,6 +67,13 @@ flowchart TB
 
 ## 接口契约
 
+Public HTTP/API details live in [`dlaas-api-v1.md`](./dlaas-api-v1.md).
+This document owns the platform-layer wheel boundaries and internal
+responsibility split; the API v1 spec owns the versioned route shapes
+for OpenAI compatibility, native interactions, adoption contracts,
+protocol/training intake, environment/feedback aliases, and
+wake/sleep/status lifecycle.
+
 ### Wheel 职责
 
 | Wheel | 职责 | 边界规则 |

@@ -169,6 +169,7 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 - 当前 paper-suite 证据导出已开始收敛到统一 evidence-program 口径：dialogue / ETA aggregate 可额外发布 pairwise effects、claim verdicts、blind-review artifact 与 unified evidence bundle，具体 claim-to-evidence 映射见 `docs/specs/evidence_program.md`
 - 这些 kernel 指标当前先进入 evaluation records / session report，不改变 `evaluation` 公共 snapshot shape
 - 当前 session / cross-session report 增加存在性维度 readout：`identity_continuity`、`relationship_repair_continuity`、`async_robustness`。这些指标只由既有 evaluation records 聚合而来，用于长期身份、关系修复连续性和异步/回滚退化监测；不新增 runtime owner，不改变 `EvaluationSnapshot` 公共 shape，也不反向成为学习源
+- COG-3 最小切片新增 read-only persona / regime geometry readout：`persona_geometry_drift` 与 `persona_regime_geometry_alignment` 由 evaluation owner 从 `substrate.feature_surface`（或 residual activations fallback）和 `RegimeSnapshot.active_regime.embedding` 计算并作为普通 `EvaluationScore` 发布。它不改变 `EvaluationSnapshot` 公共 shape，不写 regime / temporal / substrate owner，也不进入 learning source；后续 audit agent 可把它作为 persona drift probe 的工具输入。
 
 ### Dialogue Proof Harness 边界
 
@@ -208,6 +209,7 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 
 ## 变更日志
 
+- 2026-05-22: COG-3 最小切片。新增 evaluation-side read-only `persona_geometry_drift` / `persona_regime_geometry_alignment` enrichment，用于 regime/persona 几何漂移监控；不新增 runtime owner 或 snapshot 字段。
 - 2026-05-05: 将 Sophia / Agent eval 类论文启发收敛为 report-only evidence：新增 identity continuity、relationship repair continuity、async robustness 三类趋势读数，只服务 evidence / gate review，不改运行时学习主链
 - 2026-04-29: regime calibrator 增加 anti-monoculture 多样性约束：
   - 新增 `_apply_diversity_penalty(weights, predicted_counts, total, *, threshold, lr)`：当某一 regime 在预测分布中占比超过 `threshold` 时，按 `factor = 1 - lr * (predicted_share - threshold)` 倍率拉回该 regime 的 selection_weight；预测分布本来就多样时无效（factor=1）

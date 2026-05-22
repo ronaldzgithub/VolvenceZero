@@ -150,13 +150,13 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
     slot_name = "evaluation_mid"
     owner = "MidLayerModule"
     value_type = MidLayerSnapshot
-    dependencies = ("evaluation",)         # 消费 cheap_layer 的 EvaluationSnapshot
+    dependencies = ("evaluation", "credit") # 消费 cheap_layer + credit owner COG-1 readouts
     default_wiring_level = WiringLevel.SHADOW
 ```
 
 **关键不变量（mid_layer）**：
 
-- `dependencies = ("evaluation",)` — 只消费 cheap snapshot，不消费其他 owner
+- `dependencies = ("evaluation", "credit")` — 消费 cheap snapshot 与 credit owner 发布的 counterfactual / least-control readout；不重新计算 credit
 - `aggregated_scores` 不重复 cheap layer 字段；只发布 cheap layer 无法表达的 ablation delta / 跨场景聚合
 - counterfactual_readouts 来自 `credit.counterfactual_readouts` 的镜像，不在本 owner 重新计算（R8 SSOT）
 

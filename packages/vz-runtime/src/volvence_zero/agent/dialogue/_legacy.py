@@ -601,6 +601,16 @@ def default_dialogue_atlas_titans_uplift_profiles() -> tuple[str, ...]:
     return ("pe-eta", "atlas-titans-cms-uplift")
 
 
+_PHASE2_SHADOW_EVIDENCE_PROFILES: frozenset[str] = frozenset(
+    {
+        "cpd-beta-switch",
+        "counterfactual-credit",
+        "tom-owner",
+        "persona-geometry-readout",
+    }
+)
+
+
 def build_dialogue_paper_suite_manifest(
     *,
     suite_tier: str = "paper-suite-small",
@@ -7867,6 +7877,19 @@ def build_standard_dialogue_runner(
 ) -> AgentSessionRunner:
     def _base_session_id(label: str) -> str:
         return f"dialogue-ablation:{label}:{case.case_id}"
+
+    if profile_label in _PHASE2_SHADOW_EVIDENCE_PROFILES:
+        from volvence_zero.agent.profile_registry import resolve_profile
+
+        resolved_profile = resolve_profile(profile_label)
+        config = resolved_profile.apply_to_config(FinalRolloutConfig())
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            config=config,
+            default_residual_runtime=residual_runtime,
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=True,
+        )
 
     if profile_label == "pe-eta":
         return AgentSessionRunner(

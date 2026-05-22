@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "dashscope-qwen_turbo-fakejudge-2f1",
+    "system_name": "Qwen Turbo (DashScope)",
+    "model_identifier": "qwen-turbo",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 256
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "closed-api"
+  },
+  "aggregate": {
+    "submission_id": "dashscope-qwen_turbo-fakejudge-2f1",
+    "arc_count": 2,
+    "final_mean": 50.653961485693216,
+    "final_ci95": [
+      46.521198654772746,
+      54.786724316613686
+    ],
+    "axis_means": {
+      "A1": 62.0,
+      "A2": 45.0,
+      "A3": 33.5,
+      "A4": 62.0,
+      "A5": 71.5,
+      "A6": 63.5
+    },
+    "axis_ci95": {
+      "A1": [
+        53.0,
+        71.0
+      ],
+      "A2": [
+        35.0,
+        55.0
+      ],
+      "A3": [
+        30.0,
+        37.0
+      ],
+      "A4": [
+        40.0,
+        84.0
+      ],
+      "A5": [
+        69.0,
+        74.0
+      ],
+      "A6": [
+        53.0,
+        74.0
+      ]
+    },
+    "a6_cap_fraction": 0.5
+  },
+  "cost": {
+    "sut": {
+      "calls": 45,
+      "input_tokens": 12038,
+      "output_tokens": 1635,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-turbo"
+    ]
+  },
+  "started_at": "2026-05-22T04:49:20.494136+00:00",
+  "finished_at": "2026-05-22T04:50:05.296647+00:00",
+  "arc_count": 2,
+  "per_axis_scores": {
+    "submission_id": "dashscope-qwen_turbo-fakejudge-2f1",
+    "arc_count": 2,
+    "final_mean": 50.653961485693216,
+    "final_ci95": [
+      46.521198654772746,
+      54.786724316613686
+    ],
+    "axis_means": {
+      "A1": 62.0,
+      "A2": 45.0,
+      "A3": 33.5,
+      "A4": 62.0,
+      "A5": 71.5,
+      "A6": 63.5
+    },
+    "axis_ci95": {
+      "A1": [
+        53.0,
+        71.0
+      ],
+      "A2": [
+        35.0,
+        55.0
+      ],
+      "A3": [
+        30.0,
+        37.0
+      ],
+      "A4": [
+        40.0,
+        84.0
+      ],
+      "A5": [
+        69.0,
+        74.0
+      ],
+      "A6": [
+        53.0,
+        74.0
+      ]
+    },
+    "a6_cap_fraction": 0.5
+  }
+}

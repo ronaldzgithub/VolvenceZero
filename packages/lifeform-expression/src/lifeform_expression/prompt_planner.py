@@ -30,7 +30,7 @@ from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.interlocutor import InterlocutorState
-from volvence_zero.regime import ParticipationHint, ParticipationLevel
+from volvence_zero.regime.hints import ParticipationHint, ParticipationLevel
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
     CommonGroundSnapshot,

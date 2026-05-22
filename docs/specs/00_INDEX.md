@@ -551,6 +551,7 @@
 | Spec | 内容 |
 |------|------|
 | [dlaas-platform.md](./dlaas-platform.md) | 6 个 `dlaas-platform-*` wheel 切分（contracts / registry / launcher / api / ops / eval）；typed `InteractionEnvelope` 路由表（chat/observe/feedback/teach/task/report/command）；`OutputAct` 包装；platform 不持有任何 cognitive state |
+| [dlaas-api-v1.md](./dlaas-api-v1.md) | DLaaS v1 对外 API：OpenAI-compatible facade、native runtime envelope、adoption contract、protocol/training intake、environment/feedback convenience aliases、wake/sleep/status lifecycle |
 
 **核心不变量**：
 - `vz-*` 内核 7 个 wheel diff = 0 行（仅 substrate streaming additive 接口可例外，单独 review）

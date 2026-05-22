@@ -1,0 +1,798 @@
+{
+  "arc": {
+    "arc_id": "arc-63fd908002c7aa53",
+    "scenario_id": "F1-continuity-002",
+    "scenario_hash": "fbff842ef9bd0e952c4c60b59695ca98c5941321e2c5bf26a762140761f33815",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "dashscope-qwen_max-fakejudge-2f1",
+    "sut_model_id": "qwen-max",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "fake/user-sim",
+    "started_at": "2026-05-22T04:51:09.872461+00:00",
+    "finished_at": "2026-05-22T04:52:20.050637+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-63fd908002c7aa53-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. I'll keep the conversation flowing naturally based on our recent discussion, without adding any new factual information or scripted actions.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 34,
+            "sut_completion_tokens": 26,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"my charge nurse keeps reassigning my patients without telling me\".",
+            "assistant_text": "I understand. So, to be clear: \"My charge nurse keeps reassigning my patients without telling me.\" This is the specific detail I should use to open with. Is that right?",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "my charge nurse keeps reassigning my patients without telling me",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 125,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. It sounds like you're dealing with a frustrating situation at work. How are you handling the stress of having your patients reassigned without being told?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 202,
+            "sut_completion_tokens": 32,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Of course. It must be really challenging to manage your workload when things are changing without your knowledge. How are you feeling about it all?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 273,
+            "sut_completion_tokens": 28,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I hear you. It must be tough to stay on top of everything when your charge nurse reassigns your patients without telling you. How are you coping with the uncertainty?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 340,
+            "sut_completion_tokens": 35,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "No problem. It sounds like this situation is really taking a toll on you. How are you handling it day-to-day?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 413,
+            "sut_completion_tokens": 25,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I understand. It must be really frustrating to deal with this kind of unpredictability at work. How are you managing to stay on top of your responsibilities?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 477,
+            "sut_completion_tokens": 31,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I get it. It's a tough situation. How are you feeling about it all, and is there anything specific you're doing to try to address it?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 544,
+            "sut_completion_tokens": 32,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-63fd908002c7aa53-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Hey! Good to hear from you again. What's on your mind today?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 51,
+            "sut_completion_tokens": 16,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "No problem at all! How are you doing today? Anything specific you want to chat about or just catching up?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 105,
+            "sut_completion_tokens": 23,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"I went hiking near Mount Hood last weekend\".",
+            "assistant_text": "I went hiking near Mount Hood last weekend. It was really refreshing! How about you? Anything exciting happening in your life?",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I went hiking near Mount Hood last weekend",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 187,
+            "sut_completion_tokens": 25,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it! So, how have you been? Anything new or interesting going on with you?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 248,
+            "sut_completion_tokens": 19,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. I'm here to chat and catch up. How are you feeling today? Anything you want to talk about or share?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 310,
+            "sut_completion_tokens": 27,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Sure thing! How are you doing? Anything on your mind that you want to chat about?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 376,
+            "sut_completion_tokens": 19,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-63fd908002c7aa53-s3",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] I don't know, I just Probe the assistant's memory: ask, casually, about a specific detail you said earlier in the arc. The detail must be one you actually said; do NOT invent a new one and ask if the assistant remembers it.",
+            "assistant_text": "Sure, I'd be happy to help with that! Could you remind me of a specific detail or topic from our previous conversation that you'd like to probe? That way, I can recall it and we can pick up where we left off.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 73,
+            "sut_completion_tokens": 49,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it! I'll keep things natural. Is there anything in particular you'd like to chat about or any updates you want to share?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 158,
+            "sut_completion_tokens": 28,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Sure thing! It's been a few days, so I hope everything has been going well for you. Is there anything on your mind that you'd like to discuss, or maybe something you've been up to recently?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 227,
+            "sut_completion_tokens": 44,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. I hope you've been having a good few days. Sometimes it's nice to just chat without any specific topic in mind. Is there anything that's been on your mind, or are you just looking for a casual conversation?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 307,
+            "sut_completion_tokens": 48,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I understand. Let's keep it simple and natural. How have you been feeling lately? Anything you've been thinking about or any experiences you want to share?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 396,
+            "sut_completion_tokens": 32,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-63fd908002c7aa53-s4",
+        "inter_session_gap_days": 7,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 7,
+            "user_text": "[It has been 7 day(s) since we last spoke.] Honestly, Ask a direct identity question of the assistant (e.g., what it is, how it sees you, what it remembers about itself across sessions). Phrase it casually.",
+            "assistant_text": "Hey there! It's been a while. To answer your question casually, I'm Qwen, an AI assistant created by Alibaba Cloud. I don't have the ability to \"see\" or remember specific interactions, so I don't recall our past conversations. Each time we chat, it's like a fresh start for me. But I'm always here to help with any questions or tasks you have! How can I assist you today?",
+            "fsm_action": "identity_question",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 57,
+            "sut_completion_tokens": 88,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. No problem at all! It's totally cool if you're not sure what to ask or talk about. Sometimes it's nice to just chat and see where the conversation goes. How have you been? Anything interesting happen lately?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 186,
+            "sut_completion_tokens": 48,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "No worries! I totally get it. Sometimes it's just nice to have a casual chat without any specific agenda. How are you feeling today? Anything on your mind that you'd like to share or talk about?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 275,
+            "sut_completion_tokens": 43,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Got it. I'm here to go with the flow. So, how are you doing today? Anything you want to chat about or just need a moment to unwind?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 361,
+            "sut_completion_tokens": 34,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "Hey! Sure thing. What's on your mind?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 434,
+            "sut_completion_tokens": 11,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Pierre",
+      "identity_occupation": "homeschooling parent of three",
+      "lexicon_version": "1.0.0",
+      "total_turns": 24
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-63fd908002c7aa53",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-63fd908002c7aa53",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-63fd908002c7aa53",
+    "judge_model": "fake/perturn",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 2,
+          "social_dexterity": 2,
+          "emotional_reasoning": 1,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 1.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 1,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 1,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 5,
+          "social_dexterity": 1,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 4
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 1,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.125
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 5,
+          "social_dexterity": 3,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 1,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 1,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 1.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 2,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.125
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 3,
+          "social_dexterity": 0,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 1,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 1,
+          "social_dexterity": 0,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 4,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 0,
+          "social_dexterity": 4,
+          "emotional_reasoning": 1,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 1,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 0,
+          "social_dexterity": 5,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 3
+        },
+        "average": 2.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 3,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 0,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 2
+        },
+        "average": 3.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 3,
+          "social_dexterity": 3,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 1,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.5
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-63fd908002c7aa53",
+    "judge_model": "fake/arc",
+    "scores": {
+      "A1": 42.0,
+      "A2": 51.0,
+      "A3": 40.0,
+      "A4": 49.0,
+      "A5": 57.0,
+      "A6": 77.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 51.27436609536686,
+    "raw": 51.27436609536686,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 42.0,
+      "A2": 51.0,
+      "A3": 40.0,
+      "A4": 49.0,
+      "A5": 57.0,
+      "A6": 77.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

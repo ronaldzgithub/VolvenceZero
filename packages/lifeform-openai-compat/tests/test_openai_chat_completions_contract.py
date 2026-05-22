@@ -10,7 +10,7 @@ Coverage:
 * POST /v1/chat/completions default mode → lifeform path
 * mode=raw via query param + via X-Compat-Mode header → raw path
 * invalid bodies → 400 ``invalid_*``
-* stream=true → 501
+* stream=true → OpenAI-shaped SSE stream
 * raw mode with no runtime → 503
 * unknown mode → 400 ``invalid_mode``
 * response shape is byte-compatible with OpenAI Python client
@@ -345,7 +345,7 @@ async def test_invalid_role_returns_400(lifeform_client) -> None:
     assert body["error"]["code"] == "invalid_role_at_0"
 
 
-async def test_streaming_returns_501(lifeform_client) -> None:
+async def test_streaming_returns_openai_sse(lifeform_client) -> None:
     resp = await lifeform_client.post(
         "/v1/chat/completions",
         json={
@@ -354,9 +354,13 @@ async def test_streaming_returns_501(lifeform_client) -> None:
             "stream": True,
         },
     )
-    assert resp.status == 501
-    body = await resp.json()
-    assert body["error"]["code"] == "streaming_not_supported"
+    assert resp.status == 200
+    assert resp.headers["Content-Type"].startswith("text/event-stream")
+    text = await resp.text()
+    assert "data: " in text
+    assert '"delta": {"role": "assistant"}' in text
+    assert "reply turn=1 input='hi'" in text
+    assert "data: [DONE]" in text
 
 
 async def test_invalid_mode_returns_400(lifeform_client) -> None:

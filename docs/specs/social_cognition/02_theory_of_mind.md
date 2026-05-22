@@ -110,6 +110,7 @@ Implemented Phase 2 scaffold:
 - Structured LLM runtime: `LLMToMProposalRuntime` consumes JSON array output and emits typed `SemanticProposal`s targeted at belief / intent / feeling / preference owners. Malformed JSON falls back, provider exceptions propagate, and low-confidence records are dropped before owner mutation.
 - Owner hardening: ToM owners drop proposals below the owner confidence floor and ignore wrong-target proposals, preserving SHADOW safety and avoiding broad classifier leakage.
 - Evidence gates T4/T5: social cognition evidence now covers structured ToM runtime path and affect/preference separation through `lifeform_evolution.run_social_cognition_evidence()`.
+- COG-2 最小收敛切片新增 `ToMInterlocutorRecordCount` 与 `tom_record_counts_by_interlocutor(...)`，从四个 ToM owner 的 public snapshots 聚合 per-interlocutor 记录计数。benchmark / family report 应消费该 typed readout，不得遍历 owner 私有状态或从 raw text 重建"谁有多少 ToM 记录"。
 
 ## 与其他能力域的关系
 
@@ -122,6 +123,7 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-05-22: COG-2 最小切片。新增 per-interlocutor ToM record count helper，作为 wrong-person / witness / private-leakage 场景的稳定 evidence surface；不新增 owner，不改变四个 ToM snapshot shape。
 - 2026-05-02: R17 Phase 2 slice 8 landed: `LLMToMProposalRuntime` structured JSON proposal path with low-confidence filtering, owner hardening, final-wiring diagnostics, and T4/T5 evidence gates.
 - 2026-05-02: R17 Phase 2 slice 5 landed: ToM owner record counts surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R17 Phase 2 slice 6 landed: social cognition evidence report artifact for T1-T3 ToM owner separation gates.

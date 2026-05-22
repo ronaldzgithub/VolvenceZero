@@ -31,8 +31,10 @@ from volvence_zero.social_cognition import (
     SocialPredictionOutcome,
     SocialPredictionSnapshot,
     SocialScopeKind,
+    ToMInterlocutorRecordCount,
     build_primary_conversational_role_snapshot,
     build_primary_multi_party_identity_snapshot,
+    tom_record_counts_by_interlocutor,
 )
 
 
@@ -523,6 +525,68 @@ def test_other_mind_snapshots_reject_duplicate_record_ids() -> None:
             control_signal=0.1,
             description="duplicate records",
         )
+
+
+def test_tom_record_counts_by_interlocutor_uses_public_owner_snapshots() -> None:
+    alice_belief = _other_mind_record(record_id="belief:alice")
+    bob_belief = dataclasses.replace(
+        _other_mind_record(record_id="belief:bob"),
+        interlocutor_id="bob",
+    )
+    bob_intent = dataclasses.replace(
+        _other_mind_record(
+            record_id="intent:bob",
+            kind=OtherMindRecordKind.INTENT,
+        ),
+        interlocutor_id="bob",
+    )
+    bob_feeling = dataclasses.replace(
+        _other_mind_record(
+            record_id="feeling:bob",
+            kind=OtherMindRecordKind.FEELING,
+        ),
+        interlocutor_id="bob",
+    )
+
+    counts = tom_record_counts_by_interlocutor(
+        belief=BeliefAboutOtherSnapshot(
+            records=(alice_belief, bob_belief),
+            active_predictions=(),
+            control_signal=0.1,
+            description="beliefs",
+        ),
+        intent=IntentAboutOtherSnapshot(
+            records=(bob_intent,),
+            active_predictions=(),
+            control_signal=0.1,
+            description="intents",
+        ),
+        feeling=FeelingAboutOtherSnapshot(
+            records=(bob_feeling,),
+            active_predictions=(),
+            control_signal=0.1,
+            description="feelings",
+        ),
+    )
+
+    assert counts == (
+        ToMInterlocutorRecordCount(
+            interlocutor_id="alice",
+            belief_count=1,
+        ),
+        ToMInterlocutorRecordCount(
+            interlocutor_id="bob",
+            belief_count=1,
+            intent_count=1,
+            feeling_count=1,
+        ),
+    )
+    assert counts[1].total_count == 3
+
+
+def test_tom_interlocutor_record_count_rejects_negative_counts() -> None:
+    with pytest.raises(ValueError, match="belief_count"):
+        ToMInterlocutorRecordCount(interlocutor_id="alice", belief_count=-1)
 
 
 def test_social_prediction_snapshots_accept_empty_shadow_scaffolds() -> None:

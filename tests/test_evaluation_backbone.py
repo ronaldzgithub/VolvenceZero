@@ -115,6 +115,83 @@ def test_evaluation_report_includes_existence_evidence_trends():
     assert "async_robustness" in trend_names
 
 
+def test_record_persona_geometry_evidence_adds_read_only_scores():
+    backbone = EvaluationBackbone()
+    base = EvaluationSnapshot(turn_scores=(), session_scores=(), alerts=(), description="base")
+    substrate = SubstrateSnapshot(
+        model_id="persona-geometry-model",
+        is_frozen=True,
+        surface_kind=SurfaceKind.FEATURE_SURFACE,
+        token_logits=(),
+        feature_surface=(
+            FeatureSignal(name="persona_axis", values=(1.0, 0.0, 0.0), source="test"),
+        ),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="feature surface",
+    )
+    regime = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="steady",
+            name="Steady",
+            embedding=(1.0, 0.0, 0.0),
+            entry_conditions="",
+            exit_conditions="",
+            historical_effectiveness=0.7,
+        ),
+        previous_regime=None,
+        switch_reason="test",
+        candidate_regimes=(("steady", 1.0),),
+        turns_in_current_regime=3,
+        description="regime",
+    )
+
+    enriched = backbone.record_persona_geometry_evidence(
+        session_id="s-persona",
+        wave_id="w1",
+        timestamp_ms=10,
+        base_snapshot=base,
+        substrate_snapshot=substrate,
+        regime_snapshot=regime,
+    )
+    metrics = {score.metric_name: score.value for score in enriched.turn_scores}
+
+    assert metrics["persona_regime_geometry_alignment"] == 1.0
+    assert metrics["persona_geometry_drift"] == 0.0
+
+
+def test_record_persona_geometry_evidence_is_noop_without_feature_surface():
+    backbone = EvaluationBackbone()
+    base = EvaluationSnapshot(turn_scores=(), session_scores=(), alerts=(), description="base")
+    regime = RegimeSnapshot(
+        active_regime=RegimeIdentity(
+            regime_id="steady",
+            name="Steady",
+            embedding=(1.0, 0.0, 0.0),
+            entry_conditions="",
+            exit_conditions="",
+            historical_effectiveness=0.7,
+        ),
+        previous_regime=None,
+        switch_reason="test",
+        candidate_regimes=(("steady", 1.0),),
+        turns_in_current_regime=3,
+        description="regime",
+    )
+
+    enriched = backbone.record_persona_geometry_evidence(
+        session_id="s-persona",
+        wave_id="w1",
+        timestamp_ms=10,
+        base_snapshot=base,
+        substrate_snapshot=None,
+        regime_snapshot=regime,
+    )
+
+    assert enriched is base
+
+
 def test_evaluation_backbone_uses_public_temporal_snapshot_fields():
     backbone = EvaluationBackbone()
     snapshot = asyncio.run(

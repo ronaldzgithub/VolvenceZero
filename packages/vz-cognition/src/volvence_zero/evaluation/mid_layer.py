@@ -130,32 +130,83 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
     DISABLED by default — promotion to SHADOW / ACTIVE requires the SHADOW
     evidence packet described in spec §迁移协议 Step 2.
 
-    The module declares ``"evaluation"`` as its only dependency: it consumes
-    the cheap_layer's frozen ``EvaluationSnapshot`` and adds the mid-tier
-    aggregation on top. Future packets will widen ``dependencies`` to
-    include ``credit`` for COG-1 readout sourcing once that consumer is
-    wired in.
+    The module declares ``"evaluation"`` + ``"credit"`` dependencies:
+    it consumes the cheap_layer's frozen ``EvaluationSnapshot`` and the
+    credit owner-published COG-1 readouts. It does not recompute credit.
     """
 
     slot_name = "evaluation_mid"
     owner = "MidLayerModule"
     value_type = MidLayerSnapshot
-    dependencies = ("evaluation",)
+    dependencies = ("evaluation", "credit")
     default_wiring_level = WiringLevel.DISABLED
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[MidLayerSnapshot]:
-        """T8 skeleton: emit an empty snapshot.
-
-        Future packet will populate ``aggregated_scores`` and
-        ``counterfactual_readouts`` based on cheap_layer + credit upstream.
-        """
+        """Emit COG-1 readout surfaces from the credit owner."""
         # Sanity: cheap_layer snapshot must be present per declared dependency.
         # Use direct dict-style consumption so missing slot raises (fail-loudly)
         # — kernel UpstreamView already enforces this for declared dependencies.
         cheap_snapshot = upstream["evaluation"]
-        # Reading cheap snapshot proves the dependency is wired; the actual
-        # aggregation is deferred to a future packet.
         del cheap_snapshot
-        return self.publish(_EMPTY_MID_SNAPSHOT)
+        credit_snapshot = upstream["credit"]
+        credit_value = credit_snapshot.value
+        from volvence_zero.credit.gate import CreditSnapshot
+
+        if not isinstance(credit_value, CreditSnapshot):
+            return self.publish(_EMPTY_MID_SNAPSHOT)
+        counterfactual_readouts = tuple(
+            CounterfactualContributionReadout(
+                record_id=readout.source_event,
+                counterfactual_contribution_learned=readout.learned_contribution,
+                counterfactual_contribution_baseline=readout.historical_baseline,
+                contribution_delta=(
+                    readout.learned_contribution
+                    - (readout.actual_outcome - readout.historical_baseline)
+                ),
+                confidence=0.70 if readout.update_count else 0.45,
+            )
+            for readout in credit_value.counterfactual_readouts
+        )
+        scores: list[MidLayerScore] = []
+        least_control = credit_value.least_control_readout
+        if least_control is not None:
+            scores.append(
+                MidLayerScore(
+                    family="learning",
+                    metric_name="least_control_score",
+                    value=least_control.least_control_score,
+                    confidence=0.60,
+                    baseline_label="",
+                    delta_vs_baseline=None,
+                    evidence=least_control.description,
+                )
+            )
+            scores.append(
+                MidLayerScore(
+                    family="learning",
+                    metric_name="least_control_effort",
+                    value=least_control.control_effort,
+                    confidence=0.60,
+                    baseline_label="",
+                    delta_vs_baseline=None,
+                    evidence=least_control.description,
+                )
+            )
+        snapshot = MidLayerSnapshot(
+            scenario_id="",
+            seeds=(),
+            profile_label="",
+            baseline_label="",
+            aggregated_scores=tuple(scores),
+            counterfactual_readouts=counterfactual_readouts,
+            acceptance_gate_passed=True,
+            acceptance_gate_reasons=(),
+            description=(
+                "mid_layer COG-1 readout extraction: "
+                f"{len(counterfactual_readouts)} counterfactual readouts, "
+                f"{len(scores)} least-control scores."
+            ),
+        )
+        return self.publish(snapshot)

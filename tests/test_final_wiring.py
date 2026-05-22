@@ -50,6 +50,7 @@ from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutStrategy,
 )
 from volvence_zero.application.runtime import _response_ordering_plan
+from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationScore
 from volvence_zero.integration import _apply_application_prior_writeback, FinalRolloutConfig, run_final_wiring_turn
@@ -301,6 +302,12 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "case_memory" in result.active_snapshots
     assert "strategy_playbook" in result.active_snapshots
     assert "experience_fast_prior" in result.active_snapshots
+    assert "audit" not in result.active_snapshots
+    assert "audit" in result.shadow_snapshots
+    audit_snapshot = result.shadow_snapshots["audit"]
+    assert isinstance(audit_snapshot.value, AuditSnapshot)
+    assert audit_snapshot.value.threshold_decision == "pass"
+    assert audit_snapshot.value.risk_score == 0.0
     for slot_name in SEMANTIC_OWNER_SLOTS:
         assert slot_name in result.active_snapshots
     assert result.temporal_runtime_state is not None

@@ -342,7 +342,7 @@ class ProfileRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Built-in 11 profiles
+# Built-in profiles
 #
 # Mirrors `build_standard_dialogue_runner` (`packages/vz-runtime/src/volvence_zero/agent/dialogue/_legacy.py:7862`)
 # branch-by-branch. Spec §11 个现有 Profile 的 Capability 拆解 gives the full
@@ -459,6 +459,48 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         conflicts_with=("eta-off",),
         description="Heuristic temporal baseline (no learned controller).",
     ),
+    ProfileCapability(
+        name="cpd-beta-switch-readout",
+        applies_to_owner="temporal",
+        wiring_overrides={"cpd_beta_switch": WiringLevel.SHADOW},
+        description="SYS-1 read-only CPD beta switch evidence in temporal owner.",
+    ),
+    ProfileCapability(
+        name="least-control-credit-readout",
+        applies_to_owner="credit",
+        wiring_overrides={"least_control": WiringLevel.SHADOW},
+        description="COG-1 least-control + counterfactual credit readout.",
+    ),
+    ProfileCapability(
+        name="persona-geometry-readout",
+        applies_to_owner="evaluation",
+        wiring_overrides={"persona_geometry": WiringLevel.SHADOW},
+        description="COG-3 read-only persona/regime geometry drift evidence.",
+    ),
+    ProfileCapability(
+        name="belief-about-other-readout",
+        applies_to_owner="belief_about_other",
+        wiring_overrides={"tom_owner": WiringLevel.SHADOW},
+        description="COG-2 belief ToM owner evidence surface.",
+    ),
+    ProfileCapability(
+        name="intent-about-other-readout",
+        applies_to_owner="intent_about_other",
+        wiring_overrides={"tom_owner": WiringLevel.SHADOW},
+        description="COG-2 intent ToM owner evidence surface.",
+    ),
+    ProfileCapability(
+        name="feeling-about-other-readout",
+        applies_to_owner="feeling_about_other",
+        wiring_overrides={"tom_owner": WiringLevel.SHADOW},
+        description="COG-2 feeling ToM owner evidence surface.",
+    ),
+    ProfileCapability(
+        name="preference-about-other-readout",
+        applies_to_owner="preference_about_other",
+        wiring_overrides={"tom_owner": WiringLevel.SHADOW},
+        description="COG-2 preference ToM owner evidence surface.",
+    ),
 )
 
 
@@ -519,6 +561,31 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
         label="heuristic-baseline",
         capabilities=("heuristic-baseline",),
         description="Heuristic temporal baseline.",
+    ),
+    ProfileSpec(
+        label="cpd-beta-switch",
+        capabilities=("cpd-beta-switch-readout",),
+        description="SYS-1 SHADOW evidence profile for CPD beta switch readout.",
+    ),
+    ProfileSpec(
+        label="counterfactual-credit",
+        capabilities=("least-control-credit-readout",),
+        description="COG-1 SHADOW evidence profile for least-control credit readout.",
+    ),
+    ProfileSpec(
+        label="persona-geometry-readout",
+        capabilities=("persona-geometry-readout",),
+        description="COG-3 SHADOW evidence profile for persona/regime geometry readout.",
+    ),
+    ProfileSpec(
+        label="tom-owner",
+        capabilities=(
+            "belief-about-other-readout",
+            "intent-about-other-readout",
+            "feeling-about-other-readout",
+            "preference-about-other-readout",
+        ),
+        description="COG-2 SHADOW evidence profile for four ToM owner readouts.",
     ),
 )
 

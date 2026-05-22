@@ -424,6 +424,94 @@ class PreferenceAboutOtherSnapshot:
 
 
 @dataclass(frozen=True)
+class ToMInterlocutorRecordCount:
+    """COG-2 evidence readout keyed by interlocutor.
+
+    Counts are derived from public ToM owner snapshots only. Benchmark and
+    evaluation code should consume this readout instead of traversing owner
+    internals or rebuilding per-person state from raw text.
+    """
+
+    interlocutor_id: str
+    belief_count: int = 0
+    intent_count: int = 0
+    feeling_count: int = 0
+    preference_count: int = 0
+
+    @property
+    def total_count(self) -> int:
+        return (
+            self.belief_count
+            + self.intent_count
+            + self.feeling_count
+            + self.preference_count
+        )
+
+    def __post_init__(self) -> None:
+        _require_non_empty("interlocutor_id", self.interlocutor_id)
+        for field_name, value in (
+            ("belief_count", self.belief_count),
+            ("intent_count", self.intent_count),
+            ("feeling_count", self.feeling_count),
+            ("preference_count", self.preference_count),
+        ):
+            if value < 0:
+                raise ValueError(f"{field_name} must be >= 0, got {value!r}")
+
+
+def tom_record_counts_by_interlocutor(
+    *,
+    belief: BeliefAboutOtherSnapshot | None = None,
+    intent: IntentAboutOtherSnapshot | None = None,
+    feeling: FeelingAboutOtherSnapshot | None = None,
+    preference: PreferenceAboutOtherSnapshot | None = None,
+) -> tuple[ToMInterlocutorRecordCount, ...]:
+    """Aggregate public ToM records by interlocutor id.
+
+    This is a pure readout helper for COG-2 evidence. It does not own ToM
+    state and it does not infer anything from text.
+    """
+
+    counts: dict[str, dict[str, int]] = {}
+
+    def bump(interlocutor_id: str, key: str) -> None:
+        bucket = counts.setdefault(
+            interlocutor_id,
+            {
+                "belief_count": 0,
+                "intent_count": 0,
+                "feeling_count": 0,
+                "preference_count": 0,
+            },
+        )
+        bucket[key] += 1
+
+    if belief is not None:
+        for record in belief.records:
+            bump(record.interlocutor_id, "belief_count")
+    if intent is not None:
+        for record in intent.records:
+            bump(record.interlocutor_id, "intent_count")
+    if feeling is not None:
+        for record in feeling.records:
+            bump(record.interlocutor_id, "feeling_count")
+    if preference is not None:
+        for record in preference.records:
+            bump(record.interlocutor_id, "preference_count")
+
+    return tuple(
+        ToMInterlocutorRecordCount(
+            interlocutor_id=interlocutor_id,
+            belief_count=values["belief_count"],
+            intent_count=values["intent_count"],
+            feeling_count=values["feeling_count"],
+            preference_count=values["preference_count"],
+        )
+        for interlocutor_id, values in sorted(counts.items())
+    )
+
+
+@dataclass(frozen=True)
 class ConversationalRoleSnapshot:
     active_speaker_id: str
     addressee_ids: tuple[str, ...]
@@ -721,9 +809,11 @@ __all__ = [
     "SocialPredictionOutcome",
     "SocialPredictionSnapshot",
     "SocialScopeKind",
+    "ToMInterlocutorRecordCount",
     "build_memory_visibility_signals",
     "build_primary_conversational_role_snapshot",
     "build_primary_multi_party_identity_snapshot",
     "social_prediction_error_from_memory_signal",
     "social_prediction_from_memory_signal",
+    "tom_record_counts_by_interlocutor",
 ]

@@ -64,6 +64,23 @@ class TemporalStep:
 
 
 @dataclass(frozen=True)
+class CPDSwitchReadout:
+    """Read-only SYS-1 change-point evidence for beta_t switching.
+
+    This is temporal-owner telemetry, not a second beta owner. Future SHADOW
+    profiles may use it to alter switch pressure, but the minimal slice only
+    publishes the evidence.
+    """
+
+    pe_spike_score: float
+    reward_shift_score: float
+    switch_recommended: bool
+    threshold: float
+    evidence_id: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class TemporalConsolidationSnapshot:
     track: str
     prediction_error_applied: bool
@@ -76,6 +93,7 @@ class TemporalConsolidationSnapshot:
     active_family_long_term_payoff: float = 0.0
     active_family_delayed_credit_sum: float = 0.0
     active_family_outcome_score: float = 0.0
+    cpd_switch_readout: CPDSwitchReadout | None = None
     description: str = ""
 
 
@@ -3160,6 +3178,49 @@ def _prediction_error_outcome_value(
     return _clamp(pe.signed_reward - penalty)
 
 
+def _build_cpd_switch_readout(
+    *,
+    track: Track,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    threshold: float = 0.62,
+) -> CPDSwitchReadout | None:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return None
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        pe_spike_score = _clamp(
+            abs(pe.task_error) * 0.45
+            + abs(pe.action_error) * 0.35
+            + abs(pe.regime_error) * 0.20
+        )
+    elif track is Track.SELF:
+        pe_spike_score = _clamp(
+            abs(pe.relationship_error) * 0.45
+            + abs(pe.regime_error) * 0.35
+            + abs(pe.action_error) * 0.20
+        )
+    else:
+        pe_spike_score = _clamp(pe.magnitude)
+    reward_shift_score = _clamp(abs(pe.signed_reward))
+    combined = _clamp(pe_spike_score * 0.70 + reward_shift_score * 0.30)
+    switch_recommended = combined >= threshold
+    return CPDSwitchReadout(
+        pe_spike_score=pe_spike_score,
+        reward_shift_score=reward_shift_score,
+        switch_recommended=switch_recommended,
+        threshold=threshold,
+        evidence_id=(
+            f"cpd:{track.value}:turn:{prediction_error_snapshot.turn_index}:"
+            f"{int(switch_recommended)}"
+        ),
+        description=(
+            f"CPD beta switch readout track={track.value} "
+            f"pe_spike={pe_spike_score:.3f} reward_shift={reward_shift_score:.3f} "
+            f"threshold={threshold:.3f} recommended={switch_recommended}."
+        ),
+    )
+
+
 def _build_family_outcome_feedback(
     *,
     track: Track,
@@ -3248,6 +3309,10 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
+        cpd_switch_readout = _build_cpd_switch_readout(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+        )
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         family_outcome_applied = self._policy.observe_family_outcome_feedback(
             track=self._track,
@@ -3296,6 +3361,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 active_family_outcome_score=(
                     active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
                 ),
+                cpd_switch_readout=cpd_switch_readout,
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "
@@ -3321,6 +3387,10 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             policy=self._policy,
             prediction_error_snapshot=prediction_error_value,
         )
+        cpd_switch_readout = _build_cpd_switch_readout(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+        )
         family_outcome_applied = self._policy.observe_family_outcome_feedback(
             track=self._track,
             prediction_error_snapshot=prediction_error_value,
@@ -3368,6 +3438,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
                 active_family_outcome_score=(
                     active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
                 ),
+                cpd_switch_readout=cpd_switch_readout,
                 description=(
                     f"{self._track.value}-track temporal consolidation observed "
                     f"prediction_error={'yes' if prediction_error_applied else 'no'} "

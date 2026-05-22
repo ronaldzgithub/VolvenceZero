@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "dashscope-qwen-max-f1",
+    "system_name": "Qwen Max (DashScope)",
+    "model_identifier": "qwen-max",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "closed-api"
+  },
+  "aggregate": {
+    "submission_id": "dashscope-qwen-max-f1",
+    "arc_count": 4,
+    "final_mean": 76.48094283953455,
+    "final_ci95": [
+      62.08994295528805,
+      89.58053240765099
+    ],
+    "axis_means": {
+      "A1": 92.0,
+      "A2": 94.75,
+      "A3": 51.5,
+      "A4": 77.5,
+      "A5": 94.5,
+      "A6": 95.5
+    },
+    "axis_ci95": {
+      "A1": [
+        92.0,
+        92.0
+      ],
+      "A2": [
+        94.0,
+        95.75
+      ],
+      "A3": [
+        30.75,
+        77.25
+      ],
+      "A4": [
+        52.0,
+        92.5
+      ],
+      "A5": [
+        90.0,
+        97.5
+      ],
+      "A6": [
+        91.75,
+        97.75
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 89,
+      "input_tokens": 106976,
+      "output_tokens": 35400,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-max"
+    ]
+  },
+  "started_at": "2026-05-22T04:45:08.823540+00:00",
+  "finished_at": "2026-05-22T05:35:33.464002+00:00",
+  "arc_count": 4,
+  "per_axis_scores": {
+    "submission_id": "dashscope-qwen-max-f1",
+    "arc_count": 4,
+    "final_mean": 76.48094283953455,
+    "final_ci95": [
+      62.08994295528805,
+      89.58053240765099
+    ],
+    "axis_means": {
+      "A1": 92.0,
+      "A2": 94.75,
+      "A3": 51.5,
+      "A4": 77.5,
+      "A5": 94.5,
+      "A6": 95.5
+    },
+    "axis_ci95": {
+      "A1": [
+        92.0,
+        92.0
+      ],
+      "A2": [
+        94.0,
+        95.75
+      ],
+      "A3": [
+        30.75,
+        77.25
+      ],
+      "A4": [
+        52.0,
+        92.5
+      ],
+      "A5": [
+        90.0,
+        97.5
+      ],
+      "A6": [
+        91.75,
+        97.75
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

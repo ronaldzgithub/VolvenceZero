@@ -26,6 +26,45 @@ class ModificationGate(str, Enum):
     HUMAN_REVIEW = "human-review"
 
 
+class FramingRiskKind(str, Enum):
+    """Typed framing risk bucket for self-modification proposals.
+
+    The gate consumes this enum only when an upstream audit / review path
+    supplies it explicitly. It must not be inferred from proposal text by
+    keyword matching.
+    """
+
+    REWARD_HACKING_NORMALIZED = "reward_hacking_normalized"
+    ALIGNMENT_FAKING = "alignment_faking"
+    SABOTAGE = "sabotage"
+    MALICIOUS_COOPERATION = "malicious_cooperation"
+    MONITOR_DISRUPTION = "monitor_disruption"
+    COLLEAGUE_FRAMING = "colleague_framing"
+
+
+@dataclass(frozen=True)
+class FramingAwarenessCheck:
+    """Typed OA-3 framing evidence attached to a proposal.
+
+    ``risk_score`` is in [0, 1]. ``inoculation_statement_present`` means the
+    proposer explicitly documented that the risky frame is allowed in this
+    bounded evaluation context; otherwise high-risk frames block.
+    """
+
+    risk_kind: FramingRiskKind
+    risk_score: float
+    inoculation_statement_present: bool
+    evidence_id: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.risk_score <= 1.0:
+            raise ValueError(
+                f"FramingAwarenessCheck.risk_score must be within [0.0, 1.0], "
+                f"got {self.risk_score!r}"
+            )
+
+
 @dataclass(frozen=True)
 class CreditRecord:
     record_id: str
@@ -91,6 +130,21 @@ class CounterfactualContributionReadout:
 
 
 @dataclass(frozen=True)
+class LeastControlReadout:
+    """COG-1 report-only least-control evidence.
+
+    Higher score means comparable outcomes were achieved with less recent
+    self-modification/control effort. It is a readout, not a gate input.
+    """
+
+    control_effort: float
+    outcome_quality: float
+    least_control_score: float
+    evidence_count: int
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
@@ -102,6 +156,7 @@ class CreditSnapshot:
     description: str = ""
     rewarding_state_head: RewardingStateHeadState | None = None
     counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
+    least_control_readout: LeastControlReadout | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +185,7 @@ class ModificationProposal:
     validation_delta: float = 0.0
     capacity_cost: float = 0.0
     rollback_evidence: str = ""
+    framing_check: FramingAwarenessCheck | None = None
 
 
 @dataclass(frozen=True)
@@ -724,6 +780,13 @@ def _evaluation_and_structural_gate_reasons(
     rollback_resilience = metric_values.get("rollback_resilience", 1.0)
     if rollback_resilience < 0.6:
         reasons.append(f"rollback_resilience {rollback_resilience:.3f} below 0.600")
+    if proposal.framing_check is not None:
+        framing = proposal.framing_check
+        if framing.risk_score >= 0.7 and not framing.inoculation_statement_present:
+            reasons.append(
+                f"framing risk {framing.risk_kind.value} score "
+                f"{framing.risk_score:.3f} requires explicit inoculation statement"
+            )
     return reasons
 
 
@@ -840,6 +903,7 @@ def extend_credit_snapshot(
         ),
         rewarding_state_head=credit_snapshot.rewarding_state_head,
         counterfactual_readouts=credit_snapshot.counterfactual_readouts,
+        least_control_readout=credit_snapshot.least_control_readout,
     )
 
 
@@ -1621,6 +1685,37 @@ class CreditLedger:
             result[key] = round(discounted_sum, 4)
         return tuple(sorted(result.items()))
 
+    def least_control_readout(self) -> LeastControlReadout | None:
+        """Build report-only least-control evidence from owner-owned records."""
+        readouts = tuple(self._recent_counterfactual_readouts[-5:])
+        if not readouts:
+            return None
+        modification_window = tuple(self._recent_modifications[-10:])
+        modification_pressure = _clamp_unit(len(modification_window) / 10.0)
+        blocked_pressure = (
+            sum(1.0 for record in modification_window if record.decision is GateDecision.BLOCK)
+            / len(modification_window)
+            if modification_window
+            else 0.0
+        )
+        control_effort = _clamp_unit(modification_pressure * 0.40 + blocked_pressure * 0.60)
+        outcome_quality = _clamp_unit(
+            sum(_clamp_unit((readout.learned_contribution + 1.0) / 2.0) for readout in readouts)
+            / len(readouts)
+        )
+        least_control_score = _clamp_unit(outcome_quality * (1.0 - control_effort))
+        return LeastControlReadout(
+            control_effort=control_effort,
+            outcome_quality=outcome_quality,
+            least_control_score=least_control_score,
+            evidence_count=len(readouts),
+            description=(
+                f"least_control readout from {len(readouts)} counterfactual readouts "
+                f"and {len(modification_window)} recent modification records; "
+                f"control_effort={control_effort:.3f} outcome_quality={outcome_quality:.3f}."
+            ),
+        )
+
     def snapshot(self) -> CreditSnapshot:
         cumulative: dict[str, float] = {}
         for record in self._recent_credits:
@@ -1641,6 +1736,7 @@ class CreditLedger:
             ),
             rewarding_state_head=self._rewarding_state_head.export_state(),
             counterfactual_readouts=tuple(self._recent_counterfactual_readouts[-5:]),
+            least_control_readout=self.least_control_readout(),
         )
 
 

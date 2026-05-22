@@ -144,6 +144,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 internal RL 已新增最小 critic 路径：每个 transition 会记录 `return_estimate` / `advantage_estimate`，proof/dense 两条 reward path 共用同一套 return bookkeeping
 - 当前 observation side 也已从极简 surface 压缩升级到 richer prefix signature：默认同时吸收 averaged / peaked / trended / persistence-style 证据，再投影到 `n_z`
 - 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
+- SYS-1 最小切片新增 `CPDSwitchReadout`，由 `TrackTemporalConsolidationModule` 在消费 `prediction_error` 时发布到 `TemporalConsolidationSnapshot.cpd_switch_readout`。该 readout 只根据 typed PE 数值计算 `pe_spike_score` / `reward_shift_score` / `switch_recommended`，不从文本或关键词推断，不新增第二个 `beta_t` owner，也不直接改变 live `beta_t`。后续 `cpd-beta-switch` SHADOW profile 才能把它接成 switch-pressure evidence。
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
 
@@ -162,6 +163,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 ## 变更日志
 
 - 2026-04-25: ETA proof harness 新增 `transformers-open-weight` real residual evidence lane、prefix-step real snapshot contract、open-weight paper-suite manifest 与 runtime gating 口径；真实 residual-control claim 不再只依赖 synthetic proof harness
+- 2026-05-22: SYS-1 最小切片。新增 temporal owner 内部的 read-only `CPDSwitchReadout`，把 PE spike + reward shift 转成 beta switch evidence；不新增 runtime slot，不直接改 live switch gate。
 - 2026-04-26: real residual evidence 口径细化：actual hook fire rate 与 planned layer fraction 分离，proof rollout 改为 prefix-aligned intervention，并新增 frozen residual signature calibration
 - 2026-04-22: 补充 scaffold-ablation matched controls（`pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache`）的当前 proof 口径，用于测试去掉 heuristic scaffold 后的 latent family / PE schedule 稳健性
 - 2026-04-22: 当前实现口径补充 dual-track cached-reflection bridge 与 latent-family style fallback labels，进一步把 live path 从 heuristic semantics 收紧到 family/state evidence

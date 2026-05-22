@@ -29,11 +29,26 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from typing import Any
 
 from aiohttp import web
 
-from dlaas_platform_contracts import InteractionEnvelope
+from dlaas_platform_contracts import (
+    AdoptionConfig,
+    ExplainTrace,
+    InteractionEnvelope,
+    InteractionType,
+    LifeBlueprint,
+    ProtocolSubmission,
+    ReadoutBundle,
+    ReadoutView,
+    SleepRequest,
+    SnapshotExportRequest,
+    TrainingJob,
+    TrainingJobStatus,
+    WakeRequest,
+)
 from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
@@ -63,11 +78,15 @@ from lifeform_service.session_manager import (
 
 from dlaas_platform_api.control_plane import attach_control_plane_routes
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
+from dlaas_platform_api.snapshot_export import snapshot_to_json
 
 _LOG = logging.getLogger("dlaas_platform_api")
 
 DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
 """``app[DLAAS_APP_AI_ID_KEY]`` — Slice 1 hardcoded ``ai_id`` fallback."""
+
+_PROTOCOL_SUBMISSIONS_KEY = "dlaas_protocol_submissions"
+_TRAINING_JOBS_KEY = "dlaas_training_jobs"
 
 
 def attach_dlaas_routes(
@@ -89,10 +108,16 @@ def attach_dlaas_routes(
             "lifeform_service.app.create_app (session_manager missing)."
         )
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
+    _ensure_shadow_intake_stores(app)
     app.router.add_post(
         "/dlaas/instances/{ai_id}/interactions",
         _handle_interaction,
     )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/interactions",
+        _handle_interaction,
+    )
+    _add_lifecycle_routes(app)
     return app
 
 
@@ -126,16 +151,129 @@ def attach_dlaas_full_stack(
     )
     app[INSTANCE_MANAGER_APP_KEY] = instance_manager
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
+    _ensure_shadow_intake_stores(app)
     if platform_endpoint:
         app["dlaas_platform_endpoint"] = platform_endpoint
     app.router.add_post(
         "/dlaas/instances/{ai_id}/interactions",
         _handle_interaction,
     )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/interactions",
+        _handle_interaction,
+    )
+    _add_lifecycle_routes(app)
     attach_control_plane_routes(app, registry=registry)
     attach_ops_routes(app, registry=registry)
     attach_eval_routes(app, registry=registry)
     return app
+
+
+def _add_lifecycle_routes(app: web.Application) -> None:
+    app.router.add_get("/dlaas/v1/catalog/blueprints", _handle_catalog_blueprints)
+    app.router.add_get("/dlaas/v1/catalog/verticals", _handle_catalog_verticals)
+    app.router.add_get(
+        "/dlaas/v1/catalog/substrate-profiles",
+        _handle_catalog_substrate_profiles,
+    )
+    app.router.add_get("/dlaas/v1/catalog/protocols", _handle_catalog_protocols)
+    app.router.add_get(
+        "/dlaas/v1/catalog/tool-policies", _handle_catalog_tool_policies
+    )
+    app.router.add_get(
+        "/dlaas/v1/catalog/training-policies",
+        _handle_catalog_training_policies,
+    )
+    app.router.add_get(
+        "/dlaas/v1/admin/instances/{ai_id}/snapshots",
+        _handle_admin_snapshots,
+    )
+    app.router.add_get("/dlaas/v1/instances", _handle_list_instances)
+    app.router.add_get("/dlaas/v1/instances/{ai_id}/status", _handle_instance_status)
+    app.router.add_get("/dlaas/v1/instances/{ai_id}/readouts", _handle_readouts)
+    app.router.add_get("/dlaas/v1/instances/{ai_id}/explain", _handle_explain)
+    app.router.add_post("/dlaas/v1/instances/{ai_id}/wake", _handle_wake_instance)
+    app.router.add_post("/dlaas/v1/instances/{ai_id}/sleep", _handle_sleep_instance)
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/feedback", _handle_feedback_alias
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/environment/events",
+        _handle_environment_event_alias,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/environment/outcomes",
+        _handle_environment_outcome_alias,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/protocols/submissions",
+        _handle_protocol_submission_create,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/safety/protocols",
+        _handle_safety_protocol_create,
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/safety/protocols",
+        _handle_safety_protocol_list,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/safety/protocols/{submission_id}/approve",
+        _handle_safety_protocol_approve,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/safety/protocols/{protocol_id}/load",
+        _handle_safety_protocol_load,
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/protocols/submissions",
+        _handle_protocol_submission_list,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/protocols/submissions/{submission_id}/approve",
+        _handle_protocol_submission_approve,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/protocols/submissions/{submission_id}/reject",
+        _handle_protocol_submission_reject,
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/protocols/library",
+        _handle_protocol_library_list,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/protocols/library/{protocol_id}/load",
+        _handle_protocol_library_load,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/protocols/library/{protocol_id}/unload",
+        _handle_protocol_library_unload,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/training/corpus",
+        _handle_training_corpus,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/training/jobs",
+        _handle_training_job_create,
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/training/jobs/{job_id}",
+        _handle_training_job_get,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/training/jobs/{job_id}/cancel",
+        _handle_training_job_cancel,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/training/jobs/{job_id}/promote",
+        _handle_training_job_promote,
+    )
+
+
+def _ensure_shadow_intake_stores(app: web.Application) -> None:
+    app.setdefault(_PROTOCOL_SUBMISSIONS_KEY, {})
+    app.setdefault(_TRAINING_JOBS_KEY, {})
 
 
 def build_dlaas_app(
@@ -206,6 +344,636 @@ def build_dlaas_app(
 # ---------------------------------------------------------------------------
 
 
+async def _handle_catalog_blueprints(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "blueprints": [blueprint.to_json() for blueprint in _catalog_blueprints()],
+        }
+    )
+
+
+async def _handle_catalog_verticals(request: web.Request) -> web.Response:
+    from lifeform_service.verticals import discover_verticals
+
+    verticals = discover_verticals()
+    return web.json_response(
+        {
+            "status": "ok",
+            "verticals": [
+                {
+                    "vertical_id": name,
+                    "runtime_template_id": name,
+                    "alpha_supported": spec.alpha_factory is not None,
+                    "has_temporal_bootstrap": spec.has_temporal_bootstrap,
+                    "has_regime_bootstrap": spec.has_regime_bootstrap,
+                }
+                for name, spec in sorted(verticals.items())
+            ],
+        }
+    )
+
+
+async def _handle_catalog_substrate_profiles(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "substrate_profiles": [
+                {
+                    "substrate_profile_id": "shared-frozen",
+                    "mode": "shared_frozen",
+                    "adapter_policy": "none",
+                    "allow_rare_heavy_refresh": False,
+                },
+                {
+                    "substrate_profile_id": "synthetic-dev",
+                    "mode": "synthetic",
+                    "adapter_policy": "none",
+                    "allow_rare_heavy_refresh": False,
+                },
+            ],
+        }
+    )
+
+
+async def _handle_catalog_protocols(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "protocols": [
+                {
+                    "protocol_id": "growth_advisor:cheng-laoshi",
+                    "vertical_id": "growth_advisor",
+                    "source": "fixture",
+                    "review_status": "active",
+                }
+            ],
+        }
+    )
+
+
+async def _handle_catalog_tool_policies(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "tool_policies": [
+                {
+                    "tool_policy_id": "default-text-only",
+                    "allowed_capabilities": ["text"],
+                },
+                {
+                    "tool_policy_id": "growth-advisor-wechat-readonly",
+                    "allowed_capabilities": [
+                        "text",
+                        "handoff_ticket",
+                        "reviewed_knowledge",
+                    ],
+                },
+            ],
+        }
+    )
+
+
+async def _handle_catalog_training_policies(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "training_policies": [
+                {
+                    "training_policy_id": "reviewed_protocol_only",
+                    "allow_protocol_intake": True,
+                    "allow_corpus_intake": True,
+                    "allow_adapter_training": False,
+                }
+            ],
+        }
+    )
+
+
+async def _handle_readouts(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    session_or_response = await _session_from_query(request, ai_id)
+    if isinstance(session_or_response, web.Response):
+        return session_or_response
+    view_raw = request.query.get("view", "summary")
+    try:
+        view = ReadoutView(view_raw)
+    except ValueError:
+        return _json_error(
+            status=400,
+            error="invalid_readout_view",
+            detail="view must be 'summary' or 'full'",
+        )
+    session = session_or_response
+    snapshots = session.latest_active_snapshots
+    bundle = _build_readout_bundle(
+        ai_id=ai_id,
+        session_id=session.session_id,
+        view=view,
+        snapshots=snapshots,
+        request=request,
+    )
+    return web.json_response({"status": "ok", **bundle.to_json()})
+
+
+async def _handle_admin_snapshots(request: web.Request) -> web.Response:
+    if not _has_admin_auth(request):
+        return _json_error(
+            status=403,
+            error="admin_auth_required",
+            detail="Raw snapshot export requires control-plane or service auth.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    session_or_response = await _session_from_query(request, ai_id)
+    if isinstance(session_or_response, web.Response):
+        return session_or_response
+    slots = tuple(request.query.getall("slot", []))
+    include_shadow = request.query.get("include_shadow", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    try:
+        export_request = SnapshotExportRequest.from_query(
+            ai_id=ai_id,
+            session_id=session_or_response.session_id,
+            slots=slots,
+            include_shadow=include_shadow,
+        )
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_snapshot_request", detail=str(exc))
+    active = session_or_response.latest_active_snapshots
+    shadow = session_or_response.latest_shadow_snapshots if include_shadow else {}
+    selected = export_request.slots or tuple(sorted(active))
+    return web.json_response(
+        {
+            "status": "ok",
+            **export_request.to_json(),
+            "active": {
+                slot: snapshot_to_json(active[slot], redact=True)
+                for slot in selected
+                if slot in active
+            },
+            "shadow": {
+                slot: snapshot_to_json(shadow[slot], redact=True)
+                for slot in selected
+                if slot in shadow
+            },
+        }
+    )
+
+
+async def _handle_explain(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    session_or_response = await _session_from_query(request, ai_id)
+    if isinstance(session_or_response, web.Response):
+        return session_or_response
+    turn_index = request.query.get("turn_index", "latest")
+    snapshots = session_or_response.latest_active_snapshots
+    trace = ExplainTrace(
+        ai_id=ai_id,
+        session_id=session_or_response.session_id,
+        turn_index=turn_index,
+        chain=_build_explain_chain(snapshots),
+    )
+    return web.json_response({"status": "ok", **trace.to_json()})
+
+
+async def _handle_list_instances(request: web.Request) -> web.Response:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if not isinstance(launcher, InstanceManager):
+        return _json_error(
+            status=503,
+            error="launcher_not_configured",
+            detail="Instance lifecycle routes require a DLaaS InstanceManager.",
+        )
+    return web.json_response(
+        {"status": "ok", "instances": list(launcher.overview())}
+    )
+
+
+async def _handle_instance_status(request: web.Request) -> web.Response:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if not isinstance(launcher, InstanceManager):
+        return _json_error(
+            status=503,
+            error="launcher_not_configured",
+            detail="Instance lifecycle routes require a DLaaS InstanceManager.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        status = launcher.status(ai_id)
+    except InstanceNotFound:
+        return _json_error(
+            status=404,
+            error="ai_id_not_found",
+            detail=f"ai_id={ai_id!r} is not adopted on this server.",
+        )
+    return web.json_response({"status": "ok", **status.to_json()})
+
+
+async def _handle_wake_instance(request: web.Request) -> web.Response:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if not isinstance(launcher, InstanceManager):
+        return _json_error(
+            status=503,
+            error="launcher_not_configured",
+            detail="Instance lifecycle routes require a DLaaS InstanceManager.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        payload = await _read_json_object(request, allow_empty=True)
+        wake = WakeRequest.from_json(payload)
+        status = await launcher.wake(
+            ai_id=ai_id,
+            runtime_template_id=wake.runtime_template_id,
+            reason=wake.reason,
+        )
+    except InstanceNotFound:
+        return _json_error(
+            status=404,
+            error="ai_id_not_found",
+            detail=(
+                f"ai_id={ai_id!r} is not adopted; provide runtime_template_id "
+                "or adopt the instance first."
+            ),
+        )
+    except (LookupError, ValueError) as exc:
+        return _json_error(status=400, error="invalid_wake_request", detail=str(exc))
+    return web.json_response({"status": "ok", **status.to_json()})
+
+
+async def _handle_sleep_instance(request: web.Request) -> web.Response:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if not isinstance(launcher, InstanceManager):
+        return _json_error(
+            status=503,
+            error="launcher_not_configured",
+            detail="Instance lifecycle routes require a DLaaS InstanceManager.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        payload = await _read_json_object(request, allow_empty=True)
+        sleep = SleepRequest.from_json(payload)
+        status = await launcher.sleep(
+            ai_id=ai_id,
+            reason=sleep.reason,
+            release_instance=sleep.release_instance,
+        )
+    except InstanceNotFound:
+        return _json_error(
+            status=404,
+            error="ai_id_not_found",
+            detail=f"ai_id={ai_id!r} is not adopted on this server.",
+        )
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_sleep_request", detail=str(exc))
+    return web.json_response({"status": "ok", **status.to_json()})
+
+
+async def _handle_feedback_alias(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        envelope = InteractionEnvelope.from_json(
+            {
+                "contract_id": data.get("contract_id", ""),
+                "session_id": data.get("session_id", ""),
+                "end_user_ref": data.get("end_user_ref", ""),
+                "interaction_type": InteractionType.FEEDBACK.value,
+                "human_brief": data.get("human_brief", ""),
+                "feedback": data.get("feedback") or data,
+                "structured_context": data.get("structured_context") or {},
+                "lang": data.get("lang", "cn"),
+            }
+        )
+    except (ValueError, _EnvelopeError) as exc:
+        return _json_error(status=400, error="invalid_feedback", detail=str(exc))
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _handle_environment_event_alias(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        payload = data.get("payload") or {}
+        if not isinstance(payload, dict):
+            return _json_error(
+                status=400,
+                error="invalid_payload",
+                detail="environment event payload must be an object",
+            )
+        ctx = {
+            **payload,
+            "observation_type": data.get("observation_type", ""),
+            "event_id": data.get("event_id", ""),
+        }
+        envelope = InteractionEnvelope.from_json(
+            {
+                "contract_id": data.get("contract_id", ""),
+                "session_id": data.get("session_id", ""),
+                "end_user_ref": data.get("end_user_ref", ""),
+                "interaction_type": InteractionType.OBSERVE.value,
+                "human_brief": data.get("summary", ""),
+                "structured_context": ctx,
+                "target_person_ids": data.get("target_person_ids", ()),
+                "lang": data.get("lang", "cn"),
+            }
+        )
+    except (ValueError, _EnvelopeError) as exc:
+        return _json_error(status=400, error="invalid_environment_event", detail=str(exc))
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _handle_environment_outcome_alias(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        ctx = {
+            "observation_type": "tool_result",
+            "event_id": data.get("event_id", data.get("outcome_id", "")),
+            "tool_name": data.get("tool_name", ""),
+            "action_id": data.get("action_id", ""),
+            "status": data.get("status", ""),
+            "summary": data.get("summary", ""),
+            "detail": data.get("detail", ""),
+            "confidence": data.get("confidence", 0.8),
+        }
+        envelope = InteractionEnvelope.from_json(
+            {
+                "contract_id": data.get("contract_id", ""),
+                "session_id": data.get("session_id", ""),
+                "end_user_ref": data.get("end_user_ref", ""),
+                "interaction_type": InteractionType.OBSERVE.value,
+                "human_brief": data.get("summary", ""),
+                "structured_context": ctx,
+                "lang": data.get("lang", "cn"),
+            }
+        )
+    except (ValueError, _EnvelopeError) as exc:
+        return _json_error(
+            status=400, error="invalid_environment_outcome", detail=str(exc)
+        )
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _handle_protocol_submission_create(request: web.Request) -> web.Response:
+    try:
+        data = await _read_json_object(request)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_protocol_submission", detail=str(exc))
+    return await _create_protocol_submission_from_data(
+        request,
+        data,
+        pending_status="pending_review",
+    )
+
+
+async def _handle_safety_protocol_create(request: web.Request) -> web.Response:
+    try:
+        data = await _read_json_object(request)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_safety_protocol", detail=str(exc))
+    if not _payload_has_boundary_contract(data):
+        return _json_error(
+            status=400,
+            error="missing_boundary_contracts",
+            detail=(
+                "Safety protocol submissions must include boundary_contracts "
+                "or protocol.boundaries."
+            ),
+        )
+    data.setdefault("source_type", "json_payload")
+    return await _create_protocol_submission_from_data(
+        request,
+        data,
+        pending_status="pending_safety_review",
+    )
+
+
+async def _handle_safety_protocol_list(request: web.Request) -> web.Response:
+    return await _handle_protocol_submission_list(request)
+
+
+async def _handle_safety_protocol_approve(request: web.Request) -> web.Response:
+    return await _set_protocol_submission_status(
+        request, review_status="active", response_status="approved"
+    )
+
+
+async def _handle_safety_protocol_load(request: web.Request) -> web.Response:
+    return await _protocol_library_mark(request, loaded=True)
+
+
+async def _create_protocol_submission_from_data(
+    request: web.Request,
+    data: dict[str, Any],
+    *,
+    pending_status: str,
+) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        submission_id = f"prot_sub_{uuid.uuid4().hex[:12]}"
+        submission = ProtocolSubmission.from_json(
+            data, ai_id=ai_id, submission_id=submission_id
+        )
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_protocol_submission", detail=str(exc))
+    store = _protocol_store(request)
+    store[(ai_id, submission_id)] = submission
+    return web.json_response(
+        {
+            "status": pending_status,
+            **submission.to_json(),
+            "requires_review": True,
+        },
+        status=201,
+    )
+
+
+async def _handle_protocol_submission_list(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    rows = [
+        submission.to_json()
+        for (stored_ai_id, _), submission in _protocol_store(request).items()
+        if stored_ai_id == ai_id
+    ]
+    return web.json_response(
+        {"status": "ok", "ai_id": ai_id, "submissions": rows, "count": len(rows)}
+    )
+
+
+async def _handle_protocol_submission_approve(request: web.Request) -> web.Response:
+    return await _set_protocol_submission_status(
+        request, review_status="active", response_status="approved"
+    )
+
+
+async def _handle_protocol_submission_reject(request: web.Request) -> web.Response:
+    return await _set_protocol_submission_status(
+        request, review_status="rejected", response_status="rejected"
+    )
+
+
+async def _set_protocol_submission_status(
+    request: web.Request,
+    *,
+    review_status: str,
+    response_status: str,
+) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    submission_id = request.match_info.get("submission_id", "")
+    store = _protocol_store(request)
+    existing = store.get((ai_id, submission_id))
+    if existing is None:
+        return _json_error(
+            status=404,
+            error="protocol_submission_not_found",
+            detail=submission_id,
+        )
+    updated = ProtocolSubmission(
+        submission_id=existing.submission_id,
+        ai_id=existing.ai_id,
+        contract_id=existing.contract_id,
+        source_type=existing.source_type,
+        submitted_by=existing.submitted_by,
+        source_ref=existing.source_ref,
+        target_vertical=existing.target_vertical,
+        notes=existing.notes,
+        review_level_requested=existing.review_level_requested,
+        candidate_protocol_id=existing.candidate_protocol_id
+        or f"{existing.ai_id}:{existing.submission_id}",
+        review_status=review_status,
+    )
+    store[(ai_id, submission_id)] = updated
+    return web.json_response({"status": response_status, **updated.to_json()})
+
+
+async def _handle_protocol_library_list(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    entries = [
+        submission.to_json()
+        for (stored_ai_id, _), submission in _protocol_store(request).items()
+        if stored_ai_id == ai_id and submission.review_status == "active"
+    ]
+    return web.json_response(
+        {"status": "ok", "ai_id": ai_id, "entries": entries, "count": len(entries)}
+    )
+
+
+async def _handle_protocol_library_load(request: web.Request) -> web.Response:
+    return await _protocol_library_mark(request, loaded=True)
+
+
+async def _handle_protocol_library_unload(request: web.Request) -> web.Response:
+    return await _protocol_library_mark(request, loaded=False)
+
+
+async def _protocol_library_mark(
+    request: web.Request,
+    *,
+    loaded: bool,
+) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    protocol_id = request.match_info.get("protocol_id", "")
+    matches = [
+        submission
+        for (stored_ai_id, _), submission in _protocol_store(request).items()
+        if stored_ai_id == ai_id
+        and submission.review_status == "active"
+        and (
+            submission.candidate_protocol_id == protocol_id
+            or f"{submission.ai_id}:{submission.submission_id}" == protocol_id
+        )
+    ]
+    if not matches:
+        return _json_error(
+            status=404, error="protocol_not_found", detail=protocol_id
+        )
+    return web.json_response(
+        {
+            "status": "ok",
+            "ai_id": ai_id,
+            "protocol_id": protocol_id,
+            "loaded": loaded,
+            "shadow_mode": True,
+            "detail": (
+                "Protocol library load/unload recorded at platform layer. "
+                "Runtime hot-load is delegated to ProtocolUptakeService when wired."
+            ),
+        }
+    )
+
+
+async def _handle_training_corpus(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        envelope = InteractionEnvelope.from_json(
+            {
+                "contract_id": data.get("contract_id", ""),
+                "session_id": data.get("session_id", f"training-{ai_id}"),
+                "end_user_ref": data.get("end_user_ref", "training"),
+                "interaction_type": InteractionType.OBSERVE.value,
+                "human_brief": data.get("notes", ""),
+                "structured_context": {
+                    "observation_type": "corpus_ingest",
+                    "source_uri": data.get("source_ref", "dlaas-training-corpus"),
+                    "corpus_text": data.get("text", data.get("notes", "")),
+                },
+            }
+        )
+    except (ValueError, _EnvelopeError) as exc:
+        return _json_error(status=400, error="invalid_training_corpus", detail=str(exc))
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _handle_training_job_create(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        job_id = f"train_job_{uuid.uuid4().hex[:12]}"
+        job = TrainingJob.from_json(data, ai_id=ai_id, job_id=job_id)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_training_job", detail=str(exc))
+    _training_store(request)[(ai_id, job.job_id)] = job
+    return web.json_response({"status": "ok", **job.to_json()}, status=201)
+
+
+async def _handle_training_job_get(request: web.Request) -> web.Response:
+    job = _get_training_job(request)
+    if isinstance(job, web.Response):
+        return job
+    return web.json_response({"status": "ok", **job.to_json()})
+
+
+async def _handle_training_job_cancel(request: web.Request) -> web.Response:
+    job = _get_training_job(request)
+    if isinstance(job, web.Response):
+        return job
+    updated = job.with_status(TrainingJobStatus.CANCELLED)
+    _training_store(request)[(job.ai_id, job.job_id)] = updated
+    return web.json_response({"status": "cancelled", **updated.to_json()})
+
+
+async def _handle_training_job_promote(request: web.Request) -> web.Response:
+    job = _get_training_job(request)
+    if isinstance(job, web.Response):
+        return job
+    if job.job_type.value == "adapter_candidate" and not job.gate_evidence:
+        updated = job.with_status(TrainingJobStatus.BLOCKED)
+        _training_store(request)[(job.ai_id, job.job_id)] = updated
+        return _json_error(
+            status=409,
+            error="promotion_gate_required",
+            detail="adapter_candidate jobs require gate_evidence before promotion",
+            extra=updated.to_json(),
+        )
+    updated = job.with_status(TrainingJobStatus.PROMOTED)
+    _training_store(request)[(job.ai_id, job.job_id)] = updated
+    return web.json_response({"status": "promoted", **updated.to_json()})
+
+
 async def _handle_interaction(request: web.Request) -> web.Response:
     """Adapt the HTTP request to a typed dispatch call."""
     try:
@@ -221,6 +989,14 @@ async def _handle_interaction(request: web.Request) -> web.Response:
             detail="ai_id path segment is required",
         )
 
+    return await _dispatch_envelope_to_instance(request, ai_id, envelope)
+
+
+async def _dispatch_envelope_to_instance(
+    request: web.Request,
+    ai_id: str,
+    envelope: InteractionEnvelope,
+) -> web.Response:
     ops_bundle = request.app.get(OPS_BUNDLE_APP_KEY)
     if isinstance(ops_bundle, OpsBundle):
         if await ops_bundle.pause_store.is_paused(
@@ -292,6 +1068,293 @@ def _resolve_session_manager(
     return request.app["session_manager"]
 
 
+def _protocol_store(request: web.Request) -> dict[tuple[str, str], ProtocolSubmission]:
+    return request.app[_PROTOCOL_SUBMISSIONS_KEY]
+
+
+def _training_store(request: web.Request) -> dict[tuple[str, str], TrainingJob]:
+    return request.app[_TRAINING_JOBS_KEY]
+
+
+async def _session_from_query(
+    request: web.Request,
+    ai_id: str,
+) -> Any | web.Response:
+    session_id = request.query.get("session_id", "").strip()
+    if not session_id:
+        return _json_error(
+            status=400,
+            error="missing_session_id",
+            detail="query parameter session_id is required",
+        )
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        return await manager.get_session(session_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except SessionNotFoundError as exc:
+        return _json_error(status=404, error="session_not_found", detail=str(exc))
+
+
+def _has_admin_auth(request: web.Request) -> bool:
+    auth = request.app.get(REGISTRY_APP_KEY)
+    config = getattr(auth, "auth_config", None)
+    cp_secret = getattr(config, "control_plane_secret", "") if config is not None else ""
+    svc_secret = getattr(config, "service_secret", "") if config is not None else ""
+    supplied_cp = request.headers.get("X-Control-Plane-Secret", "")
+    supplied_svc = request.headers.get("X-Service-Secret", "")
+    return bool(
+        (cp_secret and supplied_cp == cp_secret)
+        or (svc_secret and supplied_svc == svc_secret)
+    )
+
+
+def _build_readout_bundle(
+    *,
+    ai_id: str,
+    session_id: str,
+    view: ReadoutView,
+    snapshots: dict[str, Any],
+    request: web.Request,
+) -> ReadoutBundle:
+    active_mixture = snapshots.get("active_mixture")
+    response_assembly = snapshots.get("response_assembly")
+    boundary_policy = snapshots.get("boundary_policy")
+    prediction_error = snapshots.get("prediction_error")
+    strategy_playbook = snapshots.get("strategy_playbook")
+    retrieval_policy = snapshots.get("retrieval_policy")
+    domain_knowledge = snapshots.get("domain_knowledge")
+    case_memory = snapshots.get("case_memory")
+    temporal = snapshots.get("temporal_abstraction")
+    protocol_summary = _protocol_readout(active_mixture)
+    return ReadoutBundle(
+        ai_id=ai_id,
+        session_id=session_id,
+        view=view,
+        body={"lifecycle": _status_json_if_known(request, ai_id)},
+        cognition={
+            "active_regime": _field(response_assembly, "regime_id"),
+            "expression_intent": _field(response_assembly, "expression_intent"),
+            "prediction_error": _snapshot_summary(prediction_error),
+            "temporal": _snapshot_summary(temporal),
+        },
+        knowledge={
+            "retrieval": _snapshot_summary(retrieval_policy),
+            "domain_knowledge": _snapshot_summary(domain_knowledge),
+            "case_memory": _snapshot_summary(case_memory),
+        },
+        strategy={
+            "playbook": _snapshot_summary(strategy_playbook),
+            "matched_rule_count": _len_field(strategy_playbook, "matched_rules"),
+        },
+        protocol=protocol_summary,
+        safety={
+            "boundary_policy": _snapshot_summary(boundary_policy),
+            "boundary_union_ids": protocol_summary.get("boundary_union_ids", []),
+        },
+        training={
+            "protocol_submission_count": sum(
+                1 for (stored_ai, _) in _protocol_store(request) if stored_ai == ai_id
+            ),
+            "training_job_count": sum(
+                1 for (stored_ai, _) in _training_store(request) if stored_ai == ai_id
+            ),
+        },
+    )
+
+
+def _build_explain_chain(snapshots: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    response_assembly = snapshots.get("response_assembly")
+    active_mixture = snapshots.get("active_mixture")
+    boundary_policy = snapshots.get("boundary_policy")
+    strategy_playbook = snapshots.get("strategy_playbook")
+    retrieval_policy = snapshots.get("retrieval_policy")
+    prediction_error = snapshots.get("prediction_error")
+    return (
+        {"step": "input_event", "description": "latest LifeformSession turn"},
+        {
+            "step": "regime",
+            "regime_id": _field(response_assembly, "regime_id"),
+            "description": _description(response_assembly),
+        },
+        {"step": "protocol", **_protocol_readout(active_mixture)},
+        {"step": "boundary", "description": _description(boundary_policy)},
+        {
+            "step": "strategy",
+            "description": _description(strategy_playbook),
+            "matched_rule_count": _len_field(strategy_playbook, "matched_rules"),
+        },
+        {"step": "knowledge", "description": _description(retrieval_policy)},
+        {
+            "step": "response",
+            "expression_intent": _field(response_assembly, "expression_intent"),
+            "description": _description(response_assembly),
+        },
+        {"step": "prediction_error", "description": _description(prediction_error)},
+    )
+
+
+def _protocol_readout(snapshot: Any) -> dict[str, Any]:
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return {"active_protocols": [], "boundary_union_ids": [], "strategy_weights": []}
+    active = getattr(value, "active_protocols", ())
+    weights = getattr(value, "strategy_weights", ())
+    return {
+        "active_protocols": [
+            {
+                "protocol_id": getattr(item, "protocol_id", ""),
+                "activation_weight": getattr(item, "activation_weight", 0.0),
+                "current_phase_id": getattr(item, "current_phase_id", None),
+            }
+            for item in active
+        ],
+        "boundary_union_ids": list(getattr(value, "boundary_union_ids", ())),
+        "strategy_weights": [
+            {
+                "protocol_id": getattr(item, "protocol_id", ""),
+                "rule_id": getattr(item, "rule_id", ""),
+                "weight": getattr(item, "weight", 0.0),
+                "compiled_rule_id": getattr(item, "compiled_rule_id", ""),
+            }
+            for item in weights
+        ],
+        "description": getattr(value, "description", ""),
+    }
+
+
+def _snapshot_summary(snapshot: Any) -> dict[str, Any]:
+    if snapshot is None:
+        return {"present": False}
+    return {
+        "present": True,
+        "slot_name": getattr(snapshot, "slot_name", ""),
+        "owner": getattr(snapshot, "owner", ""),
+        "version": getattr(snapshot, "version", 0),
+        "description": _description(snapshot),
+    }
+
+
+def _description(snapshot: Any) -> str:
+    value = getattr(snapshot, "value", None)
+    return str(getattr(value, "description", "") or "")
+
+
+def _field(snapshot: Any, field_name: str) -> Any:
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    return getattr(value, field_name, None)
+
+
+def _len_field(snapshot: Any, field_name: str) -> int:
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return 0
+    return len(getattr(value, field_name, ()) or ())
+
+
+def _status_json_if_known(request: web.Request, ai_id: str) -> dict[str, Any]:
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    if not isinstance(launcher, InstanceManager):
+        return {"ai_id": ai_id, "lifecycle_state": "single_instance"}
+    try:
+        return launcher.status(ai_id).to_json()
+    except InstanceNotFound:
+        return {"ai_id": ai_id, "lifecycle_state": "unknown"}
+
+
+def _payload_has_boundary_contract(data: dict[str, Any]) -> bool:
+    if data.get("boundary_contracts") or data.get("boundaries"):
+        return True
+    protocol = data.get("protocol")
+    return isinstance(protocol, dict) and bool(
+        protocol.get("boundary_contracts") or protocol.get("boundaries")
+    )
+
+
+def _catalog_blueprints() -> tuple[LifeBlueprint, ...]:
+    return (
+        LifeBlueprint(
+            blueprint_id="companion/default/dev-v1",
+            display_name="Default Companion",
+            vertical=AdoptionConfig.from_json(
+                {
+                    "vertical": {
+                        "vertical_id": "companion",
+                        "runtime_template_id": "companion",
+                    }
+                }
+            ).vertical,
+            evaluation_gates=("protocol-effective",),
+        ),
+        LifeBlueprint(
+            blueprint_id="growth-advisor/cheng-laoshi/private-domain-v1",
+            display_name="Cheng Laoshi Growth Advisor",
+            vertical=AdoptionConfig.from_json(
+                {
+                    "vertical": {
+                        "vertical_id": "growth_advisor",
+                        "runtime_template_id": "growth_advisor",
+                        "profile_id": "cheng_laoshi",
+                    },
+                    "protocols": {"autoload": ["growth_advisor:cheng-laoshi"]},
+                    "tools": {
+                        "tool_policy_id": "growth-advisor-wechat-readonly",
+                        "allowed_capabilities": [
+                            "text",
+                            "handoff_ticket",
+                            "reviewed_knowledge",
+                        ],
+                    },
+                    "ops": {
+                        "awake_strategy": "on_demand",
+                        "handoff_policy_id": "growth-advisor-standard",
+                    },
+                }
+            ).vertical,
+            substrate=AdoptionConfig.from_json({}).substrate,
+            protocols=AdoptionConfig.from_json(
+                {"protocols": {"autoload": ["growth_advisor:cheng-laoshi"]}}
+            ).protocols,
+            tools=AdoptionConfig.from_json(
+                {
+                    "tools": {
+                        "tool_policy_id": "growth-advisor-wechat-readonly",
+                        "allowed_capabilities": [
+                            "text",
+                            "handoff_ticket",
+                            "reviewed_knowledge",
+                        ],
+                    }
+                }
+            ).tools,
+            ops=AdoptionConfig.from_json(
+                {
+                    "ops": {
+                        "awake_strategy": "on_demand",
+                        "handoff_policy_id": "growth-advisor-standard",
+                    }
+                }
+            ).ops,
+            evaluation_gates=(
+                "boundary-baseline",
+                "protocol-effective",
+                "handoff-slo",
+            ),
+        ),
+    )
+
+
+def _get_training_job(request: web.Request) -> TrainingJob | web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    job_id = request.match_info.get("job_id", "")
+    job = _training_store(request).get((ai_id, job_id))
+    if job is None:
+        return _json_error(status=404, error="training_job_not_found", detail=job_id)
+    return job
+
+
 async def _parse_envelope(request: web.Request) -> InteractionEnvelope:
     if not request.body_exists:
         raise _EnvelopeError("invalid_envelope", "Request body is required")
@@ -311,6 +1374,32 @@ async def _parse_envelope(request: web.Request) -> InteractionEnvelope:
         return InteractionEnvelope.from_json(data)
     except ValueError as exc:
         raise _EnvelopeError("invalid_envelope", str(exc)) from exc
+
+
+async def _read_json_object(
+    request: web.Request,
+    *,
+    allow_empty: bool = False,
+) -> dict[str, Any]:
+    if not request.body_exists:
+        if allow_empty:
+            return {}
+        raise ValueError("Request body is required")
+    try:
+        text = await request.text()
+    except (web.HTTPException, OSError) as exc:
+        raise ValueError(f"Could not read body: {exc}") from exc
+    if not text.strip():
+        if allow_empty:
+            return {}
+        raise ValueError("Request body is required")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Body is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Body must be a JSON object")
+    return data
 
 
 async def _get_or_create_session(manager: SessionManager, session_id: str):

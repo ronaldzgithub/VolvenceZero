@@ -211,8 +211,16 @@ async def _dispatch_lifeform(
     streaming: bool,
     request: web.Request,
 ) -> web.StreamResponse:
+    manager_or_response = _resolve_lifeform_manager_for_request(
+        request=request,
+        parsed=parsed,
+        default_manager=manager,
+    )
+    if isinstance(manager_or_response, web.Response):
+        return manager_or_response
+    resolved_manager = manager_or_response
     try:
-        result = await lifeform_complete(request=parsed, manager=manager)
+        result = await lifeform_complete(request=parsed, manager=resolved_manager)
     except ValueError as exc:
         return _error_from_value_error(exc)
     except Exception as exc:  # pragma: no cover - defensive
@@ -232,6 +240,45 @@ async def _dispatch_lifeform(
             request=request,
         )
     return web.json_response(payload, status=200, headers=headers)
+
+
+def _resolve_lifeform_manager_for_request(
+    *,
+    request: web.Request,
+    parsed: ChatCompletionRequest,
+    default_manager: Any,
+) -> Any | web.Response:
+    """Resolve optional DLaaS ``ai_id`` metadata to a SessionManager.
+
+    The OpenAI body stays compatible: DLaaS routing is opt-in through
+    ``metadata["dlaas.ai_id"]``. We deliberately avoid importing the
+    launcher package here so the OpenAI adapter remains installable as
+    a thin lifeform-service facade; the app key is owned by
+    ``dlaas-platform-launcher`` and only present in full-stack DLaaS
+    apps.
+    """
+
+    ai_id = parsed.metadata.get("dlaas.ai_id", "").strip()
+    if not ai_id:
+        return default_manager
+    launcher = request.app.get("dlaas_instance_manager")
+    if launcher is None:
+        return _error(
+            status=404,
+            error="dlaas_instance_manager_missing",
+            detail=(
+                "metadata['dlaas.ai_id'] was provided, but this service "
+                "is not running the DLaaS InstanceManager."
+            ),
+        )
+    try:
+        return launcher.get(ai_id)
+    except LookupError:
+        return _error(
+            status=404,
+            error="ai_id_not_found",
+            detail=f"metadata['dlaas.ai_id']={ai_id!r} is not adopted.",
+        )
 
 
 async def _emit_sse(

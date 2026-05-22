@@ -3,6 +3,7 @@
 > **目的**：把 [`探索方向.md`](./探索方向.md) 中 43+ 条研究借鉴方向，通过现状核查 + SHADOW 实验 + 数据驱动决策的方式，收敛为可进入主分支的候选。
 >
 > **配套文档**：
+> - [`engineering-convergence-evidence-war.md`](./engineering-convergence-evidence-war.md) — 工程收敛与证据战争总纲：胜利条件、证据门、ACTIVE/SHADOW/DISABLED 决策规则
 > - [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md) — 阶段 A 现状核查 brief（每条候选的 owner / slot / 耦合分析）
 > - [`experiment-arch-uplift.md`](./experiment-arch-uplift.md) — 架构改造 spec（9 项 cross-cutting 基础设施改造：A1-A5 + B1-B4，必须先于业务 packet 推进）
 >

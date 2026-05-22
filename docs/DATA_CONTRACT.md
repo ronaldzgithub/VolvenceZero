@@ -1238,6 +1238,14 @@ class CounterfactualContributionReadout:
     description: str = ""
 
 @dataclass(frozen=True)
+class LeastControlReadout:
+    control_effort: float
+    outcome_quality: float
+    least_control_score: float
+    evidence_count: int
+    description: str = ""
+
+@dataclass(frozen=True)
 class CreditSnapshot:
     recent_credits: tuple[CreditRecord, ...]
     recent_modifications: tuple[SelfModificationRecord, ...]
@@ -1245,6 +1253,7 @@ class CreditSnapshot:
     description: str
     rewarding_state_head: RewardingStateHeadState | None = None
     counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
+    least_control_readout: LeastControlReadout | None = None
 ```
 
 **`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）/ `counterfactual_contribution_learned`（Phase 2.A learned rewarding-state head readout，SHADOW 默认）。
@@ -1259,6 +1268,7 @@ class CreditSnapshot:
 - `derive_credit_records_from_prediction_error_first(...)` 是当前 PE-first credit 派生路径；evaluation 只提供 readout / gate context，不重新成为原始学习源
 - 自修改 gate 当前采用 Two-Gate 风格的保守准入：候选必须提供 validation margin、capacity cap 内的容量成本和 rollback evidence；缺证据默认 block，并把原因写入 `SelfModificationRecord.justification`
 - Phase 2.A 的 `RewardingStateHeadState` 归属 `CreditLedger`，只用 owner 内部 context 向量预测 expected outcome；更新必须带 `validation_delta` / `capacity_cost` / `rollback_evidence`，并写入 `recent_modifications` 审计。`counterfactual_readouts` 是对比 readout，不授权下游重建 head 权重。
+- COG-1 最小切片新增 `least_control_readout`：由 credit owner 从近期 `counterfactual_readouts` 与 `recent_modifications` 派生 report-only 指标，表示“同等 outcome 需要多少控制努力”。evaluation / mid_layer 只能读取该 readout，不重新计算反事实归因。
 
 **消费者**：编排器、记忆系统（反思输入）、评估体系
 **发布频率**：每 turn（即时信用）、每会话（会话级信用）

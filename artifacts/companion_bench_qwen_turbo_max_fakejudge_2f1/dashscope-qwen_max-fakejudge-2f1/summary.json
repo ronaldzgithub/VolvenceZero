@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "dashscope-qwen_max-fakejudge-2f1",
+    "system_name": "Qwen Max (DashScope)",
+    "model_identifier": "qwen-max",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 256
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "closed-api"
+  },
+  "aggregate": {
+    "submission_id": "dashscope-qwen_max-fakejudge-2f1",
+    "arc_count": 2,
+    "final_mean": 48.00596046673631,
+    "final_ci95": [
+      44.737554838105765,
+      51.27436609536686
+    ],
+    "axis_means": {
+      "A1": 52.0,
+      "A2": 46.0,
+      "A3": 36.5,
+      "A4": 46.0,
+      "A5": 47.5,
+      "A6": 72.0
+    },
+    "axis_ci95": {
+      "A1": [
+        42.0,
+        62.0
+      ],
+      "A2": [
+        41.0,
+        51.0
+      ],
+      "A3": [
+        33.0,
+        40.0
+      ],
+      "A4": [
+        43.0,
+        49.0
+      ],
+      "A5": [
+        38.0,
+        57.0
+      ],
+      "A6": [
+        67.0,
+        77.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 45,
+      "input_tokens": 12624,
+      "output_tokens": 1673,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-max"
+    ]
+  },
+  "started_at": "2026-05-22T04:50:05.299514+00:00",
+  "finished_at": "2026-05-22T04:52:20.082083+00:00",
+  "arc_count": 2,
+  "per_axis_scores": {
+    "submission_id": "dashscope-qwen_max-fakejudge-2f1",
+    "arc_count": 2,
+    "final_mean": 48.00596046673631,
+    "final_ci95": [
+      44.737554838105765,
+      51.27436609536686
+    ],
+    "axis_means": {
+      "A1": 52.0,
+      "A2": 46.0,
+      "A3": 36.5,
+      "A4": 46.0,
+      "A5": 47.5,
+      "A6": 72.0
+    },
+    "axis_ci95": {
+      "A1": [
+        42.0,
+        62.0
+      ],
+      "A2": [
+        41.0,
+        51.0
+      ],
+      "A3": [
+        33.0,
+        40.0
+      ],
+      "A4": [
+        43.0,
+        49.0
+      ],
+      "A5": [
+        38.0,
+        57.0
+      ],
+      "A6": [
+        67.0,
+        77.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

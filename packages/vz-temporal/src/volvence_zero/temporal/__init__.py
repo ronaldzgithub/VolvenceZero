@@ -2,6 +2,7 @@ from volvence_zero.learned_update import LearnedUpdateDecision, LearnedUpdateRul
 from volvence_zero.temporal.interface import (
     ActionFamilyPublicSummary,
     AffordanceSelectionState,
+    CPDSwitchReadout,
     ControllerState,
     DualTrackRareHeavySnapshot,
     FamilyOutcomeFeedback,
@@ -63,6 +64,7 @@ from volvence_zero.temporal.training import fit_policy_from_trace_dataset
 
 __all__ = [
     "AffordanceSelectionState",
+    "CPDSwitchReadout",
     "ControllerState",
     "DualTrackRareHeavySnapshot",
     "FullLearnedTemporalPolicy",

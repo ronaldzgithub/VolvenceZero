@@ -29,6 +29,8 @@ from typing import Any
 from aiohttp import web
 
 from dlaas_platform_contracts import (
+    AdoptionConfig,
+    ContractStatus,
     FocusPersonSpec,
     IdentityLinkSpec,
     ReadinessReport,
@@ -36,7 +38,6 @@ from dlaas_platform_contracts import (
     TemplateActivationStatus,
     TemplateSpec,
     TemplateStatus,
-    ContractStatus,
 )
 from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
@@ -165,6 +166,7 @@ def attach_control_plane_routes(
     R.add_delete("/dlaas/contracts/{contract_id}", _handle_delete_contract)
 
     R.add_post("/dlaas/adopt", _handle_adopt)
+    R.add_post("/dlaas/v1/adoptions", _handle_adopt)
 
     R.add_post(
         "/dlaas/instances/{ai_id}/persons",
@@ -802,6 +804,24 @@ async def _handle_adopt(request: web.Request) -> web.Response:
             "Only deployment shells can host a runtime contract.",
         )
 
+    adoption_config = _resolve_adoption_config(data)
+    runtime_template_id = (
+        adoption_config.vertical.runtime_template_id
+        or adoption_config.vertical.vertical_id
+        or template.runtime_template_id
+    )
+    service_contract = dict(data.get("service_contract") or {})
+    service_contract["adoption_config"] = adoption_config.to_json()
+    service_contract.setdefault(
+        "awake_strategy", adoption_config.ops.awake_strategy
+    )
+    service_contract.setdefault(
+        "substrate_profile_id", adoption_config.substrate.substrate_profile_id
+    )
+    service_contract.setdefault(
+        "training_policy", adoption_config.training.to_json()
+    )
+
     instance_manager: InstanceManager = request.app[INSTANCE_MANAGER_APP_KEY]
     contract = await stores.contracts.create(
         tenant_id=tenant.tenant_id,
@@ -815,7 +835,7 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         tool_policy_snapshot=_compute_tool_policy_snapshot(
             data.get("engine_tools") or {}
         ),
-        service_contract=data.get("service_contract") or {},
+        service_contract=service_contract,
         contract_status=ContractStatus.PROVISIONING,
     )
     final_contract = await stores.contracts.set_ai_id(
@@ -826,7 +846,7 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     try:
         await instance_manager.acquire(
             ai_id=final_contract.ai_id,
-            runtime_template_id=template.runtime_template_id,
+            runtime_template_id=runtime_template_id,
         )
     except LookupError as exc:
         await stores.contracts.update_status(
@@ -906,6 +926,9 @@ async def _handle_adopt(request: web.Request) -> web.Response:
             "instance_endpoint": (
                 f"/dlaas/instances/{final_contract.ai_id}/interactions"
             ),
+            "v1_instance_endpoint": (
+                f"/dlaas/v1/instances/{final_contract.ai_id}/interactions"
+            ),
             "instance_token": _instance_token_placeholder(final_contract.ai_id),
             "contract_status": final_contract.contract_status.value,
             "awake_strategy": final_contract.service_contract.get(
@@ -913,10 +936,65 @@ async def _handle_adopt(request: web.Request) -> web.Response:
             ),
             "engine_tools": dict(final_contract.engine_tools),
             "tool_policy_snapshot": dict(final_contract.tool_policy_snapshot),
+            "adoption_config_version": adoption_config.version,
+            "resolved": {
+                "vertical": runtime_template_id,
+                "substrate_profile_id": adoption_config.substrate.substrate_profile_id,
+                "protocol_ids": list(adoption_config.protocols.autoload)
+                + list(adoption_config.protocols.library_ids),
+                "memory_scope_root": (
+                    f"{tenant.tenant_id}/{final_contract.ai_id}"
+                    if adoption_config.memory.scope_strategy == "tenant_ai_end_user"
+                    else final_contract.ai_id
+                ),
+                "tool_policy_snapshot_id": f"toolpol:{final_contract.contract_id}:v1",
+            },
             "persons_registered": persons_registered,
         }
     )
     return web.json_response(body)
+
+
+def _resolve_adoption_config(data: Mapping[str, Any]) -> AdoptionConfig:
+    raw = dict(data.get("adoption_config") or {})
+    blueprint_id = str(data.get("blueprint_id", "") or "")
+    if blueprint_id and not raw:
+        if blueprint_id == "growth-advisor/cheng-laoshi/private-domain-v1":
+            raw = {
+                "vertical": {
+                    "vertical_id": "growth_advisor",
+                    "runtime_template_id": "growth_advisor",
+                    "profile_id": "cheng_laoshi",
+                },
+                "protocols": {"autoload": ["growth_advisor:cheng-laoshi"]},
+                "tools": {
+                    "tool_policy_id": "growth-advisor-wechat-readonly",
+                    "allowed_capabilities": [
+                        "text",
+                        "handoff_ticket",
+                        "reviewed_knowledge",
+                    ],
+                },
+                "ops": {
+                    "awake_strategy": "on_demand",
+                    "handoff_policy_id": "growth-advisor-standard",
+                },
+            }
+        elif blueprint_id == "companion/default/dev-v1":
+            raw = {
+                "vertical": {
+                    "vertical_id": "companion",
+                    "runtime_template_id": "companion",
+                }
+            }
+    overrides = data.get("adoption_overrides") or {}
+    if isinstance(overrides, Mapping):
+        for key, value in overrides.items():
+            if isinstance(value, Mapping) and isinstance(raw.get(key), Mapping):
+                raw[key] = {**dict(raw[key]), **dict(value)}
+            else:
+                raw[key] = value
+    return AdoptionConfig.from_json(raw)
 
 
 async def _resolve_contract_for_tenant(

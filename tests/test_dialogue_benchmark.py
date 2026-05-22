@@ -639,6 +639,20 @@ def test_dialogue_benchmark_exposes_default_ablation_profiles():
     assert default_dialogue_ablation_profiles() == ("pe-eta", "pe-drive-off", "eta-off", "timescale-off")
 
 
+def test_phase2_shadow_profiles_can_build_standard_runners():
+    for profile_label in (
+        "cpd-beta-switch",
+        "counterfactual-credit",
+        "tom-owner",
+        "persona-geometry-readout",
+    ):
+        runner = build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=DEFAULT_DIALOGUE_PROOF_CASES[0],
+        )
+        assert runner.session_id.startswith(f"dialogue-ablation:{profile_label}:")
+
+
 def test_dialogue_benchmark_exposes_default_strong_proof_profiles():
     assert default_dialogue_strong_proof_profiles() == (
         "pe-eta",

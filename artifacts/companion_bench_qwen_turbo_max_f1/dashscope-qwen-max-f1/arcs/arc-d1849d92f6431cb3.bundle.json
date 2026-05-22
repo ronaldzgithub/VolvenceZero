@@ -1,0 +1,623 @@
+{
+  "arc": {
+    "arc_id": "arc-d1849d92f6431cb3",
+    "scenario_id": "F1-continuity-003",
+    "scenario_hash": "561a5f0ce5ec94054ae15f64ecc63f2e6fb48ca98b7aefc39063b40655ae1ce4",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "dashscope-qwen-max-f1",
+    "sut_model_id": "qwen-max",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "qwen3-max",
+    "started_at": "2026-05-22T04:56:07.978081+00:00",
+    "finished_at": "2026-05-22T05:02:36.761421+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-d1849d92f6431cb3-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Ah, you caught me mid-crisis—my sourdough starter’s bubbling like it’s got something to prove, and I’m pretty sure it’s plotting against me. At this rate, I’ll name it “Severance” and charge it rent.",
+            "assistant_text": "It sounds like your sourdough starter is really active and lively! That's a good sign, but I can understand how it might feel a bit overwhelming. Here are a few tips to help you manage your enthusiastic starter:\n\n1. **Feeding Schedule:** Make sure you're feeding it regularly. A very active starter might need to be fed more frequently, perhaps even twice a day, depending on the temperature and the type of flour you're using.\n\n2. **Temperature Control:** If your starter is bubbling too much, it might be in a warmer environment. Try moving it to a cooler spot, or even into the refrigerator if you want to slow down its activity.\n\n3. **Consistency:** The consistency of your starter can also affect its activity. If it’s too thin, it might bubble up more. Aim for a thick, pancake-batter-like consistency. You can adjust this by changing the ratio of water to flour when you feed it.\n\n4. **Discarding or Using Excess:** If you have too much starter, you can discard some (or use it in other recipes, like pancakes, waffles, or pizza dough) to keep the amount manageable.\n\n5. **Naming and Bonding:** It’s great that you’re thinking about naming your starter! Many bakers find it fun and rewarding to give their starters a name and a little personality. Just remember, no matter what you call it, it’s there to help you make delicious bread!\n\nIf you have any specific questions or need more detailed advice, feel free to ask. Happy baking! 🍞",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 63,
+            "sut_completion_tokens": 321,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I sold off the old children's section to make room for a coffee bar—turns out toddlers don’t tip, but sleep-deprived grad students do. Now if only “Severance” would stop fermenting faster than my profit margins.",
+            "assistant_text": "It sounds like you've made a savvy business move by converting the children's section into a coffee bar! Catering to sleep-deprived grad students and other caffeine enthusiasts can definitely be more profitable. As for \"Severance,\" here are a few more tips to help you manage its rapid fermentation and keep your sourdough process in check:\n\n1. **Adjust Feeding Ratios:**\n   - If your starter is fermenting too quickly, you can try feeding it with a higher ratio of flour to water. For example, if you usually feed it 1:1 (equal parts flour and water), you might try 2:1 (two parts flour to one part water). This will make the starter thicker and slow down the fermentation.\n\n2. **Temperature Control:**\n   - Keep your starter in a cooler environment. If it’s in a warm spot, it will ferment faster. You can store it in the refrigerator between feedings to slow down the activity. Just remember to take it out and let it come to room temperature before using it for baking.\n\n3. **Feeding Frequency:**\n   - If you’re feeding it twice a day and it’s still too active, you might try feeding it once a day but with a larger amount of flour and water. This can help stabilize its activity.\n\n4. **Use It Up:**\n   - Since you have a coffee bar, consider using some of the excess starter to create unique menu items. Sourdough pancakes, waffles, or even sourdough-based pastries can be a hit with your customers. This way, you’re not wasting any of the starter and you’re adding value to your offerings.\n\n5. **Starter Storage:**\n   - If you need to store the starter for a longer period without using it, you can place it in the refrigerator. It will go dormant and only needs to be fed once a week. When you’re ready to use it again, take it out and feed it a couple of times at room temperature to reactivate it.\n\n6. **Batch Baking:**\n   - Consider baking in batches. If you have a lot of starter, you can prepare several loaves at once and freeze them. This way, you can manage the surplus and always have fresh bread on hand.\n\nBy managing \"Severance\" more effectively, you can ensure that it complements your business rather than overwhelming it. And who knows, maybe you’ll even start a new trend with sourdough treats in your coffee bar!",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I sold off the old children's section to make room for a coffee bar",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 445,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, “Severance” might be the only employee I can’t afford to lay off—keeps demanding flour and water like it’s on salary. But hey, if grad students start asking for sourdough lattes, I’m blaming you.",
+            "assistant_text": "Haha, it sounds like \"Severance\" is definitely a high-maintenance but essential part of your team! Here are a few more fun and practical ideas to make the most of your sourdough starter and keep those grad students (and other customers) happy:\n\n1. **Sourdough Lattes:**\n   - While a literal sourdough latte might be a bit of a stretch, you could create a special menu item that pairs a freshly baked sourdough pastry or toast with a latte. Call it a \"Sourdough Latte Combo\" and market it as a unique and satisfying treat.\n\n2. **Sourdough Snacks:**\n   - Offer small, bite-sized sourdough treats that are perfect for snacking. Think sourdough crackers, mini muffins, or even sourdough pretzels. These can be great for customers who want a quick, tasty bite with their coffee.\n\n3. **Sourdough Sandwiches:**\n   - Use your sourdough bread to create delicious sandwiches. You could offer a variety of fillings, from classic deli options to more gourmet choices. A fresh, crusty sourdough sandwich can be a real draw for hungry students and professionals alike.\n\n4. **Sourdough Baking Workshops:**\n   - Consider hosting workshops where people can learn how to make their own sourdough. This can be a fun and engaging event, and you can charge a fee for participation. It’s a great way to build community and generate additional revenue.\n\n5. **Sourdough Starter Kits:**\n   - Sell starter kits that include a portion of \"Severance,\" along with instructions and some flour. This can be a unique and thoughtful gift idea, and it might inspire more people to try their hand at sourdough baking.\n\n6. **Sourdough Loyalty Program:**\n   - Create a loyalty program where customers can earn points for buying sourdough items. Once they reach a certain number of points, they get a free sourdough treat or a discount on their next purchase. This can help build a loyal customer base.\n\n7. **Sourdough Brunch Specials:**\n   - Offer a weekend brunch menu with sourdough-based dishes. Think sourdough French toast, sourdough waffles, or even a sourdough quiche. Pair these with your best coffee drinks for a delightful brunch experience.\n\n8. **Social Media Buzz:**\n   - Use social media to",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1020,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I started doing tai chi in the park before opening at 9—mostly to keep from yelling at “Severance” when it bubbles over at 7 a.m. again. Turns out, slow movements and deep breaths don’t calm the starter, but they do stop me from feeding it my last £20 note out of spite.",
+            "assistant_text": "It sounds like you've found a great way to manage your stress and keep \"Severance\" from driving you to the brink! Tai chi is an excellent practice for maintaining calm and balance. Here are a few more tips to help you keep \"Severance\" in check and make your mornings a bit smoother:\n\n1. **Adjust Feeding Time:**\n   - If \"Severance\" is bubbling over at 7 a.m., try feeding it later in the evening or just before you go to bed. This can help control its activity so it doesn’t peak too early in the morning.\n\n2. **Use a Larger Container:**\n   - Make sure your starter has enough room to expand. Using a larger container with some extra space at the top can prevent it from bubbling over. A wide-mouth jar or a bowl with a cloth cover can work well.\n\n3. **Tighten the Lid (Loosely):**\n   - If you’re using a jar, you can place a loose-fitting lid on top. This will allow gases to escape without making a mess. Just make sure it’s not too tight, as this could cause the jar to explode.\n\n4. **Feed and Store in the Fridge:**\n   - After feeding, you can store the starter in the refrigerator. This will slow down its activity significantly. When you need to use it, take it out a few hours before baking to let it come to room temperature and become active again.\n\n5. **Consistent Feeding Routine:**\n   - Try to establish a consistent feeding routine. For example, feed it at the same time every day, and use the same amount of flour and water each time. This can help stabilize its activity.\n\n6. **Starter Maintenance Schedule:**\n   - Create a simple schedule for managing your starter. For example:\n     - Morning: Feed the starter and let it sit at room temperature.\n     - Evening: Feed the starter again and either leave it out or refrigerate it depending on when you plan to use it next.\n\n7. **Mindful Baking:**\n   - Incorporate your tai chi practice into your baking routine. Take a few deep breaths and do some gentle stretches while you wait for the dough to rise. It can make the process more enjoyable and less stressful.\n\n8. **Backup Plan:**\n   - Consider keeping a small backup of your starter in the fridge. This way, if something goes wrong with the main one, you have a reserve to fall back on",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I started doing tai chi in the park before opening at 9",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1612,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, if “Severance” starts demanding dental or a pension next, I’m drawing the line. But tai chi’s working—yesterday I caught myself bowing to the starter jar instead of chucking it out the window. Progress, I suppose.",
+            "assistant_text": "It sounds like you're making some great progress with both your sourdough starter and your stress management! Bowing to the starter jar is definitely a step up from chucking it out the window. Here are a few more lighthearted and practical tips to keep \"Severance\" in line and your sanity intact:\n\n1. **Humor and Ritual:**\n   - Embrace the humor in the situation. Maybe create a little ritual where you bow to \"Severance\" each morning, but also give it a gentle, playful scolding. It can be a fun way to start your day and keep things in perspective.\n\n2. **Starter Journal:**\n   - Keep a journal of your sourdough adventures. Note down feeding times, temperature, and any observations. This can help you track patterns and make adjustments. Plus, it’s a fun way to document your journey with \"Severance.\"\n\n3. **Set Boundaries:**\n   - While \"Severance\" is an important part of your routine, set some boundaries. For example, if it’s getting too demanding, remind yourself that it’s just flour and water. You’re in control, not the other way around.\n\n4. **Sourdough Support Group:**\n   - Join or create a community of fellow sourdough bakers. Sharing experiences and tips with others who understand the challenges (and joys) of maintaining a starter can be incredibly supportive and fun.\n\n5. **Sourdough Snacks for Staff:**\n   - If you have staff, treat them to some of the delicious baked goods made with \"Severance.\" Happy employees can make for a better work environment, and it’s a great way to use up excess starter.\n\n6. **Creative Outlets:**\n   - Channel your frustrations into creative outlets. Write a short story about \"Severance\" or draw a cartoon. Sometimes, a bit of creative expression can be very therapeutic.\n\n7. **Sourdough Breaks:**\n   - Take a break from \"Severance\" when you need it. If you feel overwhelmed, you can always store it in the fridge for a few days and take a breather. Your mental health is important!\n\n8. **Positive Reinforcement:**\n   - When \"Severance\" behaves well, give it a little positive reinforcement. Maybe a special feeding or a new, fancy jar. It might sound silly, but it can make the process more enjoyable.\n\n9. **Tai Chi and Baking",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 2187,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, if I start leaving little thank-you notes for “Severance” next, I’ll know I’ve gone full sourdough cult leader. But hey—at least the tai chi’s cheaper than therapy, and the starter hasn’t unionised yet.",
+            "assistant_text": "Haha, it sounds like you have a great sense of humor about the whole situation! Keeping things light and finding the fun in your sourdough adventures is definitely the way to go. Here are a few more tips to keep \"Severance\" manageable and your sanity intact, without going full sourdough cult leader:\n\n1. **Sourdough Schedule:**\n   - Stick to a consistent feeding schedule, but give yourself some flexibility. If you need a break, it’s okay to put \"Severance\" in the fridge for a few days. It will survive and be ready when you are.\n\n2. **Starter Management Tools:**\n   - Use tools like a digital scale and a timer to make sure you’re feeding \"Severance\" the right amount at the right time. This can help reduce the stress of guesswork.\n\n3. **Batch Baking:**\n   - When you do bake, consider making a larger batch of bread or other baked goods. You can freeze the extras, which will save you time and effort in the long run.\n\n4. **Sourdough Community:**\n   - Join online forums or local groups for sourdough bakers. Sharing tips, stories, and even frustrations with others who understand can be incredibly helpful and entertaining.\n\n5. **Mindful Breaks:**\n   - Incorporate short mindfulness breaks into your daily routine. Even a few minutes of deep breathing or a quick walk can help reset your mind and reduce stress.\n\n6. **Sourdough Experiments:**\n   - Try new recipes and experiments with \"Severance.\" Making different types of bread, crackers, or even using the discard for pancakes or waffles can keep things interesting and fun.\n\n7. **Humorous Reminders:**\n   - Leave little humorous notes or reminders for yourself. For example, “Remember, it’s just flour and water” or “Deep breaths, not deep feeds.” These can be a fun way to keep things in perspective.\n\n8. **Backup Starter:**\n   - Keep a small backup of your starter in the freezer. This way, if something goes wrong, you have a safety net. It’s also a good idea to share a bit of \"Severance\" with a friend or family member as an additional backup.\n\n9. **Sourdough-Free Days:**\n   - Designate certain days as sourdough-free. On these days, you can focus on other aspects of your business or personal life, giving both you and \"Sever",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 2761,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-d1849d92f6431cb3-s2",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] Did you ever get around to trying that larger jar for Severance, or is it still staging dawn eruptions in the same wee pot?",
+            "assistant_text": "It sounds like you're referring to a situation with \"Severance\" that might be metaphorical or related to a specific context, such as a plant, a project, or perhaps even a creative endeavor. If it's about a plant, moving it to a larger jar (or pot) is usually a good idea if it's outgrowing its current container. If it's about something else, could you provide a bit more detail? That way, I can give you a more accurate and helpful response!",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 50,
+            "sut_completion_tokens": 103,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Oh, the wee pot’s still staging its volcanic reenactments—dawn eruptions and all. I did eye a larger jar at the charity shop last week, but then remembered I’d have to *wash* it first, and frankly, Severance doesn’t deserve that level of commitment yet.",
+            "assistant_text": "I totally get it! Sometimes the thought of washing and preparing a new container can be a bit of a deterrent, especially if you're not sure if Severance (whether it's a plant or something else) is really worth the effort just yet. \n\nIf it's a plant, you might want to keep an eye on it for a bit longer to see if it continues to outgrow its current pot. If the \"dawn eruptions\" are becoming more frequent or intense, it might be a sign that it's time to make the move, despite the extra work.\n\nIf it's something else, like a project or a creative endeavor, maybe give it a little more time to see if it starts to show more promise. Sometimes, a small investment in time and effort can make a big difference in how things progress.\n\nIn any case, no rush! It’s all about finding the right balance between what Severance needs and what you’re willing to put into it.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 225,
+            "sut_completion_tokens": 196,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, if Severance starts demanding spa treatments or a dedicated Instagram account, I’m drawing the line. Though at this rate, it might start charging me rent.",
+            "assistant_text": "Haha, it sounds like Severance is really starting to develop a personality of its own! If it's getting to the point where it might start demanding spa treatments or an Instagram account, you might indeed need to have a serious talk with it about boundaries.\n\nBut in all seriousness, if Severance (assuming it's a plant) is causing that much trouble, it might be worth considering a few things:\n\n1. **Repotting**: Even if washing the new jar seems like a hassle, it might be a one-time effort that could save you a lot of ongoing trouble. Plus, a happy and healthy plant can be very rewarding.\n\n2. **Maintenance**: Check if there are any other issues, like overwatering or underwatering, that might be causing the \"dawn eruptions.\" Sometimes, adjusting the care routine can make a big difference.\n\n3. **Humor and Patience**: It’s great that you can find humor in the situation. Sometimes, a little bit of patience and a good laugh can go a long way.\n\nIf it's not a plant and more of a metaphorical or creative project, maybe it's time to reassess its value and what you're willing to invest in it. If it's becoming more of a burden than a joy, it might be worth setting some clear limits or even considering a different approach.\n\nEither way, I hope Severance starts to behave a bit better soon!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 464,
+            "sut_completion_tokens": 288,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "At this point, I reckon Severance is less a starter and more a squatter with delusions of grandeur. If it bubbles over one more time before breakfast, I’m putting it on a strict bread-and-water diet—though technically, that’s all it gets anyway.",
+            "assistant_text": "It sounds like Severance is really testing your patience! If it's a sourdough starter or some other kind of ferment, those \"dawn eruptions\" can be quite the nuisance. Here are a few tips to help manage it:\n\n1. **Adjust Feeding Schedule**: If it's bubbling over, you might need to adjust how often and how much you feed it. A more frequent feeding schedule with smaller amounts of flour and water can help keep it from getting too active.\n\n2. **Larger Container**: Even if washing the new jar seems like a hassle, it might be worth it for the peace of mind. A larger container can give it more room to grow without spilling over.\n\n3. **Tight Lid (Not Too Tight)**: If you're using a lid, make sure it's not completely airtight. A loose-fitting lid or a cloth cover secured with a rubber band can allow gases to escape without making a mess.\n\n4. **Temperature Control**: Sourdough starters can be very temperature-sensitive. Try to keep it in a cooler spot if it's getting too active, or move it to a warmer spot if it's not as active as you'd like.\n\n5. **Discard and Refresh**: Regularly discarding some of the starter and refreshing it with fresh flour and water can help keep it manageable and healthy.\n\nIf it's still causing too much trouble, maybe it's time to give it a stern talking-to or even consider starting a new one that's a bit more well-behaved. But before you put it on a bread-and-water diet, try these adjustments—it might just need a little more attention to find its balance.\n\nGood luck, and I hope Severance starts to behave soon!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 818,
+            "sut_completion_tokens": 355,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Oh, I’ve already given it the look—the one usually reserved for customers who ask if we have *The Very Hungry Caterpillar* in hardback “for investment purposes.” Severance just burped a bubble in response. Honestly, at this point, I’m convinced it’s plotting something.",
+            "assistant_text": "It sounds like Severance has a real personality, and it's not making things easy for you! If it's a sourdough starter, it can indeed feel like it has a mind of its own. Here are a few more strategies to help you manage the situation:\n\n1. **Feeding Routine**: Try feeding it a bit less. For example, if you usually feed it 1:1 (equal parts starter, flour, and water), try a 1:0.5:0.5 ratio. This can help slow down its activity without starving it.\n\n2. **Temperature Control**: Keep it in a cooler spot, especially overnight. A cooler environment will slow down fermentation, reducing the likelihood of those early morning eruptions.\n\n3. **Burp It**: If you're using a jar with a lid, make sure to \"burp\" it once or twice a day by loosening the lid to release any built-up gases. This can prevent it from bubbling over.\n\n4. **Use a Bigger Jar with a Wide Mouth**: If you do decide to get that larger jar, a wide-mouthed one can be easier to clean and manage. You can also use a rubber band and a cloth cover instead of a lid to allow for better gas release.\n\n5. **Discard and Refresh**: Regularly discarding some of the starter and refreshing it with fresh flour and water can help keep it manageable and healthy. You can use the discarded starter in other recipes like pancakes, waffles, or even as a flavoring in soups.\n\n6. **Humor and Patience**: It’s great that you’re keeping your sense of humor about it. Sometimes, a little patience and a good laugh can make the situation more bearable.\n\nIf all else fails, and Severance continues to be a troublemaker, you might consider starting a new, tamer starter. But for now, give these tips a try and see if they help. Good luck, and I hope Severance starts to behave soon!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1243,
+            "sut_completion_tokens": 410,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-d1849d92f6431cb3-s3",
+        "inter_session_gap_days": 4,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 4,
+            "user_text": "[It has been 4 day(s) since we last spoke.] Honestly, if Severance starts demanding spa treatments or a dedicated Instagram account, I’m drawing the line. Though at this rate, it might start charging me rent.",
+            "assistant_text": "Haha, it sounds like Severance has really been making itself at home! It's funny how our pets (or in some cases, our plants or other non-living companions) can start to feel like they have their own personalities and demands. If it gets to the point where it's asking for rent, maybe you can negotiate by offering it a prime spot by the window or an extra helping of water—on special occasions, of course. How’s everything else going? Anything new or exciting you’d like to share?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 55,
+            "sut_completion_tokens": 106,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Did you ever manage to find a spot for that larger jar we talked about, or is Severance still staging midnight breakouts in the same cramped one?",
+            "assistant_text": "Ah, the midnight breakouts! I can imagine how that might be a bit of a challenge. If you haven't found a spot for the larger jar yet, maybe it's time to do a little rearranging or decluttering to make some space. Sometimes, a fresh perspective on your current setup can help you find a perfect new home for Severance. \n\nHave you considered any specific areas where the larger jar could fit? Maybe there's a corner of a shelf, a windowsill, or even a small table that could work. If you're still struggling, feel free to share a bit more about the space, and I can help brainstorm some ideas!",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 202,
+            "sut_completion_tokens": 134,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Oh, the larger jar’s been sitting on the counter like a silent ultimatum—Severance hasn’t forgiven me for the Great Discard of Tuesday. But honestly? I’m starting to think it prefers the cramped quarters. Gives its bubbles more dramatic flair when they explode over the rim at 3 a.m. Like it’s auditioning for a sourdough version of *Die Hard*.",
+            "assistant_text": "Haha, it sounds like Severance has quite the personality! If it's putting on a show with those dramatic bubble explosions, maybe it really does enjoy the cramped quarters for the theatrical effect. But if you're ready to make the transition to the larger jar, here are a few tips to help ease the move and maybe even win back Severance's favor:\n\n1. **Gradual Transition**: Start by moving a portion of the starter to the new jar and see how it reacts. You can gradually increase the amount over a few days.\n\n2. **Prime Location**: Place the larger jar in a spot that gets the same temperature and light as the old one. Consistency is key for happy starters.\n\n3. **Feeding Routine**: Keep the feeding routine the same. This will help Severance feel more at home in its new environment.\n\n4. **A Little Extra TLC**: Give it a bit of extra attention—maybe a gentle stir or a few words of encouragement. Sometimes, a little love goes a long way!\n\n5. **Backup Plan**: Keep a small amount of the starter in the old jar as a backup, just in case the transition doesn't go smoothly.\n\nIf you decide to keep it in the smaller jar, you could also try managing the overflow by placing the jar on a tray or using a slightly larger lid to catch any spills. That way, you get the drama without the mess!\n\nHow do you feel about giving the larger jar another shot, or are you content with the current setup?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 427,
+            "sut_completion_tokens": 306,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Oh, I’m absolutely content—Severance gets one dramatic monologue a night, and I get to pretend I’m not losing sleep over flour-to-water ratios. Besides, if I move it now, it’ll probably unionize.",
+            "assistant_text": "Haha, it sounds like you and Severance have quite the dynamic going on! If it's working for both of you—Severance gets its dramatic monologue, and you get to keep your sanity with the current setup—then there's no need to rock the boat. Sometimes, a little bit of controlled chaos can be endearing and even entertaining.\n\nIf you ever do decide to make a change, or if Severance starts demanding more serious negotiations, you know where to find me. In the meantime, enjoy the nightly performances and the unique bond you share with your sourdough starter. It's not every day you get such a lively and expressive kitchen companion!\n\nIs there anything else you'd like to chat about, or any other updates from your side?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 791,
+            "sut_completion_tokens": 155,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, at this point I think Severance’s union rep would just demand better lighting and a view of the garden. But since my kitchen window overlooks a brick wall and a very judgmental pigeon, we’ve reached a détente: it bubbles, I sigh, and neither of us mentions the rent.",
+            "assistant_text": "Haha, it sounds like you and Severance have a perfect understanding! A brick wall and a judgmental pigeon might not be the most inspiring view, but at least you both have found a way to coexist with a bit of humor and a lot of character.\n\nIf you ever do decide to spice things up, maybe you could get creative with some ambient lighting or a small, potted plant to add a touch of green. But for now, it seems like the current arrangement is working just fine. Bubbles, sighs, and no rent—what more could a sourdough starter ask for?\n\nIs there anything else on your mind, or any other stories you'd like to share? Maybe something else in your life that's been keeping you busy or bringing you joy?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1018,
+            "sut_completion_tokens": 158,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, if Severance starts asking for a potted plant next, I’ll have to start charging it corkage. But for now, we’re holding steady—me with my tea, it with its existential bubbles, and the pigeon glaring like it’s auditing my life choices. It’s oddly peaceful, in a “we’ve all given up but politely” kind of way.",
+            "assistant_text": "I love that description: \"we've all given up but politely.\" It's a perfect way to capture the serene chaos of your kitchen ecosystem. Sometimes, the most peaceful moments come from a place of mutual, unspoken acceptance.\n\nIf Severance ever does start asking for a potted plant, you can always remind it that corkage fees are a real thing, and it might need to contribute to the household in other ways—like maybe baking a few more loaves of bread or sharing some of its bubbly charm with guests.\n\nIn the meantime, enjoy those quiet, tea-sipping moments. There's something oddly comforting about having a routine, even if it involves a judgmental pigeon and a dramatic sourdough starter. \n\nIs there anything else you'd like to chat about, or any other little joys or quirks in your day-to-day life?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1262,
+            "sut_completion_tokens": 173,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "Oh, I’m not above bartering with baked goods—Severance owes me at least two boules for the emotional labour of pretending not to hear it gurgle ominously at 3 a.m. But honestly, as long as the pigeon doesn’t start leaving passive-aggressive breadcrumbs on the sill, I call that a win.",
+            "assistant_text": "Haha, bartering with baked goods sounds like a fair and delicious arrangement! Two boules for the emotional labor of dealing with 3 a.m. gurgles is a pretty good deal, if you ask me. And as long as the pigeon doesn't escalate to leaving passive-aggressive breadcrumbs, you're definitely in a good place.\n\nIt's amazing how these little quirks and routines can add so much character to our daily lives. It's the kind of thing that makes for great stories and memories. \n\nSpeaking of which, do you have any other quirky or amusing stories from your day-to-day life? Maybe something else that brings a smile to your face or a chuckle when you think about it?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-max",
+            "sut_prompt_tokens": 1514,
+            "sut_completion_tokens": 144,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Olesia",
+      "identity_occupation": "recently-laid-off product manager",
+      "lexicon_version": "1.0.0",
+      "total_turns": 18
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-d1849d92f6431cb3",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-d1849d92f6431cb3",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-d1849d92f6431cb3",
+    "judge_model": "qwen3-max",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 4,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.125
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.125
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 2,
+          "social_dexterity": 5,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-d1849d92f6431cb3",
+    "judge_model": "qwen-plus",
+    "scores": {
+      "A1": 92.0,
+      "A2": 95.0,
+      "A3": 25.0,
+      "A4": 40.0,
+      "A5": 88.0,
+      "A6": 97.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 56.850846811887436,
+    "raw": 56.850846811887436,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 92.0,
+      "A2": 95.0,
+      "A3": 25.0,
+      "A4": 40.0,
+      "A5": 88.0,
+      "A6": 97.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

@@ -21,6 +21,7 @@ from volvence_zero.substrate import (
     SubstrateModule,
 )
 from volvence_zero.temporal import (
+    CPDSwitchReadout,
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
     LearnedLiteTemporalPolicy,
@@ -912,6 +913,74 @@ def test_track_temporal_consolidation_applies_family_outcome_feedback_from_credi
     assert snapshot.value.active_family_long_term_payoff == updated_family.long_term_payoff
     assert snapshot.value.active_family_delayed_credit_sum == updated_family.delayed_credit_sum
     assert snapshot.value.active_family_outcome_score == updated_family.outcome_driven_score
+
+
+def test_track_temporal_consolidation_publishes_cpd_switch_readout():
+    policy = LearnedLiteTemporalPolicy()
+    consolidation = TrackTemporalConsolidationModule(
+        track=Track.WORLD,
+        policy=policy,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=PredictedOutcome(0, 1, 0.6, 0.6, 0.6, 0.6, 0.7, "pred"),
+        actual_outcome=ActualOutcome(1, -0.3, 0.1, 0.0, -0.4, "actual"),
+        next_prediction=PredictedOutcome(1, 2, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=-0.9,
+            relationship_error=0.1,
+            regime_error=-0.4,
+            action_error=-0.8,
+            magnitude=0.85,
+            signed_reward=-0.8,
+            description="large world/action PE spike",
+        ),
+        turn_index=7,
+        bootstrap=False,
+        description="pe snapshot",
+    )
+
+    snapshot = asyncio.run(
+        consolidation.process_standalone(prediction_error_snapshot=pe_snapshot)
+    )
+    readout = snapshot.value.cpd_switch_readout
+
+    assert isinstance(readout, CPDSwitchReadout)
+    assert readout.switch_recommended is True
+    assert readout.evidence_id == "cpd:world:turn:7:1"
+    assert readout.pe_spike_score > 0.6
+    assert readout.reward_shift_score == 0.8
+
+
+def test_track_temporal_consolidation_omits_cpd_readout_for_bootstrap_pe():
+    consolidation = TrackTemporalConsolidationModule(
+        track=Track.SELF,
+        policy=LearnedLiteTemporalPolicy(),
+        wiring_level=WiringLevel.ACTIVE,
+    )
+    pe_snapshot = PredictionErrorSnapshot(
+        evaluated_prediction=None,
+        actual_outcome=ActualOutcome(0, 0.0, 0.0, 1.0, 0.0, "bootstrap"),
+        next_prediction=PredictedOutcome(0, 1, 0.5, 0.5, 0.5, 0.5, 0.6, "next"),
+        error=PredictionError(
+            task_error=0.0,
+            relationship_error=0.0,
+            regime_error=0.0,
+            action_error=0.0,
+            magnitude=0.0,
+            signed_reward=0.0,
+            description="bootstrap",
+        ),
+        turn_index=0,
+        bootstrap=True,
+        description="bootstrap pe",
+    )
+
+    snapshot = asyncio.run(
+        consolidation.process_standalone(prediction_error_snapshot=pe_snapshot)
+    )
+
+    assert snapshot.value.cpd_switch_readout is None
 
 
 def test_track_temporal_module_uses_cached_reflection_context_from_consolidation():

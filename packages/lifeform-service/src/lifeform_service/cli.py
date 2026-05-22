@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -165,6 +166,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "docs/external/. Requires the lifeform-openai-compat "
             "wheel to be installed. Default: off (existing "
             "/v1/sessions/{id}/turns API only)."
+        ),
+    )
+    parser.add_argument(
+        "--openai-compat-api-key-env",
+        default="LIFEFORM_LOCAL_API_KEY",
+        help=(
+            "Environment variable containing the Bearer API key required by "
+            "the OpenAI-compatible /v1/chat/completions route when "
+            "--enable-openai-compat is set (default LIFEFORM_LOCAL_API_KEY)."
         ),
     )
     parser.add_argument(
@@ -375,14 +385,34 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        add_openai_routes(app)
+        api_key_env = args.openai_compat_api_key_env.strip()
+        if not api_key_env:
+            print(
+                "--enable-openai-compat requires a non-empty "
+                "--openai-compat-api-key-env name",
+                file=sys.stderr,
+            )
+            return 1
+        api_key = os.environ.get(api_key_env, "").strip()
+        if not api_key:
+            print(
+                f"--enable-openai-compat requires env var {api_key_env} "
+                "to contain the local OpenAI-compatible API key",
+                file=sys.stderr,
+            )
+            return 1
+        add_openai_routes(app, api_keys=(api_key,))
     print(
         f"[lifeform-serve] vertical={spec.name}  "
         f"temporal_bootstrap={spec.has_temporal_bootstrap}  "
         f"regime_bootstrap={spec.has_regime_bootstrap}  "
         f"substrate_mode={args.substrate_mode}"
         + (f"  alpha_enabled={args.alpha_enabled}" if args.alpha_enabled else "")
-        + (f"  openai_compat=on" if args.enable_openai_compat else "")
+        + (
+            f"  openai_compat=on(auth_env={args.openai_compat_api_key_env})"
+            if args.enable_openai_compat
+            else ""
+        )
         + (
             f"  model_id={args.substrate_model_id}"
             if args.substrate_mode == "hf-shared"

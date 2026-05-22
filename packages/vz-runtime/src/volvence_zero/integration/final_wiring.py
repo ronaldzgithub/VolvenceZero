@@ -40,6 +40,7 @@ from volvence_zero.application.storage import (
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
 )
+from volvence_zero.audit import AuditModule
 from volvence_zero.credit.gate import (
     CreditSnapshot,
     CreditModule,
@@ -154,6 +155,7 @@ from volvence_zero.substrate import (
     SubstrateModule,
     SubstrateSelfModModule,
     SubstrateSelfModSnapshot,
+    SubstrateSnapshot,
 )
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
@@ -1603,6 +1605,9 @@ def build_final_runtime_modules(
             pending_proposals=credit_proposals,
             wiring_level=config.level_for("credit", WiringLevel.SHADOW),
         ),
+        AuditModule(
+            wiring_level=config.level_for("audit", WiringLevel.SHADOW),
+        ),
         ReflectionModule(
             engine=ReflectionEngine(writeback_mode=reflection_mode),
             wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
@@ -1887,10 +1892,28 @@ async def run_final_wiring_turn(
             base_snapshot=enriched_evaluation,
             prediction_error_snapshot=prediction_snapshot_value,
         )
-        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+        enriched_evaluation = evaluation_module.backbone.record_persona_geometry_evidence(
             session_id=session_id,
             wave_id=wave_id,
             timestamp_ms=evaluation_snapshot.timestamp_ms + 4,
+            base_snapshot=enriched_evaluation,
+            substrate_snapshot=(
+                active_snapshots.get("substrate").value
+                if active_snapshots.get("substrate") is not None
+                and isinstance(active_snapshots.get("substrate").value, SubstrateSnapshot)
+                else None
+            ),
+            regime_snapshot=(
+                active_snapshots.get("regime").value
+                if active_snapshots.get("regime") is not None
+                and isinstance(active_snapshots.get("regime").value, RegimeSnapshot)
+                else None
+            ),
+        )
+        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
             base_snapshot=enriched_evaluation,
             memory_snapshot=active_snapshots.get("memory").value if active_snapshots.get("memory") is not None else None,
             reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
@@ -1942,7 +1965,7 @@ async def run_final_wiring_turn(
             enriched_evaluation = evaluation_module.backbone.record_external_scores(
                 session_id=session_id,
                 wave_id=wave_id,
-                timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
                 base_snapshot=enriched_evaluation,
                 scores=(
                     EvaluationScore(
