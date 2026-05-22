@@ -22,3 +22,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["lifeform_affordance*"]
+
+[tool.setuptools.package-data]
+lifeform_affordance = ["prompts/*.md", "schemas/*.json"]

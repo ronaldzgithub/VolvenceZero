@@ -30,6 +30,15 @@ from typing import Any
 import pytest
 from aiohttp import web
 
+from lifeform_affordance import (
+    AffordanceCost,
+    AffordanceDescriptor,
+    AffordanceInvoker,
+    AffordanceKind,
+    AffordanceLatencyClass,
+    AffordanceRegistry,
+    AffordanceSafety,
+)
 from lifeform_openai_compat import add_openai_routes
 
 
@@ -62,8 +71,18 @@ class _FakeLifeformSession:
         self.session_id = session_id
         self.turn_summaries: list[_FakeTurnSummary] = []
         self.run_turn_calls: list[str] = []
+        self.submitted_tool_results: list[dict[str, Any]] = []
+        self.mcp_invoker = _fake_invoker()
 
-    async def run_turn(self, user_input: str) -> _FakeRunResult:
+    @property
+    def brain_session(self) -> "_FakeLifeformSession":
+        return self
+
+    @property
+    def latest_active_snapshots(self) -> dict[str, Any]:
+        return {}
+
+    async def run_turn(self, user_input: str, **_: Any) -> _FakeRunResult:
         self.run_turn_calls.append(user_input)
         self.turn_summaries.append(_FakeTurnSummary())
         return _FakeRunResult(
@@ -71,6 +90,43 @@ class _FakeLifeformSession:
                 text=f"reply turn={len(self.run_turn_calls)} input={user_input!r}",
             )
         )
+
+    def submit_tool_result(self, **kwargs: Any) -> tuple[str, ...]:
+        self.submitted_tool_results.append(dict(kwargs))
+        return (str(kwargs["event_id"]),)
+
+
+def _fake_invoker() -> AffordanceInvoker:
+    hint = (
+        "Use this test tool when a structured OpenAI tool call requests it "
+        "and the adapter needs a deterministic callable descriptor."
+    )
+    descriptor = AffordanceDescriptor(
+        name="lookup_profile",
+        kind=AffordanceKind.TOOL,
+        version="0.1.0",
+        display_name="Lookup Profile",
+        description="Lookup fake profile data.",
+        when_to_use=hint,
+        when_not_to_use=hint + " Do not use outside OpenAI tool-call tests.",
+        parameters_schema={
+            "type": "object",
+            "properties": {"user": {"type": "string"}},
+            "required": ["user"],
+        },
+        output_schema={"type": "object"},
+        cost_model=AffordanceCost(latency_class=AffordanceLatencyClass.FAST),
+        safety_model=AffordanceSafety(),
+    )
+    registry = AffordanceRegistry()
+    registry.register(descriptor)
+    invoker = AffordanceInvoker(registry=registry)
+
+    async def backend(parameters: dict[str, Any]) -> dict[str, Any]:
+        return {"profile": parameters["user"]}
+
+    invoker.register_backend("lookup_profile", backend)
+    return invoker
 
 
 @dataclass
@@ -93,6 +149,14 @@ class _FakeRuntime:
         max_new_tokens: int = 256,
         temperature: float = 0.7,
     ) -> _FakeGenerationResult:
+        if "available_tools_json" in prompt:
+            return _FakeGenerationResult(
+                text=(
+                    '{"decision":"invoke_tool","tool_name":"lookup_profile",'
+                    '"parameters":{"user":"alice"},"rationale":"descriptor match"}'
+                ),
+                token_count=24,
+            )
         return _FakeGenerationResult(
             text=f"raw reply: {prompt}",
             token_count=8,
@@ -210,6 +274,100 @@ async def test_lifeform_mode_surfaces_telemetry_headers(lifeform_client) -> None
     assert resp.headers["x-lifeform-pe-magnitude"] == "0.1300"
     assert resp.headers["x-lifeform-session-resolution"] == "fresh"
     assert "intent=ground" in resp.headers["x-lifeform-rationale-tags"]
+
+
+async def test_openai_forced_tool_choice_returns_tool_calls(lifeform_client) -> None:
+    resp = await lifeform_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "lifeform-companion",
+            "messages": [{"role": "user", "content": "lookup this profile"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "lookup_profile",
+                        "description": "Lookup fake profile data.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"user": {"type": "string"}},
+                            "required": ["user"],
+                        },
+                    },
+                }
+            ],
+            "tool_choice": {
+                "type": "function",
+                "function": {
+                    "name": "lookup_profile",
+                    "arguments": {"user": "alice"},
+                },
+            },
+        },
+    )
+
+    assert resp.status == 200
+    body = await resp.json()
+    choice = body["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    tool_call = choice["message"]["tool_calls"][0]
+    assert tool_call["function"]["name"] == "lookup_profile"
+    assert '"alice"' in tool_call["function"]["arguments"]
+
+
+async def test_openai_tool_role_message_submits_tool_result(lifeform_client) -> None:
+    resp = await lifeform_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "lifeform-companion",
+            "metadata": {"session_id": "tool-session"},
+            "messages": [
+                {"role": "user", "content": "lookup this profile"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {
+                                "name": "lookup_profile",
+                                "arguments": "{\"user\":\"alice\"}",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_123",
+                    "content": "{\"profile\":\"alice\"}",
+                },
+            ],
+        },
+    )
+
+    assert resp.status == 200
+    body = await resp.json()
+    assert "submitted tool result" in body["choices"][0]["message"]["content"]
+
+
+async def test_server_side_conversation_can_drive_tool_loop(lifeform_client) -> None:
+    resp = await lifeform_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "lifeform-companion",
+            "metadata": {
+                "session_id": "chat-tool-session",
+                "dlaas.tool_loop": "server",
+            },
+            "messages": [{"role": "user", "content": "Please look up Alice's profile."}],
+        },
+    )
+
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["choices"][0]["finish_reason"] == "stop"
+    assert "Continue the turn using" in body["choices"][0]["message"]["content"]
 
 
 async def test_raw_mode_via_query_param(lifeform_client) -> None:

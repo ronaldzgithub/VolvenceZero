@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "required": ["decision", "rationale"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["invoke_tool", "final_answer", "stop", "pause", "continue"]
+    },
+    "tool_name": {
+      "type": "string"
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "call_id": {
+      "type": "string"
+    },
+    "plan_ref": {
+      "type": ["string", "null"]
+    },
+    "rationale": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

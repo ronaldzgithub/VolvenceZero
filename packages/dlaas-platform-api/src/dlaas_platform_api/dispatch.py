@@ -50,7 +50,13 @@ from lifeform_ingestion import (
 )
 from volvence_zero.dialogue_trace import DialogueExternalOutcomeEvidenceSource
 
-from dlaas_platform_api.output_acts import ok_envelope, system_act, text_act
+from dlaas_platform_api.output_acts import (
+    ok_envelope,
+    system_act,
+    text_act,
+    tool_call_act,
+    tool_task_act,
+)
 
 
 class DispatchError(Exception):
@@ -129,6 +135,61 @@ async def _handle_chat(
             code="invalid_human_brief",
             detail="interaction_type=chat requires a non-empty human_brief",
         )
+    native_tool_intent = _native_tool_intent(envelope.structured_context)
+    if native_tool_intent is not None:
+        invoker = _session_invoker(session)
+        loop_mode = _optional_str(
+            envelope.structured_context, "tool_loop_mode", default="client"
+        )
+        if loop_mode == "server":
+            from lifeform_affordance import ToolLoopOrchestrator, ToolLoopPolicy
+
+            orchestrator = ToolLoopOrchestrator(
+                registry=invoker.registry,
+                invoker=invoker,
+                policy=ToolLoopPolicy(server_side_execution=True),
+                contract_id=envelope.contract_id,
+            )
+            loop_result = await orchestrator.run(
+                session=session,
+                user_input=envelope.human_brief,
+                initial_intents=(native_tool_intent,),
+            )
+            final_text = getattr(loop_result.final_turn_result.response, "text", "") or ""
+            acts = [text_act(final_text)]
+            for task_id in loop_result.async_task_ids:
+                handle = invoker.get_task_handle(task_id)
+                acts.append(
+                    tool_task_act(
+                        task_id=handle.task_id,
+                        status=handle.status.value,
+                        poll_after_ms=handle.poll_after_ms,
+                    )
+                )
+            return ok_envelope(
+                ai_id=ai_id,
+                contract_id=envelope.contract_id,
+                session_id=envelope.session_id,
+                interaction_type=envelope.interaction_type.value,
+                output_acts=tuple(acts),
+                protocol_version=envelope.protocol_version,
+                extra={"tool_loop": {"stop_reason": loop_result.stop_reason.value}},
+            )
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(
+                tool_call_act(
+                    call_id=native_tool_intent.stable_call_id,
+                    tool_name=native_tool_intent.descriptor_name,
+                    arguments=dict(native_tool_intent.parameters),
+                ),
+            ),
+            protocol_version=envelope.protocol_version,
+            extra={"tool_loop": {"mode": "client"}},
+        )
     result = await session.run_turn(envelope.human_brief)
     response_text = getattr(result.response, "text", "") or ""
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
@@ -144,6 +205,55 @@ async def _handle_chat(
             "active_abstract_action": getattr(result, "active_abstract_action", None),
             "rationale_tags": list(rationale_tags),
         },
+    )
+
+
+def _session_invoker(session: Any) -> Any:
+    try:
+        return session.mcp_invoker
+    except AttributeError as exc:
+        raise DispatchError(
+            code="tool_invoker_unavailable",
+            detail="session does not expose an affordance invoker",
+            status=501,
+        ) from exc
+
+
+def _native_tool_intent(ctx: Mapping[str, Any]) -> Any:
+    raw = ctx.get("tool_choice")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice must be an object",
+        )
+    name = raw.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.name must be non-empty",
+        )
+    arguments = raw.get("arguments", {})
+    if not isinstance(arguments, Mapping):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.arguments must be an object",
+        )
+    from lifeform_affordance import ToolCallIntent
+
+    call_id = raw.get("call_id", "")
+    if call_id is not None and not isinstance(call_id, str):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.call_id must be a string",
+        )
+    return ToolCallIntent(
+        descriptor_name=name,
+        parameters=dict(arguments),
+        call_id=call_id or "",
+        plan_ref=_optional_str(ctx, "plan_ref", default=None) or None,
+        source="dlaas_native",
     )
 
 

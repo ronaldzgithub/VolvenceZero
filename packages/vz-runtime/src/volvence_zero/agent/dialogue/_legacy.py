@@ -22,6 +22,7 @@ from volvence_zero.agent.paper_suite import (
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
+from volvence_zero.credit import CreditSnapshot
 from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     CrossSessionGrowthReport,
@@ -48,6 +49,13 @@ from volvence_zero.memory import build_default_memory_store
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state.quality import SemanticProposalQualityReport
+from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    FeelingAboutOtherSnapshot,
+    IntentAboutOtherSnapshot,
+    PreferenceAboutOtherSnapshot,
+    tom_record_counts_by_interlocutor,
+)
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
     LocalSubstrateRuntimeMode,
@@ -56,7 +64,7 @@ from volvence_zero.substrate import (
     TrainingTrace,
     build_training_trace,
 )
-from volvence_zero.temporal import TemporalAbstractionSnapshot
+from volvence_zero.temporal import TemporalAbstractionSnapshot, TemporalConsolidationSnapshot
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
@@ -609,6 +617,21 @@ _PHASE2_SHADOW_EVIDENCE_PROFILES: frozenset[str] = frozenset(
         "persona-geometry-readout",
     }
 )
+
+
+def default_phase2_shadow_evidence_profiles() -> tuple[str, ...]:
+    """Explicit Phase 2 candidate profiles.
+
+    These are not part of the default ablation / strong-proof matrices.
+    Callers use this list when they intentionally want to run SYS-1 /
+    COG-1 / COG-2 / COG-3 SHADOW evidence.
+    """
+    return (
+        "cpd-beta-switch",
+        "counterfactual-credit",
+        "tom-owner",
+        "persona-geometry-readout",
+    )
 
 
 def build_dialogue_paper_suite_manifest(
@@ -1234,6 +1257,61 @@ def _metric_pairs(result: AgentTurnResult) -> tuple[tuple[str, float], ...]:
                     "abstraction:emotional_decision_action_family",
                     1.0 if assembly.eta_action_family in EMOTIONAL_DECISION_ACTION_FAMILIES else 0.0,
                 ),
+            )
+        )
+    credit_snapshot = result.active_snapshots.get("credit") or result.shadow_snapshots.get("credit")
+    if credit_snapshot is not None and isinstance(credit_snapshot.value, CreditSnapshot):
+        credit_value = credit_snapshot.value
+        metric_pairs.append(
+            ("learning:counterfactual_readout_count", float(len(credit_value.counterfactual_readouts)))
+        )
+        least_control = credit_value.least_control_readout
+        if least_control is not None:
+            metric_pairs.extend(
+                (
+                    ("learning:least_control_score", least_control.least_control_score),
+                    ("learning:least_control_effort", least_control.control_effort),
+                    ("learning:least_control_outcome_quality", least_control.outcome_quality),
+                    ("learning:least_control_evidence_count", float(least_control.evidence_count)),
+                )
+            )
+    cpd_readouts = tuple(
+        snapshot.value.cpd_switch_readout
+        for slot_name in ("world_temporal_consolidation", "self_temporal_consolidation")
+        for snapshot in (
+            result.active_snapshots.get(slot_name) or result.shadow_snapshots.get(slot_name),
+        )
+        if snapshot is not None
+        and isinstance(snapshot.value, TemporalConsolidationSnapshot)
+        and snapshot.value.cpd_switch_readout is not None
+    )
+    if cpd_readouts:
+        metric_pairs.extend(
+            (
+                ("abstraction:cpd_beta_switch_recommended", max(1.0 if r.switch_recommended else 0.0 for r in cpd_readouts)),
+                ("abstraction:cpd_pe_spike_score", _mean(tuple(r.pe_spike_score for r in cpd_readouts))),
+                ("abstraction:cpd_reward_shift_score", _mean(tuple(r.reward_shift_score for r in cpd_readouts))),
+            )
+        )
+    belief_snapshot = result.active_snapshots.get("belief_about_other") or result.shadow_snapshots.get("belief_about_other")
+    intent_snapshot = result.active_snapshots.get("intent_about_other") or result.shadow_snapshots.get("intent_about_other")
+    feeling_snapshot = result.active_snapshots.get("feeling_about_other") or result.shadow_snapshots.get("feeling_about_other")
+    preference_snapshot = result.active_snapshots.get("preference_about_other") or result.shadow_snapshots.get("preference_about_other")
+    tom_counts = tom_record_counts_by_interlocutor(
+        belief=belief_snapshot.value if belief_snapshot is not None and isinstance(belief_snapshot.value, BeliefAboutOtherSnapshot) else None,
+        intent=intent_snapshot.value if intent_snapshot is not None and isinstance(intent_snapshot.value, IntentAboutOtherSnapshot) else None,
+        feeling=feeling_snapshot.value if feeling_snapshot is not None and isinstance(feeling_snapshot.value, FeelingAboutOtherSnapshot) else None,
+        preference=(
+            preference_snapshot.value
+            if preference_snapshot is not None and isinstance(preference_snapshot.value, PreferenceAboutOtherSnapshot)
+            else None
+        ),
+    )
+    if tom_counts:
+        metric_pairs.extend(
+            (
+                ("relationship:tom_distinct_interlocutor_count", float(len(tom_counts))),
+                ("relationship:tom_record_total", float(sum(item.total_count for item in tom_counts))),
             )
         )
     return tuple(metric_pairs)
@@ -3155,6 +3233,48 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
             value for turn in turns if (value := _metric_value(turn, "default_continual_rollback_clean")) is not None
         )
     )
+    mean_persona_geometry_drift = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "persona_geometry_drift")) is not None)
+    )
+    mean_persona_regime_geometry_alignment = _mean(
+        tuple(
+            value
+            for turn in turns
+            if (value := _metric_value(turn, "persona_regime_geometry_alignment")) is not None
+        )
+    )
+    cpd_beta_switch_recommended_count = sum(
+        1
+        for turn in turns
+        if (value := _metric_value(turn, "cpd_beta_switch_recommended")) is not None
+        and value >= 0.5
+    )
+    mean_cpd_pe_spike_score = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "cpd_pe_spike_score")) is not None)
+    )
+    mean_cpd_reward_shift_score = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "cpd_reward_shift_score")) is not None)
+    )
+    mean_least_control_score = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "least_control_score")) is not None)
+    )
+    mean_least_control_effort = _mean(
+        tuple(value for turn in turns if (value := _metric_value(turn, "least_control_effort")) is not None)
+    )
+    counterfactual_readout_turn_count = sum(
+        1
+        for turn in turns
+        if (value := _metric_value(turn, "counterfactual_readout_count")) is not None
+        and value > 0.0
+    )
+    tom_distinct_interlocutor_max = max(
+        (value for turn in turns if (value := _metric_value(turn, "tom_distinct_interlocutor_count")) is not None),
+        default=0.0,
+    )
+    tom_record_total_max = max(
+        (value for turn in turns if (value := _metric_value(turn, "tom_record_total")) is not None),
+        default=0.0,
+    )
     return (
         ("passed", float(report.passed)),
         ("prediction_chain_turn_count", float(report.prediction_chain_turn_count)),
@@ -3211,6 +3331,16 @@ def _case_summary_metrics(report: DialogueBenchmarkCaseReport) -> tuple[tuple[st
             mean_default_substrate_live_mutation_suppressed,
         ),
         ("mean_default_continual_rollback_clean", mean_default_continual_rollback_clean),
+        ("mean_persona_geometry_drift", mean_persona_geometry_drift),
+        ("mean_persona_regime_geometry_alignment", mean_persona_regime_geometry_alignment),
+        ("cpd_beta_switch_recommended_count", float(cpd_beta_switch_recommended_count)),
+        ("mean_cpd_pe_spike_score", mean_cpd_pe_spike_score),
+        ("mean_cpd_reward_shift_score", mean_cpd_reward_shift_score),
+        ("mean_least_control_score", mean_least_control_score),
+        ("mean_least_control_effort", mean_least_control_effort),
+        ("counterfactual_readout_turn_count", float(counterfactual_readout_turn_count)),
+        ("tom_distinct_interlocutor_max", tom_distinct_interlocutor_max),
+        ("tom_record_total_max", tom_record_total_max),
         ("case_memory_surface_turn_count", float(report.case_memory_surface_turn_count)),
         ("strategy_playbook_surface_turn_count", float(report.strategy_playbook_surface_turn_count)),
         ("experience_fast_prior_surface_turn_count", float(report.experience_fast_prior_surface_turn_count)),
@@ -8251,6 +8381,24 @@ async def run_dialogue_pe_eta_ablation_benchmark(
             f"strong_proof_delta={'available' if strong_proof_metric_deltas else 'missing'}, "
             f"rare_heavy_delta={'available' if rare_heavy_metric_deltas else 'missing'}."
         ),
+    )
+
+
+async def run_phase2_shadow_evidence_smoke(
+    *,
+    cases: tuple[ScriptedDialogueCase, ...] = DEFAULT_DIALOGUE_PROOF_CASES[:1],
+    runner_factory: Callable[[str, ScriptedDialogueCase], AgentSessionRunner] | None = None,
+) -> DialogueBenchmarkComparisonReport:
+    """Run a tiny explicit smoke for SYS-1 / COG-1 / COG-2 / COG-3 profiles.
+
+    This opt-in evidence surface is intentionally separate from default
+    ablation / paper-suite matrices.
+    """
+    return await run_dialogue_pe_eta_ablation_benchmark(
+        cases=cases,
+        profile_labels=("pe-eta",) + default_phase2_shadow_evidence_profiles(),
+        baseline_label="pe-eta",
+        runner_factory=runner_factory,
     )
 
 

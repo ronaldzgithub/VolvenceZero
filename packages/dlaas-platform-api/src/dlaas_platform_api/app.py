@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Any
 
@@ -36,18 +37,34 @@ from aiohttp import web
 
 from dlaas_platform_contracts import (
     AdoptionConfig,
+    ArtifactKind,
+    ArtifactRecord,
+    AuditEvent,
+    BillingEvent,
+    ConsentRecord,
+    DataExportJob,
+    DeletionJob,
+    EvalGateDecision,
+    EvalRun,
+    EvalRunStatus,
+    EventStreamRecord,
     ExplainTrace,
     InteractionEnvelope,
     InteractionType,
     LifeBlueprint,
+    PolicySnapshot,
     ProtocolSubmission,
+    PromotionDecision,
+    QuotaSnapshot,
     ReadoutBundle,
     ReadoutView,
     SleepRequest,
     SnapshotExportRequest,
     TrainingJob,
     TrainingJobStatus,
+    UsageRecord,
     WakeRequest,
+    WebhookSubscription,
 )
 from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
@@ -63,6 +80,8 @@ from dlaas_platform_ops import (
     operator_takeover_response_body,
 )
 from dlaas_platform_registry import (
+    GovernanceRecordNotFound,
+    GovernanceStore,
     PlatformAuthBundle,
     PlatformAuthConfig,
     REGISTRY_APP_KEY,
@@ -87,6 +106,18 @@ DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
 
 _PROTOCOL_SUBMISSIONS_KEY = "dlaas_protocol_submissions"
 _TRAINING_JOBS_KEY = "dlaas_training_jobs"
+_AUDIT_EVENTS_KEY = "dlaas_audit_events"
+_ARTIFACTS_KEY = "dlaas_artifacts"
+_DATA_EXPORT_JOBS_KEY = "dlaas_data_export_jobs"
+_DELETION_JOBS_KEY = "dlaas_deletion_jobs"
+_EVAL_RUNS_KEY = "dlaas_eval_runs"
+_WEBHOOKS_KEY = "dlaas_webhooks"
+_EVENT_STREAM_KEY = "dlaas_event_stream"
+_USAGE_RECORDS_KEY = "dlaas_usage_records"
+_BILLING_EVENTS_KEY = "dlaas_billing_events"
+_CONSENTS_KEY = "dlaas_consents"
+_POLICIES_KEY = "dlaas_policies"
+_GOVERNANCE_STORE_KEY = "dlaas_governance_store"
 
 
 def attach_dlaas_routes(
@@ -150,6 +181,7 @@ def attach_dlaas_full_stack(
         auth_config=auth_config,
     )
     app[INSTANCE_MANAGER_APP_KEY] = instance_manager
+    app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
     if platform_endpoint:
@@ -170,6 +202,29 @@ def attach_dlaas_full_stack(
 
 
 def _add_lifecycle_routes(app: web.Application) -> None:
+    app.router.add_get("/dlaas/v1/audit/events", _handle_audit_events)
+    app.router.add_get("/dlaas/v1/audit/events/{event_id}", _handle_audit_event)
+    app.router.add_get("/dlaas/v1/audit/traces/{session_id}", _handle_audit_trace)
+    app.router.add_get("/dlaas/v1/artifacts", _handle_artifacts_list)
+    app.router.add_get("/dlaas/v1/artifacts/{artifact_id}", _handle_artifact_get)
+    app.router.add_post(
+        "/dlaas/v1/artifacts/{artifact_id}/promote", _handle_artifact_promote
+    )
+    app.router.add_post("/dlaas/v1/eval/runs", _handle_eval_run_create)
+    app.router.add_get("/dlaas/v1/eval/runs/{run_id}", _handle_eval_run_get)
+    app.router.add_post(
+        "/dlaas/v1/eval/runs/{run_id}/approve", _handle_eval_run_approve
+    )
+    app.router.add_post("/dlaas/v1/webhooks", _handle_webhook_create)
+    app.router.add_get("/dlaas/v1/events/stream", _handle_events_stream)
+    app.router.add_get("/dlaas/v1/usage", _handle_usage)
+    app.router.add_get("/dlaas/v1/quota", _handle_quota)
+    app.router.add_get("/dlaas/v1/billing/events", _handle_billing_events)
+    app.router.add_get("/dlaas/v1/policies", _handle_policies)
+    app.router.add_post("/dlaas/v1/consents", _handle_consent_create)
+    app.router.add_get(
+        "/dlaas/v1/consents/{end_user_ref}", _handle_consent_get
+    )
     app.router.add_get("/dlaas/v1/catalog/blueprints", _handle_catalog_blueprints)
     app.router.add_get("/dlaas/v1/catalog/verticals", _handle_catalog_verticals)
     app.router.add_get(
@@ -192,6 +247,16 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     app.router.add_get("/dlaas/v1/instances/{ai_id}/status", _handle_instance_status)
     app.router.add_get("/dlaas/v1/instances/{ai_id}/readouts", _handle_readouts)
     app.router.add_get("/dlaas/v1/instances/{ai_id}/explain", _handle_explain)
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/data/export", _handle_data_export
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/data/delete", _handle_data_delete
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/data/deletion-status/{job_id}",
+        _handle_deletion_status,
+    )
     app.router.add_post("/dlaas/v1/instances/{ai_id}/wake", _handle_wake_instance)
     app.router.add_post("/dlaas/v1/instances/{ai_id}/sleep", _handle_sleep_instance)
     app.router.add_post(
@@ -274,6 +339,39 @@ def _add_lifecycle_routes(app: web.Application) -> None:
 def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_PROTOCOL_SUBMISSIONS_KEY, {})
     app.setdefault(_TRAINING_JOBS_KEY, {})
+    app.setdefault(_AUDIT_EVENTS_KEY, {})
+    app.setdefault(_ARTIFACTS_KEY, {})
+    app.setdefault(_DATA_EXPORT_JOBS_KEY, {})
+    app.setdefault(_DELETION_JOBS_KEY, {})
+    app.setdefault(_EVAL_RUNS_KEY, {})
+    app.setdefault(_WEBHOOKS_KEY, {})
+    app.setdefault(_EVENT_STREAM_KEY, [])
+    app.setdefault(_USAGE_RECORDS_KEY, [])
+    app.setdefault(_BILLING_EVENTS_KEY, [])
+    app.setdefault(_CONSENTS_KEY, {})
+    app.setdefault(
+        _POLICIES_KEY,
+        {
+            "default-data-governance": PolicySnapshot(
+                policy_id="default-data-governance",
+                policy_kind="data_governance",
+                rules={
+                    "export": "allowed",
+                    "delete": "job_tracked",
+                    "raw_snapshot": "admin_only",
+                },
+            ),
+            "default-training-consent": PolicySnapshot(
+                policy_id="default-training-consent",
+                policy_kind="training_consent",
+                rules={
+                    "protocol_intake": "requires_review",
+                    "corpus_intake": "requires_consent",
+                    "adapter_training": "offline_gate_required",
+                },
+            ),
+        },
+    )
 
 
 def build_dlaas_app(
@@ -342,6 +440,427 @@ def build_dlaas_app(
 # ---------------------------------------------------------------------------
 # Runtime dispatch
 # ---------------------------------------------------------------------------
+
+
+async def _handle_data_export(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    data = await _read_json_or_error(request, allow_empty=True)
+    if isinstance(data, web.Response):
+        return data
+    contract_id = str(data.get("contract_id", "") or "")
+    end_user_ref = str(data.get("end_user_ref", "") or "")
+    job = DataExportJob(
+        job_id=_new_id("export"),
+        ai_id=ai_id,
+        contract_id=contract_id,
+        end_user_ref=end_user_ref,
+        artifact_ref=f"artifact://data-export/{ai_id}/{end_user_ref or 'all'}",
+        created_at_ms=_now_ms(),
+    )
+    _data_export_store(request)[job.job_id] = job
+    _persist_governance(request, "data_export_job", job.job_id, job.to_json(), ai_id=ai_id, contract_id=contract_id)
+    _record_audit(
+        request,
+        event_type="data_export_requested",
+        ai_id=ai_id,
+        contract_id=contract_id,
+        payload=job.to_json(),
+    )
+    _record_usage(request, ai_id=ai_id, metric="data_export", quantity=1)
+    return web.json_response({"status": "ok", **job.to_json()}, status=201)
+
+
+async def _handle_data_delete(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    data = await _read_json_or_error(request, allow_empty=True)
+    if isinstance(data, web.Response):
+        return data
+    contract_id = str(data.get("contract_id", "") or "")
+    end_user_ref = str(data.get("end_user_ref", "") or "")
+    scopes = tuple(str(s) for s in (data.get("scopes") or ("runtime", "platform")))
+    job = DeletionJob(
+        job_id=_new_id("delete"),
+        ai_id=ai_id,
+        contract_id=contract_id,
+        end_user_ref=end_user_ref,
+        deleted_scopes=scopes,
+        created_at_ms=_now_ms(),
+    )
+    _deletion_store(request)[(ai_id, job.job_id)] = job
+    _persist_governance(request, "deletion_job", job.job_id, job.to_json(), ai_id=ai_id, contract_id=contract_id)
+    _record_audit(
+        request,
+        event_type="data_delete_requested",
+        ai_id=ai_id,
+        contract_id=contract_id,
+        payload=job.to_json(),
+    )
+    _record_usage(request, ai_id=ai_id, metric="data_delete", quantity=1)
+    return web.json_response({"status": "ok", **job.to_json()}, status=202)
+
+
+async def _handle_deletion_status(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    job_id = request.match_info.get("job_id", "")
+    job = _deletion_store(request).get((ai_id, job_id))
+    if job is None:
+        persisted = _get_persisted_governance(request, "deletion_job", job_id)
+        if persisted is not None and persisted.get("ai_id") == ai_id:
+            return web.json_response({"status": "ok", **persisted})
+    if job is None:
+        return _json_error(status=404, error="deletion_job_not_found", detail=job_id)
+    return web.json_response({"status": "ok", **job.to_json()})
+
+
+async def _handle_audit_events(request: web.Request) -> web.Response:
+    events_json = _list_persisted_governance(request, "audit_event")
+    if events_json:
+        if request.query.get("ai_id", ""):
+            ai_id_filter = request.query.get("ai_id", "")
+            events_json = [e for e in events_json if e.get("ai_id") == ai_id_filter]
+        return web.json_response({"status": "ok", "events": events_json})
+    events = list(_audit_store(request).values())
+    ai_id = request.query.get("ai_id", "")
+    if ai_id:
+        events = [e for e in events if e.ai_id == ai_id]
+    return web.json_response(
+        {"status": "ok", "events": [e.to_json() for e in events]}
+    )
+
+
+async def _handle_audit_event(request: web.Request) -> web.Response:
+    event_id = request.match_info.get("event_id", "")
+    event = _audit_store(request).get(event_id)
+    if event is None:
+        persisted = _get_persisted_governance(request, "audit_event", event_id)
+        if persisted is not None:
+            return web.json_response({"status": "ok", **persisted})
+    if event is None:
+        return _json_error(status=404, error="audit_event_not_found", detail=event_id)
+    return web.json_response({"status": "ok", **event.to_json()})
+
+
+async def _handle_audit_trace(request: web.Request) -> web.Response:
+    session_id = request.match_info.get("session_id", "")
+    persisted_events = _list_persisted_governance(
+        request, "audit_event", session_id=session_id
+    )
+    if persisted_events:
+        return web.json_response(
+            {
+                "status": "ok",
+                "trace_id": f"trace:{session_id}",
+                "session_id": session_id,
+                "event_ids": [e["event_id"] for e in persisted_events],
+            }
+        )
+    events = [e for e in _audit_store(request).values() if e.session_id == session_id]
+    trace = {
+        "trace_id": f"trace:{session_id}",
+        "session_id": session_id,
+        "event_ids": [e.event_id for e in events],
+    }
+    return web.json_response({"status": "ok", **trace})
+
+
+async def _handle_artifacts_list(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "artifacts": _list_persisted_governance(request, "artifact")
+            or [a.to_json() for a in _artifact_store(request).values()],
+        }
+    )
+
+
+async def _handle_artifact_get(request: web.Request) -> web.Response:
+    artifact_id = request.match_info.get("artifact_id", "")
+    artifact = _artifact_store(request).get(artifact_id)
+    if artifact is None:
+        persisted = _get_persisted_governance(request, "artifact", artifact_id)
+        if persisted is not None:
+            return web.json_response({"status": "ok", **persisted})
+    if artifact is None:
+        return _json_error(status=404, error="artifact_not_found", detail=artifact_id)
+    return web.json_response({"status": "ok", **artifact.to_json()})
+
+
+async def _handle_artifact_promote(request: web.Request) -> web.Response:
+    artifact_id = request.match_info.get("artifact_id", "")
+    artifact = _artifact_store(request).get(artifact_id)
+    if artifact is None:
+        return _json_error(status=404, error="artifact_not_found", detail=artifact_id)
+    data = await _read_json_or_error(request, allow_empty=True)
+    if isinstance(data, web.Response):
+        return data
+    gate_evidence = data.get("gate_evidence") or {}
+    if artifact.artifact_kind is ArtifactKind.ADAPTER_CANDIDATE and not gate_evidence:
+        blocked = ArtifactRecord(
+            artifact_id=artifact.artifact_id,
+            artifact_kind=artifact.artifact_kind,
+            ai_id=artifact.ai_id,
+            contract_id=artifact.contract_id,
+            source_ref=artifact.source_ref,
+            status="blocked",
+            metadata=artifact.metadata,
+            promotion_decision=PromotionDecision.BLOCK,
+            created_at_ms=artifact.created_at_ms,
+        )
+        _artifact_store(request)[artifact_id] = blocked
+        _persist_governance(
+            request,
+            "artifact",
+            artifact_id,
+            blocked.to_json(),
+            ai_id=blocked.ai_id,
+            contract_id=blocked.contract_id,
+        )
+        _record_audit(
+            request,
+            event_type="artifact_promotion_blocked",
+            ai_id=blocked.ai_id,
+            contract_id=blocked.contract_id,
+            payload=blocked.to_json(),
+        )
+        return _json_error(
+            status=409,
+            error="promotion_gate_required",
+            detail="adapter_candidate artifacts require gate_evidence",
+            extra=blocked.to_json(),
+        )
+    promoted = ArtifactRecord(
+        artifact_id=artifact.artifact_id,
+        artifact_kind=artifact.artifact_kind,
+        ai_id=artifact.ai_id,
+        contract_id=artifact.contract_id,
+        source_ref=artifact.source_ref,
+        status="promoted",
+        metadata={**dict(artifact.metadata), "gate_evidence": gate_evidence},
+        promotion_decision=PromotionDecision.ALLOW,
+        created_at_ms=artifact.created_at_ms,
+    )
+    _artifact_store(request)[artifact_id] = promoted
+    _persist_governance(
+        request,
+        "artifact",
+        artifact_id,
+        promoted.to_json(),
+        ai_id=promoted.ai_id,
+        contract_id=promoted.contract_id,
+    )
+    _record_audit(
+        request,
+        event_type="artifact_promoted",
+        ai_id=promoted.ai_id,
+        contract_id=promoted.contract_id,
+        payload=promoted.to_json(),
+    )
+    return web.json_response({"status": "promoted", **promoted.to_json()})
+
+
+async def _handle_eval_run_create(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    gate_id = str(data.get("gate_id", "") or "")
+    if not gate_id:
+        return _json_error(status=400, error="missing_gate_id", detail="gate_id is required")
+    run = EvalRun(
+        run_id=_new_id("eval"),
+        gate_id=gate_id,
+        ai_id=str(data.get("ai_id", "") or ""),
+        contract_id=str(data.get("contract_id", "") or ""),
+        score=float(data.get("score", 1.0) or 1.0),
+        created_at_ms=_now_ms(),
+    )
+    _eval_store(request)[run.run_id] = run
+    _persist_governance(request, "eval_run", run.run_id, run.to_json(), ai_id=run.ai_id, contract_id=run.contract_id)
+    _record_audit(
+        request,
+        event_type="eval_run_created",
+        ai_id=run.ai_id,
+        contract_id=run.contract_id,
+        payload=run.to_json(),
+    )
+    return web.json_response({"status": "ok", **run.to_json()}, status=201)
+
+
+async def _handle_eval_run_get(request: web.Request) -> web.Response:
+    run_id = request.match_info.get("run_id", "")
+    run = _eval_store(request).get(run_id)
+    if run is None:
+        persisted = _get_persisted_governance(request, "eval_run", run_id)
+        if persisted is not None:
+            return web.json_response({"status": "ok", **persisted})
+    if run is None:
+        return _json_error(status=404, error="eval_run_not_found", detail=run_id)
+    return web.json_response({"status": "ok", **run.to_json()})
+
+
+async def _handle_eval_run_approve(request: web.Request) -> web.Response:
+    run_id = request.match_info.get("run_id", "")
+    run = _eval_store(request).get(run_id)
+    if run is None:
+        return _json_error(status=404, error="eval_run_not_found", detail=run_id)
+    approved = EvalRun(
+        run_id=run.run_id,
+        gate_id=run.gate_id,
+        ai_id=run.ai_id,
+        contract_id=run.contract_id,
+        status=EvalRunStatus.APPROVED,
+        score=run.score,
+        decision=EvalGateDecision(PromotionDecision.ALLOW),
+        created_at_ms=run.created_at_ms,
+    )
+    _eval_store(request)[run_id] = approved
+    _persist_governance(
+        request,
+        "eval_run",
+        run_id,
+        approved.to_json(),
+        ai_id=approved.ai_id,
+        contract_id=approved.contract_id,
+    )
+    _record_audit(
+        request,
+        event_type="eval_run_approved",
+        ai_id=approved.ai_id,
+        contract_id=approved.contract_id,
+        payload=approved.to_json(),
+    )
+    return web.json_response({"status": "approved", **approved.to_json()})
+
+
+async def _handle_webhook_create(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    target_url = str(data.get("target_url", "") or "")
+    if not target_url:
+        return _json_error(status=400, error="missing_target_url", detail="target_url is required")
+    webhook = WebhookSubscription(
+        webhook_id=_new_id("webhook"),
+        target_url=target_url,
+        event_types=tuple(str(e) for e in (data.get("event_types") or ())),
+        secret_ref=str(data.get("secret_ref", "") or ""),
+        created_at_ms=_now_ms(),
+    )
+    _webhook_store(request)[webhook.webhook_id] = webhook
+    _persist_governance(request, "webhook", webhook.webhook_id, webhook.to_json())
+    _record_audit(
+        request,
+        event_type="webhook_created",
+        payload=webhook.to_json(),
+    )
+    return web.json_response({"status": "ok", **webhook.to_json()}, status=201)
+
+
+async def _handle_events_stream(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "events": _list_persisted_governance(request, "event_stream")
+            or [e.to_json() for e in _event_stream(request)],
+        }
+    )
+
+
+async def _handle_usage(request: web.Request) -> web.Response:
+    persisted_usage = _list_persisted_governance(request, "usage_record")
+    if persisted_usage:
+        ai_id = request.query.get("ai_id", "")
+        if ai_id:
+            persisted_usage = [r for r in persisted_usage if r.get("ai_id") == ai_id]
+        return web.json_response({"status": "ok", "usage": persisted_usage})
+    records = _usage_records(request)
+    ai_id = request.query.get("ai_id", "")
+    if ai_id:
+        records = [r for r in records if r.ai_id == ai_id]
+    return web.json_response(
+        {"status": "ok", "usage": [r.to_json() for r in records]}
+    )
+
+
+async def _handle_quota(request: web.Request) -> web.Response:
+    tenant_id = request.query.get("tenant_id", "default")
+    usage_count = len(_usage_records(request))
+    quota = QuotaSnapshot(
+        tenant_id=tenant_id,
+        limits={"interactions": 100000, "training_jobs": 1000},
+        usage={"records": usage_count},
+    )
+    return web.json_response({"status": "ok", **quota.to_json()})
+
+
+async def _handle_billing_events(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "status": "ok",
+            "billing_events": _list_persisted_governance(request, "billing_event")
+            or [e.to_json() for e in _billing_events(request)],
+        }
+    )
+
+
+async def _handle_policies(request: web.Request) -> web.Response:
+    return web.json_response(
+        {"status": "ok", "policies": [p.to_json() for p in _policy_store(request).values()]}
+    )
+
+
+async def _handle_consent_create(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    ai_id = str(data.get("ai_id", "") or "")
+    end_user_ref = str(data.get("end_user_ref", "") or "")
+    consent_type = str(data.get("consent_type", "") or "")
+    if not ai_id or not end_user_ref or not consent_type:
+        return _json_error(
+            status=400,
+            error="missing_consent_fields",
+            detail="ai_id, end_user_ref and consent_type are required",
+        )
+    consent = ConsentRecord(
+        consent_id=_new_id("consent"),
+        ai_id=ai_id,
+        end_user_ref=end_user_ref,
+        consent_type=consent_type,
+        granted=bool(data.get("granted", True)),
+        evidence_ref=str(data.get("evidence_ref", "") or ""),
+        created_at_ms=_now_ms(),
+    )
+    _consent_store(request)[(ai_id, end_user_ref, consent_type)] = consent
+    _persist_governance(request, "consent", consent.consent_id, consent.to_json(), ai_id=ai_id)
+    _record_audit(
+        request,
+        event_type="consent_recorded",
+        ai_id=ai_id,
+        payload=consent.to_json(),
+    )
+    return web.json_response({"status": "ok", **consent.to_json()}, status=201)
+
+
+async def _handle_consent_get(request: web.Request) -> web.Response:
+    end_user_ref = request.match_info.get("end_user_ref", "")
+    ai_id = request.query.get("ai_id", "")
+    consents = [
+        c
+        for (stored_ai, stored_user, _), c in _consent_store(request).items()
+        if stored_user == end_user_ref and (not ai_id or stored_ai == ai_id)
+    ]
+    persisted = [
+        c
+        for c in _list_persisted_governance(request, "consent")
+        if c.get("end_user_ref") == end_user_ref and (not ai_id or c.get("ai_id") == ai_id)
+    ]
+    if persisted:
+        return web.json_response(
+            {"status": "ok", "end_user_ref": end_user_ref, "consents": persisted}
+        )
+    return web.json_response(
+        {"status": "ok", "end_user_ref": end_user_ref, "consents": [c.to_json() for c in consents]}
+    )
 
 
 async def _handle_catalog_blueprints(request: web.Request) -> web.Response:
@@ -505,6 +1024,13 @@ async def _handle_admin_snapshots(request: web.Request) -> web.Response:
     active = session_or_response.latest_active_snapshots
     shadow = session_or_response.latest_shadow_snapshots if include_shadow else {}
     selected = export_request.slots or tuple(sorted(active))
+    _record_audit(
+        request,
+        event_type="raw_snapshots_exported",
+        ai_id=ai_id,
+        session_id=session_or_response.session_id,
+        payload=export_request.to_json(),
+    )
     return web.json_response(
         {
             "status": "ok",
@@ -781,6 +1307,14 @@ async def _create_protocol_submission_from_data(
         return _json_error(status=400, error="invalid_protocol_submission", detail=str(exc))
     store = _protocol_store(request)
     store[(ai_id, submission_id)] = submission
+    _record_audit(
+        request,
+        event_type="protocol_submission_created",
+        ai_id=ai_id,
+        contract_id=submission.contract_id,
+        payload=submission.to_json(),
+    )
+    _record_usage(request, ai_id=ai_id, metric="protocol_submission", quantity=1)
     return web.json_response(
         {
             "status": pending_status,
@@ -846,6 +1380,13 @@ async def _set_protocol_submission_status(
         review_status=review_status,
     )
     store[(ai_id, submission_id)] = updated
+    _record_audit(
+        request,
+        event_type=f"protocol_submission_{response_status}",
+        ai_id=ai_id,
+        contract_id=updated.contract_id,
+        payload=updated.to_json(),
+    )
     return web.json_response({"status": response_status, **updated.to_json()})
 
 
@@ -890,6 +1431,12 @@ async def _protocol_library_mark(
         return _json_error(
             status=404, error="protocol_not_found", detail=protocol_id
         )
+    _record_audit(
+        request,
+        event_type="protocol_loaded" if loaded else "protocol_unloaded",
+        ai_id=ai_id,
+        payload={"protocol_id": protocol_id, "loaded": loaded},
+    )
     return web.json_response(
         {
             "status": "ok",
@@ -937,6 +1484,38 @@ async def _handle_training_job_create(request: web.Request) -> web.Response:
     except ValueError as exc:
         return _json_error(status=400, error="invalid_training_job", detail=str(exc))
     _training_store(request)[(ai_id, job.job_id)] = job
+    artifact_kind = (
+        ArtifactKind.ADAPTER_CANDIDATE
+        if job.job_type.value == "adapter_candidate"
+        else ArtifactKind.TRAINING_OUTPUT
+    )
+    artifact = ArtifactRecord(
+        artifact_id=f"artifact:{job.job_id}",
+        artifact_kind=artifact_kind,
+        ai_id=ai_id,
+        contract_id=job.contract_id,
+        source_ref=job.source_ref or job.job_id,
+        status="created",
+        metadata={"job_id": job.job_id, "job_type": job.job_type.value},
+        created_at_ms=_now_ms(),
+    )
+    _artifact_store(request)[artifact.artifact_id] = artifact
+    _persist_governance(
+        request,
+        "artifact",
+        artifact.artifact_id,
+        artifact.to_json(),
+        ai_id=ai_id,
+        contract_id=job.contract_id,
+    )
+    _record_audit(
+        request,
+        event_type="training_job_created",
+        ai_id=ai_id,
+        contract_id=job.contract_id,
+        payload=job.to_json(),
+    )
+    _record_usage(request, ai_id=ai_id, metric="training_job", quantity=1)
     return web.json_response({"status": "ok", **job.to_json()}, status=201)
 
 
@@ -953,6 +1532,13 @@ async def _handle_training_job_cancel(request: web.Request) -> web.Response:
         return job
     updated = job.with_status(TrainingJobStatus.CANCELLED)
     _training_store(request)[(job.ai_id, job.job_id)] = updated
+    _record_audit(
+        request,
+        event_type="training_job_cancelled",
+        ai_id=job.ai_id,
+        contract_id=job.contract_id,
+        payload=updated.to_json(),
+    )
     return web.json_response({"status": "cancelled", **updated.to_json()})
 
 
@@ -963,6 +1549,13 @@ async def _handle_training_job_promote(request: web.Request) -> web.Response:
     if job.job_type.value == "adapter_candidate" and not job.gate_evidence:
         updated = job.with_status(TrainingJobStatus.BLOCKED)
         _training_store(request)[(job.ai_id, job.job_id)] = updated
+        _record_audit(
+            request,
+            event_type="training_job_promotion_blocked",
+            ai_id=job.ai_id,
+            contract_id=job.contract_id,
+            payload=updated.to_json(),
+        )
         return _json_error(
             status=409,
             error="promotion_gate_required",
@@ -971,6 +1564,13 @@ async def _handle_training_job_promote(request: web.Request) -> web.Response:
         )
     updated = job.with_status(TrainingJobStatus.PROMOTED)
     _training_store(request)[(job.ai_id, job.job_id)] = updated
+    _record_audit(
+        request,
+        event_type="training_job_promoted",
+        ai_id=job.ai_id,
+        contract_id=job.contract_id,
+        payload=updated.to_json(),
+    )
     return web.json_response({"status": "promoted", **updated.to_json()})
 
 
@@ -1034,6 +1634,15 @@ async def _dispatch_envelope_to_instance(
         )
     except DispatchError as exc:
         return _json_error(status=exc.status, error=exc.code, detail=exc.detail)
+    _record_audit(
+        request,
+        event_type=f"interaction_{envelope.interaction_type.value}",
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        payload={"interaction_type": envelope.interaction_type.value},
+    )
+    _record_usage(request, ai_id=ai_id, metric=f"interaction.{envelope.interaction_type.value}", quantity=1)
     return web.json_response(body)
 
 
@@ -1074,6 +1683,206 @@ def _protocol_store(request: web.Request) -> dict[tuple[str, str], ProtocolSubmi
 
 def _training_store(request: web.Request) -> dict[tuple[str, str], TrainingJob]:
     return request.app[_TRAINING_JOBS_KEY]
+
+
+def _audit_store(request: web.Request) -> dict[str, AuditEvent]:
+    return request.app[_AUDIT_EVENTS_KEY]
+
+
+def _artifact_store(request: web.Request) -> dict[str, ArtifactRecord]:
+    return request.app[_ARTIFACTS_KEY]
+
+
+def _data_export_store(request: web.Request) -> dict[str, DataExportJob]:
+    return request.app[_DATA_EXPORT_JOBS_KEY]
+
+
+def _deletion_store(request: web.Request) -> dict[tuple[str, str], DeletionJob]:
+    return request.app[_DELETION_JOBS_KEY]
+
+
+def _eval_store(request: web.Request) -> dict[str, EvalRun]:
+    return request.app[_EVAL_RUNS_KEY]
+
+
+def _webhook_store(request: web.Request) -> dict[str, WebhookSubscription]:
+    return request.app[_WEBHOOKS_KEY]
+
+
+def _event_stream(request: web.Request) -> list[EventStreamRecord]:
+    return request.app[_EVENT_STREAM_KEY]
+
+
+def _usage_records(request: web.Request) -> list[UsageRecord]:
+    return request.app[_USAGE_RECORDS_KEY]
+
+
+def _billing_events(request: web.Request) -> list[BillingEvent]:
+    return request.app[_BILLING_EVENTS_KEY]
+
+
+def _consent_store(
+    request: web.Request,
+) -> dict[tuple[str, str, str], ConsentRecord]:
+    return request.app[_CONSENTS_KEY]
+
+
+def _policy_store(request: web.Request) -> dict[str, PolicySnapshot]:
+    return request.app[_POLICIES_KEY]
+
+
+def _record_audit(
+    request: web.Request,
+    *,
+    event_type: str,
+    ai_id: str = "",
+    contract_id: str = "",
+    session_id: str = "",
+    actor: str = "",
+    payload: dict[str, Any] | None = None,
+) -> AuditEvent:
+    event = AuditEvent(
+        event_id=_new_id("audit"),
+        event_type=event_type,
+        ai_id=ai_id,
+        contract_id=contract_id,
+        session_id=session_id,
+        actor=actor,
+        payload=payload or {},
+        created_at_ms=_now_ms(),
+    )
+    _audit_store(request)[event.event_id] = event
+    _persist_governance(
+        request,
+        "audit_event",
+        event.event_id,
+        event.to_json(),
+        ai_id=ai_id,
+        contract_id=contract_id,
+        session_id=session_id,
+    )
+    _event_stream(request).append(
+        event_record := EventStreamRecord(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            payload=event.to_json(),
+            created_at_ms=event.created_at_ms,
+        )
+    )
+    _persist_governance(
+        request,
+        "event_stream",
+        event_record.event_id,
+        event_record.to_json(),
+        ai_id=ai_id,
+        contract_id=contract_id,
+        session_id=session_id,
+    )
+    return event
+
+
+def _record_usage(
+    request: web.Request,
+    *,
+    ai_id: str,
+    metric: str,
+    quantity: float,
+) -> None:
+    record = UsageRecord(
+        usage_id=_new_id("usage"),
+        ai_id=ai_id,
+        metric=metric,
+        quantity=quantity,
+        created_at_ms=_now_ms(),
+    )
+    _usage_records(request).append(record)
+    _persist_governance(
+        request,
+        "usage_record",
+        record.usage_id,
+        record.to_json(),
+        ai_id=ai_id,
+    )
+    _billing_events(request).append(
+        billing := BillingEvent(
+            billing_event_id=_new_id("bill"),
+            ai_id=ai_id,
+            amount=0.0,
+            reason=metric,
+            created_at_ms=record.created_at_ms,
+        )
+    )
+    _persist_governance(
+        request,
+        "billing_event",
+        billing.billing_event_id,
+        billing.to_json(),
+        ai_id=ai_id,
+    )
+
+
+def _governance_store(request: web.Request) -> GovernanceStore | None:
+    store = request.app.get(_GOVERNANCE_STORE_KEY)
+    return store if isinstance(store, GovernanceStore) else None
+
+
+def _persist_governance(
+    request: web.Request,
+    record_kind: str,
+    record_id: str,
+    payload: dict[str, Any],
+    *,
+    ai_id: str = "",
+    contract_id: str = "",
+    session_id: str = "",
+) -> None:
+    store = _governance_store(request)
+    if store is None:
+        return
+    store.upsert(
+        record_kind=record_kind,
+        record_id=record_id,
+        payload=payload,
+        ai_id=ai_id,
+        contract_id=contract_id,
+        session_id=session_id,
+        created_at_ms=int(payload.get("created_at_ms", _now_ms()) or _now_ms()),
+    )
+
+
+def _get_persisted_governance(
+    request: web.Request,
+    record_kind: str,
+    record_id: str,
+) -> dict[str, Any] | None:
+    store = _governance_store(request)
+    if store is None:
+        return None
+    try:
+        return store.get(record_kind=record_kind, record_id=record_id)
+    except GovernanceRecordNotFound:
+        return None
+
+
+def _list_persisted_governance(
+    request: web.Request,
+    record_kind: str,
+    *,
+    ai_id: str = "",
+    session_id: str = "",
+) -> list[dict[str, Any]]:
+    store = _governance_store(request)
+    if store is None:
+        return []
+    return list(store.list(record_kind=record_kind, ai_id=ai_id, session_id=session_id))
+
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 async def _session_from_query(
@@ -1400,6 +2209,17 @@ async def _read_json_object(
     if not isinstance(data, dict):
         raise ValueError("Body must be a JSON object")
     return data
+
+
+async def _read_json_or_error(
+    request: web.Request,
+    *,
+    allow_empty: bool = False,
+) -> dict[str, Any] | web.Response:
+    try:
+        return await _read_json_object(request, allow_empty=allow_empty)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_json_body", detail=str(exc))
 
 
 async def _get_or_create_session(manager: SessionManager, session_id: str):

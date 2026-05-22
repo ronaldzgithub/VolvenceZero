@@ -30,6 +30,7 @@ dependencies = [
     # public lifeform-service surface. lifeform-service provides the
     # SessionManager + create_app facade used by the dispatch handler.
     "lifeform-service==0.1.*",
+    "lifeform-affordance==0.1.*",
     # The Slice 2.2 observe handler routes CORPUS_INGEST envelopes
     # through the public ``IngestionPipeline`` so multi-channel
     # corpus material reaches the kernel via the same path as PDF /

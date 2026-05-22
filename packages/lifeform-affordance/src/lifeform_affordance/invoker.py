@@ -93,6 +93,8 @@ class AffordanceInvocationStatus(str, Enum):
     BACKEND_MISSING = "backend_missing"
     BACKEND_FAILED = "backend_failed"
     EXCLUDED = "excluded"
+    PENDING_CONFIRMATION = "pending_confirmation"
+    TASK_QUEUED = "task_queued"
 
 
 _TERMINAL_FAIL_STATUSES: frozenset[AffordanceInvocationStatus] = frozenset(
@@ -103,8 +105,63 @@ _TERMINAL_FAIL_STATUSES: frozenset[AffordanceInvocationStatus] = frozenset(
         AffordanceInvocationStatus.BACKEND_MISSING,
         AffordanceInvocationStatus.BACKEND_FAILED,
         AffordanceInvocationStatus.EXCLUDED,
+        AffordanceInvocationStatus.PENDING_CONFIRMATION,
     }
 )
+
+
+class AffordanceTaskStatus(str, Enum):
+    """Lifecycle status for a deferred affordance task."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+@dataclass(frozen=True)
+class AffordanceTaskHandle:
+    """Handle returned when an invocation is handed off asynchronously."""
+
+    task_id: str
+    descriptor_name: str
+    status: AffordanceTaskStatus
+    poll_after_ms: int = 1_000
+    event_id: str = ""
+    action_id: str = ""
+    plan_ref: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.task_id.strip():
+            raise ValueError("AffordanceTaskHandle.task_id must be non-empty")
+        if not self.descriptor_name.strip():
+            raise ValueError("AffordanceTaskHandle.descriptor_name must be non-empty")
+
+
+@dataclass(frozen=True)
+class AffordanceSessionBudget:
+    """Simple per-session/global tool budget for one orchestration run."""
+
+    max_invocations: int
+    used_invocations: int = 0
+
+    def __post_init__(self) -> None:
+        if self.max_invocations < 0:
+            raise ValueError("AffordanceSessionBudget.max_invocations must be >= 0")
+        if self.used_invocations < 0:
+            raise ValueError("AffordanceSessionBudget.used_invocations must be >= 0")
+
+    def check(self) -> BoundaryDenial | None:
+        if self.used_invocations >= self.max_invocations:
+            return BoundaryDenial(
+                reason_code="session_budget_exhausted",
+                detail=(
+                    f"session budget exhausted: used={self.used_invocations}, "
+                    f"max={self.max_invocations}"
+                ),
+            )
+        return None
 
 
 @dataclass(frozen=True)
@@ -124,19 +181,29 @@ class AffordanceInvocationResult:
     error_class: str = ""
     error_detail: str = ""
     tool_event_ids: tuple[str, ...] = ()
+    task_handle: AffordanceTaskHandle | None = None
 
     def __post_init__(self) -> None:
-        is_success = self.status is AffordanceInvocationStatus.SUCCEEDED
+        is_success = self.status in {
+            AffordanceInvocationStatus.SUCCEEDED,
+            AffordanceInvocationStatus.TASK_QUEUED,
+        }
         if is_success and (self.error_class or self.error_detail):
             raise ValueError(
                 "AffordanceInvocationResult: error_class/error_detail "
-                "must be empty when status is SUCCEEDED"
+                "must be empty when status is SUCCEEDED/TASK_QUEUED"
             )
         if (not is_success) and not self.error_class.strip():
             raise ValueError(
                 f"AffordanceInvocationResult: error_class must be non-empty "
                 f"for non-SUCCEEDED status {self.status.value!r}"
             )
+        if self.status is AffordanceInvocationStatus.TASK_QUEUED and self.task_handle is None:
+            raise ValueError("TASK_QUEUED results must include task_handle")
+
+    @property
+    def task_id(self) -> str:
+        return self.task_handle.task_id if self.task_handle is not None else ""
 
 
 class AffordanceInvocationError(Exception):
@@ -473,6 +540,8 @@ class AffordanceInvoker:
         self._boundary_policy = boundary_policy or DescriptorDerivedBoundaryPolicy()
         self._backends: dict[str, AffordanceBackend] = {}
         self._rate_limiter = _PerAffordanceRateLimiter(clock=clock)
+        self._idempotency_results: dict[str, AffordanceInvocationResult] = {}
+        self._task_handles: dict[str, AffordanceTaskHandle] = {}
 
     # ------------------------------------------------------------------
     # Backend registration
@@ -505,6 +574,12 @@ class AffordanceInvoker:
         """Names of descriptors that currently have a backend."""
         return tuple(sorted(self._backends))
 
+    @property
+    def registry(self) -> AffordanceRegistry:
+        """Registry backing this invoker."""
+
+        return self._registry
+
     # ------------------------------------------------------------------
     # invoke
     # ------------------------------------------------------------------
@@ -521,6 +596,12 @@ class AffordanceInvoker:
         event_id: str | None = None,
         action_id: str | None = None,
         plan_ref: str | None = None,
+        idempotency_key: str | None = None,
+        timeout_seconds: float | None = None,
+        session_budget: AffordanceSessionBudget | None = None,
+        as_async_task: bool = False,
+        poll_after_ms: int = 1_000,
+        contract_id: str | None = None,
     ) -> AffordanceInvocationResult:
         """Run the 5-stage invocation pipeline.
 
@@ -548,7 +629,33 @@ class AffordanceInvoker:
         prediction. ``plan_ref=None`` (the default) preserves the
         legacy "no lineage" behavior verbatim.
         """
+        if idempotency_key is not None:
+            cached = self._idempotency_results.get(idempotency_key)
+            if cached is not None:
+                return cached
+
         descriptor = self._registry.get(descriptor_name)
+
+        allowed_names = {
+            d.name for d in self._registry.list_for_session(contract_id=contract_id)
+        }
+        if descriptor.name not in allowed_names:
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=AffordanceInvocationStatus.EXCLUDED,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    error_class="contract_policy_excluded",
+                    error_detail=(
+                        f"{descriptor.name!r} is not enabled for "
+                        f"contract_id={contract_id!r}."
+                    ),
+                    plan_ref=plan_ref,
+                ),
+            )
 
         # Stage 2: boundary.
         boundary_context = BoundaryCheckContext(
@@ -562,94 +669,157 @@ class AffordanceInvoker:
             status = (
                 AffordanceInvocationStatus.EXCLUDED
                 if boundary_denial.reason_code == "descriptor_excluded"
+                else AffordanceInvocationStatus.PENDING_CONFIRMATION
+                if boundary_denial.reason_code == "confirmation_required"
                 else AffordanceInvocationStatus.DENIED_BY_BOUNDARY
             )
-            return self._finalize(
-                descriptor=descriptor,
-                status=status,
-                session=session,
-                event_id=event_id,
-                action_id=action_id,
-                error_class=boundary_denial.reason_code,
-                error_detail=boundary_denial.detail,
-                plan_ref=plan_ref,
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=status,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    error_class=boundary_denial.reason_code,
+                    error_detail=boundary_denial.detail,
+                    plan_ref=plan_ref,
+                ),
             )
+
+        if session_budget is not None:
+            budget_denial = session_budget.check()
+            if budget_denial is not None:
+                return self._remember_idempotent(
+                    idempotency_key,
+                    self._finalize(
+                        descriptor=descriptor,
+                        status=AffordanceInvocationStatus.RATE_LIMITED,
+                        session=session,
+                        event_id=event_id,
+                        action_id=action_id,
+                        error_class=budget_denial.reason_code,
+                        error_detail=budget_denial.detail,
+                        plan_ref=plan_ref,
+                    ),
+                )
 
         # Stage 3: rate limit.
         rate_denial = self._rate_limiter.check_and_record(descriptor)
         if rate_denial is not None:
-            return self._finalize(
-                descriptor=descriptor,
-                status=AffordanceInvocationStatus.RATE_LIMITED,
-                session=session,
-                event_id=event_id,
-                action_id=action_id,
-                error_class=rate_denial.reason_code,
-                error_detail=rate_denial.detail,
-                plan_ref=plan_ref,
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=AffordanceInvocationStatus.RATE_LIMITED,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    error_class=rate_denial.reason_code,
+                    error_detail=rate_denial.detail,
+                    plan_ref=plan_ref,
+                ),
             )
 
         # Stage 4: parameter validation.
         param_denial = validate_parameters(descriptor, parameters)
         if param_denial is not None:
-            return self._finalize(
-                descriptor=descriptor,
-                status=AffordanceInvocationStatus.PARAMETER_INVALID,
-                session=session,
-                event_id=event_id,
-                action_id=action_id,
-                error_class=param_denial.reason_code,
-                error_detail=param_denial.detail,
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=AffordanceInvocationStatus.PARAMETER_INVALID,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    error_class=param_denial.reason_code,
+                    error_detail=param_denial.detail,
+                    plan_ref=plan_ref,
+                ),
+            )
+
+        if as_async_task:
+            task_id = f"task_{time.monotonic_ns():x}"
+            handle = AffordanceTaskHandle(
+                task_id=task_id,
+                descriptor_name=descriptor.name,
+                status=AffordanceTaskStatus.QUEUED,
+                poll_after_ms=poll_after_ms,
+                event_id=event_id or task_id,
+                action_id=action_id or f"{descriptor.name}:{task_id}",
                 plan_ref=plan_ref,
+            )
+            self._task_handles[task_id] = handle
+            return self._remember_idempotent(
+                idempotency_key,
+                AffordanceInvocationResult(
+                    descriptor_name=descriptor.name,
+                    status=AffordanceInvocationStatus.TASK_QUEUED,
+                    task_handle=handle,
+                ),
             )
 
         # Stage 5: backend call.
         backend = self._backends.get(descriptor_name)
         if backend is None:
-            return self._finalize(
-                descriptor=descriptor,
-                status=AffordanceInvocationStatus.BACKEND_MISSING,
-                session=session,
-                event_id=event_id,
-                action_id=action_id,
-                error_class="backend_missing",
-                error_detail=(
-                    f"No backend registered for {descriptor_name!r}; "
-                    f"call AffordanceInvoker.register_backend(name, fn)."
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=AffordanceInvocationStatus.BACKEND_MISSING,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    error_class="backend_missing",
+                    error_detail=(
+                        f"No backend registered for {descriptor_name!r}; "
+                        f"call AffordanceInvoker.register_backend(name, fn)."
+                    ),
+                    plan_ref=plan_ref,
                 ),
-                plan_ref=plan_ref,
             )
         backend_started_at = time.monotonic()
         try:
-            raw_payload = await backend(parameters)
+            timeout = (
+                timeout_seconds
+                if timeout_seconds is not None
+                else _timeout_seconds_from_descriptor(descriptor)
+            )
+            raw_payload = await asyncio.wait_for(backend(parameters), timeout=timeout)
         except Exception as exc:  # noqa: BLE001 \u2014 invoker isolation boundary
             _LOG.exception(
                 "AffordanceInvoker: backend for %s raised",
                 descriptor_name,
             )
-            return self._finalize(
-                descriptor=descriptor,
-                status=AffordanceInvocationStatus.BACKEND_FAILED,
-                session=session,
-                event_id=event_id,
-                action_id=action_id,
-                latency_ms=int((time.monotonic() - backend_started_at) * 1000),
-                error_class=type(exc).__name__,
-                error_detail=str(exc)[:512],
-                plan_ref=plan_ref,
+            return self._remember_idempotent(
+                idempotency_key,
+                self._finalize(
+                    descriptor=descriptor,
+                    status=AffordanceInvocationStatus.BACKEND_FAILED,
+                    session=session,
+                    event_id=event_id,
+                    action_id=action_id,
+                    latency_ms=int((time.monotonic() - backend_started_at) * 1000),
+                    error_class=type(exc).__name__,
+                    error_detail=str(exc)[:512],
+                    plan_ref=plan_ref,
+                ),
             )
         payload: Mapping[str, Any] = (
             dict(raw_payload) if isinstance(raw_payload, Mapping) else {}
         )
-        return self._finalize(
-            descriptor=descriptor,
-            status=AffordanceInvocationStatus.SUCCEEDED,
-            session=session,
-            event_id=event_id,
-            action_id=action_id,
-            payload=payload,
-            latency_ms=int((time.monotonic() - backend_started_at) * 1000),
-            plan_ref=plan_ref,
+        return self._remember_idempotent(
+            idempotency_key,
+            self._finalize(
+                descriptor=descriptor,
+                status=AffordanceInvocationStatus.SUCCEEDED,
+                session=session,
+                event_id=event_id,
+                action_id=action_id,
+                payload=payload,
+                latency_ms=int((time.monotonic() - backend_started_at) * 1000),
+                plan_ref=plan_ref,
+            ),
         )
 
     async def invoke_or_raise(
@@ -670,9 +840,88 @@ class AffordanceInvoker:
             raise AffordanceInvocationError(result)
         return result
 
+    def get_task_handle(self, task_id: str) -> AffordanceTaskHandle:
+        """Return a deferred task handle by id, fail-loud when unknown."""
+
+        handle = self._task_handles.get(task_id)
+        if handle is None:
+            raise KeyError(f"No affordance task registered with task_id={task_id!r}")
+        return handle
+
+    def cancel_task(self, task_id: str) -> AffordanceTaskHandle:
+        """Mark a queued/running task cancelled."""
+
+        handle = self.get_task_handle(task_id)
+        cancelled = AffordanceTaskHandle(
+            task_id=handle.task_id,
+            descriptor_name=handle.descriptor_name,
+            status=AffordanceTaskStatus.CANCELLED,
+            poll_after_ms=handle.poll_after_ms,
+            event_id=handle.event_id,
+            action_id=handle.action_id,
+            plan_ref=handle.plan_ref,
+        )
+        self._task_handles[task_id] = cancelled
+        return cancelled
+
+    def submit_deferred_result(
+        self,
+        *,
+        task_id: str,
+        session: _SessionLike,
+        payload: Mapping[str, Any] | None = None,
+        error_class: str = "",
+        error_detail: str = "",
+        latency_ms: int | None = None,
+    ) -> AffordanceInvocationResult:
+        """Submit completion for an async task through the canonical tool bus."""
+
+        handle = self.get_task_handle(task_id)
+        descriptor = self._registry.get(handle.descriptor_name)
+        status = (
+            AffordanceInvocationStatus.BACKEND_FAILED
+            if error_class or error_detail
+            else AffordanceInvocationStatus.SUCCEEDED
+        )
+        completed = AffordanceTaskHandle(
+            task_id=handle.task_id,
+            descriptor_name=handle.descriptor_name,
+            status=(
+                AffordanceTaskStatus.FAILED
+                if status is AffordanceInvocationStatus.BACKEND_FAILED
+                else AffordanceTaskStatus.SUCCEEDED
+            ),
+            poll_after_ms=handle.poll_after_ms,
+            event_id=handle.event_id,
+            action_id=handle.action_id,
+            plan_ref=handle.plan_ref,
+        )
+        self._task_handles[task_id] = completed
+        return self._finalize(
+            descriptor=descriptor,
+            status=status,
+            session=session,
+            event_id=handle.event_id,
+            action_id=handle.action_id,
+            payload=payload,
+            latency_ms=latency_ms,
+            error_class=error_class,
+            error_detail=error_detail,
+            plan_ref=handle.plan_ref,
+        )
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _remember_idempotent(
+        self,
+        idempotency_key: str | None,
+        result: AffordanceInvocationResult,
+    ) -> AffordanceInvocationResult:
+        if idempotency_key is not None:
+            self._idempotency_results[idempotency_key] = result
+        return result
 
     def _finalize(
         self,
@@ -777,6 +1026,16 @@ def _monetary_cost_from_descriptor(descriptor: AffordanceDescriptor) -> float:
     }.get(monetary_class.value, 0.0)
 
 
+def _timeout_seconds_from_descriptor(descriptor: AffordanceDescriptor) -> float:
+    latency_class = descriptor.cost_model.latency_class
+    return {
+        "instant": 1.0,
+        "fast": 5.0,
+        "slow": 30.0,
+        "very_slow": 120.0,
+    }[latency_class.value]
+
+
 def _summarise_for_kernel(
     *,
     status: AffordanceInvocationStatus,
@@ -811,6 +1070,9 @@ __all__ = [
     "AffordanceInvocationError",
     "AffordanceInvocationResult",
     "AffordanceInvocationStatus",
+    "AffordanceSessionBudget",
+    "AffordanceTaskHandle",
+    "AffordanceTaskStatus",
     "AffordanceInvoker",
     "BoundaryCheckContext",
     "BoundaryDenial",

@@ -38,19 +38,61 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ChatToolCallFunction:
+    name: str
+    arguments: str = "{}"
+
+    def to_json(self) -> dict[str, str]:
+        return {"name": self.name, "arguments": self.arguments}
+
+
+@dataclass(frozen=True)
+class ChatToolCall:
+    id: str
+    type: str
+    function: ChatToolCallFunction
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "function": self.function.to_json(),
+        }
+
+
+@dataclass(frozen=True)
+class OpenAIToolDefinition:
+    type: str
+    function: dict[str, Any]
+
+    def to_json(self) -> dict[str, Any]:
+        return {"type": self.type, "function": dict(self.function)}
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     """A single message in the OpenAI chat history.
 
     ``role`` is one of ``"system"`` / ``"user"`` / ``"assistant"`` /
-    ``"tool"`` (the last one is accepted on parse but routed to a
-    typed error response: this adapter does not support tool calls).
+    ``"tool"`` / ``"developer"``. Assistant messages can carry
+    OpenAI ``tool_calls``; tool-role messages carry ``tool_call_id``.
     """
 
     role: str
     content: str
+    tool_calls: tuple[ChatToolCall, ...] = ()
+    tool_call_id: str = ""
+    name: str = ""
 
-    def to_json(self) -> dict[str, str]:
-        return {"role": self.role, "content": self.content}
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"role": self.role, "content": self.content}
+        if self.tool_calls:
+            payload["tool_calls"] = [call.to_json() for call in self.tool_calls]
+        if self.tool_call_id:
+            payload["tool_call_id"] = self.tool_call_id
+        if self.name:
+            payload["name"] = self.name
+        return payload
 
 
 @dataclass(frozen=True)
@@ -88,6 +130,9 @@ class ChatCompletionRequest:
     messages: tuple[ChatMessage, ...]
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     metadata: dict[str, str] = field(default_factory=dict)
+    tools: tuple[OpenAIToolDefinition, ...] = ()
+    tool_choice: str | dict[str, Any] | None = None
+    parallel_tool_calls: bool = False
     user: str = ""  # OpenAI's top-level ``user`` field (auditing hint)
 
     @staticmethod
@@ -125,6 +170,8 @@ class ChatCompletionRequest:
                     f"invalid_role_at_{index}: role must be one of "
                     "system/user/assistant/tool/developer"
                 )
+            if content is None and role == "assistant" and "tool_calls" in item:
+                content = ""
             if not isinstance(content, str):
                 # OpenAI also allows multi-modal content arrays; we treat
                 # those as unsupported and surface a 400 rather than
@@ -135,9 +182,22 @@ class ChatCompletionRequest:
                     f"invalid_content_at_{index}: content must be a string "
                     "(multi-modal content arrays are not supported by this adapter)"
                 )
-            parsed_messages.append(ChatMessage(role=role, content=content))
+            parsed_messages.append(
+                ChatMessage(
+                    role=role,
+                    content=content,
+                    tool_calls=_parse_tool_calls(item.get("tool_calls"), index=index),
+                    tool_call_id=_optional_string(item, "tool_call_id", index=index),
+                    name=_optional_string(item, "name", index=index),
+                )
+            )
 
         gen = _parse_generation_config(payload)
+        tools = _parse_tools(payload.get("tools", ()))
+        tool_choice = _parse_tool_choice(payload.get("tool_choice"))
+        parallel_tool_calls = payload.get("parallel_tool_calls", False)
+        if not isinstance(parallel_tool_calls, bool):
+            raise ValueError("invalid_parallel_tool_calls: must be a boolean")
 
         raw_metadata = payload.get("metadata", {})
         if raw_metadata is None:
@@ -166,8 +226,105 @@ class ChatCompletionRequest:
             messages=tuple(parsed_messages),
             generation=gen,
             metadata=normalized_metadata,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
             user=user,
         )
+
+
+def _optional_string(item: dict[str, Any], key: str, *, index: int) -> str:
+    value = item.get(key, "")
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f"invalid_{key}_at_{index}: must be a string")
+    return value
+
+
+def _parse_tool_calls(raw: object, *, index: int) -> tuple[ChatToolCall, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError(f"invalid_tool_calls_at_{index}: must be an array")
+    calls: list[ChatToolCall] = []
+    for call_index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"invalid_tool_call_at_{index}_{call_index}: each call must be an object"
+            )
+        call_id = item.get("id")
+        call_type = item.get("type", "function")
+        function = item.get("function")
+        if not isinstance(call_id, str) or not call_id.strip():
+            raise ValueError(
+                f"invalid_tool_call_id_at_{index}_{call_index}: id must be non-empty"
+            )
+        if call_type != "function":
+            raise ValueError(
+                f"invalid_tool_call_type_at_{index}_{call_index}: only function is supported"
+            )
+        if not isinstance(function, dict):
+            raise ValueError(
+                f"invalid_tool_call_function_at_{index}_{call_index}: function is required"
+            )
+        name = function.get("name")
+        arguments = function.get("arguments", "{}")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(
+                f"invalid_tool_call_name_at_{index}_{call_index}: name must be non-empty"
+            )
+        if not isinstance(arguments, str):
+            raise ValueError(
+                f"invalid_tool_call_arguments_at_{index}_{call_index}: arguments must be a JSON string"
+            )
+        calls.append(
+            ChatToolCall(
+                id=call_id,
+                type="function",
+                function=ChatToolCallFunction(name=name, arguments=arguments),
+            )
+        )
+    return tuple(calls)
+
+
+def _parse_tools(raw: object) -> tuple[OpenAIToolDefinition, ...]:
+    if raw in (None, ()):
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("invalid_tools: tools must be an array")
+    tools: list[OpenAIToolDefinition] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"invalid_tool_at_{index}: each tool must be an object")
+        tool_type = item.get("type")
+        function = item.get("function")
+        if tool_type != "function":
+            raise ValueError(f"invalid_tool_type_at_{index}: only function is supported")
+        if not isinstance(function, dict):
+            raise ValueError(f"invalid_tool_function_at_{index}: function is required")
+        name = function.get("name")
+        parameters = function.get("parameters")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"invalid_tool_name_at_{index}: function.name must be non-empty")
+        if not isinstance(parameters, dict):
+            raise ValueError(
+                f"invalid_tool_parameters_at_{index}: function.parameters must be an object"
+            )
+        tools.append(OpenAIToolDefinition(type="function", function=dict(function)))
+    return tuple(tools)
+
+
+def _parse_tool_choice(raw: object) -> str | dict[str, Any] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        if raw not in {"none", "auto", "required"}:
+            raise ValueError("invalid_tool_choice: string must be none/auto/required")
+        return raw
+    if isinstance(raw, dict):
+        return dict(raw)
+    raise ValueError("invalid_tool_choice: must be a string or object")
 
 
 def _parse_generation_config(payload: dict[str, Any]) -> GenerationConfig:

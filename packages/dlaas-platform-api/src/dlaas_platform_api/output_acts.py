@@ -54,6 +54,48 @@ def system_act(content: str) -> OutputAct:
     )
 
 
+def tool_call_act(
+    *,
+    call_id: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> OutputAct:
+    """Ask a native client to execute a tool and return observe/tool_result."""
+
+    return OutputAct(
+        act_type="tool_call",
+        capability="tool_calling",
+        payload={
+            "call_id": call_id,
+            "tool_name": tool_name,
+            "arguments": dict(arguments),
+        },
+        degraded=False,
+        original_capability="",
+    )
+
+
+def tool_task_act(
+    *,
+    task_id: str,
+    status: str,
+    poll_after_ms: int,
+) -> OutputAct:
+    """Surface an async affordance task handle to native clients."""
+
+    return OutputAct(
+        act_type="tool_task",
+        capability="tool_calling_async",
+        payload={
+            "task_id": task_id,
+            "status": status,
+            "poll_after_ms": poll_after_ms,
+        },
+        degraded=False,
+        original_capability="",
+    )
+
+
 def ok_envelope(
     *,
     ai_id: str,
@@ -92,4 +134,6 @@ __all__ = [
     "ok_envelope",
     "system_act",
     "text_act",
+    "tool_call_act",
+    "tool_task_act",
 ]

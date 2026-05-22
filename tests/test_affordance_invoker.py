@@ -7,7 +7,6 @@ parameter validation \u2192 backend) plus the optional
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -25,10 +24,11 @@ from lifeform_affordance import (
     AffordanceLatencyClass,
     AffordanceMonetaryClass,
     AffordanceRegistry,
+    AffordanceSessionBudget,
     AffordanceSafety,
+    AffordanceTaskStatus,
     BoundaryCheckContext,
     BoundaryDenial,
-    DescriptorDerivedBoundaryPolicy,
     validate_parameters,
 )
 
@@ -260,11 +260,77 @@ async def test_boundary_requires_confirmation_when_safety_says_so() -> None:
     invoker.register_backend("write_file", _echo_backend())
 
     denied = await invoker.invoke("write_file", {"q": "hi"})
-    assert denied.status is AffordanceInvocationStatus.DENIED_BY_BOUNDARY
+    assert denied.status is AffordanceInvocationStatus.PENDING_CONFIRMATION
     assert denied.error_class == "confirmation_required"
 
     allowed = await invoker.invoke("write_file", {"q": "hi"}, user_confirmed=True)
     assert allowed.status is AffordanceInvocationStatus.SUCCEEDED
+
+
+async def test_idempotency_key_reuses_result_without_second_backend_call() -> None:
+    calls = 0
+
+    async def backend(parameters: Mapping[str, Any]) -> Mapping[str, Any]:
+        nonlocal calls
+        calls += 1
+        return {"call": calls, "params": dict(parameters)}
+
+    registry = _registry_with(_tool("ping"))
+    invoker = AffordanceInvoker(registry=registry)
+    invoker.register_backend("ping", backend)
+
+    first = await invoker.invoke("ping", {"q": "hi"}, idempotency_key="same")
+    second = await invoker.invoke("ping", {"q": "hi"}, idempotency_key="same")
+
+    assert first is second
+    assert calls == 1
+
+
+async def test_session_budget_blocks_before_backend() -> None:
+    registry = _registry_with(_tool("ping"))
+    invoker = AffordanceInvoker(registry=registry)
+    invoker.register_backend("ping", _echo_backend())
+
+    result = await invoker.invoke(
+        "ping",
+        {"q": "hi"},
+        session_budget=AffordanceSessionBudget(max_invocations=1, used_invocations=1),
+    )
+
+    assert result.status is AffordanceInvocationStatus.RATE_LIMITED
+    assert result.error_class == "session_budget_exhausted"
+
+
+async def test_contract_policy_excludes_unlisted_tool() -> None:
+    registry = _registry_with(_tool("allowed"), _tool("blocked"))
+    registry.set_contract_policy(
+        contract_id="contract-a", allowed_affordance_names=("allowed",)
+    )
+    invoker = AffordanceInvoker(registry=registry)
+    invoker.register_backend("blocked", _echo_backend())
+
+    result = await invoker.invoke("blocked", {"q": "hi"}, contract_id="contract-a")
+
+    assert result.status is AffordanceInvocationStatus.EXCLUDED
+    assert result.error_class == "contract_policy_excluded"
+
+
+async def test_async_task_handle_can_be_queued_and_read() -> None:
+    registry = _registry_with(_tool("slow"))
+    invoker = AffordanceInvoker(registry=registry)
+
+    queued = await invoker.invoke(
+        "slow",
+        {"q": "hi"},
+        as_async_task=True,
+        event_id="event-1",
+        action_id="action-1",
+    )
+
+    assert queued.status is AffordanceInvocationStatus.TASK_QUEUED
+    assert queued.task_handle is not None
+    assert queued.task_handle.status is AffordanceTaskStatus.QUEUED
+    assert invoker.get_task_handle(queued.task_id).task_id == queued.task_id
 
 
 async def test_custom_boundary_policy_is_honoured() -> None:

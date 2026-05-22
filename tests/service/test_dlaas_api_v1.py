@@ -478,6 +478,212 @@ async def test_catalog_and_blueprint_adoption(fullstack_client):
     assert payload["resolved"]["vertical"] == "companion"
 
 
+async def test_governance_data_audit_usage_and_consent(slice1_client):
+    export = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/data/export",
+        json={
+            "contract_id": "ctr_gov",
+            "end_user_ref": "user_gov",
+        },
+    )
+    assert export.status == 201, await export.text()
+    export_body = await export.json()
+    assert export_body["status"] == "completed"
+    assert export_body["artifact_ref"].startswith("artifact://data-export/")
+
+    delete = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/data/delete",
+        json={
+            "contract_id": "ctr_gov",
+            "end_user_ref": "user_gov",
+            "scopes": ["platform"],
+        },
+    )
+    assert delete.status == 202, await delete.text()
+    delete_body = await delete.json()
+    status = await slice1_client.get(
+        "/dlaas/v1/instances/ai_v1_slice1/data/deletion-status/"
+        + delete_body["job_id"]
+    )
+    assert status.status == 200, await status.text()
+    assert (await status.json())["deleted_scopes"] == ["platform"]
+
+    consent = await slice1_client.post(
+        "/dlaas/v1/consents",
+        json={
+            "ai_id": "ai_v1_slice1",
+            "end_user_ref": "user_gov",
+            "consent_type": "training_use",
+            "granted": True,
+            "evidence_ref": "click:consent",
+        },
+    )
+    assert consent.status == 201, await consent.text()
+    listed = await slice1_client.get(
+        "/dlaas/v1/consents/user_gov?ai_id=ai_v1_slice1"
+    )
+    assert listed.status == 200
+    assert (await listed.json())["consents"][0]["consent_type"] == "training_use"
+
+    policies = await slice1_client.get("/dlaas/v1/policies")
+    assert policies.status == 200
+    assert {p["policy_id"] for p in (await policies.json())["policies"]} >= {
+        "default-data-governance",
+        "default-training-consent",
+    }
+
+    audit = await slice1_client.get("/dlaas/v1/audit/events?ai_id=ai_v1_slice1")
+    assert audit.status == 200
+    event_types = {e["event_type"] for e in (await audit.json())["events"]}
+    assert "data_export_requested" in event_types
+    assert "data_delete_requested" in event_types
+    assert "consent_recorded" in event_types
+
+    usage = await slice1_client.get("/dlaas/v1/usage?ai_id=ai_v1_slice1")
+    assert usage.status == 200
+    usage_metrics = {r["metric"] for r in (await usage.json())["usage"]}
+    assert {"data_export", "data_delete"} <= usage_metrics
+    quota = await slice1_client.get("/dlaas/v1/quota?tenant_id=tenant_test")
+    assert quota.status == 200
+    assert (await quota.json())["tenant_id"] == "tenant_test"
+    billing = await slice1_client.get("/dlaas/v1/billing/events")
+    assert billing.status == 200
+    assert len((await billing.json())["billing_events"]) >= 2
+
+
+async def test_artifact_eval_and_webhook_surfaces(slice1_client):
+    job = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/training/jobs",
+        json={
+            "contract_id": "ctr_artifact",
+            "job_type": "adapter_candidate",
+            "source_ref": "train://candidate",
+        },
+    )
+    assert job.status == 201, await job.text()
+    job_id = (await job.json())["job_id"]
+    artifact_id = f"artifact:{job_id}"
+    artifacts = await slice1_client.get("/dlaas/v1/artifacts")
+    assert artifacts.status == 200
+    assert artifact_id in {a["artifact_id"] for a in (await artifacts.json())["artifacts"]}
+
+    blocked = await slice1_client.post(f"/dlaas/v1/artifacts/{artifact_id}/promote")
+    assert blocked.status == 409
+    assert (await blocked.json())["error"] == "promotion_gate_required"
+    promoted = await slice1_client.post(
+        f"/dlaas/v1/artifacts/{artifact_id}/promote",
+        json={"gate_evidence": {"offline_gate": "pass"}},
+    )
+    assert promoted.status == 200, await promoted.text()
+    assert (await promoted.json())["promotion_decision"] == "allow"
+
+    eval_run = await slice1_client.post(
+        "/dlaas/v1/eval/runs",
+        json={
+            "gate_id": "boundary-baseline",
+            "ai_id": "ai_v1_slice1",
+            "contract_id": "ctr_eval",
+            "score": 0.9,
+        },
+    )
+    assert eval_run.status == 201, await eval_run.text()
+    run_id = (await eval_run.json())["run_id"]
+    approved = await slice1_client.post(f"/dlaas/v1/eval/runs/{run_id}/approve")
+    assert approved.status == 200, await approved.text()
+    assert (await approved.json())["status"] == "approved"
+
+    webhook = await slice1_client.post(
+        "/dlaas/v1/webhooks",
+        json={
+            "target_url": "https://example.invalid/hook",
+            "event_types": ["eval_run_approved"],
+        },
+    )
+    assert webhook.status == 201, await webhook.text()
+    assert (await webhook.json())["enabled"] is True
+    stream = await slice1_client.get("/dlaas/v1/events/stream")
+    assert stream.status == 200
+    stream_types = {e["event_type"] for e in (await stream.json())["events"]}
+    assert "eval_run_approved" in stream_types
+    assert "webhook_created" in stream_types
+
+
+async def test_governance_records_persist_across_fullstack_restart(
+    aiohttp_client, tmp_path: Path
+):
+    from lifeform_service.verticals import discover_verticals
+
+    db_path = tmp_path / "governance.sqlite"
+    spec = discover_verticals()["companion"]
+
+    app1 = build_dlaas_app(
+        db_path=str(db_path),
+        control_plane_secret=CONTROL_PLANE_SECRET,
+        vertical=spec,
+        max_sessions=8,
+        idle_eviction_seconds=None,
+    )
+    c1 = await aiohttp_client(app1)
+    export = await c1.post(
+        "/dlaas/v1/instances/ai_persist/data/export",
+        json={"contract_id": "ctr_persist", "end_user_ref": "user_persist"},
+    )
+    assert export.status == 201, await export.text()
+    consent = await c1.post(
+        "/dlaas/v1/consents",
+        json={
+            "ai_id": "ai_persist",
+            "end_user_ref": "user_persist",
+            "consent_type": "training_use",
+            "granted": True,
+        },
+    )
+    assert consent.status == 201, await consent.text()
+    job = await c1.post(
+        "/dlaas/v1/instances/ai_persist/training/jobs",
+        json={
+            "contract_id": "ctr_persist",
+            "job_type": "adapter_candidate",
+            "source_ref": "train://persist",
+        },
+    )
+    assert job.status == 201, await job.text()
+    job_id = (await job.json())["job_id"]
+    artifact_id = f"artifact:{job_id}"
+
+    app2 = build_dlaas_app(
+        db_path=str(db_path),
+        control_plane_secret=CONTROL_PLANE_SECRET,
+        vertical=spec,
+        max_sessions=8,
+        idle_eviction_seconds=None,
+    )
+    c2 = await aiohttp_client(app2)
+    audit = await c2.get("/dlaas/v1/audit/events?ai_id=ai_persist")
+    assert audit.status == 200, await audit.text()
+    event_types = {e["event_type"] for e in (await audit.json())["events"]}
+    assert "data_export_requested" in event_types
+    assert "consent_recorded" in event_types
+    assert "training_job_created" in event_types
+
+    persisted_consent = await c2.get(
+        "/dlaas/v1/consents/user_persist?ai_id=ai_persist"
+    )
+    assert persisted_consent.status == 200, await persisted_consent.text()
+    assert (await persisted_consent.json())["consents"][0]["consent_type"] == "training_use"
+
+    artifacts = await c2.get("/dlaas/v1/artifacts")
+    assert artifacts.status == 200, await artifacts.text()
+    assert artifact_id in {a["artifact_id"] for a in (await artifacts.json())["artifacts"]}
+
+    usage = await c2.get("/dlaas/v1/usage?ai_id=ai_persist")
+    assert usage.status == 200, await usage.text()
+    assert {r["metric"] for r in (await usage.json())["usage"]} >= {
+        "data_export",
+        "training_job",
+    }
+
+
 async def test_openai_compat_routes_by_dlaas_ai_id(aiohttp_client, tmp_path: Path):
     from lifeform_openai_compat import add_openai_routes
 

@@ -42,6 +42,7 @@ public ``create_session`` / ``get_session`` / ``has_session`` API.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -59,6 +60,8 @@ from lifeform_openai_compat.dto import (
     ChatCompletionResponse,
     ChatCompletionUsage,
     ChatMessage,
+    ChatToolCall,
+    ChatToolCallFunction,
 )
 from lifeform_openai_compat.raw_substrate import (
     estimate_prompt_tokens,
@@ -220,7 +223,6 @@ async def lifeform_complete(
 
     resolution = derive_session_id(request)
     user_id = request.metadata.get("user_id", "").strip() or None
-    user_input = extract_user_input(request.messages)
 
     session = await _get_or_create_session(
         manager=manager,
@@ -228,7 +230,52 @@ async def lifeform_complete(
         user_id=user_id,
     )
 
-    result = await session.run_turn(user_input)
+    if request.messages[-1].role == "tool":
+        _submit_openai_tool_message(session=session, messages=request.messages)
+        user_input = "Continue the turn using the submitted tool result."
+        result = await session.run_turn(user_input)
+    else:
+        user_input = extract_user_input(request.messages)
+        tool_intent = _forced_tool_intent(request)
+        invoker = _session_invoker(session)
+        tool_loop_mode = request.metadata.get("dlaas.tool_loop", "").strip().lower()
+        if invoker is not None and (tool_intent is not None or tool_loop_mode == "server"):
+            if tool_loop_mode == "server":
+                from lifeform_affordance import (
+                    ToolLoopOrchestrator,
+                    ToolLoopPolicy,
+                )
+
+                orchestrator = ToolLoopOrchestrator(
+                    registry=invoker.registry,
+                    invoker=invoker,
+                    policy=ToolLoopPolicy(server_side_execution=True),
+                    contract_id=request.metadata.get("dlaas.contract_id", "").strip() or None,
+                    intent_proposer=_llm_tool_intent_proposer(manager),
+                )
+                loop_result = await orchestrator.run(
+                    session=session,
+                    user_input=user_input,
+                    initial_intents=(tool_intent,) if tool_intent is not None else (),
+                )
+                result = loop_result.final_turn_result
+            elif tool_intent is not None:
+                response = _tool_call_response(
+                    request=request,
+                    resolution=resolution,
+                    manager=manager,
+                    tool_call=_intent_to_tool_call(tool_intent),
+                )
+                return LifeformCompletionResult(
+                    response=response,
+                    resolution=resolution,
+                    active_regime=None,
+                    active_abstract_action=None,
+                    pe_magnitude=0.0,
+                    rationale_tags=("tool-call",),
+                )
+        else:
+            result = await session.run_turn(user_input)
 
     response_text = result.response.text
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()))
@@ -272,6 +319,154 @@ async def lifeform_complete(
         active_abstract_action=active_abstract_action,
         pe_magnitude=pe_magnitude,
         rationale_tags=rationale_tags,
+    )
+
+
+def _session_invoker(session: Any) -> Any:
+    try:
+        return session.mcp_invoker
+    except AttributeError as exc:
+        raise ValueError(
+            "invalid_tools: selected session does not expose an affordance invoker"
+        ) from exc
+
+
+def _forced_tool_intent(request: ChatCompletionRequest) -> Any:
+    choice = request.tool_choice
+    if not isinstance(choice, dict):
+        return None
+    if choice.get("type") != "function":
+        raise ValueError("invalid_tool_choice: only function tool_choice is supported")
+    function = choice.get("function")
+    if not isinstance(function, dict):
+        raise ValueError("invalid_tool_choice: function object is required")
+    name = function.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("invalid_tool_choice: function.name must be non-empty")
+    arguments = function.get("arguments", {})
+    if isinstance(arguments, str):
+        try:
+            parsed_arguments = json.loads(arguments) if arguments.strip() else {}
+        except json.JSONDecodeError as exc:
+            raise ValueError("invalid_tool_choice: function.arguments must be JSON") from exc
+    elif isinstance(arguments, dict):
+        parsed_arguments = dict(arguments)
+    else:
+        raise ValueError("invalid_tool_choice: function.arguments must be object or JSON string")
+    from lifeform_affordance import ToolCallIntent
+
+    return ToolCallIntent(
+        descriptor_name=name,
+        parameters=parsed_arguments,
+        call_id=f"call_{uuid.uuid4().hex[:16]}",
+        source="openai_tool_choice",
+    )
+
+
+def _llm_tool_intent_proposer(manager: SessionManager) -> Any:
+    runtime = manager.substrate_runtime
+    if runtime is None:
+        raise ValueError(
+            "invalid_tools: server-side conversational tool loop requires a substrate runtime"
+        )
+
+    def provider(prompt: str) -> str:
+        generated = runtime.generate(
+            prompt=prompt,
+            system_context=(
+                "Return only JSON for the tool-intent decision. "
+                "Do not include markdown."
+            ),
+            chat_messages=(),
+            max_new_tokens=512,
+            temperature=0.0,
+        )
+        return str(generated.text)
+
+    from lifeform_affordance import LLMToolIntentProposer
+
+    return LLMToolIntentProposer(provider)
+
+
+def _intent_to_tool_call(intent: Any) -> ChatToolCall:
+    return ChatToolCall(
+        id=intent.stable_call_id,
+        type="function",
+        function=ChatToolCallFunction(
+            name=intent.descriptor_name,
+            arguments=json.dumps(dict(intent.parameters), ensure_ascii=False),
+        ),
+    )
+
+
+def _tool_call_response(
+    *,
+    request: ChatCompletionRequest,
+    resolution: SessionResolution,
+    manager: SessionManager,
+    tool_call: ChatToolCall,
+) -> ChatCompletionResponse:
+    system_context, prompt_text, history = split_messages(request.messages)
+    prompt_tokens = estimate_prompt_tokens(system_context, prompt_text, history)
+    return ChatCompletionResponse(
+        id=resolution.session_id,
+        object="chat.completion",
+        created=int(time.time()),
+        model=request.model,
+        choices=(
+            ChatCompletionChoice(
+                index=0,
+                message=ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=(tool_call,),
+                ),
+                finish_reason="tool_calls",
+            ),
+        ),
+        usage=ChatCompletionUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=1,
+            total_tokens=prompt_tokens + 1,
+        ),
+        system_fingerprint=f"lifeform:{manager.vertical_name}",
+    )
+
+
+def _submit_openai_tool_message(
+    *,
+    session: Any,
+    messages: tuple[ChatMessage, ...],
+) -> None:
+    last = messages[-1]
+    if not last.tool_call_id.strip():
+        raise ValueError("invalid_tool_message: tool_call_id is required")
+    tool_name = last.name.strip() or _tool_name_for_call_id(
+        messages=messages, tool_call_id=last.tool_call_id
+    )
+    session.submit_tool_result(
+        event_id=last.tool_call_id,
+        tool_name=tool_name,
+        action_id=f"{tool_name}:{last.tool_call_id}",
+        status="succeeded",
+        summary="OpenAI tool message received",
+        detail=last.content,
+        confidence=1.0,
+        plan_ref=last.tool_call_id,
+    )
+
+
+def _tool_name_for_call_id(
+    *,
+    messages: tuple[ChatMessage, ...],
+    tool_call_id: str,
+) -> str:
+    for message in reversed(messages[:-1]):
+        for call in message.tool_calls:
+            if call.id == tool_call_id:
+                return call.function.name
+    raise ValueError(
+        "invalid_tool_message: tool name missing and no matching assistant tool_call found"
     )
 
 

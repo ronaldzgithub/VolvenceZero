@@ -48,6 +48,10 @@ from dlaas_platform_registry.eval_store import (
     ExamRunNotFound,
     LaunchLicenseNotFound,
 )
+from dlaas_platform_registry.governance import (
+    GovernanceRecordNotFound,
+    GovernanceStore,
+)
 from dlaas_platform_registry.handoff import (
     HandoffTicketNotFound,
     HandoffTicketStore,
@@ -73,6 +77,8 @@ __all__ = (
     "EvalStore",
     "ExamQuestionNotFound",
     "ExamRunNotFound",
+    "GovernanceRecordNotFound",
+    "GovernanceStore",
     "HandoffTicketNotFound",
     "HandoffTicketStore",
     "LaunchLicenseNotFound",

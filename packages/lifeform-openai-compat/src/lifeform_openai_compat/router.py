@@ -330,16 +330,34 @@ async def _emit_sse(
         }],
     }))
 
-    # Frame 2: content delta — extract assistant text from the
-    # OpenAI-shaped non-streaming payload.
+    # Frame 2: content/tool_calls delta — extract assistant payload from the
+    # OpenAI-shaped non-streaming response.
     choices = payload.get("choices") or []
     assistant_text = ""
     finish_reason = "stop"
+    tool_calls: list[dict[str, Any]] = []
     if choices:
         first = choices[0]
         message = first.get("message") or {}
         assistant_text = str(message.get("content") or "")
+        raw_tool_calls = message.get("tool_calls") or []
+        if isinstance(raw_tool_calls, list):
+            tool_calls = raw_tool_calls
         finish_reason = str(first.get("finish_reason") or "stop")
+    delta: dict[str, Any] = {}
+    if tool_calls:
+        delta["tool_calls"] = [
+            {
+                "index": index,
+                "id": call.get("id"),
+                "type": call.get("type", "function"),
+                "function": call.get("function", {}),
+            }
+            for index, call in enumerate(tool_calls)
+            if isinstance(call, dict)
+        ]
+    else:
+        delta["content"] = assistant_text
     await response.write(_sse({
         "id": completion_id,
         "object": "chat.completion.chunk",
@@ -347,7 +365,7 @@ async def _emit_sse(
         "model": model,
         "choices": [{
             "index": 0,
-            "delta": {"content": assistant_text},
+            "delta": delta,
             "finish_reason": None,
         }],
     }))

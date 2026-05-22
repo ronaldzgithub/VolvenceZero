@@ -26,6 +26,7 @@ from volvence_zero.agent import (
     DialogueNLEssenceAcceptanceDecision,
     DialogueNLEssenceAssessmentReport,
     DialogueBenchmarkReport,
+    DialogueBenchmarkCaseReport,
     DialogueBenchmarkPathReport,
     DialogueBenchmarkComparisonReport,
     DialogueLongitudinalBenchmarkReport,
@@ -65,6 +66,7 @@ from volvence_zero.agent import (
     default_dialogue_ablation_profiles,
     default_dialogue_strong_proof_profiles,
     default_dialogue_comprehensive_profiles,
+    default_phase2_shadow_evidence_profiles,
     dialogue_paper_suite_config,
     default_open_dialogue_ablation_profiles,
     default_dialogue_real_proof_config,
@@ -87,6 +89,7 @@ from volvence_zero.agent import (
     run_dialogue_pe_eta_longitudinal_benchmark,
     run_dialogue_pe_eta_perturbation_benchmark,
     run_dialogue_pe_eta_systematic_replay_benchmark,
+    run_phase2_shadow_evidence_smoke,
     run_open_dialogue_benchmark,
     run_open_dialogue_ablation_benchmark,
     run_open_dialogue_case,
@@ -640,17 +643,158 @@ def test_dialogue_benchmark_exposes_default_ablation_profiles():
 
 
 def test_phase2_shadow_profiles_can_build_standard_runners():
-    for profile_label in (
-        "cpd-beta-switch",
-        "counterfactual-credit",
-        "tom-owner",
-        "persona-geometry-readout",
-    ):
+    for profile_label in default_phase2_shadow_evidence_profiles():
         runner = build_standard_dialogue_runner(
             profile_label=profile_label,
             case=DEFAULT_DIALOGUE_PROOF_CASES[0],
         )
         assert runner.session_id.startswith(f"dialogue-ablation:{profile_label}:")
+
+
+def test_phase2_shadow_profiles_are_explicit_not_default():
+    phase2_profiles = default_phase2_shadow_evidence_profiles()
+
+    assert phase2_profiles == (
+        "cpd-beta-switch",
+        "counterfactual-credit",
+        "tom-owner",
+        "persona-geometry-readout",
+    )
+    assert not (set(phase2_profiles) & set(default_dialogue_ablation_profiles()))
+    assert not (set(phase2_profiles) & set(default_dialogue_strong_proof_profiles()))
+
+
+def test_phase2_shadow_evidence_smoke_runs_one_case():
+    report = asyncio.run(
+        run_phase2_shadow_evidence_smoke(
+            cases=(DEFAULT_DIALOGUE_PROOF_CASES[0],),
+            runner_factory=lambda _profile_label, case: _synthetic_runner(case),
+        )
+    )
+    path_labels = tuple(path.path_label for path in report.path_reports)
+
+    assert path_labels == ("pe-eta",) + default_phase2_shadow_evidence_profiles()
+    assert report.baseline_label == "pe-eta"
+    for path in report.path_reports:
+        assert path.benchmark_report.total_case_count == 1
+        metric_names = {name for name, _ in path.benchmark_report.metric_means}
+        assert "mean_persona_geometry_drift" in metric_names
+        assert "cpd_beta_switch_recommended_count" in metric_names
+        assert "mean_least_control_score" in metric_names
+        assert "tom_distinct_interlocutor_max" in metric_names
+
+
+def test_phase2_candidate_metric_means_are_exported_from_case_summary():
+    turn = DialogueBenchmarkTurn(
+        turn_index=0,
+        wave_id="w0",
+        user_input="u",
+        assistant_response_text="a",
+        acceptance_passed=True,
+        active_regime="r",
+        active_abstract_action="act",
+        joint_schedule_action="none",
+        switch_gate=0.0,
+        action_family_version=0,
+        prediction_error_magnitude=0.0,
+        prediction_error_reward=0.0,
+        task_error=0.0,
+        relationship_error=0.0,
+        regime_error=0.0,
+        action_error=0.0,
+        has_prediction_chain=False,
+        bounded_writeback_applied=False,
+        reflection_promotion_eligible=False,
+        session_post_completed_job_count=0,
+        rare_heavy_recommended=False,
+        rare_heavy_applied=False,
+        evolution_decision=None,
+        evolution_category=None,
+        cross_session_verdict="",
+        nested_profile_active=False,
+        nested_context_reset_applied=False,
+        nested_context_reset_total_count=0,
+        slow_to_fast_init_benefit=0.0,
+        outcome_metrics=(
+            ("safety:persona_geometry_drift", 0.2),
+            ("safety:persona_regime_geometry_alignment", 0.8),
+            ("abstraction:cpd_beta_switch_recommended", 1.0),
+            ("abstraction:cpd_pe_spike_score", 0.7),
+            ("abstraction:cpd_reward_shift_score", 0.6),
+            ("learning:least_control_score", 0.5),
+            ("learning:least_control_effort", 0.25),
+            ("learning:counterfactual_readout_count", 1.0),
+            ("relationship:tom_distinct_interlocutor_count", 2.0),
+            ("relationship:tom_record_total", 4.0),
+        ),
+        description="phase2 candidate metrics",
+    )
+    report = DialogueBenchmarkCaseReport(
+        case=DEFAULT_DIALOGUE_PROOF_CASES[0],
+        turns=(turn,),
+        prediction_chain_turn_count=0,
+        high_pe_turn_count=0,
+        pe_schedule_due_turn_count=0,
+        pe_triggered_turn_count=0,
+        explicit_pe_schedule_turn_count=0,
+        carryover_credit_turn_count=0,
+        schedule_label_consistency=1.0,
+        recovery_lag_turns=0,
+        pressure_localization_score=0.0,
+        over_response_cost=0.0,
+        pressure_response_precision=0.0,
+        pressure_response_recall=0.0,
+        stability_after_recovery_score=0.0,
+        online_learning_turn_count=0,
+        bounded_writeback_turn_count=0,
+        reflection_promotion_eligible_turn_count=0,
+        session_post_completion_turn_count=0,
+        rare_heavy_recommended_count=0,
+        rare_heavy_applied_count=0,
+        rare_heavy_pre_import_pass_count=0,
+        rare_heavy_pre_import_reject_count=0,
+        mean_rare_heavy_pre_import_score_delta=0.0,
+        mean_rare_heavy_candidate_alignment=0.0,
+        max_rare_heavy_candidate_adapter_parameter_count=0,
+        evolution_judge_turn_count=0,
+        evolution_judge_rollback_count=0,
+        evolution_judge_structural_allow_count=0,
+        nested_profile_active_turn_count=0,
+        nested_context_reset_count=0,
+        store_nested_context_reset_count=0,
+        boundary_reset_observed_on_first_turn=False,
+        first_turn_slow_to_fast_init_benefit=0.0,
+        mean_reset_turn_slow_to_fast_init_benefit=0.0,
+        mean_slow_to_fast_init_benefit=0.0,
+        temporal_change_count=0,
+        case_memory_surface_turn_count=0,
+        strategy_playbook_surface_turn_count=0,
+        experience_fast_prior_surface_turn_count=0,
+        experience_consolidation_surface_turn_count=0,
+        learned_memory_primary_turn_count=0,
+        core_guided_recall_turn_count=0,
+        mean_learned_recall_confidence=0.0,
+        max_artifact_consolidation_count=0,
+        max_tower_consolidation_count=0,
+        mean_memory_tower_depth=0.0,
+        mean_memory_tower_alignment=0.0,
+        memory_tower_profile_turn_count=0,
+        delayed_improvement_observed=False,
+        acceptance_checks=(),
+        passed=True,
+        reasons=(),
+        description="phase2 candidate report",
+    )
+    metrics = dict(_case_summary_metrics(report))
+
+    assert metrics["mean_persona_geometry_drift"] == 0.2
+    assert metrics["mean_persona_regime_geometry_alignment"] == 0.8
+    assert metrics["cpd_beta_switch_recommended_count"] == 1.0
+    assert metrics["mean_cpd_pe_spike_score"] == 0.7
+    assert metrics["mean_least_control_score"] == 0.5
+    assert metrics["counterfactual_readout_turn_count"] == 1.0
+    assert metrics["tom_distinct_interlocutor_max"] == 2.0
+    assert metrics["tom_record_total_max"] == 4.0
 
 
 def test_dialogue_benchmark_exposes_default_strong_proof_profiles():

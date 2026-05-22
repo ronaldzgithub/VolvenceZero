@@ -26,7 +26,7 @@ import asyncio
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 _SCHEMA_SQL = (
@@ -254,6 +254,18 @@ _SCHEMA_SQL = (
         FOREIGN KEY (template_id) REFERENCES templates(template_id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS governance_records (
+        record_kind TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        ai_id TEXT NOT NULL DEFAULT '',
+        contract_id TEXT NOT NULL DEFAULT '',
+        session_id TEXT NOT NULL DEFAULT '',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at_ms INTEGER NOT NULL,
+        PRIMARY KEY (record_kind, record_id)
+    );
+    """,
 )
 
 
@@ -322,6 +334,21 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
         except sqlite3.OperationalError as exc:
             if "duplicate column name" not in str(exc).lower():
                 raise
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS governance_records (
+            record_kind TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            ai_id TEXT NOT NULL DEFAULT '',
+            contract_id TEXT NOT NULL DEFAULT '',
+            session_id TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (record_kind, record_id)
+        );
+        """
+    )
 
 
 class Registry:
