@@ -55,6 +55,7 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.credit.gate import (
+    CreditSnapshot,
     GateDecision,
     ModificationGate,
     ModificationProposal,
@@ -77,7 +78,7 @@ from volvence_zero.joint_loop import (
 )
 from volvence_zero.memory import MemorySnapshot, MemoryStore
 from volvence_zero.reflection import WritebackMode
-from volvence_zero.runtime import Snapshot
+from volvence_zero.runtime import Snapshot, validate_snapshot_contract
 from volvence_zero.substrate import (
     SubstrateSelfModSnapshot,
     SubstrateSnapshot,
@@ -483,12 +484,17 @@ class SessionTrainingPhaseMixin:
             credit_snapshot=credit_snapshot.value,
             extra_modifications=(record,),
         )
-        integration_result.active_snapshots["credit"] = Snapshot(
-            slot_name="credit",
-            owner="CreditModule",
-            version=credit_snapshot.version + 1,
-            timestamp_ms=max(credit_snapshot.timestamp_ms + 1, self._turn_index),
-            value=extended,
+        integration_result.active_snapshots["credit"] = validate_snapshot_contract(
+            snapshot=Snapshot(
+                slot_name="credit",
+                owner="CreditModule",
+                version=credit_snapshot.version + 1,
+                timestamp_ms=max(credit_snapshot.timestamp_ms + 1, self._turn_index),
+                value=extended,
+            ),
+            expected_slot="credit",
+            expected_owner="CreditModule",
+            expected_value_type=CreditSnapshot,
         )
 
     def _append_online_fast_evaluation_evidence(
@@ -566,12 +572,17 @@ class SessionTrainingPhaseMixin:
             ),
             description_suffix="Session owner appended online-fast substrate apply evidence.",
         )
-        integration_result.active_snapshots["evaluation"] = Snapshot(
-            slot_name="evaluation",
-            owner="EvaluationModule",
-            version=evaluation_snapshot.version + 1,
-            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
-            value=enriched,
+        integration_result.active_snapshots["evaluation"] = validate_snapshot_contract(
+            snapshot=Snapshot(
+                slot_name="evaluation",
+                owner="EvaluationModule",
+                version=evaluation_snapshot.version + 1,
+                timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+                value=enriched,
+            ),
+            expected_slot="evaluation",
+            expected_owner="EvaluationModule",
+            expected_value_type=EvaluationSnapshot,
         )
 
     def _refresh_memory_snapshot_after_online_fast_evidence(
@@ -629,12 +640,17 @@ class SessionTrainingPhaseMixin:
             ),
             description_suffix="Session owner appended delayed substrate rollback evidence.",
         )
-        integration_result.active_snapshots["evaluation"] = Snapshot(
-            slot_name="evaluation",
-            owner="EvaluationModule",
-            version=evaluation_snapshot.version + 1,
-            timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
-            value=enriched,
+        integration_result.active_snapshots["evaluation"] = validate_snapshot_contract(
+            snapshot=Snapshot(
+                slot_name="evaluation",
+                owner="EvaluationModule",
+                version=evaluation_snapshot.version + 1,
+                timestamp_ms=max(evaluation_snapshot.timestamp_ms + 1, self._turn_index),
+                value=enriched,
+            ),
+            expected_slot="evaluation",
+            expected_owner="EvaluationModule",
+            expected_value_type=EvaluationSnapshot,
         )
 
     def _maybe_apply_delayed_substrate_rollback(

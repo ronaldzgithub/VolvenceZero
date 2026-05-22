@@ -76,22 +76,22 @@ class ExperienceConsolidationModule(RuntimeModule[ExperienceConsolidationSnapsho
         latest_writeback_report: ApplicationPriorWritebackReport | None = None
         delayed_credit_summary: DelayedCreditSummary | None = None
         for result in completed_results[-4:]:
-            result_deltas = getattr(result, "experience_deltas", ())
-            if getattr(result, "job_id", None) is not None:
+            result_deltas = result.experience_deltas
+            if result.job_id is not None:
                 source_job_id = result.job_id
             deltas.extend(result_deltas)
-            delayed_outcome_ledger.extend(getattr(result, "delayed_outcome_ledger", ()))
-            sequence_payoffs.extend(getattr(result, "sequence_payoffs", ()))
-            continuum_profile_id = continuum_profile_id or getattr(result, "continuum_profile_id", None)
-            active_band_ids.extend(getattr(result, "case_band_ids", ()))
-            active_band_ids.extend(getattr(result, "playbook_band_ids", ()))
-            result_prior_update = getattr(result, "application_prior_update", None)
+            delayed_outcome_ledger.extend(result.delayed_outcome_ledger)
+            sequence_payoffs.extend(result.sequence_payoffs)
+            continuum_profile_id = continuum_profile_id or result.continuum_profile_id
+            active_band_ids.extend(result.case_band_ids)
+            active_band_ids.extend(result.playbook_band_ids)
+            result_prior_update = result.application_prior_update
             if isinstance(result_prior_update, ApplicationPriorUpdate):
                 latest_prior_update = result_prior_update
-            result_writeback_report = getattr(result, "application_prior_writeback_report", None)
+            result_writeback_report = result.application_prior_writeback_report
             if isinstance(result_writeback_report, ApplicationPriorWritebackReport):
                 latest_writeback_report = result_writeback_report
-            result_delayed_credit_summary = getattr(result, "delayed_credit_summary", None)
+            result_delayed_credit_summary = result.delayed_credit_summary
             if isinstance(result_delayed_credit_summary, DelayedCreditSummary):
                 delayed_credit_summary = result_delayed_credit_summary
         promoted_case_count = sum(1 for delta in deltas if delta.target_slot == "case_memory" and not delta.blocked)

@@ -38,6 +38,7 @@ from volvence_zero.application.runtime import (
 )
 from volvence_zero.runtime import Snapshot
 from volvence_zero.rupture_state import RuptureStateSnapshot
+from volvence_zero.temporal_types import abstract_action_family_id
 
 from volvence_zero.agent.response import RepairExpressionAdvisory
 
@@ -163,8 +164,8 @@ def abstract_action_alignment(
     if abstract_action is None:
         family_bonus = min(max(action_family_version, 0), 4) / 4.0
         return clamp01(outcome_score * 0.78 + family_bonus * 0.22)
-    action_label = abstract_action.lower()
-    if action_label.startswith("latent-family-v"):
+    action_family = abstract_action_family_id(abstract_action)
+    if action_family == "latent":
         family_bonus = min(max(action_family_version, 0), 4) / 4.0
         return clamp01(outcome_score * 0.72 + (0.5 + family_bonus * 0.5) * 0.28)
 
@@ -172,13 +173,13 @@ def abstract_action_alignment(
 
     decision_kind = application_brief_for_regime(regime_id).decision_kind_hint
     if decision_kind == "structure-first":
-        action_bias = 1.0 if "task_controller" in action_label else 0.45
+        action_bias = 1.0 if action_family == "task" else 0.45
     elif decision_kind == "repair-first":
-        action_bias = 1.0 if "repair_controller" in action_label else 0.45
+        action_bias = 1.0 if action_family == "repair" else 0.45
     elif decision_kind == "support-first":
-        action_bias = 1.0 if "stabilize_controller" in action_label else 0.45
+        action_bias = 1.0 if action_family == "stabilize" else 0.45
     elif decision_kind == "judgment-process":
-        action_bias = 1.0 if "exploration_controller" in action_label else 0.45
+        action_bias = 1.0 if action_family == "exploration" else 0.45
     else:
         action_bias = 0.65
     return clamp01(outcome_score * 0.65 + action_bias * 0.35)

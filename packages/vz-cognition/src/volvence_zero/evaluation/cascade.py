@@ -16,12 +16,14 @@ from volvence_zero.evaluation.cross_generation_aggregator import (
     CrossGenerationAggregateSnapshot,
     CrossGenerationAggregatorModule,
     ModificationGateEvidence,
+    build_cross_generation_aggregate_snapshot,
 )
 from volvence_zero.evaluation.expensive_layer import (
     ExpensiveLayerModule,
     ExpensiveLayerSnapshot,
     HeadToHeadResult,
     LlmJudgeReadout,
+    build_deterministic_head_to_head_snapshot,
 )
 from volvence_zero.evaluation.mid_layer import (
     CounterfactualContributionReadout,
@@ -45,4 +47,6 @@ __all__ = [
     "MidLayerScore",
     "MidLayerSnapshot",
     "ModificationGateEvidence",
+    "build_cross_generation_aggregate_snapshot",
+    "build_deterministic_head_to_head_snapshot",
 ]

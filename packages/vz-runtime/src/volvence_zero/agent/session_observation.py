@@ -50,6 +50,7 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.credit.gate import (
+    CreditSnapshot,
     derive_dialogue_outcome_credit_records,
     extend_credit_snapshot,
 )
@@ -62,7 +63,7 @@ from volvence_zero.memory import MemorySnapshot
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
 from volvence_zero.regime import RegimeSnapshot
-from volvence_zero.runtime import Snapshot
+from volvence_zero.runtime import Snapshot, validate_snapshot_contract
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
@@ -392,12 +393,17 @@ class SessionObservationMixin:
                 delayed_outcome_ledger=experience_consolidation_snapshot.value.delayed_outcome_ledger,
                 sequence_payoffs=experience_consolidation_snapshot.value.sequence_payoffs,
             )
-            integration_result.active_snapshots["evaluation"] = Snapshot(
-                slot_name=evaluation_snapshot.slot_name,
-                owner=evaluation_snapshot.owner,
-                version=evaluation_snapshot.version + 1,
-                timestamp_ms=evaluation_snapshot.timestamp_ms + 20,
-                value=enriched_evaluation,
+            integration_result.active_snapshots["evaluation"] = validate_snapshot_contract(
+                snapshot=Snapshot(
+                    slot_name=evaluation_snapshot.slot_name,
+                    owner=evaluation_snapshot.owner,
+                    version=evaluation_snapshot.version + 1,
+                    timestamp_ms=evaluation_snapshot.timestamp_ms + 20,
+                    value=enriched_evaluation,
+                ),
+                expected_slot="evaluation",
+                expected_owner="EvaluationModule",
+                expected_value_type=EvaluationSnapshot,
             )
         active_snapshots = dict(integration_result.active_snapshots)
         shadow_snapshots = dict(integration_result.shadow_snapshots)
@@ -474,15 +480,20 @@ class SessionObservationMixin:
                         credit_snapshot=credit_snapshot.value,
                         extra_records=dialogue_credit_records,
                     )
-                    new_credit_snapshot = Snapshot(
-                        slot_name="credit",
-                        owner=credit_snapshot.owner,
-                        version=credit_snapshot.version + 1,
-                        timestamp_ms=max(
-                            credit_snapshot.timestamp_ms + 1,
-                            self._turn_index,
+                    new_credit_snapshot = validate_snapshot_contract(
+                        snapshot=Snapshot(
+                            slot_name="credit",
+                            owner=credit_snapshot.owner,
+                            version=credit_snapshot.version + 1,
+                            timestamp_ms=max(
+                                credit_snapshot.timestamp_ms + 1,
+                                self._turn_index,
+                            ),
+                            value=extended_credit,
                         ),
-                        value=extended_credit,
+                        expected_slot="credit",
+                        expected_owner="CreditModule",
+                        expected_value_type=CreditSnapshot,
                     )
                     if "credit" in active_snapshots:
                         active_snapshots["credit"] = new_credit_snapshot

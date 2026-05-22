@@ -212,6 +212,15 @@ class LifeformConfig:
         from dataclasses import replace as _replace
         return _replace(self, seed_protocols=self.seed_protocols + tuple(protocols))
 
+    def with_mcp_server_specs(
+        self,
+        specs: tuple[Any, ...],
+    ) -> "LifeformConfig":
+        """Append external MCP server specs to this lifeform config."""
+
+        from dataclasses import replace as _replace
+        return _replace(self, mcp_server_specs=self.mcp_server_specs + tuple(specs))
+
 
 class _LateBoundSessionHolder:
     """Mutable ref to a ``LifeformSession`` for late-binding closures.
@@ -517,6 +526,17 @@ class Lifeform:
 
         return Lifeform(
             self._config.with_seed_protocols(protocols),
+            **self._init_kwargs,
+        )
+
+    def with_mcp_server_specs(
+        self,
+        specs: tuple[Any, ...],
+    ) -> "Lifeform":
+        """Return a clone of this lifeform with additional MCP server specs."""
+
+        return Lifeform(
+            self._config.with_mcp_server_specs(specs),
             **self._init_kwargs,
         )
 
@@ -1656,12 +1676,9 @@ class LifeformSession:
     #   ``lifeform-thinking``. The adapter conforms to
     #   ``ThinkingAdapterProtocol`` (defined above) but at call time
     #   we just look up the method and call it.
-    # * **Non-fatal.** An adapter raising inside any of these hooks
-    #   would leak a failure mode into the normal turn path; we
-    #   catch and log so a buggy adapter cannot break the turn.
-    #   A contract test enforces that the SUPPLIED adapter
-    #   (lifeform-thinking's default one) never actually raises;
-    #   this try/except is defence in depth.
+    # * **Fail-loud.** Adapter failures are logged with hook context
+    #   and re-raised so thinking degradation never hides behind a
+    #   successful turn.
 
     async def _invoke_thinking_on_turn_begin(self, *, turn_index: int) -> None:
         if self._thinking_adapter is None:
@@ -1680,8 +1697,9 @@ class LifeformSession:
             import logging as _logging
 
             _logging.getLogger("lifeform_core.lifeform").exception(
-                "thinking_adapter.on_turn_begin raised; continuing turn"
+                "thinking_adapter.on_turn_begin raised"
             )
+            raise
 
     async def _invoke_thinking_on_turn_end(
         self,
@@ -1702,8 +1720,9 @@ class LifeformSession:
             import logging as _logging
 
             _logging.getLogger("lifeform_core.lifeform").exception(
-                "thinking_adapter.on_turn_end raised; continuing turn"
+                "thinking_adapter.on_turn_end raised"
             )
+            raise
 
     async def _invoke_thinking_drain(self) -> None:
         if self._thinking_adapter is None:
@@ -1719,5 +1738,6 @@ class LifeformSession:
             import logging as _logging
 
             _logging.getLogger("lifeform_core.lifeform").exception(
-                "thinking_adapter.drain raised; continuing scene close"
+                "thinking_adapter.drain raised"
             )
+            raise

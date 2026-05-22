@@ -56,6 +56,12 @@ _PHASE2_SHADOW_PROFILE_LABELS: tuple[str, ...] = (
     "persona-geometry-readout",
 )
 
+_PHASE3_COMBINATION_PROFILE_LABELS: tuple[str, ...] = (
+    "cpd-counterfactual-credit",
+    "tom-persona-geometry",
+    "audit-persona-geometry",
+)
+
 
 def test_registry_validates_at_import_time() -> None:
     """The module-level singleton registry must be valid (validate() PASS).
@@ -114,6 +120,28 @@ def test_phase2_shadow_candidate_profiles_resolve() -> None:
         "intent-about-other-readout",
         "feeling-about-other-readout",
         "preference-about-other-readout",
+    )
+
+
+def test_phase3_combination_profiles_resolve() -> None:
+    for label in _PHASE3_COMBINATION_PROFILE_LABELS:
+        resolved = resolve_profile(label)
+        assert len(resolved.capabilities) >= 2
+
+    assert tuple(c.name for c in resolve_profile("cpd-counterfactual-credit").capabilities) == (
+        "cpd-beta-switch-readout",
+        "least-control-credit-readout",
+    )
+    assert tuple(c.name for c in resolve_profile("tom-persona-geometry").capabilities) == (
+        "belief-about-other-readout",
+        "intent-about-other-readout",
+        "feeling-about-other-readout",
+        "preference-about-other-readout",
+        "persona-geometry-readout",
+    )
+    assert tuple(c.name for c in resolve_profile("audit-persona-geometry").capabilities) == (
+        "audit-readout",
+        "persona-geometry-readout",
     )
 
 

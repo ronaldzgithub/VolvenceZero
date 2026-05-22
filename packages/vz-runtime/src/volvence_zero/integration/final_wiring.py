@@ -111,6 +111,7 @@ from volvence_zero.runtime import (
     Snapshot,
     WiringLevel,
     propagate,
+    validate_snapshot_contract,
 )
 from volvence_zero.social_cognition import (
     CommonGroundAtom,
@@ -452,6 +453,24 @@ class FinalIntegrationResult:
     evolution_judgement: EvolutionJudgement | None = None
     cross_session_verdict: str = ""
     session_post_writeback_request: "SessionPostWritebackRequest | None" = None
+
+
+def _validated_evaluation_snapshot(snapshot: Snapshot[Any]) -> Snapshot[Any]:
+    return validate_snapshot_contract(
+        snapshot=snapshot,
+        expected_slot="evaluation",
+        expected_owner="EvaluationModule",
+        expected_value_type=EvaluationSnapshot,
+    )
+
+
+def _validated_credit_snapshot(snapshot: Snapshot[Any]) -> Snapshot[Any]:
+    return validate_snapshot_contract(
+        snapshot=snapshot,
+        expected_slot="credit",
+        expected_owner="CreditModule",
+        expected_value_type=CreditSnapshot,
+    )
 
 
 @dataclass(frozen=True)
@@ -2051,7 +2070,9 @@ async def run_final_wiring_turn(
             reflection_accuracy=reflection_accuracy,
             longitudinal_verdict=cross_session_verdict,
         )
-        active_snapshots["evaluation"] = evaluation_module.publish(enriched_evaluation)
+        active_snapshots["evaluation"] = _validated_evaluation_snapshot(
+            evaluation_module.publish(enriched_evaluation)
+        )
         reflection_promote, reflection_promote_reason = reflection_promotion_eligible(
             evaluation_snapshot=enriched_evaluation,
             reflection_engine=reflection_module.engine if reflection_module is not None else None,
@@ -2120,7 +2141,9 @@ async def run_final_wiring_turn(
                 )
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)
-            active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
+            active_snapshots["credit"] = _validated_credit_snapshot(
+                credit_module.publish(credit_module.ledger.snapshot())
+            )
             credit_snapshot = active_snapshots.get("credit")
     # Rupture-and-Repair M3 + Phase 1 W1.B: ReflectionModule's
     # ``UpstreamView`` only exposes ACTIVE snapshots. When
@@ -2212,7 +2235,9 @@ async def run_final_wiring_turn(
         if credit_module is not None and temporal_audits:
             for record in temporal_audits:
                 credit_module.ledger.record_modification(record)
-            active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
+            active_snapshots["credit"] = _validated_credit_snapshot(
+                credit_module.publish(credit_module.ledger.snapshot())
+            )
             credit_snapshot = active_snapshots.get("credit")
     elif (
         memory_store is not None
@@ -2222,7 +2247,9 @@ async def run_final_wiring_turn(
     ):
         writeback_result = None
     if credit_module is not None:
-        active_snapshots["credit"] = credit_module.publish(credit_module.ledger.snapshot())
+        active_snapshots["credit"] = _validated_credit_snapshot(
+            credit_module.publish(credit_module.ledger.snapshot())
+        )
     active_snapshots = _prune_disabled_stub_snapshots(active_snapshots)
     acceptance_report = build_acceptance_report(
         config=config,
@@ -2249,19 +2276,21 @@ async def run_final_wiring_turn(
         and "evaluation" in active_snapshots
         and isinstance(active_snapshots["evaluation"].value, EvaluationSnapshot)
     ):
-        active_snapshots["evaluation"] = evaluation_module.publish(
-            evaluation_module.backbone.record_temporal_public_evidence(
-                session_id=session_id,
-                wave_id=wave_id,
-                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 10,
-                base_snapshot=active_snapshots["evaluation"].value,
-                temporal_snapshot=(
-                    active_snapshots["temporal_abstraction"].value
-                    if "temporal_abstraction" in active_snapshots
-                    and isinstance(active_snapshots["temporal_abstraction"].value, TemporalAbstractionSnapshot)
-                    else None
-                ),
-                metacontroller_state=temporal_runtime_state,
+        active_snapshots["evaluation"] = _validated_evaluation_snapshot(
+            evaluation_module.publish(
+                evaluation_module.backbone.record_temporal_public_evidence(
+                    session_id=session_id,
+                    wave_id=wave_id,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 10,
+                    base_snapshot=active_snapshots["evaluation"].value,
+                    temporal_snapshot=(
+                        active_snapshots["temporal_abstraction"].value
+                        if "temporal_abstraction" in active_snapshots
+                        and isinstance(active_snapshots["temporal_abstraction"].value, TemporalAbstractionSnapshot)
+                        else None
+                    ),
+                    metacontroller_state=temporal_runtime_state,
+                )
             )
         )
     return FinalIntegrationResult(

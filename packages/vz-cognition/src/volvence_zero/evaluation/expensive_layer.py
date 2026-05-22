@@ -38,6 +38,7 @@ __all__ = [
     "LlmJudgeReadout",
     "ExpensiveLayerSnapshot",
     "ExpensiveLayerModule",
+    "build_deterministic_head_to_head_snapshot",
 ]
 
 
@@ -91,6 +92,89 @@ _EMPTY_EXPENSIVE_SNAPSHOT = ExpensiveLayerSnapshot(
     aggregated_scores=(),
     description="expensive_layer skeleton (T9 packet): no aggregation yet",
 )
+
+
+def _metric_win_value(
+    *,
+    candidate_value: float,
+    baseline_value: float,
+    higher_is_better: bool,
+    epsilon: float,
+) -> float:
+    delta = candidate_value - baseline_value
+    if abs(delta) <= epsilon:
+        return 0.5
+    if higher_is_better:
+        return 1.0 if delta > 0 else 0.0
+    return 1.0 if delta < 0 else 0.0
+
+
+def build_deterministic_head_to_head_snapshot(
+    *,
+    generation_id: str,
+    baseline_label: str,
+    per_profile_metric_means: Mapping[str, Mapping[str, float]],
+    metric_names: tuple[str, ...],
+    lower_is_better: tuple[str, ...] = (),
+    epsilon: float = 1e-6,
+) -> ExpensiveLayerSnapshot:
+    """Build deterministic head-to-head readouts from metric means.
+
+    This helper is intentionally metric-based and LLM-free. It is suitable for
+    Phase 2 smoke / paper-suite aggregates where the benchmark already
+    produced comparable metric means for each profile.
+    """
+    if not generation_id:
+        raise ValueError("generation_id must be non-empty")
+    baseline_metrics = per_profile_metric_means[baseline_label]
+    lower_better = frozenset(lower_is_better)
+    results: list[HeadToHeadResult] = []
+    for profile_label, candidate_metrics in sorted(per_profile_metric_means.items()):
+        if profile_label == baseline_label:
+            continue
+        wins: list[float] = []
+        for metric_name in metric_names:
+            if metric_name not in candidate_metrics or metric_name not in baseline_metrics:
+                continue
+            wins.append(
+                _metric_win_value(
+                    candidate_value=candidate_metrics[metric_name],
+                    baseline_value=baseline_metrics[metric_name],
+                    higher_is_better=metric_name not in lower_better,
+                    epsilon=epsilon,
+                )
+            )
+        if not wins:
+            raise ValueError(
+                f"No overlapping metric_names for profile {profile_label!r} "
+                f"against baseline {baseline_label!r}."
+            )
+        winrate = round(sum(wins) / len(wins), 4)
+        results.append(
+            HeadToHeadResult(
+                profile_a=profile_label,
+                profile_b=baseline_label,
+                case_count=len(wins),
+                winrate_a_vs_b=winrate,
+                confidence_interval_low=winrate,
+                confidence_interval_high=winrate,
+                judge_kind="deterministic",
+                notes=(
+                    f"Deterministic metric-means comparison over {len(wins)} "
+                    f"metrics; lower_is_better={tuple(sorted(lower_better))}."
+                ),
+            )
+        )
+    return ExpensiveLayerSnapshot(
+        generation_id=generation_id,
+        head_to_head_results=tuple(results),
+        llm_judge_readouts=(),
+        aggregated_scores=(),
+        description=(
+            f"Deterministic head-to-head snapshot for {len(results)} profiles "
+            f"against baseline={baseline_label}."
+        ),
+    )
 
 
 class ExpensiveLayerModule(RuntimeModule[ExpensiveLayerSnapshot]):

@@ -222,6 +222,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             temporal_snapshot=temporal_snapshot,
         )
         from volvence_zero.semantic_state import (
+            SemanticSnapshotValue,
             semantic_control_signal,
             semantic_snapshot_counts,
             semantic_snapshot_description,
@@ -235,14 +236,37 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             + _common_ground_snapshot_counts(semantic_snapshots)
             + _group_snapshot_counts(semantic_snapshots)
         )
+        semantic_owner_slots = (
+            "plan_intent",
+            "commitment",
+            "open_loop",
+            "user_model",
+            "execution_result",
+            "belief_assumption",
+            "relationship_state",
+            "goal_value",
+            "boundary_consent",
+        )
+        semantic_values = tuple(
+            semantic_snapshots[slot].value for slot in semantic_owner_slots
+        )
+        non_semantic_values = tuple(
+            type(value).__name__
+            for value in semantic_values
+            if not isinstance(value, SemanticSnapshotValue)
+        )
+        if non_semantic_values:
+            raise TypeError(
+                "response_assembly expected semantic owner snapshots, got "
+                + ", ".join(non_semantic_values)
+            )
         semantic_control = _clamp(
-            sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots.values())
-            / max(len(semantic_snapshots), 1)
+            sum(semantic_control_signal(value) for value in semantic_values)
+            / max(len(semantic_values), 1)
         )
         semantic_descriptions = tuple(
-            semantic_snapshot_description(snapshot.value)
-            for snapshot in semantic_snapshots.values()
-            if hasattr(snapshot.value, "control_signal")
+            semantic_snapshot_description(value)
+            for value in semantic_values
         )
         semantic_residue_summary = " ".join(semantic_descriptions[:4])
         if semantic_residue_summary:

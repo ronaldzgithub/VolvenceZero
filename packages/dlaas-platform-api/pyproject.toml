@@ -43,3 +43,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["dlaas_platform_api*"]
+
+[tool.setuptools.package-data]
+dlaas_platform_api = ["prompts/*.md", "schemas/*.json"]

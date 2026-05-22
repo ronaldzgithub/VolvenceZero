@@ -18,6 +18,16 @@ dependencies = [
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-figure==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
+    "lifeform-mcp-bridge==0.1.*",
+    # The default service path auto-attaches external/vz-bundle when the
+    # submodule is present. Keep the bundle's base runtime deps here so
+    # python -m vz_bundle.server can start even when the submodule itself
+    # was not installed editable in the environment.
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "emoji>=2.10",
+    "edge-tts>=6.1",
+    "aiosqlite>=0.20",
     "aiohttp>=3.9",
     # companion-bench is Apache 2.0 OSS-style and the dependency
     # direction is one-way: lifeform-service consumes companion-bench

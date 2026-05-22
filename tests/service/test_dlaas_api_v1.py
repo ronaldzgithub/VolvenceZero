@@ -209,6 +209,76 @@ async def test_feedback_and_environment_aliases(slice1_client):
     assert body["observation_type"] == "tool_result"
 
 
+async def test_asset_intake_storage_only_stores_without_kernel_turn(slice1_client):
+    resp = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/assets/intake",
+        json={
+            "contract_id": "ctr_asset",
+            "session_id": "sess_asset_store",
+            "end_user_ref": "operator",
+            "intake_intent": "storage_only",
+            "media_kind": "image",
+            "title": "whiteboard photo",
+            "mime_type": "image/png",
+            "source_ref": "upload://whiteboard.png",
+            "content_base64": "aW1hZ2UtYnl0ZXM=",
+        },
+    )
+
+    assert resp.status == 201, await resp.text()
+    body = await resp.json()
+    assert body["asset"]["resolved_intent"] == "storage_only"
+    assert body["decision"]["intent"] == "storage_only"
+    asset_id = body["asset"]["asset_id"]
+
+    fetched = await slice1_client.get(
+        f"/dlaas/v1/instances/ai_v1_slice1/assets/intake/{asset_id}"
+    )
+    assert fetched.status == 200, await fetched.text()
+    assert (await fetched.json())["asset"]["asset_id"] == asset_id
+
+
+async def test_asset_intake_simple_ingest_text(slice1_client):
+    resp = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/assets/intake",
+        json={
+            "contract_id": "ctr_asset",
+            "session_id": "sess_asset_ingest",
+            "end_user_ref": "operator",
+            "intake_intent": "simple_ingest",
+            "media_kind": "text",
+            "title": "short note",
+            "text": "This is a reviewed knowledge note for ingestion.",
+        },
+    )
+
+    assert resp.status == 201, await resp.text()
+    body = await resp.json()
+    assert body["asset"]["resolved_intent"] == "simple_ingest"
+    assert body["ingestion_report"]["processed_chunks"] >= 1
+    assert body["ingestion_report"]["all_succeeded"] is True
+
+
+async def test_asset_intake_deep_read_creates_training_job(slice1_client):
+    resp = await slice1_client.post(
+        "/dlaas/v1/instances/ai_v1_slice1/assets/intake",
+        json={
+            "contract_id": "ctr_asset",
+            "session_id": "sess_asset_deep",
+            "end_user_ref": "operator",
+            "intake_intent": "deep_read",
+            "media_kind": "markdown",
+            "title": "book chapter",
+            "text": "# Chapter\n\nLong material to read deeply later.",
+        },
+    )
+
+    assert resp.status == 202, await resp.text()
+    body = await resp.json()
+    assert body["asset"]["resolved_intent"] == "deep_read"
+    assert body["training_job"]["job_type"] == "corpus_ingestion"
+
+
 async def test_adoption_config_and_lifecycle(fullstack_client):
     _, adopted = await _adopt_companion(fullstack_client)
     ai_id = adopted["ai_id"]

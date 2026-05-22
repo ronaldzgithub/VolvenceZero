@@ -317,6 +317,34 @@ class SchemaGuard:
             )
 
 
+def validate_snapshot_contract(
+    *,
+    snapshot: Snapshot[Any],
+    expected_slot: str,
+    expected_owner: str,
+    expected_value_type: type[Any],
+) -> Snapshot[Any]:
+    """Validate a snapshot published outside the main propagation wave.
+
+    Post-wave apply/enrichment paths are allowed to publish owner snapshots,
+    but they must use the same ownership, schema, and immutability checks as
+    the propagation kernel.
+    """
+
+    if snapshot.slot_name != expected_slot:
+        raise OwnershipViolationError(
+            f"Expected slot '{expected_slot}', got '{snapshot.slot_name}'."
+        )
+    if snapshot.owner != expected_owner:
+        raise OwnershipViolationError(
+            f"Slot '{snapshot.slot_name}' must be published by "
+            f"'{expected_owner}', got '{snapshot.owner}'."
+        )
+    SchemaGuard().validate_snapshot(snapshot, expected_value_type)
+    ImmutabilityGuard().remember(snapshot)
+    return snapshot
+
+
 class UpstreamView(Mapping[str, Snapshot[Any]]):
     """Guarded upstream mapping with standardized missing-slot semantics."""
 

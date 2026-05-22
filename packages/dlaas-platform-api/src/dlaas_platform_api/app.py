@@ -26,6 +26,8 @@ control-plane surface in one call.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
 import os
@@ -37,6 +39,9 @@ from aiohttp import web
 
 from dlaas_platform_contracts import (
     AdoptionConfig,
+    AssetIntakeIntent,
+    AssetIntakeRequest,
+    AssetMediaKind,
     ArtifactKind,
     ArtifactRecord,
     AuditEvent,
@@ -97,6 +102,7 @@ from lifeform_service.session_manager import (
 
 from dlaas_platform_api.control_plane import attach_control_plane_routes
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
+from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
 
 _LOG = logging.getLogger("dlaas_platform_api")
@@ -106,6 +112,7 @@ DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
 
 _PROTOCOL_SUBMISSIONS_KEY = "dlaas_protocol_submissions"
 _TRAINING_JOBS_KEY = "dlaas_training_jobs"
+_ASSET_INTAKES_KEY = "dlaas_asset_intakes"
 _AUDIT_EVENTS_KEY = "dlaas_audit_events"
 _ARTIFACTS_KEY = "dlaas_artifacts"
 _DATA_EXPORT_JOBS_KEY = "dlaas_data_export_jobs"
@@ -319,6 +326,14 @@ def _add_lifecycle_routes(app: web.Application) -> None:
         _handle_training_corpus,
     )
     app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/assets/intake",
+        _handle_asset_intake,
+    )
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/assets/intake/{asset_id}",
+        _handle_asset_intake_get,
+    )
+    app.router.add_post(
         "/dlaas/v1/instances/{ai_id}/training/jobs",
         _handle_training_job_create,
     )
@@ -339,6 +354,7 @@ def _add_lifecycle_routes(app: web.Application) -> None:
 def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_PROTOCOL_SUBMISSIONS_KEY, {})
     app.setdefault(_TRAINING_JOBS_KEY, {})
+    app.setdefault(_ASSET_INTAKES_KEY, {})
     app.setdefault(_AUDIT_EVENTS_KEY, {})
     app.setdefault(_ARTIFACTS_KEY, {})
     app.setdefault(_DATA_EXPORT_JOBS_KEY, {})
@@ -1475,6 +1491,288 @@ async def _handle_training_corpus(request: web.Request) -> web.Response:
     return await _dispatch_envelope_to_instance(request, ai_id, envelope)
 
 
+async def _handle_asset_intake(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+        intake_request = AssetIntakeRequest.from_json(data, ai_id=ai_id)
+        manager = _resolve_session_manager(request, ai_id)
+        decision = resolve_intake_decision(
+            intake_request,
+            provider=manager.substrate_runtime
+            if intake_request.intent is AssetIntakeIntent.AUTO
+            else None,
+        )
+    except (ValueError, _AiIdNotFoundError) as exc:
+        code = exc.code if isinstance(exc, _AiIdNotFoundError) else "invalid_asset_intake"
+        detail = exc.detail if isinstance(exc, _AiIdNotFoundError) else str(exc)
+        status = 404 if isinstance(exc, _AiIdNotFoundError) else 400
+        return _json_error(status=status, error=code, detail=detail)
+
+    asset_id = f"asset_{uuid.uuid4().hex[:12]}"
+    asset = _asset_record_from_intake(
+        asset_id=asset_id,
+        intake=intake_request,
+        resolved_intent=decision.intent,
+    )
+    _asset_intake_store(request)[(ai_id, asset_id)] = asset
+    _persist_governance(
+        request,
+        "asset_intake",
+        asset_id,
+        asset,
+        ai_id=ai_id,
+        contract_id=intake_request.contract_id,
+    )
+
+    if decision.intent is AssetIntakeIntent.STORAGE_ONLY:
+        body = _asset_intake_response(asset=asset, decision_rationale=decision.rationale)
+        _record_audit(
+            request,
+            event_type="asset_intake_stored",
+            ai_id=ai_id,
+            contract_id=intake_request.contract_id,
+            payload=body,
+        )
+        return web.json_response(body, status=201)
+
+    if decision.intent is AssetIntakeIntent.IMAGE_INTAKE:
+        body = _asset_intake_response(
+            asset=asset,
+            decision_rationale=decision.rationale,
+            extra={"image_status": "stored_pending_vision_extractor"},
+        )
+        _record_audit(
+            request,
+            event_type="asset_image_stored",
+            ai_id=ai_id,
+            contract_id=intake_request.contract_id,
+            payload=body,
+        )
+        return web.json_response(body, status=202)
+
+    if decision.intent is AssetIntakeIntent.SIMPLE_INGEST:
+        envelope_or_error = _build_ingestion_envelope(asset_id, intake_request)
+        if isinstance(envelope_or_error, web.Response):
+            return envelope_or_error
+        try:
+            session = await _get_or_create_session(
+                _resolve_session_manager(request, ai_id), intake_request.session_id
+            )
+            from lifeform_ingestion import IngestionPipeline
+
+            report = await IngestionPipeline().process_envelope(
+                envelope_or_error, session=session
+            )
+        except Exception as exc:  # noqa: BLE001 - platform/kernel boundary
+            return _json_error(
+                status=500,
+                error="asset_ingestion_failed",
+                detail=str(exc),
+            )
+        report_json = _ingestion_report_to_json(report)
+        body = _asset_intake_response(
+            asset=asset,
+            decision_rationale=decision.rationale,
+            extra={"ingestion_report": report_json},
+        )
+        _record_audit(
+            request,
+            event_type="asset_simple_ingested",
+            ai_id=ai_id,
+            contract_id=intake_request.contract_id,
+            payload=body,
+        )
+        return web.json_response(body, status=201)
+
+    job_type = (
+        "adapter_candidate"
+        if decision.intent is AssetIntakeIntent.TRAINING_CANDIDATE
+        else "corpus_ingestion"
+    )
+    job_data = {
+        "contract_id": intake_request.contract_id,
+        "job_type": job_type,
+        "created_by": intake_request.end_user_ref,
+        "source_ref": asset["asset"]["asset_id"],
+        "promotion_gate": "offline_gate_required"
+        if job_type == "adapter_candidate"
+        else "reviewed_corpus_ingestion",
+        "notes": f"asset_intake:{decision.intent.value}:{intake_request.title}",
+    }
+    job = TrainingJob.from_json(
+        job_data, ai_id=ai_id, job_id=f"train_job_{uuid.uuid4().hex[:12]}"
+    )
+    status = (
+        TrainingJobStatus.PENDING
+        if decision.intent is AssetIntakeIntent.TRAINING_CANDIDATE
+        else TrainingJobStatus.RUNNING
+    )
+    job = job.with_status(status)
+    _training_store(request)[(ai_id, job.job_id)] = job
+    body = _asset_intake_response(
+        asset=asset,
+        decision_rationale=decision.rationale,
+        extra={"training_job": job.to_json()},
+    )
+    _record_audit(
+        request,
+        event_type="asset_training_job_created",
+        ai_id=ai_id,
+        contract_id=intake_request.contract_id,
+        payload=body,
+    )
+    return web.json_response(body, status=202)
+
+
+async def _handle_asset_intake_get(request: web.Request) -> web.Response:
+    ai_id = request.match_info.get("ai_id", "")
+    asset_id = request.match_info.get("asset_id", "")
+    asset = _asset_intake_store(request).get((ai_id, asset_id))
+    if asset is None:
+        return _json_error(status=404, error="asset_intake_not_found", detail=asset_id)
+    return web.json_response({"status": "ok", **asset})
+
+
+def _asset_record_from_intake(
+    *,
+    asset_id: str,
+    intake: AssetIntakeRequest,
+    resolved_intent: AssetIntakeIntent,
+) -> dict[str, Any]:
+    raw_bytes = _intake_bytes(intake)
+    integrity_hash = hashlib.sha256(raw_bytes).hexdigest() if raw_bytes else ""
+    asset = {
+        "asset_id": asset_id,
+        "ai_id": intake.ai_id,
+        "contract_id": intake.contract_id,
+        "session_id": intake.session_id,
+        "end_user_ref": intake.end_user_ref,
+        "title": intake.title,
+        "source_ref": intake.source_ref,
+        "media_kind": intake.media_kind.value,
+        "mime_type": intake.mime_type,
+        "resolved_intent": resolved_intent.value,
+        "integrity_hash": integrity_hash,
+        "metadata": dict(intake.metadata),
+        "created_at_ms": _now_ms(),
+    }
+    return {"asset": asset}
+
+
+def _asset_intake_response(
+    *,
+    asset: dict[str, Any],
+    decision_rationale: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    body = {
+        "status": "ok",
+        **asset,
+        "decision": {
+            "intent": asset["asset"]["resolved_intent"],
+            "rationale": decision_rationale,
+        },
+    }
+    if extra:
+        body.update(extra)
+    return body
+
+
+def _build_ingestion_envelope(
+    asset_id: str,
+    intake: AssetIntakeRequest,
+) -> Any | web.Response:
+    source_uri = intake.source_ref or f"dlaas-asset:{asset_id}"
+    try:
+        from lifeform_ingestion import (
+            IngestionSourceKind,
+            envelope_from_docx_bytes,
+            envelope_from_pdf_bytes,
+            envelope_from_text,
+        )
+
+        if intake.media_kind in {AssetMediaKind.TEXT, AssetMediaKind.MARKDOWN, AssetMediaKind.JSON}:
+            text = intake.text or _intake_bytes(intake).decode("utf-8")
+            return envelope_from_text(
+                text,
+                source_uri=source_uri,
+                uploader=intake.end_user_ref,
+                envelope_id=f"asset:{asset_id}",
+                source_kind=(
+                    IngestionSourceKind.BOOK
+                    if intake.media_kind is AssetMediaKind.MARKDOWN
+                    else IngestionSourceKind.CORPUS
+                ),
+            )
+        if intake.media_kind is AssetMediaKind.PDF:
+            return envelope_from_pdf_bytes(
+                _intake_bytes_required(intake),
+                source_uri=source_uri,
+                uploader=intake.end_user_ref,
+                envelope_id=f"asset:{asset_id}",
+            )
+        if intake.media_kind is AssetMediaKind.DOCX:
+            return envelope_from_docx_bytes(
+                _intake_bytes_required(intake),
+                source_uri=source_uri,
+                uploader=intake.end_user_ref,
+                envelope_id=f"asset:{asset_id}",
+            )
+    except Exception as exc:  # noqa: BLE001 - parser boundary surfaces typed error
+        return _json_error(
+            status=400,
+            error="asset_parse_failed",
+            detail=str(exc),
+        )
+    return _json_error(
+        status=400,
+        error="unsupported_asset_ingestion",
+        detail=(
+            f"media_kind={intake.media_kind.value!r} cannot be ingested directly; "
+            "store it or route it to image_intake/training_candidate."
+        ),
+    )
+
+
+def _intake_bytes_required(intake: AssetIntakeRequest) -> bytes:
+    raw = _intake_bytes(intake)
+    if not raw:
+        raise ValueError("content_base64 is required for binary asset ingestion")
+    return raw
+
+
+def _intake_bytes(intake: AssetIntakeRequest) -> bytes:
+    if intake.content_base64.strip():
+        try:
+            return base64.b64decode(intake.content_base64, validate=True)
+        except ValueError as exc:
+            raise ValueError("content_base64 must be valid base64") from exc
+    if intake.text:
+        return intake.text.encode("utf-8")
+    return b""
+
+
+def _ingestion_report_to_json(report: Any) -> dict[str, Any]:
+    return {
+        "envelope_id": report.envelope_id,
+        "total_chunks": report.total_chunks,
+        "processed_chunks": report.processed_chunks,
+        "skipped_chunks": report.skipped_chunks,
+        "ended_scene": report.ended_scene,
+        "all_succeeded": report.all_succeeded,
+        "turns": [
+            {
+                "chunk_id": turn.chunk_id,
+                "locator": turn.locator,
+                "turn_succeeded": turn.turn_succeeded,
+                "skipped_reason": turn.skipped_reason,
+            }
+            for turn in report.turns
+        ],
+    }
+
+
 async def _handle_training_job_create(request: web.Request) -> web.Response:
     ai_id = request.match_info.get("ai_id", "")
     try:
@@ -1683,6 +1981,10 @@ def _protocol_store(request: web.Request) -> dict[tuple[str, str], ProtocolSubmi
 
 def _training_store(request: web.Request) -> dict[tuple[str, str], TrainingJob]:
     return request.app[_TRAINING_JOBS_KEY]
+
+
+def _asset_intake_store(request: web.Request) -> dict[tuple[str, str], dict[str, Any]]:
+    return request.app[_ASSET_INTAKES_KEY]
 
 
 def _audit_store(request: web.Request) -> dict[str, AuditEvent]:

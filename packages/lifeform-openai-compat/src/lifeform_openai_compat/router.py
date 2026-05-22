@@ -70,9 +70,14 @@ _DEFAULT_MODE: str = "lifeform"
 _VALID_MODES: frozenset[str] = frozenset({"lifeform", "raw"})
 
 _OPENAI_CHAT_ROUTE: str = "/v1/chat/completions"
+_AUTH_APP_KEY: str = "openai_compat_api_keys"
 
 
-def add_openai_routes(app: web.Application) -> None:
+def add_openai_routes(
+    app: web.Application,
+    *,
+    api_keys: tuple[str, ...] = (),
+) -> None:
     """Attach the OpenAI-compat routes to ``app``.
 
     Mounts:
@@ -83,6 +88,10 @@ def add_openai_routes(app: web.Application) -> None:
       ``add_openai_routes`` twice on the same app raises so the
       host cli surfaces a clear error instead of silently
       double-mounting.
+
+    ``api_keys`` is optional so in-process tests can mount the adapter
+    without auth, while ``lifeform-serve --enable-openai-compat`` can
+    require an OpenAI-style ``Authorization: Bearer ...`` header.
 
     Why no ``GET /v1/models``: lifeform-service has its own
     ``/v1/models`` route with a vertical-specific schema (substrate
@@ -99,6 +108,7 @@ def add_openai_routes(app: web.Application) -> None:
             "OpenAI-compat routes are already mounted on this app. "
             "add_openai_routes(app) must only be called once per app."
         )
+    app[_AUTH_APP_KEY] = frozenset(key.strip() for key in api_keys if key.strip())
     app.router.add_post(_OPENAI_CHAT_ROUTE, _handle_chat_completions)
     app["openai_compat_mounted"] = True
 
@@ -110,6 +120,10 @@ def add_openai_routes(app: web.Application) -> None:
 
 async def _handle_chat_completions(request: web.Request) -> web.Response:
     """Dispatch a chat-completions request to lifeform / raw mode."""
+
+    auth_error = _authorize_request(request)
+    if auth_error is not None:
+        return auth_error
 
     payload = await _read_json_body(request)
     if payload is None:
@@ -447,6 +461,30 @@ def _resolve_mode(request: web.Request) -> str:
     if query:
         return query
     return _DEFAULT_MODE
+
+
+def _authorize_request(request: web.Request) -> web.Response | None:
+    """Validate optional OpenAI-style Bearer auth for chat completions."""
+
+    configured_keys = request.app[_AUTH_APP_KEY]
+    if not configured_keys:
+        return None
+    header = request.headers.get("Authorization", "").strip()
+    prefix = "Bearer "
+    if not header.startswith(prefix):
+        return _error(
+            status=401,
+            error="unauthorized",
+            detail="Missing Authorization: Bearer token for OpenAI-compatible route.",
+        )
+    token = header[len(prefix):].strip()
+    if token not in configured_keys:
+        return _error(
+            status=401,
+            error="unauthorized",
+            detail="Invalid bearer token for OpenAI-compatible route.",
+        )
+    return None
 
 
 def _error_from_value_error(exc: ValueError) -> web.Response:

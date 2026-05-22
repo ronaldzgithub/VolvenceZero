@@ -84,13 +84,18 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # so reflection logic (cognition tier) and the ProtocolRegistry
             # owner (application tier) can share a single shape.
             "behavior_protocol",
+            # Packet D long-horizon-closure: SemanticStateStore implements
+            # HydratableOwnerProtocol. The protocol and typed hydration errors
+            # live in vz-contracts.owner_hydration so cognition owners can
+            # persist without depending on the runtime store implementation.
+            "owner_hydration",
         }
     ),
     "vz-application": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # everything in vz-cognition:
-            "dual_track", "evaluation", "credit", "regime", "prediction",
+            "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
             "social", "social_cognition", "environment",
             "dialogue_trace",
@@ -137,9 +142,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     ),
     "vz-runtime": frozenset(
         {
-            "runtime", "learned_update", "substrate", "memory", "dialogue_trace",
+            "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
             # everything in vz-cognition:
-            "dual_track", "evaluation", "credit", "regime", "prediction",
+            "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
             # interlocutor SHADOW owner (W2 of ssot-cleanup-p0-p4) is
             # registered into the runtime so consumers read one snapshot.

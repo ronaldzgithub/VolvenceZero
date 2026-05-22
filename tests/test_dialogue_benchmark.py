@@ -67,6 +67,7 @@ from volvence_zero.agent import (
     default_dialogue_strong_proof_profiles,
     default_dialogue_comprehensive_profiles,
     default_phase2_shadow_evidence_profiles,
+    default_phase3_combination_shadow_profiles,
     dialogue_paper_suite_config,
     default_open_dialogue_ablation_profiles,
     default_dialogue_real_proof_config,
@@ -662,6 +663,24 @@ def test_phase2_shadow_profiles_are_explicit_not_default():
     )
     assert not (set(phase2_profiles) & set(default_dialogue_ablation_profiles()))
     assert not (set(phase2_profiles) & set(default_dialogue_strong_proof_profiles()))
+
+
+def test_phase3_combination_profiles_are_explicit_not_default():
+    combo_profiles = default_phase3_combination_shadow_profiles()
+
+    assert combo_profiles == (
+        "cpd-counterfactual-credit",
+        "tom-persona-geometry",
+        "audit-persona-geometry",
+    )
+    assert not (set(combo_profiles) & set(default_dialogue_ablation_profiles()))
+    assert not (set(combo_profiles) & set(default_dialogue_strong_proof_profiles()))
+    for profile_label in combo_profiles:
+        runner = build_standard_dialogue_runner(
+            profile_label=profile_label,
+            case=DEFAULT_DIALOGUE_PROOF_CASES[0],
+        )
+        assert runner.session_id.startswith(f"dialogue-ablation:{profile_label}:")
 
 
 def test_phase2_shadow_evidence_smoke_runs_one_case():

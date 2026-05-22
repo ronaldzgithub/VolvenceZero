@@ -4,6 +4,33 @@ from dataclasses import dataclass
 from typing import Any
 
 
+_ACTION_FAMILY_BY_EXACT_ID: dict[str, str] = {
+    "task_controller": "task",
+    "repair_controller": "repair",
+    "stabilize_controller": "stabilize",
+    "exploration_controller": "exploration",
+}
+
+
+def abstract_action_family_id(abstract_action_id: str | None) -> str | None:
+    """Return the typed family encoded by an abstract action id.
+
+    The parser accepts exact controller ids and structured ids with a
+    separator suffix (``task_controller:v2``). It intentionally does not
+    use substring matching.
+    """
+
+    if abstract_action_id is None:
+        return None
+    action_id = abstract_action_id.strip().lower()
+    if not action_id:
+        return None
+    if action_id.startswith("latent-family-v"):
+        return "latent"
+    head = action_id.split(":", 1)[0].split("/", 1)[0]
+    return _ACTION_FAMILY_BY_EXACT_ID.get(head)
+
+
 @dataclass(frozen=True)
 class ControllerState:
     code: tuple[float, ...]

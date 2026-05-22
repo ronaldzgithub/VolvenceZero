@@ -501,6 +501,12 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         wiring_overrides={"tom_owner": WiringLevel.SHADOW},
         description="COG-2 preference ToM owner evidence surface.",
     ),
+    ProfileCapability(
+        name="audit-readout",
+        applies_to_owner="audit",
+        wiring_overrides={"audit_readout": WiringLevel.SHADOW},
+        description="OA-4 audit owner SHADOW evidence surface.",
+    ),
 )
 
 
@@ -586,6 +592,27 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
             "preference-about-other-readout",
         ),
         description="COG-2 SHADOW evidence profile for four ToM owner readouts.",
+    ),
+    ProfileSpec(
+        label="cpd-counterfactual-credit",
+        capabilities=("cpd-beta-switch-readout", "least-control-credit-readout"),
+        description="Phase 3 combo: SYS-1 beta boundary evidence + COG-1 credit attribution.",
+    ),
+    ProfileSpec(
+        label="tom-persona-geometry",
+        capabilities=(
+            "belief-about-other-readout",
+            "intent-about-other-readout",
+            "feeling-about-other-readout",
+            "preference-about-other-readout",
+            "persona-geometry-readout",
+        ),
+        description="Phase 3 combo: COG-2 ToM owner evidence + COG-3 persona geometry.",
+    ),
+    ProfileSpec(
+        label="audit-persona-geometry",
+        capabilities=("audit-readout", "persona-geometry-readout"),
+        description="Phase 3 combo: OA-4 audit channel + COG-3 persona drift readout.",
     ),
 )
 

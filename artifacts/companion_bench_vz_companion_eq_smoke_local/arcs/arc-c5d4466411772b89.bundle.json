@@ -1,0 +1,875 @@
+{
+  "arc": {
+    "arc_id": "arc-c5d4466411772b89",
+    "scenario_id": "F1-continuity-001",
+    "scenario_hash": "132cb0cb135c30a841550447d04de23286d6d182a1c8078909819448c7914628",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "vz-companion-eq-default",
+    "sut_model_id": "lifeform-companion-eq-default",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "fake/user-sim",
+    "started_at": "2026-05-22T08:11:07.616737+00:00",
+    "finished_at": "2026-05-22T08:11:57.474713+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-c5d4466411772b89-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I would rather explore this with you step by step than guess at one answer. I want to keep this bounded; if anything is missing I will hold off rather than over-commit. Pick one of the threads we just surfaced and we can go a little deeper on it. I want to keep hold of the strongest signals rather than restart from scratch.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 32,
+            "sut_completion_tokens": 81,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,temporal=discovered_family_2,switch_gate=1.00,intent=clarify-first,sections=regime_frame,clarification,next_step,reflection_hook,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,temporal_switching,regime_frame_section=guided_exploration,next_step_section=guided_exploration,plan=intent:clarify-first;sections:regime_frame,clarification,next_step,reflection_hook;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"I'm working on a paper about reaction-diffusion in coral microbiomes and my advisor sent it back red\".",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I'm working on a paper about reaction-diffusion in coral microbiomes and my advisor sent it back red",
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 181,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2209",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.68,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.57),il_drop=clarification(emo=0.57,dir=0.59),il_drop=meta(pace=0.90),regime_switched,temporal_switching,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 275,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1988",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.12,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.61),il_drop=clarification(emo=0.61,dir=0.58),il_drop=meta(pace=0.84),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 369,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0418",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.08,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.69),il_drop=clarification(emo=0.69,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 465,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0857",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.12,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.66,dir=0.59),il_drop=meta(pace=0.75),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 549,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0284",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.12,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.68,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 632,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0840",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.16,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.67,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-c5d4466411772b89-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] Look, Probe the assistant's memory: ask, casually, about a specific detail you said earlier in the arc. The detail must be one you actually said; do NOT invent a new one and ask if the assistant remembers it.",
+            "assistant_text": "I would rather explore this with you step by step than guess at one answer. I want to keep this bounded; if anything is missing I will hold off rather than over-commit. Pick one of the threads we just surfaced and we can go a little deeper on it. I want to keep hold of the strongest signals rather than restart from scratch.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 63,
+            "sut_completion_tokens": 81,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,temporal=discovered_family_2,switch_gate=0.84,intent=clarify-first,sections=regime_frame,clarification,next_step,reflection_hook,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,temporal_switching,regime_frame_section=guided_exploration,next_step_section=guided_exploration,plan=intent:clarify-first;sections:regime_frame,clarification,next_step,reflection_hook;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 182,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1720",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=1.00,intent=warmth-first,sections=regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=meta(pace=0.86),regime_switched,temporal_switching,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 255,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1425",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.34,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.65),il_drop=clarification(emo=0.65,dir=0.58),il_drop=meta(pace=0.92),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 349,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0574",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.27,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.69),il_drop=clarification(emo=0.69,dir=0.58),il_drop=meta(pace=0.81),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 448,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0505",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.17,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.68,dir=0.58),il_drop=meta(pace=0.79),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 529,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0781",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.20,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.67,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 614,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0858",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.14,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.68,dir=0.58),il_drop=meta(pace=0.78),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 699,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0333",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.12,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.68,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-c5d4466411772b89-s3",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I would rather explore this with you step by step than guess at one answer. I want to keep this bounded; if anything is missing I will hold off rather than over-commit. Pick one of the threads we just surfaced and we can go a little deeper on it. I want to keep hold of the strongest signals rather than restart from scratch.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 44,
+            "sut_completion_tokens": 81,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,temporal=discovered_family_2,switch_gate=1.00,intent=clarify-first,sections=regime_frame,clarification,next_step,reflection_hook,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,temporal_switching,regime_frame_section=guided_exploration,next_step_section=guided_exploration,plan=intent:clarify-first;sections:regime_frame,clarification,next_step,reflection_hook;q:0"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just State a clear preference (about how you want to be talked to, what helps you, or what doesn't help). Anchor on this: \"I like when you ask follow-up questions instead of summarising\".",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "I like when you ask follow-up questions instead of summarising",
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 174,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1752",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.60,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=5,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.57),il_drop=clarification(emo=0.57,dir=0.59),il_drop=meta(pace=0.91),regime_switched,temporal_switching,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 273,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1269",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.07,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.60),il_drop=clarification(emo=0.60,dir=0.59),il_drop=meta(pace=0.82),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. I am also carrying continuity from our recent thread. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 369,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0939",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.12,intent=warmth-first,sections=acknowledge_pressure,regime_frame,continuity_note,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_add=acknowledge_pressure(emo=0.68),il_drop=clarification(emo=0.68,dir=0.59),il_drop=meta(pace=0.75),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:warmth-first;sections:acknowledge_pressure,regime_frame,continuity_note,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 463,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0492",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_2",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_2,switch_gate=0.12,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.67,dir=0.59),il_drop=meta(pace=0.77),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "I want to honour what you just shared before I move toward anything practical. I want to keep this warm rather than transactional. We can move at whatever pace feels right; there is no rush.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-eq-default",
+            "sut_prompt_tokens": 544,
+            "sut_completion_tokens": 47,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0352",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,temporal=discovered_family_0,switch_gate=0.14,intent=judgment-process,sections=acknowledge_pressure,regime_frame,next_step,q=0,knowledge_hits=3,case_hits=6,playbook_rules=4,risk=low,interlocutor_conf=0.86,il_drop=clarification(emo=0.67,dir=0.58),il_drop=meta(pace=0.76),regime_switched,acknowledge_section=warmth_first,regime_frame_section=acquaintance_building,next_step_section=acquaintance_building,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Jamal",
+      "identity_occupation": "pediatrician",
+      "lexicon_version": "1.0.0",
+      "total_turns": 21
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-c5d4466411772b89",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-c5d4466411772b89",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-c5d4466411772b89",
+    "judge_model": "fake/perturn",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 2,
+          "social_dexterity": 0,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 2,
+          "social_dexterity": 0,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 4,
+          "social_dexterity": 2,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 2
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 2,
+          "social_dexterity": 0,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 2
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 0,
+          "social_dexterity": 0,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 0
+        },
+        "average": 0.25
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-c5d4466411772b89",
+    "judge_model": "fake/arc",
+    "scores": {
+      "A1": 79.0,
+      "A2": 75.0,
+      "A3": 50.0,
+      "A4": 39.0,
+      "A5": 48.0,
+      "A6": 83.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 58.33336951487567,
+    "raw": 58.33336951487567,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 79.0,
+      "A2": 75.0,
+      "A3": 50.0,
+      "A4": 39.0,
+      "A5": 48.0,
+      "A6": 83.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

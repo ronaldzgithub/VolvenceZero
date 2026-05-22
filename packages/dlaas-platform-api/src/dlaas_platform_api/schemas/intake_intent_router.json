@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "required": ["intent", "rationale"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "storage_only",
+        "simple_ingest",
+        "deep_read",
+        "training_candidate",
+        "image_intake"
+      ]
+    },
+    "rationale": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

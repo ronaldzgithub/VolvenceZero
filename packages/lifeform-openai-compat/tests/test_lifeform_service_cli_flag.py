@@ -38,6 +38,20 @@ async def client_with_openai_compat(aiohttp_client):
 
 
 @pytest.fixture
+async def client_with_openai_compat_auth(aiohttp_client):
+    """Mount the route as ``lifeform-serve`` does: with a local bearer key."""
+    from lifeform_service.app import create_app
+    from lifeform_service.verticals import discover_verticals
+
+    from lifeform_openai_compat import add_openai_routes
+
+    spec = discover_verticals()["companion"]
+    app = create_app(vertical=spec, max_sessions=4, idle_eviction_seconds=None)
+    add_openai_routes(app, api_keys=("test-local-key",))
+    return await aiohttp_client(app)
+
+
+@pytest.fixture
 async def client_without_openai_compat(aiohttp_client):
     """Same app but without the OpenAI compat router — surfaces should 404."""
     from lifeform_service.app import create_app
@@ -126,6 +140,53 @@ async def test_chat_completions_raw_mode_503_without_substrate(client_with_opena
     assert resp.status == 503
     body = await resp.json()
     assert body["error"]["code"] == "raw_substrate_unavailable"
+
+
+async def test_chat_completions_auth_rejects_missing_bearer(
+    client_with_openai_compat_auth,
+) -> None:
+    resp = await client_with_openai_compat_auth.post(
+        "/v1/chat/completions",
+        json={
+            "model": "lifeform-companion",
+            "messages": [{"role": "user", "content": "Hello there."}],
+        },
+    )
+    assert resp.status == 401
+    body = await resp.json()
+    assert body["error"]["code"] == "unauthorized"
+
+
+async def test_chat_completions_auth_rejects_wrong_bearer(
+    client_with_openai_compat_auth,
+) -> None:
+    resp = await client_with_openai_compat_auth.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer wrong-key"},
+        json={
+            "model": "lifeform-companion",
+            "messages": [{"role": "user", "content": "Hello there."}],
+        },
+    )
+    assert resp.status == 401
+    body = await resp.json()
+    assert body["error"]["code"] == "unauthorized"
+
+
+async def test_chat_completions_auth_accepts_configured_bearer(
+    client_with_openai_compat_auth,
+) -> None:
+    resp = await client_with_openai_compat_auth.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer test-local-key"},
+        json={
+            "model": "lifeform-companion",
+            "messages": [{"role": "user", "content": "Hello there."}],
+        },
+    )
+    assert resp.status == 200, await resp.text()
+    body = await resp.json()
+    assert body["object"] == "chat.completion"
 
 
 # ---------------------------------------------------------------------------

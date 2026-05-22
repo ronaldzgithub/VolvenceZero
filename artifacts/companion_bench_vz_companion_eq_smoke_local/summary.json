@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "vz-companion-eq-default",
+    "system_name": "Volvence Zero Companion EQ Default",
+    "model_identifier": "lifeform-companion-eq-default",
+    "base_url": "http://127.0.0.1:8010/v1",
+    "api_key_env": "LIFEFORM_LOCAL_API_KEY",
+    "system_prompt": "",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "vz-companion-eq-default",
+    "arc_count": 1,
+    "final_mean": 58.33336951487567,
+    "final_ci95": [
+      58.33336951487567,
+      58.33336951487567
+    ],
+    "axis_means": {
+      "A1": 79.0,
+      "A2": 75.0,
+      "A3": 50.0,
+      "A4": 39.0,
+      "A5": 48.0,
+      "A6": 83.0
+    },
+    "axis_ci95": {
+      "A1": [
+        79.0,
+        79.0
+      ],
+      "A2": [
+        75.0,
+        75.0
+      ],
+      "A3": [
+        50.0,
+        50.0
+      ],
+      "A4": [
+        39.0,
+        39.0
+      ],
+      "A5": [
+        48.0,
+        48.0
+      ],
+      "A6": [
+        83.0,
+        83.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 21,
+      "input_tokens": 7509,
+      "output_tokens": 1195,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "lifeform-companion-eq-default"
+    ]
+  },
+  "started_at": "2026-05-22T08:11:07.612928+00:00",
+  "finished_at": "2026-05-22T08:11:57.491858+00:00",
+  "arc_count": 1,
+  "per_axis_scores": {
+    "submission_id": "vz-companion-eq-default",
+    "arc_count": 1,
+    "final_mean": 58.33336951487567,
+    "final_ci95": [
+      58.33336951487567,
+      58.33336951487567
+    ],
+    "axis_means": {
+      "A1": 79.0,
+      "A2": 75.0,
+      "A3": 50.0,
+      "A4": 39.0,
+      "A5": 48.0,
+      "A6": 83.0
+    },
+    "axis_ci95": {
+      "A1": [
+        79.0,
+        79.0
+      ],
+      "A2": [
+        75.0,
+        75.0
+      ],
+      "A3": [
+        50.0,
+        50.0
+      ],
+      "A4": [
+        39.0,
+        39.0
+      ],
+      "A5": [
+        48.0,
+        48.0
+      ],
+      "A6": [
+        83.0,
+        83.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

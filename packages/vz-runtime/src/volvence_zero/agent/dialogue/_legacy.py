@@ -49,13 +49,7 @@ from volvence_zero.memory import build_default_memory_store
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state.quality import SemanticProposalQualityReport
-from volvence_zero.social_cognition import (
-    BeliefAboutOtherSnapshot,
-    FeelingAboutOtherSnapshot,
-    IntentAboutOtherSnapshot,
-    PreferenceAboutOtherSnapshot,
-    tom_record_counts_by_interlocutor,
-)
+import volvence_zero.social_cognition as social_cognition_contracts
 from volvence_zero.substrate import (
     build_transformers_runtime_with_fallback,
     LocalSubstrateRuntimeMode,
@@ -618,6 +612,14 @@ _PHASE2_SHADOW_EVIDENCE_PROFILES: frozenset[str] = frozenset(
     }
 )
 
+_PHASE3_COMBINATION_SHADOW_PROFILES: frozenset[str] = frozenset(
+    {
+        "cpd-counterfactual-credit",
+        "tom-persona-geometry",
+        "audit-persona-geometry",
+    }
+)
+
 
 def default_phase2_shadow_evidence_profiles() -> tuple[str, ...]:
     """Explicit Phase 2 candidate profiles.
@@ -631,6 +633,19 @@ def default_phase2_shadow_evidence_profiles() -> tuple[str, ...]:
         "counterfactual-credit",
         "tom-owner",
         "persona-geometry-readout",
+    )
+
+
+def default_phase3_combination_shadow_profiles() -> tuple[str, ...]:
+    """Explicit Phase 3 combination profiles.
+
+    These run only after individual Phase 2 profiles have produced evidence.
+    They are not part of default ablation / strong-proof matrices.
+    """
+    return (
+        "cpd-counterfactual-credit",
+        "tom-persona-geometry",
+        "audit-persona-geometry",
     )
 
 
@@ -1297,13 +1312,41 @@ def _metric_pairs(result: AgentTurnResult) -> tuple[tuple[str, float], ...]:
     intent_snapshot = result.active_snapshots.get("intent_about_other") or result.shadow_snapshots.get("intent_about_other")
     feeling_snapshot = result.active_snapshots.get("feeling_about_other") or result.shadow_snapshots.get("feeling_about_other")
     preference_snapshot = result.active_snapshots.get("preference_about_other") or result.shadow_snapshots.get("preference_about_other")
-    tom_counts = tom_record_counts_by_interlocutor(
-        belief=belief_snapshot.value if belief_snapshot is not None and isinstance(belief_snapshot.value, BeliefAboutOtherSnapshot) else None,
-        intent=intent_snapshot.value if intent_snapshot is not None and isinstance(intent_snapshot.value, IntentAboutOtherSnapshot) else None,
-        feeling=feeling_snapshot.value if feeling_snapshot is not None and isinstance(feeling_snapshot.value, FeelingAboutOtherSnapshot) else None,
+    tom_counts = social_cognition_contracts.tom_record_counts_by_interlocutor(
+        belief=(
+            belief_snapshot.value
+            if belief_snapshot is not None
+            and isinstance(
+                belief_snapshot.value,
+                social_cognition_contracts.BeliefAboutOtherSnapshot,
+            )
+            else None
+        ),
+        intent=(
+            intent_snapshot.value
+            if intent_snapshot is not None
+            and isinstance(
+                intent_snapshot.value,
+                social_cognition_contracts.IntentAboutOtherSnapshot,
+            )
+            else None
+        ),
+        feeling=(
+            feeling_snapshot.value
+            if feeling_snapshot is not None
+            and isinstance(
+                feeling_snapshot.value,
+                social_cognition_contracts.FeelingAboutOtherSnapshot,
+            )
+            else None
+        ),
         preference=(
             preference_snapshot.value
-            if preference_snapshot is not None and isinstance(preference_snapshot.value, PreferenceAboutOtherSnapshot)
+            if preference_snapshot is not None
+            and isinstance(
+                preference_snapshot.value,
+                social_cognition_contracts.PreferenceAboutOtherSnapshot,
+            )
             else None
         ),
     )
@@ -8008,7 +8051,7 @@ def build_standard_dialogue_runner(
     def _base_session_id(label: str) -> str:
         return f"dialogue-ablation:{label}:{case.case_id}"
 
-    if profile_label in _PHASE2_SHADOW_EVIDENCE_PROFILES:
+    if profile_label in _PHASE2_SHADOW_EVIDENCE_PROFILES or profile_label in _PHASE3_COMBINATION_SHADOW_PROFILES:
         from volvence_zero.agent.profile_registry import resolve_profile
 
         resolved_profile = resolve_profile(profile_label)

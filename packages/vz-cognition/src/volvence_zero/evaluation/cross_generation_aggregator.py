@@ -22,7 +22,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from volvence_zero.evaluation.cheap_layer import EvaluationCascadeRole
-from volvence_zero.evaluation.expensive_layer import HeadToHeadResult
+from volvence_zero.evaluation.expensive_layer import ExpensiveLayerSnapshot, HeadToHeadResult
 from volvence_zero.runtime.kernel import (
     RuntimeModule,
     Snapshot,
@@ -33,6 +33,7 @@ __all__ = [
     "ModificationGateEvidence",
     "CrossGenerationAggregateSnapshot",
     "CrossGenerationAggregatorModule",
+    "build_cross_generation_aggregate_snapshot",
 ]
 
 
@@ -95,6 +96,60 @@ _EMPTY_AGGREGATE_SNAPSHOT = CrossGenerationAggregateSnapshot(
 )
 
 
+def build_cross_generation_aggregate_snapshot(
+    *,
+    expensive_snapshot: ExpensiveLayerSnapshot,
+    timestamp_ms: int = 0,
+    aggregator_id: str = "cross-generation-aggregate",
+) -> CrossGenerationAggregateSnapshot:
+    """Build a cross-generation aggregate from expensive-layer evidence.
+
+    Empty head-to-head input preserves the old skeleton behaviour. LLM judge
+    readouts remain ignored for gate evidence per R12 / Mind-Face isolation.
+    """
+    if not expensive_snapshot.head_to_head_results:
+        return _EMPTY_AGGREGATE_SNAPSHOT
+
+    winrates = tuple(
+        result.winrate_a_vs_b
+        for result in expensive_snapshot.head_to_head_results
+    )
+    aggregate_winrate = round(sum(winrates) / len(winrates), 4)
+    validation_score = max(0.0, min(1.0, aggregate_winrate))
+    generation_window = (
+        (expensive_snapshot.generation_id,)
+        if expensive_snapshot.generation_id
+        else ()
+    )
+    evidence = ModificationGateEvidence(
+        evidence_id=(
+            f"xgen:{expensive_snapshot.generation_id or 'unknown'}:"
+            f"{len(expensive_snapshot.head_to_head_results)}"
+        ),
+        validation_score=validation_score,
+        head_to_head_aggregate_winrate=aggregate_winrate,
+        rollback_evidence_present=False,
+        capacity_within_cap=True,
+        audit_evidence_id=None,
+        notes=(
+            "Built from ExpensiveLayerSnapshot.head_to_head_results only; "
+            "LLM judge readouts ignored for gate evidence.",
+        ),
+    )
+    return CrossGenerationAggregateSnapshot(
+        aggregator_id=aggregator_id,
+        timestamp_ms=timestamp_ms,
+        generation_id_window=generation_window,
+        head_to_head_table=expensive_snapshot.head_to_head_results,
+        modification_gate_evidence=evidence,
+        description=(
+            f"Cross-generation aggregate over "
+            f"{len(expensive_snapshot.head_to_head_results)} head-to-head rows; "
+            f"winrate={aggregate_winrate:.3f}."
+        ),
+    )
+
+
 class CrossGenerationAggregatorModule(RuntimeModule[CrossGenerationAggregateSnapshot]):
     """Final tier of the cascade. DISABLED by default."""
 
@@ -109,5 +164,11 @@ class CrossGenerationAggregatorModule(RuntimeModule[CrossGenerationAggregateSnap
     ) -> Snapshot[CrossGenerationAggregateSnapshot]:
         # fail-loudly on missing dependency
         expensive_snapshot = upstream["evaluation_expensive"]
-        del expensive_snapshot
-        return self.publish(_EMPTY_AGGREGATE_SNAPSHOT)
+        if not isinstance(expensive_snapshot.value, ExpensiveLayerSnapshot):
+            return self.publish(_EMPTY_AGGREGATE_SNAPSHOT)
+        return self.publish(
+            build_cross_generation_aggregate_snapshot(
+                expensive_snapshot=expensive_snapshot.value,
+                timestamp_ms=expensive_snapshot.timestamp_ms,
+            )
+        )

@@ -196,6 +196,46 @@ During SHADOW rollout, this config is stored inside `ContractSpec.service_contra
 
 ## Protocol And Training Intake
 
+### Asset/File Intake
+
+```http
+POST /dlaas/v1/instances/{ai_id}/assets/intake
+GET  /dlaas/v1/instances/{ai_id}/assets/intake/{asset_id}
+```
+
+This is the DLaaS entry for uploaded files, books, images, and inline
+materials. The route accepts a typed JSON payload:
+
+```json
+{
+  "contract_id": "contract_123",
+  "session_id": "intake_sess_001",
+  "end_user_ref": "operator_001",
+  "intake_intent": "auto",
+  "media_kind": "pdf",
+  "title": "Customer Playbook",
+  "mime_type": "application/pdf",
+  "source_ref": "upload://customer-playbook.pdf",
+  "content_base64": "...",
+  "metadata": {"reviewed": true}
+}
+```
+
+`intake_intent` values:
+
+| Intent | Behavior |
+|---|---|
+| `storage_only` | Store platform asset metadata/reference only. No kernel turn. |
+| `simple_ingest` | Parse text/PDF/DOCX and run `IngestionPipeline` now. |
+| `deep_read` | Create a long-running corpus/deep-reading job. |
+| `training_candidate` | Create an offline training/adapter candidate job. Promotion is gated. |
+| `image_intake` | Store image and mark it pending a vision extractor. No image owner mutation. |
+| `auto` | Use a schema-constrained intake classifier; no keyword routing. |
+
+The route never writes cognitive owners directly. Text/PDF/DOCX ingestion goes
+through `lifeform-ingestion`; image intake stays asset-only until a reviewed
+vision extractor is wired; training candidates remain offline and gated.
+
 ### Protocol Submission
 
 ```http
@@ -391,6 +431,8 @@ contract.
 - OpenAI `role="tool"` messages route to `submit_tool_result`, not text turns.
 - Adoption stores vertical/substrate/protocol/memory/tool/ops/training choices.
 - Adoption tool policy filters visible/invokable affordances.
+- Asset intake can store-only, simple-ingest text/PDF/DOCX, create deep-read jobs, create training-candidate jobs, or store images pending a vision extractor.
+- Auto asset-intent routing uses schema-constrained classification, not natural-language keyword branching.
 - Protocol submission -> approve -> library load affects the next session's protocol seed path.
 - Feedback and environment outcomes produce typed evidence.
 - Native chat may emit `tool_call` and `tool_task` output acts.

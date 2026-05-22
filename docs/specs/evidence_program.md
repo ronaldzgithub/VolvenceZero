@@ -62,6 +62,7 @@
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
+- Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 
 ## 与其他能力域的关系
 
@@ -226,6 +227,63 @@
 - `paper_suite_aggregate.json` 是 claim verdict 的主入口；它必须由 manifest / provenance / pairwise effects / optional human ratings 重新计算，而不是手工改写。
 - `evidence_bundle.json` 是跨系统消费入口，包含 manifest、provenance、run summaries、aggregate metrics、pairwise effects、blind review packet 与 claim verdicts。
 - 轻量测试只验证 claim 规则和 artifact shape；完整 empirical 结论仍必须来自 `paper-suite-small` / `paper-suite-full` repeated-run aggregate。
+
+### `phase2_shadow_evidence_smoke.json`
+
+**用途**：Phase 2/3 SHADOW profile 的最小 review artifact。用于检查 profile wiring、candidate readout、metric extraction、deterministic head-to-head 与 cross-generation gate evidence shape 是否完整。
+
+**生成命令**：
+
+```bash
+python scripts/run_phase2_shadow_evidence_smoke.py --synthetic-runner --case-limit 1
+```
+
+真实 runner evidence 去掉 `--synthetic-runner`；组合 profile 加 `--include-phase3-combos`。
+
+**稳定字段**：
+
+- `schema_version == "phase2-shadow-evidence-smoke.v1"`
+- `artifact_kind == "phase2_shadow_evidence_smoke"`
+- `runner_kind`: `synthetic` / `default`
+- `include_phase3_combos: bool`
+- `provenance`
+  - `git_sha`
+  - `git_branch`
+  - `working_tree_dirty`
+  - `python_version`
+  - `platform`
+- `profile_labels`
+- `focus_metric_means`
+- `focus_metric_deltas_from_baseline`
+- `head_to_head_results`
+- `cross_generation_gate_evidence`
+
+**Sidecar manifest**：
+
+- 文件名：`phase2_shadow_evidence_manifest.json`
+- `schema_version == "phase2-shadow-evidence-manifest.v1"`
+- `artifact_kind == "phase2_shadow_evidence_manifest"`
+- `source_schema_version == "phase2-shadow-evidence-smoke.v1"`
+- `artifacts[]`
+  - `path`
+  - `sha256`
+  - `size_bytes`
+- `provenance`（与主 JSON payload 一致）
+
+**Manifest 校验命令**：
+
+```bash
+python scripts/verify_phase2_shadow_evidence_manifest.py artifacts/phase2_shadow_evidence_smoke/phase2_shadow_evidence_manifest.json
+```
+
+该命令 fail-loudly 校验所有登记 artifact 的 `sha256` / `size_bytes`。reviewer 在引用 JSON / Markdown evidence 前应先跑此命令。
+
+**边界**：
+
+- Synthetic artifact 只验证 schema / wiring / metric surface；不能作为 retain 证据。
+- Default runner artifact 可以作为 SHADOW review evidence，但升 ACTIVE 仍需 multi-seed paper-suite-small 或等价 evidence。
+- Markdown sibling `phase2_shadow_evidence_smoke.md` 是人类 review 面；JSON 是机器可读 SSOT。
+- Manifest 是 artifact 完整性 sidecar；reviewer 应优先用 manifest 校验 JSON / Markdown 是否被改写。
 
 ### Blind Review External Dispatch（recruitment-agnostic）
 

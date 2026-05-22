@@ -154,6 +154,21 @@ flowchart TD
 - 没有破坏 acceptance gate / safety family。
 - 至少一个指标族出现稳定正 delta，且 ablation 证明候选能力是必要原因。
 
+当前最小 evidence 入口（2026-05-22）：
+
+```bash
+python scripts/run_phase2_shadow_evidence_smoke.py --synthetic-runner --case-limit 1
+```
+
+该命令输出：
+
+- `artifacts/phase2_shadow_evidence_smoke/phase2_shadow_evidence_smoke.json`
+- `artifacts/phase2_shadow_evidence_smoke/phase2_shadow_evidence_smoke.md`
+
+JSON 是机器可读 evidence；Markdown 是 PR / 人工 review 面。`--include-phase3-combos`
+会额外跑 Phase 3 组合 profiles。Synthetic smoke 只验证 profile / metric / evidence
+schema，不替代真实 runner 的 multi-seed evidence。
+
 ### Phase 3: 组合 profile 与代际胜率
 
 目标：从“单项能力有效”推进到“组合后仍然有效”。
@@ -169,6 +184,18 @@ flowchart TD
 - 组合 profile 不出现负迁移。
 - cross-generation winrate 显著高于上一代 ACTIVE。
 - 失败 profile 被保留为 DISABLED / SHADOW 证据，不回收成“成功叙事”。
+
+当前组合 profile 已注册：
+
+- `cpd-counterfactual-credit`
+- `tom-persona-geometry`
+- `audit-persona-geometry`
+
+运行方式：
+
+```bash
+python scripts/run_phase2_shadow_evidence_smoke.py --synthetic-runner --include-phase3-combos
+```
 
 ### Phase 4: 真实 / 半真实 open-dialogue evidence
 

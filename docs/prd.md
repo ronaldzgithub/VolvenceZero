@@ -2,7 +2,7 @@
 
 > Status: draft
 > Version: 0.5
-> Last updated: 2026-05-10
+> Last updated: 2026-05-22
 > Source: `docs/next_gen_emogpt.md`（唯一设计源头）
 
 ---
@@ -525,7 +525,15 @@
 - `dlaas-platform-*` 不允许 import `volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`，只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口与内核交互
 - 所有 control-plane 资源是平台层 SSOT，其它任何 wheel 都只读它们发布的快照
 
-**当前已实现**：6 个 `dlaas-platform-*` wheel × 7 切片完成（spec 见 `docs/specs/dlaas-platform.md`，rollout 见 `docs/moving forward/dlaas-platform-rollout.md`）。
+**当前已实现**：6 个 `dlaas-platform-*` wheel × 7 切片完成（platform spec 见 `docs/specs/dlaas-platform.md`，API v1 见 `docs/specs/dlaas-api-v1.md`，rollout 见 `docs/moving forward/dlaas-platform-rollout.md`）。DLaaS v1 对外能力包括：
+
+- **OpenAI-compatible chat**：`/v1/chat/completions` 支持 legacy chat、DLaaS `ai_id` metadata routing、OpenAI `tools/tool_choice/tool_calls`，并可在 server-side tool loop 模式下通过普通聊天驱动工具启动、反馈、暂停/停止与继续。
+- **Native runtime envelope**：`/dlaas/v1/instances/{ai_id}/interactions` 使用 typed `InteractionEnvelope` 分发 chat / observe / feedback / teach / task / report / command；native response 通过 `OutputAct` 表达 text / system / tool_call / tool_task。
+- **Asset/File Intake**：`/dlaas/v1/instances/{ai_id}/assets/intake` 接收文本、Markdown、JSON、PDF、DOCX、图片等资产，按 `storage_only / simple_ingest / deep_read / training_candidate / image_intake / auto` 分流；auto 走 schema-constrained intent router，非关键词匹配。
+- **Protocol / Training Intake**：协议提交、审核、library load、corpus ingest、training jobs、adapter candidate promotion gate 均走平台层治理；rare-heavy / adapter candidate 不在线热改 frozen substrate。
+- **Lifecycle / Ops / Readouts**：wake / sleep / status / instances、handoff / pause / resume / SSE conversations、curated readouts、admin snapshots、explain trace、audit / usage / quota / billing / data export/delete 等平台治理面。
+
+详细请求/响应形状、acceptance gates 与当前 SHADOW/ACTIVE 口径以 `docs/specs/dlaas-api-v1.md` 为准。
 
 | Wheel | 职责 |
 |---|---|

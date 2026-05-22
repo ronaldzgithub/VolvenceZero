@@ -289,6 +289,46 @@ def test_expensive_layer_module_skeleton() -> None:
     assert ExpensiveLayerModule.default_wiring_level is WiringLevel.DISABLED
 
 
+def test_expensive_layer_builds_deterministic_head_to_head_snapshot() -> None:
+    from volvence_zero.evaluation.expensive_layer import (
+        build_deterministic_head_to_head_snapshot,
+    )
+
+    snapshot = build_deterministic_head_to_head_snapshot(
+        generation_id="phase2-smoke",
+        baseline_label="pe-eta",
+        per_profile_metric_means={
+            "pe-eta": {
+                "mean_persona_geometry_drift": 0.20,
+                "mean_least_control_score": 0.40,
+                "tom_record_total_max": 1.0,
+            },
+            "candidate": {
+                "mean_persona_geometry_drift": 0.10,
+                "mean_least_control_score": 0.50,
+                "tom_record_total_max": 1.0,
+            },
+        },
+        metric_names=(
+            "mean_persona_geometry_drift",
+            "mean_least_control_score",
+            "tom_record_total_max",
+        ),
+        lower_is_better=("mean_persona_geometry_drift",),
+    )
+
+    assert snapshot.generation_id == "phase2-smoke"
+    assert snapshot.llm_judge_readouts == ()
+    assert len(snapshot.head_to_head_results) == 1
+    result = snapshot.head_to_head_results[0]
+    assert result.profile_a == "candidate"
+    assert result.profile_b == "pe-eta"
+    assert result.case_count == 3
+    # drift improves, least-control improves, ToM ties -> (1 + 1 + 0.5) / 3
+    assert result.winrate_a_vs_b == 0.8333
+    assert result.judge_kind == "deterministic"
+
+
 def test_llm_judge_readout_never_gate_eligible() -> None:
     """A2 关键不变量 3: LLM-judge readout permanently outside gate decision.
 
@@ -333,6 +373,57 @@ def test_cross_generation_aggregator_module_skeleton() -> None:
     assert (
         CrossGenerationAggregatorModule.default_wiring_level is WiringLevel.DISABLED
     )
+
+
+def test_cross_generation_aggregator_builds_head_to_head_gate_evidence() -> None:
+    from volvence_zero.evaluation.cross_generation_aggregator import (
+        build_cross_generation_aggregate_snapshot,
+    )
+    from volvence_zero.evaluation.expensive_layer import (
+        ExpensiveLayerSnapshot,
+        HeadToHeadResult,
+    )
+
+    expensive = ExpensiveLayerSnapshot(
+        generation_id="gen-1",
+        head_to_head_results=(
+            HeadToHeadResult(
+                profile_a="candidate",
+                profile_b="baseline",
+                case_count=10,
+                winrate_a_vs_b=0.7,
+                confidence_interval_low=0.55,
+                confidence_interval_high=0.85,
+                judge_kind="deterministic",
+                notes="candidate wins",
+            ),
+            HeadToHeadResult(
+                profile_a="candidate",
+                profile_b="baseline",
+                case_count=10,
+                winrate_a_vs_b=0.6,
+                confidence_interval_low=0.45,
+                confidence_interval_high=0.75,
+                judge_kind="deterministic",
+                notes="candidate still wins",
+            ),
+        ),
+        llm_judge_readouts=(),
+        aggregated_scores=(),
+        description="expensive evidence",
+    )
+
+    aggregate = build_cross_generation_aggregate_snapshot(
+        expensive_snapshot=expensive,
+        timestamp_ms=42,
+    )
+
+    assert aggregate.generation_id_window == ("gen-1",)
+    assert len(aggregate.head_to_head_table) == 2
+    assert aggregate.modification_gate_evidence.validation_score == 0.65
+    assert aggregate.modification_gate_evidence.head_to_head_aggregate_winrate == 0.65
+    assert aggregate.modification_gate_evidence.audit_evidence_id is None
+    assert "LLM judge readouts ignored" in aggregate.modification_gate_evidence.notes[0]
 
 
 def test_modification_gate_evidence_schema_fields() -> None:

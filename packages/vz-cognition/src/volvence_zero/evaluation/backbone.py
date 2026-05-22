@@ -3217,10 +3217,10 @@ class EvaluationBackbone:
         recommendations: list[str] = []
         for _, message in alerts:
             recommendations.append(f"Review alert: {message}")
-            lowered = message.lower()
-            if "action-family monopoly pressure" in lowered:
+            alert_code = EvaluationAlert.from_legacy_text(message).code
+            if alert_code == "action_family_monopoly_pressure_elevated":
                 recommendations.append("Reduce active-family monopoly before widening structure changes.")
-            if "action-family collapse risk" in lowered:
+            if alert_code == "action_family_collapse_risk_elevated":
                 recommendations.append("Prefer bounded split/turnover proposals before promoting the current family.")
         return tuple(dict.fromkeys(recommendations))
 

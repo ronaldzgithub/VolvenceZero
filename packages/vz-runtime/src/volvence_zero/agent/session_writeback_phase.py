@@ -77,6 +77,7 @@ from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopSnapshot,
 )
 from volvence_zero.credit.gate import (
+    CreditSnapshot,
     derive_learning_evidence_credit_records,
     extend_credit_snapshot,
 )
@@ -91,7 +92,7 @@ from volvence_zero.integration import (
 )
 from volvence_zero.reflection import WritebackResult
 from volvence_zero.regime import RegimeSnapshot
-from volvence_zero.runtime import Snapshot
+from volvence_zero.runtime import Snapshot, validate_snapshot_contract
 from volvence_zero.temporal import TemporalAbstractionSnapshot
 
 
@@ -200,12 +201,17 @@ class SessionWritebackPhaseMixin:
                             extra_records=delayed_credit_records,
                             extra_modifications=result.application_prior_audits,
                         )
-                        self._upstream_snapshots["credit"] = Snapshot(
-                            slot_name="credit",
-                            owner=credit_snapshot.owner,
-                            version=credit_snapshot.version + 1,
-                            timestamp_ms=credit_snapshot.timestamp_ms + 1,
-                            value=extended_credit,
+                        self._upstream_snapshots["credit"] = validate_snapshot_contract(
+                            snapshot=Snapshot(
+                                slot_name="credit",
+                                owner=credit_snapshot.owner,
+                                version=credit_snapshot.version + 1,
+                                timestamp_ms=credit_snapshot.timestamp_ms + 1,
+                                value=extended_credit,
+                            ),
+                            expected_slot="credit",
+                            expected_owner="CreditModule",
+                            expected_value_type=CreditSnapshot,
                         )
 
     def _experience_eta_signals(self) -> dict[str, float]:

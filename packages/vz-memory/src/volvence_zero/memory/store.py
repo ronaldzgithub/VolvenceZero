@@ -876,8 +876,6 @@ class MemoryStore:
         overlap = len(query_tokens & content_tokens)
         lexical_score += overlap * 3.0
         lexical_score += len(query_tokens & tag_tokens) * 2.0
-        if lexical_score == 0.0 and any(token in entry.content.lower() for token in query_tokens):
-            lexical_score = 1.0
         if not query_tokens:
             lexical_score = 1.0
         artifact_semantic_score = self._derived_index.affinity(

@@ -42,6 +42,11 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from lifeform_domain_figure import load_figure_bundle
+from lifeform_domain_figure.persona_runtime_surface import (
+    build_persona_verification_runtime,
+    ensure_pool_has_bundle_lora,
+    persona_lora_record_id,
+)
 from lifeform_domain_figure.verification.persona.ablation import run_ablation
 from lifeform_domain_figure.verification.persona.out_of_scope_set import (
     OUT_OF_SCOPE_REFUSAL_QUESTIONS,
@@ -191,12 +196,9 @@ def _parse_conditions(spec: str) -> tuple[PersonaCondition, ...]:
 
 
 def _build_runtime(*, args: argparse.Namespace) -> Any:
-    if args.runtime == "synthetic":
-        from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
-        return SyntheticOpenWeightResidualRuntime()
-    from volvence_zero.substrate import TransformersOpenWeightResidualRuntime
-    return TransformersOpenWeightResidualRuntime(
-        model_id=args.qwen_model_id,
+    return build_persona_verification_runtime(
+        runtime=args.runtime,
+        qwen_model_id=args.qwen_model_id,
         device=args.device,
     )
 
@@ -209,12 +211,7 @@ def _persona_lora_record_id(figure_id: str) -> str:
     in the verdict notes so reviewers can debug.
     """
 
-    from volvence_zero.substrate import default_persona_lora_pool
-    pool = default_persona_lora_pool()
-    if not pool.has(figure_id):
-        return "absent"
-    record = pool.lookup(figure_id)
-    return record.record_id
+    return persona_lora_record_id(figure_id)
 
 
 def _ensure_pool_has_bundle_lora(*, bundle: Any) -> str:
@@ -236,30 +233,7 @@ def _ensure_pool_has_bundle_lora(*, bundle: Any) -> str:
     and ``lifeform_domain_figure`` public attrs (bundle.lora).
     """
 
-    artifact = getattr(bundle, "lora", None)
-    if artifact is None:
-        return "absent"
-    from volvence_zero.substrate import default_persona_lora_pool
-    pool = default_persona_lora_pool()
-    figure_id = artifact.figure_id
-    bundle_id = bundle.bundle_id
-    if pool.has(figure_id):
-        existing = pool.lookup(figure_id)
-        if existing.source_bundle_id == bundle_id:
-            return existing.record_id
-        # Different bundle source — replace so the verify run reflects
-        # the bundle the CLI was actually pointed at.
-        pool.deregister(figure_id)
-    return pool.register(
-        figure_id=figure_id,
-        source_bundle_id=bundle_id,
-        backend_id=artifact.backend_id,
-        training_plan_hash=artifact.training_plan_hash,
-        adapter_layers=artifact.adapter_layers,
-        parameter_count=artifact.parameter_count,
-        description=artifact.description,
-        peft_checkpoint_dir=getattr(artifact, "peft_checkpoint_dir", ""),
-    )
+    return ensure_pool_has_bundle_lora(bundle=bundle)
 
 
 def _load_or_generate_questions(

@@ -32,6 +32,8 @@ from volvence_zero.evaluation.cascade import (
     MidLayerScore,
     MidLayerSnapshot,
     ModificationGateEvidence,
+    build_cross_generation_aggregate_snapshot,
+    build_deterministic_head_to_head_snapshot,
 )
 from volvence_zero.evaluation.types import (
     CrossSessionBenchmarkSuite,
@@ -94,6 +96,8 @@ __all__ = [
     "MidLayerScore",
     "MidLayerSnapshot",
     "ModificationGateEvidence",
+    "build_cross_generation_aggregate_snapshot",
+    "build_deterministic_head_to_head_snapshot",
     "PairwiseMetricEffect",
     "build_metric_interval_summaries",
     "build_metric_interval_summary",

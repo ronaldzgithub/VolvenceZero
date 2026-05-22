@@ -48,6 +48,7 @@ from lifeform_service.templates import (
     TemplateContext,
     VerticalTemplateAdapter,
 )
+from lifeform_service.default_mcp_bundle import with_default_mcp_bundle
 from lifeform_service.vertical_registry import (
     UnknownVerticalError,
     VerticalNotAlphaCapableError,
@@ -64,6 +65,7 @@ if TYPE_CHECKING:
 @dataclass
 class _SessionEntry:
     session: LifeformSession
+    lifeform: Lifeform
     last_active_at: float
     # Records which vertical built this session's lifeform. Save-as-
     # template, listing handlers, and ops dashboards consult this so
@@ -104,6 +106,7 @@ class SessionManager:
         templates_root_dir: pathlib.Path | None = None,
         vertical_registry: VerticalRegistry | None = None,
         protocol_uptake_service: "ProtocolUptakeService | None" = None,
+        attach_default_mcp_bundle: bool = False,
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -176,6 +179,11 @@ class SessionManager:
         # "approval applies to NEW sessions only", which the chat
         # UI surfaces verbatim.
         self._protocol_uptake_service = protocol_uptake_service
+        # Service/product default: attach external/vz-bundle to freshly
+        # created lifeforms unless the vertical already supplied explicit
+        # MCP specs. Direct SessionManager tests / DLaaS legacy callers
+        # leave this False and opt in at their construction boundary.
+        self._attach_default_mcp_bundle = attach_default_mcp_bundle
 
     @property
     def vertical_registry(self) -> VerticalRegistry:
@@ -238,8 +246,8 @@ class SessionManager:
 
     async def session_summaries(self) -> tuple[dict[str, object], ...]:
         async with self._lock:
-            self._evict_idle_locked()
-            return tuple(
+            evicted = self._evict_idle_locked()
+            summaries = tuple(
                 {
                     "session_id": sid,
                     "turn_count": len(entry.session.turn_summaries),
@@ -252,6 +260,8 @@ class SessionManager:
                 }
                 for sid, entry in self._sessions.items()
             )
+        await self._shutdown_entries(evicted)
+        return summaries
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -363,9 +373,12 @@ class SessionManager:
           ``adapter.build_session_context_from_template`` so the
           session inherits the saved profile / drives.
         """
+        evicted: tuple[_SessionEntry, ...] = ()
         async with self._lock:
-            self._evict_idle_locked()
-            self._evict_lru_to_capacity_locked(needed=1)
+            evicted = (
+                *self._evict_idle_locked(),
+                *self._evict_lru_to_capacity_locked(needed=1),
+            )
 
             sid = session_id or self._fresh_session_id()
             if sid in self._sessions:
@@ -456,37 +469,50 @@ class SessionManager:
                 )
             else:
                 life = chosen_spec.factory(runtime)
+            if self._attach_default_mcp_bundle:
+                life = with_default_mcp_bundle(life)
             life = self._inject_uptake_seed_protocols(life)
             if self._figure_bundle is not None:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
                     bind(self._figure_bundle)
+            await life.start()
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,
+                lifeform=life,
                 last_active_at=self._clock(),
                 vertical_name=chosen_name,
                 template_context=template_context,
             )
-            return session
+        await self._shutdown_entries(evicted)
+        return session
 
     async def get_session(self, session_id: str) -> LifeformSession:
         async with self._lock:
-            self._evict_idle_locked()
+            evicted = self._evict_idle_locked()
             entry = self._sessions.get(session_id)
             if entry is None:
                 raise SessionNotFoundError(session_id)
             entry.last_active_at = self._clock()
-            return entry.session
+            session = entry.session
+        await self._shutdown_entries(evicted)
+        return session
 
     async def close_session(self, session_id: str) -> bool:
         async with self._lock:
             entry = self._sessions.pop(session_id, None)
-            return entry is not None
+        if entry is None:
+            return False
+        await entry.lifeform.shutdown()
+        return True
 
     async def has_session(self, session_id: str) -> bool:
         async with self._lock:
-            return session_id in self._sessions
+            evicted = self._evict_idle_locked()
+            found = session_id in self._sessions
+        await self._shutdown_entries(evicted)
+        return found
 
     def close_all_sessions_sync(self) -> int:
         """Drop every live session, returning the count.
@@ -553,31 +579,39 @@ class SessionManager:
     def _fresh_session_id(self) -> str:
         return f"sess-{uuid.uuid4().hex[:12]}"
 
-    def _evict_idle_locked(self) -> int:
+    async def _shutdown_entries(self, entries: tuple[_SessionEntry, ...]) -> None:
+        for entry in entries:
+            await entry.lifeform.shutdown()
+
+    def _evict_idle_locked(self) -> tuple[_SessionEntry, ...]:
         if self._idle_eviction_seconds is None:
-            return 0
+            return ()
         cutoff = self._clock() - self._idle_eviction_seconds
         stale = [
             sid for sid, entry in self._sessions.items() if entry.last_active_at < cutoff
         ]
+        evicted: list[_SessionEntry] = []
         for sid in stale:
-            self._sessions.pop(sid, None)
-        return len(stale)
+            entry = self._sessions.pop(sid, None)
+            if entry is not None:
+                evicted.append(entry)
+        return tuple(evicted)
 
-    def _evict_lru_to_capacity_locked(self, *, needed: int) -> int:
+    def _evict_lru_to_capacity_locked(self, *, needed: int) -> tuple[_SessionEntry, ...]:
         target = max(0, self._max_sessions - needed)
         if len(self._sessions) <= target:
-            return 0
+            return ()
         # Sort ascending by last_active_at; evict oldest until under cap.
         ordered = sorted(
             self._sessions.items(), key=lambda kv: kv[1].last_active_at
         )
-        evictions = 0
+        evicted: list[_SessionEntry] = []
         while len(self._sessions) > target and ordered:
             sid, _entry = ordered.pop(0)
-            self._sessions.pop(sid, None)
-            evictions += 1
-        return evictions
+            entry = self._sessions.pop(sid, None)
+            if entry is not None:
+                evicted.append(entry)
+        return tuple(evicted)
 
 
 class SessionNotFoundError(LookupError):

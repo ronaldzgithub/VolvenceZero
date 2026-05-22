@@ -67,6 +67,12 @@ from dlaas_platform_contracts.lifecycle import (
     SleepRequest,
     WakeRequest,
 )
+from dlaas_platform_contracts.intake import (
+    AssetIntakeDecision,
+    AssetIntakeIntent,
+    AssetIntakeRequest,
+    AssetMediaKind,
+)
 from dlaas_platform_contracts.governance import (
     ArtifactKind,
     ArtifactRecord,
@@ -126,6 +132,10 @@ __all__ = (
     "AdoptionConfig",
     "ArtifactKind",
     "ArtifactRecord",
+    "AssetIntakeDecision",
+    "AssetIntakeIntent",
+    "AssetIntakeRequest",
+    "AssetMediaKind",
     "AssetSpec",
     "AuditEvent",
     "AudienceProfileSpec",

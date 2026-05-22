@@ -31,6 +31,9 @@ from __future__ import annotations
 import contextlib
 from typing import Any, Iterator
 
+from lifeform_domain_figure.persona_runtime_surface import (
+    temporarily_deregister_pool_record,
+)
 from lifeform_domain_figure.verification.persona.records import PersonaCondition
 
 
@@ -67,7 +70,7 @@ def with_condition(
         )
 
     if condition is PersonaCondition.BUNDLE:
-        with _temporarily_deregister_pool_record(figure_id=figure_id):
+        with temporarily_deregister_pool_record(figure_id=figure_id):
             synth = LifeformLLMResponseSynthesizer(
                 runtime=runtime, figure_bundle=bundle
             )
@@ -82,44 +85,5 @@ def with_condition(
         return
 
     raise ValueError(f"with_condition: unknown condition {condition!r}")
-
-
-@contextlib.contextmanager
-def _temporarily_deregister_pool_record(*, figure_id: str) -> Iterator[None]:
-    """Pop the figure's pool record on entry, restore it on exit.
-
-    Used by the ``BUNDLE`` condition so the synthesizer's
-    ``_maybe_activate_persona_lora`` path falls through (its
-    ``pool.has(figure_id)`` check returns False). The record's
-    ``record_id`` is recomputed deterministically by
-    ``register(figure_id=, source_bundle_id=, ...)`` so restore
-    is byte-identical.
-
-    No-op if the pool has no record for ``figure_id`` — the BUNDLE
-    condition is well-defined either way.
-    """
-
-    from volvence_zero.substrate import default_persona_lora_pool
-
-    pool = default_persona_lora_pool()
-    if not pool.has(figure_id):
-        yield
-        return
-    cached = pool.lookup(figure_id)
-    pool.deregister(figure_id)
-    try:
-        yield
-    finally:
-        pool.register(
-            figure_id=cached.figure_id,
-            source_bundle_id=cached.source_bundle_id,
-            backend_id=cached.backend_id,
-            training_plan_hash=cached.training_plan_hash,
-            adapter_layers=cached.adapter_layers,
-            parameter_count=cached.parameter_count,
-            description=cached.description,
-            peft_checkpoint_dir=getattr(cached, "peft_checkpoint_dir", ""),
-        )
-
 
 __all__ = ["with_condition"]

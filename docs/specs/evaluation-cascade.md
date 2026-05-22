@@ -207,6 +207,7 @@ class ExpensiveLayerModule(RuntimeModule[ExpensiveLayerSnapshot]):
 - `LlmJudgeReadout.is_gate_eligible` 类常量 `False` — 在 dataclass 中显式声明此 readout 不进 gate；contract test 强制（详见 §错误处理）
 - LLM-judge 调用走集中 prompt 管理（[`llm-prompt-centralization.mdc`](../../.cursor/rules/llm-prompt-centralization.mdc)）
 - 不调用 LLM 时 `llm_judge_readouts = ()`；contract test 验证 SHADOW 模式下整个 expensive_layer 可零 LLM 调用运行
+- 当前最小实现新增 `build_deterministic_head_to_head_snapshot(...)`：从 profile-level `metric_means` 生成 `HeadToHeadResult`，不调用 LLM，不进入 Face / reward 路径。它用于 Phase 2 smoke / paper-suite aggregate 将 metric delta 提升为 expensive-layer head-to-head evidence。
 
 ### A2.4 CrossGenerationAggregator
 
@@ -238,6 +239,12 @@ class CrossGenerationAggregatorModule(RuntimeModule[CrossGenerationAggregateSnap
     dependencies = ("evaluation_expensive",)
     default_wiring_level = WiringLevel.SHADOW
 ```
+
+当前最小实现：
+
+- `build_cross_generation_aggregate_snapshot(expensive_snapshot=...)` 从 `ExpensiveLayerSnapshot.head_to_head_results` 计算 `head_to_head_aggregate_winrate` 与 `validation_score`。
+- 当 `head_to_head_results` 为空时保持 skeleton empty snapshot 行为。
+- `llm_judge_readouts` 明确不进入 `ModificationGateEvidence`，只作为 expensive layer readout。
 
 **关键不变量（aggregator）**：
 

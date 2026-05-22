@@ -11,8 +11,9 @@
 > - v1（2026-05-12）— 初版分层规划：阶段 A 现状核查 / 阶段 B 基础设施 / 阶段 C 并行 SHADOW / 阶段 D 决策。
 > - **v2（2026-05-12）— 基于阶段 A 现状核查 brief 修订**：阶段 C 可并行 SHADOW 候选从 6 条收敛到 **4 条**（CMA-2 收编入 EVO-2 cascade；OA-4 改为阶段 B 双门延续 packet）；阶段 B 新增 **packet 0（DATA_CONTRACT §6 同步）** 作为整套规划启动的 prerequisite。
 > - **v3（2026-05-12）— 拆出独立的架构改造 spec**：阶段 B/C 推进所需的 9 项 cross-cutting 基础设施改造（profile composition / evaluation cascade / capability-level wiring / audit owner 接口 等）拆到 [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)；本文档保持产品/规划视角。
+> - **v4（2026-05-22）— Phase 2 最小起跑面已落地**：A4 DATA_CONTRACT sync、A2 cascade facade、A5 audit skeleton wiring、OA-2 Mind/Face 静态守门、OA-3 typed framing gate、SYS-1 / COG-1 / COG-2 / COG-3 readout slices、四条 SHADOW profile、`metric_means` 抽取、`run_phase2_shadow_evidence_smoke.py` synthetic smoke + JSON contract test 已落地。阶段 C 不再是“无入口阻塞”，而是“最小 smoke 可跑；5 seeds × paper-suite-small 真实 evidence 待跑”。
 >
-> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ⏳ 待启动（需先做架构改造 A1-A5）/ 阶段 C ⏸ 阻塞中 / 阶段 D ⏸ 阻塞中。
+> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ✅ 最小裁判席与护栏切片已落地 / 阶段 C 🟡 最小 SHADOW smoke 可跑（真实 multi-seed evidence 待跑） / 阶段 D ⏸ 等 cross-generation aggregate + audit-agent 内容。
 
 ---
 
@@ -155,10 +156,10 @@ profile = pe-eta（baseline）
 | 阶段 | 状态 | 关键产出 / 阻塞 |
 |---|---|---|
 | 阶段 A — 现状核查矩阵 | ✅ 完成（2026-05-12） | [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md) |
-| **架构改造（A1-A5）** | ⏳ 待启动 | [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)；阶段 B 业务 packet 的硬 prerequisite |
-| 阶段 B — 裁判席 + 双门治理 + 契约同步 | ⏸ 阻塞中 | 等架构改造 A1-A5 完成；5 个串行业务 packet |
-| 阶段 C — 4 条 SHADOW profile 并行 | ⏸ 阻塞中 | 等架构改造 + 阶段 B packet 0 完成；COG-3 还需 substrate hook 验证（B2） |
-| 阶段 D — profile → ACTIVE 决策 | ⏸ 阻塞中 | 等阶段 C 至少 1 个 profile 跑出 5 seeds × paper-suite-small 的对照证据 |
+| **架构改造（A1-A5）** | ✅ 最小切片完成 | A1 profile registry + Phase 2 profile labels；A2 cascade facade / mid-layer COG-1 extraction；A4 DATA_CONTRACT sync test；A5 audit owner wired SHADOW |
+| 阶段 B — 裁判席 + 双门治理 + 契约同步 | ✅ 最小护栏完成 | Two-Gate 已强制；Mind/Face 静态守门；typed FramingAwarenessCheck；audit snapshot channel wired |
+| 阶段 C — 4 条 SHADOW profile 并行 | 🟡 最小 smoke 可跑 | `default_phase2_shadow_evidence_profiles()` + `run_phase2_shadow_evidence_smoke.py --synthetic-runner`; 输出 JSON + Markdown evidence brief；真实 5 seeds × paper-suite-small evidence 待跑 |
+| 阶段 D — profile → ACTIVE 决策 | 🟡 最小 aggregate 可生成 | deterministic head-to-head + `evaluation_cross_generation` aggregate 已接入 smoke JSON；仍等多 seed evidence + OA-4 audit-agent 内容 |
 
 ### 下一步候选动作
 
@@ -169,3 +170,10 @@ profile = pe-eta（baseline）
 5. **直接起跑阶段 C 顺位 1 candidate SYS-1**（不需架构改造完成；前提是接受"先有候选 profile、再补完整基础设施"的妥协工作流，evidence 可后置）。
 
 选项 1-4 是架构层产出（先打地基）；选项 5 是直接动 spec/代码起跑业务。视具体约束（先求快还是先求稳）选择。**推荐从选项 1 开始**——架构 spec 评审 + A4 同步是低成本高 ROI 的起手。
+
+**v4 下一步（2026-05-22 之后）**：
+
+1. 跑真实 Phase 2 evidence：`python scripts/run_phase2_shadow_evidence_smoke.py --case-limit 1` 先确认真实 runner 可完成；随后扩到 `--case-limit 4` 与多 seed wrapper。
+2. 把 `scripts/run_phase2_shadow_evidence_smoke.py --synthetic-runner` 加入 CI smoke（只验证 schema / metric surface，不替代真实 evidence）。
+3. 需要组合 profile 时运行：`python scripts/run_phase2_shadow_evidence_smoke.py --synthetic-runner --include-phase3-combos`。
+4. 启动 OA-4 audit-agent 内容 packet，让 `audit` 从 empty SHADOW snapshot 变成真实 N8 elicited probe 工具链。

@@ -21,6 +21,7 @@ from volvence_zero.runtime.kernel import (
     make_placeholder_snapshot,
     propagate,
     topo_sort_modules,
+    validate_snapshot_contract,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "make_placeholder_snapshot",
     "propagate",
     "topo_sort_modules",
+    "validate_snapshot_contract",
 ]

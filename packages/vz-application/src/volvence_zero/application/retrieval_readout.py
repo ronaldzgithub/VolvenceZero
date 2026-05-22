@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.temporal_types import abstract_action_family_id
+
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
@@ -523,7 +525,7 @@ class RetrievalControlReadoutStrategy:
         # ``brief.task_focus >= 0.85`` etc.
         from volvence_zero.regime import application_brief_for_regime
 
-        action_label = (inputs.abstract_action or "").lower()
+        action_family = abstract_action_family_id(inputs.abstract_action)
         brief = application_brief_for_regime(inputs.regime_id)
         problem_solving_mode = brief.task_focus
         support_mode = brief.support_focus
@@ -547,8 +549,8 @@ class RetrievalControlReadoutStrategy:
             regime_fast_prior_bias=_clamp(0.5 + inputs.regime_fast_prior_bias * 0.5),
             action_fast_prior_bias=_clamp(0.5 + inputs.action_fast_prior_bias * 0.5),
             family_fast_prior_bias=_clamp(0.5 + inputs.family_fast_prior_bias * 0.5),
-            action_is_stabilize=1.0 if "stabilize" in action_label else 0.0,
-            action_is_task=1.0 if "task" in action_label or "structure" in action_label else 0.0,
+            action_is_stabilize=1.0 if action_family == "stabilize" else 0.0,
+            action_is_task=1.0 if action_family == "task" else 0.0,
             action_family_activation=_clamp(min(max(inputs.action_family_version, 0), 6) / 6.0),
             switch_gate_signal=_clamp(inputs.switch_gate),
         )
